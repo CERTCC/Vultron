@@ -61,11 +61,11 @@ protocol.
 
 # What is Vultron *not*?
 
-**Vultron is not a drop-in replacement for any particular**
-- **tracking system**&mdash;e.g., [Bugzilla](https://www.bugzilla.org/), [Jira](https://www.atlassian.com/software/jira)
-- **CVD or threat coordination tool**&mdash;e.g., [VINCE](https://github.com/CERTCC/VINCE), [MISP](https://www.misp-project.org/) 
-- **Vulnerability disclosure program**&mdash;e.g.,  [DC3 VDP](https://www.dc3.mil/Missions/Vulnerability-Disclosure/Vulnerability-Disclosure-Program-VDP/)
-- **Vulnerability disclosure platform or service**&mdash;e.g., [HackerOne](https://hackerone.com/), [Bugcrowd](https://www.bugcrowd.com/), [Synack](https://www.synack.com/)
+Vultron is **not** a drop-in replacement for any particular
+- _tracking system_&mdash;e.g., [Bugzilla](https://www.bugzilla.org/), [Jira](https://www.atlassian.com/software/jira)
+- _CVD or threat coordination tool_&mdash;e.g., [VINCE](https://github.com/CERTCC/VINCE), [MISP](https://www.misp-project.org/) 
+- _Vulnerability disclosure program_&mdash;e.g.,  [DC3 VDP](https://www.dc3.mil/Missions/Vulnerability-Disclosure/Vulnerability-Disclosure-Program-VDP/)
+- _Vulnerability disclosure platform or service_&mdash;e.g., [HackerOne](https://hackerone.com/), [Bugcrowd](https://www.bugcrowd.com/), [Synack](https://www.synack.com/)
 
 Instead, it is our hope that Vultron could serve as a _lingua franca_ for the exchange of vulnerability case coordination information
 between those systems and services. 
