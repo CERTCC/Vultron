@@ -55,8 +55,10 @@ The above were all initially described in the
 [Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) report.
 
 In this repository, we are taking the first steps towards implementing the protocol and behavior logic described in that
-report. Currently, the work is focused on mapping the formal protocol onto the syntax and semantics of the [ActivityPub](https://www.w3.org/TR/activitypub/) 
-protocol.
+report. 
+Currently, the work is focused on mapping the formal protocol onto the syntax and semantics of the [ActivityPub](https://www.w3.org/TR/activitypub/) 
+protocol. 
+Examples of our first steps in that direction can be found in [doc/examples](doc/examples)
 
 
 # What is Vultron *not*?
@@ -75,6 +77,23 @@ prioritization schemes like [SSVC](https://github.com/CERTCC/SSVC) and [CVSS](ht
 
 Vultron is not intended to be a product, rather it's meant to be a feature set that can be implemented in a variety of
 CVD-related products and services to enable interoperability between them.
+
+# Other CERT CVD Resources
+
+For more about our work in modeling, formalizing, and describing the CVD process, see:
+
+- [Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) (2022) is the initial Vultron report.
+  - [SEI Blog post on Vultron](https://insights.sei.cmu.edu/blog/vultron-a-protocol-for-coordinated-vulnerability-disclosure/) (2022-09-26)
+  - [SEI Podcast on Vultron](https://youtu.be/8WiSmhxJ2OM) (2023-02-24)
+- [CERT Guide to Coordinated Vulnerabilty Disclosure](https://vuls.cert.org/confluence/display/CVD) (2017, 2019)
+- [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) (2021)
+  - (abridged as) [Are We Skillful or Just Lucky? Interpreting the Possible Histories of Vulnerability Disclosures](https://dl.acm.org/doi/10.1145/3477431) (2022) 
+- [Coordinated Vulnerability Disclosure User Stories](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=886543) (2022)
+- [Multi-Method Modeling and Analysis of the Cybersecurity Vulnerability Management Ecosystem](https://resources.sei.cmu.edu/asset_files/WhitePaper/2019_019_001_550437.pdf)
+(2019) is a snapshot of some related System Dynamics and Agent-based modeling we did of CVD and related processes.
+- [Coordinated Vulnerability Disclosure is a Concurrent Process](https://youtu.be/vhA0duqGzmQ) (2015)
+is an older talk which looks at a number of prior models of the CVD process, and shows some of our early 
+attempts to formally describe the concurrency aspects of the CVD process.
 
 # License and Copyright
 
