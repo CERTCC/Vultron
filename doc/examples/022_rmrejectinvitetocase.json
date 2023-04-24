@@ -1,0 +1,16 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "RmRejectInviteToCase",
+  "id": "https://for.example/60122d01-da50-4cdb-9a63-e9e02fb9b08f",
+  "name": "https://coordinators.r.us.example RmRejectInviteToCase https://vendor.example/case/18283771",
+  "context": "https://vendor.example/case/18283771/invitations/coordinators.r.us.example",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "Hi Vendor O'Product, we are unfortunately unable to assist because this case is outside of our scope",
+  "to": [
+    "https://vendor.example/psirt"
+  ],
+  "actor": "https://coordinators.r.us.example",
+  "origin": null,
+  "object": "https://vendor.example/case/18283771"
+}

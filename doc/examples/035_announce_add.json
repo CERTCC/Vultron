@@ -1,0 +1,23 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Announce",
+  "id": "https://for.example/e669aaef-fee7-4531-9e21-8ec4a1432245",
+  "name": "https://vendor.example/psirt Announce https://vendor.example/psirt Add embargo_2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00 from https://vuls.example.com/finder-reporter/propose/2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00 to https://vendor.example/case/18283771 to caseParticipants of https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "to": [],
+  "actor": "https://vendor.example/psirt",
+  "target": "caseParticipants of https://vendor.example/case/18283771",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "asType": "Add",
+    "id": "https://for.example/b10bb0f0-153d-4d50-af12-10269ddfdad8",
+    "name": "https://vendor.example/psirt Add embargo_2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00 from https://vuls.example.com/finder-reporter/propose/2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00 to https://vendor.example/case/18283771",
+    "published": "2023-04-17T19:34:46+00:00",
+    "updated": "2023-04-17T19:34:46+00:00",
+    "actor": "https://vendor.example/psirt",
+    "target": "https://vendor.example/case/18283771",
+    "origin": "https://vuls.example.com/finder-reporter/propose/2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00",
+    "object": "embargo_2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00"
+  }
+}

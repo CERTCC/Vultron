@@ -1,0 +1,30 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "CaseParticipant",
+  "id": "https://for.example/8798cc0b-411b-43ca-96c1-b11a6e161fe1",
+  "name": "Finn der Reporter",
+  "context": "https://vendor.example/psirt/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "actor": "https://vuls.example.com/finder-reporter",
+  "caseRoles": [
+    "CVD_ROLE_FINDER",
+    "CVD_ROLE_REPORTER"
+  ],
+  "participantStatus": [
+    {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "ParticipantStatus",
+      "id": "https://for.example/3340e292-4bb6-4311-aca9-99070835071e",
+      "name": "REPORT_MANAGEMENT_ACCEPTED CS_VENDOR_UNAWARE__NO_FIX__NOT_DEPLOYED",
+      "context": null,
+      "published": "2023-04-17T19:34:46+00:00",
+      "updated": "2023-04-17T19:34:46+00:00",
+      "actor": null,
+      "rmState": "REPORT_MANAGEMENT_ACCEPTED",
+      "vfdState": "CS_VENDOR_UNAWARE__NO_FIX__NOT_DEPLOYED",
+      "caseEngagement": true,
+      "embargoAdherence": true
+    }
+  ]
+}

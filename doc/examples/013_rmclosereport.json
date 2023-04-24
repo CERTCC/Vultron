@@ -1,0 +1,12 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "RmCloseReport",
+  "id": "https://for.example/ee9d8431-26c9-4b2a-a71e-951f6fdd94da",
+  "name": "https://vendor.example/psirt RmCloseReport https://finder.reporter.example/report/101029",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "We are closing report finding-101029 because it has been in RM:INVALID status for 30 days with no updates.",
+  "to": "https://vuls.example.com/finder-reporter",
+  "actor": "https://vendor.example/psirt",
+  "object": "https://finder.reporter.example/report/101029"
+}

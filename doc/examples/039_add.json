@@ -1,0 +1,11 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Add",
+  "id": "https://for.example/b22c8e44-8244-4354-a561-3d2226249d90",
+  "name": "https://vendor.example/psirt Add id_status(EM.X,CS_pxa.Pxa) to https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:47+00:00",
+  "updated": "2023-04-17T19:34:47+00:00",
+  "actor": "https://vendor.example/psirt",
+  "target": "https://vendor.example/case/18283771",
+  "object": "id_status(EM.X,CS_pxa.Pxa)"
+}

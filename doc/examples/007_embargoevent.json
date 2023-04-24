@@ -1,0 +1,11 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "EmbargoEvent",
+  "id": "https://for.example/36680476-e12b-4120-b7ba-c20c5aa03e2c",
+  "name": "Embargo for https://vendor.example/psirt/case/18283771 start: 2023-04-17T19:34:46+00:00 end: 2023-06-01T19:34:46+00:00",
+  "context": "https://vendor.example/psirt/case/18283771",
+  "startTime": "2023-04-17T19:34:46+00:00",
+  "endTime": "2023-06-01T19:34:46+00:00",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00"
+}

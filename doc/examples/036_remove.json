@@ -1,0 +1,12 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Remove",
+  "id": "https://for.example/769ae764-390d-4f5a-a2a2-9b1519338bb8",
+  "name": "https://vendor.example/psirt Remove embargo_2023-04-17T19:34:46+00:00_2023-04-24T19:34:46+00:00 from https://vendor.example/case/18283771/proposedEmbargoes",
+  "context": "https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "actor": "https://vendor.example/psirt",
+  "origin": "https://vendor.example/case/18283771/proposedEmbargoes",
+  "object": "embargo_2023-04-17T19:34:46+00:00_2023-04-24T19:34:46+00:00"
+}

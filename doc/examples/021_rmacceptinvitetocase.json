@@ -1,0 +1,16 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "RmAcceptInviteToCase",
+  "id": "https://for.example/946d741f-e51a-455c-9487-3404cef1b110",
+  "name": "https://coordinators.r.us.example RmAcceptInviteToCase https://vendor.example/case/18283771 from https://vendor.example/psirt",
+  "context": "https://vendor.example/case/18283771/invitations/coordinators.r.us.example",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "Hi Vendor O'Product, Let us know how we can help.",
+  "to": [
+    "https://vendor.example/psirt"
+  ],
+  "actor": "https://coordinators.r.us.example",
+  "origin": "https://vendor.example/psirt",
+  "object": "https://vendor.example/case/18283771"
+}

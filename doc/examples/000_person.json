@@ -1,0 +1,32 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Person",
+  "id": "https://vuls.example.com/finder-reporter",
+  "name": "Finn der Reporter",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "inbox": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://for.example/788e6503-24e3-4036-9a98-25e8144ed81d",
+    "published": "2023-04-17T19:34:46+00:00",
+    "updated": "2023-04-17T19:34:46+00:00",
+    "items": [],
+    "current": 0
+  },
+  "outbox": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://for.example/a4c35695-5497-4f57-87d9-ae955b9c3fef",
+    "published": "2023-04-17T19:34:46+00:00",
+    "updated": "2023-04-17T19:34:46+00:00",
+    "items": [],
+    "current": 0
+  },
+  "following": null,
+  "followers": null,
+  "liked": null,
+  "streams": null,
+  "preferredUsername": null,
+  "endpoints": null
+}

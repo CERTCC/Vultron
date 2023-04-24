@@ -1,0 +1,12 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Remove",
+  "id": "https://for.example/584e7d1d-4673-46d8-9958-ecf2008cbed4",
+  "name": "https://vendor.example/psirt Remove https://vendor.example/case/18283771/participants/nonparticipating-vendor from https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "Vendor-that-was-removed was not participating in VulnerabilityCase vendor-case-18283771",
+  "actor": "https://vendor.example/psirt",
+  "origin": "https://vendor.example/case/18283771",
+  "object": "https://vendor.example/case/18283771/participants/nonparticipating-vendor"
+}

@@ -1,0 +1,29 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "CaseParticipant",
+  "id": "https://for.example/54db95e3-794c-412b-8b99-4703bc4d1342",
+  "name": "Vendor O'Product",
+  "context": "https://vendor.example/psirt/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "actor": "https://vendor.example/psirt",
+  "caseRoles": [
+    "CVD_ROLE_VENDOR"
+  ],
+  "participantStatus": [
+    {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "ParticipantStatus",
+      "id": "https://for.example/c4464d53-d342-4ef7-aad4-5c3d582470e2",
+      "name": "REPORT_MANAGEMENT_RECEIVED CS_VENDOR_AWARE__NO_FIX__NOT_DEPLOYED",
+      "context": null,
+      "published": "2023-04-17T19:34:46+00:00",
+      "updated": "2023-04-17T19:34:46+00:00",
+      "actor": null,
+      "rmState": "REPORT_MANAGEMENT_RECEIVED",
+      "vfdState": "CS_VENDOR_AWARE__NO_FIX__NOT_DEPLOYED",
+      "caseEngagement": true,
+      "embargoAdherence": true
+    }
+  ]
+}

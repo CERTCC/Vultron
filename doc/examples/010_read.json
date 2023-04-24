@@ -1,0 +1,13 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Read",
+  "id": "https://for.example/6a21c203-18cf-499f-bd3f-0614b597dcb1",
+  "name": "https://vendor.example/psirt Read https://finder.reporter.example/report/101029",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "to": [
+    "https://vuls.example.com/finder-reporter"
+  ],
+  "actor": "https://vendor.example/psirt",
+  "object": "https://finder.reporter.example/report/101029"
+}

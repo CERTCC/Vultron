@@ -1,0 +1,14 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Offer",
+  "id": "https://for.example/a2d22497-67b8-4893-9bba-51e1b72ccc4d",
+  "name": "https://vuls.example.com/finder-reporter Offer https://finder.reporter.example/report/101029 to https://vendor.example/psirt",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "to": [
+    "https://vendor.example/psirt"
+  ],
+  "actor": "https://vuls.example.com/finder-reporter",
+  "target": "https://vendor.example/psirt",
+  "object": "https://finder.reporter.example/report/101029"
+}

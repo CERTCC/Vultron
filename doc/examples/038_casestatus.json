@@ -1,0 +1,11 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "CaseStatus",
+  "id": "id_status(EM.X,CS_pxa.Pxa)",
+  "name": "EMBARGO_MANAGEMENT_EXITED CS_PUBLIC_AWARE__NO_EXPLOIT__NO_ATTACKS",
+  "context": "https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "emState": "EMBARGO_MANAGEMENT_EXITED",
+  "pxaState": "CS_PUBLIC_AWARE__NO_EXPLOIT__NO_ATTACKS"
+}

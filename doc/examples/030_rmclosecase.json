@@ -1,0 +1,10 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "RmCloseCase",
+  "id": "https://for.example/0b876baa-6aa5-402e-92ea-c28975b151ef",
+  "name": "https://vendor.example/psirt RmCloseCase https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "actor": "https://vendor.example/psirt",
+  "object": "https://vendor.example/case/18283771"
+}

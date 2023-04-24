@@ -1,0 +1,29 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "ParticipantStatus",
+  "id": "https://for.example/385fdd9b-3e3b-4b7d-a871-03dad8e6e8f4",
+  "name": "REPORT_MANAGEMENT_ACCEPTED CS_VENDOR_UNAWARE__NO_FIX__NOT_DEPLOYED EMBARGO_MANAGEMENT_ACTIVE CS_PUBLIC_AWARE__NO_EXPLOIT__NO_ATTACKS",
+  "context": "https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:47+00:00",
+  "updated": "2023-04-17T19:34:47+00:00",
+  "summary": "Coordinators R Us is aware of a public meda report describing this vulnerability.",
+  "attributedTo": "https://coordinators.r.us.example",
+  "actor": "https://coordinators.r.us.example",
+  "rmState": "REPORT_MANAGEMENT_ACCEPTED",
+  "vfdState": "CS_VENDOR_UNAWARE__NO_FIX__NOT_DEPLOYED",
+  "caseEngagement": false,
+  "embargoAdherence": true,
+  "caseStatus": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "CaseStatus",
+    "id": "https://for.example/26145a7b-6983-4aff-b485-a0aa0d601d72",
+    "name": "EMBARGO_MANAGEMENT_ACTIVE CS_PUBLIC_AWARE__NO_EXPLOIT__NO_ATTACKS",
+    "context": "https://vendor.example/case/18283771",
+    "published": "2023-04-17T19:34:47+00:00",
+    "updated": "2023-04-17T19:34:47+00:00",
+    "summary": "Coordinators R Us is aware of a public media report describing this vulnerability.",
+    "attributedTo": "https://coordinators.r.us.example",
+    "emState": "EMBARGO_MANAGEMENT_ACTIVE",
+    "pxaState": "CS_PUBLIC_AWARE__NO_EXPLOIT__NO_ATTACKS"
+  }
+}

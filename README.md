@@ -11,7 +11,7 @@ Vultron is a collection of ideas, models, code, and work in progress, and is not
 
 # Background and related work
 
-Vultron is a continuation of the [CERT/CC](https://kb.cert.org)'s work on improving the coordination of vulnerability disclosure and response.
+Vultron is a continuation of the [CERT/CC](https://www.sei.cmu.edu/about/divisions/cert/index.cfm)'s work on improving the coordination of vulnerability disclosure and response.
 Our previous work in this area includes:
 - The CERT Guide to Coordinated Vulnerability Disclosure
 ([Version 1.0](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=503330), 

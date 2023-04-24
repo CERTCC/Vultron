@@ -1,0 +1,10 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "RmEngageCase",
+  "id": "https://for.example/2755d9a3-ad2f-48e6-ab43-c5a69bc3e3f9",
+  "name": "https://another.affected.vendor.example RmEngageCase https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "actor": "https://another.affected.vendor.example",
+  "object": "https://vendor.example/case/18283771"
+}

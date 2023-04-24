@@ -1,0 +1,16 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "AcceptCaseOwnershipTransfer",
+  "id": "https://for.example/9c376d7d-14b4-42b5-aad1-16974d36358b",
+  "name": "https://coordinators.r.us.example AcceptCaseOwnershipTransfer https://vendor.example/case/18283771 from https://vendor.example/psirt",
+  "context": "https://vendor.example/case/18283771/transferoffer/coordinators.r.us.example",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "We'd be happy to take ownership of case https://vendor.example/case/18283771",
+  "to": [
+    "https://vendor.example/psirt"
+  ],
+  "actor": "https://coordinators.r.us.example",
+  "origin": "https://vendor.example/psirt",
+  "object": "https://vendor.example/case/18283771"
+}

@@ -1,0 +1,11 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Accept",
+  "id": "https://for.example/f036f982-c12d-4d7c-a1d6-b26fbb4c0f07",
+  "name": "https://vendor.example/psirt Accept https://finder.reporter.example/report/101029",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "This is an excellent report, thanks!",
+  "actor": "https://vendor.example/psirt",
+  "object": "https://finder.reporter.example/report/101029"
+}

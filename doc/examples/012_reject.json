@@ -1,0 +1,11 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Reject",
+  "id": "https://for.example/df8a5f04-ed5a-45d6-837e-6a78bbf3e444",
+  "name": "https://vendor.example/psirt Reject https://finder.reporter.example/report/101029",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "Thanks for your report, but this report doesn't meet our acceptance criteria. Reason: out of scope",
+  "actor": "https://vendor.example/psirt",
+  "object": "https://finder.reporter.example/report/101029"
+}

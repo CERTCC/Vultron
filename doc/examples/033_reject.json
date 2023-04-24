@@ -1,0 +1,13 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Reject",
+  "id": "https://for.example/0e272437-16b7-4488-aa57-b6a6da6944d8",
+  "name": "https://vendor.example/psirt Reject embargo_2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00 from https://vuls.example.com/finder-reporter/propose/2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00",
+  "context": "https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "There is no way we can be done in time.",
+  "actor": "https://vendor.example/psirt",
+  "origin": "https://vuls.example.com/finder-reporter/propose/2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00",
+  "object": "embargo_2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00"
+}

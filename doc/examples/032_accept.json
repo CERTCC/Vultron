@@ -1,0 +1,13 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Accept",
+  "id": "https://for.example/c103b34b-7fd8-4683-8388-0512ed1c65a1",
+  "name": "https://vendor.example/psirt Accept embargo_2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00 from https://vuls.example.com/finder-reporter/propose/2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00",
+  "context": "https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "That sounds like plenty of time.",
+  "actor": "https://vendor.example/psirt",
+  "origin": "https://vuls.example.com/finder-reporter/propose/2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00",
+  "object": "embargo_2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00"
+}

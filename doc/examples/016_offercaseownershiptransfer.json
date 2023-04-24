@@ -1,0 +1,14 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "OfferCaseOwnershipTransfer",
+  "id": "https://vendor.example/case/18283771/transferoffer/coordinators.r.us.example",
+  "name": "https://vendor.example/psirt OfferCaseOwnershipTransfer https://vendor.example/case/18283771 to https://coordinators.r.us.example",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "to": [
+    "https://coordinators.r.us.example"
+  ],
+  "actor": "https://vendor.example/psirt",
+  "target": "https://coordinators.r.us.example",
+  "object": "https://vendor.example/case/18283771"
+}

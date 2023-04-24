@@ -1,0 +1,21 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Invite",
+  "id": "https://vuls.example.com/finder-reporter/propose/2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00",
+  "name": "https://vuls.example.com/finder-reporter Invite Embargo for https://vendor.example/case/18283771 start: 2023-04-17T19:34:46+00:00 end: 2023-07-16T19:34:46+00:00 to https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "actor": "https://vuls.example.com/finder-reporter",
+  "target": "https://vendor.example/case/18283771",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "EmbargoEvent",
+    "id": "embargo_2023-04-17T19:34:46+00:00_2023-07-16T19:34:46+00:00",
+    "name": "Embargo for https://vendor.example/case/18283771 start: 2023-04-17T19:34:46+00:00 end: 2023-07-16T19:34:46+00:00",
+    "context": "https://vendor.example/case/18283771",
+    "startTime": "2023-04-17T19:34:46+00:00",
+    "endTime": "2023-07-16T19:34:46+00:00",
+    "published": "2023-04-17T19:34:46+00:00",
+    "updated": "2023-04-17T19:34:46+00:00"
+  }
+}

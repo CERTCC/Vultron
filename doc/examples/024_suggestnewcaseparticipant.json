@@ -1,0 +1,12 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "SuggestNewCaseParticipant",
+  "id": "https://for.example/b8462f3e-bb93-413b-9bae-5e4623e64ff7",
+  "name": "https://vuls.example.com/finder-reporter SuggestNewCaseParticipant https://another.affected.vendor.example to https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "Further testing indcates that Vendor-to-invite also has products affected by this vulnerability.",
+  "actor": "https://vuls.example.com/finder-reporter",
+  "target": "https://vendor.example/case/18283771",
+  "object": "https://another.affected.vendor.example"
+}

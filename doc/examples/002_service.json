@@ -1,0 +1,32 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Service",
+  "id": "https://cvdaas.example/cvdaas_client_1",
+  "name": "CVD-as-a-Service",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "inbox": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://for.example/f41d0f8d-2c00-4420-97a1-a18b0ab2891e",
+    "published": "2023-04-17T19:34:46+00:00",
+    "updated": "2023-04-17T19:34:46+00:00",
+    "items": [],
+    "current": 0
+  },
+  "outbox": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://for.example/7cf65683-a09d-4600-90b8-efdd8377c8f6",
+    "published": "2023-04-17T19:34:46+00:00",
+    "updated": "2023-04-17T19:34:46+00:00",
+    "items": [],
+    "current": 0
+  },
+  "following": null,
+  "followers": null,
+  "liked": null,
+  "streams": null,
+  "preferredUsername": null,
+  "endpoints": null
+}

@@ -1,0 +1,25 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Create",
+  "id": "https://for.example/609b3b15-e889-4115-aa28-7e2824f15b9f",
+  "name": "https://vendor.example/psirt Create REPORT_MANAGEMENT_RECEIVED CS_VENDOR_AWARE__NO_FIX__NOT_DEPLOYED to https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:47+00:00",
+  "updated": "2023-04-17T19:34:47+00:00",
+  "actor": "https://vendor.example/psirt",
+  "target": "https://vendor.example/case/18283771",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "ParticipantStatus",
+    "id": "https://for.example/814fcf80-86c6-4893-ab78-a1a0866a3336",
+    "name": "REPORT_MANAGEMENT_RECEIVED CS_VENDOR_AWARE__NO_FIX__NOT_DEPLOYED",
+    "context": "https://vendor.example/case/18283771",
+    "published": "2023-04-17T19:34:47+00:00",
+    "updated": "2023-04-17T19:34:47+00:00",
+    "actor": "https://vendor.example/psirt",
+    "rmState": "REPORT_MANAGEMENT_RECEIVED",
+    "vfdState": "CS_VENDOR_AWARE__NO_FIX__NOT_DEPLOYED",
+    "caseEngagement": true,
+    "embargoAdherence": true,
+    "trackingId": "https://vendor.example/case/18283771"
+  }
+}

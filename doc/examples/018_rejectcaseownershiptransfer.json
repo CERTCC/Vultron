@@ -1,0 +1,16 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "RejectCaseOwnershipTransfer",
+  "id": "https://for.example/233fc714-a39f-40b5-9518-e606ccfe6db8",
+  "name": "https://coordinators.r.us.example RejectCaseOwnershipTransfer https://vendor.example/case/18283771 from https://vendor.example/psirt",
+  "context": "https://vendor.example/case/18283771/transferoffer/coordinators.r.us.example",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "Sorry, we cannot accept case https://vendor.example/case/18283771 because it is outside of our scope.",
+  "to": [
+    "https://vendor.example/psirt"
+  ],
+  "actor": "https://coordinators.r.us.example",
+  "origin": "https://vendor.example/psirt",
+  "object": "https://vendor.example/case/18283771"
+}

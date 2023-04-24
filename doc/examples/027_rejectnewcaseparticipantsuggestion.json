@@ -1,0 +1,17 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "RejectNewCaseParticipantSuggestion",
+  "id": "https://for.example/81a1f32f-47b3-4ef6-bc8e-98154b3a4fcd",
+  "name": "https://vendor.example/psirt RejectNewCaseParticipantSuggestion https://another.affected.vendor.example from https://vuls.example.com/finder-reporter to https://vendor.example/case/18283771",
+  "context": "https://for.example/0956f666-c1fe-4b8c-a11b-37b8cda1402c",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "summary": "Thanks for suggesting Vendor-to-invite, but we won't be inviting them at this time.",
+  "to": [
+    "https://vuls.example.com/finder-reporter"
+  ],
+  "actor": "https://vendor.example/psirt",
+  "target": "https://vendor.example/case/18283771",
+  "origin": "https://vuls.example.com/finder-reporter",
+  "object": "https://another.affected.vendor.example"
+}

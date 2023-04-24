@@ -1,0 +1,10 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Create",
+  "id": "https://for.example/77b47f80-9ce7-458f-b72b-7bff5bf62642",
+  "name": "https://vuls.example.com/finder-reporter Create https://finder.reporter.example/report/101029",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "actor": "https://vuls.example.com/finder-reporter",
+  "object": "https://finder.reporter.example/report/101029"
+}

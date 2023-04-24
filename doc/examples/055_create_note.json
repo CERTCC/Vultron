@@ -1,0 +1,21 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Create",
+  "id": "https://for.example/19c88f8a-39f2-4ba1-888d-75629f6bade3",
+  "name": "https://vuls.example.com/finder-reporter Create More of a comment than a question. to https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:47+00:00",
+  "updated": "2023-04-17T19:34:47+00:00",
+  "actor": "https://vuls.example.com/finder-reporter",
+  "target": "https://vendor.example/case/18283771",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Note",
+    "id": "https://vuls.example.com/finder-reporter/notes/12345",
+    "name": "More of a comment than a question.",
+    "context": "https://vendor.example/case/18283771",
+    "published": "2023-04-17T19:34:47+00:00",
+    "updated": "2023-04-17T19:34:47+00:00",
+    "content": "This case has been fun to work on!",
+    "attributedTo": "https://vuls.example.com/finder-reporter"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Add",
+  "id": "https://for.example/307c91ec-751c-4f0c-b478-df172384c8c6",
+  "name": "https://vendor.example/psirt Add REPORT_MANAGEMENT_RECEIVED CS_VENDOR_AWARE__NO_FIX__NOT_DEPLOYED to {'case': 'https://vendor.example/case/18283771', 'actor': 'https://vendor.example/psirt'}",
+  "published": "2023-04-17T19:34:47+00:00",
+  "updated": "2023-04-17T19:34:47+00:00",
+  "actor": "https://vendor.example/psirt",
+  "target": "{'case': 'https://vendor.example/case/18283771', 'actor': 'https://vendor.example/psirt'}",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "ParticipantStatus",
+    "id": "https://for.example/814fcf80-86c6-4893-ab78-a1a0866a3336",
+    "name": "REPORT_MANAGEMENT_RECEIVED CS_VENDOR_AWARE__NO_FIX__NOT_DEPLOYED",
+    "context": "https://vendor.example/case/18283771",
+    "published": "2023-04-17T19:34:47+00:00",
+    "updated": "2023-04-17T19:34:47+00:00",
+    "actor": "https://vendor.example/psirt",
+    "rmState": "REPORT_MANAGEMENT_RECEIVED",
+    "vfdState": "CS_VENDOR_AWARE__NO_FIX__NOT_DEPLOYED",
+    "caseEngagement": true,
+    "embargoAdherence": true,
+    "trackingId": "https://vendor.example/case/18283771"
+  }
+}

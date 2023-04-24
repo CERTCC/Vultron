@@ -1,0 +1,32 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Organization",
+  "id": "https://vendor.example/psirt",
+  "name": "Vendor O'Product",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "inbox": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://for.example/ff2978e4-d28d-46fb-9242-7dac7e9a3fc6",
+    "published": "2023-04-17T19:34:46+00:00",
+    "updated": "2023-04-17T19:34:46+00:00",
+    "items": [],
+    "current": 0
+  },
+  "outbox": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "OrderedCollection",
+    "id": "https://for.example/d66e8c62-63d4-4740-88c3-60fe84d3bcdb",
+    "published": "2023-04-17T19:34:46+00:00",
+    "updated": "2023-04-17T19:34:46+00:00",
+    "items": [],
+    "current": 0
+  },
+  "following": null,
+  "followers": null,
+  "liked": null,
+  "streams": null,
+  "preferredUsername": null,
+  "endpoints": null
+}

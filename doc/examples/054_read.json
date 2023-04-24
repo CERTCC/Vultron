@@ -1,0 +1,13 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Read",
+  "id": "https://for.example/7ec9ef62-f42a-4a1e-b3ab-b02887745fe1",
+  "name": "https://coordinators.r.us.example Read https://finder.reporter.example/report/101029",
+  "published": "2023-04-17T19:34:47+00:00",
+  "updated": "2023-04-17T19:34:47+00:00",
+  "to": [
+    "https://vuls.example.com/finder-reporter"
+  ],
+  "actor": "https://coordinators.r.us.example",
+  "object": "https://finder.reporter.example/report/101029"
+}

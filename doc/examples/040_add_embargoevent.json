@@ -1,0 +1,23 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Add",
+  "id": "https://for.example/6dccab35-97eb-4d59-9775-4ab30c11e514",
+  "name": "https://vendor.example/psirt Add Embargo for https://vendor.example/case/18283771 start: 2023-04-17T19:34:47+00:00 end: 2023-04-17T19:34:47+00:00 from id_status(EM.X,CS_pxa.Pxa) to https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:47+00:00",
+  "updated": "2023-04-17T19:34:47+00:00",
+  "summary": "We have discovered that this vulnerability was made public in a media report.",
+  "actor": "https://vendor.example/psirt",
+  "target": "https://vendor.example/case/18283771",
+  "origin": "id_status(EM.X,CS_pxa.Pxa)",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "EmbargoEvent",
+    "id": "embargo_2023-04-17T19:34:47+00:00_2023-07-16T19:34:46+00:00",
+    "name": "Embargo for https://vendor.example/case/18283771 start: 2023-04-17T19:34:47+00:00 end: 2023-04-17T19:34:47+00:00",
+    "context": "https://vendor.example/case/18283771",
+    "startTime": "2023-04-17T19:34:47+00:00",
+    "endTime": "2023-04-17T19:34:47+00:00",
+    "published": "2023-04-17T19:34:47+00:00",
+    "updated": "2023-04-17T19:34:47+00:00"
+  }
+}

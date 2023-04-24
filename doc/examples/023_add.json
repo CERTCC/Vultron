@@ -1,0 +1,12 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Add",
+  "id": "https://for.example/34b30915-bd37-4461-adf2-9a46a8c9c65f",
+  "name": "https://vendor.example/psirt Add https://vendor.example/case/18283771/participants/coordinators.r.us.example from https://coordinators.r.us.example to https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "actor": "https://vendor.example/psirt",
+  "target": "https://vendor.example/case/18283771",
+  "origin": "https://coordinators.r.us.example",
+  "object": "https://vendor.example/case/18283771/participants/coordinators.r.us.example"
+}

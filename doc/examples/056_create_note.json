@@ -1,0 +1,22 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "Create",
+  "id": "https://for.example/aa060f4f-f248-41b0-8603-d8f2827fef8e",
+  "name": "https://vendor.example/psirt Create Thanks to https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:47+00:00",
+  "updated": "2023-04-17T19:34:47+00:00",
+  "actor": "https://vendor.example/psirt",
+  "target": "https://vendor.example/case/18283771",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Note",
+    "id": "https://vendor.example/psirt/notes/8675309",
+    "name": "Thanks",
+    "context": "https://vendor.example/case/18283771",
+    "inReplyTo": "https://vuls.example.com/finder-reporter/notes/12345",
+    "published": "2023-04-17T19:34:47+00:00",
+    "updated": "2023-04-17T19:34:47+00:00",
+    "content": "Thanks for all your help, Finn der Reporter",
+    "attributedTo": "https://vendor.example/psirt"
+  }
+}

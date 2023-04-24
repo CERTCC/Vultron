@@ -1,0 +1,10 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Create",
+  "id": "https://for.example/e9d02bdd-daa2-4daa-9570-98212c9b2e58",
+  "name": "https://vendor.example/psirt Create https://vendor.example/case/18283771",
+  "published": "2023-04-17T19:34:46+00:00",
+  "updated": "2023-04-17T19:34:46+00:00",
+  "actor": "https://vendor.example/psirt",
+  "object": "https://vendor.example/case/18283771"
+}

@@ -1,0 +1,15 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "ParticipantStatus",
+  "id": "https://for.example/84a72d40-fa53-484c-8e59-86dedf0822b8",
+  "name": "REPORT_MANAGEMENT_RECEIVED CS_VENDOR_AWARE__NO_FIX__NOT_DEPLOYED",
+  "context": "https://finder.reporter.example/report/101029",
+  "published": "2023-04-17T19:34:47+00:00",
+  "updated": "2023-04-17T19:34:47+00:00",
+  "attributedTo": "https://vendor.example/psirt",
+  "actor": null,
+  "rmState": "REPORT_MANAGEMENT_RECEIVED",
+  "vfdState": "CS_VENDOR_AWARE__NO_FIX__NOT_DEPLOYED",
+  "caseEngagement": true,
+  "embargoAdherence": true
+}
