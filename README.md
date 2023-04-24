@@ -76,3 +76,10 @@ prioritization schemes like [SSVC](https://github.com/CERTCC/SSVC) and [CVSS](ht
 Vultron is not intended to be a product, rather it's meant to be a feature set that can be implemented in a variety of
 CVD-related products and services to enable interoperability between them.
 
+# License and Copyright
+
+We are still working out the correct licensing model for this effort, but for now, this repository is covered by the
+included [copyright statement](COPYRIGHT.md). 
+
+If you have feedback on this topic (including whether the copyright/license is causing difficulty for you to collaborate
+with us on this project), please let us know in an [issue](https://github.com/CERTCC/Vultron/issues/new).
