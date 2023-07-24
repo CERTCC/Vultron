@@ -2,6 +2,8 @@ site_name: Vultron CVD Protocol
 nav:
   - Home: 'index.md'
   - User Stories: 'user_stories/index.md'
+  - Process Models:
+    - Report Management: 'process_models/report_management.md'
   - About:
     - Readme: 'about/readme.md'
     - Contributing: 'about/contributing.md'
