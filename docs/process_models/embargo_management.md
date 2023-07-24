@@ -103,17 +103,17 @@ simple two-state model for the embargo state:
 $$\mathcal{Q}^{em}_{simple} = \{ None,~Active \}$$
 
 However, because embargo management is a process of coordinating across
-Participants, it will be useful to distinguish between the $None$ state
+Participants, it will be useful to distinguish between the _None_ state
 and an intermediate state in which an embargo has been proposed but not
 yet accepted or rejected. We might call this the $None + Proposed$
-state, but we shortened it to $Proposed$.
+state, but we shortened it to _Proposed_.
 
-Similarly, we want to be able to discriminate between an $Active$
+Similarly, we want to be able to discriminate between an _Active_
 embargo state and one in which a revision has been proposed but is not
 yet accepted or rejected, which we will denote as the $Active + Revise$
-state, shortened to $Revise$. Finally, we wish to distinguish between
-the state in which no embargo has ever been established ($None$), and
-the final state after an active embargo has ended ($eXited$). Combining
+state, shortened to _Revise_. Finally, we wish to distinguish between
+the state in which no embargo has ever been established (_None_), and
+the final state after an active embargo has ended (_eXited_). Combining
 these, we get the following set of [EM]{acronym-label="EM"
 acronym-form="singular+short"} states, which we denote as
 $\mathcal{Q}^{em}$ in
@@ -132,18 +132,18 @@ $$\label{eq:em_states}
 As a reminder, we use the underlined capital letters as shorthand for
 [EM]{acronym-label="EM" acronym-form="singular+short"} state names later
 in the document. Also note that $q^{em} \in A$ is distinct from
-$q^{rm} \in A$. An embargo can be $Active$, while a Report can be
-$Accepted$, and these are independent states. Be sure to check which
+$q^{rm} \in A$. An embargo can be _Active_, while a Report can be
+_Accepted_, and these are independent states. Be sure to check which
 model a state's shorthand notation is referring to.
 
 ##### Start and Final States.
 
 The [EM]{acronym-label="EM" acronym-form="singular+short"} process
-starts in the $None$ state. The process ends in one of two states: If an
+starts in the _None_ state. The process ends in one of two states: If an
 embargo agreement is eventually reached, the [EM]{acronym-label="EM"
-acronym-form="singular+short"} process ends in the $eXited$ state.
+acronym-form="singular+short"} process ends in the _eXited_ state.
 Otherwise, if no agreement is ever reached, the [EM]{acronym-label="EM"
-acronym-form="singular+short"} process ends in the $None$ state. Formal
+acronym-form="singular+short"} process ends in the _None_ state. Formal
 definitions of each are shown in
 [\[eq:q_em\]](#eq:q_em){reference-type="eqref" reference="eq:q_em"} and
 [\[eq:f_em\]](#eq:f_em){reference-type="eqref" reference="eq:f_em"},
@@ -162,14 +162,14 @@ acronym-form="singular+short"} [DFA]{acronym-label="DFA"
 acronym-form="singular+short"} are the actions that cause transitions
 between the states:
 
--   An embargo MAY be $propose$d.
+-   An embargo MAY be _propose_d.
 
--   Once proposed, it MAY be $accept$ed or $reject$ed.
+-   Once proposed, it MAY be _accept_ed or _reject_ed.
 
--   Once accepted, revisions MAY be $propose$d, which MAY, in turn, be
-    $accept$ed or $reject$ed.
+-   Once accepted, revisions MAY be _propose_d, which MAY, in turn, be
+    _accept_ed or _reject_ed.
 
--   Finally, accepted embargoes MUST eventually $terminate$.
+-   Finally, accepted embargoes MUST eventually _terminate_.
 
 A summary of the available actions is shown as $\Sigma^{em}$ in
 [\[eq:em_symbols\]](#eq:em_symbols){reference-type="eqref"
@@ -266,22 +266,22 @@ acronym-form="singular+short"} shown in Figure
 [\[fig:em_states_dense\]](#fig:em_states_dense){reference-type="ref"
 reference="fig:em_states_dense"}, the [EM]{acronym-label="EM"
 acronym-form="singular+short"} grammar is capable of generating
-arbitrarily long strings of $propose$-$propose$ and $propose$-$reject$
+arbitrarily long strings of _propose_-_propose_ and _propose_-_reject_
 histories matching the regular expression `(p*r)*(pa(p*r)*(pa)?t)?`. As
 an example, here is an exhaustive list of all the possible traces of
 length seven or fewer:
 
-> $pr$, $pat$, $ppr$, $ppat$, $papt$, $prpr$, $pppr$, $ppppr$, $pprpr$,
-> $prppr$, $pappt$, $ppapt$, $pppat$, $papat$, $paprt$, $prpat$,
-> $pppppr$, $papppt$, $prpppr$, $ppprpr$, $ppappt$, $pppapt$, $prprpr$,
-> $papapt$, $pprppr$, $pappat$, $paprpt$, $prppat$, $prpapt$, $ppaprt$,
-> $pprpat$, $ppapat$, $papprt$, $ppppat$, $pprprpr$, $prprppr$,
-> $paprppt$, $prpprpr$, $pappprt$, $papppat$, $ppppapt$, $prpaprt$,
-> $papappt$, $pappapt$, $pppappt$, $pprpppr$, $pppprpr$, $prppppr$,
-> $ppprppr$, $ppapppt$, $ppaprpt$, $papprpt$, $ppapprt$, $ppappat$,
-> $prpppat$, $prpapat$, $ppprpat$, $ppppppr$, $pprppat$, $papapat$,
-> $paprpat$, $ppapapt$, $prprpat$, $paprprt$, $prppapt$, $pppapat$,
-> $pprpapt$, $pppaprt$, $pppppat$, $prpappt$, $papaprt$, $pappppt$
+> _pr_, _pat_, _ppr_, _ppat_, _papt_, _prpr_, _pppr_, _ppppr_, _pprpr_,
+> _prppr_, _pappt_, _ppapt_, _pppat_, _papat_, _paprt_, _prpat_,
+> _pppppr_, _papppt_, _prpppr_, _ppprpr_, _ppappt_, _pppapt_, _prprpr_,
+> _papapt_, _pprppr_, _pappat_, _paprpt_, _prppat_, _prpapt_, _ppaprt_,
+> _pprpat_, _ppapat_, _papprt_, _ppppat_, _pprprpr_, _prprppr_,
+> _paprppt_, _prpprpr_, _pappprt_, _papppat_, _ppppapt_, _prpaprt_,
+> _papappt_, _pappapt_, _pppappt_, _pprpppr_, _pppprpr_, _prppppr_,
+> _ppprppr_, _ppapppt_, _ppaprpt_, _papprpt_, _ppapprt_, _ppappat_,
+> _prpppat_, _prpapat_, _ppprpat_, _ppppppr_, _pprppat_, _papapat_,
+> _paprpat_, _ppapapt_, _prprpat_, _paprprt_, _prppapt_, _pppapat_,
+> _pprpapt_, _pppaprt_, _pppppat_, _prpappt_, _papaprt_, _pappppt_
 
 However, because [EM]{acronym-label="EM" acronym-form="singular+short"}
 is a human-oriented scheduling process, our experience suggests that we
@@ -304,7 +304,7 @@ Reporter to ping-pong proposals and rejections without ever establishing
 an embargo in the first place. In the worst case (i.e., where the
 Reporter declines to extend their embargo), a short embargo is
 preferable to none at all. This implies a preference for strings
-starting with $par$ over strings starting with $ppa$ or $prpa$, among
+starting with _par_ over strings starting with _ppa_ or _prpa_, among
 others. We will come back to this idea in
 §[1.2.6](#sec:default_embargoes){reference-type="ref"
 reference="sec:default_embargoes"} and in the worked protocol example at
@@ -598,14 +598,14 @@ is expected.
 -   In the absence of an explicit *accept* or *reject* response from a
     Receiver in a timely manner, the Sender MAY proceed in a manner
     consistent with an [EM]{acronym-label="EM"
-    acronym-form="singular+short"} state of $None$ ($q^{em} \in N$).
+    acronym-form="singular+short"} state of _None_ ($q^{em} \in N$).
 
 ##### Don't Give Up.
 
 Once an embargo negotiation has failed the first time, Participants have
 no further obligations. They are, however, encouraged to try again.
 
--   In a case where the embargo state is $None$ and for which an embargo
+-   In a case where the embargo state is _None_ and for which an embargo
     has been *propose*d and either explicitly or tacitly *reject*ed,
     Participants MAY take any action they choose with the report in
     question, including immediate publication.
@@ -768,17 +768,17 @@ acknowledges the time-dependent informational asymmetry inherent to the
 
 Perhaps the above reasoning comes across as too Machiavellian for some
 readers. Here is a different perspective: Say a Reporter proposes an
-embargo of $n$ days, while the Vendor would prefer $m$ days. If $n$ and
-$m$ are given in units of days, we can look at them as a series of
+embargo of _n_ days, while the Vendor would prefer _m_ days. If _n_ and
+_m_ are given in units of days, we can look at them as a series of
 individual agreements, each of 1 day in length. We will represent each
 Participant as a vector representing that Participant's willingness to
 perpetuate the embargo on each day. Embargo willingness will be
-represented as a $1$ if the Participant is willing to commit to keeping
-the embargo on that day, and a $0$ if they are not. For simplicity's
+represented as a _1_ if the Participant is willing to commit to keeping
+the embargo on that day, and a _0_ if they are not. For simplicity's
 sake, we assume that each Participant is willing to maintain the embargo
 up to a certain point, and then their willingness goes away. In other
-words, each vector will be a series of zero or more $1$s followed by
-zero or more $0$s. For example, $[1,1,1,1,0,0,0]$ represents a
+words, each vector will be a series of zero or more _1_s followed by
+zero or more _0_s. For example, $[1,1,1,1,0,0,0]$ represents a
 Participant's willingness to engage in a 4-day embargo.
 
 For our two Participants, let $\mathbf{x}$ and $\mathbf{y}$ be
@@ -851,7 +851,7 @@ $$\begin{split}
 
 From this, we can see that the scalar sum of the agreement vector---and
 therefore the longest embargo acceptable to both parties---is simply the
-lesser of $n$ and $m$:
+lesser of _n_ and _m_:
 
 $$\Sigma ( \mathbf{z} ) = min(n,m)$$
 
