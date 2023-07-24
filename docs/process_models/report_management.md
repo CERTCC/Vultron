@@ -75,9 +75,42 @@ flowchart LR
     I --> V
     V --> D
     A --> D
+    D --> A
     D --> C
     I --> C
 ```
+
+```mermaid
+flowchart LR
+    subgraph reporting
+        S((S))
+        R((R))
+    end
+    subgraph validation
+        I((I))
+        V((V))
+    end
+    subgraph prioritization
+        D((D))
+        A((A))
+    end
+    subgraph closure
+        C(((C)))
+    end
+    
+    S --> R
+    R --> I
+    R --> V
+    V --> A
+    A --> C
+    I --> V
+    V --> D
+    A --> D
+    D --> A
+    D --> C
+    I --> C
+```
+
 
 $$\label{eq:rm_states}
     \begin{split}
@@ -95,18 +128,13 @@ the state names. We use this convention throughout the remainder of this
 report. Each Participant in a CVD case will have their own
 RM state.
 
-RM states are not
-the same as CVD
-case states. Case states follow the Householder-Spring model summarized
-in §[\[sec:model\]](#sec:model){reference-type="ref"
-reference="sec:model"}, as originally described in the 2021 report
-[@householder2021state]. Further discussion of the interactions of the
-RM and
-CS models is found
+RM states are not the same as CVD case states. Case states follow the Householder-Spring model summarized
+in §[\[sec:model\]](#sec:model){reference-type="ref" reference="sec:model"}, as originally described in the 2021 report
+[@householder2021state]. Further discussion of the interactions of the RM and CS models is found
 in §[\[sec:rm_cvd\]](#sec:rm_cvd){reference-type="ref"
 reference="sec:rm_cvd"}.
 
-#### The $Start$ State ($S$) {#sec:rm_state_s}
+#### The _Start_ (_S_) State
 
 The $Start$ state is a simple placeholder state for reports that have
 yet to be received. It is, in effect, a null state that no
@@ -118,7 +146,7 @@ that spans multiple Participants in a formal protocol in Chapter
 reference="sec:formal_protocol"}. Otherwise, the discussion until then
 will mostly ignore it.
 
-#### The $Received$ State ($R$) {#sec:rm_state_r}
+#### The _Received_ (_R_) State
 
 Reports initially arrive in the $Received$ state.
 
@@ -174,7 +202,7 @@ as $Invalid$ by default.
     their product(s) or service(s), the Vendor SHOULD designate the
     report as $Valid$.
 
-#### The $Invalid$ State ($I$) {#sec:rm_state_i}
+#### The _Invalid_ (_I_) State
 
 Reports in the $Invalid$ state have been evaluated and found lacking by
 the recipient. This state allows time for the Reporter to provide
@@ -197,7 +225,7 @@ contradict that conclusion.
 -   Participants MAY set a timer to move reports from $Invalid$ to
     $Closed$ after a set period of inactivity.
 
-#### The $Valid$ State ($V$) {#sec:rm_state_v}
+#### The _Valid_ (_V_) State
 
 Reports in the $Valid$ state are ready to be prioritized for possible
 future work. The result of this prioritization process will be to either
@@ -219,7 +247,7 @@ CVSS [@first2019cvss31], are commonly used to
 prioritize work within the CVD process; however, specific details are
 left to Participant-specific implementation.[^1]
 
-#### The $Accepted$ State ($A$) {#sec:rm_state_a}
+#### The _Accepted_ (_A_) State
 
 The $Accepted$ state is where the bulk of the work for a given
 CVD Participant
@@ -251,7 +279,7 @@ reference="sec:do_work"}.
     in its lifespan as a Participant resumes or pauses work (i.e.,
     transitions to/from the $Deferred$ state).
 
-#### The $Deferred$ State ($D$) {#sec:rm_state_d}
+#### The _Deferred_ (_D_) State
 
 The $Deferred$ state is reserved for valid, unclosed reports that are
 otherwise not being actively worked on (i.e., those in $Accepted$). It
@@ -282,7 +310,7 @@ reference="eq:pause_report"}.
     state to ensure they are moved to $Closed$ after a set period of
     inactivity.
 
-#### The $Closed$ State ($C$) {#sec:rm_state_c}
+#### The _Closed_ (_C_) State
 
 The $Closed$ state implies no further work is to be done; therefore, any
 pre-closure review (e.g., for quality assurance purposes) should be
@@ -419,39 +447,53 @@ the message is transmitted, while the other is for the end state of both
 Participants. Although the $sender$'s state does not change, the
 $recipient$'s state moves from $Start$ to $Received$.
 
-$$\label{eq:notify_participant}
-\begin{bmatrix}
-Accepted_{sender} \\
-Start_{recipient} \\
-\end{bmatrix}
-\xrightarrow{receive_{recipient}}
-\begin{bmatrix}
-Accepted_{sender} \\
-Received_{recipient} \\
-\end{bmatrix}$$
+```mermaid
+graph LR
+    subgraph sender
+        A1((Accepted))
+    end
+    subgraph recipient
+        S((Start))
+        R((Received))
+    end
+    sender -->|send report| recipient
+    S -->|receive report| R
+```
 
 A Participant might choose to pause work on a previously $Accepted$
 report after revisiting their prioritization decision. When this
 happens, the Participant moves the report to the $Deferred$ state.
-$$\label{eq:pause_report}
-    Accepted \xrightarrow{defer} Deferred$$
+
+```mermaid
+graph LR
+    A((Accepted))
+    D((Deferred))
+    A -->|defer| D
+```
 
 Similarly, a Participant might resume work on a $Deferred$ report,
-moving it to the $Accepted$ state. $$\label{eq:resume_report}
-    Deferred \xrightarrow{accept} Accepted$$
+moving it to the $Accepted$ state.
+
+```mermaid
+graph LR
+    D((Deferred))
+    A((Accepted))
+    D -->|accept| A
+```
 
 Finally, a Participant can complete work on an $Accepted$ report or
 abandon further work on an $Invalid$ or $Deferred$ report.
 
-$$\label{eq:close_report}
-    \begin{bmatrix}
-    Accepted 
-    \text{ or } \\
-    Invalid 
-    \text{ or } \\
-    Deferred \\
-    \end{bmatrix}
-    \xrightarrow{close} Closed$$
+```mermaid
+graph LR
+    A((Accepted))
+    I((Invalid))
+    D((Deferred))
+    C((Closed))
+    A -->|close| C
+    I -->|close| C
+    D -->|close| C
+```
 
 Our model assumes that $Valid$ reports cannot be closed directly without
 first passing through either $Accepted$ or $Deferred$. It is reasonable
@@ -570,15 +612,46 @@ state model for Reporters in
 §[\[sec:other_participants\]](#sec:other_participants){reference-type="ref"
 reference="sec:other_participants"}.
 
-### RM]{acronym-label="RM" acronym-form="singular+short"} Interactions Between [CVD
+```mermaid
+flowchart LR
+    subgraph Finder
+        subgraph Hidden
+            S((S))
+            R((R))
+            I((I))
+            V((V))
+            D((D))
+            C(((C)))
+        end
+        subgraph Observable
+            A((A))
+            D2((D))
+            C2(((C)))
+        end 
+    end
+    
+    S --> R
+    R --> I
+    R --> V
+    V --> A
+    A --> C2
+    I --> V
+    V --> D
+    A --> D2
+    D --> A
+    D2 --> A
+    D --> C
+    D2 --> C2
+    I --> C
+```
 
-Each Participant in a case has their own instance of the
-RM state model.
-Participants can change their local state independent of the state of
-other Participants. Events within a CVD case may trigger a state transition in
-one Participant while no transition occurs in another. For example, the
-*notify another Participant* action in
-[\[eq:notify_participant\]](#eq:notify_participant){reference-type="eqref"
+
+### RM Interactions Between CVD Participants
+
+Each Participant in a case has their own instance of the RM state model.
+Participants can change their local state independent of the state of other Participants.
+Events within a CVD case may trigger a state transition in one Participant while no transition occurs in another.
+For example, the *notify another Participant* action in [\[eq:notify_participant\]](#eq:notify_participant){reference-type="eqref"
 reference="eq:notify_participant"} shows that even though the $sender$
 is the one taking the action, it is the $recipient$'s state that
 changes. Table
