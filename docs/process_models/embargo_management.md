@@ -157,6 +157,31 @@ $$\label{eq:f_em}
 
 ### [EM]{acronym-label="EM" acronym-form="singular+abbrv"} State Transitions
 
+<!-- em-state-machine-start -->
+```mermaid
+graph LR
+    subgraph Pre-Embargo
+        N((None))
+        P((Proposed))
+    end
+    subgraph Active-Embargo
+        A((Active))
+        R((Revise))
+    end
+    subgraph Post-Embargo
+        X((eXited))
+    end
+    N -->|propose| P
+    P -->|reject| N
+    P -->|accept| A
+    A -->|revise| R
+    R -->|accept| A
+    R -->|reject| A
+    R -->|exit| X
+    A -->|exit| X
+```
+<!-- em-state-machine-end -->
+
 The symbols of our [EM]{acronym-label="EM"
 acronym-form="singular+short"} [DFA]{acronym-label="DFA"
 acronym-form="singular+short"} are the actions that cause transitions
