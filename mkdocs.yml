@@ -3,6 +3,7 @@ nav:
   - Home: 'index.md'
   - User Stories: 'user_stories/index.md'
   - Process Models:
+    - Introduction: 'process_models/index.md'
     - Report Management: 'process_models/report_management.md'
     - Embargo Management: 'process_models/embargo_management.md'
     - Case State Model: 'process_models/case_state.md'
