@@ -1,1 +1,38 @@
-site_name: My Docs
+site_name: Vultron CVD Protocol
+nav:
+  - Home: 'index.md'
+  - User Stories: 'user_stories/index.md'
+  - About:
+    - Readme: 'about/readme.md'
+    - Contributing: 'about/contributing.md'
+    - Acknowledgements: 'about/acknowledgements.md'
+    - License: 'about/license.md'
+  - FAQ: 'faq.md'
+theme:
+  logo: 'assets/cert_seal.svg'
+  name: 'material'
+  features:
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+  palette:
+    scheme: 'cmu'
+    accent: 'red'
+plugins:
+  - include-markdown:
+      comments: false
+  - search
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.arithmatex:
+      generic: true
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+extra_css:
+  - stylesheets/extra.css
