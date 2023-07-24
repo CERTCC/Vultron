@@ -63,17 +63,17 @@ flowchart LR
         C(((Closed)))
     end
     
-    S --> R
-    R --> I
-    R --> V
-    V --> A
-    A --> C
-    I --> V
-    V --> D
-    A --> D
-    D --> A
-    D --> C
-    I --> C
+    S -->|receive| R
+    R -->|invalidate| I
+    R -->|validate| V
+    V -->|accept| A
+    A -->|close| C
+    I -->|validate| V
+    V -->|defer| D
+    A -->|defer| D
+    D -->|accept| A
+    D -->|close| C
+    I -->|close| C
 ```
 <!-- rm-state-machine-end -->
 
