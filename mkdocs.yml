@@ -8,6 +8,13 @@ nav:
     - Report Management: 'process_models/report_management.md'
     - Embargo Management: 'process_models/embargo_management.md'
     - Case State Model: 'process_models/case_state.md'
+    - Model Interactions: 'process_models/model_interactions.md'
+  - Formal Protocol:
+    - Introduction: 'formal_protocol/index.md'
+    - Worked Example: 'formal_protocol/worked_example.md'
+  - Behavior Logic: 'behaviors.md'
+  - Implementation Notes: 'implementation_notes.md'
+  - Future Work: 'future_work.md'
   - About:
     - Readme: 'about/readme.md'
     - Contributing: 'about/contributing.md'
@@ -34,6 +41,8 @@ plugins:
   - search
 markdown_extensions:
   - tables
+  - admonition
+  - pymdownx.details
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
