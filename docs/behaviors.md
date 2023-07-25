@@ -1,5 +1,12 @@
 # Modeling an MPCVD AI Using Behavior Trees {#ch:behavior_trees}
 
+!!! note "TODO"
+    - clean up acronyms
+    - clean up cross-reference links
+    - clean up section titles
+    - redo diagrams in mermaid
+
+
 With the formal definition of our proposed [MPCVD]{acronym-label="MPCVD"
 acronym-form="singular+short"} protocol behind us, we now turn our
 attention to reflect on one of many possible paths toward
