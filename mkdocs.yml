@@ -1,4 +1,5 @@
 site_name: Vultron CVD Protocol
+copyright: Copyright &copy; 2023 Carnegie Mellon University.
 nav:
   - Home: 'index.md'
   - User Stories: 'user_stories/index.md'
@@ -23,6 +24,7 @@ theme:
     - navigation.instant
     - navigation.tracking
     - navigation.tabs
+    - navigation.footer
   palette:
     scheme: 'cmu'
     accent: 'red'
@@ -39,6 +41,11 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.arithmatex:
       generic: true
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/CERTCC/Vultron
+      name: CERTCC/Vultron on Github
 extra_javascript:
   # to render math
   - javascripts/mathjax.js
