@@ -1,5 +1,10 @@
 # Implementation Notes {#ch:implementation notes}
 
+!!! note "TODO"
+    - clean up acronyms
+    - clean up cross-reference links
+    - clean up section titles
+
 While a complete [MPCVD]{acronym-label="MPCVD"
 acronym-form="singular+short"} protocol implementation specification is
 out of scope for this report, we do have a few additional suggestions
@@ -38,6 +43,18 @@ acronym-form="singular+short"} case.
 The remainder of this section provides details about Figure
 [\[fig:mpcvd_uml_class_diagram\]](#fig:mpcvd_uml_class_diagram){reference-type="ref"
 reference="fig:mpcvd_uml_class_diagram"}.
+
+!!! note "TODO"
+    Match the diagram in the original paper
+
+```mermaid
+erDiagram
+    Case ||--|{ Report : contains
+    Case ||--|{ Participant : contains
+    Case ||--|{ Message : contains
+    Case ||--|{ LogEvent : contains
+    Participant ||--|| Actor : contains
+```
 
 ### The *Case* Class
 

@@ -1,5 +1,11 @@
 # CVD Case State Model {#sec:model}
 
+!!! note "TODO"
+    - clean up acronyms
+    - clean up cross-reference links
+    - clean up section titles
+    - redo diagrams in mermaid
+
 In this chapter, we revisit the [CS]{acronym-label="CS"
 acronym-form="singular+full"} model from the Householder and Spring 2021
 report [@householder2021state]. A complete derivation of the

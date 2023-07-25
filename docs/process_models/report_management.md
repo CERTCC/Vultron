@@ -1,5 +1,10 @@
 # Report Management Process Model
 
+!!! note "TODO"
+    - clean up cross-reference links
+    - clean up section titles
+    - redo diagrams in mermaid
+
 In this page, we describe a high-level workflow for the CVD Report Management (RM) process. 
 The RM process should be reasonably familiar to anyone familiar with IT Service Management (ITSM) workflows such as problem, change, 
 incident or service request management.
@@ -63,6 +68,11 @@ stateDiagram-v2
             A: Accepted
         }
     }
+    
+    state Closure {
+        C: Closed
+        C --> [*]
+    }
 
     R --> I: invalidate
     R --> V : validate
@@ -71,9 +81,9 @@ stateDiagram-v2
     V --> D : defer
     A --> D : defer
     D --> A : accept
-    D --> [*] : close
-    A --> [*] : close
-    I --> [*] : close
+    D --> C : close
+    A --> C : close
+    I --> C : close
 ```
 <!-- rm-state-machine-end -->
 
@@ -111,10 +121,8 @@ report. Each Participant in a CVD case will have their own
 RM state.
 
 RM states are not the same as CVD case states. Case states follow the Householder-Spring model summarized
-in [Case State Model](./case_state.md), as originally described in the 2021 report
-[@householder2021state]. Further discussion of the interactions of the RM and CS models is found
-in §[\[sec:rm_cvd\]](#sec:rm_cvd){reference-type="ref"
-reference="sec:rm_cvd"}.
+in [Case State Model](./case_state.md). Further discussion of the interactions of the RM and CS models is found
+in [Model Interactions](./model_interactions.md).
 
 #### The _Start_ (_S_) State
 

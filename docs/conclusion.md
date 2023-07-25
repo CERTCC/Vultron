@@ -1,5 +1,11 @@
 # Conclusion {#ch:conclusion}
 
+!!! note "TODO"
+    - clean up acronyms
+    - clean up cross-reference links
+    - clean up section titles
+    - redo diagrams in mermaid
+
 In this report, we described a proposal for an
 [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} protocol in
 the interest of improving the interoperability of the world's

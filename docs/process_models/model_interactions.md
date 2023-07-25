@@ -1,5 +1,11 @@
 # Model Interactions {#ch:interactions}
 
+!!! note "TODO"
+    - clean up acronyms
+    - clean up cross-reference links
+    - clean up section titles
+    - redo diagrams in mermaid
+
 In this chapter, we reflect on the interactions between the
 [RM]{acronym-label="RM" acronym-form="singular+full"},
 [EM]{acronym-label="EM" acronym-form="singular+full"}, and

@@ -1,5 +1,11 @@
 # Future Work {#ch:future_work}
 
+!!! note "TODO"
+    - clean up acronyms
+    - clean up cross-reference links
+    - clean up section titles
+    - redo diagrams in mermaid
+
 In this chapter, we review a number of items remaining as future work.
 We start with a discussion of the need for a [CVD]{acronym-label="CVD"
 acronym-form="singular+short"} Directory and some of the difficulties it

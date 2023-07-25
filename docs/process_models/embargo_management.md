@@ -1,5 +1,11 @@
 # [EM]{acronym-label="EM" acronym-form="singular+full"} Model {#ch:embargo}
 
+!!! note "TODO"
+    - clean up acronyms
+    - clean up cross-reference links
+    - clean up section titles
+    - redo diagrams in mermaid
+
 In this chapter, we describe the basic primitives necessary for the
 [CVD]{acronym-label="CVD" acronym-form="singular+short"}
 [EM]{acronym-label="EM" acronym-form="singular+full"} process. For our
@@ -159,26 +165,24 @@ $$\label{eq:f_em}
 
 <!-- em-state-machine-start -->
 ```mermaid
-graph LR
-    subgraph Pre-Embargo
-        N((None))
-        P((Proposed))
-    end
-    subgraph Active-Embargo
-        A((Active))
-        R((Revise))
-    end
-    subgraph Post-Embargo
-        X((eXited))
-    end
-    N -->|propose| P
-    P -->|reject| N
-    P -->|accept| A
-    A -->|revise| R
-    R -->|accept| A
-    R -->|reject| A
-    R -->|exit| X
-    A -->|exit| X
+stateDiagram-v2
+    direction LR
+    state Pre-Embargo {
+        [*] --> None
+        None --> Proposed : propose
+        Proposed --> None : reject
+        Proposed --> Active : accept
+    }
+    state Active_Embargo {
+        Active --> Revise : revise
+        Revise --> Active : accept
+        Revise --> Active : reject
+        Revise --> eXited : exit
+        Active --> eXited : exit
+    }
+    state Post-Embargo {
+        eXited --> [*]
+    }
 ```
 <!-- em-state-machine-end -->
 
