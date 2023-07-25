@@ -44,6 +44,16 @@ existence---whether it was found via internal testing, reported within a
 [CVD]{acronym-label="CVD" acronym-form="singular+short"} process, or
 noticed as the result of incident or malware analysis.
 
+```mermaid
+graph LR
+    v((Vendor Unaware))
+    V((Vendor Aware))
+    v -->|vendor becomes aware| V    
+    v2((v))
+    V2((V))
+    v2 --> V2
+```
+
 ### The $Fix~Readiness$ Substate ($f,F$) {#sec:cs_f}
 
 The *Fix Readiness* substate refers to the Vendor's creation and
@@ -58,6 +68,17 @@ modeling the activities and states leading up to disclosure. Fix
 acronym-form="singular+short"} process, whereas fix *readiness* is a
 significant process milestone along the way.
 
+```mermaid
+graph LR
+    f((Fix Not Ready))
+    F((Fix Ready))
+    f -->|fix is ready| F
+    f2((f))
+    F2((F))
+    f2 --> F2
+    
+```
+
 ### The $Fix~Deployed$ Substate ($d,D$) {#sec:cs_d}
 
 The *Fix Deployed* substate reflects the deployment status of an
@@ -67,6 +88,16 @@ a singular binary state for a case, but we intend to relax that here to
 reflect a more realistic perspective in which each Deployer maintains
 their own instance of this state value. It remains a binary state for
 each Deployer, which, however, is still a simplification.
+
+```mermaid
+graph LR
+    d((Fix Not Deployed))
+    D((Fix Deployed))
+    d -->|fix is deployed| D    
+    d2((d))
+    D2((D))
+    d2 --> D2
+```
 
 ### The $Public~Awareness$ Substate ($p,P$) {#sec:cs_p}
 
@@ -82,6 +113,16 @@ of other means. As above, we are primarily concerned with the occurrence
 of the event itself rather than the details of *how* the public
 awareness event arises.
 
+```mermaid
+graph LR
+    p((Public Unaware))
+    P((Public Aware))
+    p -->|public becomes aware| P    
+    p2((p))
+    P2((P))
+    p2 --> P2
+```
+
 ### The $Exploit~Public$ Substate ($x,X$) {#sec:cs_x}
 
 The *Exploit Public* substate reflects whether the method of exploiting
@@ -90,6 +131,16 @@ reproduced by others. Posting [PoC]{acronym-label="PoC"
 acronym-form="singular+short"} code to a widely available site or
 including the exploit code in a commonly available exploit tool meets
 this criteria; privately held exploits do not.
+
+```mermaid
+graph LR
+    x((Exploit Not Public))
+    X((Exploit Public))
+    x -->|exploit is public| X    
+    x2((x))
+    X2((X))
+    x2 --> X2
+```
 
 ### The $Attacks~Observed$ Substate ($a,A$) {#sec:cs_a}
 
@@ -102,6 +153,15 @@ $Attacks~Observed$ but not $Exploit~Public$, depending on how closely
 the attacker holds the malware. Use of a public exploit in an attack
 meets both $Exploit~Public$ and $Attacks~Observed$.
 
+```mermaid
+graph LR
+    a((Attacks Not Observed))
+    A((Attacks Observed))
+    a -->|attacks are observed| A    
+    a2((a))
+    A2((A))
+    a2 --> A2
+```
 ### [CS]{acronym-label="CS" acronym-form="singular+short"} Model Design Choices
 
 We chose to include the *Fix Ready*, *Fix Deployed*, and *Public
@@ -149,6 +209,17 @@ ready ($F$) for deployment. And for it to be ready, the Vendor must have
 already known ($V$) about the vulnerability---symbolically,
 $D \implies F \implies V$. As a result, valid states must begin with one
 of the following strings: $vfd$, $Vfd$, $VFd$, or $VFD$.
+
+```mermaid
+graph LR
+  vfd((vfd))
+  Vfd((Vfd))
+  VFd((VFd))
+  VFD((VFD))
+  vfd -->|Vendor is aware| Vfd
+  Vfd -->|Fix is ready| VFd
+  VFd -->|Fix is deployed| VFD
+```
 
 The [CS]{acronym-label="CS" acronym-form="singular+short"} model is thus
 composed of 32 possible states, which we define as $\mathcal{Q}^{cs}$ in
@@ -198,12 +269,12 @@ acronym-form="singular+short"} process has closed a case.
 
 We frequently need to refer to subsets of $\mathcal{Q}^{cs}$. To do so,
 we will use a dot ($\cdot$) to represent a single character wildcard.
-For example, $VFdP\wc\wc$ refers to the subset of $\mathcal{Q}^{cs}$ in
+For example, $VFdP\cdot\cdot$ refers to the subset of $\mathcal{Q}^{cs}$ in
 which the Vendor is aware, a fix is ready but not yet deployed, and the
 public is aware of the vulnerability, yet we are indifferent to whether
 exploit code has been made public or attacks have been observed.
 Specifically,
-$${VFdP\wc\wc} = \{{VFdPxa}, {VFdPxA}, {VFdPXa}, {VFdPXA}\} \subset{\mathcal{Q}}^{cs}$$
+$${VFdP\cdot\cdot} = \{{VFdPxa}, {VFdPxA}, {VFdPXa}, {VFdPXA}\} \subset{\mathcal{Q}}^{cs}$$
 
 ## [CS]{acronym-label="CS" acronym-form="singular+short"} Transitions {#sec:transitions}
 
@@ -218,22 +289,22 @@ each specific substate change, which we correspond to the symbols in the
 [DFA]{acronym-label="DFA" acronym-form="singular+short"}.
 
 -   $\mathbf{V}$ -- A Vendor becomes aware of a vulnerability
-    $vfd\wc\wc\wc \to Vfd\wc\wc\wc$
+    $vfd\cdot\cdot\cdot \to Vfd\cdot\cdot\cdot$
 
 -   $\mathbf{F}$ -- A Vendor readies a fix for a vulnerability
-    $Vfd\wc\wc\wc \to VFd\wc\wc\wc$
+    $Vfd\cdot\cdot\cdot \to VFd\cdot\cdot\cdot$
 
 -   $\mathbf{D}$ -- A Deployer deploys a fix for a vulnerability
-    $VFd\wc\wc\wc \to VFD\wc\wc\wc$
+    $VFd\cdot\cdot\cdot \to VFD\cdot\cdot\cdot$
 
 -   $\mathbf{P}$ -- Information about a vulnerability becomes known to
-    the public $\wc\wc\wc p\wc\wc \to \wc\wc\wc P\wc\wc$
+    the public $\cdot\cdot\cdot p\cdot\cdot \to \cdot\cdot\cdot P\cdot\cdot$
 
 -   $\mathbf{X}$ -- An exploit for a vulnerability is made public
-    $\wc\wc\wc\wc x\wc \to \wc\wc\wc\wc X\wc$
+    $\cdot\cdot\cdot\cdot x\cdot \to \cdot\cdot\cdot\cdot X\cdot$
 
 -   $\mathbf{A}$ -- Attacks exploiting a vulnerability are observed
-    $\wc\wc\wc\wc\wc a \to \wc\wc\wc\wc\wc A$
+    $\cdot\cdot\cdot\cdot\cdot a \to \cdot\cdot\cdot\cdot\cdot A$
 
 We define the set of symbols for our [CS]{acronym-label="CS"
 acronym-form="singular+short"} [DFA]{acronym-label="DFA"
@@ -252,7 +323,7 @@ and uppercase letters, here we use a bold font for the symbols of the
 [CS]{acronym-label="CS" acronym-form="singular+short"}
 [DFA]{acronym-label="DFA" acronym-form="singular+short"} to
 differentiate the transition from the corresponding substate it leads
-to: e.g., $vfd\wc\wc\wc \xrightarrow{\mathbf{V}} Vfd\wc\wc\wc$.
+to: e.g., $vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$.
 
 For the [CS]{acronym-label="CS" acronym-form="singular+short"} model, an
 input symbol $\sigma^{cs} \in \Sigma^{cs}$ is "read" when a Participant
@@ -294,21 +365,48 @@ report [@householder2021state], which we summarize here:
     uppercase.
 
 -   The *Vendor fix path*
-    ($vfd \wc\wc\wc \xrightarrow{\mathbf{V}} Vfd \wc\wc\wc \xrightarrow{\mathbf{F}} VFd \wc\wc\wc \xrightarrow{\mathbf{D}} VFD \wc\wc\wc$)
+    ($vfd \cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd \cdot\cdot\cdot \xrightarrow{\mathbf{F}} VFd \cdot\cdot\cdot \xrightarrow{\mathbf{D}} VFD \cdot\cdot\cdot$)
     is a causal requirement as outlined in
     §[1.2](#sec:cs_substates_to_states){reference-type="ref"
     reference="sec:cs_substates_to_states"}.
 
+```mermaid
+graph LR
+    vfd((vfd...))
+    Vfd((Vfd...))
+    VFd((VFd...))
+    VFD((VFD...))
+    vfd --> Vfd
+    Vfd --> VFd
+    VFd --> VFD
+```
+
+
 -   Vendors are presumed to know at least as much as the public does;
-    therefore, $v\wc\wc P\wc\wc$ can only lead to $V\wc\wc P\wc\wc$.
+    therefore, $v\cdot\cdot P\cdot\cdot$ can only lead to $V\cdot\cdot P\cdot\cdot$.
+
+```mermaid
+graph LR
+    vP((v..P..))
+    VP((V..P..))
+    vP --> VP
+```
+
 
 -   Exploit publication is tantamount to public awareness; therefore,
-    $\wc\wc\wc pX \wc$ can only lead to $\wc\wc\wc\wc PX \wc$.
+    $\cdot\cdot\cdot pX \cdot$ can only lead to $\cdot\cdot\cdot\cdot PX \cdot$.
+
+```mermaid
+graph LR
+    pX((...pX..))
+    PX((...PX..))
+    pX --> PX
+```
 
 In this model, attacks observed when a vulnerability is unknown to the
-public ($\wc\wc\wc p \wc A$) need not immediately cause public awareness
-($\wc\wc\wc P \wc A$), although, obviously, that can and does happen.
-Our reasoning for allowing states in $\wc\wc\wc p \wc A$ to persist is
+public ($\cdot\cdot\cdot p \cdot A$) need not immediately cause public awareness
+($\cdot\cdot\cdot P \cdot A$), although, obviously, that can and does happen.
+Our reasoning for allowing states in $\cdot\cdot\cdot p \cdot A$ to persist is
 twofold:
 
 -   First, the connection between attacks and exploited vulnerabilities
@@ -323,15 +421,15 @@ twofold:
     available to all possible adversaries. Publication, in that case,
     might assist other adversaries more than it helps defenders.
 
-In other words, although $\wc\wc\wc p \wc A$ does not require an
-immediate transition to $\wc\wc\wc P \wc A$ the way
-$\wc\wc\wc pX \wc \xrightarrow{\mathbf{P}} \wc\wc\wc PX \wc$ does, it
+In other words, although $\cdot\cdot\cdot p \cdot A$ does not require an
+immediate transition to $\cdot\cdot\cdot P \cdot A$ the way
+$\cdot\cdot\cdot pX \cdot \xrightarrow{\mathbf{P}} \cdot\cdot\cdot PX \cdot$ does, it
 does seem plausible that the likelihood of $\mathbf{P}$ occurring
 increases when attacks are occurring. Logically, this is a result of
 there being more ways for the public to discover the vulnerability when
 attacks are happening than when they are not. For states in
-$\wc\wc\wc p \wc a$, the public depends on the normal vulnerability
-discovery and reporting process. States in $\wc\wc\wc p \wc A$ include
+$\cdot\cdot\cdot p \cdot a$, the public depends on the normal vulnerability
+discovery and reporting process. States in $\cdot\cdot\cdot p \cdot A$ include
 that possibility and add the potential for discovery as a result of
 security incident analysis. Hence,
 

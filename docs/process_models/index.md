@@ -1,6 +1,6 @@
 # Vultron Process Models
 
-The Vultron Protocol defines three main processes in terms of deterministic finite automata machines:
+The Vultron Protocol defines three main processes in terms of deterministic finite automata (DFAs):
 
 ## [Report Management process](./report_management.md)
 
