@@ -44,68 +44,53 @@ is defined as a 5-tuple $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)
 
 Our proposed RM DFA models a report lifecycle containing seven states, defined below.
 
+
 <!-- rm-state-machine-start -->
 ```mermaid
-flowchart LR
-    subgraph reporting
-        S((Start))
-        R((Received))
-    end
-    subgraph validation
-        I((Invalid))
-        V((Valid))
-    end
-    subgraph prioritization
-        D((Deferred))
-        A((Accepted))
-    end
-    subgraph closure
-        C(((Closed)))
-    end
-    
-    S -->|receive| R
-    R -->|invalidate| I
-    R -->|validate| V
-    V -->|accept| A
-    A -->|close| C
-    I -->|validate| V
-    V -->|defer| D
-    A -->|defer| D
-    D -->|accept| A
-    D -->|close| C
-    I -->|close| C
+stateDiagram-v2
+    direction LR
+    state Reporting {
+        R: Received
+        [*] --> R : receive
+    }    
+    state Validation {
+        I: Invalid
+        V: Valid
+    }
+    state Prioritization {   
+        D: Deferred
+        state Action {
+            A: Accepted
+        }
+    }
+
+    R --> I: invalidate
+    R --> V : validate
+    I --> V : validate
+    V --> A : accept
+    V --> D : defer
+    A --> D : defer
+    D --> A : accept
+    D --> [*] : close
+    A --> [*] : close
+    I --> [*] : close
 ```
 <!-- rm-state-machine-end -->
 
 ```mermaid
-flowchart LR
-    subgraph reporting
-        S((S))
-        R((R))
-    end
-    subgraph validation
-        I((I))
-        V((V))
-    end
-    subgraph prioritization
-        D((D))
-        A((A))
-    end
-    subgraph closure
-        C(((C)))
-    end
-    
-    S --> R
+stateDiagram-v2
+    direction LR
+    [*] --> R
     R --> I
     R --> V
-    V --> A
-    A --> C
     I --> V
+    V --> A
     V --> D
     A --> D
     D --> A
-    D --> C
-    I --> C
+    D --> [*]
+    A --> [*]
+    I --> [*]
 ```
 
 
@@ -393,30 +378,36 @@ Participant into the _Received_ state at the beginning of their
 involvement in the case. $$\label{eq:receive_report}
      
 ```mermaid
-graph LR
-    S((Start))
-    R((Received))
-    S -->|receive report| R
+stateDiagram-v2
+    direction LR
+    [*] --> Received: receive report
 ```
 
 
 The Participant must validate the report to exit the _Received_ state.
 Depending on the validation outcome, the report will be in either the
-_Valid_ or _Invalid_ state. $$\label{eq:report_validation}
+_Valid_ or _Invalid_ state. 
+
+- Reports entering the _Valid_ state SHOULD have a case created for them.
+- Reports entering the _Invalid_ state MAY have a case created for them.
 
 ```mermaid
-graph LR
-    R((Received))
-    V((Valid))
-    I((Invalid))
-    R -->|validate report| V
-    R -->|invalidate report| I
+stateDiagram-v2
+    direction LR
+    state if_else <<choice>>
+    Received --> if_else : validate report
+    if_else --> Valid: valid (create case)
+    if_else --> Invalid: invalid
 ```
 
 Once a report has been validated (i.e., it is in the
 RM _Valid_ state,
 $q^{rm} \in V$), the Participant must prioritize it to determine what
-further effort, if any, is necessary. Appendix
+further effort, if any, is necessary. 
+
+- Participants MUST prioritize _Valid_ cases.
+
+Appendix
 [\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref"
 reference="app:ssvc_mpcvd_protocol"} contains an example of how the
 SSVC model can be
@@ -425,12 +416,12 @@ Prioritization ends with the report in either the _Accepted_ or
 _Deferred_ state.
 
 ```mermaid
-graph LR
-    V((Valid))
-    A((Accepted))
-    D((Deferred))
-    V -->|prioritize report| A
-    V -->|prioritize report| D
+stateDiagram-v2
+    direction LR
+    state if_else <<choice>>
+    Valid --> if_else : prioritize case
+    if_else --> Accepted: accept case
+    if_else --> Deferred: defer case
 ```
 
 Some Participants (e.g., Finders and Coordinators) need to engage
@@ -445,52 +436,45 @@ Participants. Although the _sender_'s state does not change, the
 _recipient_'s state moves from _Start_ to _Received_.
 
 ```mermaid
-graph LR
-    subgraph sender
-        A1((Accepted))
-    end
-    subgraph recipient
-        S((Start))
-        R((Received))
-    end
-    sender -->|send report| recipient
-    S -->|receive report| R
+stateDiagram-v2
+    direction LR
+    state Sender {
+        direction LR
+        other: ...
+        [*] --> other
+        other --> Accepted: accept report
+    }
+    state Recipient {
+        direction LR
+        [*] --> Received: receive report
+    }
+    Accepted --> Recipient: send report
 ```
 
 A Participant might choose to pause work on a previously _Accepted_
 report after revisiting their prioritization decision. When this
 happens, the Participant moves the report to the _Deferred_ state.
-
-```mermaid
-graph LR
-    A((Accepted))
-    D((Deferred))
-    A -->|defer| D
-```
-
 Similarly, a Participant might resume work on a _Deferred_ report,
 moving it to the _Accepted_ state.
 
 ```mermaid
-graph LR
-    D((Deferred))
-    A((Accepted))
-    D -->|accept| A
+stateDiagram-v2
+    direction LR
+    Accepted --> Deferred: defer case
+    Deferred --> Accepted: accept case
 ```
 
 Finally, a Participant can complete work on an _Accepted_ report or
 abandon further work on an _Invalid_ or _Deferred_ report.
 
 ```mermaid
-graph LR
-    A((Accepted))
-    I((Invalid))
-    D((Deferred))
-    C((Closed))
-    A -->|close| C
-    I -->|close| C
-    D -->|close| C
+stateDiagram-v2
+    direction LR
+    Accepted --> Closed: close case
+    Deferred --> Closed: close case
+    Invalid --> Closed: close report
 ```
+
 
 Our model assumes that _Valid_ reports cannot be closed directly without
 first passing through either _Accepted_ or _Deferred_. It is reasonable
@@ -610,36 +594,38 @@ state model for Reporters in
 reference="sec:other_participants"}.
 
 ```mermaid
-flowchart LR
-    subgraph Finder
-        subgraph Hidden
-            S((S))
-            R((R))
-            I((I))
-            V((V))
-            D((D))
-            C(((C)))
-        end
-        subgraph Observable
-            A((A))
-            D2((D))
-            C2(((C)))
-        end 
-    end
-    
-    S --> R
-    R --> I
-    R --> V
-    V --> A
-    A --> C2
-    I --> V
-    V --> D
-    A --> D2
-    D --> A
-    D2 --> A
-    D --> C
-    D2 --> C2
-    I --> C
+stateDiagram-v2
+    direction LR
+    state Finder {
+        direction LR
+        A
+        state Hidden {
+            direction LR
+            R
+            I
+            V
+            D
+            [*] --> R
+            R --> I
+            R --> V
+            V --> D
+            I --> V
+            V --> A
+            D --> A
+            D --> [*]
+            I--> [*]
+        }
+        state Observable {
+            direction LR
+            A
+            D2: D
+            A --> D2
+            D2 --> A
+            A --> [*]
+            D2 --> [*]
+        }
+                
+    }
 ```
 
 
