@@ -24,26 +24,22 @@ reference="app:iso_crosswalk"}.
 
 ## RM State Machine
 
+???+ note inline end "DFA Defined"
+    A DFA is defined as a 5-tuple $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)
+    ~$[@kandar2013automata]:
+
+    - $\mathcal{Q}$ is a finite set of states.
+    - $q_0 \in \mathcal{Q}$ is an initial state.
+    - $\mathcal{F} \subseteq \mathcal{Q}$ is a set of final (or accepting)
+    states.
+    - $\Sigma$ is a finite set of input symbols.
+    - $\delta$ is a transition function of the form $\delta: \mathcal{Q} \times \Sigma \xrightarrow{} \mathcal{Q}$.
+
 In this section, we first cover the states themselves before proceeding
 to a discussion of the transitions between them. Next, we provide a
 discussion of the Participant-specific semantics of the state
 transitions. We use DFA notation to describe our
 RM model.
-
-is defined as a 5-tuple $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)
-~$[@kandar2013automata]:
-
--   $\mathcal{Q}$ is a finite set of states.
-
--   $q_0 \in \mathcal{Q}$ is an initial state.
-
--   $\mathcal{F} \subseteq \mathcal{Q}$ is a set of final (or accepting)
-    states.
-
--   $\Sigma$ is a finite set of input symbols.
-
--   $\delta$ is a transition function
-    $\delta: \mathcal{Q} \times \Sigma \xrightarrow{} \mathcal{Q}$.
 
 ### RM States
 
@@ -57,7 +53,7 @@ stateDiagram-v2
     state Reporting {
         R: Received
         [*] --> R : receive
-    }    
+    }
     state Validation {
         I: Invalid
         V: Valid
@@ -104,16 +100,17 @@ stateDiagram-v2
 ```
 
 
-$$
-    \begin{split}
-    \mathcal{Q}^{rm} = \{ & \underline{S}tart,
-                            ~\underline{R}eceived,
-                            ~\underline{I}nvalid,
-                            ~\underline{V}alid, \\
-                          & ~\underline{A}ccepted,
-                            ~\underline{D}eferred, 
-                            ~\underline{C}losed \}
-    \end{split}$$
+???+ note inline end "RM States $\mathcal{Q}^{rm}$ Defined" 
+    $$
+        \begin{split}
+        \mathcal{Q}^{rm} = \{ & \underline{S}tart, \\
+                              & \underline{R}eceived,\\
+                              & \underline{I}nvalid, \\
+                              & \underline{V}alid, \\
+                              & \underline{A}ccepted, \\
+                              & \underline{D}eferred, \\
+                              & \underline{C}losed \}
+        \end{split}$$
 
 In this example, we use underlined capital letters as a shorthand for
 the state names. We use this convention throughout the remainder of this
@@ -130,11 +127,9 @@ The _Start_ state is a simple placeholder state for reports that have
 yet to be received. It is, in effect, a null state that no
 CVD Participant
 would be expected to reflect in their report tracking system. We include
-it here because it will become useful when we are modeling coordination
-that spans multiple Participants in a formal protocol in Chapter
-[\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref"
-reference="sec:formal_protocol"}. Otherwise, the discussion until then
-will mostly ignore it.
+it here because it is useful when modeling coordination
+that spans multiple Participants in the [formal protocol](../formal_protocol/index.md).
+Otherwise, the discussion until then will mostly ignore it.
 
 #### The _Received_ (_R_) State
 
@@ -142,25 +137,24 @@ Reports initially arrive in the _Received_ state.
 
 Vendors lacking the ability to receive reports will find it exceedingly
 difficult if not impossible to participate in the
-CVD process.
-Therefore,
+CVD process. Therefore,
 
--   Vendors SHOULD have a clearly defined and publicly available
+!!! note ""
+    Vendors SHOULD have a clearly defined and publicly available 
     mechanism for receiving reports.
 
 Similarly, those who coordinate others' responses to vulnerability
 reports also need to have a report receiving capability; otherwise, they
 are not capable of coordinating vulnerability disclosures. Hence,
 
--   Coordinators MUST have a clearly defined and publicly available
+!!! note ""
+    Coordinators MUST have a clearly defined and publicly available
     mechanism for receiving reports.
 
 Exiting the _Received_ state requires a Participant to assess the
 validity of a report. Note that validation is distinct from
-prioritization, as covered in
-§[1.1.1.4](#sec:rm_state_v){reference-type="ref"
-reference="sec:rm_state_v"}. As an example, a Vendor might later choose
-to _defer_ further response on a _Valid_ report due to other priorities.
+prioritization, as covered in our description of the [_Valid_](#the-valid-v-state) state.
+As an example, a Vendor might later choose to _defer_ further response on a _Valid_ report due to other priorities.
 
 Validity criteria need not be limited to technical analysis. For
 instance, a Coordinator might only accept reports within their specific
@@ -170,24 +164,30 @@ vulnerability. Alternatively, a Vendor might institute a policy
 designating reports unaccompanied by a working proof-of-concept exploit
 as _Invalid_ by default.
 
--   All Participants SHOULD have a clearly defined process for
+!!! note ""
+    Participants SHOULD have a clearly defined process for
     validating reports in the _Received_ state.
 
--   Participants SHOULD perform at least a minimal credibility check on
-    reports as a minimum validation process before exiting the
-    _Received_ state.
+!!! note ""
+    Participants SHOULD have a clearly defined process for
+    transitioning reports from the _Received_ state to the _Valid_ or
+    _Invalid_ states.
 
--   Participants MAY perform a more technical report validation process
+!!! note ""
+    Participants MAY perform a more technical report validation process
     before exiting the _Received_ state.
 
--   Regardless of the technical rigor applied in the validation process,
+!!! note ""
+    Regardless of the technical rigor applied in the validation process,
     Participants SHOULD proceed only after validating the reports they
     receive.
 
--   Participants SHOULD transition all valid reports to the _Valid_
+!!! note ""
+    Participants SHOULD transition all valid reports to the _Valid_
     state and all invalid reports to the _Invalid_ state.
 
--   Regardless of the content or quality of the initial report, once a
+!!! note ""
+    Regardless of the content or quality of the initial report, once a
     Vendor confirms that a reported vulnerability affects one or more of
     their product(s) or service(s), the Vendor SHOULD designate the
     report as _Valid_.
@@ -205,14 +205,17 @@ available resources. The _Invalid_ state is intended to be used as a
 temporary holding place to allow for additional evidence to be sought to
 contradict that conclusion.
 
--   Participants SHOULD temporarily hold reports that they cannot
+!!! note ""
+    Participants SHOULD temporarily hold reports that they cannot
     validate pending additional information.
 
--   Participants SHOULD provide Reporters an opportunity to update their
+!!! note ""
+    Participants SHOULD provide Reporters an opportunity to update their
     report with additional information in support of its validity before
     closing the report entirely.
 
--   Participants MAY set a timer to move reports from _Invalid_ to
+!!! note ""
+    Participants MAY set a timer to move reports from _Invalid_ to
     _Closed_ after a set period of inactivity.
 
 #### The _Valid_ (_V_) State
@@ -221,11 +224,13 @@ Reports in the _Valid_ state are ready to be prioritized for possible
 future work. The result of this prioritization process will be to either
 accept the report for follow-up or defer further effort.
 
--   Once a report is in the _Valid_ state, Participants MAY choose to
+!!! note ""
+    Once a report is in the _Valid_ state, Participants MAY choose to
     perform a shallow technical analysis on it to prioritize any further
     effort relative to other work.
 
--   Participants SHOULD have a bias toward accepting rather than
+!!! note ""
+    Participants SHOULD have a bias toward accepting rather than
     deferring cases up to their work capacity limits.
 
 In other words, prioritization is only necessary if the workload
@@ -265,7 +270,8 @@ happen in the _Accept_ state in
 §[\[sec:do_work\]](#sec:do_work){reference-type="ref"
 reference="sec:do_work"}.
 
--   A report MAY enter and exit the _Accepted_ state a number of times
+!!! note ""
+    A report MAY enter and exit the _Accepted_ state a number of times
     in its lifespan as a Participant resumes or pauses work (i.e.,
     transitions to/from the _Deferred_ state).
 
@@ -285,18 +291,21 @@ precedence over an active report, as in
 [\[eq:pause_report\]](#eq:pause_report){reference-type="eqref"
 reference="eq:pause_report"}.
 
--   A report MAY enter and exit the _Deferred_ state a number of times
+!!! note ""
+    A report MAY enter and exit the _Deferred_ state a number of times
     in its lifespan as a Participant pauses or resumes work (i.e.,
     transitions from/to the _Accepted_ state).
 
--   Reports SHOULD exit the _Deferred_ state when work is resumed
+!!! note ""
+    Reports SHOULD exit the _Deferred_ state when work is resumed
     [\[eq:resume_report\]](#eq:resume_report){reference-type="eqref"
     reference="eq:resume_report"}, or when the Participant has
     determined that no further action will be taken
     [\[eq:close_report\]](#eq:close_report){reference-type="eqref"
     reference="eq:close_report"}.
 
--   CVD Participants MAY set a policy timer on reports in the _Deferred_
+!!! note ""
+    CVD Participants MAY set a policy timer on reports in the _Deferred_
     state to ensure they are moved to _Closed_ after a set period of
     inactivity.
 
@@ -307,23 +316,22 @@ pre-closure review (e.g., for quality assurance purposes) should be
 performed before the case moves to the _Closed_ state (i.e., while the
 report is in _Invalid_, _Deferred_, or _Accepted_).
 
--   Reports SHOULD be moved to the _Closed_ state once a Participant has
+!!! note ""
+    Reports SHOULD be moved to the _Closed_ state once a Participant has
     completed all outstanding work tasks and is fairly sure that they
     will not be pursuing any further action on it.
 
-#### RM Start and End States
-
-The RM process
-starts in the _Start_ state.
-
-$$\label{eq:rm_start_state}
-    q^{rm}_0 = Start$$
-
-The RM process ends
-in the _Closed_ state.
-
-$$\label{eq:rm_end_states}
-    \mathcal{F}^{rm} = \{Closed\}$$
+???+ note inline end "RM Start and End States ($q^{rm}_0, \mathcal{F}^{rm}$) Defined"
+    
+    The RM process
+    starts in the _Start_ state.
+    
+    $$q^{rm}_0 = Start$$
+    
+    The RM process ends
+    in the _Closed_ state.
+    
+    $$\mathcal{F}^{rm} = \{Closed\}$$
 
 ### RM
 
@@ -331,9 +339,10 @@ The actions performed in the RM process represent the allowed state
 transitions in the corresponding DFA.
 
 -   A Participant's RM process begins when the Participant
-    _receive_s a report.
+    receives a report.
 
--   Each Participant SHOULD subject each _Received_ report to some sort
+!!! note ""
+    Each Participant SHOULD subject each _Received_ report to some sort
     of validation process, resulting in the report being designated as
     _valid_ or _invalid_ based on the Participant's particular criteria.
 
@@ -341,7 +350,8 @@ In other words, the _Received_ state corresponds to the Validation phase
 of *The CERT Guide to Coordinated Vulnerability Disclosure*
 [@householder2017cert].
 
--   For _Valid_ reports, the Participant SHOULD perform a prioritization
+!!! note ""
+    For _Valid_ reports, the Participant SHOULD perform a prioritization
     evaluation to decide whether to _accept_ or _defer_ the report for
     further work.
 
@@ -357,19 +367,26 @@ reference="app:ssvc_mpcvd_protocol"} takes a closer look at how
 SSVC fits into the
 protocol we are defining.
 
--   Participants SHOULD _close_ reports that require no further work
+!!! note ""
+    Participants SHOULD _close_ reports that require no further work
     (e.g., those that have been in _Invalid_ or _Deferred_ for some
     length of time, or those in _Accepted_, where all necessary tasks
     are complete.)
 
-These actions constitute the set of symbols for the
-RM
-DFA, as shown in
-[\[eq:rm_transitions\]](#eq:rm_transitions){reference-type="eqref"
-reference="eq:rm_transitions"}.
+???+ note inline end "RM Symbols ($\Sigma^{rm}$) Defined"
+    These actions constitute the set of symbols for the
+    RM DFA. 
 
-$$\label{eq:rm_transitions}
-    \Sigma^{rm} = \{\underline{r}eceive,~\underline{v}alidate,~\underline{i}nvalidate,~\underline{a}ccept,~\underline{d}efer,~\underline{c}lose \}$$
+    $$
+    \begin{align*}
+      \Sigma^{rm} = \{ & \underline{r}eceive, \\
+                       & \underline{v}alidate, \\
+                       & \underline{i}nvalidate, \\
+                       & \underline{a}ccept, \\
+                       & \underline{d}efer, \\
+                       & \underline{c}lose \}
+    \end{align*}
+    $$
 
 #### RM Transitions Defined
 
@@ -396,16 +413,22 @@ The Participant must validate the report to exit the _Received_ state.
 Depending on the validation outcome, the report will be in either the
 _Valid_ or _Invalid_ state. 
 
-- Reports entering the _Valid_ state SHOULD have a case created for them.
-- Reports entering the _Invalid_ state MAY have a case created for them.
+!!! note ""
+    Reports entering the _Valid_ state SHOULD have a case created for
+    them.
+    
+!!! note ""
+    Reports entering the _Invalid_ state MAY have a case created for
+    them.
 
 ```mermaid
 stateDiagram-v2
     direction LR
-    state if_else <<choice>>
-    Received --> if_else : validate report
-    if_else --> Valid: valid (create case)
-    if_else --> Invalid: invalid
+    state validate <<choice>>
+    Received --> validate : validate report
+    validate --> Valid: valid (create case)
+    validate --> Invalid: invalid
+    Invalid --> validate: re-validate
 ```
 
 Once a report has been validated (i.e., it is in the
@@ -413,7 +436,8 @@ RM _Valid_ state,
 $q^{rm} \in V$), the Participant must prioritize it to determine what
 further effort, if any, is necessary. 
 
-- Participants MUST prioritize _Valid_ cases.
+!!! note ""
+    Participants MUST prioritize _Valid_ cases.
 
 Appendix
 [\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref"
@@ -426,22 +450,23 @@ _Deferred_ state.
 ```mermaid
 stateDiagram-v2
     direction LR
-    state if_else <<choice>>
-    Valid --> if_else : prioritize case
-    if_else --> Accepted: accept case
-    if_else --> Deferred: defer case
+    state prioritize <<choice>>
+    Valid --> prioritize : prioritize case
+    prioritize --> Accepted: accept case
+    prioritize --> Deferred: defer case
 ```
+
+##### Participants Interact from the _Accepted_ State
+
+!!! note ""
+    Participants initiating contact with others MUST do so from the _Accepted_ state.
 
 Some Participants (e.g., Finders and Coordinators) need to engage
 someone else (e.g., a Vendor) to resolve a case. To do this, the
 _sender_ Participants must also be in the _Accepted_ state; otherwise,
-why are they working on the case? In the following equation, we use
-brackets and subscripts to indicate the interaction between two
-instances of the RM
-model: one bracket represents the _sender_ and _receiver_ states before
-the message is transmitted, while the other is for the end state of both
-Participants. Although the _sender_'s state does not change, the
-_recipient_'s state moves from _Start_ to _Received_.
+why are they working on the case? In the following diagram, we show the interaction between two
+instances of the RM model: the left side represents the _sender_ while the right side represents the _receiver_
+Although the _sender_'s state does not change, the _recipient_'s state moves from _Start_ to _Received_.
 
 ```mermaid
 stateDiagram-v2
@@ -459,6 +484,11 @@ stateDiagram-v2
     Accepted --> Recipient: send report
 ```
 
+##### Reprioritizing Cases
+
+!!! note ""
+    Participants MAY re-prioritize _Accepted_ or _Deferred_ cases.
+
 A Participant might choose to pause work on a previously _Accepted_
 report after revisiting their prioritization decision. When this
 happens, the Participant moves the report to the _Deferred_ state.
@@ -468,9 +498,14 @@ moving it to the _Accepted_ state.
 ```mermaid
 stateDiagram-v2
     direction LR
-    Accepted --> Deferred: defer case
-    Deferred --> Accepted: accept case
+    state prioritize <<choice>>
+    prioritize --> Accepted: accept case
+    prioritize --> Deferred: defer case
+    Accepted --> prioritize : re-prioritize case
+    Deferred --> prioritize : re-prioritize case
 ```
+
+##### Case Closure
 
 Finally, a Participant can complete work on an _Accepted_ report or
 abandon further work on an _Invalid_ or _Deferred_ report.
@@ -482,7 +517,11 @@ stateDiagram-v2
     Deferred --> Closed: close case
     Invalid --> Closed: close report
 ```
+!!! note ""
+    Participants MAY close _Accepted_ or _Deferred_ cases or _Invalid_ reports.
 
+!!! note ""
+    Participants MUST NOT close cases or reports from the _Valid_ state.
 
 Our model assumes that _Valid_ reports cannot be closed directly without
 first passing through either _Accepted_ or _Deferred_. It is reasonable
@@ -494,25 +533,23 @@ later, once more information has arrived. However, there is nothing
 stopping a Participant from instituting a process that goes from _Valid_
 to _Deferred_ to _Closed_ in rapid (even immediate) succession.
 
-#### RM
+#### Possible Report Management Histories
 
-Following the state machine diagram in Figure
-[\[fig:rm_states\]](#fig:rm_states){reference-type="ref"
-reference="fig:rm_states"}, equation
-[\[eq:rm_grammar\]](#eq:rm_grammar){reference-type="eqref"
-reference="eq:rm_grammar"} represents the RM process model as a right-linear grammar:
+???+ note inline end "RM Transition Function ($\delta^{rm}$) Defined"
 
-$$\label{eq:rm_grammar}
-\delta^{rm} = 
-\begin{cases}
-S & \to rR \\
-R & \to vV~|~iI \\
-I & \to vV~|~cC \\
-V & \to aA~|~dD \\
-A & \to dD~|~cC \\
-D & \to aA~|~cC \\
-C & \to \epsilon \\
-\end{cases}$$
+    Following the state machine diagram above, we represent the RM process model as a right-linear grammar:
+    
+    $$\label{eq:rm_grammar}
+    \delta^{rm} = 
+    \begin{cases}
+    S & \to rR \\
+    R & \to vV~|~iI \\
+    I & \to vV~|~cC \\
+    V & \to aA~|~dD \\
+    A & \to dD~|~cC \\
+    D & \to aA~|~cC \\
+    C & \to \epsilon \\
+    \end{cases}$$
 
 The strings generated in the language defined by this grammar can be
 useful for exploring the possible sequences of states each report might
@@ -533,51 +570,37 @@ discussed as future work in
 §[\[sec:rm_reward_function\]](#sec:rm_reward_function){reference-type="ref"
 reference="sec:rm_reward_function"}.
 
-### RM]{acronym-label="RM" acronym-form="singular+short"} [DFA Fully Defined
+!!! note "RM DFA Fully Defined"
+    Taken in combination, the full definition of the RM DFA is as follows:
+    
+    $$\label{eq:rm_dfa}
+        RM = 
+        \begin{pmatrix}
+                \begin{aligned}
+                    \mathcal{Q}^{rm} = & \{ S,R,I,V,A,D,C \} \\
+                    q^{rm}_0 = & S  \\
+                    \mathcal{F}^{rm} = & \{ C \} \\
+                    \Sigma^{rm} = & \{ r,i,v,a,d,c \} \\
+                    \delta^{rm} = &
+                        \begin{cases}
+                            S \to & rR \\
+                            R \to & vV~|~iI \\
+                            I \to & vV~|~cC \\
+                            V \to & aA~|~dD \\
+                            A \to & dD~|~cC \\
+                            D \to & aA~|~cC \\
+                            C \to & \epsilon \\
+                        \end{cases}
+                \end{aligned}
+        \end{pmatrix}$$
 
-Taken in combination, the full definition of the RM DFA
-$(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{rm}$ is given by equations
-[\[eq:rm_states\]](#eq:rm_states){reference-type="eqref"
-reference="eq:rm_states"},
-[\[eq:rm_start_state\]](#eq:rm_start_state){reference-type="eqref"
-reference="eq:rm_start_state"},
-[\[eq:rm_end_states\]](#eq:rm_end_states){reference-type="eqref"
-reference="eq:rm_end_states"},
-[\[eq:rm_transitions\]](#eq:rm_transitions){reference-type="eqref"
-reference="eq:rm_transitions"}, and
-[\[eq:rm_grammar\]](#eq:rm_grammar){reference-type="eqref"
-reference="eq:rm_grammar"}. For convenience, we assembled them into
-[\[eq:rm_dfa\]](#eq:rm_dfa){reference-type="eqref"
-reference="eq:rm_dfa"}.
-
-$$\label{eq:rm_dfa}
-    RM = 
-    \begin{pmatrix}
-            \begin{aligned}
-                \mathcal{Q}^{rm} = & \{ S,R,I,V,A,D,C \}, &\textrm{\small{\eqref{eq:rm_states}}} \\
-                q^{rm}_0 = & S, &\textrm{\small{\eqref{eq:rm_start_state}}} \\
-                \mathcal{F}^{rm} = & \{ C \}, &\textrm{\small{\eqref{eq:rm_end_states}}} \\
-                \Sigma^{rm} = & \{ r,i,v,a,d,c \}, &\textrm{\small{\eqref{eq:rm_transitions}}} \\
-                \delta^{rm} = &
-                    \begin{cases}
-                        S \to & rR \\
-                        R \to & vV~|~iI \\
-                        I \to & vV~|~cC \\
-                        V \to & aA~|~dD \\
-                        A \to & dD~|~cC \\
-                        D \to & aA~|~cC \\
-                        C \to & \epsilon \\
-                    \end{cases}
-                    &\textrm{\small{\eqref{eq:rm_grammar}}}
-            \end{aligned}
-    \end{pmatrix}$$
-
-## RM
+## Report Management
 
 State transitions represent messaging opportunities to communicate CVD
 case status among Participants.
 
--   CVD Participants SHOULD announce their RM state transitions to the other
+!!! note ""
+    CVD Participants SHOULD announce their RM state transitions to the other
     Participants in a case.
 
 This is the lynchpin that makes the RM model point toward a technical
