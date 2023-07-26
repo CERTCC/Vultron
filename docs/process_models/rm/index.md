@@ -115,7 +115,14 @@ are not capable of coordinating vulnerability disclosures. Hence,
 Exiting the _Received_ state requires a Participant to assess the
 validity of a report. Note that validation is distinct from
 prioritization, as covered in our description of the [_Valid_](#the-valid-v-state) state.
-As an example, a Vendor might later choose to _defer_ further response on a _Valid_ report due to other priorities.
+In other words, the _Received_ state corresponds to the
+[Validation phase](https://vuls.cert.org/confluence/display/CVD/4.3+Validation+and+Triage) 
+of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD).
+
+!!! note ""
+    Participants SHOULD subject each _Received_ report to some sort
+    of validation process, resulting in the report being designated as
+    _valid_ or _invalid_ based on the Participant's particular criteria.
 
 Validity criteria need not be limited to technical analysis. For
 instance, a Coordinator might only accept reports within their specific
@@ -153,6 +160,9 @@ as _Invalid_ by default.
     their product(s) or service(s), the Vendor SHOULD designate the
     report as _Valid_.
 
+!!! note ""
+    Participants MAY create a case object to track any report in the _Received_ state.
+
 #### The _Invalid_ (_I_) State
 
 Reports in the _Invalid_ state have been evaluated and found lacking by
@@ -183,25 +193,50 @@ contradict that conclusion.
 
 Reports in the _Valid_ state are ready to be prioritized for possible
 future work. The result of this prioritization process will be to either
-accept the report for follow-up or defer further effort.
+accept the report for follow-up or defer further effort. 
+The _Valid_ state is equivalent to the [Prioritization
+(Triage)](https://vuls.cert.org/confluence/display/CVD/4.3+Validation+and+Triage) phase 
+of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD).
+As an example, a Vendor might later choose to _defer_ further response on a _Valid_ report due to other priorities.
 
 !!! note ""
-    Once a report is in the _Valid_ state, Participants MAY choose to
-    perform a shallow technical analysis on it to prioritize any further
+    For _Valid_ reports, the Participant SHOULD perform a prioritization
+    evaluation to decide whether to _accept_ or _defer_ the report for
+    further work.
+
+!!! note ""
+    If one does not already exist, Participants SHOULD create a case from
+    reports entering the _Valid_ state to track the report's subsequent progress through the CVD process.
+
+!!! note ""
+    Participants MAY choose to
+    perform a shallow technical analysis on _Valid_ reports to prioritize any further
     effort relative to other work.
 
 !!! note ""
     Participants SHOULD have a bias toward accepting rather than
-    deferring cases up to their work capacity limits.
+    deferring _Valid_ cases up to their work capacity limits.
 
 In other words, prioritization is only necessary if the workload
 represented by active valid reports exceeds the organization's capacity
 to process those reports.
 
+
+
 Prioritization schemes, such as [SSVC](https://github.com/CERTCC/SSVC) or the
 [CVSS](https://first.org/cvss), are commonly used to
 prioritize work within the CVD process; however, specific details are
 left to Participant-specific implementation.[^1]
+The SSVC model is illustrative here, although any prioritization scheme could be
+substituted as long as it emits a result that can be mapped onto the
+semantics of "continue work" or "defer further
+action".
+Appendix
+[\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref"
+reference="app:ssvc_mpcvd_protocol"} takes a closer look at how
+SSVC fits into the
+protocol we are defining.
+
 
 #### The _Accepted_ (_A_) State
 
@@ -301,31 +336,7 @@ transitions in the corresponding DFA.
 -   A Participant's RM process begins when the Participant
     receives a report.
 
-!!! note ""
-    Each Participant SHOULD subject each _Received_ report to some sort
-    of validation process, resulting in the report being designated as
-    _valid_ or _invalid_ based on the Participant's particular criteria.
 
-In other words, the _Received_ state corresponds to the Validation phase
-of *The CERT Guide to Coordinated Vulnerability Disclosure*
-{== [@householder2017cert] ==}.
-
-!!! note ""
-    For _Valid_ reports, the Participant SHOULD perform a prioritization
-    evaluation to decide whether to _accept_ or _defer_ the report for
-    further work.
-
-Similarly, the _Valid_ state is equivalent to the Prioritization
-(Triage) phase of the *CVD Guide* {== [@householder2017cert] ==}. The
-SSVC model is
-illustrative here, although any prioritization scheme could be
-substituted as long as it emits a result that can be mapped onto the
-semantics of "continue work" or "defer further
-action" {== [@spring2021ssvc] ==}. Appendix
-[\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref"
-reference="app:ssvc_mpcvd_protocol"} takes a closer look at how
-SSVC fits into the
-protocol we are defining.
 
 !!! note ""
     Participants SHOULD _close_ reports that require no further work
