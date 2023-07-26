@@ -319,9 +319,13 @@ stateDiagram-v2
 Other MPCVD RM interaction configurations are possible, of course. We demonstrate a few such
 scenarios in the following figures.
 This time each node represents a Participant's entire RM model. We have observed all of the
-following interactions at the CERT/CC:
+following interactions at the CERT/CC.
+We intend the RM model to be sufficiently composable to accommodate all such permutations.
 
-### A Finder notifies multiple Vendors without engaging a Coordinator.
+
+### Finder coordinates MPCVD with Multiple Vendors
+
+A Finder notifies multiple Vendors without engaging a Coordinator.
 
 ```mermaid
 stateDiagram-v2
@@ -331,7 +335,9 @@ stateDiagram-v2
     Finder --> Vendor3: r2
 ```
 
-### A Finder notifies a Vendor, who, in turn, notifies other Vendors.
+### Vendor coordinates MPCVD 
+
+A Finder notifies a Vendor, who, in turn, notifies other Vendors.
 
 ```mermaid
 stateDiagram-v2
@@ -342,7 +348,9 @@ stateDiagram-v2
     Vendor1 --> Vendor4: r3
 ```
 
-### A Finder notifies a Vendor, who, in turn, engages a Coordinator to reach other Vendors.
+### Vendor Engages a Coordinator for MPCVD
+
+A Finder notifies a Vendor, who, in turn, engages a Coordinator to reach other Vendors.
 
 ```mermaid
 stateDiagram-v2
@@ -374,8 +382,4 @@ stateDiagram-v2
     Vendor7 --> Vendor8: r8
     Vendor7 --> Vendor9: r9
 ```
-
-We intend the RM
-model to be sufficiently composable to accommodate all such
-permutations.
 
