@@ -7,7 +7,7 @@
 
 ## Generic checklist for every latex->md conversion
 
-- [ ] regex replace acronym pointers with the acronym
+- [ ] regex replace acronym pointers with the acronym `\[(\w+)\]\{[^}]+\}` -> `$1`
 - [ ] replace first use of an acronym on a page with its expansion (if not already done)
 - [ ] OR replace acronym usage with link to where it's defined
 - [ ] reproduce diagrams using mermaid
