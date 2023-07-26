@@ -4,28 +4,28 @@
     - [x] regex replace acronym pointers with the acronym
     - [ ] replace first use of an acronym on a page with its expansion (if not already done)
     - [ ] OR replace acronym usage with link to where it's defined
-    - [ ] reproduce diagrams using mermaid
-    - [ ] replace text about figures to reflect mermaid diagrams
+    - [x] reproduce diagrams using mermaid
+    - [x] replace text about figures to reflect mermaid diagrams
     - [ ] replace latex tables with markdown tables
-    - [ ] replace some equations with diagrams (especially for equations describing state changes)
-    - [ ] move latex math definitions into note blocks `???+ note _title_` to offset from text
-    - [ ] move MUST SHOULD MAY etc statements into note blocks with empty title `!!! note ""` to offset from text
+    - [x] replace some equations with diagrams (especially for equations describing state changes)
+    - [x] move latex math definitions into note blocks `???+ note _title_` to offset from text
+    - [x] move MUST SHOULD MAY etc statements into note blocks with empty title `!!! note ""` to offset from text
     - [ ] revise cross-references to be links to appropriate files/sections
     - [ ] replace latex citations with markdown citations (not sure how to do this yet)
     - [ ] review text for flow and readability as a web page
-    - [ ] add section headings as needed for visual distinction
-    - [ ] add links to other sections as needed
+    - [x] add section headings as needed for visual distinction
+    - [x] add links to other sections as needed
     - [ ] add links to external resources as needed
     - [ ] replace phrases like `this report` or `this section` with `this page` or similar
     - [ ] add `above` or `below` for in-page cross-references if appropriate (or just link to the section)
     - [ ] reduce formality of language as needed
     - [ ] move diagrams to separate files and `include-markdown` them
 
-In this page, we describe a high-level workflow for the CVD Report Management (RM) process. 
+Here we describe a high-level workflow for the CVD Report Management (RM) process. 
 The RM process should be reasonably familiar to anyone familiar with [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management) (ITSM) workflows such as problem, change, 
 incident or service request management.
 In particular, any workflow in which work items (e.g., incident reports, problem tickets, change requests) are received, validated, prioritized, and work is subsequently
-completed, should map onto the RM process outlined in this chapter.
+completed, should map onto the RM process outlined here.
 
 In the interest of maintaining the potential for interoperability among different organizations' internal processes, our protocol does not
 specify intra-organizational subprocesses within each state, although we give examples of such subprocesses in 
@@ -36,7 +36,7 @@ that can be mapped into the RM process. We provide such a mapping in our [ISO Cr
 
 ## RM State Machine
 
-???+ note inline end "DFA Defined"
+???+ note inline end "DFA Notation Defined"
     A DFA is defined as a 5-tuple $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)
     ~${== [@kandar2013automata] ==}:
 
@@ -51,8 +51,8 @@ In this section, we first cover the states themselves before proceeding
 to a discussion of the transitions between them. 
 [Elsewhere](rm_interactions.md) , we provide a
 discussion of the Participant-specific semantics of the state
-transitions. We use DFA notation to describe our
-RM model.
+transitions. We use Deterministic Finite Automata (DFA) notation to describe our
+RM model (see inset).
 
 ### RM States
 
@@ -224,12 +224,12 @@ to process those reports.
 Prioritization schemes, such as [SSVC](https://github.com/CERTCC/SSVC) or the
 [CVSS](https://first.org/cvss), are commonly used to
 prioritize work within the CVD process; however, specific details are
-left to Participant-specific implementation.[^1]
+left to Participant-specific implementation.
 The SSVC model is illustrative here, although any prioritization scheme could be
 substituted as long as it emits a result that can be mapped onto the
 semantics of "continue work" or "defer further
 action".
-[SSVC Crosswalk](ssvc_crosswalk.md) takes a closer look at how
+[SSVC Crosswalk](../ssvc_crosswalk.md) takes a closer look at how
 SSVC fits into the protocol we are defining.
 
 #### The _Accepted_ (_A_) State
@@ -245,7 +245,7 @@ meaning for each different Participant.
     for reports that they intend to put through the
     CVD process. If
     they have no intention of pursuing CVD, there is no need for them to track
-    their actions using this protocol. See [the secret lives of finders](#the-secret-lives-of-finders) for more.
+    their actions using this protocol. See [the secret lives of finders](rm_interactions.md#the-secret-lives-of-finders) for more.
 
 -   Vendors usually do root cause analysis, understand the problem, and
     produce a fix or mitigation.
@@ -272,12 +272,8 @@ necessary validation criteria in that both states are awaiting closure
 once it is determined that no further action is necessary.
 
 For example, a Participant might use the _Deferred_ state when a valid
-report fails to meet their prioritization criteria
-[\[eq:prioritize_report\]](#eq:prioritize_report){reference-type="eqref"
-reference="eq:prioritize_report"}, or when a higher priority task takes
-precedence over an active report, as in
-[\[eq:pause_report\]](#eq:pause_report){reference-type="eqref"
-reference="eq:pause_report"}.
+report fails to meet their [prioritization criteria](#prioritize-report), or when a higher priority task takes
+precedence over an active case.
 
 !!! note ""
     A report MAY enter and exit the _Deferred_ state a number of times
@@ -308,6 +304,10 @@ report is in _Invalid_, _Deferred_, or _Accepted_).
     Reports SHOULD be moved to the _Closed_ state once a Participant has
     completed all outstanding work tasks and is fairly sure that they
     will not be pursuing any further action on it.
+    For example
+
+    - reports or cases that have been in _Invalid_ or _Deferred_ for some length of time,
+    - cases in _Accepted_ where all necessary tasks are complete.
 
 ???+ note "RM Start and End States ($q^{rm}_0, \mathcal{F}^{rm}$) Defined"
     
@@ -324,19 +324,9 @@ report is in _Invalid_, _Deferred_, or _Accepted_).
 
 ### RM State Transitions
 
+A Participant's RM process begins when the Participant receives a report.
 The actions performed in the RM process represent the allowed state
 transitions in the corresponding DFA.
-
--   A Participant's RM process begins when the Participant
-    receives a report.
-
-
-
-!!! note ""
-    Participants SHOULD _close_ reports that require no further work
-    (e.g., those that have been in _Invalid_ or _Deferred_ for some
-    length of time, or those in _Accepted_, where all necessary tasks
-    are complete.)
 
 ???+ note inline end "RM Symbols ($\Sigma^{rm}$) Defined"
     These actions constitute the set of symbols for the
@@ -358,7 +348,7 @@ transitions in the corresponding DFA.
 In this section, we define the allowable transitions between states in
 the RM process model. The RM process, including its states and transitions, is depicted in the following diagram.
 State transitions represent messaging opportunities to communicate CVD
-case status among Participants. This is the lynchpin that makes the RM model point toward a technical
+case status among Participants. This point is the lynchpin that makes the RM model point toward a technical
 protocol. Every state transition implies a different message type.
 
 {% include-markdown "./rm_state_machine_diagram.md" %}
@@ -431,8 +421,7 @@ further effort, if any, is necessary.
 !!! note ""
     Participants MUST prioritize _Valid_ cases.
 
-{== Appendix
-[\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref" reference="app:ssvc_mpcvd_protocol"} ==} contains an example of how the
+Our [SSVC Crosswalk](../ssvc_crosswalk.md) contains an example of how the
 SSVC model can be applied here, although any prioritization scheme could be substituted.
 Prioritization ends with the report in either the _Accepted_ or _Deferred_ state.
 
@@ -616,10 +605,3 @@ reference="sec:rm_reward_function"} ==}.
             Inactive &= \{ I,D,C \} 
         \end{align}$$
 
-
-
-
-[^1]: See also Appendix
-    [\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref"
-    reference="app:ssvc_mpcvd_protocol"}, where we connect a few of the
-    dots between SSVC and this protocol model.
