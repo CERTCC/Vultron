@@ -73,22 +73,20 @@ Our proposed RM DFA models a report lifecycle containing seven states, defined b
                               & \underline{C}losed \}
         \end{split}$$
 
-In this example, we use underlined capital letters as a shorthand for
-the state names. We use this convention throughout the remainder of this
-report. Each Participant in a CVD case will have their own
-RM state.
+By convention, we will use the underlined capital letters in the box at right as a shorthand for
+the state names. Each Participant in a CVD case will have their own RM state.
 
-RM states are not the same as CVD case states. Case states follow the Householder-Spring model summarized
-in [Case State Model](../case_state.md). Further discussion of the interactions of the RM and CS models is found
-in [Model Interactions](../model_interactions.md).
+!!! info "RM States vs. CVD Case States"
+    RM states are not the same as CVD case states. Case states follow the Householder-Spring model summarized
+    in [Case State Model](../case_state.md). Further discussion of the interactions of the RM and CS models is found
+    in [Model Interactions](../model_interactions.md).
 
 #### The _Start_ (_S_) State
 
 The _Start_ state is a simple placeholder state for reports that have
 yet to be received. It is, in effect, a null state that no
-CVD Participant
-would be expected to reflect in their report tracking system. We include
-it here because it is useful when modeling coordination
+CVD Participant would be expected to reflect in their report tracking system. We include
+it here because it is useful when modeling coordination 
 that spans multiple Participants in the [formal protocol](../../formal_protocol/index.md).
 Otherwise, the discussion until then will mostly ignore it.
 
