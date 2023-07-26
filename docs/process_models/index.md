@@ -2,9 +2,9 @@
 
 The Vultron Protocol defines three main processes in terms of deterministic finite automata (DFAs):
 
-## [Report Management process](./report_management.md)
+## [Report Management process](rm/index.md)
 
-{% include-markdown "./report_management.md" start="<!-- rm-state-machine-start -->" end="<!-- rm-state-machine-end -->" %}
+{% include-markdown "./rm/rm_state_machine_diagram.md" %}
 
 ## [Embargo Management process](./embargo_management.md)
 
