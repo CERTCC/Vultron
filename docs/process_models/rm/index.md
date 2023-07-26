@@ -231,12 +231,8 @@ The SSVC model is illustrative here, although any prioritization scheme could be
 substituted as long as it emits a result that can be mapped onto the
 semantics of "continue work" or "defer further
 action".
-Appendix
-[\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref"
-reference="app:ssvc_mpcvd_protocol"} takes a closer look at how
-SSVC fits into the
-protocol we are defining.
-
+[SSVC Crosswalk](ssvc_crosswalk.md) takes a closer look at how
+SSVC fits into the protocol we are defining.
 
 #### The _Accepted_ (_A_) State
 
