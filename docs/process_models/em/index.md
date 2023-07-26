@@ -1,4 +1,4 @@
-# [EM]{acronym-label="EM" acronym-form="singular+full"} Model {#ch:embargo}
+# EM Model {#ch:embargo}
 
 !!! note "TODO"
     - [ ] regex replace acronym pointers with the acronym
@@ -22,16 +22,16 @@
     - [ ] move diagrams to separate files and `include-markdown` them
 
 In this chapter, we describe the basic primitives necessary for the
-[CVD]{acronym-label="CVD" acronym-form="singular+short"}
-[EM]{acronym-label="EM" acronym-form="singular+full"} process. For our
+CVD
+EM process. For our
 purposes, an embargo is an *informal* agreement among peer
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} case
+CVD case
 Participants to refrain from publishing information about a
 vulnerability until some future point in time relative to the report at
 hand. Once an embargo has expired, there is no further restriction on
 publishing information about the vulnerability.[^1]
 
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} case
+CVD case
 Participants must be able to propose, accept, and reject embargo timing
 proposals according to their individual needs. Additionally,
 Participants may want to attempt to gain agreement that enables specific
@@ -40,88 +40,60 @@ made public. Such content considerations are outside the scope of this
 proposal. We focus our discussion on the *when* of an embargo, not the
 *what*.
 
-Unlike the [RM]{acronym-label="RM" acronym-form="singular+short"} model,
-in which each Participant has their own instance of the
-[RM]{acronym-label="RM" acronym-form="singular+short"}
-[DFA]{acronym-label="DFA" acronym-form="singular+short"},
-[EM]{acronym-label="EM" acronym-form="singular+short"} states are a
-global property of a [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} case.
+Unlike the [RM](../rm/) model, in which each Participant has their own instance of the
+[RM](../rm/) DFA, EM states are a global property of a CVD case. 
 
--   A CVD case SHALL NOT have more than one active embargo at a time.
+!!! note ""
+    A CVD case SHALL NOT have more than one active embargo at a time.
 
-Even in an [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}
-case having a vertical supply chain---in which Vendors must wait on
+Even in an MPCVD case having a vertical supply chain---in which Vendors must wait on
 their upstream suppliers to produce fixes before they can take action on
-their own, as in Figure
-[\[fig:mpcvd_supply_chain\]](#fig:mpcvd_supply_chain){reference-type="ref"
-reference="fig:mpcvd_supply_chain"}---our intent is that the embargo
+their own, as in {== Figure [\[fig:mpcvd_supply_chain\]](#fig:mpcvd_supply_chain){reference-type="ref"
+reference="fig:mpcvd_supply_chain"} ==} ---our intent is that the embargo
 period terminates when as many Vendors as possible have been given an
 adequate opportunity to produce a fix.
 
-##### Embargoes Are Not [NDAs]{acronym-label="NDA" acronym-form="plural+abbrv"}.
+!!! info "Embargoes Are Not NDAs"
+    
+    CVD embargoes are *not* NDAs. An NDA (also known as a Confidentiality agreement) is 
+    a legally binding contract between parties, often accompanied by a reward for compliance and/or some penalty in the event
+    of unauthorized disclosure. NDAs do, on occasion, have a place in CVD processes, but
+    the relatively rapid pace and scale of most MPCVD embargoes makes per-case NDAs prohibitively
+    difficult. As a result, we are intentionally setting aside NDA negotiation as beyond the scope of this proposal.
 
-Importantly, [CVD]{acronym-label="CVD" acronym-form="singular+short"}
-embargoes are *not* [NDAs]{acronym-label="NDA"
-acronym-form="plural+short"}. An [NDA]{acronym-label="NDA"
-acronym-form="singular+short"} (also known as a Confidentiality
-agreement) is a legally binding contract between parties, often
-accompanied by a reward for compliance and/or some penalty in the event
-of unauthorized disclosure. [NDAs]{acronym-label="NDA"
-acronym-form="plural+short"} do, on occasion, have a place in
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} processes, but
-the relatively rapid pace and scale of most
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} embargoes
-makes per-case [NDAs]{acronym-label="NDA" acronym-form="plural+short"}
-prohibitively difficult. As a result, we are intentionally setting aside
-[NDA]{acronym-label="NDA" acronym-form="singular+short"} negotiation as
-beyond the scope of this proposal.
+    On the surface, many bug bounty programs may appear to fall outside our
+    scope because they are often structured as NDAs in which compliance is rewarded. For some
+    bounty programs, the penalty for non-compliance or early disclosure is
+    limited to the loss of the reward. For others, non-compliance can lead
+    to the forfeiture of a promise of amnesty from the pursuit of civil or
+    criminal charges that might otherwise apply because of security or
+    acceptable-use policy violations. Nevertheless, we are optimistic that
+    the bulk of this protocol (i.e., the parts that do not interfere with
+    the contractual provisions of bounty-associated
+    NDAs) will be found
+    to be compatible with the full variety of bounty-oriented
+    CVD programs
+    existing now and in the future.
 
-On the surface, many bug bounty programs may appear to fall outside our
-scope because they are often structured as [NDAs]{acronym-label="NDA"
-acronym-form="plural+short"} in which compliance is rewarded. For some
-bounty programs, the penalty for non-compliance or early disclosure is
-limited to the loss of the reward. For others, non-compliance can lead
-to the forfeiture of a promise of amnesty from the pursuit of civil or
-criminal charges that might otherwise apply because of security or
-acceptable-use policy violations. Nevertheless, we are optimistic that
-the bulk of this protocol (i.e., the parts that do not interfere with
-the contractual provisions of bounty-associated
-[NDAs]{acronym-label="NDA" acronym-form="plural+short"}) will be found
-to be compatible with the full variety of bounty-oriented
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} programs
-existing now and in the future.
+## EM State Machine
 
-## [EM]{acronym-label="EM" acronym-form="singular+short"} State Machine
+As with our definition of the [RM](../rm/) model, we describe our
+EM model using DFA notation.
 
-As with our definition of the [RM]{acronym-label="RM"
-acronym-form="singular+short"} model in Chapter
-[\[sec:report_management\]](#sec:report_management){reference-type="ref"
-reference="sec:report_management"}, we describe our
-[EM]{acronym-label="EM" acronym-form="singular+short"} model using
-[DFA]{acronym-label="DFA" acronym-form="singular+short"} notation.
+{% include-markdown "../dfa_notation_definition.md" %}
 
-To recap, is defined as a 5-tuple
-$(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)$ [@kandar2013automata].
+### EM States
 
--   $\mathcal{Q}$ is a finite set of states
+CVD cases are either subject to an active embargo or they are not. 
+We begin with a simple two-state model for the embargo state:
 
--   $q_0 \in \mathcal{Q}$ is an initial state
-
--   $\mathcal{F} \subseteq \mathcal{Q}$ is a set of final (or accepting)
-    states
-
--   $\Sigma$ is a finite set of input symbols
-
--   $\delta$ is a transition function
-    $\delta: \mathcal{Q} \times \Sigma \xrightarrow{} \mathcal{Q}$
-
-### [EM]{acronym-label="EM" acronym-form="singular+short"} States
-
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} cases are
-either subject to an active embargo or they are not. We begin with a
-simple two-state model for the embargo state:
-$$\mathcal{Q}^{em}_{simple} = \{ None,~Active \}$$
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> None
+    None --> Active
+    Active --> [*]
+```
 
 However, because embargo management is a process of coordinating across
 Participants, it will be useful to distinguish between the _None_ state
@@ -135,48 +107,53 @@ yet accepted or rejected, which we will denote as the $Active + Revise$
 state, shortened to _Revise_. Finally, we wish to distinguish between
 the state in which no embargo has ever been established (_None_), and
 the final state after an active embargo has ended (_eXited_). Combining
-these, we get the following set of [EM]{acronym-label="EM"
-acronym-form="singular+short"} states, which we denote as
-$\mathcal{Q}^{em}$ in
-[\[eq:em_states\]](#eq:em_states){reference-type="eqref"
-reference="eq:em_states"}.
+these, we get the following set of EM states, which we denote as
+$\mathcal{Q}^{em}$.
 
-$$\label{eq:em_states}
-\begin{split}
-    \mathcal{Q}^{em} = \{ & \underline{N}one, \\
-    & \underline{P}roposed, \\
-    & \underline{A}ctive, \\
-    & \underline{R}evise, \\
-    & e\underline{X}ited \}
-\end{split}$$
+???+ note inline end "EM States ($\mathcal{Q}^{em}$) Defined"
+    $\label{eq:em_states}
+    \begin{split}
+        \mathcal{Q}^{em} = \{ & \underline{N}one, \\
+        & \underline{P}roposed, \\
+        & \underline{A}ctive, \\
+        & \underline{R}evise, \\
+        & e\underline{X}ited \}
+    \end{split}$
 
 As a reminder, we use the underlined capital letters as shorthand for
-[EM]{acronym-label="EM" acronym-form="singular+short"} state names later
-in the document. Also note that $q^{em} \in A$ is distinct from
+EM state names later in the document. Also note that $q^{em} \in A$ is distinct from
 $q^{rm} \in A$. An embargo can be _Active_, while a Report can be
 _Accepted_, and these are independent states. Be sure to check which
 model a state's shorthand notation is referring to.
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> None
+    None --> Proposed
+    Proposed --> None
+    Proposed --> Active
+    Active --> Revise
+    Revise --> Active
+    Revise --> eXited
+    Active --> eXited
+    eXited --> [*]
+```
+
 ##### Start and Final States.
 
-The [EM]{acronym-label="EM" acronym-form="singular+short"} process
-starts in the _None_ state. The process ends in one of two states: If an
-embargo agreement is eventually reached, the [EM]{acronym-label="EM"
-acronym-form="singular+short"} process ends in the _eXited_ state.
-Otherwise, if no agreement is ever reached, the [EM]{acronym-label="EM"
-acronym-form="singular+short"} process ends in the _None_ state. Formal
-definitions of each are shown in
-[\[eq:q_em\]](#eq:q_em){reference-type="eqref" reference="eq:q_em"} and
-[\[eq:f_em\]](#eq:f_em){reference-type="eqref" reference="eq:f_em"},
-respectively.
+???+ note inline end "EM Start and Final States Defined"
+    $q^{em}_0 = None$
+    
+    $\mathcal{F}^{em} = \{None,~eXited\}$
 
-$$\label{eq:q_em}
-    q^{em}_0 = None$$
+The EM process starts in the _None_ state. The process ends in one of two states: If an
+embargo agreement is eventually reached, the EM process ends in the _eXited_ state.
+Otherwise, if no agreement is ever reached, the EM process ends in the _None_ state. Formal
+definitions of each are shown in the box at right.
 
-$$\label{eq:f_em}
-    \mathcal{F}^{em} = \{None,~eXited\}$$
 
-### [EM]{acronym-label="EM" acronym-form="singular+abbrv"} State Transitions
+### EM State Transitions
 
 <!-- em-state-machine-start -->
 ```mermaid
@@ -201,19 +178,21 @@ stateDiagram-v2
 ```
 <!-- em-state-machine-end -->
 
-The symbols of our [EM]{acronym-label="EM"
-acronym-form="singular+short"} [DFA]{acronym-label="DFA"
-acronym-form="singular+short"} are the actions that cause transitions
+The symbols of our EM DFA are the actions that cause transitions
 between the states:
 
--   An embargo MAY be _propose_d.
+!!! note ""
+    An embargo MAY be _proposed_.
 
--   Once proposed, it MAY be _accept_ed or _reject_ed.
+!!! note ""
+    Once proposed, it MAY be _accepted_ or _rejected_.
 
--   Once accepted, revisions MAY be _propose_d, which MAY, in turn, be
-    _accept_ed or _reject_ed.
+!!! note ""
+    Once accepted, revisions MAY be _proposed_, which MAY, in turn, be
+    _accepted_ or _rejected_.
 
--   Finally, accepted embargoes MUST eventually _terminate_.
+!!! note ""
+    Finally, accepted embargoes MUST eventually _terminate_.
 
 A summary of the available actions is shown as $\Sigma^{em}$ in
 [\[eq:em_symbols\]](#eq:em_symbols){reference-type="eqref"
@@ -230,65 +209,102 @@ $$\label{eq:em_symbols}
     \end{split}$$
 
 Once again, the underlined lowercase letters will be used as shorthand
-for the [EM]{acronym-label="EM" acronym-form="singular+short"}
+for the EM
 transition names in the remainder of the document.
 
-#### [EM]{acronym-label="EM" acronym-form="singular+short"} Transitions Defined
+#### EM Transitions Defined
 
 Now we define the possible state transitions. Figure
 [\[fig:em_states_dense\]](#fig:em_states_dense){reference-type="ref"
-reference="fig:em_states_dense"} summarizes the [EM]{acronym-label="EM"
-acronym-form="singular+short"} process [DFA]{acronym-label="DFA"
-acronym-form="singular+short"} states and transitions.
+reference="fig:em_states_dense"} summarizes the EM process DFA states and transitions.
+
+##### Propose Embargo
 
 Propose a new embargo when none exists:
 
-$$\label{eq:propose_embargo}
-    None \xrightarrow{propose} Proposed$$
+```mermaid
+stateDiagram-v2
+    direction LR
+    dots: ...
+    [*] --> None
+    None --> Proposed: propose
+    Proposed --> dots
+    dots --> [*]
+```
 
-Accept or reject a proposed embargo: $$\label{eq:accept_embargo}
-    Proposed 
-        \begin{cases}
-            \xrightarrow{accept} Active \\
-            \xrightarrow{reject} None \\
-       \end{cases}$$
+
+##### Accept or Reject Embargo Proposal
+
+Accept or reject a proposed embargo:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> None
+    None --> Proposed
+    state Proposed {
+        direction LR
+        eval: Accept or reject?
+        state choose <<choice>>
+        [*] --> eval
+        eval --> choose
+    }
+    choose --> Active: accept
+    choose --> None: reject
+```
+
+##### Embargo Revision
 
 An existing embargo can also be renegotiated by proposing a new embargo.
 The existing embargo remains active until it is replaced by accepting
 the revision proposal.
-
-$$\label{eq:propose_change}
-    Active_{old} \xrightarrow{propose(new)} Revise$$
-
 If the newly proposed embargo is accepted, then the old one is
 abandoned. On the other hand, if the newly proposed embargo is rejected,
 the old one remains accepted.
 
-$$\label{eq:accept_change}
-      Revise
-      \begin{cases}
-        \xrightarrow{accept_(new)} Active_{new} \\
-        \xrightarrow{reject(new)} Active_{old} \\
-      \end{cases}$$
+```mermaid
+stateDiagram-v2
+    direction LR
+    dots: ...
+    [*] --> dots
+    dots --> Active 
+    state Revise {
+        direction LR
+        state choose <<choice>>
+        eval: Change embargo?
+        [*] --> eval
+        eval --> choose
+    }
+    Active --> Revise: revise
+    choose --> Active: accept
+    choose --> Active: reject
+```
+
+##### Terminate Embargo
 
 Existing embargoes can terminate due to timer expiration or other
 reasons to be discussed in
-§[1.2.7](#sec:early_termination){reference-type="ref"
-reference="sec:early_termination"}. Termination can occur even if there
+{== §[1.2.7](#sec:early_termination){reference-type="ref"
+reference="sec:early_termination"} ==}. Termination can occur even if there
 is an open revision proposal.
 
-$$\label{eq:expire_embargo}
-    \begin{bmatrix}
-        Active \\
-        Revise \\
-    \end{bmatrix}
-    \xrightarrow{terminate} eXited$$
+```mermaid
+stateDiagram-v2
+    direction LR
+    dots: ...
+    [*] --> dots
+    dots --> Active
+    dots --> Revise
+    Active --> eXited: terminate
+    Revise --> eXited: terminate
+    eXited --> [*]
+```
 
-#### A Regular Grammar for [EM]{acronym-label="EM" acronym-form="singular+short"} {#sec:em_grammar}
+#### A Regular Grammar for EM {#sec:em_grammar}
 
 Based on the actions and corresponding state transitions just described,
 we define the transition function $\delta^{em}$ for the
-[EM]{acronym-label="EM" acronym-form="singular+short"} process as a set
+EM process as a set
 of production rules for the right-linear grammar using our
 single-character shorthand in
 [\[eq:em_transition_function\]](#eq:em_transition_function){reference-type="eqref"
@@ -305,11 +321,9 @@ $$\label{eq:em_transition_function}
                X \to ~\epsilon \\
     \end{cases}$$
 
-Due to the numerous loops in the [DFA]{acronym-label="DFA"
-acronym-form="singular+short"} shown in Figure
+Due to the numerous loops in the DFA shown in Figure
 [\[fig:em_states_dense\]](#fig:em_states_dense){reference-type="ref"
-reference="fig:em_states_dense"}, the [EM]{acronym-label="EM"
-acronym-form="singular+short"} grammar is capable of generating
+reference="fig:em_states_dense"}, the EM grammar is capable of generating
 arbitrarily long strings of _propose_-_propose_ and _propose_-_reject_
 histories matching the regular expression `(p*r)*(pa(p*r)*(pa)?t)?`. As
 an example, here is an exhaustive list of all the possible traces of
@@ -327,19 +341,16 @@ length seven or fewer:
 > _paprpat_, _ppapapt_, _prprpat_, _paprprt_, _prppapt_, _pppapat_,
 > _pprpapt_, _pppaprt_, _pppppat_, _prpappt_, _papaprt_, _pappppt_
 
-However, because [EM]{acronym-label="EM" acronym-form="singular+short"}
+However, because EM
 is a human-oriented scheduling process, our experience suggests that we
-should expect there to be a natural limit on [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} Participants' tolerance for churn during
+should expect there to be a natural limit on CVD Participants' tolerance for churn during
 embargo negotiations. Hence, we expect most paths through the
-[EM]{acronym-label="EM" acronym-form="singular+short"}
-[DFA]{acronym-label="DFA" acronym-form="singular+short"} to be on the
+EM
+DFA to be on the
 short end of this list in practice. We offer some thoughts on a
-potential reward function over [EM]{acronym-label="EM"
-acronym-form="singular+short"} [DFA]{acronym-label="DFA"
-acronym-form="singular+short"} strings as future work in
-§[\[sec:em_reward_function\]](#sec:em_reward_function){reference-type="ref"
-reference="sec:em_reward_function"}.
+potential reward function over EM DFA strings as future work in
+{== §[\[sec:em_reward_function\]](#sec:em_reward_function){reference-type="ref"
+reference="sec:em_reward_function"} ==}.
 
 For example, it is often preferable for a Vendor to accept whatever
 embargo the Reporter initially proposes followed closely by proposing a
@@ -350,19 +361,18 @@ Reporter declines to extend their embargo), a short embargo is
 preferable to none at all. This implies a preference for strings
 starting with _par_ over strings starting with _ppa_ or _prpa_, among
 others. We will come back to this idea in
-§[1.2.6](#sec:default_embargoes){reference-type="ref"
-reference="sec:default_embargoes"} and in the worked protocol example at
+{== §[1.2.6](#sec:default_embargoes){reference-type="ref"
+reference="sec:default_embargoes"} ==} and in the worked protocol example at
 the end of Chapter
 [\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref"
 reference="sec:formal_protocol"}, specifically in
-§[\[sec:vendor_eval_embargo_seq\]](#sec:vendor_eval_embargo_seq){reference-type="ref"
-reference="sec:vendor_eval_embargo_seq"}.
+{== §[\[sec:vendor_eval_embargo_seq\]](#sec:vendor_eval_embargo_seq){reference-type="ref"
+reference="sec:vendor_eval_embargo_seq"} ==}.
 
-### [EM]{acronym-label="EM" acronym-form="singular+abbrv"} [DFA]{acronym-label="DFA" acronym-form="singular+abbrv"} Fully Defined
+### EM DFA Fully Defined
 
-Taken together, the complete [DFA]{acronym-label="DFA"
-acronym-form="singular+short"} specification for the
-[EM]{acronym-label="EM" acronym-form="singular+short"} process
+Taken together, the complete DFA specification for the
+EM process
 $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{em}$ is shown in equations
 [\[eq:em_states\]](#eq:em_states){reference-type="eqref"
 reference="eq:em_states"},
@@ -396,18 +406,17 @@ $$\label{eq:em_dfa}
             \end{aligned}
     \end{pmatrix}$$
 
-## [EM]{acronym-label="EM" acronym-form="singular+short"} Discussion {#sec:em_discussion}
+## EM Discussion {#sec:em_discussion}
 
 Embargoes are a means of inhibiting public disclosure of a vulnerability
 while defenses are prepared (e.g., until fix development has completed
 for a reasonable quorum of Vendors). The goal of the
-[EM]{acronym-label="EM" acronym-form="singular+short"} process is not to
+EM process is not to
 establish an exact publication schedule for every Participant to adhere
 to. Rather, it is to establish a window spanning from the present to
 some future time, during which Participants are expected not to publish
 or otherwise disclose information about the vulnerability to
-non-Participants outside of the [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} case.
+non-Participants outside of the CVD case.
 
 ### Embargo Principles {#sec:embargo_principles}
 
@@ -415,7 +424,7 @@ An embargo is a social agreement between independent parties acting in
 the interest of providing vulnerability fixes to users in a timely
 manner while minimizing attacker advantage in the interim. However,
 embargoes are not always appropriate or useful within the context of any
-given [CVD]{acronym-label="CVD" acronym-form="singular+short"} case.
+given CVD case.
 
 With that in mind, we offer the following principles as guidance. We
 begin with some behavioral norms that define what it means to cooperate
@@ -434,8 +443,8 @@ with an embargo.
     4.  an accepted embargo has been terminated prior to the embargo
         expiration date and time due to other reasons (e.g., those
         outlined in
-        §[1.2.7](#sec:early_termination){reference-type="ref"
-        reference="sec:early_termination"})
+        {== §[1.2.7](#sec:early_termination){reference-type="ref"
+        reference="sec:early_termination"} ==})
 
 -   Additional Participants MAY be added to an existing embargo upon
     accepting the terms of that embargo.
@@ -443,8 +452,8 @@ with an embargo.
 -   Adding Participants to an existing embargo SHALL NOT constitute
     "release" or "publication" so long as those Participants accept the
     terms of the embargo. See
-    §[1.2.10](#sec:inviting_others){reference-type="ref"
-    reference="sec:inviting_others"}.
+    {== §[1.2.10](#sec:inviting_others){reference-type="ref"
+    reference="sec:inviting_others"} ==}.
 
 Furthermore, we need to establish a few norms related to embargo timing.
 
@@ -479,26 +488,22 @@ Similarly, the longer an embargo lasts, the more likely it is to fail.
 ### Embargo Participants Are Free to Engage or Disengage {#sec:embargo_engagement}
 
 As we described at the beginning of the chapter, an embargo is not the
-same thing as an [NDA]{acronym-label="NDA"
-acronym-form="singular+short"}, even if they have similar effects.
-Because it is a contract, an [NDA]{acronym-label="NDA"
-acronym-form="singular+short"} can carry civil or even criminal
-penalties for breaking it. [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} embargoes have no such legal framework.
-Hence, [CVD]{acronym-label="CVD" acronym-form="singular+short"}
+same thing as an NDA, even if they have similar effects.
+Because it is a contract, an NDA can carry civil or even criminal
+penalties for breaking it. CVD embargoes have no such legal framework.
+Hence, CVD
 Participants are free to enter or exit an embargo at any time, for any
-reason. In fact, [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} Participants are not obliged to agree to
+reason. In fact, CVD Participants are not obliged to agree to
 any embargo at all. However, regardless of their choices, Participants
 should be clear about their status and intentions with other
 Participants. There are a few good reasons to exit an embargo early.
-(See §[1.2.7](#sec:early_termination){reference-type="ref"
-reference="sec:early_termination"}.)
+(See {== §[1.2.7](#sec:early_termination){reference-type="ref"
+reference="sec:early_termination"} ==}.)
 
 -   Participants MAY propose a new embargo or revision to an existing
     embargo at any time within the constraints outlined in
-    §[1.2.4](#sec:entering_an_embargo){reference-type="ref"
-    reference="sec:entering_an_embargo"}.
+    {== §[1.2.4](#sec:entering_an_embargo){reference-type="ref"
+    reference="sec:entering_an_embargo"} ==}.
 
 -   Participants MAY reject proposed embargo terms for any reason.
 
@@ -507,7 +512,7 @@ reference="sec:early_termination"}.)
 Note that a Participant leaving an embargo is not necessarily the same
 as the embargo itself terminating. Embargo termination corresponds to
 the $q^{em} \in \{A,R\} \xrightarrow{t} X$ transition in the
-[EM]{acronym-label="EM" acronym-form="singular+short"} model and
+EM model and
 reflects a consensus among case Participants that the embargo no longer
 applies. A Participant leaving an *Active* embargo means that the
 embargo agreement between other Participants remains intact, but that
@@ -527,17 +532,16 @@ These points imply a need for Participants to track the status of other
 Participants with respect to their adherence to the embargo and
 engagement with the case. We will return to these concepts with the
 $case\_engagement$ and $embargo\_adherence$ attributes described in
-§[\[sec:case_object_participant_class\]](#sec:case_object_participant_class){reference-type="ref"
-reference="sec:case_object_participant_class"}.
+{== §[\[sec:case_object_participant_class\]](#sec:case_object_participant_class){reference-type="ref"
+reference="sec:case_object_participant_class"} ==}.
 
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} is an iterated
+CVD is an iterated
 game, and actions have consequences. Leaving an embargo early in one
 case may have repercussions to Participants' willingness to cooperate in
 later cases.
 
 -   A Participant's refusal to accept embargo terms MAY result in that
-    Participant being left out of the [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"} case entirely.
+    Participant being left out of the CVD case entirely.
 
 -   Participants SHOULD consider other Participants' history of
     cooperation when evaluating the terms of a proposed embargo.
@@ -555,22 +559,21 @@ obligation.
     publish.
 
 A discussion of how to decide who to invite to participate in a
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} case is
-addressed in §[1.2.10](#sec:inviting_others){reference-type="ref"
-reference="sec:inviting_others"}.
+CVD case is
+addressed in {== §[1.2.10](#sec:inviting_others){reference-type="ref"
+reference="sec:inviting_others"} ==}.
 
 ### Entering an Embargo {#sec:entering_an_embargo}
 
 Negotiating and entering into a new embargo for a case is only possible
 within an embargo "habitable zone" defined in terms of the
-[CS]{acronym-label="CS" acronym-form="singular+short"} model as laid out
-below. The notation for [CS]{acronym-label="CS"
-acronym-form="singular+short"} model states is explained in
+CS model as laid out
+below. The notation for CS model states is explained in
 Chapter [\[sec:model\]](#sec:model){reference-type="ref"
 reference="sec:model"}, but the contextual explanation below should
 suffice for now.
 
--   [CVD]{acronym-label="CVD" acronym-form="singular+short"}
+-   CVD
     Participants MUST NOT *propose* or *accept* a new embargo
     negotiation when any of the following conditions are true:
 
@@ -583,11 +586,11 @@ suffice for now.
     3.  There is evidence that the vulnerability is being actively
         exploited by adversaries (${q^{cs} \in \wc\wc\wc\wc\wc A}$).
 
--   [CVD]{acronym-label="CVD" acronym-form="singular+short"}
+-   CVD
     Participants MAY *propose* or *accept* an embargo in all other case
     states (${q^{cs} \in \wc\wc\wc pxa}$).
 
--   [CVD]{acronym-label="CVD" acronym-form="singular+short"}
+-   CVD
     Participants SHOULD NOT *propose* or *accept* a new embargo
     negotiation when the fix for a vulnerability has already been
     deployed ($q^{cs} \in VFDpxa$). Counterexamples include (a) when an
@@ -596,7 +599,7 @@ suffice for now.
     a fix but wants to complete their root cause analysis prior to
     releasing information about the vulnerability.
 
--   [CVD]{acronym-label="CVD" acronym-form="singular+short"}
+-   CVD
     Participants MAY *propose* or *accept* a new embargo when the fix
     for a vulnerability is ready but has neither been made public nor
     deployed ($q^{cs} \in VFdpxa$). Such an embargo SHOULD be brief and
@@ -605,14 +608,13 @@ suffice for now.
 
 ### Negotiating Embargoes {#sec:negotiating_embargoes}
 
-Asymmetry is inherent in the [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} process because those who currently have
+Asymmetry is inherent in the CVD process because those who currently have
 the vulnerability information get to decide who they will share it with.
 This asymmetry puts Reporters at somewhat of an advantage when it comes
 to the initial report submission to another Participant. We will discuss
 some ways to improve (but not fully remove) this asymmetry in
-§[1.2.6](#sec:default_embargoes){reference-type="ref"
-reference="sec:default_embargoes"}, but for now we just need to
+{== §[1.2.6](#sec:default_embargoes){reference-type="ref"
+reference="sec:default_embargoes"} ==}, but for now we just need to
 acknowledge that it exists.
 
 -   Participants MAY *accept* or *reject* any proposed embargo as they
@@ -641,8 +643,7 @@ is expected.
 
 -   In the absence of an explicit *accept* or *reject* response from a
     Receiver in a timely manner, the Sender MAY proceed in a manner
-    consistent with an [EM]{acronym-label="EM"
-    acronym-form="singular+short"} state of _None_ ($q^{em} \in N$).
+    consistent with an EM state of _None_ ($q^{em} \in N$).
 
 ##### Don't Give Up.
 
@@ -690,20 +691,18 @@ point, it can be extended with a revision.
 
 ### Default Embargoes {#sec:default_embargoes}
 
-As described in §[1.1.2.2](#sec:em_grammar){reference-type="ref"
-reference="sec:em_grammar"}, the [EM]{acronym-label="EM"
-acronym-form="singular+short"} process has the potential for unbounded
+As described in {== §[1.1.2.2](#sec:em_grammar){reference-type="ref"
+reference="sec:em_grammar"} ==}, the EM process has the potential for unbounded
 *propose-reject* churn. To reduce the potential for this churn and
 increase the likelihood that *some* embargo is established rather than a
 stalemate of unaccepted proposals, we offer the following guidance.
 
 ##### Declaring Defaults.
 
-First, we note that all [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} Participants (including Reporters) are
+First, we note that all CVD Participants (including Reporters) are
 free to establish their own default embargo period in a published
 vulnerability disclosure policy. In particular, we recommend that
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} report
+CVD report
 recipients (typically Vendors and Coordinators) do so.
 
 -   Participants MAY include a default embargo period as part of a
@@ -719,8 +718,8 @@ Next, we work through the possible interactions of published policies
 with proposed embargoes. Each of the following scenarios assumes a
 starting state of $q^{em} \in N$, and a negotiation between two parties.
 We cover the extended situation (adding parties to an existing embargo)
-in §[1.2.10](#sec:inviting_others){reference-type="ref"
-reference="sec:inviting_others"}. For now, we begin with the simplest
+in {== §[1.2.10](#sec:inviting_others){reference-type="ref"
+reference="sec:inviting_others"} ==}. For now, we begin with the simplest
 case and proceed in an approximate order of ascending complexity.
 
 In each of the following, subscripts on transitions indicate the
@@ -786,8 +785,8 @@ accepting.
 Readers may notice that we have taken a "shortest proposal wins"
 approach to the above guidance. This is intentional, and it results
 directly from the asymmetry mentioned in
-§[1.2.5](#sec:negotiating_embargoes){reference-type="ref"
-reference="sec:negotiating_embargoes"}: The Receiver is faced with a
+{== §[1.2.5](#sec:negotiating_embargoes){reference-type="ref"
+reference="sec:negotiating_embargoes"} ==}: The Receiver is faced with a
 choice to either *accept* the Reporter's proposal and attempt to extend
 it or to *reject* the proposal and end up with no embargo at all.
 Therefore, if we take the stance that for a vulnerability with no fix
@@ -803,10 +802,10 @@ negotiation entirely and publish whenever they choose without ever
 providing the report to the Receiver. That is not to say that we
 recommend this sort of behavior from Reporters. In fact, we specifically
 recommend the opposite in
-§[1.2.5](#sec:negotiating_embargoes){reference-type="ref"
-reference="sec:negotiating_embargoes"}. Rather, it once more
+{== §[1.2.5](#sec:negotiating_embargoes){reference-type="ref"
+reference="sec:negotiating_embargoes"} ==}. Rather, it once more
 acknowledges the time-dependent informational asymmetry inherent to the
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} process.
+CVD process.
 
 ##### A Logical Argument for Accepting the Shortest Proposed Embargo.
 
@@ -960,16 +959,13 @@ an unavoidable, if inconvenient, fact arising from three main causes:
 1.  Vulnerability discovery capability is widely distributed across the
     world, and not all Finders become cooperative Reporters.
 
-2.  Even among otherwise cooperative [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"} Participants, leaks sometimes happen.
+2.  Even among otherwise cooperative CVD Participants, leaks sometimes happen.
 
-3.  Adversaries are unconstrained by [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"} in their vulnerability discovery,
+3.  Adversaries are unconstrained by CVD in their vulnerability discovery,
     exploit code development, and use of exploit code in attacks.
 
 While many leaks are unintentional and due to miscommunication or errors
-in a Participant's [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} process, the effect is the same
+in a Participant's CVD process, the effect is the same
 regardless of the cause. As a result,
 
 -   Participants SHOULD be prepared with contingency plans in the event
@@ -997,9 +993,9 @@ The above is not a complete list of acceptable reasons to terminate an
 embargo early. Note that the distinction between the *SHALL* in the
 first item and the *SHOULD* in the second is derived from the reasoning
 given in
-§[\[sec:transition_function\]](#sec:transition_function){reference-type="ref"
-reference="sec:transition_function"}, where we describe the
-[CS]{acronym-label="CS" acronym-form="singular+short"} model's
+{== §[\[sec:transition_function\]](#sec:transition_function){reference-type="ref"
+reference="sec:transition_function"} ==}, where we describe the
+CS model's
 transition function. Embargo termination is the set of transitions
 described by
 [\[eq:expire_embargo\]](#eq:expire_embargo){reference-type="eqref"
@@ -1009,8 +1005,7 @@ reference="eq:expire_embargo"}.
 
 It is not necessary for all Vendor Participants to reach
 $q^{cs} \in VF\wc\wc\wc\wc$ before publication or embargo termination.
-Especially in larger [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} cases, there comes a point where the net
+Especially in larger MPCVD cases, there comes a point where the net
 benefit of waiting for every Vendor to be ready is outweighed by the
 benefit of delivering a fix to the population that can deploy it. No
 solid formula for this exists, but factors to consider include the
@@ -1031,7 +1026,7 @@ infrastructure, public safety/health, or national security; etc.
 ### Impact of Case Mergers on Embargoes
 
 While relatively rare, it is sometimes necessary for two independent
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} cases to be
+CVD cases to be
 merged into a single case. This can happen, for example, when two
 Finders independently discover vulnerabilities in separate products and
 report them to their respective (distinct) Vendors. On further
@@ -1042,7 +1037,7 @@ embargo for the case. Once the cases merge, the best option is usually
 to renegotiate a new embargo for the new case.
 
 -   A new embargo SHOULD be proposed when any two or more
-    [CVD]{acronym-label="CVD" acronym-form="singular+short"} cases are
+    CVD cases are
     to be merged into a single case and multiple parties have agreed to
     different embargo terms prior to the case merger.
 
@@ -1058,12 +1053,10 @@ to renegotiate a new embargo for the new case.
 It is also possible that a single case needs to be split into multiple
 cases after an embargo has been agreed to. For example, consider a
 vulnerability that affects two widely disparate fix supply chains, such
-as a library used in both [SAAS]{acronym-label="SAAS"
-acronym-form="singular+short"} and [OT]{acronym-label="OT"
-acronym-form="singular+short"} environments. The
-[SAAS]{acronym-label="SAAS" acronym-form="singular+short"} Vendors might
+as a library used in both SAAS and OT environments. The
+SAAS Vendors might
 be well positioned for a quick fix deployment while the
-[OT]{acronym-label="OT" acronym-form="singular+short"} Vendors might
+OT Vendors might
 need considerably longer to work through the logistics of delivering
 deployable fixes to their customers. In such a case, the case
 Participants might choose to split the case into its respective supply
@@ -1097,19 +1090,19 @@ reason, it is often preferable to avoid case splits entirely.
 As anyone who has tried to schedule a meeting with multiple attendees
 can attest, multi-party scheduling can be difficult. When that schedule
 must also accommodate work completion schedules for an
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} case, it
+MPCVD case, it
 becomes even harder. In
-§[1.2.6](#sec:default_embargoes){reference-type="ref"
-reference="sec:default_embargoes"}, we laid out a heuristic for
+{== §[1.2.6](#sec:default_embargoes){reference-type="ref"
+reference="sec:default_embargoes"} ==}, we laid out a heuristic for
 resolving multiple embargo proposals, "The Shortest Embargo Proposed
 Wins." More specifically, we recommended that Participants *accept* the
 earliest proposed end date and immediately propose and evaluate the rest
 as potential revisions. This principle applies to any
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} case, even
+MPCVD case, even
 at its outset.
 
 Embargo negotiations can become contentious in larger cases. Many
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} cases grow
+MPCVD cases grow
 over time, and it is usually easier to establish an embargo with a
 smaller group than a larger one. Conflict resolution via consensus
 agreement is fine if it works. In fact, in scenarios where Participants
@@ -1143,7 +1136,7 @@ Therefore,
 #### Who to Invite
 
 The Finder/Reporter is, by definition, a Participant in any
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} case by virtue
+CVD case by virtue
 of their knowledge of the vulnerability in the first place. Additional
 Participants usually fall into one of three categories:
 
@@ -1178,15 +1171,15 @@ the new Participant to accept the embargo prior to receiving the report.
     default embargo contained in their published vulnerability
     disclosure policy in accordance with the default acceptance
     strategies listed in
-    §[1.2.6](#sec:default_embargoes){reference-type="ref"
-    reference="sec:default_embargoes"}.
+    {== §[1.2.6](#sec:default_embargoes){reference-type="ref"
+    reference="sec:default_embargoes"} ==}.
 
 -   A newly invited Participant to a case with an existing embargo MAY
     propose a revision after accepting the existing embargo.
 
 #### When to Invite Participants
 
-In [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} there
+In MPCVD there
 are practical considerations to be made regarding the timing of *when*
 to notify individual Participants. The primary factor in these decisions
 stems from the interaction of the *Active* embargo with the potential
@@ -1216,11 +1209,9 @@ that even the default disclosure timeline remains compatible with the
 extant embargo.
 
 -   Participants with short default embargo policies SHOULD consider
-    accepting longer embargoes in [MPCVD]{acronym-label="MPCVD"
-    acronym-form="singular+short"} cases.
+    accepting longer embargoes in MPCVD cases.
 
--   Participants in an [MPCVD]{acronym-label="MPCVD"
-    acronym-form="singular+short"} case MAY delay notifying potential
+-   Participants in an MPCVD case MAY delay notifying potential
     Participants with short default embargo policies until their policy
     aligns with the agreed embargo.
 
@@ -1263,8 +1254,7 @@ preferred timing.
 
 ##### Untrustworthy Participants.
 
-Unfortunately, not all potential [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} Participants are equally trustworthy with
+Unfortunately, not all potential CVD Participants are equally trustworthy with
 vulnerability information. For example, a Vendor might have sub-par
 operational security or even business practices that result in
 adversaries often finding out about vulnerabilities in their products
@@ -1290,21 +1280,19 @@ Participant with a default zero-day maximum embargo policy.
 ##### Coordinators.
 
 Third-party Coordinators, as Participants who are neither Finders nor
-Vendors, often play an important role in [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} cases, especially those with broad impact
+Vendors, often play an important role in MPCVD cases, especially those with broad impact
 across the software supply chain or with acute critical infrastructure
 or public safety impacts. Most Coordinators strive to be consistent in
-their [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}
+their MPCVD
 practices and have well-documented disclosure policies along with
 significant histories of handling previous cases. All of these factors
 make the argument for including third-party Coordinators in
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} cases of
+CVD cases of
 sufficient complexity, impact, or importance.
 
 ##### Other Parties.
 
-Some Participants in [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} have their own policies that prohibit
+Some Participants in CVD have their own policies that prohibit
 notification of any parties unable to directly contribute to the
 development of a fix for a particular vulnerability. Typically, these
 policies take the form of "only Vendors of affected products" or similar
@@ -1331,18 +1319,16 @@ short in some cases, such the following:
 
 ### Consequences of Non-Compliance
 
-Considering multiple cases over time, [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} can be thought of as an iterated game
+Considering multiple cases over time, MPCVD can be thought of as an iterated game
 analogous to the Prisoner's Dilemma. One notable strategy for the
 Prisoner's Dilemma is *tit for tat* in which non-cooperation from one
 party in one round can be met with non-cooperation from the opposite
-party in the next. While [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} is usually much bigger than a toy
+party in the next. While MPCVD is usually much bigger than a toy
 two-player game, we feel it is necessary to encode the possibility that
 non-cooperation will have downstream consequences.
 
 -   Participants MAY decline to participate in future
-    [CVD]{acronym-label="CVD" acronym-form="singular+short"} cases
+    CVD cases
     involving parties with a history of violating previous embargoes.
 
 [^1]: Reminder: Exploits are information about vulnerabilities too.
