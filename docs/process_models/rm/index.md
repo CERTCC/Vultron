@@ -32,9 +32,7 @@ specify intra-organizational subprocesses within each state, although we give ex
 {== {== §[\[sec:do_work\]](#sec:do_work){reference-type="ref"
 reference="sec:do_work"} ==} ==}.
 For further reference, [ISO/IEC 30111:2019(E)](https://www.iso.org/standard/69725.html) provides recommendations for Vendors' *internal* processes
-that can be mapped into the RM process. We provide such a mapping in {== Appendix
-[\[app:iso_crosswalk\]](#app:iso_crosswalk){reference-type="ref"
-reference="app:iso_crosswalk"} ==}.
+that can be mapped into the RM process. We provide such a mapping in our [ISO Crosswalk](../iso_crosswalk.md).
 
 ## RM State Machine
 
@@ -50,7 +48,8 @@ reference="app:iso_crosswalk"} ==}.
     - $\delta$ is a transition function of the form $\delta: \mathcal{Q} \times \Sigma \xrightarrow{} \mathcal{Q}$.
 
 In this section, we first cover the states themselves before proceeding
-to a discussion of the transitions between them. Next, we provide a
+to a discussion of the transitions between them. 
+[Elsewhere](rm_interactions.md) , we provide a
 discussion of the Participant-specific semantics of the state
 transitions. We use DFA notation to describe our
 RM model.
@@ -59,44 +58,7 @@ RM model.
 
 Our proposed RM DFA models a report lifecycle containing seven states, defined below.
 
-
-<!-- rm-state-machine-start -->
-```mermaid
-stateDiagram-v2
-    direction LR
-    state Reporting {
-        R: Received
-        [*] --> R : receive
-    }
-    state Validation {
-        I: Invalid
-        V: Valid
-    }
-    state Prioritization {   
-        D: Deferred
-        state Action {
-            A: Accepted
-        }
-    }
-    
-    state Closure {
-        C: Closed
-        C --> [*]
-    }
-
-    R --> I: invalidate
-    R --> V : validate
-    I --> V : validate
-    V --> A : accept
-    V --> D : defer
-    A --> D : defer
-    D --> A : accept
-    D --> C : close
-    A --> C : close
-    I --> C : close
-```
-<!-- rm-state-machine-end -->
-
+{% include-markdown "./rm_state_machine_diagram.md" %}
 
 
 ???+ note inline end "RM States $\mathcal{Q}^{rm}$ Defined" 
@@ -117,8 +79,8 @@ report. Each Participant in a CVD case will have their own
 RM state.
 
 RM states are not the same as CVD case states. Case states follow the Householder-Spring model summarized
-in [Case State Model](./case_state.md). Further discussion of the interactions of the RM and CS models is found
-in [Model Interactions](./model_interactions.md).
+in [Case State Model](../case_state.md). Further discussion of the interactions of the RM and CS models is found
+in [Model Interactions](../model_interactions.md).
 
 #### The _Start_ (_S_) State
 
@@ -127,7 +89,7 @@ yet to be received. It is, in effect, a null state that no
 CVD Participant
 would be expected to reflect in their report tracking system. We include
 it here because it is useful when modeling coordination
-that spans multiple Participants in the [formal protocol](../formal_protocol/index.md).
+that spans multiple Participants in the [formal protocol](../../formal_protocol/index.md).
 Otherwise, the discussion until then will mostly ignore it.
 
 #### The _Received_ (_R_) State
@@ -318,7 +280,7 @@ report is in _Invalid_, _Deferred_, or _Accepted_).
     completed all outstanding work tasks and is fairly sure that they
     will not be pursuing any further action on it.
 
-???+ note inline end "RM Start and End States ($q^{rm}_0, \mathcal{F}^{rm}$) Defined"
+???+ note "RM Start and End States ($q^{rm}_0, \mathcal{F}^{rm}$) Defined"
     
     The RM process
     starts in the _Start_ state.
@@ -331,7 +293,7 @@ report is in _Invalid_, _Deferred_, or _Accepted_).
     $$\mathcal{F}^{rm} = \{Closed\}$$
 
 
-### RM
+### RM State Transitions
 
 The actions performed in the RM process represent the allowed state
 transitions in the corresponding DFA.
@@ -389,11 +351,16 @@ protocol we are defining.
 #### RM Transitions Defined
 
 In this section, we define the allowable transitions between states in
-the RM process
-model. The RM
-process, including its states and transitions, is depicted in Figure
-[\[fig:rm_states\]](#fig:rm_states){reference-type="ref"
-reference="fig:rm_states"}.
+the RM process model. The RM process, including its states and transitions, is depicted in the following diagram.
+State transitions represent messaging opportunities to communicate CVD
+case status among Participants. This is the lynchpin that makes the RM model point toward a technical
+protocol. Every state transition implies a different message type.
+
+{% include-markdown "./rm_state_machine_diagram.md" %}
+
+!!! note ""
+    CVD Participants SHOULD announce their RM state transitions to the other
+    Participants in a case.
 
 ##### Receive Report
 
