@@ -29,8 +29,8 @@ completed, should map onto the RM process outlined in this chapter.
 
 In the interest of maintaining the potential for interoperability among different organizations' internal processes, our protocol does not
 specify intra-organizational subprocesses within each state, although we give examples of such subprocesses in 
-{== {== §[\[sec:do_work\]](#sec:do_work){reference-type="ref"
-reference="sec:do_work"} ==} ==}.
+{== §[\[sec:do_work\]](#sec:do_work){reference-type="ref"
+reference="sec:do_work"} ==}.
 For further reference, [ISO/IEC 30111:2019(E)](https://www.iso.org/standard/69725.html) provides recommendations for Vendors' *internal* processes
 that can be mapped into the RM process. We provide such a mapping in our [ISO Crosswalk](../iso_crosswalk.md).
 
