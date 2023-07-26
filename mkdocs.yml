@@ -8,7 +8,7 @@ nav:
     - Report Management:
       - RM Process Model: 'process_models/rm/index.md'
       - RM Participant Interactions: 'process_models/rm/rm_interactions.md'
-    - Embargo Management: 'process_models/embargo_management.md'
+    - Embargo Management: 'process_models/em/index.md'
     - Case State Model: 'process_models/case_state.md'
     - Model Interactions: 'process_models/model_interactions.md'
     - ISO Crosswalk: 'process_models/iso_crosswalk.md'

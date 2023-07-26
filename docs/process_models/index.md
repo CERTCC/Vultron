@@ -6,8 +6,8 @@ The Vultron Protocol defines three main processes in terms of deterministic fini
 
 {% include-markdown "./rm/rm_state_machine_diagram.md" %}
 
-## [Embargo Management process](./embargo_management.md)
+## [Embargo Management process](em/index.md)
 
-{% include-markdown "./embargo_management.md" start="<!-- em-state-machine-start -->" end="<!-- em-state-machine-end -->" %}
+{% include-markdown "./em/embargo_management.md" start="<!-- em-state-machine-start -->" end="<!-- em-state-machine-end -->" %}
 
 ## [Case State process](./case_state.md)
