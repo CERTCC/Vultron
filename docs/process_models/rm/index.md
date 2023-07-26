@@ -1,26 +1,40 @@
 # Report Management Process Model
 
 !!! note "TODO"
-    - clean up cross-reference links
-    - clean up section titles
-    - redo diagrams in mermaid
+    - [x] regex replace acronym pointers with the acronym
+    - [ ] replace first use of an acronym on a page with its expansion (if not already done)
+    - [ ] OR replace acronym usage with link to where it's defined
+    - [ ] reproduce diagrams using mermaid
+    - [ ] replace text about figures to reflect mermaid diagrams
+    - [ ] replace latex tables with markdown tables
+    - [ ] replace some equations with diagrams (especially for equations describing state changes)
+    - [ ] move latex math definitions into note blocks `???+ note _title_` to offset from text
+    - [ ] move MUST SHOULD MAY etc statements into note blocks with empty title `!!! note ""` to offset from text
+    - [ ] revise cross-references to be links to appropriate files/sections
+    - [ ] replace latex citations with markdown citations (not sure how to do this yet)
+    - [ ] review text for flow and readability as a web page
+    - [ ] add section headings as needed for visual distinction
+    - [ ] add links to other sections as needed
+    - [ ] add links to external resources as needed
+    - [ ] replace phrases like `this report` or `this section` with `this page` or similar
+    - [ ] add `above` or `below` for in-page cross-references if appropriate (or just link to the section)
+    - [ ] reduce formality of language as needed
+    - [ ] move diagrams to separate files and `include-markdown` them
 
 In this page, we describe a high-level workflow for the CVD Report Management (RM) process. 
-The RM process should be reasonably familiar to anyone familiar with IT Service Management (ITSM) workflows such as problem, change, 
+The RM process should be reasonably familiar to anyone familiar with [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management) (ITSM) workflows such as problem, change, 
 incident or service request management.
 In particular, any workflow in which work items (e.g., incident reports, problem tickets, change requests) are received, validated, prioritized, and work is subsequently
 completed, should map onto the RM process outlined in this chapter.
 
 In the interest of maintaining the potential for interoperability among different organizations' internal processes, our protocol does not
-specify intra-organizational subprocesses within each state, although we give examples of such subprocesses in
-§[\[sec:do_work\]](#sec:do_work){reference-type="ref"
-reference="sec:do_work"}.
-For further reference, ISO/IEC 30111:2019(E)
-[@ISO30111] provides recommendations for Vendors' *internal* processes
-that can be mapped into the RM process. We provide such a mapping in
-Appendix
+specify intra-organizational subprocesses within each state, although we give examples of such subprocesses in 
+{== {== §[\[sec:do_work\]](#sec:do_work){reference-type="ref"
+reference="sec:do_work"} ==} ==}.
+For further reference, [ISO/IEC 30111:2019(E)](https://www.iso.org/standard/69725.html) provides recommendations for Vendors' *internal* processes
+that can be mapped into the RM process. We provide such a mapping in {== Appendix
 [\[app:iso_crosswalk\]](#app:iso_crosswalk){reference-type="ref"
-reference="app:iso_crosswalk"}.
+reference="app:iso_crosswalk"} ==}.
 
 ## RM State Machine
 
@@ -222,8 +236,8 @@ In other words, prioritization is only necessary if the workload
 represented by active valid reports exceeds the organization's capacity
 to process those reports.
 
-Prioritization schemes, such as SSVC [@spring2021ssvc] or the
-CVSS [@first2019cvss31], are commonly used to
+Prioritization schemes, such as [SSVC](https://github.com/CERTCC/SSVC) or the
+[CVSS](https://first.org/cvss), are commonly used to
 prioritize work within the CVD process; however, specific details are
 left to Participant-specific implementation.[^1]
 
@@ -240,9 +254,7 @@ meaning for each different Participant.
     for reports that they intend to put through the
     CVD process. If
     they have no intention of pursuing CVD, there is no need for them to track
-    their actions using this protocol. See
-    §[1.2.1](#sec:finder_hidden){reference-type="ref"
-    reference="sec:finder_hidden"}.
+    their actions using this protocol. See [the secret lives of finders](#the-secret-lives-of-finders) for more.
 
 -   Vendors usually do root cause analysis, understand the problem, and
     produce a fix or mitigation.
@@ -252,8 +264,8 @@ meaning for each different Participant.
 
 We provide additional elaboration on the sorts of activities that might
 happen in the _Accept_ state in
-§[\[sec:do_work\]](#sec:do_work){reference-type="ref"
-reference="sec:do_work"}.
+{== §[\[sec:do_work\]](#sec:do_work){reference-type="ref"
+reference="sec:do_work"} ==} .
 
 !!! note ""
     A report MAY enter and exit the _Accepted_ state a number of times
@@ -317,6 +329,7 @@ report is in _Invalid_, _Deferred_, or _Accepted_).
     in the _Closed_ state.
     
     $$\mathcal{F}^{rm} = \{Closed\}$$
+
 
 ### RM
 
@@ -382,39 +395,61 @@ process, including its states and transitions, is depicted in Figure
 [\[fig:rm_states\]](#fig:rm_states){reference-type="ref"
 reference="fig:rm_states"}.
 
+##### Receive Report
+
 To begin, a Participant must receive a report. Recall that the _Start_
 state is a placeholder, so this action simply puts the receiving
 Participant into the _Received_ state at the beginning of their
-involvement in the case. $$\label{eq:receive_report}
-     
+involvement in the case. 
+
 ```mermaid
 stateDiagram-v2
     direction LR
     [*] --> Received: receive report
 ```
 
+##### Validate Report
 
 The Participant must validate the report to exit the _Received_ state.
 Depending on the validation outcome, the report will be in either the
-_Valid_ or _Invalid_ state. 
+_Valid_ or _Invalid_ state. _Invalid_ reports are often waiting for
+additional information from the reporter, but they may also be reports
+that are not in scope for the Participant. Some Participants may choose
+to close _Invalid_ reports immediately, while others may choose to
+periodically revalidate them to see if they have become _Valid_.
 
 !!! note ""
-    Reports entering the _Valid_ state SHOULD have a case created for
-    them.
+    Participants SHOULD create a case for all _Valid_ reports. 
     
 !!! note ""
-    Reports entering the _Invalid_ state MAY have a case created for
-    them.
+    Paricipants MAY create a case for _Invalid_ reports.
+
+!!! note ""
+    Participants MAY periodically revalidate _Invalid_ reports to
+    determine if they have become _Valid_.
 
 ```mermaid
 stateDiagram-v2
     direction LR
-    state validate <<choice>>
-    Received --> validate : validate report
-    validate --> Valid: valid (create case)
-    validate --> Invalid: invalid
-    Invalid --> validate: re-validate
+    state Received {
+        state validate <<choice>>
+        evaluate: Valid?
+        [*] --> evaluate
+        evaluate --> validate
+    }
+    state Invalid {
+        state revalidate <<choice>>
+        await: More info?
+        [*] --> await
+        await --> revalidate
+        revalidate --> await: no change
+    }
+    validate --> Valid: validate (create case)
+    validate --> Invalid: invalidate
+    revalidate --> Valid: validate (create case)
 ```
+
+##### Prioritize Report
 
 Once a report has been validated (i.e., it is in the
 RM _Valid_ state,
@@ -424,34 +459,68 @@ further effort, if any, is necessary.
 !!! note ""
     Participants MUST prioritize _Valid_ cases.
 
-Appendix
-[\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref"
-reference="app:ssvc_mpcvd_protocol"} contains an example of how the
-SSVC model can be
-applied here, although any prioritization scheme could be substituted.
-Prioritization ends with the report in either the _Accepted_ or
-_Deferred_ state.
+{== Appendix
+[\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref" reference="app:ssvc_mpcvd_protocol"} ==} contains an example of how the
+SSVC model can be applied here, although any prioritization scheme could be substituted.
+Prioritization ends with the report in either the _Accepted_ or _Deferred_ state.
+
+A Participant might choose to pause work on a previously _Accepted_
+report after revisiting their prioritization decision. When this
+happens, the Participant moves the report to the _Deferred_ state.
+Similarly, a Participant might resume work on a _Deferred_ report,
+moving it to the _Accepted_ state.
+
+!!! note ""
+    Participants MAY re-prioritize _Accepted_ or _Deferred_ cases.
+
+
 
 ```mermaid
 stateDiagram-v2
     direction LR
-    state prioritize <<choice>>
-    Valid --> prioritize : prioritize case
-    prioritize --> Accepted: accept case
-    prioritize --> Deferred: defer case
+    state Valid {
+        state prioritize <<choice>>
+        evalp: Priority?
+        [*] --> evalp
+        evalp --> prioritize
+    }
+    state Deferred {
+        state reprioritize <<choice>>
+        eval: Priority?
+        wait: Wait
+        [*] --> wait
+        wait --> eval
+        eval --> reprioritize
+    }
+    state Accepted {
+        state reprioritize2 <<choice>>
+        do_work: Do work
+        evala: Priority?
+        [*] --> do_work
+        do_work --> evala
+        evala --> reprioritize2
+    }
+    
+    prioritize --> Accepted: accept
+    prioritize --> Deferred: defer
+    reprioritize --> Accepted: accept
+    reprioritize --> wait: defer
+    reprioritize2 --> do_work: accept
+    reprioritize2 --> Deferred: defer
 ```
 
-##### Participants Interact from the _Accepted_ State
 
-!!! note ""
-    Participants initiating contact with others MUST do so from the _Accepted_ state.
+##### Participants Interact from the Accepted State
 
 Some Participants (e.g., Finders and Coordinators) need to engage
 someone else (e.g., a Vendor) to resolve a case. To do this, the
 _sender_ Participants must also be in the _Accepted_ state; otherwise,
 why are they working on the case? In the following diagram, we show the interaction between two
-instances of the RM model: the left side represents the _sender_ while the right side represents the _receiver_
+instances of the RM model: the left side represents the _sender_ while the right side represents the _recipient_.
 Although the _sender_'s state does not change, the _recipient_'s state moves from _Start_ to _Received_.
+
+!!! note ""
+    Participants initiating CVD with others MUST do so from the _Accepted_ state.
 
 ```mermaid
 stateDiagram-v2
@@ -460,34 +529,13 @@ stateDiagram-v2
         direction LR
         other: ...
         [*] --> other
-        other --> Accepted: accept report
+        other --> Accepted: accept
     }
     state Recipient {
         direction LR
-        [*] --> Received: receive report
+        [*] --> Received: receive
     }
-    Accepted --> Recipient: send report
-```
-
-##### Reprioritizing Cases
-
-!!! note ""
-    Participants MAY re-prioritize _Accepted_ or _Deferred_ cases.
-
-A Participant might choose to pause work on a previously _Accepted_
-report after revisiting their prioritization decision. When this
-happens, the Participant moves the report to the _Deferred_ state.
-Similarly, a Participant might resume work on a _Deferred_ report,
-moving it to the _Accepted_ state.
-
-```mermaid
-stateDiagram-v2
-    direction LR
-    state prioritize <<choice>>
-    prioritize --> Accepted: accept case
-    prioritize --> Deferred: defer case
-    Accepted --> prioritize : re-prioritize case
-    Deferred --> prioritize : re-prioritize case
+    Accepted --> Recipient: send
 ```
 
 ##### Case Closure
@@ -495,18 +543,16 @@ stateDiagram-v2
 Finally, a Participant can complete work on an _Accepted_ report or
 abandon further work on an _Invalid_ or _Deferred_ report.
 
-```mermaid
-stateDiagram-v2
-    direction LR
-    Accepted --> Closed: close case
-    Deferred --> Closed: close case
-    Invalid --> Closed: close report
-```
 !!! note ""
     Participants MAY close _Accepted_ or _Deferred_ cases or _Invalid_ reports.
 
-!!! note ""
-    Participants MUST NOT close cases or reports from the _Valid_ state.
+```mermaid
+stateDiagram-v2
+    direction LR
+    Accepted --> Closed: close
+    Deferred --> Closed: close
+    Invalid --> Closed: close
+```
 
 Our model assumes that _Valid_ reports cannot be closed directly without
 first passing through either _Accepted_ or _Deferred_. It is reasonable
@@ -517,6 +563,10 @@ Often a Participant might initially _defer_ a case only to resume work
 later, once more information has arrived. However, there is nothing
 stopping a Participant from instituting a process that goes from _Valid_
 to _Deferred_ to _Closed_ in rapid (even immediate) succession.
+
+!!! note ""
+    Participants MUST NOT close cases or reports from the _Valid_ state.
+
 
 #### Possible Report Management Histories
 
@@ -552,8 +602,8 @@ extensions. Further discussion of a reward function to evaluate
 RM
 DFA strings is
 discussed as future work in
-§[\[sec:rm_reward_function\]](#sec:rm_reward_function){reference-type="ref"
-reference="sec:rm_reward_function"}.
+{== §[\[sec:rm_reward_function\]](#sec:rm_reward_function){reference-type="ref"
+reference="sec:rm_reward_function"} ==}.
 
 !!! note "RM DFA Fully Defined"
     Taken in combination, the full definition of the RM DFA is as follows:
@@ -578,6 +628,21 @@ reference="sec:rm_reward_function"}.
                         \end{cases}
                 \end{aligned}
         \end{pmatrix}$$
+
+???+ note "RM State Subsets Defined"
+    
+    Before proceeding, we pause to define a few useful subsets of
+    RM states
+    ($\dots \subset \mathcal{Q}^{rm}$) for future use:
+    
+    $$\label{eq:Qrm_subsets}
+        \begin{align}
+            Open &= \{ R,I,V,D,A \} \\
+            Valid~Yet~Unclosed &= \{ V,D,A \} \\
+            Potentially~Valid~Yet~Unclosed &= \{ R,V,D,A\} \\
+            Active &= \{ R,V,A \} \\
+            Inactive &= \{ I,D,C \} 
+        \end{align}$$
 
 ## Report Management Discussion
 
@@ -605,21 +670,21 @@ Correspondingly, this also represents their transition from *Finder* to
 *Reporter*. Nevertheless, for now, we retain these states for
 completeness. We revisit this topic in our derivation of a protocol
 state model for Reporters in
-§[\[sec:other_participants\]](#sec:other_participants){reference-type="ref"
-reference="sec:other_participants"}.
+{== §[\[sec:other_participants\]](#sec:other_participants){reference-type="ref"
+reference="sec:other_participants"} ==}.
 
 ```mermaid
 stateDiagram-v2
     direction LR
     state Finder {
         direction LR
-        A
+        A: Accepted
         state Hidden {
             direction LR
-            R
-            I
-            V
-            D
+            R: Received
+            I: Invalid
+            V: Valid
+            D: Deferred
             [*] --> R
             R --> I
             R --> V
@@ -632,8 +697,7 @@ stateDiagram-v2
         }
         state Observable {
             direction LR
-            A
-            D2: D
+            D2: Deferred
             A --> D2
             D2 --> A
             A --> [*]
@@ -649,10 +713,9 @@ stateDiagram-v2
 Each Participant in a case has their own instance of the RM state model.
 Participants can change their local state independent of the state of other Participants.
 Events within a CVD case may trigger a state transition in one Participant while no transition occurs in another.
-For example, the *notify another Participant* action in [\[eq:notify_participant\]](#eq:notify_participant){reference-type="eqref"
-reference="eq:notify_participant"} shows that even though the _sender_
-is the one taking the action, it is the _recipient_'s state that
-changes.The table below lists role-based actions. 
+For example, in [particpants interact from the accepted state](#participants-interact-from-the-accepted-state) we showed
+that even though the _sender_ is the one taking the action, it is the _recipient_'s state that changes.
+The table below lists role-based actions. 
 
 | Finder/Reporter  |      Vendor       |    Coordinator    | Action                                  | RM Transition  |
 |:----------------:|:-----------------:|:-----------------:|-----------------------------------------|:-------------:|
@@ -683,6 +746,11 @@ stateDiagram-v2
     direction LR
     state Finder {
         direction LR
+        R: R<sub>f</sub>
+        I: I<sub>f</sub>
+        V: V<sub>f</sub>
+        A: A<sub>f</sub>
+        D: D<sub>f</sub>
         [*] --> R
         R --> I
         R --> V
@@ -697,11 +765,11 @@ stateDiagram-v2
     }
     state Vendor {
         direction LR
-        RV:R
-        IV:I
-        VV:V
-        AV:A
-        DV:D
+        RV:R<sub>v</sub>
+        IV:I<sub>v</sub>
+        VV:V<sub>v</sub>
+        AV:A<sub>v</sub>
+        DV:D<sub>v</sub>
         [*] --> RV
         RV --> IV
         RV --> VV
@@ -741,6 +809,12 @@ stateDiagram-v2
     direction LR
     state Finder {
         direction LR
+        R: R<sub>f</sub>
+        I: I<sub>f</sub>
+        V: V<sub>f</sub>
+        A: A<sub>f</sub>
+        D: D<sub>f</sub>
+
         [*] --> R
         R --> I
         R --> V
@@ -755,11 +829,11 @@ stateDiagram-v2
     }
     state Coordinator {
         direction LR
-        RC:R
-        IC:I
-        VC:V
-        AC:A
-        DC:D
+        RC:R<sub>c</sub>
+        IC:I<sub>c</sub>
+        VC:V<sub>c</sub>
+        AC:A<sub>c</sub>
+        DC:D<sub>c</sub>
         [*] --> RC
         RC --> IC
         RC --> VC
@@ -774,11 +848,11 @@ stateDiagram-v2
     }
     state Vendor {
         direction LR
-        RV:R
-        IV:I
-        VV:V
-        AV:A
-        DV:D
+        RV:R<sub>v</sub>
+        IV:I<sub>v</sub>
+        VV:V<sub>v</sub>
+        AV:A<sub>v</sub>
+        DV:D<sub>v</sub>
         [*] --> RV
         RV --> IV
         RV --> VV
@@ -799,17 +873,10 @@ stateDiagram-v2
 
 ##### MPCVD with a Coordinator and Multiple Vendors.
 
-A small MPCVD
-scenario is shown in Figure
-[\[fig:rm_states_chain_4\]](#fig:rm_states_chain_4){reference-type="ref"
-reference="fig:rm_states_chain_4"}. As with the other examples, each
-notification shown is an instance of the *notify other participants*
-action from
-[\[eq:notify_participant\]](#eq:notify_participant){reference-type="eqref"
-reference="eq:notify_participant"}. Contrary to the previous example,
-this scenario starts with the Finder contacting a Coordinator, perhaps
-because they recognize the increased complexity of coordinating multiple
-Vendors' responses.
+A small MPCVD scenario is shown below. As with the other examples, each
+notification shown is an instance of [participants interacting from the accepted state](#participants-interact-from-the-accepted-state).
+Contrary to the previous example, this scenario starts with the Finder contacting a Coordinator, perhaps
+because they recognize the increased complexity of coordinating multiple Vendors' responses.
 
 -   First, $A_f \xrightarrow{r_0} R_c$ represents the Finder's initial
     report to the Coordinator.
@@ -825,6 +892,11 @@ stateDiagram-v2
     direction LR
     state Finder {
         direction LR
+        R: R<sub>f</sub>
+        I: I<sub>f</sub>
+        V: V<sub>f</sub>
+        A: A<sub>f</sub>
+        D: D<sub>f</sub>
         [*] --> R
         R --> I
         R --> V
@@ -839,11 +911,11 @@ stateDiagram-v2
     }
     state Coordinator {
         direction LR
-        RC:R
-        IC:I
-        VC:V
-        AC:A
-        DC:D
+        RC:R<sub>c</sub>
+        IC:I<sub>c</sub>
+        VC:V<sub>c</sub>
+        AC:A<sub>c</sub>
+        DC:D<sub>c</sub>
         [*] --> RC
         RC --> IC
         RC --> VC
@@ -858,11 +930,11 @@ stateDiagram-v2
     }
     state Vendor {
         direction LR
-        RV:R
-        IV:I
-        VV:V
-        AV:A
-        DV:D
+        RV:R<sub>v<sub>1</sub></sub>
+        IV:I<sub>v<sub>1</sub></sub>
+        VV:V<sub>v<sub>1</sub></sub>
+        AV:A<sub>v<sub>1</sub></sub>
+        DV:D<sub>v<sub>1</sub></sub>
         [*] --> RV
         RV --> IV
         RV --> VV
@@ -877,11 +949,11 @@ stateDiagram-v2
     }
     state Vendor2 {
         direction LR
-        RV2:R
-        IV2:I
-        VV2:V
-        AV2:A
-        DV2:D
+        RV2:R<sub>v<sub>2</sub></sub>
+        IV2:I<sub>v<sub>2</sub></sub>
+        VV2:V<sub>v<sub>2</sub></sub>
+        AV2:A<sub>v<sub>2</sub></sub>
+        DV2:D<sub>v<sub>2</sub></sub>
         [*] --> RV2
         RV2 --> IV2
         RV2 --> VV2
@@ -964,22 +1036,6 @@ stateDiagram-v2
 We intend the RM
 model to be sufficiently composable to accommodate all such
 permutations.
-
-
-???+ note "RM State Subsets Defined"
-    
-    Before proceeding, we pause to define a few useful subsets of
-    RM states
-    ($\dots \subset \mathcal{Q}^{rm}$) for future use:
-    
-    $$\label{eq:Qrm_subsets}
-        \begin{align}
-            Open &= \{ R,I,V,D,A \} \\
-            Valid~Yet~Unclosed &= \{ V,D,A \} \\
-            Potentially~Valid~Yet~Unclosed &= \{ R,V,D,A\} \\
-            Active &= \{ R,V,A \} \\
-            Inactive &= \{ I,D,C \} 
-        \end{align}$$
 
 [^1]: See also Appendix
     [\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref"
