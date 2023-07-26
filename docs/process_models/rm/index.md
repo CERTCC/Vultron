@@ -38,7 +38,7 @@ that can be mapped into the RM process. We provide such a mapping in our [ISO Cr
 
 ???+ note inline end "DFA Defined"
     A DFA is defined as a 5-tuple $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)
-    ~$[@kandar2013automata]:
+    ~${== [@kandar2013automata] ==}:
 
     - $\mathcal{Q}$ is a finite set of states.
     - $q_0 \in \mathcal{Q}$ is an initial state.
@@ -308,7 +308,7 @@ transitions in the corresponding DFA.
 
 In other words, the _Received_ state corresponds to the Validation phase
 of *The CERT Guide to Coordinated Vulnerability Disclosure*
-[@householder2017cert].
+{== [@householder2017cert] ==}.
 
 !!! note ""
     For _Valid_ reports, the Participant SHOULD perform a prioritization
@@ -316,12 +316,12 @@ of *The CERT Guide to Coordinated Vulnerability Disclosure*
     further work.
 
 Similarly, the _Valid_ state is equivalent to the Prioritization
-(Triage) phase of the *CVD Guide* [@householder2017cert]. The
+(Triage) phase of the *CVD Guide* {== [@householder2017cert] ==}. The
 SSVC model is
 illustrative here, although any prioritization scheme could be
 substituted as long as it emits a result that can be mapped onto the
 semantics of "continue work" or "defer further
-action" [@spring2021ssvc]. Appendix
+action" {== [@spring2021ssvc] ==}. Appendix
 [\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref"
 reference="app:ssvc_mpcvd_protocol"} takes a closer look at how
 SSVC fits into the
