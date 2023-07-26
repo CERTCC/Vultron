@@ -5,14 +5,16 @@ nav:
   - User Stories: 'user_stories/index.md'
   - Process Models:
     - Introduction: 'process_models/index.md'
-    - Report Management: 'process_models/report_management.md'
+    - Report Management:
+      - RM Process Model: 'process_models/rm/index.md'
+      - RM Participant Interactions: 'process_models/rm/rm_interactions.md'
     - Embargo Management: 'process_models/embargo_management.md'
     - Case State Model: 'process_models/case_state.md'
     - Model Interactions: 'process_models/model_interactions.md'
   - Formal Protocol:
     - Introduction: 'formal_protocol/index.md'
     - Worked Example: 'formal_protocol/worked_example.md'
-  - Behavior Logic: 'behaviors.md'
+  - Behavior Logic: 'index.md'
   - Implementation Notes: 'implementation_notes.md'
   - Future Work: 'future_work.md'
   - About:
