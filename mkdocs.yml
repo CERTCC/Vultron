@@ -15,7 +15,7 @@ nav:
       - Negotiating Embargoes: 'process_models/em/negotiating.md'
       - Adding Participants: 'process_models/em/working_with_others.md'
       - Early Termination and Other Topics: 'process_models/em/early_termination.md'
-    - Case State Model: 'process_models/case_state.md'
+    - Case State Model: 'process_models/cs/index.md'
     - Model Interactions: 'process_models/model_interactions.md'
     - ISO Crosswalk: 'process_models/iso_crosswalk.md'
     - SSVC Crosswalk: 'process_models/ssvc_crosswalk.md'

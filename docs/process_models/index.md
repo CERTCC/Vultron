@@ -10,4 +10,4 @@ The Vultron Protocol defines three main processes in terms of deterministic fini
 
 {% include-markdown "./em/em_dfa_diagram.md" %}
 
-## [Case State process](./case_state.md)
+## [Case State process](cs/index.md)
