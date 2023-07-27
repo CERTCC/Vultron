@@ -1,7 +1,7 @@
 # EM Model {#ch:embargo}
 
 !!! note "TODO"
-    - [ ] regex replace acronym pointers with the acronym
+    - [x] regex replace acronym pointers with the acronym
     - [ ] replace first use of an acronym on a page with its expansion (if not already done)
     - [ ] OR replace acronym usage with link to where it's defined
     - [ ] reproduce diagrams using mermaid
@@ -22,17 +22,17 @@
     - [ ] move diagrams to separate files and `include-markdown` them
 
 In this chapter, we describe the basic primitives necessary for the
-CVD
-EM process. For our
-purposes, an embargo is an *informal* agreement among peer
-CVD case
-Participants to refrain from publishing information about a
-vulnerability until some future point in time relative to the report at
+CVD Embargo Management (EM) process. For our purposes, an embargo is an *informal* agreement among peer
+CVD case Participants to refrain from publishing information about a vulnerability until some future point in time relative to the report at
 hand. Once an embargo has expired, there is no further restriction on
-publishing information about the vulnerability.[^1]
+publishing information about the vulnerability.
 
-CVD case
-Participants must be able to propose, accept, and reject embargo timing
+!!! tip inline end "Reminder"
+
+    Exploits are information about vulnerabilities too.
+
+
+CVD case Participants must be able to propose, accept, and reject embargo timing
 proposals according to their individual needs. Additionally,
 Participants may want to attempt to gain agreement that enables specific
 details about a vulnerability to be shared with other Participants or
@@ -46,15 +46,16 @@ Unlike the [RM](../rm/) model, in which each Participant has their own instance 
 !!! note ""
     A CVD case SHALL NOT have more than one active embargo at a time.
 
-Even in an MPCVD case having a vertical supply chain---in which Vendors must wait on
-their upstream suppliers to produce fixes before they can take action on
+Even in an MPCVD case having a [vertical supply chain](https://vuls.cert.org/confluence/display/CVD/5.4+Multiparty+CVD)
+---in which Vendors must wait on their upstream suppliers to produce fixes before they can take action on
 their own, as in {== Figure [\[fig:mpcvd_supply_chain\]](#fig:mpcvd_supply_chain){reference-type="ref"
 reference="fig:mpcvd_supply_chain"} ==} ---our intent is that the embargo
 period terminates when as many Vendors as possible have been given an
 adequate opportunity to produce a fix.
 
-!!! info "Embargoes Are Not NDAs"
-    
+<a name="cvd-embargoes-are-not-ndas"></a>
+!!! info "CVD Embargoes Are Not NDAs"
+
     CVD embargoes are *not* NDAs. An NDA (also known as a Confidentiality agreement) is 
     a legally binding contract between parties, often accompanied by a reward for compliance and/or some penalty in the event
     of unauthorized disclosure. NDAs do, on occasion, have a place in CVD processes, but
@@ -98,12 +99,12 @@ stateDiagram-v2
 However, because embargo management is a process of coordinating across
 Participants, it will be useful to distinguish between the _None_ state
 and an intermediate state in which an embargo has been proposed but not
-yet accepted or rejected. We might call this the $None + Proposed$
+yet accepted or rejected. We might call this the _None + Proposed_
 state, but we shortened it to _Proposed_.
 
 Similarly, we want to be able to discriminate between an _Active_
 embargo state and one in which a revision has been proposed but is not
-yet accepted or rejected, which we will denote as the $Active + Revise$
+yet accepted or rejected, which we will denote as the _Active + Revise_
 state, shortened to _Revise_. Finally, we wish to distinguish between
 the state in which no embargo has ever been established (_None_), and
 the final state after an active embargo has ended (_eXited_). Combining
@@ -173,19 +174,18 @@ between the states:
 !!! note ""
     Finally, accepted embargoes MUST eventually _terminate_.
 
-A summary of the available actions is shown as $\Sigma^{em}$ in
-[\[eq:em_symbols\]](#eq:em_symbols){reference-type="eqref"
-reference="eq:em_symbols"}.
+A summary of the available actions is shown as $\Sigma^{em}$ below.
 
-$$\label{eq:em_symbols}
-    \begin{split}
-        \Sigma^{em} = \{
-         ~\underline{p}ropose, 
-         ~\underline{r}eject, 
-         ~\underline{a}ccept, 
-         ~\underline{t}erminate
-        \}
-    \end{split}$$
+???+ note "EM Symbols ($\Sigma^{em}$) Defined"
+    $\label{eq:em_symbols}
+        \begin{split}
+            \Sigma^{em} = \{
+             ~\underline{p}ropose, 
+             ~\underline{r}eject, 
+             ~\underline{a}ccept, 
+             ~\underline{t}erminate
+            \}
+        \end{split}$
 
 Once again, the underlined lowercase letters will be used as shorthand
 for the EM
@@ -196,6 +196,8 @@ transition names in the remainder of the document.
 Now we define the possible state transitions. Figure
 [\[fig:em_states_dense\]](#fig:em_states_dense){reference-type="ref"
 reference="fig:em_states_dense"} summarizes the EM process DFA states and transitions.
+
+{% include-markdown "./em_dfa_diagram.md" %}
 
 ##### Propose Embargo
 
@@ -289,16 +291,17 @@ single-character shorthand in
 [\[eq:em_transition_function\]](#eq:em_transition_function){reference-type="eqref"
 reference="eq:em_transition_function"}.
 
-$$\label{eq:em_transition_function}
-    \delta^{em} = 
-    \begin{cases}
-        % \epsilon \to & N \\
-               N \to ~pP~|~\epsilon \\
-               P \to ~pP~|~rN~|~aA \\
-               A \to ~pR~|~tX \\
-               R \to ~pR~|~aA~|~rA~|~tX \\
-               X \to ~\epsilon \\
-    \end{cases}$$
+???+ note inline end "EM Transition Function ($\delta^{em}$) Defined"
+    $\label{eq:em_transition_function}
+        \delta^{em} = 
+        \begin{cases}
+            % \epsilon \to & N \\
+                   N \to ~pP~|~\epsilon \\
+                   P \to ~pP~|~rN~|~aA \\
+                   A \to ~pR~|~tX \\
+                   R \to ~pR~|~aA~|~rA~|~tX \\
+                   X \to ~\epsilon \\
+        \end{cases}$
 
 Due to the numerous loops in the DFA shown in Figure
 [\[fig:em_states_dense\]](#fig:em_states_dense){reference-type="ref"
@@ -324,12 +327,8 @@ However, because EM
 is a human-oriented scheduling process, our experience suggests that we
 should expect there to be a natural limit on CVD Participants' tolerance for churn during
 embargo negotiations. Hence, we expect most paths through the
-EM
-DFA to be on the
-short end of this list in practice. We offer some thoughts on a
-potential reward function over EM DFA strings as future work in
-{== §[\[sec:em_reward_function\]](#sec:em_reward_function){reference-type="ref"
-reference="sec:em_reward_function"} ==}.
+EM DFA to be on the short end of this list in practice. We offer some thoughts on a
+potential reward function over EM DFA strings in [Future Work](../../future_work.md).
 
 For example, it is often preferable for a Vendor to accept whatever
 embargo the Reporter initially proposes followed closely by proposing a
@@ -339,51 +338,33 @@ an embargo in the first place. In the worst case (i.e., where the
 Reporter declines to extend their embargo), a short embargo is
 preferable to none at all. This implies a preference for strings
 starting with _par_ over strings starting with _ppa_ or _prpa_, among
-others. We will come back to this idea in
-{== §[1.2.6](#sec:default_embargoes){reference-type="ref"
-reference="sec:default_embargoes"} ==} and in the worked protocol example at
-the end of Chapter
-[\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref"
-reference="sec:formal_protocol"}, specifically in
-{== §[\[sec:vendor_eval_embargo_seq\]](#sec:vendor_eval_embargo_seq){reference-type="ref"
-reference="sec:vendor_eval_embargo_seq"} ==}.
+others. We will come back to this idea in [Default Embargoes](#default-embargoes)
+and in the [worked protocol example](../../formal_protocol/worked_example/#vendor-accepts-then-proposes-revision).
 
 ### EM DFA Fully Defined
 
 Taken together, the complete DFA specification for the
-EM process
-$(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{em}$ is shown in equations
-[\[eq:em_states\]](#eq:em_states){reference-type="eqref"
-reference="eq:em_states"},
-[\[eq:q_em\]](#eq:q_em){reference-type="eqref" reference="eq:q_em"},
-[\[eq:f_em\]](#eq:f_em){reference-type="eqref" reference="eq:f_em"},
-[\[eq:em_symbols\]](#eq:em_symbols){reference-type="eqref"
-reference="eq:em_symbols"}, and
-[\[eq:em_transition_function\]](#eq:em_transition_function){reference-type="eqref"
-reference="eq:em_transition_function"}, respectively. For convenience,
-we have assembled them in shorthand form in
-[\[eq:em_dfa\]](#eq:em_dfa){reference-type="eqref"
-reference="eq:em_dfa"}.
+EM process is shown below right.
 
-$$\label{eq:em_dfa}
-    EM = 
-    \begin{pmatrix}
-            \begin{aligned}
-                \mathcal{Q}^{em} = & \{ N,P,A,R,X \}, &\textrm{\small{\eqref{eq:em_states}}} \\
-                q^{em}_0 = & N, &\textrm{\small{\eqref{eq:q_em}}} \\
-                \mathcal{F}^{em} = &\{ N,X \}, &\textrm{\small{\eqref{eq:f_em}}} \\
-                \Sigma^{em} = &\{ p,r,a,t \}, &\textrm{\small{\eqref{eq:em_symbols}}} \\
-                \delta^{em} = &
-                    \begin{cases}
-                       N \to ~pP~|~\epsilon \\
-                       P \to ~pP~|~rN~|~aA \\
-                       A \to ~pR~|~tX \\
-                       R \to ~pR~|~aA~|~rA~|~tX \\
-                       X \to ~\epsilon \\
-                    \end{cases}
-                    &\textrm{\small{\eqref{eq:em_transition_function}}}
-            \end{aligned}
-    \end{pmatrix}$$
+???+ note "EM DFA $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{em}$ Fully Defined"
+
+    $$EM = 
+        \begin{pmatrix}
+                \begin{aligned}
+                    \mathcal{Q}^{em} = & \{ N,P,A,R,X \}, \\
+                    q^{em}_0 = & N, \\
+                    \mathcal{F}^{em} = &\{ N,X \},  \\
+                    \Sigma^{em} = &\{ p,r,a,t \}, \\
+                    \delta^{em} = &
+                        \begin{cases}
+                           N \to ~pP~|~\epsilon \\
+                           P \to ~pP~|~rN~|~aA \\
+                           A \to ~pR~|~tX \\
+                           R \to ~pR~|~aA~|~rA~|~tX \\
+                           X \to ~\epsilon \\
+                        \end{cases}
+                \end{aligned}
+        \end{pmatrix}$$
 
 ## EM Discussion {#sec:em_discussion}
 
@@ -409,7 +390,9 @@ With that in mind, we offer the following principles as guidance. We
 begin with some behavioral norms that define what it means to cooperate
 with an embargo.
 
--   Embargo Participants SHOULD NOT knowingly release information about
+!!! note ""
+
+    Embargo Participants SHOULD NOT knowingly release information about
     an embargoed case until either
 
     1.  all proposed embargoes have been explicitly rejected
@@ -425,27 +408,35 @@ with an embargo.
         {== §[1.2.7](#sec:early_termination){reference-type="ref"
         reference="sec:early_termination"} ==})
 
--   Additional Participants MAY be added to an existing embargo upon
+!!! note ""
+    Additional Participants MAY be added to an existing embargo upon
     accepting the terms of that embargo.
 
--   Adding Participants to an existing embargo SHALL NOT constitute
+!!! note ""
+    Adding Participants to an existing embargo SHALL NOT constitute
     "release" or "publication" so long as those Participants accept the
-    terms of the embargo. See
+    terms of the embargo.
+
+See
     {== §[1.2.10](#sec:inviting_others){reference-type="ref"
     reference="sec:inviting_others"} ==}.
 
 Furthermore, we need to establish a few norms related to embargo timing.
 
--   An embargo SHALL specify an unambiguous date and time as its
+!!! note ""  
+    An embargo SHALL specify an unambiguous date and time as its
     endpoint.
 
--   An embargo SHALL NOT be used to indefinitely delay publication of
+!!! note ""
+    An embargo SHALL NOT be used to indefinitely delay publication of
     vulnerability information, whether through repeated extension or by
     setting a long-range endpoint.
 
--   An embargo SHALL begin at the moment it is accepted.
+!!! note ""
+    An embargo SHALL begin at the moment it is accepted.
 
--   Embargoes SHOULD be of short duration, from a few days to a few
+!!! note ""
+    Embargoes SHOULD be of short duration, from a few days to a few
     months.
 
 ### Embargo Scale and Duration
@@ -455,18 +446,20 @@ are two factors that contribute significantly to the success or failure
 of an embargo: scale and duration. The more people involved in an
 embargo, the more likely the embargo is to fail.
 
--   Embargo participation SHOULD be limited to the smallest possible set
+!!! note ""
+    Embargo participation SHOULD be limited to the smallest possible set
     of individuals and organizations needed to adequately address the
     vulnerability report.
 
 Similarly, the longer an embargo lasts, the more likely it is to fail.
 
--   Embargo duration SHOULD be limited to the shortest duration possible
+!!! note ""
+    Embargo duration SHOULD be limited to the shortest duration possible
     to adequately address the vulnerability report.
 
 ### Embargo Participants Are Free to Engage or Disengage {#sec:embargo_engagement}
 
-As we described at the beginning of the chapter, an embargo is not the
+As we described [above](#cvd-embargoes-are-not-ndas), an embargo is not the
 same thing as an NDA, even if they have similar effects.
 Because it is a contract, an NDA can carry civil or even criminal
 penalties for breaking it. CVD embargoes have no such legal framework.
@@ -478,15 +471,18 @@ should be clear about their status and intentions with other
 Participants. There are a few good reasons to exit an embargo early.
 (See {== §[1.2.7](#sec:early_termination){reference-type="ref"
 reference="sec:early_termination"} ==}.)
-
--   Participants MAY propose a new embargo or revision to an existing
+ 
+!!! note ""
+    Participants MAY propose a new embargo or revision to an existing
     embargo at any time within the constraints outlined in
     {== §[1.2.4](#sec:entering_an_embargo){reference-type="ref"
     reference="sec:entering_an_embargo"} ==}.
 
--   Participants MAY reject proposed embargo terms for any reason.
+!!! note ""
+    Participants MAY reject proposed embargo terms for any reason.
 
--   Participants in an embargo MAY exit the embargo at any time.
+!!! note ""
+    Participants in an embargo MAY exit the embargo at any time.
 
 Note that a Participant leaving an embargo is not necessarily the same
 as the embargo itself terminating. Embargo termination corresponds to
@@ -497,20 +493,23 @@ applies. A Participant leaving an *Active* embargo means that the
 embargo agreement between other Participants remains intact, but that
 the leaving Participant is no longer involved in the case.
 
--   Participants stopping work on a case SHOULD notify remaining
+!!! note ""
+    Participants stopping work on a case SHOULD notify remaining
     Participants of their intent to adhere to or disregard any existing
     embargo associated with the case.
 
--   Participants SHOULD continue to comply with any active embargoes to
+!!! note ""
+    Participants SHOULD continue to comply with any active embargoes to
     which they have been a part, even if they stop work on the case.
 
--   Participants who leave an *Active* embargo SHOULD be removed by the
+!!! note ""
+    Participants who leave an *Active* embargo SHOULD be removed by the
     remaining Participants from further communication about the case.
 
 These points imply a need for Participants to track the status of other
 Participants with respect to their adherence to the embargo and
 engagement with the case. We will return to these concepts with the
-$case\_engagement$ and $embargo\_adherence$ attributes described in
+$case\_engagement_ and _embargo\_adherence$ attributes described in
 {== §[\[sec:case_object_participant_class\]](#sec:case_object_participant_class){reference-type="ref"
 reference="sec:case_object_participant_class"} ==}.
 
@@ -519,92 +518,107 @@ game, and actions have consequences. Leaving an embargo early in one
 case may have repercussions to Participants' willingness to cooperate in
 later cases.
 
--   A Participant's refusal to accept embargo terms MAY result in that
+!!! note ""
+    A Participant's refusal to accept embargo terms MAY result in that
     Participant being left out of the CVD case entirely.
 
--   Participants SHOULD consider other Participants' history of
+!!! note ""
+    Participants SHOULD consider other Participants' history of
     cooperation when evaluating the terms of a proposed embargo.
 
 Finally, embargo termination removes a constraint rather than adding an
 obligation.
 
--   Participants SHOULD not publish information about the vulnerability
+!!! note ""
+    Participants SHOULD not publish information about the vulnerability
     when there is an active embargo.
 
--   Participants MAY publish information about the vulnerability when
+!!! note ""
+    Participants MAY publish information about the vulnerability when
     there is no active embargo.
 
--   Embargo termination SHALL NOT be construed as an obligation to
+!!! note ""
+    Embargo termination SHALL NOT be construed as an obligation to
     publish.
 
 A discussion of how to decide who to invite to participate in a
-CVD case is
-addressed in {== §[1.2.10](#sec:inviting_others){reference-type="ref"
+CVD case is addressed in {== §[1.2.10](#sec:inviting_others){reference-type="ref"
 reference="sec:inviting_others"} ==}.
 
 ### Entering an Embargo {#sec:entering_an_embargo}
 
 Negotiating and entering into a new embargo for a case is only possible
 within an embargo "habitable zone" defined in terms of the
-CS model as laid out
-below. The notation for CS model states is explained in
-Chapter [\[sec:model\]](#sec:model){reference-type="ref"
-reference="sec:model"}, but the contextual explanation below should
+[Case State model](../cs/index.md) as laid out below. The notation for CS model states is explained in
+[Case State model](../cs/index.md), but the contextual explanation below should
 suffice for now.
 
--   CVD
-    Participants MUST NOT *propose* or *accept* a new embargo
+!!! note ""
+
+    CVD Participants MUST NOT *propose* or *accept* a new embargo
     negotiation when any of the following conditions are true:
 
     1.  Information about the vulnerability is already known to the
-        public (${q^{cs} \in \wc\wc\wc P \wc\wc}$).
+        public (${q^{cs} \in \cdot\cdot\cdot P \cdot\cdot}$).
 
     2.  An exploit for the vulnerability is publicly available
-        (${q^{cs} \in \wc\wc\wc\wc X \wc}$).
+        (${q^{cs} \in \cdot\cdot\cdot\cdot X \cdot}$).
 
     3.  There is evidence that the vulnerability is being actively
-        exploited by adversaries (${q^{cs} \in \wc\wc\wc\wc\wc A}$).
+        exploited by adversaries (${q^{cs} \in \cdot\cdot\cdot\cdot\cdot A}$).
 
--   CVD
-    Participants MAY *propose* or *accept* an embargo in all other case
-    states (${q^{cs} \in \wc\wc\wc pxa}$).
+!!! note ""
 
--   CVD
-    Participants SHOULD NOT *propose* or *accept* a new embargo
+    CVD Participants SHOULD NOT *propose* or *accept* a new embargo
     negotiation when the fix for a vulnerability has already been
-    deployed ($q^{cs} \in VFDpxa$). Counterexamples include (a) when an
-    embargo is desired to allow for a downstream Vendor to synchronize
-    their fix delivery or deployment, and (b) when a Vendor has deployed
-    a fix but wants to complete their root cause analysis prior to
-    releasing information about the vulnerability.
+    deployed ($q^{cs} \in VFDpxa$). Counterexamples include
 
--   CVD
-    Participants MAY *propose* or *accept* a new embargo when the fix
+    - when an embargo is desired to allow for a downstream Vendor to synchronize
+    their fix delivery or deployment
+    - when a Vendor has deployed a fix but wants to complete their root cause analysis prior to
+    releasing information about the vulnerability.
+ 
+!!! note ""
+
+    CVD Participants MAY *propose* or *accept* a new embargo when the fix
     for a vulnerability is ready but has neither been made public nor
     deployed ($q^{cs} \in VFdpxa$). Such an embargo SHOULD be brief and
     used only to allow Participants to prepare for timely publication or
     deployment.
 
-### Negotiating Embargoes {#sec:negotiating_embargoes}
+!!! note ""
+
+    CVD Participants MAY *propose* or *accept* an embargo in all other case
+    states (${q^{cs} \in \cdot\cdot\cdot pxa}$).
+
+
+### Negotiating Embargoes
 
 Asymmetry is inherent in the CVD process because those who currently have
-the vulnerability information get to decide who they will share it with.
+the vulnerability information get to decide with whom they will share it.
 This asymmetry puts Reporters at somewhat of an advantage when it comes
 to the initial report submission to another Participant. We will discuss
 some ways to improve (but not fully remove) this asymmetry in
-{== §[1.2.6](#sec:default_embargoes){reference-type="ref"
-reference="sec:default_embargoes"} ==}, but for now we just need to
+[Default Embargoes](#default-embargoes), but for now we just need to
 acknowledge that it exists.
 
--   Participants MAY *accept* or *reject* any proposed embargo as they
+!!! note ""  
+    
+    Participants MAY *accept* or *reject* any proposed embargo as they
     see fit.
 
--   Receivers SHOULD *accept* any embargo proposed by Reporters.
+!!! note ""  
+ 
+    Receivers SHOULD *accept* any embargo proposed by Reporters.
 
--   Receivers MAY *propose* embargo terms they find more favorable as
+!!! note ""  
+
+    Receivers MAY *propose* embargo terms they find more favorable as
     they see fit.
 
--   Participants MAY withdraw (*reject*) their own unaccepted *Proposed*
+!!! note ""  
+   
+    Participants MAY withdraw (*reject*) their own unaccepted *Proposed*
     embargo.
 
 ##### Respond Promptly.
@@ -612,15 +626,19 @@ acknowledge that it exists.
 Timely response to embargo proposals is important. Explicit acceptance
 is expected.
 
--   Participants SHOULD explicitly *accept* or *reject* embargo
+!!! note ""
+
+    Participants SHOULD explicitly *accept* or *reject* embargo
     proposals in a timely manner. (For example, embargo agreement or
     rejection SHOULD NOT be tacit.)
 
--   Participants MAY interpret another Participant's failure to respond
+!!! note ""
+    Participants MAY interpret another Participant's failure to respond
     to an embargo proposal in a timely manner as a *reject*ion of that
     proposal.
 
--   In the absence of an explicit *accept* or *reject* response from a
+!!! note ""
+    In the absence of an explicit *accept* or *reject* response from a
     Receiver in a timely manner, the Sender MAY proceed in a manner
     consistent with an EM state of _None_ ($q^{em} \in N$).
 
@@ -629,23 +647,33 @@ is expected.
 Once an embargo negotiation has failed the first time, Participants have
 no further obligations. They are, however, encouraged to try again.
 
--   In a case where the embargo state is _None_ and for which an embargo
+!!! note ""  
+
+    In a case where the embargo state is _None_ and for which an embargo
     has been *propose*d and either explicitly or tacitly *reject*ed,
     Participants MAY take any action they choose with the report in
     question, including immediate publication.
 
--   Participants SHOULD make reasonable attempts to retry embargo
+!!! note ""  
+
+    Participants SHOULD make reasonable attempts to retry embargo
     negotiations when prior proposals have been *reject*ed or otherwise
     failed to achieve *accept*ance.
+
+##### Submitting a Report Before Embargo Negotiations Conclude
 
 Participants need not wait for embargo negotiations to conclude before
 submitting a report. However, by doing so, they might give up some of
 their leverage over the Receiver in the embargo negotiations.
 
--   Participants MAY withhold a report from a Recipient until an initial
+!!! note ""  
+
+    Participants MAY withhold a report from a Recipient until an initial
     embargo has been accepted.
 
--   Submission of a report when an embargo proposal is pending
+!!! note ""  
+
+    Submission of a report when an embargo proposal is pending
     ($q^{em} \in P$) SHALL be construed as the Sender's acceptance
     ($q^{em} \in P \xrightarrow{a} A$) of the terms proposed regardless
     of whether the Sender or Receiver was the proposer.
@@ -660,15 +688,19 @@ publication of cases not covered by an active embargo, we recommend that
 a short embargo be used until the validation process concludes, at which
 point, it can be extended with a revision.
 
--   Participants MAY use short embargo periods to cover their report
+!!! note ""
+
+    Participants MAY use short embargo periods to cover their report
     validation process, and subsequently revise the embargo terms
     pending the outcome of their report validation and/or prioritization
     processes.
 
--   Participants SHOULD remain flexible in adjusting embargo terms as
+!!! note ""  
+
+    Participants SHOULD remain flexible in adjusting embargo terms as
     the case evolves.
 
-### Default Embargoes {#sec:default_embargoes}
+### Default Embargoes
 
 As described in {== §[1.1.2.2](#sec:em_grammar){reference-type="ref"
 reference="sec:em_grammar"} ==}, the EM process has the potential for unbounded
@@ -684,10 +716,14 @@ vulnerability disclosure policy. In particular, we recommend that
 CVD report
 recipients (typically Vendors and Coordinators) do so.
 
--   Participants MAY include a default embargo period as part of a
+!!! note ""  
+
+    Participants MAY include a default embargo period as part of a
     published Vulnerability Disclosure Policy.
 
--   Recipients SHOULD post a default embargo period as part of their
+!!! note ""  
+
+    Recipients SHOULD post a default embargo period as part of their
     Vulnerability Disclosure Policy to set expectations with potential
     Reporters.
 
@@ -697,8 +733,7 @@ Next, we work through the possible interactions of published policies
 with proposed embargoes. Each of the following scenarios assumes a
 starting state of $q^{em} \in N$, and a negotiation between two parties.
 We cover the extended situation (adding parties to an existing embargo)
-in {== §[1.2.10](#sec:inviting_others){reference-type="ref"
-reference="sec:inviting_others"} ==}. For now, we begin with the simplest
+in [Inviting Others](#inviting-others-to-an-embargoed-case). For now, we begin with the simplest
 case and proceed in an approximate order of ascending complexity.
 
 In each of the following, subscripts on transitions indicate the
@@ -707,177 +742,294 @@ is performing the action. For example, $a_{sender}$ indicates acceptance
 of the Sender's proposal, even if it is the Receiver doing the
 accepting.
 
--   If neither Sender nor Receiver proposes an embargo, and no policy
+###### No Defaults, No Proposals
+
+We begin with the simplest case, in which neither party has a default and no
+embargo has been proposed.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> N
+```
+
+!!! note ""  
+
+    ???+ note inline end "Formalism"
+
+        $$q^{em} \in N$$
+
+    If neither Sender nor Receiver proposes an embargo, and no policy
     defaults apply, no embargo SHALL exist.
 
-    $$q^{em} \in N$$
 
--   If the Sender proposes an embargo and the Receiver has no default
+###### Sender Proposes When Receiver Has No Default Embargo
+
+Next, we consider the case where the Sender has a default embargo or otherwise proposes an embargo
+and the Receiver has no default embargo specified by policy.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> N
+    N --> P : sender proposes
+    P --> A : receiver accepts
+    A --> R : receiver proposes revision
+```
+
+!!! note ""  
+
+    ???+ note inline end "Formalism"
+
+        $$q^{em} \in N \xrightarrow{p_{sender}} P \xrightarrow{a_{sender}} A$$
+
+    If the Sender proposes an embargo and the Receiver has no default
     embargo specified by policy, the Receiver SHOULD accept the Sender's
     proposal.
 
-    $$q^{em} \in N \xrightarrow{p_{sender}} P \xrightarrow{a_{sender}} A$$
 
--   The Receiver MAY then propose a revision.
+!!! note ""  
 
-    $$q^{em} \in A \xrightarrow{p_{receiver}} R$$
+    ???+ note inline end "Formalism"
 
--   A Receiver's default embargo specified in its vulnerability
+        $$q^{em} \in A \xrightarrow{p_{receiver}} R$$
+
+    The Receiver MAY then propose a revision.
+
+
+###### Receiver Has Default Embargo, Sender Implies Acceptance
+
+The next scenario is where the Receiver has a default embargo specified by
+policy and the Sender does not propose an embargo.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> N
+    N --> P : receiver default proposal
+    P --> A : sender accepts
+```
+
+
+!!! note ""  
+
+    ???+ note inline end "Formalism"
+
+        $$q^{em} \in N \xrightarrow{p_{receiver}} P$$
+
+    A Receiver's default embargo specified in its vulnerability
     disclosure policy SHALL be treated as an initial embargo proposal.
 
-    $$q^{em} \in N \xrightarrow{p_{receiver}} P$$
 
--   If the Receiver has declared a default embargo in its vulnerability
+!!! note ""  
+
+    ???+ note inline end "Formalism"
+
+        $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{p_{sender}} P$$
+
+    If the Receiver has declared a default embargo in its vulnerability
     disclosure policy and the Sender proposes nothing to the contrary,
     the Receiver's default embargo SHALL be considered as an accepted
     proposal.
 
-    $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{a_{receiver}} A$$
 
--   If the Sender proposes an embargo *longer* than the Receiver's
+
+###### Sender Proposes an Embargo Longer than the Receiver Default
+
+Now we consider the case where the Sender proposes an embargo longer
+than the Receiver's default.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> N
+    N --> P : receiver<br/>proposes<br/>default<br/>(shorter)
+    P --> A : sender<br/>accepts<br/>(shorter)
+    A --> R : sender<br/>proposes<br/>(longer)
+    R --> A : receiver<br/>accepts<br/>(longer)
+    R --> A : receiver rejects<br/>(shorter default persists)
+```
+
+!!! note ""  
+
+    If the Sender proposes an embargo *longer* than the Receiver's
     default embargo, the Receiver's default SHALL be taken as accepted
     and the Sender's proposal taken as a proposed revision.
 
-    $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{p_{sender}} P \xrightarrow{a_{receiver}} A \xrightarrow{r_{sender}} R$$
+    ???+ note "Formalism"
 
--   The Receiver MAY then *accept* or *reject* the proposed extension.
+        $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{p_{sender}} P \xrightarrow{a_{receiver}} A \xrightarrow{r_{sender}} R$$
 
-    $$q^{em} \in \begin{cases}
-        R \xrightarrow{a_{sender}} A \\
-        R \xrightarrow{r_{sender}} A
-        \end{cases}$$
 
--   If the Sender proposes an embargo *shorter* than the Receiver's
+!!! note ""  
+
+    ???+ note inline end "Formalism"
+
+        $$q^{em} \in \begin{cases}
+            R \xrightarrow{a_{sender}} A \\
+            R \xrightarrow{r_{sender}} A
+            \end{cases}$$
+
+    The Receiver MAY then *accept* or *reject* the proposed extension.
+
+
+###### Sender Proposes an Embargo Shorter than the Receiver Default
+
+Finally, we reach a common scenario in which the Sender proposes an
+embargo shorter than the Receiver's default.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> N
+    N --> P : sender<br/>proposes<br/>(shorter)
+    P --> A : receiver<br/>accepts<br/>(shorter)
+    A --> R : receiver<br/>proposes<br/>(longer default)
+    R --> A : sender<br/>accepts<br/>(longer default))
+    R --> A : sender rejects<br/>(shorter persists)
+```
+
+!!! note ""  
+
+    If the Sender proposes an embargo *shorter* than the Receiver's
     default embargo, the Sender's proposal SHALL be taken as accepted
     and the Receiver's default taken as a proposed revision.
 
-    $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{p_{sender}} P \xrightarrow{a_{sender}} A \xrightarrow{r_{receiver}} R$$
+    ???+ note "Formalism"
+    
+        $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{p_{sender}} P \xrightarrow{a_{sender}} A \xrightarrow{r_{receiver}} R$$
 
--   The Sender MAY then *accept* or *reject* the proposed extension.
-    $$q^{em} \in \begin{cases}
-        R \xrightarrow{a_{receiver}} A \\
-        R \xrightarrow{r_{receiver}} A
-        \end{cases}$$
 
-##### A Game Theory Argument for Accepting the Shortest Proposed Embargo.
+!!! note ""  
 
-Readers may notice that we have taken a "shortest proposal wins"
-approach to the above guidance. This is intentional, and it results
-directly from the asymmetry mentioned in
-{== §[1.2.5](#sec:negotiating_embargoes){reference-type="ref"
-reference="sec:negotiating_embargoes"} ==}: The Receiver is faced with a
-choice to either *accept* the Reporter's proposal and attempt to extend
-it or to *reject* the proposal and end up with no embargo at all.
-Therefore, if we take the stance that for a vulnerability with no fix
-available, *any* embargo is better than *no* embargo, it should be
-obvious that it is in the Receiver's interest to *accept* even a short
-proposed embargo before immediately working to revise it.
+    ???+ note inline end "Formalism"
 
-The alternative is impractical because the Reporter is not obligated to
-provide the report to the Receiver at all. In the scenario where a
-Reporter *proposes* a short embargo and the Receiver *rejects* it
-because it is not long enough, the Reporter might choose to exit the
-negotiation entirely and publish whenever they choose without ever
-providing the report to the Receiver. That is not to say that we
-recommend this sort of behavior from Reporters. In fact, we specifically
-recommend the opposite in
-{== §[1.2.5](#sec:negotiating_embargoes){reference-type="ref"
-reference="sec:negotiating_embargoes"} ==}. Rather, it once more
-acknowledges the time-dependent informational asymmetry inherent to the
-CVD process.
+        $$q^{em} \in \begin{cases}
+            R \xrightarrow{a_{receiver}} A \\
+            R \xrightarrow{r_{receiver}} A
+            \end{cases}$$
 
-##### A Logical Argument for Accepting the Shortest Proposed Embargo.
+    The Sender MAY then *accept* or *reject* the proposed extension.
 
-Perhaps the above reasoning comes across as too Machiavellian for some
-readers. Here is a different perspective: Say a Reporter proposes an
-embargo of _n_ days, while the Vendor would prefer _m_ days. If _n_ and
-_m_ are given in units of days, we can look at them as a series of
-individual agreements, each of 1 day in length. We will represent each
-Participant as a vector representing that Participant's willingness to
-perpetuate the embargo on each day. Embargo willingness will be
-represented as a _1_ if the Participant is willing to commit to keeping
-the embargo on that day, and a _0_ if they are not. For simplicity's
-sake, we assume that each Participant is willing to maintain the embargo
-up to a certain point, and then their willingness goes away. In other
-words, each vector will be a series of zero or more _1_s followed by
-zero or more _0_s. For example, $[1,1,1,1,0,0,0]$ represents a
-Participant's willingness to engage in a 4-day embargo.
 
-For our two Participants, let $\mathbf{x}$ and $\mathbf{y}$ be
-zero-indexed vectors of length $max(n,m)$.
+!!! info "A Game Theory Argument for Accepting the Shortest Proposed Embargo"
 
-$$\begin{aligned}
-    |\mathbf{x}| &= max(n,m) \\
-    |\mathbf{y}| &= max(n,m)
-\end{aligned}$$
+    Readers may notice that we have taken a _shortest proposal wins_
+    approach to the above guidance. This is intentional, and it results
+    directly from the asymmetry mentioned in
+    [Negotiating Embargoes](#negotiating-embargoes)
+    The Receiver is faced with a
+    choice to either *accept* the Reporter's proposal and attempt to extend
+    it or to *reject* the proposal and end up with no embargo at all.
+    Therefore, if we take the stance that for a vulnerability with no fix
+    available, *any* embargo is better than *no* embargo, it should be
+    obvious that it is in the Receiver's interest to *accept* even a short
+    proposed embargo before immediately working to revise it.
+    
+    The alternative is impractical because the Reporter is not obligated to
+    provide the report to the Receiver at all. In the scenario where a
+    Reporter *proposes* a short embargo and the Receiver *rejects* it
+    because it is not long enough, the Reporter might choose to exit the
+    negotiation entirely and publish whenever they choose without ever
+    providing the report to the Receiver. That is not to say that we
+    recommend this sort of behavior from Reporters. In fact, we specifically
+    recommend the opposite in
+    [Negotiating Embargoes](#negotiating-embargoes). Rather, it once more
+    acknowledges the time-dependent informational asymmetry inherent to the
+    CVD process.
 
-The elements of each vector represent each respective Participant's
-willingness for the embargo to persist on each consecutive day.
+!!! info "A Logical Argument for Accepting the Shortest Proposed Embargo"
 
-$$\begin{aligned}
-    \label{eq:x_i}
-    \mathbf{x} = 
-        \begin{bmatrix} x_i :
-        x_i = 
-        \begin{cases}
-            1 &\text{if }i < n \\
-            0 &\text{otherwise} \\
-        \end{cases}
-        & \text{for } 0 \leq i < max(n,m)
-        \end{bmatrix} \\
-    \label{eq:y_i}
-    \mathbf{y} =
-        \begin{bmatrix} y_i : 
-        y_i = 
-        \begin{cases}
-            1 &\text{if }i < m \\
-            0 &\text{otherwise}
-        \end{cases}
-        & \text{ for } 0 \leq i < max(n,m)
-    \end{bmatrix}
-\end{aligned}$$
+    Perhaps the above reasoning comes across as too Machiavellian for some
+    readers. Here is a different perspective: Say a Reporter proposes an
+    embargo of _n_ days, while the Vendor would prefer _m_ days. If _n_ and
+    _m_ are given in units of days, we can look at them as a series of
+    individual agreements, each of 1 day in length. We will represent each
+    Participant as a vector representing that Participant's willingness to
+    perpetuate the embargo on each day. Embargo willingness will be
+    represented as a _1_ if the Participant is willing to commit to keeping
+    the embargo on that day, and a _0_ if they are not. For simplicity's
+    sake, we assume that each Participant is willing to maintain the embargo
+    up to a certain point, and then their willingness goes away. In other
+    words, each vector will be a series of zero or more _1_s followed by
+    zero or more _0_s. For example, $[1,1,1,1,0,0,0]$ represents a
+    Participant's willingness to engage in a 4-day embargo.
+    
+    For our two Participants, let $\mathbf{x}_ and _\mathbf{y}$ be
+    zero-indexed vectors of length $max(n,m)$.
+    
+    $$\begin{aligned}
+        |\mathbf{x}| &= max(n,m) \\
+        |\mathbf{y}| &= max(n,m)
+    \end{aligned}$$
+    
+    The elements of each vector represent each respective Participant's
+    willingness for the embargo to persist on each consecutive day.
+    
+    $$\begin{aligned}
+        \label{eq:x_i}
+        \mathbf{x} = 
+            \begin{bmatrix} x_i :
+            x_i = 
+            \begin{cases}
+                1 &\text{if }i < n \\
+                0 &\text{otherwise} \\
+            \end{cases}
+            & \text{for } 0 \leq i < max(n,m)
+            \end{bmatrix} \\
+        \label{eq:y_i}
+        \mathbf{y} =
+            \begin{bmatrix} y_i : 
+            y_i = 
+            \begin{cases}
+                1 &\text{if }i < m \\
+                0 &\text{otherwise}
+            \end{cases}
+            & \text{ for } 0 \leq i < max(n,m)
+        \end{bmatrix}
+    \end{aligned}$$
+    
+    Note that we have constructed these vectors so that each vector's scalar
+    sum is just the length of embargo they prefer.
+    
+    $$\begin{aligned}
+        \Sigma(\mathbf{x}) &= n \\
+        \Sigma(\mathbf{y}) &= m 
+    \end{aligned}$$
+    
+    Now we can define an agreement vector $\mathbf{z}$ as the pairwise
+    logical *AND* ($\wedge$) of elements from $\mathbf{x}_ and _\mathbf{y}$:
+    
+    $$\begin{aligned}
+        \label{eq:z_i}
+        \mathbf{z} = 
+        \begin{bmatrix} z_i : 
+            z_i = x_i \land y_i
+            & \text{for }0 \leq i < max(n,m)
+        \end{bmatrix}
+    \end{aligned}$$
+    
+    For example, if one party prefers an embargo of length $n=4$ days while
+    another prefers one of length $m=7$ days, we can apply
+    [\[eq:x_i\]](#eq:x_i){reference-type="eqref" reference="eq:x_i"},
+    [\[eq:y_i\]](#eq:y_i){reference-type="eqref" reference="eq:y_i"}, and
+    [\[eq:z_i\]](#eq:z_i){reference-type="eqref" reference="eq:z_i"} as
+    follows:
+    
+    $$\begin{split}
+        \mathbf{x} &= [1,1,1,1,0,0,0] \\
+        \wedge~\mathbf{y} &= [1,1,1,1,1,1,1] \\
+        \hline
+        \mathbf{z} &= [1,1,1,1,0,0,0]
+        \end{split}$$
+    
+    From this, we can see that the scalar sum of the agreement vector---and
+    therefore the longest embargo acceptable to both parties---is simply the
+    lesser of _n_ and _m_:
+    
+    $$\Sigma ( \mathbf{z} ) = min(n,m)$$
 
-Note that we have constructed these vectors so that each vector's scalar
-sum is just the length of embargo they prefer.
-
-$$\begin{aligned}
-    \Sigma(\mathbf{x}) &= n \\
-    \Sigma(\mathbf{y}) &= m 
-\end{aligned}$$
-
-Now we can define an agreement vector $\mathbf{z}$ as the pairwise
-logical *AND* ($\wedge$) of elements from $\mathbf{x}$ and $\mathbf{y}$:
-
-$$\begin{aligned}
-    \label{eq:z_i}
-    \mathbf{z} = 
-    \begin{bmatrix} z_i : 
-        z_i = x_i \land y_i
-        & \text{for }0 \leq i < max(n,m)
-    \end{bmatrix}
-\end{aligned}$$
-
-For example, if one party prefers an embargo of length $n=4$ days while
-another prefers one of length $m=7$ days, we can apply
-[\[eq:x_i\]](#eq:x_i){reference-type="eqref" reference="eq:x_i"},
-[\[eq:y_i\]](#eq:y_i){reference-type="eqref" reference="eq:y_i"}, and
-[\[eq:z_i\]](#eq:z_i){reference-type="eqref" reference="eq:z_i"} as
-follows:
-
-$$\begin{split}
-    \mathbf{x} &= [1,1,1,1,0,0,0] \\
-    \wedge~\mathbf{y} &= [1,1,1,1,1,1,1] \\
-    \hline
-    \mathbf{z} &= [1,1,1,1,0,0,0]
-    \end{split}$$
-
-From this, we can see that the scalar sum of the agreement vector---and
-therefore the longest embargo acceptable to both parties---is simply the
-lesser of _n_ and _m_:
-
-$$\Sigma ( \mathbf{z} ) = min(n,m)$$
-
-##### The Shortest Proposed Embargo Wins.
+#### The Shortest Proposed Embargo Wins.
 
 In other words, if a Reporter proposes a 90-day embargo, but the Vendor
 prefers a 30-day embargo, we can think of this as a series of 1-day
@@ -893,39 +1045,39 @@ than the Vendor. We chose our example to demonstrate that this analysis
 works between any two parties, regardless of which party wants the
 shorter embargo.
 
-On our way to making this principle explicit, we immediately came across
-a second scenario worth a brief diversion: What to do when multiple
-revisions are up for negotiation simultaneously? Based on the idea of
-extending the above to an efficient pairwise evaluation of multiple
-proposals, we suggest the following heuristic:
+!!! info "Resolving Multiple Proposals at Once"
 
-1.  Sort the proposals in order from earliest to latest according to
+    On our way to making this principle explicit, we immediately came across
+    a second scenario worth a brief diversion: What to do when multiple
+    revisions are up for negotiation simultaneously? Based on the idea of
+    extending the above to an efficient pairwise evaluation of multiple
+    proposals, we suggest the following heuristic:
+
+    1.  Sort the proposals in order from earliest to latest according to
     their expiration date.
-
-2.  Set the current candidate to the earliest proposal.
-
-3.  Loop over each remaining (later) proposal, evaluating it against the
+    2.  Set the current candidate to the earliest proposal.
+    3.  Loop over each remaining (later) proposal, evaluating it against the
     current candidate.
-
-4.  If the newly evaluated proposal is accepted, it becomes the current
+    4.  If the newly evaluated proposal is accepted, it becomes the current
     candidate and the loop repeats.
-
-5.  Otherwise, the loop exits at the first *reject*ed proposal.
-
-6.  The current candidate (i.e., the latest *accept*ed proposal) becomes
+    5.  Otherwise, the loop exits at the first *reject*ed proposal.
+    6.  The current candidate (i.e., the latest *accept*ed proposal) becomes
     the new *Active* embargo.
-
-7.  If the earliest proposed revision is rejected---implying that none
+    7.  If the earliest proposed revision is rejected---implying that none
     of the later ones would be acceptable either---then the existing
     *Active* embargo remains intact.
 
 Summarizing the principles just laid out as rules
 
--   When two or more embargo proposals are open (i.e., none have yet
+!!! note ""
+
+    When two or more embargo proposals are open (i.e., none have yet
     been accepted) and $q^{em} \in P$, Participants SHOULD accept the
     shortest one and propose the remainder as revisions.
 
--   When two or more embargo revisions are open (i.e., an embargo is
+!!! note ""
+
+    When two or more embargo revisions are open (i.e., an embargo is
     active yet none of the proposals have been decided) and
     $q^{em} \in R$, Participants SHOULD *accept* or *reject* them
     individually, in earliest to latest expiration order.
@@ -947,25 +1099,36 @@ While many leaks are unintentional and due to miscommunication or errors
 in a Participant's CVD process, the effect is the same
 regardless of the cause. As a result,
 
--   Participants SHOULD be prepared with contingency plans in the event
+!!! note ""
+
+    Participants SHOULD be prepared with contingency plans in the event
     of early embargo termination.
 
 Some reasons to terminate an embargo before the agreed date include the
 following:
 
--   Embargoes SHALL terminate immediately when information about the
+
+!!! note ""
+  
+    Embargoes SHALL terminate immediately when information about the
     vulnerability becomes public. Public information may include reports
     of the vulnerability or exploit code.
-    ($q^{cs} \in \{ \wc\wc\wc P \wc\wc, \wc\wc\wc\wc X \wc \}$)
+    ($q^{cs} \in \{ \cdot\cdot\cdot P \cdot\cdot, \cdot\cdot\cdot\cdot X \cdot \}$)
 
--   Embargoes SHOULD terminate early when there is evidence that the
+!!! note ""
+
+    Embargoes SHOULD terminate early when there is evidence that the
     vulnerability is being actively exploited by adversaries.
-    ($q^{cs} \in \{ \wc\wc\wc\wc\wc A \}$)
+    ($q^{cs} \in \{ \cdot\cdot\cdot\cdot\cdot A \}$)
 
--   Embargoes SHOULD terminate early when there is evidence that
+!!! note ""
+
+    Embargoes SHOULD terminate early when there is evidence that
     adversaries possess exploit code for the vulnerability.
 
--   Embargoes MAY terminate early when there is evidence that
+!!! note ""
+
+    Embargoes MAY terminate early when there is evidence that
     adversaries are aware of the technical details of the vulnerability.
 
 The above is not a complete list of acceptable reasons to terminate an
@@ -976,29 +1139,31 @@ given in
 reference="sec:transition_function"} ==}, where we describe the
 CS model's
 transition function. Embargo termination is the set of transitions
-described by
-[\[eq:expire_embargo\]](#eq:expire_embargo){reference-type="eqref"
-reference="eq:expire_embargo"}.
+described [above](#terminate-embargo).
 
 ##### Waiting for All Vendors to Reach Fix Ready May Be Impractical.
 
 It is not necessary for all Vendor Participants to reach
-$q^{cs} \in VF\wc\wc\wc\wc$ before publication or embargo termination.
+$q^{cs} \in VF\cdot\cdot\cdot\cdot$ before publication or embargo termination.
 Especially in larger MPCVD cases, there comes a point where the net
 benefit of waiting for every Vendor to be ready is outweighed by the
 benefit of delivering a fix to the population that can deploy it. No
 solid formula for this exists, but factors to consider include the
-market share of the Vendors in $q^{cs} \in VF \wc\wc\wc\wc$ compared to
-those with $q^{cs} \in \wc f\wc\wc\wc\wc$; the software supply chain for
+market share of the Vendors in $q^{cs} \in VF \cdot\cdot\cdot\cdot$ compared to
+those with $q^{cs} \in \cdot f\cdot\cdot\cdot\cdot$; the software supply chain for
 fix delivery to Deployers; the potential impact to critical
 infrastructure, public safety/health, or national security; etc.
 
--   Embargoes MAY terminate early when a quorum of Vendor Participants
-    is prepared to release fixes for the vulnerability
-    ($q^{cs}  \in VF\wc\wc\wc\wc$), even if some Vendors remain
-    unprepared ($q^{cs} \in \wc f \wc\wc\wc\wc$).
+!!! note ""
 
--   Participants SHOULD consider the software supply chain for the
+    Embargoes MAY terminate early when a quorum of Vendor Participants
+    is prepared to release fixes for the vulnerability
+    ($q^{cs}  \in VF\cdot\cdot\cdot\cdot$), even if some Vendors remain
+    unprepared ($q^{cs} \in \cdot f \cdot\cdot\cdot\cdot$).
+
+!!! note ""
+
+    Participants SHOULD consider the software supply chain for the
     vulnerability in question when determining an appropriate quorum for
     release.
 
@@ -1015,16 +1180,21 @@ scenario, each Reporter-Vendor pair might have already negotiated an
 embargo for the case. Once the cases merge, the best option is usually
 to renegotiate a new embargo for the new case.
 
--   A new embargo SHOULD be proposed when any two or more
-    CVD cases are
-    to be merged into a single case and multiple parties have agreed to
+!!! note ""
+
+    A new embargo SHOULD be proposed when any two or more
+    CVD cases are to be merged into a single case and multiple parties have agreed to
     different embargo terms prior to the case merger.
 
--   If no new embargo has been proposed, or if agreement has not been
+!!! note ""
+
+    If no new embargo has been proposed, or if agreement has not been
     reached, the earliest of the previously accepted embargo dates SHALL
     be adopted for the merged case.
 
--   Participants MAY propose revisions to the embargo on a merged case
+!!! note ""
+
+    Participants MAY propose revisions to the embargo on a merged case
     as usual.
 
 ### Impact of Case Splits on Embargoes
@@ -1041,21 +1211,29 @@ deployable fixes to their customers. In such a case, the case
 Participants might choose to split the case into its respective supply
 chain cohorts to better coordinate within each group.
 
--   When a case is split into two or more parts, any existing embargo
+!!! note ""
+
+    When a case is split into two or more parts, any existing embargo
     SHOULD transfer to the new cases.
 
--   If any of the new cases need to renegotiate the embargo inherited
+!!! note ""
+
+    If any of the new cases need to renegotiate the embargo inherited
     from the parent case, any new embargo SHOULD be later than the
     inherited embargo.
 
--   In the event that an earlier embargo date is needed for a child
+!!! note ""
+
+    In the event that an earlier embargo date is needed for a child
     case, consideration SHALL be given to the impact that ending the
     embargo on that case will have on the other child cases retaining a
     later embargo date. In particular, Participants in each child case
     should assess whether earlier publication of one child case might
     reveal the existence of or details about other child cases.
 
--   Participants in a child case SHALL communicate any subsequently
+!!! note ""
+
+    Participants in a child case SHALL communicate any subsequently
     agreed changes from the inherited embargo to the Participants of the
     other child cases.
 
@@ -1064,25 +1242,20 @@ different embargo dates without the earlier case revealing the existence
 of a vulnerability in the products allocated to the later case. For this
 reason, it is often preferable to avoid case splits entirely.
 
-### Inviting Others to an Embargoed Case {#sec:inviting_others}
+### Inviting Others to an Embargoed Case
 
 As anyone who has tried to schedule a meeting with multiple attendees
 can attest, multi-party scheduling can be difficult. When that schedule
 must also accommodate work completion schedules for an
-MPCVD case, it
-becomes even harder. In
-{== §[1.2.6](#sec:default_embargoes){reference-type="ref"
-reference="sec:default_embargoes"} ==}, we laid out a heuristic for
-resolving multiple embargo proposals, "The Shortest Embargo Proposed
+MPCVD case, it becomes even harder. In [Default Embargoes](#default-embargoes), 
+we laid out a heuristic for resolving multiple embargo proposals, "The Shortest Embargo Proposed
 Wins." More specifically, we recommended that Participants *accept* the
 earliest proposed end date and immediately propose and evaluate the rest
 as potential revisions. This principle applies to any
-MPCVD case, even
-at its outset.
+MPCVD case, even at its outset.
 
 Embargo negotiations can become contentious in larger cases. Many
-MPCVD cases grow
-over time, and it is usually easier to establish an embargo with a
+MPCVD cases grow over time, and it is usually easier to establish an embargo with a
 smaller group than a larger one. Conflict resolution via consensus
 agreement is fine if it works. In fact, in scenarios where Participants
 who have already agreed to an embargo get to choose who else to add to
@@ -1099,16 +1272,24 @@ an opportunity for a third-party Coordinator to be engaged [@ISO29147].
 
 Therefore,
 
--   Participants SHOULD attempt to establish an embargo as early in the
+!!! note ""
+
+    Participants SHOULD attempt to establish an embargo as early in the
     process of handling the case as possible.
 
--   Participants SHOULD follow consensus agreement to decide embargo
+!!! note ""
+
+    Participants SHOULD follow consensus agreement to decide embargo
     terms.
 
--   When consensus fails to reach agreement on embargo terms,
+!!! note ""
+
+    When consensus fails to reach agreement on embargo terms,
     Participants MAY appoint a case lead to resolve conflicts.
 
--   Participants MAY engage a third-party Coordinator to act as a
+!!! note ""
+
+    Participants MAY engage a third-party Coordinator to act as a
     neutral third-party case lead to resolve conflicts between
     Participants during the course of handling a case.
 
@@ -1119,12 +1300,18 @@ CVD case by virtue
 of their knowledge of the vulnerability in the first place. Additional
 Participants usually fall into one of three categories:
 
--   All known Vendors of affected software SHOULD be included as
+!!! note ""
+
+    All known Vendors of affected software SHOULD be included as
     Participants.
 
--   Third-party Coordinators MAY be included as Participants.
+!!! note ""
 
--   Other parties MAY be included as Participants when necessary and
+    Third-party Coordinators MAY be included as Participants.
+
+!!! note ""
+
+    Other parties MAY be included as Participants when necessary and
     appropriate. Examples we have observed in past cases include
     Deployers, subject matter experts, and government agencies with
     relevant regulatory oversight or critical infrastructure protection
@@ -1135,31 +1322,38 @@ Participants usually fall into one of three categories:
 Adding new Participants to a case with an existing embargo might require
 the new Participant to accept the embargo prior to receiving the report.
 
--   When inviting a new Participant to a case with an existing embargo,
+!!! note ""
+
+    When inviting a new Participant to a case with an existing embargo,
     the inviting Participant SHALL propose the existing embargo to the
     invited Participant.
 
--   A newly invited Participant to a case with an existing embargo
+!!! note ""
+
+    A newly invited Participant to a case with an existing embargo
     SHOULD accept the existing embargo.
 
--   The inviting Participant SHOULD NOT share the vulnerability report
+!!! note ""
+
+    The inviting Participant SHOULD NOT share the vulnerability report
     with the newly invited Participant unless the new Participant has
     accepted the existing embargo.
 
--   The inviting Participant MAY interpret the potential Participant's
+!!! note ""
+
+    The inviting Participant MAY interpret the potential Participant's
     default embargo contained in their published vulnerability
     disclosure policy in accordance with the default acceptance
-    strategies listed in
-    {== §[1.2.6](#sec:default_embargoes){reference-type="ref"
-    reference="sec:default_embargoes"} ==}.
+    strategies listed in [Default Embargoes](#default-embargoes).
 
--   A newly invited Participant to a case with an existing embargo MAY
+!!! note ""
+
+    A newly invited Participant to a case with an existing embargo MAY
     propose a revision after accepting the existing embargo.
 
 #### When to Invite Participants
 
-In MPCVD there
-are practical considerations to be made regarding the timing of *when*
+In MPCVD there are practical considerations to be made regarding the timing of *when*
 to notify individual Participants. The primary factor in these decisions
 stems from the interaction of the *Active* embargo with the potential
 Participant's existing (explicit or implicit) disclosure policy.
@@ -1187,10 +1381,14 @@ weeks might choose to notify that Vendor two weeks from now to ensure
 that even the default disclosure timeline remains compatible with the
 extant embargo.
 
--   Participants with short default embargo policies SHOULD consider
+!!! note ""
+
+    Participants with short default embargo policies SHOULD consider
     accepting longer embargoes in MPCVD cases.
 
--   Participants in an MPCVD case MAY delay notifying potential
+!!! note ""
+
+    Participants in an MPCVD case MAY delay notifying potential
     Participants with short default embargo policies until their policy
     aligns with the agreed embargo.
 
@@ -1213,22 +1411,32 @@ embargo, it is still preferable to give them as much lead time as
 possible *even* if it is not possible to extend the embargo to their
 preferred timing.
 
--   In the interest of receiving the report in the first place,
+!!! note ""
+   
+    In the interest of receiving the report in the first place,
     potential Participants with a longer default policy than an existing
     case SHOULD accept the embargo terms offered.
 
--   After accepting an existing embargo, newly invited Participants with
+!!! note ""
+
+    After accepting an existing embargo, newly invited Participants with
     a longer default policy than an existing case MAY propose a revision
     to the existing embargo, if desired, to accommodate their
     preferences.
 
--   Existing Participants MAY *accept* or *reject* such a proposed
+!!! note ""
+
+    Existing Participants MAY *accept* or *reject* such a proposed
     revision as they see fit.
 
--   Participants in a case with an existing embargo SHOULD notify
+!!! note ""
+
+    Participants in a case with an existing embargo SHOULD notify
     Vendors with a longer default embargo policy.
 
--   Participants in a case with an existing embargo MAY choose to extend
+!!! note ""
+
+    Participants in a case with an existing embargo MAY choose to extend
     the embargo to accommodate a newly added Participant.
 
 ##### Untrustworthy Participants.
@@ -1242,7 +1450,9 @@ to regulatory regimes in which they are required by law to share known
 vulnerabilities with government agencies having oversight
 responsibilities.
 
--   Participants that are known to leak or provide vulnerability
+!!! note ""
+
+    Participants that are known to leak or provide vulnerability
     information to adversaries either as a matter of policy or
     historical fact SHOULD be treated similar to Participants with brief
     disclosure policies.
@@ -1306,8 +1516,8 @@ party in the next. While MPCVD is usually much bigger than a toy
 two-player game, we feel it is necessary to encode the possibility that
 non-cooperation will have downstream consequences.
 
--   Participants MAY decline to participate in future
-    CVD cases
-    involving parties with a history of violating previous embargoes.
+!!! note ""
 
-[^1]: Reminder: Exploits are information about vulnerabilities too.
+    Participants MAY decline to participate in future
+    CVD cases involving parties with a history of violating previous embargoes.
+
