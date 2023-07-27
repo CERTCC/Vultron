@@ -181,5 +181,4 @@ obligation.
     publish.
 
 A discussion of how to decide who to invite to participate in a
-CVD case is addressed in {== §[1.2.10](#sec:inviting_others){reference-type="ref"
-reference="sec:inviting_others"} ==}.
+CVD case is addressed in [Adding Participants](working_with_others.md).

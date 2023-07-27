@@ -5,13 +5,15 @@ stateDiagram-v2
     state Pre-Embargo {
         [*] --> None
         None --> Proposed : propose
+        Proposed --> Proposed : propose
         Proposed --> None : reject
         Proposed --> Active : accept
     }
     state Active_Embargo {
-        Active --> Revise : revise
+        Active --> Revise : propose
         Revise --> Active : accept
         Revise --> Active : reject
+        Revise --> Revise : propose
         Revise --> eXited : terminate
         Active --> eXited : terminate
     }

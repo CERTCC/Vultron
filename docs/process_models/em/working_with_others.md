@@ -3,8 +3,6 @@
 Here we describe the who and when of adding Participants to
 an embargoed case.
 
-## Overview
-
 As anyone who has tried to schedule a meeting with multiple attendees
 can attest, multi-party scheduling can be difficult. When that schedule
 must also accommodate work completion schedules for an
@@ -14,6 +12,9 @@ Wins." More specifically, we recommended that Participants *accept* the
 earliest proposed end date and immediately propose and evaluate the rest
 as potential revisions. This principle applies to any
 MPCVD case, even at its outset.
+
+
+## Start Early, Start Small
 
 Embargo negotiations can become contentious in larger cases. Many
 MPCVD cases grow over time, and it is usually easier to establish an embargo with a
@@ -73,10 +74,14 @@ Participants usually fall into one of three categories:
 !!! note ""
 
     Other parties MAY be included as Participants when necessary and
-    appropriate. Examples we have observed in past cases include
-    Deployers, subject matter experts, and government agencies with
-    relevant regulatory oversight or critical infrastructure protection
-    responsibilities.
+    appropriate.
+
+Examples of other Participants we have observed in past cases include
+
+- Deployers
+- Subject matter experts
+- Government agencies with relevant regulatory oversight or critical infrastructure protection
+responsibilities.
 
 ## Adding Participants to an Existing Embargo
 
