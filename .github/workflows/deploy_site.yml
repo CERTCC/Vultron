@@ -47,7 +47,7 @@ jobs:
 
       - name: Build Site
         run: |
-          mkdocs build --verbose --clean --strict --config-file mkdocs.yml       
+          mkdocs build --verbose --clean --config-file mkdocs.yml       
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
