@@ -155,28 +155,7 @@ definitions of each are shown in the box at right.
 
 ### EM State Transitions
 
-<!-- em-state-machine-start -->
-```mermaid
-stateDiagram-v2
-    direction LR
-    state Pre-Embargo {
-        [*] --> None
-        None --> Proposed : propose
-        Proposed --> None : reject
-        Proposed --> Active : accept
-    }
-    state Active_Embargo {
-        Active --> Revise : revise
-        Revise --> Active : accept
-        Revise --> Active : reject
-        Revise --> eXited : exit
-        Active --> eXited : exit
-    }
-    state Post-Embargo {
-        eXited --> [*]
-    }
-```
-<!-- em-state-machine-end -->
+{% include-markdown "em_dfa_diagram.md" %}
 
 The symbols of our EM DFA are the actions that cause transitions
 between the states:
