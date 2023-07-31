@@ -11,7 +11,7 @@ process.
 
 There are additional constraints on how the [RM](../rm/) and [EM](../em/) processes interact.
 
-##### Start Embargo Negotiations As Early as Possible
+### Start Embargo Negotiations As Early as Possible
 
 !!! note ""
 
@@ -63,7 +63,7 @@ stateDiagram-v2
     RM --> EM : begin if not<br/>already started
 ```
 
-##### Negotiate Embargoes for Active Reports
+### Negotiate Embargoes for Active Reports
 
 !!! note ""
 
@@ -98,7 +98,7 @@ stateDiagram-v2
 ```
 
 
-##### Negotiate Embargoes Through Validation and Prioritization
+### Negotiate Embargoes Through Validation and Prioritization
 
 !!! note ""
 
@@ -108,7 +108,7 @@ stateDiagram-v2
     activities.
 
 
-##### Renegotiate Embargoes While Reports Are Valid Yet Unclosed
+### Renegotiate Embargoes While Reports Are Valid Yet Unclosed
 
 !!! note ""
 
@@ -133,7 +133,7 @@ stateDiagram-v2
     RM --> EM : ok to<br/>proceed
 ```
 
-##### Avoid Embargoes for Invalid Reports...
+### Avoid Embargoes for Invalid Reports...
 
 !!! note ""
 
@@ -152,7 +152,7 @@ stateDiagram-v2
     RM --> EM : avoid
 ```
 
-##### ...but Don't Lose Momentum if Validation Is Pending
+### ...but Don't Lose Momentum if Validation Is Pending
 
 !!! note ""
 
@@ -175,7 +175,7 @@ stateDiagram-v2
     RM --> EM : ok to<br/>proceed
 ```
 
-##### Only Accept Embargoes for Possibly Valid Yet Unclosed Reports
+### Only Accept Embargoes for Possibly Valid Yet Unclosed Reports
 
 !!! note ""
 
@@ -236,7 +236,7 @@ stateDiagram-v2
     RM --> EM : ok to<br/>proceed
 ```
 
-##### Report Closure, Deferral, and Active Embargoes
+### Report Closure, Deferral, and Active Embargoes
 
 !!! note ""
 
@@ -319,7 +319,7 @@ The [RM](../rm/) and [EM](../em/) models interact with the [Case State Model](cs
 Here we will review the constraints arising from the interaction of the [RM](../rm/) and [EM](../em/) 
 models with each of the CS transition events represented by its symbols.
 
-##### Global vs. Participant-Specific Aspects of the CS Model.
+### Global vs. Participant-Specific Aspects of the CS Model.
 
 The [CS model](cs/index.md) encompasses both Participant-specific and global aspects of a
 CVD case. In particular, the Vendor fix path substates&mdash;Vendor unaware (_vfd_),
