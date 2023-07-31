@@ -1,10 +1,5 @@
 # TO DO
 
-- [ ] clean up [report_management.md](./report_management.md)
-- [ ] clean up [embargo_management.md](./embargo_management.md)
-- [ ] clean up [case_state.md](./case_state.md)
-
-
 ## Generic checklist for every latex->md conversion
 
 - [ ] regex replace acronym pointers with the acronym `\[(\w+)\]\{[^}]+\}` -> `$1`
@@ -25,3 +20,20 @@
   - [ ] replace phrases like `this report` or `this section` with `this page` or similar
   - [ ] add `above` or `below` for in-page cross-references if appropriate (or just link to the section)
   - [ ] reduce formality of language as needed
+
+## Clean up
+
+### Report Management
+- [x] [report_management.md](./rm/index.md)
+- [x] [rm_interactions.md](./rm/rm_interactions.md)
+
+### Embargo Management
+- [ ] [em/index.md](./em/index.md)
+- [ ] [em/defaults.md](./em/defaults.md)
+- [ ] [em/early_termination.md](./em/early_termination.md)
+- [ ] [em/em_dfa_diagram.md](./em/em_dfa_diagram.md)
+- [ ] [em/nda-sidebar.md](./em/nda-sidebar.md)
+- [ ] [em/negotiating.md](./em/negotiating.md)
+- [ ] [em/principles.md](./em/principles.md)
+- [ ] [em/working_with_others.md](./em/working_with_others.md)
+- 
