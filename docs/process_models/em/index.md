@@ -46,12 +46,33 @@ Unlike the [RM](../rm/) model, in which each Participant has their own instance 
 !!! note ""
     A CVD case SHALL NOT have more than one active embargo at a time.
 
-Even in an MPCVD case having a [vertical supply chain](https://vuls.cert.org/confluence/display/CVD/5.4+Multiparty+CVD)
----in which Vendors must wait on their upstream suppliers to produce fixes before they can take action on
-their own, as in {== Figure [\[fig:mpcvd_supply_chain\]](#fig:mpcvd_supply_chain){reference-type="ref"
-reference="fig:mpcvd_supply_chain"} ==} ---our intent is that the embargo
+Even in an MPCVD case having a [vertical supply chain](https://vuls.cert.org/confluence/display/CVD/5.4+Multiparty+CVD)&mdash;in which Vendors must wait on their upstream suppliers to produce fixes before they can take action on
+their own, as in the figure below&mdash;our intent is that the embargo
 period terminates when as many Vendors as possible have been given an
 adequate opportunity to produce a fix.
+
+```mermaid
+---
+title: A Vertical Supply Chain
+---
+stateDiagram-v2
+    direction LR
+    v1: Originating<br/>Vendor
+    v2: Vendor 2
+    v3: Vendor 3
+    v4: Vendor 4
+    v5: Vendor 5
+    
+    [*] --> v1
+    v1 --> v2
+    v1 --> v3
+    v2 --> v4
+    v3 --> v5
+    v2 --> v5
+    v4 --> [*]
+    v5 --> [*]
+```
+
 
 {% include-markdown "nda-sidebar.md" %}
 

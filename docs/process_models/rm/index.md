@@ -356,6 +356,9 @@ Participant into the _Received_ state at the beginning of their
 involvement in the case. 
 
 ```mermaid
+---
+title: Receive Report
+---
 stateDiagram-v2
     direction LR
     [*] --> Received: receive report
@@ -382,6 +385,9 @@ periodically revalidate them to see if they have become _Valid_.
     determine if they have become _Valid_.
 
 ```mermaid
+---
+title: Validate Report
+---
 stateDiagram-v2
     direction LR
     state Received {
@@ -428,6 +434,9 @@ moving it to the _Accepted_ state.
 
 
 ```mermaid
+---
+title: Prioritize Report
+---
 stateDiagram-v2
     direction LR
     state Valid {
@@ -475,6 +484,9 @@ Although the _sender_'s state does not change, the _recipient_'s state moves fro
     Participants initiating CVD with others MUST do so from the _Accepted_ state.
 
 ```mermaid
+---
+title: Participants Interact from the Accepted State
+---
 stateDiagram-v2
     direction LR
     state Sender {
@@ -499,6 +511,9 @@ abandon further work on an _Invalid_ or _Deferred_ report.
     Participants MAY close _Accepted_ or _Deferred_ cases or _Invalid_ reports.
 
 ```mermaid
+---
+title: Case Closure
+---
 stateDiagram-v2
     direction LR
     Accepted --> Closed: close

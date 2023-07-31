@@ -41,6 +41,9 @@ state model for Reporters in
 reference="sec:other_participants"} ==}.
 
 ```mermaid
+---
+title: Hidden States of Finders
+---
 stateDiagram-v2
     direction LR
     state Finder {
@@ -84,6 +87,9 @@ _receive_ action bridging $A_f \xrightarrow{r} R_v$ corresponds to the
 [participants interact from the accepted state](#participants-interact-from-the-accepted-state) scenario above.
 
 ```mermaid
+---
+title: Finder-Vendor CVD
+---
 stateDiagram-v2
     direction LR
     state Finder {
@@ -147,6 +153,9 @@ actions corresponding to [participants interacting from the accepted state](#par
     $A_c \xrightarrow{r_2} R_v$.
 
 ```mermaid
+---
+title: Finder-Coordinator-Vendor CVD
+---
 stateDiagram-v2
     direction LR
     state Finder {
@@ -230,6 +239,9 @@ because they recognize the increased complexity of coordinating multiple Vendors
     $A_c \xrightarrow{r_2} R_{v_2}$.
 
 ```mermaid
+---
+title: MPCVD with a Coordinator and Multiple Vendors
+---
 stateDiagram-v2
     direction LR
     state Finder {
@@ -328,6 +340,9 @@ We intend the RM model to be sufficiently composable to accommodate all such per
 A Finder notifies multiple Vendors without engaging a Coordinator.
 
 ```mermaid
+---
+title: Finder coordinates MPCVD with Multiple Vendors
+---
 stateDiagram-v2
     direction LR
     Finder --> Vendor1: r0
@@ -340,6 +355,9 @@ stateDiagram-v2
 A Finder notifies a Vendor, who, in turn, notifies other Vendors.
 
 ```mermaid
+---
+title: Vendor coordinates MPCVD
+---
 stateDiagram-v2
     direction LR
     Finder --> Vendor1: r0
@@ -353,6 +371,9 @@ stateDiagram-v2
 A Finder notifies a Vendor, who, in turn, engages a Coordinator to reach other Vendors.
 
 ```mermaid
+---
+title: Vendor Engages a Coordinator for MPCVD
+---
 stateDiagram-v2
     direction LR
     Finder --> Vendor1: r0
@@ -369,6 +390,9 @@ Vendors being notified by their upstream component suppliers, with
 or without one or more Coordinators' involvement.
 
 ```mermaid
+---
+title: Supply-chain oriented MPCVD
+---
 stateDiagram-v2
     direction LR
     Finder --> Vendor1: r0

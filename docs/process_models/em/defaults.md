@@ -349,6 +349,9 @@ works between any two parties, regardless of which party wants the
 shorter embargo.
 
 ```mermaid
+---
+title: Embargo Agreement in a Nutshell
+---
 stateDiagram-v2
     direction LR
     dots: ...
