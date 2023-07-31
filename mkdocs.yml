@@ -16,7 +16,10 @@ nav:
       - Adding Participants: 'process_models/em/working_with_others.md'
       - Early Termination and Other Topics: 'process_models/em/early_termination.md'
     - Case State Model: 'process_models/cs/index.md'
-    - Model Interactions: 'process_models/model_interactions/index.md'
+    - Model Interactions:
+      - Global vs Local Aspects: 'process_models/model_interactions/index.md'
+      - RM and EM Interactions: 'process_models/model_interactions/rm_em.md'
+      - RM, EM, CS Interactions: 'process_models/model_interactions/rm_em_cs.md'
     - ISO Crosswalk: 'process_models/iso_crosswalk.md'
     - SSVC Crosswalk: 'process_models/ssvc_crosswalk.md'
   - Formal Protocol:
