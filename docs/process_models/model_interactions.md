@@ -1,11 +1,27 @@
 # Model Interactions {#ch:interactions}
 
-Here we reflect on the interactions between the
-[RM](../rm/),
-[EM](../em/), and
-CS models within the
-overall MPCVD
-process.
+Here we reflect on the interactions between the [RM](../rm/), [EM](../em/), and [CS](../cs/) models within the
+overall MPCVD process.
+
+## Global vs Participant Specific Aspects
+
+Some aspects of the MPCVD process are global, while others are specific to a
+Participant.  The following diagram illustrates this distinction.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    state Global {
+        EM
+        CS_pxa
+    }
+    state ParticipantSpecific {
+        RM
+        CS_vfd
+    }
+    Global --> ParticipantSpecific 
+    ParticipantSpecific --> Global
+```
 
 ## Interactions Between the RM and EM Models {#sec:rm_em_interactions}
 
@@ -51,6 +67,7 @@ stateDiagram-v2
     If it has not already begun, the [EM](../em/) process SHOULD begin when a recipient
     is in RM _Received_ ($q^{rm} \in R$) whenever possible.
 
+
 ```mermaid
 stateDiagram-v2
     direction LR
@@ -70,6 +87,20 @@ stateDiagram-v2
     Embargo Management MAY begin in any of the active RM states
     ($q^{rm} \in \{ R,V,A \}$).
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    state RM {
+        Received
+        Valid
+        Accepted
+    }
+    state EM {
+        None --> Proposed : propose
+    }
+    RM --> EM : ok to<br/>proceed
+```
+
 !!! note ""
 
     Embargo Management SHOULD NOT begin in an inactive RM state
@@ -79,22 +110,14 @@ stateDiagram-v2
 stateDiagram-v2
     direction LR
     state RM {
-        state ActiveRM {
-            Received
-            Valid
-            Accepted
-        }
-        state InactiveRM {
-            Invalid
-            Deferred
-            Closed
-        }
+        Invalid
+        Deferred
+        Closed
     }
     state EM {
         None --> Proposed : propose
     }
-    ActiveRM --> EM : begin
-    InactiveRM --> EM : avoid
+    RM --> EM : avoid
 ```
 
 
