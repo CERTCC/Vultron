@@ -2,22 +2,22 @@
 
 ???+ note inline end "CS Transition Symbols Defined"
 
-    As a reminder, the CS transition symbols ($\Sigma^{cs}$) from the Householder and Spring 2021 report
-    [@householder2021state] are represented as bold capital letters.
-
     $$\Sigma^{cs} = \{ \mathbf{V},~\mathbf{F},~\mathbf{D},~\mathbf{P},~\mathbf{X},~\mathbf{A} \}$$
 
 The [RM](../rm/) and [EM](../em/) models interact with the [Case State Model](../cs/index.md).
 Here we will review the constraints arising from the interaction of the [RM](../rm/) and [EM](../em/) 
 models with each of the CS transition events represented by its symbols.
+As a reminder, a list of the CS model transition symbols is reproduced in the inset at right.
 
+We have organized this page according to how each CS model [substate](../cs/) interacts with the
+[RM](../rm/) and [EM](../em/) models.
 
 ## Vendor Notification
 
 ???+ note inline end "Vendor Notification Formalized"
 
     $$q^{rm} \in S \xrightarrow{r} R$$
-    
+
     $$q^{cs} \in vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$$
 
 
