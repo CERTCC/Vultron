@@ -1,43 +1,43 @@
 # CVD Case State Model {#sec:model}
 
 !!! note "TODO"
-    - [ ] regex replace acronym pointers with the acronym
+    - [x] regex replace acronym pointers with the acronym
     - [ ] replace first use of an acronym on a page with its expansion (if not already done)
     - [ ] OR replace acronym usage with link to where it's defined
-    - [ ] reproduce diagrams using mermaid
+    - [x] reproduce diagrams using mermaid
     - [ ] replace text about figures to reflect mermaid diagrams
     - [ ] replace latex tables with markdown tables
-    - [ ] replace some equations with diagrams (especially for equations describing state changes)
-    - [ ] move latex math definitions into note blocks `???+ note _title_` to offset from text
-    - [ ] move MUST SHOULD MAY etc statements into note blocks with empty title `!!! note ""` to offset from text
+    - [x] replace some equations with diagrams (especially for equations describing state changes)
+    - [x] move latex math definitions into note blocks `???+ note _title_` to offset from text
+    - [x] move MUST SHOULD MAY etc statements into note blocks with empty title `!!! note ""` to offset from text
     - [ ] revise cross-references to be links to appropriate files/sections
     - [ ] replace latex citations with markdown citations (not sure how to do this yet)
     - [ ] review text for flow and readability as a web page
     - [ ] add section headings as needed for visual distinction
     - [ ] add links to other sections as needed
     - [ ] add links to external resources as needed
-    - [ ] replace phrases like `this report` or `this section` with `this page` or similar
+    - [x] replace phrases like `this report` or `this section` with `this page` or similar
     - [ ] add `above` or `below` for in-page cross-references if appropriate (or just link to the section)
     - [ ] reduce formality of language as needed
     - [ ] move diagrams to separate files and `include-markdown` them
 
-In this chapter, we revisit the CS model from the Householder and Spring 2021
+Here we revisit the CS model from the Householder and Spring 2021
 report [@householder2021state]. A complete derivation of the
 CS model can be
 found in that report. Here, we are primarily interested in the final
 model, which comprises 32 states and their transitions.
 
-As in the previous two chapters, we wish to define 5-tuple
-$(\mathcal{Q},\Sigma,\delta,q_0,F)$ [@kandar2013automata], this time for
-the CS model.
+{% include-markdown "../dfa_notation_definition.md" %}
+
+As in the [RM](../rm) and [EM](../em) process models, we wish to define a 5-tuple
+$(\mathcal{Q},\Sigma,\delta,q_0,F)$, this time for the CS model.
 However, due to the size of the final CS model, we begin with some necessary
 background on the substates of the model in
-§[1.1](#sec:cvd_case_states){reference-type="ref"
-reference="sec:cvd_case_states"} prior to defining the Case States in
-§[1.2](#sec:cs_substates_to_states){reference-type="ref"
-reference="sec:cs_substates_to_states"}.
+[CVD Case Substates](#cvd-case-substates)
+prior to defining the Case States in
+[CVD Case States](#cvd-case-states).
 
-## CVD Case Substates {#sec:cvd_case_states}
+## CVD Case Substates
 
 In our model, the state of the world is a specification of the current
 status of all the events in the vulnerability lifecycle model described
@@ -191,7 +191,7 @@ occur before *Public Awareness* even in the shrinkwrap mode above. It is
 also possible, and somewhat more likely, for *Public Awareness* to occur
 before *Fix Deployed* in the SAAS mode as well.
 
-## CVD Case States {#sec:cs_substates_to_states}
+## CVD Case States
 
 In the CS model, a
 state $q^{cs}$ represents the status of each of the six substates. State
@@ -334,17 +334,15 @@ DFA.
 We define the set of symbols for our CS DFA as $\Sigma^{cs}$:
 
 Here we diverge somewhat from the notation used for the
-[RM](../rm) and [EM](../em) models described
-in previous chapters, which use lowercase letters for transitions and
+[RM](../rm) and [EM](../em) models, which use lowercase letters for transitions and
 uppercase letters for states. Because CS state names already use both lowercase
 and uppercase letters, here we use a bold font for the symbols of the
-CS
-DFA to
-differentiate the transition from the corresponding substate it leads
+CS DFA to differentiate the transition from the corresponding substate it leads
 to: e.g., $vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$.
 
-For the CS model, an
-input symbol $\sigma^{cs} \in \Sigma^{cs}$ is "read" when a Participant
+{== fix formatting to match what we're saying here if necessary ==}
+
+For the CS model, an input symbol $\sigma^{cs} \in \Sigma^{cs}$ is "read" when a Participant
 observes a change in status (a Vendor is notified and exploit code has
 been published, etc.). For the sake of simplicity, we begin with the
 assumption that observations are globally known---that is, a status
@@ -509,65 +507,8 @@ security incident analysis. Hence,
     the embargo teardown process SHOULD begin, and publication and
     deployment SHOULD follow as soon as is practical.
 
+{% include-markdown "vfdpxa_diagram.md" %}
 
-
-
-
-```mermaid
-stateDiagram-v2
-    [*] --> vfdpxa
-    vfdpxa --> vfdPxa : P
-    vfdpxa --> vfdPXa : X,P
-    vfdpxa --> vfdpxA : A
-    vfdpxA --> vfdPxA : P
-    vfdpxA --> vfdPXA : X,P
- 	vfdpxa --> Vfdpxa : V
-	vfdpxA --> VfdpxA : V
-	vfdPxa --> VfdPxa : V
-	vfdPXa --> VfdPXa : V
-	vfdPxA --> VfdPxA : V
-	vfdPXA --> VfdPXA : V
-    Vfdpxa --> VfdPxa : P
-    Vfdpxa --> VfdPXa : X,P
-    Vfdpxa --> VfdpxA : A
-    VfdpxA --> VfdPxA : P
-    VfdpxA --> VfdPXA : X,P
-    VfdPxa --> VfdPxA : A
-    VfdPxa --> VfdPXa : X
-    VfdPXa --> VfdPXA : A
-    VfdPxA --> VfdPXA : X
-	Vfdpxa --> VFdpxa : F
-	VfdpxA --> VFdpxA : F
-	VfdPxa --> VFdPxa : F
-	VfdPXa --> VFdPXa : F
-	VfdPxA --> VFdPxA : F
-	VfdPXA --> VFdPXA : F
-    VFdpxa --> VFdPxa : P
-    VFdpxa --> VFdPXa : X,P
-    VFdpxa --> VFdpxA : A
-    VFdpxA --> VFdPxA : P
-    VFdpxA --> VFdPXA : X,P
-    VFdPxa --> VFdPxA : A
-    VFdPxa --> VFdPXa : X
-    VFdPXa --> VFdPXA : A
-    VFdPxA --> VFdPXA : X
-	VFdpxa --> VFDpxa : D
-	VFdpxA --> VFDpxA : D
-	VFdPxa --> VFDPxa : D
-	VFdPXa --> VFDPXa : D
-	VFdPxA --> VFDPxA : D
-	VFdPXA --> VFDPXA : D
-    VFDpxa --> VFDPxa : P
-    VFDpxa --> VFDPXa : X,P
-    VFDpxa --> VFDpxA : A
-    VFDpxA --> VFDPxA : P
-    VFDpxA --> VFDPXA : X,P
-    VFDPxa --> VFDPxA : A
-    VFDPxa --> VFDPXa : X
-    VFDPXa --> VFDPXA : A
-    VFDPxA --> VFDPXA : X
-    VFDPXA --> [*]
-```
 
 ### A Regular Grammar for the CS model
 
@@ -625,74 +566,66 @@ report [@householder2021state].
 
 ## CS Model Fully Defined
 
-In combination, the full definition of the CS DFA
-$(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ is given by equations
-[\[eq:all_states\]](#eq:all_states){reference-type="eqref"
-reference="eq:all_states"}, [\[eq:q_0\]](#eq:q_0){reference-type="eqref"
-reference="eq:q_0"}, [\[eq:F\]](#eq:F){reference-type="eqref"
-reference="eq:F"}, [\[eq:events\]](#eq:events){reference-type="eqref"
-reference="eq:events"}, and
-[\[eq:delta_cs\]](#eq:delta_cs){reference-type="eqref"
-reference="eq:delta_cs"}. For convenience, we have assembled them into
-[\[eq:vfdpxa_dfa\]](#eq:vfdpxa_dfa){reference-type="eqref"
-reference="eq:vfdpxa_dfa"}.
+In combination, the full definition of the Case State DFA
+$(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ is shown below.
 
-$$\label{eq:vfdpxa_dfa}
-    CS = 
-    \begin{pmatrix}
-            \begin{aligned}
-                    \mathcal{Q}^{cs} = & 
-                        \begin{Bmatrix}
-                            vfdpxa, & vfdPxa, & vfdpXa, & vfdPXa, \\
-                            vfdpxA, & vfdPxA, & vfdpXA, & vfdPXA, \\
-                            Vfdpxa, & VfdPxa, & VfdpXa, & VfdPXa, \\
-                            VfdpxA, & VfdPxA, & VfdpXA, & VfdPXA, \\
-                            VFdpxa, & VFdPxa, & VFdpXa, & VFdPXa, \\
-                            VFdpxA, & VFdPxA, & VFdpXA, & VFdPXA, \\
-                            VFDpxa, & VFDPxa, & VFDpXa, & VFDPXa, \\
-                            VFDpxA, & VFDPxA, & VFDpXA, & VFDPXA
-                        \end{Bmatrix}, &\textrm{\small{\eqref{eq:all_states}}} \\
-                q^{cs}_0 = & vfdpxa, &\textrm{\small{\eqref{eq:q_0}}} \\
-                \mathcal{F}^{cs} = &\{VFDPXA\}, &\textrm{\small{\eqref{eq:F}}} \\
-                \Sigma^{cs} = & \{\mathbf{V},\mathbf{F},\mathbf{D},\mathbf{P},\mathbf{X},\mathbf{A}\},&\textrm{\small{\eqref{eq:events}}} \\
-                    \delta^{cs} = &
-    \begin{cases}
-        vfdpxa &\to \mathbf{V}~Vfdpxa~|~\mathbf{P}~vfdPxa~|~\mathbf{X}~vfdpXa~|~\mathbf{A}~vfdpxA \\
-        vfdpxA &\to \mathbf{V}~VfdpxA~|~\mathbf{P}~vfdPxA~|~\mathbf{X}~vfdpXA \\
-        vfdpXa &\to \mathbf{P}~vfdPXa \\
-        vfdpXA &\to \mathbf{P}~vfdPXA \\
-        vfdPxa &\to \mathbf{V}~VfdPxa \\
-        vfdPxA &\to \mathbf{V}~VfdPxA \\ 
-        vfdPXa &\to \mathbf{V}~VfdPXa \\
-        vfdPXA &\to \mathbf{V}~VfdPXA \\
-        Vfdpxa &\to \mathbf{F}~VFdpxa~|~\mathbf{P}~VfdPxa~|~\mathbf{X}~VfdpXa~|~\mathbf{A}~VfdpxA \\
-        VfdpxA &\to \mathbf{F}~VFdpxA ~|~ \mathbf{P}~VfdPxA ~|~ \mathbf{X}~VfdpXA \\
-        VfdpXa &\to \mathbf{P}~VfdPXa \\
-        VfdpXA &\to \mathbf{P}~VfdPXA \\
-        VfdPxa &\to \mathbf{F}~VFdPxa ~|~ \mathbf{X}~VfdPXa ~|~ \mathbf{A}~VfdPxA \\
-        VfdPxA &\to \mathbf{F}~VFdPxA ~|~ \mathbf{X}~VfdPXA \\
-        VfdPXa &\to \mathbf{F}~VFdPXa ~|~ \mathbf{A}~VfdPXA \\
-        VfdPXA &\to \mathbf{F}~VFdPXA \\ 
-        VFdpxa &\to \mathbf{D}~VFDpxa~|~\mathbf{P}~VFdPxa ~|~ \mathbf{X}~VFdpXa ~|~ \mathbf{A}~VFdpxA \\
-        VFdpxA &\to \mathbf{D}~VFDpxA ~|~ \mathbf{P}~VFdPxA ~|~ \mathbf{X}~VFdpXA \\
-        VFdpXa &\to \mathbf{P}~VFdPXa \\
-        VFdpXA &\to \mathbf{P}~VFdPXA \\
-        VFdPxa &\to \mathbf{D}~VFDPxa ~|~ \mathbf{X}~VFdPXa ~|~ \mathbf{A}~VFdPxA \\
-        VFdPxA &\to \mathbf{D}~VFDPxA ~|~ \mathbf{X}~VFDPXA \\
-        VFdPXa &\to \mathbf{D}~VFDPXa ~|~ \mathbf{A}~VFdPXA \\
-        VFdPXA &\to \mathbf{D}~VFDPXA \\
-        VFDpxa &\to \mathbf{P}~VFDPxa ~|~ \mathbf{X}~VFDpXa ~|~ \mathbf{A}~VFDpxA \\
-        VFDpxA &\to \mathbf{P}~VFDPxA ~|~ \mathbf{X}~VFDpXA \\
-        VFDpXa &\to \mathbf{P}~VFDPXa \\
-        VFDpXA &\to \mathbf{P}~VFDPXA \\
-        VFDPxa &\to \mathbf{X}~VFDPXa ~|~ \mathbf{A}~VFDPxA \\
-        VFDPxA &\to \mathbf{X}~VFDPXA \\
-        VFDPXa &\to \mathbf{A}~VFDPXA \\
-        VFDPXA &\to \varepsilon \\
-    \end{cases}
-                    &\textrm{\small{\eqref{eq:delta_cs}}}
-            \end{aligned}
-    \end{pmatrix}$$
+???+ note "Case State Model $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ Fully Defined"
+
+    $$\label{eq:vfdpxa_dfa}
+        CS = 
+        \begin{pmatrix}
+                \begin{aligned}
+                        \mathcal{Q}^{cs} = & 
+                            \begin{Bmatrix}
+                                vfdpxa, & vfdPxa, & vfdpXa, & vfdPXa, \\
+                                vfdpxA, & vfdPxA, & vfdpXA, & vfdPXA, \\
+                                Vfdpxa, & VfdPxa, & VfdpXa, & VfdPXa, \\
+                                VfdpxA, & VfdPxA, & VfdpXA, & VfdPXA, \\
+                                VFdpxa, & VFdPxa, & VFdpXa, & VFdPXa, \\
+                                VFdpxA, & VFdPxA, & VFdpXA, & VFdPXA, \\
+                                VFDpxa, & VFDPxa, & VFDpXa, & VFDPXa, \\
+                                VFDpxA, & VFDPxA, & VFDpXA, & VFDPXA
+                            \end{Bmatrix},  \\
+                    q^{cs}_0 = & vfdpxa,  \\
+                    \mathcal{F}^{cs} = &\{VFDPXA\},  \\
+                    \Sigma^{cs} = & \{\mathbf{V},\mathbf{F},\mathbf{D},\mathbf{P},\mathbf{X},\mathbf{A}\}, \\
+                        \delta^{cs} = &
+        \begin{cases}
+            vfdpxa &\to \mathbf{V}~Vfdpxa~|~\mathbf{P}~vfdPxa~|~\mathbf{X}~vfdpXa~|~\mathbf{A}~vfdpxA \\
+            vfdpxA &\to \mathbf{V}~VfdpxA~|~\mathbf{P}~vfdPxA~|~\mathbf{X}~vfdpXA \\
+            vfdpXa &\to \mathbf{P}~vfdPXa \\
+            vfdpXA &\to \mathbf{P}~vfdPXA \\
+            vfdPxa &\to \mathbf{V}~VfdPxa \\
+            vfdPxA &\to \mathbf{V}~VfdPxA \\ 
+            vfdPXa &\to \mathbf{V}~VfdPXa \\
+            vfdPXA &\to \mathbf{V}~VfdPXA \\
+            Vfdpxa &\to \mathbf{F}~VFdpxa~|~\mathbf{P}~VfdPxa~|~\mathbf{X}~VfdpXa~|~\mathbf{A}~VfdpxA \\
+            VfdpxA &\to \mathbf{F}~VFdpxA ~|~ \mathbf{P}~VfdPxA ~|~ \mathbf{X}~VfdpXA \\
+            VfdpXa &\to \mathbf{P}~VfdPXa \\
+            VfdpXA &\to \mathbf{P}~VfdPXA \\
+            VfdPxa &\to \mathbf{F}~VFdPxa ~|~ \mathbf{X}~VfdPXa ~|~ \mathbf{A}~VfdPxA \\
+            VfdPxA &\to \mathbf{F}~VFdPxA ~|~ \mathbf{X}~VfdPXA \\
+            VfdPXa &\to \mathbf{F}~VFdPXa ~|~ \mathbf{A}~VfdPXA \\
+            VfdPXA &\to \mathbf{F}~VFdPXA \\ 
+            VFdpxa &\to \mathbf{D}~VFDpxa~|~\mathbf{P}~VFdPxa ~|~ \mathbf{X}~VFdpXa ~|~ \mathbf{A}~VFdpxA \\
+            VFdpxA &\to \mathbf{D}~VFDpxA ~|~ \mathbf{P}~VFdPxA ~|~ \mathbf{X}~VFdpXA \\
+            VFdpXa &\to \mathbf{P}~VFdPXa \\
+            VFdpXA &\to \mathbf{P}~VFdPXA \\
+            VFdPxa &\to \mathbf{D}~VFDPxa ~|~ \mathbf{X}~VFdPXa ~|~ \mathbf{A}~VFdPxA \\
+            VFdPxA &\to \mathbf{D}~VFDPxA ~|~ \mathbf{X}~VFDPXA \\
+            VFdPXa &\to \mathbf{D}~VFDPXa ~|~ \mathbf{A}~VFdPXA \\
+            VFdPXA &\to \mathbf{D}~VFDPXA \\
+            VFDpxa &\to \mathbf{P}~VFDPxa ~|~ \mathbf{X}~VFDpXa ~|~ \mathbf{A}~VFDpxA \\
+            VFDpxA &\to \mathbf{P}~VFDPxA ~|~ \mathbf{X}~VFDpXA \\
+            VFDpXa &\to \mathbf{P}~VFDPXa \\
+            VFDpXA &\to \mathbf{P}~VFDPXA \\
+            VFDPxa &\to \mathbf{X}~VFDPXa ~|~ \mathbf{A}~VFDPxA \\
+            VFDPxA &\to \mathbf{X}~VFDPXA \\
+            VFDPXa &\to \mathbf{A}~VFDPXA \\
+            VFDPXA &\to \varepsilon \\
+        \end{cases}
+                \end{aligned}
+        \end{pmatrix}$$
 
 [^1]: See §2.4 of the Householder and Spring 2021 report
     [@householder2021state] for an expanded explanation of the *Vendor
