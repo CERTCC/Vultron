@@ -1,50 +1,26 @@
 # Model Interactions {#ch:interactions}
 
-!!! note "TODO"
-    - [ ] regex replace acronym pointers with the acronym
-    - [ ] replace first use of an acronym on a page with its expansion (if not already done)
-    - [ ] OR replace acronym usage with link to where it's defined
-    - [ ] reproduce diagrams using mermaid
-    - [ ] replace text about figures to reflect mermaid diagrams
-    - [ ] replace latex tables with markdown tables
-    - [ ] replace some equations with diagrams (especially for equations describing state changes)
-    - [ ] move latex math definitions into note blocks `???+ note _title_` to offset from text
-    - [ ] move MUST SHOULD MAY etc statements into note blocks with empty title `!!! note ""` to offset from text
-    - [ ] revise cross-references to be links to appropriate files/sections
-    - [ ] replace latex citations with markdown citations (not sure how to do this yet)
-    - [ ] review text for flow and readability as a web page
-    - [ ] add section headings as needed for visual distinction
-    - [ ] add links to other sections as needed
-    - [ ] add links to external resources as needed
-    - [ ] replace phrases like `this report` or `this section` with `this page` or similar
-    - [ ] add `above` or `below` for in-page cross-references if appropriate (or just link to the section)
-    - [ ] reduce formality of language as needed
-    - [ ] move diagrams to separate files and `include-markdown` them
-
-In this chapter, we reflect on the interactions between the
-[RM]{acronym-label="RM" acronym-form="singular+full"},
-[EM]{acronym-label="EM" acronym-form="singular+full"}, and
-[CS]{acronym-label="CS" acronym-form="singular+full"} models within the
-overall [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}
+Here we reflect on the interactions between the
+RM,
+EM, and
+CS models within the
+overall MPCVD
 process.
 
-## Interactions Between the [RM]{acronym-label="RM" acronym-form="singular+short"} and [EM]{acronym-label="EM" acronym-form="singular+short"} Models {#sec:rm_em_interactions}
+## Interactions Between the RM and EM Models {#sec:rm_em_interactions}
 
-There are additional constraints on how the [RM]{acronym-label="RM"
-acronym-form="singular+short"} and [EM]{acronym-label="EM"
-acronym-form="singular+short"} processes interact.
+There are additional constraints on how the RM and EM processes interact.
 
 ##### Start Embargo Negotiations As Early as Possible
 
--   The [EM]{acronym-label="EM" acronym-form="singular+short"} process
+-   The EM process
     MAY begin (i.e., the initial $propose$ transition
     $q^{em} \in N \xrightarrow{p} P$) prior to the report being sent to
     a potential Participant ($q^{rm} \in S$), for example, when a
     Participant wishes to ensure acceptable embargo terms prior to
     sharing a report with a potential recipient.
 
--   If it has not already begun, the [EM]{acronym-label="EM"
-    acronym-form="singular+short"} process SHOULD begin when a recipient
+-   If it has not already begun, the EM process SHOULD begin when a recipient
     is in RM $Received$ ($q^{rm} \in R$) whenever possible.
 
 ##### Negotiate Embargoes for Active Reports
@@ -78,28 +54,23 @@ acronym-form="singular+short"} processes interact.
 
 -   Outstanding embargo negotiations
     ($q^{em} \in P \xrightarrow{\{r,p\}} \{N,P\}$) MAY continue in
-    [RM]{acronym-label="RM" acronym-form="singular+short"} $Invalid$
+    RM $Invalid$
     ($q^{rm} \in I$) (e.g., if it is anticipated that additional
     information may be forthcoming to promote the report from $Invalid$
     to $Valid$) ($q^{rm} \in I \xrightarrow{v} V$).
 
 ##### Only Accept Embargoes for Possibly Valid Yet Unclosed Reports
 
--   Embargo Management MAY proceed from [EM]{acronym-label="EM"
-    acronym-form="singular+short"} $Proposed$ to EM $Accepted$
-    ($q^{em} \in P \xrightarrow{a} A$) when [RM]{acronym-label="RM"
-    acronym-form="singular+short"} is neither $Invalid$ nor $Closed$
+-   Embargo Management MAY proceed from EM $Proposed$ to EM $Accepted$
+    ($q^{em} \in P \xrightarrow{a} A$) when RM is neither $Invalid$ nor $Closed$
     ($q^{rm} \in \{R,V,A,D\}$).
 
--   Embargo Management SHOULD NOT proceed from [EM]{acronym-label="EM"
-    acronym-form="singular+short"} $Proposed$ to EM $Accepted$ when
-    [RM]{acronym-label="RM" acronym-form="singular+short"} is $Invalid$
+-   Embargo Management SHOULD NOT proceed from EM $Proposed$ to EM $Accepted$ when
+    RM is $Invalid$
     or $Closed$ ($q^{rm} \in \{I,C\}$).
 
--   Embargo Management MAY proceed from [EM]{acronym-label="EM"
-    acronym-form="singular+short"} $Proposed$ to EM $None$
-    ($q^{em} \in P \xrightarrow{r} N$) when [RM]{acronym-label="RM"
-    acronym-form="singular+short"} is $Invalid$ or $Closed$.
+-   Embargo Management MAY proceed from EM $Proposed$ to EM $None$
+    ($q^{em} \in P \xrightarrow{r} N$) when RM is $Invalid$ or $Closed$.
 
 ##### Report Closure, Deferral, and Active Embargoes
 
@@ -130,33 +101,28 @@ acronym-form="singular+short"} processes interact.
 
 -   Any changes to a Participant's intention to adhere to an active
     embargo SHOULD be communicated clearly in addition to any necessary
-    notifications regarding [RM]{acronym-label="RM"
-    acronym-form="singular+short"} or [EM]{acronym-label="EM"
-    acronym-form="singular+short"} state changes.
+    notifications regarding RM or EM state changes.
 
-## [RM]{acronym-label="RM" acronym-form="singular+short"} - [CVD]{acronym-label="CVD" acronym-form="singular+short"} and [EM]{acronym-label="EM" acronym-form="singular+short"} - [CVD]{acronym-label="CVD" acronym-form="singular+short"} Model Interactions {#sec:rm_cvd}
+## RM - CVD and EM - CVD Model Interactions {#sec:rm_cvd}
 
-The [RM]{acronym-label="RM" acronym-form="singular+short"} and
-[EM]{acronym-label="EM" acronym-form="singular+short"} models interact
-with the [CS]{acronym-label="CS" acronym-form="singular+short"} model
+The RM and
+EM models interact
+with the CS model
 described in Chapter [\[sec:model\]](#sec:model){reference-type="ref"
 reference="sec:model"}. Here we will review the constraints arising from
-the interaction of the [RM]{acronym-label="RM"
-acronym-form="singular+short"} and [EM]{acronym-label="EM"
-acronym-form="singular+short"} models with each of the
-[CS]{acronym-label="CS" acronym-form="singular+short"} transition events
-represented by its symbols. As a reminder, the [CS]{acronym-label="CS"
-acronym-form="singular+short"} transition symbols ($\Sigma^{cs}$) from
+the interaction of the RM and EM models with each of the
+CS transition events
+represented by its symbols. As a reminder, the CS transition symbols ($\Sigma^{cs}$) from
 the Householder and Spring 2021 report [@householder2021state] are
 represented as bold capital letters.
 $$\Sigma^{cs} = \{ \mathbf{V},~\mathbf{F},~\mathbf{D},~\mathbf{P},~\mathbf{X},~\mathbf{A} \} 
     \tag{\ref{eq:events} revisited}$$
 
-##### Global vs. Participant-Specific Aspects of the [CS]{acronym-label="CS" acronym-form="singular+short"} Model.
+##### Global vs. Participant-Specific Aspects of the CS Model.
 
-The [CS]{acronym-label="CS" acronym-form="singular+short"} model
+The CS model
 encompasses both Participant-specific and global aspects of a
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} case. In
+CVD case. In
 particular, the Vendor fix path substates---Vendor unaware ($vfd$),
 Vendor aware ($Vfd$), fix ready ($VFd$), and fix deployed ($VFD$)---are
 specific to each Vendor Participant in a case. On the other hand, the
@@ -170,8 +136,7 @@ reference="sec:formal_protocol"}.
 ### Vendor Notification
 
 Vendor Awareness ($\mathbf{V}$) occurs when a Participant---typically a
-Finder, Coordinator, or another Vendor---is in [RM]{acronym-label="RM"
-acronym-form="singular+short"} $Accepted$ and notifies the Vendor
+Finder, Coordinator, or another Vendor---is in RM $Accepted$ and notifies the Vendor
 ($q^{cs} \in vfd\wc\wc\wc \xrightarrow{\mathbf{V}} Vfd\wc\wc\wc$). In
 turn, the Vendor starts in $q^{rm} = Received$ and proceeds to follow
 their validation and prioritization routines. We previously outlined
@@ -179,13 +144,10 @@ this in Table
 [\[tab:participant_rm_actions\]](#tab:participant_rm_actions){reference-type="ref"
 reference="tab:participant_rm_actions"}.
 
-Depending on which parties are involved in a [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} case, the [EM]{acronym-label="EM"
-acronym-form="singular+short"} process might already be underway prior
+Depending on which parties are involved in a CVD case, the EM process might already be underway prior
 to Vendor notification (e.g., $q^{em} \in \{P,A,R\}$). For example, a
 Reporter and Coordinator might have already agreed to a disclosure
-timeline. Or, in an [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} case, other Vendors may have already been
+timeline. Or, in an MPCVD case, other Vendors may have already been
 coordinating the case under an embargo and only recently realized the
 need to engage with a new Vendor on the case. The latter example is
 consistent with public narratives about the Meltdown/Spectre
@@ -193,7 +155,7 @@ vulnerabilities [@wright2018meltdown].
 
 Once a case has reached $q^{cs} \in Vfdpxa$ for at least one Vendor,
 
--   If the [EM]{acronym-label="EM" acronym-form="singular+short"}
+-   If the EM
     process has not started, it SHOULD begin as soon as possible.
 
 -   Any proposed embargo SHOULD be decided ($accept$, $reject$) soon
@@ -213,12 +175,11 @@ $$q^{cs} \in Vfdpxa \implies q^{em} \in
 ### Fix Ready {#sec:cs_f_em}
 
 Fix Readiness ($\mathbf{F}$) can occur only when a Vendor is in the
-$Accepted$ state. As a reminder, in [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} cases, each affected Vendor has their own
-[RM]{acronym-label="RM" acronym-form="singular+short"} state, so this
+$Accepted$ state. As a reminder, in MPCVD cases, each affected Vendor has their own
+RM state, so this
 constraint applies to each Vendor individually.
 
-With respect to [EM]{acronym-label="EM" acronym-form="singular+short"},
+With respect to EM,
 when the case state is $q^{cs} \in VF\wc pxa$, it's usually too late to
 start a new embargo. Once a case has reached $q^{cs} \in VF\wc pxa$,
 
@@ -237,7 +198,7 @@ $$q^{cs} \in VF\wc pxa \implies q^{em} \in
         Revise \\
     \end{cases}$$
 
-In [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} cases,
+In MPCVD cases,
 where some Vendors are likely to reach $q^{cs} \in VF\wc\wc\wc\wc$
 before others,
 
@@ -261,7 +222,7 @@ at least passed through $q^{rm} = Accepted$ at some point as is required
 for Fix Ready ($\mathbf{F}$), which, in turn, is a prerequisite for
 deployment ($\mathbf{D}$).
 
-As regards [EM]{acronym-label="EM" acronym-form="singular+short"}, by
+As regards EM, by
 the time a fix has been deployed ($q^{cs} \in VFD\wc\wc\wc$),
 
 -   New embargoes SHOULD NOT be sought.
@@ -278,7 +239,7 @@ $$q^{cs} \in {VFD} \wc\wc\wc \implies q^{em} \in
 
 As with the *Fix Ready* scenario in
 §[1.2.2](#sec:cs_f_em){reference-type="ref" reference="sec:cs_f_em"},
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} cases may
+MPCVD cases may
 have Vendors in varying states of *Fix Deployment*. Therefore the
 embargo extension caveats from that section apply to the *Fix Deployed*
 state as well.
@@ -294,12 +255,11 @@ outlined in the *CERT Guide to Coordinated Vulnerability Disclosure*
 
 That said, the publishing party might be outside of *any* existing
 coordination process. For example, this is the situation when a report
-is already in the midst of a [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} process and a party outside the
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} case reveals
+is already in the midst of a CVD process and a party outside the
+CVD case reveals
 the vulnerability publicly (e.g., parallel discovery, embargo leaks).
 
-As for [EM]{acronym-label="EM" acronym-form="singular+short"}, the whole
+As for EM, the whole
 point of an embargo is to prevent $\mathbf{P}$ from occurring until
 other objectives (e.g., $q^{cs} \in VF\wc px \wc$) have been met.
 Therefore, once $\mathbf{P}$ has happened and the case state reaches
@@ -320,16 +280,16 @@ $$q^{cs} \in \wc\wc\wc P \wc\wc \implies q^{em} \in
 ### Exploit Public
 
 Exploit publishers may also be presumed to have a similar
-[RM]{acronym-label="RM" acronym-form="singular+short"} state model for
+RM state model for
 their own work. Therefore, we can expect them to be in an
-[RM]{acronym-label="RM" acronym-form="singular+short"} $Accepted$ state
+RM $Accepted$ state
 at the time of exploit code publication ($\mathbf{X}$). However, we
 cannot presume that those who publish exploit code will be Participants
-in a pre-public [CVD]{acronym-label="CVD" acronym-form="singular+short"}
+in a pre-public CVD
 process. That said,
 
 -   Exploit Publishers who *are* Participants in pre-public
-    [CVD]{acronym-label="CVD" acronym-form="singular+short"} cases
+    CVD cases
     ($q^{cs} \in \wc\wc\wc p \wc\wc$) SHOULD comply with the protocol
     described here, especially when they also fulfill other roles (e.g.,
     Finder, Reporter, Coordinator, Vendor) in the process.
@@ -360,8 +320,7 @@ $$q^{cs} \in \wc\wc\wc\wc X \wc \implies q^{em} \in
 
 ### Attacks Observed
 
-Nothing in this or any other [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} process model should be interpreted as
+Nothing in this or any other CVD process model should be interpreted as
 constraining adversary activity.
 
 -   Participants MUST treat attacks as an event that could occur at any
