@@ -94,6 +94,7 @@ stateDiagram-v2
         None --> Proposed : propose
     }
     ActiveRM --> EM : begin
+    InactiveRM --> EM : avoid
 ```
 
 
@@ -116,12 +117,40 @@ stateDiagram-v2
     (${q^{em} \in R \xrightarrow{\{a,r\}} A}$) MAY occur during any of
     the valid yet unclosed RM states (${q_{rm} \in \{ V,A,D \} }$).
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    state RM {
+        Valid
+        Accepted
+        Deferred
+    }
+    state EM {
+        Revise --> Active : accept
+        Revise --> Active : reject
+        Active --> Revise : propose
+    }
+    RM --> EM : ok to<br/>proceed
+```
+
 ##### Avoid Embargoes for Invalid Reports...
 
 !!! note ""
 
     Embargo Management SHOULD NOT begin with a proposal from a
     Participant in RM _Invalid_ ($q^{rm} \in I$).
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    state RM {
+        Invalid
+    }
+    state EM {
+        None --> Proposed : propose
+    }
+    RM --> EM : avoid
+```
 
 ##### ...but Don't Lose Momentum if Validation Is Pending
 
@@ -134,6 +163,18 @@ stateDiagram-v2
     information may be forthcoming to promote the report from _Invalid_
     to _Valid_) ($q^{rm} \in I \xrightarrow{v} V$).
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    state RM {
+        Invalid --> Valid: (anticipated)
+    }
+    state EM {
+        None --> Propose : propose
+    }
+    RM --> EM : ok to<br/>proceed
+```
+
 ##### Only Accept Embargoes for Possibly Valid Yet Unclosed Reports
 
 !!! note ""
@@ -142,16 +183,58 @@ stateDiagram-v2
     ($q^{em} \in P \xrightarrow{a} A$) when RM is neither _Invalid_ nor _Closed_
     ($q^{rm} \in \{R,V,A,D\}$).
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    state RM {
+        Start
+        Received
+        Valid
+        Accepted
+        Deferred
+    }
+    state EM {
+        Proposed --> Accepted : accept
+    }
+    RM --> EM : ok to<br/>proceed
+```
+
 !!! note ""
 
     Embargo Management SHOULD NOT proceed from EM _Proposed_ to EM _Accepted_ when
     RM is _Invalid_
     or _Closed_ ($q^{rm} \in \{I,C\}$).
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    state RM {
+        Invalid
+        Closed
+    }
+    state EM {
+        Proposed --> Accepted : accept
+    }
+    RM --> EM : avoid
+```
+
 !!! note ""
 
     Embargo Management MAY proceed from EM _Proposed_ to EM _None_
     ($q^{em} \in P \xrightarrow{r} N$) when RM is _Invalid_ or _Closed_.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    state RM {
+        Invalid
+        Closed
+    }
+    state EM {
+        Proposed --> None : reject
+    }
+    RM --> EM : ok to<br/>proceed
+```
 
 ##### Report Closure, Deferral, and Active Embargoes
 
@@ -161,9 +244,25 @@ stateDiagram-v2
     ($q^{rm} \in \{I,D,A\} \xrightarrow{c} C$) while an embargo is
     active ($q^{em} \in \{ A,R \}$).
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    state RM {
+        Invalid --> Closed: close
+        Deferred --> Closed: close
+        Accepted --> Closed: close
+    }
+    state EM {
+        Active
+        Revise
+    }
+    EM --> RM : avoid
+```
+
+
 !!! note ""
   
-   Instead, reports with no further tasks SHOULD be held in either
+    Instead, reports with no further tasks SHOULD be held in either
     _Deferred_ or _Invalid_ (${q^{rm} \in \{ D,I\}}$) (depending on the
     report validity status) until the embargo has terminated
     (${q^{em} \in X}$). This allows Participants to stop work on a
@@ -184,6 +283,22 @@ stateDiagram-v2
     while an embargo remains active ($q^{em} \in \{A,R\}$) and while
     other Participants remain engaged ($q^{rm} \in \{R,V,A\}$) SHALL NOT
     automatically terminate the embargo.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+state RM {
+        Invalid --> Closed: close
+        Deferred --> Closed: close
+        Accepted --> Closed: close
+    }
+    state EM {
+        Active --> eXited: terminate
+        Revise --> eXited: terminate
+    }
+    RM --> EM : does not imply
+```
+    
 
 !!! note ""
 
