@@ -69,8 +69,8 @@ the state names. Each Participant in a CVD case will have their own RM state.
 
 !!! info "RM States vs. CVD Case States"
     RM states are not the same as CVD case states. Case states follow the Householder-Spring model summarized
-    in [Case State Model](../cs/index.md). Further discussion of the interactions of the RM and CS models is found
-    in [Model Interactions](../model_interactions.md).
+    in [Case State Model](../cs/). Further discussion of the interactions of the RM and CS models is found
+    in [Model Interactions](../model_interactions/).
 
 #### The _Start_ (_S_) State
 
@@ -78,7 +78,7 @@ The _Start_ state is a simple placeholder state for reports that have
 yet to be received. It is, in effect, a null state that no
 CVD Participant would be expected to reflect in their report tracking system. We include
 it here because it is useful when modeling coordination 
-that spans multiple Participants in the [formal protocol](../../formal_protocol/index.md).
+that spans multiple Participants in the [formal protocol](../../formal_protocol/).
 Otherwise, the discussion until then will mostly ignore it.
 
 #### The _Received_ (_R_) State

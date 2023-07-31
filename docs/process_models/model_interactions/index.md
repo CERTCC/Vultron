@@ -338,13 +338,13 @@ state RM {
 
     $$\Sigma^{cs} = \{ \mathbf{V},~\mathbf{F},~\mathbf{D},~\mathbf{P},~\mathbf{X},~\mathbf{A} \}$$
 
-The [RM](../rm/) and [EM](../em/) models interact with the [Case State Model](cs/index.md).
+The [RM](../rm/) and [EM](../em/) models interact with the [Case State Model](../cs/index.md).
 Here we will review the constraints arising from the interaction of the [RM](../rm/) and [EM](../em/) 
 models with each of the CS transition events represented by its symbols.
 
 ### Global vs. Participant-Specific Aspects of the CS Model.
 
-The [CS model](cs/index.md) encompasses both Participant-specific and global aspects of a
+The [CS model](../cs/index.md) encompasses both Participant-specific and global aspects of a
 CVD case. In particular, the Vendor fix path substates&mdash;Vendor unaware (_vfd_),
 Vendor aware (_Vfd_), fix ready (_VFd_), and fix deployed (_VFD_)&mdash;are
 specific to each Vendor Participant in a case. On the other hand, the
