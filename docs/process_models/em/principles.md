@@ -2,13 +2,14 @@
 
 Embargoes are a means of inhibiting public disclosure of a vulnerability
 while defenses are prepared (e.g., until fix development has completed
-for a reasonable quorum of Vendors). The goal of the
-EM process is not to
-establish an exact publication schedule for every Participant to adhere
-to. Rather, it is to establish a window spanning from the present to
-some future time, during which Participants are expected not to publish
-or otherwise disclose information about the vulnerability to
-non-Participants outside of the CVD case.
+for a reasonable quorum of Vendors).
+
+!!! tip "Embargo Management Process Goal"
+
+    The goal of the EM process is not to establish an exact publication schedule for every Participant to adhere
+    to. Rather, it is to establish a window spanning from the present to some future time, during which _Participants
+    are expected to not publish or otherwise disclose_ information about the vulnerability to non-Participants outside
+    of the CVD case.
 
 ## Embargoes Are a Social Agreement
 
