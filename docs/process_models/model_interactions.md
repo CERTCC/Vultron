@@ -1,26 +1,26 @@
 # Model Interactions {#ch:interactions}
 
 Here we reflect on the interactions between the
-RM,
-EM, and
+[RM](../rm/index.md),
+[EM](../em/index.md), and
 CS models within the
 overall MPCVD
 process.
 
 ## Interactions Between the RM and EM Models {#sec:rm_em_interactions}
 
-There are additional constraints on how the RM and EM processes interact.
+There are additional constraints on how the [RM](../rm/index.md) and [EM](../em/index.md) processes interact.
 
 ##### Start Embargo Negotiations As Early as Possible
 
--   The EM process
+-   The [EM](../em/index.md) process
     MAY begin (i.e., the initial $propose$ transition
     $q^{em} \in N \xrightarrow{p} P$) prior to the report being sent to
     a potential Participant ($q^{rm} \in S$), for example, when a
     Participant wishes to ensure acceptable embargo terms prior to
     sharing a report with a potential recipient.
 
--   If it has not already begun, the EM process SHOULD begin when a recipient
+-   If it has not already begun, the [EM](../em/index.md) process SHOULD begin when a recipient
     is in RM $Received$ ($q^{rm} \in R$) whenever possible.
 
 ##### Negotiate Embargoes for Active Reports
@@ -105,12 +105,12 @@ There are additional constraints on how the RM and EM processes interact.
 
 ## RM - CVD and EM - CVD Model Interactions {#sec:rm_cvd}
 
-The RM and
-EM models interact
+The [RM](../rm/index.md) and
+[EM](../em/index.md) models interact
 with the CS model
 described in Chapter [\[sec:model\]](#sec:model){reference-type="ref"
 reference="sec:model"}. Here we will review the constraints arising from
-the interaction of the RM and EM models with each of the
+the interaction of the [RM](../rm/index.md) and [EM](../em/index.md) models with each of the
 CS transition events
 represented by its symbols. As a reminder, the CS transition symbols ($\Sigma^{cs}$) from
 the Householder and Spring 2021 report [@householder2021state] are
@@ -144,7 +144,7 @@ this in Table
 [\[tab:participant_rm_actions\]](#tab:participant_rm_actions){reference-type="ref"
 reference="tab:participant_rm_actions"}.
 
-Depending on which parties are involved in a CVD case, the EM process might already be underway prior
+Depending on which parties are involved in a CVD case, the [EM](../em/index.md) process might already be underway prior
 to Vendor notification (e.g., $q^{em} \in \{P,A,R\}$). For example, a
 Reporter and Coordinator might have already agreed to a disclosure
 timeline. Or, in an MPCVD case, other Vendors may have already been
@@ -179,7 +179,7 @@ $Accepted$ state. As a reminder, in MPCVD cases, each affected Vendor has their 
 RM state, so this
 constraint applies to each Vendor individually.
 
-With respect to EM,
+With respect to [EM](../em/index.md),
 when the case state is $q^{cs} \in VF\wc pxa$, it's usually too late to
 start a new embargo. Once a case has reached $q^{cs} \in VF\wc pxa$,
 
@@ -222,7 +222,7 @@ at least passed through $q^{rm} = Accepted$ at some point as is required
 for Fix Ready ($\mathbf{F}$), which, in turn, is a prerequisite for
 deployment ($\mathbf{D}$).
 
-As regards EM, by
+As regards [EM](../em/index.md), by
 the time a fix has been deployed ($q^{cs} \in VFD\wc\wc\wc$),
 
 -   New embargoes SHOULD NOT be sought.
@@ -259,7 +259,7 @@ is already in the midst of a CVD process and a party outside the
 CVD case reveals
 the vulnerability publicly (e.g., parallel discovery, embargo leaks).
 
-As for EM, the whole
+As for [EM](../em/index.md), the whole
 point of an embargo is to prevent $\mathbf{P}$ from occurring until
 other objectives (e.g., $q^{cs} \in VF\wc px \wc$) have been met.
 Therefore, once $\mathbf{P}$ has happened and the case state reaches
@@ -280,7 +280,7 @@ $$q^{cs} \in \wc\wc\wc P \wc\wc \implies q^{em} \in
 ### Exploit Public
 
 Exploit publishers may also be presumed to have a similar
-RM state model for
+[RM](../rm/index.md) state model for
 their own work. Therefore, we can expect them to be in an
 RM $Accepted$ state
 at the time of exploit code publication ($\mathbf{X}$). However, we
