@@ -5,9 +5,10 @@
 As in the [RM](../rm) and [EM](../em) process models, we wish to define a 5-tuple
 $(\mathcal{Q},\Sigma,\delta,q_0,F)$, this time for the CS model.
 
+{% import-markdown "cs_substates_table.md" %}
+
 In the CS model, a state $q^{cs}$ represents the status of each of the six [substates](./index.md).
-State labels inherit the substate notation from above: lowercase letters designate events that have not occurred,
-and uppercase letters designate events that have occurred in a particular state.
+State labels use the substate notation at left.
 For example, the state _VFdpXa_ represents Vendor is aware, fix is ready, fix not deployed, no public awareness, exploit
 is public, and no attacks.
 The order in which the events occurred does not matter when defining the state.

@@ -1,4 +1,4 @@
-# CVD Case State Model {#sec:model}
+# CVD Case State Model Introduction
 
 Here we revisit the CS model from the Householder and Spring 2021 report [@householder2021state]. <!-- start_excerpt -->
 The CVD Case State (CS) model provides a high-level view of the state of a CVD case.
@@ -20,17 +20,16 @@ prior to defining the Case States in
 
 ## CVD Case Substates
 
+{% include-markdown "cs_substates_table.md" %}
+
 In our model, the state of the world is a specification of the current
 status of all the events in the vulnerability lifecycle model described
 in the Householder and Spring 2021 report [@householder2021state].
-We
-describe the relevant factors as substates below. For notational
-purposes, each substate status is represented by a letter for that part
+We describe the relevant factors as substates below. 
+For notational purposes, each substate status is represented by a letter for that part
 of the state of the world. For example, _v_ means no Vendor awareness
 and _V_ means the Vendor is aware. The complete set of status labels is
-shown in
-Table [\[tab:event_status\]](#tab:event_status){reference-type="ref"
-reference="tab:event_status"}.
+shown in the table at left.
 
 ### The _Vendor Awareness_ Substate (_v_, _V_)
 
@@ -41,9 +40,8 @@ Vendor* in Bilge and Dumitraş's article, "Before we knew it: an
 empirical study of zero-day attacks in the real
 world" [@bilge2012before]. In the interest of model simplicity, we are
 not concerned with *how* the Vendor finds out about the vulnerability's
-existence---whether it was found via internal testing, reported within a
-CVD process, or
-noticed as the result of incident or malware analysis.
+existence&mdash;whether it was found via internal testing, reported within a
+CVD process, or noticed as the result of incident or malware analysis.
 
 ```mermaid
 stateDiagram-v2
@@ -98,7 +96,7 @@ stateDiagram-v2
 The *Public Awareness* substate corresponds to *Publication* in the
 Arbaugh, Fithen, and McHugh article  [@arbaugh2000windows], *time of
 public disclosure* in Frei et al.'s article Modeling the Security
-Ecosystem---The Dynamics of (In)Security  [@frei2010modeling]; and
+Ecosystem&mdash;The Dynamics of (In)Security  [@frei2010modeling]; and
 *vulnerability disclosed publicly* in Bilge and Dumitraş's article
  [@bilge2012before]. The public might find out about a vulnerability
 through the Vendor's announcement of a fix, a news report about a
