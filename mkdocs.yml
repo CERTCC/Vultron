@@ -15,9 +15,9 @@ nav:
           - Negotiating Embargoes: 'process_models/em/negotiating.md'
           - Adding Participants: 'process_models/em/working_with_others.md'
           - Early Termination and Other Topics: 'process_models/em/early_termination.md'
-      - Case State Process Model:
-          - CVD Substates: 'process_models/cs/index.md'
-          - Case State Model: 'process_models/cs/cs_model.md'
+      - Case State:
+          - Introduction: 'process_models/cs/index.md'
+          - CVD Case State Model: 'process_models/cs/cs_model.md'
       - Model Interactions:
           - Global vs Local Aspects: 'process_models/model_interactions/index.md'
           - RM and EM Interactions: 'process_models/model_interactions/rm_em.md'
