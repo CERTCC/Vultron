@@ -4,8 +4,8 @@ Here we revisit the CS model from the Householder and Spring 2021 report [@house
 The CVD Case State (CS) model provides a high-level view of the state of a CVD case.
 In it we model two main aspects of the case:
 
-1. The _Vendor Fix Path_ from initial vendor awareness through the deployment of a fix.
-2. The _Global Case State_ of the case, which summarizes the state of public and attacker awareness of the vulnerability.
+1. A Participant-specific _Vendor Fix Path_ from initial vendor awareness through the deployment of a fix.
+2. A _Global Case State_ summarizing both public and attacker awareness of the vulnerability.
 <!-- end_excerpt -->
 A complete derivation of the CS model can be found in that report.
 Here, we are primarily interested in the final model, which comprises 32 states and their transitions.

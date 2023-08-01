@@ -22,6 +22,6 @@ The Vultron Protocol defines three main processes in terms of deterministic fini
 
 {% include-markdown "./cs/index.md" start="<!-- start_excerpt -->" end="<!-- end_excerpt -->" %}
 
-{% include-markdown "./cs/cs_dfa_diagram.md" %}
+{% include-markdown "./model_interactions/cs_global_local.md" %}
 
 [Read More...](cs/index.md)
