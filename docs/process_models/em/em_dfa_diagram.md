@@ -1,5 +1,8 @@
 <!-- em-state-machine-start -->
 ```mermaid
+---
+title: Embargo Management State Diagram
+---
 stateDiagram-v2
     direction LR
     state Pre-Embargo {

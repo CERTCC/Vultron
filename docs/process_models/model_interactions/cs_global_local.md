@@ -1,6 +1,6 @@
 ```mermaid
 ---
-title: Case State Model showing Global and Participant-Specific Aspects
+title: Case State Diagram showing Global and Participant-Specific Aspects
 ---
 stateDiagram-v2
     direction LR
