@@ -236,10 +236,13 @@ stateDiagram-v2
 
 ## Report Closure, Deferral, and Active Embargoes
 
+Participants' individual Report Management processes can interact with the Embargo Management process at the case level
+in a number of ways.
+We describe these interactions below.
+
 !!! note ""
 
-    Participants SHOULD NOT close reports
-    ($q^{rm} \in \{I,D,A\} \xrightarrow{c} C$) while an embargo is
+    Participants SHOULD NOT close reports ($q^{rm} \in \{I,D,A\} \xrightarrow{c} C$) while an embargo is
     active ($q^{em} \in \{ A,R \}$).
 
 ```mermaid
@@ -257,27 +260,30 @@ stateDiagram-v2
     EM --> RM : avoid
 ```
 
+Instead,
 
 !!! note ""
   
-    Instead, reports with no further tasks SHOULD be held in either
+    Reports with no further tasks SHOULD be held in either
     _Deferred_ or _Invalid_ (${q^{rm} \in \{ D,I\}}$) (depending on the
     report validity status) until the embargo has terminated
-    (${q^{em} \in X}$). This allows Participants to stop work on a
-    report but still maintain their participation in an extant embargo.
+    (${q^{em} \in X}$).
+
+This allows Participants to stop work on a report but still maintain their participation in an extant embargo.
+Notwithstanding the above,
 
 !!! note ""
 
-    Notwithstanding, Participants who choose to close a report
-    ($q^{rm} \in \{I,D,A\} \xrightarrow{c} C$) while an embargo remains
-    in force ($q^{em} \in \{A,R\}$) SHOULD communicate their intent to
-    either continue to adhere to the embargo or terminate their
-    compliance with it.
+    Participants who choose to close a report ($q^{rm} \in \{I,D,A\} \xrightarrow{c} C$) while an embargo remains
+    in force ($q^{em} \in \{A,R\}$) SHOULD communicate their intent to either continue to adhere to the embargo or 
+    terminate their compliance with it.
+
+
+Report closure or deferral alone does not terminate an embargo.
 
 !!! note ""
-  
-    Report closure or deferral does not terminate an embargo. A
-    Participant's closure or deferral ($q^{rm} \in \{C,D\}$) of a report
+    
+    A Participant's closure or deferral ($q^{rm} \in \{C,D\}$) of a report
     while an embargo remains active ($q^{em} \in \{A,R\}$) and while
     other Participants remain engaged ($q^{rm} \in \{R,V,A\}$) SHALL NOT
     automatically terminate the embargo.
@@ -297,9 +303,18 @@ state RM {
     RM --> EM : does not imply
 ```
     
+It is expected that Participants will continue to adhere to the embargo until it is explicitly terminated.
+However, Participants MAY choose to terminate their compliance with an embargo at any time.
+While this is usually an undesirable development, it is important that it be clearly communicated to other Participants
+so that they can make informed decisions about the viability of the extant embargo.
 
 !!! note ""
 
     Any changes to a Participant's intention to adhere to an active
     embargo SHOULD be communicated clearly in addition to any necessary
     notifications regarding RM or EM state changes.
+
+!!! note ""
+
+    Upon receipt of a Participant's notification of intent to end their compliance with an embargo,
+    other Participants MAY choose to terminate the embargo.
