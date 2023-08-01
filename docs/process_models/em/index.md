@@ -1,26 +1,5 @@
 # Embargo Management Process Model
 
-!!! note "TODO"
-    - [x] regex replace acronym pointers with the acronym
-    - [ ] replace first use of an acronym on a page with its expansion (if not already done)
-    - [ ] OR replace acronym usage with link to where it's defined
-    - [ ] reproduce diagrams using mermaid
-    - [ ] replace text about figures to reflect mermaid diagrams
-    - [ ] replace latex tables with markdown tables
-    - [ ] replace some equations with diagrams (especially for equations describing state changes)
-    - [ ] move latex math definitions into note blocks `???+ note _title_` to offset from text
-    - [ ] move MUST SHOULD MAY etc statements into note blocks with empty title `!!! note ""` to offset from text
-    - [ ] revise cross-references to be links to appropriate files/sections
-    - [ ] replace latex citations with markdown citations (not sure how to do this yet)
-    - [ ] review text for flow and readability as a web page
-    - [ ] add section headings as needed for visual distinction
-    - [ ] add links to other sections as needed
-    - [ ] add links to external resources as needed
-    - [ ] replace phrases like `this report` or `this section` with `this page` or similar
-    - [ ] add `above` or `below` for in-page cross-references if appropriate (or just link to the section)
-    - [ ] reduce formality of language as needed
-    - [ ] move diagrams to separate files and `include-markdown` them
-
 Here we describe the basic primitives necessary for the CVD Embargo Management (EM) process.
 <!-- start_excerpt -->
 For our purposes, an embargo is an *informal* agreement among peer
@@ -64,15 +43,14 @@ stateDiagram-v2
     v3: Vendor 3
     v4: Vendor 4
     v5: Vendor 5
+    v6: Vendor 6
     
-    [*] --> v1
     v1 --> v2
     v1 --> v3
     v2 --> v4
     v3 --> v5
     v2 --> v5
-    v4 --> [*]
-    v5 --> [*]
+    v5 --> v6
 ```
 
 
