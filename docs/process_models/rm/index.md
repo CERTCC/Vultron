@@ -1,26 +1,5 @@
 # Report Management Process Model
 
-!!! note "TODO"
-    - [x] regex replace acronym pointers with the acronym
-    - [ ] replace first use of an acronym on a page with its expansion (if not already done)
-    - [ ] OR replace acronym usage with link to where it's defined
-    - [x] reproduce diagrams using mermaid
-    - [x] replace text about figures to reflect mermaid diagrams
-    - [ ] replace latex tables with markdown tables
-    - [x] replace some equations with diagrams (especially for equations describing state changes)
-    - [x] move latex math definitions into note blocks `???+ note _title_` to offset from text
-    - [x] move MUST SHOULD MAY etc statements into note blocks with empty title `!!! note ""` to offset from text
-    - [ ] revise cross-references to be links to appropriate files/sections
-    - [ ] replace latex citations with markdown citations (not sure how to do this yet)
-    - [ ] review text for flow and readability as a web page
-    - [x] add section headings as needed for visual distinction
-    - [x] add links to other sections as needed
-    - [ ] add links to external resources as needed
-    - [ ] replace phrases like `this report` or `this section` with `this page` or similar
-    - [ ] add `above` or `below` for in-page cross-references if appropriate (or just link to the section)
-    - [ ] reduce formality of language as needed
-    - [ ] move diagrams to separate files and `include-markdown` them
-
 Here we describe a high-level workflow for the CVD Report Management (RM) process.
 <!-- start_excerpt -->
 The RM process should be reasonably familiar to anyone familiar with [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management) (ITSM) workflows such as problem, change, 
@@ -83,9 +62,22 @@ it here because it is useful when modeling coordination
 that spans multiple Participants in the [formal protocol](../../formal_protocol/).
 Otherwise, the discussion until then will mostly ignore it.
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Start
+```
+
 #### The _Received_ (_R_) State
 
 Reports initially arrive in the _Received_ state.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Start
+    Start --> Received
+```
 
 Vendors lacking the ability to receive reports will find it exceedingly
 difficult if not impossible to participate in the
@@ -161,6 +153,15 @@ the recipient. This state allows time for the Reporter to provide
 additional information and for the receiver to revisit the validation
 before moving the report to _Closed_.
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Start
+    Start --> Received
+    Received --> Invalid
+```
+
+
 The reasons for a report to be put in this state will vary based on each
 recipient's validation criteria, and their technical capability and
 available resources. The _Invalid_ state is intended to be used as a
@@ -189,6 +190,17 @@ The _Valid_ state is equivalent to the [Prioritization
 (Triage)](https://vuls.cert.org/confluence/display/CVD/4.3+Validation+and+Triage) phase 
 of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD).
 As an example, a Vendor might later choose to _defer_ further response on a _Valid_ report due to other priorities.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Start
+    Start --> Received
+    Received --> Invalid
+    Received --> Valid
+    Invalid --> Valid
+```
+
 
 !!! note ""
     For _Valid_ reports, the Participant SHOULD perform a prioritization
@@ -234,6 +246,18 @@ Participant has deemed the report to be both valid and of sufficient
 priority to warrant further action. The _Accepted_ state has a different
 meaning for each different Participant.
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Start
+    Start --> Received
+    Received --> Invalid
+    Received --> Valid
+    Invalid --> Valid
+    Valid --> Accepted
+```
+
+
 -   For our purposes, Finders/Reporters enter the _Accepted_ state only
     for reports that they intend to put through the
     CVD process. If
@@ -264,6 +288,21 @@ parallels the _Invalid_ state for reports that fail to meet the
 necessary validation criteria in that both states are awaiting closure
 once it is determined that no further action is necessary.
 
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Start
+    Start --> Received
+    Received --> Invalid
+    Received --> Valid
+    Invalid --> Valid
+    Valid --> Accepted
+    Valid --> Deferred
+    Accepted --> Deferred
+    Deferred --> Accepted
+```
+
+
 For example, a Participant might use the _Deferred_ state when a valid
 report fails to meet their [prioritization criteria](#prioritize-report), or when a higher priority task takes
 precedence over an active case.
@@ -292,6 +331,25 @@ The _Closed_ state implies no further work is to be done; therefore, any
 pre-closure review (e.g., for quality assurance purposes) should be
 performed before the case moves to the _Closed_ state (i.e., while the
 report is in _Invalid_, _Deferred_, or _Accepted_).
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Start
+    Start --> Received
+    Received --> Invalid
+    Received --> Valid
+    Invalid --> Valid
+    Valid --> Accepted
+    Valid --> Deferred
+    Accepted --> Deferred
+    Deferred --> Accepted
+    Accepted --> Closed
+    Deferred --> Closed
+    Invalid --> Closed
+    Closed --> [*]
+```
+
 
 !!! note ""
     Reports SHOULD be moved to the _Closed_ state once a Participant has
