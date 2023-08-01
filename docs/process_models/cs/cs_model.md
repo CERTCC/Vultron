@@ -5,20 +5,16 @@
 As in the [RM](../rm) and [EM](../em) process models, we wish to define a 5-tuple
 $(\mathcal{Q},\Sigma,\delta,q_0,F)$, this time for the CS model.
 
-In the CS model, a
-state $q^{cs}$ represents the status of each of the six [substates](./index.md). State
-labels inherit the substate notation from above: lowercase letters
-designate events that have not occurred, and uppercase letters designate
-events that have occurred in a particular state. For example, the state
-_VFdpXa_ represents Vendor is aware, fix is ready, fix not deployed, no
-public awareness, exploit is public, and no attacks. The order in which
-the events occurred does not matter when defining the state. However, we
-will observe a notation convention keeping the letter names in the same
-case-insensitive order $(v,f,d,p,x,a)$.
+In the CS model, a state $q^{cs}$ represents the status of each of the six [substates](./index.md).
+State labels inherit the substate notation from above: lowercase letters designate events that have not occurred,
+and uppercase letters designate events that have occurred in a particular state.
+For example, the state _VFdpXa_ represents Vendor is aware, fix is ready, fix not deployed, no public awareness, exploit
+is public, and no attacks.
+The order in which the events occurred does not matter when defining the state.
+However, we will observe a notation convention keeping the letter names in the same case-insensitive order
+$(v,f,d,p,x,a)$.
 
 ???+ note inline end "Vendor Fix Path Formalism"
-
-    
 
     $$D \implies F \implies V$$
 

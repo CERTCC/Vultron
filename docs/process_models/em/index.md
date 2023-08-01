@@ -21,11 +21,13 @@
     - [ ] reduce formality of language as needed
     - [ ] move diagrams to separate files and `include-markdown` them
 
-In this chapter, we describe the basic primitives necessary for the
-CVD Embargo Management (EM) process. For our purposes, an embargo is an *informal* agreement among peer
-CVD case Participants to refrain from publishing information about a vulnerability until some future point in time relative to the report at
-hand. Once an embargo has expired, there is no further restriction on
-publishing information about the vulnerability.
+Here we describe the basic primitives necessary for the CVD Embargo Management (EM) process.
+<!-- start_excerpt -->
+For our purposes, an embargo is an *informal* agreement among peer
+CVD case Participants to refrain from publishing information about a vulnerability until some future point in time
+relative to the report at hand. Once an embargo has expired, there is no further restriction on publishing information
+about the vulnerability.
+<!-- end_excerpt -->
 
 !!! tip inline end "Reminder"
 

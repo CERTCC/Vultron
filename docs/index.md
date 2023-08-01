@@ -11,14 +11,14 @@ policies that can work together to coordinate appropriate responses to vulnerabi
 
 Vultron is a collection of ideas, models, code, and work in progress, and is not yet ready for production use.
 
-## How this documentation is organized
-
 !!! warning "Work in progress"
 
     We are currently working on the documentation of the Vultron CVD Protocol.
-    Our intent is to follow the [Diátaxis Framework](https://diataxis.fr/).
     This documentation is a work in progress and is not yet complete.
     Our focus so far is on the Understanding Vultron section, which describes the protocol in detail.
+
+## How this documentation is organized
+
 
 !!! tip "Learning About Vultron"
 

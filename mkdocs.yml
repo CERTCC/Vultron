@@ -4,7 +4,7 @@ nav:
   - Home: 'index.md'
   - Understanding Vultron:
     - Process Models:
-      - Introducing Vultron Process Models: 'process_models/index.md'
+      - Introduction: 'process_models/index.md'
       - Report Management:
           - RM Process Model: 'process_models/rm/index.md'
           - RM Participant Interactions: 'process_models/rm/rm_interactions.md'

@@ -21,11 +21,13 @@
     - [ ] reduce formality of language as needed
     - [ ] move diagrams to separate files and `include-markdown` them
 
-Here we describe a high-level workflow for the CVD Report Management (RM) process. 
+Here we describe a high-level workflow for the CVD Report Management (RM) process.
+<!-- start_excerpt -->
 The RM process should be reasonably familiar to anyone familiar with [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management) (ITSM) workflows such as problem, change, 
 incident or service request management.
 In particular, any workflow in which work items (e.g., incident reports, problem tickets, change requests) are received, validated, prioritized, and work is subsequently
 completed, should map onto the RM process outlined here.
+<!-- end_excerpt -->
 
 In the interest of maintaining the potential for interoperability among different organizations' internal processes, our protocol does not
 specify intra-organizational subprocesses within each state, although we give examples of such subprocesses in 
