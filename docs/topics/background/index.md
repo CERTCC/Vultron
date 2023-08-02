@@ -114,123 +114,18 @@ technical formalities of communicating code but also extend to the
 expected behaviors of the human Participants that rely on it. In this
 second sense, we address the term *protocol* in these ways:
 
--   The *CVD Guide*
+-   The [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD)
     offers a *narrative* protocol for practitioners to follow based on
     decades of accumulated experience and observation of the
-    CVD process at
-    the [CERT/CC]{acronym-label="CERT/CC"
-    acronym-form="singular+short"} [@householder2017cert; @cert2019cvd].
+    CVD process at the CERT/CC.
 
--   The CS model
-    from the Householder and Spring 2021 report [@householder2021state]
-    offers a *prescriptive* protocol outlining the high-level goals of
-    the CVD
-    process, as derived from a first-principles approach to possible
-    CVD case
-    histories.
+-   The [Case State model](/topics/process_models/cs) from {== the Householder and Spring 2021 report [@householder2021state] ==}
+    offers a *prescriptive* protocol outlining the high-level goals of the CVD process, as derived from a first-principles approach to possible
+    CVD case histories.
 
--   This report describes a *normative* protocol designed to structure
-    and guide practitioners toward those goals.
+-   This documentation and {== the report it is based on ==} describes a *normative* protocol designed to structure and guide practitioners toward those goals.
 
-To that end, we offer this report as a proposal for such an
-MPCVD protocol.
-
-
-## Goals
-
-The overall goal of our MPCVD protocol effort is to achieve
-*interoperability* among CVD process implementations according to the
-broad definition of that term found in the SEI report, *Current
-Perspectives on Interoperability* [@brownsword2004interoperability]:
-
-!!! note inline "Interoperability"
-
-    The ability of a collection of communicating entities to (a) share
-    specified information and (b) operate on that information according
-    to an agreed operational semantics
-
-This definition encompasses both (a) *syntactic* and (b) *semantic*
-interoperability. The goal of this report is to lay the foundation for
-the *semantic* interoperability of CVD processes across Participants.
-*Syntactic* interoperability, in the form of message formats and the
-like, will be left as future work
-(§[\[ch:future_work\]](#ch:future_work){reference-type="ref"
-reference="ch:future_work"}).
-
-Addressing *semantic interoperability* first is a deliberate choice. If
-we were to go in the reverse order, we might wind up with systems that
-exchange data quickly and accurately yet still fail to accomplish the
-mutually beneficial outcomes that MPCVD sets out to achieve. Carney et al.
-illustrate the importance of semantic interoperability in their report
-*Some Current Approaches to
-Interoperability* [@carney2005interoperability]:
-
-!!! quote "Carney et al. on semantic interoperability in *Some Current Approaches to Interoperability*"
-
-    There is a limited number of ways that agreements on meaning can be
-    achieved. In the context of design-time interoperability, semantic
-    agreements are reached in the same manner as interface agreements
-    between the constituent systems... However, in the context of run-time
-    interoperability, the situation is more complex, since there is need
-    for some manner of universal agreement, so that a new system can join,
-    ad-hoc, some other group of systems. The new system must be able to
-    usefully share data and meaning with those other systems, and those
-    other systems must be able to share data and meaning from an
-    unfamiliar newcomer.
-
-In this excerpt, replace the word "system" with the concept of a
-"CVD Case
-Participant," and the need for semantic interoperability as a means of
-achieving coordination in MPCVD becomes clear:
-
-!!! quote "Paraphrasing Carney et al. in the context of CVD"
-
-    \[...\] However, in the context of run-time interoperability, the
-    situation is more complex, since there is need for some manner of
-    universal agreement, so that a new CVD Participant can join, ad-hoc, some
-    other group of CVD Participants \[in a CVD Case\]. The new CVD Case
-    Participant must be able to usefully share data and meaning with those
-    other CVD Case Participants, and those other Participants must be able to share data
-    and meaning from an unfamiliar newcomer.
-
-Elsewhere in the same report, Carney et al.
-write [@carney2005interoperability],
-
-!!! quote "Carney et al. on the necessity of trust in interoperability"
-
-    In the hoped-for context of unbounded systems of systems, trust in the
-    actions and capabilities provided by interoperating parties is
-    essential. Each party to an interaction must have, develop, or
-    perceive a sense of whether the actions of interoperating parties can
-    be trusted. This sense of trust is not Boolean (e.g., parties can be
-    trusted to varying degrees), is context dependent (Party A can be
-    trusted in a particular context but not in another), and is time
-    sensitive (Party A can be trusted for a certain period). Further, the
-    absence of trust-----distrust-----is less dangerous than misplaced
-    trust: it is better to know that you cannot trust a particular party
-    than to misplace trust in a party
-
-The protocol we propose is intended to promote trust between MPCVD Participants both within an individual case as well 
-as over time and across cases.
-
-## Objectives
-
-The objectives of this report are as follows:
-
-1.  Provide a set of common primitives to serve as an ontological
-    foundation for CVD process definitions across
-    organizations.
-
-2.  Construct abstract workflows that support the inter-organizational
-    coordination and synchronization required for the
-    CVD process to
-    be successful.
-
-3.  From those primitives and workflows, identify a set of message types
-    needed for the CVD process to function.
-
-4.  Provide high-level requirements for the semantic content of those
-    message types.
+To that end, we offer this documentation as a proposal for such an MPCVD protocol.
 
 
 ## Documentation Preview
