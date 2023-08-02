@@ -66,7 +66,7 @@ CS model's
 transition function. Embargo termination is the set of transitions
 described [above](#terminate-embargo).
 
-### Waiting for All Vendors to Reach Fix Ready May Be Impractical.
+### Waiting for All Vendors to Reach _Fix Ready_ May Be Impractical.
 
 It is not necessary for all Vendor Participants to reach
 $q^{cs} \in VF\cdot\cdot\cdot\cdot$ before publication or embargo termination.

@@ -5,8 +5,8 @@ title: Embargo Management State Diagram
 ---
 stateDiagram-v2
     direction LR
+    [*] --> None
     state Pre-Embargo {
-        [*] --> None
         None --> Proposed : propose
         Proposed --> Proposed : propose
         Proposed --> None : reject
@@ -21,7 +21,8 @@ stateDiagram-v2
         Active --> eXited : terminate
     }
     state Post-Embargo {
-        eXited --> [*]
+        eXited
     }
+    eXited --> [*]
 ```
 <!-- em-state-machine-end -->
