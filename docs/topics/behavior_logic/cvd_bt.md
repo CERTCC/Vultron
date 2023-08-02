@@ -5,7 +5,10 @@ The root node is a simple loop that continues until an interrupt condition is me
 that the CVD practice is meant to be continuous. In other words, we are intentionally not specifying the interrupt condition.
 
 ```mermaid
-flowchart TD
+---
+title: CVD Behavior Tree
+---
+flowchart LR
     root["#8634;"]
     seq["&rarr;"]
     root --> seq

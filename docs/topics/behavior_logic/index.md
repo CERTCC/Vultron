@@ -107,7 +107,7 @@ does not run.
 
 Behavior Trees can sometimes be wider than they are tall, so we sometimes
 display them in a horizontal orientation to save space. The
-semantics remain the same, but each nodes' children should be read top-to-bottom
+semantics remain the same, but each node's children should be read top-to-bottom
 rather than left-to-right. The same tree as above is shown below in
 horizontal form.
 
