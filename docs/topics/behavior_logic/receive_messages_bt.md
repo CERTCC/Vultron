@@ -191,8 +191,8 @@ affect the receiving Participant's status. This is not to say that the
 Participant might not choose to take some action based on their
 knowledge of a Vendor's (or Deployer's) status. Rather, such follow-up
 would be expected to occur as part of the Participant's *do work*
-process outlined in §[1.5](#sec:do_work){reference-type="ref"
-reference="sec:do_work"}.
+process outlined in{== §[1.5](#sec:do_work){reference-type="ref"
+reference="sec:do_work"} ==}.
 
 Following the tree to the right, we encounter the familiar motif of an
 error ($CE$) triggering a general inquiry ($GI$) to seek resolution.
@@ -214,8 +214,8 @@ reference="fig:bt_receive_messages"}. And here, for the final time, we
 see a message type check and that general acknowledgment messages ($GK$)
 receive no further attention and return *Success*. General inquiries
 ($GI$) get at least an acknowledgment, with any follow-up to be handled
-by *do work* as described in §[1.5](#sec:do_work){reference-type="ref"
-reference="sec:do_work"}. As usual, errors ($GE$) also trigger follow-up
+by *do work* as described in{== §[1.5](#sec:do_work){reference-type="ref"
+reference="sec:do_work"} ==}. As usual, errors ($GE$) also trigger follow-up
 inquiries ($GI$) in the interest of resolution.
 
 ##### Chapter Wrap-Up.

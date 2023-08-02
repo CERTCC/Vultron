@@ -44,7 +44,7 @@ receive additional work.
 Similarly, *Accepted* reports ($q^{rm} \in A$) can also be *Closed* or
 have their priority reevaluated. However, they are also expected to
 receive more effort---the *do work* task node, which we explore further
-in §[1.5](#sec:do_work){reference-type="ref" reference="sec:do_work"}.
+in{== §[1.5](#sec:do_work){reference-type="ref" reference="sec:do_work"} ==}.
 
 We are taking advantage of the composability of Behavior Trees to
 simplify the presentation. Behaviors that appear in multiple places can

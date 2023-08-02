@@ -7,8 +7,8 @@ defined in Chapter
 reference="sec:formal_protocol"}, the *do work* node of the
 RM Behavior Tree in
 Figure [\[fig:bt_rm\]](#fig:bt_rm){reference-type="ref"
-reference="fig:bt_rm"} and §[1.3](#sec:rm_bt){reference-type="ref"
-reference="sec:rm_bt"} is where much of the CVD effort happens. As a result, it is worth
+reference="fig:bt_rm"} and{== §[1.3](#sec:rm_bt){reference-type="ref"
+reference="sec:rm_bt"} ==} is where much of the CVD effort happens. As a result, it is worth
 spending some time reviewing what some of the underlying work actually
 entails.
 
@@ -180,8 +180,8 @@ embargo check. This behavior is a simple check to ensure that no embargo
 remains active prior to publication. Note that the embargo management
 process may result in early termination of an existing embargo if the
 Participant has sufficient cause to do so. (See the detailed description
-of the EM behavior in §[1.4](#sec:em_bt){reference-type="ref"
-reference="sec:em_bt"}.)
+of the EM behavior in{== §[1.4](#sec:em_bt){reference-type="ref"
+reference="sec:em_bt"} ==}.)
 
 Once these subprocesses complete, the publish task fires, the case state
 is updated to $q^{cs} \in P$, and a $CP$ message emits.

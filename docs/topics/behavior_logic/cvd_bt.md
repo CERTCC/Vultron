@@ -1,68 +1,49 @@
-## CVD Behavior Tree {#sec:cvd_bt}
+# CVD Behavior Tree
 
-We begin at the root node of the CVD Behavior Tree shown in Figure
-[\[fig:bt_cvd_process\]](#fig:bt_cvd_process){reference-type="ref"
-reference="fig:bt_cvd_process"}. The root node is a simple loop that
-continues until an interrupt condition is met, representing the idea
-that the CVD
-practice is meant to be continuous. In other words, we are intentionally
-not specifying the interrupt condition.
+We begin at the root node of the CVD Behavior Tree shown in the figure below.
+The root node is a simple loop that continues until an interrupt condition is met, representing the idea
+that the CVD practice is meant to be continuous. In other words, we are intentionally not specifying the interrupt condition.
+
+```mermaid
+flowchart TD
+    root["#8634;"]
+    seq["&rarr;"]
+    root --> seq
+    seq --> discover_vulnerability
+    seq --> receive_messages
+    seq --> report_management
+    seq --> embargo_management
+```
 
 The main sequence is comprised of four main tasks:
 
--   *Discover vulnerability.* Although not all Participants have the
+-   [*Discover vulnerability.*](/topics/behavior_logic/vuldisco_bt) Although not all Participants have the
     ability or motive to discover vulnerabilities, we include it as a
     task here to call out its importance to the overall
-    CVD process. We
-    show in §[1.2](#sec:receive_reports_bt){reference-type="ref"
-    reference="sec:receive_reports_bt"} that this task returns *Success*
-    regardless of whether a vulnerability is found to allow execution to
+    CVD process. This task returns *Success* regardless of whether a vulnerability is found to allow execution to
     pass to the next task.
 
--   *Receive messages*. All coordination in CVD between Participants is done through
+-   [*Receive messages*](/topics/behavior_logic/receive_messages_bt). All coordination in CVD between Participants is done through
     the exchange of messages, regardless of how those messages are
     conveyed, stored, or presented. The receive messages task represents
     the Participant's response to receiving the various messages defined
-    in Chapter
-    [\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref"
-    reference="sec:formal_protocol"}. Due to the degree of detail
+    in the [formal protocol](/reference/formal_protocol). Due to the degree of detail
     required to cover all the various message types, decomposition of
-    this task node is deferred until
-    §[1.6](#sec:receive messages){reference-type="ref"
-    reference="sec:receive messages"} so we can cover the next two items
+    this task node is deferred until [later](/topics/behavior_logic/receive_messages_bt) so we can cover the next two items
     first.
 
--   *Report management.* This task embodies the RM process described in Chapter
-    [\[sec:report_management\]](#sec:report_management){reference-type="ref"
-    reference="sec:report_management"} as integrated into the
-    MPCVD
-    protocol of Chapter
-    [\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref"
-    reference="sec:formal_protocol"}. The RM Behavior Tree is described in
-    §[1.3](#sec:rm_bt){reference-type="ref" reference="sec:rm_bt"}.
+-   [*Report Management*](/topics/behavior_logic/rm_bt). This task embodies the [RM process](/topics/process_models/rm)
+    as integrated into the [formal protocol](/reference/formal_protocol).
 
--   *Embargo management.* Similarly, this task represents the
-    EM process from
-    Chapter [\[ch:embargo\]](#ch:embargo){reference-type="ref"
-    reference="ch:embargo"} as integrated into the
-    MPCVD
-    protocol of Chapter
-    [\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref"
-    reference="sec:formal_protocol"}. The EM Behavior Tree is decomposed in
-    §[1.4](#sec:em_bt){reference-type="ref" reference="sec:em_bt"}
+-   [*Embargo Management*](/topics/behavior_logic/em_bt). Similarly, this task represents the
+    [EM process](/topics/process_models/em) as integrated into the [formal protocol](/reference/formal_protocol).
 
 A further breakdown of a number of CVD tasks that fall outside the scope of the
-formal MPCVD
-protocol of Chapter
-[\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref"
-reference="sec:formal_protocol"} can be found in
-§[1.5](#sec:do_work){reference-type="ref" reference="sec:do_work"}. In
-that section, we examine a number of behaviors that Participants may
-include as part of the work they do for reports in the $Accepted$
-RM state
-($q^{rm}\in A$).
+[formal protocol](/reference/formal_protocol) can be found in
+[Do Work](/topics/behavior_logic/do_work_bt).
+In that section, we examine a number of behaviors that Participants may include as part of the work they do for reports 
+in the $Accepted$ RM state ($q^{rm}\in A$).
 
-Behaviors and state changes resulting from changes to the
-CS model are
-scattered throughout the other Behavior Trees where relevant.
+Behaviors and state changes resulting from changes to the [CS model](/topics/process_models/cs) are scattered throughout the other Behavior Trees
+where relevant.
 
