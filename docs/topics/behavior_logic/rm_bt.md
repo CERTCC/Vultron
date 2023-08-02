@@ -1,4 +1,4 @@
-## Report Management Behavior Tree {#sec:rm_bt}
+# Report Management Behavior Tree {#sec:rm_bt}
 
 A Behavior Tree for the Report Management model is shown in Figure
 [\[fig:bt_rm\]](#fig:bt_rm){reference-type="ref" reference="fig:bt_rm"}.
@@ -6,6 +6,61 @@ The Report Management process is represented by a Fallback node. Note
 that we assume that completing the process will require multiple *ticks*
 of the Behavior Tree since each tick can complete, at most, only one
 branch.
+
+```mermaid
+---
+title: Report Management Behavior Tree
+---
+flowchart LR
+    fb["?"]
+    check_closed(["RM in C?"])
+    fb --> check_closed
+    r_seq["&rarr;"]
+    fb --> r_seq
+    check_received(["RM in R?"])
+    r_seq --> check_received
+    r_seq --> validate
+    i_seq["&rarr;"]
+    fb --> i_seq
+    check_invalid(["RM in I?"])
+    i_seq --> check_invalid
+    i_fb["?"]
+    i_seq --> i_fb
+    i_close["close"]
+    i_fb --> i_close
+    i_validate["validate"]
+    i_fb --> i_validate
+    v_seq["&rarr;"]
+    fb --> v_seq
+    check_valid(["RM in V?"])
+    v_seq --> check_valid
+    v_prioritize[prioritize]
+    v_seq --> v_prioritize
+    d_seq["&rarr;"]
+    fb --> d_seq
+    check_deferred(["RM in D?"])
+    d_seq --> check_deferred
+    d_fb["?"]
+    d_seq --> d_fb
+    d_close["close"]
+    d_fb --> d_close
+    d_prioritize["prioritize"]
+    d_fb --> d_prioritize
+    a_seq["&rarr;"]
+    fb --> a_seq
+    check_accepted(["RM in A?"])
+    a_seq --> check_accepted
+    a_fb["?"]
+    a_seq --> a_fb
+    a_close["close"]
+    a_fb --> a_close
+    a_fb_seq["&rarr;"]
+    a_fb --> a_fb_seq
+    a_prioritize["prioritize"]
+    a_fb_seq --> a_prioritize
+    a__do_work["do work"]
+    a_fb_seq --> a__do_work
+```
 
 The first check is to see whether the case is already $Closed$
 ($q^{rm} \in C$). If that check succeeds, the branch returns *Success*,
