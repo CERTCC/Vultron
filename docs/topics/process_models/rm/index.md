@@ -13,7 +13,7 @@ specify intra-organizational subprocesses within each state, although we give ex
 {== §[\[sec:do_work\]](#sec:do_work){reference-type="ref"
 reference="sec:do_work"} ==}.
 For further reference, [ISO/IEC 30111:2019(E)](https://www.iso.org/standard/69725.html) provides recommendations for Vendors' *internal* processes
-that can be mapped into the RM process. We provide such a mapping in our [ISO Crosswalk](../iso_crosswalk.md).
+that can be mapped into the RM process. We provide such a mapping in our [ISO Crosswalk](../../../reference/iso_crosswalk.md).
 
 ## RM State Machine
 
@@ -234,7 +234,7 @@ The SSVC model is illustrative here, although any prioritization scheme could be
 substituted as long as it emits a result that can be mapped onto the
 semantics of "continue work" or "defer further
 action".
-[SSVC Crosswalk](../ssvc_crosswalk.md) takes a closer look at how
+[SSVC Crosswalk](../../../reference/ssvc_crosswalk.md) takes a closer look at how
 SSVC fits into the protocol we are defining.
 
 #### The _Accepted_ (_A_) State
@@ -478,7 +478,7 @@ further effort, if any, is necessary.
 !!! note ""
     Participants MUST prioritize _Valid_ cases.
 
-Our [SSVC Crosswalk](../ssvc_crosswalk.md) contains an example of how the
+Our [SSVC Crosswalk](../../../reference/ssvc_crosswalk.md) contains an example of how the
 SSVC model can be applied here, although any prioritization scheme could be substituted.
 Prioritization ends with the report in either the _Accepted_ or _Deferred_ state.
 

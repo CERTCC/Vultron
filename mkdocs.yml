@@ -2,38 +2,37 @@ site_name: Vultron CVD Protocol
 copyright: Copyright &copy; 2023 Carnegie Mellon University.
 nav:
   - Home: 'index.md'
+  - Learning Vultron: 'tutorials/index.md'
+  - Using Vultron: 'howto/index.md'
   - Understanding Vultron:
     - Process Models:
-      - Introduction: 'process_models/index.md'
+      - Introduction: 'topics/process_models/index.md'
       - Report Management:
-          - RM Process Model: 'process_models/rm/index.md'
-          - RM Participant Interactions: 'process_models/rm/rm_interactions.md'
+          - RM Process Model: 'topics/process_models/rm/index.md'
+          - RM Participant Interactions: 'topics/process_models/rm/rm_interactions.md'
       - Embargo Management:
-          - EM Process Model: 'process_models/em/index.md'
-          - Embargo Principles: 'process_models/em/principles.md'
-          - Default Embargoes: 'process_models/em/defaults.md'
-          - Negotiating Embargoes: 'process_models/em/negotiating.md'
-          - Adding Participants: 'process_models/em/working_with_others.md'
-          - Early Termination and Other Topics: 'process_models/em/early_termination.md'
+          - EM Process Model: 'topics/process_models/em/index.md'
+          - Embargo Principles: 'topics/process_models/em/principles.md'
+          - Default Embargoes: 'topics/process_models/em/defaults.md'
+          - Negotiating Embargoes: 'topics/process_models/em/negotiating.md'
+          - Adding Participants: 'topics/process_models/em/working_with_others.md'
+          - Early Termination and Other Topics: 'topics/process_models/em/early_termination.md'
       - Case State:
-          - Introduction: 'process_models/cs/index.md'
-          - CVD Case State Model: 'process_models/cs/cs_model.md'
+          - Introduction: 'topics/process_models/cs/index.md'
+          - CVD Case State Model: 'topics/process_models/cs/cs_model.md'
       - Model Interactions:
-          - Global vs Local Aspects: 'process_models/model_interactions/index.md'
-          - RM and EM Interactions: 'process_models/model_interactions/rm_em.md'
-          - RM, EM, CS Interactions: 'process_models/model_interactions/rm_em_cs.md'
-    - Behavior Logic: 'behavior_logic/index.md'
-  - Learning Vultron: 'learning/index.md'
-  - Using Vultron:
-    - Implementation Notes: 'implementation_notes.md'
-  - Vultron Reference:
+          - Global vs Local Aspects: 'topics/process_models/model_interactions/index.md'
+          - RM and EM Interactions: 'topics/process_models/model_interactions/rm_em.md'
+          - RM, EM, CS Interactions: 'topics/process_models/model_interactions/rm_em_cs.md'
+    - Behavior Logic: 'topics/behavior_logic/index.md'
+    - User Stories: 'topics/user_stories/index.md'
+    - Future Work: 'topics/future_work.md'
+  - Reference:
     - Formal Protocol:
-      - Introduction: 'formal_protocol/index.md'
-      - Worked Example: 'formal_protocol/worked_example.md'
-    - User Stories: 'user_stories/index.md'
-    - ISO Crosswalk: 'process_models/iso_crosswalk.md'
-    - SSVC Crosswalk: 'process_models/ssvc_crosswalk.md'
-  - Future Work: 'future_work.md'
+      - Introduction: 'reference/formal_protocol/index.md'
+      - Worked Example: 'reference/formal_protocol/worked_example.md'
+    - ISO Crosswalk: 'reference/iso_crosswalk.md'
+    - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
   - About:
     - Readme: 'about/readme.md'
     - Contributing: 'about/contributing.md'

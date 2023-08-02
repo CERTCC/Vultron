@@ -7,7 +7,7 @@ $(\mathcal{Q},\Sigma,\delta,q_0,F)$, this time for the CS model.
 
 {% import-markdown "cs_substates_table.md" %}
 
-In the CS model, a state $q^{cs}$ represents the status of each of the six [substates](./index.md).
+In the CS model, a state $q^{cs}$ represents the status of each of the six [substates](index.md).
 State labels use the substate notation at left.
 For example, the state _VFdpXa_ represents Vendor is aware, fix is ready, fix not deployed, no public awareness, exploit
 is public, and no attacks.
@@ -155,7 +155,7 @@ observes a change in status (a Vendor is notified and exploit code has
 been published, etc.). For the sake of simplicity, we begin with the
 assumption that observations are globally known---that is, a status
 change observed by any CVD Participant is known to all. In the real
-world, we believe the [Formal Vultron MPCVD Protocol](../../formal_protocol)
+world, we believe the [Formal Vultron MPCVD Protocol](../../../reference/formal_protocol)
 is poised to ensure eventual
 consistency with this assumption through the communication of perceived
 case state across coordinating parties.
@@ -185,7 +185,7 @@ report [@householder2021state], which we summarize here:
 
 -   The *Vendor fix path*
     ($vfd &centerdot;&centerdot;&centerdot; \xrightarrow{\mathbf{V}} Vfd &centerdot;&centerdot;&centerdot; \xrightarrow{\mathbf{F}} VFd &centerdot;&centerdot;&centerdot; \xrightarrow{\mathbf{D}} VFD &centerdot;&centerdot;&centerdot;)
-    is a causal requirement as outlined in [substates](./cs_model.md).
+    is a causal requirement as outlined in [substates](cs_model.md).
 
 ```mermaid
 stateDiagram-v2
