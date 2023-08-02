@@ -132,7 +132,7 @@ Further optimization of the [MPCVD]{acronym-label="MPCVD"
 acronym-form="singular+short"} protocol can be studied with the
 development of reward functions to evaluate preferences for certain
 [CVD]{acronym-label="CVD" acronym-form="singular+short"} case histories
-over others. Householder and Spring [@householder2021state] provide a
+over others. Householder and Spring{== [@householder2021state] ==} provide a
 method to measure skill (${\alpha}_d$) in [CVD]{acronym-label="CVD"
 acronym-form="singular+short"} based on a partial order over the
 [CVD]{acronym-label="CVD" acronym-form="singular+short"} success

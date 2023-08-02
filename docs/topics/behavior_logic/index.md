@@ -7,7 +7,7 @@ properties when it comes to automating the kinds of complex behaviors
 our protocol demands.
 
 Behavior Trees are a way of designing and programming hierarchical
-behaviors [@colledanchise2017behavior]. They originated in the computer
+behaviors{== [@colledanchise2017behavior] ==}. They originated in the computer
 gaming industry to develop realistic AIs to control NPCs [@mateas2002behavior; @isla2005halo] in
 games. More recently, Behavior Trees have been used in robotics to
 create adaptive behaviors using autonomous AI
@@ -48,7 +48,7 @@ into the tree. When *ticked*, each node does its job and returns one of
 three statuses: *Success*, *Failure*, or *Running*. A full introduction
 to Behavior Trees can be found in Colledanchise and Ögren's book
 *Behavior Trees in Robotics and AI: An
-Introduction* [@colledanchise2017behavior].
+Introduction*{== [@colledanchise2017behavior] ==}.
 
 Node types include
 

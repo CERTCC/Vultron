@@ -236,7 +236,7 @@ The remainder of Figure
 reference="fig:mpcvd_uml_class_diagram"} consists of classes
 representing the Role and Message Type flags and various enumerations.
 The Roles are the same set we have used throughout this report, as taken
-from the *CVD Guide* [@householder2017cert]. Message Type flags are
+from the *CVD Guide*{== [@householder2017cert] ==}. Message Type flags are
 consistent with
 §[\[sec:protocol_message_types\]](#sec:protocol_message_types){reference-type="ref"
 reference="sec:protocol_message_types"}. The enumeration classes are
@@ -291,7 +291,7 @@ acronym-form="singular+short"} messages:
 
 [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} case
 Participants often share pre-publication drafts of their advisories
-during the embargo period [@ISO29147]. Our protocol proposal is mute on
+during the embargo period{== [@ISO29147] ==}. Our protocol proposal is mute on
 this subject because it is not strictly necessary for the
 [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} process to
 complete successfully. However, as we observe in Appendix
@@ -417,7 +417,7 @@ We anticipate that emerging formats like the OASIS
 [CSAF]{acronym-label="CSAF"
 acronym-form="singular+short"} [@csaf-docs; @csaf-oasis] and ontologies
 like the [NIST]{acronym-label="NIST" acronym-form="singular+short"}
-Vulnerability Data Ontology (Vulntology) [@vulntology] will play a part.
+Vulnerability Data Ontology (Vulntology){== [@vulntology] ==} will play a part.
 
 ### Transport Protocol {#sec:transport_protocol}
 
