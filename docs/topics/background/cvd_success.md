@@ -22,18 +22,18 @@ Items closer to the top of the list are indicators of CVD skill.
 
     | Ordering Preference | Notation |
     | :--- | :--- |
-    | Fix Deployed Before Public Awareness | $\mathbf{D} \prec \mathbf{P}$ |
-    | Fix Ready Before Public Awareness | $\mathbf{F} \prec \mathbf{P}$ |
-    | Fix Deployed Before Exploit Public | $\mathbf{D} \prec \mathbf{X}$ |
-    | Fix Deployed Before Attacks Observed | $\mathbf{D} \prec \mathbf{A}$ |
-    | Fix Ready Before Exploit Public | $\mathbf{F} \prec \mathbf{X}$ |
-    | Vendor Awareness Before Public Awareness | $\mathbf{V} \prec \mathbf{P}$ |
-    | Fix Ready Before Attacks Observed | $\mathbf{F} \prec \mathbf{A}$ |
-    | Public Awareness Before Exploit Public | $\mathbf{P} \prec \mathbf{X}$ |
-    | Exploit Public Before Attacks Observed | $\mathbf{X} \prec \mathbf{A}$ |
-    | Public Awareness Before Attacks Observed | $\mathbf{P} \prec \mathbf{A}$ |
-    | Vendor Awareness Before Exploit Public | $\mathbf{V} \prec \mathbf{X}$ |
-    | Vendor Awareness Before Attacks Observed | $\mathbf{V} \prec \mathbf{A}$ |
+    | Fix Deployed Before Public Awareness | **D** $\prec$ **P** |
+    | Fix Ready Before Public Awareness | **F** $\prec$ **P** |
+    | Fix Deployed Before Exploit Public | **D** $\prec$ **X** |
+    | Fix Deployed Before Attacks Observed | **D** $\prec$ **A** |
+    | Fix Ready Before Exploit Public | **F** $\prec$ **X** |
+    | Vendor Awareness Before Public Awareness | **V** $\prec$ **P** |
+    | Fix Ready Before Attacks Observed | **F** $\prec$ **A** |
+    | Public Awareness Before Exploit Public | **P** $\prec$ **X** |
+    | Exploit Public Before Attacks Observed | **X** $\prec$ **A** |
+    | Public Awareness Before Attacks Observed | **P** $\prec$ **A** |
+    | Vendor Awareness Before Exploit Public | **V** $\prec$ **X** |
+    | Vendor Awareness Before Attacks Observed | **V** $\prec$ **A** |
 
 ## Fix Deployed Before Public Awareness
 
@@ -45,7 +45,7 @@ exploits being published or attacks becoming known to the public.
 Furthermore, it requires that the Vendor has the capability to
 deploy fixes without intervention by the system owner or user, which
 is a rare engineering feat unattainable by many software supply
-chains. More often, fix deployment ($\mathbf{D}$) requires users
+chains. More often, fix deployment (**D**) requires users
 and/or system owners (Deployers) to take action. The need to inform
 Deployers implies a need for public awareness of the vulnerability,
 making this criteria impossible to achieve in those scenarios.
@@ -102,8 +102,8 @@ not. It is about whether we should prefer histories in which
 exploits are published *before* attacks happen over histories in
 which exploits are published *after* attacks happen. Because
 attackers have more advantages in the latter case than the former,
-histories in which $\mathbf{X} \prec \mathbf{A}$ are preferable to
-those in which $\mathbf{A} \prec \mathbf{X}$.
+histories in which **X** $\prec$ **A** are preferable to
+those in which **A** $\prec$ **X**.
 
 ## Public Awareness Before Attacks Observed
 
@@ -128,5 +128,4 @@ adversaries are far ahead of defenders.
 ---
 
 Taken together, these twelve ordering preferences constitute the minimum
-set of outcomes we hope to emerge from the protocol proposed in this
-report.
+set of outcomes we hope to emerge from the protocol that is the focus of this effort.
