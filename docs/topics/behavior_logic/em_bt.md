@@ -28,8 +28,7 @@ terminates, consistent with
 §[\[sec:entering_an_embargo\]](#sec:entering_an_embargo){reference-type="ref"
 reference="sec:entering_an_embargo"}.
 
-Otherwise, we continue through each remaining [EM]{acronym-label="EM"
-acronym-form="singular+short"} state. When there is no embargo and there
+Otherwise, we continue through each remaining EM state. When there is no embargo and there
 are no outstanding proposals ($q^{em} \in N$), the only options are to
 either stop trying or propose a new embargo. The decision to stop trying
 to achieve an embargo is left to individual Participants, although we
@@ -46,8 +45,7 @@ reference="sec:terminate_embargo_behavior"} that this task returns
 Otherwise we proceed to the bottom ($\clubsuit$) tier of Figure
 [\[fig:bt_em_2\]](#fig:bt_em_2){reference-type="ref"
 reference="fig:bt_em_2"} to evaluate and possibly accept the proposal.
-Acceptance leads to an [EM]{acronym-label="EM"
-acronym-form="singular+short"} state transition to $q^{em} \in A$ and
+Acceptance leads to an EM state transition to $q^{em} \in A$ and
 emission of an $EA$ message.
 
 On the other hand, the proposed terms may not be acceptable. In this
@@ -68,15 +66,13 @@ reference="fig:bt_em_2"}. The process within the *Active*
 to terminate the embargo, do so. Otherwise, either the current embargo
 terms are acceptable, or a new embargo should be proposed.
 
-Finally, we handle the *Revise* [EM]{acronym-label="EM"
-acronym-form="singular+short"} state ($q^{em} \in R$). The structure of
+Finally, we handle the *Revise* EM state ($q^{em} \in R$). The structure of
 this branch mirrors that of the *Proposed* state discussed above. Again,
 we check to see if there is cause to terminate doing so, if needed. If
 termination is not indicated, we proceed once again to the bottom
 ($\clubsuit$) tier to evaluate the proposed revision, either accepting
 or countering the proposal. When neither of these succeed, the revision
-is rejected and the [EM]{acronym-label="EM"
-acronym-form="singular+short"} state returns to $q^{em} \in A$ with the
+is rejected and the EM state returns to $q^{em} \in A$ with the
 original embargo terms intact. An $EJ$ message conveys this information
 to the other Participants.
 
@@ -111,7 +107,7 @@ The Terminate Embargo Behavior Tree is shown in Figure
 reference="fig:bt_terminate"}. It consists of two major behaviors
 depending on whether an embargo has been established or not.
 
-If the [EM]{acronym-label="EM" acronym-form="singular+short"} state is
+If the EM state is
 *None* or *eXited*, ($q^{em} \in \{N{,}X\}$), the tree succeeds
 immediately. The next node handles the scenario where no embargo has
 been established. The behavior descends into a sequence that checks
@@ -128,8 +124,7 @@ are in either *Active* or *Revise*, we again look for reasons to exit,
 this time adding the possibility of timer expiration to the conditions
 explicitly called out. Terminating an existing embargo might have some
 other teardown procedures to be completed, which we represent as the
-*exit embargo* task. Finally, the [EM]{acronym-label="EM"
-acronym-form="singular+short"} state is updated to *eXited* and an $ET$
+*exit embargo* task. Finally, the EM state is updated to *eXited* and an $ET$
 message is emitted.
 
 The Terminate Embargo Behavior Tree appears in multiple locations in the
@@ -137,8 +132,8 @@ larger tree. We will encounter it again as a possible response to
 evidence collected via threat monitoring
 (§[1.5.5](#sec:monitor_threats_bt){reference-type="ref"
 reference="sec:monitor_threats_bt"}) as well as in response to certain
-[CS]{acronym-label="CS" acronym-form="singular+short"} or
-[EM]{acronym-label="EM" acronym-form="singular+short"} messages in
+CS or
+EM messages in
 states when an embargo is no longer viable
 (§[\[fig:bt_process_cs_messages\]](#fig:bt_process_cs_messages){reference-type="ref"
 reference="fig:bt_process_cs_messages"} and

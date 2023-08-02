@@ -1,8 +1,8 @@
 ## Vulnerability Discovery Behavior {#sec:receive_reports_bt}
 
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} is built on the
+CVD is built on the
 idea that vulnerabilities exist to be found. There are two ways for a
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} Participant to
+CVD Participant to
 find out about a vulnerability. Either they discover it themselves, or
 they hear about it from someone else. The discovery behavior is modeled
 by the Discover Vulnerability Behavior Tree shown in Figure
@@ -20,7 +20,7 @@ themselves. Should this succeed, the branch sets
 $q^{rm} \in S \xrightarrow{r} R$ and returns *Success*. We also show a
 report submission ($RS$) message being emitted as a reminder that even
 internally discovered vulnerabilities can trigger the
-[CVD]{acronym-label="CVD" acronym-form="singular+short"}
+CVD
 process---although, at the point of discovery, the Finder is the only
 Participant, so the $RS$ message in this situation might be an internal
 message within the Finder organization (at most).

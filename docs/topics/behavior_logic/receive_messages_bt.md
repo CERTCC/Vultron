@@ -1,7 +1,6 @@
 ## Receiving and Processing Messages Behavior {#sec:receive messages}
 
-Now we return to the [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} Behavior Tree in Figure
+Now we return to the CVD Behavior Tree in Figure
 [\[fig:bt_cvd_process\]](#fig:bt_cvd_process){reference-type="ref"
 reference="fig:bt_cvd_process"} to pick up the last unexplored branch,
 Receive Messages. The Receive Messages Behavior Tree is shown in Figure
@@ -13,8 +12,7 @@ checks for unprocessed messages and handles them.
 First, we encounter a case closure check. We assume that messages to
 existing cases will have a case ID associated with all messages about
 that case and that new report submissions will not have a case ID
-assigned yet, implying they are in the [RM]{acronym-label="RM"
-acronym-form="singular+short"} *Start* state ($q^{rm} \in S$).
+assigned yet, implying they are in the RM *Start* state ($q^{rm} \in S$).
 Therefore, new reports will pass this check every time. However,
 messages received on an already *Closed* case will short-circuit here
 and take no further action.
@@ -28,42 +26,38 @@ fallback node shown here.
 
 ### Process RM Messages Behavior {#sec:process_rm_messages_bt}
 
-The Process [RM]{acronym-label="RM" acronym-form="singular+short"}
+The Process RM
 Messages Behavior Tree is shown in Figure
 [\[fig:bt_process_rm_messages\]](#fig:bt_process_rm_messages){reference-type="ref"
 reference="fig:bt_process_rm_messages"}. It is a child of the fallback
 node started in Figure
 [\[fig:bt_receive_messages\]](#fig:bt_receive_messages){reference-type="ref"
 reference="fig:bt_receive_messages"}. Beginning with a precondition
-check for any [RM]{acronym-label="RM" acronym-form="singular+short"}
+check for any RM
 message type, the tree proceeds to a fallback node.
-[RM]{acronym-label="RM" acronym-form="singular+short"} acknowledgment
+RM acknowledgment
 messages ($RK$) receive no further attention and return *Success*.
 
-Next comes the main [RM]{acronym-label="RM"
-acronym-form="singular+short"} message processing sequence. A fallback
+Next comes the main RM message processing sequence. A fallback
 node covers three major cases:
 
 -   First comes a sequence that handles new reports ($RS$ when
     $q^{rm} \in S$). This branch changes the recipient's
-    [RM]{acronym-label="RM" acronym-form="singular+short"} state
+    RM state
     regardless of the Participant's role. If the Participant happens to
     be a Vendor and the Vendor was previously unaware of the
     vulnerability described by the report, the Vendor would also note
-    the [CS]{acronym-label="CS" acronym-form="singular+short"}
+    the CS
     transition from $q^{cs} \in vfd \xrightarrow{\mathbf{V}} Vfd$ and
     emit a corresponding $CV$ message.
 
--   Next, we see that an [RM]{acronym-label="RM"
-    acronym-form="singular+short"} Error ($RE$) results in the emission
+-   Next, we see that an RM Error ($RE$) results in the emission
     of a general inquiry ($GI$) for Participants to sort out what the
     problem is, along with an $RK$ to acknowledge receipt of the error.
 
--   Finally, recall that the [RM]{acronym-label="RM"
-    acronym-form="singular+short"} process is unique to each
-    [CVD]{acronym-label="CVD" acronym-form="singular+short"}
-    Participant, so most of the remaining [RM]{acronym-label="RM"
-    acronym-form="singular+short"} messages are simply informational
+-   Finally, recall that the RM process is unique to each
+    CVD
+    Participant, so most of the remaining RM messages are simply informational
     messages about other Participants' statuses that do not directly
     affect the receiver's status. Therefore, if there is already an
     associated case ($q^{rm} \not\in S$), the recipient might update
@@ -75,16 +69,15 @@ an error.
 
 ### Process EM Messages Behavior {#sec:process_em_messages_bt}
 
-The Process [EM]{acronym-label="EM" acronym-form="singular+short"}
+The Process EM
 Messages Behavior Tree is shown in Figure
 [\[fig:bt_process_em_messages\]](#fig:bt_process_em_messages){reference-type="ref"
 reference="fig:bt_process_em_messages"}. As above, it is a child of the
 fallback node started in Figure
 [\[fig:bt_receive_messages\]](#fig:bt_receive_messages){reference-type="ref"
 reference="fig:bt_receive_messages"}. A precondition check for
-[EM]{acronym-label="EM" acronym-form="singular+short"} message types is
-followed by a fallback node. [EM]{acronym-label="EM"
-acronym-form="singular+short"} acknowledgment messages ($EK$) receive no
+EM message types is
+followed by a fallback node. EM acknowledgment messages ($EK$) receive no
 further attention and return *Success*.
 
 ##### Messages That Lead to a Simple Acknowledgment.
@@ -93,17 +86,15 @@ Next is a branch handling all the messages that will result in a simple
 acknowledgment ($EK$). First, we handle embargo error messages ($EE$),
 which additionally trigger a general inquiry ($GI$) message to attempt
 to resolve the problem. Second are embargo termination messages ($ET$).
-If the Participant is already in the [EM]{acronym-label="EM"
-acronym-form="singular+short"} *eXited* state ($X$), no further action
+If the Participant is already in the EM *eXited* state ($X$), no further action
 is taken (aside from the $EK$). Otherwise, if the Participant is in
-either *Active* or *Revise* [EM]{acronym-label="EM"
-acronym-form="singular+short"} states, the $ET$ message triggers a state
+either *Active* or *Revise* EM states, the $ET$ message triggers a state
 transition $q^{em} \xrightarrow{t} X$. Embargo rejections are handled
 next in a simple sequence that returns the state from *Proposed* to
 *None*.
 
 The final chunk of the simple acknowledge branch handles
-[EM]{acronym-label="EM" acronym-form="singular+short"} messages received
+EM messages received
 when the case state permits embargo viability
 ($q^{cs} \in \wc\wc\wc pxa$). A variety of actions can be taken in this
 case state, as shown in the lower ($\diamondsuit$) tier of Figure
@@ -124,7 +115,7 @@ message $EK$.
 Returning to the top portion of the tree in Figure
 [\[fig:bt_process_em_messages\]](#fig:bt_process_em_messages){reference-type="ref"
 reference="fig:bt_process_em_messages"}, we come to a branch focused on
-handling [EM]{acronym-label="EM" acronym-form="singular+short"} messages
+handling EM messages
 when an embargo is no longer viable---in other words, when the case has
 reached a point where attacks are occurring, or either the exploit or
 the vulnerability has been made public
@@ -142,7 +133,7 @@ succeeded, we emit an embargo error ($EE$) message to relay the failure.
 
 ### Process CS Messages Behavior {#sec:process_cs_messages_bt}
 
-The Process [CS]{acronym-label="CS" acronym-form="singular+short"}
+The Process CS
 Messages Behavior Tree is shown in Figure
 [\[fig:bt_process_cs_messages\]](#fig:bt_process_cs_messages){reference-type="ref"
 reference="fig:bt_process_cs_messages"}. We are still working through
@@ -150,7 +141,7 @@ the children of the fallback node in Figure
 [\[fig:bt_receive_messages\]](#fig:bt_receive_messages){reference-type="ref"
 reference="fig:bt_receive_messages"}. And as we've come to expect, a
 precondition check leads to a fallback node in which
-[CS]{acronym-label="CS" acronym-form="singular+short"} acknowledgement
+CS acknowledgement
 messages ($CK$) receive no further attention and return *Success*. The
 main CS message-handling sequence comes next, with all matching incoming
 messages resulting in emission of an acknowledgment message ($CK$).
@@ -158,7 +149,7 @@ messages resulting in emission of an acknowledgment message ($CK$).
 ##### Messages That Change the Participant's Case State.
 
 The tree first handles messages indicating a global
-[CS]{acronym-label="CS" acronym-form="singular+short"} change.
+CS change.
 Information that the vulnerability has been made public ($CP$) is met
 with a transition to the *Public Aware* state in the CS model when
 necessary. Similarly, information that an exploit has been made public
@@ -170,8 +161,7 @@ the other Participants. Likewise, a message indicating attacks underway
 triggers the $\mathbf{A}$ transition.
 
 Again, we note that any of the $\mathbf{P}$, $\mathbf{X}$, or
-$\mathbf{A}$ transitions in the [CS]{acronym-label="CS"
-acronym-form="singular+short"} model imply that no new embargo should be
+$\mathbf{A}$ transitions in the CS model imply that no new embargo should be
 entered, and any existing embargo should be terminated. Hence, the
 sequence described in the previous paragraph leads to the embargo
 termination described in
@@ -189,14 +179,14 @@ reference="sec:rm_cvd"} and
 [\[sec:vendor_states\]](#sec:vendor_states){reference-type="ref"
 reference="sec:vendor_states"} that the
 $vfd\wc\wc\wc \rightarrow \dots \rightarrow VFD\wc\wc\wc$ portion of the
-[CS]{acronym-label="CS" acronym-form="singular+short"} model is unique
+CS model is unique
 to each Vendor Participant, and similarly, from
 §[\[sec:deployer_states\]](#sec:deployer_states){reference-type="ref"
 reference="sec:deployer_states"}, that the
 $\wc\wc d \wc\wc\wc \rightarrow \wc\wc D \wc\wc\wc$ portion is unique to
 each Participant in the Deployer role. Therefore, messages representing
 another Participant's status change for this portion of the
-[CS]{acronym-label="CS" acronym-form="singular+short"} do not directly
+CS do not directly
 affect the receiving Participant's status. This is not to say that the
 Participant might not choose to take some action based on their
 knowledge of a Vendor's (or Deployer's) status. Rather, such follow-up
@@ -231,9 +221,8 @@ inquiries ($GI$) in the interest of resolution.
 ##### Chapter Wrap-Up.
 
 In this chapter, we described a complete Behavior Tree for a
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} Participant
-following the formal [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} protocol described in Chapter
+CVD Participant
+following the formal MPCVD protocol described in Chapter
 [\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref"
 reference="sec:formal_protocol"}. Next, we discuss a few notes regarding
 the eventual implementation of this protocol.

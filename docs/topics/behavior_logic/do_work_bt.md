@@ -1,15 +1,14 @@
 ## Do Work Behavior {#sec:do_work}
 
 Although it is not directly addressed by the formal
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} protocol
+MPCVD protocol
 defined in Chapter
 [\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref"
 reference="sec:formal_protocol"}, the *do work* node of the
-[RM]{acronym-label="RM" acronym-form="singular+short"} Behavior Tree in
+RM Behavior Tree in
 Figure [\[fig:bt_rm\]](#fig:bt_rm){reference-type="ref"
 reference="fig:bt_rm"} and §[1.3](#sec:rm_bt){reference-type="ref"
-reference="sec:rm_bt"} is where much of the [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} effort happens. As a result, it is worth
+reference="sec:rm_bt"} is where much of the CVD effort happens. As a result, it is worth
 spending some time reviewing what some of the underlying work actually
 entails.
 
@@ -42,7 +41,7 @@ Tree node, although we intentionally do not specify any *Success*
 criteria regarding what fraction of its children must succeed. Decisions
 about which (and how many) of the following tasks are necessary for a
 Participant to complete work on their $Accepted$
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} cases are left
+CVD cases are left
 to the discretion of individual Participants.
 
 ### Deployment Behavior {#sec:deployment_bt}
@@ -60,7 +59,7 @@ shown in the fallback node in the center of Figure
 [\[fig:bt_deployment\]](#fig:bt_deployment){reference-type="ref"
 reference="fig:bt_deployment"}. The subgoal is for the deployment
 priority to be established, as indicated by the Deployer's
-[RM]{acronym-label="RM" acronym-form="singular+short"} state
+RM state
 $q^{rm} \in \{D,A\}$. For example, a Deployer might use the SSVC
 Deployer Tree [@spring2021ssvc] to decide whether (and when) to deploy a
 fix or mitigation. If the deployment priority evaluation indicates
@@ -230,42 +229,36 @@ embargo behavior is triggered.
 
 There are many other good reasons to monitor and maintain awareness of
 cybersecurity threats. The behavior shown here is intended as a minimal
-set of things that [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} Participants should watch out for in the
-course of performing their [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} practice.
+set of things that CVD Participants should watch out for in the
+course of performing their CVD practice.
 
 ### CVE ID Assignment Behavior {#sec:assign_id_bt}
 
-Many [CVD]{acronym-label="CVD" acronym-form="singular+short"}
+Many CVD
 practitioners want to assign identifiers to the vulnerabilities they
-coordinate. The most common of these is a [CVE]{acronym-label="CVE"
-acronym-form="singular+short"} ID, so we provide an example CVE ID
+coordinate. The most common of these is a CVE ID, so we provide an example CVE ID
 Assignment Behavior Tree, shown in Figure
 [\[fig:bt_cve_assignment\]](#fig:bt_cve_assignment){reference-type="ref"
 reference="fig:bt_cve_assignment"}. While this tree is constructed
-around the [CVE]{acronym-label="CVE" acronym-form="singular+short"} ID
+around the CVE ID
 assignment process, it could be easily adapted to any other identifier
 process as well.
 
 The goal is to end with an ID assigned. If that has not yet happened,
 the first check is whether the vulnerability is in scope for an ID
 assignment. If it is, the Participant might be able to assign IDs
-directly, assuming they are a [CNA]{acronym-label="CNA"
-acronym-form="singular+short"} and the vulnerability meets the criteria
+directly, assuming they are a CNA and the vulnerability meets the criteria
 for assigning IDs.
 
-Otherwise, if the Participant is not a [CNA]{acronym-label="CNA"
-acronym-form="singular+short"}, they will have to request an ID from a
-[CNA]{acronym-label="CNA" acronym-form="singular+short"}.
+Otherwise, if the Participant is not a CNA, they will have to request an ID from a
+CNA.
 
 Should both assignment branches fail, the behavior fails. Otherwise, as
 long as one of them succeeds, the behavior succeeds.
 
 ### Acquire Exploit Behavior {#sec:exploit_acq_bt}
 
-Some Vendors or other [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} Participants might require a
+Some Vendors or other CVD Participants might require a
 proof-of-concept exploit to accompany an incoming report for it to pass
 their validation checks. To that end, an Acquire Exploit Behavior Tree
 is shown in Figure

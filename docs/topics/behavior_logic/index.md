@@ -1,7 +1,6 @@
 # Modeling an MPCVD AI Using Behavior Trees {#ch:behavior_trees}
 
-With the formal definition of our proposed [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} protocol behind us, we now turn our
+With the formal definition of our proposed MPCVD protocol behind us, we now turn our
 attention to reflect on one of many possible paths toward
 implementation. We find that Behavior Trees have a number of desirable
 properties when it comes to automating the kinds of complex behaviors
@@ -9,12 +8,9 @@ our protocol demands.
 
 Behavior Trees are a way of designing and programming hierarchical
 behaviors [@colledanchise2017behavior]. They originated in the computer
-gaming industry to develop realistic [AIs]{acronym-label="AI"
-acronym-form="plural+full"} to control [NPCs]{acronym-label="NPC"
-acronym-form="plural+full"} [@mateas2002behavior; @isla2005halo] in
+gaming industry to develop realistic AIs to control NPCs [@mateas2002behavior; @isla2005halo] in
 games. More recently, Behavior Trees have been used in robotics to
-create adaptive behaviors using autonomous [AI]{acronym-label="AI"
-acronym-form="singular+short"}
+create adaptive behaviors using autonomous AI
 agents [@ogren2012increasing; @bagnell2012integrated]. Behavior Trees
 offer a high potential for automating complex tasks. Agent processes can
 be modeled as sets of behaviors (pre-conditions, actions, and
@@ -23,22 +19,19 @@ way to organize and describe agent behaviors in a straightforward,
 understandable way.
 
 In this chapter, we use Behavior Trees as a method for describing
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} Participant
-activities and their interactions with the [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} protocol model from Chapter
+MPCVD Participant
+activities and their interactions with the MPCVD protocol model from Chapter
 [\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref"
 reference="sec:formal_protocol"}. These behaviors map approximately to
-the activities described in the *[CVD]{acronym-label="CVD"
-acronym-form="singular+short"} Guide* (e.g., validate report, prioritize
+the activities described in the *CVD Guide* (e.g., validate report, prioritize
 report, create fix, publish report, publish fix, deploy
 fix) [@householder2017cert; @cert2019cvd].
 
 If Behavior Trees were merely a notational convention, they would
 already have been useful enough to include here to structure the
-high-level business logic of the [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} protocol. But they also offer a way to
+high-level business logic of the MPCVD protocol. But they also offer a way to
 prototype software agents that reflect the activities of
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} Participants.
+CVD Participants.
 Because Behavior Trees are inherently hierarchical, they are composable.
 Both conditions and actions can be composed into small task-oriented
 behaviors, which can, in turn, be composed to represent more complex
@@ -48,7 +41,7 @@ can be composed into multi-agent behaviors that achieve goals.
 ##### A Brief Introduction to Behavior Tree Notation.
 
 Behavior Trees consist of a hierarchy of nodes represented as a
-[DAG]{acronym-label="DAG" acronym-form="singular+short"}. A Behavior
+DAG. A Behavior
 Tree execution always begins at the root node, and execution is passed
 along the tree by *ticking* each child node according to the logic built
 into the tree. When *ticked*, each node does its job and returns one of
@@ -113,7 +106,6 @@ does not run.
 Behavior Trees are composable---that is, a task node in one tree can be
 replaced with a more refined Behavior Tree in another. We leverage this
 feature throughout the remainder of this chapter to describe an agent
-model for an [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} Participant as a set of nested Behavior
+model for an MPCVD Participant as a set of nested Behavior
 Trees that reflect the protocol described in the previous chapters.
 
