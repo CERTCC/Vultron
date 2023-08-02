@@ -5,6 +5,12 @@ nav:
   - Learning Vultron: 'tutorials/index.md'
   - Using Vultron: 'howto/index.md'
   - Understanding Vultron:
+    - Introduction:
+        - Background: 'topics/background/index.md'
+        - Defining CVD Success: 'topics/background/cvd_success.md'
+        - Terms and Definitions: 'topics/background/terms.md'
+        - Notation: 'topics/background/notation.md'
+        - Versioning: 'topics/background/versioning.md'
     - Process Models:
       - Introduction: 'topics/process_models/index.md'
       - Report Management:
