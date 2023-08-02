@@ -1,19 +1,26 @@
 # What Does *Success* Mean in CVD?
 
+    
 We take as a base set of criteria the ordering preferences given in the
-Householder and Spring 2021 report {== [@householder2021state] ==}.
+2021 report 
+[A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771)
+by Householder and Spring.
+
 While we incorporate this model fully [elsewhere](/topics/process_models/cs),
 some notation is necessary to proceed here.
-The CS model is built on the idea that there are six events of significance in the lifespan of every vulnerability:
-Vendor Awareness, Fix Ready, Fix Deployed, Public Awareness, Exploit Public, and Attacks Observed. 
-Brief descriptions of those events are listed in {== Table
-[\[tab:cs_transitions\]](#tab:cs_transitions){reference-type="ref"
-reference="tab:cs_transitions"} ==}
+The [Case State model](/topics/process_models/cs) is built on the idea that there are six events of significance
+in the lifespan of every vulnerability, shown in the table below.
 
-The Householder and Spring 2021 report defines a set of 12 ordering
-preferences over these 6 events {== [@householder2021state] ==}. 
+| Event | Notation | Event | Notation |
+| :--- |:---------| :--- |:---------|
+| Vendor Awareness | **V** | Public Awareness | **P** |
+| Fix Ready | **F** | Exploit Public | **X** |
+| Fix Deployed | **D** | Attacks Observed | **A** |
+
+Our 2021 [report](https://doi.org/10.1184/R1/16416771)
+defines a set of 12 ordering preferences over these 6 events. 
 We present them in roughly descending order of desirability according to the partial
-order developed in that report {== [@householder2021state] ==}.
+order developed in that report.
 Items closer to the top of the list are indicators of CVD skill.
 
 !!! note inline end "Formalism"
