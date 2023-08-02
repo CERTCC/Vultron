@@ -16,33 +16,30 @@ Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD):
     
     The CVD process continues until the answers to these questions are "nothing," and "nobody."
 
-### CVD *Is* MPCVD, and MPCVD *Is* CVD.
+### CVD *Is* MPCVD, and MPCVD *Is* CVD
 
-Any given CVD case
-is made up of many individual disclosure events, for example,
+Any given CVD case is made up of many individual disclosure events, for example,
 
 -   from a Finder to one or more Vendors and/or Coordinators
-
 -   from Vendors and Coordinators to other Vendors and Coordinators
-
 -   from Finders, Vendors, and Coordinators to Deployers and the Public
 
 In recent years, software supply chains have evolved such that software library and component vulnerabilities have 
-become just as much a part of the everyday CVD process as vulnerabilities in Vendors' proprietary code. This means that
-many CVD cases we encounter require coordination across multiple vendors. As a result, we find it decreasingly useful 
-to differentiate between "traditional" (i.e., two-party) CVD and MPCVD. In this documentation, we use both terms
-interchangeably.
+become just as much a part of the everyday CVD process as vulnerabilities in Vendors' proprietary code.
+This means that many CVD cases we encounter require coordination across multiple vendors.
+As a result, we find it decreasingly useful to differentiate between "traditional" (i.e., two-party) CVD and MPCVD.
+In this documentation, we use both terms interchangeably.
 
 $$CVD \iff MPCVD$$
 
-Practically speaking, this means that readers should not infer from our
-use of CVD in one place that we meant to exclude the multi-party scenario, nor that our
-use of MPCVD implies the exclusion of the single-vendor CVD scenario. Instead, our intent is to
-construct a protocol that adequately addresses the MPCVD scenario
-where $N_{vendors} \geq 1$ and for which the "traditional" CVD case is merely
-a special (and often simpler) case where $N_{vendors} = 1$.
+Practically speaking, this means that readers should not infer from our use of _CVD_ in one place that we meant to 
+exclude the multi-party scenario, nor that our use of _MPCVD_ implies the exclusion of the single-vendor CVD scenario.
+Instead, our intent is to construct a protocol that adequately addresses the MPCVD scenario where 
+$N_{vendors} \geq 1$
+and for which the "traditional" CVD case is merely a special (and often simpler) case where
+$N_{vendors} = 1$.
 
-### Context of Our Recent Work.
+### Context of Our Recent Work
 
 This documentation, in the context of recent CVD work at the
 [CERT/CC](https://www.sei.cmu.edu/about/divisions/cert/index.cfm),
@@ -71,7 +68,7 @@ Whereas the [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD) offers a
 process and the many scenarios one can expect to encounter as a Participant therein, in this documentation we provide an
 additional layer of formality in the form of a *protocol* for MPCVD.
 
-### What We Mean by *Protocol*.
+### What We Mean by *Protocol*
 
 We first define what we mean by our use of the term *protocol* by
 providing a few common usages from the [Oxford English Dictionary](https://www.oed.com/).
