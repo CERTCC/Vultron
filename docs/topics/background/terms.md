@@ -25,9 +25,11 @@ in [SSVC](https://github.com/CERTCC/SSVC) Version 2 and above.
     The individual or organization that must deploy a patch or take
     other remediation action
 
-The *Deployer* role is synonymous with the *User* role in {== ISO/IEC 29147:2018 and ISO/IEC
-30111:2019 [@ISO29147; @ISO30111] ==}, while the other roles are named
-consistent with those standards.
+The *Deployer* role is synonymous with the *User* role in 
+[ISO/IEC 29147:2018](https://www.iso.org/standard/72311.html)
+and
+[ISO/IEC 30111:2019](https://www.iso.org/standard/69725.html),
+while the other roles are named consistent with those standards.
 
 !!! info "Coordinator"
 
