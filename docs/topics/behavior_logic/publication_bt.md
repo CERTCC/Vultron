@@ -51,17 +51,62 @@ is updated to $q^{cs} \in P$, and a $CP$ message emits.
 
 ## Prepare Publication Behavior
 
-The Prepare Publication Behavior Tree is shown in Figure
-[\[fig:bt_prepare_publication\]](#fig:bt_prepare_publication){reference-type="ref"
-reference="fig:bt_prepare_publication"}. There are separate branches for
-publishing exploits, fixes, and reports. The publish exploit branch
-succeeds if either no exploit publication is intended, if it is intended
-and ready, or if it can be acquired and prepared for publication. The
-publish fix branch succeeds if the Participant does not intend to
-publish a fix (e.g., if they are not the Vendor), if a fix is ready, or
-if it can be developed and prepared for publication. The publish report
-branch is the simplest and succeeds if either no publication is intended
-or if the report is ready to go.
+The Prepare Publication Behavior Tree is shown below.
+
+```mermaid
+---
+title: Prepare Publication Behavior Tree
+---
+flowchart LR
+    seq["&rarr;"]
+    x_fb["?"]
+    seq --> x_fb
+    no_pub_exploit(["no publish<br/>exploit?"])
+    x_fb --> no_pub_exploit
+    exp_ready(["exploit ready?"])
+    x_fb --> exp_ready
+    x_seq["&rarr;"]
+    x_fb --> x_seq
+    acquire_exploit["acquire exploit"]
+    x_seq --> acquire_exploit
+    prep_exploit["prepare exploit"]
+    x_seq --> prep_exploit
+    x_reprioritize["reprioritize exploit<br/>publication intent"]
+    x_fb --> x_reprioritize
+    f_fb["?"]
+    seq --> f_fb
+    no_pub_fix(["no publish<br/>fix?"])
+    f_fb --> no_pub_fix
+    cs_in_VF(["CS in VF...?"])
+    f_fb --> cs_in_VF
+    f_seq["&rarr;"]
+    f_fb --> f_seq
+    fix_dev["fix development"]
+    f_seq --> fix_dev
+    prep_fix["prepare fix<br/>for publication"]
+    f_seq --> prep_fix
+    f_reprioritize["reprioritize fix<br/>publication intent"]
+    f_fb --> f_reprioritize
+    r_fb["?"]
+    seq --> r_fb
+    no_pub_report(["no publish<br/>report?"])
+    r_fb --> no_pub_report
+    r_ready(["report ready?"])
+    r_fb --> r_ready
+    prep_report["prepare report<br/>for publication"]
+    r_fb --> prep_report
+    r_reprioritize["reprioritize report<br/>publication intent"]
+    r_fb --> r_reprioritize
+```
+
+There are separate branches for
+publishing exploits, fixes, and reports.
+
+- The publish exploit branch succeeds if either no exploit publication is intended, if it is intended
+  and ready, or if it can be acquired and prepared for publication. 
+- The publish fix branch succeeds if the Participant does not intend to publish a fix (e.g., if they are not the Vendor), if a fix is ready, or
+  if it can be developed and prepared for publication.
+- The publish report branch is the simplest and succeeds if either no publication is intended or if the report is ready to go.
 
 Once all three branches have completed, the behavior returns *Success*.
 
