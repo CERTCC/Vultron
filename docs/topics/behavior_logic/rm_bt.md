@@ -89,7 +89,7 @@ receive additional work.
 Similarly, *Accepted* reports ($q^{rm} \in A$) can also be *Closed* or
 have their priority reevaluated. However, they are also expected to
 receive more effort---the *do work* task node, which we explore further
-in [Do Work Behaviors](/topics/behavior_logic/do_work).
+in [Do Work Behaviors](/topics/behavior_logic/do_work_bt/).
 We are taking advantage of the composability of Behavior Trees to
 simplify the presentation. Behaviors that appear in multiple places can
 be represented as their own trees. We explore the most relevant of these
