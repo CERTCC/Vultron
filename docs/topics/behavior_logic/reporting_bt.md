@@ -23,14 +23,17 @@ flowchart LR
 The tree describes a Participant that performs reporting until either their effort limit is met, or they run out of 
 Participants to notify.
 
-## Identify Participants Behavior {#sec:identify_participants}
+## Identify Participants Behavior
+
+!!! tip inline end "Participant Inclusion Choices are left to Participants"
+    
+    Note that we are intentionally avoiding setting any requirements about *who* is relevant to a case.
+    We leave that decision to each Participant's judgment.
 
 The Identify Participants Behavior Tree, shown in the following diagram, ends when all relevant parties have been 
 identified. 
 Until that condition is met, the Participant can proceed with identifying Vendors, Coordinators, or other
-parties relevant to the coordination of the case. 
-Note that we are intentionally avoiding setting any requirements about *who* is relevant to a case since we leave that
-to each Participant's judgment.
+parties relevant to the coordination of the case.
 
 ```mermaid
 ---
