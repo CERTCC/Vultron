@@ -1,26 +1,55 @@
-## Publication Behavior {#sec:publication_bt}
+# Publication Behavior
 
-The Publication Behavior Tree is shown in Figure
-[\[fig:bt_publication\]](#fig:bt_publication){reference-type="ref"
-reference="fig:bt_publication"}. It begins by ensuring that the
-Participant knows what they intend to publish, followed by a check to
-see if that publication has been achieved. Assuming that work remains to
-be done, the main publish sequence commences on the right-hand branch.
+The Publication Behavior Tree is shown in the following diagram.
+It begins by ensuring that the Participant knows what they intend to publish, followed by a check to
+see if that publication has been achieved.
+Assuming that work remains to be done, the main publish sequence commences on the second branch.
 
-The process begins with preparation for publication, described in
-§[1.5.4.1](#sec:prepare_publication_bt){reference-type="ref"
-reference="sec:prepare_publication_bt"}, followed by a pre-publication
-embargo check. This behavior is a simple check to ensure that no embargo
-remains active prior to publication. Note that the embargo management
-process may result in early termination of an existing embargo if the
-Participant has sufficient cause to do so. (See the detailed description
-of the EM behavior in{== §[1.4](#sec:em_bt){reference-type="ref"
-reference="sec:em_bt"} ==}.)
+```mermaid
+---
+title: Publication Behavior Tree
+---
+flowchart LR
+    fb["?"]
+    seq1["&rarr;"]
+    fb --> seq1
+    fb2["?"]
+    seq1 --> fb2
+    pub_intents(["publication intents set?"])
+    fb2 --> pub_intents
+    prioritize_pub["prioritize publication intents"]
+    fb2 --> prioritize_pub
+    all_pub["all published?"]
+    seq1 --> all_pub
+    seq2["&rarr;"]
+    fb --> seq2
+    prep_pub["prepare publication"]
+    seq2 --> prep_pub
+    emb_mgt["embargo management"]
+    seq2 --> emb_mgt
+    em_n_or_x(["EM in N or X?"])
+    seq2 --> em_n_or_x
+    publish["publish"]
+    seq2 --> publish
+    cs_to_P["CS &rarr; P<br/>(emit CP)"]
+    seq2 --> cs_to_P
+```
+
+!!! tip inline end "Embargoes and Publication"
+
+    The [embargo management](/topics/behavior_logic/em_bt/) task here is intended as a simple check to ensure that no
+    embargo remains active prior to publication.
+    However, since we describe that behavior [elsewhere](/topics/behavior_logic/em_bt/), we will not repeat it here.
+    Note that the [EM](/topics/process_models/em/) process may result in [early termination](/topics/process_models/em/early_termination/) of an existing embargo 
+    if the Participant has sufficient cause to do so.
+
+The publication process begins with [preparation for publication](#prepare-publication-behavior),
+described below, followed by a pre-publication embargo check.
 
 Once these subprocesses complete, the publish task fires, the case state
 is updated to $q^{cs} \in P$, and a $CP$ message emits.
 
-### Prepare Publication Behavior {#sec:prepare_publication_bt}
+## Prepare Publication Behavior
 
 The Prepare Publication Behavior Tree is shown in Figure
 [\[fig:bt_prepare_publication\]](#fig:bt_prepare_publication){reference-type="ref"
