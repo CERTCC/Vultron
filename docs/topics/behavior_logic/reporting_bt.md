@@ -3,8 +3,8 @@
 The [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD)
 describes the reporting phase as the process of identifying parties that need to be informed about the vulnerability
 and then notifying them.
-Reporting only works if the intended recipient has the ability to receive reports, as outlined in 
-{== §[1.2](#sec:receive_reports_bt){reference-type="ref" reference="sec:receive_reports_bt"} ==}.
+Reporting only works if the intended recipient has the ability to receive reports, as outlined in
+our introduction of the [RM _Received_ state](/topics/process_models/rm/#the-received-r-state).
 
 The Reporting Behavior Tree is shown in the figure below.
 
