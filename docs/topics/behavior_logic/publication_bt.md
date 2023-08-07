@@ -102,9 +102,9 @@ flowchart LR
 There are separate branches for
 publishing exploits, fixes, and reports.
 
-- The publish exploit branch succeeds if either no exploit publication is intended, if it is intended
-  and ready, or if it can be acquired and prepared for publication. 
-- The publish fix branch succeeds if the Participant does not intend to publish a fix (e.g., if they are not the Vendor), if a fix is ready, or
+- The publish exploit branch succeeds if either no exploit publication is intended, if it is [intended
+  and ready](/topics/behavior_logic/acquire_exploit_bt/), or if it can be acquired and prepared for publication. 
+- The publish fix branch succeeds if the Participant does not intend to publish a fix (e.g., if they are not the Vendor), if a [fix is ready](/topics/behavior_logic/fix_dev_bt/), or
   if it can be developed and prepared for publication.
 - The publish report branch is the simplest and succeeds if either no publication is intended or if the report is ready to go.
 
