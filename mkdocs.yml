@@ -36,7 +36,11 @@ nav:
       - Behavior Tree Intro: 'topics/behavior_logic/index.md'
       - CVD Behaviors: 'topics/behavior_logic/cvd_bt.md'
       - Vulnerability Discovery Behaviors: 'topics/behavior_logic/vuldisco_bt.md'
-      - RM Behaviors: 'topics/behavior_logic/rm_bt.md'
+      - RM Behaviors:
+        - Introduction: 'topics/behavior_logic/rm_bt.md'
+        - Validation: 'topics/behavior_logic/rm_validation_bt.md'
+        - Prioritization: 'topics/behavior_logic/rm_prioritization_bt.md'
+        - Closure: 'topics/behavior_logic/rm_closure_bt.md'
       - EM Behaviors: 'topics/behavior_logic/em_bt.md'
       - Do Work Behaviors:
         - Introduction: 'topics/behavior_logic/do_work_bt.md'
