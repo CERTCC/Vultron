@@ -227,5 +227,3 @@ following the formal MPCVD protocol described in Chapter
 reference="sec:formal_protocol"}. Next, we discuss a few notes regarding
 the eventual implementation of this protocol.
 
-[^1]: Corresponding to a Type 3 Zero Day Exploit as defined in §6.5.1 of
-    [@householder2021state]
