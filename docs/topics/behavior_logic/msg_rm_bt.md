@@ -26,7 +26,7 @@ flowchart LR
     rs_seq --> rs_fb
     rm_not_S(["RM not in S?"])
     rs_fb --> rm_not_S
-    rm_to_R(["RM &rarr; R"])
+    rm_to_R["RM &rarr; R"]
     rs_fb --> rm_to_R
     rs_fb2["?"]
     rs_seq --> rs_fb2
@@ -34,13 +34,13 @@ flowchart LR
     rs_fb2 --> role_not_vendor
     cs_in_V(["CS in V.....?"])
     rs_fb2 --> cs_in_V
-    cs_to_V(["CS &rarr; Vfd...<br/>(emit CV)"])
+    cs_to_V["CS &rarr; Vfd...<br/>(emit CV)"]
     rs_fb2 --> cs_to_V
     re_seq["&rarr;"]
     fb2 --> re_seq
     is_RE_msg(["is RE msg?"])
     re_seq --> is_RE_msg
-    emit_GI(["emit GI"])
+    emit_GI["emit GI"]
     re_seq --> emit_GI
     other_seq["&rarr;"]
     fb2 --> other_seq
@@ -48,9 +48,9 @@ flowchart LR
     other_seq --> o_rm_not_S
     update_sender_status["update sender status"]
     other_seq --> update_sender_status
-    emit_RK(["emit RK"])
+    emit_RK["emit RK"]
     seq2 --> emit_RK
-    emit_RE(["emit RE"])
+    emit_RE["emit RE"]
     fb --> emit_RE
 ```
 

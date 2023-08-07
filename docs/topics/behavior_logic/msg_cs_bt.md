@@ -26,11 +26,11 @@ flowchart LR
     fb2 --> err_seq
     is_ce_msg(["is CE msg?"])
     err_seq --> is_ce_msg
-    emit_gi(["emit GI"])
+    emit_gi["emit GI"]
     err_seq --> emit_gi
-    emit_ck(["emit CK"])
+    emit_ck["emit CK"]
     seq2 --> emit_ck
-    emit_ce(["emit CE"])
+    emit_ce["emit CE"]
     fb --> emit_ce
 ```
 
@@ -72,7 +72,7 @@ flowchart LR
     cp_seq --> cp_fb
     cp_cs_not_P(["CS not in ...P..?"])
     cp_fb --> cp_cs_not_P
-    cp_cs_to_P(["CS &rarr; ...P.."])
+    cp_cs_to_P["CS &rarr; ...P.."]
     cp_fb --> cp_cs_to_P
     cx_seq["&rarr;"]
     global_fb --> cx_seq
@@ -88,13 +88,13 @@ flowchart LR
     cx_seq2 --> cx_x_fb
     cs_in_x(["CS in ...X..?"])
     cx_x_fb --> cs_in_x
-    cx_to_x(["CS &rarr; ....X."])
+    cx_to_x["CS &rarr; ....X."]
     cx_x_fb --> cx_to_x
     cx_p_fb["?"]
     cx_seq2 --> cx_p_fb
     cs_in_p(["CS in ...P..?"])
     cx_p_fb --> cs_in_p
-    cx_to_p(["CS &rarr; ...PX.<br/>(emit CP)"])
+    cx_to_p["CS &rarr; ...PX.<br/>(emit CP)"]
     cx_p_fb --> cx_to_p
     ca_seq["&rarr;"]
     global_fb --> ca_seq
@@ -104,7 +104,7 @@ flowchart LR
     ca_seq --> ca_fb
     ca_cs_not_a(["CS not in .....A?"])
     ca_fb --> ca_cs_not_a
-    ca_cs_to_a(["CS &rarr; .....A"])
+    ca_cs_to_a["CS &rarr; .....A"]
     ca_fb --> ca_cs_to_a
     terminate["terminate embargo"]
     global_seq --> terminate

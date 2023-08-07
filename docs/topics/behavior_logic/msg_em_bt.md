@@ -22,7 +22,7 @@ flowchart LR
     fb2 --> ee_seq
     is_EE_msg(["is EE msg?"])
     ee_seq --> is_EE_msg
-    ee_emit_GI(["emit GI"])
+    ee_emit_GI["emit GI"]
     ee_seq --> ee_emit_GI
     et_seq["&rarr;"]
     fb2 --> et_seq
@@ -36,7 +36,7 @@ flowchart LR
     et_fb --> et_seq2
     em_a_r(["EM in A or R?"])
     et_seq2 --> em_a_r
-    et_em_to_X(["EM &rarr; X"])
+    et_em_to_X["EM &rarr; X"]
     et_seq2 --> et_em_to_X
     er_seq["&rarr;"]
     fb2 --> er_seq
@@ -50,7 +50,7 @@ flowchart LR
     er_fb --> er_seq2
     em_p(["EM in P?"])
     er_seq2 --> em_p
-    er_em_to_n(["EM &rarr; N"])
+    er_em_to_n["EM &rarr; N"]
     er_seq2 --> er_em_to_n
     viable_seq["&rarr;"]
     fb2 --> viable_seq
@@ -64,9 +64,9 @@ flowchart LR
     non_viable_seq --> cs_not_in_pxa
     terminate["terminate embargo"]
     non_viable_seq --> terminate
-    emit_ek(["emit EK"])
+    emit_ek["emit EK"]
     seq2 --> emit_ek
-    emit_ee(["emit EE"])
+    emit_ee["emit EE"]
     fb --> emit_ee
 ```
 
@@ -110,7 +110,7 @@ flowchart LR
     ep_fb --> ep_seq2
     em_none(["EM in N?"])
     ep_seq2 --> em_none
-    ep_em_to_p(["EM &rarr; P"])
+    ep_em_to_p["EM &rarr; P"]
     ep_seq2 --> ep_em_to_p
     ea_seq["&rarr;"]
     fb --> ea_seq
@@ -124,7 +124,7 @@ flowchart LR
     ea_fb --> ea_seq2
     ea_em_p(["EM in P?"])
     ea_seq2 --> ea_em_p
-    ea_em_to_a(["EM &rarr; A"])
+    ea_em_to_a["EM &rarr; A"]
     ea_seq2 --> ea_em_to_a
     ev_seq["&rarr;"]
     fb --> ev_seq
@@ -138,7 +138,7 @@ flowchart LR
     ev_fb --> ev_seq2
     ev_em_a(["EM in A?"])
     ev_seq2 --> ev_em_a
-    ev_em_to_r(["EM &rarr; R"])
+    ev_em_to_r["EM &rarr; R"]
     ev_seq2 --> ev_em_to_r
     ej_ec_seq["&rarr;"]
     fb --> ej_ec_seq
@@ -158,13 +158,13 @@ flowchart LR
     ej_ec_fb2 --> ej_seq
     ej_is_EJ_msg(["is EJ msg?"])
     ej_seq --> ej_is_EJ_msg
-    ej_em_to_A(["EM &rarr; A"])
+    ej_em_to_A["EM &rarr; A"]
     ej_seq --> ej_em_to_A
     ec_seq["&rarr;"]
     ej_ec_fb2 --> ec_seq
     ec_is_EC_msg(["is EC msg?"])
     ec_seq --> ec_is_EC_msg
-    ec_em_to_A(["EM &rarr; A"])
+    ec_em_to_A["EM &rarr; A"]
     ec_seq --> ec_em_to_A
 ```
 
