@@ -54,11 +54,13 @@ The three conditions of interest are taken straight from the [embargo exit crite
 
 -   Finally, if the vulnerability information has been made public, then the $q^{cs} \xrightarrow{\mathbf{P}} P$ and emits $CP$.
 
-In the event that one or more of these events is detected, the terminate embargo behavior is triggered.
+In the event that one or more of these events is detected, the [Terminate Embargo Behavior Tree](/topics/behavior_logic/em_terminate_bt/) is triggered.
 
 There are many other good reasons to monitor and maintain awareness of cybersecurity threats.
 The behavior shown here is intended as a minimal set of things that CVD Participants should watch out for in the
 course of performing their CVD practice.
+
+See also: [Terminate Embargo Behavior Tree](/topics/behavior_logic/em_terminate_bt/)
 
 [^1]: Corresponding to a Type 3 Zero Day Exploit as defined in {== §6.5.1 of
     [@householder2021state] ==}

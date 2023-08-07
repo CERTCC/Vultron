@@ -44,7 +44,7 @@ flowchart LR
     if the Participant has sufficient cause to do so.
 
 The publication process begins with [preparation for publication](#prepare-publication-behavior),
-described below, followed by a pre-publication embargo check.
+described below, followed by a pre-publication [embargo check](/topics/behavior_logic/em_bt/).
 
 Once these subprocesses complete, the publish task fires, the case state
 is updated to $q^{cs} \in P$, and a $CP$ message emits.
