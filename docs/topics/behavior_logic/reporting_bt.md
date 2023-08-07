@@ -29,6 +29,7 @@ Participants to notify.
     
     Note that we are intentionally avoiding setting any requirements about *who* is relevant to a case.
     We leave that decision to each Participant's judgment.
+    Further discussion of this topic is available in [Adding Participants](/topics/process_models/em/working_with_others/). 
 
 The Identify Participants Behavior Tree, shown in the following diagram, ends when all relevant parties have been 
 identified. 
