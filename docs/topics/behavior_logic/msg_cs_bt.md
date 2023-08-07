@@ -18,9 +18,9 @@ flowchart LR
     fb --> seq2
     fb2["?"]
     seq2 --> fb2
-    cs_global["Handle CS global<br/>status msg"]
+    cs_global["Handle CS<br/>Participant-agnostic<br/>status msg"]
     fb2 --> cs_global
-    cs_pspec["Handle CS participant-<br/>specific msg"]
+    cs_pspec["Handle CS<br/>Participant-specific<br/>status msg"]
     fb2 --> cs_pspec
     err_seq["&rarr;"]
     fb2 --> err_seq
@@ -42,7 +42,7 @@ The main CS message-handling sequence comes next, with all matching incoming mes
 acknowledgment message (_CK_).
 These messages are presented as sub-trees below:
 
-- [Global CS Status Messages](#global-cs-status-messages)
+- [Participant-agnostic CS Status Messages](#participant-agnostic-cs-status-messages)
 - [Participant-Specific CS Status Messages](#participant-specific-cs-status-messages)
 
 Returning from handling regular CS messages, the tree next handles error messages (_CE_) with the familiar motif
@@ -52,13 +52,13 @@ Finally, the tree has handled all expected messages, so anything else would resu
 condition and emission of a _CE_ message accordingly.
 
 
-## Global CS Status Messages
+## Participant-agnostic CS Status Messages
 
-The tree first handles messages indicating a global CS change.
+The tree first handles messages indicating a Participant-agnostic CS change.
 
 ```mermaid
 ---
-title: Process CS Global Status Messages Behavior Tree
+title: Process CS Participant-agnostic Status Messages Behavior Tree
 ---
 flowchart LR
     global_seq["&rarr;"]
@@ -92,7 +92,7 @@ flowchart LR
     cx_x_fb --> cx_to_x
     cx_p_fb["?"]
     cx_seq2 --> cx_p_fb
-    cs_in_p(["CS in ...P..?"])
+    cs_in_p(["CS in ...PX.?"])
     cx_p_fb --> cs_in_p
     cx_to_p["CS &rarr; ...PX.<br/>(emit CP)"]
     cx_p_fb --> cx_to_p
