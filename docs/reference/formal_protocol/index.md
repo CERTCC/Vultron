@@ -92,6 +92,8 @@ multiple roles in a given case.
 
 ## Formal MPCVD Protocol Redux {#sec:formal_protocol_redux}
 
+{== TODO integrate this section ==}
+
 In this chapter, we have formally defined an
 MPCVD protocol
 
@@ -172,19 +174,3 @@ Participant is shown in Figure
 reference="fig:bingo_card"}.
 
 
-[^1]: As we discuss in
-    {== §[\[sec:finder_hidden\]](#sec:finder_hidden){reference-type="ref"
-    reference="sec:finder_hidden"} ==}, the Finder's states
-    $q^{rm} \in \{R,I,V\}$ are not observable to the
-    CVD process
-    because Finders start coordination only when they have already
-    reached $q^{rm} = A$.
-
-[^2]: Effective coordination is usually improved with Participants'
-    mutual awareness of each other's state, of course.
-
-[^3]: "Yes-And" is a heuristic taken from improvisational theatre in
-    which Participants are encouraged to agree with whatever their
-    counterpart suggests and add to it rather than reject it outright.
-    It serves as a good model for cooperation among parties who share an
-    interest in a positive outcome.
