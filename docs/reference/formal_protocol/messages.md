@@ -208,7 +208,38 @@ A summary of the General message types is shown below.
 
 Thus, the complete set of possible messages between processes is
 $M_{i,j} = M^{rm} \cup M^{em} \cup M^{cs} \cup M^{*}$.
-For convenience, we collected these into a array below.
+For convenience, we collected these into the table below.
+
+| Process Model | $M_{i,j}$ | Message Type | Emit When |
+| --- | --- | --- |  |
+| RM | RS | Report Submission | sender $\in A$ |
+| RM | RI | Report Invalid | $R \xrightarrow{i} I$ |
+| RM | RV | Report Valid | $\{R,I\} \xrightarrow{v} V$ |
+| RM | RD | Report Deferred | $\{V,A\} \xrightarrow{d} D$ |
+| RM | RA | Report Accepted | $\{V,D\} \xrightarrow{a} A$ |
+| RM | RC | Report Closed | $\{I,D,A\} \xrightarrow{c} C$ |
+| RM | RK | Report Acknowledgement | any valid RM message |
+| RM | RE | Report Error | any unexpected RM message |
+| EM | EP | Embargo Proposal | $\{N,P\} \xrightarrow{p} P$ |
+| EM | ER | Embargo Proposal Rejection | $P \xrightarrow{r} N$ |
+| EM | EA | Embargo Proposal Acceptance | $P \xrightarrow{a} A$ |
+| EM | EV | Embargo Revision Proposal | $A \xrightarrow{p} R$ |
+| EM | EJ | Embargo Revision Rejection | $R \xrightarrow{r} A$ |
+| EM | EC | Embargo Revision Acceptance | $R \xrightarrow{a} A$ |
+| EM | ET | Embargo Termination | $\{A,R\} \xrightarrow{t} X$ |
+| EM | EK | Embargo Acknowledgement | any valid EM message |
+| EM | EE | Embargo Error | any unexpected EM message |
+| CS | CV | Vendor Awareness | $vfd \cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd \cdot\cdot\cdot$ |
+| CS | CF | Fix Readiness | $Vfd \cdot\cdot\cdot \xrightarrow{\mathbf{F}} VFd \cdot\cdot\cdot$ |
+| CS | CD | Fix Deployed | $VFd \cdot\cdot\cdot \xrightarrow{\mathbf{D}} VFD \cdot\cdot\cdot$ |
+| CS | CP | Public Awareness | $\cdot\cdot\cdot p \cdot\cdot \xrightarrow{\mathbf{P}} \cdot\cdot\cdot P \cdot\cdot$ |
+| CS | CX | Exploit Public | $\cdot\cdot\cdot\cdot x \cdot \xrightarrow{\mathbf{X}} \cdot\cdot\cdot\cdot X \cdot$ |
+| CS | CA | Attacks Observed | $\cdot\cdot\cdot\cdot\cdot a \xrightarrow{\mathbf{A}} \cdot\cdot\cdot\cdot\cdot A$ |
+| CS | CK | CS Acknowledgement | any valid CS message |
+| CS | CE | CS Error | any unexpected CS message |
+| * | GI | General Inquiry | any time |
+| * | GK | General Acknowledgement | any valid GI message |
+| * | GE | General Error | any unexpected GI message |
 
 !!! note "Message Types Formally Defined"
 
@@ -221,6 +252,7 @@ For convenience, we collected these into a array below.
                     CX,CA,CK,CE,GI,GK,GE\\
             \end{array}
             \right\}\textrm{ where $i \neq j$; $\varnothing$ otherwise; for $i,j \leq N$}$$
+
 
 Message _formats_ are left as future work.
 
