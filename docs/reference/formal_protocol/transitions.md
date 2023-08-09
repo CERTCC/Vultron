@@ -1,12 +1,16 @@
 # Transition Functions {#sec:protocol_transition_functions}
 
-Revisiting the formal protocol definition from the [introduction](/reference/formal_protocol/), 
+Revisiting the formal protocol definition from the [introduction](/reference/formal_protocol/): 
 
-> $succ$ is a partial function mapping for each $i$ and $j$,
-> $$S_i \times M_{ij} \rightarrow S_i \textrm{ and } S_i \times M_{ji} \rightarrow S_i$$
-> $succ(s,x)$ is the state entered after a process transmits or receives
-> message $x$ in state $s$. It is a transmission if $x$ is from $M_{ij}$
-> and a reception if $x$ is from $M_{ji}$.
+!!! note "Transition Function Defined"
+
+    $succ$ is a partial function mapping for each $i$ and $j$,
+    
+    $$S_i \times M_{ij} \rightarrow S_i \textrm{ and } S_i \times M_{ji} \rightarrow S_i$$
+
+    $succ(s,x)$ is the state entered after a process transmits or receives
+    message $x$ in state $s$. It is a transmission if $x$ is from $M_{ij}$
+    and a reception if $x$ is from $M_{ji}$.
 
 In this section, we describe the transition functions for the RM, EM, and CVD Case processes, respectively.
 Note that while the RM process is largely independent of the other two process models, the EM and CVD process models 
@@ -91,7 +95,7 @@ corresponding sender state transition.
 
 
 | Sender Preconditions<br/>$s_n \in S_i$<br/>$q^{cs},q^{rm},q^{em}$ | Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm},q^{em}$ | Message Type Emitted |
-|:------------------------------------------------------------------|:-------------------------------------------------------------------------|:---------------------|
+|:-----------------------------------------------------------------:|:------------------------------------------------------------------------:|:--------------------:|
 | $*,A,*$                                                           | $-, -, -$                                                                | $RS$ |
 | $*,\{R,V\},*$                                                     | $-, \xrightarrow{i} I, -$                                                | $RI$ |
 | $*,\{R,I\},*$                                                     | $-, \xrightarrow{v} V, -$                                                | $RV$ |
@@ -110,19 +114,19 @@ expected response message.
 
     $$S_i \times M_{ji}^{rm} \rightarrow S_i$$
 
-| Recv. Msg.<br/>$M_{ji}$| Receiver Precondition<br/>$s_n \in S_i$<br/>$q^{cs},q^{rm}$ | Receiver Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm}$ | Response Msg.<br/>$M_{ij}$ |
-|:-----------------------|:------------------------------------------------------------|:---------------------------------------------------------------------------|:---------------------------|
-| $*$ | $*,C$                                                       | $-,-$                                                                      | $-$                        |
-| $RS$ | $vfd \cdot\cdot\cdot,S$                                     | $\xrightarrow{\mathbf{V}} Vfd \cdot\cdot\cdot, \xrightarrow{r} R$          | $RK$, $CV$ (vendor)        |
-| $RS$ | $vfd \cdot\cdot\cdot,\{ R, I, V,D,A\}$                      | $\xrightarrow{\mathbf{V}} Vfd \cdot\cdot\cdot,-$                           | $RK$, $CV$ (vendor)        |
-| $RS$ | $V \cdot\cdot\cdot\cdot\cdot,S$                             | $-,\xrightarrow{r} R$                                                      | $RK$, $CV$ (vendor)        |
-| $RS$ | $V \cdot\cdot\cdot\cdot\cdot,\{ R, I, V,D,A\}$              | $-,-$                                                                      | $RK$, $CV$ (vendor)        |
-| $RS$ | $*,S$                                                       | $-,\xrightarrow{r} R$                                                      | $RK$ (non-vendor)          |
-| $RS$ | $*,\{ R, I, V,D,A\}$                                        | $-,-$                                                                      | $RK$ (non-vendor)          |
-| $\{RI,RV,RD,RA,RC\}$ | $*,\{R,I,V,D,A\}$                                           | $-,-$                                                                      | $RK$                       |
-| $\{RI,RV,RD,RA,RC\}$ | $*,S$                                                       | $-,-$                                                                      | $RE$, $GI$                 |
-| $RE$ | $*,*$                                                       | $-,-$                                                                      | $RK$, $GI$                 |
-| $RK$ | $*,*$                                                       | $-,-$                                                                      | $-$                        |
+| Received Msg.<br/>$M_{ji}$ | Receiver Precondition<br/>$s_n \in S_i$<br/>$q^{cs},q^{rm}$ | Receiver Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm}$ | Response Msg.<br/>$M_{ij}$ |
+|:--------------------------:|:-----------------------------------------------------------:|:--------------------------------------------------------------------------:|:--------------------------:|
+|            $*$             | $*,C$                                                       | $-,-$                                                                      | $-$                        |
+|            $RS$            | $vfd \cdot\cdot\cdot,S$                                     | $\xrightarrow{\mathbf{V}} Vfd \cdot\cdot\cdot, \xrightarrow{r} R$          | $RK$, $CV$ (vendor)        |
+|            $RS$            | $vfd \cdot\cdot\cdot,\{ R, I, V,D,A\}$                      | $\xrightarrow{\mathbf{V}} Vfd \cdot\cdot\cdot,-$                           | $RK$, $CV$ (vendor)        |
+|            $RS$            | $V \cdot\cdot\cdot\cdot\cdot,S$                             | $-,\xrightarrow{r} R$                                                      | $RK$, $CV$ (vendor)        |
+|            $RS$            | $V \cdot\cdot\cdot\cdot\cdot,\{ R, I, V,D,A\}$              | $-,-$                                                                      | $RK$, $CV$ (vendor)        |
+|            $RS$            | $*,S$                                                       | $-,\xrightarrow{r} R$                                                      | $RK$ (non-vendor)          |
+|            $RS$            | $*,\{ R, I, V,D,A\}$                                        | $-,-$                                                                      | $RK$ (non-vendor)          |
+|    $\{RI,RV,RD,RA,RC\}$    | $*,\{R,I,V,D,A\}$                                           | $-,-$                                                                      | $RK$                       |
+|    $\{RI,RV,RD,RA,RC\}$    | $*,S$                                                       | $-,-$                                                                      | $RE$, $GI$                 |
+|            $RE$            | $*,*$                                                       | $-,-$                                                                      | $RK$, $GI$                 |
+|            $RK$            | $*,*$                                                       | $-,-$                                                                      | $-$                        |
 
 ## EM Transition Functions
 
@@ -167,10 +171,14 @@ $q^{cs}$ is in $\cdot\cdot\cdot pxa$ or not.
     Participants SHOULD acknowledge ($EK$) and inquire ($GI$) about the
     nature of any error reported by an incoming $EE$ message.
 
+{== TODO ADD TABLE ==}
 {== Table [\[tab:em_send\]](#tab:em_send){reference-type="ref"
 reference="tab:em_send"} ==} lists each EM message type and the states in which that
 message is appropriate to send along with the corresponding sender state
-transition. {== Table
+transition.
+
+{== TODO ADD TABLE ==}
+{== Table
 [\[tab:em_receive\]](#tab:em_receive){reference-type="ref"
 reference="tab:em_receive"} ==} lists the effects of receiving an
 EM message to the receiving Participant's state, grouped by the EM message type received.
@@ -202,10 +210,14 @@ As above, the appropriate Participant response to receiving CS messages (namely,
     Participants SHOULD initiate embargo termination upon becoming aware
     of attacks against an otherwise unpublished vulnerability.
 
+{== TODO ADD TABLE ==}
 {== Table [\[tab:cvd_send\]](#tab:cvd_send){reference-type="ref"
 reference="tab:cvd_send"} ==} lists each CVD message type and the states in which that
 message is appropriate to send along with the corresponding sender state
-transition. {== Table
+transition.
+
+{== TODO ADD TABLE ==}
+{== Table
 [\[tab:cvd_receive\]](#tab:cvd_receive){reference-type="ref"
 reference="tab:cvd_receive"} ==} lists the effects of receiving a
 CS message to the receiving Participant's state coupled with the expected response message.
@@ -225,10 +237,13 @@ No state changes are expected to occur based on the receipt of a General message
     of a case, merely that the act of sending or receiving a general message itself does not imply any necessary state 
     change to either the sender or receiver Participants.
 
+{== TODO ADD TABLE ==}
 {== Table [\[tab:gen_send\]](#tab:gen_send){reference-type="ref"
 reference="tab:gen_send"} ==} lists each general message and the states in
 which it is appropriate to send along with the corresponding sender
 state. 
+
+{== TODO ADD TABLE ==}
 {== Table
 [\[tab:gen_receive\]](#tab:gen_receive){reference-type="ref"
 reference="tab:gen_receive"} ==} lists the effects of receiving a general
