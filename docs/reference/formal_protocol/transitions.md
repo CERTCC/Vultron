@@ -165,3 +165,11 @@ reference="tab:gen_receive"} lists the effects of receiving a general
 message to the receiving Participant's state coupled with the expected
 response message.
 
+[^2]: Effective coordination is usually improved with Participants'
+    mutual awareness of each other's state, of course.
+
+[^3]: "Yes-And" is a heuristic taken from improvisational theatre in
+    which Participants are encouraged to agree with whatever their
+    counterpart suggests and add to it rather than reject it outright.
+    It serves as a good model for cooperation among parties who share an
+    interest in a positive outcome.
