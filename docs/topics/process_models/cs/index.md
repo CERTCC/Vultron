@@ -5,7 +5,7 @@ The CVD Case State (CS) model provides a high-level view of the state of a CVD c
 In it we model two main aspects of the case:
 
 1. A Participant-specific _Vendor Fix Path_ from initial vendor awareness through the deployment of a fix.
-2. A _Global Case State_ summarizing both public and attacker awareness of the vulnerability.
+2. A Participant-agnostic _Public State_ summarizing both public and attacker awareness of the vulnerability.
 
 These processes run in parallel, and the CS model captures the interactions between them.
 <!-- end_excerpt -->
