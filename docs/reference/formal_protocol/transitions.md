@@ -80,14 +80,49 @@ Otherwise,
     Recipients SHOULD acknowledge $RE$ messages ($RK$) and inquire
     ($GI$) as to the nature of the error.
 
-{== Table [\[tab:rm_send\]](#tab:rm_send){reference-type="ref"
-reference="tab:rm_send"} ==} lists each RM message type and the states in which that
-message is appropriate to send along with the corresponding sender state
-transition. {== Table
-[\[tab:rm_receive\]](#tab:rm_receive){reference-type="ref"
-reference="tab:rm_receive"} ==} lists the effects of receiving
-RM messages on the receiving Participant's state coupled with the expected response
-message.
+### RM Messages Sent and State Transitions
+
+The table below lists each RM message type and the states in which that message is appropriate to send along with the
+corresponding sender state transition.
+
+!!! note "RM Messages Sent and State Transitions"
+    
+    $$S_i \times M_{ij}^{rm} \rightarrow S_i$$
+
+
+| Sender Preconditions<br/>$s_n \in S_i$<br/>$q^{cs},q^{rm},q^{em}$ | Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm},q^{em}$ | Message Type Emitted |
+|:------------------------------------------------------------------|:-------------------------------------------------------------------------|:---------------------|
+| $*,A,*$                                                           | $-, -, -$                                                                | $RS$ |
+| $*,\{R,V\},*$                                                     | $-, \xrightarrow{i} I, -$                                                | $RI$ |
+| $*,\{R,I\},*$                                                     | $-, \xrightarrow{v} V, -$                                                | $RV$ |
+| $*,\{V,A\},*$                                                     | $-, \xrightarrow{d} D, -$                                                | $RD$ |
+| $*,\{V,D\},*$                                                     | $-, \xrightarrow{a} A, -$                                                | $RA$ |
+| $*,\{I,D,A\},*$                                                   | $-, \xrightarrow{c} C, -$                                                | $RC$ |
+| $*,*,*$                                              | $-, -, -$                                              | $RE$ |
+| $*,*,*$                                              | $-, -, -$                                              | $RK$ |
+
+### RM Messages Received and State Transitions
+
+The table below lists the effects of receiving RM messages on the receiving Participant's state coupled with the 
+expected response message.
+
+!!! note "RM Messages Received and State Transitions"
+
+    $$S_i \times M_{ji}^{rm} \rightarrow S_i$$
+
+| Recv. Msg.<br/>$M_{ji}$| Receiver Precondition<br/>$s_n \in S_i$<br/>$q^{cs},q^{rm}$ | Receiver Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm}$ | Response Msg.<br/>$M_{ij}$ |
+|:-----------------------|:------------------------------------------------------------|:---------------------------------------------------------------------------|:---------------------------|
+| $*$ | $*,C$                                                       | $-,-$                                                                      | $-$                        |
+| $RS$ | $vfd \cdot\cdot\cdot,S$                                     | $\xrightarrow{\mathbf{V}} Vfd \cdot\cdot\cdot, \xrightarrow{r} R$          | $RK$, $CV$ (vendor)        |
+| $RS$ | $vfd \cdot\cdot\cdot,\{ R, I, V,D,A\}$                      | $\xrightarrow{\mathbf{V}} Vfd \cdot\cdot\cdot,-$                           | $RK$, $CV$ (vendor)        |
+| $RS$ | $V \cdot\cdot\cdot\cdot\cdot,S$                             | $-,\xrightarrow{r} R$                                                      | $RK$, $CV$ (vendor)        |
+| $RS$ | $V \cdot\cdot\cdot\cdot\cdot,\{ R, I, V,D,A\}$              | $-,-$                                                                      | $RK$, $CV$ (vendor)        |
+| $RS$ | $*,S$                                                       | $-,\xrightarrow{r} R$                                                      | $RK$ (non-vendor)          |
+| $RS$ | $*,\{ R, I, V,D,A\}$                                        | $-,-$                                                                      | $RK$ (non-vendor)          |
+| $\{RI,RV,RD,RA,RC\}$ | $*,\{R,I,V,D,A\}$                                           | $-,-$                                                                      | $RK$                       |
+| $\{RI,RV,RD,RA,RC\}$ | $*,S$                                                       | $-,-$                                                                      | $RE$, $GI$                 |
+| $RE$ | $*,*$                                                       | $-,-$                                                                      | $RK$, $GI$                 |
+| $RK$ | $*,*$                                                       | $-,-$                                                                      | $-$                        |
 
 ## EM Transition Functions
 
