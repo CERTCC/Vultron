@@ -1,21 +1,21 @@
 ```mermaid
 ---
-title: Case State Diagram showing Global and Participant-Specific Aspects
+title: Case State Diagram showing Participant-Agnostic and Participant-Specific Aspects
 ---
 stateDiagram-v2
     direction LR
     CS: Case State Model
     state CS {
-        ps: Participant Specific
+        ps: Vendor Fix Path
         state ps {
             [*] --> vfd
-            vfd --> Vfd
-            Vfd --> VFd
-            VFd --> VFD
+            vfd --> Vfd : V
+            Vfd --> VFd : F
+            VFd --> VFD : D
             VFD --> [*]
         }
         --
-        g: Global
+        g: Public State
         state g {
             [*] --> pxa
         
