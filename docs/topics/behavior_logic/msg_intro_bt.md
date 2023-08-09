@@ -1,5 +1,5 @@
 # Receiving and Processing Messages Behavior
-e
+
 Now we return to the [CVD Behavior Tree](/topics/behavior_logic/cvd_bt/) to pick up the last unexplored branch, Receive Messages.
 The Receive Messages Behavior Tree is shown below.
 
