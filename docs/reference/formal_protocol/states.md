@@ -913,34 +913,22 @@ case has not made any progress.
 
     $$o_i = (o_i^{rm},~o_i^{em},~o_i^{cs}) = (S,N,vfdpxa)$$
 
-
-!!! note inline end "Participant Start States"
-
-    Vendor
-
-    $$o_{i_{Vendor}} = (S,N,vfdpxa)$$
-
-    Deployer
-
-    $$o_{i_{Deployer}} = (S,N,dpxa)$$
-    
-    Other
-
-    $$o_{i_{Other}} = (S,N,pxa)$$
-
-    Finder
-
-    $$o_{i_{Finder}} = (A,N,pxa)$$
-
-Following the discussion [above](#states), the starting states for Vendors,
+Following the discussion above, the starting states for Vendors,
 Deployers, and other Participants are shown below.
 
-For a case to really begin, the Finder must at least reach the $A$
-state. Therefore, at the point when a second party finds out about the
-vulnerability from a Finder, the Finder is presumed to be already at
-$q_{Finder}=(A, N, pxa)$.
+!!! note "Participant Start States"
 
-We will show in {== §[1.7](#sec:protocol_transition_functions){reference-type="ref"
-reference="sec:protocol_transition_functions"} ==} how this plays out. But
-first, we need to define the message types that can be exchanged between
-Participants.
+    | Participant Role | Start State ($o_i$)|
+    |------------------|-------------|
+    | Vendor           | $(S,N,vfdpxa)$ |
+    | Deployer         | $(S,N,dpxa)$ |
+    | Other            | $(S,N,pxa)$ |
+    | Finder/Reporter  | $(A,N,pxa)$ |
+
+
+For a case to really begin, the Finder must at least reach the $A$ state.
+Therefore, at the point when a second party finds out about the vulnerability from a Finder,
+the Finder/Reporter is presumed to be already at $q_{Finder}=(A, N, pxa)$.
+
+We will show in [Transitions](/reference/formal_protocol/transitions/) how this plays out.
+But first, we need to define the message types that can be exchanged between Participants.
