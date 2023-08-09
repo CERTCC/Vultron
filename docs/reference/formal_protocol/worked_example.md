@@ -122,6 +122,12 @@ sequenceDiagram
 
 #### Vendor Accepts then Proposes Revision
 
+!!! tip inline end "Yes, And..."
+
+    "Yes-And" is a heuristic taken from improvisational theatre in which Participants are encouraged to agree with 
+    whatever their counterpart suggests and add to it rather than reject it outright. 
+    It serves as a good model for cooperation among parties who share an interest in a positive outcome.
+
 Finally, the following diagram offers what we think is a better approach than a simple counterproposal.
 In this "Accept-then-Counter" sequence, we see that the Vendor initially accepts the Reporter's proposed embargo and 
 immediately follows up with a revision proposal of their own. 
@@ -130,7 +136,9 @@ before attempting to renegotiate.
 The sequence shown here is intended to be consistent with the previous discussion surrounding default embargo
 strategies in §[\[sec:default_embargoes\]](#sec:default_embargoes){reference-type="ref"
 reference="sec:default_embargoes"}.
-One might think of this as the "Yes-And" rule for embargo negotiations.[^3]
+One might think of this as the "Yes-And" rule for embargo negotiations.
+
+
 
 ```mermaid
 sequenceDiagram
@@ -394,3 +402,11 @@ Finally, report closure is a per-Participant choice. We chose to show a
 simple case where all Participants agreed at approximately the same time
 that there was nothing further to be done. This will not always be the
 case, nor is it necessary.
+
+
+
+[^3]: "Yes-And" is a heuristic taken from improvisational theatre in
+    which Participants are encouraged to agree with whatever their
+    counterpart suggests and add to it rather than reject it outright.
+    It serves as a good model for cooperation among parties who share an
+    interest in a positive outcome.
