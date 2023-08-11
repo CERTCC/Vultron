@@ -819,7 +819,7 @@ become Reporters have only 29 possible states during a CVD case.
             = & 29 \\    
         \end{split}$$
 
-# A Lower Bounds on MPCVD State Space {#sec:upper_lower_state_space}
+## A Lower Bounds on MPCVD State Space
 
 !!! note inline end "Generic MPCVD State Space Size Formula"
 
@@ -903,7 +903,7 @@ With these values in mind, we see that
 That said, while these are dramatic numbers, the reader is reminded that the whole point of the MPCVD protocol is to
 *coordinate* the process so that it is not just hundreds or thousands of Participants behaving randomly.
 
-# Starting States {#sec:protocol_starting_states}
+## Starting States
 
 Each Participant begins a case in the state where the report management
 process is in the start state, there is no embargo in place, and the

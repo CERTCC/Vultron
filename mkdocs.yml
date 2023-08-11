@@ -3,7 +3,8 @@ copyright: Copyright &copy; 2023 Carnegie Mellon University.
 nav:
   - Home: 'index.md'
   - Learning Vultron: 'tutorials/index.md'
-  - Using Vultron: 'howto/index.md'
+  - Using Vultron:
+      - Introduction: 'howto/index.md'
   - Understanding Vultron:
     - Introduction:
         - Background: 'topics/background/index.md'
@@ -32,6 +33,9 @@ nav:
         - Global vs Local Aspects: 'topics/process_models/model_interactions/index.md'
         - RM and EM Interactions: 'topics/process_models/model_interactions/rm_em.md'
         - RM, EM, CS Interactions: 'topics/process_models/model_interactions/rm_em_cs.md'
+    - The Vultron Protocol:
+        - Summary: 'topics/formal_protocol/index.md'
+        - Worked Example: 'topics/formal_protocol/worked_example.md'
     - Behavior Logic:
       - Behavior Tree Intro: 'topics/behavior_logic/index.md'
       - CVD Behaviors: 'topics/behavior_logic/cvd_bt.md'
@@ -70,7 +74,6 @@ nav:
       - Messages: 'reference/formal_protocol/messages.md'
       - Transitions: 'reference/formal_protocol/transitions.md'
       - Summary: 'reference/formal_protocol/conclusion.md'
-      - Worked Example: 'reference/formal_protocol/worked_example.md'
     - ISO Crosswalk: 'reference/iso_crosswalk.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
   - About:

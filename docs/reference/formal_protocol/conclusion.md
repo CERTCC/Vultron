@@ -1,6 +1,6 @@
 # Formal MPCVD Protocol Redux
 
-In this section, we have formally defined an MPCVD protocol
+In this section we formally defined an MPCVD protocol 
 
 !!! note "Formal Protocol Definition"
 
@@ -124,3 +124,6 @@ diagrams above.
 | Vendor Awareness Before Exploit Public | **V** $\prec$ **X** |
 | Vendor Awareness Before Attacks Observed | **V** $\prec$ **A** |
 
+!!! tip "Worked Example"
+    
+    A [worked example](/topics/formal_protocol/worked_example/) of the protocol in action is available.
