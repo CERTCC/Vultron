@@ -5,6 +5,8 @@ nav:
   - Learning Vultron: 'tutorials/index.md'
   - Using Vultron:
       - Introduction: 'howto/index.md'
+      - A Case Object: 'howto/case_object.md'
+      - Implementation Notes: 'howto/implementation_notes.md'
   - Understanding Vultron:
     - Introduction:
         - Background: 'topics/background/index.md'

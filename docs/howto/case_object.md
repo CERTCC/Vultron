@@ -1,0 +1,177 @@
+# A Vultron Case Object
+
+In this section, we describe a notional MPCVD *Case* object that incorporates the [process models](/topics/process_models/)
+and [formalisms](/reference/formal_protocol/) that defines the Vultron protocol.
+The object model we describe is intended to provide the necessary core information for an implementation of the
+[formal protocol](/reference/formal_protocol/).
+The diagram below depicts a UML Class Diagram of the *Case* model.
+It is not the minimal possible model required by the MPCVD protocol of this report; for example, strictly speaking, a 
+Participant does not need to attempt to track the state of every other Participant, but it might help to do so. 
+Rather, this model is intended to be compact yet sufficient for an implementation to effectively track the coordination
+effort of an MPCVD case.
+
+The remainder of this section provides details about the diagram below.
+
+!!! note "TODO"
+    Match the diagram in the original paper
+
+```mermaid
+erDiagram
+    Case ||--|{ Report : contains
+    Case ||--|{ Participant : contains
+    Case ||--|{ Message : contains
+    Case ||--|{ LogEvent : contains
+    Participant ||--|| Actor : contains
+```
+
+## The *Case* Class
+
+The *Case* class has attributes to track the [Embargo Management](/topics/process_models/em/) (EM) state and the
+[participant-agnostic](/topics/process_models/model_interactions/) portion of the [Case State](/topics/process_models/cs/) (CS) model (i.e., the *pxa*
+substates), as outlined in [model interactions](/topics/process_models/model_interactions/).
+The *Case* class aggregates one or more *Report*s and *Participant*s, and 0 or more *Message*s and *LogEvent*s.
+
+## The *Report* Class
+
+The *Report* class represents the vulnerability report that serves as the impetus for the case.
+Since it is possible for multiple reports to arrive that describe the same vulnerability, the cardinality of the 
+composition relationship allows for a *Case* to have many *Report*s.
+In most *Case*s, however, there will be only a single associated *Report*.
+
+## The *Message* Class
+
+The *Message* class represents a protocol message as outlined in [Messages](/reference/formal_protocol/messages/).
+We expect that any implementation of this model will expand this data type to include numerous message-related attributes.
+Here, we highlight the minimum requirements that the protocol demands: 
+
+- Each *Message* has an identified sender (who is a *Participant* in the case) and one or more message
+types as enumerated in [Messages](/reference/formal_protocol/messages/).
+- Message types are represented as flags since a single actual message might represent multiple message types.
+- For example, a report submission that includes an embargo proposal might have both the $RS$ and $EP$ message type flags set.
+
+Conceptually, one might think of the *Case* as a shared object among
+*engaged Participants* and that *Messages* are sent to the *Case* for
+all *Participants* to see. In other words, the *Case* acts as a
+broadcast domain, a topic queue, or a blackboard pattern (depending on
+your preferences for networking or software engineering terminology).
+Because of this shared-channel assumption, we omit a $receiver$
+attribute from the *Message* class, as the *Case* itself can serve as
+the recipient of each message emitted by any *Participant*.
+Implementations of this model could, of course, choose a more
+traditional messaging model with specified recipients.
+
+## The *LogEvent* Class
+
+The *LogEvent* class is a placeholder to represent an event log or
+history for the *Case*. Although not required for the protocol to
+operate, it is a good idea for *Case* tracking to include a timestamped
+list of events (e.g., state changes or messages sent or received) so
+that new *Participants* can be brought up to speed and so that cases can
+be analyzed for process improvement in the future.
+
+## The *Participant* Class
+
+The *Participant* class represents an individual or organization's
+involvement in the case. The attributes of the *Participant* class are
+as follows:
+
+!!! tip inline end
+    Flags are used instead of an enumeration to convey that
+    a *Participant* may have multiple roles in a single *Case*. Roles
+    may differ for the same actor across different cases.
+
+`case_role`
+
+:   A set of flags indicating the Role(s) this *Participant* plays in
+    the *Case*
+
+
+For example, an organization might be the Vendor in one case and the Coordinator in another.
+
+`rm_state`
+
+:   An enumeration attribute that captures the RM state for this *Participant*
+    consistent with [Report Management](/topics/process_models/rm/).
+
+!!! tip inline end
+
+    The `case_engagement` attribute is provided to allow other *Participant*s to recognize the
+    status of other *Participants*.
+
+`case_engagement`
+
+:   A Boolean attribute that indicates whether the *Participant* should
+    be included in future communications about the *Case*
+
+
+For example, a Reporter who bows out of a case shortly after reporting it to a Coordinator might be listed as a 
+*Participant* with `case_engagement=False` and could, therefore, be left out of further communication about the case.
+
+!!! tip inline end
+    
+    As discussed in [Embargo Principles](/topics/process_models/em/principles/?h=free#sec:embargo_engagement), 
+    it is possible for a *Participant* to exit a case while still agreeing to abide by the terms of the extant embargo.
+
+`embargo_adherence`
+
+:   A Boolean attribute that indicates the expectation that a
+    *Participant* is adhering to any existing embargo
+
+    
+Continuing our example of a Reporter leaving a case early, they might still be cooperative and indicate their 
+`embargo_adherence=True`. 
+A more hostile *Participant* exit could warrant setting `embargo_adherence=False`, likely triggering an embargo
+teardown procedure as a consequence.
+
+*Participant*s can also emit (send) and receive messages. 
+
+!!! tip 
+
+    The `+` on `receive_message` indicates that this capability is accessible to others (i.e., you can send a *Participant* a message).
+    On the contrary the `-` on `emit_message` conveys that this capability is only accessible to the *Participant* class 
+    itself (i.e., each *Participant* gets to decide if, when, and what messages to send).
+
+#### *Vendor* and *Deployer* *Participant* Classes.
+
+The presence of the *VendorParticipant* and *DeployerParticipant*
+classes---depicted as implementations of the *Participant* class---is
+necessitated by the discussion in [States](/reference/formal_protocol/states/),
+where we described how Vendors and Deployers have a unique part to play in the creation, delivery, and
+deployment of fixes within the CVD process. 
+These two classes add the *vfd_state* attribute with different possible values.
+Vendors can take on one of four possible values ($vfd$, $Vfd$, $VFd$, and $VFD$),
+whereas Deployers only have two possible values ($\wc\wc d$ and $\wc\wc D$).
+Other than that, Vendors and Deployers have the same attributes as other *Participant*s.
+
+## The *Contact* Class
+
+Since a *Participant* is a specific relationship between an individual or organization and the *Case* itself,
+we can safely assume that those individuals or organizations exist and persist independently of the *Case*s they 
+participate in.
+Hence, each *Participant* class in a *Case* is associated with a long-lived *Contact* record that represents an
+individual or organization.
+Defining the *Contact* class is outside the scope of this document, so we will simply say that there is nothing
+particularly special about it.
+One might reasonably expect *Contact*s to have names, email addresses, phone numbers, etc.
+
+!!! tip "Directory Services Are (Currently) Out of Scope"
+
+    A separate contact management process and accompanying directory service is a likely candidate for [future integration work](/topics/future_work/).
+    For now, we observe that similar directories already exist, although there is room for improvement:
+
+    - FIRST maintains a [directory of member teams](https://www.first.org/members/teams/) for incident response purposes
+
+    - Disclose.io offers a searchable list of [bug bounty and vulnerability
+    disclosure programs](https://disclose.io/programs/).
+    Contributions are solicited as [pull requests](https://github.com/disclose/diodb) on GitHub.
+  
+    - Many vulnerability disclosure platform service providers host directories of the programs hosted on their platforms.
+
+## The Enumeration Classes
+
+The remainder of the class diagram above consists of classes representing the Role and Message Type flags and various enumerations.
+The Roles are the same set we have used throughout this site, as taken from the [CVD Guide](https://vuls.cert.org/confluence/display/CVD).
+Message Type flags are consistent with [Messages](/reference/formal_protocol/messages/).
+The enumeration classes are consistent with the [RM](/topics/process_models/rm/), [EM](/topics/process_models/em/), 
+and [CS](/topics/process_models/cs) state machines.
+
