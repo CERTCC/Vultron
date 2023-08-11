@@ -69,6 +69,7 @@ nav:
       - States: 'reference/formal_protocol/states.md'
       - Messages: 'reference/formal_protocol/messages.md'
       - Transitions: 'reference/formal_protocol/transitions.md'
+      - Summary: 'reference/formal_protocol/conclusion.md'
       - Worked Example: 'reference/formal_protocol/worked_example.md'
     - ISO Crosswalk: 'reference/iso_crosswalk.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
