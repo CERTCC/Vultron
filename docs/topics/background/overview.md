@@ -54,36 +54,40 @@ The behaviors we are interested in modeling are the various
 CVD activities described in the [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD) (e.g., find contacts, send
 reports, validate reports, prioritize reports, create fixes, publish
 reports, publish fixes, deploy fixes).
-{== Chapter
-[\[ch:behavior_trees\]](#ch:behavior_trees){reference-type="ref"
-reference="ch:behavior_trees"} ==} uses Behavior Trees to describe
-MPCVD Participant activities and their interactions with the [formal protocol](/reference/formal_protocol).
+We use [Behavior Trees](/topics/behavior_logic/) to describe MPCVD Participant activities and their interactions with
+the [formal protocol](/reference/formal_protocol).
 
 ## Implementation Notes
 
 Additional [implementation notes](/topics/implementation_notes), including a simplified case data model, are provided.
 Future work is discussed in [Future Work](/topics/future_work).
+
 {== Our conclusion is in Chapter
 [\[ch:conclusion\]](#ch:conclusion){reference-type="ref"
 reference="ch:conclusion"}. ==}
 
-Appendices are included to provide connections to closely related work:
-In Appendix
+{== Appendices are included to provide connections to closely related work: ==}
+
+{== In Appendix
 [\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref"
 reference="app:ssvc_mpcvd_protocol"}, we provide a mapping between the
 MPCVD protocol
 and relevant portions of the SSVC, a vulnerability response prioritization
 model also developed by the [CERT/CC]{acronym-label="CERT/CC"
-acronym-form="singular+short"}. Appendix
+acronym-form="singular+short"}. ==}
+
+{== Appendix
 [\[app:iso_crosswalk\]](#app:iso_crosswalk){reference-type="ref"
 reference="app:iso_crosswalk"} contains a detailed crosswalk of our
 protocol with ISO/IEC 29147:2018 *Vulnerability Disclosure*, ISO/IEC
 30111:2019 *Vulnerability Handling Processes*, and ISO/IEC TR 5895:2022
-*Multi-party coordinated vulnerability disclosure and handling*.
-Appendix [\[app:em_icalendar\]](#app:em_icalendar){reference-type="ref"
+*Multi-party coordinated vulnerability disclosure and handling*. ==}
+
+{== Appendix [\[app:em_icalendar\]](#app:em_icalendar){reference-type="ref"
 reference="app:em_icalendar"} maps concepts from the
 EM process onto the
 `iCalendar` protocol.
+==}
 
-A list of acronyms is provided at the end of the report.
+{== A list of acronyms is provided at the end of the report. ==}
 
