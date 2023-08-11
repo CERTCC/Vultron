@@ -138,9 +138,9 @@ classes---depicted as implementations of the *Participant* class---is
 necessitated by the discussion in [States](/reference/formal_protocol/states/),
 where we described how Vendors and Deployers have a unique part to play in the creation, delivery, and
 deployment of fixes within the CVD process. 
-These two classes add the *vfd_state* attribute with different possible values.
+These two classes add the `vfd_state` attribute with different possible values.
 Vendors can take on one of four possible values ($vfd$, $Vfd$, $VFd$, and $VFD$),
-whereas Deployers only have two possible values ($\wc\wc d$ and $\wc\wc D$).
+whereas Deployers only have two possible values ($\cdot\cdot d$ and $\cdot\cdot D$).
 Other than that, Vendors and Deployers have the same attributes as other *Participant*s.
 
 ## The *Contact* Class
