@@ -1,6 +1,8 @@
 # Formal MPCVD Protocol Redux
 
-In this section we formally defined an MPCVD protocol 
+We have [formally defined](/reference/formal_protocol/) an [MPCVD protocol](/reference/formal_protocol/).
+Here we provide a summary of the result.
+See the linked sections for more details.
 
 !!! note "Formal Protocol Definition"
 
