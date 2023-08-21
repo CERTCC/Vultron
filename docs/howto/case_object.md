@@ -1,7 +1,7 @@
 # A Vultron Case Object
 
 In this section, we describe a notional MPCVD *Case* object that incorporates the [process models](/topics/process_models/)
-and [formalisms](/reference/formal_protocol/) that defines the Vultron protocol.
+and [formalisms](/reference/formal_protocol/) that define the Vultron protocol.
 The object model we describe is intended to provide the necessary core information for an implementation of the
 [formal protocol](/reference/formal_protocol/).
 The diagram below depicts a UML Class Diagram of the *Case* model.
@@ -12,16 +12,117 @@ effort of an MPCVD case.
 
 The remainder of this section provides details about the diagram below.
 
-!!! note "TODO"
-    Match the diagram in the original paper
+```mermaid
+classDiagram
+class Case {
+    em_state EMStateEnum = None
+    pxa_state PXAStateEnum = pxa
+    +receive_message(Message)
+}
+
+class Report
+
+class Message {
+    sender Participant
+    recipient Case or Participant
+    msg_type MessageTypeEnum
+}
+
+class LogEvent
+
+class Participant {
+    case_role CaseRoleFlags
+    rm_state RMStateEnum = Start
+    case_engagement Boolean = True
+    embargo_adherence Boolean = True
+    + receive_message(Message)
+    - emit_message(Message)
+}
+
+class VendorParticipant {
+    vfd_state VFDStateEnum = vfd
+}
+
+class DeployerParticipant {
+    vfd_state VFDStateEnum = ..d
+}
+
+class Contact
+
+Case *--> "1..*" Report: reports
+Case *--> "0..*" Message : messages
+Case *--> "0..*" LogEvent : log_events
+Case *--> "1..*" Participant : participants
+Participant *--> "1" Contact : contact
+Participant <|-- VendorParticipant
+Participant <|-- DeployerParticipant
+```
+
+With the following supporting enumerations and flags:
 
 ```mermaid
-erDiagram
-    Case ||--|{ Report : contains
-    Case ||--|{ Participant : contains
-    Case ||--|{ Message : contains
-    Case ||--|{ LogEvent : contains
-    Participant ||--|| Actor : contains
+classDiagram
+    
+class CaseRoleFlags {
+    <<flags>>
+    Finder
+    Reporter
+    Vendor
+    Coordinator
+    Deployer
+    Other
+}
+
+class EMStateEnum {
+    <<enumeration>>
+    None
+    Proposed
+    Accepted
+    Revise
+    Exited
+}
+
+class PXAStateEnum {
+    <<enumeration>>
+    pxa
+    pxA
+    pXa
+    pXA
+    Pxa
+    PxA
+    PXa
+    PXA
+}
+
+class RMStateEnum {
+    <<enumeration>>
+    Start
+    Received
+    Invalid
+    Valid
+    Deferred
+    Accepted
+    Closed
+}
+
+class VFDStateEnum {
+    <<enumeration>>
+    vfd
+    Vfd
+    VFd
+    VFD
+    ..d
+    ..D
+}
+
+class MessageTypeEnum {
+    <<flags>>
+    RS, RI, RV, RD, RA, RC, RK, RE,
+    EP, ER, EA, EV, EJ, EC, ET, EK, EE,
+    CV, CF, CD, CP, CX, CA, CK, CE,
+    GI, GK, GE
+}
+
 ```
 
 ## The *Case* Class
@@ -30,6 +131,8 @@ The *Case* class has attributes to track the [Embargo Management](/topics/proces
 [participant-agnostic](/topics/process_models/model_interactions/) portion of the [Case State](/topics/process_models/cs/) (CS) model (i.e., the *pxa*
 substates), as outlined in [model interactions](/topics/process_models/model_interactions/).
 The *Case* class aggregates one or more *Report*s and *Participant*s, and 0 or more *Message*s and *LogEvent*s.
+We include a `receive_message()` method to allow *Participant*s to send messages to the *Case*.
+See [below](#the-message-class) for more details.
 
 ## The *Report* Class
 
@@ -49,16 +152,14 @@ types as enumerated in [Messages](/reference/formal_protocol/messages/).
 - Message types are represented as flags since a single actual message might represent multiple message types.
 - For example, a report submission that includes an embargo proposal might have both the $RS$ and $EP$ message type flags set.
 
-Conceptually, one might think of the *Case* as a shared object among
-*engaged Participants* and that *Messages* are sent to the *Case* for
-all *Participants* to see. In other words, the *Case* acts as a
-broadcast domain, a topic queue, or a blackboard pattern (depending on
-your preferences for networking or software engineering terminology).
-Because of this shared-channel assumption, we omit a $receiver$
-attribute from the *Message* class, as the *Case* itself can serve as
-the recipient of each message emitted by any *Participant*.
-Implementations of this model could, of course, choose a more
-traditional messaging model with specified recipients.
+Conceptually, one might think of the *Case* as a shared object among *engaged Participants* and that *Messages* are sent
+to the *Case* for all *Participants* to see.
+In other words, the *Case* acts as a broadcast domain, a topic queue, or a blackboard pattern (depending on your 
+preferences for networking or software engineering terminology). 
+Because of this shared-channel assumption, we could have omitted the $recipient$ attribute from the *Message* class, as the *Case* itself
+can serve as the recipient of each message emitted by any *Participant*.
+Implementations of this model could, of course, choose a more traditional messaging model with specified recipients, so
+we leave that choice to implementers.
 
 ## The *LogEvent* Class
 
@@ -139,8 +240,8 @@ necessitated by the discussion in [States](/reference/formal_protocol/states/),
 where we described how Vendors and Deployers have a unique part to play in the creation, delivery, and
 deployment of fixes within the CVD process. 
 These two classes add the `vfd_state` attribute with different possible values.
-Vendors can take on one of four possible values ($vfd$, $Vfd$, $VFd$, and $VFD$),
-whereas Deployers only have two possible values ($\cdot\cdot d$ and $\cdot\cdot D$).
+Vendors can take on one of four possible values (`vfd`, `Vfd`, `VFd`, and `VFD`),
+whereas Deployers only have two possible values (`..d` and `..D`).
 Other than that, Vendors and Deployers have the same attributes as other *Participant*s.
 
 ## The *Contact* Class
