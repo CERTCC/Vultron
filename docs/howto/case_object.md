@@ -1,6 +1,6 @@
 # A Vultron Case Object
 
-In this section, we describe a notional MPCVD *Case* object that incorporates the [process models](/topics/process_models/)
+Here we describe a notional MPCVD *Case* object that incorporates the [process models](/topics/process_models/)
 and [formalisms](/reference/formal_protocol/) that define the Vultron protocol.
 The object model we describe is intended to provide the necessary core information for an implementation of the
 [formal protocol](/reference/formal_protocol/).

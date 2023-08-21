@@ -3,12 +3,11 @@ copyright: Copyright &copy; 2023 Carnegie Mellon University.
 nav:
   - Home: 'index.md'
   - Learning Vultron: 'tutorials/index.md'
-  - Using Vultron:
+  - Implementing Vultron:
       - Introduction: 'howto/index.md'
       - A Case Object: 'howto/case_object.md'
       - Process Implementation: 'howto/process_implementation.md'
       - General Notes: 'howto/general_implementation.md'
-      - Implementation Notes: 'howto/implementation_notes.md'
   - Understanding Vultron:
     - Introduction:
         - Background: 'topics/background/index.md'

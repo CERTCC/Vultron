@@ -34,8 +34,7 @@ As long as the structure and semantics are well defined, most standard data form
     like the [NIST Vulnerability Data Ontology](https://github.com/usnistgov/vulntology) ([Vulntology](https://github.com/usnistgov/vulntology)) will play a part.
 
 
-
-### Transport Protocol
+## Transport Protocol
 
 We have not specified how MPCVD protocol implementations connect to each other.
 Presumably, technologies such as REST APIs or WebSockets would be leading candidates to resolve this gap.
@@ -47,15 +46,42 @@ to portions of this protocol as well.
     
     Vultron MPCVD Protocol Implementations SHOULD use common API patterns (e.g., REST, WebSockets).
 
-### Identity Management
+
+## Identity Management
 
 We have not addressed Participant authentication as part of the protocol, but obviously implementers will need to 
 determine how Participants know who they are talking to.
 Individual user accounts with multi-factor authentication are the de facto standard for modern CVD tools, but in
 an interoperable MPCVD world, the assumption of centralized identity management may not be practical.
 
-
 !!! tip "Related Identity Standards"
 
     Federated identity protocols such as [OAuth](https://oauth.net/), [SAML](https://saml.xml.org/about-saml), and/or [OpenID Connect](https://openid.net/developers/how-connect-works/) may be useful.
 
+## Encryption
+
+The protocol does not specify any encryption requirements, but it is likely that some form of encryption will be
+necessary for Vultron implementations.
+
+### Protecting Data in Transit
+
+It may be sufficient for implementations to rely on transport-layer encryption (e.g., TLS), but end-to-end encryption
+may be desirable in some cases. 
+For now at least, we leave this decision to implementers.
+
+!!! note ""
+
+    Vultron MPCVD Protocol Implementations SHOULD use transport-layer encryption to protect sensitive data in transit.
+
+!!! note ""
+
+    Vultron MPCVD Protocol Implementations MAY use end-to-end encryption to protect sensitive data in transit.
+
+### Protecting Data at Rest
+
+Encryption at rest is likely to be a requirement for many implementations.
+Again, we leave this decision to implementers.
+
+!!! note ""
+
+    Vultron MPCVD Protocol Implementations MAY use encryption to protect sensitive data at rest.

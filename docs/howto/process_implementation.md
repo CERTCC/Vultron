@@ -3,7 +3,7 @@
 Integrating the MPCVD protocol into everyday MPCVD operations requires each Participant to consider how their business processes
 interact with the individual [RM](/topics/process_models/rm/), [EM](/topics/process_models/em/), 
 and [CS](/topics/process_models/cs/), process models, respectively.
-In this section, we offer some thoughts on where such integration might begin.
+Here we offer some thoughts on where such integration might begin.
 
 ## RM Implementation Notes
 
