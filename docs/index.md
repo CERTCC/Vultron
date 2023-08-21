@@ -1,5 +1,15 @@
 # Vultron Coordinated Vulnerability Disclosure Protocol
 
+!!! warning inline end "Work in progress"
+
+    We are currently working on the documentation of the Vultron CVD Protocol.
+    This documentation is a work in progress and is not yet complete.
+    Our focus so far is on
+    
+    - [Understanding Vultron](/topics/background/), which describes the protocol in detail
+    - [Implementing Vultron](/howto/), which provides guidance for potential implementations of Vultron
+    - [Reference](/reference/formal_protocol/), which provides the formal protocol specification
+
 Vultron is a research project to explore the creation of a federated, decentralized,
 and open source protocol for coordinated vulnerability disclosure (CVD).
 It has grown out of the CERT/CC's decades of experience in coordinating global
@@ -11,11 +21,6 @@ policies that can work together to coordinate appropriate responses to vulnerabi
 
 Vultron is a collection of ideas, models, code, and work in progress, and is not yet ready for production use.
 
-!!! warning "Work in progress"
-
-    We are currently working on the documentation of the Vultron CVD Protocol.
-    This documentation is a work in progress and is not yet complete.
-    Our focus so far is on the Understanding Vultron section, which describes the protocol in detail.
 
 ## How this documentation is organized
 
