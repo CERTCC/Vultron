@@ -7,6 +7,7 @@ nav:
       - Introduction: 'howto/index.md'
       - A Case Object: 'howto/case_object.md'
       - Process Implementation: 'howto/process_implementation.md'
+      - General Notes: 'howto/general_implementation.md'
       - Implementation Notes: 'howto/implementation_notes.md'
   - Understanding Vultron:
     - Introduction:
