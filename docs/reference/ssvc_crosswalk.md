@@ -240,6 +240,8 @@ reference="fig:rm_ssvc_coord_map"} ==}.
 
 ### Engagement vs. Involvement: What's the Difference?
 
+{== TODO clean up references to figure to reflect split into two diagrams ==}
+
 Note the discrepancy between the mappings given for SSVC Supplier Engagement versus those for Supplier Involvement.
 This distinction is most prominent in the connections from the _R_ and _D_ RM states on the left and right sides of {== Figure
 [\[fig:rm_ssvc_coord_map\]](#fig:rm_ssvc_coord_map){reference-type="ref"
@@ -254,6 +256,36 @@ prioritization processes.
 Hence, the mapping allows Vendors in any valid yet unclosed state ($q^{rm} \in \{R,V,A,D\}$) to be categorized as 
 _Active_ for this decision point.
 
+```mermaid
+---
+title: "RM States and SSVC Supplier Engagement"
+---
+graph LR
+    subgraph ssvc_se[SSVC Supplier Engagement]
+        Active
+        Unresponsive
+    end
+    subgraph rm_states[RM States]
+        S
+        R
+        I
+        V
+        D
+        A
+        C
+    end
+    A --> Active
+    V --> Active
+    R --> Active
+    D --> Active
+    R--> Unresponsive
+    D --> Unresponsive
+    I --> Unresponsive
+    C --> Unresponsive
+    S --> Unresponsive
+```
+
+
 On the other hand, the decision to Publish&mdash;a choice that falls entirely within the Coordinator's RM _Accepted_ 
 state&mdash;occurs later, at which time, more is known about each Vendor's level of involvement in the case
 to that point. 
@@ -264,20 +296,12 @@ decision, and the Vendor has yet to actively engage in the case for whatever rea
 RM _Accepted_ state or demonstrate progress toward it by at least getting to RM _Valid_ 
 ($q^{rm} \in \{A,V\}$)&mdash;then they can be categorized as _Uncooperative/Unresponsive_.
 
-{== TODO clean up diagram ==}
-
 ```mermaid
-stateDiagram-v2
-    direction LR    
-    ssvc_se: SSVC Supplier Engagement
-    ssvc_si: SSVC Supplier Involvement
-    rm_states: RM States
-
-    state ssvc_se {
-        Active
-        Unresponsive
-    }
-    state rm_states {
+---
+title: "RM States and SSVC Supplier Involvement"
+---
+graph LR
+    subgraph rm_states[RM States]
         S
         R
         I
@@ -285,21 +309,13 @@ stateDiagram-v2
         D
         A
         C
-    }
-    state ssvc_si {
-        fr: Fix-Ready
-        co: Cooperative
-        un: Uncooperative/Unresponsive
-    }
-    A --> Active
-    V --> Active
-    R --> Active
-    D --> Active
-    R--> Unresponsive
-    D --> Unresponsive
-    I --> Unresponsive
-    C --> Unresponsive
-    S --> Unresponsive
+    end
+
+    subgraph ssvc_si[SSVC Supplier Involvement]
+        fr[Fix-Ready]
+        co[Cooperative]
+        un[Uncooperative/Unresponsive]
+    end
     A --> fr
     A --> co
     V --> co
@@ -308,6 +324,4 @@ stateDiagram-v2
     I --> un
     C --> un
     S --> un
-    
-
 ```
