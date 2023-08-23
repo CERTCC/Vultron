@@ -83,7 +83,7 @@ Similar to the _Supplier Tree_ mapping above, the mapping here is simple, as sho
     \end{cases}$$
 
 
-Again, whereas the _Decline_ output maps directly to the RM [_Deferred_](/topics/process_models/rm/#the-deferred-d-state) state, the remaining two
+Again, whereas the _Decline_ output maps directly to the RM [_Deferred_](../topics/process_models/rm/#the-deferred-d-state) state, the remaining two
 states (_Track_ and _Coordinate_) imply the necessity for distinct processes within the Coordinator's RM [_Accepted_](../topics/process_models/rm/#the-accepted-a-state) state.
 
 On the other hand, the SSVC _Coordinator Publish Tree_ falls entirely within the Coordinator's _Accepted_ state, so its 

@@ -1,6 +1,6 @@
 # Worked Example
 
-Here we give a brief worked example showing a few usage scenarios of the [protocol](../reference/formal_protocol/).
+Here we give a brief worked example showing a few usage scenarios of the [protocol](../reference/formal_protocol/index.md).
 We use UML Sequence Diagrams to show the interaction between Participant roles.
 
 ### A Finder Becomes a Reporter

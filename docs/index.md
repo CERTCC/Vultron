@@ -6,9 +6,9 @@
     This documentation is a work in progress and is not yet complete.
     Our focus so far is on
     
-    - [Understanding Vultron](/topics/background/), which describes the protocol in detail
+    - [Understanding Vultron](./topics/background/), which describes the protocol in detail
     - [Implementing Vultron](/howto/), which provides guidance for potential implementations of Vultron
-    - [Reference](/reference/formal_protocol/), which provides the formal protocol specification
+    - [Reference](./reference/formal_protocol/index.md), which provides the formal protocol specification
 
 Vultron is a research project to explore the creation of a federated, decentralized,
 and open source protocol for coordinated vulnerability disclosure (CVD).

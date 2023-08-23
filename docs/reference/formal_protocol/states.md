@@ -94,10 +94,10 @@ Note that the above definition splits the case state
 ($\mathcal{Q}^{cs}$) into chunks corresponding to the Vendor fix path
 ($vfd \xrightarrow{\mathbf{V}} Vfd \xrightarrow{\mathbf{F}} VFd \xrightarrow{\mathbf{D}} VFD$)
 and the public-exploit-attack ($pxa \xrightarrow{\dots} PXA$) sub-models
-from the [Case State Model](/topics/process_models/cs/index.md).
+from the [Case State Model](../topics/process_models/cs/index.md).
 This is done for two reasons. 
 First, it gives us a more compact notation to represent the 32 states of the CS model.
-Second, as described in [Model Interactions](/topics/process_models/model_interactions/), it highlights the fact that 
+Second, as described in [Model Interactions](../topics/process_models/model_interactions/), it highlights the fact that 
 the Vendor fix path represents the state of an individual Participant, whereas the public-exploit-attack sub-model 
 represents facts about the world at large.
 Because not all Participants
@@ -726,7 +726,7 @@ below.
 
 ### Finder-Reporters
 
-As we discussed in [RM Interactions](/topics/process_models/rm/rm_interactions/#the-secret-lives-of-finders),
+As we discussed in [RM Interactions](../topics/process_models/rm/rm_interactions/#the-secret-lives-of-finders),
 the early Finder states are largely hidden from view from other CVD Participants unless they choose to engage
 in the CVD process in the first place.
 Therefore, for a CVD protocol, we only need to care about Finder states once they have reached RM $Accepted$.
@@ -930,5 +930,5 @@ For a case to really begin, the Finder must at least reach the $A$ state.
 Therefore, at the point when a second party finds out about the vulnerability from a Finder,
 the Finder/Reporter is presumed to be already at $q_{Finder}=(A, N, pxa)$.
 
-We will show in [Transitions](/reference/formal_protocol/transitions.md) how this plays out.
+We will show in [Transitions](./formal_protocol/transitions.md) how this plays out.
 But first, we need to define the message types that can be exchanged between Participants.
