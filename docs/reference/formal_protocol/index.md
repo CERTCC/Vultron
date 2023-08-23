@@ -3,7 +3,7 @@
 The MPCVD process can be described as a Communicating Hierarchical State Machine.
 In this section, we begin by laying out the requirements for a formal protocol
 definition followed by a step-by-step walkthrough of each of those requirements
-as they relate to the [RM](../../topics/process_models/rm/), [EM](../../topics/process_models/em/index.md), and [CS](../../topics/process_models/cs/index.md)
+as they relate to the [RM](../../topics/process_models/rm/index.md), [EM](../../topics/process_models/em/index.md), and [CS](../../topics/process_models/cs/index.md)
 models described elsewhere.
 
 ## Communication Protocol Definitions {#sec:protocol_definition}

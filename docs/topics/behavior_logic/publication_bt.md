@@ -40,7 +40,7 @@ flowchart LR
     The [embargo management](em_bt.md) task here is intended as a simple check to ensure that no
     embargo remains active prior to publication.
     However, since we describe that behavior [elsewhere](em_bt.md), we will not repeat it here.
-    Note that the [EM](../process_models/em/index.md) process may result in [early termination](../process_models/em/early_termination/) of an existing embargo 
+    Note that the [EM](../process_models/em/index.md) process may result in [early termination](../process_models/em/early_termination.md) of an existing embargo 
     if the Participant has sufficient cause to do so.
 
 The publication process begins with [preparation for publication](#prepare-publication-behavior),

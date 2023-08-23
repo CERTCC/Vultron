@@ -3,7 +3,7 @@
 CVD is built on the idea that vulnerabilities exist to be found. There are two ways for a CVD Participant to
 find out about a vulnerability. Either they discover it themselves, or they hear about it from someone else.
 The discovery behavior is modeled by the Discover Vulnerability Behavior Tree shown in the figure below.
-External reports are covered in the [Receive Messages](receive_messages_bt.md) Behavior Tree.
+External reports are covered in the [Receive Messages](msg_intro_bt.md) Behavior Tree.
 
 ```mermaid
 ---
@@ -53,7 +53,7 @@ parent process in [CVD Behavior Tree](cvd_bt.md)
 can proceed to receive messages from others.
 Because of the amount of detail necessary to describe the *receive
 messages* behavior, we defer it to
-[Receive Messages](receive_messages_bt.md).
+[Receive Messages](msg_intro_bt.md).
 Before we proceed, it is sufficient to know that a new report arriving in the *receive messages* behavior sets
 $q^{rm} \in S \xrightarrow{r} R$ and returns *Success*.
 

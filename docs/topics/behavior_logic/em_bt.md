@@ -2,7 +2,7 @@
 
 The Embargo Management Behavior Tree is shown in the figure below.
 It follows the state transition function in the
-[Embargo Management Process Model](http://127.0.0.1:80(../process_models/em#em-state-transitions).
+[Embargo Management Process Model](../process_models/em/index.md#em-state-transitions).
 Recall that the EM process begins in the $q^{em} \in N$ state and ends in one of two states:
 
 -   in the *eXited* ($q^{em} \in X$) state after having established an
@@ -94,13 +94,13 @@ made public, or information about the vulnerability has been made
 public. If one of those conditions is met and the embargo state is
 *None* ($q^{em} \in N$), the check returns *Success*, and the tree
 terminates, consistent with
-[Negotiating Embargoes](../process_models/em/negotiating/).
+[Negotiating Embargoes](../process_models/em/negotiating.md).
 
 Otherwise, we continue through each remaining EM state. 
 When there is no embargo and there are no outstanding proposals ($q^{em} \in N$), the only options are to
 either stop trying or [propose](em_propose_bt.md) a new embargo.
 The decision to stop trying to achieve an embargo is left to individual Participants, although we did provide some relevant guidance in
-[Negotiating Embargoes](../process_models/em/negotiating/).
+[Negotiating Embargoes](../process_models/em/negotiating.md).
 
 When there is an outstanding embargo proposal ($q^{em} \in P$), we first attempt the [terminate](em_terminate_bt.md) task.
 This task returns *Success* if there is a reason for ${q^{em} \in P \xrightarrow{r} N}$.

@@ -1,12 +1,12 @@
 # Worked Example
 
-Here we give a brief worked example showing a few usage scenarios of the [protocol](../reference/formal_protocol/index.md).
+Here we give a brief worked example showing a few usage scenarios of the [protocol](../../reference/formal_protocol/index.md).
 We use UML Sequence Diagrams to show the interaction between Participant roles.
 
 ### A Finder Becomes a Reporter
 
 As mentioned in
-[RM Interactions](../process_models/rm/rm_interactions#the-secret-lives-of-finders), Finders have a few hidden state
+[RM Interactions](../process_models/rm/rm_interactions.md#the-secret-lives-of-finders), Finders have a few hidden state
 transitions before the CVD process really begins. An example of this
 is shown in the figure below. The Finder must discover, validate, and
 prioritize their finding before initiating the CVD process.
@@ -126,7 +126,7 @@ immediately follows up with a revision proposal of their own.
 The difference is that by initially accepting the proposal, the Vendor ensures that they are in an active embargo state
 before attempting to renegotiate.
 The sequence shown here is intended to be consistent with the previous discussion surrounding [default embargo
-strategies](../process_models/em/defaults).
+strategies](../process_models/em/defaults.md).
 One might think of this as the "Yes-And" rule for embargo negotiations.
 
 

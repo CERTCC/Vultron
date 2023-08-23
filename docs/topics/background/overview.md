@@ -13,7 +13,7 @@ We propose three main DFAs as the core of our Vultron protocol:
 3.  A [Case State](../process_models/cs/index.md) DFA tracks the events in {== Table [\[tab:cs_transitions\]](#tab:cs_transitions){reference-type="ref"
     reference="tab:cs_transitions"} ==}, as originally described in the {== Householder and Spring 2021 report [@householder2021state] ==}.
 
-[Model Interactions](../process_models/model_interactions) contains a discussion of the interactions
+[Model Interactions](../process_models/model_interactions.md) contains a discussion of the interactions
 among these three state machine models.
 
 ## Formal Protocol
@@ -54,7 +54,7 @@ The behaviors we are interested in modeling are the various
 CVD activities described in the [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD) (e.g., find contacts, send
 reports, validate reports, prioritize reports, create fixes, publish
 reports, publish fixes, deploy fixes).
-We use [Behavior Trees](../behavior_logic/) to describe MPCVD Participant activities and their interactions with
+We use [Behavior Trees](../behavior_logic/index.md) to describe MPCVD Participant activities and their interactions with
 the [formal protocol](../../reference/formal_protocol/index.md).
 
 ## Implementation Notes

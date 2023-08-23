@@ -26,13 +26,13 @@ The main sequence is comprised of four main tasks:
     CVD process. This task returns *Success* regardless of whether a vulnerability is found to allow execution to
     pass to the next task.
 
--   [*Receive messages*](receive_messages_bt.md). All coordination in CVD between Participants is done through
+-   [*Receive messages*](msg_intro_bt.md). All coordination in CVD between Participants is done through
     the exchange of messages, regardless of how those messages are
     conveyed, stored, or presented. The receive messages task represents
     the Participant's response to receiving the various messages defined
     in the [formal protocol](../../reference/formal_protocol/index.md). Due to the degree of detail
     required to cover all the various message types, decomposition of
-    this task node is deferred until [later](receive_messages_bt.md) so we can cover the next two items
+    this task node is deferred until [later](msg_intro_bt.md) so we can cover the next two items
     first.
 
 -   [*Report Management*](rm_bt.md). This task embodies the [RM process](../process_models/rm/index.md)

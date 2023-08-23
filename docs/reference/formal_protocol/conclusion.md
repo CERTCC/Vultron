@@ -1,6 +1,6 @@
 # Formal MPCVD Protocol Redux
 
-We have [formally defined](/index.md) an [MPCVD protocol](/index.md).
+We have [formally defined](/index.md) an [MPCVD protocol](../../index.md).
 Here we provide a summary of the result.
 See the linked sections for more details.
 
