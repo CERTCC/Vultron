@@ -148,7 +148,7 @@ flowchart LR
 
 
 Recall from
-[Model Interactions](../topics/process_models/model_interactions/) and
+[Model Interactions]((../process_models/model_interactions/) and
 the [Formal Protocol](../reference/formal_protocol/) that the 
 $vfd\cdot\cdot\cdot \rightarrow \dots \rightarrow VFD\cdot\cdot\cdot$ portion of the
 CS model is unique to each Vendor Participant, and similarly that the

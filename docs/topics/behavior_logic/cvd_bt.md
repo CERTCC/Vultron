@@ -35,11 +35,11 @@ The main sequence is comprised of four main tasks:
     this task node is deferred until [later]((./receive_messages_bt) so we can cover the next two items
     first.
 
--   [*Report Management*]((./rm_bt). This task embodies the [RM process](../topics/process_models/rm)
+-   [*Report Management*]((./rm_bt). This task embodies the [RM process]((../process_models/rm)
     as integrated into the [formal protocol](../reference/formal_protocol).
 
 -   [*Embargo Management*]((./em_bt). Similarly, this task represents the
-    [EM process](../topics/process_models/em) as integrated into the [formal protocol](../reference/formal_protocol).
+    [EM process]((../process_models/em) as integrated into the [formal protocol](../reference/formal_protocol).
 
 A further breakdown of a number of CVD tasks that fall outside the scope of the
 [formal protocol](../reference/formal_protocol) can be found in
@@ -47,6 +47,6 @@ A further breakdown of a number of CVD tasks that fall outside the scope of the
 In that section, we examine a number of behaviors that Participants may include as part of the work they do for reports 
 in the $Accepted$ RM state ($q^{rm}\in A$).
 
-Behaviors and state changes resulting from changes to the [CS model](../topics/process_models/cs) are scattered throughout the other Behavior Trees
+Behaviors and state changes resulting from changes to the [CS model]((../process_models/cs) are scattered throughout the other Behavior Trees
 where relevant.
 

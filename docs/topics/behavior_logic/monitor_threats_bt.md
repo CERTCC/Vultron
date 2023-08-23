@@ -44,7 +44,7 @@ flowchart LR
 
 
 For our purposes, monitoring consists of a set of parallel tasks, any one of which can lead to embargo termination.
-The three conditions of interest are taken straight from the [embargo exit criteria](../topics/process_models/em/early_termination/).
+The three conditions of interest are taken straight from the [embargo exit criteria]((../process_models/em/early_termination/).
 
 -   If attacks are observed, the $q^{cs} \xrightarrow{\mathbf{A}} A$ transition occurs, and a $CA$ message is emitted.
 

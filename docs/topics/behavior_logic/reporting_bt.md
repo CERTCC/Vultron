@@ -4,7 +4,7 @@ The [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org
 describes the reporting phase as the process of identifying parties that need to be informed about the vulnerability
 and then notifying them.
 Reporting only works if the intended recipient has the ability to receive reports, as outlined in
-our introduction of the [RM _Received_ state](../topics/process_models/rm/#the-received-r-state).
+our introduction of the [RM _Received_ state]((../process_models/rm/#the-received-r-state).
 
 The Reporting Behavior Tree is shown in the figure below.
 
@@ -29,7 +29,7 @@ Participants to notify.
     
     Note that we are intentionally avoiding setting any requirements about *who* is relevant to a case.
     We leave that decision to each Participant's judgment.
-    Further discussion of this topic is available in [Adding Participants](../topics/process_models/em/working_with_others/). 
+    Further discussion of this topic is available in [Adding Participants]((../process_models/em/working_with_others/). 
 
 The Identify Participants Behavior Tree, shown in the following diagram, ends when all relevant parties have been 
 identified. 

@@ -41,10 +41,10 @@ flowchart LR
 ```
 
 It consists of a sequence that begins with a check for embargo viability as outlined in
-[Negotiating Embargoes](../topics/process_models/em/negotiating/).
+[Negotiating Embargoes]((../process_models/em/negotiating/).
 Once the checks succeed, it proceeds to selecting embargo terms to propose.
 Implementations of this task might simply draw from a default policy, as in 
-[Default Embargoes](../topics/process_models/em/defaults/), or it might be a case-specific decision made by a Participant.
+[Default Embargoes]((../process_models/em/defaults/), or it might be a case-specific decision made by a Participant.
 Embargo terms can be proposed from any of the non-*eXited* states ($q^{em} \in \{N,P,A,R\}$).
 If a new or revised embargo has already been proposed, the tree then checks whether a counterproposal is desired.
 Assuming it is not, no proposal is made, and the behavior succeeds.

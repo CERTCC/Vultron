@@ -54,7 +54,7 @@ The behaviors we are interested in modeling are the various
 CVD activities described in the [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD) (e.g., find contacts, send
 reports, validate reports, prioritize reports, create fixes, publish
 reports, publish fixes, deploy fixes).
-We use [Behavior Trees](../topics/behavior_logic/) to describe MPCVD Participant activities and their interactions with
+We use [Behavior Trees]((../behavior_logic/) to describe MPCVD Participant activities and their interactions with
 the [formal protocol](../reference/formal_protocol).
 
 ## Implementation Notes
