@@ -30,9 +30,9 @@ flowchart LR
     seq2 --> gi_emit_GK
 ```
 
-This tree represents the final chunk of the fallback node in the [Receive Messages Behavior](/topics/behavior_logic/msg_intro_bt/). 
+This tree represents the final chunk of the fallback node in the [Receive Messages Behavior](../topics/behavior_logic/msg_intro_bt/). 
 And here, for the final time, we see a message type check and that general acknowledgment messages (_GK_)
 receive no further attention and return *Success*. 
-General inquiries (_GI_) get at least an acknowledgment, with any follow-up to be handled by [*do work*](/topics/behavior_logic/do_work_bt/).
+General inquiries (_GI_) get at least an acknowledgment, with any follow-up to be handled by [*do work*](../topics/behavior_logic/do_work_bt/).
 As usual, errors (_GE_) also trigger follow-up inquiries (_GI_) in the interest of resolution.
 

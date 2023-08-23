@@ -57,7 +57,7 @@ when the report was originally determined to be *Invalid* but new
 information is available to prompt reconsideration. The validation
 process shown here is comprised of two main steps: a credibility check
 followed by a validity check as outlined in our introduction of 
-the [Received (R) state](/topics/process_models/rm#the-received-r-state).
+the [Received (R) state](../topics/process_models/rm#the-received-r-state).
 
 As a reminder, a report might be in one of three categories: (a) neither
 credible nor valid, (b) credible but invalid, or (c) both credible and

@@ -54,7 +54,7 @@ flowchart LR
     fb --> emit_RE
 ```
 
-This tree is a child of the fallback node started in [Receiving Messages Behavior](/topics/behavior_logic/msg_intro_bt/).
+This tree is a child of the fallback node started in [Receiving Messages Behavior](../topics/behavior_logic/msg_intro_bt/).
 Beginning with a precondition check for any RM message type, the tree proceeds to a fallback node.
 RM acknowledgment messages (_RK_) receive no further attention and return *Success*.
 

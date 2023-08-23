@@ -67,17 +67,17 @@ and we're done. If it doesn't, we move on to the next branch, which
 addresses reports in the *Received* state ($q^{rm} \in R$).
 
 The only action to be taken from $q^{rm} \in R$ is to validate the report.
-We address [report validation](/topics/behavior_logic/rm_validation_bt/) shortly, but, for now, it is
+We address [report validation](../topics/behavior_logic/rm_validation_bt/) shortly, but, for now, it is
 sufficient to say that the validate report behavior returns *Success* 
 after moving the report to either *Valid* ($q^{rm} \xrightarrow{v} V$)
 or *Invalid* ($q^{rm} \xrightarrow{i} I$).
 
 The next branch covers reports in the *Invalid* state ($q^{rm} \in I$).
 Here we have two options: either close the report (move to
-$q^{rm} \xrightarrow{c} C$, as described in [report closure](/topics/behavior_logic/rm_closure_bt)), or retry the validation.
+$q^{rm} \xrightarrow{c} C$, as described in [report closure](../topics/behavior_logic/rm_closure_bt)), or retry the validation.
 
 For reports that have reached the *Valid* state ($q^{rm} \in V$), our
-only action is to prioritize the report. [Report prioritization](/topics/behavior_logic/rm_prioritization_bt) is
+only action is to prioritize the report. [Report prioritization](../topics/behavior_logic/rm_prioritization_bt) is
 addressed in detail elsewhere, but returns *Success* after moving the report to either *Accepted*
 ($q^{rm} \xrightarrow{a} A$) or *Deferred* ($q^{rm} \xrightarrow{d} D$).
 
@@ -89,13 +89,13 @@ receive additional work.
 Similarly, *Accepted* reports ($q^{rm} \in A$) can also be *Closed* or
 have their priority reevaluated. However, they are also expected to
 receive more effort---the *do work* task node, which we explore further
-in [Do Work Behaviors](/topics/behavior_logic/do_work_bt/).
+in [Do Work Behaviors](../topics/behavior_logic/do_work_bt/).
 We are taking advantage of the composability of Behavior Trees to
 simplify the presentation. Behaviors that appear in multiple places can
 be represented as their own trees. We explore the most relevant of these
 subtrees in the next few subsections.
 
 See also:
-- [Report Validation Behavior](/topics/behavior_logic/rm_validation_bt/)
-- [Report Prioritization Behavior](/topics/behavior_logic/rm_prioritization_bt/)
-- [Report Closure Behavior](/topics/behavior_logic/rm_closure_bt/)
+- [Report Validation Behavior](../topics/behavior_logic/rm_validation_bt/)
+- [Report Prioritization Behavior](../topics/behavior_logic/rm_prioritization_bt/)
+- [Report Closure Behavior](../topics/behavior_logic/rm_closure_bt/)

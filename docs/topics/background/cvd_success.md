@@ -6,9 +6,9 @@ We take as a base set of criteria the ordering preferences given in the
 [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771)
 by Householder and Spring.
 
-While we incorporate this model fully [elsewhere](/topics/process_models/cs),
+While we incorporate this model fully [elsewhere](../topics/process_models/cs),
 some notation is necessary to proceed here.
-The [Case State model](/topics/process_models/cs) is built on the idea that there are six events of significance
+The [Case State model](../topics/process_models/cs) is built on the idea that there are six events of significance
 in the lifespan of every vulnerability, shown in the table below.
 
 | Event | Notation | Event | Notation |

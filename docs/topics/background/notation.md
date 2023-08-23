@@ -93,4 +93,4 @@ classDiagram
 
 ### Behavior Tree Diagrams
 
-We introduce a few additional notation details specific to [Behavior Trees](/topics/behavior_logic) when needed.
+We introduce a few additional notation details specific to [Behavior Trees](../topics/behavior_logic) when needed.

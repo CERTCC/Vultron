@@ -19,7 +19,7 @@ way to organize and describe agent behaviors in a straightforward,
 understandable way.
 
 In this section, we use Behavior Trees as a method for describing
-MPCVD Participant activities and their interactions with the [formal protocol](/reference/formal_protocol).
+MPCVD Participant activities and their interactions with the [formal protocol](../reference/formal_protocol).
 These behaviors map approximately to the activities described in the [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD)
 (e.g., validate report, prioritize report, create fix, publish report, publish fix, deploy fix).
 
