@@ -65,5 +65,5 @@ Finally, we have a few additional terms to define:
     The unit of work for an individual Case Participant's [Report Management (RM) process](../process_models/rm)
 
 A diagram showing the relationship between CVD Cases, Participants, and Reports can be
-found in [Implementation Notes](../topics/implementation_notes).
+found in [Implementation Notes](../../howto).
 

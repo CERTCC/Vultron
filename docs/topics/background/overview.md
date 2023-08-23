@@ -59,8 +59,8 @@ the [formal protocol](../reference/formal_protocol).
 
 ## Implementation Notes
 
-Additional [implementation notes](../topics/implementation_notes), including a simplified case data model, are provided.
-Future work is discussed in [Future Work](../topics/future_work).
+Additional [implementation notes](../../howto), including a simplified case data model, are provided.
+Future work is discussed in [Future Work](../future_work).
 
 {== Our conclusion is in Chapter
 [\[ch:conclusion\]](#ch:conclusion){reference-type="ref"
