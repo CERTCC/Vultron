@@ -20,7 +20,24 @@ Embargo schedules can be represented as a single `VEVENT` object.
 
 A mapping of EM concepts to `iCalendar` field mappings is provided in the table below.
 
-{== TODO ADD TABLE ==}
+| Embargo Concept                                                | iCalendar Mapping | EM Msg Type |
+|----------------------------------------------------------------|-------------------|-------------|
+| Embargo object                                                 | `VEVENT` | -           |
+| Embargo ID                                                     | `SUMMARY:<case id> embargo expiration` | -           |
+| Embargo End Time and Date                                      | `DSTART = DTEND` (0 duration event) | -           |
+| Proposer                                                       | `ORGANIZER` | -           |
+| Participant (proposed)                                         | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=NEEDS-ACTION` | _EP_, _EV_  |
+| Participant (acknowledge without acceptance)                   | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=TENTATIVE` | _EK_        |
+| Participant (accept)                                           | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=ACCEPTED` | _EA_, _EC_  |
+| Participant (reject)                                           | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=DECLINED` | _ER_, _EJ_  |
+| Details (link to case trackers, etc.)                          | `DESCRIPTION` | -           |
+| Embargo Status $q^{em} \in P$                                  | `STATUS:TENTATIVE` | _EP_        |
+| Embargo Status $q^{em} \in A$                                  | `STATUS:CONFIRMED` | _EA_, _EC_  |
+| Embargo Status $q^{em} \in X$ due to early termination         | `STATUS:CANCELLED` | _ET_        |
+| Embargo Status $q^{em} \in N$ due to lack of acceptance quorum | `STATUS:CANCELLED` | _ER_        |
+| Other | `CATEGORIES:EMBARGO`<br/>`RSVP: TRUE` | - |
+
+
 
 !!! note ""
 
