@@ -310,7 +310,7 @@ sequenceDiagram
     Once the embargo has been exited, *any* Participant may publish at any time.
     Participants might choose to coordinate publication schedules more closely, but there is nothing in the protocol to require it.
     With the recognition that more concise publication scheduling might be needed in some situations, we revisit this 
-    concern as [future work](../future_work).
+    concern as [future work](../future_work.md).
 
 
 #### Publishing After Embargo Teardown

@@ -256,7 +256,7 @@ processes into the semantics (and eventually, the syntax) of whatever
 protocol emerges as a descendant of our proposal.
 
 Combined with the abstract case class model described in
-§[\[sec:case_object\]](#sec:case_object){reference-type="ref"
+§[\[sec:case_object\]](#sec:case_object.md){reference-type="ref"
 reference="sec:case_object"}, an ontology (e.g., using
 [OWL]{acronym-label="OWL" acronym-form="singular+short"}) could
 accelerate the semantic interoperability between independent Participant
@@ -272,7 +272,7 @@ model described in the Householder and Spring 2021 report
 [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} modeling
 and simulation. Given the complexity of the protocol state interactions
 described in Chapter
-[\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref"
+[\[sec:formal_protocol\]](#sec:formal_protocol/index.md){reference-type="ref"
 reference="sec:formal_protocol"} and the corresponding behaviors
 described in Chapter
 [\[ch:behavior_trees\]](#ch:behavior_trees){reference-type="ref"

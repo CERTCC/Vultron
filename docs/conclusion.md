@@ -74,7 +74,7 @@ process simulation and optimization at a scale previously unknown.
 The implementation notes in
 §[\[ch:implementation notes\]](#ch:implementation notes){reference-type="ref"
 reference="ch:implementation notes"} and the future work outlined in
-§[\[ch:future_work\]](#ch:future_work){reference-type="ref"
+§[\[ch:future_work\]](#ch:future_work.md){reference-type="ref"
 reference="ch:future_work"} set an agenda for
 [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} process
 improvement research and development for the near future.

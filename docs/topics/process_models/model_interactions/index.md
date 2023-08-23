@@ -1,6 +1,6 @@
 # Model Interactions {#ch:interactions}
 
-Here we reflect on the interactions between the [RM](../rm/), [EM](../em/), and [CS](../cs/) models within the
+Here we reflect on the interactions between the [RM](../rm/), [EM](../em/index.md), and [CS](../cs/index.md) models within the
 overall MPCVD process.
 
 ## Participant-Agnostic vs Participant-Specific Aspects
@@ -15,8 +15,8 @@ overall MPCVD process.
 Some aspects of the MPCVD process are Participant-agnostic (i.e., they represent a global state of the case),
 while others are specific to a Participant.
 Specifically, the [RM](../rm/) process is unique to each Participant, while the
-[EM](../em/) process is global to all Participants in a case.
-The [CS](../cs/) process is a hybrid: some aspects are Participant-agnostic, while others are
+[EM](../em/index.md) process is global to all Participants in a case.
+The [CS](../cs/index.md) process is a hybrid: some aspects are Participant-agnostic, while others are
 Participant-specific, which we will discuss in more detail below.
 Interactions between all these processes affect the overall MPCVD process for a case. 
 The following diagram illustrates this distinction.
@@ -44,7 +44,7 @@ stateDiagram-v2
 
 ### Global vs. Participant-Specific Aspects of the CS Model.
 
-The [CS model](../cs/) encompasses both Participant-specific and Participant-agnostic aspects of a
+The [CS model](../cs/index.md) encompasses both Participant-specific and Participant-agnostic aspects of a
 CVD case. In particular, the Vendor fix path substates&mdash;Vendor unaware (_vfd_),
 Vendor aware (_Vfd_), fix ready (_VFd_), and fix deployed (_VFD_)&mdash;are
 specific to each Vendor Participant in a case. On the other hand, the

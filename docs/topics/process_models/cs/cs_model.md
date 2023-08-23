@@ -2,7 +2,7 @@
 
 {% include-markdown "../dfa_notation_definition.md" %}
 
-As in the [RM](../rm) and [EM](../em) process models, we wish to define a 5-tuple
+As in the [RM](../rm) and [EM](../em/index.md) process models, we wish to define a 5-tuple
 $(\mathcal{Q},\Sigma,\delta,q_0,F)$, this time for the CS model.
 
 {% import-markdown "cs_substates_table.md" %}
@@ -142,7 +142,7 @@ DFA.
 We define the set of symbols for our CS DFA as $\Sigma^{cs}$:
 
 Here we diverge somewhat from the notation used for the
-[RM](../rm) and [EM](../em) models, which use lowercase letters for transitions and
+[RM](../rm) and [EM](../em/index.md) models, which use lowercase letters for transitions and
 uppercase letters for states. Because CS state names already use both lowercase
 and uppercase letters, here we use a bold font for the symbols of the
 CS DFA to differentiate the transition from the corresponding substate it leads
@@ -155,7 +155,7 @@ observes a change in status (a Vendor is notified and exploit code has
 been published, etc.). For the sake of simplicity, we begin with the
 assumption that observations are globally known---that is, a status
 change observed by any CVD Participant is known to all. In the real
-world, we believe the [Formal Vultron MPCVD Protocol](../../../reference/formal_protocol)
+world, we believe the [Formal Vultron MPCVD Protocol](../../../reference/formal_protocol/index.md)
 is poised to ensure eventual
 consistency with this assumption through the communication of perceived
 case state across coordinating parties.

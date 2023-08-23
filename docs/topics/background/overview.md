@@ -5,12 +5,12 @@ MPCVD is comprised of independent Participants performing their own CVD-related 
 ## Process Models
 
 Those processes can be represented by Finte State Machines (FSMs), specifically as Deterministic Finite Automata (DFAs).
-CVD processes (and the DFAs representing them) can be decomposed hierarchically. 
+CVD processes (and the DFAs representing them/index.md) can be decomposed hierarchically. 
 We propose three main DFAs as the core of our MPCVD protocol:
 
-1.  A [Report Management](../process_models/rm) DFA represents each CVD Participant's engagement with a particular report
-2.  An [Embargo Management](../process_models/em) DFA negotiates and establishes the timing of future disclosures and publications
-3.  A [Case State](../process_models/cs) DFA tracks the events in {== Table [\[tab:cs_transitions\]](#tab:cs_transitions){reference-type="ref"
+1.  A [Report Management](../process_models/rm/index.md) DFA represents each CVD Participant's engagement with a particular report
+2.  An [Embargo Management](../process_models/em/index.md) DFA negotiates and establishes the timing of future disclosures and publications
+3.  A [Case State](../process_models/cs/index.md) DFA tracks the events in {== Table [\[tab:cs_transitions\]](#tab:cs_transitions){reference-type="ref"
     reference="tab:cs_transitions"} ==}, as originally described in the {== Householder and Spring 2021 report [@householder2021state] ==}.
 
 [Model Interactions](../process_models/model_interactions) contains a discussion of the interactions
@@ -23,7 +23,7 @@ then whatever they are doing does not deserve the name CVD.
 Hence, there is a need for a protocol to describe the interactions necessary to coordinate these processes.
 [Communicating FSMs](https://doi.org/10.1145/322374.322380) provide a formal way to define a communications protocol, which coordinates the activities of 
 independent DFAs through the interchange (e.g., sending and receiving) of messages.
-We map our multiple DFA model onto a formal protocol definition in [Formal Protocol](../reference/formal_protocol).
+We map our multiple DFA model onto a formal protocol definition in [Formal Protocol](../reference/formal_protocol/index.md).
 
 ### Behavior Logic 
 
@@ -55,12 +55,12 @@ CVD activities described in the [*CVD Guide*](https://vuls.cert.org/confluence/d
 reports, validate reports, prioritize reports, create fixes, publish
 reports, publish fixes, deploy fixes).
 We use [Behavior Trees]((../behavior_logic/) to describe MPCVD Participant activities and their interactions with
-the [formal protocol](../reference/formal_protocol).
+the [formal protocol](../reference/formal_protocol/index.md).
 
 ## Implementation Notes
 
-Additional [implementation notes](../../howto), including a simplified case data model, are provided.
-Future work is discussed in [Future Work](../future_work).
+Additional [implementation notes](../../howto/index.md), including a simplified case data model, are provided.
+Future work is discussed in [Future Work](../future_work.md).
 
 {== Our conclusion is in Chapter
 [\[ch:conclusion\]](#ch:conclusion){reference-type="ref"

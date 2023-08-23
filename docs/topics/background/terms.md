@@ -62,8 +62,8 @@ Finally, we have a few additional terms to define:
 
 !!! info "Vulnerability Report (Report)"
 
-    The unit of work for an individual Case Participant's [Report Management (RM) process](../process_models/rm)
+    The unit of work for an individual Case Participant's [Report Management (RM) process](../process_models/rm/index.md)
 
 A diagram showing the relationship between CVD Cases, Participants, and Reports can be
-found in [Implementation Notes](../../howto).
+found in [Implementation Notes](../../howto/index.md).
 

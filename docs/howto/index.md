@@ -4,7 +4,7 @@ Here we collect some guidance for potential implementations of Vultron.
 
 While a complete protocol implementation specification remains a work in progress, we do have a few additional 
 suggestions for potential implementers.
-In this section, we describe an abstract [case object](./case_object/) for use in tracking MPCVD cases.
+In this section, we describe an abstract [case object](./case_object.md) for use in tracking MPCVD cases.
 Next, we touch on the [core MPCVD protocol subprocesses](./process_implementation/) (RM, EM, and CS), including how the CS model might integrate with
 other processes.
 Finally, we provide a few [general notes](./general_implementation/) on future implementations.

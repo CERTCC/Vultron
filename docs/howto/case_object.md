@@ -127,8 +127,8 @@ class MessageTypeEnum {
 
 ## The *Case* Class
 
-The *Case* class has attributes to track the [Embargo Management](/topics/process_models/em/) (EM) state and the
-[participant-agnostic](/topics/process_models/model_interactions/) portion of the [Case State](/topics/process_models/cs/) (CS) model (i.e., the *pxa*
+The *Case* class has attributes to track the [Embargo Management](/topics/process_models/em/index.md) (em/index.md) state and the
+[participant-agnostic](/topics/process_models/model_interactions/) portion of the [Case State](/topics/process_models/cs/index.md) (CS) model (i.e., the *pxa*
 substates), as outlined in [model interactions](/topics/process_models/model_interactions/).
 The *Case* class aggregates one or more *Report*s and *Participant*s, and 0 or more *Message*s and *LogEvent*s.
 We include a `receive_message()` method to allow *Participant*s to send messages to the *Case*.
@@ -143,12 +143,12 @@ In most *Case*s, however, there will be only a single associated *Report*.
 
 ## The *Message* Class
 
-The *Message* class represents a protocol message as outlined in [Messages](/reference/formal_protocol/messages/).
+The *Message* class represents a protocol message as outlined in [Messages](/reference/formal_protocol/messages.md).
 We expect that any implementation of this model will expand this data type to include numerous message-related attributes.
 Here, we highlight the minimum requirements that the protocol demands: 
 
 - Each *Message* has an identified sender (who is a *Participant* in the case) and one or more message
-types as enumerated in [Messages](/reference/formal_protocol/messages/).
+types as enumerated in [Messages](/reference/formal_protocol/messages.md).
 - Message types are represented as flags since a single actual message might represent multiple message types.
 - For example, a report submission that includes an embargo proposal might have both the $RS$ and $EP$ message type flags set.
 
@@ -236,7 +236,7 @@ teardown procedure as a consequence.
 
 The presence of the *VendorParticipant* and *DeployerParticipant*
 classes---depicted as implementations of the *Participant* class---is
-necessitated by the discussion in [States](/reference/formal_protocol/states/),
+necessitated by the discussion in [States](/reference/formal_protocol/states.md),
 where we described how Vendors and Deployers have a unique part to play in the creation, delivery, and
 deployment of fixes within the CVD process. 
 These two classes add the `vfd_state` attribute with different possible values.
@@ -257,7 +257,7 @@ One might reasonably expect *Contact*s to have names, email addresses, phone num
 
 !!! tip "Directory Services Are (Currently) Out of Scope"
 
-    A separate contact management process and accompanying directory service is a likely candidate for [future integration work](/topics/future_work/).
+    A separate contact management process and accompanying directory service is a likely candidate for [future integration work](/topics/future_work.md).
     For now, we observe that similar directories already exist, although there is room for improvement:
 
     - FIRST maintains a [directory of member teams](https://www.first.org/members/teams/) for incident response purposes
@@ -272,7 +272,7 @@ One might reasonably expect *Contact*s to have names, email addresses, phone num
 
 The remainder of the class diagram above consists of classes representing the Role and Message Type flags and various enumerations.
 The Roles are the same set we have used throughout this site, as taken from the [CVD Guide](https://vuls.cert.org/confluence/display/CVD).
-Message Type flags are consistent with [Messages](/reference/formal_protocol/messages/).
-The enumeration classes are consistent with the [RM](/topics/process_models/rm/), [EM](/topics/process_models/em/), 
+Message Type flags are consistent with [Messages](/reference/formal_protocol/messages.md).
+The enumeration classes are consistent with the [RM](/topics/process_models/rm/), [EM](/topics/process_models/em/index.md), 
 and [CS](/topics/process_models/cs) state machines.
 

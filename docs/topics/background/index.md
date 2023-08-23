@@ -99,9 +99,9 @@ providing a few common usages from the [Oxford English Dictionary](https://www.o
 Both usages are relevant to this effort.
 First, insofar as we seek to scale the MPCVD process through the use of automation and software-augmented human
 processes, we wish to propose a formal technical protocol that can serve as the basis of such technical tools.
-The [Formal Protocol](../reference/formal_protocol) section of this documentation addresses this first definition in
+The [Formal Protocol](../reference/formal_protocol/index.md) section of this documentation addresses this first definition in
 specific detail after explicating its component parts and their interactions in 
-[Report Management](../process_models/rm), [Embargo Management](../process_models/em), [Case State](../process_models/cs),
+[Report Management](../process_models/rm/index.md), [Embargo Management](../process_models/em/index.md), [Case State](../process_models/cs/index.md),
 and [Model Interactions](../process_models/model_interactions).
 
 Second, recognizing that MPCVD is primarily a coordination process among
@@ -116,7 +116,7 @@ second sense, we address the term *protocol* in these ways:
     decades of accumulated experience and observation of the
     CVD process at the CERT/CC.
 
--   The [Case State model](../process_models/cs) from {== the Householder and Spring 2021 report [@householder2021state] ==}
+-   The [Case State model](../process_models/cs/index.md) from {== the Householder and Spring 2021 report [@householder2021state] ==}
     offers a *prescriptive* protocol outlining the high-level goals of the CVD process, as derived from a first-principles approach to possible
     CVD case histories.
 

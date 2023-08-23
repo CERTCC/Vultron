@@ -104,7 +104,7 @@ The SSVC _Exploitation_ decision point permits three possible values:
 - _PoC_
 - _Active_
 
-These values map directly onto state subsets in the [Case State (CS) model](../topics/process_models/cs/), as shown below.
+These values map directly onto state subsets in the [Case State (CS) model](../topics/process_models/cs/index.md), as shown below.
 
 !!! note "SSVC _Exploitation_ Decision Point Mapped to CS States"
 
@@ -126,7 +126,7 @@ These case states and SSVC values are equivalent in both directions, hence our u
 
 ### Report Public
 
-The SSVC _Report Public_ decision point also maps directly onto the [CS model](../topics/process_models/cs/).
+The SSVC _Report Public_ decision point also maps directly onto the [CS model](../topics/process_models/cs/index.md).
 A value of _Yes_ means that the report is public, equivalent to $q^{cs} \in \cdot\cdot\cdot P \cdot\cdot$.
 On the other hand, a _No_ value is the same as $q^{cs} \in \cdot\cdot\cdot p \cdot\cdot$.
 As above, "$\iff$" indicates the bidirectional equivalence.

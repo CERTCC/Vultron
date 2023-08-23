@@ -1,12 +1,12 @@
 # Interactions Between the RM and EM Models {#sec:rm_em_interactions}
 
-There are additional constraints on how the [RM](../rm/) and [EM](../em/) processes interact.
+There are additional constraints on how the [RM](../rm/) and [EM](../em/index.md) processes interact.
 
 ## Start Embargo Negotiations As Early as Possible
 
 !!! note ""
 
-    The [EM](../em/) process
+    The [EM](../em/index.md) process
     MAY begin (i.e., the initial _propose_ transition
     $q^{em} \in N \xrightarrow{p} P$) prior to the report being sent to
     a potential Participant ($q^{rm} \in S$), for example, when a
@@ -39,7 +39,7 @@ stateDiagram-v2
 
 !!! note ""
 
-    If it has not already begun, the [EM](../em/) process SHOULD begin when a recipient
+    If it has not already begun, the [EM](../em/index.md) process SHOULD begin when a recipient
     is in RM _Received_ ($q^{rm} \in R$) whenever possible.
 
 

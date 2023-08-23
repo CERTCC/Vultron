@@ -1,6 +1,6 @@
 # Message Types
 
-In [States](/reference/formal_protocol/states/), we identified four main roles in the
+In [States](/reference/formal_protocol/states.md), we identified four main roles in the
 MPCVD process:
 
 - Finder/Reporter
@@ -52,7 +52,7 @@ MPCVD protocol, that was it.
 As a reminder, those transitions are shown at right.
 
 We will address the specific circumstances when each message should be emitted in
-[Transitions](/reference/formal_protocol/transitions/), but first we need to 
+[Transitions](/reference/formal_protocol/transitions.md), but first we need to 
 introduce the message types this recommendation implies.
 We cover messages associated with each state model, in turn, below, concluding the section with a few message types not
 directly connected to any particular state model.
@@ -92,7 +92,7 @@ A summary of the RM message types is shown below.
     $$M^{rm} = \{RS,RI,RV,RD,RA,RC,RK,RE\}$$
 
 All state changes are from the Participant's (sender's) perspective, not the recipient's perspective.
-We will see in [Transitions](/reference/formal_protocol/transitions/) that the receipt of a *Report Submission* is the 
+We will see in [Transitions](/reference/formal_protocol/transitions.md) that the receipt of a *Report Submission* is the 
 only message whose *receipt* directly triggers an RM state change in the receiver.
 All other RM messages are used to convey the sender's status.
 
@@ -115,7 +115,7 @@ All other RM messages are used to convey the sender's status.
     Participants SHOULD track the RM states of the other Participants in the case.
 
 An example object model for such tracking is described in
-{== §[\[sec:case_object\]](#sec:case_object){reference-type="ref"
+{== §[\[sec:case_object\]](#sec:case_object.md){reference-type="ref"
 reference="sec:case_object"} ==}.
 Furthermore, while these messages are expected to inform the receiving Participant's choices in their own RM process,
 this protocol intentionally does not specify any other recipient RM state changes upon receipt of an RM message.
@@ -149,7 +149,7 @@ A summary of the EM message types is shown below.
 
 ## CS Message Types {#sec:cs_message_types}
 
-From the [CS process model](/topics/process_models/cs/), the following is the list of messages associated with CS state
+From the [CS process model](/topics/process_models/cs/index.md), the following is the list of messages associated with CS state
 changes:
 
 | Message Type | Name | Description                                                                                                                                                                                                                                                                      |

@@ -37,14 +37,14 @@ flowchart LR
 
 !!! tip inline end "Embargoes and Publication"
 
-    The [embargo management]((./em_bt/) task here is intended as a simple check to ensure that no
+    The [embargo management]((./em_bt.md) task here is intended as a simple check to ensure that no
     embargo remains active prior to publication.
-    However, since we describe that behavior [elsewhere]((./em_bt/), we will not repeat it here.
-    Note that the [EM]((../process_models/em/) process may result in [early termination]((../process_models/em/early_termination/) of an existing embargo 
+    However, since we describe that behavior [elsewhere]((./em_bt.md), we will not repeat it here.
+    Note that the [EM]((../process_models/em/index.md) process may result in [early termination]((../process_models/em/early_termination/) of an existing embargo 
     if the Participant has sufficient cause to do so.
 
 The publication process begins with [preparation for publication](#prepare-publication-behavior),
-described below, followed by a pre-publication [embargo check]((./em_bt/).
+described below, followed by a pre-publication [embargo check]((./em_bt.md).
 
 Once these subprocesses complete, the publish task fires, the case state
 is updated to $q^{cs} \in P$, and a $CP$ message emits.
@@ -103,8 +103,8 @@ There are separate branches for
 publishing exploits, fixes, and reports.
 
 - The publish exploit branch succeeds if either no exploit publication is intended, if it is [intended
-  and ready]((./acquire_exploit_bt/), or if it can be acquired and prepared for publication. 
-- The publish fix branch succeeds if the Participant does not intend to publish a fix (e.g., if they are not the Vendor), if a [fix is ready]((./fix_dev_bt/), or
+  and ready]((./acquire_exploit_bt.md), or if it can be acquired and prepared for publication. 
+- The publish fix branch succeeds if the Participant does not intend to publish a fix (e.g., if they are not the Vendor), if a [fix is ready]((./fix_dev_bt.md), or
   if it can be developed and prepared for publication.
 - The publish report branch is the simplest and succeeds if either no publication is intended or if the report is ready to go.
 

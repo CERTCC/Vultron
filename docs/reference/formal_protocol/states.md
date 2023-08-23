@@ -17,7 +17,7 @@ Good Participant situation awareness makes for good CVD decision making.
     to inform their own decision making as it pertains to the case.
 
 An example object model to facilitate such tracking is given in
-{== §[\[sec:case_object\]](#sec:case_object){reference-type="ref"
+{== §[\[sec:case_object\]](#sec:case_object.md){reference-type="ref"
 reference="sec:case_object"} ==}. 
 However, the protocol we are developing is expected to function even when incomplete information is available to
 any given Participant.
@@ -94,7 +94,7 @@ Note that the above definition splits the case state
 ($\mathcal{Q}^{cs}$) into chunks corresponding to the Vendor fix path
 ($vfd \xrightarrow{\mathbf{V}} Vfd \xrightarrow{\mathbf{F}} VFd \xrightarrow{\mathbf{D}} VFD$)
 and the public-exploit-attack ($pxa \xrightarrow{\dots} PXA$) sub-models
-from the [Case State Model](/topics/process_models/cs/).
+from the [Case State Model](/topics/process_models/cs/index.md).
 This is done for two reasons. 
 First, it gives us a more compact notation to represent the 32 states of the CS model.
 Second, as described in [Model Interactions](/topics/process_models/model_interactions/), it highlights the fact that 
@@ -930,5 +930,5 @@ For a case to really begin, the Finder must at least reach the $A$ state.
 Therefore, at the point when a second party finds out about the vulnerability from a Finder,
 the Finder/Reporter is presumed to be already at $q_{Finder}=(A, N, pxa)$.
 
-We will show in [Transitions](/reference/formal_protocol/transitions/) how this plays out.
+We will show in [Transitions](/reference/formal_protocol/transitions.md) how this plays out.
 But first, we need to define the message types that can be exchanged between Participants.

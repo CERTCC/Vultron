@@ -4,13 +4,13 @@
 
     $$\Sigma^{cs} = \{ \mathbf{V},~\mathbf{F},~\mathbf{D},~\mathbf{P},~\mathbf{X},~\mathbf{A} \}$$
 
-The [RM](../rm/) and [EM](../em/) models interact with the [Case State Model](../cs/index.md).
-Here we will review the constraints arising from the interaction of the [RM](../rm/) and [EM](../em/) 
+The [RM](../rm/) and [EM](../em/index.md) models interact with the [Case State Model](../cs/index.md).
+Here we will review the constraints arising from the interaction of the [RM](../rm/) and [EM](../em/index.md) 
 models with each of the CS transition events represented by its symbols.
 As a reminder, a list of the CS model transition symbols is reproduced in the inset at right.
 
-We have organized this page according to how each CS model [substate](../cs/) interacts with the
-[RM](../rm/) and [EM](../em/) models.
+We have organized this page according to how each CS model [substate](../cs/index.md) interacts with the
+[RM](../rm/) and [EM](../em/index.md) models.
 
 ## Vendor Notification
 
@@ -54,7 +54,7 @@ stateDiagram-v2
     AnyParticipant --> VendorParticipant: enables
 ```
 
-Depending on which parties are involved in a CVD case, the [EM](../em/) process might already be underway prior
+Depending on which parties are involved in a CVD case, the [EM](../em/index.md) process might already be underway prior
 to Vendor notification (e.g., $q^{em} \in \{P,A,R\}$). For example, a
 Reporter and Coordinator might have already agreed to a disclosure
 timeline. Or, in an MPCVD case, other Vendors may have already been
@@ -118,7 +118,7 @@ stateDiagram-v2
 Fix Readiness (**F**) can occur only when a Vendor is in the
 _Accepted_ state. As a reminder, in MPCVD cases, each affected Vendor has their own
 [RM](../rm/) state, so this constraint applies to each Vendor individually.
-With respect to [EM](../em/), when the case state is $q^{cs} \in VF\cdot pxa$, it's usually too late to
+With respect to [EM](../em/index.md), when the case state is $q^{cs} \in VF\cdot pxa$, it's usually too late to
 start a new embargo.
 
 !!! note ""
@@ -204,7 +204,7 @@ deployment (**D**).
 
 !!! note ""
 
-    As regards [EM](../em/), by
+    As regards [EM](../em/index.md), by
     the time a fix has been deployed ($q^{cs} \in VFD\cdot\cdot\cdot$),
     
     -   New embargoes SHOULD NOT be sought.
@@ -242,7 +242,7 @@ stateDiagram-v2
         \end{cases}$$
 
 As with the *Fix Ready* scenario in
-§[1.2.2](#sec:cs_f_em){reference-type="ref" reference="sec:cs_f_em"},
+§[1.2.2](#sec:cs_f_em/index.md){reference-type="ref" reference="sec:cs_f_em"},
 MPCVD cases may
 have Vendors in varying states of *Fix Deployment*. Therefore the
 embargo extension caveats from that section apply to the *Fix Deployed*
@@ -262,7 +262,7 @@ coordination process. For example, this is the situation when a report
 is already in the midst of a CVD process and a party outside the
 CVD case reveals the vulnerability publicly (e.g., parallel discovery, embargo leaks).
 
-As for [EM](../em/), the whole point of an embargo is to prevent **P** from occurring until
+As for [EM](../em/index.md), the whole point of an embargo is to prevent **P** from occurring until
 other objectives (e.g., $q^{cs} \in VF\cdot px \cdot$) have been met. Therefore,
 
 !!! note ""

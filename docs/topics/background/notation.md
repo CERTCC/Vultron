@@ -18,7 +18,7 @@ We adopt the following notation:
     | $\in$ | the membership (is-in) relation between an element and the set it belongs to |
     | $\prec$ | the precedes relation on members of an ordered set: $\sigma_i \prec \sigma_j \textrm{ if and only if } \sigma_i,\sigma_j \in s \textrm{ and } i < j$  where $s$ is an ordered set |
     | \|$X$\| | the size of (the number of elements in) a set $X$ |
-    | $\langle X_i \rangle^N_{i=1}$ | a set of $N$ sets $X_i$, indexed by $i$; used in Chapter [\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref" reference="sec:formal_protocol"} in the context of Communicating FSM, taken from    the article on "On Communicating Finite State Machines"[@brand1983communicating] |
+    | $\langle X_i \rangle^N_{i=1}$ | a set of $N$ sets $X_i$, indexed by $i$; used in Chapter [\[sec:formal_protocol\]](#sec:formal_protocol/index.md){reference-type="ref" reference="sec:formal_protocol"} in the context of Communicating FSM, taken from    the article on "On Communicating Finite State Machines"[@brand1983communicating] |
 
 !!! info "Logic Symbols"
 
@@ -42,7 +42,7 @@ We adopt the following notation:
     | :--- | :--- |
     | $\xrightarrow{}$ | a transition between states, usually labeled with the transition type (e.g., $\xrightarrow{a}$) |
     | $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)$ | specific symbols for individual DFA components that are introduced when needed in Chapters |
-    | $\Big \langle { \langle S_i \rangle }^N_{i=1}, { \langle o_i \rangle }^N_{i=1}, { \langle M_{i,j} \rangle}^N_{i,j=1}, { succ } \Big \rangle$ | formal protocol symbols that are introduced at the beginning of Chapter [\[sec:formal_protocol\]](#sec:formal_protocol){reference-type="ref" reference="sec:formal_protocol"} |
+    | $\Big \langle { \langle S_i \rangle }^N_{i=1}, { \langle o_i \rangle }^N_{i=1}, { \langle M_{i,j} \rangle}^N_{i,j=1}, { succ } \Big \rangle$ | formal protocol symbols that are introduced at the beginning of Chapter [\[sec:formal_protocol\]](#sec:formal_protocol/index.md){reference-type="ref" reference="sec:formal_protocol"} |
 
 ## Diagram Notation
 
@@ -93,4 +93,4 @@ classDiagram
 
 ### Behavior Tree Diagrams
 
-We introduce a few additional notation details specific to [Behavior Trees](../behavior_logic) when needed.
+We introduce a few additional notation details specific to [Behavior Trees](../behavior_logic/index.md) when needed.

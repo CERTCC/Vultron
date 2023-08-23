@@ -3,7 +3,7 @@
 The MPCVD process can be described as a Communicating Hierarchical State Machine.
 In this section, we begin by laying out the requirements for a formal protocol
 definition followed by a step-by-step walkthrough of each of those requirements
-as they relate to the [RM](/topics/process_models/rm/), [EM](/topics/process_models/em/), and [CS](/topics/process_models/cs/)
+as they relate to the [RM](/topics/process_models/rm/), [EM](/topics/process_models/em/index.md), and [CS](/topics/process_models/cs/index.md)
 models described elsewhere.
 
 ## Communication Protocol Definitions {#sec:protocol_definition}
@@ -62,9 +62,9 @@ a protocol as follows.
 We detail each of these below or in subsequent pages:
 
 - $N$ [below](#number-of-processes)
-- ${ \langle S_i \rangle}^N_{i=1}$, and ${ \langle o_i \rangle }^N_{i=1}$ in [States](/reference/formal_protocol/states/),
-- ${ \langle M_{i,j} \rangle }^N_{i,j=1}$ in [Message Types](/reference/formal_protocol/messages/),
-- ${ succ }$ in [Transition Functions](/reference/formal_protocol/transitions/)
+- ${ \langle S_i \rangle}^N_{i=1}$, and ${ \langle o_i \rangle }^N_{i=1}$ in [States](/reference/formal_protocol/states.md),
+- ${ \langle M_{i,j} \rangle }^N_{i,j=1}$ in [Message Types](/reference/formal_protocol/messages..md),
+- ${ succ }$ in [Transition Functions](/reference/formal_protocol/transitions.md)
 
 ## Number of Processes
 
