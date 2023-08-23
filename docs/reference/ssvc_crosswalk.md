@@ -1,12 +1,14 @@
 # Interactions Between the Vultron Protocol and SSVC
 
-Once a report has been validated (i.e., it is in the RM _Valid_ state, $q^{rm} \in V$), it must be prioritized to 
+Once a report has been validated (i.e., it is in the RM [_Valid_](../topics/process_models/rm/#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to 
 determine what further effort, if any, is necessary. 
 While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://github.com/CERTCC/SSVC) model.
 
 ## SSVC Supplier and Deployer Trees
 
-The default outcomes for both the SSVC _Supplier_ and _Deployer_ Trees are _Defer_, _Scheduled_, _Out of Cycle_, and _Immediate_.
+The default outcomes for both the SSVC [_Supplier_](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_supplier.pdf)
+and [_Deployer_](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_deployer_SeEUMss.pdf) Trees are
+_Defer_, _Scheduled_, _Out of Cycle_, and _Immediate_.
 The mapping from SSVC outcomes to RM states is straightforward, as shown below for the _Supplier Tree_ and
 the _Deployer Tree_.
 
@@ -42,13 +44,11 @@ the _Deployer Tree_.
 
 The
 SSVC _Defer_
-output maps directly onto the RM _Deferred_ state. Otherwise, the three
-outputs that imply further action is necessary&mdash;Scheduled_,
-_Out-of-Cycle_, and _Immediate_&mdash;all proceed to the
-RM _Accepted_ state.
-The different categories imply different processes within the _Accepted_
-state. But because the RM model does not dictate internal
-organizational processes, further description of what those processes
+output maps directly onto the RM [_Deferred_](../topics/process_models/rm/#the-deferred-d-state) state.
+Otherwise, the three outputs that imply further action is necessary&mdash;Scheduled_,
+_Out-of-Cycle_, and _Immediate_&mdash;all proceed to the RM [_Accepted_](../topics/process_models/rm/#the-accepted-a-state) state.
+The different categories imply different processes within the _Accepted_ state.
+But because the RM model does not dictate internal organizational processes, further description of what those processes
 might look like is out of scope for this report.
 
 We remind readers of a key takeaway from the protocol requirements in
@@ -63,8 +63,8 @@ the main part of this report:
 
 ## SSVC Coordinator Trees
 
-SSVC version 2 offers two decision trees for Coordinators: A _Coordinator Triage Tree_
-and a _Coordinator Publish Tree_.
+SSVC version 2 offers two decision trees for Coordinators: A [_Coordinator Triage Tree_](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-triage.pdf)
+and a [_Coordinator Publish Tree_](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-publish.pdf).
 The outputs for the _Coordinator Triage_ Decision Tree are _Decline_, _Track_, and _Coordinate_.
 Similar to the _Supplier Tree_ mapping above, the mapping here is simple, as shown below.
 
@@ -83,8 +83,8 @@ Similar to the _Supplier Tree_ mapping above, the mapping here is simple, as sho
     \end{cases}$$
 
 
-Again, whereas the _Decline_ output maps directly to the RM _Deferred_ state, the remaining two
-states (_Track_ and _Coordinate_) imply the necessity for distinct processes within the Coordinator's RM _Accepted_ state.
+Again, whereas the _Decline_ output maps directly to the RM [_Deferred_](/topics/process_models/rm/#the-deferred-d-state) state, the remaining two
+states (_Track_ and _Coordinate_) imply the necessity for distinct processes within the Coordinator's RM [_Accepted_](../topics/process_models/rm/#the-accepted-a-state) state.
 
 On the other hand, the SSVC _Coordinator Publish Tree_ falls entirely within the Coordinator's _Accepted_ state, so its 
 output does not directly induce any Coordinator RM state transitions.
@@ -104,7 +104,7 @@ The SSVC _Exploitation_ decision point permits three possible values:
 - _PoC_
 - _Active_
 
-These values map directly onto state subsets in the CS model, as shown below.
+These values map directly onto state subsets in the [Case State (CS) model](../topics/process_models/cs/), as shown below.
 
 !!! note "SSVC _Exploitation_ Decision Point Mapped to CS States"
 
@@ -126,7 +126,7 @@ These case states and SSVC values are equivalent in both directions, hence our u
 
 ### Report Public
 
-The SSVC _Report Public_ decision point also maps directly onto the CS model.
+The SSVC _Report Public_ decision point also maps directly onto the [CS model](../topics/process_models/cs/).
 A value of _Yes_ means that the report is public, equivalent to $q^{cs} \in \cdot\cdot\cdot P \cdot\cdot$.
 On the other hand, a _No_ value is the same as $q^{cs} \in \cdot\cdot\cdot p \cdot\cdot$.
 As above, "$\iff$" indicates the bidirectional equivalence.
@@ -141,7 +141,7 @@ As above, "$\iff$" indicates the bidirectional equivalence.
 
 ### Supplier Contacted
 
-If the Supplier (Vendor) has been notified (i.e., there is reason to believe they are at least in the RM _Received_ 
+If the Supplier (Vendor) has been notified (i.e., there is reason to believe they are at least in the RM [_Received_](../topics/process_models/rm/#the-received-r-state) 
 state, equivalent to the $V\cdot\cdot\cdot\cdot\cdot$ CS state subset) the _Supplier Contacted_ value should be _Yes_,
 otherwise it should be _No_.
 
@@ -162,9 +162,9 @@ process *after* report validation, the _Report Credibility_ decision point forms
 validation process.
 In fact, it is often the only validation step possible when the Coordinator lacks the ability to reproduce a
 vulnerability whether due to constraints of resources, time, or skill.
-Thus, a value of _Credible_ can be expected to lead to an RM transition to _Valid_ ($q^{rm} \in R \xrightarrow{v} V$),
+Thus, a value of _Credible_ can be expected to lead to an RM transition to [_Valid_](../topics/process_models/rm/#the-valid-v-state) ($q^{rm} \in R \xrightarrow{v} V$),
 assuming any additional validation checks also pass. 
-On the contrary, _Not-Credible_ always implies the RM transition to _Invalid_ ($q^{rm} \in R \xrightarrow{i} I$) 
+On the contrary, _Not-Credible_ always implies the RM transition to [_Invalid_](../topics/process_models/rm/#the-invalid-i-state) ($q^{rm} \in R \xrightarrow{i} I$) 
 because "Valid-but-not-Credible" is a contradiction.
 
 !!! note "SSVC _Report Credibility_ Decision Point Mapped to RM States"
