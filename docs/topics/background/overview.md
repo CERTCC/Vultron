@@ -13,7 +13,7 @@ We propose three main DFAs as the core of our Vultron protocol:
 3.  A [Case State](../process_models/cs/index.md) DFA tracks the events in {== Table [\[tab:cs_transitions\]](#tab:cs_transitions){reference-type="ref"
     reference="tab:cs_transitions"} ==}, as originally described in the {== Householder and Spring 2021 report [@householder2021state] ==}.
 
-[Model Interactions](../process_models/model_interactions.md) contains a discussion of the interactions
+[Model Interactions](../process_models/model_interactions/index.md) contains a discussion of the interactions
 among these three state machine models.
 
 ## Formal Protocol

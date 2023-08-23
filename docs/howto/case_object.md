@@ -127,9 +127,9 @@ class MessageTypeEnum {
 
 ## The *Case* Class
 
-The *Case* class has attributes to track the [Embargo Management](../topics/process_models/em/index.md) (em/index.md) state and the
-[participant-agnostic](../topics/process_models/model_interactions.md) portion of the [Case State](../topics/process_models/cs/index.md) (CS) model (i.e., the *pxa*
-substates), as outlined in [model interactions](../topics/process_models/model_interactions.md).
+The *Case* class has attributes to track the [Embargo Management](../topics/process_models/em/index.md) (EM) state and the
+[participant-agnostic](../topics/process_models/model_interactions/index.md) portion of the [Case State](../topics/process_models/cs/index.md) (CS) model (i.e., the *pxa*
+substates), as outlined in [model interactions](../topics/process_models/model_interactions/index.md).
 The *Case* class aggregates one or more *Report*s and *Participant*s, and 0 or more *Message*s and *LogEvent*s.
 We include a `receive_message()` method to allow *Participant*s to send messages to the *Case*.
 See [below](#the-message-class) for more details.
@@ -192,7 +192,7 @@ For example, an organization might be the Vendor in one case and the Coordinator
 `rm_state`
 
 :   An enumeration attribute that captures the RM state for this *Participant*
-    consistent with [Report Management](../topics/process_models/rm/).
+    consistent with [Report Management](../topics/process_models/rm/index.md).
 
 !!! tip inline end
 
@@ -273,6 +273,6 @@ One might reasonably expect *Contact*s to have names, email addresses, phone num
 The remainder of the class diagram above consists of classes representing the Role and Message Type flags and various enumerations.
 The Roles are the same set we have used throughout this site, as taken from the [CVD Guide](https://vuls.cert.org/confluence/display/CVD).
 Message Type flags are consistent with [Messages](../reference/formal_protocol/messages.md).
-The enumeration classes are consistent with the [RM](../topics/process_models/rm/), [EM](../topics/process_models/em/index.md), 
+The enumeration classes are consistent with the [RM](../topics/process_models/rm/index.md), [EM](../topics/process_models/em/index.md), 
 and [CS](../topics/process_models/cs/index.md) state machines.
 

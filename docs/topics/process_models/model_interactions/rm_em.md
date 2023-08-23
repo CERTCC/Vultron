@@ -1,6 +1,6 @@
 # Interactions Between the RM and EM Models {#sec:rm_em_interactions}
 
-There are additional constraints on how the [RM](../rm/) and [EM](../em/index.md) processes interact.
+There are additional constraints on how the [RM](../rm/index.md) and [EM](../em/index.md) processes interact.
 
 ## Start Embargo Negotiations As Early as Possible
 

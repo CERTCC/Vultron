@@ -41,7 +41,7 @@ flowchart LR
 ```
 
 It consists of a sequence that begins with a check for embargo viability as outlined in
-[Negotiating Embargoes](../process_models/em/negotiating/).
+[Negotiating Embargoes](../process_models/em/negotiating.md).
 Once the checks succeed, it proceeds to selecting embargo terms to propose.
 Implementations of this task might simply draw from a default policy, as in 
 [Default Embargoes](../process_models/em/defaults.md), or it might be a case-specific decision made by a Participant.

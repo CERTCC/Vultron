@@ -2,7 +2,7 @@
 
 {% include-markdown "../dfa_notation_definition.md" %}
 
-As in the [RM](../rm) and [EM](../em/index.md) process models, we wish to define a 5-tuple
+As in the [RM](../rm/index.md) and [EM](../em/index.md) process models, we wish to define a 5-tuple
 $(\mathcal{Q},\Sigma,\delta,q_0,F)$, this time for the CS model.
 
 {% import-markdown "cs_substates_table.md" %}
@@ -85,11 +85,11 @@ $$\mathcal{F}^\prime = \{ {VFDPxa}, {VFDPxA}, {VFDPXa}, {VFDPXA} \}$$
 at the time a report is closed (i.e., when $q^{rm} \xrightarrow{c} C$). In
 fact, most count a CVD as successful when reports are closed in
 $q^{cs} \in VFDPxa$ because it means that the defenders won the race
-against adversaries. The distinction between the [RM](../rm) and CS processes is important; Participants can
-close cases whenever their [RM](../rm) process dictates, independent of the
+against adversaries. The distinction between the [RM](../rm/index.md) and CS processes is important; Participants can
+close cases whenever their [RM](../rm/index.md) process dictates, independent of the
 CS state. In other
 words, it remains possible for exploits to be published or attacks to be
-observed long after the [RM](../rm) process has closed a case.
+observed long after the [RM](../rm/index.md) process has closed a case.
 
 !!! info "CS Model Wildcard Notation"
     
@@ -142,7 +142,7 @@ DFA.
 We define the set of symbols for our CS DFA as $\Sigma^{cs}$:
 
 Here we diverge somewhat from the notation used for the
-[RM](../rm) and [EM](../em/index.md) models, which use lowercase letters for transitions and
+[RM](../rm/index.md) and [EM](../em/index.md) models, which use lowercase letters for transitions and
 uppercase letters for states. Because CS state names already use both lowercase
 and uppercase letters, here we use a bold font for the symbols of the
 CS DFA to differentiate the transition from the corresponding substate it leads
