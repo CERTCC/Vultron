@@ -71,7 +71,7 @@ flowchart LR
 ```
 
 
-It is a child of the fallback node started in [Receiving Messages Behavior](../topics/behavior_logic/msg_intro_bt/).
+It is a child of the fallback node started in [Receiving Messages Behavior]((./msg_intro_bt/).
 A precondition check for EM message types is followed by a fallback node. 
 EM acknowledgment messages (_EK_) receive no further attention and return *Success*.
 
@@ -185,7 +185,7 @@ Returning to the the tree at the top of the page, we come to a branch focused on
 handling EM messages when an embargo is no longer viable---in other words, when the case has
 reached a point where attacks are occurring, or either the exploit or the vulnerability has been made public
 ($q^{cs} \not \in \cdot\cdot\cdot pxa$).
-This branch takes us to the [Terminate Embargo tree](../topics/behavior_logic/em_terminate_bt/), which may lead to
+This branch takes us to the [Terminate Embargo tree]((./em_terminate_bt/), which may lead to
 other messages being emitted.
 
 Finally, back at the end of the tree at the top of the page, when no other branch has succeeded,

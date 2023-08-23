@@ -34,7 +34,7 @@ flowchart LR
     fb --> emit_ce
 ```
 
-We are still working through the children of [Receive Messages](../topics/behavior_logic/msg_intro_bt/) behavior tree.
+We are still working through the children of [Receive Messages]((./msg_intro_bt/) behavior tree.
 And as we've come to expect, a precondition check leads to a fallback node in which CS acknowledgement
 messages (_CK_) receive no further attention and return *Success*.
 
@@ -125,7 +125,7 @@ Again, we note that any of the __P__, __X__, or
 __A__ transitions in the CS model imply that no new embargo should be
 entered, and any existing embargo should be terminated. Hence, the
 sequence described in the previous paragraph leads to the [embargo
-termination tree](../topics/behavior_logic/em_terminate_bt/).
+termination tree]((./em_terminate_bt/).
 
 ## Participant-Specific CS Status Messages
 
@@ -158,6 +158,6 @@ Therefore, messages representing another Participant's status change for this po
 CS do not directly affect the receiving Participant's status.
 This is not to say that the Participant might not choose to take some action based on their knowledge of a
 Vendor's (or Deployer's) status. 
-Rather, such follow-up would be expected to occur as part of the Participant's [*do work* process](../topics/behavior_logic/do_work_bt/).
+Rather, such follow-up would be expected to occur as part of the Participant's [*do work* process]((./do_work_bt/).
 
 

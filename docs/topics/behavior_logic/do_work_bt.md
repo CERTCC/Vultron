@@ -1,7 +1,7 @@
 # Do Work Behavior Tree
 
 Although it is not directly addressed by the [formal MPCVD protocol](../reference/formal_protocol), the *do work* node
-of the [RM Behavior Tree](../topics/behavior_logic/rm_bt/) is where much of the CVD effort happens.
+of the [RM Behavior Tree]((./rm_bt/) is where much of the CVD effort happens.
 As a result, it is worth spending some time reviewing what some of the underlying work actually entails.
 
 In this section, we will expand on the set of behaviors shown in the diagram below.
@@ -40,13 +40,13 @@ flowchart LR
  Specifically, we will cover the following
 tasks, each in its own subsection.
 
--   [Deployment](../topics/behavior_logic/deployment_bt/)
--   [Developing a fix](../topics/behavior_logic/fix_dev_bt/)
--   [Reporting to others](../topics/behavior_logic/reporting_bt/)
--   [Publication](../topics/behavior_logic/publication_bt/)
--   [Monitoring threats](../topics/behavior_logic/monitor_threats_bt/)
--   [Assigning CVE IDs](../topics/behavior_logic/id_assignment_bt/)
--   [Acquiring exploits](../topics/behavior_logic/acquire_exploit_bt/)
+-   [Deployment]((./deployment_bt/)
+-   [Developing a fix]((./fix_dev_bt/)
+-   [Reporting to others]((./reporting_bt/)
+-   [Publication]((./publication_bt/)
+-   [Monitoring threats]((./monitor_threats_bt/)
+-   [Assigning CVE IDs]((./id_assignment_bt/)
+-   [Acquiring exploits]((./acquire_exploit_bt/)
 
 The *other work* task is included as a placeholder for any Participant-specific tasks not represented here.
 
