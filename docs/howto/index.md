@@ -4,10 +4,13 @@ Here we collect some guidance for potential implementations of Vultron.
 
 While a complete protocol implementation specification remains a work in progress, we do have a few additional 
 suggestions for potential implementers.
-In this section, we describe an abstract [case object](case_object.md) for use in tracking MPCVD cases.
-Next, we touch on the [core MPCVD protocol subprocesses](process_implementation/) (RM, EM, and CS), including how the CS model might integrate with
-other processes.
-Finally, we provide a few [general notes](general_implementation/) on future implementations.
+In this section, you will find:
+
+- an abstract [case object](case_object.md) for use in tracking MPCVD cases
+- Notes on the [core MPCVD protocol subprocesses](process_implementation.md) (RM, EM, and CS), including how the CS model might integrate with
+other processes
+- A few thoughts on the [Embargo Management Process](em_icalendar.md) and how it might be implemented using the `iCalendar` protocol. 
+- [General notes](general_implementation.md) on future implementations.
 
 !!! tip "Vultron is an interoperability protocol"
 
