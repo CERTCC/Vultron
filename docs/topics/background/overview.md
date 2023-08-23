@@ -6,7 +6,7 @@ MPCVD is comprised of independent Participants performing their own CVD-related 
 
 Those processes can be represented by Finte State Machines (FSMs), specifically as Deterministic Finite Automata (DFAs).
 CVD processes (and the DFAs representing them/index.md) can be decomposed hierarchically. 
-We propose three main DFAs as the core of our MPCVD protocol:
+We propose three main DFAs as the core of our Vultron protocol:
 
 1.  A [Report Management](../process_models/rm/index.md) DFA represents each CVD Participant's engagement with a particular report
 2.  An [Embargo Management](../process_models/em/index.md) DFA negotiates and establishes the timing of future disclosures and publications
@@ -23,7 +23,7 @@ then whatever they are doing does not deserve the name CVD.
 Hence, there is a need for a protocol to describe the interactions necessary to coordinate these processes.
 [Communicating FSMs](https://doi.org/10.1145/322374.322380) provide a formal way to define a communications protocol, which coordinates the activities of 
 independent DFAs through the interchange (e.g., sending and receiving) of messages.
-We map our multiple DFA model onto a formal protocol definition in [Formal Protocol](../reference/formal_protocol/index.md).
+We map our multiple DFA model onto a formal protocol definition in [Formal Protocol](../../reference/formal_protocol/index.md).
 
 ### Behavior Logic 
 
@@ -54,8 +54,8 @@ The behaviors we are interested in modeling are the various
 CVD activities described in the [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD) (e.g., find contacts, send
 reports, validate reports, prioritize reports, create fixes, publish
 reports, publish fixes, deploy fixes).
-We use [Behavior Trees]((../behavior_logic/) to describe MPCVD Participant activities and their interactions with
-the [formal protocol](../reference/formal_protocol/index.md).
+We use [Behavior Trees](../behavior_logic/) to describe MPCVD Participant activities and their interactions with
+the [formal protocol](../../reference/formal_protocol/index.md).
 
 ## Implementation Notes
 
@@ -68,20 +68,16 @@ reference="ch:conclusion"}. ==}
 
 {== Appendices are included to provide connections to closely related work: ==}
 
-{== In Appendix
-[\[app:ssvc_mpcvd_protocol\]](#app:ssvc_mpcvd_protocol){reference-type="ref"
-reference="app:ssvc_mpcvd_protocol"}, we provide a mapping between the
-MPCVD protocol
-and relevant portions of the SSVC, a vulnerability response prioritization
-model also developed by the [CERT/CC]{acronym-label="CERT/CC"
-acronym-form="singular+short"}. ==}
 
-{== Appendix
-[\[app:iso_crosswalk\]](#app:iso_crosswalk){reference-type="ref"
-reference="app:iso_crosswalk"} contains a detailed crosswalk of our
+[SSVC Crosswalk](../../reference/ssvc_crosswalk.md) provides a mapping between the Vultron protocol
+and relevant portions of the [Stakeholder Specific Vulnerability Categorization](https://github.com/CERTCC/SSVC)
+([SSVC](https://github.com/CERTCC/SSVC)), a vulnerability response prioritization 
+model also developed by the CERT/CC.
+
+[ISO Crosswalk](../../reference/iso_crosswalk.md) contains a detailed crosswalk of our
 protocol with ISO/IEC 29147:2018 *Vulnerability Disclosure*, ISO/IEC
 30111:2019 *Vulnerability Handling Processes*, and ISO/IEC TR 5895:2022
-*Multi-party coordinated vulnerability disclosure and handling*. ==}
+*Multi-party coordinated vulnerability disclosure and handling*.
 
 {== Appendix [\[app:em_icalendar\]](#app:em_icalendar){reference-type="ref"
 reference="app:em_icalendar"} maps concepts from the

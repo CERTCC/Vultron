@@ -63,7 +63,7 @@ We detail each of these below or in subsequent pages:
 
 - $N$ [below](#number-of-processes)
 - ${ \langle S_i \rangle}^N_{i=1}$, and ${ \langle o_i \rangle }^N_{i=1}$ in [States](states.md),
-- ${ \langle M_{i,j} \rangle }^N_{i,j=1}$ in [Message Types](messages..md),
+- ${ \langle M_{i,j} \rangle }^N_{i,j=1}$ in [Message Types](messages.md),
 - ${ succ }$ in [Transition Functions](transitions.md)
 
 ## Number of Processes

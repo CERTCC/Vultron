@@ -44,6 +44,7 @@ Vultron is a collection of ideas, models, code, and work in progress, and is not
 !!! question "Using Vultron"
 
     How-To Guides - Problem Oriented
+    
     In the future, we plan to include how-to guides to help you use Vultron.
     But for now, we recommend that you start with the Understanding Vultron section.
     {== TODO ==}
@@ -60,7 +61,7 @@ We are in the process of documenting the Vultron CVD Protocol as we develop a pr
 We are using the [Diátaxis Framework](https://diataxis.fr/) to organize our documentation into four main categories,
 oriented around the different ways that people might need to learn about and use the Vultron protocol.
 
-Our current focus is on the [Understanding Vultron](topics/index.md) section, which describes the protocol
+Our current focus is on the [Understanding Vultron](topics/background/index.md) section, which describes the protocol
 in detail. 
 
 ----

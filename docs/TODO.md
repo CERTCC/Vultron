@@ -24,16 +24,16 @@
 ## Clean up
 
 ### Report Management
-- [x] [report_management.md](./rm/index.md)
-- [x] [rm_interactions.md](./rm/rm_interactions.md)
+- [x] [report_management.md](rm/index.md)
+- [x] [rm_interactions.md](rm/rm_interactions.md)
 
 ### Embargo Management
-- [ ] [em/index.md](./em/index.md)
-- [ ] [em/defaults.md](./em/defaults.md)
-- [ ] [em/early_termination.md](./em/early_termination.md)
-- [ ] [em/em_dfa_diagram.md](./em/em_dfa_diagram.md)
-- [ ] [em/nda-sidebar.md](./em/nda-sidebar.md)
-- [ ] [em/negotiating.md](./em/negotiating.md)
-- [ ] [em/principles.md](./em/principles.md)
-- [ ] [em/working_with_others.md](./em/working_with_others.md)
+- [ ] [em/index.md](em/index.md)
+- [ ] [em/defaults.md](em/defaults.md)
+- [ ] [em/early_termination.md](em/early_termination.md)
+- [ ] [em/em_dfa_diagram.md](em/em_dfa_diagram.md)
+- [ ] [em/nda-sidebar.md](em/nda-sidebar.md)
+- [ ] [em/negotiating.md](em/negotiating.md)
+- [ ] [em/principles.md](em/principles.md)
+- [ ] [em/working_with_others.md](em/working_with_others.md)
 - 

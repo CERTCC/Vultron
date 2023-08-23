@@ -64,6 +64,6 @@ message is emitted.
 The Terminate Embargo Behavior Tree appears in multiple locations in the
 larger tree.
 We will encounter it again as a possible response to evidence collected via
-[threat monitoring]((./do_work_bt#threat-monitoring)
-as well as in response to certain [CS or EM messages]((./receive_messages_bt.md)
+[threat monitoring](do_work_bt#threat-monitoring)
+as well as in response to certain [CS or EM messages](receive_messages_bt.md)
 in states when an embargo is no longer viable.

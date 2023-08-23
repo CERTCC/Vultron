@@ -99,7 +99,7 @@ providing a few common usages from the [Oxford English Dictionary](https://www.o
 Both usages are relevant to this effort.
 First, insofar as we seek to scale the MPCVD process through the use of automation and software-augmented human
 processes, we wish to propose a formal technical protocol that can serve as the basis of such technical tools.
-The [Formal Protocol](../reference/formal_protocol/index.md) section of this documentation addresses this first definition in
+The [Formal Protocol](../../reference/formal_protocol/index.md) section of this documentation addresses this first definition in
 specific detail after explicating its component parts and their interactions in 
 [Report Management](../process_models/rm/index.md), [Embargo Management](../process_models/em/index.md), [Case State](../process_models/cs/index.md),
 and [Model Interactions](../process_models/model_interactions).

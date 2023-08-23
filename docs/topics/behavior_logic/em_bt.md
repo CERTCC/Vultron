@@ -94,32 +94,32 @@ made public, or information about the vulnerability has been made
 public. If one of those conditions is met and the embargo state is
 *None* ($q^{em} \in N$), the check returns *Success*, and the tree
 terminates, consistent with
-[Negotiating Embargoes]((../process_models/em/negotiating/).
+[Negotiating Embargoes](../process_models/em/negotiating/).
 
 Otherwise, we continue through each remaining EM state. 
 When there is no embargo and there are no outstanding proposals ($q^{em} \in N$), the only options are to
-either stop trying or [propose]((./em_propose_bt.md) a new embargo.
+either stop trying or [propose](em_propose_bt.md) a new embargo.
 The decision to stop trying to achieve an embargo is left to individual Participants, although we did provide some relevant guidance in
-[Negotiating Embargoes]((../process_models/em/negotiating/).
+[Negotiating Embargoes](../process_models/em/negotiating/).
 
-When there is an outstanding embargo proposal ($q^{em} \in P$), we first attempt the [terminate]((./em_terminate_bt.md) task.
+When there is an outstanding embargo proposal ($q^{em} \in P$), we first attempt the [terminate](em_terminate_bt.md) task.
 This task returns *Success* if there is a reason for ${q^{em} \in P \xrightarrow{r} N}$.
 
-At this point, if there is no reason to [terminate]((./em_terminate_bt.md),
-we proceed to the [evaluate]((./em_eval_bt.md) task described below.
+At this point, if there is no reason to [terminate](em_terminate_bt.md),
+we proceed to the [evaluate](em_eval_bt.md) task described below.
 The evaluate task returns *Success* if either the proposal is accepted or a counterproposal is made.
 
 Assuming neither of these succeeds, we proceed to reject the proposal, returning to
 $q^{em} \in N$ and emitting a corresponding $ER$ message.
 
 The process within the *Active* ($q^{em} \in A$) state is similarly straightforward.
-If there is reason to [terminate]((./em_terminate_bt.md) the embargo, do so.
+If there is reason to [terminate](em_terminate_bt.md) the embargo, do so.
 Otherwise, either the current embargo terms are acceptable, or a new embargo should be proposed.
 
 Finally, we handle the *Revise* EM state ($q^{em} \in R$).
 The structure of this branch mirrors that of the *Proposed* state discussed above.
-Again, we check to see if there is cause to [terminate]((./em_terminate_bt.md) doing so, if needed.
-If termination is not indicated, we proceed once again to [evaluate the proposed revision]((./em_eval_bt.md), either accepting
+Again, we check to see if there is cause to [terminate](em_terminate_bt.md) doing so, if needed.
+If termination is not indicated, we proceed once again to [evaluate the proposed revision](em_eval_bt.md), either accepting
 or countering the proposal. 
 When neither of these succeed, the revision is rejected and the EM state returns to $q^{em} \in A$ with the
 original embargo terms intact.

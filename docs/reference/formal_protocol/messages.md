@@ -1,6 +1,6 @@
 # Message Types
 
-In [States](.//states.md), we identified four main roles in the
+In [States](states.md), we identified four main roles in the
 MPCVD process:
 
 - Finder/Reporter
@@ -9,7 +9,7 @@ MPCVD process:
 - Deployer
  
 Here we will examine the messages passed between them.
-Revisiting the definitions from the [Formal Protocol Introduction](.//index.md):,
+Revisiting the definitions from the [Formal Protocol Introduction](index.md):,
 
 > $\langle M_{ij} \rangle_{i,j=1}^N$ are $N^2$ disjoint finite sets with
 > $M_{ii}$ empty for all $i$: $M_{ij}$ represents the messages that can
@@ -52,7 +52,7 @@ MPCVD protocol, that was it.
 As a reminder, those transitions are shown at right.
 
 We will address the specific circumstances when each message should be emitted in
-[Transitions](.//transitions.md), but first we need to 
+[Transitions](transitions.md), but first we need to 
 introduce the message types this recommendation implies.
 We cover messages associated with each state model, in turn, below, concluding the section with a few message types not
 directly connected to any particular state model.
@@ -61,7 +61,7 @@ directly connected to any particular state model.
 
 !!! tip inline end "Finders have hidden states"
     
-    As we discuss in [RM Interactions](../../topics/process_models/rm/rm_interactions#the-secret-lives-of-finders),
+    As we discuss in [RM Interactions](../../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders),
     the Finder's states $q^{rm} \in \{R,I,V\}$ are not observable to the CVD process because Finders start 
     coordination only when they have already reached $q^{rm} = A$.
 
@@ -92,7 +92,7 @@ A summary of the RM message types is shown below.
     $$M^{rm} = \{RS,RI,RV,RD,RA,RC,RK,RE\}$$
 
 All state changes are from the Participant's (sender's) perspective, not the recipient's perspective.
-We will see in [Transitions](.//transitions.md) that the receipt of a *Report Submission* is the 
+We will see in [Transitions](transitions.md) that the receipt of a *Report Submission* is the 
 only message whose *receipt* directly triggers an RM state change in the receiver.
 All other RM messages are used to convey the sender's status.
 
@@ -114,9 +114,7 @@ All other RM messages are used to convey the sender's status.
 
     Participants SHOULD track the RM states of the other Participants in the case.
 
-An example object model for such tracking is described in
-{== §[\[sec:case_object\]](#sec:case_object.md){reference-type="ref"
-reference="sec:case_object"} ==}.
+An example object model for such tracking is described in [Case Object](../../howto/case_object.md).
 Furthermore, while these messages are expected to inform the receiving Participant's choices in their own RM process,
 this protocol intentionally does not specify any other recipient RM state changes upon receipt of an RM message.
 
@@ -254,6 +252,6 @@ For convenience, we collected these into the table below.
             \right\}\textrm{ where $i \neq j$; $\varnothing$ otherwise; for $i,j \leq N$}$$
 
 
-Message _formats_ are left as future work.
+Message _formats_ are left as [future work](../../topics/future_work.md).
 
 

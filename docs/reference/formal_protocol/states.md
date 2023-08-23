@@ -930,5 +930,5 @@ For a case to really begin, the Finder must at least reach the $A$ state.
 Therefore, at the point when a second party finds out about the vulnerability from a Finder,
 the Finder/Reporter is presumed to be already at $q_{Finder}=(A, N, pxa)$.
 
-We will show in [Transitions](.//transitions.md) how this plays out.
+We will show in [Transitions](/transitions.md) how this plays out.
 But first, we need to define the message types that can be exchanged between Participants.

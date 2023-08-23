@@ -1,6 +1,6 @@
 # A Vultron Case Object
 
-Here we describe a notional MPCVD *Case* object that incorporates the [process models](../topics/process_models/)
+Here we describe a notional MPCVD *Case* object that incorporates the [process models](../topics/process_models/index.md)
 and [formalisms](../reference/formal_protocol/index.md) that define the Vultron protocol.
 The object model we describe is intended to provide the necessary core information for an implementation of the
 [formal protocol](../reference/formal_protocol/index.md).
@@ -128,8 +128,8 @@ class MessageTypeEnum {
 ## The *Case* Class
 
 The *Case* class has attributes to track the [Embargo Management](../topics/process_models/em/index.md) (em/index.md) state and the
-[participant-agnostic](../topics/process_models/model_interactions/) portion of the [Case State](../topics/process_models/cs/index.md) (CS) model (i.e., the *pxa*
-substates), as outlined in [model interactions](../topics/process_models/model_interactions/).
+[participant-agnostic](../topics/process_models/model_interactions.md) portion of the [Case State](../topics/process_models/cs/index.md) (CS) model (i.e., the *pxa*
+substates), as outlined in [model interactions](../topics/process_models/model_interactions.md).
 The *Case* class aggregates one or more *Report*s and *Participant*s, and 0 or more *Message*s and *LogEvent*s.
 We include a `receive_message()` method to allow *Participant*s to send messages to the *Case*.
 See [below](#the-message-class) for more details.
@@ -210,7 +210,7 @@ For example, a Reporter who bows out of a case shortly after reporting it to a C
 
 !!! tip inline end
     
-    As discussed in [Embargo Principles](../topics/process_models/em/principles/?h=free#sec:embargo_engagement), 
+    As discussed in [Embargo Principles](../topics/process_models/em/principles.md#sec:embargo_engagement), 
     it is possible for a *Participant* to exit a case while still agreeing to abide by the terms of the extant embargo.
 
 `embargo_adherence`
@@ -274,5 +274,5 @@ The remainder of the class diagram above consists of classes representing the Ro
 The Roles are the same set we have used throughout this site, as taken from the [CVD Guide](https://vuls.cert.org/confluence/display/CVD).
 Message Type flags are consistent with [Messages](../reference/formal_protocol/messages.md).
 The enumeration classes are consistent with the [RM](../topics/process_models/rm/), [EM](../topics/process_models/em/index.md), 
-and [CS](../topics/process_models/cs) state machines.
+and [CS](../topics/process_models/cs/index.md) state machines.
 

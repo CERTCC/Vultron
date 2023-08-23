@@ -5,7 +5,7 @@ Here we provide a few general implementation notes.
 ## Message Formats
 
 We defined a number of [message types](../reference/formal_protocol/messages.md) in the formal protocol, and showed how they
-fit into a [case object](/howto/case_object.md), but we did not specify any format for these messages.
+fit into a [case object](case_object.md), but we did not specify any format for these messages.
 Message formats can be thought of as two related problems:
 
 ### Structure and Semantic Content of Each Message Type

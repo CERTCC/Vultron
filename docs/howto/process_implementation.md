@@ -1,7 +1,7 @@
 # Process Implementation Notes
 
 Integrating the MPCVD protocol into everyday MPCVD operations requires each Participant to consider how their business processes
-interact with the individual [RM](../topics/process_models/rm/), [EM](../topics/process_models/em/index.md), 
+interact with the individual [RM](../topics/process_models/rm/index.md), [EM](../topics/process_models/em/index.md), 
 and [CS](../topics/process_models/cs/index.md), process models, respectively.
 Here we offer some thoughts on where such integration might begin.
 
@@ -27,10 +27,9 @@ The main modifications needed to adapt an existing workflow are to intercept the
 
 MPCVD case Participants often share pre-publication drafts of their advisories during the embargo period.
 Our protocol proposal is mute on this subject because it is not strictly necessary for the MPCVD process to complete successfully.
-However, as we observe in {== Appendix [\[app:iso_crosswalk\]](#app:iso_crosswalk){reference-type="ref"
-reference="app:iso_crosswalk"} ==}, the _GI_ and _GK_ message types appear to provide sufficient mechanics for this 
+However, as we observe in the [ISO Crosswalk](../reference/iso_crosswalk.md), the _GI_ and _GK_ message types appear to provide sufficient mechanics for this 
 process to be fleshed out as necessary.
-This draft-sharing process could be built into the [*prepare publication*](../topics/behavior_logic/publication_bt#prepare-publication-behavior) process, where appropriate.
+This draft-sharing process could be built into the [*prepare publication*](../topics/behavior_logic/publication_bt.md#prepare-publication-behavior) process, where appropriate.
 
 ## EM Implementation Notes
 

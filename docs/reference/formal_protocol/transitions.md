@@ -1,6 +1,6 @@
 # Transition Functions {#sec:protocol_transition_functions}
 
-Revisiting the formal protocol definition from the [introduction](.//index.md): 
+Revisiting the formal protocol definition from the [introduction](/index.md): 
 
 !!! note "Transition Function Defined"
 
