@@ -61,7 +61,7 @@ directly connected to any particular state model.
 
 !!! tip inline end "Finders have hidden states"
     
-    As we discuss in [RM Interactions](../../topics/process_models/rm/rm_interactions/#the-secret-lives-of-finders),
+    As we discuss in [RM Interactions](../../topics/process_models/rm/rm_interactions#the-secret-lives-of-finders),
     the Finder's states $q^{rm} \in \{R,I,V\}$ are not observable to the CVD process because Finders start 
     coordination only when they have already reached $q^{rm} = A$.
 

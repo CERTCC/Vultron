@@ -1,6 +1,6 @@
 # Interactions Between the Vultron Protocol and SSVC
 
-Once a report has been validated (i.e., it is in the RM [_Valid_](../topics/process_models/rm/#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to 
+Once a report has been validated (i.e., it is in the RM [_Valid_](../topics/process_models/rm#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to 
 determine what further effort, if any, is necessary. 
 While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://github.com/CERTCC/SSVC) model.
 
@@ -44,9 +44,9 @@ the _Deployer Tree_.
 
 The
 SSVC _Defer_
-output maps directly onto the RM [_Deferred_](../topics/process_models/rm/#the-deferred-d-state) state.
+output maps directly onto the RM [_Deferred_](../topics/process_models/rm#the-deferred-d-state) state.
 Otherwise, the three outputs that imply further action is necessary&mdash;Scheduled_,
-_Out-of-Cycle_, and _Immediate_&mdash;all proceed to the RM [_Accepted_](../topics/process_models/rm/#the-accepted-a-state) state.
+_Out-of-Cycle_, and _Immediate_&mdash;all proceed to the RM [_Accepted_](../topics/process_models/rm#the-accepted-a-state) state.
 The different categories imply different processes within the _Accepted_ state.
 But because the RM model does not dictate internal organizational processes, further description of what those processes
 might look like is out of scope for this report.
@@ -83,8 +83,8 @@ Similar to the _Supplier Tree_ mapping above, the mapping here is simple, as sho
     \end{cases}$$
 
 
-Again, whereas the _Decline_ output maps directly to the RM [_Deferred_](../topics/process_models/rm/#the-deferred-d-state) state, the remaining two
-states (_Track_ and _Coordinate_) imply the necessity for distinct processes within the Coordinator's RM [_Accepted_](../topics/process_models/rm/#the-accepted-a-state) state.
+Again, whereas the _Decline_ output maps directly to the RM [_Deferred_](../topics/process_models/rm#the-deferred-d-state) state, the remaining two
+states (_Track_ and _Coordinate_) imply the necessity for distinct processes within the Coordinator's RM [_Accepted_](../topics/process_models/rm#the-accepted-a-state) state.
 
 On the other hand, the SSVC _Coordinator Publish Tree_ falls entirely within the Coordinator's _Accepted_ state, so its 
 output does not directly induce any Coordinator RM state transitions.
@@ -141,7 +141,7 @@ As above, "$\iff$" indicates the bidirectional equivalence.
 
 ### Supplier Contacted
 
-If the Supplier (Vendor) has been notified (i.e., there is reason to believe they are at least in the RM [_Received_](../topics/process_models/rm/#the-received-r-state) 
+If the Supplier (Vendor) has been notified (i.e., there is reason to believe they are at least in the RM [_Received_](../topics/process_models/rm#the-received-r-state) 
 state, equivalent to the $V\cdot\cdot\cdot\cdot\cdot$ CS state subset) the _Supplier Contacted_ value should be _Yes_,
 otherwise it should be _No_.
 
@@ -162,9 +162,9 @@ process *after* report validation, the _Report Credibility_ decision point forms
 validation process.
 In fact, it is often the only validation step possible when the Coordinator lacks the ability to reproduce a
 vulnerability whether due to constraints of resources, time, or skill.
-Thus, a value of _Credible_ can be expected to lead to an RM transition to [_Valid_](../topics/process_models/rm/#the-valid-v-state) ($q^{rm} \in R \xrightarrow{v} V$),
+Thus, a value of _Credible_ can be expected to lead to an RM transition to [_Valid_](../topics/process_models/rm#the-valid-v-state) ($q^{rm} \in R \xrightarrow{v} V$),
 assuming any additional validation checks also pass. 
-On the contrary, _Not-Credible_ always implies the RM transition to [_Invalid_](../topics/process_models/rm/#the-invalid-i-state) ($q^{rm} \in R \xrightarrow{i} I$) 
+On the contrary, _Not-Credible_ always implies the RM transition to [_Invalid_](../topics/process_models/rm#the-invalid-i-state) ($q^{rm} \in R \xrightarrow{i} I$) 
 because "Valid-but-not-Credible" is a contradiction.
 
 !!! note "SSVC _Report Credibility_ Decision Point Mapped to RM States"

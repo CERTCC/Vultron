@@ -330,7 +330,7 @@ Reporter declines to extend their embargo), a short embargo is
 preferable to none at all. This implies a preference for strings
 starting with _par_ over strings starting with _ppa_ or _prpa_, among
 others. We will come back to this idea in [Default Embargoes](#default-embargoes)
-and in the [worked protocol example](../../formal_protocol/worked_example/#vendor-accepts-then-proposes-revision).
+and in the [worked protocol example](../../formal_protocol/worked_example#vendor-accepts-then-proposes-revision).
 
 ### EM DFA Fully Defined
 

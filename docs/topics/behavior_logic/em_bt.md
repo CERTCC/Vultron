@@ -2,7 +2,7 @@
 
 The Embargo Management Behavior Tree is shown in the figure below.
 It follows the state transition function in the
-[Embargo Management Process Model](http://127.0.0.1:80(../process_models/em/#em-state-transitions).
+[Embargo Management Process Model](http://127.0.0.1:80(../process_models/em#em-state-transitions).
 Recall that the EM process begins in the $q^{em} \in N$ state and ends in one of two states:
 
 -   in the *eXited* ($q^{em} \in X$) state after having established an

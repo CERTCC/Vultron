@@ -726,7 +726,7 @@ below.
 
 ### Finder-Reporters
 
-As we discussed in [RM Interactions](../../topics/process_models/rm/rm_interactions.md/#the-secret-lives-of-finders),
+As we discussed in [RM Interactions](../../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders),
 the early Finder states are largely hidden from view from other CVD Participants unless they choose to engage
 in the CVD process in the first place.
 Therefore, for a CVD protocol, we only need to care about Finder states once they have reached RM $Accepted$.
