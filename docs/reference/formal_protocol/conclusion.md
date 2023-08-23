@@ -1,6 +1,6 @@
 # Formal MPCVD Protocol Redux
 
-We have [formally defined](./formal_protocol/index.md) an [MPCVD protocol](./formal_protocol/index.md).
+We have [formally defined](.//index.md) an [MPCVD protocol](.//index.md).
 Here we provide a summary of the result.
 See the linked sections for more details.
 
@@ -107,7 +107,7 @@ stateDiagram-v2
 
     The symbol $\prec$ is read as *precedes*.
 
-In [Defining CVD Success](../topics/background/cvd_success.md), we defined a set of 12 ordering preferences over the 
+In [Defining CVD Success](../../topics/background/cvd_success.md), we defined a set of 12 ordering preferences over the 
 6 events in the Case State model. The symbols for these preferences refer to the transition events in the Case State 
 diagrams above.
 
@@ -128,4 +128,4 @@ diagrams above.
 
 !!! tip "Worked Example"
     
-    A [worked example](../topics/formal_protocol/worked_example/) of the protocol in action is available.
+    A [worked example](../../topics/formal_protocol/worked_example/) of the protocol in action is available.
