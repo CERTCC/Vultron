@@ -4,13 +4,13 @@
 
     $$\Sigma^{cs} = \{ \mathbf{V},~\mathbf{F},~\mathbf{D},~\mathbf{P},~\mathbf{X},~\mathbf{A} \}$$
 
-The [RM](../rm/) and [EM](../em/index.md) models interact with the [Case State Model](../cs/index.md).
-Here we will review the constraints arising from the interaction of the [RM](../rm/) and [EM](../em/index.md) 
+The [RM](../rm/index.md) and [EM](../em/index.md) models interact with the [Case State Model](../cs/index.md).
+Here we will review the constraints arising from the interaction of the [RM](../rm/index.md) and [EM](../em/index.md) 
 models with each of the CS transition events represented by its symbols.
 As a reminder, a list of the CS model transition symbols is reproduced in the inset at right.
 
 We have organized this page according to how each CS model [substate](../cs/index.md) interacts with the
-[RM](../rm/) and [EM](../em/index.md) models.
+[RM](../rm/index.md) and [EM](../em/index.md) models.
 
 ## Vendor Notification
 
@@ -117,7 +117,7 @@ stateDiagram-v2
 
 Fix Readiness (**F**) can occur only when a Vendor is in the
 _Accepted_ state. As a reminder, in MPCVD cases, each affected Vendor has their own
-[RM](../rm/) state, so this constraint applies to each Vendor individually.
+[RM](../rm/index.md) state, so this constraint applies to each Vendor individually.
 With respect to [EM](../em/index.md), when the case state is $q^{cs} \in VF\cdot pxa$, it's usually too late to
 start a new embargo.
 
@@ -306,7 +306,7 @@ stateDiagram-v2
 
 ## Exploit Public
 
-Exploit publishers may also be presumed to have a similar [RM](../rm/) state model for their own work.
+Exploit publishers may also be presumed to have a similar [RM](../rm/index.md) state model for their own work.
 Therefore, we can expect them to be in an RM _Accepted_ state at the time of exploit code publication (**X**).
 However, we cannot presume that those who publish exploit code will be Participants in a pre-public CVD process.
 That said,

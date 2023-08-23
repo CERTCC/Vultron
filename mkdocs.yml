@@ -84,7 +84,6 @@ nav:
       - ISO 5895: 'reference/iso_5895_2022.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
   - About:
-    - Readme: 'about/readme.md'
     - Contributing: 'about/contributing.md'
     - Acknowledgements: 'about/acknowledgements.md'
     - License: 'about/license.md'

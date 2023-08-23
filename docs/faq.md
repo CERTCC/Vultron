@@ -42,7 +42,7 @@ Some relevant links include:
 We are interested in any developments in this space, please let us know if you are aware of more recent developments.
 We'd be interested to know how we could help with efforts to bring encrypted messaging to ActivityPub.
 
-## What are the requirements for the participants?
+## What are the requirements for contributing?
 
-See [CONTRIBUTING.md](CONTRIBUTING.MD)
+See [CONTRIBUTING](about/CONTRIBUTING.MD)
 
