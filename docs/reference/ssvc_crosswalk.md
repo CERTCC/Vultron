@@ -6,11 +6,11 @@ While any prioritization scheme might be used, here we demonstrate an applicatio
 
 ## SSVC Supplier and Deployer Trees
 
-The default outcomes for both the SSVC Supplier and Deployer Trees are _Defer_, _Scheduled_, _Out of Cycle_, and _Immediate_.
-The mapping from SSVC outcomes to RM states is straightforward, as shown below for the Supplier Tree and
-the Deployer Tree.
+The default outcomes for both the SSVC _Supplier_ and _Deployer_ Trees are _Defer_, _Scheduled_, _Out of Cycle_, and _Immediate_.
+The mapping from SSVC outcomes to RM states is straightforward, as shown below for the _Supplier Tree_ and
+the _Deployer Tree_.
 
-!!! note "SSVC Supplier Tree Mapping to RM States"
+!!! note "SSVC _Supplier Tree_ Mapping to RM States"
 
     $$\label{eq:ssvc_supplier_tree_output}
     q^{rm} \in
@@ -25,7 +25,7 @@ the Deployer Tree.
         \end{Bmatrix} \\
     \end{cases}$$
 
-!!! note "SSVC Deployer Tree Mapping to RM States"
+!!! note "SSVC _Deployer Tree_ Mapping to RM States"
     
     $$\label{eq:ssvc_deployer_tree_output}
     q^{rm} \in
@@ -43,8 +43,8 @@ the Deployer Tree.
 The
 SSVC _Defer_
 output maps directly onto the RM _Deferred_ state. Otherwise, the three
-outputs that imply further action is necessary---_Scheduled_,
-_Out-of-Cycle_, and _Immediate_---all proceed to the
+outputs that imply further action is necessary&mdash;Scheduled_,
+_Out-of-Cycle_, and _Immediate_&mdash;all proceed to the
 RM _Accepted_ state.
 The different categories imply different processes within the _Accepted_
 state. But because the RM model does not dictate internal
@@ -63,12 +63,12 @@ the main part of this report:
 
 ## SSVC Coordinator Trees
 
-SSVC version 2 offers two decision trees for Coordinators: A Coordinator Triage Tree
-and a Coordinator Publish Tree.
-The outputs for the Coordinator Triage Decision Tree are _Decline_, _Track_, and _Coordinate_.
-Similar to the Supplier Tree mapping above, the mapping here is simple, as shown below.
+SSVC version 2 offers two decision trees for Coordinators: A _Coordinator Triage Tree_
+and a _Coordinator Publish Tree_.
+The outputs for the _Coordinator Triage_ Decision Tree are _Decline_, _Track_, and _Coordinate_.
+Similar to the _Supplier Tree_ mapping above, the mapping here is simple, as shown below.
 
-!!! note "SSVC Coordinator Triage Tree Mapped to RM States"
+!!! note "SSVC _Coordinator Triage Tree_ Mapped to RM States"
 
     $$\label{eq:ssvc_coordinator_triage_tree_output}
     q^{rm} \in
@@ -86,7 +86,7 @@ Similar to the Supplier Tree mapping above, the mapping here is simple, as shown
 Again, whereas the _Decline_ output maps directly to the RM _Deferred_ state, the remaining two
 states (_Track_ and _Coordinate_) imply the necessity for distinct processes within the Coordinator's RM _Accepted_ state.
 
-On the other hand, the SSVC Coordinator Publish tree falls entirely within the Coordinator's _Accepted_ state, so its 
+On the other hand, the SSVC _Coordinator Publish Tree_ falls entirely within the Coordinator's _Accepted_ state, so its 
 output does not directly induce any Coordinator RM state transitions.
 However, a number of its decision points *do* touch on the protocol models, which we cover next.
 
@@ -98,14 +98,15 @@ Vultron protocol.
 
 ### Exploitation
 
-The SSVC Exploitation decision point permits three possible values:
+The SSVC _Exploitation_ decision point permits three possible values:
+
 - _None_
 - _PoC_
 - _Active_
 
 These values map directly onto state subsets in the CS model, as shown below.
 
-!!! note "SSVC Exploitation Decision Point Mapped to CS States"
+!!! note "SSVC _Exploitation_ Decision Point Mapped to CS States"
 
     $$ SSVC(exploitation) =
     \begin{cases}
@@ -125,12 +126,12 @@ These case states and SSVC values are equivalent in both directions, hence our u
 
 ### Report Public
 
-The SSVC Report Public decision point also maps directly onto the CS model.
+The SSVC _Report Public_ decision point also maps directly onto the CS model.
 A value of _Yes_ means that the report is public, equivalent to $q^{cs} \in \cdot\cdot\cdot P \cdot\cdot$.
 On the other hand, a _No_ value is the same as $q^{cs} \in \cdot\cdot\cdot p \cdot\cdot$.
 As above, "$\iff$" indicates the bidirectional equivalence.
 
-!!! note "SSVC Report Public Decision Point Mapped to CS States"
+!!! note "SSVC _Report Public_ Decision Point Mapped to CS States"
 
     $$SSVC(report~public) = 
     \begin{cases}
@@ -141,10 +142,10 @@ As above, "$\iff$" indicates the bidirectional equivalence.
 ### Supplier Contacted
 
 If the Supplier (Vendor) has been notified (i.e., there is reason to believe they are at least in the RM _Received_ 
-state, equivalent to the $V\cdot\cdot\cdot\cdot\cdot$ CS state subset) the Supplier Contacted value should be _Yes_,
+state, equivalent to the $V\cdot\cdot\cdot\cdot\cdot$ CS state subset) the _Supplier Contacted_ value should be _Yes_,
 otherwise it should be _No_.
 
-!!! note "SSVC Supplier Contacted Decision Point Mapped to RM States"
+!!! note "SSVC _Supplier Contacted_ Decision Point Mapped to RM States"
 
     $$SSVC(supp.~contacted) = 
     \begin{cases}
@@ -157,15 +158,16 @@ otherwise it should be _No_.
 ### Report Credibility
 
 Unlike most of the other SSVC decision points covered here that form a part of a Participant's report prioritization 
-process *after* report validation, the Report Credibility decision point forms an important step in the Coordinator's
+process *after* report validation, the _Report Credibility_ decision point forms an important step in the Coordinator's
 validation process.
 In fact, it is often the only validation step possible when the Coordinator lacks the ability to reproduce a
 vulnerability whether due to constraints of resources, time, or skill.
 Thus, a value of _Credible_ can be expected to lead to an RM transition to _Valid_ ($q^{rm} \in R \xrightarrow{v} V$),
-assuming any additional validation checks also pass. On the contrary, _Not-Credible_ always implies the RM transition
-to _Invalid_ ($q^{rm} \in R \xrightarrow{i} I$) because "Valid-but-not-Credible" is a contradiction.
+assuming any additional validation checks also pass. 
+On the contrary, _Not-Credible_ always implies the RM transition to _Invalid_ ($q^{rm} \in R \xrightarrow{i} I$) 
+because "Valid-but-not-Credible" is a contradiction.
 
-!!! note "SSVC Report Credibility Decision Point Mapped to RM States"
+!!! note "SSVC _Report Credibility_ Decision Point Mapped to RM States"
 
     $$SSVC(report~cred.) = 
     \begin{cases}
@@ -175,22 +177,20 @@ to _Invalid_ ($q^{rm} \in R \xrightarrow{i} I$) because "Valid-but-not-Credible"
 
 ### Supplier Engagement
 
-The possible values for the Supplier (Vendor) Engagement decision point are _Active_ or _Unresponsive_.
+The possible values for the _Supplier_ (Vendor) _Engagement_ decision point are _Active_ or _Unresponsive_.
 From the Coordinator's perspective, if enough Suppliers in a CVD case have communicated their engagement in a case
 (i.e., enough Vendors are in the RM _Accepted_ state already or are expected to make it there soon from either the
 _Received_ or _Valid_ states), then the SSVC value would be _Active_.
 
 Vendors in _Invalid_ or _Closed_ can be taken as disengaged, and it might be appropriate to select _Unresponsive_ for 
-the SSVC Engagement decision point.
+the SSVC _Engagement_ decision point.
 
 Vendors in either _Received_ or _Deferred_ might be either _Active_ or _Unresponsive_, depending on the specific report
 history.
 
-This mapping is shown below and on the left side of {== Figure
-[\[fig:rm_ssvc_coord_map\]](#fig:rm_ssvc_coord_map){reference-type="ref"
-reference="fig:rm_ssvc_coord_map"} ==}.
+This mapping is formalized below and in the figure that follows.
 
-!!! note "SSVC Supplier Engagement Decision Point Mapped to RM States"
+!!! note "SSVC _Supplier Engagement_ Decision Point Mapped to RM States"
 
     $$ SSVC(supp.~eng.) = 
     \begin{cases}
@@ -204,22 +204,48 @@ reference="fig:rm_ssvc_coord_map"} ==}.
         Unresponsive & \text{if } q^{rm} \in \{I,C,S\} \\
     \end{cases}$$
 
+```mermaid
+---
+title: "RM States and SSVC Supplier Engagement"
+---
+graph LR
+    subgraph ssvc_se[SSVC Supplier Engagement]
+        Active
+        Unresponsive
+    end
+    subgraph rm_states[RM States]
+        S[Start]
+        R[Received]
+        I[Invalid]
+        V[Valid]
+        D[Deferred]
+        A[Accepted]
+        C[Closed]
+    end
+    A --> Active
+    V --> Active
+    R --> Active
+    D --> Active
+    R--> Unresponsive
+    D --> Unresponsive
+    I --> Unresponsive
+    C --> Unresponsive
+    S --> Unresponsive
+```
+
 ### Supplier Involvement
 
-The Supplier Involvement decision point can take on the values _Fix-Ready_, _Cooperative_, or _Uncooperative/Unresponsive_.
+The _Supplier Involvement_ decision point can take on the values _Fix-Ready_, _Cooperative_, or _Uncooperative/Unresponsive_.
 We begin by noting the equivalence of the _Fix-Ready_ value with the similarly named substate of the CS model.
 
-!!! note "SSVC Supplier Involvement Decision Point Mapped to CS States"
+!!! note "SSVC _Supplier Involvement_ Decision Point Mapped to CS States"
 
     $$\begin{aligned}
     \label{eq:ssvc_supplier_involvement_fr}
         SSVC(supp.~inv.) = Fix~Ready \iff q^{cs} \in VF \cdot\cdot\cdot\cdot
     \end{aligned}$$
 
-The Vendor RM states map onto these values as shown below and on the right side of
-{== Figure
-[\[fig:rm_ssvc_coord_map\]](#fig:rm_ssvc_coord_map){reference-type="ref"
-reference="fig:rm_ssvc_coord_map"} ==}.
+The Vendor RM states map onto these values as formalized below and shown in the figure below.
 
 !!! note "SSVC Supplier Involvement Decision Point Mapped to Vendor RM States"
 
@@ -238,77 +264,19 @@ reference="fig:rm_ssvc_coord_map"} ==}.
     \end{cases}
     \end{aligned}$$
 
-### Engagement vs. Involvement: What's the Difference?
-
-{== TODO clean up references to figure to reflect split into two diagrams ==}
-
-Note the discrepancy between the mappings given for SSVC Supplier Engagement versus those for Supplier Involvement.
-This distinction is most prominent in the connections from the _R_ and _D_ RM states on the left and right sides of {== Figure
-[\[fig:rm_ssvc_coord_map\]](#fig:rm_ssvc_coord_map){reference-type="ref"
-reference="fig:rm_ssvc_coord_map"} ==}.
-These differences are the result of the relative timing of the two different decisions they support within a CVD case.
-
-The decision to Coordinate (i.e., whether the Coordinator should move from RM _Valid_ to RM _Accept_ 
-($q^{rm} \in V \xrightarrow{a} A$)) occurs early in the Coordinator's RM process.
-The SSVC Supplier Engagement decision point is an attempt to capture this information.
-This early in the process, allowances must be made for Vendors who may not have completed their own validation or 
-prioritization processes. 
-Hence, the mapping allows Vendors in any valid yet unclosed state ($q^{rm} \in \{R,V,A,D\}$) to be categorized as 
-_Active_ for this decision point.
-
-```mermaid
----
-title: "RM States and SSVC Supplier Engagement"
----
-graph LR
-    subgraph ssvc_se[SSVC Supplier Engagement]
-        Active
-        Unresponsive
-    end
-    subgraph rm_states[RM States]
-        S
-        R
-        I
-        V
-        D
-        A
-        C
-    end
-    A --> Active
-    V --> Active
-    R --> Active
-    D --> Active
-    R--> Unresponsive
-    D --> Unresponsive
-    I --> Unresponsive
-    C --> Unresponsive
-    S --> Unresponsive
-```
-
-
-On the other hand, the decision to Publish&mdash;a choice that falls entirely within the Coordinator's RM _Accepted_ 
-state&mdash;occurs later, at which time, more is known about each Vendor's level of involvement in the case
-to that point. 
-By the time the publication decision is made, the Vendor(s) have had ample opportunity to engage in the CVD process.
-They might already have a _Fix-Ready_ ($q^{cs} \in VF \cdot\cdot\cdot\cdot$), or they might be working toward it
-(i.e., SSVC _Cooperative_). However, if the Coordinator has reached the point where they are making a publication 
-decision, and the Vendor has yet to actively engage in the case for whatever reason&mdash;as indicated by their failure to reach the
-RM _Accepted_ state or demonstrate progress toward it by at least getting to RM _Valid_ 
-($q^{rm} \in \{A,V\}$)&mdash;then they can be categorized as _Uncooperative/Unresponsive_.
-
 ```mermaid
 ---
 title: "RM States and SSVC Supplier Involvement"
 ---
 graph LR
     subgraph rm_states[RM States]
-        S
-        R
-        I
-        V
-        D
-        A
-        C
+        S[Start]
+        R[Received]
+        I[Invalid]
+        V[Valid]
+        D[Deferred]
+        A[Accepted]
+        C[Closed]
     end
 
     subgraph ssvc_si[SSVC Supplier Involvement]
@@ -325,3 +293,31 @@ graph LR
     C --> un
     S --> un
 ```
+
+!!! tip "_Engagement_ vs. _Involvement_: What's the Difference?"
+
+    Note the discrepancy between the mappings given for SSVC _Supplier Engagement_ versus those for _Supplier Involvement_.
+    This distinction is most prominent in the connections from the _Received_ and _Deferred_ RM states in the two figures above.
+    These differences are the result of the relative timing of the two different decisions they support within a CVD case.
+
+    The decision to Coordinate (i.e., whether the Coordinator should move from RM _Valid_ to RM _Accept_ 
+    ($q^{rm} \in V \xrightarrow{a} A$) occurs early in the Coordinator's RM process.
+    The SSVC _Supplier Engagement_ decision point is an attempt to capture this information.
+    This early in the process, allowances must be made for Vendors who may not have completed their own validation or 
+    prioritization processes. 
+    Hence, the mapping allows Vendors in any valid yet unclosed state ($q^{rm} \in \{R,V,A,D\}$) to be categorized as 
+    _Active_ for this decision point.
+
+
+    On the other hand, the decision to Publish&mdash;a choice that falls entirely within the Coordinator's RM _Accepted_ 
+    state&mdash;occurs later, at which time, more is known about each Vendor's level of involvement in the case
+    to that point. 
+    By the time the publication decision is made, the Vendor(s) have had ample opportunity to engage in the CVD process.
+    They might already have a _Fix-Ready_ ($q^{cs} \in VF \cdot\cdot\cdot\cdot$), or they might be working toward it
+    (i.e., SSVC _Cooperative_).
+    However, if the Coordinator has reached the point where they are making a publication decision, and the Vendor has 
+    yet to actively engage in the case for whatever reason&mdash;as indicated by their failure to reach the RM 
+    _Accepted_ state or demonstrate progress toward it by at least getting to RM _Valid_ 
+    ($q^{rm} \in \{A,V\}$)&mdash;then they can be categorized as _Uncooperative/Unresponsive_.
+
+
