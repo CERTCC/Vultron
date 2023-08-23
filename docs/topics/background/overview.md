@@ -8,12 +8,12 @@ Those processes can be represented by Finte State Machines (FSMs), specifically 
 CVD processes (and the DFAs representing them) can be decomposed hierarchically. 
 We propose three main DFAs as the core of our MPCVD protocol:
 
-1.  A [Report Management](../topics/process_models/rm) DFA represents each CVD Participant's engagement with a particular report
-2.  An [Embargo Management](../topics/process_models/em) DFA negotiates and establishes the timing of future disclosures and publications
-3.  A [Case State](../topics/process_models/cs) DFA tracks the events in {== Table [\[tab:cs_transitions\]](#tab:cs_transitions){reference-type="ref"
+1.  A [Report Management](../process_models/rm) DFA represents each CVD Participant's engagement with a particular report
+2.  An [Embargo Management](../process_models/em) DFA negotiates and establishes the timing of future disclosures and publications
+3.  A [Case State](../process_models/cs) DFA tracks the events in {== Table [\[tab:cs_transitions\]](#tab:cs_transitions){reference-type="ref"
     reference="tab:cs_transitions"} ==}, as originally described in the {== Householder and Spring 2021 report [@householder2021state] ==}.
 
-[Model Interactions](../topics/process_models/model_interactions) contains a discussion of the interactions
+[Model Interactions](../process_models/model_interactions) contains a discussion of the interactions
 among these three state machine models.
 
 ## Formal Protocol

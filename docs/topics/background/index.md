@@ -101,8 +101,8 @@ First, insofar as we seek to scale the MPCVD process through the use of automati
 processes, we wish to propose a formal technical protocol that can serve as the basis of such technical tools.
 The [Formal Protocol](../reference/formal_protocol) section of this documentation addresses this first definition in
 specific detail after explicating its component parts and their interactions in 
-[Report Management](../topics/process_models/rm), [Embargo Management](../topics/process_models/em), [Case State](../topics/process_models/cs),
-and [Model Interactions](../topics/process_models/model_interactions).
+[Report Management](../process_models/rm), [Embargo Management](../process_models/em), [Case State](../process_models/cs),
+and [Model Interactions](../process_models/model_interactions).
 
 Second, recognizing that MPCVD is primarily a coordination process among
 human Participants with the goal of remediating extant vulnerabilities
@@ -116,7 +116,7 @@ second sense, we address the term *protocol* in these ways:
     decades of accumulated experience and observation of the
     CVD process at the CERT/CC.
 
--   The [Case State model](../topics/process_models/cs) from {== the Householder and Spring 2021 report [@householder2021state] ==}
+-   The [Case State model](../process_models/cs) from {== the Householder and Spring 2021 report [@householder2021state] ==}
     offers a *prescriptive* protocol outlining the high-level goals of the CVD process, as derived from a first-principles approach to possible
     CVD case histories.
 
