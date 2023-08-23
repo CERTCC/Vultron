@@ -97,7 +97,7 @@ and the public-exploit-attack ($pxa \xrightarrow{\dots} PXA$) sub-models
 from the [Case State Model](../../topics/process_models/cs/index.md).
 This is done for two reasons. 
 First, it gives us a more compact notation to represent the 32 states of the CS model.
-Second, as described in [Model Interactions](../../topics/process_models/model_interactions/), it highlights the fact that 
+Second, as described in [Model Interactions](../../topics/process_models/model_interactions/index.md), it highlights the fact that 
 the Vendor fix path represents the state of an individual Participant, whereas the public-exploit-attack sub-model 
 represents facts about the world at large.
 Because not all Participants
@@ -726,7 +726,7 @@ below.
 
 ### Finder-Reporters
 
-As we discussed in [RM Interactions](../../topics/process_models/rm/rm_interactions/#the-secret-lives-of-finders),
+As we discussed in [RM Interactions](../../topics/process_models/rm/rm_interactions.md/#the-secret-lives-of-finders),
 the early Finder states are largely hidden from view from other CVD Participants unless they choose to engage
 in the CVD process in the first place.
 Therefore, for a CVD protocol, we only need to care about Finder states once they have reached RM $Accepted$.

@@ -6,9 +6,9 @@
     This documentation is a work in progress and is not yet complete.
     Our focus so far is on
     
-    - [Understanding Vultron](./topics/background/), which describes the protocol in detail
-    - [Implementing Vultron](/howto/), which provides guidance for potential implementations of Vultron
-    - [Reference](./reference/formal_protocol/index.md), which provides the formal protocol specification
+    - [Understanding Vultron](topics/background/index.md), which describes the protocol in detail
+    - [Implementing Vultron](howto/index.md), which provides guidance for potential implementations of Vultron
+    - [Reference](reference/formal_protocol/index.md), which provides the formal protocol specification
 
 Vultron is a research project to explore the creation of a federated, decentralized,
 and open source protocol for coordinated vulnerability disclosure (CVD).
@@ -36,11 +36,10 @@ Vultron is a collection of ideas, models, code, and work in progress, and is not
 
     Explanations - Understanding Oriented
 
-    - [User Stories](user_stories/index.md)
-    - [Process Models](process_models/index.md)
-    - [Formal Protocol](formal_protocol/index.md)
-    - [Behavior Logic](behavior_logic/index.md)
-    - [Implementation Notes](implementation_notes/index.md)
+    - [User Stories](topics/user_stories/index.md)
+    - [Process Models](topics/process_models/index.md)
+    - [Formal Protocol](reference/formal_protocol/index.md)
+    - [Behavior Logic](topics/behavior_logic/index.md)
 
 !!! question "Using Vultron"
 
@@ -61,7 +60,7 @@ We are in the process of documenting the Vultron CVD Protocol as we develop a pr
 We are using the [Diátaxis Framework](https://diataxis.fr/) to organize our documentation into four main categories,
 oriented around the different ways that people might need to learn about and use the Vultron protocol.
 
-Our current focus is on the [Understanding Vultron](understanding_vultron.md) section, which describes the protocol
+Our current focus is on the [Understanding Vultron](topics/index.md) section, which describes the protocol
 in detail. 
 
 ----
