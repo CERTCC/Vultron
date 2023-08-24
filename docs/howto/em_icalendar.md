@@ -1,9 +1,6 @@
 # Embargo Management and the iCalendar Protocol
 
-!!! warning inline end "This page is not normative"
-
-    This page is not considered a core part of the *Vultron* MPCVD protocol as proposed in the main part of the report.
-    Although we provide guidance in terms of SHOULD, MUST, etc., the content here is **not** normative.
+{% include-markdown "../includes/not_normative.md" %}
 
 We are including this page because the ideas outlined here were instrumental to the development of the more general
 [Embargo Management process](../topics/process_models/em/index.md) in the main protocol and may remain of use in future implementations.

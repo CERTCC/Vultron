@@ -1,5 +1,7 @@
 # A Vultron Case Object
 
+{% include-markdown "../includes/not_normative.md" %}
+
 Here we describe a notional MPCVD *Case* object that incorporates the [process models](../topics/process_models/index.md)
 and [formalisms](../reference/formal_protocol/index.md) that define the Vultron protocol.
 The object model we describe is intended to provide the necessary core information for an implementation of the
@@ -257,7 +259,7 @@ One might reasonably expect *Contact*s to have names, email addresses, phone num
 
 !!! tip "Directory Services Are (Currently) Out of Scope"
 
-    A separate contact management process and accompanying directory service is a likely candidate for [future integration work](../topics/future_work.md).
+    A separate contact management process and accompanying directory service is a likely candidate for [future integration work](../topics/future_work/cvd_directory.md).
     For now, we observe that similar directories already exist, although there is room for improvement:
 
     - FIRST maintains a [directory of member teams](https://www.first.org/members/teams/) for incident response purposes

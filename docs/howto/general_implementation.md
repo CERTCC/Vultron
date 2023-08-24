@@ -1,5 +1,7 @@
 # General Implementation Notes
 
+{% include-markdown "../includes/not_normative.md" %}
+
 Here we provide a few general implementation notes.
 
 ## Message Formats

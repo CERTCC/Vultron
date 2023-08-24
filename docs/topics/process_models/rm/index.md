@@ -10,8 +10,7 @@ completed, should map onto the RM process outlined here.
 
 In the interest of maintaining the potential for interoperability among different organizations' internal processes, our protocol does not
 specify intra-organizational subprocesses within each state, although we give examples of such subprocesses in 
-{== §[\[sec:do_work\]](#sec:do_work){reference-type="ref"
-reference="sec:do_work"} ==}.
+[Do Work Behavior](../../behavior_logic/do_work_bt.md).
 For further reference, [ISO/IEC 30111:2019(E)](https://www.iso.org/standard/69725.html) provides recommendations for Vendors' *internal* processes
 that can be mapped into the RM process. We provide such a mapping in our [ISO Crosswalk](../../../reference/iso_crosswalk.md).
 
@@ -625,9 +624,18 @@ with the tendency for CVD Participants to prefer to avoid frequent
 starts and stops means that we expect the vast majority of reports to
 follow one of the above paths, with the remainder falling into marginal
 extensions.
-Further discussion of a reward function to evaluate RM DFA strings is discussed as future work in
-{== §[\[sec:rm_reward_function\]](#sec:rm_reward_function){reference-type="ref"
-reference="sec:rm_reward_function"} ==}.
+
+<!-- HR for vertical spacing -->
+----
+
+!!! tip "See also"
+
+    Further discussion of a [reward function](../../future_work/reward_functions.md) to evaluate RM DFA strings is discussed as future work in
+    [Reward Functions](../../future_work/reward_functions.md).
+
+## RM DFA Fully Defined
+
+The full definition of the RM DFA is given below.
 
 !!! note "RM DFA Fully Defined"
     Taken in combination, the full definition of the RM DFA is as follows:
