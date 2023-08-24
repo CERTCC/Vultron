@@ -33,12 +33,21 @@ This draft-sharing process could be built into the [*prepare publication*](../to
 
 ## EM Implementation Notes
 
-In terms of the proposal, acceptance, rejection, etc., the
-EM process is
-strikingly parallel to the process of scheduling a meeting in a
-calendaring system.
+### Embargo Management and Calendaring
+
+In terms of the proposal, acceptance, rejection, etc., the EM process is strikingly parallel to the process of
+scheduling a meeting in a calendaring system.
 In [EM and iCalendar](em_icalendar.md), we suggest a potential mapping of many of the concepts from the EM process
 onto [`iCalendar`](https://en.wikipedia.org/wiki/ICalendar) protocol semantics.
+
+### Embargo Management Does Not Deliver Synchronized Publication {#sec:pub_sync}
+
+In our protocol design, we were careful to focus the EM process on establishing when publication restrictions are
+lifted.
+That is not the same as actually scheduling publications following the embargo termination. 
+Our experience at the CERT/CC shows that this distinction is rarely a significant problem since many case Participants
+simply publish at their own pace shortly after the embargo ends.
+However, at times, case Participants may find it necessary to coordinate even more closely on publication scheduling.
 
 ## CS Implementation Notes
 

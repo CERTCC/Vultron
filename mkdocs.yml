@@ -72,6 +72,10 @@ nav:
     - User Stories: 'topics/user_stories/index.md'
     - Future Work:
         - Intro: 'topics/future_work/index.md'
+        - CVD Directory: 'topics/future_work/cvd_directory.md'
+        - Reward Functions: 'topics/future_work/reward_functions.md'
+        - Ontology: 'topics/future_work/ontology.md'
+        - Modeling and Simulation: 'topics/future_work/mod_sim.md'
   - Reference:
     - Formal Protocol:
       - Introduction: 'reference/formal_protocol/index.md'

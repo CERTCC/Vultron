@@ -601,8 +601,7 @@ to _Deferred_ to _Closed_ in rapid (even immediate) succession.
 
     Following the state machine diagram above, we represent the RM process model as a right-linear grammar:
     
-    $$\label{eq:rm_grammar}
-    \delta^{rm} = 
+    $$\delta^{rm} = 
     \begin{cases}
     S & \to rR \\
     R & \to vV~|~iI \\
@@ -633,8 +632,7 @@ reference="sec:rm_reward_function"} ==}.
 !!! note "RM DFA Fully Defined"
     Taken in combination, the full definition of the RM DFA is as follows:
     
-    $$\label{eq:rm_dfa}
-        RM = 
+    $$  RM = 
         \begin{pmatrix}
                 \begin{aligned}
                     \mathcal{Q}^{rm} = & \{ S,R,I,V,A,D,C \} \\
@@ -660,8 +658,7 @@ reference="sec:rm_reward_function"} ==}.
     RM states
     ($\dots \subset \mathcal{Q}^{rm}$) for future use:
     
-    $$\label{eq:Qrm_subsets}
-        \begin{align}
+    $$  \begin{align}
             Open &= \{ R,I,V,D,A \} \\
             Valid~Yet~Unclosed &= \{ V,D,A \} \\
             Potentially~Valid~Yet~Unclosed &= \{ R,V,D,A\} \\
