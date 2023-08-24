@@ -319,7 +319,7 @@ is a human-oriented scheduling process, our experience suggests that we
 should expect there to be a natural limit on CVD Participants' tolerance for churn during
 embargo negotiations. Hence, we expect most paths through the
 EM DFA to be on the short end of this list in practice. We offer some thoughts on a
-potential reward function over EM DFA strings in [Future Work](../../future_work.md).
+potential reward function over EM DFA strings in [Future Work](../../future_work/index.md).
 
 For example, it is often preferable for a Vendor to accept whatever
 embargo the Reporter initially proposes followed closely by proposing a

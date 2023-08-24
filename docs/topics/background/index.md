@@ -120,7 +120,8 @@ second sense, we address the term *protocol* in these ways:
     offers a *prescriptive* protocol outlining the high-level goals of the CVD process, as derived from a first-principles approach to possible
     CVD case histories.
 
--   This documentation and {== the report it is based on ==} describes a *normative* protocol designed to structure and guide practitioners toward those goals.
+-   This documentation and the [report](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) it is based
+    on describes a *normative* protocol designed to structure and guide practitioners toward those goals.
 
 To that end, we offer this documentation as a proposal for such an MPCVD protocol.
 

@@ -35,10 +35,9 @@ other words, CVD only starts *after* the Finder has already reached the
 _Accepted_ state for any given vulnerability to be reported.
 Correspondingly, this also represents their transition from *Finder* to
 *Reporter*. Nevertheless, for now, we retain these states for
-completeness. We revisit this topic in our derivation of a protocol
-state model for Reporters in
-{== §[\[sec:other_participants\]](#sec:other_participants){reference-type="ref"
-reference="sec:other_participants"} ==}.
+completeness.
+We revisit this topic in our [formal derivation](../../../reference/formal_protocol/states.md#finder-reporters)
+of a protocol state model for Reporters.
 
 ```mermaid
 ---

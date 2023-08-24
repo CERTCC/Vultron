@@ -70,7 +70,8 @@ nav:
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
     - User Stories: 'topics/user_stories/index.md'
-    - Future Work: 'topics/future_work.md'
+    - Future Work:
+        - Intro: 'topics/future_work/index.md'
   - Reference:
     - Formal Protocol:
       - Introduction: 'reference/formal_protocol/index.md'

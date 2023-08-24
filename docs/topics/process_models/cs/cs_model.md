@@ -18,7 +18,8 @@ $(v,f,d,p,x,a)$.
 CS states can be any combination of statuses, provided that a number of caveats elaborated in
 §[1.3](#sec:transitions){reference-type="ref"
 reference="sec:transitions"} are met. 
-One such caveat worth noting here is that valid states must follow what we call the *Vendor fix path*.[^1]
+One such caveat worth noting here is that valid states must follow what we call the *Vendor fix path*.{== [^1]
+ ==}
 
 ???+ note inline end "Vendor Fix Path Formalism"
 
@@ -58,80 +59,68 @@ composed of 32 possible states, which we define as $\mathcal{Q}^{cs}$.
         VFDpxA, & VFDPxA, & VFDpXA, & VFDPXA
     \end{Bmatrix}$$
 
-## CS Start and End States
-
 ???+ note inline end "CS Model Start and End States ($q^{cs}_0$ and $\mathcal{F}^{cs}$) Defined"
 
     $$q^{cs}_0 = vfdpxa$$
 
     $$\mathcal{F}^{cs} = \{ VFDPXA \}$$
 
-All vulnerabilities start in the base state _vfdpxa_ in which no
-events have occurred.  The lone final state in which all events have
-occurred is _VFDPXA_.  
+## CS Start and End States
 
-### The Map is not the Territory
+All vulnerability cases start in the base state _vfdpxa_ in which no
+events have occurred.
 
-Note that this is a place where our
-model of the vulnerability lifecycle diverges from what we expect to
-observe in CVD
-cases in the real world. There is ample evidence that most
-vulnerabilities never have exploits published or attacks observed
-[@householder2020historical; @jacobs2021exploit]. Therefore, practically
-speaking, we might expect vulnerabilities to wind up in one of
+The lone final state in which all events have occurred is _VFDPXA_.  
 
-$$\mathcal{F}^\prime = \{ {VFDPxa}, {VFDPxA}, {VFDPXa}, {VFDPXA} \}$$ 
 
-at the time a report is closed (i.e., when $q^{rm} \xrightarrow{c} C$). In
-fact, most count a CVD as successful when reports are closed in
-$q^{cs} \in VFDPxa$ because it means that the defenders won the race
-against adversaries. The distinction between the [RM](../rm/index.md) and CS processes is important; Participants can
-close cases whenever their [RM](../rm/index.md) process dictates, independent of the
-CS state. In other
-words, it remains possible for exploits to be published or attacks to be
-observed long after the [RM](../rm/index.md) process has closed a case.
+!!! tip "The Map is not the Territory"
+
+    Note that this is a place where our
+    model of the vulnerability lifecycle diverges from what we expect to
+    observe in CVD
+    cases in the real world. There is ample evidence that most
+    vulnerabilities never have exploits published or attacks observed
+    {== [@householder2020historical; @jacobs2021exploit]. ==} Therefore, practically
+    speaking, we might expect vulnerabilities to wind up in one of
+    
+    $$\mathcal{F}^\prime = \{ {VFDPxa}, {VFDPxA}, {VFDPXa}, {VFDPXA} \}$$ 
+    
+    at the time a report is closed (i.e., when $q^{rm} \xrightarrow{c} C$). In
+    fact, most count a CVD as successful when reports are closed in
+    $q^{cs} \in VFDPxa$ because it means that the defenders won the race
+    against adversaries. The distinction between the [RM](../rm/index.md) and CS processes is important; Participants can
+    close cases whenever their [RM](../rm/index.md) process dictates, independent of the
+    CS state. In other
+    words, it remains possible for exploits to be published or attacks to be
+    observed long after the [RM](../rm/index.md) process has closed a case.
 
 !!! info "CS Model Wildcard Notation"
     
     We frequently need to refer to subsets of $\mathcal{Q}^{cs}$. To do so,
-    we will use a dot (&centerdot;) to represent a single character wildcard.
-    For example, $VFdP&centerdot;&centerdot;refers to the subset of $\mathcal{Q}^{cs}$ in
+    we will use a dot ($\cdot$) to represent a single character wildcard.
+    For example, $VFdP\cdot\cdotrefers to the subset of $\mathcal{Q}^{cs}$ in
     which the Vendor is aware, a fix is ready but not yet deployed, and the
     public is aware of the vulnerability, yet we are indifferent to whether
     exploit code has been made public or attacks have been observed.
     Specifically,
 
-    $${VFdP&centerdot;&centerdot;} = \{{VFdPxa}, {VFdPxA}, {VFdPXa}, {VFdPXA}\} \subset{\mathcal{Q}}^{cs}$$
+    $${VFdP\cdot\cdot} = \{{VFdPxa}, {VFdPxA}, {VFdPXa}, {VFdPXA}\} \subset{\mathcal{Q}}^{cs}$$
 
-## CS Transitions 
+## CS Transitions
 
-In this section, we elaborate on the input symbols and transition
-functions for our CS
-DFA. A row-wise
-reading of {== Table
-[\[tab:event_status\]](#tab:event_status){reference-type="ref"
-reference="tab:event_status"} ==} implies a set of events corresponding to
-each specific substate change, which we correspond to the symbols in the
+In this section, we elaborate on the input symbols and transition functions for our CS DFA.
+A row-wise reading of
+{== Table [\[tab:event_status\]](#tab:event_status){reference-type="ref" reference="tab:event_status"} ==}
+implies a set of events corresponding to each specific substate change, which we correspond to the symbols in the DFA.
 
-DFA.
-
--   **V** -- A Vendor becomes aware of a vulnerability
-    $vfd&centerdot;&centerdot;&centerdot; \to Vfd&centerdot;&centerdot;&centerdot;
-
--   **F** -- A Vendor readies a fix for a vulnerability
-    $Vfd&centerdot;&centerdot;&centerdot; \to VFd&centerdot;&centerdot;&centerdot;
-
--   **D** -- A Deployer deploys a fix for a vulnerability
-    $VFd&centerdot;&centerdot;&centerdot; \to VFD&centerdot;&centerdot;&centerdot;
-
--   **P** -- Information about a vulnerability becomes known to
-    the public &centerdot;&centerdot;&centerdot;p&centerdot;&centerdot; \to &centerdot;&centerdot;&centerdot;P&centerdot;&centerdot;
-
--   **X** -- An exploit for a vulnerability is made public
-    &centerdot;&centerdot;&centerdot;&centerdot;x&centerdot; \to &centerdot;&centerdot;&centerdot;&centerdot;X&centerdot;
-
--   **A** -- Attacks exploiting a vulnerability are observed
-    &centerdot;&centerdot;&centerdot;&centerdot;&centerdot;a \to &centerdot;&centerdot;&centerdot;&centerdot;&centerdot;A
+| Symbol | Description |                                      Formalism                                       |
+|:------:| :--- |:------------------------------------------------------------------------------------:|
+| **V**  | A Vendor becomes aware of a vulnerability |           $vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$           |
+| **F**  | A Vendor readies a fix for a vulnerability |           $Vfd\cdot\cdot\cdot \xrightarrow{\mathbf{F}} VFd\cdot\cdot\cdot$           |
+| **D**  | A Deployer deploys a fix for a vulnerability |           $VFd\cdot\cdot\cdot \xrightarrow{\mathbf{D}} VFD\cdot\cdot\cdot$           |
+| **P**  | Information about a vulnerability becomes known to the public | $\cdot\cdot\cdot p \cdot\cdot \xrightarrow{\mathbf{P}} \cdot\cdot\cdot P \cdot\cdot$ |
+| **X**  | An exploit for a vulnerability is made public | $\cdot\cdot\cdot\cdot x \cdot \xrightarrow{\mathbf{X}} \cdot\cdot\cdot\cdot X \cdot$ |
+| **A**  | Attacks exploiting a vulnerability are observed |  $\cdot\cdot\cdot\cdot\cdot a \xrightarrow{\mathbf{A}} \cdot\cdot\cdot\cdot\cdot A$  |
 
 
 ???+ note inline end "CS Model Input Symbols ($\Sigma^{cs}$) Defined"
@@ -139,16 +128,15 @@ DFA.
     $$\label{eq:events}
         \Sigma^{cs} = \{\mathbf{V},\mathbf{F},\mathbf{D},\mathbf{P},\mathbf{X},\mathbf{A}\}$$
 
-We define the set of symbols for our CS DFA as $\Sigma^{cs}$:
+    Here we diverge somewhat from the notation used for the
+    [RM](../rm/index.md) and [EM](../em/index.md) models, which use lowercase letters for transitions and
+    uppercase letters for states. Because CS state names already use both lowercase
+    and uppercase letters, here we use a bold font for the symbols of the
+    CS DFA to differentiate the transition from the corresponding substate it leads
+    to: e.g., $vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$.
 
-Here we diverge somewhat from the notation used for the
-[RM](../rm/index.md) and [EM](../em/index.md) models, which use lowercase letters for transitions and
-uppercase letters for states. Because CS state names already use both lowercase
-and uppercase letters, here we use a bold font for the symbols of the
-CS DFA to differentiate the transition from the corresponding substate it leads
-to: e.g., $vfd&centerdot;&centerdot;&centerdot; \xrightarrow{\mathbf{V}} Vfd&centerdot;&centerdot;&centerdot;.
+We define the set of symbols for our CS DFA as $\Sigma^{cs}$ at right.
 
-{== fix formatting to match what we're saying here if necessary ==}
 
 For the CS model, an input symbol $\sigma^{cs} \in \Sigma^{cs}$ is "read" when a Participant
 observes a change in status (a Vendor is notified and exploit code has
@@ -160,18 +148,13 @@ is poised to ensure eventual
 consistency with this assumption through the communication of perceived
 case state across coordinating parties.
 
-## CS Transitions Defined 
+### CS Transitions Defined 
 
 Here we define the allowable transitions between states in the
-CS model. A diagram
-of the CS process,
-including its states and transitions, is shown in Figure
-[\[fig:vfdpxa_map\]](#fig:vfdpxa_map){reference-type="ref"
-reference="fig:vfdpxa_map"}.
-
+CS model.
 Transitions in the CS model follow a few rules described in
 detail in §2.4 of the Householder and Spring 2021
-report [@householder2021state], which we summarize here:
+report {== [@householder2021state], ==} which we summarize here:
 
 -   Because states correspond to the status of events that have or have
     not occurred, and all state transitions are irreversible (i.e., we
@@ -184,7 +167,7 @@ report [@householder2021state], which we summarize here:
     uppercase.
 
 -   The *Vendor fix path*
-    ($vfd &centerdot;&centerdot;&centerdot; \xrightarrow{\mathbf{V}} Vfd &centerdot;&centerdot;&centerdot; \xrightarrow{\mathbf{F}} VFd &centerdot;&centerdot;&centerdot; \xrightarrow{\mathbf{D}} VFD &centerdot;&centerdot;&centerdot;)
+    ($vfd \cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd \cdot\cdot\cdot \xrightarrow{\mathbf{F}} VFd \cdot\cdot\cdot \xrightarrow{\mathbf{D}} VFD \cdot\cdot\cdot$)
     is a causal requirement as outlined in [substates](cs_model.md).
 
 ```mermaid
@@ -204,7 +187,7 @@ stateDiagram-v2
 
 
 -   Vendors are presumed to know at least as much as the public does;
-    therefore, $v&centerdot;&centerdot;P&centerdot;&centerdot;can only lead to $V&centerdot;&centerdot;P&centerdot;&centerdot;.
+    therefore, $v\cdot\cdot P \cdot\cdot$ can only lead to $V\cdot\cdot P \cdot\cdot$.
 
 ```mermaid
 stateDiagram-v2
@@ -215,10 +198,10 @@ stateDiagram-v2
 ```
 
 
-### Exploit Publication Causes Public Awareness
+#### Exploit Publication Causes Public Awareness
 
 Exploit publication is tantamount to public awareness; therefore,
-&centerdot;&centerdot;&centerdot;pX &centerdot;can only lead to &centerdot;&centerdot;&centerdot;&centerdot;PX &centerdot;.
+$\cdot\cdot\cdot pX \cdot$ can only lead to $\cdot\cdot\cdot\cdot PX \cdot$.
 
 ```mermaid
 stateDiagram-v2
@@ -257,12 +240,12 @@ simplifies to
 
 {% include-markdown "pxa_diagram.md" %}
 
-### Attacks Do Not Necessarily Cause Public Awareness
+#### Attacks Do Not Necessarily Cause Public Awareness
 
 In this model, attacks observed when a vulnerability is unknown to the
-public (&centerdot;&centerdot;&centerdot;p&centerdot;A) need not immediately cause public awareness
-(&centerdot;&centerdot;&centerdot;P&centerdot;A), although, obviously, that can and does happen.
-Our reasoning for allowing states in &centerdot;&centerdot;&centerdot;p&centerdot;A to persist is
+public ($\cdot\cdot\cdot p \cdot A$) need not immediately cause public awareness
+($\cdot\cdot\cdot P \cdot A$), although, obviously, that can and does happen.
+Our reasoning for allowing states in $\cdot\cdot\cdot p \cdot A$ to persist is
 twofold:
 
 -   First, the connection between attacks and exploited vulnerabilities
@@ -277,17 +260,18 @@ twofold:
     available to all possible adversaries. Publication, in that case,
     might assist other adversaries more than it helps defenders.
 
-In other words, although &centerdot;&centerdot;&centerdot;p&centerdot;A does not require an
-immediate transition to &centerdot;&centerdot;&centerdot;P&centerdot;A the way
-&centerdot;&centerdot;&centerdot;pX&centerdot;&nbsp;&rarr;&nbsp;&centerdot;&centerdot;&centerdot;PX&centerdot; does, it
+In other words, although $\cdot\cdot\cdot p \cdot A$ does not require an
+immediate transition to $\cdot\cdot\cdot P \cdot A$ the way
+$\cdot\cdot\cdot pX \cdot \xrightarrow{\mathbf{P}} \cdot\cdot\cdot PX \cdot$ does, it
 does seem plausible that the likelihood of **P** occurring
-increases when attacks are occurring. Logically, this is a result of
-there being more ways for the public to discover the vulnerability when
-attacks are happening than when they are not. For states in
-&centerdot;&centerdot;&centerdot;p&centerdot;a, the public depends on the normal vulnerability
-discovery and reporting process. States in &centerdot;&centerdot;&centerdot;p&centerdot;A include
-that possibility and add the potential for discovery as a result of
-security incident analysis. Hence,
+increases when attacks are occurring. 
+Logically, this is a result of there being more ways for the public to discover the vulnerability when attacks are 
+happening than when they are not.
+For states in $\cdot\cdot\cdot p \cdot a$, the public depends on the normal vulnerability discovery and reporting
+process.
+States in $\cdot\cdot\cdot p \cdot A$ include that possibility and add the potential for discovery as a result of
+security incident analysis.
+Hence,
 
 !!! note ""
 
@@ -295,16 +279,11 @@ security incident analysis. Hence,
     the embargo teardown process SHOULD begin, and publication and
     deployment SHOULD follow as soon as is practical.
 
-{% include-markdown "vfdpxa_diagram.md" %}
-
 
 ## A Regular Grammar for the CS model
 
-Following the complete state machine diagram in Figure
-[\[fig:vfdpxa_map\]](#fig:vfdpxa_map){reference-type="ref"
-reference="fig:vfdpxa_map"}, we can summarize the transition functions
-of the CS model as a
-right-linear grammar $\delta^{cs}$:
+Following the complete state machine diagram in above, we can summarize the transition functions of the CS model as a
+right-linear grammar $\delta^{cs}$.
 
 ???+ note "CS Transition Function ($\delta^{cs}$) Defined"
 
@@ -345,17 +324,20 @@ right-linear grammar $\delta^{cs}$:
         \end{cases}$$
 
 A more thorough examination of the strings generated by this grammar,
-their interpretation as the possible histories of all
-CVD cases, and
-implications for measuring the efficacy of the overall
-CVD process writ
-large can be found in the Householder and Spring 2021
-report [@householder2021state].
+their interpretation as the possible histories of all CVD cases, and implications for measuring the efficacy of the 
+overall CVD process writ large can be found in {== the Householder and Spring 2021 report [@householder2021state] ==}.
 
-# CS Model Fully Defined
+## CS Model Diagram
 
-In combination, the full definition of the Case State DFA
-$(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ is shown below.
+A diagram of the CS process, including its states and transitions, is shown below.
+
+{% include-markdown "vfdpxa_diagram.md" %}
+
+
+## CS Model Fully Defined
+
+In combination, the full definition of the Case State DFA $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ is shown 
+below.
 
 ???+ note "Case State Model $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ Fully Defined"
 
@@ -415,6 +397,6 @@ $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ is shown below.
                 \end{aligned}
         \end{pmatrix}$$
 
-[^1]: See §2.4 of the Householder and Spring 2021 report
+[^1]: {== See §2.4 of the Householder and Spring 2021 report
     [@householder2021state] for an expanded explanation of the *Vendor
-    fix path*.
+    fix path*. ==}

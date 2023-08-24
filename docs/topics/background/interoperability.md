@@ -12,9 +12,8 @@ broad definition of that term found in the 2004 report, [*Current Perspectives o
 This definition encompasses both (a) *syntactic* and (b) *semantic*
 interoperability. The goal of this documentation is to lay the foundation for
 the *semantic* interoperability of CVD processes across Participants.
-{== *Syntactic* interoperability, in the form of message formats and the
-like, will be left as future work. ==} 
-{== TODO update this to reflect current efforts ==}
+*Syntactic* interoperability, in the form of message formats and the
+like, is the focus of our current effort.
 
 Addressing *semantic interoperability* first is a deliberate choice.
 If we were to go in the reverse order, we might wind up with systems that
@@ -89,4 +88,5 @@ The objectives of this documentation are as follows:
 4.  Provide high-level requirements for the semantic content of those
     message types.
 
-{== expand these objectives to reflect effort on building a prototype ==}
+5.  Explore options for the syntactic representation of those message
+    types.

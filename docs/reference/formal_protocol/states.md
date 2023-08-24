@@ -13,23 +13,19 @@ Good Participant situation awareness makes for good CVD decision making.
 
 !!! note ""
 
-    Participants SHOULD track the state of other Participants in a case
+    Participants SHOULD track the state of other Participants in a case 
     to inform their own decision making as it pertains to the case.
 
-An example object model to facilitate such tracking is given in
-{== §[\[sec:case_object\]](#sec:case_object.md){reference-type="ref"
-reference="sec:case_object"} ==}. 
+Elsewhere, we provide an example [Case Object](../../howto/case_object.md) model to facilitate such tracking. 
 However, the protocol we are developing is expected to function even when incomplete information is available to
 any given Participant.
 
 !!! note ""  
    
-    Adequate operation of the protocol MUST NOT depend on perfect
-    information across all Participants.
+    Adequate operation of the protocol MUST NOT depend on perfect information across all Participants.
 
-A generic state model for a CVD Participant can be composed from the
-Cartesian product of $\mathcal{Q}^{rm}$, $\mathcal{Q}^{em}$, and
-$\mathcal{Q}^{cs}$ as shown below.
+A generic state model for a CVD Participant can be composed from the Cartesian product of $\mathcal{Q}^{rm}$,
+$\mathcal{Q}^{em}$, and $\mathcal{Q}^{cs}$ as shown below.
 
 !!! note "_Participant State Space_"
 
@@ -465,8 +461,7 @@ However, there are scenarios when an MPCVD case may include Non-Vendor Deployers
 critical infrastructure component is being handled or when the MPCVD protocol is used in the context of a Vulnerability
 Disclosure Program (VDP).
 These Non-Vendor Deployers participate only in the $d \xrightarrow{\mathbf{D}} D$ transition on the fix path.
-Similar to the Vendor scenario in {== §[1.3.2](#sec:vendor_states){reference-type="ref"
-reference="sec:vendor_states"} ==}, it is expected that Deployers actually deploy fixes only when they are in the 
+Similar to the [Vendor](#vendors-fix-suppliers) scenario above, it is expected that Deployers actually deploy fixes only when they are in the 
 RM $Accepted$ state (implying their intent to deploy).
 Therefore, their set of possible states is even more restricted than Vendors, as shown below.
 
@@ -623,11 +618,11 @@ states, as we show next.
             = & 100 \\    
         \end{split}$$
 
-## Non-Vendor, Non-Deployer Participants {#sec:other_participants}
+## Non-Vendor, Non-Deployer Participants
 
 Finally, CVD cases often involve Participants who are neither Vendors nor Deployers.
 Specifically, Finder/Reporters fall into this category, as do Coordinators.
-Other roles, as outlined in the {== *CERT Guide to Coordinated Vulnerability Disclosure* [@householder2017cert] ==},
+Other roles, as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD),
 could be included here as well.
 Because they do not participate directly in the Vendor fix path, these Non-Vendor, Non-Deployer CVD Participants fall
 into the $\varnothing$ case substate we added above.
@@ -894,11 +889,9 @@ With these values in mind, we see that
 -   A large, but not atypical, 200-Vendor case handled by the CERT/CC might have
     $40 \times 3 \times 16^{200} \times 7 \approx 10^{244}$ possible configurations.
 
--   In the case of the log4j vulnerability CVE-2021-44228 in December
-    2021, the CERT/CC notified around 1,600 Vendors after
-    the vulnerability had been made public {== [@vu930724] ==}. Had this been an
-    embargoed disclosure, the case would have a total state space around
-    $10^{2000}$.
+-   In the case of the log4j vulnerability [CVE-2021-44228](https://www.kb.cert.org/vuls/id/930724) in December
+    2021, the CERT/CC notified around 1,600 Vendors after the vulnerability had been made public. Had this been an
+    embargoed disclosure, the case would have a total state space around $10^{2000}$.
 
 That said, while these are dramatic numbers, the reader is reminded that the whole point of the MPCVD protocol is to
 *coordinate* the process so that it is not just hundreds or thousands of Participants behaving randomly.

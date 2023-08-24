@@ -252,6 +252,6 @@ For convenience, we collected these into the table below.
             \right\}\textrm{ where $i \neq j$; $\varnothing$ otherwise; for $i,j \leq N$}$$
 
 
-Message _formats_ are left as [future work](../../topics/future_work.md).
+Message _formats_ are left as [future work](../../topics/future_work/index.md).
 
 

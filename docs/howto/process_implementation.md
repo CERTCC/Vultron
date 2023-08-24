@@ -37,8 +37,8 @@ In terms of the proposal, acceptance, rejection, etc., the
 EM process is
 strikingly parallel to the process of scheduling a meeting in a
 calendaring system.
-In {== Appendix [\[app:em_icalendar\]](#app:em_icalendar){reference-type="ref" reference="app:em_icalendar"} ==},
-we suggest a potential mapping of many of the concepts from the EM process onto `iCalendar` protocol semantics.
+In [EM and iCalendar](em_icalendar.md), we suggest a potential mapping of many of the concepts from the EM process
+onto [`iCalendar`](https://en.wikipedia.org/wiki/ICalendar) protocol semantics.
 
 ## CS Implementation Notes
 

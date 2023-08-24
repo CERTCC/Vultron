@@ -625,10 +625,8 @@ RM process coupled
 with the tendency for CVD Participants to prefer to avoid frequent
 starts and stops means that we expect the vast majority of reports to
 follow one of the above paths, with the remainder falling into marginal
-extensions. Further discussion of a reward function to evaluate
-RM
-DFA strings is
-discussed as future work in
+extensions.
+Further discussion of a reward function to evaluate RM DFA strings is discussed as future work in
 {== §[\[sec:rm_reward_function\]](#sec:rm_reward_function){reference-type="ref"
 reference="sec:rm_reward_function"} ==}.
 
