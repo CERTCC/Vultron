@@ -30,9 +30,15 @@ In other words, it is usually preferable to present an already-accepted
 embargo to new Participants and get their agreement before potentially
 revising the embargo than it is to wait for a large multi-party
 negotiation to succeed before establishing an embargo in the first
-place. When consensus fails, however, it may be helpful for the group to
+place.
+
+!!! tip inline end "See also"
+
+    [ISO/IEC 29147:2018](https://www.iso.org/standard/72311.html)
+
+When consensus fails, however, it may be helpful for the group to
 appoint a case lead to resolve any conflicts. Such scenarios are often
-an opportunity for a third-party Coordinator to be engaged [@ISO29147].
+an opportunity for a third-party Coordinator to be engaged.
 
 Therefore,
 

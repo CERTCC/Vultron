@@ -67,8 +67,8 @@ Reporter and Coordinator might have already agreed to a disclosure
 timeline. Or, in an MPCVD case, other Vendors may have already been
 coordinating the case under an embargo and only recently realized the
 need to engage with a new Vendor on the case. The latter example is
-consistent with public narratives about the Meltdown/Spectre
-vulnerabilities [@wright2018meltdown].
+consistent with [public narratives](https://www.techtarget.com/searchsecurity/news/252446638/Meltdown-and-Spectre-disclosure-suffered-extraordinary-miscommunication) about the Meltdown/Spectre
+vulnerabilities.
 
 
 !!! note ""
@@ -257,12 +257,8 @@ stateDiagram-v2
             Revise \xrightarrow{terminate} eXited \\
         \end{cases}$$
 
-As with the *Fix Ready* scenario in
-§[1.2.2](#sec:cs_f_em/index.md){reference-type="ref" reference="sec:cs_f_em"},
-MPCVD cases may
-have Vendors in varying states of *Fix Deployment*. Therefore the
-embargo extension caveats from that section apply to the *Fix Deployed*
-state as well.
+As with the *Fix Ready* scenario [above](#sec:cs_f_em), MPCVD cases may have Vendors in varying states of *Fix Deployment*.
+Therefore the embargo extension caveats from that section apply to the *Fix Deployed* state as well.
 
 ## Public Awareness
 
@@ -270,8 +266,8 @@ Within the context of a coordinated publication process, (**P**)
 requires at least one Participant to be in the $q^{rm} = Accepted$ state
 because Participants are presumed to publish only on cases they have
 accepted. Ideally, the Vendor is among those Participants, but as
-outlined in the *CERT Guide to Coordinated Vulnerability Disclosure*
-[@householder2017cert], that is not strictly necessary.
+outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD),
+that is not strictly necessary.
 
 That said, the publishing party might be outside of *any* existing
 coordination process. For example, this is the situation when a report
@@ -336,8 +332,9 @@ That said,
     SHOULD comply with the protocol described here, especially when they also fulfill other roles 
     (e.g., Finder, Reporter, Coordinator, Vendor) in the process.
 
-For example, as described in the Householder and Spring 2021 report [@householder2021state], the preference for
-$\mathbf{P} \prec \mathbf{X}$ dictates that
+For example, as described in 
+[A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513), 
+the preference for $\mathbf{P} \prec \mathbf{X}$ dictates that
 
 !!! note ""
 
@@ -364,9 +361,9 @@ stateDiagram-v2
 
 ```
 
-In the Householder and Spring 2021 report [@householder2021state], the
-authors argue that public exploit code is either preceded by Public
-Awareness (**P**) or immediately leads to it. Therefore,
+In the [Case State model](../cs/cs_model.md#cs-transitions-defined), we have already established that
+public exploit code is either preceded by Public Awareness (**P**) or immediately leads to it.
+Therefore,
 
 !!! note ""
 
