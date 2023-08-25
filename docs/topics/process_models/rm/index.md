@@ -48,6 +48,7 @@ By convention, we will use the underlined capital letters in the box at right as
 the state names. Each Participant in a CVD case will have their own RM state.
 
 !!! info "RM States vs. CVD Case States"
+
     RM states are not the same as CVD case states. Case states follow the Householder-Spring model summarized
     in [Case State Model](../cs/index.md). Further discussion of the interactions of the RM and CS models is found
     in [Model Interactions](../model_interactions/).
@@ -83,6 +84,7 @@ difficult if not impossible to participate in the
 CVD process. Therefore,
 
 !!! note ""
+
     Vendors SHOULD have a clearly defined and publicly available 
     mechanism for receiving reports.
 
@@ -91,6 +93,7 @@ reports also need to have a report receiving capability; otherwise, they
 are not capable of coordinating vulnerability disclosures. Hence,
 
 !!! note ""
+
     Coordinators MUST have a clearly defined and publicly available
     mechanism for receiving reports.
 
@@ -102,6 +105,7 @@ In other words, the _Received_ state corresponds to the
 of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD).
 
 !!! note ""
+
     Participants SHOULD subject each _Received_ report to some sort
     of validation process, resulting in the report being designated as
     _valid_ or _invalid_ based on the Participant's particular criteria.
@@ -115,34 +119,41 @@ designating reports unaccompanied by a working proof-of-concept exploit
 as _Invalid_ by default.
 
 !!! note ""
+
     Participants SHOULD have a clearly defined process for
     validating reports in the _Received_ state.
 
 !!! note ""
+
     Participants SHOULD have a clearly defined process for
     transitioning reports from the _Received_ state to the _Valid_ or
     _Invalid_ states.
 
 !!! note ""
+
     Participants MAY perform a more technical report validation process
     before exiting the _Received_ state.
 
 !!! note ""
+
     Regardless of the technical rigor applied in the validation process,
     Participants SHOULD proceed only after validating the reports they
     receive.
 
 !!! note ""
+
     Participants SHOULD transition all valid reports to the _Valid_
     state and all invalid reports to the _Invalid_ state.
 
 !!! note ""
+
     Regardless of the content or quality of the initial report, once a
     Vendor confirms that a reported vulnerability affects one or more of
     their product(s) or service(s), the Vendor SHOULD designate the
     report as _Valid_.
 
 !!! note ""
+
     Participants MAY create a case object to track any report in the _Received_ state.
 
 #### The _Invalid_ (_I_) State
@@ -168,15 +179,18 @@ temporary holding place to allow for additional evidence to be sought to
 contradict that conclusion.
 
 !!! note ""
+
     Participants SHOULD temporarily hold reports that they cannot
     validate pending additional information.
 
 !!! note ""
+
     Participants SHOULD provide Reporters an opportunity to update their
     report with additional information in support of its validity before
     closing the report entirely.
 
 !!! note ""
+
     Participants MAY set a timer to move reports from _Invalid_ to
     _Closed_ after a set period of inactivity.
 
@@ -202,20 +216,24 @@ stateDiagram-v2
 
 
 !!! note ""
+
     For _Valid_ reports, the Participant SHOULD perform a prioritization
     evaluation to decide whether to _accept_ or _defer_ the report for
     further work.
 
 !!! note ""
+
     If one does not already exist, Participants SHOULD create a case from
     reports entering the _Valid_ state to track the report's subsequent progress through the CVD process.
 
 !!! note ""
+
     Participants MAY choose to
     perform a shallow technical analysis on _Valid_ reports to prioritize any further
     effort relative to other work.
 
 !!! note ""
+
     Participants SHOULD have a bias toward accepting rather than
     deferring _Valid_ cases up to their work capacity limits.
 
@@ -270,11 +288,10 @@ stateDiagram-v2
     them, and possibly negotiate embargoes.
 
 We provide additional elaboration on the sorts of activities that might
-happen in the _Accept_ state in
-{== §[\[sec:do_work\]](#sec:do_work){reference-type="ref"
-reference="sec:do_work"} ==} .
+happen in the _Accept_ state in [Do Work Behavior](../../behavior_logic/do_work_bt.md).
 
 !!! note ""
+
     A report MAY enter and exit the _Accepted_ state a number of times
     in its lifespan as a Participant resumes or pauses work (i.e.,
     transitions to/from the _Deferred_ state).
@@ -307,19 +324,18 @@ report fails to meet their [prioritization criteria](#prioritize-report), or whe
 precedence over an active case.
 
 !!! note ""
+
     A report MAY enter and exit the _Deferred_ state a number of times
     in its lifespan as a Participant pauses or resumes work (i.e.,
     transitions from/to the _Accepted_ state).
 
 !!! note ""
-    Reports SHOULD exit the _Deferred_ state when work is resumed
-    [\[eq:resume_report\]](#eq:resume_report){reference-type="eqref"
-    reference="eq:resume_report"}, or when the Participant has
-    determined that no further action will be taken
-    [\[eq:close_report\]](#eq:close_report){reference-type="eqref"
-    reference="eq:close_report"}.
+
+    Reports SHOULD exit the _Deferred_ state when work is resumed (to _Accepted_),
+    or when the Participant has determined that no further action will be taken (to _Closed_).
 
 !!! note ""
+
     CVD Participants MAY set a policy timer on reports in the _Deferred_
     state to ensure they are moved to _Closed_ after a set period of
     inactivity.
@@ -351,6 +367,7 @@ stateDiagram-v2
 
 
 !!! note ""
+
     Reports SHOULD be moved to the _Closed_ state once a Participant has
     completed all outstanding work tasks and is fairly sure that they
     will not be pursuing any further action on it.
@@ -404,6 +421,7 @@ protocol. Every state transition implies a different message type.
 {% include-markdown "./rm_state_machine_diagram.md" %}
 
 !!! note ""
+
     CVD Participants SHOULD announce their RM state transitions to the other
     Participants in a case.
 
@@ -434,12 +452,15 @@ to close _Invalid_ reports immediately, while others may choose to
 periodically revalidate them to see if they have become _Valid_.
 
 !!! note ""
+
     Participants SHOULD create a case for all _Valid_ reports. 
     
 !!! note ""
+
     Paricipants MAY create a case for _Invalid_ reports.
 
 !!! note ""
+
     Participants MAY periodically revalidate _Invalid_ reports to
     determine if they have become _Valid_.
 
@@ -475,6 +496,7 @@ $q^{rm} \in V$), the Participant must prioritize it to determine what
 further effort, if any, is necessary. 
 
 !!! note ""
+
     Participants MUST prioritize _Valid_ cases.
 
 Our [SSVC Crosswalk](../../../reference/ssvc_crosswalk.md) contains an example of how the
@@ -488,6 +510,7 @@ Similarly, a Participant might resume work on a _Deferred_ report,
 moving it to the _Accepted_ state.
 
 !!! note ""
+
     Participants MAY re-prioritize _Accepted_ or _Deferred_ cases.
 
 
@@ -540,6 +563,7 @@ instances of the RM model: the left side represents the _sender_ while the right
 Although the _sender_'s state does not change, the _recipient_'s state moves from _Start_ to _Received_.
 
 !!! note ""
+
     Participants initiating CVD with others MUST do so from the _Accepted_ state.
 
 ```mermaid
@@ -567,6 +591,7 @@ Finally, a Participant can complete work on an _Accepted_ report or
 abandon further work on an _Invalid_ or _Deferred_ report.
 
 !!! note ""
+
     Participants MAY close _Accepted_ or _Deferred_ cases or _Invalid_ reports.
 
 ```mermaid
@@ -591,6 +616,7 @@ stopping a Participant from instituting a process that goes from _Valid_
 to _Deferred_ to _Closed_ in rapid (even immediate) succession.
 
 !!! note ""
+
     Participants MUST NOT close cases or reports from the _Valid_ state.
 
 
@@ -638,6 +664,7 @@ extensions.
 The full definition of the RM DFA is given below.
 
 !!! note "RM DFA Fully Defined"
+
     Taken in combination, the full definition of the RM DFA is as follows:
     
     $$  RM = 

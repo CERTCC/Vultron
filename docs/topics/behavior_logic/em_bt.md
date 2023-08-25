@@ -96,6 +96,13 @@ public. If one of those conditions is met and the embargo state is
 terminates, consistent with
 [Negotiating Embargoes](../process_models/em/negotiating.md).
 
+!!! tip inline end "See also"
+
+    - [Negotiating Embargoes](../process_models/em/negotiating.md)
+    - [Propose Embargo Behavior](em_propose_bt.md)
+    - [Terminate Embargo Behavior](em_terminate_bt.md)
+    - [Evaluate Embargo Behavior](em_eval_bt.md)
+
 Otherwise, we continue through each remaining EM state. 
 When there is no embargo and there are no outstanding proposals ($q^{em} \in N$), the only options are to
 either stop trying or [propose](em_propose_bt.md) a new embargo.

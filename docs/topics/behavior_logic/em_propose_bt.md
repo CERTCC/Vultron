@@ -40,6 +40,11 @@ flowchart LR
     ar_seq --> em_to_r
 ```
 
+!!! tip inline end "See also"
+
+    - [Negotiate Embargoes](../process_models/em/negotiating.md)
+    - [Default Embargoes](../process_models/em/defaults.md)
+
 It consists of a sequence that begins with a check for embargo viability as outlined in
 [Negotiating Embargoes](../process_models/em/negotiating.md).
 Once the checks succeed, it proceeds to selecting embargo terms to propose.

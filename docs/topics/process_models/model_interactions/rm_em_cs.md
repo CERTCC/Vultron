@@ -398,13 +398,12 @@ constraining adversary activity.
 As we outlined in [Early Termination](../em/early_termination.md), when attacks are occurring,
 embargoes can often be of more benefit to adversaries than defenders.
 However, we also acknowledged in
-{== §[\[sec:transition_function\]](#sec:transition_function){reference-type="ref"
-reference="sec:transition_function"} ==} that narrowly scoped attacks need
-not imply widespread adversary knowledge of the vulnerability. In such
-scenarios, it is possible that early embargo termination&mdash;leading to
-publication&mdash;might be of more assistance to other adversaries than it
-is to defenders. Thus, we need to allow room for Participant judgment
-based on their case-specific situation awareness. Formally, 
+[CS Transitions](../cs/cs_model.md#attacks-do-not-necessarily-cause-public-awarenesss) that narrowly scoped attacks need
+not imply widespread adversary knowledge of the vulnerability.
+In such scenarios, it is possible that early embargo termination&mdash;leading to publication&mdash;might be of more
+assistance to other adversaries than it is to defenders.
+Thus, we need to allow room for Participant judgment based on their case-specific situation awareness.
+Formally, 
 
 !!! note ""
 

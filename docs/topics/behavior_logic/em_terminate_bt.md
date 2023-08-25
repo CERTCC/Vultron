@@ -61,9 +61,16 @@ other teardown procedures to be completed, which we represent as the
 *exit embargo* task. Finally, the EM state is updated to *eXited* and an $ET$
 message is emitted.
 
+!!! tip inline end "See also"
+
+    - [Early Termination](../process_models/em/early_termination.md)
+    - [Threat Monitoring Behavior](monitor_threats_bt.md)
+    - [Message Handling Behavior](msg_intro_bt.md)
+
+
 The Terminate Embargo Behavior Tree appears in multiple locations in the
 larger tree.
 We will encounter it again as a possible response to evidence collected via
-[threat monitoring](do_work_bt.md#threat-monitoring)
+[threat monitoring](monitor_threats_bt.md)
 as well as in response to certain [CS or EM messages](msg_intro_bt.md)
 in states when an embargo is no longer viable.

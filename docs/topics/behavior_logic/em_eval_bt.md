@@ -30,9 +30,13 @@ An evaluation task is followed by an accept task.
 These tasks are placeholders for the actual decision-making process, which is left to individual Participants.
 In both cases, acceptance leads to an EM state transition to $q^{em} \in A$ and emission of an $EA$ message.
 
+!!! tip inline end "See also"
+
+    - [Propose Embargo Behavior](em_propose_bt.md)
+
 On the other hand, the proposed terms may not be acceptable.
 In this case, the Participant might be willing to offer a counterproposal.
-The counterproposal is covered by the [propose](#propose-embargo-behavior) behavior described below.
+The counterproposal is covered by the [propose](em_propose_bt.md) behavior.
 
 
 

@@ -66,6 +66,13 @@ The first check is to see whether the case is already $Closed$
 and we're done. If it doesn't, we move on to the next branch, which
 addresses reports in the *Received* state ($q^{rm} \in R$).
 
+!!! tip inline end "See also"
+
+    - [Report Validation Behavior](rm_validation_bt.md)
+    - [Report Prioritization Behavior](rm_prioritization_bt.md)
+    - [Report Closure Behavior](rm_closure_bt.md)
+    - [Do Work Behavior](do_work_bt.md)
+
 The only action to be taken from $q^{rm} \in R$ is to validate the report.
 We address [report validation](rm_validation_bt.md) shortly, but, for now, it is
 sufficient to say that the validate report behavior returns *Success* 
@@ -95,7 +102,3 @@ simplify the presentation. Behaviors that appear in multiple places can
 be represented as their own trees. We explore the most relevant of these
 subtrees in the next few subsections.
 
-See also:
-- [Report Validation Behavior](rm_validation_bt.md)
-- [Report Prioritization Behavior](rm_prioritization_bt.md)
-- [Report Closure Behavior](rm_closure_bt.md)
