@@ -1,5 +1,7 @@
 # Ontology
 
+{% include-markdown "../../includes/not_normative.md" %}
+
 The Vultron protocol does not make its appearance in uncharted territory, where no existing CVD systems or processes
 exist.
 Rather, we propose it as an improvement to interactions among humans, systems, and business processes that already

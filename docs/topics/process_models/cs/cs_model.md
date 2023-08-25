@@ -1,11 +1,18 @@
 # CVD Case State Model
 
+{% include-markdown "../../../includes/normative.md" %}
+
+Here we complete the definition of the CVD Case State (CS) model begun in the [previous page](index.md).
+As a reminder, this model provides a high-level view of the state of a CVD case and is 
+derived from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
+
+---
+
 {% include-markdown "../dfa_notation_definition.md" %}
 
 As in the [RM](../rm/index.md) and [EM](../em/index.md) process models, we wish to define a 5-tuple
 $(\mathcal{Q},\Sigma,\delta,q_0,F)$, this time for the CS model.
 
-{% import-markdown "cs_substates_table.md" %}
 
 In the CS model, a state $q^{cs}$ represents the status of each of the six [substates](index.md).
 State labels use the substate notation at left.
@@ -15,21 +22,35 @@ The order in which the events occurred does not matter when defining the state.
 However, we will observe a notation convention keeping the letter names in the same case-insensitive order
 $(v,f,d,p,x,a)$.
 
-CS states can be any combination of statuses, provided that a number of caveats elaborated in
-§[1.3](#sec:transitions){reference-type="ref"
-reference="sec:transitions"} are met. 
-One such caveat worth noting here is that valid states must follow what we call the *Vendor fix path*.{== [^1]
- ==}
+The Case State model builds upon the CVD substates defined in the [previous page](index.md), summarized
+in the table below.
+
+<a name="cs-model-states-defined"></a>
+{% include-markdown "cs_substates_table.md" %}
 
 ???+ note inline end "Vendor Fix Path Formalism"
 
     $$D \implies F \implies V$$
 
+CS states can be any combination of statuses, provided that a number of caveats elaborated in
+[CS Transitions](#cs-transitions) are met. 
+One such caveat worth noting here is that valid states must follow what we call the *Vendor fix path*.
+
+
 The reason is causal: For a fix to be deployed (_D_), it must have been ready (_F_) for deployment.
 And for it to be ready, the Vendor must have already known (_V_) about the vulnerability. 
 As a result, valid states must begin with one of the following strings: _vfd_, _Vfd_, _VFd_, or _VFD_.
 
+!!! tip inline end "See also"
+
+    See §2.4 of [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
+    for an expanded explanation of the *Vendor fix path*.
+
+
 ```mermaid
+---
+title: Vendor Fix Path
+---
 stateDiagram-v2
     vfd : Vendor is unaware (vfd)
     Vfd : Vendor is aware (Vfd)
@@ -79,9 +100,13 @@ The lone final state in which all events have occurred is _VFDPXA_.
     model of the vulnerability lifecycle diverges from what we expect to
     observe in CVD
     cases in the real world. There is ample evidence that most
-    vulnerabilities never have exploits published or attacks observed
-    {== [@householder2020historical; @jacobs2021exploit]. ==} Therefore, practically
-    speaking, we might expect vulnerabilities to wind up in one of
+    vulnerabilities never have exploits published or attacks observed.
+    See for example:
+    
+    - [Historical Analysis of Exploit Availability Timelines](https://www.usenix.org/conference/cset20/presentation/householder)
+    - [Exploit Prediction Scoring System (EPSS)](https://dl.acm.org/doi/pdf/10.1145/3436242)
+    
+    Therefore, practically speaking, we might expect vulnerabilities to wind up in one of
     
     $$\mathcal{F}^\prime = \{ {VFDPxa}, {VFDPxA}, {VFDPXa}, {VFDPXA} \}$$ 
     
@@ -109,8 +134,7 @@ The lone final state in which all events have occurred is _VFDPXA_.
 ## CS Transitions
 
 In this section, we elaborate on the input symbols and transition functions for our CS DFA.
-A row-wise reading of
-{== Table [\[tab:event_status\]](#tab:event_status){reference-type="ref" reference="tab:event_status"} ==}
+A row-wise reading of the [CVD Case Substates](#cs-model-states-defined) table above
 implies a set of events corresponding to each specific substate change, which we correspond to the symbols in the DFA.
 
 | Symbol | Description |                                      Formalism                                       |
@@ -125,8 +149,7 @@ implies a set of events corresponding to each specific substate change, which we
 
 ???+ note inline end "CS Model Input Symbols ($\Sigma^{cs}$) Defined"
 
-    $$\label{eq:events}
-        \Sigma^{cs} = \{\mathbf{V},\mathbf{F},\mathbf{D},\mathbf{P},\mathbf{X},\mathbf{A}\}$$
+    $$\Sigma^{cs} = \{\mathbf{V},\mathbf{F},\mathbf{D},\mathbf{P},\mathbf{X},\mathbf{A}\}$$
 
     Here we diverge somewhat from the notation used for the
     [RM](../rm/index.md) and [EM](../em/index.md) models, which use lowercase letters for transitions and
@@ -210,34 +233,15 @@ stateDiagram-v2
     pX --> PX
 ```
 
-Therefore, for all practical purposes, 
+Therefore, for all practical purposes, we can simplify the full $pxa \rightarrow PXA$ diagram:
 
-```mermaid
-stateDiagram-v2
-    direction LR
-    [*] --> pxa
-
-    pxa --> Pxa : P
-    pxa --> pXa : X
-    pxa --> pxA : A
-    
-    pXa --> PXa : P
-    pXa --> pXA : A
-    
-    pxA --> PxA : P
-    pxA --> pXA : X
-
-    Pxa --> PxA : A
-    Pxa --> PXa : X
-    
-    pXA --> PXA : P
-    PXa --> PXA : A
-    PxA --> PXA : X
-    PXA --> [*]
-```
-simplifies to 
 
 {% include-markdown "pxa_diagram.md" %}
+
+down to the following: 
+
+{% include-markdown "pxa_diagram_simple.md" %}
+
 
 #### Attacks Do Not Necessarily Cause Public Awareness
 
@@ -259,17 +263,30 @@ twofold:
     available to all possible adversaries. Publication, in that case,
     might assist other adversaries more than it helps defenders.
 
+
 In other words, although $\cdot\cdot\cdot p \cdot A$ does not require an
 immediate transition to $\cdot\cdot\cdot P \cdot A$ the way
 $\cdot\cdot\cdot pX \cdot \xrightarrow{\mathbf{P}} \cdot\cdot\cdot PX \cdot$ does, it
 does seem plausible that the likelihood of **P** occurring
 increases when attacks are occurring. 
+
+???+ note "Formalism"
+
+    The probability of public awareness given attacks observed is
+    greater than the probability of public awareness without attacks.
+
+    $$
+    P(\mathbf{P} \mid \cdot\cdot\cdot p \cdot A) > P(\mathbf{P} \mid \cdot\cdot\cdot p \cdot a)
+    $$
+
 Logically, this is a result of there being more ways for the public to discover the vulnerability when attacks are 
-happening than when they are not.
-For states in $\cdot\cdot\cdot p \cdot a$, the public depends on the normal vulnerability discovery and reporting
+happening than when they are not:
+
+- For states in $\cdot\cdot\cdot p \cdot a$, public awareness depends on the normal vulnerability discovery and reporting
 process.
-States in $\cdot\cdot\cdot p \cdot A$ include that possibility and add the potential for discovery as a result of
+- States in $\cdot\cdot\cdot p \cdot A$ include that possibility and add the potential for discovery as a result of
 security incident analysis.
+
 Hence,
 
 !!! note ""
@@ -322,9 +339,11 @@ right-linear grammar $\delta^{cs}$.
             VFDPXA &\to \varepsilon \\
         \end{cases}$$
 
-A more thorough examination of the strings generated by this grammar,
-their interpretation as the possible histories of all CVD cases, and implications for measuring the efficacy of the 
-overall CVD process writ large can be found in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
+!!! tip "For more information"
+
+    A more thorough examination of the strings generated by this grammar,
+    their interpretation as the possible histories of all CVD cases, and implications for measuring the efficacy of the 
+    overall CVD process writ large can be found in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
 
 ## CS Model Diagram
 
@@ -340,8 +359,7 @@ below.
 
 ???+ note "Case State Model $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ Fully Defined"
 
-    $$\label{eq:vfdpxa_dfa}
-        CS = 
+    $$CS = 
         \begin{pmatrix}
                 \begin{aligned}
                         \mathcal{Q}^{cs} = & 
@@ -396,5 +414,3 @@ below.
                 \end{aligned}
         \end{pmatrix}$$
 
-[^1]: See §2.4 of [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) for an expanded explanation of the *Vendor
-    fix path*.

@@ -1,5 +1,11 @@
 # Transition Functions {#sec:protocol_transition_functions}
 
+{% include-markdown "../../includes/normative.md" %}
+
+In this section, we describe the transition functions for the RM, EM, and CVD Case processes, respectively.
+Note that while the RM process is largely independent of the other two process models, the EM and CVD process models 
+have some noteworthy interactions, which we will cover in detail.
+
 Revisiting the formal protocol definition from the [introduction](/index.md): 
 
 !!! note "Transition Function Defined"
@@ -12,9 +18,6 @@ Revisiting the formal protocol definition from the [introduction](/index.md):
     message $x$ in state $s$. It is a transmission if $x$ is from $M_{ij}$
     and a reception if $x$ is from $M_{ji}$.
 
-In this section, we describe the transition functions for the RM, EM, and CVD Case processes, respectively.
-Note that while the RM process is largely independent of the other two process models, the EM and CVD process models 
-have some noteworthy interactions, which we will cover in detail.
 
 !!! tip "Notation Conventions on this Page"
 

@@ -1,5 +1,7 @@
 # Message Types
 
+{% include-markdown "../../includes/normative.md" %}
+
 In [States](states.md), we identified four main roles in the
 MPCVD process:
 

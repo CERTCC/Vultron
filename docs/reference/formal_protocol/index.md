@@ -1,5 +1,7 @@
 # A Formal Protocol Definition for MPCVD {#sec:formal_protocol}
 
+{% include-markdown "../../includes/normative.md" %}
+
 The MPCVD process can be described as a Communicating Hierarchical State Machine.
 In this section, we begin by laying out the requirements for a formal protocol
 definition followed by a step-by-step walkthrough of each of those requirements

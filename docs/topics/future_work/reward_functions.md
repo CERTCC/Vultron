@@ -1,5 +1,7 @@
 # Reward Functions
 
+{% include-markdown "../../includes/not_normative.md" %}
+
 Further optimization of the MPCVD protocol can be studied with the
 development of reward functions to evaluate preferences for certain
 CVD case histories

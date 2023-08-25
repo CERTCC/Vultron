@@ -1,6 +1,9 @@
 # Interactions Between the Vultron Protocol and SSVC
 
-Once a report has been validated (i.e., it is in the RM [_Valid_](../topics/process_models/rm/index.md#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to 
+{% include-markdown "../includes/not_normative.md" %}
+
+In the context of the Vultron protocol, once a report has been validated
+(i.e., it is in the RM [_Valid_](../topics/process_models/rm/index.md#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to 
 determine what further effort, if any, is necessary. 
 While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://github.com/CERTCC/SSVC) model.
 

@@ -1,13 +1,17 @@
 # Embargo Principles
 
+{% include-markdown "../../../includes/normative.md" %}
+
 Embargoes are a means of inhibiting public disclosure of a vulnerability
 while defenses are prepared (e.g., until fix development has completed
 for a reasonable quorum of Vendors).
 
+The goal of the EM process is not to establish an exact publication schedule for every Participant to adhere
+to. Rather,
+
 !!! tip "Embargo Management Process Goal"
 
-    The goal of the EM process is not to establish an exact publication schedule for every Participant to adhere
-    to. Rather, it is to establish a window spanning from the present to some future time, during which _Participants
+    The goal of the Embargo Management process is to establish a window spanning from the present to some future time, during which _Participants
     are expected to not publish or otherwise disclose_ information about the vulnerability to non-Participants outside
     of the CVD case.
 
@@ -37,9 +41,7 @@ with an embargo.
 
     4.  an accepted embargo has been terminated prior to the embargo
         expiration date and time due to other reasons (e.g., those
-        outlined in
-        {== §[1.2.7](#sec:early_termination){reference-type="ref"
-        reference="sec:early_termination"} ==})
+        outlined in [Early Termination](early_termination.md))
 
 !!! note ""
     Additional Participants MAY be added to an existing embargo upon
@@ -50,9 +52,7 @@ with an embargo.
     "release" or "publication" so long as those Participants accept the
     terms of the embargo.
 
-See
-    {== §[1.2.10](#sec:inviting_others){reference-type="ref"
-    reference="sec:inviting_others"} ==}.
+See [Adding Participants](working_with_others.md) for more information.
 
 ## Embargoes are Limited Short-Term Agreements
 
@@ -105,14 +105,11 @@ reason. In fact, CVD Participants are not obliged to agree to
 any embargo at all. However, regardless of their choices, Participants
 should be clear about their status and intentions with other
 Participants. There are a few good reasons to exit an embargo early.
-(See {== §[1.2.7](#sec:early_termination){reference-type="ref"
-reference="sec:early_termination"} ==}.)
+(See [Early Termination](early_termination.md) for more information.)
  
 !!! note ""
     Participants MAY propose a new embargo or revision to an existing
-    embargo at any time within the constraints outlined in
-    {== §[1.2.4](#sec:entering_an_embargo){reference-type="ref"
-    reference="sec:entering_an_embargo"} ==}.
+    embargo at any time within the constraints outlined in [Negotiating Embargoes](negotiating.md).
 
 !!! note ""
     Participants MAY reject proposed embargo terms for any reason.
@@ -143,12 +140,15 @@ the leaving Participant is no longer involved in the case.
     Participants who leave an *Active* embargo SHOULD be removed by the
     remaining Participants from further communication about the case.
 
+!!! tip inline end "Embargo Engagement and Adherence"
+
+    We return to these concepts with the `case_engagement` and `embargo_adherence` attributes described in
+    [Case Object](../../../howto/case_object.md).
+
 These points imply a need for Participants to track the status of other
 Participants with respect to their adherence to the embargo and
-engagement with the case. We will return to these concepts with the
-{== $case\_engagement_ and _embargo\_adherence$ attributes described in
- §[\[sec:case_object_participant_class\]](#sec:case_object_participant_class){reference-type="ref"
-reference="sec:case_object_participant_class"} ==}.
+engagement with the case. 
+
 
 ### Leaving an Embargo May Have Consequences
 

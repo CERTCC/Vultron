@@ -1,16 +1,22 @@
 # CVD Case State Interactions with the RM and EM Process Models
 
-???+ note inline end "CS Transition Symbols Defined"
+{% include-markdown "../../../includes/normative.md" %}
 
-    $$\Sigma^{cs} = \{ \mathbf{V},~\mathbf{F},~\mathbf{D},~\mathbf{P},~\mathbf{X},~\mathbf{A} \}$$
 
 The [RM](../rm/index.md) and [EM](../em/index.md) models interact with the [Case State Model](../cs/index.md).
 Here we will review the constraints arising from the interaction of the [RM](../rm/index.md) and [EM](../em/index.md) 
 models with each of the CS transition events represented by its symbols.
-As a reminder, a list of the CS model transition symbols is reproduced in the inset at right.
 
 We have organized this page according to how each CS model [substate](../cs/index.md) interacts with the
 [RM](../rm/index.md) and [EM](../em/index.md) models.
+
+
+???+ note inline end "CS Transition Symbols Defined"
+
+    $\Sigma^{cs} = \{ \mathbf{V},~\mathbf{F},~\mathbf{D},~\mathbf{P},~\mathbf{X},~\mathbf{A} \}$
+
+As a reminder, a list of the CS model transition symbols is reproduced in the inset at right.
+
 
 ## Vendor Notification
 
@@ -24,11 +30,12 @@ We have organized this page according to how each CS model [substate](../cs/inde
 Vendor Awareness (**V**) occurs when a Participant&mdash;typically a
 Finder, Coordinator, or another Vendor&mdash;is in RM _Accepted_ and notifies the Vendor.
 In turn, the Vendor starts in $q^{rm} = Received$ and proceeds to follow their validation and prioritization routines.
-We previously outlined this in Table
-{== [\[tab:participant_rm_actions\]](#tab:participant_rm_actions){reference-type="ref"
-reference="tab:participant_rm_actions"} ==}.
+We previously outlined this in [RM Interactions Between CVD Participants](../rm/rm_interactions.md).
 
 ```mermaid
+---
+title: Vendor Notification
+---
 stateDiagram-v2
     direction LR
     state AnyParticipant {
@@ -130,6 +137,9 @@ start a new embargo.
     - Existing embargoes ($q^{em} \in \{Active,~Revise\}$) MAY continue but SHOULD prepare to _terminate_ soon.
 
 ```mermaid
+---
+title: Fix Ready
+---
 stateDiagram-v2
     direction LR
     state CS {
@@ -181,6 +191,9 @@ Fix Deployment (**D**) event can only occur if the Vendor is in
 $q^{rm} = Accepted$.
 
 ```mermaid
+---
+title: Fix Deployed RM-CS Interactions
+---
 stateDiagram-v2
     direction LR
     state RM {
@@ -211,6 +224,9 @@ deployment (**D**).
     -   Any existing embargo SHOULD terminate.
 
 ```mermaid
+---
+title: Fix Deployed CS-EM Interactions
+---
 stateDiagram-v2
     direction LR
     state CS {
@@ -274,6 +290,9 @@ other objectives (e.g., $q^{cs} \in VF\cdot px \cdot$) have been met. Therefore,
     -   Any existing embargo SHALL terminate.
 
 ```mermaid
+---
+title: Public Awareness CS-EM Interactions
+---
 stateDiagram-v2
     direction LR
     state CS {
@@ -326,6 +345,9 @@ $\mathbf{P} \prec \mathbf{X}$ dictates that
     is active ($q^{em} \in \{A,R\}$).
 
 ```mermaid
+---
+title: Exploit Public EM-RM Interactions for Exploit Publishers
+---
 stateDiagram-v2
     direction LR
     state EM {
@@ -354,6 +376,9 @@ Awareness (**P**) or immediately leads to it. Therefore,
     - Any existing embargo SHALL terminate.
 
 ```mermaid
+---
+title: Exploit Public CS-EM Interactions
+---
 stateDiagram-v2
     direction LR
     state CS {
@@ -414,6 +439,9 @@ Formally,
 
 
 ```mermaid
+---
+title: Attacks Observed CS-EM Interactions
+---
 stateDiagram-v2
     direction LR
     state CS {

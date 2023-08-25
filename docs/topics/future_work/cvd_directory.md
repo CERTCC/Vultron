@@ -1,10 +1,13 @@
 # CVD Directory
 
+{% include-markdown "../../includes/not_normative.md" %}
+
 The idea of CVD embargoes implies a means of dividing the world into those who belong in
 the embargo and those who do not.
 Because authentication is not the same as authorization, we cannot simply rely on knowing *who* a Participant
 *is*; we also have to be able to identify *why* they are *relevant* to a particular case.
 
+<br/>
 Thus, we must ask: 
 
 !!! question 

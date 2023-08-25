@@ -1,5 +1,7 @@
 # Worked Example
 
+{% include-markdown "../../includes/not_normative.md" %}
+
 Here we give a brief worked example showing a few usage scenarios of the [protocol](../../reference/formal_protocol/index.md).
 We use UML Sequence Diagrams to show the interaction between Participant roles.
 

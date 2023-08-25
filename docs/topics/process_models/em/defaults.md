@@ -1,7 +1,8 @@
 # Default Embargoes
 
-As described in {== §[1.1.2.2](#sec:em_grammar){reference-type="ref"
-reference="sec:em_grammar"} ==}, the EM process has the potential for unbounded
+{% include-markdown "../../../includes/normative.md" %}
+
+As described in the [EM process model](index.md#sec:em_grammar), the EM process has the potential for unbounded
 *propose-reject* churn. To reduce the potential for this churn and
 increase the likelihood that *some* embargo is established rather than a
 stalemate of unaccepted proposals, we offer the following guidance.

@@ -1,8 +1,15 @@
 # Formal MPCVD Protocol Redux
 
+{% include-markdown "../../includes/normative.md" %}
+
 We have [formally defined](../../reference/formal_protocol/index.md) an [MPCVD protocol](../../index.md).
 Here we provide a summary of the result.
 See the linked sections for more details.
+
+<br/>
+<br/>
+
+Recapping the definitions given in the [introduction](index.md), we have:
 
 !!! note "Formal Protocol Definition"
 
@@ -36,6 +43,10 @@ A summary of the MPCVD state model $S_i$ for an individual Participant is shown 
 
 ### Report Management
 
+The Report Management (RM) state model is shown below.
+Note that with the exception of receiving reports, the RM process primarily focuses on Participants communicating
+their status to other Participants, as it is primarily emitting messages as opposed to receiving them. 
+
 ```mermaid
 stateDiagram-v2
     direction LR
@@ -55,6 +66,10 @@ stateDiagram-v2
 
 ### Embargo Management
 
+The Embargo Management (EM) state model is shown below.
+The EM process is more interactive than the RM process, as it involves Participants negotiating with each other
+to determine the appropriate embargo period for a given vulnerability report.
+
 ```mermaid
 stateDiagram-v2
     direction LR
@@ -72,9 +87,22 @@ stateDiagram-v2
 
 ### Case State
 
+The Case State (CS) model is shown below.
+We have divided the CS model into two diagrams: one that is specific to a given Participant, and one that is agnostic
+to the Participant, reflecting changes experienced by all Participants.
+The CS model is the most complex of the tree, as it involves all Participants communicating with each other
+about both their own state changes in the fix development and deployment process, as well as the state changes
+driven by outside events (e.g., public awareness, exploits in the wild, attacks observed, etc.).
+
 #### Participant-Specific
 
+The _Vendor fix path_ is shown below, and is specific to individual Vendor Participants.
+It reflects each Participant's state changes in the fix development and deployment process.
+
 ```mermaid
+---
+title: Vendor Fix Path
+---
 stateDiagram-v2
     direction LR
     vfd --> Vfd : <b>V</b> (#8640;CV) 
@@ -84,7 +112,15 @@ stateDiagram-v2
 
 #### Participant-Agnostic
 
+The CS pxa model is shown below, and is agnostic to individual Participants.
+It reflects the state changes driven by external events that affect all Participants.
+Note that the diagram shown below simplifies the $X \implies P$ transitions based on the discussion
+in the detailed [CS model](../../topics/process_models/cs/cs_model.md#exploit-publication-causes-public-awareness).
+
 ```mermaid
+---
+title: pxa Model
+---
 stateDiagram-v2
     direction LR
     pxa --> Pxa : <b>P</b> (#8652;CP)

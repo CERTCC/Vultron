@@ -1,25 +1,22 @@
 ```mermaid
 ---
-title: pxa State Diagram
+title: Simplified pxa State Diagram
 ---
 stateDiagram-v2
     direction LR
     [*] --> pxa
-
+    
     pxa --> Pxa : P
-    pxa --> pXa : X
+    pxa --> PXa : X,P
     pxa --> pxA : A
     
-    pXa --> PXa : P
-    pXa --> pXA : A
-    
+   
     pxA --> PxA : P
-    pxA --> pXA : X
+    pxA --> PXA : X,P
 
     Pxa --> PxA : A
     Pxa --> PXa : X
     
-    pXA --> PXA : P
     PXa --> PXA : A
     PxA --> PXA : X
     PXA --> [*]

@@ -1,5 +1,7 @@
 # Report Management Process Model
 
+{% include-markdown "../../../includes/normative.md" %}
+
 Here we describe a high-level workflow for the CVD Report Management (RM) process.
 <!-- start_excerpt -->
 The RM process should be reasonably familiar to anyone familiar with [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management) (ITSM) workflows such as problem, change, 

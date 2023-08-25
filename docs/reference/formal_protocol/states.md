@@ -1,5 +1,7 @@
 # States {#sec:protocol_states}
 
+{% include-markdown "../../includes/normative.md" %}
+
 Each Participant in an MPCVD case has a corresponding RM state, an EM state, and an overall CS state.
 Therefore, we can represent a Participant's state as a triple comprising the state of each of these models.
 

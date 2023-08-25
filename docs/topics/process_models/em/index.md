@@ -1,5 +1,7 @@
 # Embargo Management Process Model
 
+{% include-markdown "../../../includes/normative.md" %}
+
 Here we describe the basic primitives necessary for the CVD Embargo Management(EM) process.
 <!-- start_excerpt -->
 For our purposes, an embargo is an *informal* agreement among peer
@@ -157,15 +159,15 @@ between the states:
 A summary of the available actions is shown as $\Sigma^{em}$ below.
 
 ???+ note "EM Symbols ($\Sigma^{em}$) Defined"
-    $\label{eq:em_symbols}
-        \begin{split}
+    
+    $$   \begin{split}
             \Sigma^{em} = \{
              ~\underline{p}ropose, 
              ~\underline{r}eject, 
              ~\underline{a}ccept, 
              ~\underline{t}erminate
             \}
-        \end{split}$
+        \end{split}$$
 
 Once again, the underlined lowercase letters will be used as shorthand
 for the EM
@@ -173,9 +175,8 @@ transition names in the remainder of the document.
 
 #### EM Transitions Defined
 
-Now we define the possible state transitions. Figure
-[\[fig:em_states_dense\]](#fig:em_states_dense){reference-type="ref"
-reference="fig:em_states_dense"} summarizes the EM process DFA states and transitions.
+Now we define the possible state transitions.
+The diagram below summarizes the EM process DFA states and transitions.
 
 {% include-markdown "./em_dfa_diagram.md" %}
 
@@ -262,8 +263,7 @@ stateDiagram-v2
 
 ???+ note inline end "EM Transition Function ($\delta^{em}$) Defined"
 
-    $\label{eq:em_transition_function}
-        \delta^{em} = 
+    $\delta^{em} = 
         \begin{cases}
             % \epsilon \to & N \\
                    N \to ~pP~|~\epsilon \\

@@ -1,5 +1,7 @@
 # Model Interactions {#ch:interactions}
 
+{% include-markdown "../../../includes/normative.md" %}
+
 Here we reflect on the interactions between the [RM](../rm/), [EM](../em/index.md), and [CS](../cs/index.md) models within the
 overall MPCVD process.
 

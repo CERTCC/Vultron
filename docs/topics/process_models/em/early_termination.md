@@ -1,5 +1,7 @@
 # Early Termination and Other Special Cases
 
+{% include-markdown "../../../includes/normative.md" %}
+
 Here we describe a number of special cases that may arise during the
 CVD process. These include 
 
@@ -59,12 +61,9 @@ following:
 The above is not a complete list of acceptable reasons to terminate an
 embargo early. Note that the distinction between the *SHALL* in the
 first item and the *SHOULD* in the second is derived from the reasoning
-given in [](../cs/cs_model.md#cs-transitions-)
-{== §[\[sec:transition_function\]](#sec:transition_function){reference-type="ref"
-reference="sec:transition_function"} ==}, where we describe the
-CS model's
-transition function. Embargo termination is the set of transitions
-described [above](#terminate-embargo).
+given in the [CS model](../cs/cs_model.md#cs-transitions)
+, where we describe the CS model's transition function.
+Embargo termination is the set of transitions described in the [EM model](index.md#terminate-embargo).
 
 ### Waiting for All Vendors to Reach _Fix Ready_ May Be Impractical.
 

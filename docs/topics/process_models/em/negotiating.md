@@ -1,8 +1,12 @@
 # Negotiating Embargoes
 
+{% include-markdown "../../../includes/normative.md" %}
+
 Negotiating and entering into a new embargo for a case is only possible
 within an embargo "habitable zone" defined in terms of the
-[Case State model](../cs/index.md) as laid out below. The notation for CS model states is explained in
+[Case State model](../cs/index.md) as laid out below.
+
+The notation for CS model states is explained in
 [Case State model](../cs/index.md), but the contextual explanation below should
 suffice for now.
 

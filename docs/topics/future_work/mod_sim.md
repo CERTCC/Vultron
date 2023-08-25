@@ -1,5 +1,7 @@
 # Modeling and Simulation
 
+{% include-markdown "../../includes/not_normative.md" %}
+
 The [protocol formalisms](../../reference/formal_protocol/index.md) and [Behavior Trees](../behavior_logic/index.md)
 provided in this documentation combined with the [CS model](../process_models/cs/index.md) described in 
 [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)

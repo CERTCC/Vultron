@@ -6,7 +6,7 @@ stateDiagram-v2
     direction LR
     CS: Case State Model
     state CS {
-        ps: Vendor Fix Path
+        ps: Participant-Specific
         state ps {
             [*] --> vfd
             vfd --> Vfd : V
@@ -14,8 +14,7 @@ stateDiagram-v2
             VFd --> VFD : D
             VFD --> [*]
         }
-        --
-        g: Public State
+        g: Participant-Agnostic 
         state g {
             [*] --> pxa
         
