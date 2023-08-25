@@ -148,9 +148,18 @@ markdown_extensions:
   - tables
 extra:
   social:
+    - icon: fontawesome/solid/bug
+      link: https://github.com/CERTCC/Vultron/issues
+      name: Report an Issue or Suggest a Change
     - icon: fontawesome/brands/github
       link: https://github.com/CERTCC/Vultron
       name: CERTCC/Vultron on Github
+    - icon: fontawesome/regular/envelope
+      link: mailto:cert@cert.org?subject=Vultron%20Protocol%20Feedback
+      name: Email CERT/CC
+    - icon: fontawesome/solid/house
+      link: https://www.sei.cmu.edu/
+      name: Software Engineering Institute
 extra_javascript:
   # to render math
   - javascripts/mathjax.js

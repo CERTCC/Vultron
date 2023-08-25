@@ -8,8 +8,8 @@
     - familiarity with the CVD process in general
 
     If you are already familiar with the Vultron Protocol, and are looking for implementation advice, 
-    see [Implementing Vultron](../howto/index.md).
-    For technical reference, see [Reference](../reference/index.md).
+    see [Implementing Vultron](../../howto/index.md).
+    For technical reference, see [Reference](../../reference/index.md).
     If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://vuls.cert.org/confluence/display/CVD/).
 
 The CVD process
@@ -135,5 +135,5 @@ second sense, we address the term *protocol* in these ways:
 -   This documentation and the [report](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) it is based
     on describes a *normative* protocol designed to structure and guide practitioners toward those goals.
 
-To that end, we offer this documentation as a proposal for such an Vultron Protocol.
+To that end, we offer this documentation as a proposal for such an MPCVD protocol.
 

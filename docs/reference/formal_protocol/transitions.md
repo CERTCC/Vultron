@@ -6,7 +6,7 @@ In this section, we describe the transition functions for the RM, EM, and CVD Ca
 Note that while the RM process is largely independent of the other two process models, the EM and CVD process models 
 have some noteworthy interactions, which we will cover in detail.
 
-Revisiting the formal protocol definition from the [introduction](/index.md): 
+Revisiting the formal protocol definition from the [introduction](index.md): 
 
 !!! note "Transition Function Defined"
 
