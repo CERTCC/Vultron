@@ -74,7 +74,7 @@ flowchart LR
     
 ```
 
-Assuming neither of these conditions has been met, the main deployment sequence falls to the Developer role.
+Assuming neither of these conditions has been met, the main deployment sequence falls to the Deployer role.
 It consists of two subprocesses: prioritize deployment and deploy.
 The prioritize deployment behavior is shown in the fallback node in the center of the diagram.
 The subgoal is for the deployment priority to be established, as indicated by the Deployer's RM state $q^{rm} \in \{D,A\}$.
