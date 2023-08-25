@@ -31,15 +31,17 @@ where
 | $\langle M_{ij} \rangle_{i,j=1}^N$                                                                                                                                                                                                                       | $N^2$ disjoint finite sets with $M_{ii}$ empty for all $i$. $M_{ij}$ represents the messages that can be sent from process $i$ to process $j$.                                                                                               | [Messages](messages.md) |
 | $succ$ | a partial function mapping for each $i$ and $j$, $S_i \times M_{ij} \rightarrow S_i \textrm{ and } S_i \times M_{ji} \rightarrow S_i$ indicating the state changes arising from the sending and receiving of messages between Participants. | [Transitions](transitions.md) |
 
+!!! note inline end "Legend"
+    
+    | Symbol  | Description              |
+    |:-------:|:-------------------------|
+    | &#8636; | Message Received         |
+    | &#8640; | Message Sent             |
+    | &#8652; | Message Sent or Received |
+
 ## Summary Diagrams
 
 A summary of the MPCVD state model $S_i$ for an individual Participant is shown in the diagrams below.
-
-!!! tip "Legend"
-    
-    - &#8636; Message Received
-    - &#8640; Message Sent
-    - &#8652; Message Sent or Received
 
 ### Report Management
 
