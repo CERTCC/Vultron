@@ -1,6 +1,6 @@
 # The Need for Interoperability in Coordinated Vulnerability Disclosure
 
-The overall goal of our MPCVD protocol effort is to achieve *interoperability* among CVD process implementations according to the
+The overall goal of our Vultron Protocol effort is to achieve *interoperability* among CVD process implementations according to the
 broad definition of that term found in the 2004 report, [*Current Perspectives on Interoperability*](https://doi.org/10.1184/R1/6572852.v1) by Brownsword et al.: 
 
 !!! note inline "Brownsword et al. on *Interoperability*"

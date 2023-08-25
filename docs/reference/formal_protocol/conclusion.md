@@ -1,4 +1,4 @@
-# Formal MPCVD Protocol Redux
+# Formal Vultron Protocol Redux
 
 {% include-markdown "../../includes/normative.md" %}
 

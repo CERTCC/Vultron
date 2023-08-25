@@ -2,7 +2,7 @@
 
 {% include-markdown "../includes/not_normative.md" %}
 
-Integrating the MPCVD protocol into everyday MPCVD operations requires each Participant to consider how their business processes
+Integrating the Vultron Protocol into everyday MPCVD operations requires each Participant to consider how their business processes
 interact with the individual [RM](../topics/process_models/rm/index.md), [EM](../topics/process_models/em/index.md), 
 and [CS](../topics/process_models/cs/index.md), process models, respectively.
 Here we offer some thoughts on where such integration might begin.
@@ -59,7 +59,7 @@ Because part of the CS model is Participant specific and the other is global to 
 
 Similar to the RM process, which is specific to each Participant, the _vfd_ process is
 individualized to each Vendor (or Deployer, for the simpler $d \xrightarrow{\mathbf{D}} D$ state transition).
-Modifications to the Vendor's development process to implement the MPCVD protocol are expected to be minimal and are 
+Modifications to the Vendor's development process to implement the Vultron Protocol are expected to be minimal and are 
 limited to the following:
 
 -   acknowledging the Vendor's role on report receipt with a _CV_ message

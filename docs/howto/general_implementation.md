@@ -28,7 +28,7 @@ As long as the structure and semantics are well defined, most standard data form
 
 !!! note ""  
 
-    Vultron MPCVD Protocol Messages SHOULD use well-defined format specifications (e.g., JSON Schema, protobuf, XSD).
+    Vultron Protocol Messages SHOULD use well-defined format specifications (e.g., JSON Schema, protobuf, XSD).
 
 !!! tip "Related formats and ontologies"
 
@@ -38,7 +38,7 @@ As long as the structure and semantics are well defined, most standard data form
 
 ## Transport Protocol
 
-We have not specified how MPCVD protocol implementations connect to each other.
+We have not specified how Vultron Protocol implementations connect to each other.
 Presumably, technologies such as REST APIs or WebSockets would be leading candidates to resolve this gap.
 However, other system architectures could be adapted as well.
 For example, an XMPP message-routing system might be desired, or even blockchain-related technologies might be adaptable
@@ -46,7 +46,7 @@ to portions of this protocol as well.
 
 !!! note ""
     
-    Vultron MPCVD Protocol Implementations SHOULD use common API patterns (e.g., REST, WebSockets).
+    Vultron Protocol Implementations SHOULD use common API patterns (e.g., REST, WebSockets).
 
 
 ## Identity Management
@@ -73,11 +73,11 @@ For now at least, we leave this decision to implementers.
 
 !!! note ""
 
-    Vultron MPCVD Protocol Implementations SHOULD use transport-layer encryption to protect sensitive data in transit.
+    Vultron Protocol Implementations SHOULD use transport-layer encryption to protect sensitive data in transit.
 
 !!! note ""
 
-    Vultron MPCVD Protocol Implementations MAY use end-to-end encryption to protect sensitive data in transit.
+    Vultron Protocol Implementations MAY use end-to-end encryption to protect sensitive data in transit.
 
 ### Protecting Data at Rest
 
@@ -86,4 +86,4 @@ Again, we leave this decision to implementers.
 
 !!! note ""
 
-    Vultron MPCVD Protocol Implementations MAY use encryption to protect sensitive data at rest.
+    Vultron Protocol Implementations MAY use encryption to protect sensitive data at rest.

@@ -166,7 +166,7 @@ observes a change in status (a Vendor is notified and exploit code has
 been published, etc.). For the sake of simplicity, we begin with the
 assumption that observations are globally known---that is, a status
 change observed by any CVD Participant is known to all. In the real
-world, we believe the [Formal Vultron MPCVD Protocol](../../../reference/formal_protocol/index.md)
+world, we believe the [Formal Vultron Protocol](../../../reference/formal_protocol/index.md)
 is poised to ensure eventual
 consistency with this assumption through the communication of perceived
 case state across coordinating parties.

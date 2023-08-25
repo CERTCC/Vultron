@@ -1,6 +1,6 @@
 # Modeling an MPCVD AI Using Behavior Trees {#ch:behavior_trees}
 
-With the formal definition of our proposed MPCVD protocol behind us, we now turn our
+With the formal definition of the Vultron Protocol behind us, we now turn our
 attention to reflect on one of many possible paths toward
 implementation. We find that Behavior Trees have a number of desirable
 properties when it comes to automating the kinds of complex behaviors
@@ -30,7 +30,7 @@ These behaviors map approximately to the activities described in the [*CVD Guide
 
 If Behavior Trees were merely a notational convention, they would
 already have been useful enough to include here to structure the
-high-level business logic of the MPCVD protocol. But they also offer a way to
+high-level business logic of the Vultron Protocol. But they also offer a way to
 prototype software agents that reflect the activities of
 CVD Participants.
 Because Behavior Trees are inherently hierarchical, they are composable.

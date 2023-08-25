@@ -101,7 +101,7 @@ providing a few common usages from the [Oxford English Dictionary](https://www.o
     protectors joins forces to defend the universe from their adversaries.
     Their defensive mission requires a combination of independent defenders
     coordinating their efforts to achieve their goals. Like Voltron, our
-    MPCVD protocol
+    Vultron Protocol
     comprises a combination of humans and the technical processes and
     mechanisms that empower them. Together, those humans, processes, and
     mechanisms must function both individually and in coordination and
@@ -135,5 +135,5 @@ second sense, we address the term *protocol* in these ways:
 -   This documentation and the [report](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) it is based
     on describes a *normative* protocol designed to structure and guide practitioners toward those goals.
 
-To that end, we offer this documentation as a proposal for such an MPCVD protocol.
+To that end, we offer this documentation as a proposal for such an Vultron Protocol.
 

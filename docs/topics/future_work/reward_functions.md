@@ -2,7 +2,7 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-Further optimization of the MPCVD protocol can be studied with the
+Further optimization of the Vultron Protocol can be studied with the
 development of reward functions to evaluate preferences for certain
 CVD case histories
 over others.

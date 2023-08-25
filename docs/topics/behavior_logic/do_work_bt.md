@@ -1,6 +1,6 @@
 # Do Work Behavior Tree
 
-Although it is not directly addressed by the [formal MPCVD protocol](../../reference/formal_protocol/index.md), the *do work* node
+Although it is not directly addressed by the [formal Vultron Protocol](../../reference/formal_protocol/index.md), the *do work* node
 of the [RM Behavior Tree](rm_bt.md) is where much of the CVD effort happens.
 As a result, it is worth spending some time reviewing what some of the underlying work actually entails.
 

@@ -17,7 +17,7 @@ Revisiting the definitions from the [Formal Protocol Introduction](index.md):,
 > $M_{ii}$ empty for all $i$: $M_{ij}$ represents the messages that can
 > be sent from process $i$ to process $j$.
 
-The message types in our proposed MPCVD protocol arise primarily from the following principle taken directly from the 
+The message types in the Vultron Protocol arise primarily from the following principle taken directly from the 
 [CVD Guide](https://vuls.cert.org/confluence/display/CVD/2.3.+Avoid+Surprise):
 
 > **Avoid Surprise** -- As with most situations in which multiple
@@ -42,7 +42,7 @@ recommendation:
     other Participants for each transition.
 
 If you are looking for a one-sentence summary of the entire
-MPCVD protocol, that was it.
+Vultron Protocol, that was it.
 
 !!! note inline end "State Transitions"
 

@@ -7,7 +7,7 @@ and [formalisms](../reference/formal_protocol/index.md) that define the Vultron 
 The object model we describe is intended to provide the necessary core information for an implementation of the
 [formal protocol](../reference/formal_protocol/index.md).
 The diagram below depicts a UML Class Diagram of the `Case` model.
-It is not the minimal possible model required by the MPCVD protocol of this report; for example, strictly speaking, a 
+It is not the minimal possible model required by the Vultron protocol; for example, strictly speaking, a 
 Participant does not need to attempt to track the state of every other Participant, but it might help to do so. 
 Rather, this model is intended to be compact yet sufficient for an implementation to effectively track the coordination
 effort of an MPCVD case.

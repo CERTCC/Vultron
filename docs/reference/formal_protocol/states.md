@@ -459,7 +459,7 @@ Likewise, not all Deployers are Vendors.
 Most CVD cases leave Non-Vendor Deployers entirely out of the CVD process, so their appearance is expected to be rare in
 actual cases.
 However, there are scenarios when an MPCVD case may include Non-Vendor Deployers, such as when a vulnerability in some 
-critical infrastructure component is being handled or when the MPCVD protocol is used in the context of a Vulnerability
+critical infrastructure component is being handled or when the Vultron Protocol is used in the context of a Vulnerability
 Disclosure Program (VDP).
 These Non-Vendor Deployers participate only in the $d \xrightarrow{\mathbf{D}} D$ transition on the fix path.
 Similar to the [Vendor](#vendors-fix-suppliers) scenario above, it is expected that Deployers actually deploy fixes only when they are in the 
@@ -894,7 +894,7 @@ With these values in mind, we see that
     2021, the CERT/CC notified around 1,600 Vendors after the vulnerability had been made public. Had this been an
     embargoed disclosure, the case would have a total state space around $10^{2000}$.
 
-That said, while these are dramatic numbers, the reader is reminded that the whole point of the MPCVD protocol is to
+That said, while these are dramatic numbers, the reader is reminded that the whole point of the Vultron Protocol is to
 *coordinate* the process so that it is not just hundreds or thousands of Participants behaving randomly.
 
 ## Starting States
