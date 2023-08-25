@@ -52,10 +52,10 @@ Otherwise, the three outputs that imply further action is necessary&mdash;Schedu
 _Out-of-Cycle_, and _Immediate_&mdash;all proceed to the RM [_Accepted_](../topics/process_models/rm/index.md#the-accepted-a-state) state.
 The different categories imply different processes within the _Accepted_ state.
 But because the RM model does not dictate internal organizational processes, further description of what those processes
-might look like is out of scope for this report.
+might look like is out of scope for this crosswalk.
 
 We remind readers of a key takeaway from the protocol requirements in
-the main part of this report:
+the main part of this documentation:
 
 !!! note ""
  

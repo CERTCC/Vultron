@@ -142,7 +142,7 @@ expected response message.
 |                       $RS$                        |                       $*,\{ R, I, V,D,A\},*$                       |                                       $-,-,-$                                       |                $RK$ (non-vendor)                 |
 |               $\{RI,RV,RD,RA,RC\}$                |                        $*,\{R,I,V,D,A\},*$                         |                                       $-,-,-$                                       |                       $RK$                       |
 |               $\{RI,RV,RD,RA,RC\}$                |                              $*,S,*$                               |                                       $-,-,-$                                       |                    $RE + GI$                     |
-|                       $RE$                        |                              $*,*,*$                               |                                       $-,-,-$                                       |                    $RK$ + GI$                    |
+|                       $RE$                        |                              $*,*,*$                               |                                       $-,-,-$                                       |                    $RK + GI$                    |
 |                       $RK$                        |                              $*,*,*$                               |                                       $-,-,-$                                       |                       $-$                        |
 
 ## EM Transition Functions
