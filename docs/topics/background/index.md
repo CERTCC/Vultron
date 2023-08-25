@@ -1,4 +1,16 @@
-# Introduction {#ch:intro}
+# Introduction
+
+!!! tip inline end "Prerequisites"
+
+    The [Understanding Vultron](index.md) section assumes that you have:
+    
+    - an interest in learning about the Vultron protocol
+    - familiarity with the CVD process in general
+
+    If you are already familiar with the Vultron protocol, and are looking for implementation advice, 
+    see [Implementing Vultron](../howto/index.md).
+    For technical reference, see [Reference](../reference/index.md).
+    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://vuls.cert.org/confluence/display/CVD/).
 
 The CVD process
 addresses a human coordination problem that spans individuals and

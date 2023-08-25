@@ -33,14 +33,22 @@ shown in the table below.
 
 {% include-markdown "cs_substates_table.md" %}
 
+!!! tip "References"
+  
+    In defining these substates, we draw on the following sources:
+
+    - [Windows of Vulnerability: A Case Study analysis](https://doi.org/10.1109/2.889093) by Arbaugh, Fithen, and McHugh
+    - [Modeling the Security Ecosystem&mdash;The Dynamics of (In)Security](https://doi.org/10.1007/978-1-4419-6967-5_6) by Frei et al.
+    - [Before we knew it: an empirical study of zero-day attacks in the real world](https://doi.org/10.1145/2382196.2382284) by Bilge and Dumitraş
+
 ### The _Vendor Awareness_ Substate (_v_, _V_)
 
 The *Vendor Awareness* substate corresponds to *Disclosure* in the
-Arbaugh, Fithen, and McHugh article, "Windows of Vulnerability: A Case
-Study analysis" {== [@arbaugh2000windows] ==} and *vulnerability discovered by
-Vendor* in Bilge and Dumitraş's article, "Before we knew it: an
+Arbaugh, Fithen, and McHugh article, [Windows of Vulnerability: A Case
+Study analysis](https://doi.org/10.1109/2.889093) and *vulnerability discovered by
+Vendor* in Bilge and Dumitraş's article, [Before we knew it: an
 empirical study of zero-day attacks in the real
-world" {== [@bilge2012before] ==}.
+world](https://doi.org/10.1145/2382196.2382284).
 In the interest of model simplicity, we are
 not concerned with *how* the Vendor finds out about the vulnerability's
 existence&mdash;whether it was found via internal testing, reported within a
@@ -76,16 +84,13 @@ stateDiagram-v2
 
 ### The _Fix Readiness_ Substate (_f_, _F_)
  
-The *Fix Readiness* substate refers to the Vendor's creation and
-possession of a fix that *could* be deployed to a vulnerable system *if*
-the system owner knew of its existence. Here we differ somewhat from
-previous
-models {== [@arbaugh2000windows; @frei2010modeling; @bilge2012before]; ==} their
-models address the *release* of the fix rather than its *readiness* for
-release. This distinction is necessary because we are interested in
-modeling the activities and states leading up to disclosure. Fix
-*release* is a goal of the CVD process, whereas fix *readiness* is a
-significant process milestone along the way.
+The *Fix Readiness* substate refers to the Vendor's creation and possession of a fix that *could* be deployed to a 
+vulnerable system *if* the system owner knew of its existence.
+Here we differ somewhat from previous models
+([1](https://doi.org/10.1109/2.889093), [2](https://doi.org/10.1007/978-1-4419-6967-5_6), and [3](https://doi.org/10.1145/2382196.2382284))&mdash;their
+models address the *release* of the fix rather than its *readiness* for release.
+This distinction is necessary because we are interested in modeling the activities and states leading up to disclosure.
+Fix *release* is a goal of the CVD process, whereas fix *readiness* is a significant process milestone along the way.
 
 ```mermaid
 stateDiagram-v2
@@ -116,15 +121,13 @@ stateDiagram-v2
 ### The _Public Awareness_ Substate (_p_, _P_) 
 
 The *Public Awareness* substate corresponds to *Publication* in the
-Arbaugh, Fithen, and McHugh article  {== [@arbaugh2000windows], ==} *time of
-public disclosure* in Frei et al.'s article Modeling the Security
-Ecosystem&mdash;The Dynamics of (In)Security  {== [@frei2010modeling]; ==} and
-*vulnerability disclosed publicly* in Bilge and Dumitraş's article
- {== [@bilge2012before]. ==} The public might find out about a vulnerability
-through the Vendor's announcement of a fix, a news report about a
-security breach, a conference presentation by a researcher, or a variety
-of other means. As above, we are primarily concerned with the occurrence
-of the event itself rather than the details of *how* the public
+Arbaugh, Fithen, and McHugh [article](https://doi.org/10.1109/2.889093), *time of
+public disclosure* in Frei et al.'s article [Modeling the Security
+Ecosystem&mdash;The Dynamics of (In)Security](https://doi.org/10.1007/978-1-4419-6967-5_6) and
+*vulnerability disclosed publicly* in Bilge and Dumitraş's [article](https://doi.org/10.1145/2382196.2382284).
+The public might find out about a vulnerability through the Vendor's announcement of a fix, a news report about a
+security breach, a conference presentation by a researcher, or a variety of other means.
+As above, we are primarily concerned with the occurrence of the event itself rather than the details of *how* the public
 awareness event arises.
 
 ```mermaid
