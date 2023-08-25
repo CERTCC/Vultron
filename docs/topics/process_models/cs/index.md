@@ -1,6 +1,6 @@
 # CVD Case State Model Introduction
 
-Here we revisit the CS model from the Householder and Spring 2021 report [@householder2021state]. <!-- start_excerpt -->
+Here we revisit the CS model from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513). <!-- start_excerpt -->
 The CVD Case State (CS) model provides a high-level view of the state of a CVD case.
 In it we model two main aspects of the case:
 
@@ -20,25 +20,26 @@ prior to defining the Case States in
 
 ## CVD Case Substates
 
-{% include-markdown "cs_substates_table.md" %}
-
 In our model, the state of the world is a specification of the current
 status of all the events in the vulnerability lifecycle model described
-in the Householder and Spring 2021 report [@householder2021state].
+in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
 We describe the relevant factors as substates below. 
 For notational purposes, each substate status is represented by a letter for that part
 of the state of the world. For example, _v_ means no Vendor awareness
 and _V_ means the Vendor is aware. The complete set of status labels is
-shown in the table at left.
+shown in the table below.
+
+{% include-markdown "cs_substates_table.md" %}
 
 ### The _Vendor Awareness_ Substate (_v_, _V_)
 
 The *Vendor Awareness* substate corresponds to *Disclosure* in the
 Arbaugh, Fithen, and McHugh article, "Windows of Vulnerability: A Case
-Study analysis" [@arbaugh2000windows] and *vulnerability discovered by
+Study analysis" {== [@arbaugh2000windows] ==} and *vulnerability discovered by
 Vendor* in Bilge and Dumitraş's article, "Before we knew it: an
 empirical study of zero-day attacks in the real
-world" [@bilge2012before]. In the interest of model simplicity, we are
+world" {== [@bilge2012before] ==}.
+In the interest of model simplicity, we are
 not concerned with *how* the Vendor finds out about the vulnerability's
 existence&mdash;whether it was found via internal testing, reported within a
 CVD process, or noticed as the result of incident or malware analysis.
@@ -51,13 +52,33 @@ stateDiagram-v2
     v --> V : vendor becomes aware
 ```
 
+!!! tip inline end "CS Model Design Choices"
+
+    We chose to include the *Fix Ready*, *Fix Deployed*, and *Public Awareness* events so that our model could better 
+    accommodate two common modes of modern software deployment:
+
+    -   *shrinkwrap* is a traditional distribution mode where the Vendor and
+        Deployer are distinct entities, and Deployers must be made aware of
+        the fix before it can be deployed. In this case, both *Fix Ready*
+        and *Public Awareness* are necessary for *Fix Deployment* to occur.
+    -   *SAAS* is a more recent delivery mode where the Vendor also plays the role of 
+      Deployer. In this distribution mode, *Fix Ready* can lead directly
+      to *Fix Deployed* with no dependency on *Public Awareness*.
+
+    We note that so-called *silent fixes* by Vendors can sometimes result in
+    a fix being deployed without public awareness even if the Vendor is not
+    the Deployer. Thus, it is possible (but unlikely) for *Fix Deployed* to
+    occur before *Public Awareness* even in the shrinkwrap mode above. It is
+    also possible, and somewhat more likely, for *Public Awareness* to occur
+    before *Fix Deployed* in the SAAS mode as well.
+
 ### The _Fix Readiness_ Substate (_f_, _F_)
  
 The *Fix Readiness* substate refers to the Vendor's creation and
 possession of a fix that *could* be deployed to a vulnerable system *if*
 the system owner knew of its existence. Here we differ somewhat from
 previous
-models [@arbaugh2000windows; @frei2010modeling; @bilge2012before]; their
+models {== [@arbaugh2000windows; @frei2010modeling; @bilge2012before]; ==} their
 models address the *release* of the fix rather than its *readiness* for
 release. This distinction is necessary because we are interested in
 modeling the activities and states leading up to disclosure. Fix
@@ -75,8 +96,7 @@ stateDiagram-v2
 ### The _Fix Deployed_ Substate (_d_, _D_) 
 
 The *Fix Deployed* substate reflects the deployment status of an
-existing fix. The model in the Householder and Spring 2021 report
-[@householder2021state] was initially designed to treat this substate as
+existing fix. The model in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) was initially designed to treat this substate as
 a singular binary state for a case, but we intend to relax that here to
 reflect a more realistic perspective in which each Deployer maintains
 their own instance of this state value. It remains a binary state for
@@ -94,11 +114,11 @@ stateDiagram-v2
 ### The _Public Awareness_ Substate (_p_, _P_) 
 
 The *Public Awareness* substate corresponds to *Publication* in the
-Arbaugh, Fithen, and McHugh article  [@arbaugh2000windows], *time of
+Arbaugh, Fithen, and McHugh article  {== [@arbaugh2000windows], ==} *time of
 public disclosure* in Frei et al.'s article Modeling the Security
-Ecosystem&mdash;The Dynamics of (In)Security  [@frei2010modeling]; and
+Ecosystem&mdash;The Dynamics of (In)Security  {== [@frei2010modeling]; ==} and
 *vulnerability disclosed publicly* in Bilge and Dumitraş's article
- [@bilge2012before]. The public might find out about a vulnerability
+ {== [@bilge2012before]. ==} The public might find out about a vulnerability
 through the Vendor's announcement of a fix, a news report about a
 security breach, a conference presentation by a researcher, or a variety
 of other means. As above, we are primarily concerned with the occurrence
@@ -147,27 +167,4 @@ stateDiagram-v2
     A : Attacks Observed (A)
     a --> A : attacks are observed
 ```
-
-### CS Model Design Choices
-
-We chose to include the *Fix Ready*, *Fix Deployed*, and *Public
-Awareness* events so that our model could better accommodate two common
-modes of modern software deployment:
-
--   *shrinkwrap* is a traditional distribution mode where the Vendor and
-    Deployer are distinct entities, and Deployers must be made aware of
-    the fix before it can be deployed. In this case, both *Fix Ready*
-    and *Public Awareness* are necessary for *Fix Deployment* to occur.
-
--   *SAAS* is a
-    more recent delivery mode where the Vendor also plays the role of
-    Deployer. In this distribution mode, *Fix Ready* can lead directly
-    to *Fix Deployed* with no dependency on *Public Awareness*.
-
-We note that so-called *silent fixes* by Vendors can sometimes result in
-a fix being deployed without public awareness even if the Vendor is not
-the Deployer. Thus, it is possible (but unlikely) for *Fix Deployed* to
-occur before *Public Awareness* even in the shrinkwrap mode above. It is
-also possible, and somewhat more likely, for *Public Awareness* to occur
-before *Fix Deployed* in the SAAS mode as well.
 

@@ -116,7 +116,7 @@ second sense, we address the term *protocol* in these ways:
     decades of accumulated experience and observation of the
     CVD process at the CERT/CC.
 
--   The [Case State model](../process_models/cs/index.md) from {== the Householder and Spring 2021 report [@householder2021state] ==}
+-   The [Case State model](../process_models/cs/index.md) from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
     offers a *prescriptive* protocol outlining the high-level goals of the CVD process, as derived from a first-principles approach to possible
     CVD case histories.
 

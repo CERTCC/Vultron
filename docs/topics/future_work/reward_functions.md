@@ -3,9 +3,9 @@
 Further optimization of the MPCVD protocol can be studied with the
 development of reward functions to evaluate preferences for certain
 CVD case histories
-over others. {== Householder and Spring [@householder2021state] ==} provide a
-method to measure skill (${\alpha}_d$) in CVD based on a partial order over the
-CVD success criteria that make up the CS process, as outlined in
+over others.
+In [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513),
+we provided a method to measure skill (${\alpha}_d$) in CVD based on a partial order over the CVD success criteria that make up the CS process, as outlined in
 [Defining CVD Success](../topics/background/cvd_success.md).
 While not yet a fully-realized reward function, we feel that the ${\alpha}_d$ skill measure has potential as the basis
 of a reward function for the CS model.

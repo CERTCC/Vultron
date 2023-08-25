@@ -1,8 +1,8 @@
 # Modeling and Simulation
 
 The [protocol formalisms](../../reference/formal_protocol/index.md) and [Behavior Trees](../behavior_logic/index.md)
-provided in this documentation combined with the CS model described in
-the {== Householder and Spring 2021 report [@householder2021state] ==}
+provided in this documentation combined with the [CS model](../process_models/cs/index.md) described in 
+[A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
 point the way toward improvements in MPCVD modeling and simulation.
 Given the complexity of the protocol state interactions described in
 the [formal protocol](../../reference/formal_protocol/index.md) 

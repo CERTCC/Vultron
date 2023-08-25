@@ -272,8 +272,7 @@ Vendors with the ability to deploy fixes themselves have access to three states 
 However, this is not always the case.
 Vendor Participants without a deployment capability can only create fixes, limiting them to the middle two states in 
 the fix path: $\{Vfd,~VFd\}$.
-Additional discussion of the distinction between Vendors with and without a deployment capability can be found in the
-{== Householder and Spring 2021 report [@householder2021state] ==}.
+Additional discussion of the distinction between Vendors with and without a deployment capability can be found in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
 
 We apply these caveats to the generic model above to arrive at a Vendor state shown below.
 

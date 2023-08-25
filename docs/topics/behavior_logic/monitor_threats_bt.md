@@ -62,5 +62,4 @@ course of performing their CVD practice.
 
 See also: [Terminate Embargo Behavior Tree](em_terminate_bt.md)
 
-[^1]: Corresponding to a Type 3 Zero Day Exploit as defined in {== §6.5.1 of
-    [@householder2021state] ==}
+[^1]: Corresponding to a Type 3 Zero Day Exploit as defined in §6.5.1 of [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)

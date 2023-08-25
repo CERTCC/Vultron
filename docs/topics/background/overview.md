@@ -11,7 +11,7 @@ We propose three main DFAs as the core of our Vultron protocol:
 1.  A [Report Management](../process_models/rm/index.md) DFA represents each CVD Participant's engagement with a particular report
 2.  An [Embargo Management](../process_models/em/index.md) DFA negotiates and establishes the timing of future disclosures and publications
 3.  A [Case State](../process_models/cs/index.md) DFA tracks the events in {== Table [\[tab:cs_transitions\]](#tab:cs_transitions){reference-type="ref"
-    reference="tab:cs_transitions"} ==}, as originally described in the {== Householder and Spring 2021 report [@householder2021state] ==}.
+    reference="tab:cs_transitions"} ==}, as originally described in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
 
 [Model Interactions](../process_models/model_interactions/index.md) contains a discussion of the interactions
 among these three state machine models.

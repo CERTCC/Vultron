@@ -44,8 +44,7 @@ Our proposal is built on three primary processes, each modeled as
 
 3.  the [CS]{acronym-label="CS" acronym-form="singular+short"} process
     model in §[\[sec:model\]](#sec:model){reference-type="ref"
-    reference="sec:model"}, as originally described by Householder and
-    Spring {== [@householder2021state] ==}
+    reference="sec:model"}, as originally described in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
 
 We discussed the interactions between these three
 [DFAs]{acronym-label="DFA" acronym-form="plural+short"} in
