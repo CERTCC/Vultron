@@ -8,6 +8,8 @@ definition followed by a step-by-step walkthrough of each of those requirements
 as they relate to the [RM](../../topics/process_models/rm/index.md), [EM](../../topics/process_models/em/index.md), and [CS](../../topics/process_models/cs/index.md)
 models described elsewhere.
 
+{% include-markdown "../../includes/do_not_start_here.md" %}
+
 ## Communication Protocol Definitions {#sec:protocol_definition}
 
 A communication protocol allows independent processes, represented as finite state machines, to coordinate their state 

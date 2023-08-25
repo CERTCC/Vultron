@@ -2,7 +2,7 @@
 
 {% include-markdown "../includes/not_normative.md" %}
 
-In the context of the Vultron protocol, once a report has been validated
+In the context of the Vultron Protocol, once a report has been validated
 (i.e., it is in the RM [_Valid_](../topics/process_models/rm/index.md#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to 
 determine what further effort, if any, is necessary. 
 While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://github.com/CERTCC/SSVC) model.
@@ -97,7 +97,7 @@ However, a number of its decision points *do* touch on the protocol models, whic
 
 Additional connections between the protocol and the SSVC decision trees are possible.
 We now examine how individual SSVC tree decision points can inform or be informed by Participant states in the
-Vultron protocol.
+Vultron Protocol.
 
 ### Exploitation
 

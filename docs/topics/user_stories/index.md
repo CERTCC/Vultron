@@ -2,7 +2,7 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-The Vultron protocol is designed to support a variety of use cases.
+The Vultron Protocol is designed to support a variety of use cases.
 The following user stories are intended to capture the requirements of these use cases.
 While the protocol is designed to support these use cases, it is not required that all use cases be supported by the
 protocol.
@@ -29,13 +29,13 @@ Where appropriate, we intend to provide a reference implementation for each appl
 
 
 Each story page indicates a categorization according to the level of support provided
-by the originally published Vultron protocol (version 0.4.0):
+by the originally published Vultron Protocol (version 0.4.0):
 
 
-- _Provided_ - Stories in this category are directly supported by the Vultron protocol v0.4.0.
-- _Allowed_ - Stories in this category are indirectly supported by the Vultron protocol v0.4.0.
-- _Unsupported_ - Stories in this category are not supported by the Vultron protocol v0.4.0.
-- _Out-of-scope_ - Stories in this category are out of scope for the Vultron protocol v0.4.0.
+- _Provided_ - Stories in this category are directly supported by the Vultron Protocol v0.4.0.
+- _Allowed_ - Stories in this category are indirectly supported by the Vultron Protocol v0.4.0.
+- _Unsupported_ - Stories in this category are not supported by the Vultron Protocol v0.4.0.
+- _Out-of-scope_ - Stories in this category are out of scope for the Vultron Protocol v0.4.0.
 
 In the future, we expect these categories will change toward simply _Supported_, _Unsupported_ and _Out-of-scope_.
 We also anticipate that as we learn more about ActivityPub and make progress on the protocol development, some of

@@ -1,13 +1,13 @@
-# Vultron Version Numbering Scheme
+# Vultron Protocol Version Numbering Scheme
 
 !!! note inline end "Implementations may have their own versioning scheme"
 
-    The versioning scheme described here applies only to the Vultron protocol itself.
-    Implementations of the Vultron protocol may have their own versioning schemes.
+    The versioning scheme described here applies only to the Vultron Protocol itself.
+    Implementations of the Vultron Protocol may have their own versioning schemes.
 
 While we have not yet mapped out a future release schedule, in
 anticipation of future revisions, we have chosen a semantic versioning
-scheme for the Vultron protocol. Specifically, Vultron protocol versions will be
+scheme for the Vultron Protocol. Specifically, Vultron Protocol versions will be
 assigned according to the format `MAJOR.MINOR.MICRO`, where
 
 -   `MAJOR` represents the zero-indexed major version for the release.

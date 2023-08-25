@@ -63,7 +63,7 @@ an interoperable MPCVD world, the assumption of centralized identity management 
 ## Encryption
 
 The protocol does not specify any encryption requirements, but it is likely that some form of encryption will be
-necessary for Vultron implementations.
+necessary for Vultron Protocol implementations.
 
 ### Protecting Data in Transit
 

@@ -6,7 +6,7 @@ MPCVD is comprised of independent Participants performing their own CVD-related 
 
 Those processes can be represented by Finte State Machines (FSMs), specifically as Deterministic Finite Automata (DFAs).
 CVD processes (and the DFAs representing them/index.md) can be decomposed hierarchically. 
-We propose three main DFAs as the core of our Vultron protocol:
+We propose three main DFAs as the core of our Vultron Protocol:
 
 1.  A [Report Management](../process_models/rm/index.md) DFA represents each CVD Participant's engagement with a particular report
 2.  An [Embargo Management](../process_models/em/index.md) DFA negotiates and establishes the timing of future disclosures and publications
@@ -67,7 +67,7 @@ Reference material includes
   protocol with ISO/IEC 29147:2018 *Vulnerability Disclosure*, ISO/IEC
   30111:2019 *Vulnerability Handling Processes*, and ISO/IEC TR 5895:2022
   *Multi-party coordinated vulnerability disclosure and handling*.
-- an [SSVC Crosswalk](../../reference/ssvc_crosswalk.md) provides a mapping between the Vultron protocol
+- an [SSVC Crosswalk](../../reference/ssvc_crosswalk.md) provides a mapping between the Vultron Protocol
   and relevant portions of the [Stakeholder Specific Vulnerability Categorization](https://github.com/CERTCC/SSVC)
   ([SSVC](https://github.com/CERTCC/SSVC)), a vulnerability response prioritization 
   model also developed by the CERT/CC

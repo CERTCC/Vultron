@@ -4,11 +4,11 @@
 
     The [Implementing Vultron](index.md) section assumes that you have:
     
-    - an interest in implementing the Vultron protocol
-    - basic familiarity with the Vultron protocol
+    - an interest in implementing the Vultron Protocol
+    - basic familiarity with the Vultron Protocol
     - familiarity with the CVD process in general
 
-    If you are unfamiliar with the Vultron protocol, we recommend that you start with [Understanding Vultron](../topics/index.md).
+    If you are unfamiliar with the Vultron Protocol, we recommend that you start with [Understanding Vultron](../topics/index.md).
     For technical reference, see [Reference](../reference/index.md).
     If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://vuls.cert.org/confluence/display/CVD/).
 
@@ -32,7 +32,7 @@ Over time, we plan to expand this section of the documentation to include:
 - Communication protocol implementation examples
 - Other implementation notes as needed
 
-!!! info "Vultron is an interoperability protocol"
+!!! info "The Vultron Protocol is an interoperability protocol"
 
     The protocol and data structures outlined in this documentation are intended to facilitate interoperability among individual 
     organizations' workflow management systems.

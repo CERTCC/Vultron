@@ -1,4 +1,4 @@
-# Vultron Coordinated Vulnerability Disclosure Protocol
+# The Vultron Coordinated Vulnerability Disclosure Protocol
 
 !!! warning inline end "Work in progress"
 
@@ -10,14 +10,14 @@
     - [Implementing Vultron](howto/index.md), which provides guidance for potential implementations of Vultron
     - [Reference](reference/formal_protocol/index.md), which provides the formal protocol specification
 
-Vultron is a research project to explore the creation of a federated, decentralized, and open source protocol for 
+The Vultron Protocol is a research project to explore the creation of a federated, decentralized, and open source protocol for 
 coordinated vulnerability disclosure (CVD).
 It has grown out of the CERT/CC's decades of experience in coordinating global response to software vulnerabilities.
 Our goal is to create a protocol that can be used by any organization to coordinate the disclosure of vulnerabilities in
 information processing systems (software, hardware, services, etc.), and to build a community of interoperability across
 independent organizations, processes, and policies that can work together to coordinate appropriate responses to vulnerabilities.
 
-Vultron is a collection of ideas, models, code, and work in progress, and is not yet ready for production use.
+The Vultron Protocol is a collection of ideas, models, code, and work in progress, and is not yet ready for production use.
 
 
 ## How this documentation is organized
@@ -26,14 +26,14 @@ Vultron is a collection of ideas, models, code, and work in progress, and is not
 !!! tip inline "Learning About Vultron"
 
     The [Learning Vultron](tutorials/index.md) section is intended to eventually include tutorials and other 
-    information about Vultron that is oriented towards novice users and getting started with the protocol.
+    information about the Vultron Protocol that is oriented towards novice users and getting started with the protocol.
     However, because we are still in the early stages of the project, this section is just a placeholder for now.
 
 !!! abstract inline end "Understanding Vultron"
 
     The [Understanding Vultron](topics/background/index.md) section includes background information about Vultron,
     including the motivation for the project, the problem space that we are trying to address, and the design principles
-    that we are using to guide our work. It also includes a detailed description of the Vultron protocol, including
+    that we are using to guide our work. It also includes a detailed description of the Vultron Protocol, including
     the state machines and behavior logic that we use to model the behavior of the protocol.
 
 !!! question inline  "Using Vultron"
@@ -42,15 +42,15 @@ Vultron is a collection of ideas, models, code, and work in progress, and is not
     In the future, we plan to include how-to guides to help you use Vultron, but for now it is focused on guidance for
     potential implementers of Vultron.
 
-!!! info inline end "Vultron Reference"
+!!! info inline end "Vultron Protocol Reference"
 
-    The [Reference](reference/index.md) section includes the formal Vultron protocol specification, crosswalks the 
+    The [Reference](reference/index.md) section includes the formal Vultron Protocol specification, crosswalks the 
     protocol with other related standards and protocols, etc.
     In the future, we plan to include other reference information about Vultron, including code documentation.
 
 We are in the process of documenting the Vultron CVD Protocol as we work towards a prototype implementation.
 We are using the [Diátaxis Framework](https://diataxis.fr/) to organize our documentation into four main categories,
-oriented around the different ways that people might need to learn about and use the Vultron protocol.
+oriented around the different ways that people might need to learn about and use the Vultron Protocol.
 
 Our current focus is on the [Understanding Vultron](topics/background/index.md) section, which describes the protocol
 in detail. 
@@ -58,7 +58,7 @@ in detail.
 
 ## Background
 
-Vultron is a continuation of the CERT/CC's work on improving the coordination of vulnerability disclosure and response.
+The Vultron Protocol is a continuation of the CERT/CC's work on improving the coordination of vulnerability disclosure and response.
 Our previous work in this area includes:
 
 - [The CERT Guide to Coordinated Vulnerability Disclosure](https://vuls.cert.org/confluence/display/CVD)

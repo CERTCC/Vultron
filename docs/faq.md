@@ -1,6 +1,6 @@
-# Vultron Frequently Asked Questions
+# Vultron Protocol Frequently Asked Questions
 
-## What do we need to move Vultron to widespread use?
+## What do we need to move the Vultron Protocol to widespread use?
 
 First, we need to finish the protocol and get it to a sufficiently stable state that we can start to use it even in 
 test environments.  We're not there yet.
@@ -11,13 +11,13 @@ In the meantime, there are a number of other things that can help. We're looking
 ## How do we apply encryption to ActivityPub messages to enable end-to-end encryption?
 
 We're of the opinion that encrypted messaging is a feature that should be available to all users of
-ActivityPub, not just those using Vultron to coordinate vulnerability cases.
+ActivityPub, not just those using the Vultron Protocol to coordinate vulnerability cases.
 Therefore, our position is that end-to-end encryption would be better implemented as a layer on top of the ActivityPub
 protocol, rather
-than as a specific feature of the Vultron protocol.
+than as a specific feature of the Vultron Protocol.
 From what we can tell, the topic has come up before in the ActivityPub community, but there is no
 standardized solution yet.
-We're currently focused on developing the Vultron protocol, but we realize that encryption may be a requirement for
+We're currently focused on developing the Vultron Protocol, but we realize that encryption may be a requirement for
 widespread adoption, so we're keeping an eye on the topic.
 
 Some relevant links include:

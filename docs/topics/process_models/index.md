@@ -23,7 +23,7 @@ each running these processes in parallel and interacting with each other.
 
 ```mermaid
 ---
-title: Vultron Agents Interacting
+title: Vultron Protocol Agents Interacting
 ---
 graph LR
     subgraph Agent2

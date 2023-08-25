@@ -1,6 +1,6 @@
 # Notation
 
-Defining the Vultron protocol involves a lot of notation.
+Defining the Vultron Protocol involves a lot of notation.
 This page provides a reference for the notation used throughout the documentation.
 
 ## Mathematical Notation
