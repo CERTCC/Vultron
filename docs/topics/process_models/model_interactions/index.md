@@ -3,7 +3,7 @@
 {% include-markdown "../../../includes/normative.md" %}
 
 Here we reflect on the interactions between the [RM](../rm/), [EM](../em/index.md), and [CS](../cs/index.md) models within the
-overall MPCVD process.
+overall Vultron process.
 
 ## Participant-Agnostic vs Participant-Specific Aspects
 
@@ -14,12 +14,14 @@ overall MPCVD process.
     Here, we carry a similar distinction into the CVD process.
     Some facts about a case are participant-specific, while others are global to the case, or participant-agnostic.
 
-Some aspects of the MPCVD process are Participant-agnostic (i.e., they represent a global state of the case),
+Some aspects of the Vultron process are Participant-agnostic (i.e., they represent a global state of the case),
 while others are specific to a Participant.
 Specifically, the [RM](../rm/) process is unique to each Participant, while the
 [EM](../em/index.md) process is global to all Participants in a case.
 The [CS](../cs/index.md) process is a hybrid: some aspects are Participant-agnostic, while others are
 Participant-specific, which we will discuss in more detail below.
+
+
 Interactions between all these processes affect the overall MPCVD process for a case. 
 The following diagram illustrates this distinction.
 
@@ -57,4 +59,25 @@ important in the [Formal Protocol](../../formal_protocol/index.md) definition.
 
 {% include-markdown "cs_global_local.md" %}
 
+## Summary
+
+!!! note "Participant-Agnostic Aspects"
+
+    Participant-agnostic aspects of the MPCVD process are those that represent facts about the world with respect to a 
+    case.
+    
+!!! example "Participant-Agnostic Examples"
+
+    - The [Embargo Management](../em/index.md) process is global to all Participants in a case
+    - As is the Public State portion of the [Case State](../cs/index.md) process
+
+!!! note "Participant-Specific Aspects"
+
+    Participant-specific aspects of the MPCVD process are those that represent facts about a Participant's
+    internal state with respect to a case.
+
+!!! example "Participant-Specific Examples"
+
+    - The [Report Management](../rm/) process is unique to each Participant.
+    - So is the Vendor Fix Path portion of the [Case State](../cs/index.md) process.
 

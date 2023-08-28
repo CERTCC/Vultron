@@ -17,17 +17,17 @@ title: Embargo Management Behavior Tree
 flowchart LR
     fb[?]
     rm_s_or_c(["RM S or C?"])
-    fb --> rm_s_or_c
+    fb -->|A| rm_s_or_c
     em_x(["EM X?"])
-    fb --> em_x
+    fb -->|B| em_x
     seq1["&rarr;"]
-    fb --> seq1
+    fb -->|C| seq1
     cs_not_pxa(["CS not in pxa?"])
     seq1 --> cs_not_pxa
     em_none(["EM N?"])
     seq1 --> em_none
     n_seq["&rarr;"]
-    fb --> n_seq
+    fb -->|D| n_seq
     n_em_none(["EM N?"])
     n_seq --> n_em_none
     n_fb[?]
@@ -37,7 +37,7 @@ flowchart LR
     n_propose(["propose"])
     n_fb --> n_propose
     p_seq["&rarr;"]
-    fb --> p_seq
+    fb -->|E| p_seq
     p_em_prop(["EM P?"])
     p_seq --> p_em_prop
     p_fb[?]
@@ -53,7 +53,7 @@ flowchart LR
     p_em_to_n["EM P &rarr; N<br/>(emit ER)"]
     p_fb_seq --> p_em_to_n
     a_seq["&rarr;"]
-    fb --> a_seq
+    fb -->|F| a_seq
     a_em_a(["EM A?"])
     a_seq --> a_em_a
     a_fb[?]
@@ -65,7 +65,7 @@ flowchart LR
     a_propose["propose"]
     a_fb --> a_propose
     r_seq["&rarr;"]
-    fb --> r_seq
+    fb -->|G| r_seq
     r_em_r(["EM R?"])
     r_seq --> r_em_r
     r_fb[?]
@@ -82,12 +82,15 @@ flowchart LR
     r_fb_seq --> r_em_to_a
 ```
 
-The tree starts with a check to see whether no report has arrived or
+(A) The tree starts with a check to see whether no report has arrived or
 whether the report has already *Closed* ($q^{rm} \in \{S{,}C\}$). If
 either of these conditions is met, no further effort is needed, and the
-tree succeeds. Next, the tree checks whether the embargo has already
+tree succeeds.
+
+(B) Next, the tree checks whether the embargo has already
 *eXited* ($q^{em} \in X$). If it has, that leads the tree to succeed.
-Failing that, the treat checks to see if the case has moved outside the
+
+(C) Failing that, the treat checks to see if the case has moved outside the
 "habitable zone" for embargoes. The ${q^{cs}\not\in\cdot\cdot\cdot pxa}$
 condition is true when attacks have been observed, an exploit has been
 made public, or information about the vulnerability has been made
@@ -104,12 +107,13 @@ terminates, consistent with
     - [Evaluate Embargo Behavior](em_eval_bt.md)
 
 Otherwise, we continue through each remaining EM state. 
-When there is no embargo and there are no outstanding proposals ($q^{em} \in N$), the only options are to
+
+(D) When there is no embargo and there are no outstanding proposals ($q^{em} \in N$), the only options are to
 either stop trying or [propose](em_propose_bt.md) a new embargo.
 The decision to stop trying to achieve an embargo is left to individual Participants, although we did provide some relevant guidance in
 [Negotiating Embargoes](../process_models/em/negotiating.md).
 
-When there is an outstanding embargo proposal ($q^{em} \in P$), we first attempt the [terminate](em_terminate_bt.md) task.
+(E) When there is an outstanding embargo proposal ($q^{em} \in P$), we first attempt the [terminate](em_terminate_bt.md) task.
 This task returns *Success* if there is a reason for ${q^{em} \in P \xrightarrow{r} N}$.
 
 At this point, if there is no reason to [terminate](em_terminate_bt.md),
@@ -119,11 +123,11 @@ The evaluate task returns *Success* if either the proposal is accepted or a coun
 Assuming neither of these succeeds, we proceed to reject the proposal, returning to
 $q^{em} \in N$ and emitting a corresponding $ER$ message.
 
-The process within the *Active* ($q^{em} \in A$) state is similarly straightforward.
+(F) The process within the *Active* ($q^{em} \in A$) state is similarly straightforward.
 If there is reason to [terminate](em_terminate_bt.md) the embargo, do so.
 Otherwise, either the current embargo terms are acceptable, or a new embargo should be proposed.
 
-Finally, we handle the *Revise* EM state ($q^{em} \in R$).
+(G) Finally, we handle the *Revise* EM state ($q^{em} \in R$).
 The structure of this branch mirrors that of the *Proposed* state discussed above.
 Again, we check to see if there is cause to [terminate](em_terminate_bt.md) doing so, if needed.
 If termination is not indicated, we proceed once again to [evaluate the proposed revision](em_eval_bt.md), either accepting

@@ -1,4 +1,4 @@
-## Vulnerability Discovery Behavior {#sec:receive_reports_bt}
+# Vulnerability Discovery Behavior
 
 CVD is built on the idea that vulnerabilities exist to be found. There are two ways for a CVD Participant to
 find out about a vulnerability. Either they discover it themselves, or they hear about it from someone else.
@@ -12,11 +12,11 @@ title: Discover Vulnerability Behavior Tree
 flowchart LR
     fallback[?]
     rm_not_s([RM not in S])
-    fallback --> rm_not_s
+    fallback -->|A| rm_not_s
     seq["&rarr;"]
-    fallback --> seq
+    fallback -->|B| seq
     no_vul(["no vulnerability found"])
-    fallback --> no_vul
+    fallback -->|C| no_vul
     capability([discovery capability])
     seq --> capability
     priority([discovery priority])
@@ -36,26 +36,18 @@ flowchart LR
 
 The goal of the Discover Vulnerability Behavior is for the Participant
 to end up outside of the *Start* state of the Report Management process
-($q^{rm} \not \in S$). Assuming this has not already occurred, the
-discovery sequence is followed. If the Participant has both the means
-and the motive to find a vulnerability, they might discover it
-themselves. Should this succeed, the branch sets
-$q^{rm} \in S \xrightarrow{r} R$ and returns *Success*. We also show a
-report submission ($RS$) message being emitted as a reminder that even
-internally discovered vulnerabilities can trigger the
-CVD
-process&mdash;although, at the point of discovery, the Finder is the only
-Participant, so the $RS$ message in this situation might be an internal
-message within the Finder organization (at most).
+($q^{rm} \not \in S$, branch A).
 
-Should no discovery occur, the branch returns *Success* so that the
-parent process in [CVD Behavior Tree](cvd_bt.md) 
-can proceed to receive messages from others.
-Because of the amount of detail necessary to describe the *receive
-messages* behavior, we defer it to
-[Receive Messages](msg_intro_bt.md).
-Before we proceed, it is sufficient to know that a new report arriving in the *receive messages* behavior sets
-$q^{rm} \in S \xrightarrow{r} R$ and returns *Success*.
+Assuming this has not already occurred, the discovery sequence (branch B) is followed.
+If the Participant has both the means and the motive to find a vulnerability, they might discover it
+themselves.
+Should this succeed, the branch sets $q^{rm} \in S \xrightarrow{r} R$ and returns *Success*.
+We also show a report submission ($RS$) message being emitted as a reminder that even internally discovered
+vulnerabilities can trigger the CVD process&mdash;although, at the point of discovery, the Finder is the only
+Participant, so the $RS$ message in this situation might be an internal message within the Finder organization (at most).
+
+Should no discovery occur (branch C), the branch returns *Success* so that the parent process in
+[CVD Behavior Tree](cvd_bt.md) can proceed to receive messages from others.
 
 
 

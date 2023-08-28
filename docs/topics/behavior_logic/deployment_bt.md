@@ -1,7 +1,7 @@
 # Deployment Behavior {#sec:deployment_bt}
 
 The Deployment Behavior Tree is shown in the figure below.
-The goal of this behavior is either for the case to reach the $q^{cs} \in D$ state or for the Participant to be
+The goal of this behavior is either for (A) the case to reach the $q^{cs} \in D$ state or (B) for the Participant to be
 comfortable with remaining in a *Deferred* deployment state.
 
 ```mermaid
@@ -10,20 +10,20 @@ title: Deployment Behavior Tree
 ---
 flowchart LR
     fb["?"]
-    cs_d(["CS in D?"])
-    fb --> cs_d
+    cs_d(["$CS in D?"])
+    fb -->|A| cs_d
     rm_d_seq["&rarr;"]
-    fb --> rm_d_seq
+    fb -->|B| rm_d_seq
     rm_d(["RM in D"])
     rm_d_seq --> rm_d
     rm_d_no_new_info([no new info?])
     rm_d_seq --> rm_d_no_new_info
     dep_seq["&rarr;"]
-    fb --> dep_seq
+    fb -->|C| dep_seq
     role_is_deployer(["role is deployer?"])
-    dep_seq --> role_is_deployer
+    dep_seq -->|C1| role_is_deployer
     dep_fb["?"]
-    dep_seq --> dep_fb
+    dep_seq -->|C2| dep_fb
     rm_in_d_or_a(["RM in D or A?"])
     dep_fb --> rm_in_d_or_a
     da_seq["&rarr;"]
@@ -37,7 +37,7 @@ flowchart LR
     da_rm_to_d["RM &rarr; D<br/>(emit RD)"]
     dep_fb --> da_rm_to_d
     dep_fb2["?"]
-    dep_seq --> dep_fb2
+    dep_seq -->|C3| dep_fb2
     df2_rm_d(["RM in D?"])
     dep_fb2 --> df2_rm_d
     df2_cs_VFD(["CS in VFD...?"])
@@ -65,18 +65,17 @@ flowchart LR
     m_deploy_mit(["deploy mitigation"])
     mseq --> m_deploy_mit
     mon_seq["&rarr;"]
-    fb --> mon_seq
+    fb -->|D| mon_seq
     mon_req(["monitoring required?"])
     mon_seq --> mon_req
     mon["monitor deployment"]
     mon_seq --> mon
-    
-    
 ```
 
-Assuming neither of these conditions has been met, the main deployment sequence falls to the Deployer role.
+Assuming neither of these conditions has been met, the main deployment sequence (C) falls to the Deployer role (C1).
 It consists of two subprocesses: prioritize deployment and deploy.
-The prioritize deployment behavior is shown in the fallback node in the center of the diagram.
+
+The prioritize deployment behavior is shown in (C2) the fallback node in the center of the diagram.
 The subgoal is for the deployment priority to be established, as indicated by the Deployer's RM state $q^{rm} \in \{D,A\}$.
 For example, a Deployer might use the [SSVC Deployer Tree](https://github.com/CERTCC/SSVC) to decide whether (and when) 
 to deploy a fix or mitigation.
@@ -89,7 +88,7 @@ If the deployment priority evaluation indicates further action is needed,
 Otherwise, when the deployment is *Deferred*, it results in a transition to state $q^{rm} \in D$ and
 emission of an $RD$ message.
 
-The deploy behavior is shown in the second fallback node of the center sequence.
+(C3) The deploy behavior is shown in the second fallback node of the center sequence (C).
 It short-circuits to *Success* if either the deployment is *Deferred* or has already occurred.
 The main sequence can fire in two cases:
 
@@ -103,9 +102,9 @@ Assuming either of these conditions is met,
 - the deploy fix task can run, 
 - the case status is updated to $q^{cs} \in D$, and 
 - $CD$ emits on *Success*
- 
+
 Should the deployment sequence fail for any reason, a fallback is possible if undeployed mitigations are available.
 
-Finally, returning to the top part of the tree, Participants might choose to monitor the deployment process should they 
+(D) Finally, returning to the top part of the tree, Participants might choose to monitor the deployment process should they 
 have the need to.
 

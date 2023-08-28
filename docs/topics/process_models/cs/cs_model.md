@@ -13,16 +13,25 @@ derived from [A State-Based Model for Multi-Party Coordinated Vulnerability Disc
 As in the [RM](../rm/index.md) and [EM](../em/index.md) process models, we wish to define a 5-tuple
 $(\mathcal{Q},\Sigma,\delta,q_0,F)$, this time for the CS model.
 
+!!! example inline "Example CS State"
+
+    The state $q^{cs} \in VFdpXa$ represents that:
+
+    - the Vendor is aware
+    - the fix is ready
+    - the fix is not deployed
+    - no public awareness
+    - an exploit is public
+    - no attacks have been observed
 
 In the CS model, a state $q^{cs}$ represents the status of each of the six [substates](index.md).
-State labels use the substate notation at left.
-For example, the state _VFdpXa_ represents Vendor is aware, fix is ready, fix not deployed, no public awareness, exploit
-is public, and no attacks.
+State labels use the substate notation given in the table below.
+
 The order in which the events occurred does not matter when defining the state.
 However, we will observe a notation convention keeping the letter names in the same case-insensitive order
 $(v,f,d,p,x,a)$.
 
-The Case State model builds upon the CVD substates defined in the [previous page](index.md), summarized
+The CS model builds upon the CVD substates defined in the [Case State introduction](index.md), summarized
 in the table below.
 
 <a name="cs-model-states-defined"></a>
@@ -119,11 +128,13 @@ The lone final state in which all events have occurred is _VFDPXA_.
     words, it remains possible for exploits to be published or attacks to be
     observed long after the [RM](../rm/index.md) process has closed a case.
 
-!!! info "CS Model Wildcard Notation"
+
+We frequently need to refer to subsets of $\mathcal{Q}^{cs}$. To do so,
+we will use a dot ($\cdot$) to represent a single character wildcard.
+
+!!! example "CS Model Wildcard Notation Example"
     
-    We frequently need to refer to subsets of $\mathcal{Q}^{cs}$. To do so,
-    we will use a dot ($\cdot$) to represent a single character wildcard.
-    For example, $VFdP\cdot\cdotrefers to the subset of $\mathcal{Q}^{cs}$ in
+    For example, $VFdP \cdot \cdot$ refers to the subset of $\mathcal{Q}^{cs}$ in
     which the Vendor is aware, a fix is ready but not yet deployed, and the
     public is aware of the vulnerability, yet we are indifferent to whether
     exploit code has been made public or attacks have been observed.
@@ -163,8 +174,9 @@ We define the set of symbols for our CS DFA as $\Sigma^{cs}$ at right.
 
 For the CS model, an input symbol $\sigma^{cs} \in \Sigma^{cs}$ is "read" when a Participant
 observes a change in status (a Vendor is notified and exploit code has
-been published, etc.). For the sake of simplicity, we begin with the
-assumption that observations are globally known---that is, a status
+been published, etc.).
+For the sake of simplicity, we begin with the
+assumption that observations are globally known&mdash;that is, a status
 change observed by any CVD Participant is known to all. In the real
 world, we believe the [Formal Vultron Protocol](../../../reference/formal_protocol/index.md)
 is poised to ensure eventual
@@ -251,13 +263,12 @@ public ($\cdot\cdot\cdot p \cdot A$) need not immediately cause public awareness
 Our reasoning for allowing states in $\cdot\cdot\cdot p \cdot A$ to persist is
 twofold:
 
--   First, the connection between attacks and exploited vulnerabilities
+1. The connection between attacks and exploited vulnerabilities
     is often made later during incident analysis. While the attack
     itself may have been observed much earlier, the knowledge of *which*
     vulnerability it targeted may be delayed until after other events
     have occurred.
-
--   Second, attackers are not a monolithic group. An attack from a niche
+2. Attackers are not a monolithic group. An attack from a niche
     set of threat actors does not automatically mean that the knowledge
     and capability of exploiting a particular vulnerability is widely
     available to all possible adversaries. Publication, in that case,
@@ -272,8 +283,8 @@ increases when attacks are occurring.
 
 ???+ note "Formalism"
 
-    The probability of public awareness given attacks observed is
-    greater than the probability of public awareness without attacks.
+    The probability $P$ of _public awareness_ given _attacks observed_ is
+    greater than the probability of _public awareness_ without _attacks observed_.
 
     $$
     P(\mathbf{P} \mid \cdot\cdot\cdot p \cdot A) > P(\mathbf{P} \mid \cdot\cdot\cdot p \cdot a)
@@ -303,7 +314,7 @@ right-linear grammar $\delta^{cs}$.
 
 ???+ note "CS Transition Function ($\delta^{cs}$) Defined"
 
-    $$  \delta^{cs} =
+    $\delta^{cs} =
         \begin{cases}
             vfdpxa &\to \mathbf{V}~Vfdpxa~|~\mathbf{P}~vfdPxa~|~\mathbf{X}~vfdpXa~|~\mathbf{A}~vfdpxA \\
             vfdpxA &\to \mathbf{V}~VfdpxA~|~\mathbf{P}~vfdPxA~|~\mathbf{X}~vfdpXA \\
@@ -337,7 +348,7 @@ right-linear grammar $\delta^{cs}$.
             VFDPxA &\to \mathbf{X}~VFDPXA \\
             VFDPXa &\to \mathbf{A}~VFDPXA \\
             VFDPXA &\to \varepsilon \\
-        \end{cases}$$
+        \end{cases}$
 
 !!! tip "For more information"
 
@@ -359,7 +370,7 @@ below.
 
 ???+ note "Case State Model $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ Fully Defined"
 
-    $$CS = 
+    $CS = 
         \begin{pmatrix}
                 \begin{aligned}
                         \mathcal{Q}^{cs} = & 
@@ -412,5 +423,4 @@ below.
             VFDPXA &\to \varepsilon \\
         \end{cases}
                 \end{aligned}
-        \end{pmatrix}$$
-
+        \end{pmatrix}$

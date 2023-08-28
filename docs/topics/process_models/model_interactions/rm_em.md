@@ -8,12 +8,13 @@ There are additional constraints on how the [RM](../rm/index.md) and [EM](../em/
 
 !!! note ""
 
-    The [EM](../em/index.md) process
-    MAY begin (i.e., the initial _propose_ transition
-    $q^{em} \in N \xrightarrow{p} P$) prior to the report being sent to
-    a potential Participant ($q^{rm} \in S$), for example, when a
-    Participant wishes to ensure acceptable embargo terms prior to
-    sharing a report with a potential recipient.
+    The [EM](../em/index.md) process MAY begin (i.e., the initial _propose_ transition $q^{em} \in N \xrightarrow{p} P$)
+    prior to the report being sent to a potential Participant ($q^{rm} \in S$)
+
+!!! question "Why Propose before Reporting?"
+
+    Beginning an embargo negotiation before providing a report can be useful in cases where a Participant wishes to
+    ensure acceptable embargo terms prior to sharing a report with a potential recipient.
 
 ```mermaid
 stateDiagram-v2
@@ -306,7 +307,12 @@ state RM {
 ```
     
 It is expected that Participants will continue to adhere to the embargo until it is explicitly terminated.
-However, Participants MAY choose to terminate their compliance with an embargo at any time.
+However, 
+
+!!! note ""
+
+    Participants MAY choose to terminate their compliance with an embargo at any time.
+
 While this is usually an undesirable development, it is important that it be clearly communicated to other Participants
 so that they can make informed decisions about the viability of the extant embargo.
 

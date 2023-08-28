@@ -92,7 +92,7 @@ stateDiagram-v2
 The Case State (CS) model is shown below.
 We have divided the CS model into two diagrams: one that is specific to a given Participant, and one that is agnostic
 to the Participant, reflecting changes experienced by all Participants.
-The CS model is the most complex of the tree, as it involves all Participants communicating with each other
+The CS model is the most complex of the three, as it involves all Participants communicating with each other
 about both their own state changes in the fix development and deployment process, as well as the state changes
 driven by outside events (e.g., public awareness, exploits in the wild, attacks observed, etc.).
 

@@ -11,7 +11,7 @@ In it we model two main aspects of the case:
 
 These processes run in parallel, and the CS model captures the interactions between them.
 <!-- end_excerpt -->
-A complete derivation of the CS model can be found in that report.
+A complete derivation of the CS model can be found in [that report](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
 Here, we are primarily interested in the final model, which comprises 32 states and their transitions.
 
 However, due to the size of the final CS model, we begin with some necessary
@@ -62,7 +62,7 @@ stateDiagram-v2
     v --> V : vendor becomes aware
 ```
 
-!!! tip inline end "CS Model Design Choices"
+!!! tip inline end "Software Delivery Models Affect Fix Readiness and Deployment Timing Relative to Public Awareness"
 
     We chose to include the *Fix Ready*, *Fix Deployed*, and *Public Awareness* events so that our model could better 
     accommodate two common modes of modern software deployment:

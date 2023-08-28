@@ -10,9 +10,9 @@ title: Terminate Embargo Behavior Tree
 flowchart LR
     fb[?]
     em_n_or_x(["EM N or X?"])
-    fb --> em_n_or_x
+    fb -->|A| em_n_or_x
     p_seq["&rarr;"]
-    fb --> p_seq
+    fb -->|B| p_seq
     em_p(["EM P?"])
     p_seq --> em_p
     p_fb[?]
@@ -24,7 +24,7 @@ flowchart LR
     p_em_to_n["EM P &rarr; N<br/>(emit ER)"]
     p_seq --> p_em_to_n
     ar_seq["&rarr;"]
-    fb --> ar_seq
+    fb -->|C| ar_seq
     em_a_or_r(["EM A or R?"])
     ar_seq --> em_a_or_r
     ar_fb[?]
@@ -41,25 +41,21 @@ flowchart LR
     ar_seq --> ar_em_to_x
 ```
 
-If the EM state is
-*None* or *eXited*, ($q^{em} \in \{N{,}X\}$), the tree succeeds
-immediately. The next node handles the scenario where no embargo has
-been established. The behavior descends into a sequence that checks
-whether we are in $Proposed$ ($q^{em} \in P$). If we are, we check to see
-if there is a reason to exit the embargo negotiation process. One such
-reason is that the case state is outside the embargo "habitable zone,"
-but there may be others that we leave unspecified. If any reason is
-found, then the proposal is rejected, the state returns to *None*, and
-an $ER$ message is sent.
+(A) If the EM state is *None* or *eXited*, ($q^{em} \in \{N{,}X\}$), the tree succeeds immediately.
 
-Should that branch fail, we still need to handle the situation where an
-embargo has already been established. Following a confirmation that we
-are in either *Active* or *Revise*, we again look for reasons to exit,
-this time adding the possibility of timer expiration to the conditions
-explicitly called out. Terminating an existing embargo might have some
-other teardown procedures to be completed, which we represent as the
-*exit embargo* task. Finally, the EM state is updated to *eXited* and an $ET$
-message is emitted.
+(B) The next node handles the scenario where no embargo has been established.
+The behavior descends into a sequence that checks whether we are in $Proposed$ ($q^{em} \in P$).
+If we are, we check to see if there is a reason to exit the embargo negotiation process.
+One such reason is that the case state is outside the embargo "habitable zone," but there may be others that we leave
+unspecified.
+If any reason is found, then the proposal is rejected, the state returns to *None*, and an $ER$ message is sent.
+
+(C) Should that branch fail, we still need to handle the situation where an embargo has already been established.
+Following a confirmation that we are in either *Active* or *Revise*, we again look for reasons to exit, this time
+adding the possibility of timer expiration to the conditions explicitly called out.
+Terminating an existing embargo might have some other teardown procedures to be completed, which we represent as the
+*exit embargo* task.
+Finally, the EM state is updated to *eXited* and an $ET$ message is emitted.
 
 !!! tip inline end "See also"
 

@@ -61,6 +61,8 @@ stateDiagram-v2
     AnyParticipant --> VendorParticipant: enables
 ```
 
+---
+
 Depending on which parties are involved in a CVD case, the [EM](../em/index.md) process might already be underway prior
 to Vendor notification (e.g., $q^{em} \in \{P,A,R\}$). For example, a
 Reporter and Coordinator might have already agreed to a disclosure
@@ -125,6 +127,9 @@ stateDiagram-v2
 Fix Readiness (**F**) can occur only when a Vendor is in the
 _Accepted_ state. As a reminder, in MPCVD cases, each affected Vendor has their own
 [RM](../rm/index.md) state, so this constraint applies to each Vendor individually.
+
+---
+
 With respect to [EM](../em/index.md), when the case state is $q^{cs} \in VF\cdot pxa$, it's usually too late to
 start a new embargo.
 
@@ -208,17 +213,18 @@ stateDiagram-v2
     RM --> CS: enables
 ```
 
-For vulnerabilities in systems where Public Awareness must precede
-Deployment ($\mathbf{P} \prec \mathbf{D}$), the Vendor status at the
-time of deployment might be irrelevant---assuming, of course, that they
-at least passed through $q^{rm} = Accepted$ at some point as is required
-for Fix Ready (**F**), which, in turn, is a prerequisite for
-deployment (**D**).
+For vulnerabilities in systems whose software delivery model dictates that Public Awareness must precede
+Deployment ($\mathbf{P} \prec \mathbf{D}$), the Vendor status at the time of deployment might be 
+irrelevant&mdash;assuming, of course, that they at least passed through $q^{rm} = Accepted$ at some point as is required
+for Fix Ready (**F**), which, in turn, is a prerequisite for deployment (**D**).
+
+---
+
+As regards [EM](../em/index.md),
 
 !!! note ""
 
-    As regards [EM](../em/index.md), by
-    the time a fix has been deployed ($q^{cs} \in VFD\cdot\cdot\cdot$),
+    By the time a fix has been deployed ($q^{cs} \in VFD\cdot\cdot\cdot$),
     
     -   New embargoes SHOULD NOT be sought.
     -   Any existing embargo SHOULD terminate.
@@ -273,6 +279,8 @@ That said, the publishing party might be outside of *any* existing
 coordination process. For example, this is the situation when a report
 is already in the midst of a CVD process and a party outside the
 CVD case reveals the vulnerability publicly (e.g., parallel discovery, embargo leaks).
+
+---
 
 As for [EM](../em/index.md), the whole point of an embargo is to prevent **P** from occurring until
 other objectives (e.g., $q^{cs} \in VF\cdot px \cdot$) have been met. Therefore,

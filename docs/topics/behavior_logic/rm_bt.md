@@ -13,14 +13,14 @@ title: Report Management Behavior Tree
 flowchart LR
     fb["?"]
     check_closed(["RM in C?"])
-    fb --> check_closed
+    fb -->|A| check_closed
     r_seq["&rarr;"]
-    fb --> r_seq
+    fb -->|B| r_seq
     check_received(["RM in R?"])
     r_seq --> check_received
     r_seq --> validate
     i_seq["&rarr;"]
-    fb --> i_seq
+    fb -->|C| i_seq
     check_invalid(["RM in I?"])
     i_seq --> check_invalid
     i_fb["?"]
@@ -30,13 +30,13 @@ flowchart LR
     i_validate["validate"]
     i_fb --> i_validate
     v_seq["&rarr;"]
-    fb --> v_seq
+    fb -->|D| v_seq
     check_valid(["RM in V?"])
     v_seq --> check_valid
     v_prioritize[prioritize]
     v_seq --> v_prioritize
     d_seq["&rarr;"]
-    fb --> d_seq
+    fb -->|E| d_seq
     check_deferred(["RM in D?"])
     d_seq --> check_deferred
     d_fb["?"]
@@ -46,7 +46,7 @@ flowchart LR
     d_prioritize["prioritize"]
     d_fb --> d_prioritize
     a_seq["&rarr;"]
-    fb --> a_seq
+    fb -->|F| a_seq
     check_accepted(["RM in A?"])
     a_seq --> check_accepted
     a_fb["?"]
@@ -61,9 +61,9 @@ flowchart LR
     a_fb_seq --> a__do_work
 ```
 
-The first check is to see whether the case is already $Closed$
+(A) The first check is to see whether the case is already $Closed$
 ($q^{rm} \in C$). If that check succeeds, the branch returns *Success*,
-and we're done. If it doesn't, we move on to the next branch, which
+and we're done. If it doesn't, we move on to the next branch (B), which
 addresses reports in the *Received* state ($q^{rm} \in R$).
 
 !!! tip inline end "See also"
@@ -79,21 +79,21 @@ sufficient to say that the validate report behavior returns *Success*
 after moving the report to either *Valid* ($q^{rm} \xrightarrow{v} V$)
 or *Invalid* ($q^{rm} \xrightarrow{i} I$).
 
-The next branch covers reports in the *Invalid* state ($q^{rm} \in I$).
+The next branch (C) covers reports in the *Invalid* state ($q^{rm} \in I$).
 Here we have two options: either close the report (move to
 $q^{rm} \xrightarrow{c} C$, as described in [report closure](rm_closure_bt.md), or retry the validation.
 
-For reports that have reached the *Valid* state ($q^{rm} \in V$), our
+(D) For reports that have reached the *Valid* state ($q^{rm} \in V$), our
 only action is to prioritize the report. [Report prioritization](rm_prioritization_bt.md) is
 addressed in detail elsewhere, but returns *Success* after moving the report to either *Accepted*
 ($q^{rm} \xrightarrow{a} A$) or *Deferred* ($q^{rm} \xrightarrow{d} D$).
 
-Next, we reach behaviors associated with reports that have been both validated
+(E) Next, we reach behaviors associated with reports that have been both validated
 and prioritized. *Deferred* reports ($q^{rm} \in D$) can be *Closed* or
 have their priority reevaluated, but otherwise are not expected to
 receive additional work.
 
-Similarly, *Accepted* reports ($q^{rm} \in A$) can also be *Closed* or
+(F) Similarly, *Accepted* reports ($q^{rm} \in A$) can also be *Closed* or
 have their priority reevaluated. However, they are also expected to
 receive more effort---the *do work* task node, which we explore further
 in [Do Work Behaviors](do_work_bt.md).

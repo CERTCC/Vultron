@@ -65,15 +65,15 @@ title: Notify Others Behavior Tree
 flowchart LR
     fb["?"]
     all_notified(["all notified<br/>RM not in S?"])
-    fb --> all_notified
+    fb -->|A| all_notified
     seq["&rarr;"]
-    fb --> seq
+    fb -->|B| seq
     choose_recipient["choose recipient"]
-    seq --> choose_recipient
+    seq -->|B1| choose_recipient
     fb2["?"]
-    seq --> fb2
+    seq -->|B2| fb2
     seq2["&rarr;"]
-    fb2 --> seq2
+    fb2 -->|B2a| seq2
     fb3["?"]
     seq2 --> fb3
     recp_not_in_S(["recipient RM not in S?"])
@@ -83,7 +83,7 @@ flowchart LR
     remove_recp["remove recipient"]
     seq2 --> remove_recp
     seq3["&rarr;"]
-    fb2 --> seq3
+    fb2 -->|B2b| seq3
     fb4["?"]
     seq3 --> fb4
     em_n_p_x(["EM in N,P,X?"])
@@ -102,19 +102,21 @@ flowchart LR
     seq3 --> recp_rm_to_r
 ```
 
-The goal of this behavior tree is for all intended recipients to receive the report, thereby reaching the $q^{rm} \in R$ state.
-Each pass through this part of the tree chooses a Participant from a list of eligible recipients constructed in the Identify
-Participants Behavior.
-The method for choosing the recipient is left unspecified since Participants can prioritize recipients how they see fit.
+(A) The goal of this behavior tree is for all intended recipients to receive the report, thereby reaching the $q^{rm} \in R$ state.
 
-The process proceeds to clean up the eligible recipients list when either the recipient is already believed to be in 
+(B) Each pass through this part of the tree chooses a Participant from a list of eligible recipients constructed in the Identify
+Participants Behavior.
+(B1) The method for choosing the recipient is left unspecified since Participants can prioritize recipients how they see fit.
+
+The process proceeds to (B2a) clean up the eligible recipients list when either the recipient is already believed to be in 
 $q^{rm} \in R$ or if the effort expended in trying to reach the recipient has exceeded the Participant's limit.
 Such limits are entirely left to the discretion of each Participant.
 If the chosen recipient is pruned by this branch, the branch returns *Success*.
 
 If the chosen recipient was not pruned, then the cleanup branch fails and execution transfers to the second branch to 
 notify the recipient.
-The first step in the notification branch is a check for an existing embargo.
+
+(B2b) The first step in the notification branch is a check for an existing embargo.
 If the embargo management state is one of $q^{em} \in \{ N,P,X\}$, there is no active embargo, and the Participant
 can proceed with notification.
 

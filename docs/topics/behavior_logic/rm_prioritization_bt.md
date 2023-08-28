@@ -2,9 +2,10 @@
 
 The Report Prioritization Behavior Tree is shown in the figure below.
 It bears some structural similarity to the Report Validation Behavior Tree just described: An initial
-post-condition check falls back to the main process leading toward
-$accept$, which, in turn, falls back to the deferral process. If the
-report is already in either the *Accepted* or *Deferred* states and no
+post-condition check (A) falls back to the main process (B) leading toward
+$accept$, which, in turn, falls back to the deferral process (C). 
+
+In more detail, (A) if the report is already in either the *Accepted* or *Deferred* states and no
 new information is available to prompt a change, the behavior ends.
 
 ```mermaid
@@ -14,7 +15,7 @@ title: Report Prioritization Behavior Tree
 flowchart LR
     fb["?"]
     seq1["&rarr;"]
-    fb --> seq1
+    fb -->|A| seq1
     rm_d_or_a(["RM in D or A?"])
     seq1 --> rm_d_or_a
     seq1fb["?"]
@@ -28,7 +29,7 @@ flowchart LR
     no_info["no new info"]
     gather_seq --> no_info
     seq2["&rarr;"]
-    fb --> seq2
+    fb -->|B| seq2
     rm_v_d_a(["RM in V, D, or A?"])
     seq2 --> rm_v_d_a
     eval_priority["evaluate priority"]
@@ -46,7 +47,7 @@ flowchart LR
     accept_to_a["RM &rarr; A<br/>(emit RA)"]
     accept_seq --> accept_to_a
     defer_fb["?"]
-    fb --> defer_fb
+    fb -->|C| defer_fb
     rm_d(["RM in D?"])
     defer_fb --> rm_d
     defer_seq["&rarr;"]
@@ -58,7 +59,7 @@ flowchart LR
 ```
 
 
-Failing that, we enter the main prioritization sequence. The
+Failing that, we enter the main prioritization sequence (B). The
 preconditions of the main sequence are that either the report has not
 yet been prioritized out of the *Valid* state ($q^{rm} \in V$) or new
 information has been made available to a report in either
@@ -74,7 +75,7 @@ Participant might have for *Accepted* reports. Assuming that it
 succeeds, the report is explicitly moved to the *Accepted*
 ($q^{rm} \xrightarrow{a} A$) state, and an $RA$ message is emitted.
 
-Should any item in the main sequence fail, the case is deferred, its
+(C) Should any item in the main sequence fail, the case is deferred, its
 state set to $q^{rm} \xrightarrow{d} D$, and an $RD$ message is emitted
 accordingly. Similarly, a *defer* task is included as a callback
 placeholder.
