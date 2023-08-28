@@ -6,13 +6,13 @@ We take as a base set of criteria the ordering preferences given in the
 [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771)
 by Householder and Spring.
 
-While we incorporate this model fully [elsewhere](../process_models/cs/index.md),
+While we incorporate this model fully [later](../process_models/cs/index.md) in this documentation,
 some notation is necessary to proceed here.
 The [Case State model](../process_models/cs/index.md) is built on the idea that there are six events of significance
 in the lifespan of every vulnerability, shown in the table below.
 
 | Event | Notation | Event | Notation |
-| :--- |:---------| :--- |:---------|
+| :--- |:--------:| :--- |:--------:|
 | Vendor Awareness | **V** | Public Awareness | **P** |
 | Fix Ready | **F** | Exploit Public | **X** |
 | Fix Deployed | **D** | Attacks Observed | **A** |
@@ -52,7 +52,9 @@ exploits being published or attacks becoming known to the public.
 Furthermore, it requires that the Vendor has the capability to
 deploy fixes without intervention by the system owner or user, which
 is a rare engineering feat unattainable by many software supply
-chains. More often, fix deployment (**D**) requires users
+chains.
+
+More often, fix deployment (**D**) requires users
 and/or system owners (Deployers) to take action. The need to inform
 Deployers implies a need for public awareness of the vulnerability,
 making this criteria impossible to achieve in those scenarios.
@@ -134,5 +136,16 @@ adversaries are far ahead of defenders.
 
 ---
 
+## Summary
+
+
 Taken together, these twelve ordering preferences constitute the minimum
-set of outcomes we hope to emerge from the protocol that is the focus of this effort.
+set of outcomes we hope to facilitate with the Vultron protocol.
+
+|          $a \prec b$          |      $a \prec b$       |      $a \prec b$       |
+|:-----------------------------:|:-----------------------------:|:-----------------------------:|
+| $\mathbf{V} \prec \mathbf{P}$ | $\mathbf{F} \prec \mathbf{P}$ | $\mathbf{D} \prec \mathbf{P}$ |
+| $\mathbf{V} \prec \mathbf{X}$ | $\mathbf{F} \prec \mathbf{X}$ | $\mathbf{D} \prec \mathbf{X}$ |
+| $\mathbf{V} \prec \mathbf{A}$ | $\mathbf{F} \prec \mathbf{A}$ | $\mathbf{D} \prec \mathbf{A}$ |
+| $\mathbf{P} \prec \mathbf{X}$ | $\mathbf{P} \prec \mathbf{A}$ | $\mathbf{X} \prec \mathbf{A}$ |
+

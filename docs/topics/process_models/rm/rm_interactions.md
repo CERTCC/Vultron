@@ -7,19 +7,19 @@ For example, in [particpants interact from the accepted state](#participants-int
 that even though the _sender_ is the one taking the action, it is the _recipient_'s state that changes.
 The table below lists role-based actions. 
 
-| Finder/Reporter  |      Vendor       |    Coordinator    | Action                                  | RM Transition  |
-|:----------------:|:-----------------:|:-----------------:|-----------------------------------------|:-------------:|
-| :material-check: |                   |                   | Discover Vulnerability (hidden)         |            |
-| :material-check: |                   |                   | Analyze Discovery (hidden)              |            |
-| :material-check: |                   |                   | Decide whether to initiate CVD (hidden) |            |
-| :material-check: | :material-check: | :material-check: | Notify Vendor                           |            |
-| :material-check: | :material-check: | :material-check: | Notify Coordinator                      |            |
-|         | :material-check: | :material-check: | Receive Report                          |            |
-|         | :material-check: | :material-check: | Validate Report                         |            |
-| :material-check: | :material-check: | :material-check: | Prioritize Report                       |            |
-| :material-check: | :material-check: | :material-check: | Pause Work                              |            |
-| :material-check: | :material-check: | :material-check: | Resume Work                             |            |
-| :material-check: | :material-check: | :material-check: | Close Report                            |            |
+| Finder/Reporter  |      Vendor      |   Coordinator    | Action                                  |                                         RM Transition                                          |
+|:----------------:|:----------------:|:----------------:|-----------------------------------------|:----------------------------------------------------------------------------------------------:|
+| :material-check: |                  |                  | Discover Vulnerability (hidden)         |                           [Receive Report](index.rm#receive-report)                            |
+| :material-check: |                  |                  | Analyze Discovery (hidden)              |                          [Validate Report](index.rm#validate-report)                           |
+| :material-check: |                  |                  | Decide whether to initiate CVD (hidden) |                        [Prioritize Report](index.rm#prioritize-report)                         |
+| :material-check: | :material-check: | :material-check: | Notify Vendor                           | [Participants Interact from Accepted](index.rm##participants-interact-from-the-accepted-state) |
+| :material-check: | :material-check: | :material-check: | Notify Coordinator                      | [Participants Interact from Accepted](index.rm##participants-interact-from-the-accepted-state) |
+|                  | :material-check: | :material-check: | Receive Report                          |                           [Receive Report](index.rm#receive-report)                            |
+|                  | :material-check: | :material-check: | Validate Report                         |                          [Validate Report](index.rm#validate-report)                           |
+| :material-check: | :material-check: | :material-check: | Prioritize Report                       |                        [Prioritize Report](index.rm#prioritize-report)                         |
+| :material-check: | :material-check: | :material-check: | Pause Work                              |                        [Prioritize Report](index.rm#prioritize-report)                         |
+| :material-check: | :material-check: | :material-check: | Resume Work                             |                        [Prioritize Report](index.rm#prioritize-report)                         |
+| :material-check: | :material-check: | :material-check: | Close Report                            |                             [Case Closure](#index.rm#case-closure)                             |
 
 A few examples of this model applied to common CVD and MPCVD case scenarios follow.
 

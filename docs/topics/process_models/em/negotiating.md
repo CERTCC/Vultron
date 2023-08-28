@@ -28,12 +28,14 @@ suffice for now.
 
     CVD Participants SHOULD NOT *propose* or *accept* a new embargo
     negotiation when the fix for a vulnerability has already been
-    deployed ($q^{cs} \in VFDpxa$). Counterexamples include
+    deployed ($q^{cs} \in VFDpxa$).
 
-    - when an embargo is desired to allow for a downstream Vendor to synchronize
-    their fix delivery or deployment
-    - when a Vendor has deployed a fix but wants to complete their root cause analysis prior to
-    releasing information about the vulnerability.
+Counterexamples include
+
+- when an embargo is desired to allow for a downstream Vendor to synchronize
+their fix delivery or deployment
+- when a Vendor has deployed a fix but wants to complete their root cause analysis prior to
+releasing information about the vulnerability.
  
 !!! note ""
 
@@ -51,13 +53,12 @@ suffice for now.
 
 ## Asymmetry in Embargo Negotiation
 
-Asymmetry is inherent in the CVD process because those who currently have
-the vulnerability information get to decide with whom they will share it.
+Asymmetry is inherent in the CVD process because those who currently have the vulnerability information get to decide
+with whom they will share it.
 This asymmetry puts Reporters at somewhat of an advantage when it comes
-to the initial report submission to another Participant. We will discuss
-some ways to improve (but not fully remove) this asymmetry in
-[Default Embargoes](#default-embargoes), but for now we just need to
-acknowledge that it exists.
+to the initial report submission to another Participant.
+We discuss some ways to improve (but not fully remove) this asymmetry in [Default Embargoes](#default-embargoes),
+but for now we just need to acknowledge that it exists.
 
 !!! note ""  
     
@@ -99,23 +100,39 @@ is expected.
     Receiver in a timely manner, the Sender MAY proceed in a manner
     consistent with an EM state of _None_ ($q^{em} \in N$).
 
-## Don't Give Up Too Soon
+## No Embargo means No Embargo
 
 Once an embargo negotiation has failed the first time, Participants have
-no further obligations. They are, however, encouraged to try again.
+no further obligations.
 
 !!! note ""  
 
     In a case where the embargo state is _None_ and for which an embargo
-    has been *propose*d and either explicitly or tacitly *reject*ed,
+    has been *proposed* and either explicitly or tacitly *rejected*,
     Participants MAY take any action they choose with the report in
     question, including immediate publication.
+
+!!! tip "Incentives Matter"
+
+    We deliberately included the clauses "explicitly or tacitly rejected" and "may take any action" above to provide
+    incentives for Participants to be declarative and negotiate in good faith.
+    Were a rejected embargo proposal to carry _any_ implied obligation to refrain from publication, 
+    Participants might be motivated to use delayed or ambiguous responses to impose that obligation on others.
+    Our goal is to avoid situations where a Participant is incentivized to simply ignore an embargo proposal
+    while proceeding with an expectation that the other Participants are still bound by the proposed-but-inactive embargo terms.
+    Therefore we have attempted to be very clear that _only_ active embargoes impose obligations on Participants.
+
+## Don't Give Up Too Soon
+
+The above notwithstanding, Participants are encouraged to try again, especially when no explicit rejection has been 
+communicated (i.e., in the _tacitly rejected_ scenario described above). 
 
 !!! note ""  
 
     Participants SHOULD make reasonable attempts to retry embargo
     negotiations when prior proposals have been *reject*ed or otherwise
     failed to achieve *accept*ance.
+
 
 ## Submitting a Report Before Embargo Negotiations Conclude
 
@@ -130,7 +147,7 @@ their leverage over the Receiver in the embargo negotiations.
 
 !!! note ""  
 
-    Submission of a report when an embargo proposal is pending
+    Submitting a report when an embargo proposal is pending
     ($q^{em} \in P$) SHALL be construed as the Sender's acceptance
     ($q^{em} \in P \xrightarrow{a} A$) of the terms proposed regardless
     of whether the Sender or Receiver was the proposer.

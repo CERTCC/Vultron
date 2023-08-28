@@ -2,8 +2,8 @@
 
 !!! note inline end "Implementations may have their own versioning scheme"
 
-    The versioning scheme described here applies only to the Vultron Protocol itself.
-    Implementations of the Vultron Protocol may have their own versioning schemes.
+    The versioning scheme described here applies _only_ to the Vultron Protocol itself.
+    Implementations of the Vultron Protocol are expected to have their own versioning schemes.
 
 While we have not yet mapped out a future release schedule, in
 anticipation of future revisions, we have chosen a semantic versioning

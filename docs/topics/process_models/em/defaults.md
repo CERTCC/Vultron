@@ -22,7 +22,7 @@ recipients (typically Vendors and Coordinators) do so.
 
 !!! note ""  
 
-    Recipients SHOULD post a default embargo period as part of their
+    Report Recipients SHOULD post a default embargo period as part of their
     Vulnerability Disclosure Policy to set expectations with potential
     Reporters.
 
@@ -32,7 +32,7 @@ Next, we work through the possible interactions of published policies
 with proposed embargoes. Each of the following scenarios assumes a
 starting state of $q^{em} \in N$, and a negotiation between two parties.
 We cover the extended situation (adding parties to an existing embargo)
-in [Inviting Others](#inviting-others-to-an-embargoed-case). For now, we begin with the simplest
+in [Adding Participants](working_with_others.md). For now, we begin with the simplest
 case and proceed in an approximate order of ascending complexity.
 
 In each of the following, subscripts on transitions indicate the
@@ -42,6 +42,10 @@ of the Sender's proposal, even if it is the Receiver doing the
 accepting.
 
 ### No Defaults, No Proposals
+
+???+ note inline end "Formalism"
+
+    $$q^{em} \in N$$
 
 We begin with the simplest case, in which neither party has a default and no
 embargo has been proposed.
@@ -54,11 +58,7 @@ stateDiagram-v2
 
 !!! note ""  
 
-    ???+ note inline end "Formalism"
-
-        $$q^{em} \in N$$
-
-    If neither Sender nor Receiver proposes an embargo, and no policy
+    If neither Sender nor Receiver proposes an embargo, _and_ no policy
     defaults apply, no embargo SHALL exist.
 
 
@@ -242,6 +242,8 @@ to lengthen it.
     acknowledges the time-dependent informational asymmetry inherent to the
     CVD process.
 
+    
+
 !!! info "A Logical Argument for Accepting the Shortest Proposed Embargo"
 
     Perhaps the above reasoning comes across as too Machiavellian for some
@@ -333,46 +335,50 @@ to lengthen it.
     
     $$\Sigma ( \mathbf{z} ) = min(n,m)$$
 
-## The Shortest Proposed Embargo Wins
 
-In other words, if a Reporter proposes a 90-day embargo, but the Vendor
-prefers a 30-day embargo, we can think of this as a series of 1-day
-agreements in which both parties agree to the first 30 days of the
-embargo and disagree beyond that. By accepting the shorter 30-day
-embargo, the Reporter now has 30 days to continue negotiations with the
-Vendor to extend the embargo. Even if those continued negotiations fail,
-both parties get at least the 30-day embargo period they agreed on in
-the first place. This should be preferable to both parties versus the
-alternative of no embargo at all were they to simply reject the shorter
-proposal. Typically it is the Reporter who desires a shorter embargo
-than the Vendor. We chose our example to demonstrate that this analysis
-works between any two parties, regardless of which party wants the
-shorter embargo.
+As an example:
 
-```mermaid
----
-title: Embargo Agreement in a Nutshell
----
-stateDiagram-v2
-    direction LR
-    dots: ...
-    state Agreement {
+!!! example "The Shortest Proposed Embargo Wins"
+
+    If a Reporter proposes a 90-day embargo, but the Vendor
+    prefers a 30-day embargo, we can think of this as a series of 1-day
+    agreements in which both parties agree to the first 30 days of the
+    embargo and disagree beyond that. By accepting the shorter 30-day
+    embargo, the Reporter now has 30 days to continue negotiations with the
+    Vendor to extend the embargo. Even if those continued negotiations fail,
+    both parties get at least the 30-day embargo period they agreed on in
+    the first place. This should be preferable to both parties versus the
+    alternative of no embargo at all were they to simply reject the shorter
+    proposal.
+
+    ```mermaid
+    ---
+    title: Embargo Agreement in a Nutshell
+    ---
+    stateDiagram-v2
         direction LR
-        [*] --> 1
-        1 --> 2
-        2 --> dots
-        dots --> 30
-        negotiate: negotiate extension
-        [*] --> negotiate
-        negotiate --> 30
-    }
-    30 --> 31
-    state Disagreement {
-        dots2: ...
-        31 --> dots2
-        dots2 --> 90
-    }
-```
+        dots: ...
+        state Agreement {
+            direction LR
+            [*] --> 1
+            1 --> 2
+            2 --> dots
+            dots --> 30
+            negotiate: negotiate extension
+            [*] --> negotiate
+            negotiate --> 30
+        }
+        30 --> 31
+        state Disagreement {
+            dots2: ...
+            31 --> dots2
+            dots2 --> 90
+        }
+    ```
+
+    Typically it is the Reporter who desires a shorter embargo than the Vendor.
+    We chose our example to demonstrate that this analysis works between any two parties, regardless of which party wants the
+    shorter embargo.
 
 !!! info "Resolving Multiple Proposals at Once"
 

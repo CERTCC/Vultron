@@ -9,8 +9,9 @@ As anyone who has tried to schedule a meeting with multiple attendees
 can attest, multi-party scheduling can be difficult. When that schedule
 must also accommodate work completion schedules for an
 MPCVD case, it becomes even harder. In [Default Embargoes](#default-embargoes), 
-we laid out a heuristic for resolving multiple embargo proposals, "The Shortest Embargo Proposed
-Wins." More specifically, we recommended that Participants *accept* the
+we laid out a heuristic for resolving multiple embargo proposals, _The Shortest Embargo Proposed
+Wins_.
+More specifically, we recommended that Participants *accept* the
 earliest proposed end date and immediately propose and evaluate the rest
 as potential revisions. This principle applies to any
 MPCVD case, even at its outset.
@@ -84,12 +85,13 @@ Participants usually fall into one of three categories:
     Other parties MAY be included as Participants when necessary and
     appropriate.
 
-Examples of other Participants we have observed in past cases include
+!!! example "Examples of Other Participants"
 
-- Deployers
-- Subject matter experts
-- Government agencies with relevant regulatory oversight or critical infrastructure protection
-responsibilities.
+    Examples of other Participants we have observed in past cases include
+
+    - Deployers
+    - Subject matter experts
+    - Government agencies with relevant regulatory oversight or critical infrastructure protection responsibilities.
 
 ## Adding Participants to an Existing Embargo
 
@@ -149,11 +151,11 @@ to choose from:
 
 4.  Avoid including the potential Participant in the embargo entirely.
 
-For example, say a Vendor has a seven-day maximum public disclosure
-policy. Participants in a case with an existing embargo ending in three
-weeks might choose to notify that Vendor two weeks from now to ensure
-that even the default disclosure timeline remains compatible with the
-extant embargo.
+!!! example "Example: A Vendor with a short default embargo"
+
+    Say a Vendor has a seven-day maximum public disclosure policy.
+    Participants in a case with an existing embargo ending in three weeks might choose to notify that Vendor two weeks
+    from now to ensure that even the default disclosure timeline remains compatible with the extant embargo.
 
 !!! note ""
 
@@ -216,13 +218,22 @@ preferred timing.
 ### Untrustworthy Participants.
 
 Unfortunately, not all potential CVD Participants are equally trustworthy with
-vulnerability information. For example, a Vendor might have sub-par
-operational security or even business practices that result in
-adversaries often finding out about vulnerabilities in their products
-before the end of an embargo period. Participants might also be subject
-to regulatory regimes in which they are required by law to share known
-vulnerabilities with government agencies having oversight
-responsibilities.
+vulnerability information. 
+
+!!! example "Examples of Untrustworthy Participants"
+
+    We can provide a few examples of potentially untrustworthy Participants:
+    
+    - A Participant might have sub-par operational security or even business practices that result in adversaries often
+    finding out about vulnerabilities in their products before the end of an embargo period.
+    - Participants might be subject to regulatory regimes in which they are required by law to share known
+    vulnerabilities with government agencies having oversight responsibilities. Depending on the jurisdiction, these
+    agencies might not be bound by the same embargoes as the other Participants in the case.
+    - The Participants in a case might consider a government agency to be an adversary itself and therefore not
+    trustworthy with non-public vulnerability information.
+
+    In these or similar scenarios, these concerns might lead to the exclusion of otherwise trustworthy Participants from an embargo.
+    
 
 !!! note ""
 
@@ -231,9 +242,12 @@ responsibilities.
     historical fact SHOULD be treated similar to Participants with brief
     disclosure policies.
 
-Acknowledging that *adversary* is not a universally agreed-upon
-category, the definition of *adversary* in the above is left to
-individual Participants.
+!!! tip "My Adversary Is _Not Necessarily_ Your Adversary"
+
+    Trustworthiness has a strong subjective component, and individual perspectives on who is or is not trustworthy
+    can vary widely.
+    Thus, while acknowledging that *adversary* is not a universally agreed-upon category, the definition of *adversary* in the above
+    is left to individual Participants.
 
 The maximal interpretation of the above is that untrustworthy
 Participants are left to be notified by the publication of the
@@ -255,18 +269,15 @@ sufficient complexity, impact, or importance.
 
 ### Other Parties.
 
-Some Participants in CVD have their own policies that prohibit
-notification of any parties unable to directly contribute to the
-development of a fix for a particular vulnerability. Typically, these
-policies take the form of "only Vendors of affected products" or similar
-such restrictions.
+Some Participants in CVD have their own policies that prohibit notification of any parties unable to directly contribute
+to the development of a fix for a particular vulnerability.
+Typically, these policies take the form of "only Vendors of affected products" or similar such restrictions.
 
-The [CERT/CC]{acronym-label="CERT/CC" acronym-form="singular+short"}'s
-position as a third-party Coordinator in numerous cases is that this
-approach can be appropriate for straightforward scenarios, such as those
-in which a Vendor is in direct contact with their downstream Vendors and
-can coordinate the response within that community. However, it falls
-short in some cases, such the following:
+The CERT/CC's position as a third-party Coordinator in numerous cases is that this approach can be appropriate for
+straightforward scenarios, such as those in which a Vendor is in direct contact with their downstream Vendors and can
+coordinate the response within that community.
+
+However, it falls short in some cases, such as the following:
 
 -   Vulnerabilities are found to affect a broad spectrum of Vendors and
     products, especially when cases cross industry sectors or otherwise
@@ -282,12 +293,10 @@ short in some cases, such the following:
 
 ## Consequences of Non-Compliance
 
-Considering multiple cases over time, MPCVD can be thought of as an iterated game
-analogous to the Prisoner's Dilemma. One notable strategy for the
-Prisoner's Dilemma is *tit for tat* in which non-cooperation from one
-party in one round can be met with non-cooperation from the opposite
-party in the next. While MPCVD is usually much bigger than a toy
-two-player game, we feel it is necessary to encode the possibility that
+Considering multiple cases over time, MPCVD can be thought of as an [iterated game](https://vuls.cert.org/confluence/display/CVD/5.5+Response+Pacing+and+Synchronization) analogous to the Prisoner's Dilemma.
+One notable strategy for the Prisoner's Dilemma is *tit for tat* in which non-cooperation from one party in one round
+can be met with non-cooperation from the opposite party in the next.
+While MPCVD is usually much bigger than a toy two-player game, we feel it is necessary to encode the possibility that
 non-cooperation will have downstream consequences.
 
 !!! note ""

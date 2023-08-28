@@ -36,9 +36,9 @@ The Vultron Protocol is a collection of ideas, models, code, and work in progres
     that we are using to guide our work. It also includes a detailed description of the Vultron Protocol, including
     the state machines and behavior logic that we use to model the behavior of the protocol.
 
-!!! question inline  "Using Vultron"
+!!! question inline  "Implementing Vultron"
 
-    The [Using Vultron](howto/index.md) section includes guidance for potential implementations of Vultron.
+    The [Implementing Vultron](howto/index.md) section includes guidance for potential implementations of Vultron.
     In the future, we plan to include how-to guides to help you use Vultron, but for now it is focused on guidance for
     potential implementers of Vultron.
 

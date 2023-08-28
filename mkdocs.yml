@@ -3,12 +3,6 @@ copyright: Copyright &copy; 2023 Carnegie Mellon University.
 nav:
   - Home: 'index.md'
   - Learning Vultron: 'tutorials/index.md'
-  - Implementing Vultron:
-      - Introduction: 'howto/index.md'
-      - A Case Object: 'howto/case_object.md'
-      - Process Implementation: 'howto/process_implementation.md'
-      - EM and iCalendar: 'howto/em_icalendar.md'
-      - General Notes: 'howto/general_implementation.md'
   - Understanding Vultron:
     - Introduction:
         - Background: 'topics/background/index.md'
@@ -29,7 +23,8 @@ nav:
         - Default Embargoes: 'topics/process_models/em/defaults.md'
         - Negotiating Embargoes: 'topics/process_models/em/negotiating.md'
         - Adding Participants: 'topics/process_models/em/working_with_others.md'
-        - Early Termination and Other Topics: 'topics/process_models/em/early_termination.md'
+        - Early Termination: 'topics/process_models/em/early_termination.md'
+        - Case Splits and Merges: 'topics/process_models/em/split_merge.md'
       - Case State:
         - Introduction: 'topics/process_models/cs/index.md'
         - CVD Case State Model: 'topics/process_models/cs/cs_model.md'
@@ -76,6 +71,12 @@ nav:
         - Reward Functions: 'topics/future_work/reward_functions.md'
         - Ontology: 'topics/future_work/ontology.md'
         - Modeling and Simulation: 'topics/future_work/mod_sim.md'
+  - Implementing Vultron:
+      - Introduction: 'howto/index.md'
+      - A Case Object: 'howto/case_object.md'
+      - Process Implementation: 'howto/process_implementation.md'
+      - EM and iCalendar: 'howto/em_icalendar.md'
+      - General Notes: 'howto/general_implementation.md'
   - Reference:
     - Overview: 'reference/index.md'
     - Formal Protocol:

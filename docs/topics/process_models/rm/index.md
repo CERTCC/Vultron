@@ -10,11 +10,14 @@ In particular, any workflow in which work items (e.g., incident reports, problem
 completed, should map onto the RM process outlined here.
 <!-- end_excerpt -->
 
-In the interest of maintaining the potential for interoperability among different organizations' internal processes, our protocol does not
-specify intra-organizational subprocesses within each state, although we give examples of such subprocesses in 
-[Do Work Behavior](../../behavior_logic/do_work_bt.md).
-For further reference, [ISO/IEC 30111:2019(E)](https://www.iso.org/standard/69725.html) provides recommendations for Vendors' *internal* processes
-that can be mapped into the RM process. We provide such a mapping in our [ISO Crosswalk](../../../reference/iso_crosswalk.md).
+!!! tip "Vultron Does Not Dictate Internal Processes"
+
+    In the interest of maintaining the potential for interoperability among different organizations' internal processes, our protocol does not
+    specify intra-organizational subprocesses within each state, although we give examples of such subprocesses in 
+    [Do Work Behavior](../../behavior_logic/do_work_bt.md).
+
+    For further reference, [ISO/IEC 30111:2019(E)](https://www.iso.org/standard/69725.html) provides recommendations for Vendors' *internal* processes
+    that can be mapped into the RM process. We provide such a mapping in our [ISO Crosswalk](../../../reference/iso_crosswalk.md).
 
 ## RM State Machine
 
@@ -35,8 +38,8 @@ Our proposed RM DFA models a report lifecycle containing seven states, defined b
 
 
 ???+ note inline end "RM States $\mathcal{Q}^{rm}$ Defined" 
-    $$
-        \begin{split}
+
+    $\begin{split}
         \mathcal{Q}^{rm} = \{ & \underline{S}tart, \\
                               & \underline{R}eceived,\\
                               & \underline{I}nvalid, \\
@@ -44,7 +47,7 @@ Our proposed RM DFA models a report lifecycle containing seven states, defined b
                               & \underline{A}ccepted, \\
                               & \underline{D}eferred, \\
                               & \underline{C}losed \}
-        \end{split}$$
+        \end{split}$
 
 By convention, we will use the underlined capital letters in the box at right as a shorthand for
 the state names. Each Participant in a CVD case will have their own RM state.
@@ -401,16 +404,14 @@ transitions in the corresponding DFA.
     These actions constitute the set of symbols for the
     RM DFA. 
 
-    $$
-    \begin{align*}
+    $\begin{align*}
       \Sigma^{rm} = \{ & \underline{r}eceive, \\
                        & \underline{v}alidate, \\
                        & \underline{i}nvalidate, \\
                        & \underline{a}ccept, \\
                        & \underline{d}efer, \\
                        & \underline{c}lose \}
-    \end{align*}
-    $$
+    \end{align*}$
 
 #### RM Transitions Defined
 

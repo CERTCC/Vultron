@@ -13,7 +13,7 @@ This definition encompasses both (a) *syntactic* and (b) *semantic*
 interoperability. The goal of this documentation is to lay the foundation for
 the *semantic* interoperability of CVD processes across Participants.
 *Syntactic* interoperability, in the form of message formats and the
-like, is the focus of our current effort.
+like, is the focus of our ongoing effort.
 
 Addressing *semantic interoperability* first is a deliberate choice.
 If we were to go in the reverse order, we might wind up with systems that

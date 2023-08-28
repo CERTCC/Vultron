@@ -1,22 +1,27 @@
 # Vultron Process Models
 
+!!! info inline end "Vultron Process Models"
+
+    ```mermaid
+    graph TD
+        RM[[Report Management]]
+        EM[[Embargo Management]]
+        CS[[Case State]]
+        RM --> EM
+        RM --> CS
+        EM --> RM
+        EM --> CS
+        CS --> EM
+        CS --> RM
+    ```
+
 The Vultron Protocol defines three main processes in terms of deterministic finite automata (DFAs):
 
-```mermaid
----
-title: Vultron Process Models
----
-graph LR
-    RM[[Report Management]]
-    EM[[Embargo Management]]
-    CS[[Case State]]
-    RM --> EM
-    RM --> CS
-    EM --> RM
-    EM --> CS
-    CS --> EM
-    CS --> RM
-```
+- Report Management
+- Embargo Management
+- Case State
+
+Each of these processes interacts with the other two processes in the context of a CVD case.
 
 A CVD case is coordinated by multiple agents (Reporters, Vendors, Coordinators, etc.),
 each running these processes in parallel and interacting with each other.

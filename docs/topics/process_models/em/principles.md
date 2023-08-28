@@ -15,6 +15,10 @@ to. Rather,
     are expected to not publish or otherwise disclose_ information about the vulnerability to non-Participants outside
     of the CVD case.
 
+Hence our definition of an embargo:
+
+{% include-markdown "embargo_defn.md"   %}
+
 ## Embargoes Are a Social Agreement
 
 An embargo is a social agreement between independent parties acting in
@@ -152,9 +156,9 @@ engagement with the case.
 
 ### Leaving an Embargo May Have Consequences
 
-CVD is an iterated game, and actions have consequences. Leaving an embargo early in one
-case may have repercussions to Participants' willingness to cooperate in
-later cases.
+As we note in the [CVD Guide](https://vuls.cert.org/confluence/display/CVD/5.5+Response+Pacing+and+Synchronization),
+CVD is an iterated game, and actions have consequences.
+Leaving an embargo early in one case may have repercussions to Participants' willingness to cooperate in later cases.
 
 !!! note ""
     A Participant's refusal to accept embargo terms MAY result in that
@@ -166,8 +170,8 @@ later cases.
 
 ## Embargo Termination is Not the Same as Publication
 
-Finally, embargo termination removes a constraint rather than adding an
-obligation.
+Finally, embargo termination _removes a constraint_ rather than _adding an
+obligation_.
 
 !!! note ""
     Participants SHOULD not publish information about the vulnerability

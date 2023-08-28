@@ -5,7 +5,7 @@ MPCVD is comprised of independent Participants performing their own CVD-related 
 ## Process Models
 
 Those processes can be represented by Finte State Machines (FSMs), specifically as Deterministic Finite Automata (DFAs).
-CVD processes (and the DFAs representing them/index.md) can be decomposed hierarchically. 
+CVD processes (and the DFAs representing them) can be decomposed hierarchically. 
 We propose three main DFAs as the core of our Vultron Protocol:
 
 1.  A [Report Management](../process_models/rm/index.md) DFA represents each CVD Participant's engagement with a particular report
@@ -27,7 +27,7 @@ We map our multiple DFA model onto a formal protocol definition in [Formal Proto
 
 ### Behavior Logic 
 
-However, an MPCVD protocol needs to do more than just provide formally defined communication mechanisms.
+An MPCVD protocol needs to do more than just provide formally defined communication mechanisms.
 It also needs to normalize the expected behaviors and activities that the communication protocol enables.
 In this sense, our protocol expands upon 
 [ISO/IEC 29147:2018](https://www.iso.org/standard/72311.html), 
