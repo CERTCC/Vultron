@@ -19,6 +19,7 @@ independent organizations, processes, and policies that can work together to coo
 
 The Vultron Protocol is a collection of ideas, models, code, and work in progress, and is not yet ready for production use.
 
+{% include-markdown "includes/curr_ver.md" %}
 
 ## How this documentation is organized
 

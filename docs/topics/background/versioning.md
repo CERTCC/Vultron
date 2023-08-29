@@ -5,6 +5,8 @@
     The versioning scheme described here applies _only_ to the Vultron Protocol itself.
     Implementations of the Vultron Protocol are expected to have their own versioning schemes.
 
+{% include-markdown "../../includes/curr_ver.md" %}
+
 While we have not yet mapped out a future release schedule, in
 anticipation of future revisions, we have chosen a semantic versioning
 scheme for the Vultron Protocol. Specifically, Vultron Protocol versions will be
