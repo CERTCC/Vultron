@@ -9,17 +9,17 @@ The table below lists role-based actions.
 
 | Finder/Reporter  |      Vendor      |   Coordinator    | Action                                  |                                         RM Transition                                          |
 |:----------------:|:----------------:|:----------------:|-----------------------------------------|:----------------------------------------------------------------------------------------------:|
-| :material-check: |                  |                  | Discover Vulnerability (hidden)         |                           [Receive Report](index.rm#receive-report)                            |
-| :material-check: |                  |                  | Analyze Discovery (hidden)              |                          [Validate Report](index.rm#validate-report)                           |
-| :material-check: |                  |                  | Decide whether to initiate CVD (hidden) |                        [Prioritize Report](index.rm#prioritize-report)                         |
-| :material-check: | :material-check: | :material-check: | Notify Vendor                           | [Participants Interact from Accepted](index.rm##participants-interact-from-the-accepted-state) |
-| :material-check: | :material-check: | :material-check: | Notify Coordinator                      | [Participants Interact from Accepted](index.rm##participants-interact-from-the-accepted-state) |
-|                  | :material-check: | :material-check: | Receive Report                          |                           [Receive Report](index.rm#receive-report)                            |
-|                  | :material-check: | :material-check: | Validate Report                         |                          [Validate Report](index.rm#validate-report)                           |
-| :material-check: | :material-check: | :material-check: | Prioritize Report                       |                        [Prioritize Report](index.rm#prioritize-report)                         |
-| :material-check: | :material-check: | :material-check: | Pause Work                              |                        [Prioritize Report](index.rm#prioritize-report)                         |
-| :material-check: | :material-check: | :material-check: | Resume Work                             |                        [Prioritize Report](index.rm#prioritize-report)                         |
-| :material-check: | :material-check: | :material-check: | Close Report                            |                             [Case Closure](#index.rm#case-closure)                             |
+| :material-check: |                  |                  | Discover Vulnerability (hidden)         |                           [Receive Report](index.md#receive-report)                            |
+| :material-check: |                  |                  | Analyze Discovery (hidden)              |                          [Validate Report](index.md#validate-report)                           |
+| :material-check: |                  |                  | Decide whether to initiate CVD (hidden) |                        [Prioritize Report](index.md#prioritize-report)                         |
+| :material-check: | :material-check: | :material-check: | Notify Vendor                           | [Participants Interact from Accepted](index.md##participants-interact-from-the-accepted-state) |
+| :material-check: | :material-check: | :material-check: | Notify Coordinator                      | [Participants Interact from Accepted](index.md##participants-interact-from-the-accepted-state) |
+|                  | :material-check: | :material-check: | Receive Report                          |                           [Receive Report](index.md#receive-report)                            |
+|                  | :material-check: | :material-check: | Validate Report                         |                          [Validate Report](index.md#validate-report)                           |
+| :material-check: | :material-check: | :material-check: | Prioritize Report                       |                        [Prioritize Report](index.md#prioritize-report)                         |
+| :material-check: | :material-check: | :material-check: | Pause Work                              |                        [Prioritize Report](index.md#prioritize-report)                         |
+| :material-check: | :material-check: | :material-check: | Resume Work                             |                        [Prioritize Report](index.md#prioritize-report)                         |
+| :material-check: | :material-check: | :material-check: | Close Report                            |                             [Case Closure](index.md#case-closure)                             |
 
 A few examples of this model applied to common CVD and MPCVD case scenarios follow.
 
