@@ -9,7 +9,8 @@ Here we offer some thoughts on where such integration might begin.
 
 ## RM Implementation Notes
 
-Roughly speaking, the RM process is very close to a normal ITSM incident or service request workflow.
+Roughly speaking, the RM process is very close to a normal [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management) (ITSM)
+incident or service request workflow.
 As such, the RM process could be implemented as a JIRA ticket workflow, as part of a Kanban process, etc.
 The main modifications needed to adapt an existing workflow are to intercept the key milestones and emit the appropriate RM messages:
 
@@ -76,7 +77,9 @@ _CD_ message when deployment is complete.
 On the other hand, the _pxa_ process hinges on monitoring public and private sources for evidence of information leaks, 
 research publications, and adversarial activity.
 In other words, the _pxa_ process is well positioned to be wired into Participants' threat intelligence and threat
-analysis capabilities. Some portions of this process can be automated:
+analysis capabilities.
+The goal would be to emit _CP_, _CX_, and _CA_ messages as appropriate when such evidence is detected.
+Some portions of this process can be automated:
 
 -   Human analysts and/or automated search agents can look for evidence of early publication of vulnerability information.
 

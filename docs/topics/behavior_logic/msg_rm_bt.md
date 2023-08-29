@@ -19,7 +19,7 @@ flowchart LR
     fb2["?"]
     seq2 --> fb2
     rs_seq["&rarr;"]
-    fb2 --> rs_seq
+    fb2 -->|A| rs_seq
     is_RS_msg(["is RS msg?"])
     rs_seq --> is_RS_msg
     rs_fb["?"]
@@ -37,13 +37,13 @@ flowchart LR
     cs_to_V["CS &rarr; Vfd...<br/>(emit CV)"]
     rs_fb2 --> cs_to_V
     re_seq["&rarr;"]
-    fb2 --> re_seq
+    fb2 -->|B| re_seq
     is_RE_msg(["is RE msg?"])
     re_seq --> is_RE_msg
     emit_GI["emit GI"]
     re_seq --> emit_GI
     other_seq["&rarr;"]
-    fb2 --> other_seq
+    fb2 -->|C| other_seq
     o_rm_not_S(["RM not in S?"])
     other_seq --> o_rm_not_S
     update_sender_status["update sender status"]
@@ -61,7 +61,7 @@ RM acknowledgment messages (_RK_) receive no further attention and return *Succe
 Next comes the main RM message processing sequence.
 A fallback node covers three major cases:
 
--   First comes a sequence that handles new reports (_RS_ when
+-   (A) First comes a sequence that handles new reports (_RS_ when
     $q^{rm} \in S$). This branch changes the recipient's
     RM state
     regardless of the Participant's role. If the Participant happens to
@@ -71,11 +71,11 @@ A fallback node covers three major cases:
     transition from $q^{cs} \in vfd \xrightarrow{\mathbf{V}} Vfd$ and
     emit a corresponding _CV_ message.
 
--   Next, we see that an RM Error (_RE_) results in the emission
+-   (B) Next, we see that an RM Error (_RE_) results in the emission
     of a general inquiry (_GI_) for Participants to sort out what the
     problem is, along with an _RK_ to acknowledge receipt of the error.
 
--   Finally, recall that the RM process is unique to each
+-   (C) Finally, recall that the RM process is unique to each
     CVD
     Participant, so most of the remaining RM messages are simply informational
     messages about other Participants' statuses that do not directly

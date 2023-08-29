@@ -5,7 +5,7 @@
 We are including this page because the ideas outlined here were instrumental to the development of the more general
 [Embargo Management process](../topics/process_models/em/index.md) in the main protocol and may remain of use in future implementations.
 
-The embargo negotiation process&mdash;in terms of the proposal, acceptance, rejection, etc. &mdash;is strikingly
+The embargo negotiation process&mdash;in terms of the proposal, acceptance, rejection, etc.&mdash;is strikingly
 parallel to the process of scheduling a meeting in a calendaring system.
 To that end, we note the potential application of the [`iCalendar`](https://en.wikipedia.org/wiki/ICalendar) protocol specified in [RFC 5545](https://datatracker.ietf.org/doc/html/rfc5545) to the
 [EM process](../topics/process_models/em/index.md) with the semantics described in this section. 

@@ -236,7 +236,7 @@ teardown procedure as a consequence.
 The presence of the `VendorParticipant` and `DeployerParticipant`
 classes---depicted as implementations of the `Participant` class---is
 necessitated by the discussion in [States](../reference/formal_protocol/states.md),
-where we described how Vendors and Deployers have a unique part to play in the creation, delivery, and
+where we describe how Vendors and Deployers have unique parts to play in the creation, delivery, and
 deployment of fixes within the CVD process. 
 These two classes add the `vfd_state` attribute with different possible values.
 Vendors can take on one of four possible values (`vfd`, `Vfd`, `VFd`, and `VFD`),

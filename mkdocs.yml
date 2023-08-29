@@ -72,19 +72,19 @@ nav:
         - Ontology: 'topics/future_work/ontology.md'
         - Modeling and Simulation: 'topics/future_work/mod_sim.md'
   - Implementing Vultron:
-      - Introduction: 'howto/index.md'
+      - Implementation Intro: 'howto/index.md'
       - A Case Object: 'howto/case_object.md'
       - Process Implementation: 'howto/process_implementation.md'
       - EM and iCalendar: 'howto/em_icalendar.md'
       - General Notes: 'howto/general_implementation.md'
   - Reference:
-    - Overview: 'reference/index.md'
+    - Reference Overview: 'reference/index.md'
     - Formal Protocol:
       - Introduction: 'reference/formal_protocol/index.md'
       - States: 'reference/formal_protocol/states.md'
       - Messages: 'reference/formal_protocol/messages.md'
       - Transitions: 'reference/formal_protocol/transitions.md'
-      - Summary: 'reference/formal_protocol/conclusion.md'
+      - Protocol Summary: 'reference/formal_protocol/conclusion.md'
     - ISO Crosswalk:
       - Introduction: 'reference/iso_crosswalk.md'
       - ISO 30111: 'reference/iso_30111_2019.md'
@@ -92,10 +92,10 @@ nav:
       - ISO 5895: 'reference/iso_5895_2022.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
   - About:
+    - FAQ: 'faq.md'
     - Contributing: 'about/contributing.md'
     - Acknowledgements: 'about/acknowledgements.md'
     - License: 'about/license.md'
-  - FAQ: 'faq.md'
   - Issue Tracker: 'https://github.com/CERTCC/Vultron/issues'
 theme:
   logo: 'assets/cert_seal.svg'

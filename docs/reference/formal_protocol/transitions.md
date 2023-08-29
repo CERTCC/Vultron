@@ -23,8 +23,7 @@ Revisiting the formal protocol definition from the [introduction](index.md):
 
     - By convention, CS states are labeled in the order $vfdpxa$.
     - Participant state is a tuple of the individual CS, RM, and EM states $S_i = (q^{cs}, q^{rm}, q^{em})$.
-    - Dots ($\cdot$) in states indicate single wildcards.
-    For example, $Vfd \cdot\cdot\cdot$ includes $Vfdpxa, VfdPxA, VfdPXA,\dots$
+    - Dots ($\cdot$) in states indicate single wildcards. For example, $Vfd \cdot \cdot \cdot$ includes $Vfdpxa, VfdPxA, VfdPXA, etc.$
     - Asterisks ($*$) indicate arbitrary wildcards.
     - Dashes ($−$) indicate no state change.
     - Left-harpoons ($\leftharpoondown$) indicate a message received.
@@ -359,9 +358,9 @@ No state changes are expected to occur based on the receipt of a General message
 
 !!! tip "General Messages are not a *No-Op*"
 
-    Note that we do not mean to imply that the *content* of such a message is expected to have no effect on the progression 
-    of a case, merely that the act of sending or receiving a general message itself does not imply any necessary state 
-    change to either the sender or receiver Participants.
+    We do not mean to imply that the *content* of a general message is expected to have no effect on the progression 
+    of a case, merely that the act of sending or receiving a general message itself does not imply any necessary protocol
+    state change to either the sender or receiver Participants.
 
 !!! note inline end "General Messages Sent and State Transitions"
     

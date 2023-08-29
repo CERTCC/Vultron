@@ -17,7 +17,7 @@ There are a number of ways you can contribute to the development of Vultron.
 
 ### Participate in Discussions
 
-- Participate in an existing [Discussions](https://github.com/CERTCC/Vultron/discussions) or start a new one.
+- Participate in an existing [Discussion](https://github.com/CERTCC/Vultron/discussions) or start a new one.
 
 ### Report Bugs
 

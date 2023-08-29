@@ -44,5 +44,5 @@ We'd be interested to know how we could help with efforts to bring encrypted mes
 
 ## What are the requirements for contributing?
 
-See [CONTRIBUTING](about/contributing.md)
+See [CONTRIBUTING](contributing.md)
 

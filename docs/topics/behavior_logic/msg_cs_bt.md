@@ -19,11 +19,11 @@ flowchart LR
     fb2["?"]
     seq2 --> fb2
     cs_global["Handle CS<br/>Participant-agnostic<br/>status msg"]
-    fb2 --> cs_global
+    fb2 -->|A| cs_global
     cs_pspec["Handle CS<br/>Participant-specific<br/>status msg"]
-    fb2 --> cs_pspec
+    fb2 -->|B| cs_pspec
     err_seq["&rarr;"]
-    fb2 --> err_seq
+    fb2 -->|C| err_seq
     is_ce_msg(["is CE msg?"])
     err_seq --> is_ce_msg
     emit_gi["emit GI"]
@@ -42,10 +42,10 @@ The main CS message-handling sequence comes next, with all matching incoming mes
 acknowledgment message (_CK_).
 These messages are presented as sub-trees below:
 
-- [Participant-agnostic CS Status Messages](#participant-agnostic-cs-status-messages)
-- [Participant-Specific CS Status Messages](#participant-specific-cs-status-messages)
+- (A) [Participant-agnostic CS Status Messages](#participant-agnostic-cs-status-messages)
+- (B) [Participant-Specific CS Status Messages](#participant-specific-cs-status-messages)
 
-Returning from handling regular CS messages, the tree next handles error messages (_CE_) with the familiar motif
+Returning from handling regular CS messages, the tree next (C) handles error messages (_CE_) with the familiar motif
 of an error (_CE_) triggering a general inquiry (_GI_) to seek resolution.
 
 Finally, the tree has handled all expected messages, so anything else would result in an error
@@ -63,9 +63,9 @@ title: Process CS Participant-agnostic Status Messages Behavior Tree
 flowchart LR
     global_seq["&rarr;"]
     global_fb["?"]
-    global_seq --> global_fb
+    global_seq -->|A1| global_fb
     cp_seq["&rarr;"]
-    global_fb --> cp_seq
+    global_fb -->|A1a| cp_seq
     is_CP_msg(["is CP msg?"])
     cp_seq --> is_CP_msg
     cp_fb["?"]
@@ -75,7 +75,7 @@ flowchart LR
     cp_cs_to_P["CS &rarr; ...P.."]
     cp_fb --> cp_cs_to_P
     cx_seq["&rarr;"]
-    global_fb --> cx_seq
+    global_fb -->|A1b| cx_seq
     is_CX_msg(["is CX msg?"])
     cx_seq --> is_CX_msg
     cx_fb["?"]
@@ -97,7 +97,7 @@ flowchart LR
     cx_to_p["CS &rarr; ...PX.<br/>(emit CP)"]
     cx_p_fb --> cx_to_p
     ca_seq["&rarr;"]
-    global_fb --> ca_seq
+    global_fb -->|A1c| ca_seq
     is_CA_msg(["is CA msg?"])
     ca_seq --> is_CA_msg
     ca_fb["?"]
@@ -107,18 +107,22 @@ flowchart LR
     ca_cs_to_a["CS &rarr; .....A"]
     ca_fb --> ca_cs_to_a
     terminate["terminate embargo"]
-    global_seq --> terminate
+    global_seq -->|A2| terminate
 ```
 
 
-Information that the vulnerability has been made public (_CP_) is met
+(A1a) Information that the vulnerability has been made public (_CP_) is met
 with a transition to the *Public Aware* state in the CS model when
-necessary. Similarly, information that an exploit has been made public
+necessary. 
+
+(A1b) Similarly, information that an exploit has been made public
 forces both the __X__ and __P__ transitions, as necessary.
 Because the __P__ transition, should it occur in response to a
 _CX_ message, represents possibly new information to the case, it
 triggers the emission of a _CP_ message to convey this information to
-the other Participants. Likewise, a message indicating attacks underway
+the other Participants.
+
+(A1c) Likewise, a message indicating attacks underway
 triggers the __A__ transition.
 
 Again, we note that any of the __P__, __X__, or

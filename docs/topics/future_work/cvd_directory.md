@@ -2,12 +2,14 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-The idea of CVD embargoes implies a means of dividing the world into those who belong in
-the embargo and those who do not.
-Because authentication is not the same as authorization, we cannot simply rely on knowing *who* a Participant
-*is*; we also have to be able to identify *why* they are *relevant* to a particular case.
+The idea of CVD embargoes implies a means of dividing the world into 
 
-<br/>
+1. those who belong in the embargo 
+2. those who do not
+
+Because _authentication_ is not the same as _authorization_, we cannot simply rely on knowing who a Participant
+is; we also have to be able to identify *why* they are *relevant* to a particular case.
+
 Thus, we must ask: 
 
 !!! question 
@@ -17,8 +19,8 @@ Thus, we must ask:
 !!! tip inline end "security.txt"
 
     Vendors can improve their discoverability by using a
-    `security.txt` file on their websites. See the security.txt website
-    for more information (<https://securitytxt.org/>).
+    `security.txt` file on their websites. See [securitytxt.org](https://securitytxt.org) and [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116.html)
+    for more information.
 
 In small CVD cases, the answer might be straightforward: The affected product comes from a known Vendor,
 so the only question to answer is how best to contact them.
@@ -38,13 +40,11 @@ problems:
     to ensure interoperability between report senders and receivers).
     Some Vendors only want email. Others require Reporters to create an
     account on their bespoke bug-tracking system before reporting.
-    Others ask for submissions via a customized web form. All of these
-    examples hinder the interoperability of
-    MPCVD
-    processes.
+    Others ask for submissions via a customized web form. These and [other examples](https://vuls.cert.org/confluence/display/CVD/4.2+Reporting)
+    hinder the interoperability of MPCVD processes.
 
 3.  It is not always clear which *other* Vendors' products contain the
-    affected product, which limits MPCVD cases' ability to follow the software
+    affected product, which limits the ability for an MPCVD cases to follow the software
     supply chain.
 
 4.  Sometimes vulnerabilities arise in protocols or specifications where

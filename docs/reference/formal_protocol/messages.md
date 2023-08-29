@@ -22,18 +22,20 @@ Revisiting the definitions from the [Formal Protocol Introduction](index.md):
 The message types in the Vultron Protocol arise primarily from the following principle taken directly from the 
 [CVD Guide](https://vuls.cert.org/confluence/display/CVD/2.3.+Avoid+Surprise):
 
-> **Avoid Surprise** -- As with most situations in which multiple
-> parties are engaged in a potentially stressful and contentious
-> negotiation, surprise tends to increase the risk of a negative
-> outcome. The importance of clearly communicating expectations across
-> all parties involved in a CVD process cannot be overemphasized. If we
-> expect cooperation between all parties and stakeholders, we should do
-> our best to match their expectations of being "in the loop" and
-> minimize their surprise. Publicly disclosing a vulnerability without
-> coordinating first can result in panic and an aversion to future
-> cooperation from Vendors and Finders alike. CVD promotes continued
-> cooperation and increases the likelihood that future vulnerabilities
-> will also be addressed and remedied.
+!!! quote "Avoid Surprise"
+
+    As with most situations in which multiple
+    parties are engaged in a potentially stressful and contentious
+    negotiation, surprise tends to increase the risk of a negative
+    outcome. The importance of clearly communicating expectations across
+    all parties involved in a CVD process cannot be overemphasized. If we
+    expect cooperation between all parties and stakeholders, we should do
+    our best to match their expectations of being "in the loop" and
+    minimize their surprise. Publicly disclosing a vulnerability without
+    coordinating first can result in panic and an aversion to future
+    cooperation from Vendors and Finders alike. CVD promotes continued
+    cooperation and increases the likelihood that future vulnerabilities
+    will also be addressed and remedied.
 
 Now we condense that principle into the following protocol
 recommendation:
