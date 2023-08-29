@@ -17,4 +17,4 @@ In the mean time:
 You might also want to check out:
 
 - [SEI Blog:Vultron: A Protocol for Coordinated Vulnerability Disclosure](https://insights.sei.cmu.edu/blog/vultron-a-protocol-for-coordinated-vulnerability-disclosure/) - the blog post that introduced the Vultron Protocol
-- [SEI Podcast Series: Improving Interoperability in Coordinated Vulnerability Disclosure with Vultron](https://www.youtube.com/watch?v=8WiSmhxJ2OM) - a podcast about the Vultron Protocol with Allen Householder and Suzanne Miller
+- [SEI Podcast Series: Improving Interoperability in Coordinated Vulnerability Disclosure with Vultron](https://youtu.be/8WiSmhxJ2OM) - a podcast about the Vultron Protocol with Allen Householder and Suzanne Miller
