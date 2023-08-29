@@ -141,7 +141,7 @@ stateDiagram-v2
 
 ### Ordering Preferences
 
-???+ note inline end "Notation"
+!!! tip inline end "Notation"
 
     The symbol $\prec$ is read as *precedes*.
 
