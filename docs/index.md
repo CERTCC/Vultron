@@ -68,7 +68,7 @@ Our previous work in this area includes:
 - The [Vulnerability Information and Coordination Environment](https://kb.cert.org/vince/)
   ([VINCE](https://kb.cert.org/vince/))
   ([blog post](https://insights.sei.cmu.edu/news/certcc-releases-vince-software-vulnerability-collaboration-platform/),
-  [github](https://github.com/CERTCC/VINCE) )
+  [github](https://github.com/CERTCC/VINCE))
 
 along with a variety of related research, including
 

@@ -92,8 +92,8 @@ nav:
       - ISO 5895: 'reference/iso_5895_2022.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
   - About:
-    - FAQ: 'faq.md'
     - Contributing: 'about/contributing.md'
+    - FAQ: 'about/faq.md'
     - Acknowledgements: 'about/acknowledgements.md'
     - License: 'about/license.md'
   - Issue Tracker: 'https://github.com/CERTCC/Vultron/issues'
