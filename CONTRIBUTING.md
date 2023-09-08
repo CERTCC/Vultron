@@ -2,7 +2,8 @@
 
 Thank you for your interest in contributing to Vultron!
 
-Please review [ContributionInstructions.md](ContributionInstructions.md) before submitting any Pull Requests.
+Please review our [Contribution Instructions](https://github.com/CERTCC/Vultron/blob/main/ContributionInstructions.md)
+before submitting any Pull Requests.
 
 <!--
 ## Code of Conduct
@@ -16,7 +17,7 @@ There are a number of ways you can contribute to the development of Vultron.
 
 ### Participate in Discussions
 
-- Participate in an existing [Discussions](https://github.com/CERTCC/Vultron/discussions) or start a new one.
+- Participate in an existing [Discussion](https://github.com/CERTCC/Vultron/discussions) or start a new one.
 
 ### Report Bugs
 

@@ -1,6 +1,6 @@
 # Vultron Docs
 
 What's here:
-- [User Stories](/doc/user_stories/)
+- [User Stories](/docs/topics/user_stories/)
 - [Activity Vocabulary Examples](/doc/examples/)
 

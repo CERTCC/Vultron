@@ -1,0 +1,173 @@
+site_name: Vultron CVD Protocol
+copyright: Copyright &copy; 2023 Carnegie Mellon University.
+nav:
+  - Home: 'index.md'
+  - Learning Vultron: 'tutorials/index.md'
+  - Understanding Vultron:
+    - Introduction:
+        - Background: 'topics/background/index.md'
+        - Interoperability: 'topics/background/interoperability.md'
+        - Defining CVD Success: 'topics/background/cvd_success.md'
+        - Documentation Overview: 'topics/background/overview.md'
+        - Terms and Definitions: 'topics/background/terms.md'
+        - Notation: 'topics/background/notation.md'
+        - Versioning: 'topics/background/versioning.md'
+    - Process Models:
+      - Introduction: 'topics/process_models/index.md'
+      - Report Management:
+        - RM Process Model: 'topics/process_models/rm/index.md'
+        - RM Participant Interactions: 'topics/process_models/rm/rm_interactions.md'
+      - Embargo Management:
+        - EM Process Model: 'topics/process_models/em/index.md'
+        - Embargo Principles: 'topics/process_models/em/principles.md'
+        - Default Embargoes: 'topics/process_models/em/defaults.md'
+        - Negotiating Embargoes: 'topics/process_models/em/negotiating.md'
+        - Adding Participants: 'topics/process_models/em/working_with_others.md'
+        - Early Termination: 'topics/process_models/em/early_termination.md'
+        - Case Splits and Merges: 'topics/process_models/em/split_merge.md'
+      - Case State:
+        - Introduction: 'topics/process_models/cs/index.md'
+        - CVD Case State Model: 'topics/process_models/cs/cs_model.md'
+      - Model Interactions:
+        - Global vs Local Aspects: 'topics/process_models/model_interactions/index.md'
+        - RM and EM Interactions: 'topics/process_models/model_interactions/rm_em.md'
+        - RM, EM, CS Interactions: 'topics/process_models/model_interactions/rm_em_cs.md'
+    - The Vultron Protocol:
+        - Formal Protocol Summary: 'topics/formal_protocol/index.md'
+        - Worked Example: 'topics/formal_protocol/worked_example.md'
+    - Behavior Logic:
+      - Behavior Tree Intro: 'topics/behavior_logic/index.md'
+      - CVD Behaviors: 'topics/behavior_logic/cvd_bt.md'
+      - Vulnerability Discovery Behavior: 'topics/behavior_logic/vuldisco_bt.md'
+      - RM Behaviors:
+        - RM BT Intro: 'topics/behavior_logic/rm_bt.md'
+        - Validation: 'topics/behavior_logic/rm_validation_bt.md'
+        - Prioritization: 'topics/behavior_logic/rm_prioritization_bt.md'
+        - Closure: 'topics/behavior_logic/rm_closure_bt.md'
+      - EM Behaviors:
+        - EM BT Intro: 'topics/behavior_logic/em_bt.md'
+        - Evaluate Proposed Embargo Behavior: 'topics/behavior_logic/em_eval_bt.md'
+        - Propse Embargo Behavior: 'topics/behavior_logic/em_propose_bt.md'
+        - Terminate Embargo Behavior: 'topics/behavior_logic/em_terminate_bt.md'
+      - Do Work Behaviors:
+        - Do Work Intro: 'topics/behavior_logic/do_work_bt.md'
+        - Deployment: 'topics/behavior_logic/deployment_bt.md'
+        - Fix Development: 'topics/behavior_logic/fix_dev_bt.md'
+        - Reporting: 'topics/behavior_logic/reporting_bt.md'
+        - Publication: 'topics/behavior_logic/publication_bt.md'
+        - Monitoring Threats: 'topics/behavior_logic/monitor_threats_bt.md'
+        - ID Assignment: 'topics/behavior_logic/id_assignment_bt.md'
+        - Exploit Acquisition: 'topics/behavior_logic/acquire_exploit_bt.md'
+      - Receive Messages Behaviors:
+        - Receive Msg Intro: 'topics/behavior_logic/msg_intro_bt.md'
+        - Receive RM Messages: 'topics/behavior_logic/msg_rm_bt.md'
+        - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
+        - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
+        - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
+    - User Stories: 'topics/user_stories/index.md'
+    - Future Work:
+        - Intro: 'topics/future_work/index.md'
+        - CVD Directory: 'topics/future_work/cvd_directory.md'
+        - Reward Functions: 'topics/future_work/reward_functions.md'
+        - Ontology: 'topics/future_work/ontology.md'
+        - Modeling and Simulation: 'topics/future_work/mod_sim.md'
+  - Implementing Vultron:
+      - Implementation Intro: 'howto/index.md'
+      - A Case Object: 'howto/case_object.md'
+      - Process Implementation: 'howto/process_implementation.md'
+      - EM and iCalendar: 'howto/em_icalendar.md'
+      - General Notes: 'howto/general_implementation.md'
+  - Reference:
+    - Reference Overview: 'reference/index.md'
+    - Formal Protocol:
+      - Introduction: 'reference/formal_protocol/index.md'
+      - States: 'reference/formal_protocol/states.md'
+      - Messages: 'reference/formal_protocol/messages.md'
+      - Transitions: 'reference/formal_protocol/transitions.md'
+      - Protocol Summary: 'reference/formal_protocol/conclusion.md'
+    - ISO Crosswalk:
+      - Introduction: 'reference/iso_crosswalk.md'
+      - ISO 30111: 'reference/iso_30111_2019.md'
+      - ISO 29147: 'reference/iso_29147_2018.md'
+      - ISO 5895: 'reference/iso_5895_2022.md'
+    - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
+  - About:
+    - Contributing: 'about/contributing.md'
+    - FAQ: 'about/faq.md'
+    - Acknowledgements: 'about/acknowledgements.md'
+    - License: 'about/license.md'
+  - Issue Tracker: 'https://github.com/CERTCC/Vultron/issues'
+theme:
+  logo: 'assets/cert_seal.svg'
+  name: 'material'
+  features:
+    - content.tabs.link
+    - navigation.footer
+    - navigation.instant
+    - navigation.sections
+    - navigation.tabs
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  palette:
+    scheme: 'cmu'
+    accent: 'red'
+  icon:
+    repo: fontawesome/brands/github
+plugins:
+  - include-markdown:
+      comments: false
+  - search
+repo_url: 'https://github.com/CERTCC/Vultron'
+repo_name: 'CERTCC/Vultron'
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.critic
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - tables
+extra:
+  social:
+    - icon: fontawesome/solid/bug
+      link: https://github.com/CERTCC/Vultron/issues
+      name: Report an Issue or Suggest a Change
+    - icon: fontawesome/brands/github
+      link: https://github.com/CERTCC/Vultron
+      name: CERTCC/Vultron on Github
+    - icon: fontawesome/regular/envelope
+      link: mailto:cert@cert.org?subject=Vultron%20Protocol%20Feedback
+      name: Email CERT/CC
+    - icon: fontawesome/solid/house
+      link: https://www.sei.cmu.edu/
+      name: Software Engineering Institute
+extra_javascript:
+  # to render math
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  # to sort tables
+  - https://unpkg.com/tablesort@5.3.0/dist/tablesort.min.js
+  - javascripts/tablesort.js
+extra_css:
+  - stylesheets/extra.css
