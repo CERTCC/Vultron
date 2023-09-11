@@ -85,6 +85,8 @@ nav:
       - Messages: 'reference/formal_protocol/messages.md'
       - Transitions: 'reference/formal_protocol/transitions.md'
       - Protocol Summary: 'reference/formal_protocol/conclusion.md'
+    - Code:
+        vultron: 'reference/code/index.md'
     - ISO Crosswalk:
       - Introduction: 'reference/iso_crosswalk.md'
       - ISO 30111: 'reference/iso_30111_2019.md'
@@ -119,6 +121,7 @@ theme:
 plugins:
   - include-markdown:
       comments: false
+  - mkdocstrings
   - search
 repo_url: 'https://github.com/CERTCC/Vultron'
 repo_name: 'CERTCC/Vultron'
