@@ -4,3 +4,4 @@
 """
 The vultron package is a collection of modules that provide the functionality for the Vultron project.
 """
+__version__ = "0.6.0"
