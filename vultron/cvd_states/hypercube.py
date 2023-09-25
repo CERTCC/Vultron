@@ -7,7 +7,7 @@ This module contains the CVDmodel class, which represents the state graph of a C
 
 Based on
 Householder, A. D., and Jonathan Spring.
-A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD).
+[A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771).
 Tech. Rep. CMU/SEI-2021-SR-021, Software Engineering Institute, Carnegie-Mellon University, Pittsburgh, PA, 2021.
 """
 
@@ -103,9 +103,6 @@ def diffstate(s1, s2):
     return c2.upper()
 
 
-# Given (A,B), you prefer histories
-# in which A precedes B over
-# ones in which B precedes A
 DESIDERATA = (
     ("V", "P"),
     ("V", "X"),
@@ -120,6 +117,10 @@ DESIDERATA = (
     ("P", "A"),
     ("X", "A"),
 )
+"""
+Taken directly from the [paper](https://doi.org/10.1184/R1/16416771): 
+Given (A,B), you prefer histories in which A precedes B over ones in which B precedes A.
+"""
 
 
 class CVDmodel:
@@ -153,9 +154,9 @@ class CVDmodel:
         self.state_good = None
         self.state_bad = None
 
-        self.setup()
+        self._setup()
 
-    def setup(self):
+    def _setup(self):
         """
         Setup the model once it has been instantiated
         """
@@ -214,8 +215,12 @@ class CVDmodel:
     def state_info(self, state: str) -> dict:
         """
         Returns the info for a given state
-        :param state:
-        :return:
+
+        Args:
+            state: the state to return info for
+
+        Returns:
+            a dict of info for the state
         """
 
         data = {
@@ -236,8 +241,12 @@ class CVDmodel:
     def previous_state(self, state: str) -> list:
         """
         For a given state, return the previous state(s)
-        :param state:
-        :return:
+
+        Args:
+            state: the state to return the previous state(s) for
+
+        Returns:
+            a list of previous states
         """
         return self.G.predecessors(state)
 
@@ -265,9 +274,13 @@ class CVDmodel:
     def paths_between(self, start="vfdpxa", end="VFDPXA"):
         """
         Return all paths of transitions between two states
-        :param start:
-        :param end:
-        :return:
+
+        Args:
+            start: the start state, default="vfdpxa"
+            end: the end state, default="VFDPXA"
+
+        Returns:
+            a list of paths
         """
         G = self.G
         return nx.all_simple_edge_paths(G, start, end)
@@ -276,8 +289,12 @@ class CVDmodel:
     def paths_from(self, state="vfdpxa"):
         """
         Return all paths of transitions that lead from a given state
-        :param state:
-        :return:
+
+        Args:
+            state: the state to return paths from, default="vfdpxa"
+
+        Returns:
+            a list of paths
         """
         return self.paths_between(start=state, end="VFDPXA")
 
@@ -285,15 +302,18 @@ class CVDmodel:
     def paths_to(self, state="VFDPXA"):
         """
         Return all paths of transitions that lead to a given state
-        :param state:
-        :return:
+
+        Args:
+            state: the state to return paths to, default="VFDPXA"
+
+        Returns:
+            a list of paths
         """
         return self.paths_between(start="vfdpxa", end=state)
 
     def histories(self) -> list:
         """
-        Return all possible histories between two states (default is all histories)
-        :return: a list of histories
+        Return all possible histories
         """
         _H = self.sequences_between(start="vfdpxa", end="VFDPXA")
         H = ["".join(h) for h in _H]
@@ -304,8 +324,12 @@ class CVDmodel:
     def sequences_from(self, state):
         """
         Return all sequences of transitions that lead from a given state
-        :param state:
-        :return:
+
+        Args:
+            state: the state to return sequences from
+
+        Returns:
+            a list of sequences
         """
         return self.sequences_between(start=state)
 
@@ -313,8 +337,13 @@ class CVDmodel:
     def sequences_to(self, state):
         """
         Return all sequences of transitions that lead to a given state
-        :param state:
-        :return:
+
+        Args:
+            state: the state to return sequences to
+
+        Returns:
+            a list of sequences
+
         """
         return self.sequences_between(end=state)
 
@@ -322,9 +351,13 @@ class CVDmodel:
     def sequences_between(self, start="vfdpxa", end="VFDPXA"):
         """
         Return all sequences of transitions between two states
-        :param start:
-        :param end:
-        :return:
+
+        Args:
+            start: the start state, default="vfdpxa"
+            end: the end state, default="VFDPXA"
+
+        Returns:
+            a list of sequences
         """
         sequences = []
         for path in self.paths_between(start=start, end=end):
@@ -332,11 +365,15 @@ class CVDmodel:
             sequences.append(seq)
         return sequences
 
-    def transitions_in_path(self, path):
+    def transitions_in_path(self, path: list) -> tuple:
         """
         Return the transitions in a path
-        :param path: A list of graph edges
-        :return: a tuple of the edge labels
+
+        Args:
+            path: a list of graph edges
+
+        Returns:
+            a tuple of the edge labels
         """
         G = self.G
         # path is a list of (node1,node2) edge tuples
@@ -349,9 +386,13 @@ class CVDmodel:
     def walk_from(self, start=None, end="VFDPXA"):
         """
         Randomly walk from a given state to a given state
-        :param start:
-        :param end:
-        :return:
+
+        Args:
+            start: the start state, default=None
+            end: the end state, default="VFDPXA"
+
+        Returns:
+            a tuple of the path and the probabilities of each step
         """
         current = start
         path = []
@@ -397,7 +438,9 @@ class CVDmodel:
     def _compute_tfidf(self) -> pd.DataFrame:
         """
         Compute tf-idf scores for each desiderata in each history
-        :return: a dataframe with tf-idf scores for each desiderata in each history
+
+        Returns:
+            a dataframe with tf-idf scores for each desiderata in each history
 
         """
         df = pd.DataFrame(self.H_df)
@@ -436,7 +479,9 @@ class CVDmodel:
     def compute_s_scores(self):
         """
         Compute the s scores for each state
-        :return:
+
+        Returns:
+            a dict of state: s score
         """
         score = {}
         for s in self.states:
@@ -446,7 +491,9 @@ class CVDmodel:
     def init_H_df(self) -> pd.DataFrame:
         """
         Initialize the history dataframe
-        :return:
+
+        Returns:
+            a dataframe of histories and their scores
         """
         # make sure we have the info we need before proceeding
         if self.H_prob is None:
@@ -461,7 +508,7 @@ class CVDmodel:
             row = {"h": h, "p": p}
 
             # walk the desiderata set for this history
-            D_h = self.assess_hist(h)
+            D_h = self._assess_hist(h)
 
             for d, is_met in D_h.items():
                 # d is a tuple of A,B where A<B
@@ -502,7 +549,7 @@ class CVDmodel:
         f_d = self.H_df[self.d_cols].mean()
         return f_d
 
-    def assess_hist(self, h):
+    def _assess_hist(self, h):
         try:
             is_valid_history(h)
         except HistoryValidationError:
@@ -511,16 +558,19 @@ class CVDmodel:
         D_h = {(e1, e2): h.index(e1) < h.index(e2) for (e1, e2) in self._D}
         return D_h
 
-    def score_hist(self, h):
+    def score_hist(self, h: str) -> float:
         """
         Compute the score for a given history
 
-        :param h:
-        :return:
+        Args:
+            h: the history to score
+
+        Returns:
+            the score for the history
         """
         # this is basically computing the dot product of
         # D_h dot (1-f_d)
-        D_h = self.assess_hist(h)
+        D_h = self._assess_hist(h)
 
         score = 0
         for k, v in D_h.items():
@@ -541,7 +591,7 @@ class CVDmodel:
                 "start_embargo": can_start_embargo(s),
                 "embargo_viable": embargo_viable(s),
             }
-            good, bad = self.assess_state(s)
+            good, bad = self._assess_state(s)
 
             for pat, score in good.items():
                 # convert pattern into colname
@@ -579,7 +629,15 @@ class CVDmodel:
         return df
 
     @ensure_valid_state
-    def assess_state(self, state):
+    def _assess_state(self, state):
+        """
+        Assess a state against the desiderata
+        Args:
+            state: the state to assess
+
+        Returns:
+            a tuple of (good, bad) patterns
+        """
         plus = []
         for p, score in self.state_good.items():
             if p.match(state):
@@ -591,8 +649,8 @@ class CVDmodel:
         return dict(plus), dict(minus)
 
     @ensure_valid_state
-    def part_score_state(self, state):
-        good, bad = self.assess_state(state)
+    def _part_score_state(self, state):
+        good, bad = self._assess_state(state)
         plus = sum([1 - g for g in good.values()])
         minus = sum([1 - g for g in bad.values()])
 
@@ -601,7 +659,7 @@ class CVDmodel:
 
     @ensure_valid_state
     def score_state(self, state):
-        part = self.part_score_state(state)
+        part = self._part_score_state(state)
         # net = part['plus'] - part['minus']
         net = part["plus"]
         return net

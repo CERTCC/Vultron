@@ -2,9 +2,10 @@
 #  Copyright (c) 2023. Carnegie Mellon University
 #
 #  See LICENSE for details
-"""file: cvd_proto_states
-author: adh
-created_at: 4/4/22 9:11 AM
+"""
+The `vultron.cvd_states.states` module implements the CVD Case State Model enums.
+
+It also provides functions for converting between state strings and enums.
 """
 
 from enum import Enum, Flag, IntEnum
@@ -519,6 +520,28 @@ all_states = (
 )
 
 
+def _last3(s):
+    return s[-3:]
+
+
+def _first3(s):
+    return s[:3]
+
+
+@ensure_valid_state
+def vfd(state):
+    (vfd, pxa) = state_string_to_enums(state)
+    value = vfd.value
+    return value
+
+
+@ensure_valid_state
+def pxa(state):
+    (vfd, pxa) = state_string_to_enums(state)
+    value = pxa.value
+    return value
+
+
 def main():
     print("Case State Enumerations")
     print()
@@ -541,25 +564,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-def _last3(s):
-    return s[-3:]
-
-
-def _first3(s):
-    return s[:3]
-
-
-@ensure_valid_state
-def vfd(state):
-    (vfd, pxa) = state_string_to_enums(state)
-    value = vfd.value
-    return value
-
-
-@ensure_valid_state
-def pxa(state):
-    (vfd, pxa) = state_string_to_enums(state)
-    value = pxa.value
-    return value
