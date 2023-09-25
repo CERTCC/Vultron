@@ -3,7 +3,7 @@
 #  See LICENSE for details
 #!/usr/bin/env python
 """
-This module contains the CVDmodel class, which represents the state graph of a Coordinated Vulnerability Disclosure case.
+The `vultron.cvd_states.hypercube` module contains the CVDmodel class, which represents the state graph of a Coordinated Vulnerability Disclosure case.
 
 Based on
 Householder, A. D., and Jonathan Spring.
@@ -164,13 +164,13 @@ class CVDmodel:
         self.G = _create_graph()
 
         # walk the graph to collect histories
-        self.H = self.histories()
+        self.H = self.histories
 
         # compute the probabilities of each history
         self.H_prob = self._compute_h_frequencies()
 
         # build a dataframe of what you have so far
-        self.H_df = self.init_H_df()
+        self.H_df = self._init_H_df()
 
         # once you have a dataframe you can compute
         # frequencies of individual desiderata weighted
@@ -197,8 +197,8 @@ class CVDmodel:
             v: k for k, v in self.not_d_to_state_pattern.items()
         }
 
-        self.state_good = self.build_good()
-        self.state_bad = self.build_bad()
+        self.state_good = self._build_good()
+        self.state_bad = self._build_bad()
 
         # self.S_score = self.compute_s_scores()
         # construct a dataframe for states
@@ -311,6 +311,7 @@ class CVDmodel:
         """
         return self.paths_between(start="vfdpxa", end=state)
 
+    @property
     def histories(self) -> list:
         """
         Return all possible histories
@@ -476,7 +477,7 @@ class CVDmodel:
 
         return df
 
-    def compute_s_scores(self):
+    def compute_s_scores(self) -> dict:
         """
         Compute the s scores for each state
 
@@ -488,7 +489,7 @@ class CVDmodel:
             score[s] = self.score_state(s)
         return score
 
-    def init_H_df(self) -> pd.DataFrame:
+    def _init_H_df(self) -> pd.DataFrame:
         """
         Initialize the history dataframe
 
@@ -698,7 +699,7 @@ class CVDmodel:
         _b = {(b, a): v.swapcase() for (a, b), v in g.items()}
         return _b
 
-    def build_good(self):
+    def _build_good(self):
         g = self._construct_good_patterns()
         f_d = self.f_d
 
@@ -707,7 +708,7 @@ class CVDmodel:
 
         return _g
 
-    def build_bad(self):
+    def _build_bad(self):
         g = self._construct_good_patterns()
         f_d = self.f_d
 
@@ -786,7 +787,16 @@ class CVDmodel:
 
 
 def main():
-    pass
+    m = CVDmodel()
+    print("## Histories")
+    for h in m.histories:
+        print(f"- {h} {m.score_hist(h)}")
+    print("## States")
+    for s in m.states:
+        print(f"- {s} {m.score_state(s)}")
+
+    for layer in nx.topological_generations(m.G):
+        print(layer)
 
 
 if __name__ == "__main__":

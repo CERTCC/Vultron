@@ -43,12 +43,12 @@ def state_string_to_enum2(s: str) -> Tuple[Enum]:
         ```
         returns
         ```python
-        [VendorAwareness.VENDOR_UNAWARE,
+        ( VendorAwareness.VENDOR_UNAWARE,
           FixReadiness.FIX_NOT_READY,
           FixDeployment.FIX_NOT_DEPLOYED,
           PublicAwareness.PUBLIC_UNAWARE,
           ExploitPublication.NO_PUBLIC_EXPLOIT,
-          AttackObservation.NO_ATTACKS_OBSERVED]
+          AttackObservation.NO_ATTACKS_OBSERVED)
         ```
 
     Args:

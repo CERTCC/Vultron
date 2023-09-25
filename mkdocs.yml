@@ -87,6 +87,7 @@ nav:
       - Protocol Summary: 'reference/formal_protocol/conclusion.md'
     - Code:
       - vultron: 'reference/code/index.md'
+      - cs_model: 'reference/code/cs_model.md'
       - cvd_states: 'reference/code/cvd_states.md'
     - Case States:
       - Intro: 'reference/case_states/index.md'
