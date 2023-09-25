@@ -14,6 +14,7 @@ Tech. Rep. CMU/SEI-2021-SR-021, Software Engineering Institute, Carnegie-Mellon 
 import random
 import re
 from itertools import product
+from typing import List, Tuple
 
 import networkx as nx
 import numpy as np
@@ -200,9 +201,9 @@ class CVDmodel:
         self.state_good = self._build_good()
         self.state_bad = self._build_bad()
 
-        # self.S_score = self.compute_s_scores()
+        # self.S_score = self._compute_s_scores()
         # construct a dataframe for states
-        self.S_df = self.init_Sdf()
+        self.S_df = self._init_sdf()
 
     @property
     def states(self) -> list:
@@ -271,7 +272,7 @@ class CVDmodel:
     # paths are a list of edges from the graph
     # [(u,v),(v,w),(w,x)...]
     @ensure_valid_state
-    def paths_between(self, start="vfdpxa", end="VFDPXA"):
+    def paths_between(self, start: str = "vfdpxa", end: str = "VFDPXA") -> List[tuple]:
         """
         Return all paths of transitions between two states
 
@@ -286,7 +287,7 @@ class CVDmodel:
         return nx.all_simple_edge_paths(G, start, end)
 
     @ensure_valid_state
-    def paths_from(self, state="vfdpxa"):
+    def paths_from(self, state: str = "vfdpxa") -> List[tuple]:
         """
         Return all paths of transitions that lead from a given state
 
@@ -299,7 +300,7 @@ class CVDmodel:
         return self.paths_between(start=state, end="VFDPXA")
 
     @ensure_valid_state
-    def paths_to(self, state="VFDPXA"):
+    def paths_to(self, state: str = "VFDPXA") -> List[tuple]:
         """
         Return all paths of transitions that lead to a given state
 
@@ -322,7 +323,7 @@ class CVDmodel:
 
     # sequences are a list of the labels along edges from the graph
     # ["VPXFDA","XPVAFD"...], ["VAF", "XPV", ], etc.
-    def sequences_from(self, state):
+    def sequences_from(self, state: str = "vfdpxa") -> List[str]:
         """
         Return all sequences of transitions that lead from a given state
 
@@ -335,7 +336,7 @@ class CVDmodel:
         return self.sequences_between(start=state)
 
     @ensure_valid_state
-    def sequences_to(self, state):
+    def sequences_to(self, state: str) -> List[str]:
         """
         Return all sequences of transitions that lead to a given state
 
@@ -349,7 +350,9 @@ class CVDmodel:
         return self.sequences_between(end=state)
 
     @ensure_valid_state
-    def sequences_between(self, start="vfdpxa", end="VFDPXA"):
+    def sequences_between(
+        self, start: str = "vfdpxa", end: str = "VFDPXA"
+    ) -> List[str]:
         """
         Return all sequences of transitions between two states
 
@@ -366,7 +369,7 @@ class CVDmodel:
             sequences.append(seq)
         return sequences
 
-    def transitions_in_path(self, path: list) -> tuple:
+    def transitions_in_path(self, path: list) -> Tuple[str]:
         """
         Return the transitions in a path
 
@@ -477,7 +480,7 @@ class CVDmodel:
 
         return df
 
-    def compute_s_scores(self) -> dict:
+    def _compute_s_scores(self) -> dict:
         """
         Compute the s scores for each state
 
@@ -546,7 +549,7 @@ class CVDmodel:
 
         return f_d
 
-    def compute_f_d_orig(self):
+    def _compute_f_d_orig(self):
         f_d = self.H_df[self.d_cols].mean()
         return f_d
 
@@ -583,7 +586,7 @@ class CVDmodel:
         # d is a tuple (a,b)
         return "<".join(d)
 
-    def init_Sdf(self):
+    def _init_sdf(self):
         data = []
         patcols = set()
         for s in self.states:
@@ -729,7 +732,13 @@ class CVDmodel:
         assert len(idx) == 12
         return idx
 
-    def state_adjacency_matrix(self):
+    def state_adjacency_matrix(self) -> pd.DataFrame:
+        """
+        Return the state adjacency matrix for the model
+
+        Returns:
+            a dataframe of the state adjacency matrix
+        """
         G = self.G
         rows = G.nodes()
         cols = rows
@@ -738,7 +747,12 @@ class CVDmodel:
         )
         return df
 
-    def state_transition_matrix(self):
+    def state_transition_matrix(self) -> pd.DataFrame:
+        """
+        Return the state transition matrix for the model
+        Returns:
+            a dataframe of the state transition matrix
+        """
         adj_df = self.state_adjacency_matrix()
 
         df = pd.DataFrame(adj_df)
@@ -746,7 +760,15 @@ class CVDmodel:
         df = df.div(df.sum(axis=1), axis=0).fillna(0)
         return df
 
-    def find_states(self, pat):
+    def find_states(self, pat: str) -> list:
+        """
+        Find states that match a given pattern
+        Args:
+            pat: a regex pattern to match
+
+        Returns:
+            a list of states that match the pattern
+        """
         try:
             is_valid_pattern(pat)
         except PatternValidationError as e:
@@ -759,7 +781,16 @@ class CVDmodel:
         return matches
 
     @ensure_valid_state
-    def move_score(self, from_state, to_state):
+    def move_score(self, from_state: str, to_state: str) -> float:
+        """
+        Compute the score of moving from one state to another
+        Args:
+            from_state: The state to move from
+            to_state: The state to move to
+
+        Returns:
+            the score of the move
+        """
         try:
             is_valid_transition(from_state, to_state)
         except TransitionValidationError as e:
@@ -770,7 +801,17 @@ class CVDmodel:
         delta = next_score - curr_score
         return delta
 
-    def compute_pagerank(self):
+    def compute_pagerank(self) -> dict:
+        """
+        Compute the pagerank of each state in the model.
+        Runs the NetworkX pagerank algorithm on the model graph 10000 times.
+        Because the model is a directed graph, we need to add a wraparound link so that the pagerank algorithm can walk
+        from the end back to the beginning naturally.
+
+        Returns:
+            a dict of state: pagerank
+
+        """
         # copy the graph since we're going to modify it
         G = nx.DiGraph(self.G)
 
@@ -797,6 +838,11 @@ def main():
 
     for layer in nx.topological_generations(m.G):
         print(layer)
+
+    print("## Pagerank")
+    pr = m.compute_pagerank()
+    for k, v in pr.items():
+        print(f"- {k} {v}")
 
 
 if __name__ == "__main__":
