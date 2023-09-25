@@ -1,0 +1,78 @@
+#  Copyright (c) 2023. Carnegie Mellon University
+#
+#  See LICENSE for details
+
+import unittest
+
+import vultron.cvd_states.patterns.zerodays as zd
+from vultron.cvd_states.hypercube import CVDmodel
+
+not_zero_day_states = [
+    "Vfdpxa",
+    "VFdpxa",
+    "VFdPxa",
+    "VFdPxA",
+    "VFdPXa",
+    "VFdPXA",
+    "VFDpxa",
+    "VFDPxa",
+    "VFDPxA",
+    "VFDPXa",
+    "VFDPXA",
+]
+
+not_zero_day_histories = [
+    "VFPAXD",
+    "VFPADX",
+    "VFPXAD",
+    "VFPXDA",
+    "VFPDAX",
+    "VFPDXA",
+    "VFDPAX",
+    "VFDPXA",
+]
+
+
+class MyTestCase(unittest.TestCase):
+    def setUp(self):
+        self.sg = CVDmodel()
+
+    def tearDown(self):
+        pass
+
+    def test_zeroday_type(self):
+        for state in self.sg.states:
+            result = zd.zeroday_type(state)
+            # should be a list
+            self.assertIsInstance(result, list)
+            if state in not_zero_day_states:
+                # should be n
+                self.assertEqual(len(result), 1)
+                self.assertIn(zd.ZeroDayType.NOT_APPLICABLE, result)
+            else:
+                # should be non-empty
+                self.assertGreater(len(result), 0)
+                # should be a list of enums
+                for r in result:
+                    self.assertIsInstance(r, zd.ZeroDayType)
+                # should be unique
+                self.assertEqual(len(result), len(set(result)))
+
+    def test_type_from_history(self):
+        for history in self.sg.histories:
+            result = zd.type_from_history(history)
+            if history in not_zero_day_histories:
+                # should be empty
+                self.assertEqual(len(result), 0)
+            else:
+                # should be non-empty
+                self.assertGreaterEqual(len(result), 1)
+                # should be a list of enums
+                for r in result:
+                    self.assertIsInstance(r, zd.ZeroDayType)
+                # should be unique
+                self.assertEqual(len(result), len(set(result)))
+
+
+if __name__ == "__main__":
+    unittest.main()
