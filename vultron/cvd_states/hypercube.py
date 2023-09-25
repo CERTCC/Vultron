@@ -84,13 +84,13 @@ def _create_graph():
         except TransitionValidationError:
             continue
 
-        t = diffstate(s1, s2)
+        t = _diffstate(s1, s2)
         G.add_edge(s1, s2, label=t)
 
     return G
 
 
-def diffstate(s1, s2):
+def _diffstate(s1, s2):
     """returns the transition between s1 and s2"""
     try:
         is_valid_transition(s1, s2)
