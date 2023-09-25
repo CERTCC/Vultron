@@ -5,8 +5,8 @@
 | --- | --- |
 | State | VFdPxA |
 | Score | 1.50 |
-| VFD | Vfd |
-| PXA | Pxa |
+| VFD |&bull;&nbsp;Vendor Aware<br/>&bull;&nbsp;Fix Ready<br/>&bull;&nbsp;Fix Not Deployed<br/>|
+| PXA |&bull;&nbsp;Public Aware<br/>&bull;&nbsp;No Public Exploit<br/>&bull;&nbsp;Attacks Observed<br/>|
 | Explain |&bull;&nbsp;Vendor Is Aware Of Vulnerability<br/>&bull;&nbsp;Fix Is Ready<br/>&bull;&nbsp;Fix Has Not Been Deployed<br/>&bull;&nbsp;Public Is Aware Of Vulnerability<br/>&bull;&nbsp;No Exploits Have Been Made Public<br/>&bull;&nbsp;Attacks Have Been Observed<br/>|
 | Info |&bull;&nbsp;Attack Success Likely<br/>&bull;&nbsp;Embargo Viability Not Viable<br/>&bull;&nbsp;Embargo Viability No Start<br/>&bull;&nbsp;Ssvc 2 Exploitation Active<br/>&bull;&nbsp;Ssvc 2 Report Public Yes<br/>&bull;&nbsp;Ssvc 2 Supplier Contacted Yes<br/>&bull;&nbsp;Ssvc 2 Public Value Added Ampliative<br/>&bull;&nbsp;Ssvc 2 Public Value Added Limited<br/>&bull;&nbsp;Cvss 31 Exploit Code Maturity High<br/>&bull;&nbsp;Cvss 31 Exploit Code Maturity Functional<br/>&bull;&nbsp;Vep Not Applicable<br/>|
 | Actions |&bull;&nbsp;Terminate Any Existing Embargo<br/>&bull;&nbsp;Publish Vulnerability<br/>&bull;&nbsp;Monitor For Additional Attacks<br/>&bull;&nbsp;Publish Detection For Attacks<br/>&bull;&nbsp;Monitor For Exploit Publication<br/>&bull;&nbsp;Deploy Fix<br/>&bull;&nbsp;Escalate Deployment Priority<br/>&bull;&nbsp;Promote Fix Deployment<br/>|

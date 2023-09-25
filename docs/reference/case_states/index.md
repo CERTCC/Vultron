@@ -1,3 +1,5 @@
+<!-- This file is auto-generated. Do not edit. -->
+
 # Case States
 This directory contains a description of each state in the case model.
 

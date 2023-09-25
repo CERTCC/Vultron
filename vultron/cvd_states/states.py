@@ -32,7 +32,7 @@ def state_string_to_enums(s: str) -> Tuple[Enum]:
 
 
 @ensure_valid_state
-def state_string_to_enum2(s: str) -> List[Enum]:
+def state_string_to_enum2(s: str) -> Tuple[Enum]:
     """
     Convert a state string to a list of enums that define the state
 
@@ -541,3 +541,25 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def _last3(s):
+    return s[-3:]
+
+
+def _first3(s):
+    return s[:3]
+
+
+@ensure_valid_state
+def vfd(state):
+    (vfd, pxa) = state_string_to_enums(state)
+    value = vfd.value
+    return value
+
+
+@ensure_valid_state
+def pxa(state):
+    (vfd, pxa) = state_string_to_enums(state)
+    value = pxa.value
+    return value

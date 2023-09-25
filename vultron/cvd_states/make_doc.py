@@ -11,6 +11,7 @@ import os
 import re
 
 from vultron.cvd_states.hypercube import CVDmodel
+from vultron.cvd_states.patterns.explanations import explain
 
 _DISCLAIMER = "This file is auto-generated. Do not edit."
 
@@ -60,7 +61,7 @@ def print_readme(model_dir="../../docs/case_states"):
         fp.write("| --- | --- | --- | --- | --- | --- | --- |\n")
 
         for state in sg.states():
-            explanation = "| ".join((_enum2title(x) for x in sg.explain(state)))
+            explanation = "| ".join((_enum2title(x) for x in explain(state)))
             fp.write(f"| [{state}]({_fname(state)}) | {explanation} |\n")
         fp.write("\n")
 
@@ -85,8 +86,16 @@ def print_model(model_dir="../../docs/reference/case_states"):
             fp.write("| --- | --- |\n")
             fp.write(f"| State | {info['state']} |\n")
             fp.write(f"| Score | {info['score']:.2f} |\n")
-            fp.write(f"| VFD | {_enum2title(info['vfd'])} |\n")
-            fp.write(f"| PXA | {_enum2title(info['pxa'])} |\n")
+
+            fp.write("| VFD |")
+            for item in info["vfd"]:
+                fp.write(_bullet(_enum2title(item)))
+            fp.write("|\n")
+
+            fp.write("| PXA |")
+            for item in info["pxa"]:
+                fp.write(_bullet(_enum2title(item)))
+            fp.write("|\n")
 
             for category in [
                 "explain",

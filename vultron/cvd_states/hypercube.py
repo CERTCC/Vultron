@@ -1,8 +1,8 @@
+#  Copyright (c) 2023. Carnegie Mellon University. See LICENSE for details
+#
+#  See LICENSE for details
 #!/usr/bin/env python
-"""file: stategraph
-author: adh
-created_at: 1/29/21 11:56 AM
-
+"""
 This module contains the CVDmodel class, which represents the state graph of a Coordinated Vulnerability Disclosure case.
 
 Based on
@@ -10,9 +10,6 @@ Householder, A. D., and Jonathan Spring.
 A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD).
 Tech. Rep. CMU/SEI-2021-SR-021, Software Engineering Institute, Carnegie-Mellon University, Pittsburgh, PA, 2021.
 """
-#  Copyright (c) 2023. Carnegie Mellon University. See LICENSE for details
-#
-#  See LICENSE for details
 
 import random
 import re
@@ -38,7 +35,7 @@ from vultron.cvd_states.patterns.explanations import explain
 from vultron.cvd_states.patterns.info import info
 from vultron.cvd_states.patterns.potential_actions import action
 from vultron.cvd_states.patterns.zerodays import zeroday_type
-from vultron.cvd_states.states import CS_pxa, CS_vfd
+from vultron.cvd_states.states import pxa, vfd
 from vultron.cvd_states.validations import (
     ensure_valid_state_method_wrapper as ensure_valid_state,
 )
@@ -109,7 +106,7 @@ def diffstate(s1, s2):
 # Given (A,B), you prefer histories
 # in which A precedes B over
 # ones in which B precedes A
-D = [
+DESIDERATA = (
     ("V", "P"),
     ("V", "X"),
     ("V", "A"),
@@ -122,17 +119,17 @@ D = [
     ("P", "X"),
     ("P", "A"),
     ("X", "A"),
-]
+)
 
 
-class CVDmodel(object):
+class CVDmodel:
     """
     A CVDmodel is a graph of states and transitions between them.
     The model reflects the CVD process and the actions that can be taken at a high level.
     It also has a set of histories that can be scored.
     """
 
-    _D = D
+    _D = DESIDERATA
 
     def __init__(self):
         # the graph of states
@@ -224,13 +221,13 @@ class CVDmodel(object):
         data = {
             "state": state,
             "score": self.score_state(state),
-            "vfd": self.vfd(state),
-            "pxa": self.pxa(state),
+            "vfd": vfd(state),
+            "pxa": pxa(state),
             "predecessors": list(self.previous_state(state)),
             "successors": list(self.next_state(state)),
-            "explain": self.explain(state),
-            "info": self.info(state),
-            "actions": self.actions(state),
+            "explain": explain(state),
+            "info": info(state),
+            "actions": action(state),
             "zeroday_type": zeroday_type(state),
         }
         return data
@@ -261,33 +258,6 @@ class CVDmodel(object):
             edge_data = self.G.get_edge_data(state, successor)
             if edge_data["label"] == transition:
                 return successor
-
-    @ensure_valid_state
-    def explain(self, state=None):
-        """
-        Return the explanation for a given state
-        :param state:
-        :return:
-        """
-        return explain(state)
-
-    @ensure_valid_state
-    def actions(self, state=None):
-        """
-        Return the actions that can be taken from a given state
-        :param state:
-        :return:
-        """
-        return action(state)
-
-    @ensure_valid_state
-    def info(self, state=None):
-        """
-        Return the info for a given state
-        :param state:
-        :return:
-        """
-        return info(state)
 
     # paths are a list of edges from the graph
     # [(u,v),(v,w),(w,x)...]
@@ -730,18 +700,6 @@ class CVDmodel(object):
         return matches
 
     @ensure_valid_state
-    def actions(self, state):
-        return action(state)
-
-    @ensure_valid_state
-    def explain(self, state):
-        return explain(state)
-
-    @ensure_valid_state
-    def info(self, state):
-        return info(state)
-
-    @ensure_valid_state
     def move_score(self, from_state, to_state):
         try:
             is_valid_transition(from_state, to_state)
@@ -767,16 +725,6 @@ class CVDmodel(object):
 
         # return a dict of node: pr
         return pr
-
-    @ensure_valid_state
-    def vfd(self, state):
-        s = state[:3]
-        return CS_vfd[s]
-
-    @ensure_valid_state
-    def pxa(self, state):
-        s = state[-3:]
-        return CS_pxa[s]
 
 
 def main():

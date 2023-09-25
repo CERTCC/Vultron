@@ -5,8 +5,8 @@
 | --- | --- |
 | State | Vfdpxa |
 | Score | 1.25 |
-| VFD | Vfd |
-| PXA | Pxa |
+| VFD |&bull;&nbsp;Vendor Aware<br/>&bull;&nbsp;Fix Not Ready<br/>&bull;&nbsp;Fix Not Deployed<br/>|
+| PXA |&bull;&nbsp;Public Unaware<br/>&bull;&nbsp;No Public Exploit<br/>&bull;&nbsp;No Attacks Observed<br/>|
 | Explain |&bull;&nbsp;Vendor Is Aware Of Vulnerability<br/>&bull;&nbsp;Fix Is Not Ready<br/>&bull;&nbsp;Fix Has Not Been Deployed<br/>&bull;&nbsp;Public Is Unaware Of Vulnerability<br/>&bull;&nbsp;No Exploits Have Been Made Public<br/>&bull;&nbsp;No Attacks Have Been Observed<br/>|
 | Info |&bull;&nbsp;Attack Success Likely<br/>&bull;&nbsp;Embargo Viability Start Ok<br/>&bull;&nbsp;Embargo Viability Viable<br/>&bull;&nbsp;Ssvc 2 Exploitation None<br/>&bull;&nbsp;Ssvc 2 Report Public No<br/>&bull;&nbsp;Ssvc 2 Public Value Added Precedence<br/>&bull;&nbsp;Ssvc 2 Public Value Added Ampliative<br/>&bull;&nbsp;Ssvc 2 Supplier Contacted Yes<br/>&bull;&nbsp;Cvss 31 Exploit Code Maturity Not Defined<br/>&bull;&nbsp;Cvss 31 Remediation Level Temporary Fix<br/>&bull;&nbsp;Cvss 31 Remediation Level Workaround<br/>&bull;&nbsp;Cvss 31 Exploit Code Maturity Unproven<br/>&bull;&nbsp;Vep Not Applicable<br/>|
 | Actions |&bull;&nbsp;Monitor For Exploit Publication<br/>&bull;&nbsp;Monitor For Attacks<br/>&bull;&nbsp;Maintain Vigilance For Embargo Exit Criteria<br/>&bull;&nbsp;Maintain Any Existing Embargo<br/>&bull;&nbsp;Publish Vulnerability<br/>&bull;&nbsp;Publish Mitigation<br/>&bull;&nbsp;Create Fix<br/>&bull;&nbsp;Encourage Vendor To Create Fix<br/>&bull;&nbsp;Negotiate Or Establish Disclosure Embargo<br/>&bull;&nbsp;Motivate Vendor To Fix<br/>&bull;&nbsp;Discourage Exploit Publication<br/>|

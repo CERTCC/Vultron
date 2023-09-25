@@ -2,7 +2,7 @@
 #
 #  See LICENSE for details
 """
-Provides error classes for the CVD State Model.
+`vultron.cvd_states.errors` provides error classes for the CVD State Model.
 """
 
 from vultron.errors import VultronError
