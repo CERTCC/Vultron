@@ -2,7 +2,7 @@
 
 {% include-markdown "../../../includes/normative.md" %}
 
-Here we reflect on the interactions between the [RM](../rm/), [EM](../em/index.md), and [CS](../cs/index.md) models within the
+Here we reflect on the interactions between the [RM](../rm/index.md), [EM](../em/index.md), and [CS](../cs/index.md) models within the
 overall Vultron process.
 
 ## Participant-Agnostic vs Participant-Specific Aspects
@@ -16,7 +16,7 @@ overall Vultron process.
 
 Some aspects of the Vultron process are Participant-agnostic (i.e., they represent a global state of the case),
 while others are specific to a Participant.
-Specifically, the [RM](../rm/) process is unique to each Participant, while the
+Specifically, the [RM](../rm/index.md) process is unique to each Participant, while the
 [EM](../em/index.md) process is global to all Participants in a case.
 The [CS](../cs/index.md) process is a hybrid: some aspects are Participant-agnostic, while others are
 Participant-specific, which we will discuss in more detail below.
@@ -78,6 +78,6 @@ important in the [Formal Protocol](../../formal_protocol/index.md) definition.
 
 !!! example "Participant-Specific Examples"
 
-    - The [Report Management](../rm/) process is unique to each Participant.
+    - The [Report Management](../rm/index.md) process is unique to each Participant.
     - So is the Vendor Fix Path portion of the [Case State](../cs/index.md) process.
 

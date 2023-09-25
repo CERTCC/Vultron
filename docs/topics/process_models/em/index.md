@@ -26,8 +26,8 @@ We focus our discussion on the *when* of an embargo, not the *what*.
 
 {% include-markdown "embargo_defn.md"   %}
     
-Unlike the [RM](../rm/) model, in which each Participant has their own instance of the
-[RM](../rm/) DFA, EM states are a global property of a CVD case. 
+Unlike the [RM](../rm/index.md) model, in which each Participant has their own instance of the
+[RM](../rm/index.md) DFA, EM states are a global property of a CVD case. 
 
 !!! note ""
     A CVD case SHALL NOT have more than one active embargo at a time.
@@ -65,7 +65,7 @@ stateDiagram-v2
 
 ## EM State Machine
 
-As with our definition of the [RM](../rm/) model, we describe our
+As with our definition of the [RM](../rm/index.md) model, we describe our
 EM model using DFA notation.
 
 {% include-markdown "../dfa_notation_definition.md" %}
@@ -353,7 +353,7 @@ In the worst case (i.e., where the Reporter declines to extend their embargo), a
 none at all.
 This implies a preference for strings starting with _par_ over strings starting with _ppa_ or _prpa_, among others.
 We will come back to this idea in [Default Embargoes](#default-embargoes) and in the
-[worked protocol example](../../formal_protocol/worked_example#vendor-accepts-then-proposes-revision).
+[worked protocol example](../../formal_protocol/worked_example.md#vendor-accepts-then-proposes-revision).
 
 ### EM DFA Fully Defined
 
