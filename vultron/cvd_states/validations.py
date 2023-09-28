@@ -284,9 +284,9 @@ def is_valid_history(h: str) -> None:
     Checks that the history is exactly six characters long, is all uppercase, and contains one each of V, F, D, P, X, and A.
     Also checks that the causally-related events are in the correct order:
 
-    - V $\prec$ F $\prec$ D
-    - P $\prec$ X or XP
-    - V $\prec$ P or PV
+    - V $\\prec$ F $\\prec$ D
+    - P $\\prec$ X or XP
+    - V $\\prec$ P or PV
 
     Example:
         ```python
