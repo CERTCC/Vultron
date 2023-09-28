@@ -397,7 +397,7 @@ class CVDmodel:
         return seq
 
     @ensure_valid_state
-    def walk_from(self, start=None, end="VFDPXA"):
+    def walk_from(self, start:str=None, end:str="VFDPXA") -> tuple:
         """
         Randomly walk from a given state to a given state
 
@@ -508,6 +508,9 @@ class CVDmodel:
 
         Returns:
             a dataframe of histories and their scores
+
+        Raises:
+            CVDmodelError: if the history probabilities are uninitialized
         """
         # make sure we have the info we need before proceeding
         if self.H_prob is None:
@@ -547,7 +550,12 @@ class CVDmodel:
         df = pd.DataFrame(data)
         return df
 
-    def _compute_f_d(self):
+    def _compute_f_d(self) -> dict:
+        """
+
+        Returns:
+            a dict of desiderata: frequency
+        """
         _f_d = self.H_df[self.w_cols].sum()
 
         f_d = {}
@@ -563,7 +571,18 @@ class CVDmodel:
         f_d = self.H_df[self.d_cols].mean()
         return f_d
 
-    def _assess_hist(self, h):
+    def _assess_hist(self, h) -> dict:
+        """
+        Assess a history against the desiderata
+        Args:
+            h: the history to assess
+
+        Returns:
+            a dict of desiderata: is_met
+
+        Raises:
+            ScoringError: if the history is invalid
+        """
         try:
             is_valid_history(h)
         except HistoryValidationError:
@@ -778,6 +797,9 @@ class CVDmodel:
 
         Returns:
             a list of states that match the pattern
+
+        Raises:
+            CVDmodelError: if the pattern is invalid
         """
         try:
             is_valid_pattern(pat)

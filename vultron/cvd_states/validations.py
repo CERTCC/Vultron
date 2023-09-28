@@ -350,7 +350,7 @@ def ensure_valid_history(func: Callable) -> Callable:
         the decorated function
 
     Raises:
-        HistoryValidationError if the history is invalid
+        HistoryValidationError: if the history is invalid
     """
 
     def wrapper(*args, **kwargs):
