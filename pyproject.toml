@@ -47,3 +47,7 @@ exclude = ["test*"]  # exclude packages matching these glob patterns (empty by d
 version_file = "vultron/_version.py"
 
 #[tools.setuptools.dynamic]
+
+[tool.black]
+line-length = 79
+target-version = ['py38', 'py39', 'py310', 'py311']
