@@ -140,6 +140,11 @@ nav:
     - Acknowledgements: 'about/acknowledgements.md'
     - License: 'about/license.md'
   - Issue Tracker: 'https://github.com/CERTCC/Vultron/issues'
+not_in_nav: |
+    includes/*
+    topics/user_stories/story_*.md
+    *diagram*.md
+    *table*.md
 theme:
   logo: 'assets/cert_seal.svg'
   name: 'material'
