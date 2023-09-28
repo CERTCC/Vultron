@@ -35,7 +35,7 @@ dependencies = [
     "mkdocs","mkdocs-material","mkdocs-material-extensions","mkdocstrings","mkdocstrings-python",
     "mkdocs-include-markdown-plugin", "pandas","scipy"
 ]
-dynamic = ["version"]
+dynamic = ["version",]
 
 [tool.setuptools.packages.find]
 where = ["."]  # list of folders that contain the packages (["."] by default)
@@ -43,6 +43,7 @@ include = ["vultron*"]  # package names should match these glob patterns (["*"] 
 exclude = ["test*"]  # exclude packages matching these glob patterns (empty by default)
 #namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
 
-[tools.setuptools.dynamic]
-# FIXME this is not working?
-version = { file = "VERSION" }
+[tool.setuptools_scm]
+version_file = "vultron/_version.py"
+
+#[tools.setuptools.dynamic]
