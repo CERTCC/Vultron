@@ -15,9 +15,7 @@ import unittest
 from itertools import product
 
 import vultron.cvd_states.hypercube as hc
-import vultron.cvd_states.states
 from vultron.cvd_states.errors import TransitionValidationError
-from vultron.cvd_states.states import CS_pxa
 from vultron.cvd_states.validations import is_valid_transition
 
 

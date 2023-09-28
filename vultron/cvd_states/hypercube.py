@@ -325,7 +325,7 @@ class CVDmodel:
     @property
     def histories(self) -> list:
         """
-        Return all possible histories
+        A list of all possible case histories traversing the case state space from _vfdpxa_ to _VFDPXA_.
         """
         _H = self.sequences_between(start="vfdpxa", end="VFDPXA")
         H = ["".join(h) for h in _H]

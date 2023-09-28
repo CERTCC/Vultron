@@ -19,7 +19,7 @@ It also provides functions for converting between state strings and enums.
 """
 
 from enum import Enum, Flag, IntEnum
-from typing import List, NamedTuple, Tuple
+from typing import NamedTuple, Tuple
 
 from vultron.cvd_states.validations import ensure_valid_state
 
