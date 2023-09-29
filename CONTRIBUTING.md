@@ -32,6 +32,7 @@ There are a number of ways you can contribute to the development of Vultron.
 
 ### Submit Pull Requests
 
+- Potential contributors should review [ContributionInstructions.md](ContributionInstructions.md) before submitting a PR.
 - Before making any significant changes that you expect to result in a pull request, we encourage you to discuss your plans with
 the maintainers first, whether that be in the form of an [Issue](https://github.com/CERTCC/Vultron/issues) or a [Discussion](https://github.com/CERTCC/Vultron/discussions).
 - Python code should be formatted with [Black](https://black.readthedocs.io/en/stable/)
