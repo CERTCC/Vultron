@@ -1,8 +1,10 @@
+# Vultron Modules
+
 ::: vultron
 
-## Packages:
-- ::: vultron.cvd_states
+::: vultron.case_states
 
-## Submodules:
-- ::: vultron.errors
+See [Case States](case_states.md) for more information.
+
+::: vultron.errors
 
