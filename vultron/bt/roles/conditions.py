@@ -15,8 +15,7 @@ created_at: 4/26/22 10:23 AM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-#
-#  See LICENSE for details
+
 
 from vultron.bt.base.bt_node import ConditionCheck
 from vultron.bt.base.decorators import Invert

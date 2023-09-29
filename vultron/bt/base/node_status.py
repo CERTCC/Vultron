@@ -15,8 +15,7 @@ created_at: 2/20/23 12:17 PM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-#
-#  See LICENSE for details
+
 
 from enum import Enum, auto
 

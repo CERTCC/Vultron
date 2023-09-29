@@ -18,8 +18,7 @@ This module contains the bt tree nodes for the Embargo Management activity.
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-#
-#  See LICENSE for details
+
 
 from vultron.bt.base.composites import FallbackNode, SequenceNode
 from vultron.bt.case_state.conditions import (
@@ -143,7 +142,11 @@ class ConsiderProposingEmbargo(FallbackNode):
     3. Propose a revision to the current embargo.
     """
 
-    _children = (AvoidCounterProposal, ProposeNewEmbargo, ProposeEmbargoRevision)
+    _children = (
+        AvoidCounterProposal,
+        ProposeNewEmbargo,
+        ProposeEmbargoRevision,
+    )
 
 
 class ProposeEmbargoBt(SequenceNode):
@@ -262,7 +265,10 @@ class AvoidNewEmbargoWhenNotInCs_pxa(SequenceNode):
     attacks have been observed.
     """
 
-    _children = (CSinStatePublicAwareOrExploitPublicOrAttacksObserved, EMinStateNone)
+    _children = (
+        CSinStatePublicAwareOrExploitPublicOrAttacksObserved,
+        EMinStateNone,
+    )
 
 
 class EvaluateAndAcceptProposedEmbargo(SequenceNode):
@@ -324,7 +330,11 @@ class ChooseEmActiveResponse(FallbackNode):
     - Propose a new embargo
     """
 
-    _children = (TerminateEmbargoBt, CurrentEmbargoAcceptable, ProposeEmbargoBt)
+    _children = (
+        TerminateEmbargoBt,
+        CurrentEmbargoAcceptable,
+        ProposeEmbargoBt,
+    )
 
 
 class EmActive(SequenceNode):
