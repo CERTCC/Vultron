@@ -114,7 +114,7 @@ processes, we wish to propose a formal technical protocol that can serve as the 
 The [Formal Protocol](../../reference/formal_protocol/index.md) section of this documentation addresses this first definition in
 specific detail after explicating its component parts and their interactions in 
 [Report Management](../process_models/rm/index.md), [Embargo Management](../process_models/em/index.md), [Case State](../process_models/cs/index.md),
-and [Model Interactions](../process_models/model_interactions).
+and [Model Interactions](../process_models/model_interactions/index.md).
 
 Second, recognizing that MPCVD is primarily a coordination process among
 human Participants with the goal of remediating extant vulnerabilities

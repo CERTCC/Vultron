@@ -1,10 +1,14 @@
 site_name: Vultron CVD Protocol
+site_url: 'https://certcc.github.io/Vultron/'
+site_description: 'A protocol for coordinated vulnerability disclosure'
+site_author: 'CERT Coordination Center'
 copyright: Copyright &copy; 2023 Carnegie Mellon University.
 nav:
   - Home: 'index.md'
   - Learning Vultron: 'tutorials/index.md'
   - Understanding Vultron:
     - Introduction:
+        - Introduction: 'topics/index.md'
         - Background: 'topics/background/index.md'
         - Interoperability: 'topics/background/interoperability.md'
         - Defining CVD Success: 'topics/background/cvd_success.md'
@@ -85,6 +89,43 @@ nav:
       - Messages: 'reference/formal_protocol/messages.md'
       - Transitions: 'reference/formal_protocol/transitions.md'
       - Protocol Summary: 'reference/formal_protocol/conclusion.md'
+    - Case States:
+      - Intro: 'reference/case_states/index.md'
+      - vfdpxa: 'reference/case_states/state_vfdpxa.md'
+      - vfdpxA: 'reference/case_states/state_vfdpx_a_.md'
+      - vfdpXa: 'reference/case_states/state_vfdp_x_a.md'
+      - vfdpXA: 'reference/case_states/state_vfdp_x__a_.md'
+      - vfdPxa: 'reference/case_states/state_vfd_p_xa.md'
+      - vfdPxA: 'reference/case_states/state_vfd_p_x_a_.md'
+      - vfdPXa: 'reference/case_states/state_vfd_p__x_a.md'
+      - vfdPXA: 'reference/case_states/state_vfd_p__x__a_.md'
+      - Vfdpxa: 'reference/case_states/state__v_fdpxa.md'
+      - VfdpxA: 'reference/case_states/state__v_fdpx_a_.md'
+      - VfdpXa: 'reference/case_states/state__v_fdp_x_a.md'
+      - VfdpXA: 'reference/case_states/state__v_fdp_x__a_.md'
+      - VfdPxa: 'reference/case_states/state__v_fd_p_xa.md'
+      - VfdPxA: 'reference/case_states/state__v_fd_p_x_a_.md'
+      - VfdPXa: 'reference/case_states/state__v_fd_p__x_a.md'
+      - VfdPXA: 'reference/case_states/state__v_fd_p__x__a_.md'
+      - VFdpxa: 'reference/case_states/state__v__f_dpxa.md'
+      - VFdpxA: 'reference/case_states/state__v__f_dpx_a_.md'
+      - VFdpXa: 'reference/case_states/state__v__f_dp_x_a.md'
+      - VFdpXA: 'reference/case_states/state__v__f_dp_x__a_.md'
+      - VFdPxa: 'reference/case_states/state__v__f_d_p_xa.md'
+      - VFdPxA: 'reference/case_states/state__v__f_d_p_x_a_.md'
+      - VFdPXa: 'reference/case_states/state__v__f_d_p__x_a.md'
+      - VFdPXA: 'reference/case_states/state__v__f_d_p__x__a_.md'
+      - VFDpxa: 'reference/case_states/state__v__f__d_pxa.md'
+      - VFDpxA: 'reference/case_states/state__v__f__d_px_a_.md'
+      - VFDpXa: 'reference/case_states/state__v__f__d_p_x_a.md'
+      - VFDpXA: 'reference/case_states/state__v__f__d_p_x__a_.md'
+      - VFDPxa: 'reference/case_states/state__v__f__d__p_xa.md'
+      - VFDPxA: 'reference/case_states/state__v__f__d__p_x_a_.md'
+      - VFDPXa: 'reference/case_states/state__v__f__d__p__x_a.md'
+      - VFDPXA: 'reference/case_states/state__v__f__d__p__x__a_.md'
+    - Code:
+        - vultron: 'reference/code/index.md'
+        - case_states: 'reference/code/case_states.md'
     - ISO Crosswalk:
       - Introduction: 'reference/iso_crosswalk.md'
       - ISO 30111: 'reference/iso_30111_2019.md'
@@ -97,6 +138,11 @@ nav:
     - Acknowledgements: 'about/acknowledgements.md'
     - License: 'about/license.md'
   - Issue Tracker: 'https://github.com/CERTCC/Vultron/issues'
+not_in_nav: |
+    includes/*
+    topics/user_stories/story_*.md
+    *diagram*.md
+    *table*.md
 theme:
   logo: 'assets/cert_seal.svg'
   name: 'material'
@@ -104,8 +150,9 @@ theme:
     - content.tabs.link
     - navigation.footer
     - navigation.instant
-    - navigation.sections
+    - navigation.prune
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.top
     - navigation.tracking
     - search.highlight
@@ -119,6 +166,14 @@ theme:
 plugins:
   - include-markdown:
       comments: false
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [ 'src' ]
+          options:
+            show_bases: true
+            show_root_heading: true
+            heading_level: 2
   - search
 repo_url: 'https://github.com/CERTCC/Vultron'
 repo_name: 'CERTCC/Vultron'

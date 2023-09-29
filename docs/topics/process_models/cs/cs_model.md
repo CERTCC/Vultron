@@ -35,7 +35,7 @@ The CS model builds upon the CVD substates defined in the [Case State introducti
 in the table below.
 
 <a name="cs-model-states-defined"></a>
-{% include-markdown "cs_substates_table.md" %}
+{% include-markdown "./cs_substates_table.md" %}
 
 ???+ note inline end "Vendor Fix Path Formalism"
 
@@ -248,11 +248,11 @@ stateDiagram-v2
 Therefore, for all practical purposes, we can simplify the full $pxa \rightarrow PXA$ diagram:
 
 
-{% include-markdown "pxa_diagram.md" %}
+{% include-markdown "./pxa_diagram.md" %}
 
 down to the following: 
 
-{% include-markdown "pxa_diagram_simple.md" %}
+{% include-markdown "./pxa_diagram_simple.md" %}
 
 
 #### Attacks Do Not Necessarily Cause Public Awareness
@@ -360,7 +360,7 @@ right-linear grammar $\delta^{cs}$.
 
 A diagram of the CS process, including its states and transitions, is shown below.
 
-{% include-markdown "vfdpxa_diagram.md" %}
+{% include-markdown "./vfdpxa_diagram.md" %}
 
 
 ## CS Model Fully Defined
