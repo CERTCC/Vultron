@@ -1,7 +1,7 @@
 # Related Work {#sec:related_work}
 
 Numerous models of the vulnerability life cycle and
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} have been
+CVD have been
 proposed. Arbaugh, Fithen, and McHugh provide a descriptive model of the
 life cycle of vulnerabilities from inception to attacks and remediation
 [@arbaugh2000windows], which we refined with those of Frei et al.
@@ -11,8 +11,7 @@ basis of this model as described in
 also found Lewis' literature review of vulnerability lifecycle models to
 be useful [@lewis2017global].
 
-Prescriptive models of the [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} process have also been proposed. Christey
+Prescriptive models of the CVD process have also been proposed. Christey
 and Wysopal's 2002 IETF draft laid out a process for responsible
 disclosure geared towards prescribing roles, responsibilities for
 researchers, vendors, customers, and the security community
@@ -20,27 +19,23 @@ researchers, vendors, customers, and the security community
 also prescribed a process for coordinating the disclosure and
 remediation of vulnerabilities [@niac2004vul]. The CERT Guide to
 Coordinated Vulnerability Disclosure provides a practical overview of
-the [CVD]{acronym-label="CVD" acronym-form="singular+short"} process
+the CVD process
 [@householder2017cert]. ISO/IEC 29147 describes standard
 externally-facing processes for vulnerability disclosure from the
 perspective of a vendor receiving vulnerability reports , while ISO/IEC
 30111 describes internal vulnerability handling processes within a
-vendor [@ISO29147; @ISO30111]. The [FIRST]{acronym-label="FIRST"
-acronym-form="singular+full"} *[PSIRT]{acronym-label="PSIRT"
-acronym-form="singular+short"} Services Framework* provides a practical
+vendor [@ISO29147; @ISO30111]. The FIRST *PSIRT Services Framework* provides a practical
 description of the capabilities common to vulnerability response within
 vendor organizations [@first2020psirt]. The
-[FIRST]{acronym-label="FIRST" acronym-form="singular+short"} *Guidelines
+FIRST *Guidelines
 and Practices for Multi-Party Vulnerability Coordination and Disclosure*
-provides a number of scenarios for [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} [@first2020mpcvd]. Many of these
+provides a number of scenarios for MPCVD [@first2020mpcvd]. Many of these
 scenarios can be mapped directly to the histories $h \in H$ described in
 §[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"}.
 
-Benchmarking [CVD]{acronym-label="CVD" acronym-form="singular+short"}
-capability is the topic of the [VCMM]{acronym-label="VCMM"
-acronym-form="singular+short"} from Luta Security [@luta2020]. The
-[VCMM]{acronym-label="VCMM" acronym-form="singular+short"} addresses
+Benchmarking CVD
+capability is the topic of the VCMM from Luta Security [@luta2020]. The
+VCMM addresses
 five capability areas: organizational, engineering, communications,
 analytics, and incentives. Of these, our model is perhaps most relevant
 to the analytics capability, and the metrics described in
@@ -48,7 +43,7 @@ to the analytics capability, and the metrics described in
 could be used to inform an organization's assessment of progress in this
 dimension. Concise description of case states using the model presented
 here could also be used to improve the communications dimension of the
-[VCMM]{acronym-label="VCMM" acronym-form="singular+short"}.
+VCMM.
 
 System dynamics and agent based models have been applied to the
 interactions between the vulnerability discovery, disclosure, and
@@ -65,23 +60,22 @@ key systemic themes identified include:
 > and Emergence of New Vulnerability Markets
 
 Moore and Householder modeled cooperative aspects of the
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} process,
+MPCVD process,
 noting, \"it appears that adjusting the embargo period to increase the
 likelihood that patches can be developed by most vendors just in time is
 a good strategy for reducing cost\"[@moore2019multi].
 
-Economic analysis of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} has also been done. Arora et al. explored
-the [CVD]{acronym-label="CVD" acronym-form="singular+short"} process
+Economic analysis of CVD has also been done. Arora et al. explored
+the CVD process
 from an economic and social welfare
 perspective [@arora2005economics; @arora2006does; @arora2006research; @arora2008optimal; @arora2010competition; @arora2010empirical].
 More recently, so did Silfversten [@silfversten2018economics]. Cavusoglu
 and Cavusoglu model the mechanisms involved in motivating vendors to
 produce and release patches [@cavusoglu2007efficiency]. Ellis et al.
 examined the dynamics of labor market for bug bounties both within and
-across [CVD]{acronym-label="CVD" acronym-form="singular+short"} programs
+across CVD programs
 [@ellis2018fixing]. Pupillo et al. explored the policy implications of
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} in Europe
+CVD in Europe
 [@pupillo2018software]. A model for prioritizing vulnerability response
 that considers $\mathbf{X}$ and $\mathbf{A}$, among other impact
 factors, can be found in Spring et al. [@spring2020ssvc].

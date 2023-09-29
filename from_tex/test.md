@@ -100,39 +100,36 @@ the opportunity to have them as colleagues.
 
 # Abstract {#abstract .unnumbered}
 
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} stands as a
+CVD stands as a
 consensus response to the persistent fact of vulnerable software, yet
 few performance indicators have been proposed to measure its efficacy at
 the broadest scales. In this report, we seek to fill that gap. We begin
-by deriving a model of all possible [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} histories from first principles,
+by deriving a model of all possible CVD histories from first principles,
 organizing those histories into a partial ordering based on a set of
 desired criteria. We then compute a baseline expectation for the
 frequency of each desired criteria and propose a new set of performance
-indicators to measure the efficacy of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} practices based on the differentiation of
+indicators to measure the efficacy of CVD practices based on the differentiation of
 skill and luck in observation data. As a proof of concept, we apply
 these indicators to a variety of longitudinal observations of
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} practice and
+CVD practice and
 find evidence of significant skill to be prevalent. We conclude with
 reflections on how this model and its accompanying performance
 indicators could be used by various stakeholders (vendors, system
 owners, coordinators, and governments) to interpret the quality of their
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} practices.
+CVD practices.
 
 # Introduction {#sec:introduction}
 
 Software vulnerabilities remain pervasive. To date, there is little
 evidence that we are anywhere close to equilibrium between the
 introduction and elimination of vulnerabilities in deployed systems. The
-practice of [CVD]{acronym-label="CVD" acronym-form="singular+short"}
+practice of CVD
 emerged as part of a growing consensus to develop normative behaviors in
 response to the persistent fact of vulnerable software. Yet while the
-basic principles of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} have been established
+basic principles of CVD have been established
 [@christey2002responsible; @ISO29147; @householder2017cert; @ncsc2018cvd],
 there has been limited work to measure the efficacy of
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} programs,
+CVD programs,
 especially at the scale of industry benchmarks. ISO 29147 [@ISO29147]
 sets out the goals of vulnerability disclosure:
 
@@ -148,138 +145,121 @@ across vendors and their products creates a need to coordinate across
 those parties whenever a vulnerability is found in a shared component.
 While it can be difficult for stakeholders to ascertain the prevalence
 of components across products---and efforts such as the
-[NTIA]{acronym-label="NTIA" acronym-form="singular+short"}'s
-[SBOM]{acronym-label="SBOM" acronym-form="singular+short"} [@ntia_sbom]
+NTIA's
+SBOM [@ntia_sbom]
 are working to address the informational aspects of that problem---our
 concern here is the coordination of multiple parties in responding to
 the vulnerability.
 
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} is a more
-complex form of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"}, involving the necessity to coordinate
+MPCVD is a more
+complex form of CVD, involving the necessity to coordinate
 numerous stakeholders in the process of recognizing and fixing
 vulnerable products. Initial guidance from the
-[FIRST]{acronym-label="FIRST" acronym-form="singular+full"} acknowledges
+FIRST acknowledges
 the additional complexity that can arise in
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}
-cases [@first2020mpcvd]. The need for [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} arises from the complexities of the
+MPCVD
+cases [@first2020mpcvd]. The need for MPCVD arises from the complexities of the
 software supply chain. Its importance was illustrated by the Senate
 hearings about the Meltdown and Spectre
 vulnerabilities [@wired2018senate]. Nevertheless, the goals of
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} apply to
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}, as the
+CVD apply to
+MPCVD, as the
 latter is a generalization of the former.
 
-The difficulty of [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} derives from the diversity of its
+The difficulty of MPCVD derives from the diversity of its
 stakeholders: different software vendors have different development
 budgets, schedules, tempos, and analysis capabilities to help them
 isolate, understand, and fix vulnerabilities. Additionally, they face
 diverse customer support expectations and obligations, plus an
 increasing variety of regulatory regimes governing some stakeholders but
 not others. For these reasons and many others, practitioners of
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} highlight
+MPCVD highlight
 *fairness* as a core difficulty in coordinating disclosures across
 vendors [@householder2017cert].
 
 With the goal of minimizing the societal harm that results from the
 existence of a vulnerability in multiple products spread across multiple
 vendors, our motivating question is, "What does *fair* mean in
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}?"
-Optimizing [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}
+MPCVD?"
+Optimizing MPCVD
 directly is not currently possible, as we lack a utility function to map
 from the events that occur in a given case to the impact that case has
 on the world. While this document does not fully address that problem,
 it sets out a number of steps toward a solution. We seek a way to sort
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} cases into
+MPCVD cases into
 better outcomes or worse outcomes. Ideally, the sorting criteria should
 based on unambiguous principles that are agreed upon and intelligible by
 all interested parties. Further, we seek a way to measure relevant
-features across [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} cases. Feature observability is a key
+features across MPCVD cases. Feature observability is a key
 factor: our measurement needs to be simple and repeatable without overly
 relying on proprietary or easily hidden information.
 
-While a definition of *fairness* in [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} is a responsibility for the broader
+While a definition of *fairness* in MPCVD is a responsibility for the broader
 community, we focus on evaluating the skill of the coordinator. We
 expect this contributes to fairness based on the EthicsfIRST principles
 of ethics for incident response teams promoted by
-[FIRST]{acronym-label="FIRST" acronym-form="singular+short"}
+FIRST
 [@first2019ethics].[^1] To that end, our research questions are:
 
 RQ1
 
-:   : Construct a model of [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"} states amenable to analysis and also
-    future generalization to [MPCVD]{acronym-label="MPCVD"
-    acronym-form="singular+short"}.
+:   : Construct a model of CVD states amenable to analysis and also
+    future generalization to MPCVD.
 
 RQ2
 
 :   : What is a reasonable baseline expectation for ordering of events
-    in the model of [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"}?
+    in the model of CVD?
 
 RQ3
 
-:   : Given this baseline and model, does [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"} as observed "in the wild" demonstrate
+:   : Given this baseline and model, does CVD as observed "in the wild" demonstrate
     skillful behavior?
 
 This paper primarily focuses on the simpler case of
-[CVD]{acronym-label="CVD" acronym-form="singular+short"}, with some
-initial thoughts towards extending it to [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"}. This focus provides an opportunity for
+CVD, with some
+initial thoughts towards extending it to MPCVD. This focus provides an opportunity for
 incremental analysis of the success of the model; more detailed
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} modeling
+MPCVD modeling
 can follow in future work.
 
 ## Approach
 
-The [CERT/CC]{acronym-label="CERT/CC" acronym-form="singular+short"} has
-a goal to improve the [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} process. Improvement involves automation.
+The CERT/CC has
+a goal to improve the MPCVD process. Improvement involves automation.
 The creation of VINCE[^2] is a significant step toward this goal, as it
 has helped us to recognize gaps in our own processes surrounding the
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} services we
-provide. As part of the [SEI]{acronym-label="SEI"
-acronym-form="singular+short"} at [CMU]{acronym-label="CMU"
-acronym-form="singular+short"}, we also recognize that automation is
+MPCVD services we
+provide. As part of the SEI at CMU, we also recognize that automation is
 made better when we can formalize process descriptions. In this report,
-we construct a toy model of the [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} process with the interest of a better
+we construct a toy model of the CVD process with the interest of a better
 understanding of how it might be formalized.
 
 Our intent with this report is not to provide a complete solution to
-automate either [CVD]{acronym-label="CVD" acronym-form="singular+short"}
-or [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}. Rather,
+automate either CVD
+or MPCVD. Rather,
 this report is an attempt to systematize the basics in a way that can be
 extended by future work toward the specification of protocols that
 facilitate the automation of coordination tasks within
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}.
+MPCVD.
 
 The model presented here provides a foundation on which we might build
-an [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}
+an MPCVD
 protocol. While we stop well short of a full protocol spec, we feel that
 this report contributes to improved understanding of the problems that
 such a protocol would need to address. And although an actual protocol
 would need to support a far more complicated process (i.e., the
-coordination and resolution of actual [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} cases), our contention is that we should
+coordination and resolution of actual MPCVD cases), our contention is that we should
 be able to derive and learn quite a few of the basics from this toy
 model. A protocol that works on the toy model might not work in the real
 world. But any proposed real-world protocol should probably work on the
 toy model. The model is intended to be a sort of minimum acceptance test
-for any future protocol---if a proposed [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} process doesn't improve outcomes even in
+for any future protocol---if a proposed MPCVD process doesn't improve outcomes even in
 the toy model, one might wonder what it *is* doing.
 
 ## Organization of This Document
 
-We begin by deriving a model of all possible [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} case states and histories from first
+We begin by deriving a model of all possible CVD case states and histories from first
 principles in §[2](#sec:model){reference-type="ref"
 reference="sec:model"} and §[3](#sec:poss_hist){reference-type="ref"
 reference="sec:poss_hist"}, organizing those histories into a partial
@@ -287,23 +267,22 @@ ordering based on a set of desired criteria in
 §[4](#sec:reasoning){reference-type="ref" reference="sec:reasoning"}. We
 then compute a baseline expectation for the frequency of each desired
 criteria and propose a new set of performance indicators to measure the
-efficacy of [CVD]{acronym-label="CVD" acronym-form="singular+short"}
+efficacy of CVD
 practices based on the differentiation of skill and luck in observation
 data in §[5](#sec:skill_luck){reference-type="ref"
 reference="sec:skill_luck"}. As a proof of concept, we apply these
 indicators to a variety of longitudinal observations of
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} practice and
+CVD practice and
 find evidence of significant skill to be prevalent. In
 §[6](#sec:discussion){reference-type="ref" reference="sec:discussion"},
 we explore some of the implications and uses of such a model in any
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} case before
-extending it to [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"}. The remainder of that section offers
+CVD case before
+extending it to MPCVD. The remainder of that section offers
 reflections on how this model and its accompanying performance
 indicators could be used by various stakeholders (vendors, system
 owners, coordinators, and governments) to interpret the quality of their
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} and
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} practices
+CVD and
+MPCVD practices
 We continue with a review of related work in
 §[7](#sec:related_work){reference-type="ref"
 reference="sec:related_work"}, future work in
@@ -317,14 +296,11 @@ reference="sec:discussion"} is also provided.
 
 # A State-based model for CVD {#sec:model}
 
-Our goal is to create a toy model of the [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} process that can shed light on the more
+Our goal is to create a toy model of the MPCVD process that can shed light on the more
 complicated real thing. We begin by building up a state map of what
-[FIRST]{acronym-label="FIRST" acronym-form="singular+short"} refers to
-as bilateral [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} [@first2020mpcvd], which we will later
-expand into the [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} space. We start by defining a set of
+FIRST refers to
+as bilateral CVD [@first2020mpcvd], which we will later
+expand into the MPCVD space. We start by defining a set of
 events of interest. We then use these to construct model states and the
 transitions between them.
 
@@ -379,8 +355,7 @@ al. [@arbaugh2000windows], Frei et al. [@frei2010modeling], and Bilge
 and et al. [@bilge2012before]. A more thorough literature review of
 vulnerability lifecycle models can be found in [@lewis2017global]. We
 are primarily interested in events that are usually observable to the
-stakeholders of a [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} case. Stakeholders include software
+stakeholders of a CVD case. Stakeholders include software
 vendors, vulnerability finder/reporters, coordinators, and
 deployers [@householder2017cert]. A summary of this model comparison is
 shown in Table [2.1](#tab:lifecycle_events){reference-type="ref"
@@ -465,7 +440,7 @@ differentiate:
 
 -   *exploit public*---the method of exploitation for a vulnerability
     was made public in sufficient detail to be reproduced by others.
-    Posting [PoC]{acronym-label="PoC" acronym-form="singular+short"}
+    Posting PoC
     code to a widely available site or including the exploit in a
     commonly available exploit tool meets this criteria; privately held
     exploits do not.
@@ -494,8 +469,7 @@ reference="sec:related_work"}.
 
 ## Notation {#sec:notation}
 
-Before we discuss [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} states
+Before we discuss CVD states
 (§[2.3](#sec:states){reference-type="ref" reference="sec:states"}),
 transitions (§[2.4](#sec:transitions){reference-type="ref"
 reference="sec:transitions"}), or possible histories
@@ -521,14 +495,13 @@ of ordered sets. From them, we adopt the following notation:
 
 ## Deterministic Finite State Automata {#sec:states}
 
-Transitions during [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} resemble in that the transitions
+Transitions during CVD resemble in that the transitions
 available to the current state are dependent on the state itself.
-Although [DFAs]{acronym-label="DFA" acronym-form="plural+short"} are
+Although DFAs are
 often used to determine whether the final or end state is acceptable,
-for analyzing [CVD]{acronym-label="CVD" acronym-form="singular+short"}
+for analyzing CVD
 we are more interested in the order of the transitions. The usual
-[DFA]{acronym-label="DFA" acronym-form="singular+short"} notation will
+DFA notation will
 still be effective for this modeling goal.
 
 is defined as a 5-tuple $(\mathcal{Q},\Sigma,\delta,q_0,F)
@@ -603,7 +576,7 @@ observation of events as the transitions of a DFA, we allow for the
 possibility that an observed history remains incomplete at the time of
 case closure---in other words, it remains possible for exploits to be
 published or attacks to be observed long after a
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} case has been
+CVD case has been
 closed.
 
 Intermediate states can be any combination of statuses, with the caveats
@@ -642,26 +615,22 @@ holds.
 ## State Transitions {#sec:transitions}
 
 In this section, we elaborate on the input symbols and transition
-function for our [DFA]{acronym-label="DFA"
-acronym-form="singular+short"}.
+function for our DFA.
 
 ### Input Symbols
 
-The input symbols to our [DFA]{acronym-label="DFA"
-acronym-form="singular+short"} correspond to observations of the events
+The input symbols to our DFA correspond to observations of the events
 outlined in Table [2.1](#tab:lifecycle_events){reference-type="ref"
 reference="tab:lifecycle_events"}. For our model, an input symbol
 $\sigma$ is "read" when a participant observes a change in status (the
 vendor is notified, an exploit has been published, etc.). For the sake
 of simplicity, we begin with the assumption that observations are
 globally known---that is, a status change observed by any
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} participant is
-known to all. In the real world, the [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} process itself is well poised to ensure
+CVD participant is
+known to all. In the real world, the CVD process itself is well poised to ensure
 eventual consistency with this assumption through the communication of
 perceived case state across coordinating parties. We define the set of
-input symbols for our [DFA]{acronym-label="DFA"
-acronym-form="singular+short"} as:
+input symbols for our DFA as:
 
 $$\label{eq:events}
     \Sigma \stackrel{\mathsf{def}}{=}\{\mathbf{V},\mathbf{F},\mathbf{D},\mathbf{P},\mathbf{X},\mathbf{A}\}$$
@@ -795,7 +764,7 @@ Our model assumes that vendors immediately become aware of what the
 public is aware of. Therefore, all states in ${vP}$ are unstable, and
 must lead to the corresponding state in ${VP}$ in the next step.
 
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} attempts to
+CVD attempts to
 move vulnerabilities through states belonging to $p$ until the process
 reaches a state in $VFdp$ at least. Vendors that can control deployment
 will likely prefer the transition from
@@ -897,7 +866,7 @@ vulnerability discovery and reporting process. States in $pA$ include
 that possibility and add the potential for discovery as a result of
 security incident analysis.
 
-##### Five Dimensions of [CVD]{acronym-label="CVD" acronym-form="singular+short"} {#para:5d}
+##### Five Dimensions of CVD {#para:5d}
 
 By composing these sub-parts, we arrive at our complete state transition
 model, which we construct by combining the vendor fix path
@@ -912,7 +881,7 @@ reference="eq:pxa_dfa"}. The complete map is shown in Figure
 We also can now define the transition function $\delta$ for the entire
 model, as shown in Table [2.6](#tab:delta_vfdpxa){reference-type="ref"
 reference="tab:delta_vfdpxa"}. A summary of the complete
-[DFA]{acronym-label="DFA" acronym-form="singular+short"} specification
+DFA specification
 is given in [\[eq:vfdpxa_dfa\]](#eq:vfdpxa_dfa){reference-type="eqref"
 reference="eq:vfdpxa_dfa"}.
 
@@ -1059,7 +1028,7 @@ reference="fig:vfdpxa_map"}.
 
 In §[2](#sec:model){reference-type="ref" reference="sec:model"}, we
 began by identifying a set of events of interest in
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} cases. Then we
+CVD cases. Then we
 constructed a state model describing how the occurrence of these events
 can interact with each other. In this section, we look at paths through
 the resulting state model.
@@ -1067,8 +1036,7 @@ the resulting state model.
 A sequence $s$ is an ordered set of some number of events
 $\sigma_i \in \Sigma$ for $1 \leq i \leq n$ and the length of $s$ is
 $|s| \stackrel{\mathsf{def}}{=}n$. In other words, a sequence $s$ is an
-input string to the [DFA]{acronym-label="DFA"
-acronym-form="singular+short"} defined in
+input string to the DFA defined in
 §[2](#sec:model){reference-type="ref" reference="sec:model"}.
 
 $$\label{eq:sequence}
@@ -1101,10 +1069,10 @@ reference="sec:transition_function"}, we know that Vendor Awareness
 ($\mathbf{V}$) must precede Fix Ready ($\mathbf{F}$) and that Fix Ready
 must precede Fix Deployed ($\mathbf{D}$).
 
-The [DFA]{acronym-label="DFA" acronym-form="singular+short"} developed
+The DFA developed
 in §[2](#sec:model){reference-type="ref" reference="sec:model"} provides
 the mechanism to validate histories: a history $h$ is valid if the
-[DFA]{acronym-label="DFA" acronym-form="singular+short"} accepts it as a
+DFA accepts it as a
 valid input string. Once this constraint is applied, only 70 possible
 histories $h \in \mathcal{H}p$ remain viable. We denote the set of all
 such valid histories as $\mathcal{H}$ and have $|\mathcal{H}| = 70$. The
@@ -2702,13 +2670,10 @@ precedes Exploit Public ($\mathbf{X}$) or must immediately follow it.
 $$\label{eq:history_px_rule}
     \mathbf{P} \prec \mathbf{X} \textrm{ or } \mathbf{X} \rightarrow \mathbf{P}$$
 
-This model is amenable for analysis of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"}, but we need to add a way to express
+This model is amenable for analysis of CVD, but we need to add a way to express
 preferences before it is complete. Thus we are part way through **RQ1**.
 §[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"} will
-address how this model can generalize from [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} to [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"}.
+address how this model can generalize from CVD to MPCVD.
 
 ## On the Desirability of Possible Histories {#sec:desirability}
 
@@ -2812,7 +2777,7 @@ such relations.
 The desiderata in
 [\[eq:desiderata\]](#eq:desiderata){reference-type="eqref"
 reference="eq:desiderata"} address the preferred ordering of transitions
-in [CVD]{acronym-label="CVD" acronym-form="singular+short"} histories,
+in CVD histories,
 which imply that one should prefer to pass through some states and avoid
 others. For example, $\mathbf{V} \prec \mathbf{P}$ implies that we
 prefer the paths
@@ -2889,8 +2854,7 @@ reference="sec:reasoning"} and
 will demonstrate that the model is amenable to analysis and
 §[6.2.2](#sec:mpcvd criteria){reference-type="ref"
 reference="sec:mpcvd criteria"} will lay out the criteria for extending
-it to cover [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"}.
+it to cover MPCVD.
 
 The poset $(\mathcal{H},\leq_{H})$, has as its upper bound
 $$h_{69} = (\mathbf{V}, \mathbf{F}, \mathbf{D}, \mathbf{P}, \mathbf{X}, \mathbf{A})$$
@@ -2923,8 +2887,7 @@ create a linear extension of the poset defined here, whereas a partial
 order on $\mathbb{D}$ would result in a more constrained poset of which
 this poset would be a subset.
 
-![The Lattice of Possible [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} Histories: A Hasse Diagram of the partial
+![The Lattice of Possible CVD Histories: A Hasse Diagram of the partial
 ordering $(\mathcal{H}, \leq_{H})$ of $h_a \in \mathcal{H}$ given
 $\mathbb{D}$ as defined in
 [\[eq:ordering\]](#eq:ordering){reference-type="eqref"
@@ -2954,8 +2917,8 @@ principle of indifference, as stated in [@pittphilsci16041]:
 
 While the principle of indifference is rather strong, it is inherently
 difficult to reason about absolutely skill-less
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} when the work
-of [CVD]{acronym-label="CVD" acronym-form="singular+short"} is, by its
+CVD when the work
+of CVD is, by its
 nature, a skilled job. Given the set of states and allowable transitions
 between them, we can apply the principle of indifference to define a
 baseline against which measurement can be meaningful.
@@ -3003,7 +2966,7 @@ the $p(transition)$ column of Table
 [3.4](#tab:allowed_state_transitions){reference-type="ref"
 reference="tab:allowed_state_transitions"}. Real world data is unlikely
 to ever reflect such a sad state of affairs (because
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} *is* happening
+CVD *is* happening
 after all).
 
 ::: {#tab:allowed_state_transitions}
@@ -3110,7 +3073,7 @@ $\mathbf{P} \prec \mathbf{A}$ in 59% of valid histories, but when
 histories are weighted by the assumption of uniform state transitions
 $\mathbf{P} \prec \mathbf{A}$ is expected to occur in 67% of the time.
 These differences arise due to the dependencies between some states.
-Since [CVD]{acronym-label="CVD" acronym-form="singular+short"} practice
+Since CVD practice
 is comprised of a sequence of events, each informed by the last, our
 uniform distribution over events is more likely a useful baseline than a
 uniform distribution over histories.
@@ -3179,8 +3142,7 @@ uniform distribution over event transitions.
 Any observations of phenomena in which we measure the performance of
 human actors can attribute some portion of the outcome to skill and some
 portion to chance [@larkey1997skill; @dreef2004measuring]. It is
-reasonable to wonder whether good outcomes in [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} are the result of luck or skill. How can
+reasonable to wonder whether good outcomes in CVD are the result of luck or skill. How can
 we tell the difference?
 
 We begin with a simple model in which outcomes are a combination of luck
@@ -3314,9 +3276,9 @@ when achieved than others.
 # Discriminating Skill and Luck in Observations {#sec:skill_luck}
 
 This section defines a method for measuring skillful behavior in
-[CVD]{acronym-label="CVD" acronym-form="singular+short"}, which we will
+CVD, which we will
 need to answer **RQ3** about measuring and evaluating
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} "in the wild."
+CVD "in the wild."
 The measurement method makes use of all the modeling tools and baselines
 established thus far: a comprehensive set of possible histories
 $\mathcal{H}$, a partial order over them in terms of the presence of
@@ -3324,7 +3286,7 @@ desired event precedence $(\mathcal{H},\leq_{\mathbb{D}})$, and the *a
 priori* expected frequency of each desiderata $d \in \mathbb{D}$.
 
 If we expected to be able to observe all events in all
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} cases, we could
+CVD cases, we could
 be assured of having complete histories and could be done here. But the
 real world is messy. Not all events $\mathbf{e} \in \mathcal{E}$ are
 always observable. We need to develop a way to make sense of what we
@@ -3674,8 +3636,7 @@ skill. In both data sets examined, our estimated $\alpha_d$ is positive
 for most $d \in \mathbb{D}$. However, there is uncertainty in our
 estimates due to the application of the principle of indifference to
 unobserved data. This principle assumes a uniform distribution across
-event transitions in the absence of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"}, which is an assumption we cannot readily
+event transitions in the absence of CVD, which is an assumption we cannot readily
 test. The spread of the estimates in Figures
 [5.1](#fig:ms_estimates){reference-type="ref"
 reference="fig:ms_estimates"} and
@@ -3702,12 +3663,11 @@ baseline expectation."
 
 §[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"} suggests
 how the model might be applied to establish benchmarks for
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} processes
+CVD processes
 involving any number of participants, which closes the analysis of
-**RQ1** in relation to [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"}. §[6.3](#sec:roles){reference-type="ref"
+**RQ1** in relation to MPCVD. §[6.3](#sec:roles){reference-type="ref"
 reference="sec:roles"} surveys the stakeholders in
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} and how they
+CVD and how they
 might use our model; the stakeholders are vendors, system owners, the
 security research community, coordinators, and governments. In
 particular, we focus on how these stakeholders might respond to the
@@ -3722,17 +3682,16 @@ common terms in vulnerability disclosure. We then proceed to address
 vulnerability response situation awareness in
 §[6.6](#sec:situation_awareness){reference-type="ref"
 reference="sec:situation_awareness"}, with a brief note about the
-[VEP]{acronym-label="VEP" acronym-form="singular+short"} in relation to
+VEP in relation to
 this model in §[6.7](#sec:vep){reference-type="ref"
 reference="sec:vep"}. Finally, a set of state-based rules for
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} actions is
+CVD actions is
 given in §[6.8](#sec:cvd_action_rules){reference-type="ref"
 reference="sec:cvd_action_rules"}.
 
-## [CVD]{acronym-label="CVD" acronym-form="singular+short"} Benchmarks {#sec:benchmarks}
+## CVD Benchmarks {#sec:benchmarks}
 
-As described above, in an ideal [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} situation, each observed history would
+As described above, in an ideal CVD situation, each observed history would
 achieve all 12 desiderata $\mathbb{D}$. Realistically, this is unlikely
 to happen. We can at least state that we would prefer that most cases
 reach fix ready before attacks ($\mathbf{F} \prec \mathbf{A}$). Per
@@ -3747,12 +3706,10 @@ benchmark constant $c_d$:
 $$\alpha_d \geq c_d \geq 0$$
 
 where $c_d$ is a based on observations of $\alpha_d$ collected across
-some collection of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} cases.
+some collection of CVD cases.
 
 We propose as a starting point a naïve benchmark of $c_d = 0$. This is a
-low bar, as it only requires that [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} actually do better than possible events
+low bar, as it only requires that CVD actually do better than possible events
 which are independent and identically distributed (i.i.d.) within each
 case. For example, given a history in which
 $(\mathbf{V}, \mathbf{F}, \mathbf{P})$ have already happened (i.e.,
@@ -3821,13 +3778,13 @@ $f_{\mathbf{D} \prec \mathbf{X}} = 0.844$, we can then compute a
 benchmark $\alpha_{\mathbf{D} \prec \mathbf{X}} = 0.81$, which is again
 a significant improvement over the naïve $\alpha_d = 0$ benchmark.
 
-## [MPCVD]{acronym-label="MPCVD" acronym-form="singular+long"} {#sec:mpcvd}
+## MPCVD {#sec:mpcvd}
 
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+full"} is the
+MPCVD is the
 process of coordinating the creation, release, publication, and
 potentially the deployment of fixes for vulnerabilities across a number
 of vendors and their respective products. The need for
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} arises due
+MPCVD arises due
 to the inherent nature of the software supply chain
 [@householder2017cert]. A vulnerability that affects a low-level
 component (such as a library or operating system API) can require fixes
@@ -3838,15 +3795,14 @@ where multiple vendors may have each implemented their own components
 based on a vulnerable design.
 §[6.2.1](#sec:mpcvd_states){reference-type="ref"
 reference="sec:mpcvd_states"} applies the state-based view of our model
-to [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}, while
+to MPCVD, while
 §[6.2.2](#sec:mpcvd criteria){reference-type="ref"
 reference="sec:mpcvd criteria"} addresses the topic from the possible
 history perspective.
 
-### State Tracking in [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} {#sec:mpcvd_states}
+### State Tracking in MPCVD {#sec:mpcvd_states}
 
-Applying our state-based model to [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} requires a forking approach to the state
+Applying our state-based model to MPCVD requires a forking approach to the state
 tracking. At the time of discovery, the vulnerability is in state
 $vfdpxa$. Known only to its finder, the vulnerability can be described
 by that singular state.
@@ -3871,7 +3827,7 @@ only share the lowest state across their products, which in this example
 would be $\{Vfdpxa\}$.
 
 This implies a need to expand our notation. In the
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} case, we
+MPCVD case, we
 need to think of each state $q \in \mathcal{Q}$ as a set of states
 $q_M$: $$q_M \stackrel{\mathsf{def}}{=}\{ q_1,q_2,\dots,q_n \}$$
 
@@ -3888,15 +3844,14 @@ status of all the vendor notifications) might be spread out over a
 period of time.
 
 Some transitions are more readily synchronized than others. For example,
-if an [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} case
+if an MPCVD case
 is already underway, and information about the vulnerability appears in
 a public media report, we can say that $\mathbf{P}_M$ occurred
 simultaneously for all coordinating vendors.
 
 Regardless, in the maximal case, each vendor-product pair is effectively
 behaving independently of all the others. Thus the maximum
-dimensionality of the [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} model for a case is
+dimensionality of the MPCVD model for a case is
 $$D_{max} = 5 * N_{vprod}$$
 
 where $N_{vprod}$ represents the number of vendor-product pairs.
@@ -3904,15 +3859,14 @@ where $N_{vprod}$ represents the number of vendor-product pairs.
 This is of course undesirable, as it would result in a wide distribution
 of realized histories that more closely resemble the randomness
 assumptions outlined above than a skillful, coordinated effort. Further
-discussion of measuring [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} skill can be found in
+discussion of measuring MPCVD skill can be found in
 [6.2.2](#sec:mpcvd criteria){reference-type="ref"
 reference="sec:mpcvd criteria"}. For now, though, we posit that the goal
-of a good [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}
+of a good MPCVD
 process is to reduce the dimensionality of a given
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} case as
+MPCVD case as
 much as is possible (i.e., to the 5 dimensions of a single vendor
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} case we have
+CVD case we have
 presented above). Experience shows that a full dimension reduction is
 unlikely in most cases, but that does not detract from the value of
 having the goal.
@@ -3921,21 +3875,19 @@ Vendors may be able to reduce their internal tracking
 dimensionality---which may be driven by things like component reuse
 across products or product lines---through in-house coordination of fix
 development processes. Within an individual vendor organization,
-[PSIRTs]{acronym-label="PSIRT" acronym-form="plural+short"} are a common
+PSIRTs are a common
 organizational structure to address this internal coordination process.
-The [FIRST]{acronym-label="FIRST" acronym-form="singular+short"} PSIRT
+The FIRST PSIRT
 Services Framework provides guidance regarding vendors' internal
 processes for coordinating vulnerability response [@first2020psirt].
 Additional guidance can be found in ISO-IEC 30111 [@ISO30111].
 
 Regardless, the cross-vendor dimension is largely the result of
 component reuse across vendors, for example through the inclusion of
-third party libraries or [OEM]{acronym-label="OEM"
-acronym-form="singular+short"} [SDKs]{acronym-label="SDK"
-acronym-form="plural+short"}. Visibility of cross-vendor component reuse
+third party libraries or OEM SDKs. Visibility of cross-vendor component reuse
 remains an unsolved problem, although efforts such as
-[NTIA]{acronym-label="NTIA" acronym-form="singular+short"}'s
-[SBOM]{acronym-label="SBOM" acronym-form="singular+short"} [@ntia_sbom]
+NTIA's
+SBOM [@ntia_sbom]
 efforts are promising in this regard. Thus, dimensionality reduction can
 be achieved through both improved transparency of the software supply
 chain and the process of coordination toward synchronized state
@@ -3943,8 +3895,7 @@ transitions, especially for $\mathbf{P}$, if not for $\mathbf{F}$ and
 $\mathbf{D}$ as well.
 
 As a result of the dimensionality problem, coordinators and other
-parties to an [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} case need to decide how to apply
+parties to an MPCVD case need to decide how to apply
 disclosure policy rules in cases where different products or vendors
 occupy different case states with potentially contradictory recommended
 actions. For example, when four out of five vendors involved in a case
@@ -3965,17 +3916,17 @@ vendor (the one in $Vfdpxa$) represent a sizable fraction of the total
 user base? Or does it concentrate the highest risk use cases for the
 software? Challenges in efficiently assessing consistent answers to
 these questions are easy to imagine. The status quo for
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} appears
+MPCVD appears
 consistent with defaulting to simple majority in the absence of
 additional information, with consideration given to the distribution of
 both users and risk on a case-by-case basis. At present, there is no
 clear consensus on such policies, although we hope that future work can
 use the model presented here to formalize the necessary analysis.
 
-##### Integrating [FIRST]{acronym-label="FIRST" acronym-form="singular+short"} [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} Guidance
+##### Integrating FIRST MPCVD Guidance
 
-[FIRST]{acronym-label="FIRST" acronym-form="singular+short"} has
-published [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}
+FIRST has
+published MPCVD
 guidance [@first2020mpcvd]. Their guidance describes four use cases,
 along some with variations. Each use case variant includes a list of
 potential causes along with recommendations for prevention and responses
@@ -3985,7 +3936,7 @@ variants apply to which subsets of states is given in Table
 reference="tab:first_use_cases"}.
 
 ::: {#tab:first_use_cases}
-           States           [FIRST]{acronym-label="FIRST" acronym-form="singular+short"} Use Case  Description
+           States           FIRST Use Case  Description
   ------------------------ ----------------------------------------------------------------------- ----------------------------------------------------------------------------------------------
             n/a                                               0                                    No vulnerability exists
           ${VFDp}$                                            1                                    Vulnerability with no affected users
@@ -4004,28 +3955,22 @@ reference="tab:first_use_cases"}.
      ${vfPX}$, ${vfPA}$                                  4 Variant 1                               Finder publishes vulnerability details and vulnerability is exploited
           ${vpA}$                                        4 Variant 2                               Previously undisclosed vulnerability used in attacks
 
-  : Applicability of [FIRST]{acronym-label="FIRST"
-  acronym-form="singular+short"} [MPCVD]{acronym-label="MPCVD"
-  acronym-form="singular+short"} scenarios to subsets of states in our
+  : Applicability of FIRST MPCVD scenarios to subsets of states in our
   model
 :::
 
-### [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} Benchmarks {#sec:mpcvd criteria}
+### MPCVD Benchmarks {#sec:mpcvd criteria}
 
-A common problem in [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} is that of fairness: coordinators are
-often motivated to optimize the [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} process to maximize the deployment of
+A common problem in MPCVD is that of fairness: coordinators are
+often motivated to optimize the CVD process to maximize the deployment of
 fixes to as many end users as possible while minimizing the exposure of
 users of other affected products to unnecessary risks.
 
 The model presented in this paper provides a way for coordinators to
-assess the effectiveness of their [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} cases. In an
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} case, each
+assess the effectiveness of their MPCVD cases. In an
+MPCVD case, each
 vendor/product pair effectively has its own 6-event history $h_a$. We
-can therefore recast [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} as a set of histories $\mathcal{M}$ drawn
+can therefore recast MPCVD as a set of histories $\mathcal{M}$ drawn
 from the possible histories $\mathcal{H}$:
 $$\mathcal{M} = \{ h_1,h_2,...,h_m \textrm{ where each } h_a \in H \}$$
 Where $m = |\mathcal{M}| \geq 1$. The edge case when $|\mathcal{M}| = 1$
@@ -4033,8 +3978,7 @@ is simply the regular (non-multiparty) case.
 
 We can then set desired criteria for the set $\mathcal{M}$, as in the
 benchmarks described in §[6.1](#sec:benchmarks){reference-type="ref"
-reference="sec:benchmarks"}. In the [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} case, we propose to generalize the
+reference="sec:benchmarks"}. In the MPCVD case, we propose to generalize the
 benchmark concept such that the median $\Tilde{\alpha_d}$ should be
 greater than some benchmark constant $c_d$:
 
@@ -4043,7 +3987,7 @@ $$\Tilde{\alpha_d} \geq c_d \geq 0$$
 In real-world cases where some outcomes across different vendor/product
 pairs will necessarily be lower than others, we can also add the
 criteria that we want the variance of each $\alpha_d$ to be low. An
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} case having
+MPCVD case having
 high median $\alpha_d$ with low variance across vendors and products
 involved will mean that most vendors achieved acceptable outcomes.
 
@@ -4061,9 +4005,9 @@ To summarize:
 
     $$\sigma^2(\{ \alpha_d(h) : h \in \mathcal{M} \}) \leq \varepsilon$$
 
-## [CVD]{acronym-label="CVD" acronym-form="singular+short"} Roles and Their Influence {#sec:roles}
+## CVD Roles and Their Influence {#sec:roles}
 
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} stakeholders
+CVD stakeholders
 include vendors, system owners, the security research community,
 coordinators, and governments [@householder2017cert]. Of interest here
 are the main roles: *finder/reporter*, *vendor*, *deployer*, and
@@ -4072,8 +4016,7 @@ they can cause. For example, a *coordinator* can notify the *vendor*
 ($\mathbf{V}$) but not create the fix ($\mathbf{F}$), whereas a *vendor*
 can create the fix but not notify itself (although a *vendor* with an
 in-house vulnerability discovery capability might also play the role of
-a *finder/reporter* as well). A mapping of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} Roles to the transitions they can control
+a *finder/reporter* as well). A mapping of CVD Roles to the transitions they can control
 can be found in Table [6.2](#tab:cvd_roles){reference-type="ref"
 reference="tab:cvd_roles"}. We also included a role of *adversary* just
 to cover the $\mathbf{A}$ transition.
@@ -4087,7 +4030,7 @@ to cover the $\mathbf{A}$ transition.
      Coordinator                      $\cdot$        $\cdot$                                      $\cdot$
       Adversary        $\cdot$        $\cdot$        $\cdot$        $\cdot$        $\cdot$     
 
-  : [CVD]{acronym-label="CVD" acronym-form="singular+short"} Roles and
+  : CVD Roles and
   the transitions they can control. Roles can be combined (vendor +
   deployer, finder + coordinator, etc.). Roles are based on
   [@householder2017cert].
@@ -4218,7 +4161,7 @@ objectives, respectively.
 System owners ultimately determine the lag from $\mathbf{F}$ to
 $\mathbf{D}$ based on their processes for system inventory, scanning,
 prioritization, patch testing, and deployment---in other words, their
-[VM]{acronym-label="VM" acronym-form="singular+full"} practices. In
+VM practices. In
 cases where the vendor and system owner are distinct entities, system
 owners should optimize to minimize the lag between $\mathbf{F}$ and
 $\mathbf{D}$ in order to improve the chances of meeting the
@@ -4331,7 +4274,7 @@ model to embargoes and service level expectations.
 An agreement between coordinating stakeholders to keep information about
 the vulnerability private until some exit condition has been met is
 called an *embargo*.[^8] Examples of exit conditions for
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} embargoes
+CVD embargoes
 include the expiration of a timer or a the occurrence of a triggering
 event such as fix availability. The model gives us a way of formally
 specifying the conditions under which initiating or maintaining an
@@ -4347,8 +4290,7 @@ unstable because publication of an exploit necessarily leads to public
 awareness of the vulnerability. Because $pX$ leads immediately to $PX$,
 we can infer that our embargo entry points must be in $px$.
 
-Many disclosure policies---including [CERT/CC]{acronym-label="CERT/CC"
-acronym-form="singular+short"}'s---eschew embargoes when attacks are
+Many disclosure policies---including CERT/CC's---eschew embargoes when attacks are
 underway ($\mathcal{Q}_{A}$). This implies we should be looking in
 $pxa$. We further observe that there is little reason to initiate an
 information embargo about a vulnerability after the fix has been
@@ -4360,11 +4302,9 @@ be no need to enter into an embargo when the fix is ready (i.e., in
 $Fdpxa$). However, while may be tempted to expand the requirement and
 narrow the states of interest to $fdpxa$, we must allow for the
 multiparty situation in which some vendors have a fix ready ($Fp$) while
-others do not ($fp$). We discuss [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} further in section
+others do not ($fp$). We discuss MPCVD further in section
 §[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"}. Here we
-note that in [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} cases, prudence requires us to allow for
+note that in MPCVD cases, prudence requires us to allow for
 a (hopefully brief) embargo period to enable more vendors to achieve
 $fp \xrightarrow{\mathbf{F}} Fp$ prior to public disclosure
 ($\mathbf{F} \prec \mathbf{P}$). Therefore we stick with $dpxa$ for the
@@ -4375,12 +4315,11 @@ and other coordinating parties, it might appear that we should expect
 embargoes to begin in ${Vdpxa}$. However, doing so would neglect the
 possibility of embargoes entered into by finders, reporters, and
 coordinators prior to vendor awareness---i.e., in ${vfdpxa}$. In fact,
-the very concept of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} is built on the premise that every newly
+the very concept of CVD is built on the premise that every newly
 discovered vulnerability should have a default embargo at least until
 the vendor has been informed about the vulnerability (i.e.,
 ${vfdpxa} \xrightarrow{\mathbf{V}} {Vfdpxa}$ is
-[CVD]{acronym-label="CVD" acronym-form="singular+short"}'s preferred
+CVD's preferred
 initial state transition). And so, having considered all possible
 states, we conclude that embargoes can only begin from ${dpxa}$, with
 the caveat that practitioners should carefully consider why they would
@@ -4473,18 +4412,14 @@ look for in order to determine when to end an embargo:
 -   Any other embargo exit rules---such as those specified in the
     relevant disclosure policies---have been triggered.
 
-### [CVD]{acronym-label="CVD" acronym-form="singular+short"} Service Level Expectations
+### CVD Service Level Expectations
 
-Closely related to [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} embargoes are [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} [SLEs]{acronym-label="SLE"
-acronym-form="plural+short"}. Disclosure policies specify commitments by
+Closely related to CVD embargoes are CVD SLEs. Disclosure policies specify commitments by
 coordinating parties to ensure the occurrence of certain state
 transitions within a specific period of time. While the model presented
 here does not directly address timing choices, we can point out some
 ways to relate the model to those choices. Specifically, we intend to
-demonstrate how disclosure policy [SLEs]{acronym-label="SLE"
-acronym-form="plural+short"} can be stated as rules triggered within
+demonstrate how disclosure policy SLEs can be stated as rules triggered within
 subsets of states or by particular transitions between subsets of states
 in $\mathcal{Q}$.
 
@@ -4494,13 +4429,12 @@ notification. This translates to starting a timer at
 ${v} \xrightarrow{\mathbf{V}} {V}$ and ensuring
 ${Vp} \xrightarrow{\mathbf{P}} {VP}$ when the timer expires. Notice that
 the prospect of ${Vfp} \xrightarrow{\mathbf{P}} {VfP}$ is often used to
-motivate vendors to ensure a reasonable [SLE]{acronym-label="SLE"
-acronym-form="singular+short"} to produce fixes
+motivate vendors to ensure a reasonable SLE to produce fixes
 (${Vf} \xrightarrow{\mathbf{F}} {VF}$) [@arora2008optimal].
 
 Similarly, a vendor might commit to providing public fixes within 5
 business days of report receipt. In that case, the
-[SLE]{acronym-label="SLE" acronym-form="singular+short"} timer would
+SLE timer would
 start at ${vfp} \xrightarrow{\mathbf{V}} {Vfp}$ and and end at one of
 two transitions: First, the "normal" situation in which the vendor
 creates a fix and makes it public along with the vulnerability
@@ -4515,19 +4449,17 @@ path might also occur when a vendor has set their embargo timer too
 aggressively for their development process to keep up.
 
 It is therefore in the vendor's interest to tune their
-[SLE]{acronym-label="SLE" acronym-form="singular+short"} to reduce the
+SLE to reduce the
 likelihood for unexpected public awareness ($\mathbf{P}$) while
 providing sufficient time for $\mathbf{F}$ to occur, optimizing to
 achieve $\mathbf{F} \prec \mathbf{P}$ in a substantial fraction of
 cases. As future work, measurement of both the incidence and timing of
 embargo failures through observation of $\mathbf{P}$, $\mathbf{X}$, and
 $\mathbf{A}$ originating from $\mathcal{Q}_{E}$ could give insight into
-appropriate vendor [SLEs]{acronym-label="SLE"
-acronym-form="plural+short"} for fix readiness ($\mathbf{F}$).
+appropriate vendor SLEs for fix readiness ($\mathbf{F}$).
 
-Service providers and [VM]{acronym-label="VM"
-acronym-form="singular+short"} practitioners might similarly describe
-their [SLEs]{acronym-label="SLE" acronym-form="plural+short"} in terms
+Service providers and VM practitioners might similarly describe
+their SLEs in terms
 of timing between states. Such policies will likely take the form of
 commitments to limit the time spent in ${FdP}$. When the vendor has
 already produced a patch, the clock starts at
@@ -4543,7 +4475,7 @@ form of specifications including
     ($S \subset \mathcal{Q}$)
 
 -   Expected transitions ($\sigma \in \Sigma$) and
-    [SLEs]{acronym-label="SLE" acronym-form="plural+short"} around their
+    SLEs around their
     timing, including possible constraints such as "not before" and "no
     later than" specifications
 
@@ -4574,7 +4506,7 @@ Provers and Solvers seem likely to be suited to this sort of problem.
 However, when formal policies are incompatible, the failure to resolve
 them automatically becomes an opportunity for human intervention as the
 exception handler of last resort. Of potential concern here are
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} cases in
+MPCVD cases in
 which a vendor with a long policy timer is dependent on one with a short
 policy timer to provide fixes. The serial nature of the dependency
 creates the potential for a compatibility conflict. For example, this
@@ -4586,9 +4518,7 @@ human intervention for some time to come.
 
 ## Improving Definitions of Common Terms {#sec:defining_common_terms}
 
-Some terms surrounding [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} and [VM]{acronym-label="VM"
-acronym-form="singular+short"} have been ambiguously defined in common
+Some terms surrounding CVD and VM have been ambiguously defined in common
 usage. One benefit of the definition of events, states, and possible CVD
 histories presented in this whitepaper is an opportunity to clarify
 definitions of related terms. In this section we will use our model to
@@ -4618,8 +4548,7 @@ zero day vulnerability
     definitions in approximately descending risk due to the expected
     duration until $\mathbf{D}$ can be achieved.
 
-    1.  $q \in vp$ The United States [VEP]{acronym-label="VEP"
-        acronym-form="singular+long"} [@usg2017vep] defines *zero day
+    1.  $q \in vp$ The United States VEP [@usg2017vep] defines *zero day
         vulnerability* in a manner consistent with $q \in {vp}$. Further
         discussion appears in §[6.7](#sec:vep){reference-type="ref"
         reference="sec:vep"}.
@@ -4689,11 +4618,9 @@ vulnerability is expected to remain in $d$ forever. This situation can
 occur when deployed code is abandoned for a number of reasons,
 including:
 
-1.  The vendor has designated the product as [EoL]{acronym-label="EoL"
-    acronym-form="singular+short"} and thereby declines to fix any
+1.  The vendor has designated the product as EoL and thereby declines to fix any
     further security flaws, usually implying $q \in {Vfd}$. Vendors
-    should evaluate their support posture for [EoL]{acronym-label="EoL"
-    acronym-form="singular+short"} products when they are aware of
+    should evaluate their support posture for EoL products when they are aware of
     vulnerabilities in ${VfdX}$ or ${VfdA}$. Potential vendor responses
     include issuing additional guidance or an out-of-support patch.
 
@@ -4710,16 +4637,14 @@ including:
 3.  The deployer chooses to never deploy, implying an expectation to
     remain in ${d}$ until the affected systems are retired or otherwise
     removed from service. This situation may be more common in
-    deployments of safety-critical systems and [OT]{acronym-label="OT"
-    acronym-form="singular+short"} than it is in [IT]{acronym-label="IT"
-    acronym-form="singular+short"} deployments. It is also the most
+    deployments of safety-critical systems and OT than it is in IT deployments. It is also the most
     reversible of the three *forever day* scenarios, because the
     deployer can always reverse their decision as long as a fix is
     available ($q \in {VF}$). In deployment environments where other
     mitigations are in place and judged to be adequate, and where the
     risk posed by $\mathbf{X}$ and/or $\mathbf{A}$ are perceived to be
     low, this can be a reasonable strategy within a
-    [VM]{acronym-label="VM" acronym-form="singular+short"} program.
+    VM program.
 
 Scenarios in which the vendor has chosen not to develop a patch for an
 otherwise supported product, and which also imply $q \in {Vfd}$, are
@@ -4778,7 +4703,7 @@ to gauge the likelihood of the $\mathbf{A}$ transition.
 
 ##### Mapping to CVSS v3.1 {#sec:cvss}
 
-[CVSS]{acronym-label="CVSS" acronym-form="singular+short"} version 3.1
+CVSS version 3.1
 includes a few Temporal Metric variables that connect to this model
 [@first2019cvss31]. Unfortunately, differences in abstraction between
 the models leaves a good deal of ambiguity in the translation. Table
@@ -4786,7 +4711,7 @@ the models leaves a good deal of ambiguity in the translation. Table
 the relationship between the two models.
 
 ::: {#tab:cvss_31}
-   States   [CVSS]{acronym-label="CVSS" acronym-form="singular+short"} v3.1 Temporal Metric  [CVSS]{acronym-label="CVSS" acronym-form="singular+short"} v3.1 Temporal Metric Value(s)
+   States   CVSS v3.1 Temporal Metric  CVSS v3.1 Temporal Metric Value(s)
   -------- --------------------------------------------------------------------------------- ------------------------------------------------------------------------------------------
    ${XA}$                                  Exploit Maturity                                  High (H), or Functional (F)
    ${X}$                                   Exploit Maturity                                  High (H), Functional (F), or Proof-of-Concept (P)
@@ -4795,7 +4720,7 @@ the relationship between the two models.
    ${VF}$                                  Remediation Level                                 Temporary Fix (T) or Official Fix (O)
 
   : Mapping Subsets of States $\mathcal{Q}$ to
-  [CVSS]{acronym-label="CVSS" acronym-form="singular+short"} v3.1
+  CVSS v3.1
 :::
 
 ##### Addressing Uncertainty in Situation Awareness
@@ -4842,12 +4767,12 @@ equally probable.
   : PageRank and normalized state probabilities for states in ${Vf}$
 :::
 
-## [VEP]{acronym-label="VEP" acronym-form="singular+full"} {#sec:vep}
+## VEP {#sec:vep}
 
-The [VEP]{acronym-label="VEP" acronym-form="singular+full"} is the
+The VEP is the
 United States government's process to decide whether to inform vendors
 about vulnerabilities they have discovered. The
-[VEP]{acronym-label="VEP" acronym-form="singular+short"} Charter
+VEP Charter
 [@usg2017vep] describes the process:
 
 > The Vulnerabilities Equities Process (VEP) balances whether to
@@ -4859,7 +4784,7 @@ about vulnerabilities they have discovered. The
 > operations, and/or counterintelligence.
 
 For each vulnerability that enters the process, the
-[VEP]{acronym-label="VEP" acronym-form="singular+short"} results in a
+VEP results in a
 decision to *disseminate* or *restrict* the information.
 
 In terms of our model:
@@ -4875,10 +4800,9 @@ restrict
 :   is a decision not to notify the vendor and remain in
     $\mathcal{Q}_{v}$.
 
-[VEP]{acronym-label="VEP" acronym-form="singular+short"} policy does not
-explicitly touch on any other aspect of the [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} process. By solely addressing
-$\mathbf{V}$, [VEP]{acronym-label="VEP" acronym-form="singular+short"}
+VEP policy does not
+explicitly touch on any other aspect of the CVD process. By solely addressing
+$\mathbf{V}$, VEP
 is mute regarding intentionally triggering the $\mathbf{P}$ or
 $\mathbf{X}$ transitions. It also makes no commitments about
 $\mathbf{F}$ or $\mathbf{D}$, although obviously these are entirely
@@ -4888,8 +4812,7 @@ would be observed by others, thereby resulting in the $\mathbf{A}$
 transition.
 
 The charter sets the following scope requirement as to which
-vulnerabilities are eligible for [VEP]{acronym-label="VEP"
-acronym-form="singular+short"}:
+vulnerabilities are eligible for VEP:
 
 > To enter the process, a *vulnerability* must be both *newly
 > discovered* and not *publicly known*
@@ -4923,8 +4846,7 @@ Zero-Day Vulnerability
 :   A type of vulnerability that is unknown to the vendor, exploitable,
     and not publicly known.
 
-Mapping back to our model, the [VEP]{acronym-label="VEP"
-acronym-form="singular+short"} definition of *newly discovered* hinges
+Mapping back to our model, the VEP definition of *newly discovered* hinges
 on the definition of *zero day vulnerability*. The policy is not clear
 what distinction is intended by the use of the term *exploitable* in the
 *zero day vulnerability* definition, as the definition of
@@ -4935,7 +4857,7 @@ matches with $\mathcal{Q}_{v}$, and "not publicly known" likewise
 matches with $\mathcal{Q}_{p}$. Thus we interpret their definition of
 *newly discovered* to be consistent with $q \in {vp}$.
 
-[VEP]{acronym-label="VEP" acronym-form="singular+short"}'s definition of
+VEP's definition of
 *publicly known* similarly specifies either "vendor is aware"
 ($\mathcal{Q}_{V}$) or "information can be found in the public domain"
 ($\mathcal{Q}_{P}$). As above, the logical negation of these two
@@ -4947,13 +4869,12 @@ narrow the scope from ${vp}$ to ${vpx}$. Lastly, we note that due to the
 vendor fix path causality rule in Eq.
 [\[eq:history_vfd_rule\]](#eq:history_vfd_rule){reference-type="eqref"
 reference="eq:history_vfd_rule"}, ${vpx}$ is equivalent to ${vfdpx}$,
-and therefore we can formally specify that [VEP]{acronym-label="VEP"
-acronym-form="singular+short"} is only applicable to vulnerabilities in
+and therefore we can formally specify that VEP is only applicable to vulnerabilities in
 
 $$\mathcal{S}_{VEP} = {vfdpx} = \{vfdpxa, vfdpxA\}$$
 
 Vulnerabilities in any other state by definition should not enter into
-the [VEP]{acronym-label="VEP" acronym-form="singular+long"}, as the
+the VEP, as the
 first transition from ${vfdpx}$ (i.e., $\mathbf{V}$, $\mathbf{P}$, or
 $\mathbf{X}$) exits the inclusion criteria. However it is worth
 mentioning that the utility of a vulnerability for offensive use
@@ -4961,22 +4882,19 @@ continues throughout $\mathcal{Q}_d$, which is a considerably larger
 subset of states than ${vfdpx}$ ($|\mathcal{Q}_d| = 24$,
 $|\mathcal{Q}_{vfdpx}| = 2$).
 
-## Recommended Action Rules for [CVD]{acronym-label="CVD" acronym-form="singular+short"} {#sec:cvd_action_rules}
+## Recommended Action Rules for CVD {#sec:cvd_action_rules}
 
 Another application of this model is to recommend actions for
-coordinating parties in [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} based on the subset of states that
+coordinating parties in CVD based on the subset of states that
 currently apply to a case. What a coordinating party does depends on
 their role and where they engage, as shown in the list below. As
 described in §[6.2](#sec:mpcvd){reference-type="ref"
-reference="sec:mpcvd"}, [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} attempts to synchronize state transitions
+reference="sec:mpcvd"}, MPCVD attempts to synchronize state transitions
 across vendors.
 
-A significant portion of [CVD]{acronym-label="CVD"
-acronym-form="singular+long"} can be formally described as a set of
+A significant portion of CVD can be formally described as a set of
 action rules based on this model. For our purposes, a
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} action rule
+CVD action rule
 consists of:
 
 State subset
@@ -5010,7 +4928,7 @@ This rule structure follows a common user story pattern:
 The list in Table [6.7](#tab:cvd_rules){reference-type="ref"
 reference="tab:cvd_rules"} can be built into a rules engine that
 translates each state in the model to a set of suggested
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} actions.
+CVD actions.
 
 ::: {#tab:cvd_rules}
         State Subset       Role(s)            Action                                                       Reason                                            $\sigma$
@@ -5066,14 +4984,14 @@ translates each state in the model to a set of suggested
           $VFDPXa$         any                Close case (unless monitoring for A)                         No action required                                   \-
           $VFDPxA$         any                Close case (unless monitoring for X)                         No action required                                   \-
 
-  : [CVD]{acronym-label="CVD" acronym-form="singular+short"} Action
+  : CVD Action
   Rules based on States
 :::
 
 # Related Work {#sec:related_work}
 
 Numerous models of the vulnerability life cycle and
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} have been
+CVD have been
 proposed. Arbaugh, Fithen, and McHugh provide a descriptive model of the
 life cycle of vulnerabilities from inception to attacks and remediation
 [@arbaugh2000windows], which we refined with those of Frei et al.
@@ -5083,8 +5001,7 @@ basis of this model as described in
 also found Lewis' literature review of vulnerability lifecycle models to
 be useful [@lewis2017global].
 
-Prescriptive models of the [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} process have also been proposed. Christey
+Prescriptive models of the CVD process have also been proposed. Christey
 and Wysopal's 2002 IETF draft laid out a process for responsible
 disclosure geared towards prescribing roles, responsibilities for
 researchers, vendors, customers, and the security community
@@ -5092,27 +5009,23 @@ researchers, vendors, customers, and the security community
 also prescribed a process for coordinating the disclosure and
 remediation of vulnerabilities [@niac2004vul]. The CERT Guide to
 Coordinated Vulnerability Disclosure provides a practical overview of
-the [CVD]{acronym-label="CVD" acronym-form="singular+short"} process
+the CVD process
 [@householder2017cert]. ISO/IEC 29147 describes standard
 externally-facing processes for vulnerability disclosure from the
 perspective of a vendor receiving vulnerability reports , while ISO/IEC
 30111 describes internal vulnerability handling processes within a
-vendor [@ISO29147; @ISO30111]. The [FIRST]{acronym-label="FIRST"
-acronym-form="singular+full"} *[PSIRT]{acronym-label="PSIRT"
-acronym-form="singular+short"} Services Framework* provides a practical
+vendor [@ISO29147; @ISO30111]. The FIRST *PSIRT Services Framework* provides a practical
 description of the capabilities common to vulnerability response within
 vendor organizations [@first2020psirt]. The
-[FIRST]{acronym-label="FIRST" acronym-form="singular+short"} *Guidelines
+FIRST *Guidelines
 and Practices for Multi-Party Vulnerability Coordination and Disclosure*
-provides a number of scenarios for [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} [@first2020mpcvd]. Many of these
+provides a number of scenarios for MPCVD [@first2020mpcvd]. Many of these
 scenarios can be mapped directly to the histories $h \in H$ described in
 §[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"}.
 
-Benchmarking [CVD]{acronym-label="CVD" acronym-form="singular+short"}
-capability is the topic of the [VCMM]{acronym-label="VCMM"
-acronym-form="singular+short"} from Luta Security [@luta2020]. The
-[VCMM]{acronym-label="VCMM" acronym-form="singular+short"} addresses
+Benchmarking CVD
+capability is the topic of the VCMM from Luta Security [@luta2020]. The
+VCMM addresses
 five capability areas: organizational, engineering, communications,
 analytics, and incentives. Of these, our model is perhaps most relevant
 to the analytics capability, and the metrics described in
@@ -5120,7 +5033,7 @@ to the analytics capability, and the metrics described in
 could be used to inform an organization's assessment of progress in this
 dimension. Concise description of case states using the model presented
 here could also be used to improve the communications dimension of the
-[VCMM]{acronym-label="VCMM" acronym-form="singular+short"}.
+VCMM.
 
 System dynamics and agent based models have been applied to the
 interactions between the vulnerability discovery, disclosure, and
@@ -5137,23 +5050,22 @@ key systemic themes identified include:
 > and Emergence of New Vulnerability Markets
 
 Moore and Householder modeled cooperative aspects of the
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} process,
+MPCVD process,
 noting, \"it appears that adjusting the embargo period to increase the
 likelihood that patches can be developed by most vendors just in time is
 a good strategy for reducing cost\"[@moore2019multi].
 
-Economic analysis of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} has also been done. Arora et al. explored
-the [CVD]{acronym-label="CVD" acronym-form="singular+short"} process
+Economic analysis of CVD has also been done. Arora et al. explored
+the CVD process
 from an economic and social welfare
 perspective [@arora2005economics; @arora2006does; @arora2006research; @arora2008optimal; @arora2010competition; @arora2010empirical].
 More recently, so did Silfversten [@silfversten2018economics]. Cavusoglu
 and Cavusoglu model the mechanisms involved in motivating vendors to
 produce and release patches [@cavusoglu2007efficiency]. Ellis et al.
 examined the dynamics of labor market for bug bounties both within and
-across [CVD]{acronym-label="CVD" acronym-form="singular+short"} programs
+across CVD programs
 [@ellis2018fixing]. Pupillo et al. explored the policy implications of
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} in Europe
+CVD in Europe
 [@pupillo2018software]. A model for prioritizing vulnerability response
 that considers $\mathbf{X}$ and $\mathbf{A}$, among other impact
 factors, can be found in Spring et al. [@spring2020ssvc].
@@ -5205,9 +5117,7 @@ This section highlights some limitations of the current work and lays
 out a path for improving on those limitations in future work. Broadly,
 the opportunities for expanding the model include
 
--   addressing the complexities of tracking [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"} and [MPCVD]{acronym-label="MPCVD"
-    acronym-form="singular+short"} cases throughout their lifecycle
+-   addressing the complexities of tracking CVD and MPCVD cases throughout their lifecycle
 
 -   addressing the importance of both state transition probabilities and
     the time interval between them
@@ -5216,25 +5126,22 @@ the opportunities for expanding the model include
 
 -   modeling multiple agents
 
--   gathering more data about [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"} in the world
+-   gathering more data about CVD in the world
 
 -   managing the impact of partial information
 
 -   working to account for fairness and the complexity of
-    [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}
+    MPCVD
 
 ## State Explosion
 
-Although our discussion of [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} in
+Although our discussion of MPCVD in
 §[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"} and
 §[6.2.2](#sec:mpcvd criteria){reference-type="ref"
 reference="sec:mpcvd criteria"} highlights one area in which the number
 of states to track can increase dramatically, an even larger problem
-could arise in the context of [VM]{acronym-label="VM"
-acronym-form="singular+full"} efforts even within normal
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} cases. Our
+could arise in the context of VM efforts even within normal
+CVD cases. Our
 model casts each event $\sigma \in \Sigma$ as a singular point event,
 even though some---such as fix deployed $\mathbf{D}$---would be more
 accurately described as diffusion or multi-agent processes.
@@ -5247,12 +5154,12 @@ be pragmatic to adapt the event definition to include some defined
 threshold criteria.
 
 However, this problem is equivalent to an existing problem in
-[VM]{acronym-label="VM" acronym-form="singular+short"} practice: how
+VM practice: how
 best to address the question of whether the fix for a vulnerability has
 been deployed across the enterprise. Many organizations find a fixed
-quantile [SLE]{acronym-label="SLE" acronym-form="singular+short"} to be
+quantile SLE to be
 a reasonable approach. For example, a stakeholder might set the
-[SLE]{acronym-label="SLE" acronym-form="singular+short"} that 80% of
+SLE that 80% of
 known vulnerable systems will be patched within a certain timeframe.
 Other organizations might track fix deployments by risk groups, for
 example by differentiating between end user systems, servers, and
@@ -5286,8 +5193,8 @@ answered previously. Rather, it is that the formalism of our model
 allows them to be stated concisely and measured in terms of 6 events
 $\sigma \in \Sigma$, which points directly to the usefulness of
 collecting data about those events as part of ongoing
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} (including
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}) practices.
+CVD (including
+MPCVD) practices.
 
 ## The Model Does Not Achieve a Total Order Over Histories
 
@@ -5321,13 +5228,13 @@ between these two events was 1 week versus 3 months, as this gap
 directly bears on the need for speed in deploying fixes. Organizations
 may wish to extend this model by setting timing expectations in addition
 to simple precedence preferences. For example, organizations may wish to
-specify [SLEs]{acronym-label="SLE" acronym-form="plural+short"} for
+specify SLEs for
 $\mathbf{V} \prec \mathbf{F}$, $\mathbf{F} \prec \mathbf{D}$,
 $\mathbf{F} \prec \mathbf{A}$, and so forth.
 
 Furthermore, in the long run the elapsed time for
 $\mathbf{F} \prec \mathbf{A}$ essentially dictates the response time
-requirements for [VM]{acronym-label="VM" acronym-form="singular+full"}
+requirements for VM
 processes for system owners. Neither system owners nor vendors get to
 choose when attacks happen, so we should expect stochasticity to play a
 significant role in this timing. However, if an organization cannot
@@ -5336,7 +5243,7 @@ than between $\mathbf{F}$ and $\mathbf{A}$ (i.e., achieving
 $\mathbf{D} \prec \mathbf{A}$) for a sizable fraction of the
 vulnerability cases they encounter, it's difficult to imagine that
 organization being satisfied with the effectiveness of their
-[VM]{acronym-label="VM" acronym-form="singular+short"} program.
+VM program.
 
 ## Attacks As Random Events
 
@@ -5355,7 +5262,7 @@ different conversation.
 
 We agree with the reviewer who suggested that an agent-based model could
 allow deeper examination of the interactions between stakeholders in
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}. Many of
+MPCVD. Many of
 the mechanisms and proximate causes underlying the events this model
 describes are hidden from the model, and would be difficult to observe
 or measure even if they were included.
@@ -5365,7 +5272,7 @@ approaches to MPCVD, we need a way to measure and compare outcomes. The
 model we present here gives us such a framework, but it does so by
 making a tradeoff in favor of generality over causal specificity. We
 anticipate that future agent-based models of
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} will be
+MPCVD will be
 better positioned to address process mechanisms, whereas this model will
 be useful to assess outcomes independently of the mechanisms by which
 they arise.
@@ -5377,7 +5284,7 @@ discusses how different benchmarks and "reasonable baseline
 expectations" might change the results of a skill assessment. It also
 proposes how to use observations of the actions a certain team or team
 performs to create a baseline which compares other
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} practitioners
+CVD practitioners
 to the skill of that team or teams. Such data could also inform causal
 reasoning about certain event orderings and help identify effective
 interventions. For example, might causing $\mathbf{X} \prec \mathbf{F}$
@@ -5395,19 +5302,16 @@ continue if the modeling choice is to base skill upon a measure from
 past observations.
 
 While there is a modeling choice about using the uniformity assumption
-versus observations from past [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} (see
+versus observations from past CVD (see
 §[6.1](#sec:benchmarks){reference-type="ref"
 reference="sec:benchmarks"}), the model does not depend on whether the
 uniformity assumption actually holds. We have provided a means to
 calculate from observations a deviation from the desired "reasonable
 baseline," whether this is based on the i.i.d. assumption or not.
 Although, via our research questions, we have provided a method for
-evaluating skill in [CVD]{acronym-label="CVD"
-acronym-form="singular+short"}, evaluating the overarching question of
-*fairness* in [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} requires a much broader sense of
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} practices.
+evaluating skill in CVD, evaluating the overarching question of
+*fairness* in MPCVD requires a much broader sense of
+CVD practices.
 
 ## Observation May Be Limited
 
@@ -5428,14 +5332,12 @@ forthcoming with their notification timelines (as many increasingly
 are). $\mathbf{D}$ is probably the hardest event to observe for all
 parties, for the reasons described in the timing discussion above.
 
-## [CVD]{acronym-label="CVD" acronym-form="singular+short"} Action Rules Are Not Algorithms
+## CVD Action Rules Are Not Algorithms
 
 The rules given in §[6.8](#sec:cvd_action_rules){reference-type="ref"
 reference="sec:cvd_action_rules"} are not algorithms. We do not propose
-them as a set of required actions for every [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} case. However, following Atul Gawande's
-lead, we offer them as a mechanism to generate [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} checklists:
+them as a set of required actions for every CVD case. However, following Atul Gawande's
+lead, we offer them as a mechanism to generate CVD checklists:
 
 > Good checklists, on the other hand are precise. They are efficient, to
 > the point, and easy to use even in the most difficult situations. They
@@ -5445,14 +5347,13 @@ acronym-form="singular+short"} checklists:
 > using them could miss. Good checklists are, above all, practical
 > [@gawande2011checklist].
 
-## [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} Criteria Do Not Account for Equitable Resilience
+## MPCVD Criteria Do Not Account for Equitable Resilience
 
-The proposed criteria for [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} in
+The proposed criteria for MPCVD in
 §[6.2.2](#sec:mpcvd criteria){reference-type="ref"
 reference="sec:mpcvd criteria"} fail to account for either user
 populations or their relative importance. For example, suppose an
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} case had a
+MPCVD case had a
 total of 15 vendors, with 5 vendors representing 95% of the total
 userbase achieving highly preferred outcomes and 10 vendors with poor
 outcomes representing the remaining 5% of the userbase. The desired
@@ -5471,8 +5372,7 @@ The core issue is that we lack a utility function to map from observed
 case histories to harm reduction.[^13] Potential features of such a
 function include aggregation across vendors and/or users. Alternatively,
 it may be possible to devise a method for weighting the achieved
-histories in an [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} case by some proxy for total user risk.
+histories in an MPCVD case by some proxy for total user risk.
 Other approaches remain possible---for example, employing a heuristic to
 avoid catastrophic outcomes for all, then applying a weighted sum over
 the impact to the remaining users. Future work might also consider
@@ -5480,17 +5380,13 @@ whether criteria other than high median and low variance could be
 applied.
 
 Regardless, achieving accurate estimates of such parameters is likely to
-remain challenging. Equity in [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} may be a topic of future interest to
-groups such as the [FIRST]{acronym-label="FIRST"
-acronym-form="singular+short"} Ethics [SIG]{acronym-label="SIG"
-acronym-form="singular+short"}[^14].
+remain challenging. Equity in MPCVD may be a topic of future interest to
+groups such as the FIRST Ethics SIG[^14].
 
-## [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} Is Still Hard
+## MPCVD Is Still Hard
 
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} is a wicked
-problem, and [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} even more so [@householder2017cert]. The
+CVD is a wicked
+problem, and MPCVD even more so [@householder2017cert]. The
 model provided by this white paper offers structure to describe the
 problem space where there was little of it to speak of previously.
 
@@ -5503,51 +5399,45 @@ that influence cybersecurity policy across the globe remain at the heart
 of the vulnerability disclosure problem for most stakeholders. Our hope
 is that the model found here will help to clarify decisions,
 communication, and policies that all have their part to play in
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} process
+MPCVD process
 improvement.
 
 # Conclusion {#sec:conclusion}
 
 In this report, we developed a state-based model of the
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} process that
-enables us to enumerate all possible [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} histories $\mathcal{H}$ and defined a set
+CVD process that
+enables us to enumerate all possible CVD histories $\mathcal{H}$ and defined a set
 of desired criteria $\mathbb{D}$ that are preferable in each history.
 This allowed us to create a partially ordered set over all histories and
 to compute a baseline expected frequency for each desired criteria. We
 also proposed a new performance indicator for comparing actual
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} experiences
+CVD experiences
 against a benchmark, and proposed an initial benchmark based on the
 expected frequency of each desired criteria. We demonstrated this
 performance indicator in a few examples, indicating that at least some
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} practices
+CVD practices
 appear to be doing considerably better than random. Finally, we posited
 a way to apply these metrics to measure the efficacy of
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} processes.
+MPCVD processes.
 
 The resulting state-transition model has numerous applications to
-formalizing the specification of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} policies and processes. We discussed how
+formalizing the specification of CVD policies and processes. We discussed how
 the model can be used to specify embargo and disclosure policies, and to
 bring consistency to coordination practices. We further showed how the
 model can be used to reduce uncertainty regarding actions to take even
-in the presence of incomplete [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} information. We also suggested how the
+in the presence of incomplete CVD information. We also suggested how the
 model can be used to normalize frequently-used terms that have lacked
-consistent definitions among practitioners of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} and [VM]{acronym-label="VM"
-acronym-form="singular+short"}. Finally, we demonstrated the potential
-application of this model to US [VEP]{acronym-label="VEP"
-acronym-form="singular+short"} scope definitions.
+consistent definitions among practitioners of CVD and VM. Finally, we demonstrated the potential
+application of this model to US VEP scope definitions.
 
 In combination, the model described in this report offers a way to
 observe, communicate, and measure the quality improvement of
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} and
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} practices
+CVD and
+MPCVD practices
 across the board.
 
 ::: feedbackrqst
-The [CERT/CC]{acronym-label="CERT/CC" acronym-form="singular+short"} is
+The CERT/CC is
 interested to receive feedback on this report. Although every action was
 taken to ensure the completeness and accuracy of the information
 contained within this report, the possibility for improvement still
@@ -7019,13 +6909,12 @@ reference="tab:VFDPXA_actions"} for actions.
 
 ::: acronym
 \[ATT&CK\]Adversarial Tactics, Techniques, and Common Knowledge
-\[CNA\][CVE]{acronym-label="CVE" acronym-form="singular+short"}
-Numbering Authority \[CNAs\][CVE]{acronym-label="CVE"
-acronym-form="singular+short"} Numbering Authorities \[IODEF+\]Incident
+\[CNA\]CVE
+Numbering Authority \[CNAs\]CVE Numbering Authorities \[IODEF+\]Incident
 Object Description Exchange Format Extensions
 
 \[SANS Institute\]Sysadmin, Audit, Network, and Security Institute
-\[US-CERT\][US]{acronym-label="US" acronym-form="singular+abbrv"}
+\[US-CERT\]US
 Computer Emergency Readiness Team
 :::
 
@@ -7068,10 +6957,9 @@ Computer Emergency Readiness Team
     silent patches result in poor deployment rates precisely because
     they lack an explicit imperative to deploy the fix.
 
-[^8]: A [CVD]{acronym-label="CVD" acronym-form="singular+short"} embargo
+[^8]: A CVD embargo
     is analogous to a news embargo used in journalism, often in the
-    context of scientific publications. Like [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"} embargoes, the use of scientific news
+    context of scientific publications. Like CVD embargoes, the use of scientific news
     embargoes is not without controversy.
     [@angell1991ingelfinger; @delkic2018embargo; @oransky2016embargo]
 

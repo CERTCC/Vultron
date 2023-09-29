@@ -2,7 +2,7 @@
 
 In §[2](#sec:model){reference-type="ref" reference="sec:model"}, we
 began by identifying a set of events of interest in
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} cases. Then we
+CVD cases. Then we
 constructed a state model describing how the occurrence of these events
 can interact with each other. In this section, we look at paths through
 the resulting state model.
@@ -10,8 +10,7 @@ the resulting state model.
 A sequence $s$ is an ordered set of some number of events
 $\sigma_i \in \Sigma$ for $1 \leq i \leq n$ and the length of $s$ is
 $|s| \stackrel{\mathsf{def}}{=}n$. In other words, a sequence $s$ is an
-input string to the [DFA]{acronym-label="DFA"
-acronym-form="singular+short"} defined in
+input string to the DFA defined in
 §[2](#sec:model){reference-type="ref" reference="sec:model"}.
 
 $$\label{eq:sequence}
@@ -44,10 +43,10 @@ reference="sec:transition_function"}, we know that Vendor Awareness
 ($\mathbf{V}$) must precede Fix Ready ($\mathbf{F}$) and that Fix Ready
 must precede Fix Deployed ($\mathbf{D}$).
 
-The [DFA]{acronym-label="DFA" acronym-form="singular+short"} developed
+The DFA developed
 in §[2](#sec:model){reference-type="ref" reference="sec:model"} provides
 the mechanism to validate histories: a history $h$ is valid if the
-[DFA]{acronym-label="DFA" acronym-form="singular+short"} accepts it as a
+DFA accepts it as a
 valid input string. Once this constraint is applied, only 70 possible
 histories $h \in \mathcal{H}p$ remain viable. We denote the set of all
 such valid histories as $\mathcal{H}$ and have $|\mathcal{H}| = 70$. The
@@ -1645,13 +1644,10 @@ precedes Exploit Public ($\mathbf{X}$) or must immediately follow it.
 $$\label{eq:history_px_rule}
     \mathbf{P} \prec \mathbf{X} \textrm{ or } \mathbf{X} \rightarrow \mathbf{P}$$
 
-This model is amenable for analysis of [CVD]{acronym-label="CVD"
-acronym-form="singular+short"}, but we need to add a way to express
+This model is amenable for analysis of CVD, but we need to add a way to express
 preferences before it is complete. Thus we are part way through **RQ1**.
 §[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"} will
-address how this model can generalize from [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} to [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"}.
+address how this model can generalize from CVD to MPCVD.
 
 ## On the Desirability of Possible Histories {#sec:desirability}
 
@@ -1755,7 +1751,7 @@ such relations.
 The desiderata in
 [\[eq:desiderata\]](#eq:desiderata){reference-type="eqref"
 reference="eq:desiderata"} address the preferred ordering of transitions
-in [CVD]{acronym-label="CVD" acronym-form="singular+short"} histories,
+in CVD histories,
 which imply that one should prefer to pass through some states and avoid
 others. For example, $\mathbf{V} \prec \mathbf{P}$ implies that we
 prefer the paths
@@ -1832,8 +1828,7 @@ reference="sec:reasoning"} and
 will demonstrate that the model is amenable to analysis and
 §[6.2.2](#sec:mpcvd criteria){reference-type="ref"
 reference="sec:mpcvd criteria"} will lay out the criteria for extending
-it to cover [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"}.
+it to cover MPCVD.
 
 The poset $(\mathcal{H},\leq_{H})$, has as its upper bound
 $$h_{69} = (\mathbf{V}, \mathbf{F}, \mathbf{D}, \mathbf{P}, \mathbf{X}, \mathbf{A})$$
@@ -1866,8 +1861,7 @@ create a linear extension of the poset defined here, whereas a partial
 order on $\mathbb{D}$ would result in a more constrained poset of which
 this poset would be a subset.
 
-![The Lattice of Possible [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} Histories: A Hasse Diagram of the partial
+![The Lattice of Possible CVD Histories: A Hasse Diagram of the partial
 ordering $(\mathcal{H}, \leq_{H})$ of $h_a \in \mathcal{H}$ given
 $\mathbb{D}$ as defined in
 [\[eq:ordering\]](#eq:ordering){reference-type="eqref"
@@ -1897,8 +1891,8 @@ principle of indifference, as stated in [@pittphilsci16041]:
 
 While the principle of indifference is rather strong, it is inherently
 difficult to reason about absolutely skill-less
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} when the work
-of [CVD]{acronym-label="CVD" acronym-form="singular+short"} is, by its
+CVD when the work
+of CVD is, by its
 nature, a skilled job. Given the set of states and allowable transitions
 between them, we can apply the principle of indifference to define a
 baseline against which measurement can be meaningful.
@@ -1946,7 +1940,7 @@ the $p(transition)$ column of Table
 [3.4](#tab:allowed_state_transitions){reference-type="ref"
 reference="tab:allowed_state_transitions"}. Real world data is unlikely
 to ever reflect such a sad state of affairs (because
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} *is* happening
+CVD *is* happening
 after all).
 
 ::: {#tab:allowed_state_transitions}

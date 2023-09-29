@@ -1,9 +1,9 @@
 # Discriminating Skill and Luck in Observations {#sec:skill_luck}
 
 This section defines a method for measuring skillful behavior in
-[CVD]{acronym-label="CVD" acronym-form="singular+short"}, which we will
+CVD, which we will
 need to answer **RQ3** about measuring and evaluating
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} "in the wild."
+CVD "in the wild."
 The measurement method makes use of all the modeling tools and baselines
 established thus far: a comprehensive set of possible histories
 $\mathcal{H}$, a partial order over them in terms of the presence of
@@ -11,7 +11,7 @@ desired event precedence $(\mathcal{H},\leq_{\mathbb{D}})$, and the *a
 priori* expected frequency of each desiderata $d \in \mathbb{D}$.
 
 If we expected to be able to observe all events in all
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} cases, we could
+CVD cases, we could
 be assured of having complete histories and could be done here. But the
 real world is messy. Not all events $\mathbf{e} \in \mathcal{E}$ are
 always observable. We need to develop a way to make sense of what we

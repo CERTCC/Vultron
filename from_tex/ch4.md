@@ -34,7 +34,7 @@ $\mathbf{P} \prec \mathbf{A}$ in 59% of valid histories, but when
 histories are weighted by the assumption of uniform state transitions
 $\mathbf{P} \prec \mathbf{A}$ is expected to occur in 67% of the time.
 These differences arise due to the dependencies between some states.
-Since [CVD]{acronym-label="CVD" acronym-form="singular+short"} practice
+Since CVD practice
 is comprised of a sequence of events, each informed by the last, our
 uniform distribution over events is more likely a useful baseline than a
 uniform distribution over histories.
@@ -103,8 +103,7 @@ uniform distribution over event transitions.
 Any observations of phenomena in which we measure the performance of
 human actors can attribute some portion of the outcome to skill and some
 portion to chance [@larkey1997skill; @dreef2004measuring]. It is
-reasonable to wonder whether good outcomes in [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} are the result of luck or skill. How can
+reasonable to wonder whether good outcomes in CVD are the result of luck or skill. How can
 we tell the difference?
 
 We begin with a simple model in which outcomes are a combination of luck

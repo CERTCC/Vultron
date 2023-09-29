@@ -1,13 +1,10 @@
 # A State-based model for CVD {#sec:model}
 
-Our goal is to create a toy model of the [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} process that can shed light on the more
+Our goal is to create a toy model of the MPCVD process that can shed light on the more
 complicated real thing. We begin by building up a state map of what
-[FIRST]{acronym-label="FIRST" acronym-form="singular+short"} refers to
-as bilateral [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} [@first2020mpcvd], which we will later
-expand into the [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} space. We start by defining a set of
+FIRST refers to
+as bilateral CVD [@first2020mpcvd], which we will later
+expand into the MPCVD space. We start by defining a set of
 events of interest. We then use these to construct model states and the
 transitions between them.
 
@@ -62,8 +59,7 @@ al. [@arbaugh2000windows], Frei et al. [@frei2010modeling], and Bilge
 and et al. [@bilge2012before]. A more thorough literature review of
 vulnerability lifecycle models can be found in [@lewis2017global]. We
 are primarily interested in events that are usually observable to the
-stakeholders of a [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} case. Stakeholders include software
+stakeholders of a CVD case. Stakeholders include software
 vendors, vulnerability finder/reporters, coordinators, and
 deployers [@householder2017cert]. A summary of this model comparison is
 shown in Table [2.1](#tab:lifecycle_events){reference-type="ref"
@@ -148,7 +144,7 @@ differentiate:
 
 -   *exploit public*---the method of exploitation for a vulnerability
     was made public in sufficient detail to be reproduced by others.
-    Posting [PoC]{acronym-label="PoC" acronym-form="singular+short"}
+    Posting PoC
     code to a widely available site or including the exploit in a
     commonly available exploit tool meets this criteria; privately held
     exploits do not.
@@ -177,8 +173,7 @@ reference="sec:related_work"}.
 
 ## Notation {#sec:notation}
 
-Before we discuss [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} states
+Before we discuss CVD states
 (§[2.3](#sec:states){reference-type="ref" reference="sec:states"}),
 transitions (§[2.4](#sec:transitions){reference-type="ref"
 reference="sec:transitions"}), or possible histories
@@ -204,14 +199,13 @@ of ordered sets. From them, we adopt the following notation:
 
 ## Deterministic Finite State Automata {#sec:states}
 
-Transitions during [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} resemble in that the transitions
+Transitions during CVD resemble in that the transitions
 available to the current state are dependent on the state itself.
-Although [DFAs]{acronym-label="DFA" acronym-form="plural+short"} are
+Although DFAs are
 often used to determine whether the final or end state is acceptable,
-for analyzing [CVD]{acronym-label="CVD" acronym-form="singular+short"}
+for analyzing CVD
 we are more interested in the order of the transitions. The usual
-[DFA]{acronym-label="DFA" acronym-form="singular+short"} notation will
+DFA notation will
 still be effective for this modeling goal.
 
 is defined as a 5-tuple $(\mathcal{Q},\Sigma,\delta,q_0,F)
@@ -286,7 +280,7 @@ observation of events as the transitions of a DFA, we allow for the
 possibility that an observed history remains incomplete at the time of
 case closure---in other words, it remains possible for exploits to be
 published or attacks to be observed long after a
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} case has been
+CVD case has been
 closed.
 
 Intermediate states can be any combination of statuses, with the caveats
@@ -325,26 +319,22 @@ holds.
 ## State Transitions {#sec:transitions}
 
 In this section, we elaborate on the input symbols and transition
-function for our [DFA]{acronym-label="DFA"
-acronym-form="singular+short"}.
+function for our DFA.
 
 ### Input Symbols
 
-The input symbols to our [DFA]{acronym-label="DFA"
-acronym-form="singular+short"} correspond to observations of the events
+The input symbols to our DFA correspond to observations of the events
 outlined in Table [2.1](#tab:lifecycle_events){reference-type="ref"
 reference="tab:lifecycle_events"}. For our model, an input symbol
 $\sigma$ is "read" when a participant observes a change in status (the
 vendor is notified, an exploit has been published, etc.). For the sake
 of simplicity, we begin with the assumption that observations are
 globally known---that is, a status change observed by any
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} participant is
-known to all. In the real world, the [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} process itself is well poised to ensure
+CVD participant is
+known to all. In the real world, the CVD process itself is well poised to ensure
 eventual consistency with this assumption through the communication of
 perceived case state across coordinating parties. We define the set of
-input symbols for our [DFA]{acronym-label="DFA"
-acronym-form="singular+short"} as:
+input symbols for our DFA as:
 
 $$\label{eq:events}
     \Sigma \stackrel{\mathsf{def}}{=}\{\mathbf{V},\mathbf{F},\mathbf{D},\mathbf{P},\mathbf{X},\mathbf{A}\}$$
@@ -478,7 +468,7 @@ Our model assumes that vendors immediately become aware of what the
 public is aware of. Therefore, all states in ${vP}$ are unstable, and
 must lead to the corresponding state in ${VP}$ in the next step.
 
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} attempts to
+CVD attempts to
 move vulnerabilities through states belonging to $p$ until the process
 reaches a state in $VFdp$ at least. Vendors that can control deployment
 will likely prefer the transition from
@@ -580,7 +570,7 @@ vulnerability discovery and reporting process. States in $pA$ include
 that possibility and add the potential for discovery as a result of
 security incident analysis.
 
-##### Five Dimensions of [CVD]{acronym-label="CVD" acronym-form="singular+short"} {#para:5d}
+##### Five Dimensions of CVD {#para:5d}
 
 By composing these sub-parts, we arrive at our complete state transition
 model, which we construct by combining the vendor fix path
@@ -595,7 +585,7 @@ reference="eq:pxa_dfa"}. The complete map is shown in Figure
 We also can now define the transition function $\delta$ for the entire
 model, as shown in Table [2.6](#tab:delta_vfdpxa){reference-type="ref"
 reference="tab:delta_vfdpxa"}. A summary of the complete
-[DFA]{acronym-label="DFA" acronym-form="singular+short"} specification
+DFA specification
 is given in [\[eq:vfdpxa_dfa\]](#eq:vfdpxa_dfa){reference-type="eqref"
 reference="eq:vfdpxa_dfa"}.
 

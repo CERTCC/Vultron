@@ -4,9 +4,7 @@ This section highlights some limitations of the current work and lays
 out a path for improving on those limitations in future work. Broadly,
 the opportunities for expanding the model include
 
--   addressing the complexities of tracking [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"} and [MPCVD]{acronym-label="MPCVD"
-    acronym-form="singular+short"} cases throughout their lifecycle
+-   addressing the complexities of tracking CVD and MPCVD cases throughout their lifecycle
 
 -   addressing the importance of both state transition probabilities and
     the time interval between them
@@ -15,25 +13,22 @@ the opportunities for expanding the model include
 
 -   modeling multiple agents
 
--   gathering more data about [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"} in the world
+-   gathering more data about CVD in the world
 
 -   managing the impact of partial information
 
 -   working to account for fairness and the complexity of
-    [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}
+    MPCVD
 
 ## State Explosion
 
-Although our discussion of [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} in
+Although our discussion of MPCVD in
 §[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"} and
 §[6.2.2](#sec:mpcvd criteria){reference-type="ref"
 reference="sec:mpcvd criteria"} highlights one area in which the number
 of states to track can increase dramatically, an even larger problem
-could arise in the context of [VM]{acronym-label="VM"
-acronym-form="singular+full"} efforts even within normal
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} cases. Our
+could arise in the context of VM efforts even within normal
+CVD cases. Our
 model casts each event $\sigma \in \Sigma$ as a singular point event,
 even though some---such as fix deployed $\mathbf{D}$---would be more
 accurately described as diffusion or multi-agent processes.
@@ -46,12 +41,12 @@ be pragmatic to adapt the event definition to include some defined
 threshold criteria.
 
 However, this problem is equivalent to an existing problem in
-[VM]{acronym-label="VM" acronym-form="singular+short"} practice: how
+VM practice: how
 best to address the question of whether the fix for a vulnerability has
 been deployed across the enterprise. Many organizations find a fixed
-quantile [SLE]{acronym-label="SLE" acronym-form="singular+short"} to be
+quantile SLE to be
 a reasonable approach. For example, a stakeholder might set the
-[SLE]{acronym-label="SLE" acronym-form="singular+short"} that 80% of
+SLE that 80% of
 known vulnerable systems will be patched within a certain timeframe.
 Other organizations might track fix deployments by risk groups, for
 example by differentiating between end user systems, servers, and
@@ -85,8 +80,8 @@ answered previously. Rather, it is that the formalism of our model
 allows them to be stated concisely and measured in terms of 6 events
 $\sigma \in \Sigma$, which points directly to the usefulness of
 collecting data about those events as part of ongoing
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} (including
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}) practices.
+CVD (including
+MPCVD) practices.
 
 ## The Model Does Not Achieve a Total Order Over Histories
 
@@ -120,13 +115,13 @@ between these two events was 1 week versus 3 months, as this gap
 directly bears on the need for speed in deploying fixes. Organizations
 may wish to extend this model by setting timing expectations in addition
 to simple precedence preferences. For example, organizations may wish to
-specify [SLEs]{acronym-label="SLE" acronym-form="plural+short"} for
+specify SLEs for
 $\mathbf{V} \prec \mathbf{F}$, $\mathbf{F} \prec \mathbf{D}$,
 $\mathbf{F} \prec \mathbf{A}$, and so forth.
 
 Furthermore, in the long run the elapsed time for
 $\mathbf{F} \prec \mathbf{A}$ essentially dictates the response time
-requirements for [VM]{acronym-label="VM" acronym-form="singular+full"}
+requirements for VM
 processes for system owners. Neither system owners nor vendors get to
 choose when attacks happen, so we should expect stochasticity to play a
 significant role in this timing. However, if an organization cannot
@@ -135,7 +130,7 @@ than between $\mathbf{F}$ and $\mathbf{A}$ (i.e., achieving
 $\mathbf{D} \prec \mathbf{A}$) for a sizable fraction of the
 vulnerability cases they encounter, it's difficult to imagine that
 organization being satisfied with the effectiveness of their
-[VM]{acronym-label="VM" acronym-form="singular+short"} program.
+VM program.
 
 ## Attacks As Random Events
 
@@ -154,7 +149,7 @@ different conversation.
 
 We agree with the reviewer who suggested that an agent-based model could
 allow deeper examination of the interactions between stakeholders in
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"}. Many of
+MPCVD. Many of
 the mechanisms and proximate causes underlying the events this model
 describes are hidden from the model, and would be difficult to observe
 or measure even if they were included.
@@ -164,7 +159,7 @@ approaches to MPCVD, we need a way to measure and compare outcomes. The
 model we present here gives us such a framework, but it does so by
 making a tradeoff in favor of generality over causal specificity. We
 anticipate that future agent-based models of
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} will be
+MPCVD will be
 better positioned to address process mechanisms, whereas this model will
 be useful to assess outcomes independently of the mechanisms by which
 they arise.
@@ -176,7 +171,7 @@ discusses how different benchmarks and "reasonable baseline
 expectations" might change the results of a skill assessment. It also
 proposes how to use observations of the actions a certain team or team
 performs to create a baseline which compares other
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} practitioners
+CVD practitioners
 to the skill of that team or teams. Such data could also inform causal
 reasoning about certain event orderings and help identify effective
 interventions. For example, might causing $\mathbf{X} \prec \mathbf{F}$
@@ -194,19 +189,16 @@ continue if the modeling choice is to base skill upon a measure from
 past observations.
 
 While there is a modeling choice about using the uniformity assumption
-versus observations from past [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} (see
+versus observations from past CVD (see
 §[6.1](#sec:benchmarks){reference-type="ref"
 reference="sec:benchmarks"}), the model does not depend on whether the
 uniformity assumption actually holds. We have provided a means to
 calculate from observations a deviation from the desired "reasonable
 baseline," whether this is based on the i.i.d. assumption or not.
 Although, via our research questions, we have provided a method for
-evaluating skill in [CVD]{acronym-label="CVD"
-acronym-form="singular+short"}, evaluating the overarching question of
-*fairness* in [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} requires a much broader sense of
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} practices.
+evaluating skill in CVD, evaluating the overarching question of
+*fairness* in MPCVD requires a much broader sense of
+CVD practices.
 
 ## Observation May Be Limited
 
@@ -227,14 +219,12 @@ forthcoming with their notification timelines (as many increasingly
 are). $\mathbf{D}$ is probably the hardest event to observe for all
 parties, for the reasons described in the timing discussion above.
 
-## [CVD]{acronym-label="CVD" acronym-form="singular+short"} Action Rules Are Not Algorithms
+## CVD Action Rules Are Not Algorithms
 
 The rules given in §[6.8](#sec:cvd_action_rules){reference-type="ref"
 reference="sec:cvd_action_rules"} are not algorithms. We do not propose
-them as a set of required actions for every [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} case. However, following Atul Gawande's
-lead, we offer them as a mechanism to generate [CVD]{acronym-label="CVD"
-acronym-form="singular+short"} checklists:
+them as a set of required actions for every CVD case. However, following Atul Gawande's
+lead, we offer them as a mechanism to generate CVD checklists:
 
 > Good checklists, on the other hand are precise. They are efficient, to
 > the point, and easy to use even in the most difficult situations. They
@@ -244,14 +234,13 @@ acronym-form="singular+short"} checklists:
 > using them could miss. Good checklists are, above all, practical
 > [@gawande2011checklist].
 
-## [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} Criteria Do Not Account for Equitable Resilience
+## MPCVD Criteria Do Not Account for Equitable Resilience
 
-The proposed criteria for [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} in
+The proposed criteria for MPCVD in
 §[6.2.2](#sec:mpcvd criteria){reference-type="ref"
 reference="sec:mpcvd criteria"} fail to account for either user
 populations or their relative importance. For example, suppose an
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} case had a
+MPCVD case had a
 total of 15 vendors, with 5 vendors representing 95% of the total
 userbase achieving highly preferred outcomes and 10 vendors with poor
 outcomes representing the remaining 5% of the userbase. The desired
@@ -270,8 +259,7 @@ The core issue is that we lack a utility function to map from observed
 case histories to harm reduction.[^13] Potential features of such a
 function include aggregation across vendors and/or users. Alternatively,
 it may be possible to devise a method for weighting the achieved
-histories in an [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} case by some proxy for total user risk.
+histories in an MPCVD case by some proxy for total user risk.
 Other approaches remain possible---for example, employing a heuristic to
 avoid catastrophic outcomes for all, then applying a weighted sum over
 the impact to the remaining users. Future work might also consider
@@ -279,17 +267,13 @@ whether criteria other than high median and low variance could be
 applied.
 
 Regardless, achieving accurate estimates of such parameters is likely to
-remain challenging. Equity in [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} may be a topic of future interest to
-groups such as the [FIRST]{acronym-label="FIRST"
-acronym-form="singular+short"} Ethics [SIG]{acronym-label="SIG"
-acronym-form="singular+short"}[^14].
+remain challenging. Equity in MPCVD may be a topic of future interest to
+groups such as the FIRST Ethics SIG[^14].
 
-## [MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} Is Still Hard
+## MPCVD Is Still Hard
 
-[CVD]{acronym-label="CVD" acronym-form="singular+short"} is a wicked
-problem, and [MPCVD]{acronym-label="MPCVD"
-acronym-form="singular+short"} even more so [@householder2017cert]. The
+CVD is a wicked
+problem, and MPCVD even more so [@householder2017cert]. The
 model provided by this white paper offers structure to describe the
 problem space where there was little of it to speak of previously.
 
@@ -302,6 +286,6 @@ that influence cybersecurity policy across the globe remain at the heart
 of the vulnerability disclosure problem for most stakeholders. Our hope
 is that the model found here will help to clarify decisions,
 communication, and policies that all have their part to play in
-[MPCVD]{acronym-label="MPCVD" acronym-form="singular+short"} process
+MPCVD process
 improvement.
 

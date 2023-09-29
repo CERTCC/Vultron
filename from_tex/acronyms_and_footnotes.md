@@ -2,13 +2,12 @@
 
 ::: acronym
 \[ATT&CK\]Adversarial Tactics, Techniques, and Common Knowledge
-\[CNA\][CVE]{acronym-label="CVE" acronym-form="singular+short"}
-Numbering Authority \[CNAs\][CVE]{acronym-label="CVE"
-acronym-form="singular+short"} Numbering Authorities \[IODEF+\]Incident
+\[CNA\]CVE
+Numbering Authority \[CNAs\]CVE Numbering Authorities \[IODEF+\]Incident
 Object Description Exchange Format Extensions
 
 \[SANS Institute\]Sysadmin, Audit, Network, and Security Institute
-\[US-CERT\][US]{acronym-label="US" acronym-form="singular+abbrv"}
+\[US-CERT\]US
 Computer Emergency Readiness Team
 :::
 
@@ -51,10 +50,9 @@ Computer Emergency Readiness Team
     silent patches result in poor deployment rates precisely because
     they lack an explicit imperative to deploy the fix.
 
-[^8]: A [CVD]{acronym-label="CVD" acronym-form="singular+short"} embargo
+[^8]: A CVD embargo
     is analogous to a news embargo used in journalism, often in the
-    context of scientific publications. Like [CVD]{acronym-label="CVD"
-    acronym-form="singular+short"} embargoes, the use of scientific news
+    context of scientific publications. Like CVD embargoes, the use of scientific news
     embargoes is not without controversy.
     [@angell1991ingelfinger; @delkic2018embargo; @oransky2016embargo]
 
