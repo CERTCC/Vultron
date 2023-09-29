@@ -1,0 +1,28 @@
+# default
+* @ahouseholder
+
+
+# all the python
+*.py @ahouseholder
+
+# trailing slash includes subdirs
+/docs/ @ahouseholder
+/vultron/ @ahouseholder
+/test/ @ahouseholder
+
+# site config
+mkdocs.yml @ahouseholder
+
+# python build
+pyproject.toml @ahouseholder
+
+# copyright, license
+LICENSE.md @ahouseholder
+COPYRIGHT.md @ahouseholder
+
+# Teams can be specified as code owners as well. Teams should
+# be identified in the format @org/team-name. Teams must have
+# explicit write access to the repository. In this example,
+# the octocats team in the octo-org organization owns all .txt files.
+# *.txt @octo-org/octocats
+
