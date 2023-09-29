@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-'''file: __init__.py
+"""file: __init__.py
 author: adh
 created_at: 5/17/23 3:55 PM
-'''
+"""
 
 
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
@@ -20,9 +20,10 @@ created_at: 5/17/23 3:55 PM
 #
 #  See LICENSE for details
 
+
 def main():
     pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

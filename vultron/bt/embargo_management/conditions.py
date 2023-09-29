@@ -20,7 +20,9 @@ created_at: 4/26/22 10:13 AM
 
 from vultron.bt.base.composites import FallbackNode
 from vultron.bt.common import StateIn
-from vultron.bt.embargo_management.errors import EmbargoManagementConditionError
+from vultron.bt.embargo_management.errors import (
+    EmbargoManagementConditionError,
+)
 from vultron.bt.embargo_management.states import EM
 
 

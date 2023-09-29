@@ -65,7 +65,12 @@ class InvalidateReport(SequenceNode):
 
 
 class RMValidateBt(FallbackNode):
-    _children = (RMinStateValid, HandleRmI, ValidationSequence, InvalidateReport)
+    _children = (
+        RMinStateValid,
+        HandleRmI,
+        ValidationSequence,
+        InvalidateReport,
+    )
 
 
 def main():

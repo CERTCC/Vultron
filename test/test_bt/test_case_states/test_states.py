@@ -16,7 +16,7 @@
 import unittest
 from itertools import product
 
-import vultron.cvd_states.states as s
+import vultron.case_states.states as s
 
 
 class MyTestCase(unittest.TestCase):

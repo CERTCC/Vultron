@@ -222,7 +222,13 @@ class AvoidNonViableEmbargo(SequenceNode):
 class HandleAckable(FallbackNode):
     """Handle ackable messages."""
 
-    _children = (HandleEe, HandleEt, HandleEr, HandleCSpxa, AvoidNonViableEmbargo)
+    _children = (
+        HandleEe,
+        HandleEt,
+        HandleEr,
+        HandleCSpxa,
+        AvoidNonViableEmbargo,
+    )
 
 
 class HandleAndAckEmMsg(SequenceNode):

@@ -45,11 +45,11 @@ class NoticeAttack(SequenceNode):
 
 
 class MoveToCsPublic(SequenceNode):
-    """"
-        This node represents the process of moving the case state to the PUBLIC_AWARE state.
-        Steps:
-        1. Transition the case state to the PUBLIC_AWARE state.
-        2. Emit a CP message indicating that the case state has been updated.
+    """ "
+    This node represents the process of moving the case state to the PUBLIC_AWARE state.
+    Steps:
+    1. Transition the case state to the PUBLIC_AWARE state.
+    2. Emit a CP message indicating that the case state has been updated.
     """
 
     _children = (q_cs_to_P, EmitCP)
