@@ -10,12 +10,31 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""
-The `vultron` package is a collection of modules that provide the functionality for the Vultron project.
-"""
-try:
-    from ._version import version as __version__
-    from ._version import version_tuple
-except ImportError:
-    __version__ = "unknown version"
-    version_tuple = (0, 0, "unknown version")
+
+
+import unittest
+from enum import Enum
+
+import vultron.case_states.patterns.info as info
+from vultron.case_states.hypercube import CVDmodel
+
+
+class MyTestCase(unittest.TestCase):
+    def setUp(self):
+        self.model = CVDmodel()
+
+    def tearDown(self):
+        pass
+
+    def test_info(self):
+        for state in self.model.states:
+            result = info.info(state)
+            # result should always be a list of non-zero length of strings of non-zero length
+            self.assertIsInstance(result, list)
+            self.assertGreater(len(result), 0)
+            for item in result:
+                self.assertIsInstance(item, Enum)
+
+
+if __name__ == "__main__":
+    unittest.main()

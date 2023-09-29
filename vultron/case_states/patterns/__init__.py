@@ -11,11 +11,5 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """
-The `vultron` package is a collection of modules that provide the functionality for the Vultron project.
+The `vultron.case_states.patterns` package implements state patterns in support of the CVD Case State Model.
 """
-try:
-    from ._version import version as __version__
-    from ._version import version_tuple
-except ImportError:
-    __version__ = "unknown version"
-    version_tuple = (0, 0, "unknown version")

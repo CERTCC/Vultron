@@ -127,7 +127,7 @@ nav:
     - Code:
         - vultron: 'reference/code/index.md'
         - cs_model: 'reference/code/cs_model.md'
-        - cvd_states: 'reference/code/cvd_states.md'
+        - case_states: 'reference/code/case_states.md'
     - ISO Crosswalk:
       - Introduction: 'reference/iso_crosswalk.md'
       - ISO 30111: 'reference/iso_30111_2019.md'
@@ -168,7 +168,10 @@ theme:
 plugins:
   - include-markdown:
       comments: false
-  - mkdocstrings
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [ 'src' ]
   - search
 repo_url: 'https://github.com/CERTCC/Vultron'
 repo_name: 'CERTCC/Vultron'

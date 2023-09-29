@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -10,12 +11,15 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""
-The `vultron` package is a collection of modules that provide the functionality for the Vultron project.
-"""
-try:
-    from ._version import version as __version__
-    from ._version import version_tuple
-except ImportError:
-    __version__ = "unknown version"
-    version_tuple = (0, 0, "unknown version")
+
+import re
+
+from vultron.case_states.validations import is_valid_pattern
+
+
+def compile_patterns(dict_of_patterns):
+    # check that all the patterns are valid
+    for pattern in dict_of_patterns.keys():
+        is_valid_pattern(pattern)
+
+    return {re.compile(k): v for k, v in dict_of_patterns.items()}
