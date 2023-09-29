@@ -6,3 +6,4 @@ mkdocstrings>=0.23.0
 mkdocstrings-python>=1.6.2
 pandas
 scipy
+networkx
