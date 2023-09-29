@@ -44,4 +44,4 @@ the stories in the _Unsupported_ category could move to _Supported_.
 
 ## User Stories Table
 
-{% include-markdown "table.md" %}
+{% include-markdown "./table.md" %}

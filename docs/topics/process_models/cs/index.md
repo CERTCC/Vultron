@@ -32,7 +32,7 @@ of the state of the world. For example, _v_ means no Vendor awareness
 and _V_ means the Vendor is aware. The complete set of status labels is
 shown in the table below.
 
-{% include-markdown "cs_substates_table.md" %}
+{% include-markdown "./cs_substates_table.md" %}
 
 !!! tip "References"
   
