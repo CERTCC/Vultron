@@ -53,7 +53,9 @@ def explain(state):
 
 def main():
     for pat, explanation in EXPLANATIONS.items():
-        e_str = ", ".join([e.name.replace("_", " ").title() for e in explanation])
+        e_str = ", ".join(
+            [e.name.replace("_", " ").title() for e in explanation]
+        )
         print(f"* {pat.pattern} => {e_str}")
 
 

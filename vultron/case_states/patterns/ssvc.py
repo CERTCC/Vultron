@@ -40,7 +40,10 @@ _SSVC = {
     "V.....": (SSVC_2_Supplier_Contacted.YES,),
     "v.....": (SSVC_2_Supplier_Contacted.NO,),
     "VFdp..": (SSVC_2_Public_Value_Added.AMPLIATIVE,),
-    "..dP..": (SSVC_2_Public_Value_Added.AMPLIATIVE, SSVC_2_Public_Value_Added.LIMITED),
+    "..dP..": (
+        SSVC_2_Public_Value_Added.AMPLIATIVE,
+        SSVC_2_Public_Value_Added.LIMITED,
+    ),
     "VF.P..": (SSVC_2_Public_Value_Added.LIMITED,),
     "..D...": (SSVC_2_Public_Value_Added.LIMITED,),
 }

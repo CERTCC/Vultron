@@ -200,7 +200,9 @@ class CVDmodel:
         # now turn the desiderata into state patterns
         self.d_to_state_pattern = self._construct_good_patterns()
         # invert the lookup too
-        self.state_pattern_to_d = {v: k for k, v in self.d_to_state_pattern.items()}
+        self.state_pattern_to_d = {
+            v: k for k, v in self.d_to_state_pattern.items()
+        }
 
         self.not_d_to_state_pattern = self._construct_bad_patterns()
         # invert the lookup too
@@ -282,7 +284,9 @@ class CVDmodel:
     # paths are a list of edges from the graph
     # [(u,v),(v,w),(w,x)...]
     @ensure_valid_state
-    def paths_between(self, start: str = "vfdpxa", end: str = "VFDPXA") -> List[tuple]:
+    def paths_between(
+        self, start: str = "vfdpxa", end: str = "VFDPXA"
+    ) -> List[tuple]:
         """
         Return all paths of transitions between two states
 
@@ -397,7 +401,7 @@ class CVDmodel:
         return seq
 
     @ensure_valid_state
-    def walk_from(self, start:str=None, end:str="VFDPXA") -> tuple:
+    def walk_from(self, start: str = None, end: str = "VFDPXA") -> tuple:
         """
         Randomly walk from a given state to a given state
 

@@ -275,7 +275,9 @@ def is_valid_transition(src: str, dst: str, allow_null: bool = False) -> None:
             # if the first pattern matches,
             # then the second must as well
             if not re.match(b, dst):
-                raise TransitionValidationError(f"Transition not permitted [{a}->{b}]")
+                raise TransitionValidationError(
+                    f"Transition not permitted [{a}->{b}]"
+                )
 
 
 def is_valid_history(h: str) -> None:
@@ -328,10 +330,14 @@ def is_valid_history(h: str) -> None:
         raise HistoryValidationError("F must precede D")
     # P...X or XP
     if (h.index("P") - h.index("X")) > 1:
-        raise HistoryValidationError("P must precede X or immediately follow it")
+        raise HistoryValidationError(
+            "P must precede X or immediately follow it"
+        )
     # V...P or PV
     if (h.index("V") - h.index("P")) > 1:
-        raise HistoryValidationError("V must precede V or immediately follow it")
+        raise HistoryValidationError(
+            "V must precede V or immediately follow it"
+        )
 
 
 def ensure_valid_history(func: Callable) -> Callable:

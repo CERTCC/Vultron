@@ -132,7 +132,9 @@ def print_model(model_dir="../../docs/reference/case_states"):
                 fp.write(_bullet("None"))
             else:
                 for s in info["successors"]:
-                    link = f"[{s}]({_fname(s)}) (score={sg.score_state(s):.2f})"
+                    link = (
+                        f"[{s}]({_fname(s)}) (score={sg.score_state(s):.2f})"
+                    )
                     fp.write(_bullet(link))
             fp.write("|\n")
 

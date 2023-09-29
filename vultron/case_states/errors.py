@@ -23,7 +23,6 @@ class CvdStateModelError(VultronError):
 
 
 class CVDmodelError(CvdStateModelError):
-
     pass
 
 
