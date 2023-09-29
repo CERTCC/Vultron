@@ -2,7 +2,8 @@
 
 {% include-markdown "../../../includes/normative.md" %}
 
-Here we revisit the CS model from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513). <!-- start_excerpt -->
+Here we revisit the CS model from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513). 
+<!-- start_excerpt -->
 The CVD Case State (CS) model provides a high-level view of the state of a CVD case.
 In it we model two main aspects of the case:
 
