@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-"""file: common
-author: adh
-created_at: 4/5/22 10:01 AM
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,7 +11,9 @@ created_at: 4/5/22 10:01 AM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
+"""
+This module provides common Behavior Tree nodes for the Vultron package.
+"""
 
 import logging
 from dataclasses import dataclass
@@ -104,7 +102,7 @@ def make_state_change(key: str, transition: EnumStateTransition) -> FallbackNode
     end_state = transition.end_state
 
     class StartStateChecks(FallbackNode):
-"""Check that the current {key} is in one of {(s.name for s in start_states)}"""
+        """Check that the current {key} is in one of {(s.name for s in start_states)}"""
         _children = tuple([make_check_state(key, state) for state in start_states])
 
     to_end_state = to_end_state_factory(key, end_state)
@@ -137,7 +135,7 @@ def make_flag_state_change(key: str, end_state) -> ActionNode:
     """
 
     class FlagStateChange(ActionNode):
-"""Transition to {end_state}"""
+        """Transition to {end_state}"""
         name_pfx = "+"
 
         def __init__(self):

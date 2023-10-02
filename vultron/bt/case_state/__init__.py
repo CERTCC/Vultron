@@ -10,12 +10,6 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
-
-#!/usr/bin/env python
-"""file: __init__.py
-author: adh
-created_at: 4/26/22 11:11 AM
-
+"""
 This package describes the CVD Case State Machine as a Behavior Tree.
 """
