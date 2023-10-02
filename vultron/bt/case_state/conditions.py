@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-"""file: cs_conditions
-author: adh
-created_at: 4/26/22 10:12 AM
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -30,6 +26,7 @@ class CSinStateVendorAware(ConditionCheck):
     """Condition check for whether the vendor is aware of the vulnerability"""
 
     def func(self):
+        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
         return self.bb.q_cs & CS.V
 
 
@@ -37,6 +34,7 @@ class CSinStateFixReady(ConditionCheck):
     """Condition check for whether the vendor has a fix ready"""
 
     def func(self):
+        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
         return self.bb.q_cs & CS.F
 
 
@@ -44,6 +42,7 @@ class CSinStateFixDeployed(ConditionCheck):
     """Condition check for whether a fix has been deployed"""
 
     def func(self):
+        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
         return self.bb.q_cs & CS.D
 
 
@@ -51,6 +50,7 @@ class CSinStatePublicAware(ConditionCheck):
     """Condition check for whether the public is aware of the vulnerability"""
 
     def func(self):
+        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
         return self.bb.q_cs & CS.P
 
 
@@ -58,6 +58,7 @@ class CSinStateExploitPublic(ConditionCheck):
     """Condition check for whether an exploit is public for the vulnerability"""
 
     def func(self):
+        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
         return self.bb.q_cs & CS.X
 
 
@@ -65,6 +66,7 @@ class CSinStateAttacksObserved(ConditionCheck):
     """Condition check for whether attacks against the vulnerability have been observed"""
 
     def func(self):
+        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
         return self.bb.q_cs & CS.A
 
 

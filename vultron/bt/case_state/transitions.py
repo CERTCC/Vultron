@@ -25,16 +25,19 @@ from vultron.bt.case_state.conditions import (
 from vultron.bt.common import make_flag_state_change
 from vultron.case_states.states import CS
 
+# TODO adapt this for the new CS Enum based state machine
 # wrap the make_flag_state_change function to make it easier
 # to create transitions for the q_cs state
 make_cs_state_change = partial(make_flag_state_change, key="q_cs")
 
 # create the transitions
 
+# TODO adapt this for the new CS Enum based state machine
 q_cs_to_V = make_cs_state_change(end_state=CS.V)
 
 # We will need to wrap this in a sequence node to enforce that
 # the vendor is aware of the vulnerability before allowing the transition to Fix Ready
+# TODO adapt this for the new CS Enum based state machine
 _q_cs_to_F = make_cs_state_change(end_state=CS.F)
 
 
@@ -49,6 +52,7 @@ class q_cs_to_F(SequenceNode):
 
 # Similarly, we will need to wrap this in a sequence node to enforce that
 # the vendor is aware of the vulnerability and has a fix ready before allowing the transition to Fix Deployed
+# TODO adapt this for the new CS Enum based state machine
 _q_cs_to_D = make_cs_state_change(end_state=CS.D)
 
 
@@ -63,8 +67,11 @@ class q_cs_to_D(SequenceNode):
 
 # The remaining transitions are simple and do not need to be wrapped
 # in a sequence node because they do not have any conditions that need to be enforced
+# TODO adapt this for the new CS Enum based state machine
 q_cs_to_P = make_cs_state_change(end_state=CS.P)
+# TODO adapt this for the new CS Enum based state machine
 q_cs_to_X = make_cs_state_change(end_state=CS.X)
+# TODO adapt this for the new CS Enum based state machine
 q_cs_to_A = make_cs_state_change(end_state=CS.A)
 
 q_cs_to_V.__doc__ = "Transition to Vendor Aware"
