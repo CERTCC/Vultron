@@ -1,8 +1,3 @@
-#!/usr/bin/env python
-"""file: case_state_model
-author: adh
-created_at: 4/5/22 12:29 PM
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,11 +10,12 @@ created_at: 4/5/22 12:29 PM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+This module defines the CVD Case State Machine as a Behavior Tree.
+"""
 
 
 from functools import partial
-
-from vultron.cvd_states.states import CS
 
 from vultron.bt.base.composites import SequenceNode
 from vultron.bt.case_state.conditions import (
@@ -27,6 +23,7 @@ from vultron.bt.case_state.conditions import (
     CSinStateVendorAwareAndFixReady,
 )
 from vultron.bt.common import make_flag_state_change
+from vultron.case_states.states import CS
 
 # wrap the make_flag_state_change function to make it easier
 # to create transitions for the q_cs state

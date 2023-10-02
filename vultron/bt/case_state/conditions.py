@@ -15,14 +15,15 @@ created_at: 4/26/22 10:12 AM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+This module defines CVD Case State conditions as Behavior Tree nodes.
+"""
 
-
-
-from vultron.cvd_states.states import CS
 
 from vultron.bt.base.bt_node import ConditionCheck
 from vultron.bt.base.composites import SequenceNode
 from vultron.bt.base.decorators import Invert
+from vultron.case_states.states import CS
 
 
 class CSinStateVendorAware(ConditionCheck):
@@ -189,9 +190,3 @@ q_cs_in_dP = CSinStateNotDeployedButPublicAware
 q_cs_in_VFd = CSinStateVendorAwareFixReadyFixNotDeployed
 
 
-def main():
-    pass
-
-
-if __name__ == "__main__":
-    main()
