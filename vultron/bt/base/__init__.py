@@ -10,12 +10,6 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
-
-#!/usr/bin/env python
-"""file: __init__.py
-author: adh
-created_at: 4/26/22 11:00 AM
-
+"""
 This package implements a basic Behavior Tree library.
 """

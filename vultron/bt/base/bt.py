@@ -1,7 +1,5 @@
-#!/usr/bin/env python
-"""file: bt
-author: adh
-created_at: 4/1/22 9:49 AM
+"""
+This module defines a Behavior Tree object.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -23,9 +21,6 @@ from vultron.bt.base.errors import (
     BehaviorTreeError,
 )
 from vultron.bt.base.node_status import NodeStatus
-
-
-# import graphviz
 
 
 @dataclass
