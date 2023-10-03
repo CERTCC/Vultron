@@ -126,6 +126,7 @@ nav:
     - Code:
         - vultron: 'reference/code/index.md'
         - case_states: 'reference/code/case_states.md'
+        - behavior_trees: 'reference/code/behavior_trees.md'
     - ISO Crosswalk:
       - Introduction: 'reference/iso_crosswalk.md'
       - ISO 30111: 'reference/iso_30111_2019.md'
