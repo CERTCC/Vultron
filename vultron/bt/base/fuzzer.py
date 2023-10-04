@@ -75,6 +75,10 @@ class WeightedSuccess(BtNode):
             return NodeStatus.SUCCESS
         return NodeStatus.FAILURE
 
+    def _namestr(self, depth=0):
+        base=super()._namestr(depth)
+        return f"{base} p=({self.success_rate})"
+
 
 ####################
 # From here on down, the classes are just different success rates

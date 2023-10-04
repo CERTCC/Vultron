@@ -51,6 +51,7 @@ class BehaviorTree:
         """
         self.root = root
         self.bb = self.bbclass()
+        self.status = None
 
         self._setup = (
             False  # track whether we've done the pre-tick setup stuff
@@ -115,6 +116,7 @@ class BehaviorTree:
         self._pre_tick()
         status = self.root.tick(depth=0)
         self._post_tick()
+        self.status = status
         return status
 
     def _post_tick(self) -> None:

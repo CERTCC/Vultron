@@ -94,6 +94,7 @@ class BtNode:
             return
 
         for child_class in self._children:
+            # instantiate the child class and add it to this node's children
             child = child_class()
             self.add_child(child)
 
@@ -178,6 +179,29 @@ class BtNode:
     # def graph(self, g=None):
     #     return to_dot(self)
 
+    @property
+    def _is_leaf_node(self):
+        """Returns True if the node is a leaf node, False otherwise."""
+        return self._children is None or len(self._children) == 0
+
+    def _namestr(self, depth=0):
+        """Returns a string representation of the node's name."""
+        return self._indent(depth) + f"{self._pfx} {self.name}"
+
+    def to_str(self,depth=0):
+        """Returns a string representation of the tree rooted at this node."""
+
+        namestring = self._namestr(depth) + "\n"
+
+        if self._is_leaf_node:
+            # this is a leaf node
+            return namestring
+
+        # recurse through children and return a string representation of the tree
+        parts = [namestring,]
+        for child in self.children:
+            parts.append(child.to_str(depth+1))
+        return "".join(parts)
 
 class LeafNode(BtNode):
     """LeafNode is the base class for all leaf nodes in the Behavior Tree.

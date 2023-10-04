@@ -37,6 +37,14 @@ dependencies = [
 ]
 dynamic = ["version",]
 
+[project.scripts]
+vultrabot_pacman_demo="vultron.bt.base.demo.pacman:main"
+
+[project.urls]
+"Homepage" = "https://certcc.github.io/Vultron"
+"Project" = "https://github.com/CERTCC/Vultron"
+"Bug Tracker" = "https://github.com/CERTCC/Vultron/issues"
+
 [tool.setuptools.packages.find]
 where = ["."]  # list of folders that contain the packages (["."] by default)
 include = ["vultron*"]  # package names should match these glob patterns (["*"] by default)
