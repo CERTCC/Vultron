@@ -51,3 +51,10 @@ version_file = "vultron/_version.py"
 [tool.black]
 line-length = 79
 target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "test",
+]
