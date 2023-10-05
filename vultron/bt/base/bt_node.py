@@ -46,9 +46,9 @@ class BtNode:
         pfx = ""
         if self.name_pfx is not None:
             pfx = f"{self.name_pfx}_"
-        sfx = f"_{_objcount}"
+        self.name_sfx = f"_{_objcount}"
 
-        self.name = f"{pfx}{self.__class__.__name__}{sfx}"
+        self.name = f"{pfx}{self.__class__.__name__}{self.name_sfx}"
 
         self.parent = None
         self.children = []
@@ -188,7 +188,7 @@ class BtNode:
         """Returns a string representation of the node's name."""
         return self._indent(depth) + f"{self._pfx} {self.name}"
 
-    def to_str(self,depth=0):
+    def to_str(self, depth=0):
         """Returns a string representation of the tree rooted at this node."""
 
         namestring = self._namestr(depth) + "\n"
@@ -198,10 +198,61 @@ class BtNode:
             return namestring
 
         # recurse through children and return a string representation of the tree
-        parts = [namestring,]
+        parts = [
+            namestring,
+        ]
         for child in self.children:
-            parts.append(child.to_str(depth+1))
+            parts.append(child.to_str(depth + 1))
         return "".join(parts)
+
+    def to_mermaid(self, depth=0):
+        """Returns a string representation of the tree rooted at this node in mermaid format."""
+
+        import re
+
+        if self._is_leaf_node:
+            # this is a leaf node, we aren't doing anything with it
+            return ""
+
+        parts = []
+        if depth == 0:
+            # add preamble
+            parts.append("```mermaid")
+            parts.append("graph TD")
+
+        def fixname(name):
+            # TODO these should be subclass attributes
+            name = re.sub(r"^>_", "&rarr; ", name)
+            name = re.sub(r"^\^_", "#8645; ", name)
+            name = re.sub(r"^z_", "#127922; ", name)
+            name = re.sub(r"^a_", "#9648; ", name)
+            name = re.sub(r"^c_", "#11052; ", name)
+            name = re.sub(r"^\?_", "? ", name)
+            name = re.sub(r"_\d+$", "", name)
+
+            return name
+
+        name = fixname(self.name)
+        sname = f"{self.__class__.__name__}{self.name_sfx}"
+        if depth == 0:
+            parts.append(f'  {sname}["{name}"]')
+
+        for child in self.children:
+            cname = f"{child.__class__.__name__}{child.name_sfx}"
+            parts.append(f'  {cname}["{fixname(child.name)}"]')
+
+            parts.append(f"  {sname} --> {cname}")
+            # recurse through children and return a string representation of the tree below this node
+            parts.append(child.to_mermaid(depth + 1))
+
+        if depth == 0:
+            # add postamble
+            parts.append("```")
+
+        parts = [p for p in parts if p != ""]
+
+        return "\n".join(parts)
+
 
 class LeafNode(BtNode):
     """LeafNode is the base class for all leaf nodes in the Behavior Tree.

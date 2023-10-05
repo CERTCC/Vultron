@@ -14,49 +14,6 @@
 """
 This is a demo of the bt tree library. It is a stub implementation of a bot that plays Pacman.
 
-The tree structure is:
-
-(?) ?_Root_1
- | (>) >_MaybeEatPills_2
- |  | (^) ^_NoGhostClose_3
- |  |  | (>) >_GhostClose_4
- |  |  |  | (a) a_GhostsRemain_5
- |  |  |  | (z) z_OftenSucceed_6 p=(0.7)
- |  | (a) a_EatPill_7
- | (?) ?_ChaseOrAvoidGhost_8
- |  | (^) ^_NoMoreGhosts_9
- |  |  | (a) a_GhostsRemain_10
- |  | (>) >_ChaseIfScared_11
- |  |  | (a) a_GhostsRemain_12
- |  |  | (z) z_GhostScared_13 p=(0.25)
- |  |  | (z) z_ChaseGhost_14 p=(0.7)
- |  |  | (a) a_ScoreGhost_15
- |  | (?) ?_AvoidGhost_16
- |  |  | (^) ^_NoMoreGhosts_17
- |  |  |  | (a) a_GhostsRemain_18
- |  |  | (>) >_MaybeAvoidAndEatPill_19
- |  |  |  | (z) z_AlmostAlwaysSucceed_20 p=(0.9)
- |  |  |  | (a) a_EatPill_21
-
-Legend:
-
-- (?) FallbackNode
-- (>) SequenceNode
-- (^) Invert
-- (z) Fuzzer node (randomly succeeds or fails some percentage of the time)
-- (a) ActionNode
-
-If no ghosts are nearby, Pacman eats one pill per tick.
-But if a ghost is nearby, Pacman will chase it if it is scared, otherwise he will avoid it.
-If he successfully avoids a ghost, he will eat a pill.
-The game ends when Pacman has eaten all the pills or has been eaten by a ghost.
-
-Scoring is as follows:
-
-- 10 points per pill
-- 200 points for the first ghost, 400 for the second, 800 for the third, 1600 for the fourth
-
-If the game exceeds 1000 ticks, Pacman gets bored and quits (but that should never happen).
 """
 
 
@@ -77,54 +34,51 @@ _GHOSTS = 4
 _PER_DOT = 10
 _PER_GHOST = 200
 _GHOST_INC = 2
+_GHOSTS_SCARED = False
 _GHOST_NAMES = ["Blinky", "Pinky", "Inky", "Clyde"]
-
-
-def _inc_ghost_score() -> None:
-    """
-    increments the score for catching a ghost and decreases the score for the next ghost.
-
-    Returns:
-        None
-    """
-    global _PER_GHOST, _GHOSTS
-    _PER_GHOST *= _GHOST_INC
-    _GHOSTS -= 1
-    logger.info(f"Ghost score is now {_PER_GHOST}")
-
-
-def _score_dot() -> None:
-    """
-    increments the score for eating a dot.
-    Returns:
-        None
-    """
-    global SCORE, _DOTS_REMAINING
-    if _DOTS_REMAINING > 0:
-        SCORE += _PER_DOT
-        _DOTS_REMAINING -= 1
 
 
 class EatPill(btn.ActionNode):
     """increments score for eating pills"""
 
-    def _tick(self, depth=0):
-        _score_dot()
-        return bt.NodeStatus.SUCCESS
+    def func(self):
+        global SCORE, _DOTS_REMAINING
+        if _DOTS_REMAINING > 0:
+            SCORE += _PER_DOT
+            _DOTS_REMAINING -= 1
+        return True
+
+
+class IncrGhostScore(btn.ActionNode):
+    """increments the score for the next ghost."""
+
+    def func(self):
+        global _PER_GHOST, _GHOSTS
+        _PER_GHOST *= _GHOST_INC
+        logger.info(f"Ghost score is now {_PER_GHOST}")
+        return True
 
 
 class ScoreGhost(btn.ActionNode):
     """increments score for catching ghosts"""
 
-    def _tick(self, depth=0):
+    def func(self):
         global SCORE
         SCORE += _PER_GHOST
-        _inc_ghost_score()
         logger.info("Caught a ghost!")
-        return bt.NodeStatus.SUCCESS
+        return True
 
 
-class GhostsRemain(btn.ActionNode):
+class DecrGhostCount(btn.ActionNode):
+    """decrements the ghost count"""
+
+    def func(self):
+        global _GHOSTS
+        _GHOSTS -= 1
+        return True
+
+
+class GhostsRemain(btn.ConditionCheck):
     """
     checks if there are any ghosts remaining.
 
@@ -132,12 +86,8 @@ class GhostsRemain(btn.ActionNode):
         SUCCESS if there are ghosts remaining, FAILURE otherwise
     """
 
-    def _tick(self, depth=0) -> bt.NodeStatus:
-        global _GHOSTS
-        if _GHOSTS > 0:
-            return bt.NodeStatus.SUCCESS
-        else:
-            return bt.NodeStatus.FAILURE
+    def func(self):
+        return _GHOSTS > 0
 
 
 class NoMoreGhosts(btd.Invert):
@@ -151,15 +101,13 @@ class NoMoreGhosts(btd.Invert):
     _children = (GhostsRemain,)
 
 
-class GhostClose(bt.SequenceNode):
+class GhostClose(btz.OftenSucceed):
     """
     determines if a ghost is close.
 
     Returns:
         SUCCESS if a ghost is close, FAILURE otherwise
     """
-
-    _children = (GhostsRemain, btz.OftenSucceed)
 
 
 class NoGhostClose(btd.Invert):
@@ -173,7 +121,7 @@ class NoGhostClose(btd.Invert):
     _children = (GhostClose,)
 
 
-class GhostScared(btz.UsuallyFail):
+class GhostsScared(btn.ConditionCheck):
     """
     determines if a ghost is scared.
 
@@ -181,6 +129,27 @@ class GhostScared(btz.UsuallyFail):
         SUCCESS if a ghost is scared, FAILURE otherwise
     """
 
+    def func(self):
+        return _GHOSTS_SCARED
+
+
+class CaughtGhost(bt.SequenceNode):
+    """
+    handles actions after catching a ghost.
+    """
+
+    _children = (DecrGhostCount, ScoreGhost, IncrGhostScore)
+
+
+class GhostsNotScared(btd.Invert):
+    """
+    inverts the result of GhostsScared.
+
+    Returns:
+        SUCCESS if a ghost is not scared, FAILURE otherwise
+    """
+
+    _children = (GhostsScared,)
 
 
 class ChaseGhost(btz.OftenSucceed):
@@ -200,29 +169,20 @@ class ChaseIfScared(bt.SequenceNode):
         SUCCESS if a ghost is caught, FAILURE otherwise
     """
 
-    _children = (GhostsRemain, GhostScared, ChaseGhost, ScoreGhost)
+    _children = (
+        GhostsScared,
+        ChaseGhost,
+        CaughtGhost,
+    )
 
 
-class MaybeAvoidAndEatPill(bt.SequenceNode):
-    """
-    implements avoiding a ghost and eating a pill.
-
-    Returns:
-        SUCCESS if a ghost is avoided (and a pill is eaten), FAILURE otherwise
-    """
-
-    _children = (btz.AlmostAlwaysSucceed, EatPill)
-
-class AvoidGhost(bt.FallbackNode):
+class AvoidGhost(btz.OftenSucceed):
     """
     implements avoiding a ghost.
 
     Returns:
         SUCCESS if no ghosts remain, or if a ghost is avoided, FAILURE otherwise
     """
-
-    _children = (NoMoreGhosts, MaybeAvoidAndEatPill)
-
 
 
 class ChaseOrAvoidGhost(bt.FallbackNode):
@@ -233,7 +193,18 @@ class ChaseOrAvoidGhost(bt.FallbackNode):
         SUCCESS if no ghosts remain, a ghost is caught or avoided, FAILURE otherwise
     """
 
-    _children = (NoMoreGhosts, ChaseIfScared, AvoidGhost)
+    _children = (ChaseIfScared, GhostsScared, AvoidGhost)
+
+
+class MaybeChaseOrAvoidGhost(bt.FallbackNode):
+    """
+    implements chasing a ghost if it is scared, otherwise it avoids the ghost.
+
+    Returns:
+        SUCCESS if no ghosts remain, a ghost is caught or avoided, FAILURE otherwise
+    """
+
+    _children = (NoMoreGhosts, NoGhostClose, ChaseOrAvoidGhost)
 
 
 class MaybeEatPills(bt.SequenceNode):
@@ -241,22 +212,12 @@ class MaybeEatPills(bt.SequenceNode):
     implements eating pills if no ghosts are close.
     """
 
-    _children = (NoGhostClose, EatPill)
-
-
-class Root(bt.FallbackNode):
-    """
-    implements the root of the pacman bt tree.
-
-    Returns:
-        SUCCESS if Pacman survived the tick, FAILURE otherwise
-    """
-
-    _children = (MaybeEatPills, ChaseOrAvoidGhost)
+    _children = (MaybeChaseOrAvoidGhost, EatPill)
 
 
 def main():
     import random
+
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler()
@@ -266,26 +227,40 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.description = "Run the Pacman demo."
-    parser.add_argument("--print-tree", action="store_true", help="print the tree and exit", default=False)
+    parser.add_argument(
+        "--print-tree",
+        action="store_true",
+        help="print the tree and exit",
+        default=False,
+    )
     args = parser.parse_args()
 
+    global _GHOSTS_SCARED
 
-    bot = BehaviorTree(root=Root())
+    bot = BehaviorTree(root=MaybeEatPills())
     bot.setup()
 
     if args.print_tree:
-        print(bot.root.to_str())
+        print(bot.root.to_mermaid())
         exit()
-
 
     ticks = 0
     while _DOTS_REMAINING > 0:
         logger.info(f"=== Tick {ticks + 1} ===")
+
+        if random.random() < 0.5:
+            _GHOSTS_SCARED = True
+            logger.info("Ghosts are scared!")
+        else:
+            _GHOSTS_SCARED = False
+
         bot.tick()
         ticks += 1
         # die on the first failure
         if bot.status == bt.NodeStatus.FAILURE:
-            logger.info(f"Pacman died! He was eaten by {random.choice(_GHOST_NAMES)}!")
+            logger.info(
+                f"Pacman died! He was eaten by {random.choice(_GHOST_NAMES)}!"
+            )
             break
         if _DOTS_REMAINING <= 0:
             logger.info("Pacman cleared the board!")
@@ -303,5 +278,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
