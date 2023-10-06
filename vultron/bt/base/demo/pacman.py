@@ -45,14 +45,12 @@ class EatPill(btn.ActionNode):
     """increments score for eating pills"""
 
     def func(self):
-        bb = self.bb
-
-        dots = bb.get("dots", 0)
+        dots = self.bb.get("dots", 0)
         if dots == 0:
             return False
 
-        bb["dots"] -= 1
-        bb["score"] += PER_DOT
+        self.bb["dots"] -= 1
+        self.bb["score"] += PER_DOT
         return True
 
 
@@ -60,8 +58,7 @@ class IncrGhostScore(btn.ActionNode):
     """increments the score for the next ghost."""
 
     def func(self):
-        bb = self.bb
-        bb["per_ghost"] *= GHOST_INC
+        self.bb["per_ghost"] *= GHOST_INC
         logger.info(f"Ghost score is now {self.bb['per_ghost']}")
         return True
 
@@ -70,8 +67,7 @@ class ScoreGhost(btn.ActionNode):
     """increments score for catching ghosts"""
 
     def func(self):
-        bb = self.bb
-        bb["score"] += bb["per_ghost"]
+        self.bb["score"] += self.bb["per_ghost"]
         return True
 
 
@@ -96,8 +92,7 @@ class GhostsRemain(btn.ConditionCheck):
     """
 
     def func(self):
-        bb = self.bb
-        return len(bb["ghosts_remaining"]) > 0
+        return len(self.bb["ghosts_remaining"]) > 0
 
 
 class GhostsScared(btn.ConditionCheck):
@@ -279,28 +274,38 @@ def main():
     bot = BehaviorTree(root=MaybeEatPills())
     bot.setup()
 
-    bb = bot.bb
-    bb["dots"] = DOTS
-    bb["score"] = SCORE
-    bb["per_ghost"] = PER_GHOST
-    bb["ghosts_scared"] = GHOSTS_SCARED
-    bb["ghosts_remaining"] = GHOST_NAMES[:]
+    bot.bb.update(
+        {
+            "dots": DOTS,
+            "score": SCORE,
+            "per_ghost": PER_GHOST,
+            "ghosts_scared": GHOSTS_SCARED,
+            "ghosts_remaining": GHOST_NAMES[:],
+        }
+    )
 
     if args.print_tree:
         print(bot.root.to_mermaid())
         exit()
 
     ticks = 0
-    while bb["dots"] > 0:
+    while bot.bb["dots"] > 0:
         ticks += 1
         result = do_tick(bot, ticks)
         if result == bt.NodeStatus.FAILURE:
             break
 
-    logger.info(f"Final score: {bb['score']}")
+    logger.info(f"Final score: {bot.bb['score']}")
     logger.info(f"Ticks: {ticks}")
-    logger.info(f"Dots Remaining: {bb['dots']}")
-    logger.info(f"Ghosts Remaining: {bb['ghosts_remaining']}")
+    logger.info(f"Dots Remaining: {bot.bb['dots']}")
+
+    nghosts = len(bot.bb["ghosts_remaining"])
+    if nghosts > 0:
+        ghosts = ", ".join(bot.bb["ghosts_remaining"])
+        ghosts = f"({ghosts})"
+    else:
+        ghosts = ""
+    logger.info(f"Ghosts Remaining: {nghosts} {ghosts}")
 
 
 if __name__ == "__main__":
