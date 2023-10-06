@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-"""file: bt_node
-author: adh
-created_at: 2/20/23 12:23 PM
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,10 +11,16 @@ created_at: 2/20/23 12:23 PM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+This module provides the base class for all nodes in the Behavior Tree.
+
+It also provides a number of core node types that can be used to build a Behavior Tree.
+"""
 
 
 import logging
 from copy import deepcopy
+from typing import Union
 
 from vultron.bt.base.errors import (
     ActionNodeError,
@@ -28,6 +30,11 @@ from vultron.bt.base.errors import (
 from vultron.bt.base.node_status import NodeStatus
 
 logger = logging.getLogger(__name__)
+
+
+def _indent(depth=0):
+    """Convenience method for indenting printed output."""
+    return " | " * depth
 
 
 class BtNode:
@@ -99,17 +106,13 @@ class BtNode:
             child = child_class()
             self.add_child(child)
 
-    def _indent(self, depth=0):
-        """Convenience method for indenting printed output."""
-        return " | " * depth
-
     @property
     def _pfx(self):
         if self.name_pfx is not None:
             return f"({self.name_pfx})"
         return ""
 
-    def _pre_tick(self, depth: int=0):
+    def _pre_tick(self, depth: int = 0):
         """Called before the node is ticked.
          Override this method in your subclass if you need to do something before the node is ticked.
          Does nothing by default.
@@ -121,7 +124,7 @@ class BtNode:
             none
         """
 
-    def tick(self, depth:int =0) -> NodeStatus:
+    def tick(self, depth: int = 0) -> NodeStatus:
         """Ticks the node.
         Performs the following actions:
 
@@ -137,7 +140,7 @@ class BtNode:
             the node's status (as a NodeStatus enum)
         """
         if self.name is not None:
-            logger.debug(self._indent(depth) + f"{self._pfx} {self.name}")
+            logger.debug(_indent(depth) + f"{self._pfx} {self.name}")
 
         self._pre_tick(depth=depth)
         status = self._tick(depth)
@@ -145,7 +148,7 @@ class BtNode:
         self._post_tick(depth=depth)
 
         if self.name is not None:
-            logger.debug(self._indent(depth + 1) + f"= {self.status}")
+            logger.debug(_indent(depth + 1) + f"= {self.status}")
 
         return status
 
@@ -173,7 +176,6 @@ class BtNode:
             the node's status (as a NodeStatus enum)
         """
         raise NotImplementedError
-        pass
 
     @property
     def _node_label(self):
@@ -223,17 +225,17 @@ class BtNode:
             parts.append("```mermaid")
             parts.append("graph TD")
 
-        def fixname(name):
+        def fixname(nstr: str) -> str:
             # TODO these should be subclass attributes
-            name = re.sub(r"^>_", "&rarr; ", name)
-            name = re.sub(r"^\^_", "#8645; ", name)
-            name = re.sub(r"^z_", "#127922; ", name)
-            name = re.sub(r"^a_", "#9648; ", name)
-            name = re.sub(r"^c_", "#11052; ", name)
-            name = re.sub(r"^\?_", "? ", name)
-            name = re.sub(r"_\d+$", "", name)
+            nstr = re.sub(r"^>_", "&rarr; ", nstr)
+            nstr = re.sub(r"^\^_", "#8645; ", nstr)
+            nstr = re.sub(r"^z_", "#127922; ", nstr)
+            nstr = re.sub(r"^a_", "#9648; ", nstr)
+            nstr = re.sub(r"^c_", "#11052; ", nstr)
+            nstr = re.sub(r"^\?_", "? ", nstr)
+            nstr = re.sub(r"_\d+$", "", nstr)
 
-            return name
+            return nstr
 
         name = fixname(self.name)
         sname = f"{self.__class__.__name__}{self.name_sfx}"
@@ -272,8 +274,13 @@ class LeafNode(BtNode):
             raise self.Exc("Behavior Tree Leaf Nodes cannot have children")
         super().__init__()
 
-    def func(self):
-        return self._func(self.bb)
+    def func(self) -> Union[bool, None]:
+        """
+        Override this method in your subclass.
+        Return True for success, False for failure, and None for running.
+        """
+
+        raise NotImplementedError
 
     def _tick(self, depth=0):
         """Calls the node's func() method and returns the result.
@@ -308,20 +315,12 @@ class ConditionCheck(LeafNode):
     """ConditionCheck is the base class for all condition check nodes in the Behavior Tree.
     Condition check nodes are leaf nodes that check a condition.
     A condition check node's func() method returns True for success, False for failure.
+    Although it is possible to return None for running, this is not recommended.
     """
 
     name_pfx = "c"
     _node_shape = "ellipse"
     Exc = ConditionCheckError
-
-    def _tick(self, depth=0):
-        if self.func():
-            return NodeStatus.SUCCESS
-        return NodeStatus.FAILURE
-
-    def func(self):
-        """Return True for success, False for failure"""
-        raise NotImplementedError
 
 
 class CountTicks(BtNode):
