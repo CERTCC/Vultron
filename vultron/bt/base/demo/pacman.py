@@ -38,24 +38,28 @@ _GHOSTS_SCARED = False
 _GHOST_NAMES = ["Blinky", "Pinky", "Inky", "Clyde"]
 
 
+### Action Nodes
+
 class EatPill(btn.ActionNode):
     """increments score for eating pills"""
 
     def func(self):
-        global SCORE, _DOTS_REMAINING
-        if _DOTS_REMAINING > 0:
-            SCORE += _PER_DOT
-            _DOTS_REMAINING -= 1
-        return True
+        bb = self.bb
 
+        if bb["dots"] == 0:
+            return False
+
+        bb["dots"] -= 1
+        bb["score"] += _PER_DOT
+        return True
 
 class IncrGhostScore(btn.ActionNode):
     """increments the score for the next ghost."""
 
     def func(self):
-        global _PER_GHOST, _GHOSTS
-        _PER_GHOST *= _GHOST_INC
-        logger.info(f"Ghost score is now {_PER_GHOST}")
+        bb = self.bb
+        bb["per_ghost"] *= _GHOST_INC
+        logger.info(f"Ghost score is now {self.bb['per_ghost']}")
         return True
 
 
@@ -63,8 +67,8 @@ class ScoreGhost(btn.ActionNode):
     """increments score for catching ghosts"""
 
     def func(self):
-        global SCORE
-        SCORE += _PER_GHOST
+        bb = self.bb
+        bb["score"] += bb["per_ghost"]
         logger.info("Caught a ghost!")
         return True
 
@@ -73,10 +77,10 @@ class DecrGhostCount(btn.ActionNode):
     """decrements the ghost count"""
 
     def func(self):
-        global _GHOSTS
-        _GHOSTS -= 1
+        self.bb["ghosts"] -= 1
         return True
 
+### Condition Check Nodes
 
 class GhostsRemain(btn.ConditionCheck):
     """
@@ -87,8 +91,48 @@ class GhostsRemain(btn.ConditionCheck):
     """
 
     def func(self):
-        return _GHOSTS > 0
+        bb = self.bb
+        return bb["ghosts"] > 0
 
+class GhostsScared(btn.ConditionCheck):
+    """
+    determines if a ghost is scared.
+
+    Returns:
+        SUCCESS if a ghost is scared, FAILURE otherwise
+    """
+
+    def func(self):
+        return self.bb["ghosts_scared"]
+
+### Fuzzer Nodes
+
+class GhostClose(btz.OftenSucceed):
+    """
+    determines if a ghost is close.
+
+    Returns:
+        SUCCESS if a ghost is close, FAILURE otherwise
+    """
+
+class ChaseGhost(btz.OftenSucceed):
+    """
+    chases a ghost.
+
+    Returns:
+        SUCCESS if a ghost is caught, FAILURE otherwise
+    """
+
+class AvoidGhost(btz.OftenSucceed):
+    """
+    implements avoiding a ghost.
+
+    Returns:
+        SUCCESS if no ghosts remain, or if a ghost is avoided, FAILURE otherwise
+    """
+
+
+### Composite Nodes
 
 class NoMoreGhosts(btd.Invert):
     """
@@ -101,13 +145,6 @@ class NoMoreGhosts(btd.Invert):
     _children = (GhostsRemain,)
 
 
-class GhostClose(btz.OftenSucceed):
-    """
-    determines if a ghost is close.
-
-    Returns:
-        SUCCESS if a ghost is close, FAILURE otherwise
-    """
 
 
 class NoGhostClose(btd.Invert):
@@ -119,18 +156,6 @@ class NoGhostClose(btd.Invert):
     """
 
     _children = (GhostClose,)
-
-
-class GhostsScared(btn.ConditionCheck):
-    """
-    determines if a ghost is scared.
-
-    Returns:
-        SUCCESS if a ghost is scared, FAILURE otherwise
-    """
-
-    def func(self):
-        return _GHOSTS_SCARED
 
 
 class CaughtGhost(bt.SequenceNode):
@@ -152,14 +177,6 @@ class GhostsNotScared(btd.Invert):
     _children = (GhostsScared,)
 
 
-class ChaseGhost(btz.OftenSucceed):
-    """
-    chases a ghost.
-
-    Returns:
-        SUCCESS if a ghost is caught, FAILURE otherwise
-    """
-
 
 class ChaseIfScared(bt.SequenceNode):
     """
@@ -175,14 +192,6 @@ class ChaseIfScared(bt.SequenceNode):
         CaughtGhost,
     )
 
-
-class AvoidGhost(btz.OftenSucceed):
-    """
-    implements avoiding a ghost.
-
-    Returns:
-        SUCCESS if no ghosts remain, or if a ghost is avoided, FAILURE otherwise
-    """
 
 
 class ChaseOrAvoidGhost(bt.FallbackNode):
@@ -235,24 +244,34 @@ def main():
     )
     args = parser.parse_args()
 
-    global _GHOSTS_SCARED
-
     bot = BehaviorTree(root=MaybeEatPills())
     bot.setup()
+
+    bb = bot.bb
+    bb["ghosts"] = _GHOSTS
+    bb["dots"] = _DOTS_REMAINING
+    bb["score"] = SCORE
+    bb["per_ghost"] = _PER_GHOST
+    bb["ghosts_scared"] = _GHOSTS_SCARED
+
 
     if args.print_tree:
         print(bot.root.to_mermaid())
         exit()
 
     ticks = 0
-    while _DOTS_REMAINING > 0:
+    while bb["dots"] > 0:
         logger.info(f"=== Tick {ticks + 1} ===")
 
+        # maybe make the ghosts scared
+        # note this also demonstrates the world changing outside the bot
         if random.random() < 0.5:
-            _GHOSTS_SCARED = True
+            bb["ghosts_scared"] = True
             logger.info("Ghosts are scared!")
         else:
-            _GHOSTS_SCARED = False
+            bb["ghosts_scared"] = False
+
+        assert(bot._setup)
 
         bot.tick()
         ticks += 1
@@ -262,18 +281,17 @@ def main():
                 f"Pacman died! He was eaten by {random.choice(_GHOST_NAMES)}!"
             )
             break
-        if _DOTS_REMAINING <= 0:
+        if bb["dots"] <= 0:
             logger.info("Pacman cleared the board!")
             break
         if ticks > 1000:
             logger.info("Pacman got bored and quit!")
             break
-    score = SCORE
 
-    logger.info(f"Final score: {score}")
+    logger.info(f"Final score: {bb['score']}")
     logger.info(f"Ticks: {ticks}")
-    logger.info(f"Dots Remaining: {_DOTS_REMAINING}")
-    logger.info(f"Ghosts Remaining: {_GHOSTS}")
+    logger.info(f"Dots Remaining: {bb['dots']}")
+    logger.info(f"Ghosts Remaining: {bb['ghosts']}")
 
 
 if __name__ == "__main__":

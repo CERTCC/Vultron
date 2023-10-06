@@ -15,17 +15,11 @@ This module defines a Behavior Tree object.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from dataclasses import dataclass
-
 from vultron.bt.base.errors import (
     BehaviorTreeError,
 )
 from vultron.bt.base.node_status import NodeStatus
 
-
-@dataclass
-class Blackboard:
-    pass
 
 
 class BehaviorTree:
@@ -37,7 +31,7 @@ class BehaviorTree:
         bb: the blackboard object
     """
 
-    bbclass = Blackboard
+    bbclass = dict
 
     def __init__(self, root=None):
         """
@@ -84,7 +78,7 @@ class BehaviorTree:
         if self._setup:
             return
 
-        self.setup(self.root)
+        self.setup()
 
         if not self._setup:
             raise BehaviorTreeError(f"{self.__class__.__name__} setup failed")
@@ -135,6 +129,7 @@ class BehaviorTree:
         Returns:
             None
         """
+        self.root.bb = self.bb
         self.root.setup()
         self._setup = True
 

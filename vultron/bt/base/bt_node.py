@@ -28,7 +28,6 @@ from vultron.bt.base.errors import (
 from vultron.bt.base.node_status import NodeStatus
 
 logger = logging.getLogger(__name__)
-_objcount = 0
 
 
 class BtNode:
@@ -38,15 +37,17 @@ class BtNode:
     name_pfx = None
     _node_shape = "box"
     _children = None
+    _objcount = 0
 
     def __init__(self):
-        global _objcount
-        _objcount += 1
+        BtNode._objcount += 1
 
         pfx = ""
         if self.name_pfx is not None:
             pfx = f"{self.name_pfx}_"
-        self.name_sfx = f"_{_objcount}"
+
+        # freeze object count into a string at instantiation time
+        self.name_sfx = f"_{BtNode._objcount}"
 
         self.name = f"{pfx}{self.__class__.__name__}{self.name_sfx}"
 
@@ -108,8 +109,10 @@ class BtNode:
             return f"({self.name_pfx})"
         return ""
 
-    def _pre_tick(self, depth=0):
+    def _pre_tick(self, depth: int=0):
         """Called before the node is ticked.
+         Override this method in your subclass if you need to do something before the node is ticked.
+         Does nothing by default.
 
         Args:
             depth: the node's depth in the tree
@@ -118,13 +121,14 @@ class BtNode:
             none
         """
 
-    def tick(self, depth=0) -> NodeStatus:
+    def tick(self, depth:int =0) -> NodeStatus:
         """Ticks the node.
         Performs the following actions:
-        - calls _pre_tick()
-        - calls _tick()
-        - calls _post_tick()
-        - sets the node's status based on the return value of _tick()
+
+        - calls `_pre_tick()`
+        - calls `_tick()`
+        - calls `_post_tick()`
+        - sets the node's status based on the return value of `_tick()`
 
         Args:
             depth: the node's depth in the tree
@@ -147,6 +151,8 @@ class BtNode:
 
     def _post_tick(self, depth=0):
         """Called after the node is ticked.
+        Override this method in your subclass if you need to do something after the node is ticked.
+        Does nothing by default.
 
         Args:
             depth
@@ -175,9 +181,6 @@ class BtNode:
             return f"{self.name_pfx} {self.name}"
 
         return self.name
-
-    # def graph(self, g=None):
-    #     return to_dot(self)
 
     @property
     def _is_leaf_node(self):
