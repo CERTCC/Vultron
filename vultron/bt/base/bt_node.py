@@ -202,7 +202,7 @@ class BtNode:
             parts.append(child.to_str(depth + 1))
         return "".join(parts)
 
-    def to_mermaid(self, depth=0) -> str:
+    def to_mermaid(self, depth=0,topdown=True) -> str:
         """Returns a string representation of the tree rooted at this node in mermaid format."""
 
         import re
@@ -215,7 +215,10 @@ class BtNode:
         if depth == 0:
             # add preamble
             parts.append("```mermaid")
-            parts.append("graph TD")
+            if topdown:
+                parts.append("graph TD")
+            else:
+                parts.append("graph LR")
 
         def fixname(nstr: str) -> str:
             # TODO these should be subclass attributes

@@ -130,6 +130,7 @@ nav:
           - Tree Basics: 'reference/code/bt/bt_base.md'
           - Node Basics: 'reference/code/bt/bt_base_nodes.md'
           - Pacman Demo: 'reference/code/bt/pacman_demo.md'
+          - Robot Demo: 'reference/code/bt/robot_demo.md'
           - VultronBT: 'reference/code/bt/behavior_trees.md'
 
     - ISO Crosswalk:

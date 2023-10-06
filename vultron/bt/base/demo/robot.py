@@ -1,36 +1,4 @@
 #!/usr/bin/env python
-"""file: robot_demo
-author: adh
-created_at: 4/1/22 10:08 AM
-
-This module demonstrates a simple robot bt tree. The robot has a number of tasks it must perform in order to
-complete its mission. The robot must find a ball, approach the ball, grasp the ball, approach the bin, and place
-the ball in the bin. If any of these tasks fail, the robot must ask for help.
-
-The implementation also shows how to use the included bt tree fuzzer to exercise the bt tree.
-
-The robot's bt tree is as follows:
-
-Root (FallbackNode)
-|-- BallPlaced (UsuallyFail) -- checks if the ball is already placed in the bin
-|-- MainSequence (SequenceNode) -- otherwise, the robot must perform the following tasks
-|   |-- EnsureBallFound (FallbackNode) -- the robot must find the ball
-|   |   |-- BallFound (UsuallyFail)
-|   |   |-- FindBall (UsuallySucceed)
-|   |-- EnsureBallClose (FallbackNode) -- the robot must approach the ball
-|   |   |-- BallClose (UsuallyFail)
-|   |   |-- ApproachBall (UsuallySucceed)
-|   |-- EnsureBallGrasped (FallbackNode) -- the robot must grasp the ball
-|   |   |-- BallGrasped (UsuallyFail)
-|   |   |-- GraspBall (UsuallySucceed)
-|   |-- EnsureBinClose (FallbackNode) -- the robot must approach the bin
-|   |   |-- BinClose (UsuallyFail)
-|   |   |-- ApproachBin (UsuallySucceed)
-|   |-- EnsureBallPlaced (FallbackNode) -- the robot must place the ball in the bin
-|   |   |-- BallPlaced (UsuallyFail)
-|   |   |-- PlaceBall (UsuallySucceed)
-|-- AskForHelp (AlwaysSucceed)
-"""
 
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -45,26 +13,50 @@ Root (FallbackNode)
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+"""
+This module demonstrates a simple robot behavior tree.
+The robot has a number of tasks it must perform in order to complete its mission.
+The robot must find a ball, approach the ball, grasp the ball, approach the bin, and place
+the ball in the bin. If any of these tasks fail, the robot must ask for help.
+
+Oh, and the first time the robot picks up the ball, we knock it out of the robot's grasp, because
+we're mean like that.
+
+The implementation also shows how to use the included bt tree fuzzer to exercise the bt tree.
+"""
 
 import logging
 
+import vultron.bt.base.bt_node as btn
 import vultron.bt.base.fuzzer as btz
+from vultron.bt.base.blackboard import BlackBoard
+from vultron.bt.base.bt import BehaviorTree
 from vultron.bt.base.composites import FallbackNode, SequenceNode
 
 logger = logging.getLogger(__name__)
 
-
-class BallPlaced(btz.UsuallyFail):
+class BallPlaced(btn.ConditionCheck):
     """
-    This is a stub for a task that checks if the ball is already placed in the bin. In our stub implementation, we just
-    stochastically return Success or Failure to simulate whether the ball is placed.
+    Reports SUCCESS if the ball is placed in the bin, FAILURE otherwise.
     """
+    def func(self) -> bool:
+        return self.bb["ball_placed"]
 
 
-class PlaceBall(btz.UsuallySucceed):
-    """This is a stub for a task that places the ball in the bin. In our stub implementation, we just stochastically return
-    Success or Failure to simulate placing the ball in the bin.
+class SetBallPlaced(btn.ActionNode):
     """
+    Records that the ball has been placed in the bin.
+    """
+    def func(self) -> bool:
+        self.bb["ball_placed"] = True
+        return True
+
+class PlaceBall(SequenceNode):
+    """
+    This is a stub for a task that places the ball in the bin. In our stub implementation, we just stochastically
+    return Success or Failure to simulate placing the ball.
+    """
+    _children = (btz.UsuallySucceed, SetBallPlaced)
 
 
 class EnsureBallPlaced(FallbackNode):
@@ -75,16 +67,35 @@ class EnsureBallPlaced(FallbackNode):
     _children = (BallPlaced, PlaceBall)
 
 
-class BinClose(btz.UsuallyFail):
-    """This is a stub for a task that checks if the bin is close. In our stub implementation, we just stochastically
-    return Success or Failure to simulate whether the bin is close.
+class BinClose(btn.ConditionCheck):
+    """
+    Checks if the bin is close.
+
+    Returns:
+        SUCCESS if the bin is close, FAILURE otherwise.
     """
 
+    def func(self) -> bool:
+        return self.bb["bin_close"]
 
-class ApproachBin(btz.UsuallySucceed):
+
+class SetBinClose(btn.ActionNode):
+    """
+    Reports that the bin is close.
+
+    Returns:
+        SUCCESS
+    """
+
+    def func(self) -> bool:
+        self.bb["bin_close"] = True
+        return True
+
+class ApproachBin(SequenceNode):
     """This is a stub for a task that approaches the bin. In our stub implementation, we just stochastically return
     Success or Failure to simulate approaching the bin.
     """
+    _children = (btz.UsuallySucceed, SetBinClose)
 
 
 class EnsureBinClose(FallbackNode):
@@ -95,14 +106,36 @@ class EnsureBinClose(FallbackNode):
     _children = (BinClose, ApproachBin)
 
 
-class BallGrasped(btz.UsuallyFail):
-    """This is a stub for a task that checks if the ball is already grasped. In our stub implementation, we just stochastically
-    return Success or Failure to simulate whether the ball is grasped.
+class BallGrasped(btn.ConditionCheck):
     """
+    Checks if the ball is grasped.
+
+    Returns:
+        SUCCESS if the ball is grasped, FAILURE otherwise.
+    """
+    def func(self) -> bool:
+        return self.bb["ball_grasped"]
 
 
-class GraspBall(btz.UsuallySucceed):
-    """This is a stub for a task that grasps the ball. In our stub implementation, we just stochastically return"""
+class SetBallGrasped(btn.ActionNode):
+    """
+    Records that the ball has been grasped.
+
+    Returns:
+        SUCCESS
+    """
+    def func(self) -> bool:
+        self.bb["ball_grasped"] = True
+        return True
+
+class GraspBall(SequenceNode):
+    """
+    This is a stub for a task that grasps the ball. In our stub implementation, we just stochastically return SUCCESS.
+
+    Returns:
+        SUCCESS if the ball is grasped, FAILURE otherwise.
+    """
+    _children = (btz.OftenFail, SetBallGrasped)
 
 
 class EnsureBallGrasped(FallbackNode):
@@ -113,16 +146,30 @@ class EnsureBallGrasped(FallbackNode):
     _children = (BallGrasped, GraspBall)
 
 
-class BallClose(btz.UsuallyFail):
-    """This is a stub for a task that checks if the ball is close. In our stub implementation, we just stochastically
-    return Success or Failure to simulate whether the ball is close.
+class BallClose(btn.ConditionCheck):
     """
+    Checks if the ball is close.
+    """
+    def func(self) -> bool:
+        return self.bb["ball_close"]
 
 
-class ApproachBall(btz.UsuallySucceed):
+class SetBallClose(btn.ActionNode):
+    """
+    Records that the ball is close.
+
+    Returns:
+        SUCCESS
+    """
+    def func(self) -> bool:
+        self.bb["ball_close"] = True
+        return True
+
+class ApproachBall(SequenceNode):
     """This is a stub for a task that approaches the ball. In our stub implementation, we just stochastically return
     Success or Failure to simulate approaching the ball.
     """
+    _children = (btz.UsuallySucceed, SetBallClose)
 
 
 class EnsureBallClose(FallbackNode):
@@ -133,16 +180,28 @@ class EnsureBallClose(FallbackNode):
     _children = (BallClose, ApproachBall)
 
 
-class FindBall(btz.UsuallySucceed):
+class SetBallFound(btn.ActionNode):
+    """
+    Records that the ball has been found.
+    """
+    def func(self) -> bool:
+        self.bb["ball_found"] = True
+        return True
+
+
+class FindBall(SequenceNode):
     """This is a stub for a task that finds the ball. In our stub implementation, we just stochastically return
     Success or Failure to simulate finding the ball.
     """
+    _children = (btz.UsuallySucceed, SetBallFound)
 
 
-class BallFound(btz.UsuallyFail):
+class BallFound(btn.ConditionCheck):
     """This is a stub for a task that checks if the ball is found. In our stub implementation, we just stochastically
     return Success or Failure to simulate whether the ball has already been found.
     """
+    def func(self) -> bool:
+        return self.bb["ball_found"]
 
 
 class EnsureBallFound(FallbackNode):
@@ -153,10 +212,33 @@ class EnsureBallFound(FallbackNode):
     _children = (BallFound, FindBall)
 
 
-class AskForHelp(btz.AlwaysSucceed):
-    """This is a stub for a task that asks for help. In our stub implementation, we just always return Success to simulate
-    asking for help.
+class TimeToAskForHelp(btn.ConditionCheck):
     """
+    Checks if it is time to ask for help.
+
+    Returns:
+        SUCCESS if it is time to ask for help, FAILURE otherwise.
+    """
+    def func(self) -> bool:
+        return self.bb["ticks"] > 10
+
+class AskForHelp(btn.ActionNode):
+    """
+    Records that the robot has asked for help.
+
+    Returns:
+        SUCCESS
+    """
+    def func(self) -> bool:
+        logger.info("I need help!")
+        self.bb["asked_for_help"] = True
+        return True
+
+class MaybeAskForHelp(SequenceNode):
+    """
+    Decide whether we need to ask for help.
+    """
+    _children = (TimeToAskForHelp, AskForHelp)
 
 
 class MainSequence(SequenceNode):
@@ -172,7 +254,7 @@ class MainSequence(SequenceNode):
 
 
 class Robot(FallbackNode):
-    _children = (BallPlaced, MainSequence, AskForHelp)
+    _children = (BallPlaced, MainSequence, MaybeAskForHelp)
 
 
 def main():
@@ -181,11 +263,61 @@ def main():
     hdlr = logging.StreamHandler()
     logger.addHandler(hdlr)
 
-    for trial in range(10):
-        print(f"Trial {trial}")
-        root = Robot()
-        root.setup()
-        root.tick()
+
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.description = "Run the Pacman demo."
+    parser.add_argument(
+        "--print-tree",
+        action="store_true",
+        help="print the tree and exit",
+        default=False,
+    )
+    args = parser.parse_args()
+
+    bot = BehaviorTree(root=Robot(), bbclass=BlackBoard)
+
+    bot.bb.update(
+        {
+            "ball_found": False,
+            "ball_close": False,
+            "ball_grasped": False,
+            "bin_close": False,
+            "ball_placed": False,
+            "asked_for_help": False,
+            "ticks": 0,
+        }
+    )
+
+    bot.setup()
+
+    if args.print_tree:
+        print(bot.root.to_mermaid(topdown=False))
+        exit()
+
+    knockout=True
+    while not bot.bb['ball_placed']:
+
+        # maybe knock the ball out of the robot's grasp
+        if knockout and bot.bb["ball_grasped"]:
+            bot.bb["ball_grasped"] = False
+            logger.info("The ball was knocked out of the robot's grasp!")
+            knockout = False
+
+        bot.tick()
+        bot.bb["ticks"] += 1
+
+        if bot.bb["asked_for_help"]:
+            logger.info("The robot asked for help!")
+            break
+
+    if bot.bb["asked_for_help"]:
+        logger.info(f"Robot failed to complete its mission after {bot.bb['ticks']} ticks.")
+    elif bot.bb["ball_placed"]:
+        logger.info(f"Robot completed its mission in {bot.bb['ticks']} ticks.")
+    else:
+        logger.info(f"Not sure what happened. {bot.bb}")
 
 
 if __name__ == "__main__":
