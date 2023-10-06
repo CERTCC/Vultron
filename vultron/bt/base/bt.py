@@ -54,7 +54,7 @@ class BehaviorTree:
         # track whether we've done the pre-tick setup stuff
         self._setup: bool = False
 
-    def add_root(self, node) -> None:
+    def add_root(self, node: BtNode) -> None:
         """Adds a root node to the tree.
 
         Args:
