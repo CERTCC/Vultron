@@ -1,6 +1,3 @@
-"""
-This module defines a Behavior Tree object.
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -13,13 +10,16 @@ This module defines a Behavior Tree object.
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+This module defines a Behavior Tree object.
+"""
 
 
+from vultron.bt.base.blackboard import BlackBoard
 from vultron.bt.base.errors import (
     BehaviorTreeError,
 )
 from vultron.bt.base.node_status import NodeStatus
-
 
 
 class BehaviorTree:
@@ -31,7 +31,7 @@ class BehaviorTree:
         bb: the blackboard object
     """
 
-    bbclass = dict
+    bbclass = BlackBoard
 
     def __init__(self, root=None):
         """

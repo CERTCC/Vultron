@@ -18,6 +18,7 @@ This is a demo of the bt tree library. It is a stub implementation of a bot that
 
 
 import logging
+import random
 
 import vultron.bt.base.bt_node as btn
 import vultron.bt.base.composites as bt
@@ -29,16 +30,16 @@ logger = logging.getLogger(__name__)
 
 SCORE = 0
 
-_DOTS_REMAINING = 240
-_GHOSTS = 4
-_PER_DOT = 10
-_PER_GHOST = 200
-_GHOST_INC = 2
-_GHOSTS_SCARED = False
-_GHOST_NAMES = ["Blinky", "Pinky", "Inky", "Clyde"]
+DOTS = 240
+PER_DOT = 10
+PER_GHOST = 200
+GHOST_INC = 2
+GHOSTS_SCARED = False
+GHOST_NAMES = ["Blinky", "Pinky", "Inky", "Clyde"]
 
 
 ### Action Nodes
+
 
 class EatPill(btn.ActionNode):
     """increments score for eating pills"""
@@ -46,19 +47,21 @@ class EatPill(btn.ActionNode):
     def func(self):
         bb = self.bb
 
-        if bb["dots"] == 0:
+        dots = bb.get("dots", 0)
+        if dots == 0:
             return False
 
         bb["dots"] -= 1
-        bb["score"] += _PER_DOT
+        bb["score"] += PER_DOT
         return True
+
 
 class IncrGhostScore(btn.ActionNode):
     """increments the score for the next ghost."""
 
     def func(self):
         bb = self.bb
-        bb["per_ghost"] *= _GHOST_INC
+        bb["per_ghost"] *= GHOST_INC
         logger.info(f"Ghost score is now {self.bb['per_ghost']}")
         return True
 
@@ -69,7 +72,6 @@ class ScoreGhost(btn.ActionNode):
     def func(self):
         bb = self.bb
         bb["score"] += bb["per_ghost"]
-        logger.info("Caught a ghost!")
         return True
 
 
@@ -77,10 +79,13 @@ class DecrGhostCount(btn.ActionNode):
     """decrements the ghost count"""
 
     def func(self):
-        self.bb["ghosts"] -= 1
+        ghost = self.bb["ghosts_remaining"].pop()
+        logger.info(f"{ghost} was caught!")
         return True
 
+
 ### Condition Check Nodes
+
 
 class GhostsRemain(btn.ConditionCheck):
     """
@@ -92,7 +97,8 @@ class GhostsRemain(btn.ConditionCheck):
 
     def func(self):
         bb = self.bb
-        return bb["ghosts"] > 0
+        return len(bb["ghosts_remaining"]) > 0
+
 
 class GhostsScared(btn.ConditionCheck):
     """
@@ -105,7 +111,9 @@ class GhostsScared(btn.ConditionCheck):
     def func(self):
         return self.bb["ghosts_scared"]
 
+
 ### Fuzzer Nodes
+
 
 class GhostClose(btz.OftenSucceed):
     """
@@ -115,6 +123,7 @@ class GhostClose(btz.OftenSucceed):
         SUCCESS if a ghost is close, FAILURE otherwise
     """
 
+
 class ChaseGhost(btz.OftenSucceed):
     """
     chases a ghost.
@@ -122,6 +131,7 @@ class ChaseGhost(btz.OftenSucceed):
     Returns:
         SUCCESS if a ghost is caught, FAILURE otherwise
     """
+
 
 class AvoidGhost(btz.OftenSucceed):
     """
@@ -134,6 +144,7 @@ class AvoidGhost(btz.OftenSucceed):
 
 ### Composite Nodes
 
+
 class NoMoreGhosts(btd.Invert):
     """
     inverts the result of GhostsRemain.
@@ -143,8 +154,6 @@ class NoMoreGhosts(btd.Invert):
     """
 
     _children = (GhostsRemain,)
-
-
 
 
 class NoGhostClose(btd.Invert):
@@ -177,7 +186,6 @@ class GhostsNotScared(btd.Invert):
     _children = (GhostsScared,)
 
 
-
 class ChaseIfScared(bt.SequenceNode):
     """
     implements chasing a ghost if it is scared.
@@ -191,7 +199,6 @@ class ChaseIfScared(bt.SequenceNode):
         ChaseGhost,
         CaughtGhost,
     )
-
 
 
 class ChaseOrAvoidGhost(bt.FallbackNode):
@@ -224,9 +231,34 @@ class MaybeEatPills(bt.SequenceNode):
     _children = (MaybeChaseOrAvoidGhost, EatPill)
 
 
-def main():
-    import random
+def do_tick(bot, ticks):
+    bb = bot.bb
 
+    logger.info(f"=== Tick {ticks + 1} ===")
+
+    # maybe make the ghosts scared
+    # note this also demonstrates the world changing outside the bot
+    if random.random() < 0.5:
+        bb["ghosts_scared"] = True
+        logger.info("Ghosts are scared!")
+    else:
+        bb["ghosts_scared"] = False
+
+    bot.tick()
+    ticks += 1
+    # die on the first failure
+    if bot.status == bt.NodeStatus.FAILURE:
+        logger.info(
+            f"Pacman died! He was eaten by {random.choice(bb['ghosts_remaining'])}!"
+        )
+    if bb["dots"] <= 0:
+        logger.info("Pacman cleared the board!")
+    if ticks > 1000:
+        logger.info("Pacman got bored and quit!")
+    return bot.status
+
+
+def main():
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler()
@@ -248,12 +280,11 @@ def main():
     bot.setup()
 
     bb = bot.bb
-    bb["ghosts"] = _GHOSTS
-    bb["dots"] = _DOTS_REMAINING
+    bb["dots"] = DOTS
     bb["score"] = SCORE
-    bb["per_ghost"] = _PER_GHOST
-    bb["ghosts_scared"] = _GHOSTS_SCARED
-
+    bb["per_ghost"] = PER_GHOST
+    bb["ghosts_scared"] = GHOSTS_SCARED
+    bb["ghosts_remaining"] = GHOST_NAMES[:]
 
     if args.print_tree:
         print(bot.root.to_mermaid())
@@ -261,37 +292,15 @@ def main():
 
     ticks = 0
     while bb["dots"] > 0:
-        logger.info(f"=== Tick {ticks + 1} ===")
-
-        # maybe make the ghosts scared
-        # note this also demonstrates the world changing outside the bot
-        if random.random() < 0.5:
-            bb["ghosts_scared"] = True
-            logger.info("Ghosts are scared!")
-        else:
-            bb["ghosts_scared"] = False
-
-        assert(bot._setup)
-
-        bot.tick()
         ticks += 1
-        # die on the first failure
-        if bot.status == bt.NodeStatus.FAILURE:
-            logger.info(
-                f"Pacman died! He was eaten by {random.choice(_GHOST_NAMES)}!"
-            )
-            break
-        if bb["dots"] <= 0:
-            logger.info("Pacman cleared the board!")
-            break
-        if ticks > 1000:
-            logger.info("Pacman got bored and quit!")
+        result = do_tick(bot, ticks)
+        if result == bt.NodeStatus.FAILURE:
             break
 
     logger.info(f"Final score: {bb['score']}")
     logger.info(f"Ticks: {ticks}")
     logger.info(f"Dots Remaining: {bb['dots']}")
-    logger.info(f"Ghosts Remaining: {bb['ghosts']}")
+    logger.info(f"Ghosts Remaining: {bb['ghosts_remaining']}")
 
 
 if __name__ == "__main__":
