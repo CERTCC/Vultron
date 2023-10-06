@@ -77,7 +77,7 @@ class BtNode:
         for child in self.children:
             child.setup()
 
-    def add_child(self, child):
+    def add_child(self, child: "BtNode") -> "BtNode":
         """Adds a child to the node.
 
         Args:
@@ -93,10 +93,8 @@ class BtNode:
         return child
 
     def add_children(self) -> None:
-        """Adds children to the node. Loops through the _children list and creates a new instance of each child class.
-
-        Returns:
-            None
+        """
+        Adds children to the node. Loops through the _children list and creates a new instance of each child class.
         """
         if self._children is None:
             return
@@ -107,21 +105,18 @@ class BtNode:
             self.add_child(child)
 
     @property
-    def _pfx(self):
+    def _pfx(self) -> str:
         if self.name_pfx is not None:
             return f"({self.name_pfx})"
         return ""
 
-    def _pre_tick(self, depth: int = 0):
+    def _pre_tick(self, depth: int = 0) -> None:
         """Called before the node is ticked.
          Override this method in your subclass if you need to do something before the node is ticked.
          Does nothing by default.
 
         Args:
             depth: the node's depth in the tree
-
-        Returns:
-            none
         """
 
     def tick(self, depth: int = 0) -> NodeStatus:
@@ -152,20 +147,17 @@ class BtNode:
 
         return status
 
-    def _post_tick(self, depth=0):
+    def _post_tick(self, depth: int = 0) -> None:
         """Called after the node is ticked.
         Override this method in your subclass if you need to do something after the node is ticked.
         Does nothing by default.
 
         Args:
             depth
-
-        Returns:
-
         """
         pass
 
-    def _tick(self, depth=0) -> NodeStatus:
+    def _tick(self, depth: int = 0) -> NodeStatus:
         """Called by tick().
         Implement this method in your subclass.
 
@@ -178,22 +170,22 @@ class BtNode:
         raise NotImplementedError
 
     @property
-    def _node_label(self):
+    def _node_label(self) -> str:
         if self.name_pfx is not None:
             return f"{self.name_pfx} {self.name}"
 
         return self.name
 
     @property
-    def _is_leaf_node(self):
+    def _is_leaf_node(self) -> bool:
         """Returns True if the node is a leaf node, False otherwise."""
         return self._children is None or len(self._children) == 0
 
-    def _namestr(self, depth=0):
+    def _namestr(self, depth=0) -> str:
         """Returns a string representation of the node's name."""
-        return self._indent(depth) + f"{self._pfx} {self.name}"
+        return _indent(depth) + f"{self._pfx} {self.name}"
 
-    def to_str(self, depth=0):
+    def to_str(self, depth=0) -> str:
         """Returns a string representation of the tree rooted at this node."""
 
         namestring = self._namestr(depth) + "\n"
@@ -210,7 +202,7 @@ class BtNode:
             parts.append(child.to_str(depth + 1))
         return "".join(parts)
 
-    def to_mermaid(self, depth=0):
+    def to_mermaid(self, depth=0) -> str:
         """Returns a string representation of the tree rooted at this node in mermaid format."""
 
         import re
@@ -282,14 +274,15 @@ class LeafNode(BtNode):
 
         raise NotImplementedError
 
-    def _tick(self, depth=0):
-        """Calls the node's func() method and returns the result.
+    def _tick(self, depth: int = 0) -> NodeStatus:
+        """
+        Calls the node's func() method and returns the result.
 
         Args:
             depth
 
         Returns:
-
+            the node's status (as a NodeStatus enum)
         """
 
         result = self.func()
@@ -332,7 +325,7 @@ class CountTicks(BtNode):
         super().__init__()
         self.counter = self.start
 
-    def _tick(self, depth=0):
+    def _tick(self, depth: int = 0) -> NodeStatus:
         self.counter += 1
         return NodeStatus.SUCCESS
 
@@ -347,7 +340,7 @@ class SnapshotState(BtNode):
 
     name = "Snapshot_state"
 
-    def _tick(self, depth=0):
+    def _tick(self, depth: int = 0) -> NodeStatus:
         global STATELOG
         snapshot = deepcopy(self.bb)
         STATELOG.append(snapshot)

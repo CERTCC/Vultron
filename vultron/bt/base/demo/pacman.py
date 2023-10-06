@@ -229,7 +229,7 @@ class MaybeEatPills(bt.SequenceNode):
 def do_tick(bot, ticks):
     bb = bot.bb
 
-    logger.info(f"=== Tick {ticks + 1} ===")
+    logger.info(f"=== Tick {ticks} ===")
 
     # maybe make the ghosts scared
     # note this also demonstrates the world changing outside the bot

@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-"""file: decorators
-author: adh
-created_at: 5/20/22 1:32 PM
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,7 +11,9 @@ created_at: 5/20/22 1:32 PM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
+"""
+This module defines a number of Behavior Tree Decorator Nodes.
+"""
 
 import logging
 
@@ -34,10 +32,11 @@ class BtDecorator(BtNode):
 
 
 class Invert(BtDecorator):
-    """Invert decorator inverts the result of the child node.
-    For example, if the child node returns SUCCESS, the Invert decorator will return FAILURE.
-    If the child node returns FAILURE, the Invert decorator will return SUCCESS.
-    Note that the Invert decorator will return RUNNING if the child node returns RUNNING.
+    """Inverts the result of the child node.
+
+    - If the child node returns SUCCESS, the Invert decorator will return FAILURE.
+    - If the child node returns FAILURE, the Invert decorator will return SUCCESS.
+    - If the child node returns RUNNING, the Invert decorator will return RUNNING.
     """
 
     name_pfx = "^"
@@ -133,7 +132,10 @@ class LoopDecorator(BtDecorator):
 
 
 class RetryN(LoopDecorator):
-    """Retry up to n times until the child returns success or running."""
+    """
+    Retry up to n times until the child returns success or running.
+    When subclassing RetryN, set the `n` class variable to the number of retries.
+    """
 
     n = 1
 
@@ -152,7 +154,10 @@ class RetryN(LoopDecorator):
 
 
 class RepeatN(LoopDecorator):
-    """Repeat up to n times until the child returns failure or running."""
+    """
+    Repeat up to n times until the child returns failure or running.
+    When subclassing RepeatN, set the `n` class variable to the number of repeats.
+    """
 
     n = 1
 
@@ -172,7 +177,9 @@ class RepeatN(LoopDecorator):
 
 
 class RepeatUntilFail(LoopDecorator):
-    """Repeat until the child returns failure, then return success."""
+    """
+    Repeat until the child returns FAILURE, then return SUCCESS.
+    """
 
     def _tick(self, depth=0):
         only_child = self.children[0]

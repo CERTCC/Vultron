@@ -127,7 +127,8 @@ nav:
         - Vultron: 'reference/code/index.md'
         - Case States: 'reference/code/case_states.md'
         - Behavior Trees:
-          - BT Basics: 'reference/code/bt/bt_base.md'
+          - Tree Basics: 'reference/code/bt/bt_base.md'
+          - Node Basics: 'reference/code/bt/bt_base_nodes.md'
           - Pacman Demo: 'reference/code/bt/pacman_demo.md'
           - VultronBT: 'reference/code/bt/behavior_trees.md'
 

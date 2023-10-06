@@ -52,103 +52,16 @@ Legend:
 | &#127922; | Fuzzer node (randomly succeeds or fails some percentage of the time) |
 
 
+## Demo Output
 When the tree is run, it will look something like this:
 
 ```text
-=== Tick 1 ===
-Ghosts are scared!
-(>) >_MaybeEatPills_1
- | (?) ?_MaybeChaseOrAvoidGhost_2
- |  | (^) ^_NoMoreGhosts_3
- |  |  | (c) c_GhostsRemain_4
- |  |  |  | = SUCCESS
- |  |  | = FAILURE
- |  | (^) ^_NoGhostClose_5
- |  |  | (z) z_GhostClose_6
- |  |  |  | = SUCCESS
- |  |  | = FAILURE
- |  | (?) ?_ChaseOrAvoidGhost_7
- |  |  | (>) >_ChaseIfScared_8
- |  |  |  | (c) c_GhostsScared_9
- |  |  |  |  | = SUCCESS
- |  |  |  | (z) z_ChaseGhost_10
- |  |  |  |  | = SUCCESS
- |  |  |  | (>) >_CaughtGhost_11
- |  |  |  |  | (a) a_DecrGhostCount_12
- |  |  |  |  |  | = SUCCESS
- |  |  |  |  | (a) a_ScoreGhost_13
-Caught a ghost!
- |  |  |  |  |  | = SUCCESS
- |  |  |  |  | (a) a_IncrGhostScore_14
-Ghost score is now 400
- |  |  |  |  |  | = SUCCESS
- |  |  |  |  | = SUCCESS
- |  |  |  | = SUCCESS
- |  |  | = SUCCESS
- |  | = SUCCESS
- | (a) a_EatPill_17
- |  | = SUCCESS
- | = SUCCESS
-=== Tick 2 ===
-Ghosts are scared!
-(>) >_MaybeEatPills_1
- | (?) ?_MaybeChaseOrAvoidGhost_2
- |  | (^) ^_NoMoreGhosts_3
- |  |  | (c) c_GhostsRemain_4
- |  |  |  | = SUCCESS
- |  |  | = FAILURE
- |  | (^) ^_NoGhostClose_5
- |  |  | (z) z_GhostClose_6
- |  |  |  | = FAILURE
- |  |  | = SUCCESS
- |  | = SUCCESS
- | (a) a_EatPill_17
- |  | = SUCCESS
- | = SUCCESS
-=== Tick 3 ===
-(>) >_MaybeEatPills_1
- | (?) ?_MaybeChaseOrAvoidGhost_2
- |  | (^) ^_NoMoreGhosts_3
- |  |  | (c) c_GhostsRemain_4
- |  |  |  | = SUCCESS
- |  |  | = FAILURE
- |  | (^) ^_NoGhostClose_5
- |  |  | (z) z_GhostClose_6
- |  |  |  | = FAILURE
- |  |  | = SUCCESS
- |  | = SUCCESS
- | (a) a_EatPill_17
- |  | = SUCCESS
- | = SUCCESS
-=== Tick 4 ===
-(>) >_MaybeEatPills_1
- | (?) ?_MaybeChaseOrAvoidGhost_2
- |  | (^) ^_NoMoreGhosts_3
- |  |  | (c) c_GhostsRemain_4
- |  |  |  | = SUCCESS
- |  |  | = FAILURE
- |  | (^) ^_NoGhostClose_5
- |  |  | (z) z_GhostClose_6
- |  |  |  | = SUCCESS
- |  |  | = FAILURE
- |  | (?) ?_ChaseOrAvoidGhost_7
- |  |  | (>) >_ChaseIfScared_8
- |  |  |  | (c) c_GhostsScared_9
- |  |  |  |  | = FAILURE
- |  |  |  | = FAILURE
- |  |  | (c) c_GhostsScared_15
- |  |  |  | = FAILURE
- |  |  | (z) z_AvoidGhost_16
- |  |  |  | = FAILURE
- |  |  | = FAILURE
- |  | = FAILURE
- | = FAILURE
-Pacman died! He was eaten by Inky!
-Final score: 230
-Ticks: 4
-Dots Remaining: 237
-Ghosts Remaining: 3
+{% include-markdown './pacman_tree_example.txt' %}
 ```
 
+## Demo Code
+
 ::: vultron.bt.base.demo.pacman
-    title: Pacman Bot Behavior Tree Demo
+    options:
+        heading_level: 3
+    

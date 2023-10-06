@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -11,28 +10,34 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""
-This module defines error classes for the `vultron.bt.base` module
-"""
 
-from vultron.errors import VultronError
+import unittest
 
-
-class BehaviorTreeError(VultronError):
-    """Raised when a BehaviorTree encounters an error"""
+from vultron.bt.base.blackboard import BlackBoard
 
 
-class BehaviorTreeFuzzerError(BehaviorTreeError):
-    """Raised when a BehaviorTreeFuzzer encounters an error"""
+class TestBlackBoard(unittest.TestCase):
+    def test_bb_has_dict_semantics(self):
+        bb = BlackBoard()
+
+        self.assertTrue(hasattr(bb, "__getitem__"))
+        self.assertTrue(hasattr(bb, "__setitem__"))
+        self.assertTrue(hasattr(bb, "__delitem__"))
+        self.assertTrue(hasattr(bb, "__contains__"))
+        self.assertTrue(hasattr(bb, "get"))
+
+        self.assertNotIn("foo", bb)
+        self.assertEqual(None, bb.get("foo"))
+
+        bb["foo"] = "bar"
+
+        self.assertIn("foo", bb)
+        self.assertEqual("bar", bb["foo"])
+        self.assertEqual("bar", bb.get("foo"))
+
+        del bb["foo"]
+        self.assertNotIn("foo", bb)
 
 
-class LeafNodeError(BehaviorTreeError):
-    """Raised when a leaf node encounters an error"""
-
-
-class ActionNodeError(LeafNodeError):
-    """Raised when an action node encounters an error"""
-
-
-class ConditionCheckError(LeafNodeError):
-    """Raised when a condition check encounters an error"""
+if __name__ == "__main__":
+    unittest.main()

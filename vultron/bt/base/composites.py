@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-"""file: composites
-author: adh
-created_at: 5/20/22 1:10 PM
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,7 +11,9 @@ created_at: 5/20/22 1:10 PM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
+"""
+This module implements Composite Nodes for a Behavior Tree.
+"""
 
 import random
 
@@ -25,10 +23,11 @@ from vultron.bt.base.node_status import NodeStatus
 
 class SequenceNode(BtNode):
     """SequenceNode is a composite node that ticks its children in order.
-    If a child returns SUCCESS, the SequenceNode ticks the next child.
-    If a child returns RUNNING, the SequenceNode returns RUNNING.
-    If a child returns FAILURE, the SequenceNode returns FAILURE.
-    If all children return SUCCESS, the SequenceNode returns SUCCESS.
+
+    - If a child returns SUCCESS, the SequenceNode ticks the next child.
+    - If a child returns RUNNING, the SequenceNode returns RUNNING.
+    - If a child returns FAILURE, the SequenceNode returns FAILURE.
+    - If all children return SUCCESS, the SequenceNode returns SUCCESS.
     """
 
     name_pfx = ">"
@@ -47,10 +46,11 @@ class SequenceNode(BtNode):
 
 class FallbackNode(BtNode):
     """FallbackNode is a composite node that ticks its children in order.
-    If a child returns SUCCESS, the FallbackNode returns SUCCESS.
-    If a child returns RUNNING, the FallbackNode returns RUNNING.
-    If a child returns FAILURE, the FallbackNode ticks the next child.
-    If all children return FAILURE, the FallbackNode returns FAILURE.
+
+    - If a child returns SUCCESS, the FallbackNode returns SUCCESS.
+    - If a child returns RUNNING, the FallbackNode returns RUNNING.
+    - If a child returns FAILURE, the FallbackNode ticks the next child.
+    - If all children return FAILURE, the FallbackNode returns FAILURE.
     """
 
     name_pfx = "?"
@@ -74,12 +74,22 @@ SelectorNode = FallbackNode
 class ParallelNode(BtNode):
     """
     ParallelNode is a composite node that ticks its children in parallel.
-    If a child returns SUCCESS, the ParallelNode increments a success counter.
-    If a child returns RUNNING, the ParallelNode increments a running counter.
-    If a child returns FAILURE, the ParallelNode increments a failure counter.
-    If the success counter reaches the minimum number of successes, the ParallelNode returns SUCCESS.
-    If the failure counter reaches the minimum number of failures, the ParallelNode returns FAILURE.
-    If the running counter reaches the minimum number of running, the ParallelNode returns RUNNING.
+
+    When subclassing, you must set the `m` attribute indicating the minimum number of successes.
+    The maximum failures is then calculated as `N - m`, where N is the number of children.
+
+    - When a child returns SUCCESS, the ParallelNode increments a success counter.
+    - When a child returns FAILURE, the ParallelNode increments a failure counter.
+    - If the success counter reaches the minimum number of successes, the ParallelNode returns SUCCESS.
+    - If the failure counter reaches the maximum number of failures, the ParallelNode returns FAILURE.
+    - If neither of the above conditions are met, the ParallelNode returns RUNNING.
+
+    !!! warning "Not Fully Implemented"
+
+        In the current implementation, the ParallelNode does not actually tick its children in parallel.
+        Instead, it ticks them in a random order and counts the results until either SUCCESS or FAILURE is
+        indicated as above. This is good enough for demonstration purposes, but it should be replaced with
+        a proper parallel implementation.
     """
 
     # todo this needs to have a policy for how to handle failures/successes in the children

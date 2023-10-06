@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-"""file: node_status
-author: adh
-created_at: 2/20/23 12:17 PM
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -16,8 +12,11 @@ created_at: 2/20/23 12:17 PM
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+"""
+This module defines a Behavior Tree Node Status object.
+"""
 
-from enum import Enum, auto
+from enum import Enum
 
 
 class NodeStatus(Enum):
@@ -29,9 +28,9 @@ class NodeStatus(Enum):
     Nodes return RUNNING if they are still in the process of completing their task.
     """
 
-    SUCCESS = auto()
-    FAILURE = auto()
-    RUNNING = auto()
+    FAILURE = 0
+    SUCCESS = 1
+    RUNNING = 2
 
     def __str__(self):
         return self.name

@@ -20,7 +20,7 @@ from vultron.bt.base.bt_node import BtNode, ConditionCheck, CountTicks
 from vultron.bt.base.node_status import NodeStatus
 
 
-class MockState:
+class MockState(dict):
     pass
 
 
@@ -156,7 +156,6 @@ class MyTestCase(unittest.TestCase):
         for i in range(1000):
             self.assertEqual(NodeStatus.RUNNING, s.tick())
 
-
     def test_btnode_objcount(self):
         # We expect that there is exactly one _objcount shared across all
         # subclasses of BtNode. This test creates a bunch of BtNodes and checks
@@ -167,7 +166,7 @@ class MyTestCase(unittest.TestCase):
         for i in range(n):
             self.assertEqual(i, BtNode._objcount)
             BtNode()
-            self.assertEqual(i+1, BtNode._objcount)
+            self.assertEqual(i + 1, BtNode._objcount)
 
     def test_btnode_objcount_subclasses(self):
         # We expect that there is exactly one _objcount shared across all
@@ -176,22 +175,22 @@ class MyTestCase(unittest.TestCase):
         def subclass(cls):
             class Foo(cls):
                 pass
+
             return Foo
 
-        depth = 100 # this is way deeper than we probably ever need to go
+        depth = 100  # this is way deeper than we probably ever need to go
         self.assertEqual(0, BtNode._objcount)
         subcls = subclass(BtNode)
         for i in range(depth):
             self.assertEqual(i, BtNode._objcount)
             # instantiate it
             subcls()
-            self.assertEqual(i+1, BtNode._objcount)
+            self.assertEqual(i + 1, BtNode._objcount)
 
             # go one deeper
             subcls = subclass(subcls)
 
         self.assertEqual(depth, BtNode._objcount)
-
 
 
 if __name__ == "__main__":

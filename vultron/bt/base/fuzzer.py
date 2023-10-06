@@ -1,10 +1,4 @@
 #!/usr/bin/env python
-"""file: behavior_tree_fuzzer
-author: adh
-created_at: 4/12/22 1:18 PM
-
-This is a fuzzer for bt trees. It's a bit of a hack, but it's useful for testing.
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -17,6 +11,15 @@ This is a fuzzer for bt trees. It's a bit of a hack, but it's useful for testing
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+This module provides fuzzer node classes for a Behavior Tree.
+It is intended to be used for testing, simulation, and debugging.
+
+Many of the classes provided are subclasses of the WeightedSuccess class.
+Their names are based in part on the [Words of Estimative Probability](https://en.wikipedia.org/wiki/Words_of_estimative_probability)
+from Wikipedia and the [Probability Survey](https://hbr.org/2018/07/if-you-say-something-is-likely-how-likely-do-people-think-it-is)
+([github](https://github.com/amauboussin/probability-survey)) by Mauboussin and Mauboussin.
+"""
 
 
 import random
@@ -47,14 +50,14 @@ class AlwaysRunning(BtNode):
 
 
 class RandomActionNodeWithRunning(BtNode):
-    """Returns a random NodeStatus, including NodeStatus.RUNNING"""
+    """Returns a random NodeStatus, including NodeStatus.RUNNING, with equal probability."""
 
     def _tick(self, depth=0):
         return random.choice(list(NodeStatus))
 
 
 class SuccessOrRunning(BtNode):
-    """Returns NodeStatus.SUCCESS or NodeStatus.RUNNING"""
+    """Returns NodeStatus.SUCCESS or NodeStatus.RUNNING with equal probability."""
 
     def _tick(self, depth=0):
         return random.choice((NodeStatus.SUCCESS, NodeStatus.RUNNING))
@@ -63,6 +66,9 @@ class SuccessOrRunning(BtNode):
 class WeightedSuccess(BtNode):
     """Returns NodeStatus.SUCCESS with a probability of success_rate.
     Otherwise, returns NodeStatus.FAILURE.
+
+    When subclassing, set the `success_rate` class attribute to the desired
+    probability of success.
     """
 
     success_rate = 0.5
@@ -76,7 +82,7 @@ class WeightedSuccess(BtNode):
         return NodeStatus.FAILURE
 
     def _namestr(self, depth=0):
-        base=super()._namestr(depth)
+        base = super()._namestr(depth)
         return f"{base} p=({self.success_rate})"
 
 
