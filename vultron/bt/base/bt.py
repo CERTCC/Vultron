@@ -16,6 +16,7 @@ This module defines a Behavior Tree object.
 
 
 from vultron.bt.base.blackboard import BlackBoard
+from vultron.bt.base.bt_node import BtNode
 from vultron.bt.base.errors import (
     BehaviorTreeError,
 )
@@ -33,7 +34,7 @@ class BehaviorTree:
 
     bbclass = BlackBoard
 
-    def __init__(self, root=None):
+    def __init__(self, root: BtNode = None, bbclass: BlackBoard = None):
         """
         Initializes the bt tree.
 
@@ -43,13 +44,15 @@ class BehaviorTree:
         Returns:
             None
         """
-        self.root = root
-        self.bb = self.bbclass()
-        self.status = None
+        self.root: BtNode = root
+        if bbclass is not None:
+            self.bbclass = bbclass
 
-        self._setup = (
-            False  # track whether we've done the pre-tick setup stuff
-        )
+        self.bb: BlackBoard = self.bbclass()
+        self.status: NodeStatus = None
+
+        # track whether we've done the pre-tick setup stuff
+        self._setup: bool = False
 
     def add_root(self, node) -> None:
         """Adds a root node to the tree.
