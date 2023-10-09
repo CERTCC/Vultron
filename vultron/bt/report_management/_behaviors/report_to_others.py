@@ -32,25 +32,18 @@ from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.fuzzer.report_to_others import (
     AllPartiesKnown,
     FindContact,
+    HaveReportToOthersCapability,
     NotificationsComplete,
     PolicyCompatible,
     RcptNotInQrmS,
     RecipientEffortExceeded,
 )
-from vultron.bt.states import CapabilityFlag
 from vultron.case_states.states import CS
 from vultron.sim.messages import Message
 
 # from vultron.sim.communications import Message
 
 logger = logging.getLogger(__name__)
-
-
-class HaveReportToOthersCapability(ConditionCheck):
-    """Succeeds when ReportToOthers capability is present"""
-
-    def func(self):
-        return self.bb.capabilities & CapabilityFlag.ReportToOthers
 
 
 class ReportingEffortAvailable(ConditionCheck):

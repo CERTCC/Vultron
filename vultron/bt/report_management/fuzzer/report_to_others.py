@@ -145,3 +145,10 @@ class TotalEffortLimitMet(btz.AlmostAlwaysFail):
     """
 
     # check effort against some threshold or ask a human
+
+
+class HaveReportToOthersCapability(btz.UsuallySucceed):
+    """
+    This node represents the ability to report to others. In a real implementation, it would be replaced
+    with a capability check.
+    """
