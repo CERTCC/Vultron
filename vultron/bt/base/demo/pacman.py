@@ -19,23 +19,32 @@ This is a demo of the bt tree library. It is a stub implementation of a bot that
 
 import logging
 import random
+from dataclasses import dataclass, field
 
 import vultron.bt.base.bt_node as btn
 import vultron.bt.base.composites as bt
 import vultron.bt.base.decorators as btd
 import vultron.bt.base.fuzzer as btz
+from vultron.bt.base.blackboard import Blackboard
 from vultron.bt.base.bt import BehaviorTree
 
 logger = logging.getLogger(__name__)
 
 SCORE = 0
 
-DOTS = 240
 PER_DOT = 10
-PER_GHOST = 200
 GHOST_INC = 2
-GHOSTS_SCARED = False
 GHOST_NAMES = ["Blinky", "Pinky", "Inky", "Clyde"]
+
+
+@dataclass(kw_only=True)
+class PacmanBlackboard(Blackboard):
+    dots: int = 240
+    score: int = 0
+    per_ghost: int = 200
+    ghosts_scared: bool = False
+    ghosts_remaining: list = field(default_factory=lambda: GHOST_NAMES.copy())
+    ticks: int = 0
 
 
 ### Action Nodes
@@ -45,12 +54,12 @@ class EatPill(btn.ActionNode):
     """increments score for eating pills"""
 
     def func(self):
-        dots = self.bb.get("dots", 0)
+        dots = self.bb.dots
         if dots == 0:
             return False
 
-        self.bb["dots"] -= 1
-        self.bb["score"] += PER_DOT
+        self.bb.dots -= 1
+        self.bb.score += PER_DOT
         return True
 
 
@@ -58,8 +67,8 @@ class IncrGhostScore(btn.ActionNode):
     """increments the score for the next ghost."""
 
     def func(self):
-        self.bb["per_ghost"] *= GHOST_INC
-        logger.info(f"Ghost score is now {self.bb['per_ghost']}")
+        self.bb.per_ghost *= GHOST_INC
+        logger.info(f"Ghost score is now {self.bb.per_ghost}")
         return True
 
 
@@ -67,7 +76,7 @@ class ScoreGhost(btn.ActionNode):
     """increments score for catching ghosts"""
 
     def func(self):
-        self.bb["score"] += self.bb["per_ghost"]
+        self.bb.score += self.bb.per_ghost
         return True
 
 
@@ -75,7 +84,7 @@ class DecrGhostCount(btn.ActionNode):
     """decrements the ghost count"""
 
     def func(self):
-        ghost = self.bb["ghosts_remaining"].pop()
+        ghost = self.bb.ghosts_remaining.pop()
         logger.info(f"{ghost} was caught!")
         return True
 
@@ -92,7 +101,7 @@ class GhostsRemain(btn.ConditionCheck):
     """
 
     def func(self):
-        return len(self.bb["ghosts_remaining"]) > 0
+        return len(self.bb.ghosts_remaining) > 0
 
 
 class GhostsScared(btn.ConditionCheck):
@@ -104,7 +113,7 @@ class GhostsScared(btn.ConditionCheck):
     """
 
     def func(self):
-        return self.bb["ghosts_scared"]
+        return self.bb.ghosts_scared
 
 
 ### Fuzzer Nodes
@@ -234,19 +243,19 @@ def do_tick(bot, ticks):
     # maybe make the ghosts scared
     # note this also demonstrates the world changing outside the bot
     if random.random() < 0.5:
-        bb["ghosts_scared"] = True
+        bb.ghosts_scared = True
         logger.info("Ghosts are scared!")
     else:
-        bb["ghosts_scared"] = False
+        bb.ghosts_scared = False
 
     bot.tick()
     ticks += 1
     # die on the first failure
     if bot.status == bt.NodeStatus.FAILURE:
         logger.info(
-            f"Pacman died! He was eaten by {random.choice(bb['ghosts_remaining'])}!"
+            f"Pacman died! He was eaten by {random.choice(bb.ghosts_remaining)}!"
         )
-    if bb["dots"] <= 0:
+    if bb.dots <= 0:
         logger.info("Pacman cleared the board!")
     if ticks > 1000:
         logger.info("Pacman got bored and quit!")
@@ -271,37 +280,27 @@ def main():
     )
     args = parser.parse_args()
 
-    bot = BehaviorTree(root=MaybeEatPills())
+    bot = BehaviorTree(root=MaybeEatPills(), bbclass=PacmanBlackboard)
     bot.setup()
-
-    bot.bb.update(
-        {
-            "dots": DOTS,
-            "score": SCORE,
-            "per_ghost": PER_GHOST,
-            "ghosts_scared": GHOSTS_SCARED,
-            "ghosts_remaining": GHOST_NAMES[:],
-        }
-    )
 
     if args.print_tree:
         print(bot.root.to_mermaid())
         exit()
 
     ticks = 0
-    while bot.bb["dots"] > 0:
+    while bot.bb.dots > 0:
         ticks += 1
         result = do_tick(bot, ticks)
         if result == bt.NodeStatus.FAILURE:
             break
 
-    logger.info(f"Final score: {bot.bb['score']}")
+    logger.info(f"Final score: {bot.bb.score}")
     logger.info(f"Ticks: {ticks}")
-    logger.info(f"Dots Remaining: {bot.bb['dots']}")
+    logger.info(f"Dots Remaining: {bot.bb.dots}")
 
-    nghosts = len(bot.bb["ghosts_remaining"])
+    nghosts = len(bot.bb.ghosts_remaining)
     if nghosts > 0:
-        ghosts = ", ".join(bot.bb["ghosts_remaining"])
+        ghosts = ", ".join(bot.bb.ghosts_remaining)
         ghosts = f"({ghosts})"
     else:
         ghosts = ""

@@ -35,9 +35,11 @@ to provide a python dict-like interface.
 For example, mongodict and redis-dict provide such an interface for MongoDb and Redis,
 respectively.
 """
+from dataclasses import dataclass
 
 
-class Blackboard(dict):
+@dataclass(kw_only=True)
+class Blackboard:
     """
     Provides a blackboard object for sharing data between nodes in the tree.
     To use a custom blackboard object, subclass this class and set

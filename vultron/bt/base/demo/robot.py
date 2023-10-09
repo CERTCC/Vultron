@@ -26,6 +26,7 @@ The implementation also shows how to use the included bt tree fuzzer to exercise
 """
 
 import logging
+from dataclasses import dataclass
 
 import vultron.bt.base.bt_node as btn
 import vultron.bt.base.fuzzer as btz
@@ -36,13 +37,24 @@ from vultron.bt.base.composites import FallbackNode, SequenceNode
 logger = logging.getLogger(__name__)
 
 
+@dataclass(kw_only=True)
+class RobotBlackboard(Blackboard):
+    ball_found: bool = False
+    ball_close: bool = False
+    ball_grasped: bool = False
+    bin_close: bool = False
+    ball_placed: bool = False
+    asked_for_help: bool = False
+    ticks: int = 0
+
+
 class BallPlaced(btn.ConditionCheck):
     """
     Reports SUCCESS if the ball is placed in the bin, FAILURE otherwise.
     """
 
     def func(self) -> bool:
-        return self.bb["ball_placed"]
+        return self.bb.ball_placed
 
 
 class SetBallPlaced(btn.ActionNode):
@@ -51,7 +63,7 @@ class SetBallPlaced(btn.ActionNode):
     """
 
     def func(self) -> bool:
-        self.bb["ball_placed"] = True
+        self.bb.ball_placed = True
         return True
 
 
@@ -81,7 +93,7 @@ class BinClose(btn.ConditionCheck):
     """
 
     def func(self) -> bool:
-        return self.bb["bin_close"]
+        return self.bb.bin_close
 
 
 class SetBinClose(btn.ActionNode):
@@ -93,7 +105,7 @@ class SetBinClose(btn.ActionNode):
     """
 
     def func(self) -> bool:
-        self.bb["bin_close"] = True
+        self.bb.bin_close = True
         return True
 
 
@@ -122,7 +134,7 @@ class BallGrasped(btn.ConditionCheck):
     """
 
     def func(self) -> bool:
-        return self.bb["ball_grasped"]
+        return self.bb.ball_grasped
 
 
 class SetBallGrasped(btn.ActionNode):
@@ -134,7 +146,7 @@ class SetBallGrasped(btn.ActionNode):
     """
 
     def func(self) -> bool:
-        self.bb["ball_grasped"] = True
+        self.bb.ball_grasped = True
         return True
 
 
@@ -163,7 +175,7 @@ class BallClose(btn.ConditionCheck):
     """
 
     def func(self) -> bool:
-        return self.bb["ball_close"]
+        return self.bb.ball_close
 
 
 class SetBallClose(btn.ActionNode):
@@ -175,7 +187,7 @@ class SetBallClose(btn.ActionNode):
     """
 
     def func(self) -> bool:
-        self.bb["ball_close"] = True
+        self.bb.ball_close = True
         return True
 
 
@@ -201,7 +213,7 @@ class SetBallFound(btn.ActionNode):
     """
 
     def func(self) -> bool:
-        self.bb["ball_found"] = True
+        self.bb.ball_found = True
         return True
 
 
@@ -219,7 +231,7 @@ class BallFound(btn.ConditionCheck):
     """
 
     def func(self) -> bool:
-        return self.bb["ball_found"]
+        return self.bb.ball_found
 
 
 class EnsureBallFound(FallbackNode):
@@ -239,7 +251,7 @@ class TimeToAskForHelp(btn.ConditionCheck):
     """
 
     def func(self) -> bool:
-        return self.bb["ticks"] > 10
+        return self.bb.ticks > 10
 
 
 class AskForHelp(btn.ActionNode):
@@ -252,7 +264,7 @@ class AskForHelp(btn.ActionNode):
 
     def func(self) -> bool:
         logger.info("I need help!")
-        self.bb["asked_for_help"] = True
+        self.bb.asked_for_help = True
         return True
 
 
@@ -298,19 +310,7 @@ def main():
     )
     args = parser.parse_args()
 
-    bot = BehaviorTree(root=Robot(), bbclass=Blackboard)
-
-    bot.bb.update(
-        {
-            "ball_found": False,
-            "ball_close": False,
-            "ball_grasped": False,
-            "bin_close": False,
-            "ball_placed": False,
-            "asked_for_help": False,
-            "ticks": 0,
-        }
-    )
+    bot = BehaviorTree(root=Robot(), bbclass=RobotBlackboard)
 
     bot.setup()
 
@@ -319,26 +319,26 @@ def main():
         exit()
 
     knockout = True
-    while not bot.bb["ball_placed"]:
+    while not bot.bb.ball_placed:
         # maybe knock the ball out of the robot's grasp
-        if knockout and bot.bb["ball_grasped"]:
-            bot.bb["ball_grasped"] = False
+        if knockout and bot.bb.ball_grasped:
+            bot.bb.ball_grasped = False
             logger.info("The ball was knocked out of the robot's grasp!")
             knockout = False
 
         bot.tick()
-        bot.bb["ticks"] += 1
+        bot.bb.ticks += 1
 
-        if bot.bb["asked_for_help"]:
+        if bot.bb.asked_for_help:
             logger.info("The robot asked for help!")
             break
 
-    if bot.bb["asked_for_help"]:
+    if bot.bb.asked_for_help:
         logger.info(
-            f"Robot failed to complete its mission after {bot.bb['ticks']} ticks."
+            f"Robot failed to complete its mission after {bot.bb.ticks} ticks."
         )
-    elif bot.bb["ball_placed"]:
-        logger.info(f"Robot completed its mission in {bot.bb['ticks']} ticks.")
+    elif bot.bb.ball_placed:
+        logger.info(f"Robot completed its mission in {bot.bb.ticks} ticks.")
     else:
         logger.info(f"Not sure what happened. {bot.bb}")
 
