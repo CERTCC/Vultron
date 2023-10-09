@@ -44,20 +44,23 @@ class MyTestCase(unittest.TestCase):
                 else:
                     self.assertEqual(1, result[i])
 
-
-    @unittest.expectedFailure
     def test_CS_vfdpxa(self):
-        # FIXME: this test is failing
         for state_string in self.states:
-            cs = getattr(s.CS_vfdpxa, state_string)
-            print(state_string, cs, cs.value)
-            self.assertEqual(state_string, cs.name)
             vfd_str = state_string[:3]
             pxa_str = state_string[3:]
-            print(cs.__dict__)
-            print(vfd_str, cs.vfd_state)
-            # self.assertEqual(vfd_str, cs.VfdState.name)
-            # self.assertEqual(pxa_str, cs.PxaStatepxa_state.name)
+
+            cs = getattr(s.CS_vfdpxa, state_string)
+            self.assertEqual(state_string, cs.name)
+
+            vfd = getattr(s.CS_vfd, vfd_str)
+            self.assertEqual(vfd_str, vfd.name)
+            self.assertEqual(vfd, cs.value.vfd_state)
+            self.assertEqual(vfd_str, cs.value.vfd_state.name)
+
+            pxa = getattr(s.CS_pxa, pxa_str)
+            self.assertEqual(pxa_str, pxa.name)
+            self.assertEqual(pxa, cs.value.pxa_state)
+            self.assertEqual(pxa_str, cs.value.pxa_state.name)
 
 
 if __name__ == "__main__":
