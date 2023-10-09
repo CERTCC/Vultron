@@ -15,6 +15,8 @@ This module defines a Behavior Tree object.
 """
 
 
+import logging
+
 from vultron.bt.base.blackboard import Blackboard
 from vultron.bt.base.bt_node import BtNode
 from vultron.bt.base.errors import (
@@ -22,6 +24,8 @@ from vultron.bt.base.errors import (
 )
 from vultron.bt.base.node_status import NodeStatus
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class BehaviorTree:
     """BehaviorTree is the base class for all bt trees.
@@ -53,6 +57,44 @@ class BehaviorTree:
 
         # track whether we've done the pre-tick setup stuff
         self._setup: bool = False
+
+    # runtime context
+    def __enter__(self):
+        """
+
+        Returns:
+
+        """
+        self._ensure_setup()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+
+        Args:
+            exc_type:
+            exc_val:
+            exc_tb:
+
+        Returns:
+
+        """
+        if exc_type is not None:
+            # where were we in the tree?
+            import inspect
+
+            frm = inspect.trace()[-1]
+            obj = frm[0].f_locals["self"]
+            logger.debug(f"Exception in {obj.name}")
+            print(obj.name)
+
+            while obj.parent is not None:
+                obj = obj.parent
+                print(obj.name)
+                logger.debug(f"parent: {obj.name}")
+
+            # print(self.root.graph())
+            return False
 
     def add_root(self, node: BtNode) -> None:
         """Adds a root node to the tree.

@@ -32,24 +32,24 @@ pd.set_option("display.width", 1000)
 
 
 def main():
-    tree = CvdProtocolBt()
-    tree.setup()
+
     tick = 0
-    for tick in range(1000):
-        tick += 1
-        logger.debug("")
-        logger.debug(f"# tick {tick} #")
-        tree.tick()
+    with CvdProtocolBt() as tree:
+        for tick in range(1000):
+            tick += 1
+            logger.debug("")
+            logger.debug(f"# tick {tick} #")
+            tree.tick()
 
-        # maybe add a random message to the incoming queue
-        msg = generate_inbound_message(tree.bb)
-        if msg is not None:
-            incoming_message(tree.bb, msg)
+            # maybe add a random message to the incoming queue
+            msg = generate_inbound_message(tree.bb)
+            if msg is not None:
+                incoming_message(tree.bb, msg)
 
-        if tree.closed:
-            # do one last snapshot
-            tree.root.children[0].tick()
-            break
+            if tree.closed:
+                # do one last snapshot
+                tree.root.children[0].tick()
+                break
 
     logger.info("")
     logger.info(f"Closed in {tick} ticks")
