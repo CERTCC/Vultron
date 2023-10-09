@@ -56,9 +56,6 @@ class ActorState(Blackboard):
     q_cs_history: List[CS] = field(default_factory=list)
 
     incoming_messages: Deque = field(default_factory=deque)
-
-    emit_func: Callable = None
-
     msgs_emitted_this_tick: List[MT] = field(default_factory=list)
     msgs_received_this_tick: List[MT] = field(default_factory=list)
     msg_history: List[MT] = field(default_factory=list)
