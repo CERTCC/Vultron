@@ -7,3 +7,4 @@ mkdocstrings-python>=1.6.2
 pandas
 scipy
 networkx
+mkdocs-print-site-plugin
