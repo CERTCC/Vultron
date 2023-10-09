@@ -13,22 +13,22 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-This module defines BlackBoard class for sharing data between nodes in the tree.
+This module defines Blackboard class for sharing data between nodes in the tree.
 
-The default BlackBoard class is a dict, which is good enough if you just want
+The default Blackboard class is a dict, which is good enough if you just want
 to run a single tree in a single process.
 
 If you want multiple trees in a single process with shared state, just use
-the same BlackBoard object instance for each tree.
+the same Blackboard object instance for each tree.
 
 If you want to run multiple trees in a single process without shared state,
-you'll need to use a different BlackBoard object instance for each tree.
-You can still do that with the default BlackBoard class, but you'll need to
-create a new BlackBoard object instance for each tree.
+you'll need to use a different Blackboard object instance for each tree.
+You can still do that with the default Blackboard class, but you'll need to
+create a new Blackboard object instance for each tree.
 
 If you want to run multiple trees in multiple processes with shared state,
-you'll need to use a BlackBoard object that can communicate with some external
-data store, such as a key-value store on a server. The default BlackBoard
+you'll need to use a Blackboard object that can communicate with some external
+data store, such as a key-value store on a server. The default Blackboard
 class is not designed for that use case, but you can subclass it to use
 any object that implements the `__getitem__` and `__setitem__` methods
 to provide a python dict-like interface.
@@ -37,7 +37,7 @@ respectively.
 """
 
 
-class BlackBoard(dict):
+class Blackboard(dict):
     """
     Provides a blackboard object for sharing data between nodes in the tree.
     To use a custom blackboard object, subclass this class and set

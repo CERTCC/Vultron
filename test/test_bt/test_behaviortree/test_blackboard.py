@@ -13,12 +13,12 @@
 
 import unittest
 
-from vultron.bt.base.blackboard import BlackBoard
+from vultron.bt.base.blackboard import Blackboard
 
 
 class TestBlackBoard(unittest.TestCase):
     def test_bb_has_dict_semantics(self):
-        bb = BlackBoard()
+        bb = Blackboard()
 
         self.assertTrue(hasattr(bb, "__getitem__"))
         self.assertTrue(hasattr(bb, "__setitem__"))

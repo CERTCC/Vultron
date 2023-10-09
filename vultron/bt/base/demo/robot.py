@@ -29,16 +29,18 @@ import logging
 
 import vultron.bt.base.bt_node as btn
 import vultron.bt.base.fuzzer as btz
-from vultron.bt.base.blackboard import BlackBoard
+from vultron.bt.base.blackboard import Blackboard
 from vultron.bt.base.bt import BehaviorTree
 from vultron.bt.base.composites import FallbackNode, SequenceNode
 
 logger = logging.getLogger(__name__)
 
+
 class BallPlaced(btn.ConditionCheck):
     """
     Reports SUCCESS if the ball is placed in the bin, FAILURE otherwise.
     """
+
     def func(self) -> bool:
         return self.bb["ball_placed"]
 
@@ -47,15 +49,18 @@ class SetBallPlaced(btn.ActionNode):
     """
     Records that the ball has been placed in the bin.
     """
+
     def func(self) -> bool:
         self.bb["ball_placed"] = True
         return True
+
 
 class PlaceBall(SequenceNode):
     """
     This is a stub for a task that places the ball in the bin. In our stub implementation, we just stochastically
     return Success or Failure to simulate placing the ball.
     """
+
     _children = (btz.UsuallySucceed, SetBallPlaced)
 
 
@@ -91,10 +96,12 @@ class SetBinClose(btn.ActionNode):
         self.bb["bin_close"] = True
         return True
 
+
 class ApproachBin(SequenceNode):
     """This is a stub for a task that approaches the bin. In our stub implementation, we just stochastically return
     Success or Failure to simulate approaching the bin.
     """
+
     _children = (btz.UsuallySucceed, SetBinClose)
 
 
@@ -113,6 +120,7 @@ class BallGrasped(btn.ConditionCheck):
     Returns:
         SUCCESS if the ball is grasped, FAILURE otherwise.
     """
+
     def func(self) -> bool:
         return self.bb["ball_grasped"]
 
@@ -124,9 +132,11 @@ class SetBallGrasped(btn.ActionNode):
     Returns:
         SUCCESS
     """
+
     def func(self) -> bool:
         self.bb["ball_grasped"] = True
         return True
+
 
 class GraspBall(SequenceNode):
     """
@@ -135,6 +145,7 @@ class GraspBall(SequenceNode):
     Returns:
         SUCCESS if the ball is grasped, FAILURE otherwise.
     """
+
     _children = (btz.OftenFail, SetBallGrasped)
 
 
@@ -150,6 +161,7 @@ class BallClose(btn.ConditionCheck):
     """
     Checks if the ball is close.
     """
+
     def func(self) -> bool:
         return self.bb["ball_close"]
 
@@ -161,14 +173,17 @@ class SetBallClose(btn.ActionNode):
     Returns:
         SUCCESS
     """
+
     def func(self) -> bool:
         self.bb["ball_close"] = True
         return True
+
 
 class ApproachBall(SequenceNode):
     """This is a stub for a task that approaches the ball. In our stub implementation, we just stochastically return
     Success or Failure to simulate approaching the ball.
     """
+
     _children = (btz.UsuallySucceed, SetBallClose)
 
 
@@ -184,6 +199,7 @@ class SetBallFound(btn.ActionNode):
     """
     Records that the ball has been found.
     """
+
     def func(self) -> bool:
         self.bb["ball_found"] = True
         return True
@@ -193,6 +209,7 @@ class FindBall(SequenceNode):
     """This is a stub for a task that finds the ball. In our stub implementation, we just stochastically return
     Success or Failure to simulate finding the ball.
     """
+
     _children = (btz.UsuallySucceed, SetBallFound)
 
 
@@ -200,6 +217,7 @@ class BallFound(btn.ConditionCheck):
     """This is a stub for a task that checks if the ball is found. In our stub implementation, we just stochastically
     return Success or Failure to simulate whether the ball has already been found.
     """
+
     def func(self) -> bool:
         return self.bb["ball_found"]
 
@@ -219,8 +237,10 @@ class TimeToAskForHelp(btn.ConditionCheck):
     Returns:
         SUCCESS if it is time to ask for help, FAILURE otherwise.
     """
+
     def func(self) -> bool:
         return self.bb["ticks"] > 10
+
 
 class AskForHelp(btn.ActionNode):
     """
@@ -229,15 +249,18 @@ class AskForHelp(btn.ActionNode):
     Returns:
         SUCCESS
     """
+
     def func(self) -> bool:
         logger.info("I need help!")
         self.bb["asked_for_help"] = True
         return True
 
+
 class MaybeAskForHelp(SequenceNode):
     """
     Decide whether we need to ask for help.
     """
+
     _children = (TimeToAskForHelp, AskForHelp)
 
 
@@ -263,7 +286,6 @@ def main():
     hdlr = logging.StreamHandler()
     logger.addHandler(hdlr)
 
-
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -276,7 +298,7 @@ def main():
     )
     args = parser.parse_args()
 
-    bot = BehaviorTree(root=Robot(), bbclass=BlackBoard)
+    bot = BehaviorTree(root=Robot(), bbclass=Blackboard)
 
     bot.bb.update(
         {
@@ -296,9 +318,8 @@ def main():
         print(bot.root.to_mermaid(topdown=False))
         exit()
 
-    knockout=True
-    while not bot.bb['ball_placed']:
-
+    knockout = True
+    while not bot.bb["ball_placed"]:
         # maybe knock the ball out of the robot's grasp
         if knockout and bot.bb["ball_grasped"]:
             bot.bb["ball_grasped"] = False
@@ -313,7 +334,9 @@ def main():
             break
 
     if bot.bb["asked_for_help"]:
-        logger.info(f"Robot failed to complete its mission after {bot.bb['ticks']} ticks.")
+        logger.info(
+            f"Robot failed to complete its mission after {bot.bb['ticks']} ticks."
+        )
     elif bot.bb["ball_placed"]:
         logger.info(f"Robot completed its mission in {bot.bb['ticks']} ticks.")
     else:
