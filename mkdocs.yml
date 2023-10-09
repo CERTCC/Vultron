@@ -182,6 +182,8 @@ plugins:
             show_root_heading: true
             heading_level: 2
   - search
+  # NOTE print-site MUST be the last plugin in the list (see its docs for why)
+  - print-site
 repo_url: 'https://github.com/CERTCC/Vultron'
 repo_name: 'CERTCC/Vultron'
 markdown_extensions:
