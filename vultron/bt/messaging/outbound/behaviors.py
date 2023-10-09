@@ -19,12 +19,11 @@ created_at: 4/26/22 11:59 AM
 
 import logging
 
-from vultron.sim.communications import Message
-
 from vultron.bt.base.bt_node import ActionNode
 from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.messaging.behaviors import incoming_message
 from vultron.bt.messaging.states import MessageTypes as MT
+from vultron.sim.messages import Message
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,9 @@ class EmitMsg(ActionNode):
         indent = "  " * (depth)
         logger.info(f"->{indent}{self.msg_type}")
 
-        msg = Message(sender=self.bb.name, type=self.msg_type, body="msg_body")
+        msg = Message(
+            sender=self.bb.name, msg_type=self.msg_type, body="msg_body"
+        )
         emit = self.bb.emit_func
         if emit is not None:
             emit(msg)
@@ -50,7 +51,7 @@ class EmitMsg(ActionNode):
 
         # append history
         self.bb.msg_history.append(msg)
-        self.bb.msgs_emitted_this_tick.append(msg.type)
+        self.bb.msgs_emitted_this_tick.append(msg.msg_type)
         incoming_message(self.bb, msg)
 
         return NodeStatus.SUCCESS

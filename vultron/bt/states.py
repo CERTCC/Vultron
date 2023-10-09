@@ -22,10 +22,7 @@ from dataclasses import dataclass, field
 from enum import Flag, auto
 from typing import Any, Callable, Deque, Dict, List
 
-from vultron.cvd_states.states import CS
-from vultron.sim.communications import Message
-
-from vultron.bt.base.bt import Blackboard
+from vultron.bt.base.bt import Blackboard as Blackboard
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.messaging.states import MessageTypes as MT
 from vultron.bt.report_management.report_priority_states import (
@@ -33,6 +30,7 @@ from vultron.bt.report_management.report_priority_states import (
 )
 from vultron.bt.report_management.states import RM
 from vultron.bt.roles.states import CVDRoles
+from vultron.case_states.states import CS
 
 
 class CapabilityFlag(Flag):
@@ -63,9 +61,8 @@ class ActorState(Blackboard):
 
     msgs_emitted_this_tick: List[MT] = field(default_factory=list)
     msgs_received_this_tick: List[MT] = field(default_factory=list)
-
-    msg_history: List[Message] = field(default_factory=list)
-    current_message: Message = None
+    msg_history: List[MT] = field(default_factory=list)
+    current_message: MT = None
 
     priority: ReportPriority = ReportPriority.DEFER
     prioritization_count = 0

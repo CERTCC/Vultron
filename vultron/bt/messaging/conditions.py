@@ -50,7 +50,7 @@ def is_msg_type_factory(msg_t: MessageTypes) -> ConditionCheck:
 
         def func(self):
             msg = self.bb.current_message
-            return msg.type == self.msg_type
+            return msg.msg_type == self.msg_type
 
     return IsMsgType
 

@@ -28,6 +28,7 @@ from vultron.bt.embargo_management.conditions import (
     EMinStateActiveOrRevise,
     EMinStateNoneOrProposeOrRevise,
 )
+from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.fuzzer.report_to_others import (
     AllPartiesKnown,
     FindContact,
@@ -38,6 +39,7 @@ from vultron.bt.report_management.fuzzer.report_to_others import (
 )
 from vultron.bt.states import CapabilityFlag
 from vultron.case_states.states import CS
+from vultron.sim.messages import Message
 
 # from vultron.sim.communications import Message
 
@@ -171,17 +173,19 @@ class NewParticipantHandler(ActionNode):
         return self._func()
 
 
-# class ReportToNewParticipant(NewParticipantHandler):
-#     """Direct messages an initial report to a new participant in their inbox"""
-#
-#     def _func(self):
-#         # inject an RS message from us into their inbox
-#         report = Message(sender="", body="Initial report", type=MT.RS)
-#
-#         dm = self.bb.dm_func
-#         dm(message=report, recipient=self.bb.currently_notifying)
-#
-#         return True
+class ReportToNewParticipant(NewParticipantHandler):
+    """Direct messages an initial report to a new participant in their inbox"""
+
+    def _func(self):
+        # inject an RS message from us into their inbox
+        report = Message(
+            sender="", body="Initial report", msg_type=MessageTypes.RS
+        )
+
+        dm = self.bb.dm_func
+        dm(message=report, recipient=self.bb.currently_notifying)
+
+        return True
 
 
 class ConnectNewParticipantToCase(NewParticipantHandler):

@@ -67,9 +67,9 @@ class TestEmitMsg(unittest.TestCase):
         )
         for msg in messages:
             self.assertIsInstance(msg, Message)
-            self.assertEqual(em.msg_type, msg.type)
+            self.assertEqual(em.msg_type, msg.msg_type)
             self.assertIn(msg, em.bb.msg_history)
-            self.assertIn(msg.type, em.bb.msgs_emitted_this_tick)
+            self.assertIn(msg.msg_type, em.bb.msgs_emitted_this_tick)
             self.assertIn(msg, em.bb.incoming_messages)
 
     def test_tick(self):

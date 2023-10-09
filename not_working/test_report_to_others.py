@@ -224,7 +224,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(NodeStatus.SUCCESS, r)
         # check that dm got called
         self.assertIn(p, rcpt)
-        self.assertEqual(msg[0].type, MessageTypes.RS)
+        self.assertEqual(msg[0].msg_type, MessageTypes.RS)
 
     def test_connect_new_participant_to_case(self):
         node = rto.ConnectNewParticipantToCase()
