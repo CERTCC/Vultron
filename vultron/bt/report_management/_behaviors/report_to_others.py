@@ -20,9 +20,6 @@ created_at: 6/23/22 2:26 PM
 import logging
 import random
 
-from vultron.cvd_states.states import CS
-from vultron.sim.communications import Message
-
 from vultron.bt.base.bt_node import ActionNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode, SequenceNode
 from vultron.bt.base.decorators import Invert
@@ -31,7 +28,6 @@ from vultron.bt.embargo_management.conditions import (
     EMinStateActiveOrRevise,
     EMinStateNoneOrProposeOrRevise,
 )
-from vultron.bt.messaging.states import MessageTypes as MT
 from vultron.bt.report_management.fuzzer.report_to_others import (
     AllPartiesKnown,
     FindContact,
@@ -41,6 +37,9 @@ from vultron.bt.report_management.fuzzer.report_to_others import (
     RecipientEffortExceeded,
 )
 from vultron.bt.states import CapabilityFlag
+from vultron.case_states.states import CS
+
+# from vultron.sim.communications import Message
 
 logger = logging.getLogger(__name__)
 
@@ -172,17 +171,17 @@ class NewParticipantHandler(ActionNode):
         return self._func()
 
 
-class ReportToNewParticipant(NewParticipantHandler):
-    """Direct messages an initial report to a new participant in their inbox"""
-
-    def _func(self):
-        # inject an RS message from us into their inbox
-        report = Message(sender="", body="Initial report", type=MT.RS)
-
-        dm = self.bb.dm_func
-        dm(message=report, recipient=self.bb.currently_notifying)
-
-        return True
+# class ReportToNewParticipant(NewParticipantHandler):
+#     """Direct messages an initial report to a new participant in their inbox"""
+#
+#     def _func(self):
+#         # inject an RS message from us into their inbox
+#         report = Message(sender="", body="Initial report", type=MT.RS)
+#
+#         dm = self.bb.dm_func
+#         dm(message=report, recipient=self.bb.currently_notifying)
+#
+#         return True
 
 
 class ConnectNewParticipantToCase(NewParticipantHandler):
