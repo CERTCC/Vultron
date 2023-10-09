@@ -12,31 +12,25 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
+from dataclasses import dataclass
 
 from vultron.bt.base.blackboard import Blackboard
 
 
 class TestBlackBoard(unittest.TestCase):
-    def test_bb_has_dict_semantics(self):
-        bb = Blackboard()
 
-        self.assertTrue(hasattr(bb, "__getitem__"))
-        self.assertTrue(hasattr(bb, "__setitem__"))
-        self.assertTrue(hasattr(bb, "__delitem__"))
-        self.assertTrue(hasattr(bb, "__contains__"))
-        self.assertTrue(hasattr(bb, "get"))
+    def test_bb_has_dataclass_semantics(self):
 
-        self.assertNotIn("foo", bb)
-        self.assertEqual(None, bb.get("foo"))
+        # there really isn't anything to test since Blackboard doesn't have any
+        # defined fields.  But we can test that it has dataclass semantics
 
-        bb["foo"] = "bar"
+        @dataclass(kw_only=True)
+        class BB(Blackboard):
+            foo: str = "bar"
 
-        self.assertIn("foo", bb)
-        self.assertEqual("bar", bb["foo"])
-        self.assertEqual("bar", bb.get("foo"))
+        bb = BB()
+        self.assertEqual("bar", bb.foo)
 
-        del bb["foo"]
-        self.assertNotIn("foo", bb)
 
 
 if __name__ == "__main__":
