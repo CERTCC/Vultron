@@ -15,6 +15,7 @@
 
 import unittest
 from collections import deque
+from dataclasses import dataclass
 
 from vultron.bt.base.bt_node import ActionNode
 from vultron.bt.base.node_status import NodeStatus
@@ -28,6 +29,11 @@ from vultron.bt.messaging.inbound._behaviors.common import (
 class MockState:
     current_message = None
     incoming_messages = deque()
+
+
+@dataclass(kw_only=True)
+class MockMsg:
+    msg_type: str = "gloop"
 
 
 class MyTestCase(unittest.TestCase):
@@ -63,8 +69,7 @@ class MyTestCase(unittest.TestCase):
         pm = PopMessage()
         self.assertIsInstance(pm, ActionNode)
 
-        msg = "gloop"
-
+        msg = MockMsg()
         pm.bb = MockState()
         pm.bb.incoming_messages.append(msg)
         self.assertIsNone(pm.bb.current_message)
@@ -78,8 +83,12 @@ class MyTestCase(unittest.TestCase):
         # message is now current message
         self.assertEqual(msg, pm.bb.current_message)
 
+    def test_pop_message_fifo(self):
+        pm = PopMessage()
+        pm.bb = MockState()
+
         # test FIFO
-        messages = "abcdefg".split()
+        messages = [MockMsg(msg_type=x) for x in "abcdefg"]
         pm.bb.incoming_messages.extend(messages)
         for msg in messages:
             pm.bb.current_message = None
@@ -111,7 +120,9 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(NodeStatus.SUCCESS, r)
             self.assertIsNone(pm.bb.current_message)
         self.assertEqual(
-            len(pm.bb.incoming_messages), len(messages), pm.bb.incoming_messages
+            len(pm.bb.incoming_messages),
+            len(messages),
+            pm.bb.incoming_messages,
         )
 
         # push message puts it back on the queue for next time
@@ -120,7 +131,9 @@ class MyTestCase(unittest.TestCase):
             m = pm.bb.incoming_messages.popleft()
             self.assertEqual(msg, m)
 
-        self.assertEqual(len(pm.bb.incoming_messages), 0, pm.bb.incoming_messages)
+        self.assertEqual(
+            len(pm.bb.incoming_messages), 0, pm.bb.incoming_messages
+        )
 
     def test_unset_current_msg(self):
         us = UnsetCurrentMsg()
