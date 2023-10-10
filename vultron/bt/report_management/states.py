@@ -18,7 +18,7 @@ created_at: 4/7/22 11:23 AM
 
 
 import logging
-from enum import Enum, auto
+from enum import Enum
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +36,13 @@ class RM(Enum):
     CLOSED: Report has been closed
     """
 
-    REPORT_MANAGEMENT_START = auto()
-    REPORT_MANAGEMENT_RECEIVED = auto()
-    REPORT_MANAGEMENT_INVALID = auto()
-    REPORT_MANAGEMENT_VALID = auto()
-    REPORT_MANAGEMENT_DEFERRED = auto()
-    REPORT_MANAGEMENT_ACCEPTED = auto()
-    REPORT_MANAGEMENT_CLOSED = auto()
+    REPORT_MANAGEMENT_START = "START"
+    REPORT_MANAGEMENT_RECEIVED = "RECEIVED"
+    REPORT_MANAGEMENT_INVALID = "INVALID"
+    REPORT_MANAGEMENT_VALID = "VALID"
+    REPORT_MANAGEMENT_DEFERRED = "DEFERRED"
+    REPORT_MANAGEMENT_ACCEPTED = "ACCEPTED"
+    REPORT_MANAGEMENT_CLOSED = "CLOSED"
 
     # convenience aliases
     START = REPORT_MANAGEMENT_START

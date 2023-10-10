@@ -17,7 +17,7 @@ created_at: 4/7/22 11:22 AM
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from enum import Enum, auto
+from enum import Enum
 
 
 class EM(Enum):
@@ -30,11 +30,11 @@ class EM(Enum):
     EXITED: Embargo had been active but has been exited
     """
 
-    EMBARGO_MANAGEMENT_NONE = auto()
-    EMBARGO_MANAGEMENT_PROPOSED = auto()
-    EMBARGO_MANAGEMENT_ACTIVE = auto()
-    EMBARGO_MANAGEMENT_REVISE = auto()
-    EMBARGO_MANAGEMENT_EXITED = auto()
+    EMBARGO_MANAGEMENT_NONE = "NONE"
+    EMBARGO_MANAGEMENT_PROPOSED = "PROPOSED"
+    EMBARGO_MANAGEMENT_ACTIVE = "ACTIVE"
+    EMBARGO_MANAGEMENT_REVISE = "REVISE"
+    EMBARGO_MANAGEMENT_EXITED = "EXITED"
 
     # convenience aliases
     NO_EMBARGO = EMBARGO_MANAGEMENT_NONE

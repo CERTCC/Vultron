@@ -59,9 +59,15 @@ def main():
 
     df = pd.DataFrame(STATELOG)
     df.index += 1
+
+    shorten_names = lambda y: [x.value for x in y]
+
+    df.q_rm = df.q_rm.apply(lambda x: x.value)
+    df.q_em = df.q_em.apply(lambda x: x.value)
+    df.msgs_received_this_tick = df.msgs_received_this_tick.apply(shorten_names)
+    df.msgs_emitted_this_tick = df.msgs_emitted_this_tick.apply(shorten_names)
+
     print(df)
-    # for i, row in enumerate(STATELOG, start=1):
-    #     print(i, row)
 
 
 if __name__ == "__main__":

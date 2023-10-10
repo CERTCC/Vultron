@@ -18,7 +18,6 @@ created_at: 6/23/22 2:26 PM
 
 
 import logging
-import random
 
 from vultron.bt.base.bt_node import ActionNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode, SequenceNode
@@ -31,7 +30,7 @@ from vultron.bt.embargo_management.conditions import (
 from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.fuzzer.report_to_others import (
     AllPartiesKnown,
-    FindContact,
+    ChooseRecipient, FindContact,
     HaveReportToOthersCapability,
     NotificationsComplete,
     PolicyCompatible,
@@ -224,18 +223,6 @@ class NotifyRecipient(SequenceNode):
 
 class PruneOrNotifyRecipient(FallbackNode):
     _children = (PruneRecipients, NotifyRecipient)
-
-
-class ChooseRecipient(ActionNode):
-    def func(self):
-        if not self.bb.case.potential_participants:
-            logger.debug("Potential Participants is empty")
-            return False
-
-        # return True on success
-        next_recipient = random.choice(self.bb.case.potential_participants)
-        self.bb.currently_notifying = next_recipient
-        return True
 
 
 class SelectAndProcessRecipient(SequenceNode):

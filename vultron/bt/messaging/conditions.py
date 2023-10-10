@@ -49,8 +49,8 @@ def is_msg_type_factory(msg_t: MessageTypes) -> ConditionCheck:
             self.name = f"{self.name_pfx}_IsMsgType_{self.msg_type}{self.name_sfx}"
 
         def func(self):
-            msg = self.bb.current_message
-            return msg.msg_type == self.msg_type
+            msg_type = self.bb.current_message.msg_type
+            return msg_type == self.msg_type
 
     return IsMsgType
 

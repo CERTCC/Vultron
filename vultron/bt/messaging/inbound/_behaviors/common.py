@@ -41,12 +41,10 @@ class PopMessage(vultron.bt.base.bt_node.ActionNode):
         if not self.bb.incoming_messages:
             return vultron.bt.base.node_status.NodeStatus.FAILURE
 
-        msg_q = self.bb.incoming_messages
         # take one down
-        next_msg = msg_q.popleft()
         # pass it around
-        self.bb.current_message = next_msg
-        logger.debug(f"**{indent}<-- Recv {next_msg}")
+        self.bb.current_message = self.bb.incoming_messages.popleft()
+        logger.debug(f"**{indent}<-- Recv {self.bb.current_message.msg_type}")
         return vultron.bt.base.node_status.NodeStatus.SUCCESS
 
 
@@ -54,15 +52,12 @@ class PushMessage(vultron.bt.base.bt_node.ActionNode):
     """Push the current message back onto the blackboard's incoming message queue."""
 
     def _tick(self, depth=0):
-        msg_to_push = self.bb.current_message
-
         # if there's no message, we're done
-        if msg_to_push is not None:
+        if self.bb.current_message is not None:
             # there is a message, so see if we can
             # put it back on the queue to be handled next
-            msg_q = self.bb.incoming_messages
             try:
-                msg_q.appendleft(msg_to_push)
+                self.bb.incoming_messages.appendleft(self.bb.current_message)
                 self.bb.current_message = None
             except IndexError as e:
                 logger.warning(f"Caught error: {e}")
@@ -75,9 +70,9 @@ class LogMsg(vultron.bt.base.bt_node.ActionNode):
     """Log the current message."""
 
     def _tick(self, depth=0):
-        current_msg = self.bb.current_message
-        if current_msg is not None:
-            self.bb.msgs_received_this_tick.append(current_msg)
+        if self.bb.current_message is not None:
+            msg_type = self.bb.current_message.msg_type
+            self.bb.msgs_received_this_tick.append(msg_type)
         return vultron.bt.base.node_status.NodeStatus.SUCCESS
 
 
