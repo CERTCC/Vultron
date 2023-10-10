@@ -23,6 +23,7 @@ import pandas as pd
 from vultron.bt.behaviors import CvdProtocolBt, STATELOG
 from vultron.bt.messaging.behaviors import incoming_message
 from vultron.bt.messaging.inbound.fuzzer import generate_inbound_message
+from vultron.bt.roles.states import CVDRoles
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,8 @@ def main():
 
     tick = 0
     with CvdProtocolBt() as tree:
+        tree.bb.CVD_role = CVDRoles.FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+
         for tick in range(1000):
             tick += 1
             logger.debug("")
