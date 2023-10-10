@@ -44,7 +44,6 @@ class CapabilityFlag(Flag):
 @dataclass
 class ActorState(Blackboard):
     CVD_role: CVDRoles = CVDRoles.NO_ROLE
-    discovery_capability: bool = True
     others: Dict = field(default_factory=dict)
 
     q_rm: RM = RM.START
