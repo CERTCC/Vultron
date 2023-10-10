@@ -26,6 +26,7 @@ from vultron.sim.participants import (
 )
 
 import vultron.bt.report_management._behaviors.report_to_others as rto
+import vultron.bt.report_management.fuzzer.report_to_others
 from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.messaging.states import MessageTypes
@@ -126,7 +127,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIs(node.bb.currently_notifying, p)
 
     def test_add_vendor(self):
-        node = rto.InjectVendor()
+        node = vultron.bt.report_management.fuzzer.report_to_others.InjectVendor()
         node.bb = MockState()
         node.setup()
 
@@ -140,7 +141,7 @@ class MyTestCase(unittest.TestCase):
             self.assertIsInstance(p, Vendor)
 
     def test_add_coordinator(self):
-        node = rto.InjectCoordinator()
+        node = vultron.bt.report_management.fuzzer.report_to_others.InjectCoordinator()
         node.bb = MockState()
         node.setup()
 
@@ -154,7 +155,7 @@ class MyTestCase(unittest.TestCase):
             self.assertIsInstance(p, Coordinator)
 
     def test_add_other(self):
-        node = rto.InjectOther()
+        node = vultron.bt.report_management.fuzzer.report_to_others.InjectOther()
         node.bb = MockState()
         node.setup()
 

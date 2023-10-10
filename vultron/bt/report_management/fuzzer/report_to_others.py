@@ -20,6 +20,7 @@ This module provides fuzzer leaf nodes in support of the process of notifying ot
 
 
 from vultron.bt.base import fuzzer as btz
+from vultron.bt.base.fuzzer import AlmostAlwaysFail, AlwaysSucceed, UsuallyFail
 
 
 class AllPartiesKnown(btz.UniformSucceedFail):
@@ -152,3 +153,31 @@ class HaveReportToOthersCapability(btz.UsuallySucceed):
     This node represents the ability to report to others. In a real implementation, it would be replaced
     with a capability check.
     """
+
+
+class InjectParticipant(AlwaysSucceed):
+    pass
+
+
+class MoreVendors(UsuallyFail):
+    pass
+
+
+class MoreCoordinators(AlmostAlwaysFail):
+    pass
+
+
+class MoreOthers(AlmostAlwaysFail):
+    pass
+
+
+class InjectVendor(InjectParticipant):
+    participant_type = "Vendor"
+
+
+class InjectCoordinator(InjectParticipant):
+    participant_type = "Coordinator"
+
+
+class InjectOther(InjectParticipant):
+    participant_type = "Participant"

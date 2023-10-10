@@ -22,7 +22,6 @@ import logging
 from vultron.bt.base.bt_node import ActionNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode, SequenceNode
 from vultron.bt.base.decorators import Invert
-from vultron.bt.base.fuzzer import AlmostAlwaysFail, UsuallyFail
 from vultron.bt.embargo_management.conditions import (
     EMinStateActiveOrRevise,
     EMinStateNoneOrProposeOrRevise,
@@ -32,7 +31,7 @@ from vultron.bt.report_management.fuzzer.report_to_others import (
     AllPartiesKnown,
     ChooseRecipient, FindContact,
     HaveReportToOthersCapability,
-    NotificationsComplete,
+    InjectCoordinator, InjectOther, InjectVendor, MoreCoordinators, MoreOthers, MoreVendors, NotificationsComplete,
     PolicyCompatible,
     RcptNotInQrmS,
     RecipientEffortExceeded,
@@ -52,49 +51,10 @@ class ReportingEffortAvailable(ConditionCheck):
         return self.bb.reporting_effort_budget > 0
 
 
-# FIXED TotalEffortLimit starts at some value, Returns SUCCESS when 0?
 class TotalEffortLimitMet(Invert):
     """Succeeds when reporting effort budget is empty"""
 
     _children = (ReportingEffortAvailable,)
-
-
-class InjectParticipant(ActionNode):
-    participant_type = "Participant"
-
-    def func(self):
-        p_class = self.bb.participant_types[self.participant_type]
-        p = p_class()
-        self.bb.case.potential_participants.append(p)
-        return True
-
-
-# todo move to fuzzers
-class MoreVendors(UsuallyFail):
-    pass
-
-
-# todo move to fuzzers
-class MoreCoordinators(AlmostAlwaysFail):
-    pass
-
-
-# todo move to fuzzers
-class MoreOthers(AlmostAlwaysFail):
-    pass
-
-
-class InjectVendor(InjectParticipant):
-    participant_type = "Vendor"
-
-
-class InjectCoordinator(InjectParticipant):
-    participant_type = "Coordinator"
-
-
-class InjectOther(InjectParticipant):
-    participant_type = "Participant"
-
 
 class IdentifyVendors(SequenceNode):
     _children = (MoreVendors, InjectVendor)
@@ -108,7 +68,6 @@ class IdentifyOthers(SequenceNode):
     _children = (MoreOthers, InjectOther)
 
 
-# FIXED Identify* should add participants to a "to notify" list
 class IdentifyPotentialCaseParticipants(SequenceNode):
     _children = (IdentifyVendors, IdentifyCoordinators, IdentifyOthers)
 
