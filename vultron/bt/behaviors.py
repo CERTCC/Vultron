@@ -48,10 +48,10 @@ class Snapshot(ActionNode):
         global STATELOG
 
         attributes = [
+            "msgs_received_this_tick",
             "q_rm",
             "q_em",
             "q_cs",
-            "msgs_received_this_tick",
             "msgs_emitted_this_tick",
             "CVD_role",
         ]

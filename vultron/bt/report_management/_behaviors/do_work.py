@@ -57,12 +57,12 @@ class RMDoWorkBt(FallbackNode):
     # todo: revisit this list of potential work items
     # _children = potential_work
     _children = (
-        # Deployment,
-        # DevelopFix,
+        Deployment,
+        DevelopFix,
         MaybeReportToOthers,
-        # MonitorThreats,
-        # Publication,
-        # AssignVulID,
-        # AcquireExploit,
-        # OtherWork,
+        MonitorThreats,
+        Publication,
+        AssignVulID,
+        AcquireExploit,
+        OtherWork,
     )

@@ -33,7 +33,6 @@ pd.set_option("display.width", 1000)
 
 
 def main():
-
     tick = 0
     with CvdProtocolBt() as tree:
         tree.bb.CVD_role = CVDRoles.FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
@@ -63,13 +62,16 @@ def main():
     df = pd.DataFrame(STATELOG)
     df.index += 1
 
-    shorten_names = lambda y: [x.value for x in y]
+    shorten_names = lambda y: tuple([x.value for x in y])
 
     df.q_rm = df.q_rm.apply(lambda x: x.value)
     df.q_em = df.q_em.apply(lambda x: x.value)
-    df.msgs_received_this_tick = df.msgs_received_this_tick.apply(shorten_names)
+    df.msgs_received_this_tick = df.msgs_received_this_tick.apply(
+        shorten_names
+    )
     df.msgs_emitted_this_tick = df.msgs_emitted_this_tick.apply(shorten_names)
 
+    df = df.drop_duplicates()
     print(df)
 
 
