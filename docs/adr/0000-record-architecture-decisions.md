@@ -1,7 +1,9 @@
+---
+status: accepted
+date: 2023-10-18
+deciders: adh
+---
 # Record architecture decisions
-
-* Status: accepted
-* Date: 2023-10-18
 
 ## Context
 
