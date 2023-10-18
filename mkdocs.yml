@@ -228,3 +228,5 @@ extra_javascript:
   - javascripts/tablesort.js
 extra_css:
   - stylesheets/extra.css
+exclude_docs: |
+  /adr/
