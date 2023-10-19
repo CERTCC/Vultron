@@ -19,55 +19,71 @@ This module defines CVD Case State conditions as Behavior Tree nodes.
 from vultron.bt.base.bt_node import ConditionCheck
 from vultron.bt.base.composites import SequenceNode
 from vultron.bt.base.decorators import Invert
-from vultron.case_states.states import CS
+from vultron.case_states.states import (
+    AttackObservation,
+    ExploitPublication,
+    FixDeployment,
+    FixReadiness,
+    PublicAwareness,
+    VendorAwareness,
+)
 
 
 class CSinStateVendorAware(ConditionCheck):
     """Condition check for whether the vendor is aware of the vulnerability"""
 
     def func(self):
-        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
-        return self.bb.q_cs & CS.V
+        return (
+            self.bb.q_cs.value.vfd_state.value.vendor_awareness
+            == VendorAwareness.V
+        )
 
 
 class CSinStateFixReady(ConditionCheck):
     """Condition check for whether the vendor has a fix ready"""
 
     def func(self):
-        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
-        return self.bb.q_cs & CS.F
+        return (
+            self.bb.q_cs.value.vfd_state.value.fix_readiness == FixReadiness.F
+        )
 
 
 class CSinStateFixDeployed(ConditionCheck):
     """Condition check for whether a fix has been deployed"""
 
     def func(self):
-        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
-        return self.bb.q_cs & CS.D
+        return (
+            self.bb.q_cs.value.vfd_state.value.fix_deployment == FixDeployment.D
+        )
 
 
 class CSinStatePublicAware(ConditionCheck):
     """Condition check for whether the public is aware of the vulnerability"""
 
     def func(self):
-        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
-        return self.bb.q_cs & CS.P
+        return (
+            self.bb.q_cs.value.pxa_state.value.public_awareness == PublicAwareness.P
+        )
 
 
 class CSinStateExploitPublic(ConditionCheck):
     """Condition check for whether an exploit is public for the vulnerability"""
 
     def func(self):
-        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
-        return self.bb.q_cs & CS.X
+        return (
+            self.bb.q_cs.value.pxa_state.value.exploit_publication
+            == ExploitPublication.X
+        )
 
 
 class CSinStateAttacksObserved(ConditionCheck):
     """Condition check for whether attacks against the vulnerability have been observed"""
 
     def func(self):
-        # TODO this doesn't if q_cs is using CS_vfdpxa or enum-oriented CS
-        return self.bb.q_cs & CS.A
+        return (
+            self.bb.q_cs.value.pxa_state.value.attack_observation
+            == AttackObservation.A
+        )
 
 
 class CSinStatePublicAwareAndExploitPublic(SequenceNode):
@@ -190,5 +206,3 @@ q_cs_not_in_pxa = CSinStatePublicAwareOrExploitPublicOrAttacksObserved
 q_cs_in_dpxa = CSinStateNotDeployedNotPublicNoExploitNoAttacks
 q_cs_in_dP = CSinStateNotDeployedButPublicAware
 q_cs_in_VFd = CSinStateVendorAwareFixReadyFixNotDeployed
-
-

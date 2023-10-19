@@ -49,7 +49,7 @@ class MyTestCase(unittest.TestCase):
             vfd_str = state_string[:3]
             pxa_str = state_string[3:]
 
-            cs = getattr(s.CS_vfdpxa, state_string)
+            cs = getattr(s.CS, state_string)
             self.assertEqual(state_string, cs.name)
 
             vfd = getattr(s.CS_vfd, vfd_str)

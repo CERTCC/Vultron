@@ -64,7 +64,16 @@ class BtNode:
         self.status = None
         self.bb = None
 
+        self._setup_complete=False
+
         self.add_children()
+
+    def __enter__(self):
+        self.setup()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
     def setup(self) -> None:
         """Sets up the node and its children.
@@ -76,6 +85,8 @@ class BtNode:
             self.bb = self.parent.bb
         for child in self.children:
             child.setup()
+
+        self._setup_complete = True
 
     def add_child(self, child: "BtNode") -> "BtNode":
         """Adds a child to the node.
@@ -137,10 +148,11 @@ class BtNode:
         if self.name is not None:
             logger.debug(_indent(depth) + f"{self._pfx} {self.name}")
 
-        self._pre_tick(depth=depth)
-        status = self._tick(depth)
-        self.status = status
-        self._post_tick(depth=depth)
+        with self:
+            self._pre_tick(depth=depth)
+            status = self._tick(depth)
+            self.status = status
+            self._post_tick(depth=depth)
 
         if self.name is not None:
             logger.debug(_indent(depth + 1) + f"= {self.status}")
