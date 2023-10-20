@@ -18,7 +18,6 @@ import unittest
 from itertools import product
 
 from vultron.bt import common as c
-from vultron.bt.base.bt_node import ActionNode
 from vultron.bt.base.composites import FallbackNode
 from vultron.bt.base.node_status import NodeStatus
 
@@ -122,30 +121,6 @@ class MyTestCase(unittest.TestCase):
                     # node fails, transition disallowed, state does not change
                     self.assertEqual(NodeStatus.FAILURE, result)
                     self.assertEqual(i, getattr(bb, key))
-
-    def test_make_flag_state_change(self):
-        bb = MockState()
-
-        for key, start_state, end_state in product("abcdefghij", range(16), range(16)):
-            xclass = c.make_flag_state_change(key, end_state)
-            self.assertTrue(callable(xclass))
-
-            x = xclass()
-            self.assertTrue(isinstance(x, ActionNode))
-            self.assertIn(key, x.name)
-            self.assertIn(str(end_state), x.name)
-
-            x.bb = bb
-
-            setattr(bb, key, start_state)
-            histkey = f"{key}_history"
-            setattr(bb, histkey, [])
-
-            new_state = start_state | end_state
-            result = x.tick()
-            self.assertEqual(NodeStatus.SUCCESS, result)
-            self.assertEqual(new_state, getattr(bb, key))
-            self.assertIn(new_state, getattr(bb, histkey))
 
 
 if __name__ == "__main__":

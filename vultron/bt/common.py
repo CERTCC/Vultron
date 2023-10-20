@@ -92,7 +92,9 @@ def make_check_state(_key: str, _state) -> StateIn:
     return CheckState
 
 
-def make_state_change(key: str, transition: EnumStateTransition) -> FallbackNode:
+def make_state_change(
+    key: str, transition: EnumStateTransition
+) -> FallbackNode:
     """Factory method that returns a FallbackNode object that returns SUCCESS when the blackboard[key]
     starts in one of start_states and changes to end_state, and FAILURE otherwise
     """
@@ -103,7 +105,10 @@ def make_state_change(key: str, transition: EnumStateTransition) -> FallbackNode
 
     class StartStateChecks(FallbackNode):
         """Check that the current {key} is in one of {(s.name for s in start_states)}"""
-        _children = tuple([make_check_state(key, state) for state in start_states])
+
+        _children = tuple(
+            [make_check_state(key, state) for state in start_states]
+        )
 
     to_end_state = to_end_state_factory(key, end_state)
 
@@ -127,41 +132,3 @@ def make_state_change(key: str, transition: EnumStateTransition) -> FallbackNode
             self.name = f"{self.__class__.__name__}_{key}_to_{end_state}"
 
     return StateChange
-
-
-def make_flag_state_change(key: str, end_state) -> ActionNode:
-    """Factory method that returns an ActionNode class that updates key to include end_state.
-    Assumes that blackboard[key] is a bit flag enumeration
-    """
-
-    class FlagStateChange(ActionNode):
-        """Transition to {end_state}"""
-        name_pfx = "+"
-
-        def __init__(self):
-            super().__init__()
-            self.name = f"{self.__class__.__name__}_{key}_to_{end_state}"
-
-        def _tick(self, depth=0):
-            indent = "  " * (depth)
-            before = getattr(self.bb, key)
-
-            try:
-                after = before | end_state
-            except TypeError as e:
-                logger.warning(f"Incomparable enums: {e}")
-                return NodeStatus.FAILURE
-
-            # if you got here, alles gute!
-            setattr(self.bb, key, after)
-
-            histkey = f"{key}_history"
-            history = list(getattr(self.bb, histkey))
-            history.append(after)
-            setattr(self.bb, histkey, history)
-
-            logger.debug(f"++{indent}{before} -> {after}")
-
-            return NodeStatus.SUCCESS
-
-    return FlagStateChange

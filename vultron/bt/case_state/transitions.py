@@ -22,13 +22,6 @@ from vultron.bt.case_state.conditions import (
 )
 from vultron.case_states.states import CS
 
-# # TODO adapt this for the new CS Enum based state machine
-# # wrap the make_flag_state_change function to make it easier
-# # to create transitions for the q_cs state
-# make_cs_state_change = partial(make_flag_state_change, key="q_cs")
-
-# create the transitions
-
 
 class _CsStateChange(ActionNode):
     """
