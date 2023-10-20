@@ -124,17 +124,8 @@ nav:
       - VFDPXa: 'reference/case_states/state__v__f__d__p__x_a.md'
       - VFDPXA: 'reference/case_states/state__v__f__d__p__x__a_.md'
     - Code:
-        - Vultron: 'reference/code/index.md'
-        - Case States: 'reference/code/case_states.md'
-        - Behavior Trees:
-          - Tree Basics: 'reference/code/bt/bt_base.md'
-          - Node Basics: 'reference/code/bt/bt_base_nodes.md'
-          - Pacman Demo: 'reference/code/bt/pacman_demo.md'
-          - Robot Demo: 'reference/code/bt/robot_demo.md'
-          - VultronBT: 'reference/code/bt/behavior_trees.md'
-          - Case State Behaviors: 'reference/code/bt/case_states.md'
-          - Vultrabot Demo: 'reference/code/bt/vultrabot_demo.md'
-
+        - vultron: 'reference/code/index.md'
+        - case_states: 'reference/code/case_states.md'
     - ISO Crosswalk:
       - Introduction: 'reference/iso_crosswalk.md'
       - ISO 30111: 'reference/iso_30111_2019.md'
@@ -239,4 +230,3 @@ extra_css:
   - stylesheets/extra.css
 exclude_docs: |
   /adr/
-  
