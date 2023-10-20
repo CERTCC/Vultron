@@ -132,6 +132,8 @@ nav:
           - Pacman Demo: 'reference/code/bt/pacman_demo.md'
           - Robot Demo: 'reference/code/bt/robot_demo.md'
           - VultronBT: 'reference/code/bt/behavior_trees.md'
+          - Case State Behaviors: 'reference/code/bt/case_states.md'
+          - Vultrabot Demo: 'reference/code/bt/vultrabot_demo.md'
 
     - ISO Crosswalk:
       - Introduction: 'reference/iso_crosswalk.md'

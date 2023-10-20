@@ -32,7 +32,37 @@ pd.set_option("display.max_columns", 500)
 pd.set_option("display.width", 1000)
 
 
-def main():
+def main() -> None:
+    """
+    Instantiates a CvdProtocolBt object and runs it until either it closes or 1000 ticks have passed.
+    This demo is basically simulating a CVD agent coordinating a CVD case with itself.
+    The agent's role is set to FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR, which means it will
+    perform all the roles in the CVD case.
+    Messages emitted in one tick might be received later in the same tick, or in a future tick.
+
+    !!! tip
+
+       This demo leverages the ability to use leaf nodes as stochastic process fuzzers.
+       Using this feature, we can simulate the behavior of a CVD agent without having to
+       implement any actual communication mechanisms or simulate any complex real-world processes.
+
+       One interesting effect of this design is that the places where the demo uses a fuzzer node are often
+       indicative of places where an actual bot would either need to call out to either a data source or
+       a human to decide what to do next. This is a good example of how the Vultron behavior tree
+       can be used to model complex reactive processes in a way that is still easy to understand and reason about.
+
+    !!! note
+
+        There is no underlying communication mechanism in this demo, so messages are not actually
+        sent anywhere. Instead, they are just added to the blackboard's incoming message queue.
+        They also have no content, and are only represented as message types.
+
+    !!! warning
+
+        This demo is not intended to be a fully realistic simulation of a CVD case. It is only intended
+        to demonstrate the behavior of the Vultron behavior tree.
+    """
+
     tick = 0
     with CvdProtocolBt() as tree:
         tree.bb.CVD_role = CVDRoles.FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
@@ -66,10 +96,14 @@ def main():
 
     df.q_rm = df.q_rm.apply(lambda x: x.value)
     df.q_em = df.q_em.apply(lambda x: x.value)
+
     df.msgs_received_this_tick = df.msgs_received_this_tick.apply(
         shorten_names
     )
     df.msgs_emitted_this_tick = df.msgs_emitted_this_tick.apply(shorten_names)
+
+    df.CVD_role = df.CVD_role.apply(lambda x: x.name)
+    df.q_cs = df.q_cs.apply(lambda x: x.name)
 
     df = df.drop_duplicates()
     print(df)
