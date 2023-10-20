@@ -1,0 +1,20 @@
+                     msgs_received_this_tick      q_rm      q_em    q_cs                    msgs_emitted_this_tick                                     CVD_role
+1                                         ()     START      NONE  vfdpxa                                        ()  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+2   (RS, RS, CV, CV, RK, CV, RK, CK, CK, CK)     START      NONE  vfdpxa  (RS, CV, CV, RK, CV, RK, CK, CK, CK, RV)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+3                                   (RV, RK)     VALID      NONE  Vfdpxa                              (RK, RA, EP)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+4                           (RA, EP, RK, EK)  ACCEPTED  PROPOSED  Vfdpxa                              (RK, EK, ER)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+5                                   (ER, EK)  ACCEPTED      NONE  Vfdpxa                                  (EK, EP)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+6                                   (EP, EK)  ACCEPTED  PROPOSED  Vfdpxa                                  (EK, EA)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+7                                   (EA, EK)  ACCEPTED    ACTIVE  Vfdpxa                                  (EK, EV)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+8                                   (EV, EK)  ACCEPTED    REVISE  Vfdpxa                                  (EK, EA)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+9                                   (EA, EK)  ACCEPTED    ACTIVE  Vfdpxa                                     (EK,)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+10                          (CA, ET, CK, EK)  ACCEPTED    ACTIVE  Vfdpxa                              (ET, CK, EK)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+11                                        ()  ACCEPTED    EXITED  VfdpxA                                        ()  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+12                                  (CP, CK)  ACCEPTED    EXITED  VfdpxA                                     (CK,)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+13                                        ()  ACCEPTED    EXITED  VfdPxA                                     (CF,)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+14                                  (CF, CK)  ACCEPTED    EXITED  VFdPxA                                     (CK,)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+15                                        ()  ACCEPTED    EXITED  VFdPxA                                        ()  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+18                                        ()  ACCEPTED    EXITED  VFdPxA                                     (CD,)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+19                                  (CD, CK)  ACCEPTED    EXITED  VFDPxA                                  (CK, RD)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+20                          (RD, CA, RK, CK)  DEFERRED    EXITED  VFDPxA                              (RK, CK, RC)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
+21                          (RD, CA, RK, CK)    CLOSED    EXITED  VFDPxA                              (RK, CK, RC)  FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
