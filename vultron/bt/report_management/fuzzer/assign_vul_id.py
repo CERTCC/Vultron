@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: assign_identity
-author: adh
-created_at: 2/21/23 2:15 PM
+"""
+Provides fuzzer leaf nodes for the report management workflow.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

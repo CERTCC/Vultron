@@ -74,7 +74,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(NodeStatus.SUCCESS, r)
 
     def test_reporting_effort_available(self):
-        node = rto.ReportingEffortAvailable()
+        node = rto._ReportingEffortAvailable()
         node.bb = MockState()
         node.setup()
 
@@ -90,7 +90,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(NodeStatus.SUCCESS, r)
 
     def test_total_effort_limit_met(self):
-        node = rto.TotalEffortLimitMet()
+        node = rto._TotalEffortLimitMet()
         node.bb = MockState()
         node.setup()
 
@@ -127,7 +127,9 @@ class MyTestCase(unittest.TestCase):
         self.assertIs(node.bb.currently_notifying, p)
 
     def test_add_vendor(self):
-        node = vultron.bt.report_management.fuzzer.report_to_others.InjectVendor()
+        node = (
+            vultron.bt.report_management.fuzzer.report_to_others.InjectVendor()
+        )
         node.bb = MockState()
         node.setup()
 
@@ -141,7 +143,9 @@ class MyTestCase(unittest.TestCase):
             self.assertIsInstance(p, Vendor)
 
     def test_add_coordinator(self):
-        node = vultron.bt.report_management.fuzzer.report_to_others.InjectCoordinator()
+        node = (
+            vultron.bt.report_management.fuzzer.report_to_others.InjectCoordinator()
+        )
         node.bb = MockState()
         node.setup()
 
@@ -155,7 +159,9 @@ class MyTestCase(unittest.TestCase):
             self.assertIsInstance(p, Coordinator)
 
     def test_add_other(self):
-        node = vultron.bt.report_management.fuzzer.report_to_others.InjectOther()
+        node = (
+            vultron.bt.report_management.fuzzer.report_to_others.InjectOther()
+        )
         node.bb = MockState()
         node.setup()
 
@@ -169,7 +175,7 @@ class MyTestCase(unittest.TestCase):
             self.assertIsInstance(p, Participant)
 
     def test_remove_recipient(self):
-        node = rto.RemoveRecipient()
+        node = rto._RemoveRecipient()
         node.bb = MockState()
         node.setup()
 
@@ -198,7 +204,7 @@ class MyTestCase(unittest.TestCase):
         self.assertNotIn(p, node.bb.case.potential_participants)
 
     def test_report_to_new_participant(self):
-        node = rto.ReportToNewParticipant()
+        node = rto._ReportToNewParticipant()
         node.bb = MockState()
         node.setup()
 
@@ -228,7 +234,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(msg[0].msg_type, MessageTypes.RS)
 
     def test_connect_new_participant_to_case(self):
-        node = rto.ConnectNewParticipantToCase()
+        node = rto._ConnectNewParticipantToCase()
         node.bb = MockState()
         node.setup()
 
@@ -258,7 +264,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIn(p, participants)
 
     def test_bring_new_participant_up_to_speed(self):
-        node = rto.BringNewParticipantUpToSpeed()
+        node = rto._BringNewParticipantUpToSpeed()
         node.bb = MockState()
         node.setup()
 

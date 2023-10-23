@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: do_work
-author: adh
-created_at: 6/23/22 2:20 PM
+"""
+Provides Vultron work behaviors.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

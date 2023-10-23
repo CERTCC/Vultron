@@ -36,78 +36,78 @@ class RMinState(StateIn):
 
 
 class RMinStateStart(RMinState):
-    """Check if the report management state is in the START state."""
+    """SUCCESS when the report management state is in the START state. FAILURE otherwise."""
 
     state = RM.START
 
 
 class RMinStateClosed(RMinState):
-    """Check if the report management state is in the CLOSED state."""
+    """SUCCESS when the report management state is in the CLOSED state. FAILURE otherwise."""
 
     state = RM.CLOSED
 
 
 class RMinStateReceived(RMinState):
-    """Check if the report management state is in the RECEIVED state."""
+    """SUCCESS when the report management state is in the RECEIVED state. FAILURE otherwise."""
 
     state = RM.RECEIVED
 
 
 class RMinStateInvalid(RMinState):
-    """Check if the report management state is in the INVALID state."""
+    """SUCCESS when the report management state is in the INVALID state. FAILURE otherwise."""
 
     state = RM.INVALID
 
 
 class RMinStateValid(RMinState):
-    """Check if the report management state is in the VALID state."""
+    """SUCCESS when the report management state is in the VALID state. FAILURE otherwise."""
 
     state = RM.VALID
 
 
 class RMinStateDeferred(RMinState):
-    """Check if the report management state is in the DEFERRED state."""
+    """SUCCESS when the report management state is in the DEFERRED state. FAILURE otherwise."""
 
     state = RM.DEFERRED
 
 
 class RMinStateAccepted(RMinState):
-    """Check if the report management state is in the ACCEPTED state."""
+    """SUCCESS when the report management state is in the ACCEPTED state. FAILURE otherwise."""
 
     state = RM.ACCEPTED
 
 
 class RMnotInStateStart(Invert):
-    """Check if the report management state is not in the START state."""
+    """SUCCESS when the report management state is not in the START state. FAILURE otherwise."""
 
     _children = (RMinStateStart,)
 
 
 class RMnotInStateClosed(Invert):
-    """Check if the report management state is not in the CLOSED state."""
+    """SUCCESS when the report management state is not in the CLOSED state. FAILURE otherwise."""
 
     _children = (RMinStateClosed,)
 
 
 class RMinStateDeferredOrAccepted(FallbackNode):
-    """Check if the report management state is in the DEFERRED or ACCEPTED state."""
+    """SUCCESS when the report management state is in the DEFERRED or ACCEPTED state. FAILURE otherwise."""
 
     _children = (RMinStateDeferred, RMinStateAccepted)
 
 
 class RMinStateReceivedOrInvalid(FallbackNode):
-    """Check if the report management state is in the RECEIVED or INVALID state."""
+    """SUCCESS when the report management state is in the RECEIVED or INVALID state. FAILURE otherwise."""
 
     _children = (RMinStateReceived, RMinStateInvalid)
 
 
 class RMinStateStartOrClosed(FallbackNode):
-    """Check if the report management state is in the START or CLOSED state."""
+    """SUCCESS when the report management state is in the START or CLOSED state. FAILURE otherwise."""
 
     _children = (RMinStateStart, RMinStateClosed)
 
 
 class RMinStateValidOrDeferredOrAccepted(FallbackNode):
-    """Check if the report management state is in the VALID, DEFERRED, or ACCEPTED state."""
+    """SUCCESS when the report management state is in the VALID, DEFERRED, or ACCEPTED state. FAILURE otherwise."""
 
     _children = (RMinStateValid, RMinStateDeferred, RMinStateAccepted)

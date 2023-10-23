@@ -1,9 +1,6 @@
 #!/usr/bin/env python
-"""file: q_rm_C
-author: adh
-created_at: 6/23/22 1:33 PM
-
-This file contains the bt tree for the report management close report bt.
+"""
+Provides Vultron Report Closure Behaviors
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -34,7 +31,7 @@ from vultron.bt.report_management.fuzzer.close_report import (
 from vultron.bt.report_management.transitions import q_rm_to_C
 
 
-class DeployedDeferredOrInvalid(FallbackNode):
+class _DeployedDeferredOrInvalid(FallbackNode):
     """This node returns success when the case is in a state that allows the report to be closed.
     Possible success criteria:
     1. The case is in the FIX_DEPLOYED state.
@@ -47,23 +44,23 @@ class DeployedDeferredOrInvalid(FallbackNode):
     _children = (CSinStateFixDeployed, RMinStateDeferred, RMinStateInvalid)
 
 
-class CloseCriteriaMet(SequenceNode):
+class _CloseCriteriaMet(SequenceNode):
     """This node checks if the report is ready to be closed.
     Steps:
     1. Check whether the case is in a state that allows the report to be closed.
     2. Check whether any other closure criteria are met.
     """
 
-    _children = (DeployedDeferredOrInvalid, OtherCloseCriteriaMet)
+    _children = (_DeployedDeferredOrInvalid, OtherCloseCriteriaMet)
 
 
-class CloseAndNotify(SequenceNode):
+class _CloseAndNotify(SequenceNode):
     """This node updates the report management state to CLOSED and emits a report closed message."""
 
     _children = (q_rm_to_C, EmitRC)
 
 
-class ReportClosureSequence(SequenceNode):
+class _ReportClosureSequence(SequenceNode):
     """This sequence handles the closing of a report.
     Steps:
     1. Check if the report is ready to be closed.
@@ -73,7 +70,7 @@ class ReportClosureSequence(SequenceNode):
     If any of these steps fail, the report is not closed.
     """
 
-    _children = (CloseCriteriaMet, PreCloseAction, CloseAndNotify)
+    _children = (_CloseCriteriaMet, PreCloseAction, _CloseAndNotify)
 
 
 class RMCloseBt(FallbackNode):
@@ -85,4 +82,4 @@ class RMCloseBt(FallbackNode):
     If both of these steps fail, the report is not closed.
     """
 
-    _children = (RMinStateClosed, ReportClosureSequence)
+    _children = (RMinStateClosed, _ReportClosureSequence)

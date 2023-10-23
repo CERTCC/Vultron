@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: assign_vul_id
-author: adh
-created_at: 6/23/22 2:39 PM
+"""
+Provides Vulnerability ID assignment behaviors.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -28,7 +27,7 @@ from vultron.bt.report_management.fuzzer.assign_vul_id import (
 )
 
 
-class AssignIdIfPossible(SequenceNode):
+class _AssignIdIfPossible(SequenceNode):
     """This node attempts to assign an ID to the vulnerability if possible.
     Steps:
     1. Check whether we are an ID assignment authority
@@ -41,7 +40,7 @@ class AssignIdIfPossible(SequenceNode):
     _children = (IsIDAssignmentAuthority, IdAssignable, AssignId)
 
 
-class AssignOrRequestId(FallbackNode):
+class _AssignOrRequestId(FallbackNode):
     """This node attempts to assign an ID to the vulnerability or request an ID from the ID assignment authority.
     Steps:
     1. Attempt to assign an ID to the vulnerability
@@ -50,10 +49,10 @@ class AssignOrRequestId(FallbackNode):
     If both of these steps fail, the vulnerability is not assigned an ID.
     """
 
-    _children = (AssignIdIfPossible, RequestId)
+    _children = (_AssignIdIfPossible, RequestId)
 
 
-class AssignIdIfInScope(SequenceNode):
+class _AssignIdIfInScope(SequenceNode):
     """This node attempts to assign a vulnerability ID to the vulnerability if it is in scope.
     Steps:
     1. Check whether the vulnerability is in scope for ID assignment
@@ -62,7 +61,7 @@ class AssignIdIfInScope(SequenceNode):
     If any of these steps fail, the vulnerability is not assigned an ID.
     """
 
-    _children = (InScope, AssignOrRequestId)
+    _children = (InScope, _AssignOrRequestId)
 
 
 class AssignVulID(FallbackNode):
@@ -74,4 +73,4 @@ class AssignVulID(FallbackNode):
     If all of these steps fail, the vulnerability is not assigned an ID.
     """
 
-    _children = (IdAssigned, AssignIdIfInScope)
+    _children = (IdAssigned, _AssignIdIfInScope)

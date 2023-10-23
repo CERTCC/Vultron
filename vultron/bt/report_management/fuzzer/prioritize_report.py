@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-"""file: prioritization_fuzzer
-author: adh
-created_at: 2/21/23 1:58 PM
-
+"""
 This module provides a fuzzer for the report/case prioritization process.
 It contains stub implementations of prioritization nodes and conditions.
 """

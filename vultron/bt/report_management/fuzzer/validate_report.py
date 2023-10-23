@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-"""file: validation_fuzzer
-author: adh
-created_at: 2/21/23 1:56 PM
-
+"""
 This is a fuzzer for the validation process.
 It provides stub implementations of the validation conditions and actions.
 """

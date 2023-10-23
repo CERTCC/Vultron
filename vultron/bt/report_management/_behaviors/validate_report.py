@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: validate_report
-author: adh
-created_at: 6/23/22 3:25 PM
+"""
+Provides report validation behaviors for Vultron.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -34,41 +33,41 @@ from vultron.bt.report_management.fuzzer.validate_report import (
 from vultron.bt.report_management.transitions import q_rm_to_I, q_rm_to_V
 
 
-class GetMoreValidationInfo(SequenceNode):
+class _GetMoreValidationInfo(SequenceNode):
     _children = (GatherValidationInfo, NoNewValidationInfo)
 
 
-class EnsureAdequateValidationInfo(FallbackNode):
-    _children = (EnoughValidationInfo, GetMoreValidationInfo)
+class _EnsureAdequateValidationInfo(FallbackNode):
+    _children = (EnoughValidationInfo, _GetMoreValidationInfo)
 
 
-class HandleRmI(SequenceNode):
-    _children = (RMinStateInvalid, EnsureAdequateValidationInfo)
+class _HandleRmI(SequenceNode):
+    _children = (RMinStateInvalid, _EnsureAdequateValidationInfo)
 
 
-class ValidateReport(SequenceNode):
+class _ValidateReport(SequenceNode):
     _children = (q_rm_to_V, EmitRV)
 
 
-class ValidationSequence(SequenceNode):
+class _ValidationSequence(SequenceNode):
     _children = (
         RMinStateReceivedOrInvalid,
         EvaluateReportCredibility,
         EvaluateReportValidity,
-        ValidateReport,
+        _ValidateReport,
     )
 
 
-class InvalidateReport(SequenceNode):
+class _InvalidateReport(SequenceNode):
     _children = (q_rm_to_I, EmitRI)
 
 
 class RMValidateBt(FallbackNode):
     _children = (
         RMinStateValid,
-        HandleRmI,
-        ValidationSequence,
-        InvalidateReport,
+        _HandleRmI,
+        _ValidationSequence,
+        _InvalidateReport,
     )
 
 

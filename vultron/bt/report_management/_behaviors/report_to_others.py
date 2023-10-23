@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: report_to_others
-author: adh
-created_at: 6/23/22 2:26 PM
+"""
+Provides report_to_others behavior tree nodes.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -29,9 +28,16 @@ from vultron.bt.embargo_management.conditions import (
 from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.fuzzer.report_to_others import (
     AllPartiesKnown,
-    ChooseRecipient, FindContact,
+    ChooseRecipient,
+    FindContact,
     HaveReportToOthersCapability,
-    InjectCoordinator, InjectOther, InjectVendor, MoreCoordinators, MoreOthers, MoreVendors, NotificationsComplete,
+    InjectCoordinator,
+    InjectOther,
+    InjectVendor,
+    MoreCoordinators,
+    MoreOthers,
+    MoreVendors,
+    NotificationsComplete,
     PolicyCompatible,
     RcptNotInQrmS,
     RecipientEffortExceeded,
@@ -44,46 +50,47 @@ from vultron.sim.messages import Message
 logger = logging.getLogger(__name__)
 
 
-class ReportingEffortAvailable(ConditionCheck):
+class _ReportingEffortAvailable(ConditionCheck):
     """Succeeds when reporting effort budget remains"""
 
     def func(self):
         return self.bb.reporting_effort_budget > 0
 
 
-class TotalEffortLimitMet(Invert):
+class _TotalEffortLimitMet(Invert):
     """Succeeds when reporting effort budget is empty"""
 
-    _children = (ReportingEffortAvailable,)
+    _children = (_ReportingEffortAvailable,)
 
-class IdentifyVendors(SequenceNode):
+
+class _IdentifyVendors(SequenceNode):
     _children = (MoreVendors, InjectVendor)
 
 
-class IdentifyCoordinators(SequenceNode):
+class _IdentifyCoordinators(SequenceNode):
     _children = (MoreCoordinators, InjectCoordinator)
 
 
-class IdentifyOthers(SequenceNode):
+class _IdentifyOthers(SequenceNode):
     _children = (MoreOthers, InjectOther)
 
 
-class IdentifyPotentialCaseParticipants(SequenceNode):
-    _children = (IdentifyVendors, IdentifyCoordinators, IdentifyOthers)
+class _IdentifyPotentialCaseParticipants(SequenceNode):
+    _children = (_IdentifyVendors, _IdentifyCoordinators, _IdentifyOthers)
 
 
 # TODO AllPartiesKnown should be a simulated annealing where p rises with tick count
 #  thereby forcing notification to happen toward the outset of a case
 #  but for now we'll just leave it as a dumb fuzzer
-class IdentifyParticipants(FallbackNode):
-    _children = (AllPartiesKnown, IdentifyPotentialCaseParticipants)
+class _IdentifyParticipants(FallbackNode):
+    _children = (AllPartiesKnown, _IdentifyPotentialCaseParticipants)
 
 
-class DecideWhetherToPruneRecipient(FallbackNode):
+class _DecideWhetherToPruneRecipient(FallbackNode):
     _children = (RcptNotInQrmS, RecipientEffortExceeded)
 
 
-class RemoveRecipient(ActionNode):
+class _RemoveRecipient(ActionNode):
     def func(self):
         current = self.bb.currently_notifying
         if current is None:
@@ -100,22 +107,22 @@ class RemoveRecipient(ActionNode):
         return True
 
 
-class PruneRecipients(SequenceNode):
-    _children = (DecideWhetherToPruneRecipient, RemoveRecipient)
+class _PruneRecipients(SequenceNode):
+    _children = (_DecideWhetherToPruneRecipient, _RemoveRecipient)
 
 
-class EnsureRcptPolicyCompatibleWithExistingEmbargo(SequenceNode):
+class _EnsureRcptPolicyCompatibleWithExistingEmbargo(SequenceNode):
     _children = (EMinStateActiveOrRevise, PolicyCompatible)
 
 
-class EnsureOkToNotify(FallbackNode):
+class _EnsureOkToNotify(FallbackNode):
     _children = (
         EMinStateNoneOrProposeOrRevise,
-        EnsureRcptPolicyCompatibleWithExistingEmbargo,
+        _EnsureRcptPolicyCompatibleWithExistingEmbargo,
     )
 
 
-class NewParticipantHandler(ActionNode):
+class _NewParticipantHandler(ActionNode):
     def func(self):
         if self.bb.currently_notifying is None:
             logger.warning(f"Node blackboard currently_notifying is not set.")
@@ -124,7 +131,7 @@ class NewParticipantHandler(ActionNode):
         return self._func()
 
 
-class ReportToNewParticipant(NewParticipantHandler):
+class _ReportToNewParticipant(_NewParticipantHandler):
     """Direct messages an initial report to a new participant in their inbox"""
 
     def _func(self):
@@ -139,7 +146,7 @@ class ReportToNewParticipant(NewParticipantHandler):
         return True
 
 
-class ConnectNewParticipantToCase(NewParticipantHandler):
+class _ConnectNewParticipantToCase(_NewParticipantHandler):
     """Wires up a new participant's inbox to the case"""
 
     def _func(self):
@@ -153,7 +160,7 @@ class ConnectNewParticipantToCase(NewParticipantHandler):
         return True
 
 
-class BringNewParticipantUpToSpeed(NewParticipantHandler):
+class _BringNewParticipantUpToSpeed(_NewParticipantHandler):
     """Sets a new participant's global state to match the current participant's global state"""
 
     def _func(self):
@@ -166,42 +173,42 @@ class BringNewParticipantUpToSpeed(NewParticipantHandler):
         return True
 
 
-class EngageParticipant(SequenceNode):
+class _EngageParticipant(SequenceNode):
     _children = (
-        ReportToNewParticipant,
-        ConnectNewParticipantToCase,
-        BringNewParticipantUpToSpeed,
+        _ReportToNewParticipant,
+        _ConnectNewParticipantToCase,
+        _BringNewParticipantUpToSpeed,
     )
 
 
 # FIXED Replace EmitRS with inject RS into new participant then add participant to case
 #  will also need to sync case pxa and embargo status with new participant
-class NotifyRecipient(SequenceNode):
-    _children = (EnsureOkToNotify, FindContact, EngageParticipant)
+class _NotifyRecipient(SequenceNode):
+    _children = (_EnsureOkToNotify, FindContact, _EngageParticipant)
 
 
-class PruneOrNotifyRecipient(FallbackNode):
-    _children = (PruneRecipients, NotifyRecipient)
+class _PruneOrNotifyRecipient(FallbackNode):
+    _children = (_PruneRecipients, _NotifyRecipient)
 
 
-class SelectAndProcessRecipient(SequenceNode):
-    _children = (ChooseRecipient, PruneOrNotifyRecipient)
+class _SelectAndProcessRecipient(SequenceNode):
+    _children = (ChooseRecipient, _PruneOrNotifyRecipient)
 
 
-class NotifyOthers(FallbackNode):
-    _children = (NotificationsComplete, SelectAndProcessRecipient)
+class _NotifyOthers(FallbackNode):
+    _children = (NotificationsComplete, _SelectAndProcessRecipient)
 
 
-class IdentifyAndNotifyParticipants(SequenceNode):
-    _children = (IdentifyParticipants, NotifyOthers)
+class _IdentifyAndNotifyParticipants(SequenceNode):
+    _children = (_IdentifyParticipants, _NotifyOthers)
 
 
-class ReportToOthers(FallbackNode):
-    _children = (TotalEffortLimitMet, IdentifyAndNotifyParticipants)
+class _ReportToOthers(FallbackNode):
+    _children = (_TotalEffortLimitMet, _IdentifyAndNotifyParticipants)
 
 
 class MaybeReportToOthers(SequenceNode):
-    _children = (HaveReportToOthersCapability, ReportToOthers)
+    _children = (HaveReportToOthersCapability, _ReportToOthers)
 
 
 def main():

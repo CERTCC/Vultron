@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: close_report
-author: adh
-created_at: 2/21/23 2:42 PM
+"""
+Provides fuzzer leaf nodes for the report management workflow.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

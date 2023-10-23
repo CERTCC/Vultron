@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: prioritize_report
-author: adh
-created_at: 6/23/22 3:17 PM
+"""
+Provides report prioritization behaviors.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -45,13 +44,13 @@ from ..fuzzer.prioritize_report import (
 )
 
 
-class PriorityNotDefer(ConditionCheck):
+class _PriorityNotDefer(ConditionCheck):
     def func(self):
         return self.bb.priority != ReportPriority.DEFER
 
 
 # todo: wire up SSVC lookup here
-class EvaluatePriority(ActionNode):
+class _EvaluatePriority(ActionNode):
     def _tick(self, depth=0):
         current_priority = self.bb.priority
         prioritization_count = self.bb.prioritization_count
@@ -69,48 +68,51 @@ class EvaluatePriority(ActionNode):
         return NodeStatus.SUCCESS
 
 
-class GetMorePrioritizationInfo(SequenceNode):
+class _GetMorePrioritizationInfo(SequenceNode):
     _children = (GatherPrioritizationInfo, NoNewPrioritizationInfo)
 
 
-class EnsureAdequatePrioritizationInfo(FallbackNode):
-    _children = (EnoughPrioritizationInfo, GetMorePrioritizationInfo)
+class _EnsureAdequatePrioritizationInfo(FallbackNode):
+    _children = (EnoughPrioritizationInfo, _GetMorePrioritizationInfo)
 
 
-class ConsiderGatheringMorePrioritizationInfo(SequenceNode):
-    _children = (RMinStateDeferredOrAccepted, EnsureAdequatePrioritizationInfo)
-
-
-class TransitionToRmAccepted(SequenceNode):
-    _children = (OnAccept, q_rm_to_A, EmitRA)
-
-
-class EnsureRmAccepted(FallbackNode):
-    _children = (RMinStateAccepted, TransitionToRmAccepted)
-
-
-class DecideIfFurtherActionNeeded(SequenceNode):
+class _ConsiderGatheringMorePrioritizationInfo(SequenceNode):
     _children = (
-        RMinStateValidOrDeferredOrAccepted,
-        EvaluatePriority,
-        PriorityNotDefer,
-        EnsureRmAccepted,
+        RMinStateDeferredOrAccepted,
+        _EnsureAdequatePrioritizationInfo,
     )
 
 
-class TransitionToRmDeferred(SequenceNode):
+class _TransitionToRmAccepted(SequenceNode):
+    _children = (OnAccept, q_rm_to_A, EmitRA)
+
+
+class _EnsureRmAccepted(FallbackNode):
+    _children = (RMinStateAccepted, _TransitionToRmAccepted)
+
+
+class _DecideIfFurtherActionNeeded(SequenceNode):
+    _children = (
+        RMinStateValidOrDeferredOrAccepted,
+        _EvaluatePriority,
+        _PriorityNotDefer,
+        _EnsureRmAccepted,
+    )
+
+
+class _TransitionToRmDeferred(SequenceNode):
     _children = (OnDefer, q_rm_to_D, EmitRD)
 
 
-class EnsureRmDeferred(FallbackNode):
-    _children = (RMinStateDeferred, TransitionToRmDeferred)
+class _EnsureRmDeferred(FallbackNode):
+    _children = (RMinStateDeferred, _TransitionToRmDeferred)
 
 
 class RMPrioritizeBt(FallbackNode):
     _children = (
-        ConsiderGatheringMorePrioritizationInfo,
-        DecideIfFurtherActionNeeded,
-        EnsureRmDeferred,
+        _ConsiderGatheringMorePrioritizationInfo,
+        _DecideIfFurtherActionNeeded,
+        _EnsureRmDeferred,
     )
 
 

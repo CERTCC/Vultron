@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-"""file: errors
-author: adh
-created_at: 5/23/22 12:01 PM
+"""Provides Vultron Report Management Errors
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

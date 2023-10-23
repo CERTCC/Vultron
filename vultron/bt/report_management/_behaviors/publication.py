@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: publication
-author: adh
-created_at: 6/23/22 2:56 PM
+"""
+Provides publication behaviors.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -45,55 +44,55 @@ from vultron.bt.report_management.fuzzer.publication import (
 )
 
 
-class ReadyExploitForPublication(FallbackNode):
+class _ReadyExploitForPublication(FallbackNode):
     _children = (AcquireExploit, PrepareExploit)
 
 
-class EnsureExploitPublishedIfDesired(FallbackNode):
+class _EnsureExploitPublishedIfDesired(FallbackNode):
     _children = (
         NoPublishExploit,
         ExploitReady,
-        ReadyExploitForPublication,
+        _ReadyExploitForPublication,
         ReprioritizeExploit,
     )
 
 
-class ReadyFixForPublication(SequenceNode):
+class _ReadyFixForPublication(SequenceNode):
     _children = (DevelopFix, PrepareFix)
 
 
-class EnsureFixIsDevelopedIfDesired(FallbackNode):
+class _EnsureFixIsDevelopedIfDesired(FallbackNode):
     _children = (
         NoPublishFix,
         CSinStateVendorAwareAndFixReady,
-        ReadyFixForPublication,
+        _ReadyFixForPublication,
         ReprioritizeFix,
     )
 
 
-class EnsureReportIsPublishedIfDesired(FallbackNode):
+class _EnsureReportIsPublishedIfDesired(FallbackNode):
     _children = (NoPublishReport, PrepareReport, ReprioritizeReport)
 
 
-class PreparePublication(SequenceNode):
+class _PreparePublication(SequenceNode):
     _children = (
-        EnsureExploitPublishedIfDesired,
-        EnsureFixIsDevelopedIfDesired,
-        EnsureReportIsPublishedIfDesired,
+        _EnsureExploitPublishedIfDesired,
+        _EnsureFixIsDevelopedIfDesired,
+        _EnsureReportIsPublishedIfDesired,
     )
 
 
-class EnsurePublicationPriorityIsSet(FallbackNode):
+class _EnsurePublicationPriorityIsSet(FallbackNode):
     _children = (PublicationIntentsSet, PrioritizePublicationIntents)
 
 
-class EnsureAllDesiredItemsArePublished(SequenceNode):
-    _children = (EnsurePublicationPriorityIsSet, AllPublished)
+class _EnsureAllDesiredItemsArePublished(SequenceNode):
+    _children = (_EnsurePublicationPriorityIsSet, AllPublished)
 
 
-class PublishWhenReady(SequenceNode):
+class _PublishWhenReady(SequenceNode):
     _children = (
-        PreparePublication,
+        _PreparePublication,
         EmbargoManagementBt,
         EMinStateNoneOrExited,
         Publish,
@@ -103,7 +102,7 @@ class PublishWhenReady(SequenceNode):
 
 
 class Publication(FallbackNode):
-    _children = (EnsureAllDesiredItemsArePublished, PublishWhenReady)
+    _children = (_EnsureAllDesiredItemsArePublished, _PublishWhenReady)
 
 
 def main():

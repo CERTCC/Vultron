@@ -82,6 +82,7 @@ def make_check_state(_key: str, _state) -> StateIn:
     """Factory method that returns a ConditionCheck object which returns SUCCESS if the node's blackboard[key] == state"""
 
     class CheckState(StateIn):
+        f"""ConditionCheck that returns SUCCESS if the node's blackboard[{_key}] == {_state}"""
         key = _key
         state = _state
 
@@ -104,7 +105,7 @@ def make_state_change(
     end_state = transition.end_state
 
     class StartStateChecks(FallbackNode):
-        """Check that the current {key} is in one of {(s.name for s in start_states)}"""
+        f"""SUCCESS when the current {key} is in one of {(s.name for s in start_states)}. FAILURE otherwise."""
 
         _children = tuple(
             [make_check_state(key, state) for state in start_states]

@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: deployment
-author: adh
-created_at: 6/23/22 2:29 PM
+"""
+Provides fix deployment behaviors.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -46,7 +45,7 @@ from vultron.bt.report_management.transitions import (
 from vultron.bt.roles.conditions import RoleIsDeployer, RoleIsVendor
 
 
-class ShouldStayInRmDeferred(SequenceNode):
+class _ShouldStayInRmDeferred(SequenceNode):
     """This node represents the process of deciding whether to stay in the RMDeferred state.
     It starts with a check that the report is in the DEFERRED state.
     Then it checks if there is new deployment information.
@@ -56,7 +55,7 @@ class ShouldStayInRmDeferred(SequenceNode):
     _children = (RMinStateDeferred, NoNewDeploymentInfo)
 
 
-class DecideToAcceptDeploymentTasking(SequenceNode):
+class _DecideToAcceptDeploymentTasking(SequenceNode):
     """This node represents the process of deciding whether to accept a deployment tasking.
     Steps:
     1. Determine the priority of the deployment tasking.
@@ -69,7 +68,7 @@ class DecideToAcceptDeploymentTasking(SequenceNode):
     _children = (PrioritizeDeployment, q_rm_to_A, EmitRA)
 
 
-class DeferDeploymentTasking(SequenceNode):
+class _DeferDeploymentTasking(SequenceNode):
     """This node represents the process of deferring a deployment tasking.
     Steps:
     1. Transition to the DEFERRED state (from the deplyer's perspective).
@@ -81,7 +80,7 @@ class DeferDeploymentTasking(SequenceNode):
     _children = (q_rm_to_D, EmitRD)
 
 
-class DecideWhetherToDeploy(FallbackNode):
+class _DecideWhetherToDeploy(FallbackNode):
     """This node represents the process of deciding whether to deploy a fix.
     If the deployment task has already been prioritized, then the deployer's RM state
     will be either ACCEPTED or DEFERRED state and there is no need to reevaluate the deployment priority.
@@ -92,12 +91,12 @@ class DecideWhetherToDeploy(FallbackNode):
     _children = (
         RMinStateDeferred,
         RMinStateAccepted,
-        DecideToAcceptDeploymentTasking,
-        DeferDeploymentTasking,
+        _DecideToAcceptDeploymentTasking,
+        _DeferDeploymentTasking,
     )
 
 
-class DecideAbilityToDeploy(FallbackNode):
+class _DecideAbilityToDeploy(FallbackNode):
     """This node represents the process of deciding whether the deployer is able to deploy a fix.
     There are two possible success conditions:
     1. The deployer is the vendor and can deploy a fix as soon as it is ready.
@@ -108,7 +107,7 @@ class DecideAbilityToDeploy(FallbackNode):
     _children = (RoleIsVendor, CSinStateNotDeployedButPublicAware)
 
 
-class DeployFixWhenReady(SequenceNode):
+class _DeployFixWhenReady(SequenceNode):
     """This node represents the process of deploying a fix.
     Steps:
     1. Determine whether the deployer is able to deploy a fix.
@@ -119,7 +118,7 @@ class DeployFixWhenReady(SequenceNode):
     """
 
     _children = (
-        DecideAbilityToDeploy,
+        _DecideAbilityToDeploy,
         CSinStateVendorAwareFixReadyFixNotDeployed,
         DeployFix,
         q_cs_to_D,
@@ -127,7 +126,7 @@ class DeployFixWhenReady(SequenceNode):
     )
 
 
-class DeployMitigationWhenReady(SequenceNode):
+class _DeployMitigationWhenReady(SequenceNode):
     """This node represents the process of deploying a mitigation.
     Note that a mitigation is not a fix and may not be a complete solution.
     However, it may be the best solution available at the time and may be deployed prior to a fix being available.
@@ -141,7 +140,7 @@ class DeployMitigationWhenReady(SequenceNode):
     _children = (MitigationAvailable, DeployMitigation)
 
 
-class Deploy(FallbackNode):
+class _Deploy(FallbackNode):
     """This node represents the process of deploying a fix or mitigation.
     The process short-circuits if the deployer has deferred the deployment tasking.
     It also short-circuits if the deployer has already deployed a fix.
@@ -153,23 +152,23 @@ class Deploy(FallbackNode):
     _children = (
         RMinStateDeferred,
         CSinStateFixDeployed,
-        DeployFixWhenReady,
+        _DeployFixWhenReady,
         MitigationDeployed,
-        DeployMitigationWhenReady,
+        _DeployMitigationWhenReady,
     )
 
 
-class DeployIfDesired(SequenceNode):
+class _DeployIfDesired(SequenceNode):
     """This node represents the process of deciding whether to deploy a fix or mitigation.
     It starts by confirming that the actor has the role of deployer.
     Then it checks whether the deployment tasking has been accepted.
     If the deployment tasking has been accepted, then the deployer will attempt to deploy a fix or mitigation.
     """
 
-    _children = (RoleIsDeployer, DecideWhetherToDeploy, Deploy)
+    _children = (RoleIsDeployer, _DecideWhetherToDeploy, _Deploy)
 
 
-class MonitorDeploymentIfDesired(SequenceNode):
+class _MonitorDeploymentIfDesired(SequenceNode):
     """This node represents the process of deciding whether to monitor a deployment and then monitoring it.
     It starts with a check that the deployment is supposed to be monitored.
     Then it performs the monitoring.
@@ -183,7 +182,7 @@ class Deployment(FallbackNode):
 
     _children = (
         CSinStateFixDeployed,
-        ShouldStayInRmDeferred,
-        DeployIfDesired,
-        MonitorDeploymentIfDesired,
+        _ShouldStayInRmDeferred,
+        _DeployIfDesired,
+        _MonitorDeploymentIfDesired,
     )

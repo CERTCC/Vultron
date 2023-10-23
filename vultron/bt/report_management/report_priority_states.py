@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: report_priority_states
-author: adh
-created_at: 6/24/22 12:36 PM
+"""
+Provides a report priority enumeration class to reflect basic defer/act priority
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

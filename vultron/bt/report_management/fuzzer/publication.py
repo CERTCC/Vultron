@@ -1,10 +1,6 @@
 #!/usr/bin/env python
-"""file: publishing
-author: adh
-created_at: 2/21/23 2:19 PM
-
+"""
 This module provides fuzzer leaf nodes in support of the process of publishing the vulnerability and its artifacts
-
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

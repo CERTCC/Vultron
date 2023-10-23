@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-"""file: notify_others
-author: adh
-created_at: 2/21/23 2:03 PM
-
+"""
 This module provides fuzzer leaf nodes in support of the process of notifying other parties of the report/case
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.

@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: develop_fix
-author: adh
-created_at: 6/23/22 2:33 PM
+"""
+Provides fix development behaviors
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -26,7 +25,7 @@ from vultron.bt.report_management.fuzzer.develop_fix import CreateFix
 from vultron.bt.roles.conditions import RoleIsNotVendor
 
 
-class CreateFixForAcceptedReports(SequenceNode):
+class _CreateFixForAcceptedReports(SequenceNode):
     """This node represents the process of creating a fix for a report that is in the ACCEPTED state.
     Steps:
     1. Check that the report is in the ACCEPTED state, implying that the vendor has prioritized the report for a fix.
@@ -50,5 +49,5 @@ class DevelopFix(FallbackNode):
     _children = (
         RoleIsNotVendor,
         CSinStateVendorAwareAndFixReady,
-        CreateFixForAcceptedReports,
+        _CreateFixForAcceptedReports,
     )
