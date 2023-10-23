@@ -21,7 +21,8 @@ import logging
 from vultron.bt.base.bt_node import ConditionCheck
 from vultron.bt.base.composites import FallbackNode
 from vultron.bt.base.decorators import Invert
-from .states import MessageTypes
+from vultron.bt.common import show_graph
+from vultron.bt.messaging.states import MessageTypes
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,8 @@ class NotGMMessage(Invert):
 
 
 def main():
-    pass
+    for cls in [IsRMMessage, IsEMMessage, IsCSMessage, IsGMMessage]:
+        show_graph(cls)
 
 
 if __name__ == "__main__":
