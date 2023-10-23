@@ -33,11 +33,27 @@ class MyTestCase(unittest.TestCase):
             node.tick()
 
 
-            if rm_state == node.state:
+            if rm_state == state:
                 # success when they agree
                 self.assertEqual(NodeStatus.SUCCESS, node.status)
             else:
                 # failure when they disagree
+                self.assertEqual(NodeStatus.FAILURE, node.status)
+
+    def _test_generic_rm_not_in_state(self,cls,state):
+        node = cls()
+        node.bb = ActorState()
+
+        for rm_state in RM:
+            node.bb.q_rm = rm_state
+
+            node.tick()
+
+            if rm_state != state:
+                # success when they disagree
+                self.assertEqual(NodeStatus.SUCCESS, node.status)
+            else:
+                # failure when they agree
                 self.assertEqual(NodeStatus.FAILURE, node.status)
 
     def test_rm_in_state_start(self):
@@ -61,8 +77,39 @@ class MyTestCase(unittest.TestCase):
     def test_rm_in_state_accepted(self):
         self._test_generic_rm_in_state(rmc.RMinStateAccepted, RM.ACCEPTED)
 
+    def test_rm_not_in_state_start(self):
+        self._test_generic_rm_not_in_state(rmc.RMnotInStateStart, RM.START)
 
+    def test_rm_not_in_state_closed(self):
+        self._test_generic_rm_not_in_state(rmc.RMnotInStateClosed, RM.CLOSED)
 
+    def _test_generic_multi_state_check(self,cls,states):
+        node = cls()
+        node.bb = ActorState()
+
+        for rm_state in RM:
+            node.bb.q_rm = rm_state
+
+            node.tick()
+
+            if rm_state in states:
+                # success when they agree
+                self.assertEqual(NodeStatus.SUCCESS, node.status)
+            else:
+                # failure when they disagree
+                self.assertEqual(NodeStatus.FAILURE, node.status)
+
+    def test_rm_in_state_deferred_or_accepted(self):
+        self._test_generic_multi_state_check(rmc.RMinStateDeferredOrAccepted, [RM.DEFERRED,RM.ACCEPTED])
+
+    def test_rm_in_state_received_or_invalid(self):
+        self._test_generic_multi_state_check(rmc.RMinStateReceivedOrInvalid, [RM.RECEIVED,RM.INVALID])
+
+    def test_rm_in_state_start_or_closed(self):
+        self._test_generic_multi_state_check(rmc.RMinStateStartOrClosed, [RM.START,RM.CLOSED])
+
+    def test_rm_in_state_valid_or_deferred_or_accepted(self):
+        self._test_generic_multi_state_check(rmc.RMinStateValidOrDeferredOrAccepted, [RM.VALID,RM.DEFERRED,RM.ACCEPTED])
 
 
 
