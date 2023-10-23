@@ -14,7 +14,6 @@
 This module defines a Behavior Tree object.
 """
 
-
 import logging
 
 from vultron.bt.base.blackboard import Blackboard
@@ -26,6 +25,7 @@ from vultron.bt.base.node_status import NodeStatus
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
 
 class BehaviorTree:
     """BehaviorTree is the base class for all bt trees.

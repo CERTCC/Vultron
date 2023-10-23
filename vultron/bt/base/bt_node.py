@@ -64,7 +64,7 @@ class BtNode:
         self.status = None
         self.bb = None
 
-        self._setup_complete=False
+        self._setup_complete = False
 
         self.add_children()
 
@@ -214,7 +214,7 @@ class BtNode:
             parts.append(child.to_str(depth + 1))
         return "".join(parts)
 
-    def to_mermaid(self, depth=0,topdown=True) -> str:
+    def to_mermaid(self, depth=0, topdown=True) -> str:
         """Returns a string representation of the tree rooted at this node in mermaid format."""
 
         import re

@@ -20,8 +20,6 @@ Their names are based in part on the [Words of Estimative Probability](https://e
 from Wikipedia and the [Probability Survey](https://hbr.org/2018/07/if-you-say-something-is-likely-how-likely-do-people-think-it-is)
 ([github](https://github.com/amauboussin/probability-survey)) by Mauboussin and Mauboussin.
 """
-
-
 import random
 
 from vultron.bt.base.bt_node import BtNode

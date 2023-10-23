@@ -14,7 +14,6 @@
 """
 This module defines a number of Behavior Tree Decorator Nodes.
 """
-
 import logging
 
 from vultron.bt.base.bt_node import BtNode

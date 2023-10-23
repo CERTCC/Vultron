@@ -14,7 +14,6 @@
 """
 This module defines error classes for the `vultron.bt.base` module
 """
-
 from vultron.errors import VultronError
 
 

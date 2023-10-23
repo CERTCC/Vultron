@@ -11,11 +11,9 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
 """
 This module defines a Behavior Tree Node Status object.
 """
-
 from enum import Enum
 
 
