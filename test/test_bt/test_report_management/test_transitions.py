@@ -16,14 +16,20 @@ import unittest
 import vultron.bt.report_management.transitions as rmt
 from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.report_management.states import RM
-from vultron.bt.states import ActorState
+
+
+class MockActorState:
+    def __init__(self):
+        self.q_rm = None
+        self.q_rm_history = []
 
 
 class MyTestCase(unittest.TestCase):
     def _test_generic_transition(self, cls, allowed, target):
         for rm_state in RM:
             node = cls()
-            node.bb = ActorState()
+
+            node.bb = MockActorState()
 
             node.bb.q_rm = rm_state
             self.assertEqual(rm_state, node.bb.q_rm)
