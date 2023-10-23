@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: behaviors
-author: adh
-created_at: 4/26/22 11:51 AM
+"""
+Provides Vultron messaging behaviors.
 """
 
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
@@ -16,20 +15,9 @@ created_at: 4/26/22 11:51 AM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
-
 import logging
 
-
 logger = logging.getLogger(__name__)
-
-
-def main():
-    pass
-
-
-if __name__ == "__main__":
-    main()
 
 
 def incoming_message(state, msg):

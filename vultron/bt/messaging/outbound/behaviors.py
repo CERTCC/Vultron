@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: behaviors
-author: adh
-created_at: 4/26/22 11:59 AM
+"""
+Provides outbound messaging behaviors for Vultron.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -21,6 +20,7 @@ import logging
 
 from vultron.bt.base.bt_node import ActionNode
 from vultron.bt.base.node_status import NodeStatus
+from vultron.bt.common import show_graph
 from vultron.bt.messaging.behaviors import incoming_message
 from vultron.bt.messaging.states import MessageTypes as MT
 from vultron.sim.messages import Message
@@ -28,7 +28,7 @@ from vultron.sim.messages import Message
 logger = logging.getLogger(__name__)
 
 
-class EmitMsg(ActionNode):
+class _EmitMsg(ActionNode):
     name_pfx = "!"
     msg_type = None
 
@@ -57,123 +57,124 @@ class EmitMsg(ActionNode):
         return NodeStatus.SUCCESS
 
 
-class EmitCV(EmitMsg):
+class EmitCV(_EmitMsg):
     msg_type = MT.CV
 
 
-class EmitCF(EmitMsg):
+class EmitCF(_EmitMsg):
     msg_type = MT.CF
 
 
-class EmitCD(EmitMsg):
+class EmitCD(_EmitMsg):
     msg_type = MT.CD
 
 
-class EmitCP(EmitMsg):
+class EmitCP(_EmitMsg):
     msg_type = MT.CP
 
 
-class EmitCX(EmitMsg):
+class EmitCX(_EmitMsg):
     msg_type = MT.CX
 
 
-class EmitCA(EmitMsg):
+class EmitCA(_EmitMsg):
     msg_type = MT.CA
 
 
-class EmitCE(EmitMsg):
+class EmitCE(_EmitMsg):
     msg_type = MT.CE
 
 
-class EmitCK(EmitMsg):
+class EmitCK(_EmitMsg):
     msg_type = MT.CK
 
 
-class EmitRS(EmitMsg):
+class EmitRS(_EmitMsg):
     msg_type = MT.RS
 
 
-class EmitRI(EmitMsg):
+class EmitRI(_EmitMsg):
     msg_type = MT.RI
 
 
-class EmitRV(EmitMsg):
+class EmitRV(_EmitMsg):
     msg_type = MT.RV
 
 
-class EmitRA(EmitMsg):
+class EmitRA(_EmitMsg):
     msg_type = MT.RA
 
 
-class EmitRD(EmitMsg):
+class EmitRD(_EmitMsg):
     msg_type = MT.RD
 
 
-class EmitRC(EmitMsg):
+class EmitRC(_EmitMsg):
     msg_type = MT.RC
 
 
-class EmitRE(EmitMsg):
+class EmitRE(_EmitMsg):
     msg_type = MT.RE
 
 
-class EmitRK(EmitMsg):
+class EmitRK(_EmitMsg):
     msg_type = MT.RK
 
 
-class EmitEP(EmitMsg):
+class EmitEP(_EmitMsg):
     msg_type = MT.EP
 
 
-class EmitER(EmitMsg):
+class EmitER(_EmitMsg):
     msg_type = MT.ER
 
 
-class EmitEA(EmitMsg):
+class EmitEA(_EmitMsg):
     msg_type = MT.EA
 
 
-class EmitEV(EmitMsg):
+class EmitEV(_EmitMsg):
     msg_type = MT.EV
 
 
-class EmitEJ(EmitMsg):
+class EmitEJ(_EmitMsg):
     msg_type = MT.EJ
 
 
-class EmitEC(EmitMsg):
+class EmitEC(_EmitMsg):
     msg_type = MT.EC
 
 
-class EmitET(EmitMsg):
+class EmitET(_EmitMsg):
     msg_type = MT.ET
 
 
-class EmitEK(EmitMsg):
+class EmitEK(_EmitMsg):
     msg_type = MT.EK
 
 
-class EmitEE(EmitMsg):
+class EmitEE(_EmitMsg):
     msg_type = MT.EE
 
 
-class EmitGI(EmitMsg):
+class EmitGI(_EmitMsg):
     msg_type = MT.GI
 
 
-class EmitGE(EmitMsg):
+class EmitGE(_EmitMsg):
     msg_type = MT.GE
 
 
-class EmitGK(EmitMsg):
+class EmitGK(_EmitMsg):
     msg_type = MT.GK
 
 
-Emitters = EmitMsg.__subclasses__()
+Emitters = _EmitMsg.__subclasses__()
 
 
 def main():
-    pass
+    for emitter in Emitters:
+        show_graph(emitter)
 
 
 if __name__ == "__main__":

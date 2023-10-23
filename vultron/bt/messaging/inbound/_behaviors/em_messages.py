@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: em_messages
-author: adh
-created_at: 6/27/22 2:44 PM
+"""
+Provides behaviors for handling embargo messages.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -22,6 +21,7 @@ from vultron.bt.case_state.conditions import (
     CSinStateNotPublicNoExploitNoAttacks,
     CSinStatePublicAwareOrExploitPublicOrAttacksObserved,
 )
+from vultron.bt.common import show_graph
 from vultron.bt.embargo_management.behaviors import TerminateEmbargoBt
 from vultron.bt.embargo_management.conditions import (
     EMinStateActive,
@@ -57,157 +57,157 @@ from vultron.bt.messaging.inbound._behaviors.fuzzer import (
 from vultron.bt.messaging.outbound.behaviors import EmitEE, EmitEK
 
 
-class HandleEe(SequenceNode):
+class _HandleEe(SequenceNode):
     """Handle embargo error (EE) messages."""
 
     _children = (IsMsgTypeEE, FollowUpOnErrorMessage)
 
 
-class RecognizeEmbargoExit(SequenceNode):
+class _RecognizeEmbargoExit(SequenceNode):
     """Recognize an embargo exit."""
 
     _children = (EMinStateActiveOrRevise, q_em_to_X)
 
 
-class EnsureEmbargoExited(FallbackNode):
+class _EnsureEmbargoExited(FallbackNode):
     """Ensure that the embargo is exited."""
 
-    _children = (EMinStateExited, RecognizeEmbargoExit)
+    _children = (EMinStateExited, _RecognizeEmbargoExit)
 
 
-class HandleEt(SequenceNode):
+class _HandleEt(SequenceNode):
     """Handle embargo termination (ET) messages."""
 
-    _children = (IsMsgTypeET, EnsureEmbargoExited)
+    _children = (IsMsgTypeET, _EnsureEmbargoExited)
 
 
-class RecognizeRejection(SequenceNode):
+class _RecognizeRejection(SequenceNode):
     """Recognize a rejected embargo proposal, retuning to the EM.None state."""
 
     _children = (EMinStateProposed, q_em_to_N)
 
 
-class EnsureRejectionRecognized(FallbackNode):
+class _EnsureRejectionRecognized(FallbackNode):
     """Ensure that the rejection is recognized and that the embargo is in the EM.None state."""
 
-    _children = (EMinStateNone, RecognizeRejection)
+    _children = (EMinStateNone, _RecognizeRejection)
 
 
-class HandleEr(SequenceNode):
+class _HandleEr(SequenceNode):
     """Handle embargo rejection (ER) messages."""
 
-    _children = (IsMsgTypeER, EnsureRejectionRecognized)
+    _children = (IsMsgTypeER, _EnsureRejectionRecognized)
 
 
-class RecognizeProposal(SequenceNode):
+class _RecognizeProposal(SequenceNode):
     """Recognize an embargo proposal, transitioning to the EM.Proposed state."""
 
     _children = (EMinStateNone, q_em_to_P)
 
 
-class EnsureProposalRecognized(FallbackNode):
+class _EnsureProposalRecognized(FallbackNode):
     """Ensure that the proposal is recognized and that the embargo is in the EM.Proposed state."""
 
-    _children = (EMinStateProposed, RecognizeProposal)
+    _children = (EMinStateProposed, _RecognizeProposal)
 
 
-class HandleEp(SequenceNode):
+class _HandleEp(SequenceNode):
     """Handle embargo proposal (EP) messages."""
 
-    _children = (IsMsgTypeEP, EnsureProposalRecognized)
+    _children = (IsMsgTypeEP, _EnsureProposalRecognized)
 
 
-class RecognizeActivation(SequenceNode):
+class _RecognizeActivation(SequenceNode):
     """Recognize an embargo activation, transitioning to the EM.Active state."""
 
     _children = (EMinStateProposed, q_em_to_A)
 
 
-class EnsureEmbargoActivated(FallbackNode):
+class _EnsureEmbargoActivated(FallbackNode):
     """Ensure that the embargo is activated and that the embargo is in the EM.Active state."""
 
-    _children = (EMinStateActive, RecognizeActivation)
+    _children = (EMinStateActive, _RecognizeActivation)
 
 
-class HandleEa(SequenceNode):
+class _HandleEa(SequenceNode):
     """Handle embargo activation (EA) messages."""
 
-    _children = (IsMsgTypeEA, EnsureEmbargoActivated)
+    _children = (IsMsgTypeEA, _EnsureEmbargoActivated)
 
 
-class RecognizeRevision(SequenceNode):
+class _RecognizeRevision(SequenceNode):
     """Recognize an embargo revision, transitioning to the EM.Revise state."""
 
     _children = (EMinStateActive, q_em_to_R)
 
 
-class EnsureEmbargoRevisionRecognized(FallbackNode):
+class _EnsureEmbargoRevisionRecognized(FallbackNode):
     """Ensure that the embargo is in the EM.Revise state."""
 
-    _children = (EMinStateRevise, RecognizeRevision)
+    _children = (EMinStateRevise, _RecognizeRevision)
 
 
-class HandleEv(SequenceNode):
+class _HandleEv(SequenceNode):
     """Handle embargo revision (EV) messages."""
 
-    _children = (IsMsgTypeEV, EnsureEmbargoRevisionRecognized)
+    _children = (IsMsgTypeEV, _EnsureEmbargoRevisionRecognized)
 
 
-class HandleEj(SequenceNode):
+class _HandleEj(SequenceNode):
     """Handle embargo revision rejection (EJ) messages."""
 
     _children = (IsMsgTypeEJ, q_em_R_to_A)
 
 
-class HandleEc(SequenceNode):
+class _HandleEc(SequenceNode):
     """Handle embargo revision acceptance (EC) messages."""
 
     _children = (IsMsgTypeEC, q_em_to_A)
 
 
-class SelectEjOrEcResponse(FallbackNode):
+class _SelectEjOrEcResponse(FallbackNode):
     """Select the appropriate response to an EJ or EC message."""
 
-    _children = (HandleEj, HandleEc)
+    _children = (_HandleEj, _HandleEc)
 
 
-class HandleEjOrEcMsg(SequenceNode):
+class _HandleEjOrEcMsg(SequenceNode):
     """Handle an EJ or EC message."""
 
-    _children = (EMinStateRevise, SelectEjOrEcResponse)
+    _children = (EMinStateRevise, _SelectEjOrEcResponse)
 
 
-class EnsureEmActive(FallbackNode):
+class _EnsureEmActive(FallbackNode):
     """Ensure that the embargo is in the EM.Active state."""
 
-    _children = (EMinStateActive, HandleEjOrEcMsg)
+    _children = (EMinStateActive, _HandleEjOrEcMsg)
 
 
-class CheckEjOrEcMsg(FallbackNode):
+class _CheckEjOrEcMsg(FallbackNode):
     """Check if the message is an EJ or EC message."""
 
     _children = (IsMsgTypeEJ, IsMsgTypeEC)
 
 
-class HandleRevisionResponse(SequenceNode):
+class _HandleRevisionResponse(SequenceNode):
     """Handle a revision response. Always returns to the EM.Active state."""
 
-    _children = (CheckEjOrEcMsg, EnsureEmActive)
+    _children = (_CheckEjOrEcMsg, _EnsureEmActive)
 
 
-class HandleMessagesInpxa(FallbackNode):
+class _HandleMessagesInpxa(FallbackNode):
     """Handle embargo messages when the case state is compatible with an embargo."""
 
-    _children = (HandleEp, HandleEa, HandleEv, HandleRevisionResponse)
+    _children = (_HandleEp, _HandleEa, _HandleEv, _HandleRevisionResponse)
 
 
-class HandleCSpxa(SequenceNode):
+class _HandleCSpxa(SequenceNode):
     """Check if the case state is compatible with an embargo then handle embargo messages."""
 
-    _children = (CSinStateNotPublicNoExploitNoAttacks, HandleMessagesInpxa)
+    _children = (CSinStateNotPublicNoExploitNoAttacks, _HandleMessagesInpxa)
 
 
-class AvoidNonViableEmbargo(SequenceNode):
+class _AvoidNonViableEmbargo(SequenceNode):
     """Avoid non-viable embargo states.
     If the case state is not compatible with an embargo, then the embargo is terminated.
     """
@@ -218,31 +218,39 @@ class AvoidNonViableEmbargo(SequenceNode):
     )
 
 
-class HandleAckable(FallbackNode):
+class _HandleAckable(FallbackNode):
     """Handle ackable messages."""
 
     _children = (
-        HandleEe,
-        HandleEt,
-        HandleEr,
-        HandleCSpxa,
-        AvoidNonViableEmbargo,
+        _HandleEe,
+        _HandleEt,
+        _HandleEr,
+        _HandleCSpxa,
+        _AvoidNonViableEmbargo,
     )
 
 
-class HandleAndAckEmMsg(SequenceNode):
+class _HandleAndAckEmMsg(SequenceNode):
     """Handle an EM message and acknowledge it."""
 
-    _children = (HandleAckable, EmitEK)
+    _children = (_HandleAckable, EmitEK)
 
 
-class HandleEmMessage(FallbackNode):
+class _HandleEmMessage(FallbackNode):
     """Handle an EM message. Emit an error (EE) message if there is an error."""
 
-    _children = (IsMsgTypeEK, HandleAndAckEmMsg, EmitEE)
+    _children = (IsMsgTypeEK, _HandleAndAckEmMsg, EmitEE)
 
 
 class ProcessEMMessagesBt(SequenceNode):
     """The bt tree for processing incoming EM messages."""
 
-    _children = (IsEMMessage, HandleEmMessage)
+    _children = (IsEMMessage, _HandleEmMessage)
+
+
+def main():
+    show_graph(ProcessEMMessagesBt)
+
+
+if __name__ == "__main__":
+    main()

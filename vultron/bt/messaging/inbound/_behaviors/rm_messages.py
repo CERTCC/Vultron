@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: rm_messages
-author: adh
-created_at: 6/27/22 1:48 PM
+"""
+Provides behaviors to handle inbound RM messages.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -20,6 +19,7 @@ created_at: 6/27/22 1:48 PM
 from vultron.bt.base.composites import FallbackNode, SequenceNode
 from vultron.bt.case_state.conditions import CSinStateVendorAware
 from vultron.bt.case_state.transitions import q_cs_to_V
+from vultron.bt.common import show_graph
 from vultron.bt.messaging.conditions import (
     IsMsgTypeRE,
     IsMsgTypeRK,
@@ -35,7 +35,7 @@ from vultron.bt.report_management.transitions import q_rm_to_R
 from vultron.bt.roles.conditions import RoleIsNotVendor
 
 
-class HandleRe(SequenceNode):
+class _HandleRe(SequenceNode):
     """This is a stub for handling an RE message.
     Steps:
     1. Check that the message is an RE message.
@@ -45,13 +45,13 @@ class HandleRe(SequenceNode):
     _children = (IsMsgTypeRE, FollowUpOnErrorMessage)
 
 
-class LeaveRmStart(FallbackNode):
+class _LeaveRmStart(FallbackNode):
     """Leave the RM start state by transitioning to the RECEIVED state."""
 
     _children = (RMnotInStateStart, q_rm_to_R)
 
 
-class SetVendorAware(SequenceNode):
+class _SetVendorAware(SequenceNode):
     """Set the case state to vendor aware.
     Steps:
     1. Check whether we're already in the VENDOR_AWARE state.
@@ -62,15 +62,15 @@ class SetVendorAware(SequenceNode):
     _children = (CSinStateVendorAware, q_cs_to_V, EmitCV)
 
 
-class RecognizeVendorNotifiedIfNecessary(FallbackNode):
+class _RecognizeVendorNotifiedIfNecessary(FallbackNode):
     """If we're a vendor, recognize that we've been notified.
     Short-circuits if we're not a vendor.
     """
 
-    _children = (RoleIsNotVendor, SetVendorAware)
+    _children = (RoleIsNotVendor, _SetVendorAware)
 
 
-class HandleRs(SequenceNode):
+class _HandleRs(SequenceNode):
     """Handle an RS message. The RS message type indicates an incoming report.
     Steps:
     1. Check the message type.
@@ -80,12 +80,12 @@ class HandleRs(SequenceNode):
 
     _children = (
         IsMsgTypeRS,
-        LeaveRmStart,
-        RecognizeVendorNotifiedIfNecessary,
+        _LeaveRmStart,
+        _RecognizeVendorNotifiedIfNecessary,
     )
 
 
-class ChooseRmMsgReaction(FallbackNode):
+class _ChooseRmMsgReaction(FallbackNode):
     """Choose the appropriate reaction to an RM message.
     In most cases the only reaction is to acknowledge the message, which is handled by this node's parent.
     Steps:
@@ -94,10 +94,10 @@ class ChooseRmMsgReaction(FallbackNode):
     3. If it's anything else, we just need to confirm that we're not in the start state.
     """
 
-    _children = (HandleRs, HandleRe, RMnotInStateStart)
+    _children = (_HandleRs, _HandleRe, RMnotInStateStart)
 
 
-class HandleAckableRmMessage(SequenceNode):
+class _HandleAckableRmMessage(SequenceNode):
     """Handle an RM message that expects an ACK.
     Steps:
     1. Handle the message.
@@ -106,10 +106,10 @@ class HandleAckableRmMessage(SequenceNode):
     If any fail, the node will fail.
     """
 
-    _children = (ChooseRmMsgReaction, EmitRK)
+    _children = (_ChooseRmMsgReaction, EmitRK)
 
 
-class HandleRmMessage(FallbackNode):
+class _HandleRmMessage(FallbackNode):
     """Handle an RM message.
     Steps:
     1. If it's an RK message, no need to do anything.
@@ -119,10 +119,18 @@ class HandleRmMessage(FallbackNode):
     If all fail, the node will fail.
     """
 
-    _children = (IsMsgTypeRK, HandleAckableRmMessage, EmitRE)
+    _children = (IsMsgTypeRK, _HandleAckableRmMessage, EmitRE)
 
 
 class ProcessRMMessagesBt(SequenceNode):
     """Behavior tree for processing RM messages."""
 
-    _children = (IsRMMessage, HandleRmMessage)
+    _children = (IsRMMessage, _HandleRmMessage)
+
+
+def main():
+    show_graph(ProcessRMMessagesBt)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: fuzzer
-author: adh
-created_at: 4/26/22 1:29 PM
+"""
+Provides fuzzer classes for inbound message handling
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

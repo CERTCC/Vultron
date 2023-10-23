@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""file: general_messages
-author: adh
-created_at: 6/27/22 1:26 PM
 """
+Provides behaviors to handle general messages.
+"""
+
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -18,53 +18,54 @@ created_at: 6/27/22 1:26 PM
 
 
 from vultron.bt.base.composites import FallbackNode, SequenceNode
-from vultron.bt.messaging.inbound._behaviors.fuzzer import (
-    FollowUpOnErrorMessage,
-)
-from ...conditions import (
+from vultron.bt.common import show_graph
+from vultron.bt.messaging.conditions import (
     IsGMMessage,
     IsMsgTypeGE,
     IsMsgTypeGI,
     IsMsgTypeGK,
 )
-from ...outbound.behaviors import EmitGK
+from vultron.bt.messaging.inbound._behaviors.fuzzer import (
+    FollowUpOnErrorMessage,
+)
+from vultron.bt.messaging.outbound.behaviors import EmitGK
 
 
 # GENERAL messages
 
 
-class HandleGeMessage(SequenceNode):
+class _HandleGeMessage(SequenceNode):
     """Handle general error (GE) messages."""
 
     _children = (IsMsgTypeGE, FollowUpOnErrorMessage)
 
 
-class HandleGmMessageTypes(FallbackNode):
+class _HandleGmMessageTypes(FallbackNode):
     """Handle GI messages."""
 
-    _children = (IsMsgTypeGI, HandleGeMessage)
+    _children = (IsMsgTypeGI, _HandleGeMessage)
 
 
-class HandleAckableGmMessages(SequenceNode):
+class _HandleAckableGmMessages(SequenceNode):
     """Handle ackable GI messages."""
 
-    _children = (HandleGmMessageTypes, EmitGK)
+    _children = (_HandleGmMessageTypes, EmitGK)
 
 
-class HandleGmMessage(FallbackNode):
+class _HandleGmMessage(FallbackNode):
     """Handle GM messages."""
 
-    _children = (IsMsgTypeGK, HandleAckableGmMessages)
+    _children = (IsMsgTypeGK, _HandleAckableGmMessages)
 
 
 class ProcessMessagesOtherBt(SequenceNode):
     """Process GI messages"""
 
-    _children = (IsGMMessage, HandleGmMessage)
+    _children = (IsGMMessage, _HandleGmMessage)
 
 
 def main():
-    pass
+    show_graph(ProcessMessagesOtherBt)
 
 
 if __name__ == "__main__":

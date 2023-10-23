@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List
 
+import networkx as nx
+
 from vultron.bt.base.bt_node import ActionNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode, SequenceNode
 from vultron.bt.base.node_status import NodeStatus
@@ -133,3 +135,7 @@ def make_state_change(
             self.name = f"{self.__class__.__name__}_{key}_to_{end_state}"
 
     return StateChange
+
+
+def show_graph(node_cls):
+    nx.write_network_text(node_cls().to_graph())

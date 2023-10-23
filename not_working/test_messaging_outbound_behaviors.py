@@ -19,7 +19,7 @@ from typing import Callable, List
 
 from vultron.sim.communications import Message
 
-from vultron.bt.messaging.outbound.behaviors import EmitMsg, Emitters
+from vultron.bt.messaging.outbound.behaviors import Emitters, _EmitMsg
 
 
 @dataclass
@@ -40,7 +40,7 @@ class TestEmitMsg(unittest.TestCase):
         pass
 
     def test_init(self):
-        em = EmitMsg()
+        em = _EmitMsg()
         self.assertIn(em.name_pfx, em.name)
         self.assertIn(em.__class__.__name__, em.name)
         self.assertIn(str(em.__class__.msg_type), em.name)
@@ -73,7 +73,7 @@ class TestEmitMsg(unittest.TestCase):
             self.assertIn(msg, em.bb.incoming_messages)
 
     def test_tick(self):
-        # Emitters is a list of all the subclasses of EmitMsg
+        # Emitters is a list of all the subclasses of _EmitMsg
         # that are created in vultron.bt.messaging.outbount.behaviors
         for emitter_cls in Emitters:
             self._test_emmitter(emitter_cls)

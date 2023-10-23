@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: message_type_conditions
-author: adh
-created_at: 4/26/22 10:24 AM
+"""
+Provides messaging conditions for use in Vultron BTs.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -42,11 +41,16 @@ def is_msg_type_factory(msg_t: MessageTypes) -> ConditionCheck:
     assert msg_t in MessageTypes
 
     class IsMsgType(ConditionCheck):
+        f"""
+        Returns SUCCESS if the current message type is {msg_t}.
+        """
         msg_type = msg_t
 
         def __init__(self):
             super().__init__()
-            self.name = f"{self.name_pfx}_IsMsgType_{self.msg_type}{self.name_sfx}"
+            self.name = (
+                f"{self.name_pfx}_IsMsgType_{self.msg_type}{self.name_sfx}"
+            )
 
         def func(self):
             msg_type = self.bb.current_message.msg_type
