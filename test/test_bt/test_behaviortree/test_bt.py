@@ -192,6 +192,57 @@ class MyTestCase(unittest.TestCase):
 
         self.assertEqual(depth, BtNode._objcount)
 
+    def test_bt_node_to_graph(self):
+        class G(BtNode):
+            pass
+
+        class F(BtNode):
+            _children = [
+                G,
+            ]
+
+        class E(BtNode):
+            pass
+
+        class D(BtNode):
+            pass
+
+        class C(BtNode):
+            _children = [E, F]
+
+        class B(BtNode):
+            pass
+
+        class A(BtNode):
+            _children = [B, C, D]
+
+        # +-- a
+        #     |-> b
+        #     |-> c
+        #     |   |-> e
+        #     |   L-> f
+        #     |       L-> g
+        #     L-> d
+
+        root = A()
+
+        graph = root.to_graph()
+
+        self.assertEqual(7, len(graph.nodes))
+        nodes = {n[0]: n for n in graph.nodes}
+
+        for ch in "ABCDEFG":
+            self.assertIn(ch, nodes)
+
+        self.assertEqual(6, len(graph.edges))
+
+        edges = ["AB", "AC", "AD", "CE", "CF", "FG"]
+        for edge in edges:
+            u = nodes[edge[0]]
+            v = nodes[edge[1]]
+
+            self.assertIn((u, v), graph.edges)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,8 @@ import logging
 from copy import deepcopy
 from typing import Union
 
+import networkx as nx
+
 from vultron.bt.base.errors import (
     ActionNodeError,
     ConditionCheckError,
@@ -213,6 +215,23 @@ class BtNode:
         for child in self.children:
             parts.append(child.to_str(depth + 1))
         return "".join(parts)
+
+    def to_graph(self) -> nx.DiGraph:
+        G = nx.DiGraph()
+
+        # add a self node
+        # see note *** below
+        G.add_node(self.name, shape=self._node_shape)
+
+        # walk the children
+        for child in self.children:
+            # add an edge from this node to the child node
+            G.add_edge(self.name, child.name)
+            # the child node will add itself to the graph with its shape because ***
+            # create a graph for the child node and add it to this graph
+            G = nx.compose(G, child.to_graph())
+
+        return G
 
     def to_mermaid(self, depth=0, topdown=True) -> str:
         """Returns a string representation of the tree rooted at this node in mermaid format."""
