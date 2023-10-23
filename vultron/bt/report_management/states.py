@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-"""file: rm_states
-author: adh
-created_at: 4/7/22 11:23 AM
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,7 +11,9 @@ created_at: 4/7/22 11:23 AM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
+"""
+Provides an enumeration of Report Management states.
+"""
 
 import logging
 from enum import Enum
@@ -87,34 +85,16 @@ RM_ACTIVE = (
 )
 
 
-def to_string(value):
-    """
-    Convert a Report Management state to a string
-    :param value: Report Management state value
-    :return: Report Management state name
-    """
-    return RM(value).name
-
-
-def from_string(name):
-    """Convert a Report Management state name to a value
-
-    Args:
-        name: Report Management state name
-
-    Returns:
-        Report Management state value
-    """
-    return RM[name]
-
-
 def main():
     rootlogger = logging.getLogger()
     rootlogger.setLevel(logging.DEBUG)
     hdlr = logging.StreamHandler()
     rootlogger.addHandler(hdlr)
 
-    logger.debug(f"RM enum = {list(RM)}")
+    logger.debug("Available Report Management States:")
+    for k, v in RM.__members__.items():
+        logger.debug(f"state: {k} -> value: {v.value}")
+
     logger.debug(f"RMclosable = {RM_CLOSABLE}")
     logger.debug(f"RMunclosed = {RM_UNCLOSED}")
     logger.debug(f"RMactive = {RM_ACTIVE}")
