@@ -41,9 +41,9 @@ def cs_state_change(
         A class for transitioning to the given state
 
     """
+
     class _CsStateChange(ActionNode):
         f"""{docstr}"""
-        __name__ = name
 
         to_state = target_state
 
@@ -56,6 +56,9 @@ def cs_state_change(
         def func(self):
             # get the current state name
             current_state_name = self.bb.q_cs.name
+
+            # note: we are operating on the node name string because the values
+            # are more complex to work with (e.g. "Vendor Aware" vs "V")
 
             # force the corresponding letter in the state name to upper case
             # if the lower case is not in the state name, this will do nothing
@@ -77,6 +80,9 @@ def cs_state_change(
             # action node functions return True for success
             return True
 
+    # explicitly set the name of the class
+    # so it doesn't show up as _CsStateChange in the BT
+    _CsStateChange.__name__ = name
     return _CsStateChange
 
 
@@ -132,6 +138,6 @@ q_cs_to_D = sequence(
 
 # # The remaining transitions are simple and do not need to be wrapped
 # # in a sequence node because they do not have any conditions that need to be enforced
-q_cs_to_P = cs_state_change("q_cs_to_P", "Transition to Public Aware", "D")
+q_cs_to_P = cs_state_change("q_cs_to_P", "Transition to Public Aware", "P")
 q_cs_to_X = cs_state_change("q_cs_to_X", "Transition to Exploit Public", "X")
 q_cs_to_A = cs_state_change("q_cs_to_A", "Transition to Attacks Observed", "A")

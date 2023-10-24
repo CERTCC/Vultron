@@ -36,17 +36,11 @@ class MockState:
 
 
 class MyTestCase(unittest.TestCase):
-    def test_handle_cp_ca(self):
-        """
-        Test that the _HandleCp and _HandleCa nodes transition to the correct state based on the current message type
-        and the current case state.
-        """
-        for expect_success_on, cls, pattern in zip(
-            [Mt.CP, Mt.CA],
-            [vmc._HandleCp, vmc._HandleCa],
-            ["...P..", ".....A"],
-        ):
-            self._test_loop(cls, expect_success_on, pattern)
+    def test_handle_cp(self):
+        self._test_loop(vmc._HandleCp, Mt.CP, "...P..")
+
+    def test_handle_ca(self):
+        self._test_loop(vmc._HandleCa, Mt.CA, ".....A")
 
     def test_handle_cx(self):
         """
@@ -73,7 +67,11 @@ class MyTestCase(unittest.TestCase):
 
                 if node.bb.current_message.msg_type == expect_success_on:
                     self.assertEqual(NodeStatus.SUCCESS, node.status)
-                    self.assertRegex(node.bb.q_cs.name, pattern)
+                    self.assertRegex(
+                        node.bb.q_cs.name,
+                        pattern,
+                        f"{cls} {msg_type} {q_cs} {expect_success_on} {pattern}",
+                    )
                 else:
                     self.assertEqual(NodeStatus.FAILURE, node.status)
                     self.assertEqual(q_cs, node.bb.q_cs)

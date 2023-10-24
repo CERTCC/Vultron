@@ -41,14 +41,13 @@ def node_factory(
         A node class with the given docstring and children
     """
 
-    class Foo(nodetype):
-        f"""{docstr}"""
-        __name__ = name
+    cls = type(name, (nodetype,), {})
+    cls.__doc__ = docstr
 
     if len(child_classes) > 0:
-        Foo._children = child_classes
+        cls._children = child_classes
 
-    return Foo
+    return cls
 
 
 def sequence(

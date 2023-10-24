@@ -16,85 +16,100 @@ created_at: 4/26/22 10:13 AM
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from typing import Type
 
-from vultron.bt.base.composites import FallbackNode
-from vultron.bt.common import StateIn
+from vultron.bt.base.bt_node import ConditionCheck
+from vultron.bt.base.factory import fallback
+from vultron.bt.common import show_graph, state_in
 from vultron.bt.embargo_management.errors import (
     EmbargoManagementConditionError,
 )
 from vultron.bt.embargo_management.states import EM
 
 
-class EMinState(StateIn):
-    """Base class for all Embargo Management condition check nodes."""
-
-    key = "q_em"
-    states = EM
-    Exc = EmbargoManagementConditionError
-
-
-class EMinStateNone(EMinState):
-    """Check if the embargo management state is None."""
-
-    state = EM.NO_EMBARGO
-
-
-class EMinStateProposed(EMinState):
-    """Check if the embargo management state is Proposed."""
-
-    state = EM.PROPOSED
+#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-class EMinStateActive(EMinState):
-    """Check if the embargo management state is Active."""
+def em_state_in(state: EM) -> Type[ConditionCheck]:
+    if state not in EM:
+        raise ValueError(f"{state} is not a valid Embargo Management state")
 
-    state = EM.ACTIVE
-
-
-class EMinStateRevise(EMinState):
-    """Check if the embargo management state is Revise."""
-
-    state = EM.REVISE
+    return state_in("q_em", state, EmbargoManagementConditionError)
 
 
-class EMinStateExited(EMinState):
-    """Check if the embargo management state is Exited."""
-
-    state = EM.EXITED
-
-
-class EMinStateActiveOrRevise(FallbackNode):
-    """Check if the embargo management state is Active or Revise."""
-
-    _children = (EMinStateActive, EMinStateRevise)
+EMinStateNone = em_state_in(EM.NO_EMBARGO)
+EMinStateProposed = em_state_in(EM.PROPOSED)
+EMinStateActive = em_state_in(EM.ACTIVE)
+EMinStateRevise = em_state_in(EM.REVISE)
+EMinStateExited = em_state_in(EM.EXITED)
 
 
-class EMinStateNoneOrExited(FallbackNode):
-    """Check if the embargo management state is None or Exited."""
-
-    _children = (EMinStateNone, EMinStateExited)
-
-
-class EMinStateProposeOrRevise(FallbackNode):
-    """Check if the embargo management state is Proposed or Revise."""
-
-    _children = (EMinStateProposed, EMinStateRevise)
+EMinStateActiveOrRevise = fallback(
+    "EMinStateActiveOrRevise",
+    """Check if the embargo management state is Active or Revise.""",
+    EMinStateActive,
+    EMinStateRevise,
+)
 
 
-class EMinStateNoneOrPropose(FallbackNode):
-    """Check if the embargo management state is None or Proposed."""
+EMinStateNoneOrExited = fallback(
+    "EMinStateNoneOrExited",
+    """Check if the embargo management state is None or Exited.""",
+    EMinStateNone,
+    EMinStateExited,
+)
 
-    _children = (EMinStateNone, EMinStateProposed)
+EMinStateProposeOrRevise = fallback(
+    "EMinStateProposeOrRevise",
+    """Check if the embargo management state is Proposed or Revise.""",
+    EMinStateProposed,
+    EMinStateRevise,
+)
 
 
-class EMinStateNoneOrProposeOrRevise(FallbackNode):
-    """Check if the embargo management state is None or Proposed or Revise."""
+EMinStateNoneOrPropose = fallback(
+    "EMinStateNoneOrPropose",
+    """Check if the embargo management state is None or Proposed.""",
+    EMinStateNone,
+    EMinStateProposed,
+)
 
-    _children = (EMinStateNone, EMinStateProposed, EMinStateRevise)
+
+EMinStateNoneOrProposeOrRevise = fallback(
+    "EMinStateNoneOrProposeOrRevise",
+    """Check if the embargo management state is None or Proposed or Revise.""",
+    EMinStateNone,
+    EMinStateProposed,
+    EMinStateRevise,
+)
 
 
 def main():
-    pass
+    for cls in [
+        EMinStateNone,
+        EMinStateProposed,
+        EMinStateActive,
+        EMinStateRevise,
+        EMinStateExited,
+        EMinStateActiveOrRevise,
+        EMinStateNoneOrExited,
+        EMinStateProposeOrRevise,
+        EMinStateNoneOrPropose,
+        EMinStateNoneOrProposeOrRevise,
+    ]:
+        print(cls)
+        show_graph(cls)
 
 
 if __name__ == "__main__":

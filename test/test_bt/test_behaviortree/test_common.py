@@ -90,37 +90,40 @@ class MyTestCase(unittest.TestCase):
         start_states = list(range(5))
 
         for key, end_state in product("abcdefghij", range(10)):
-            transition = c.EnumStateTransition(start_states, end_state)
-            xclass = c.make_state_change(key, transition)
-            self.assertTrue(callable(xclass))
+            with self.subTest(key=key, end_state=end_state):
+                transition = c.EnumStateTransition(start_states, end_state)
+                xclass = c.make_state_change(key, transition)
+                self.assertTrue(callable(xclass))
+                self.assertNotEqual("Node", xclass.__name__)
+                self.assertIn(key, xclass.__name__)
+                x = xclass()
 
-            x = xclass()
-            self.assertTrue(isinstance(x, FallbackNode))
-            self.assertIn(key, x.name)
-            self.assertIn(str(end_state), x.name)
+                self.assertTrue(isinstance(x, FallbackNode))
+                self.assertIn(key, x.name)
+                self.assertIn(str(end_state), x.name)
 
-            x.bb = bb
-            x.setup()
+                x.bb = bb
+                x.setup()
 
-            setattr(bb, key, 99999)
-            histkey = f"{key}_history"
-            setattr(bb, histkey, [])
+                setattr(bb, key, 99999)
+                histkey = f"{key}_history"
+                setattr(bb, histkey, [])
 
-            result = x.tick()
-            self.assertEqual(NodeStatus.FAILURE, result)
-
-            # make sure all the start states are allowed
-            for i in range(15):
-                setattr(bb, key, i)
                 result = x.tick()
-                if i in start_states or i == end_state:
-                    # node succeeds, transition allowed
-                    self.assertEqual(NodeStatus.SUCCESS, result)
-                    self.assertEqual(end_state, getattr(bb, key))
-                else:
-                    # node fails, transition disallowed, state does not change
-                    self.assertEqual(NodeStatus.FAILURE, result)
-                    self.assertEqual(i, getattr(bb, key))
+                self.assertEqual(NodeStatus.FAILURE, result)
+
+                # make sure all the start states are allowed
+                for i in range(15):
+                    setattr(bb, key, i)
+                    result = x.tick()
+                    if i in start_states or i == end_state:
+                        # node succeeds, transition allowed
+                        self.assertEqual(NodeStatus.SUCCESS, result)
+                        self.assertEqual(end_state, getattr(bb, key))
+                    else:
+                        # node fails, transition disallowed, state does not change
+                        self.assertEqual(NodeStatus.FAILURE, result)
+                        self.assertEqual(i, getattr(bb, key))
 
 
 if __name__ == "__main__":

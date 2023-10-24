@@ -40,13 +40,38 @@ class EnumStateTransition:
     end_state: Enum
 
 
+def condition_check(
+    name: str, desc: str, check_func: callable
+) -> Type[ConditionCheck]:
+    """Factory method that returns a ConditionCheck object with the given name, description, and function"""
+
+    # name, bases, dict
+    cls = type(name, (ConditionCheck,), {})
+    cls.__doc__ = desc
+    cls.func = check_func
+    return cls
+
+
+def state_in(
+    key: str, state: Enum, exc=Type[Exception]
+) -> Type[ConditionCheck]:
+    def func(self):
+        return getattr(self.bb, key) == state
+
+    cls = condition_check(
+        f"{key}_in_{state.value}",
+        f"""ConditionCheck that returns SUCCESS if the node's blackboard[{key}] == {state}""",
+        func,
+    )
+    return cls
+
+
 class StateIn(ConditionCheck):
     """ConditionCheck that returns SUCCESS if the node's blackboard[key] == state
     Used as a base class for other StateIn classes like EMinState
     """
 
     key = None
-    states = None
     state = None
 
     def func(self):
