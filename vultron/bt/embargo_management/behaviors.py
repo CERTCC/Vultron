@@ -77,41 +77,41 @@ from vultron.bt.report_management.conditions import (
 from vultron.bt.roles.conditions import RoleIsNotDeployer
 
 
-class MaybeExitWhenDeployed(SequenceNode):
+class _MaybeExitWhenDeployed(SequenceNode):
     """Sequence node for transitioning from R to X when the case state is in Fix Deployed."""
 
     _children = (CSinStateFixDeployed, ExitEmbargoWhenDeployed)
 
 
-class MaybeExitWhenFixReady(SequenceNode):
+class _MaybeExitWhenFixReady(SequenceNode):
     """Sequence node for transitioning from R to X when the case state is in Fix Ready."""
 
     _children = (CSinStateFixReady, RoleIsNotDeployer, ExitEmbargoWhenFixReady)
 
 
-class OtherReasonToExitEmbargo(FallbackNode):
+class _OtherReasonToExitEmbargo(FallbackNode):
     """Fallback node for transitioning from R to X. Allows for various other reasons to exit an embargo."""
 
     _children = (
-        MaybeExitWhenDeployed,
-        MaybeExitWhenFixReady,
+        _MaybeExitWhenDeployed,
+        _MaybeExitWhenFixReady,
         ExitEmbargoForOtherReason,
     )
 
 
-class AvoidNewEmbargoesInCsDeployedUnlessReason(FallbackNode):
+class _AvoidNewEmbargoesInCsDeployedUnlessReason(FallbackNode):
     """Avoid proposing new embargoes when the case state is in Fix Deployed unless there is a reason to do so."""
 
     _children = (CSinStateFixNotDeployed, ReasonToProposeEmbargoWhenDeployed)
 
 
-class AvoidCounterProposal(SequenceNode):
+class _AvoidCounterProposal(SequenceNode):
     """Avoid counter-proposing an embargo when the current embargo is acceptable."""
 
     _children = (EMinStateProposeOrRevise, AvoidEmbargoCounterProposal)
 
 
-class ProposeNewEmbargo(SequenceNode):
+class _ProposeNewEmbargo(SequenceNode):
     """Propose a new embargo.
     Steps:
     1. Check if the EM state is in None or Proposed.
@@ -122,7 +122,7 @@ class ProposeNewEmbargo(SequenceNode):
     _children = (EMinStateNoneOrPropose, q_em_to_P, EmitEP)
 
 
-class ProposeEmbargoRevision(SequenceNode):
+class _ProposeEmbargoRevision(SequenceNode):
     """Propose a revision to the current embargo.
     Steps:
     1. Check if the EM state is in Active or Revise.
@@ -133,7 +133,7 @@ class ProposeEmbargoRevision(SequenceNode):
     _children = (EMinStateActiveOrRevise, q_em_to_R, EmitEV)
 
 
-class ConsiderProposingEmbargo(FallbackNode):
+class _ConsiderProposingEmbargo(FallbackNode):
     """Consider proposing an embargo.
     Steps:
     1. Generally avoid counter-proposing an embargo in favor of
@@ -143,13 +143,13 @@ class ConsiderProposingEmbargo(FallbackNode):
     """
 
     _children = (
-        AvoidCounterProposal,
-        ProposeNewEmbargo,
-        ProposeEmbargoRevision,
+        _AvoidCounterProposal,
+        _ProposeNewEmbargo,
+        _ProposeEmbargoRevision,
     )
 
 
-class ProposeEmbargoBt(SequenceNode):
+class _ProposeEmbargoBt(SequenceNode):
     """Propose an embargo.
     Steps:
     1. Check if the EM state is in None or Proposed.
@@ -161,13 +161,13 @@ class ProposeEmbargoBt(SequenceNode):
 
     _children = (
         CSinStateNotPublicNoExploitNoAttacks,
-        AvoidNewEmbargoesInCsDeployedUnlessReason,
+        _AvoidNewEmbargoesInCsDeployedUnlessReason,
         SelectEmbargoOfferTerms,
-        ConsiderProposingEmbargo,
+        _ConsiderProposingEmbargo,
     )
 
 
-class SufficientCauseToAbandonProposedEmbargo(FallbackNode):
+class _SufficientCauseToAbandonProposedEmbargo(FallbackNode):
     """Determine if there is sufficient cause to abandon the proposed embargo.
     Reasons to abandon:
     1. The public is already aware of the vulnerability
@@ -178,11 +178,11 @@ class SufficientCauseToAbandonProposedEmbargo(FallbackNode):
 
     _children = (
         CSinStatePublicAwareOrExploitPublicOrAttacksObserved,
-        OtherReasonToExitEmbargo,
+        _OtherReasonToExitEmbargo,
     )
 
 
-class ConsiderAbandoningProposedEmbargo(SequenceNode):
+class _ConsiderAbandoningProposedEmbargo(SequenceNode):
     """Consider abandoning the proposed embargo.
     Steps:
     1. Check if the EM state is in Proposed.
@@ -193,13 +193,13 @@ class ConsiderAbandoningProposedEmbargo(SequenceNode):
 
     _children = (
         EMinStateProposed,
-        SufficientCauseToAbandonProposedEmbargo,
+        _SufficientCauseToAbandonProposedEmbargo,
         q_em_to_N,
         EmitER,
     )
 
 
-class SufficientCauseToTerminateActiveEmbargo(FallbackNode):
+class _SufficientCauseToTerminateActiveEmbargo(FallbackNode):
     """Determine if there is sufficient cause to terminate the active embargo.
     Reasons to terminate:
     1. The public is already aware of the vulnerability
@@ -212,11 +212,11 @@ class SufficientCauseToTerminateActiveEmbargo(FallbackNode):
     _children = (
         CSinStatePublicAwareOrExploitPublicOrAttacksObserved,
         EmbargoTimerExpired,
-        OtherReasonToExitEmbargo,
+        _OtherReasonToExitEmbargo,
     )
 
 
-class ConsiderTerminatingActiveEmbargo(SequenceNode):
+class _ConsiderTerminatingActiveEmbargo(SequenceNode):
     """Consider terminating the active embargo.
     Steps:
     1. Check if the EM state is in Active or Revise.
@@ -227,7 +227,7 @@ class ConsiderTerminatingActiveEmbargo(SequenceNode):
 
     _children = (
         EMinStateActiveOrRevise,
-        SufficientCauseToTerminateActiveEmbargo,
+        _SufficientCauseToTerminateActiveEmbargo,
         OnEmbargoExit,
         q_em_to_X,
         EmitET,
@@ -239,26 +239,27 @@ class TerminateEmbargoBt(FallbackNode):
 
     _children = (
         EMinStateNoneOrExited,
-        ConsiderAbandoningProposedEmbargo,
-        ConsiderTerminatingActiveEmbargo,
+        _ConsiderAbandoningProposedEmbargo,
+        _ConsiderTerminatingActiveEmbargo,
     )
 
 
-class EnsureSufficientEffortToAchieveEmbargo(FallbackNode):
+class _EnsureSufficientEffortToAchieveEmbargo(FallbackNode):
     """Continue to propose embargoes until sufficient effort has been made."""
 
-    _children = (StopProposingEmbargo, ProposeEmbargoBt)
+    _children = (StopProposingEmbargo, _ProposeEmbargoBt)
 
 
-class EmNone(SequenceNode):
+class _EmNone(SequenceNode):
     """Check if the EM state is None.
     If so, continue to propose embargoes until sufficient effort has been made.
     """
 
-    _children = (EMinStateNone, EnsureSufficientEffortToAchieveEmbargo)
+    _children = (EMinStateNone, _EnsureSufficientEffortToAchieveEmbargo)
 
 
-class AvoidNewEmbargoWhenNotInCs_pxa(SequenceNode):
+# noinspection PyPep8Naming
+class _AvoidNewEmbargoWhenNotInCs_pxa(SequenceNode):
     """Avoid proposing new embargoes when
     the public is aware of the vulnerability or
     an exploit is already public or
@@ -271,7 +272,7 @@ class AvoidNewEmbargoWhenNotInCs_pxa(SequenceNode):
     )
 
 
-class EvaluateAndAcceptProposedEmbargo(SequenceNode):
+class _EvaluateAndAcceptProposedEmbargo(SequenceNode):
     """If the proposed embargo is acceptable, it will be accepted and
     the EM state will transition to the Active state.
     An EA message will be emitted.
@@ -280,15 +281,15 @@ class EvaluateAndAcceptProposedEmbargo(SequenceNode):
     _children = (EvaluateEmbargoProposal, OnEmbargoAccept, q_em_to_A, EmitEA)
 
 
-class CounterEmbargoProposal(SequenceNode):
+class _CounterEmbargoProposal(SequenceNode):
     """If there is willingness to counter a proposed embargo,
     an embargo counter-proposal will be made.
     """
 
-    _children = (WillingToCounterEmbargoProposal, ProposeEmbargoBt)
+    _children = (WillingToCounterEmbargoProposal, _ProposeEmbargoBt)
 
 
-class RejectProposedEmbargo(SequenceNode):
+class _RejectProposedEmbargo(SequenceNode):
     """Rejects a proposed embargo.
     The EM state returns to the None.
     An ER message is emitted.
@@ -297,7 +298,7 @@ class RejectProposedEmbargo(SequenceNode):
     _children = (OnEmbargoReject, q_em_to_N, EmitER)
 
 
-class ChooseEmProposedResponse(FallbackNode):
+class _ChooseEmProposedResponse(FallbackNode):
     """Chooses a response to a proposed embargo.
     Options are:
     - Terminate the embargo
@@ -308,21 +309,21 @@ class ChooseEmProposedResponse(FallbackNode):
 
     _children = (
         TerminateEmbargoBt,
-        EvaluateAndAcceptProposedEmbargo,
-        CounterEmbargoProposal,
-        RejectProposedEmbargo,
+        _EvaluateAndAcceptProposedEmbargo,
+        _CounterEmbargoProposal,
+        _RejectProposedEmbargo,
     )
 
 
-class EmProposed(SequenceNode):
+class _EmProposed(SequenceNode):
     """Embargo management bt tree for the Proposed state.
     Checks the EM state and chooses a response.
     """
 
-    _children = (EMinStateProposed, ChooseEmProposedResponse)
+    _children = (EMinStateProposed, _ChooseEmProposedResponse)
 
 
-class ChooseEmActiveResponse(FallbackNode):
+class _ChooseEmActiveResponse(FallbackNode):
     """Chooses a response to an active embargo.
     Options are:
     - Terminate the embargo
@@ -333,19 +334,19 @@ class ChooseEmActiveResponse(FallbackNode):
     _children = (
         TerminateEmbargoBt,
         CurrentEmbargoAcceptable,
-        ProposeEmbargoBt,
+        _ProposeEmbargoBt,
     )
 
 
-class EmActive(SequenceNode):
+class _EmActive(SequenceNode):
     """Embargo management bt tree for the Active state.
     Checks the EM state and chooses a response.
     """
 
-    _children = (EMinStateActive, ChooseEmActiveResponse)
+    _children = (EMinStateActive, _ChooseEmActiveResponse)
 
 
-class RejectRevision(SequenceNode):
+class _RejectRevision(SequenceNode):
     """Rejects a proposed embargo revision.
     The EM state returns to Active and the current embargo is retained.
     An EJ message is emitted.
@@ -354,7 +355,7 @@ class RejectRevision(SequenceNode):
     _children = (OnEmbargoReject, q_em_R_to_A, EmitEJ)
 
 
-class ChooseEmReviseResponse(FallbackNode):
+class _ChooseEmReviseResponse(FallbackNode):
     """Chooses a response to a proposed embargo revision.
     Options are:
     - Terminate the embargo
@@ -365,18 +366,18 @@ class ChooseEmReviseResponse(FallbackNode):
 
     _children = (
         TerminateEmbargoBt,
-        EvaluateAndAcceptProposedEmbargo,
-        CounterEmbargoProposal,
-        RejectRevision,
+        _EvaluateAndAcceptProposedEmbargo,
+        _CounterEmbargoProposal,
+        _RejectRevision,
     )
 
 
-class EmRevise(SequenceNode):
+class _EmRevise(SequenceNode):
     """Embargo management bt tree for the Revise state.
     Checks the EM state and chooses the appropriate response.
     """
 
-    _children = (EMinStateRevise, ChooseEmReviseResponse)
+    _children = (EMinStateRevise, _ChooseEmReviseResponse)
 
 
 class EmbargoManagementBt(FallbackNode):
@@ -387,9 +388,9 @@ class EmbargoManagementBt(FallbackNode):
     _children = (
         RMinStateStartOrClosed,
         EMinStateExited,
-        AvoidNewEmbargoWhenNotInCs_pxa,
-        EmNone,
-        EmProposed,
-        EmActive,
-        EmRevise,
+        _AvoidNewEmbargoWhenNotInCs_pxa,
+        _EmNone,
+        _EmProposed,
+        _EmActive,
+        _EmRevise,
     )
