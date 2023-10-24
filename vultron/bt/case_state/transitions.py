@@ -13,9 +13,10 @@
 """
 This module defines the CVD Case State Machine as a Behavior Tree.
 """
+from typing import Type
 
 from vultron.bt.base.bt_node import ActionNode
-from vultron.bt.base.composites import SequenceNode
+from vultron.bt.base.factory import sequence
 from vultron.bt.case_state.conditions import (
     CSinStateVendorAware,
     CSinStateVendorAwareAndFixReady,
@@ -23,118 +24,114 @@ from vultron.bt.case_state.conditions import (
 from vultron.case_states.states import CS
 
 
-class _CsStateChange(ActionNode):
+def cs_state_change(
+    name: str,
+    docstr: str,
+    target_state: str = None,
+) -> Type[ActionNode]:
     """
-    Base class for transitioning the q_cs state
+    Factory function to create a class for transitioning to a new CS state.
 
-    This class is not intended to be used directly outside of this module.
+    Args:
+        name: the name of the class
+        docstr: the docstring for the class
+        target_state: the target state shorthand for the transition (V,F,D,P,X,A)
+
+    Returns:
+        A class for transitioning to the given state
+
     """
+    class _CsStateChange(ActionNode):
+        f"""{docstr}"""
+        __name__ = name
 
-    to_state = None
+        to_state = target_state
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
 
-        if self.to_state is None:
-            raise ValueError("to_state must be set")
+            if self.to_state is None:
+                raise ValueError("to_state must be set")
 
-    def func(self):
-        # get the current state name
-        current_state_name = self.bb.q_cs.name
+        def func(self):
+            # get the current state name
+            current_state_name = self.bb.q_cs.name
 
-        # force the V in the state name to upper case
-        # if "v" is not in the state name, this will do nothing
-        # which means this is a no-op for the "V" states
-        to_state = self.to_state
-        from_state = to_state.lower()
+            # force the corresponding letter in the state name to upper case
+            # if the lower case is not in the state name, this will do nothing
+            # which means this is a no-op for the upper-cased states
+            to_state = self.to_state
+            from_state = to_state.lower()
 
-        new_state_name = current_state_name.replace(from_state, to_state)
+            new_state_name = current_state_name.replace(from_state, to_state)
 
-        # set the state to the one with the new name
-        try:
-            new_state = CS[new_state_name]
-        except KeyError:
-            # just don't change the state if the new state name is invalid
+            # set the state to the one with the new name
+            try:
+                new_state = CS[new_state_name]
+            except KeyError:
+                # just don't change the state if the new state name is invalid
+                return True
+
+            self.bb.q_cs = new_state
+
+            # action node functions return True for success
             return True
 
-        self.bb.q_cs = new_state
-
-        # action node functions return True for success
-        return True
+    return _CsStateChange
 
 
-class q_cs_to_V(_CsStateChange):
-    """
-    Transition to Vendor Aware
-    """
+q_cs_to_V = cs_state_change("q_cs_to_V", "Transition to Vendor Aware", "V")
 
-    to_state = "V"
-
-
-class _q_cs_to_F(_CsStateChange):
+# We will need to wrap this in a sequence node to enforce that
+# the vendor is aware of the vulnerability before allowing the transition to Fix Ready
+_q_cs_to_F = cs_state_change(
+    "_q_cs_to_F",
     """
     Transition to Fix Ready.
 
     This class is not intended to be used directly outside of this module.
     Instead, use the q_cs_to_F class defined below.
-    """
+    """,
+    "F",
+)
 
-    # We will need to wrap this in a sequence node to enforce that
-    # the vendor is aware of the vulnerability before allowing the transition to Fix Ready
-
-    to_state = "F"
-
-
-class q_cs_to_F(SequenceNode):
+q_cs_to_F = sequence(
+    "q_cs_to_F",
     """
     Sequence node for transitioning from V to F.
     Enforces that the vendor is aware of the vulnerability before allowing the transition to Fix Ready
-    """
+    """,
+    CSinStateVendorAware,
+    _q_cs_to_F,
+)
 
-    _children = (CSinStateVendorAware, _q_cs_to_F)
 
-
-class _q_cs_to_D(_CsStateChange):
+# We will need to wrap this in a sequence node to enforce that
+# the fix is ready before allowing the transition to Fix Deployed
+_q_cs_to_D = cs_state_change(
+    "_q_cs_to_D",
     """
     Transition to Fix Deployed
 
     This class is not intended to be used directly outside of this module.
     Instead, use the q_cs_to_D class defined below.
-    """
+    """,
+    "D",
+)
 
-    to_state = "D"
-
-
-class q_cs_to_D(SequenceNode):
+q_cs_to_D = sequence(
+    "q_cs_to_D",
     """
     Sequence node for transitioning from F to D.
     Enforces that the vendor is aware of the vulnerability and has a fix ready before allowing the transition to Fix Deployed.
-    """
-
-    _children = (CSinStateVendorAwareAndFixReady, _q_cs_to_D)
+    """,
+    CSinStateVendorAwareAndFixReady,
+    _q_cs_to_D,
+)
 
 
 # # The remaining transitions are simple and do not need to be wrapped
 # # in a sequence node because they do not have any conditions that need to be enforced
-class q_cs_to_P(_CsStateChange):
-    """
-    Transition to Public Aware
-    """
-
-    to_state = "P"
-
-
-class q_cs_to_X(_CsStateChange):
-    """
-    Transition to Exploit Public
-    """
-
-    to_state = "X"
-
-
-class q_cs_to_A(_CsStateChange):
-    """
-    Transition to Attacks Observed
-    """
-
-    to_state = "A"
+q_cs_to_P = cs_state_change("q_cs_to_P", "Transition to Public Aware", "D")
+q_cs_to_X = cs_state_change("q_cs_to_X", "Transition to Exploit Public", "X")
+q_cs_to_A = cs_state_change("q_cs_to_A", "Transition to Attacks Observed", "A")

@@ -17,8 +17,7 @@ This module defines CVD Case State conditions as Behavior Tree nodes.
 
 
 from vultron.bt.base.bt_node import ConditionCheck
-from vultron.bt.base.composites import SequenceNode
-from vultron.bt.base.decorators import Invert
+from vultron.bt.base.factory import invert, sequence
 from vultron.case_states.states import (
     AttackObservation,
     ExploitPublication,
@@ -53,7 +52,8 @@ class CSinStateFixDeployed(ConditionCheck):
 
     def func(self):
         return (
-            self.bb.q_cs.value.vfd_state.value.fix_deployment == FixDeployment.D
+            self.bb.q_cs.value.vfd_state.value.fix_deployment
+            == FixDeployment.D
         )
 
 
@@ -62,7 +62,8 @@ class CSinStatePublicAware(ConditionCheck):
 
     def func(self):
         return (
-            self.bb.q_cs.value.pxa_state.value.public_awareness == PublicAwareness.P
+            self.bb.q_cs.value.pxa_state.value.public_awareness
+            == PublicAwareness.P
         )
 
 
@@ -86,96 +87,111 @@ class CSinStateAttacksObserved(ConditionCheck):
         )
 
 
-class CSinStatePublicAwareAndExploitPublic(SequenceNode):
-    """Sequence node for whether the public is aware of the vulnerability and an exploit is public"""
-
-    _children = (CSinStatePublicAware, CSinStateExploitPublic)
-
-
-class CSinStateVendorAwareAndFixReady(SequenceNode):
-    """Sequence node for whether the vendor is aware of the vulnerability and has a fix ready"""
-
-    _children = (CSinStateVendorAware, CSinStateFixReady)
+CSinStatePublicAwareAndExploitPublic = sequence(
+    "CSinStatePublicAwareAndExploitPublic",
+    """Sequence node for whether the public is aware of the vulnerability and an exploit is public""",
+    CSinStatePublicAware,
+    CSinStateExploitPublic,
+)
 
 
-class CSinStateVendorAwareAndFixReadyAndFixDeployed(SequenceNode):
-    """Sequence node for whether the vendor is aware of the vulnerability, has a fix ready, and the fix has been deployed"""
+CSinStateVendorAwareAndFixReady = sequence(
+    "CSinStateVendorAwareAndFixReady",
+    """Sequence node for whether the vendor is aware of the vulnerability and has a fix ready""",
+    CSinStateVendorAware,
+    CSinStateFixReady,
+)
 
-    _children = (CSinStateVendorAware, CSinStateFixReady, CSinStateFixDeployed)
+CSinStateVendorAwareAndFixReadyAndFixDeployed = sequence(
+    "CSinStateVendorAwareAndFixReadyAndFixDeployed",
+    """Sequence node for whether the vendor is aware of the vulnerability,
+    has a fix ready, and the fix has been deployed""",
+    CSinStateVendorAware,
+    CSinStateFixReady,
+    CSinStateFixDeployed,
+)
 
-
-class CSinStateVendorUnaware(Invert):
-    """Condition check for whether the vendor is unaware of the vulnerability"""
-
-    _children = (CSinStateVendorAware,)
-
-
-class CSinStateFixNotReady(Invert):
-    """Condition check for whether the vendor does not have a fix ready"""
-
-    _children = (CSinStateFixReady,)
-
-
-class CSinStateFixNotDeployed(Invert):
-    """Condition check for whether a fix has not been deployed"""
-
-    _children = (CSinStateFixDeployed,)
-
-
-class CSinStatePublicUnaware(Invert):
-    """Condition check for whether the public is unaware of the vulnerability"""
-
-    _children = (CSinStatePublicAware,)
+CSinStateVendorUnaware = invert(
+    "CSinStateVendorUnaware",
+    """Condition check for whether the vendor is unaware of the vulnerability""",
+    CSinStateVendorAware,
+)
 
 
-class CSinStateNoExploitPublic(Invert):
-    """Condition check for whether no exploit is public for the vulnerability"""
-
-    _children = (CSinStateExploitPublic,)
-
-
-class CSinStateNoAttacksObserved(Invert):
-    """Condition check for whether no attacks against the vulnerability have been observed"""
-
-    _children = (CSinStateAttacksObserved,)
+CSinStateFixNotReady = invert(
+    "CSinStateFixNotReady",
+    """Condition check for whether the vendor does not have a fix ready""",
+    CSinStateFixReady,
+)
 
 
-class CSinStateNotPublicNoExploitNoAttacks(SequenceNode):
-    """Sequence node for whether the public is unaware of the vulnerability, no exploit is public, and no attacks have been observed"""
-
-    _children = (
-        CSinStatePublicUnaware,
-        CSinStateNoExploitPublic,
-        CSinStateNoAttacksObserved,
-    )
+CSinStateFixNotDeployed = invert(
+    "CSinStateFixNotDeployed",
+    """Condition check for whether a fix has not been deployed""",
+    CSinStateFixDeployed,
+)
 
 
-class CSinStatePublicAwareOrExploitPublicOrAttacksObserved(Invert):
-    """Condition check for whether the public is aware of the vulnerability, an exploit is public, or attacks have been observed"""
+CSinStatePublicUnaware = invert(
+    "CSinStatePublicUnaware",
+    """Condition check for whether the public is unaware of the vulnerability""",
+    CSinStatePublicAware,
+)
 
-    _children = (CSinStateNotPublicNoExploitNoAttacks,)
+CSinStateNoExploitPublic = invert(
+    "CSinStateNoExploitPublic",
+    """Condition check for whether no exploit is public for the vulnerability""",
+    CSinStateExploitPublic,
+)
+
+CSinStateNoAttacksObserved = invert(
+    "CSinStateNoAttacksObserved",
+    """Condition check for whether no attacks against the vulnerability have been observed""",
+    CSinStateAttacksObserved,
+)
+
+CSinStateNotPublicNoExploitNoAttacks = sequence(
+    "CSinStateNotPublicNoExploitNoAttacks",
+    """Sequence node for whether the public is unaware of the vulnerability, no exploit is public, and no attacks 
+    have been observed""",
+    CSinStatePublicUnaware,
+    CSinStateNoExploitPublic,
+    CSinStateNoAttacksObserved,
+)
 
 
-class CSinStateNotDeployedNotPublicNoExploitNoAttacks(SequenceNode):
-    """Condition check for whether a fix has not been deployed, the public is unaware of the vulnerability, no exploit is public, and no attacks have been observed"""
-
-    _children = (CSinStateFixNotDeployed, CSinStateNotPublicNoExploitNoAttacks)
-
-
-class CSinStateNotDeployedButPublicAware(SequenceNode):
-    """Condition check for whether a fix has not been deployed but the public is aware of the vulnerability"""
-
-    _children = (CSinStateFixNotDeployed, CSinStatePublicAware)
+CSinStatePublicAwareOrExploitPublicOrAttacksObserved = invert(
+    "CSinStatePublicAwareOrExploitPublicOrAttacksObserved",
+    """Condition check for whether the public is aware of the vulnerability, an exploit is public, or attacks have 
+    been observed""",
+    CSinStateNotPublicNoExploitNoAttacks,
+)
 
 
-class CSinStateVendorAwareFixReadyFixNotDeployed(SequenceNode):
-    """Condition check for whether the vendor is aware of the vulnerability and has a fix ready, but the fix has not been deployed"""
+CSinStateNotDeployedNotPublicNoExploitNoAttacks = sequence(
+    "CSinStateNotDeployedNotPublicNoExploitNoAttacks",
+    """Condition check for whether a fix has not been deployed, the public is unaware of the vulnerability, 
+    no exploit is public, and no attacks have been observed""",
+    CSinStateFixNotDeployed,
+    CSinStateNotPublicNoExploitNoAttacks,
+)
 
-    _children = (
-        CSinStateVendorAware,
-        CSinStateFixReady,
-        CSinStateFixNotDeployed,
-    )
+
+CSinStateNotDeployedButPublicAware = sequence(
+    "CSinStateNotDeployedButPublicAware",
+    """Condition check for whether a fix has not been deployed but the public is aware of the vulnerability""",
+    CSinStateFixNotDeployed,
+    CSinStatePublicAware,
+)
+
+
+CSinStateVendorAwareFixReadyFixNotDeployed = sequence(
+    "CSinStateVendorAwareFixReadyFixNotDeployed",
+    """Condition check for whether the vendor is aware of the vulnerability and has a fix ready, but the fix has not been deployed""",
+    CSinStateVendorAware,
+    CSinStateFixReady,
+    CSinStateFixNotDeployed,
+)
 
 
 # aliases

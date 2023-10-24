@@ -15,12 +15,20 @@
 Provides behaviors for the report management process
 """
 
-from vultron.bt.base.composites import FallbackNode, SequenceNode
+from vultron.bt.base.factory import fallback, node_factory, sequence
+
+# noinspection PyProtectedMember
 from vultron.bt.report_management._behaviors.close_report import RMCloseBt
+
+# noinspection PyProtectedMember
 from vultron.bt.report_management._behaviors.do_work import RMDoWorkBt
+
+# noinspection PyProtectedMember
 from vultron.bt.report_management._behaviors.prioritize_report import (
     RMPrioritizeBt,
 )
+
+# noinspection PyProtectedMember
 from vultron.bt.report_management._behaviors.validate_report import (
     RMValidateBt,
 )
@@ -34,125 +42,94 @@ from vultron.bt.report_management.conditions import (
     RMinStateValid,
 )
 
+_CloseOrValidate = fallback(
+    "CloseOrValidate"
+    "Try to close the report, and if that fails, validate the report. Report closure will fail if there is still work to be done on the report.",
+    RMCloseBt,
+    RMValidateBt,
+)
 
-class CloseOrValidate(FallbackNode):
-    """Try to close the report, and if that fails, validate the report.
-    Report closure will fail if there is still work to be done on the report.
-    """
+_CloseOrPrioritize = fallback(
+    "CloseOrPrioritize",
+    "Try to close the report, and if that fails, prioritize the report. Report closure will fail if there is still work to be done on the report.",
+    RMCloseBt,
+    RMPrioritizeBt,
+)
 
-    _children = (RMCloseBt, RMValidateBt)
-
-
-class CloseOrPrioritize(FallbackNode):
-    """Try to close the report, and if that fails, prioritize the report.
-    Report closure will fail if there is still work to be done on the report.
-    """
-
-    _children = (RMCloseBt, RMPrioritizeBt)
-
-
-class PrioritizeDoWork(SequenceNode):
-    """Prioritize the report, and if prioritization is successful, do work on the report.
-    Prioritization succeeds if the prioritization result is not DEFERRED.
-    """
-
-    _children = (RMPrioritizeBt, RMDoWorkBt)
+_PrioritizeDoWork = sequence(
+    "PrioritizeDoWork",
+    "Prioritize the report, and if prioritization is successful, do work on the report. Prioritization succeeds if the prioritization result is not DEFERRED.",
+    RMPrioritizeBt,
+    RMDoWorkBt,
+)
 
 
-class CloseOrPrioritizeOrWork(FallbackNode):
-    """Close the report, prioritize the report, or do work on the report."""
+_CloseOrPrioritizeOrWork = fallback(
+    "CloseOrPrioritizeOrWork",
+    "Close the report, prioritize the report, or do work on the report.",
+    RMCloseBt,
+    _PrioritizeDoWork,
+)
 
-    _children = (RMCloseBt, PrioritizeDoWork)
+_RmReceived = sequence(
+    "RmReceived",
+    "Handle the RECEIVED state. After checking that the report management state is in the RECEIVED state, this node will attempt to validate the report.",
+    RMinStateReceived,
+    RMValidateBt,
+)
 
+_RmInvalid = sequence(
+    "RmInvalid",
+    "Handle the INVALID state. After checking that the report management state is in the INVALID state, this node will decide what to do next. Options are: Close the report, Validate the report, Stay in the INVALID state (do nothing)",
+    RMinStateInvalid,
+    _CloseOrValidate,
+)
 
-class RmReceived(SequenceNode):
-    """Handle the RECEIVED state.
-    After checking that the report management state is in the RECEIVED state,
-    this node will attempt to validate the report.
-    """
+_RmStart = node_factory(
+    RMinStateStart,
+    "RmStart",
+    "Handle the START state. The start state is the initial state of the report management state machine, and is used as a placeholder to represent the status of other participants in the case. Once a report is received, the report management state machine will transition to the RECEIVED state, which is where the actual work begins.",
+)
 
-    _children = (RMinStateReceived, RMValidateBt)
+_RmClosed = node_factory(
+    RMinStateClosed,
+    "RmClosed",
+    "Handle the CLOSED state. There is nothing left to be done for a report that is in the CLOSED state.",
+)
 
-
-class RmInvalid(SequenceNode):
-    """Handle the INVALID state.
-    After checking that the report management state is in the INVALID state,
-    this node will decide what to do next.
-    Options are:
-        - Close the report
-        - Validate the report
-        - Stay in the INVALID state (do nothing)
-    """
-
-    _children = (
-        RMinStateInvalid,
-        CloseOrValidate,
-    )
-
-
-class RmStart(RMinStateStart):
-    """Handle the START state.
-    The start state is the initial state of the report management state machine,
-    and is used as a placeholder to represent the status of other participants in the case.
-    Once a report is received, the report management state machine will transition to the
-    RECEIVED state, which is where the actual work begins.
-    """
-
-
-class RmClosed(RMinStateClosed):
-    """Handle the CLOSED state.
-    There is nothing left to be done for a report that is in the CLOSED state.
-    """
+_RmValid = sequence(
+    "RmValid",
+    "Handle the VALID state. After checking that the report management state is in the VALID state, this node will attempt to prioritize the report.",
+    RMinStateValid,
+    RMPrioritizeBt,
+)
 
 
-class RmValid(SequenceNode):
-    """Handle the VALID state.
-    After checking that the report management state is in the VALID state,
-    this node will attempt to prioritize the report.
-    """
+_RmDeferred = sequence(
+    "RmDeferred",
+    "Handle the DEFERRED state. After checking that the report management state is in the DEFERRED state, this node will attempt to decide what to do next. Options are: Close the report, Prioritize the report",
+    RMinStateDeferred,
+    _CloseOrPrioritize,
+)
 
-    _children = (RMinStateValid, RMPrioritizeBt)
+_RmAccepted = sequence(
+    "RmAccepted",
+    "Handle the ACCEPTED state. After checking that the report management state is in the ACCEPTED state, this node will attempt to decide what to do next. Options are: Close the report, Prioritize the report, Do work on the report",
+    RMinStateAccepted,
+    _CloseOrPrioritizeOrWork,
+)
 
-
-class RmDeferred(SequenceNode):
-    """Handle the DEFERRED state.
-    After checking that the report management state is in the DEFERRED state,
-    this node will attempt to decide what to do next.
-    Options are:
-        - Close the report
-        - Prioritize the report
-    """
-
-    _children = (RMinStateDeferred, CloseOrPrioritize)
-
-
-class RmAccepted(SequenceNode):
-    """Handle the ACCEPTED state.
-    After checking that the report management state is in the ACCEPTED state,
-    this node will attempt to decide what to do next.
-    Options are:
-        - Close the report
-        - Prioritize the report
-        - Do work on the report
-    """
-
-    _children = (RMinStateAccepted, CloseOrPrioritizeOrWork)
-
-
-class ReportManagementBt(FallbackNode):
-    """The report management bt tree.
-    This tree is responsible for managing the report management state machine.
-    """
-
-    _children = (
-        RmStart,
-        RmClosed,
-        RmReceived,
-        RmInvalid,
-        RmValid,
-        RmDeferred,
-        RmAccepted,
-    )
+ReportManagementBt = fallback(
+    "ReportManagementBt",
+    "The report management bt tree. This tree is responsible for managing the report management state machine.",
+    _RmStart,
+    _RmClosed,
+    _RmReceived,
+    _RmInvalid,
+    _RmValid,
+    _RmDeferred,
+    _RmAccepted,
+)
 
 
 def main():

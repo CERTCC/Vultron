@@ -18,12 +18,13 @@ This module provides common Behavior Tree nodes for the Vultron package.
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import List
+from typing import List, Type
 
 import networkx as nx
 
 from vultron.bt.base.bt_node import ActionNode, ConditionCheck
-from vultron.bt.base.composites import FallbackNode, SequenceNode
+from vultron.bt.base.composites import FallbackNode
+from vultron.bt.base.factory import fallback, sequence
 from vultron.bt.base.node_status import NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ class StateIn(ConditionCheck):
         return getattr(self.bb, self.key) == self.state
 
 
-def to_end_state_factory(key: str, state: Enum) -> ActionNode:
+def to_end_state_factory(key: str, state: Enum) -> Type[ActionNode]:
     """Factory method that returns an ActionNode class that updates key to state."""
 
     class TransitionTo(ActionNode):
@@ -80,7 +81,7 @@ def to_end_state_factory(key: str, state: Enum) -> ActionNode:
     return TransitionTo
 
 
-def make_check_state(_key: str, _state) -> StateIn:
+def make_check_state(_key: str, _state) -> Type[StateIn]:
     """Factory method that returns a ConditionCheck object which returns SUCCESS if the node's blackboard[key] == state"""
 
     class CheckState(StateIn):
@@ -97,44 +98,34 @@ def make_check_state(_key: str, _state) -> StateIn:
 
 def make_state_change(
     key: str, transition: EnumStateTransition
-) -> FallbackNode:
+) -> Type[FallbackNode]:
     """Factory method that returns a FallbackNode object that returns SUCCESS when the blackboard[key]
     starts in one of start_states and changes to end_state, and FAILURE otherwise
     """
-
-    # todo make this method accept an EnumTransition object instead of start_states and end_state
     start_states = transition.start_states
     end_state = transition.end_state
 
-    class StartStateChecks(FallbackNode):
-        f"""SUCCESS when the current {key} is in one of {(s.name for s in start_states)}. FAILURE otherwise."""
+    start_state_checks = fallback(
+        f"StartStateChecks_{key}_{end_state}",
+        f"""SUCCESS when the current {key} is in one of {(s.name for s in start_states)}. FAILURE otherwise.""",
+        *[make_check_state(key, state) for state in start_states],
+    )
 
-        _children = tuple(
-            [make_check_state(key, state) for state in start_states]
-        )
+    sc_seq = sequence(
+        f"ScSeq_{key}_{end_state}",
+        f"""Check for a valid start state in {(s.name for s in start_states)} and transition to {end_state}""",
+        start_state_checks,
+        to_end_state_factory(key, end_state),
+    )
 
-    to_end_state = to_end_state_factory(key, end_state)
+    state_change = fallback(
+        f"StateChange_{key}_{end_state}",
+        f"""Transition from (one of) {(s.name for s in start_states)} to {end_state}""",
+        make_check_state(key, end_state),
+        sc_seq,
+    )
 
-    class ScSeq(SequenceNode):
-        f"""
-        Check for a valid start state in {(s.name for s in start_states)} and transition to {end_state}
-        """
-        _children = (StartStateChecks, to_end_state)
-
-    in_end_state = make_check_state(key, end_state)
-
-    class StateChange(FallbackNode):
-        f"""
-        Transition from (one of) {(s.name for s in start_states)} to {end_state}
-        """
-        name_pfx = "+"
-        _children = (in_end_state, ScSeq)
-
-        def __init__(self):
-            super().__init__()
-            self.name = f"{self.__class__.__name__}_{key}_to_{end_state}"
-
-    return StateChange
+    return state_change
 
 
 def show_graph(node_cls):
