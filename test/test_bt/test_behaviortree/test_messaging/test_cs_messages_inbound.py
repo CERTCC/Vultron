@@ -14,14 +14,15 @@
 import unittest
 from itertools import product
 
+# noinspection PyProtectedMember
 import vultron.bt.messaging.inbound._behaviors.cs_messages as vmc
 from vultron.bt.base.node_status import NodeStatus
-from vultron.bt.messaging.states import MessageTypes as MT
+from vultron.bt.messaging.states import MessageTypes as Mt
 from vultron.case_states.states import CS
 
 
 class MockMsg:
-    msg_type: MT = None
+    msg_type: Mt = None
 
 
 class MockState:
@@ -41,37 +42,11 @@ class MyTestCase(unittest.TestCase):
         and the current case state.
         """
         for expect_success_on, cls, pattern in zip(
-            [MT.CP, MT.CA],
+            [Mt.CP, Mt.CA],
             [vmc._HandleCp, vmc._HandleCa],
             ["...P..", ".....A"],
         ):
-            for msg_type, q_cs in product(MT, CS):
-                with self.subTest(
-                    cls=cls,
-                    msg_type=msg_type,
-                    q_cs=q_cs,
-                    expect_success_on=expect_success_on,
-                    pattern=pattern,
-                ):
-                    # setup the node
-                    node = cls()
-                    node.bb = MockState()
-
-                    msg = MockMsg()
-                    msg.msg_type = msg_type
-                    node.bb.current_message = msg
-                    node.bb.q_cs = q_cs
-
-                    self.assertIsNone(node.status)
-
-                    node.tick()
-
-                    if node.bb.current_message.msg_type == expect_success_on:
-                        self.assertEqual(NodeStatus.SUCCESS, node.status)
-                        self.assertRegex(node.bb.q_cs.name, pattern)
-                    else:
-                        self.assertEqual(NodeStatus.FAILURE, node.status)
-                        self.assertEqual(q_cs, node.bb.q_cs)
+            self._test_loop(cls, expect_success_on, pattern)
 
     def test_handle_cx(self):
         """
@@ -79,10 +54,13 @@ class MyTestCase(unittest.TestCase):
         case state.
         """
         cls = vmc._HandleCx
-        expect_success_on = MT.CX
-        pattern = "...PX."  # pX is not usually valid because X implies P so we should see a transition to P as well
+        expect_success_on = Mt.CX
+        pattern = "...PX."  # pX is not usually valid because X implies P, so we should see a transition to P as well
 
-        for msg_type, q_cs in product(MT, CS):
+        self._test_loop(cls, expect_success_on, pattern)
+
+    def _test_loop(self, cls, expect_success_on, pattern):
+        for msg_type, q_cs in product(Mt, CS):
             with self.subTest(
                 cls=cls,
                 msg_type=msg_type,
@@ -90,18 +68,8 @@ class MyTestCase(unittest.TestCase):
                 expect_success_on=expect_success_on,
                 pattern=pattern,
             ):
-                # setup the node
-                node = cls()
-                node.bb = MockState()
-
-                msg = MockMsg()
-                msg.msg_type = msg_type
-                node.bb.current_message = msg
-                node.bb.q_cs = q_cs
-
-                self.assertIsNone(node.status)
-
-                node.tick()
+                # set up the node
+                node = self._build_and_tick(cls, msg_type, q_cs)
 
                 if node.bb.current_message.msg_type == expect_success_on:
                     self.assertEqual(NodeStatus.SUCCESS, node.status)
@@ -110,33 +78,34 @@ class MyTestCase(unittest.TestCase):
                     self.assertEqual(NodeStatus.FAILURE, node.status)
                     self.assertEqual(q_cs, node.bb.q_cs)
 
+    def _build_and_tick(self, cls, msg_type, q_cs):
+        node = cls()
+        node.bb = MockState()
+        msg = MockMsg()
+        msg.msg_type = msg_type
+        node.bb.current_message = msg
+        node.bb.q_cs = q_cs
+        self.assertIsNone(node.status)
+        node.tick()
+        return node
+
     def test_handle_cv_cf_cd(self):
         """
         Test that the _HandleCv, _HandleCf, and HandleCd nodes do not transition states.
         """
         for expect_success_on, cls in zip(
-            [MT.CV, MT.CF, MT.CD],
+            [Mt.CV, Mt.CF, Mt.CD],
             [vmc._HandleCv, vmc._HandleCf, vmc._HandleCd],
         ):
-            for msg_type, q_cs in product(MT, CS):
+            for msg_type, q_cs in product(Mt, CS):
                 with self.subTest(
                     cls=cls,
                     msg_type=msg_type,
                     q_cs=q_cs,
                     expect_success_on=expect_success_on,
                 ):
-                    # setup the node
-                    node = cls()
-                    node.bb = MockState()
-
-                    msg = MockMsg()
-                    msg.msg_type = msg_type
-                    node.bb.current_message = msg
-                    node.bb.q_cs = q_cs
-
-                    self.assertIsNone(node.status)
-
-                    node.tick()
+                    # set up the node
+                    node = self._build_and_tick(cls, msg_type, q_cs)
 
                     # CV doesn't change the case state
                     self.assertEqual(q_cs, node.bb.q_cs)

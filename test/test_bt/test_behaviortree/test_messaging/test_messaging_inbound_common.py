@@ -20,7 +20,8 @@ from dataclasses import dataclass
 from vultron.bt.base.bt_node import ActionNode
 from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.messaging.inbound._behaviors.common import (
-    LogMsg, PopMessage,
+    LogMsg,
+    PopMessage,
     PushMessage,
     UnsetCurrentMsg,
 )
@@ -171,6 +172,7 @@ class MyTestCase(unittest.TestCase):
         # but the message type should be logged
         self.assertEqual(1, len(node.bb.msgs_received_this_tick))
         self.assertEqual(msg.msg_type, node.bb.msgs_received_this_tick[-1])
+
 
 if __name__ == "__main__":
     unittest.main()
