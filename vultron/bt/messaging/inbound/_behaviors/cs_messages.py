@@ -121,9 +121,9 @@ class _HandleCpCxCa(SequenceNode):
 
 
 # The status of some other vendor doesn't really affect us, so we don't do anything fancy here.
-HandleCv = IsMsgTypeCV
-HandleCf = IsMsgTypeCF
-HandleCd = IsMsgTypeCD
+_HandleCv = IsMsgTypeCV
+_HandleCf = IsMsgTypeCF
+_HandleCd = IsMsgTypeCD
 
 
 class _HandleAckableCsMessages(FallbackNode):
@@ -131,7 +131,7 @@ class _HandleAckableCsMessages(FallbackNode):
     Handle CP, CX, CA, CV, CF, and CD messages.
     """
 
-    _children = (_HandleCpCxCa, HandleCv, HandleCf, HandleCd, _HandleCe)
+    _children = (_HandleCpCxCa, _HandleCv, _HandleCf, _HandleCd, _HandleCe)
 
 
 class _HandleAndAckNormalCsMessages(SequenceNode):
