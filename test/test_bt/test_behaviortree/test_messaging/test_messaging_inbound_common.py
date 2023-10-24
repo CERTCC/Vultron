@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from vultron.bt.base.bt_node import ActionNode
 from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.messaging.inbound._behaviors.common import (
-    PopMessage,
+    LogMsg, PopMessage,
     PushMessage,
     UnsetCurrentMsg,
 )
@@ -29,6 +29,7 @@ from vultron.bt.messaging.inbound._behaviors.common import (
 class MockState:
     current_message = None
     incoming_messages = deque()
+    msgs_received_this_tick = []
 
 
 @dataclass(kw_only=True)
@@ -136,14 +137,40 @@ class MyTestCase(unittest.TestCase):
         )
 
     def test_unset_current_msg(self):
-        us = UnsetCurrentMsg()
-        us.bb = MockState()
-        us.bb.current_message = 1
-        self.assertIsNotNone(us.bb.current_message)
-        r = us._tick()
-        self.assertEqual(NodeStatus.SUCCESS, r)
-        self.assertIsNone(us.bb.current_message)
+        node = UnsetCurrentMsg()
+        node.bb = MockState()
+        msg = MockMsg()
+        self.assertIsNone(node.bb.current_message)
+        node.bb.current_message = msg
+        self.assertEqual(msg, node.bb.current_message)
 
+        self.assertIsNone(node.status)
+
+        node.tick()
+
+        self.assertEqual(NodeStatus.SUCCESS, node.status)
+        self.assertIsNone(node.bb.current_message)
+
+    def test_log_msg(self):
+        node = LogMsg()
+        node.bb = MockState()
+        msg = MockMsg()
+        self.assertIsNone(node.bb.current_message)
+        node.bb.current_message = msg
+        self.assertEqual(msg, node.bb.current_message)
+
+        self.assertEqual(0, len(node.bb.msgs_received_this_tick))
+        self.assertIsNone(node.status)
+
+        node.tick()
+
+        # node should succeed
+        self.assertEqual(NodeStatus.SUCCESS, node.status)
+        # current message should not change
+        self.assertEqual(msg, node.bb.current_message)
+        # but the message type should be logged
+        self.assertEqual(1, len(node.bb.msgs_received_this_tick))
+        self.assertEqual(msg.msg_type, node.bb.msgs_received_this_tick[-1])
 
 if __name__ == "__main__":
     unittest.main()
