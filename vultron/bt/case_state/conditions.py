@@ -16,8 +16,8 @@ This module defines CVD Case State conditions as Behavior Tree nodes.
 """
 
 
-from vultron.bt.base.bt_node import ConditionCheck
-from vultron.bt.base.factory import invert, sequence
+from vultron.bt.base.bt_node import BtNode
+from vultron.bt.base.factory import condition_check, invert, sequence
 from vultron.case_states.states import (
     AttackObservation,
     ExploitPublication,
@@ -28,63 +28,80 @@ from vultron.case_states.states import (
 )
 
 
-class CSinStateVendorAware(ConditionCheck):
-    """Condition check for whether the vendor is aware of the vulnerability"""
-
-    def func(self):
-        return (
-            self.bb.q_cs.value.vfd_state.value.vendor_awareness
-            == VendorAwareness.V
-        )
+def cs_in_state_vendor_aware(obj: BtNode) -> bool:
+    """True when the vendor is aware of the vulnerability"""
+    return (
+        obj.bb.q_cs.value.vfd_state.value.vendor_awareness == VendorAwareness.V
+    )
 
 
-class CSinStateFixReady(ConditionCheck):
-    """Condition check for whether the vendor has a fix ready"""
-
-    def func(self):
-        return (
-            self.bb.q_cs.value.vfd_state.value.fix_readiness == FixReadiness.F
-        )
+CSinStateVendorAware = condition_check(
+    "CSinStateVendorAware",
+    cs_in_state_vendor_aware,
+)
 
 
-class CSinStateFixDeployed(ConditionCheck):
-    """Condition check for whether a fix has been deployed"""
-
-    def func(self):
-        return (
-            self.bb.q_cs.value.vfd_state.value.fix_deployment
-            == FixDeployment.D
-        )
+def cs_in_state_fix_ready(obj: BtNode) -> bool:
+    """True when the vendor has a fix ready"""
+    return obj.bb.q_cs.value.vfd_state.value.fix_readiness == FixReadiness.F
 
 
-class CSinStatePublicAware(ConditionCheck):
-    """Condition check for whether the public is aware of the vulnerability"""
-
-    def func(self):
-        return (
-            self.bb.q_cs.value.pxa_state.value.public_awareness
-            == PublicAwareness.P
-        )
+CSinStateFixReady = condition_check(
+    "CSinStateFixReady",
+    cs_in_state_fix_ready,
+)
 
 
-class CSinStateExploitPublic(ConditionCheck):
-    """Condition check for whether an exploit is public for the vulnerability"""
-
-    def func(self):
-        return (
-            self.bb.q_cs.value.pxa_state.value.exploit_publication
-            == ExploitPublication.X
-        )
+def cs_in_state_fix_deployed(obj: BtNode) -> bool:
+    """True when the fix has been deployed"""
+    return obj.bb.q_cs.value.vfd_state.value.fix_deployment == FixDeployment.D
 
 
-class CSinStateAttacksObserved(ConditionCheck):
-    """Condition check for whether attacks against the vulnerability have been observed"""
+CSinStateFixDeployed = condition_check(
+    "CSinStateFixDeployed",
+    cs_in_state_fix_deployed,
+)
 
-    def func(self):
-        return (
-            self.bb.q_cs.value.pxa_state.value.attack_observation
-            == AttackObservation.A
-        )
+
+def cs_in_state_public_aware(obj: BtNode) -> bool:
+    """True when the public is aware of the vulnerability"""
+    return (
+        obj.bb.q_cs.value.pxa_state.value.public_awareness == PublicAwareness.P
+    )
+
+
+CSinStatePublicAware = condition_check(
+    "CSinStatePublicAware",
+    cs_in_state_public_aware,
+)
+
+
+def cs_in_state_exploit_public(obj: BtNode) -> bool:
+    """True when an exploit is public for the vulnerability"""
+    return (
+        obj.bb.q_cs.value.pxa_state.value.exploit_publication
+        == ExploitPublication.X
+    )
+
+
+CSinStateExploitPublic = condition_check(
+    "CSinStateExploitPublic",
+    cs_in_state_exploit_public,
+)
+
+
+def cs_in_state_attacks_observed(obj: BtNode) -> bool:
+    """True when attacks against the vulnerability have been observed"""
+    return (
+        obj.bb.q_cs.value.pxa_state.value.attack_observation
+        == AttackObservation.A
+    )
+
+
+CSinStateAttacksObserved = condition_check(
+    "CSinStateAttacksObserved",
+    cs_in_state_attacks_observed,
+)
 
 
 CSinStatePublicAwareAndExploitPublic = sequence(
@@ -187,7 +204,8 @@ CSinStateNotDeployedButPublicAware = sequence(
 
 CSinStateVendorAwareFixReadyFixNotDeployed = sequence(
     "CSinStateVendorAwareFixReadyFixNotDeployed",
-    """Condition check for whether the vendor is aware of the vulnerability and has a fix ready, but the fix has not been deployed""",
+    """Condition check for whether the vendor is aware of the vulnerability and has a fix ready, but the fix has not 
+    been deployed""",
     CSinStateVendorAware,
     CSinStateFixReady,
     CSinStateFixNotDeployed,
