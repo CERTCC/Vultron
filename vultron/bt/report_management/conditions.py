@@ -15,99 +15,52 @@
 Provides condition nodes for report management states.
 """
 
-
-from vultron.bt.base.composites import FallbackNode
-from vultron.bt.base.decorators import Invert
-from vultron.bt.common import StateIn
-from vultron.bt.report_management.errors import (
-    ReportManagementConditionError,
-)
+from vultron.bt.base.factory import fallback, invert
+from vultron.bt.common import state_in
 from vultron.bt.report_management.states import RM
 
-
-class RMinState(StateIn):
-    """Base class for all report management state conditions.
-    This class is used to check if the report management state is in a particular state.
-    """
-
-    key = "q_rm"
-    states = RM
-    Exc = ReportManagementConditionError
+RMinStateStart = state_in("q_rm", RM.START)
+RMinStateReceived = state_in("q_rm", RM.RECEIVED)
+RMinStateInvalid = state_in("q_rm", RM.INVALID)
+RMinStateValid = state_in("q_rm", RM.VALID)
+RMinStateDeferred = state_in("q_rm", RM.DEFERRED)
+RMinStateAccepted = state_in("q_rm", RM.ACCEPTED)
+RMinStateClosed = state_in("q_rm", RM.CLOSED)
 
 
-class RMinStateStart(RMinState):
-    """SUCCESS when the report management state is in the START state. FAILURE otherwise."""
+RMnotInStateStart = invert(
+    "RMnotInStateStart", "True when RM not in START", RMinStateStart
+)
+RMnotInStateClosed = invert(
+    "RMnotInStateClosed", "True when RM not in CLOSED", RMinStateClosed
+)
 
-    state = RM.START
+RMinStateDeferredOrAccepted = fallback(
+    "RMinStateDeferredOrAccepted",
+    "SUCCESS when the report management state is in the DEFERRED or ACCEPTED state. FAILURE otherwise.",
+    RMinStateDeferred,
+    RMinStateAccepted,
+)
 
+RMinStateReceivedOrInvalid = fallback(
+    "RMinStateReceivedOrInvalid",
+    "SUCCESS when the report management state is in the RECEIVED or INVALID state. FAILURE otherwise.",
+    RMinStateReceived,
+    RMinStateInvalid,
+)
 
-class RMinStateClosed(RMinState):
-    """SUCCESS when the report management state is in the CLOSED state. FAILURE otherwise."""
-
-    state = RM.CLOSED
-
-
-class RMinStateReceived(RMinState):
-    """SUCCESS when the report management state is in the RECEIVED state. FAILURE otherwise."""
-
-    state = RM.RECEIVED
-
-
-class RMinStateInvalid(RMinState):
-    """SUCCESS when the report management state is in the INVALID state. FAILURE otherwise."""
-
-    state = RM.INVALID
-
-
-class RMinStateValid(RMinState):
-    """SUCCESS when the report management state is in the VALID state. FAILURE otherwise."""
-
-    state = RM.VALID
-
-
-class RMinStateDeferred(RMinState):
-    """SUCCESS when the report management state is in the DEFERRED state. FAILURE otherwise."""
-
-    state = RM.DEFERRED
+RMinStateStartOrClosed = fallback(
+    "RMinStateStartOrClosed",
+    "SUCCESS when the report management state is in the START or CLOSED state. FAILURE otherwise.",
+    RMinStateStart,
+    RMinStateClosed,
+)
 
 
-class RMinStateAccepted(RMinState):
-    """SUCCESS when the report management state is in the ACCEPTED state. FAILURE otherwise."""
-
-    state = RM.ACCEPTED
-
-
-class RMnotInStateStart(Invert):
-    """SUCCESS when the report management state is not in the START state. FAILURE otherwise."""
-
-    _children = (RMinStateStart,)
-
-
-class RMnotInStateClosed(Invert):
-    """SUCCESS when the report management state is not in the CLOSED state. FAILURE otherwise."""
-
-    _children = (RMinStateClosed,)
-
-
-class RMinStateDeferredOrAccepted(FallbackNode):
-    """SUCCESS when the report management state is in the DEFERRED or ACCEPTED state. FAILURE otherwise."""
-
-    _children = (RMinStateDeferred, RMinStateAccepted)
-
-
-class RMinStateReceivedOrInvalid(FallbackNode):
-    """SUCCESS when the report management state is in the RECEIVED or INVALID state. FAILURE otherwise."""
-
-    _children = (RMinStateReceived, RMinStateInvalid)
-
-
-class RMinStateStartOrClosed(FallbackNode):
-    """SUCCESS when the report management state is in the START or CLOSED state. FAILURE otherwise."""
-
-    _children = (RMinStateStart, RMinStateClosed)
-
-
-class RMinStateValidOrDeferredOrAccepted(FallbackNode):
-    """SUCCESS when the report management state is in the VALID, DEFERRED, or ACCEPTED state. FAILURE otherwise."""
-
-    _children = (RMinStateValid, RMinStateDeferred, RMinStateAccepted)
+RMinStateValidOrDeferredOrAccepted = fallback(
+    "RMinStateValidOrDeferredOrAccepted",
+    "SUCCESS when the report management state is in the VALID, DEFERRED, or ACCEPTED state. FAILURE otherwise.",
+    RMinStateValid,
+    RMinStateDeferred,
+    RMinStateAccepted,
+)
