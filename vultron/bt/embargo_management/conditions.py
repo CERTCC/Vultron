@@ -21,9 +21,6 @@ from typing import Type
 from vultron.bt.base.bt_node import ConditionCheck
 from vultron.bt.base.factory import fallback
 from vultron.bt.common import show_graph, state_in
-from vultron.bt.embargo_management.errors import (
-    EmbargoManagementConditionError,
-)
 from vultron.bt.embargo_management.states import EM
 
 
@@ -45,7 +42,7 @@ def em_state_in(state: EM) -> Type[ConditionCheck]:
     if state not in EM:
         raise ValueError(f"{state} is not a valid Embargo Management state")
 
-    return state_in("q_em", state, EmbargoManagementConditionError)
+    return state_in("q_em", state)
 
 
 EMinStateNone = em_state_in(EM.NO_EMBARGO)
