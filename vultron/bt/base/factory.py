@@ -15,87 +15,159 @@ Provides common tools for constructing behavior trees
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Type
+from typing import Callable, Type, TypeVar
 
-from vultron.bt.base.bt_node import BtNode
+from vultron.bt.base.bt_node import ActionNode, BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode, SequenceNode
 from vultron.bt.base.decorators import Invert
+from vultron.bt.base.fuzzer import WeightedSuccess
+
+NodeType = TypeVar("NodeType", bound=Type[BtNode])
 
 
 def node_factory(
-    nodetype: Type[BtNode],
+    node_type: Type[NodeType],
     name: str,
     docstr: str,
     *child_classes: Type[BtNode],
-) -> Type[BtNode]:
+) -> Type[NodeType]:
     """
-    Convenience function to create a node with a docstring.
+    Convenience function to create a node_cls with a docstring.
 
     Args:
-        nodetype: a BtNode class
-        name: the name of the node class
-        docstr: the docstring for the node
-        *child_classes: the child classes for the node (if any)
+        node_type: a BtNode class
+        name: the name of the node_cls
+        docstr: the docstring for the node_cls
+        *child_classes: the child classes for the node_cls (if any)
 
     Returns:
-        A node class with the given docstring and children
+        A node_cls class with the given docstring and children
     """
 
-    cls = type(name, (nodetype,), {})
-    cls.__doc__ = docstr
+    node_cls = type(name, (node_type,), {})
+    node_cls.__doc__ = docstr
 
     if len(child_classes) > 0:
-        cls._children = child_classes
+        node_cls._children = child_classes
 
-    return cls
+    return node_cls
 
 
 def sequence(
-    name: str, docstr: str, *child_classes: Type[BtNode]
+    name: str, description: str, *child_classes: Type[BtNode]
 ) -> Type[SequenceNode]:
     """
     Convenience function to create a SequenceNode with a docstring.
 
     Args:
         name: the name of the SequenceNode class
-        docstr: the docstring for the SequenceNode
+        description: the docstring for the SequenceNode
         *child_classes: the child classes for the SequenceNode
 
     Returns:
         A SequenceNode class with the given docstring and children
     """
-    return node_factory(SequenceNode, name, docstr, *child_classes)
+    return node_factory(SequenceNode, name, description, *child_classes)
 
 
 def fallback(
-    name: str, docstr: str, *child_classes: Type[BtNode]
+    name: str, description: str, *child_classes: Type[BtNode]
 ) -> Type[FallbackNode]:
     """
     Convenience function to create a FallbackNode with a docstring.
 
     Args:
         name: the name of the FallbackNode class
-        docstr: the docstring for the FallbackNode
+        description: the docstring for the FallbackNode
         *child_classes: the child classes for the FallbackNode
 
     Returns:
         A FallbackNode class with the given docstring and children
     """
-    return node_factory(FallbackNode, name, docstr, *child_classes)
+    return node_factory(FallbackNode, name, description, *child_classes)
 
 
 def invert(
-    name: str, docstr: str, *child_classes: Type[BtNode]
+    name: str, description: str, *child_classes: Type[BtNode]
 ) -> Type[Invert]:
     """
     Convenience function to create an Invert decorator with a docstring.
 
     Args:
         name: the name of the Invert decorator class
-        docstr: the docstring for the Invert decorator
+        description: the docstring for the Invert decorator
         *child_classes: the child class for the Invert decorator
 
     Returns:
         An Invert decorator class with the given docstring and children
     """
-    return node_factory(Invert, name, docstr, *child_classes)
+    return node_factory(Invert, name, description, *child_classes)
+
+
+def fuzzer(
+    cls: Type[WeightedSuccess], name: str, description: str
+) -> Type[WeightedSuccess]:
+    """
+    Convenience function to create a WeightedSuccess fuzzer with a docstring.
+
+    Args:
+        cls: the WeightedSuccess class to serve as the base class
+        name: the name of the WeightedSuccess class
+        description: the docstring for the WeightedSuccess class
+
+    Returns:
+        A WeightedSuccess class with the given docstring
+
+    """
+    return node_factory(cls, name, description)
+
+
+def condition_check(
+    name: str,
+    func: Callable[
+        [
+            BtNode,
+        ],
+        bool,
+    ],
+) -> Type[ConditionCheck]:
+    """
+    Convenience function to create a ConditionCheck node with a docstring.
+    The function's docstring will be used as the ConditionCheck's docstring.
+
+    Args:
+        name: the name of the ConditionCheck class
+        func: the function to be used as the ConditionCheck's condition. Expects a BtNode as an argument and returns a bool
+
+    Returns:
+        A ConditionCheck class with the given docstring and condition function
+
+    """
+    node_cls = node_factory(ConditionCheck, name, func.__doc__)
+    node_cls.func = func
+    return node_cls
+
+
+def action_node(
+    name: str,
+    func: Callable[
+        [
+            BtNode,
+        ],
+        bool,
+    ],
+) -> Type[ActionNode]:
+    """
+    Convenience function to create an ActionNode with a docstring.
+    The function's docstring will be used as the ActionNode's docstring.
+
+    Args:
+        name: the name of the ActionNode class
+        func: the function to be used as the ActionNode's action. Expects a BtNode as an argument and returns a bool
+
+    Returns:
+        An ActionNode class with the given docstring and action function
+    """
+    node_cls = node_factory(ActionNode, name, func.__doc__)
+    node_cls.func = func
+    return node_cls
