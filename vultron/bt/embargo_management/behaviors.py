@@ -110,7 +110,8 @@ _AvoidCounterProposal = sequence(
 
 _ProposeNewEmbargo = sequence(
     "ProposeNewEmbargo",
-    "Sequence node for proposing a new embargo. Steps: 1. Check if the EM state is in None or Proposed. 2. Transition to Proposed. 3. Emit an EP message indicating a new embargo is being proposed.",
+    "Sequence node for proposing a new embargo. Steps: 1. Check if the EM state is in None or Proposed. 2. Transition "
+    "to Proposed. 3. Emit an EP message indicating a new embargo is being proposed.",
     EMinStateNoneOrPropose,
     q_em_to_P,
     EmitEP,
@@ -118,7 +119,8 @@ _ProposeNewEmbargo = sequence(
 
 _ProposeEmbargoRevision = sequence(
     "ProposeEmbargoRevision",
-    "Sequence node for proposing a revision to the current embargo. Steps: 1. Check if the EM state is in Active or Revise. 2. Transition to Revise. 3. Emit an EV message indicating the current embargo is being revised.",
+    "Sequence node for proposing a revision to the current embargo. Steps: 1. Check if the EM state is in Active or "
+    "Revise. 2. Transition to Revise. 3. Emit an EV message indicating the current embargo is being revised.",
     EMinStateActiveOrRevise,
     q_em_to_R,
     EmitEV,
@@ -126,7 +128,9 @@ _ProposeEmbargoRevision = sequence(
 
 _ConsiderProposingEmbargo = fallback(
     "ConsiderProposingEmbargo",
-    "Fallback node for considering proposing an embargo. Steps: 1. Generally avoid counter-proposing an embargo in favor of accepting the existing proposal and proposing a revision. 2. Propose a new embargo. 3. Propose a revision to the current embargo.",
+    "Fallback node for considering proposing an embargo. Steps: 1. Generally avoid counter-proposing an embargo in "
+    "favor of accepting the existing proposal and proposing a revision. 2. Propose a new embargo. 3. Propose a "
+    "revision to the current embargo.",
     _AvoidCounterProposal,
     _ProposeNewEmbargo,
     _ProposeEmbargoRevision,
