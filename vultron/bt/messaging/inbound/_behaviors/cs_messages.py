@@ -16,7 +16,7 @@ This module contains the behaviors that are used by the inbound message handler 
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from vultron.bt.base.composites import FallbackNode, SequenceNode
+from vultron.bt.base.factory import fallback, sequence
 from vultron.bt.case_state.conditions import (
     CSinStateAttacksObserved,
     CSinStateExploitPublic,
@@ -46,78 +46,99 @@ from vultron.bt.messaging.outbound.behaviors import EmitCE, EmitCK, EmitCP
 # CS messages
 
 
-class _HandleCe(SequenceNode):
-    """Handle CE messages."""
-
-    _children = (IsMsgTypeCE, FollowUpOnErrorMessage)
-
-
-class _EnsureCsInP(FallbackNode):
-    """Ensure that the case state is in the public aware state."""
-
-    _children = (CSinStatePublicAware, q_cs_to_P)
+_HandleCe = sequence(
+    "_HandleCe", """Handle CE messages.""", IsMsgTypeCE, FollowUpOnErrorMessage
+)
 
 
-class _HandleCp(SequenceNode):
+_EnsureCsInP = fallback(
+    "_EnsureCsInP",
+    """Ensure that the case state is in the public aware state.""",
+    CSinStatePublicAware,
+    q_cs_to_P,
+)
+
+
+_HandleCp = sequence(
+    "_HandleCp",
     """Handle CP messages.
     If the case state is not in the public aware state, transition to it.
-    """
-
-    _children = (IsMsgTypeCP, _EnsureCsInP)
-
-
-class _EnsureCsInX(FallbackNode):
-    """Ensure that the case state is in the exploit public state."""
-
-    _children = (CSinStateExploitPublic, q_cs_to_X)
+    """,
+    IsMsgTypeCP,
+    _EnsureCsInP,
+)
 
 
-class _CsToXThenP(SequenceNode):
+_EnsureCsInX = fallback(
+    "_EnsureCsInX",
+    """Ensure that the case state is in the exploit public state.""",
+    CSinStateExploitPublic,
+    q_cs_to_X,
+)
+
+
+_CsToXThenP = sequence(
+    "_CsToXThenP",
     """Transition to the exploit public state, then to the public aware state.
     Emit a CP message to indicate that the case state has changed.
-    """
-
-    _children = (_EnsureCsInX, _EnsureCsInP, EmitCP)
-
-
-class _EnsureCsInPX(FallbackNode):
-    """Ensure that the case state is in the PUBLIC_AWARE and EXPLOIT_PUBLIC states."""
-
-    _children = (CSinStatePublicAwareAndExploitPublic, _CsToXThenP)
+    """,
+    _EnsureCsInX,
+    _EnsureCsInP,
+    EmitCP,
+)
 
 
-class _HandleCx(SequenceNode):
+_EnsureCsInPX = fallback(
+    "_EnsureCsInPX",
+    """Ensure that the case state is in the PUBLIC_AWARE and EXPLOIT_PUBLIC states.""",
+    CSinStatePublicAwareAndExploitPublic,
+    _CsToXThenP,
+)
+
+
+_HandleCx = sequence(
+    "_HandleCx",
     """Handle CX messages.
     If the case state is not in the PUBLIC_AWARE and EXPLOIT_PUBLIC states, transition to them.
-    """
-
-    _children = (IsMsgTypeCX, _EnsureCsInPX)
-
-
-class _EnsureCsInA(FallbackNode):
-    """Ensure that the case state is in the ATTACKS_OBSERVED state."""
-
-    _children = (CSinStateAttacksObserved, q_cs_to_A)
+    """,
+    IsMsgTypeCX,
+    _EnsureCsInPX,
+)
 
 
-class _HandleCa(SequenceNode):
+_EnsureCsInA = fallback(
+    "_EnsureCsInA",
+    """Ensure that the case state is in the ATTACKS_OBSERVED state.""",
+    CSinStateAttacksObserved,
+    q_cs_to_A,
+)
+
+
+_HandleCa = sequence(
+    "_HandleCa",
     """Handle CA messages.
     If the case state is not in the ATTACKS_OBSERVED state, transition to it.
-    """
-
-    _children = (IsMsgTypeCA, _EnsureCsInA)
-
-
-class _CpCxCa(FallbackNode):
-    """Handle CP, CX, and CA messages."""
-
-    _children = (_HandleCp, _HandleCx, _HandleCa)
+    """,
+    IsMsgTypeCA,
+    _EnsureCsInA,
+)
 
 
-class _HandleCpCxCa(SequenceNode):
-    """Handle CP, CX, and CA messages, and terminate any embargo that may be in effect."""
+_CpCxCa = fallback(
+    "_CpCxCa",
+    """Handle CP, CX, and CA messages.""",
+    _HandleCp,
+    _HandleCx,
+    _HandleCa,
+)
 
-    _children = (_CpCxCa, TerminateEmbargoBt)
+
+_HandleCpCxCa = sequence(
+    "_HandleCpCxCa",
+    """Handle CP, CX, and CA messages, and terminate any embargo that may be in effect.""",
+    _CpCxCa,
+    TerminateEmbargoBt,
+)
 
 
 # The status of some other vendor doesn't really affect us, so we don't do anything fancy here.
@@ -126,32 +147,44 @@ _HandleCf = IsMsgTypeCF
 _HandleCd = IsMsgTypeCD
 
 
-class _HandleAckableCsMessages(FallbackNode):
+_HandleAckableCsMessages = fallback(
+    "_HandleAckableCsMessages",
     """
     Handle CP, CX, CA, CV, CF, and CD messages.
-    """
-
-    _children = (_HandleCpCxCa, _HandleCv, _HandleCf, _HandleCd, _HandleCe)
-
-
-class _HandleAndAckNormalCsMessages(SequenceNode):
-    """Handle CP, CX, CA, CV, CF, and CD messages, and emit a CK message to acknowledge receipt."""
-
-    _children = (_HandleAckableCsMessages, EmitCK)
+    """,
+    _HandleCpCxCa,
+    _HandleCv,
+    _HandleCf,
+    _HandleCd,
+    _HandleCe,
+)
 
 
-class _HandleCsMessageTypes(FallbackNode):
+_HandleAndAckNormalCsMessages = sequence(
+    "_HandleAndAckNormalCsMessages",
+    """Handle CP, CX, CA, CV, CF, and CD messages, and emit a CK message to acknowledge receipt.""",
+    _HandleAckableCsMessages,
+    EmitCK,
+)
+
+
+_HandleCsMessageTypes = fallback(
+    "_HandleCsMessageTypes",
     """Handle CP, CX, CA, CV, CF, CD, and CE messages.
     Emit a CE message if there is an error.
-    """
+    """,
+    IsMsgTypeCK,
+    _HandleAndAckNormalCsMessages,
+    EmitCE,
+)
 
-    _children = (IsMsgTypeCK, _HandleAndAckNormalCsMessages, EmitCE)
 
-
-class ProcessCSMessagesBt(SequenceNode):
-    """Behavior tree for processing CS messages."""
-
-    _children = (IsCSMessage, _HandleCsMessageTypes)
+ProcessCSMessagesBt = sequence(
+    "ProcessCSMessagesBt",
+    """Behavior tree for processing CS messages.""",
+    IsCSMessage,
+    _HandleCsMessageTypes,
+)
 
 
 def main():

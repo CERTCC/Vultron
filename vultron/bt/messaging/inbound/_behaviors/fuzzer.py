@@ -18,13 +18,15 @@ created_at: 2/22/23 10:24 AM
 
 
 from vultron.bt.base import fuzzer as btz
-from vultron.bt.base.composites import FallbackNode
+from vultron.bt.base.factory import fallback
 from vultron.bt.messaging.outbound.behaviors import EmitGI
 
 
-class FollowUpOnErrorMessage(FallbackNode):
+FollowUpOnErrorMessage = fallback(
+    "FollowUpOnErrorMessage",
     """This is a stub for following up on an error message. In our stub implementation, we just stochastically (0.5
     probability) emit a GI message to simulate sending a follow-up inquiry message.
-    """
-
-    _children = (btz.UniformSucceedFail, EmitGI)
+    """,
+    btz.UniformSucceedFail,
+    EmitGI,
+)

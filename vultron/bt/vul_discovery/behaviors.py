@@ -18,7 +18,7 @@ created_at: 6/23/22 12:08 PM
 
 
 from vultron.bt.base.bt_node import ConditionCheck
-from vultron.bt.base.composites import FallbackNode, SequenceNode
+from vultron.bt.base.factory import fallback, sequence
 from vultron.bt.case_state.conditions import CSinStateVendorUnaware
 from vultron.bt.case_state.transitions import q_cs_to_V
 from vultron.bt.messaging.outbound.behaviors import EmitCV, EmitRS
@@ -40,27 +40,33 @@ class HaveDiscoveryCapability(ConditionCheck):
         return self.bb.CVD_role & CVDRoles.FINDER
 
 
-class VendorBecomesAware(SequenceNode):
+VendorBecomesAware = sequence(
+    "VendorBecomesAware",
     """Vendor becomes aware of vulnerability.
     Steps:
     1. Check whether the vendor is already aware of the vulnerability.
     2. If not, transition the case state to Vendor Aware.
     3. Emit a CV message to announce that the vendor is aware of the vulnerability.
-    """
+    """,
+    CSinStateVendorUnaware,
+    q_cs_to_V,
+    EmitCV,
+)
 
-    _children = (CSinStateVendorUnaware, q_cs_to_V, EmitCV)
 
-
-class SeeIfVendorIsAware(FallbackNode):
+SeeIfVendorIsAware = fallback(
+    "SeeIfVendorIsAware",
     """Check if the vendor is aware of the vulnerability.
     If the finder is not the vendor, stop.
     Otherwise, note that the vendor is aware of the vulnerability.
-    """
+    """,
+    RoleIsNotVendor,
+    VendorBecomesAware,
+)
 
-    _children = (RoleIsNotVendor, VendorBecomesAware)
 
-
-class FindVulnerabilities(SequenceNode):
+FindVulnerabilities = sequence(
+    "FindVulnerabilities",
     """This node represents the process of finding vulnerabilities.
     Steps:
     1. Check if the participant has the ability to discover vulnerabilities.
@@ -69,27 +75,28 @@ class FindVulnerabilities(SequenceNode):
          then discover vulnerabilities.
     5. If a vulnerability is discovered, emit an RS message and set the RM state to Received for this participant.
     6. Check to see if we are the vendor. If so, note that the vendor is aware of the vulnerability.
-    """
-
-    _children = (
-        HaveDiscoveryCapability,
-        HaveDiscoveryPriority,
-        DiscoverVulnerability,
-        q_rm_to_R,
-        EmitRS,
-        SeeIfVendorIsAware,
-    )
+    """,
+    HaveDiscoveryCapability,
+    HaveDiscoveryPriority,
+    DiscoverVulnerability,
+    q_rm_to_R,
+    EmitRS,
+    SeeIfVendorIsAware,
+)
 
 
-class DiscoverVulnerabilityBt(FallbackNode):
+DiscoverVulnerabilityBt = fallback(
+    "DiscoverVulnerabilityBt",
     """This is the top-level node for the vulnerability discovery process.
     Steps:
     1. Check if the RM state is not in the start state. If so, stop.
     2. Find vulnerabilities. If a vulnerability is found, stop.
     3. If no vulnerabilities are found, note that no vulnerabilities were found.
-    """
-
-    _children = (RMnotInStateStart, FindVulnerabilities, NoVulFound)
+    """,
+    RMnotInStateStart,
+    FindVulnerabilities,
+    NoVulFound,
+)
 
 
 def main():

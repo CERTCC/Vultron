@@ -17,10 +17,10 @@ Provides threat monitoring behaviors for the Vultron BT.
 
 
 from vultron.bt.base.composites import (
-    FallbackNode,
     ParallelNode,
     SequenceNode,
 )
+from vultron.bt.base.factory import fallback, sequence
 from vultron.bt.case_state.conditions import CSinStatePublicAware
 from vultron.bt.case_state.transitions import q_cs_to_A, q_cs_to_P, q_cs_to_X
 from vultron.bt.embargo_management.behaviors import TerminateEmbargoBt
@@ -33,13 +33,16 @@ from vultron.bt.report_management.fuzzer.monitor_threats import (
 )
 
 
-class _NoticeAttack(SequenceNode):
+_NoticeAttack = sequence(
+    "_NoticeAttack",
     """This node represents the process of noticing an attack on a vulnerability covered by a report.
     If an attack is noticed, the case state is updated to reflect the attack, and a message is sent to the
     case participants indicating the state change.
-    """
-
-    _children = (MonitorAttacks, q_cs_to_A, EmitCA)
+    """,
+    MonitorAttacks,
+    q_cs_to_A,
+    EmitCA,
+)
 
 
 class _MoveToCsPublic(SequenceNode):
@@ -53,31 +56,39 @@ class _MoveToCsPublic(SequenceNode):
     _children = (q_cs_to_P, EmitCP)
 
 
-class _EnsureCsInPublic(FallbackNode):
+_EnsureCsInPublic = fallback(
+    "_EnsureCsInPublic",
     """This node represents the process of ensuring that the case state is in the PUBLIC_AWARE state. If the case state
     is already in the PUBLIC_AWARE state, then this node succeeds. If the case state is not in the PUBLIC_AWARE
     state, then this node attempts to move the case state to the PUBLIC_AWARE state.
-    """
+    """,
+    CSinStatePublicAware,
+    _MoveToCsPublic,
+)
 
-    _children = (CSinStatePublicAware, _MoveToCsPublic)
 
-
-class _NoticeExploit(SequenceNode):
+_NoticeExploit = sequence(
+    "_NoticeExploit",
     """This node represents the process of noticing the public availability of an exploit for a vulnerability covered by
     a report. If an exploit is noticed, the case state is updated to reflect the exploit, and a message is sent to
     the case participants indicating the state change.
-    """
+    """,
+    MonitorExploits,
+    _EnsureCsInPublic,
+    q_cs_to_X,
+    EmitCX,
+)
 
-    _children = (MonitorExploits, _EnsureCsInPublic, q_cs_to_X, EmitCX)
 
-
-class _NoticePublicReport(SequenceNode):
+_NoticePublicReport = sequence(
+    "_NoticePublicReport",
     """This node represents the process of noticing the public availability of a report for a vulnerability covered by a
     report being coordinated by the case. If a public report is noticed, the case state is updated to reflect the
     public report, and a message is sent to the case participants indicating the state change.
-    """
-
-    _children = (MonitorPublicReports, _MoveToCsPublic)
+    """,
+    MonitorPublicReports,
+    _MoveToCsPublic,
+)
 
 
 class _MonitorExternalEvents(ParallelNode):
@@ -89,7 +100,8 @@ class _MonitorExternalEvents(ParallelNode):
     _children = (_NoticeAttack, _NoticeExploit, _NoticePublicReport)
 
 
-class _EndEmbargoIfEventsWarrant(SequenceNode):
+_EndEmbargoIfEventsWarrant = sequence(
+    "_EndEmbargoIfEventsWarrant",
     """This node represents the process of ending the embargo if the events warrant it.
     Events that warrant ending the embargo include:
     1. The public becoming aware of the vulnerability.
@@ -97,16 +109,19 @@ class _EndEmbargoIfEventsWarrant(SequenceNode):
     3. The observation of an attack on the vulnerability.
 
     If any of these events are observed, then the embargo termination process is initiated.
-    """
+    """,
+    _MonitorExternalEvents,
+    TerminateEmbargoBt,
+)
 
-    _children = (_MonitorExternalEvents, TerminateEmbargoBt)
 
-
-class MonitorThreats(FallbackNode):
+MonitorThreats = fallback(
+    "MonitorThreats",
     """This node represents the process of monitoring threats to a report being coordinated by the case.
     It monitors for attacks, exploits, and public reports while the case is being coordinated.
     If any of these events are observed, then the embargo termination process will be initiated.
     If no threats are observed, then the node will succeed anyway so that the case can continue to be coordinated.
-    """
-
-    _children = (_EndEmbargoIfEventsWarrant, NoThreatsFound)
+    """,
+    _EndEmbargoIfEventsWarrant,
+    NoThreatsFound,
+)

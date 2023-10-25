@@ -18,8 +18,8 @@ Provides behavior for inbound messaging.
 
 import logging
 
-from vultron.bt.base.composites import FallbackNode, SequenceNode
 from vultron.bt.base.decorators import RepeatUntilFail
+from vultron.bt.base.factory import fallback, sequence
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.conditions import MsgQueueNotEmpty
 from vultron.bt.messaging.inbound._behaviors.common import (
@@ -45,22 +45,22 @@ from vultron.bt.report_management.conditions import RMnotInStateClosed
 logger = logging.getLogger(__name__)
 
 
-class _HandleMessage(FallbackNode):
+_HandleMessage = fallback(
+    "_HandleMessage",
     """
     Handle the current message.
     Message handling is broken down into separate behaviors for each category of message type.
     E.g., RM messages, EM messages, CS messages, etc.
-    """
-
-    _children = (
-        ProcessRMMessagesBt,
-        ProcessEMMessagesBt,
-        ProcessCSMessagesBt,
-        ProcessMessagesOtherBt,
-    )
+    """,
+    ProcessRMMessagesBt,
+    ProcessEMMessagesBt,
+    ProcessCSMessagesBt,
+    ProcessMessagesOtherBt,
+)
 
 
-class _ProcessNextMessage(SequenceNode):
+_ProcessNextMessage = sequence(
+    "_ProcessNextMessage",
     """Process the next message in the queue.
     Steps:
     1. Check that the queue is not empty.
@@ -68,29 +68,32 @@ class _ProcessNextMessage(SequenceNode):
     3. Log the message.
     4. Handle the message.
     5. Unset the current message.
-    """
-
-    _children = (
-        MsgQueueNotEmpty,
-        PopMessage,
-        LogMsg,
-        _HandleMessage,
-        UnsetCurrentMsg,
-    )
+    """,
+    MsgQueueNotEmpty,
+    PopMessage,
+    LogMsg,
+    _HandleMessage,
+    UnsetCurrentMsg,
+)
 
 
-class _ProcessMessage(FallbackNode):
-    """Process the current message. If that fails, then put the message back in the queue."""
+_ProcessMessage = fallback(
+    "_ProcessMessage",
+    """Process the current message. If that fails, then put the message back in the queue.""",
+    _ProcessNextMessage,
+    PushMessage,
+)
 
-    _children = (_ProcessNextMessage, PushMessage)
 
-
-class _ReceiveNextMessage(SequenceNode):
+_ReceiveNextMessage = sequence(
+    "_ReceiveNextMessage",
     """Within the context of an active case, this bt tree will receive and process
     the next message in the queue.
-    """
-
-    _children = (RMnotInStateClosed, MsgQueueNotEmpty, _ProcessMessage)
+    """,
+    RMnotInStateClosed,
+    MsgQueueNotEmpty,
+    _ProcessMessage,
+)
 
 
 class ReceiveMessagesBt(RepeatUntilFail):
