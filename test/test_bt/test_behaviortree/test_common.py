@@ -67,7 +67,7 @@ class MyTestCase(unittest.TestCase):
         bb = MockState()
 
         for key, state in product("abcdefghij", range(10)):
-            xclass = c.make_check_state(key, state)
+            xclass = c.state_in(key, state)
             self.assertTrue(callable(xclass))
 
             x = xclass()

@@ -75,12 +75,6 @@ class MyTestCase(unittest.TestCase):
                 c.bb.q_rm = state
                 self.assertEqual(NodeStatus.SUCCESS, c.tick())
 
-    def test_RMinState(self):
-        c = rmc.RMinState()
-        c.bb = MockState()
-        c.setup()
-        self.assertEqual(c.key, "q_rm")
-
 
 if __name__ == "__main__":
     unittest.main()

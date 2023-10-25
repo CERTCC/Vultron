@@ -52,7 +52,7 @@ class MyTestCase(unittest.TestCase):
                 original_state = deepcopy(state)
 
                 expect_new_state = state.name.replace(
-                    node.to_state.lower(), node.to_state
+                    node.target_state.lower(), node.target_state
                 )
                 valid_new_state = expect_new_state in CS.__members__
 
@@ -65,7 +65,7 @@ class MyTestCase(unittest.TestCase):
                 # should always succeed
                 self.assertEqual(NodeStatus.SUCCESS, node.status)
 
-                if node.to_state in state.name:
+                if node.target_state in state.name:
                     # shouldn't change if we're already there
                     self.assertEqual(original_state, node.bb.q_cs)
                     return
@@ -85,7 +85,7 @@ class MyTestCase(unittest.TestCase):
                 self.assertEqual(
                     node.bb.q_cs.name,
                     original_state.name.replace(
-                        node.to_state.lower(), node.to_state
+                        node.target_state.lower(), node.target_state
                     ),
                 )
 
