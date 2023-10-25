@@ -21,12 +21,19 @@ import logging
 import random
 from dataclasses import dataclass, field
 
-import vultron.bt.base.bt_node as btn
 import vultron.bt.base.composites as bt
-import vultron.bt.base.decorators as btd
 import vultron.bt.base.fuzzer as btz
 from vultron.bt.base.blackboard import Blackboard
 from vultron.bt.base.bt import BehaviorTree
+from vultron.bt.base.bt_node import BtNode
+from vultron.bt.base.factory import (
+    action_node,
+    condition_check,
+    fallback,
+    fuzzer,
+    invert,
+    sequence,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,189 +57,143 @@ class PacmanBlackboard(Blackboard):
 ### Action Nodes
 
 
-class EatPill(btn.ActionNode):
-    """increments score for eating pills"""
+def eat_pill(obj: BtNode) -> bool:
+    dots = obj.bb.dots
+    if dots == 0:
+        return False
 
-    def func(self):
-        dots = self.bb.dots
-        if dots == 0:
-            return False
-
-        self.bb.dots -= 1
-        self.bb.score += PER_DOT
-        return True
+    obj.bb.dots -= 1
+    obj.bb.score += PER_DOT
+    return True
 
 
-class IncrGhostScore(btn.ActionNode):
+EatPill = action_node("EatPill", eat_pill)
+
+
+def inc_ghost_score(obj: BtNode) -> bool:
     """increments the score for the next ghost."""
-
-    def func(self):
-        self.bb.per_ghost *= GHOST_INC
-        logger.info(f"Ghost score is now {self.bb.per_ghost}")
-        return True
+    obj.bb.per_ghost *= GHOST_INC
+    logger.info(f"Ghost score is now {obj.bb.per_ghost}")
+    return True
 
 
-class ScoreGhost(btn.ActionNode):
-    """increments score for catching ghosts"""
-
-    def func(self):
-        self.bb.score += self.bb.per_ghost
-        return True
+IncrGhostScore = action_node(
+    "IncrGhostScore",
+    inc_ghost_score,
+)
 
 
-class DecrGhostCount(btn.ActionNode):
+def score_ghost(obj: BtNode) -> bool:
+    obj.bb.score += obj.bb.per_ghost
+    return True
+
+
+ScoreGhost = action_node("ScoreGhost", score_ghost)
+
+
+def decr_ghost_count(obj: BtNode) -> bool:
     """decrements the ghost count"""
+    ghost = obj.bb.ghosts_remaining.pop()
+    logger.info(f"{ghost} was caught!")
+    return True
 
-    def func(self):
-        ghost = self.bb.ghosts_remaining.pop()
-        logger.info(f"{ghost} was caught!")
-        return True
+
+DecrGhostCount = action_node(
+    "DecrGhostCount",
+    decr_ghost_count,
+)
 
 
 ### Condition Check Nodes
 
 
-class GhostsRemain(btn.ConditionCheck):
-    """
-    checks if there are any ghosts remaining.
-
-    Returns:
-        SUCCESS if there are ghosts remaining, FAILURE otherwise
-    """
-
-    def func(self):
-        return len(self.bb.ghosts_remaining) > 0
+def ghosts_remain(obj: BtNode) -> bool:
+    """checks if there are any ghosts remaining."""
+    return len(obj.bb.ghosts_remaining) > 0
 
 
-class GhostsScared(btn.ConditionCheck):
-    """
-    determines if a ghost is scared.
+GhostsRemain = condition_check(
+    "GhostsRemain",
+    ghosts_remain,
+)
 
-    Returns:
-        SUCCESS if a ghost is scared, FAILURE otherwise
-    """
 
-    def func(self):
-        return self.bb.ghosts_scared
+def ghosts_scared(obj: BtNode) -> bool:
+    """checks if a ghost is scared."""
+    return obj.bb.ghosts_scared
+
+
+GhostsScared = condition_check(
+    "GhostsScared",
+    ghosts_scared,
+)
 
 
 ### Fuzzer Nodes
 
 
-class GhostClose(btz.OftenSucceed):
-    """
-    determines if a ghost is close.
-
-    Returns:
-        SUCCESS if a ghost is close, FAILURE otherwise
-    """
-
-
-class ChaseGhost(btz.OftenSucceed):
-    """
-    chases a ghost.
-
-    Returns:
-        SUCCESS if a ghost is caught, FAILURE otherwise
-    """
-
-
-class AvoidGhost(btz.OftenSucceed):
-    """
-    implements avoiding a ghost.
-
-    Returns:
-        SUCCESS if no ghosts remain, or if a ghost is avoided, FAILURE otherwise
-    """
+GhostClose = fuzzer(
+    btz.OftenSucceed, "GhostClose", "determines if a ghost is close."
+)
+ChaseGhost = fuzzer(btz.OftenSucceed, "ChaseGhost", "chases a ghost.")
+AvoidGhost = fuzzer(btz.OftenSucceed, "AvoidGhost", "avoids a ghost.")
 
 
 ### Composite Nodes
 
+NoMoreGhosts = invert(
+    "NoMoreGhosts", "inverts the result of GhostsRemain.", GhostsRemain
+)
+NoGhostClose = invert(
+    "NoGhostClose", "inverts the result of GhostClose.", GhostClose
+)
+CaughtGhost = sequence(
+    "CaughtGhost",
+    "handles actions after catching a ghost.",
+    DecrGhostCount,
+    ScoreGhost,
+    IncrGhostScore,
+)
+GhostsNotScared = invert(
+    "GhostsNotScared", "inverts the result of GhostsScared.", GhostsScared
+)
+ChaseIfScared = sequence(
+    "ChaseIfScared",
+    "implements chasing a ghost if it is scared.",
+    GhostsScared,
+    ChaseGhost,
+    CaughtGhost,
+)
+ChaseOrAvoidGhost = fallback(
+    "ChaseOrAvoidGhost",
+    "implements chasing a ghost if it is scared, otherwise it avoids the ghost.",
+    ChaseIfScared,
+    GhostsScared,
+    AvoidGhost,
+)
 
-class NoMoreGhosts(btd.Invert):
-    """
-    inverts the result of GhostsRemain.
-
-    Returns:
-        SUCCESS if there are no ghosts remaining, FAILURE otherwise
-    """
-
-    _children = (GhostsRemain,)
-
-
-class NoGhostClose(btd.Invert):
-    """
-    inverts the result of GhostClose.
-
-    Returns:
-        SUCCESS if a ghost is not close, FAILURE otherwise
-    """
-
-    _children = (GhostClose,)
-
-
-class CaughtGhost(bt.SequenceNode):
-    """
-    handles actions after catching a ghost.
-    """
-
-    _children = (DecrGhostCount, ScoreGhost, IncrGhostScore)
-
-
-class GhostsNotScared(btd.Invert):
-    """
-    inverts the result of GhostsScared.
-
-    Returns:
-        SUCCESS if a ghost is not scared, FAILURE otherwise
-    """
-
-    _children = (GhostsScared,)
-
-
-class ChaseIfScared(bt.SequenceNode):
-    """
-    implements chasing a ghost if it is scared.
-
-    Returns:
-        SUCCESS if a ghost is caught, FAILURE otherwise
-    """
-
-    _children = (
-        GhostsScared,
-        ChaseGhost,
-        CaughtGhost,
-    )
-
-
-class ChaseOrAvoidGhost(bt.FallbackNode):
+MaybeChaseOrAvoidGhost = fallback(
+    "MaybeChaseOrAvoidGhost",
     """
     implements chasing a ghost if it is scared, otherwise it avoids the ghost.
 
     Returns:
         SUCCESS if no ghosts remain, a ghost is caught or avoided, FAILURE otherwise
-    """
-
-    _children = (ChaseIfScared, GhostsScared, AvoidGhost)
-
-
-class MaybeChaseOrAvoidGhost(bt.FallbackNode):
-    """
-    implements chasing a ghost if it is scared, otherwise it avoids the ghost.
-
-    Returns:
-        SUCCESS if no ghosts remain, a ghost is caught or avoided, FAILURE otherwise
-    """
-
-    _children = (NoMoreGhosts, NoGhostClose, ChaseOrAvoidGhost)
+    """,
+    NoMoreGhosts,
+    NoGhostClose,
+    ChaseOrAvoidGhost,
+)
 
 
-class MaybeEatPills(bt.SequenceNode):
+MaybeEatPills = sequence(
+    "MaybeEatPills",
     """
     implements eating pills if no ghosts are close.
-    """
-
-    _children = (MaybeChaseOrAvoidGhost, EatPill)
+    """,
+    MaybeChaseOrAvoidGhost,
+    EatPill,
+)
 
 
 def do_tick(bot, ticks):
