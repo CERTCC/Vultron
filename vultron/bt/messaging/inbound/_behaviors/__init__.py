@@ -13,9 +13,6 @@
 
 
 #!/usr/bin/env python
-"""file: __init__.py
-author: adh
-created_at: 6/27/22 2:52 PM
-
+"""
 This package contains the behaviors that are used by the inbound message handler.
 """

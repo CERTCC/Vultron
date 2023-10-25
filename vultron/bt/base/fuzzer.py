@@ -26,42 +26,46 @@ from vultron.bt.base.bt_node import BtNode
 from vultron.bt.base.node_status import NodeStatus
 
 
-class AlwaysSucceed(BtNode):
+class FuzzerNode(BtNode):
+    pass
+
+
+class AlwaysSucceed(FuzzerNode):
     """Always returns NodeStatus.SUCCESS"""
 
     def _tick(self, depth=0):
         return NodeStatus.SUCCESS
 
 
-class AlwaysFail(BtNode):
+class AlwaysFail(FuzzerNode):
     """Always returns NodeStatus.FAILURE"""
 
     def _tick(self, depth=0):
         return NodeStatus.FAILURE
 
 
-class AlwaysRunning(BtNode):
+class AlwaysRunning(FuzzerNode):
     """Always returns NodeStatus.RUNNING"""
 
     def _tick(self, depth=0):
         return NodeStatus.RUNNING
 
 
-class RandomActionNodeWithRunning(BtNode):
+class RandomActionNodeWithRunning(FuzzerNode):
     """Returns a random NodeStatus, including NodeStatus.RUNNING, with equal probability."""
 
     def _tick(self, depth=0):
         return random.choice(list(NodeStatus))
 
 
-class SuccessOrRunning(BtNode):
+class SuccessOrRunning(FuzzerNode):
     """Returns NodeStatus.SUCCESS or NodeStatus.RUNNING with equal probability."""
 
     def _tick(self, depth=0):
         return random.choice((NodeStatus.SUCCESS, NodeStatus.RUNNING))
 
 
-class WeightedSuccess(BtNode):
+class WeightedSuccess(FuzzerNode):
     """Returns NodeStatus.SUCCESS with a probability of success_rate.
     Otherwise, returns NodeStatus.FAILURE.
 

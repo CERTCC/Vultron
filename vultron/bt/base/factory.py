@@ -20,7 +20,7 @@ from typing import Callable, Type, TypeVar
 from vultron.bt.base.bt_node import ActionNode, BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode, SequenceNode
 from vultron.bt.base.decorators import Invert
-from vultron.bt.base.fuzzer import WeightedSuccess
+from vultron.bt.base.fuzzer import FuzzerNode
 
 NodeType = TypeVar("NodeType", bound=Type[BtNode])
 
@@ -105,8 +105,8 @@ def invert(
 
 
 def fuzzer(
-    cls: Type[WeightedSuccess], name: str, description: str
-) -> Type[WeightedSuccess]:
+    cls: Type[FuzzerNode], name: str, description: str
+) -> Type[FuzzerNode]:
     """
     Convenience function to create a WeightedSuccess fuzzer with a docstring.
 

@@ -17,7 +17,7 @@ created_at: 5/23/22 12:01 PM
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from ..errors import CvdProtocolError
+from vultron.bt.errors import CvdProtocolError
 
 
 class EmbargoManagementError(CvdProtocolError):

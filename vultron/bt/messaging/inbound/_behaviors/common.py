@@ -21,64 +21,78 @@ This module contains common behaviors that are used by the inbound message handl
 
 import logging
 
-import vultron.bt.base.bt_node
-import vultron.bt.base.node_status
+from vultron.bt.base.bt_node import BtNode
+from vultron.bt.base.factory import action_node
 
 logger = logging.getLogger(__name__)
 
 
-class PopMessage(vultron.bt.base.bt_node.ActionNode):
-    """
-    Pop the next message off the blackboard's incoming message queue.
-    """
+def pop_message(obj: BtNode) -> bool:
+    """Pop the next message off the blackboard's incoming message queue."""
 
-    def _tick(self, depth=0):
-        indent = "  " * (depth - 1)
-        # make sure there's not already a message to be handled
-        if self.bb.current_message is not None:
-            return vultron.bt.base.node_status.NodeStatus.FAILURE
+    # make sure there's not already a message to be handled
+    if obj.bb.current_message is not None:
+        return False
 
-        if not self.bb.incoming_messages:
-            return vultron.bt.base.node_status.NodeStatus.FAILURE
+    if not obj.bb.incoming_messages:
+        return False
 
-        # take one down
-        # pass it around
-        self.bb.current_message = self.bb.incoming_messages.popleft()
-        logger.debug(f"**{indent}<-- Recv {self.bb.current_message.msg_type}")
-        return vultron.bt.base.node_status.NodeStatus.SUCCESS
+    # take one down
+    # pass it around
+    obj.bb.current_message = obj.bb.incoming_messages.popleft()
+    logger.debug(f"** <-- Recv {obj.bb.current_message.msg_type}")
+    return True
 
 
-class PushMessage(vultron.bt.base.bt_node.ActionNode):
+PopMessage = action_node("PopMessage", pop_message)
+
+
+def push_message(obj: BtNode) -> bool:
     """Push the current message back onto the blackboard's incoming message queue."""
+    # if there's no message, we're done
+    if obj.bb.current_message is not None:
+        # there is a message, so see if we can
+        # put it back on the queue to be handled next
+        try:
+            obj.bb.incoming_messages.appendleft(obj.bb.current_message)
+            obj.bb.current_message = None
+        except IndexError as e:
+            logger.warning(f"Caught error: {e}")
+            return False
 
-    def _tick(self, depth=0):
-        # if there's no message, we're done
-        if self.bb.current_message is not None:
-            # there is a message, so see if we can
-            # put it back on the queue to be handled next
-            try:
-                self.bb.incoming_messages.appendleft(self.bb.current_message)
-                self.bb.current_message = None
-            except IndexError as e:
-                logger.warning(f"Caught error: {e}")
-                return vultron.bt.base.node_status.NodeStatus.FAILURE
-
-        return vultron.bt.base.node_status.NodeStatus.SUCCESS
+    return True
 
 
-class LogMsg(vultron.bt.base.bt_node.ActionNode):
+PushMessage = action_node(
+    "PushMessage",
+    push_message,
+)
+
+
+def log_message(obj: BtNode) -> bool:
     """Log the current message."""
 
-    def _tick(self, depth=0):
-        if self.bb.current_message is not None:
-            msg_type = self.bb.current_message.msg_type
-            self.bb.msgs_received_this_tick.append(msg_type)
-        return vultron.bt.base.node_status.NodeStatus.SUCCESS
+    if obj.bb.current_message is not None:
+        msg_type = obj.bb.current_message.msg_type
+        obj.bb.msgs_received_this_tick.append(msg_type)
+
+    return True
 
 
-class UnsetCurrentMsg(vultron.bt.base.bt_node.ActionNode):
+LogMsg = action_node(
+    "LogMsg",
+    log_message,
+)
+
+
+def unset_current_message(obj: BtNode) -> bool:
     """Unset the current message in the blackboard."""
 
-    def _tick(self, depth=0):
-        self.bb.current_message = None
-        return vultron.bt.base.node_status.NodeStatus.SUCCESS
+    obj.bb.current_message = None
+    return True
+
+
+UnsetCurrentMsg = action_node(
+    "UnsetCurrentMsg",
+    unset_current_message,
+)

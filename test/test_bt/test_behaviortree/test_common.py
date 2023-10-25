@@ -92,7 +92,7 @@ class MyTestCase(unittest.TestCase):
         for key, end_state in product("abcdefghij", range(10)):
             with self.subTest(key=key, end_state=end_state):
                 transition = c.EnumStateTransition(start_states, end_state)
-                xclass = c.make_state_change(key, transition)
+                xclass = c.state_change(key, transition)
                 self.assertTrue(callable(xclass))
                 self.assertNotEqual("Node", xclass.__name__)
                 self.assertIn(key, xclass.__name__)

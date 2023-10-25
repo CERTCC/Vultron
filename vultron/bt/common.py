@@ -24,8 +24,12 @@ import networkx as nx
 
 from vultron.bt.base.bt_node import ActionNode, BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode
-from vultron.bt.base.factory import condition_check, fallback, sequence
-from vultron.bt.base.node_status import NodeStatus
+from vultron.bt.base.factory import (
+    action_node,
+    condition_check,
+    fallback,
+    sequence,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +48,17 @@ def state_in(
     key: str,
     state: Enum,
 ) -> Type[ConditionCheck]:
+    """
+    Factory method that returns a ConditionCheck class that checks if the blackboard[key] == state
+
+    Args:
+        key: the blackboard key to check
+        state: the state to check for
+
+    Returns:
+        A ConditionCheck class that checks if the blackboard[key] == state
+    """
+
     def func(obj: BtNode) -> bool:
         f"""True if the node's blackboard[{key}] == {state}"""
         return getattr(obj.bb, key) == state
@@ -56,47 +71,34 @@ def state_in(
     return node_cls
 
 
-class StateIn(ConditionCheck):
-    """ConditionCheck that returns SUCCESS if the node's blackboard[key] == state
-    Used as a base class for other StateIn classes like EMinState
-    """
-
-    key = None
-    state = None
-
-    def func(self):
-        return getattr(self.bb, self.key) == self.state
-
-
 def to_end_state_factory(key: str, state: Enum) -> Type[ActionNode]:
     """Factory method that returns an ActionNode class that updates key to state."""
 
-    class TransitionTo(ActionNode):
-        def __init__(self):
-            super().__init__()
-            self.name = f"{self.__class__.__name__}_{key}_to_{state}"
+    def _func(obj: BtNode) -> bool:
+        # remember where we were so we can log the change
+        before = getattr(obj.bb, key)
 
-        def _tick(self, depth=0):
-            # remember where we were so we can log the change
-            before = getattr(self.bb, key)
+        setattr(obj.bb, key, state)
 
-            setattr(self.bb, key, state)
+        # record this bb in history
+        histkey = f"{key}_history"
+        history = list(getattr(obj.bb, histkey))
+        if len(history) == 0 or (history[-1] != state):
+            history.append(state)
+        setattr(obj.bb, histkey, history)
 
-            # record this bb in history
-            histkey = f"{key}_history"
-            history = list(getattr(self.bb, histkey))
-            if len(history) == 0 or (history[-1] != state):
-                history.append(state)
-            setattr(self.bb, histkey, history)
+        logger.debug(f"Transition {before} -> {state}")
+        return True
 
-            indent = "  " * (depth)
-            logger.debug(f"++{indent}{before} -> {state}")
-            return NodeStatus.SUCCESS
+    node_cls = action_node(
+        f"{key}_to_{state}",
+        _func,
+    )
 
-    return TransitionTo
+    return node_cls
 
 
-def make_state_change(
+def state_change(
     key: str, transition: EnumStateTransition
 ) -> Type[FallbackNode]:
     """Factory method that returns a FallbackNode object that returns SUCCESS when the blackboard[key]
@@ -105,28 +107,32 @@ def make_state_change(
     start_states = transition.start_states
     end_state = transition.end_state
 
+    # check that the end_state is in the start_states
     start_state_checks = fallback(
-        f"StartStateChecks_{key}_{end_state}",
+        f"allowed_start_states_for_{key}_{end_state}",
         f"""SUCCESS when the current {key} is in one of {(s.name for s in start_states)}. FAILURE otherwise.""",
         *[state_in(key, state) for state in start_states],
     )
 
+    # transition to the end_state
     sc_seq = sequence(
-        f"ScSeq_{key}_{end_state}",
+        f"transition_to_{key}_{end_state}_if_allowed",
         f"""Check for a valid start state in {(s.name for s in start_states)} and transition to {end_state}""",
         start_state_checks,
         to_end_state_factory(key, end_state),
     )
 
-    state_change = fallback(
-        f"StateChange_{key}_{end_state}",
+    # ensure we wind up in the end_state
+    _state_change = fallback(
+        f"transition_{key}_to_{end_state}",
         f"""Transition from (one of) {(s.name for s in start_states)} to {end_state}""",
         state_in(key, end_state),
         sc_seq,
     )
 
-    return state_change
+    return _state_change
 
 
 def show_graph(node_cls):
+    """Show the graph for the given node_cls"""
     nx.write_network_text(node_cls().to_graph())

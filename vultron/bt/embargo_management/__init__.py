@@ -13,9 +13,6 @@
 
 
 #!/usr/bin/env python
-"""file: __init__.py
-author: adh
-created_at: 4/26/22 11:13 AM
-
+"""
 This package describes the CVD Embargo Management State Machine as a Behavior Tree.
 """

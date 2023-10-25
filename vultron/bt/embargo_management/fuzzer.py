@@ -29,31 +29,35 @@ But for now they are just stubs that return a random result so we can exercise t
 import sys
 
 import vultron.bt.base.fuzzer as btz
-from vultron.bt.base.decorators import Invert
+from vultron.bt.base.factory import fuzzer, invert
 
-
-class ExitEmbargoWhenDeployed(btz.ProbablyFail):
+# implement as necessary, ask a human
+ExitEmbargoWhenDeployed = fuzzer(
+    btz.ProbablyFail,
+    "ExitEmbargoWhenDeployed",
     """Decide whether to exit the embargo when the fix has already been deployed.
     This is a special case because the fix has already been deployed, so the embargo is usually no longer necessary.
     But usually, deployment of the fix itself is not a sufficient reason to exit an active embargo.
     For example, the fix may have been deployed in error, or the fix may have been deployed to a subset of the population.
-    """
+    """,
+)
 
-    # implement as necessary, ask a human
-
-
-class ExitEmbargoWhenFixReady(btz.UsuallyFail):
+# implement as necessary, ask a human
+ExitEmbargoWhenFixReady = fuzzer(
+    btz.UsuallyFail,
+    "ExitEmbargoWhenFixReady",
     """Decide whether to exit the embargo when the fix is ready.
     When the fix is ready, the embargo is usually no longer necessary,
     however there are some cases where it is.
     For example, if the vendor is able to deploy the fix directly
     to the affected population, then the embargo may still be useful.
-    """
+    """,
+)
 
-    # implement as necessary, ask a human
-
-
-class ExitEmbargoForOtherReason(btz.OneInTwoHundred):
+# ask a human
+ExitEmbargoForOtherReason = fuzzer(
+    btz.OneInTwoHundred,
+    "ExitEmbargoForOtherReason",
     """Decide whether to exit the embargo for some reason *other* than:
     - the fix is ready or deployed
     - the embargo timer has expired
@@ -61,61 +65,71 @@ class ExitEmbargoForOtherReason(btz.OneInTwoHundred):
     - an exploit has been published
     - attacks have been observed
     There aren't that many extraneous reasons to exit an embargo, so this is a rare case.
-    """
+    """,
+)
 
-    # ask a human
-
-
-class EmbargoTimerExpired(btz.OneInOneHundred):
+EmbargoTimerExpired = fuzzer(
+    btz.OneInOneHundred,
+    "EmbargoTimerExpired",
     """Decide whether the embargo timer has expired.
     We are simulating that the embargo is usually not expired.
     But in reality, this would just be a check of the actual embargo timer.
-    """
+    """,
+)
 
-
-class OnEmbargoExit(btz.AlwaysSucceed):
+# implement as necessary
+OnEmbargoExit = fuzzer(
+    btz.AlwaysSucceed,
+    "OnEmbargoExit",
     """Do whatever is necessary when the embargo is exited.
     This is a stub for now.
     It is a placeholder for site-specific logic for what to do when the embargo is exited.
     In an actual implementation, this would probably be a call to a function that does whatever is necessary.
-    """
-
-    # implement as necessary
-
+    """,
+)
 
 # Negotiating
-class StopProposingEmbargo(btz.UsuallyFail):
+# ask a human
+StopProposingEmbargo = fuzzer(
+    btz.UsuallyFail,
+    "StopProposingEmbargo",
     """Decide whether to stop proposing an embargo.
     This would be a choice for the humans involved in the case to make.
     We are modeling it here as if the humans are usually willing to keep trying to negotiate an embargo.
-    """
+    """,
+)
 
-    # ask a human
 
-
-class SelectEmbargoOfferTerms(btz.AlwaysSucceed):
+# implement as necessary, ask a human
+SelectEmbargoOfferTerms = fuzzer(
+    btz.AlwaysSucceed,
+    "SelectEmbargoOfferTerms",
     """Select the terms of the embargo offer.
     This is a stub for now.
     In an actual implementation, this would probably be a call out
     to either a human or a function that does whatever is necessary.
-    """
+    """,
+)
 
-    # implement as necessary, ask a human
 
-
-class WantToProposeEmbargo(btz.RandomSucceedFail):
+# implement as necessary, ask a human
+WantToProposeEmbargo = fuzzer(
+    btz.RandomSucceedFail,
+    "WantToProposeEmbargo",
     """Decide whether to propose an embargo.
     This is a stub for now.
     In an actual implementation, this would probably be a call out
     to either a human or a function that does whatever is necessary.
     We'd suggest that the default bt is to propose an embargo.
     But the fuzzer will exercise both cases.
-    """
+    """,
+)
 
-    # implement as necessary, ask a human
 
-
-class WillingToCounterEmbargoProposal(btz.UsuallyFail):
+# implement as necessary, ask a human
+WillingToCounterEmbargoProposal = fuzzer(
+    btz.UsuallyFail,
+    "WillingToCounterEmbargoProposal",
     """Decide whether to counter an embargo proposal.
     In an actual implementation, this would probably be a call out
     to either a human or a function that does whatever is necessary.
@@ -123,69 +137,78 @@ class WillingToCounterEmbargoProposal(btz.UsuallyFail):
     to counter an embargo proposal. Instead, it is better to accept
     the proposal on the table and then propose a revision to adjust
     the terms.
-    """
-
-    # implement as necessary, ask a human
-
-
-class AvoidEmbargoCounterProposal(Invert):
-    """This is a convenience class that inverts the result of WillingToCounterEmbargoProposal."""
-
-    _children = (WillingToCounterEmbargoProposal,)
+    """,
+)
 
 
-class ReasonToProposeEmbargoWhenDeployed(btz.AlmostCertainlyFail):
+AvoidEmbargoCounterProposal = invert(
+    "AvoidEmbargoCounterProposal",
+    """This is a convenience class that inverts the result of WillingToCounterEmbargoProposal.""",
+    WillingToCounterEmbargoProposal,
+)
+
+
+# ask a human
+ReasonToProposeEmbargoWhenDeployed = fuzzer(
+    btz.AlmostCertainlyFail,
+    "ReasonToProposeEmbargoWhenDeployed",
     """Decide whether there is a reason to propose an embargo when the fix has already been deployed.
     In most cases, there is no reason to propose an embargo when the fix has already been deployed.
     Therefore we are modeling this as a rare case.
     In an actual implementation, this would probably need to be a call out to a human.
-    """
-
-    # ask a human
+    """,
+)
 
 
 # Evaluating
-class EvaluateEmbargoProposal(btz.UsuallySucceed):
+# success = accept
+# implement as necessary, ask a human
+EvaluateEmbargoProposal = fuzzer(
+    btz.UsuallySucceed,
+    "EvaluateEmbargoProposal",
     """Decide whether to accept an embargo proposal.
     In an actual implementation, this would probably be a call out to a human.
     Or it is conceivable that this could be a call out to a function that automatically evaluates the proposal.
     We are modeling this as a case where the humans usually accept the proposal.
-    """
-
-    # success = accept
-    # implement as necessary, ask a human
+    """,
+)
 
 
-class OnEmbargoAccept(btz.AlwaysSucceed):
+# implement as necessary
+OnEmbargoAccept = fuzzer(
+    btz.AlwaysSucceed,
+    "OnEmbargoAccept",
     """This is a stub for now.
     It serves as a placeholder for site-specific logic that would be triggered when an embargo is accepted.
     In an actual implementation, this would probably be a call out to a function
     that does whatever is necessary when an embargo is accepted.
     E.g., it might trigger some automated process to notify internal stakeholders.
-    """
+    """,
+)
 
-    # implement as necessary
 
-
-class OnEmbargoReject(btz.AlwaysSucceed):
+# implement as necessary
+OnEmbargoReject = fuzzer(
+    btz.AlwaysSucceed,
+    "OnEmbargoReject",
     """This is a stub for now.
     It serves as a placeholder for site-specific logic that would be triggered when an embargo is rejected.
     In an actual implementation, this would probably be a call out to a function
     that does whatever is necessary when an embargo is rejected.
     E.g., it might trigger some automated process to notify internal stakeholders.
-    """
-
-    pass
-    # implement as necessary
+    """,
+)
 
 
-class CurrentEmbargoAcceptable(btz.AlmostAlwaysSucceed):
+# implement as necessary, ask a human
+CurrentEmbargoAcceptable = fuzzer(
+    btz.AlmostAlwaysSucceed,
+    "CurrentEmbargoAcceptable",
     """Decide whether the current embargo is acceptable.
     In an actual implementation, this would probably be a call out to a human.
     We are modeling this as a case where the humans usually choose to keep the current embargo.
-    """
-
-    # implement as necessary, ask a human
+    """,
+)
 
 
 def main():

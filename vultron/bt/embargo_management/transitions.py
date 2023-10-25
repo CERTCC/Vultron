@@ -20,7 +20,7 @@ created_at: 4/7/22 11:28 AM
 from dataclasses import dataclass
 from typing import List
 
-from vultron.bt.common import EnumStateTransition, make_state_change
+from vultron.bt.common import EnumStateTransition, show_graph, state_change
 from vultron.bt.embargo_management.states import EM
 
 
@@ -46,10 +46,27 @@ _R_to_A = EmTransition(start_states=[EM.REVISE], end_state=EM.ACTIVE)
 _to_X = EmTransition(start_states=[EM.ACTIVE, EM.REVISE], end_state=EM.EXITED)
 
 # Create the state change functions
-q_em_to_P = make_state_change(key="q_em", transition=_to_P)
-q_em_to_N = make_state_change(key="q_em", transition=_to_N)
-q_em_to_A = make_state_change(key="q_em", transition=_to_A)
-q_em_to_R = make_state_change(key="q_em", transition=_to_R)
-q_em_to_X = make_state_change(key="q_em", transition=_to_X)
+q_em_to_P = state_change(key="q_em", transition=_to_P)
+q_em_to_N = state_change(key="q_em", transition=_to_N)
+q_em_to_A = state_change(key="q_em", transition=_to_A)
+q_em_to_R = state_change(key="q_em", transition=_to_R)
+q_em_to_X = state_change(key="q_em", transition=_to_X)
 
-q_em_R_to_A = make_state_change(key="q_em", transition=_R_to_A)
+q_em_R_to_A = state_change(key="q_em", transition=_R_to_A)
+
+
+def main():
+    for x in [
+        q_em_to_P,
+        q_em_to_N,
+        q_em_to_A,
+        q_em_to_R,
+        q_em_to_X,
+        q_em_R_to_A,
+    ]:
+        print(x)
+        show_graph(x)
+
+
+if __name__ == "__main__":
+    main()

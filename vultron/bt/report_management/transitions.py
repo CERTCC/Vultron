@@ -18,7 +18,7 @@ Provides the transitions between states in the q_rm state machine
 from dataclasses import dataclass
 from typing import List
 
-from vultron.bt.common import EnumStateTransition, make_state_change
+from vultron.bt.common import EnumStateTransition, state_change
 from vultron.bt.report_management.states import RM
 
 
@@ -47,9 +47,9 @@ _to_C = RmTransition(
 )
 
 # Create the state change functions
-q_rm_to_R = make_state_change(key="q_rm", transition=_to_R)
-q_rm_to_I = make_state_change(key="q_rm", transition=_to_I)
-q_rm_to_V = make_state_change(key="q_rm", transition=_to_V)
-q_rm_to_D = make_state_change(key="q_rm", transition=_to_D)
-q_rm_to_A = make_state_change(key="q_rm", transition=_to_A)
-q_rm_to_C = make_state_change(key="q_rm", transition=_to_C)
+q_rm_to_R = state_change(key="q_rm", transition=_to_R)
+q_rm_to_I = state_change(key="q_rm", transition=_to_I)
+q_rm_to_V = state_change(key="q_rm", transition=_to_V)
+q_rm_to_D = state_change(key="q_rm", transition=_to_D)
+q_rm_to_A = state_change(key="q_rm", transition=_to_A)
+q_rm_to_C = state_change(key="q_rm", transition=_to_C)
