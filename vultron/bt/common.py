@@ -22,9 +22,9 @@ from typing import List, Type
 
 import networkx as nx
 
-from vultron.bt.base.bt_node import ActionNode, ConditionCheck
+from vultron.bt.base.bt_node import ActionNode, BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode
-from vultron.bt.base.factory import fallback, sequence
+from vultron.bt.base.factory import condition_check, fallback, sequence
 from vultron.bt.base.node_status import NodeStatus
 
 logger = logging.getLogger(__name__)
@@ -40,30 +40,20 @@ class EnumStateTransition:
     end_state: Enum
 
 
-def condition_check(
-    name: str, desc: str, check_func: callable
-) -> Type[ConditionCheck]:
-    """Factory method that returns a ConditionCheck object with the given name, description, and function"""
-
-    # name, bases, dict
-    cls = type(name, (ConditionCheck,), {})
-    cls.__doc__ = desc
-    cls.func = check_func
-    return cls
-
-
 def state_in(
-    key: str, state: Enum, exc=Type[Exception]
+    key: str,
+    state: Enum,
 ) -> Type[ConditionCheck]:
-    def func(self):
-        return getattr(self.bb, key) == state
+    def func(obj: BtNode) -> bool:
+        f"""True if the node's blackboard[{key}] == {state}"""
+        return getattr(obj.bb, key) == state
 
-    cls = condition_check(
-        f"{key}_in_{state.value}",
-        f"""ConditionCheck that returns SUCCESS if the node's blackboard[{key}] == {state}""",
-        func,
-    )
-    return cls
+    node_cls = condition_check(f"{key}_in_{state}", func)
+
+    # add some attributes to the node_cls so we can test it later
+    node_cls.key = key
+    node_cls.state = state
+    return node_cls
 
 
 class StateIn(ConditionCheck):
@@ -106,21 +96,6 @@ def to_end_state_factory(key: str, state: Enum) -> Type[ActionNode]:
     return TransitionTo
 
 
-def make_check_state(_key: str, _state) -> Type[StateIn]:
-    """Factory method that returns a ConditionCheck object which returns SUCCESS if the node's blackboard[key] == state"""
-
-    class CheckState(StateIn):
-        f"""ConditionCheck that returns SUCCESS if the node's blackboard[{_key}] == {_state}"""
-        key = _key
-        state = _state
-
-        def __init__(self):
-            super().__init__()
-            self.name = f"{self.__class__.__name__}_{_key}_in_{_state}"
-
-    return CheckState
-
-
 def make_state_change(
     key: str, transition: EnumStateTransition
 ) -> Type[FallbackNode]:
@@ -133,7 +108,7 @@ def make_state_change(
     start_state_checks = fallback(
         f"StartStateChecks_{key}_{end_state}",
         f"""SUCCESS when the current {key} is in one of {(s.name for s in start_states)}. FAILURE otherwise.""",
-        *[make_check_state(key, state) for state in start_states],
+        *[state_in(key, state) for state in start_states],
     )
 
     sc_seq = sequence(
@@ -146,7 +121,7 @@ def make_state_change(
     state_change = fallback(
         f"StateChange_{key}_{end_state}",
         f"""Transition from (one of) {(s.name for s in start_states)} to {end_state}""",
-        make_check_state(key, end_state),
+        state_in(key, end_state),
         sc_seq,
     )
 
