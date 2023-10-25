@@ -14,18 +14,37 @@
 """
 Provides condition nodes for report management states.
 """
+from typing import Type
 
+from vultron.bt.base.bt_node import ConditionCheck
 from vultron.bt.base.factory import fallback, invert
 from vultron.bt.common import state_in
 from vultron.bt.report_management.states import RM
 
-RMinStateStart = state_in("q_rm", RM.START)
-RMinStateReceived = state_in("q_rm", RM.RECEIVED)
-RMinStateInvalid = state_in("q_rm", RM.INVALID)
-RMinStateValid = state_in("q_rm", RM.VALID)
-RMinStateDeferred = state_in("q_rm", RM.DEFERRED)
-RMinStateAccepted = state_in("q_rm", RM.ACCEPTED)
-RMinStateClosed = state_in("q_rm", RM.CLOSED)
+
+def rm_state_in(state: RM) -> Type[ConditionCheck]:
+    """
+    Convenience function to create a ConditionCheck for a Report Management state.
+
+    Args:
+        state: a Report Management state
+
+    Returns:
+        A ConditionCheck class for the given state
+    """
+    if state not in RM:
+        raise ValueError(f"Invalid Report Management state: {state}")
+
+    return state_in("q_rm", state)
+
+
+RMinStateStart = rm_state_in(RM.START)
+RMinStateReceived = rm_state_in(RM.RECEIVED)
+RMinStateInvalid = rm_state_in(RM.INVALID)
+RMinStateValid = rm_state_in(RM.VALID)
+RMinStateDeferred = rm_state_in(RM.DEFERRED)
+RMinStateAccepted = rm_state_in(RM.ACCEPTED)
+RMinStateClosed = rm_state_in(RM.CLOSED)
 
 
 RMnotInStateStart = invert(
