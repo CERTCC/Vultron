@@ -15,7 +15,7 @@
 Provides behaviors for the report management process
 """
 
-from vultron.bt.base.factory import fallback, node_factory, sequence
+from vultron.bt.base.factory import fallback_node, node_factory, sequence_node
 from vultron.bt.common import show_graph
 
 # noinspection PyProtectedMember
@@ -43,54 +43,31 @@ from vultron.bt.report_management.conditions import (
     RMinStateValid,
 )
 
-_CloseOrValidate = fallback(
-    "CloseOrValidate"
-    "Try to close the report, and if that fails, validate the report. Report closure will fail if there is still work "
-    "to be done on the report.",
-    RMCloseBt,
-    RMValidateBt,
-)
+_CloseOrValidate = fallback_node("CloseOrValidate"
+                                 "Try to close the report, and if that fails, validate the report. Report closure will fail if there is still work "
+                                 "to be done on the report.", RMCloseBt, RMValidateBt)
 
-_CloseOrPrioritize = fallback(
-    "CloseOrPrioritize",
-    "Try to close the report, and if that fails, prioritize the report. Report closure will fail if there is still "
-    "work to be done on the report.",
-    RMCloseBt,
-    RMPrioritizeBt,
-)
+_CloseOrPrioritize = fallback_node("CloseOrPrioritize",
+                                   "Try to close the report, and if that fails, prioritize the report. Report closure will fail if there is still "
+                                   "work to be done on the report.", RMCloseBt, RMPrioritizeBt)
 
-_PrioritizeDoWork = sequence(
-    "PrioritizeDoWork",
-    "Prioritize the report, and if prioritization is successful, do work on the report. Prioritization succeeds if "
-    "the prioritization result is not DEFERRED.",
-    RMPrioritizeBt,
-    RMDoWorkBt,
-)
+_PrioritizeDoWork = sequence_node("PrioritizeDoWork",
+                                  "Prioritize the report, and if prioritization is successful, do work on the report. Prioritization succeeds if "
+                                  "the prioritization result is not DEFERRED.", RMPrioritizeBt, RMDoWorkBt)
 
 
-_CloseOrPrioritizeOrWork = fallback(
-    "CloseOrPrioritizeOrWork",
-    "Close the report, prioritize the report, or do work on the report.",
-    RMCloseBt,
-    _PrioritizeDoWork,
-)
+_CloseOrPrioritizeOrWork = fallback_node("CloseOrPrioritizeOrWork",
+                                         "Close the report, prioritize the report, or do work on the report.",
+                                         RMCloseBt, _PrioritizeDoWork)
 
-_RmReceived = sequence(
-    "RmReceived",
-    "Handle the RECEIVED state. After checking that the report management state is in the RECEIVED state, "
-    "this node will attempt to validate the report.",
-    RMinStateReceived,
-    RMValidateBt,
-)
+_RmReceived = sequence_node("RmReceived",
+                            "Handle the RECEIVED state. After checking that the report management state is in the RECEIVED state, "
+                            "this node will attempt to validate the report.", RMinStateReceived, RMValidateBt)
 
-_RmInvalid = sequence(
-    "RmInvalid",
-    "Handle the INVALID state. After checking that the report management state is in the INVALID state, this node "
-    "will decide what to do next. Options are: Close the report, Validate the report, Stay in the INVALID state (do "
-    "nothing)",
-    RMinStateInvalid,
-    _CloseOrValidate,
-)
+_RmInvalid = sequence_node("RmInvalid",
+                           "Handle the INVALID state. After checking that the report management state is in the INVALID state, this node "
+                           "will decide what to do next. Options are: Close the report, Validate the report, Stay in the INVALID state (do "
+                           "nothing)", RMinStateInvalid, _CloseOrValidate)
 
 _RmStart = node_factory(
     RMinStateStart,
@@ -106,43 +83,24 @@ _RmClosed = node_factory(
     "Handle the CLOSED state. There is nothing left to be done for a report that is in the CLOSED state.",
 )
 
-_RmValid = sequence(
-    "RmValid",
-    "Handle the VALID state. After checking that the report management state is in the VALID state, this node will "
-    "attempt to prioritize the report.",
-    RMinStateValid,
-    RMPrioritizeBt,
-)
+_RmValid = sequence_node("RmValid",
+                         "Handle the VALID state. After checking that the report management state is in the VALID state, this node will "
+                         "attempt to prioritize the report.", RMinStateValid, RMPrioritizeBt)
 
 
-_RmDeferred = sequence(
-    "RmDeferred",
-    "Handle the DEFERRED state. After checking that the report management state is in the DEFERRED state, "
-    "this node will attempt to decide what to do next. Options are: Close the report, Prioritize the report",
-    RMinStateDeferred,
-    _CloseOrPrioritize,
-)
+_RmDeferred = sequence_node("RmDeferred",
+                            "Handle the DEFERRED state. After checking that the report management state is in the DEFERRED state, "
+                            "this node will attempt to decide what to do next. Options are: Close the report, Prioritize the report",
+                            RMinStateDeferred, _CloseOrPrioritize)
 
-_RmAccepted = sequence(
-    "RmAccepted",
-    "Handle the ACCEPTED state. After checking that the report management state is in the ACCEPTED state, "
-    "this node will attempt to decide what to do next. Options are: Close the report, Prioritize the report, "
-    "Do work on the report",
-    RMinStateAccepted,
-    _CloseOrPrioritizeOrWork,
-)
+_RmAccepted = sequence_node("RmAccepted",
+                            "Handle the ACCEPTED state. After checking that the report management state is in the ACCEPTED state, "
+                            "this node will attempt to decide what to do next. Options are: Close the report, Prioritize the report, "
+                            "Do work on the report", RMinStateAccepted, _CloseOrPrioritizeOrWork)
 
-ReportManagementBt = fallback(
-    "ReportManagementBt",
-    "The report management bt tree. This tree is responsible for managing the report management state machine.",
-    _RmStart,
-    _RmClosed,
-    _RmReceived,
-    _RmInvalid,
-    _RmValid,
-    _RmDeferred,
-    _RmAccepted,
-)
+ReportManagementBt = fallback_node("ReportManagementBt",
+                                   "The report management bt tree. This tree is responsible for managing the report management state machine.",
+                                   _RmStart, _RmClosed, _RmReceived, _RmInvalid, _RmValid, _RmDeferred, _RmAccepted)
 
 
 def main():

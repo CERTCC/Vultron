@@ -69,7 +69,6 @@ def main() -> None:
 
         for tick in range(1000):
             tick += 1
-            logger.debug("")
             logger.debug(f"# tick {tick} #")
             tree.tick()
 
@@ -83,11 +82,12 @@ def main() -> None:
                 tree.root.children[0].tick()
                 break
 
-    logger.info("")
     logger.info(f"Closed in {tick} ticks")
     for k, v in dataclasses.asdict(tree.bb).items():
         if "history" in k:
-            logger.info(f"{k}: {v}")
+            logger.info(f"### {k} ###")
+            for i, row in enumerate(v, start=1):
+                logger.info(f"  {i} {row}")
 
     df = pd.DataFrame(STATELOG)
     df.index += 1

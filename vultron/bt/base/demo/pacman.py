@@ -29,10 +29,10 @@ from vultron.bt.base.bt_node import BtNode
 from vultron.bt.base.factory import (
     action_node,
     condition_check,
-    fallback,
+    fallback_node,
     fuzzer,
     invert,
-    sequence,
+    sequence_node,
 )
 
 logger = logging.getLogger(__name__)
@@ -147,53 +147,28 @@ NoMoreGhosts = invert(
 NoGhostClose = invert(
     "NoGhostClose", "inverts the result of GhostClose.", GhostClose
 )
-CaughtGhost = sequence(
-    "CaughtGhost",
-    "handles actions after catching a ghost.",
-    DecrGhostCount,
-    ScoreGhost,
-    IncrGhostScore,
-)
+CaughtGhost = sequence_node("CaughtGhost", "handles actions after catching a ghost.", DecrGhostCount, ScoreGhost,
+                            IncrGhostScore)
 GhostsNotScared = invert(
     "GhostsNotScared", "inverts the result of GhostsScared.", GhostsScared
 )
-ChaseIfScared = sequence(
-    "ChaseIfScared",
-    "implements chasing a ghost if it is scared.",
-    GhostsScared,
-    ChaseGhost,
-    CaughtGhost,
-)
-ChaseOrAvoidGhost = fallback(
-    "ChaseOrAvoidGhost",
-    "implements chasing a ghost if it is scared, otherwise it avoids the ghost.",
-    ChaseIfScared,
-    GhostsScared,
-    AvoidGhost,
-)
+ChaseIfScared = sequence_node("ChaseIfScared", "implements chasing a ghost if it is scared.", GhostsScared, ChaseGhost,
+                              CaughtGhost)
+ChaseOrAvoidGhost = fallback_node("ChaseOrAvoidGhost",
+                                  "implements chasing a ghost if it is scared, otherwise it avoids the ghost.",
+                                  ChaseIfScared, GhostsScared, AvoidGhost)
 
-MaybeChaseOrAvoidGhost = fallback(
-    "MaybeChaseOrAvoidGhost",
-    """
+MaybeChaseOrAvoidGhost = fallback_node("MaybeChaseOrAvoidGhost", """
     implements chasing a ghost if it is scared, otherwise it avoids the ghost.
 
     Returns:
         SUCCESS if no ghosts remain, a ghost is caught or avoided, FAILURE otherwise
-    """,
-    NoMoreGhosts,
-    NoGhostClose,
-    ChaseOrAvoidGhost,
-)
+    """, NoMoreGhosts, NoGhostClose, ChaseOrAvoidGhost)
 
 
-MaybeEatPills = sequence(
-    "MaybeEatPills",
-    """
+MaybeEatPills = sequence_node("MaybeEatPills", """
     implements eating pills if no ghosts are close.
-    """,
-    MaybeChaseOrAvoidGhost,
-    EatPill,
-)
+    """, MaybeChaseOrAvoidGhost, EatPill)
 
 
 def do_tick(bot, ticks):

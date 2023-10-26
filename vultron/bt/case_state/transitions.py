@@ -16,7 +16,7 @@ This module defines the CVD Case State Machine as a Behavior Tree.
 from typing import Type
 
 from vultron.bt.base.bt_node import ActionNode, BtNode
-from vultron.bt.base.factory import action_node, sequence
+from vultron.bt.base.factory import action_node, sequence_node
 from vultron.bt.case_state.conditions import (
     CSinStateVendorAware,
     CSinStateVendorAwareAndFixReady,
@@ -83,15 +83,10 @@ _q_cs_to_F = cs_state_change(
     "F",
 )
 
-q_cs_to_F = sequence(
-    "q_cs_to_F",
-    """
+q_cs_to_F = sequence_node("q_cs_to_F", """
     Sequence node for transitioning from V to F.
     Enforces that the vendor is aware of the vulnerability before allowing the transition to Fix Ready
-    """,
-    CSinStateVendorAware,
-    _q_cs_to_F,
-)
+    """, CSinStateVendorAware, _q_cs_to_F)
 
 
 # We will need to wrap this in a sequence node to enforce that
@@ -101,15 +96,10 @@ _q_cs_to_D = cs_state_change(
     "D",
 )
 
-q_cs_to_D = sequence(
-    "q_cs_to_D",
-    """
+q_cs_to_D = sequence_node("q_cs_to_D", """
     Sequence node for transitioning from F to D.
     Enforces that the vendor is aware of the vulnerability and has a fix ready before allowing the transition to Fix Deployed.
-    """,
-    CSinStateVendorAwareAndFixReady,
-    _q_cs_to_D,
-)
+    """, CSinStateVendorAwareAndFixReady, _q_cs_to_D)
 
 
 # # The remaining transitions are simple and do not need to be wrapped

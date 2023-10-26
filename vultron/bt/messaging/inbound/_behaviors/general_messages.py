@@ -15,7 +15,7 @@ Provides behaviors to handle general messages.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.bt.base.factory import fallback, sequence
+from vultron.bt.base.factory import fallback_node, sequence_node
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.conditions import (
     IsGMMessage,
@@ -32,44 +32,22 @@ from vultron.bt.messaging.outbound.behaviors import EmitGK
 # GENERAL messages
 
 
-_HandleGeMessage = sequence(
-    "_HandleGeMessage",
-    """Handle general error (GE) messages.""",
-    IsMsgTypeGE,
-    FollowUpOnErrorMessage,
-)
+_HandleGeMessage = sequence_node("_HandleGeMessage", """Handle general error (GE) messages.""", IsMsgTypeGE,
+                                 FollowUpOnErrorMessage)
 
 
-_HandleGmMessageTypes = fallback(
-    "_HandleGmMessageTypes",
-    """Handle GI messages.""",
-    IsMsgTypeGI,
-    _HandleGeMessage,
-)
+_HandleGmMessageTypes = fallback_node("_HandleGmMessageTypes", """Handle GI messages.""", IsMsgTypeGI, _HandleGeMessage)
 
 
-_HandleAckableGmMessages = sequence(
-    "_HandleAckableGmMessages",
-    """Handle ackable GI messages.""",
-    _HandleGmMessageTypes,
-    EmitGK,
-)
+_HandleAckableGmMessages = sequence_node("_HandleAckableGmMessages", """Handle ackable GI messages.""",
+                                         _HandleGmMessageTypes, EmitGK)
 
 
-_HandleGmMessage = fallback(
-    "_HandleGmMessage",
-    """Handle GM messages.""",
-    IsMsgTypeGK,
-    _HandleAckableGmMessages,
-)
+_HandleGmMessage = fallback_node("_HandleGmMessage", """Handle GM messages.""", IsMsgTypeGK, _HandleAckableGmMessages)
 
 
-ProcessMessagesOtherBt = sequence(
-    "ProcessMessagesOtherBt",
-    """Process GI messages""",
-    IsGMMessage,
-    _HandleGmMessage,
-)
+ProcessMessagesOtherBt = sequence_node("ProcessMessagesOtherBt", """Process GI messages""", IsGMMessage,
+                                       _HandleGmMessage)
 
 
 def main():

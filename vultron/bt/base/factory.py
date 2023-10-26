@@ -53,7 +53,7 @@ def node_factory(
     return node_cls
 
 
-def sequence(
+def sequence_node(
     name: str, description: str, *child_classes: Type[BtNode]
 ) -> Type[SequenceNode]:
     """
@@ -67,10 +67,14 @@ def sequence(
     Returns:
         A SequenceNode class with the given docstring and children
     """
+
+    if len(child_classes) < 2:
+        raise ValueError("SequenceNode should have at least two children")
+
     return node_factory(SequenceNode, name, description, *child_classes)
 
 
-def fallback(
+def fallback_node(
     name: str, description: str, *child_classes: Type[BtNode]
 ) -> Type[FallbackNode]:
     """
@@ -85,6 +89,9 @@ def fallback(
         object:
         A FallbackNode class with the given docstring and children
     """
+    if len(child_classes) < 1:
+        raise ValueError("FallbackNode should have at least one child (preferably 2)")
+
     return node_factory(FallbackNode, name, description, *child_classes)
 
 
@@ -102,6 +109,9 @@ def invert(
     Returns:
         An Invert decorator class with the given docstring and children
     """
+    if len(child_classes) != 1:
+        raise ValueError("Invert decorator can only take one child")
+
     return node_factory(Invert, name, description, *child_classes)
 
 
@@ -188,6 +198,9 @@ def repeat_until_fail(
     Returns:
 
     """
+    if len(child_classes) != 1:
+        raise ValueError("RepeatUntilFail can only take one child")
+
     return node_factory(RepeatUntilFail, name, description, *child_classes)
 
 
@@ -195,8 +208,12 @@ def parallel_node(
     name: str, description: str, min_success: int, *child_classes: Type[BtNode]
 ) -> Type[ParallelNode]:
     # make sure min_success is a positive integer
-    if not isinstance(min_success, int) or min_success < 1:
-        raise ValueError("min_success must be a positive integer")
+    if not isinstance(min_success, int) or min_success < 1 or min_success > len(child_classes):
+        raise ValueError("min_success must be a positive integer less than or equal to the number of children")
+
+    # make sure child_classes is not empty
+    if len(child_classes) < 2:
+        raise ValueError("ParallelNode should have at least two children")
 
     node_cls = node_factory(ParallelNode, name, description, *child_classes)
     node_cls.min_success = min_success

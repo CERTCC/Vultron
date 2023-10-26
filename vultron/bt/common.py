@@ -27,8 +27,8 @@ from vultron.bt.base.composites import FallbackNode
 from vultron.bt.base.factory import (
     action_node,
     condition_check,
-    fallback,
-    sequence,
+    fallback_node,
+    sequence_node,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,27 +108,19 @@ def state_change(
     end_state = transition.end_state
 
     # check that the end_state is in the start_states
-    start_state_checks = fallback(
-        f"allowed_start_states_for_{key}_{end_state}",
-        f"""SUCCESS when the current {key} is in one of {(s.name for s in start_states)}. FAILURE otherwise.""",
-        *[state_in(key, state) for state in start_states],
-    )
+    start_state_checks = fallback_node(f"allowed_start_states_for_{key}_{end_state}",
+                                       f"""SUCCESS when the current {key} is in one of {(s.name for s in start_states)}. FAILURE otherwise.""",
+                                       *[state_in(key, state) for state in start_states])
 
     # transition to the end_state
-    sc_seq = sequence(
-        f"transition_to_{key}_{end_state}_if_allowed",
-        f"""Check for a valid start state in {(s.name for s in start_states)} and transition to {end_state}""",
-        start_state_checks,
-        to_end_state_factory(key, end_state),
-    )
+    sc_seq = sequence_node(f"transition_to_{key}_{end_state}_if_allowed",
+                           f"""Check for a valid start state in {(s.name for s in start_states)} and transition to {end_state}""",
+                           start_state_checks, to_end_state_factory(key, end_state))
 
     # ensure we wind up in the end_state
-    _state_change = fallback(
-        f"transition_{key}_to_{end_state}",
-        f"""Transition from (one of) {(s.name for s in start_states)} to {end_state}""",
-        state_in(key, end_state),
-        sc_seq,
-    )
+    _state_change = fallback_node(f"transition_{key}_to_{end_state}",
+                                  f"""Transition from (one of) {(s.name for s in start_states)} to {end_state}""",
+                                  state_in(key, end_state), sc_seq)
 
     return _state_change
 

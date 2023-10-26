@@ -15,7 +15,7 @@
 Provides vulnerability discovery behaviors
 """
 from vultron.bt.base.bt_node import BtNode
-from vultron.bt.base.factory import condition_check, fallback, sequence
+from vultron.bt.base.factory import condition_check, fallback_node, sequence_node
 from vultron.bt.case_state.conditions import CSinStateVendorUnaware
 from vultron.bt.case_state.transitions import q_cs_to_V
 from vultron.bt.common import show_graph
@@ -41,33 +41,20 @@ HaveDiscoveryCapability = condition_check(
     have_discovery_capability,
 )
 
-VendorBecomesAware = sequence(
-    "VendorBecomesAware",
-    """Vendor becomes aware of vulnerability.
+VendorBecomesAware = sequence_node("VendorBecomesAware", """Vendor becomes aware of vulnerability.
     Steps:
     1. Check whether the vendor is already aware of the vulnerability.
     2. If not, transition the case state to Vendor Aware.
     3. Emit a CV message to announce that the vendor is aware of the vulnerability.
-    """,
-    CSinStateVendorUnaware,
-    q_cs_to_V,
-    EmitCV,
-)
+    """, CSinStateVendorUnaware, q_cs_to_V, EmitCV)
 
 
-SeeIfVendorIsAware = fallback(
-    "SeeIfVendorIsAware",
-    """Check if the vendor is aware of the vulnerability.
+SeeIfVendorIsAware = fallback_node("SeeIfVendorIsAware", """Check if the vendor is aware of the vulnerability.
     If the finder is not the vendor, stop.
     Otherwise, note that the vendor is aware of the vulnerability.
-    """,
-    RoleIsNotVendor,
-    VendorBecomesAware,
-)
+    """, RoleIsNotVendor, VendorBecomesAware)
 
-FindVulnerabilities = sequence(
-    "FindVulnerabilities",
-    """This node represents the process of finding vulnerabilities.
+FindVulnerabilities = sequence_node("FindVulnerabilities", """This node represents the process of finding vulnerabilities.
     Steps:
     1. Check if the participant has the ability to discover vulnerabilities.
     2. Check if the participant has a priority for discovering vulnerabilities.
@@ -75,27 +62,14 @@ FindVulnerabilities = sequence(
          then discover vulnerabilities.
     5. If a vulnerability is discovered, emit an RS message and set the RM state to Received for this participant.
     6. Check to see if we are the vendor. If so, note that the vendor is aware of the vulnerability.
-    """,
-    HaveDiscoveryCapability,
-    HaveDiscoveryPriority,
-    DiscoverVulnerability,
-    q_rm_to_R,
-    EmitRS,
-    SeeIfVendorIsAware,
-)
+    """, HaveDiscoveryCapability, HaveDiscoveryPriority, DiscoverVulnerability, q_rm_to_R, EmitRS, SeeIfVendorIsAware)
 
-DiscoverVulnerabilityBt = fallback(
-    "DiscoverVulnerabilityBt",
-    """This is the top-level node for the vulnerability discovery process.
+DiscoverVulnerabilityBt = fallback_node("DiscoverVulnerabilityBt", """This is the top-level node for the vulnerability discovery process.
     Steps:
     1. Check if the RM state is not in the start state. If so, stop.
     2. Find vulnerabilities. If a vulnerability is found, stop.
     3. If no vulnerabilities are found, note that no vulnerabilities were found.
-    """,
-    RMnotInStateStart,
-    FindVulnerabilities,
-    NoVulFound,
-)
+    """, RMnotInStateStart, FindVulnerabilities, NoVulFound)
 
 
 def main():

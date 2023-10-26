@@ -15,7 +15,7 @@ Provides Vultron work behaviors.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.bt.base.factory import fallback
+from vultron.bt.base.factory import fallback_node
 from vultron.bt.report_management._behaviors.acquire_exploit import (
     AcquireExploit,
 )
@@ -43,21 +43,11 @@ potential_work = (
 )
 
 
-RMDoWorkBt = fallback(
-    "RMDoWorkBt",
-    """
+RMDoWorkBt = fallback_node("RMDoWorkBt", """
     This node represents the process of doing work on a report.
     There are many different types of work that may be done on a report, and this node represents the process of
     doing any of them.
     The process of doing work on a report is a fallback node, meaning that it will try each of its children in turn,
     and will succeed if any of its children succeed.
-    """,
-    Deployment,
-    DevelopFix,
-    MaybeReportToOthers,
-    MonitorThreats,
-    Publication,
-    AssignVulID,
-    AcquireExploit,
-    OtherWork,
-)
+    """, Deployment, DevelopFix, MaybeReportToOthers, MonitorThreats, Publication, AssignVulID, AcquireExploit,
+                           OtherWork)

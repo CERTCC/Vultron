@@ -15,7 +15,7 @@ Provides publication behaviors.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.bt.base.factory import fallback, sequence
+from vultron.bt.base.factory import fallback_node, sequence_node
 
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -59,97 +59,57 @@ from vultron.bt.report_management.fuzzer.publication import (
 )
 
 
-_ReadyExploitForPublication = fallback(
-    "_ReadyExploitForPublication",
-    """
+_ReadyExploitForPublication = fallback_node("_ReadyExploitForPublication", """
     This node represents the process of preparing an exploit for publication.
     Either the exploit has to be acquired or prepared for publication.
-    """,
-    AcquireExploit,
-    PrepareExploit,
-)
+    """, AcquireExploit, PrepareExploit)
 
 
-_MaybePrepareExploitForPublication = fallback(
-    "_MaybePrepareExploitForPublication",
-    """This node represents the process of ensuring that the exploit is published if it is desired.""",
-    NoPublishExploit,
-    ExploitReady,
-    _ReadyExploitForPublication,
-    ReprioritizeExploit,
-)
+_MaybePrepareExploitForPublication = fallback_node("_MaybePrepareExploitForPublication",
+                                                   """This node represents the process of ensuring that the exploit is published if it is desired.""",
+                                                   NoPublishExploit, ExploitReady, _ReadyExploitForPublication,
+                                                   ReprioritizeExploit)
 
 
-_ReadyFixForPublication = sequence(
-    "_ReadyFixForPublication",
-    "Develop a fix then prepare it for publication.",
-    DevelopFix,
-    PrepareFix,
-)
+_ReadyFixForPublication = sequence_node("_ReadyFixForPublication", "Develop a fix then prepare it for publication.",
+                                        DevelopFix, PrepareFix)
 
 
-_MaybePrepareFixForPublication = fallback(
-    "_MaybePrepareFixForPublication",
-    """Develop a fix if is desired and ready """,
-    NoPublishFix,
-    CSinStateVendorAwareAndFixReady,
-    _ReadyFixForPublication,
-    ReprioritizeFix,
-)
+_MaybePrepareFixForPublication = fallback_node("_MaybePrepareFixForPublication",
+                                               """Develop a fix if is desired and ready """, NoPublishFix,
+                                               CSinStateVendorAwareAndFixReady, _ReadyFixForPublication,
+                                               ReprioritizeFix)
 
 
-_MaybePrepareReportForPublication = fallback(
-    "_MaybePrepareReportForPublication",
-    "Prepare a report for publication if it is desired.",
-    NoPublishReport,
-    PrepareReport,
-    ReprioritizeReport,
-)
+_MaybePrepareReportForPublication = fallback_node("_MaybePrepareReportForPublication",
+                                                  "Prepare a report for publication if it is desired.", NoPublishReport,
+                                                  PrepareReport, ReprioritizeReport)
 
 
-_PreparePublication = sequence(
-    "_PreparePublication",
-    "Prepare Report, Fix, and Exploit for publication.",
-    _MaybePrepareExploitForPublication,
-    _MaybePrepareFixForPublication,
-    _MaybePrepareReportForPublication,
-)
+_PreparePublication = sequence_node("_PreparePublication", "Prepare Report, Fix, and Exploit for publication.",
+                                    _MaybePrepareExploitForPublication, _MaybePrepareFixForPublication,
+                                    _MaybePrepareReportForPublication)
 
 
-_EnsurePublicationPriorityIsSet = fallback(
-    "_EnsurePublicationPriorityIsSet",
-    """Ensure that the publication priorities are set.""",
-    PublicationIntentsSet,
-    PrioritizePublicationIntents,
-)
+_EnsurePublicationPriorityIsSet = fallback_node("_EnsurePublicationPriorityIsSet",
+                                                """Ensure that the publication priorities are set.""",
+                                                PublicationIntentsSet, PrioritizePublicationIntents)
 
 
-_EnsureAllDesiredItemsArePublished = sequence(
-    "_EnsureAllDesiredItemsArePublished",
-    """Ensure that all desired items are published.""",
-    _EnsurePublicationPriorityIsSet,
-    AllPublished,
-)
+_EnsureAllDesiredItemsArePublished = sequence_node("_EnsureAllDesiredItemsArePublished",
+                                                   """Ensure that all desired items are published.""",
+                                                   _EnsurePublicationPriorityIsSet, AllPublished)
 
 
-_PublishWhenReady = sequence(
-    "_PublishWhenReady",
-    """Publish the report, fix, and exploit when they are ready. Check that the embargo is not active first.""",
-    _PreparePublication,
-    EmbargoManagementBt,
-    EMinStateNoneOrExited,
-    Publish,
-    q_cs_to_P,
-    EmitCP,
-)
+_PublishWhenReady = sequence_node("_PublishWhenReady",
+                                  """Publish the report, fix, and exploit when they are ready. Check that the embargo is not active first.""",
+                                  _PreparePublication, EmbargoManagementBt, EMinStateNoneOrExited, Publish, q_cs_to_P,
+                                  EmitCP)
 
 
-Publication = fallback(
-    "Publication",
-    """This node represents the process of publishing a report, fix, and exploit.""",
-    _EnsureAllDesiredItemsArePublished,
-    _PublishWhenReady,
-)
+Publication = fallback_node("Publication",
+                            """This node represents the process of publishing a report, fix, and exploit.""",
+                            _EnsureAllDesiredItemsArePublished, _PublishWhenReady)
 
 
 def main():

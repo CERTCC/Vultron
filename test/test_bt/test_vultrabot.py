@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-"""Provides fuzzer behaviors for inbound messaging
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -14,12 +11,31 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import unittest
+from io import StringIO
+from unittest.mock import patch
 
-from vultron.bt.base import fuzzer as btz
-from vultron.bt.base.factory import fallback_node
-from vultron.bt.messaging.outbound.behaviors import EmitGI
+from vultron.demo import vultrabot
 
 
-FollowUpOnErrorMessage = fallback_node("FollowUpOnErrorMessage", """This is a stub for following up on an error message. In our stub implementation, we just stochastically (0.5
-    probability) emit a GI message to simulate sending a follow-up inquiry message.
-    """, btz.UniformSucceedFail, EmitGI)
+class MyTestCase(unittest.TestCase):
+    # capture stdout
+    @patch("sys.stdout", new_callable=StringIO)
+    def test_main(self, stdout):
+        for i in range(10):
+            # capture the output
+            vultrabot.main()
+            # test the output
+            self.assertIsNotNone(stdout)
+            output = stdout.getvalue()
+
+            # things that are consistently in the output
+            look_for = "q_rm q_em q_cs RS START NONE vfdpxa FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR CLOSED".split()
+
+            for item in look_for:
+                with self.subTest():
+                    self.assertIn(item, output)
+
+
+if __name__ == "__main__":
+    unittest.main()

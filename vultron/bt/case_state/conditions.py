@@ -17,7 +17,7 @@ This module defines CVD Case State conditions as Behavior Tree nodes.
 
 
 from vultron.bt.base.bt_node import BtNode
-from vultron.bt.base.factory import condition_check, invert, sequence
+from vultron.bt.base.factory import condition_check, invert, sequence_node
 from vultron.case_states.states import (
     AttackObservation,
     ExploitPublication,
@@ -104,29 +104,17 @@ CSinStateAttacksObserved = condition_check(
 )
 
 
-CSinStatePublicAwareAndExploitPublic = sequence(
-    "CSinStatePublicAwareAndExploitPublic",
-    """Sequence node for whether the public is aware of the vulnerability and an exploit is public""",
-    CSinStatePublicAware,
-    CSinStateExploitPublic,
-)
+CSinStatePublicAwareAndExploitPublic = sequence_node("CSinStatePublicAwareAndExploitPublic",
+                                                     """Sequence node for whether the public is aware of the vulnerability and an exploit is public""",
+                                                     CSinStatePublicAware, CSinStateExploitPublic)
 
 
-CSinStateVendorAwareAndFixReady = sequence(
-    "CSinStateVendorAwareAndFixReady",
-    """Sequence node for whether the vendor is aware of the vulnerability and has a fix ready""",
-    CSinStateVendorAware,
-    CSinStateFixReady,
-)
+CSinStateVendorAwareAndFixReady = sequence_node("CSinStateVendorAwareAndFixReady",
+                                                """Sequence node for whether the vendor is aware of the vulnerability and has a fix ready""",
+                                                CSinStateVendorAware, CSinStateFixReady)
 
-CSinStateVendorAwareAndFixReadyAndFixDeployed = sequence(
-    "CSinStateVendorAwareAndFixReadyAndFixDeployed",
-    """Sequence node for whether the vendor is aware of the vulnerability,
-    has a fix ready, and the fix has been deployed""",
-    CSinStateVendorAware,
-    CSinStateFixReady,
-    CSinStateFixDeployed,
-)
+CSinStateVendorAwareAndFixReadyAndFixDeployed = sequence_node("CSinStateVendorAwareAndFixReadyAndFixDeployed", """Sequence node for whether the vendor is aware of the vulnerability,
+    has a fix ready, and the fix has been deployed""", CSinStateVendorAware, CSinStateFixReady, CSinStateFixDeployed)
 
 CSinStateVendorUnaware = invert(
     "CSinStateVendorUnaware",
@@ -167,14 +155,8 @@ CSinStateNoAttacksObserved = invert(
     CSinStateAttacksObserved,
 )
 
-CSinStateNotPublicNoExploitNoAttacks = sequence(
-    "CSinStateNotPublicNoExploitNoAttacks",
-    """Sequence node for whether the public is unaware of the vulnerability, no exploit is public, and no attacks 
-    have been observed""",
-    CSinStatePublicUnaware,
-    CSinStateNoExploitPublic,
-    CSinStateNoAttacksObserved,
-)
+CSinStateNotPublicNoExploitNoAttacks = sequence_node("CSinStateNotPublicNoExploitNoAttacks", """Sequence node for whether the public is unaware of the vulnerability, no exploit is public, and no attacks 
+    have been observed""", CSinStatePublicUnaware, CSinStateNoExploitPublic, CSinStateNoAttacksObserved)
 
 
 CSinStatePublicAwareOrExploitPublicOrAttacksObserved = invert(
@@ -185,31 +167,18 @@ CSinStatePublicAwareOrExploitPublicOrAttacksObserved = invert(
 )
 
 
-CSinStateNotDeployedNotPublicNoExploitNoAttacks = sequence(
-    "CSinStateNotDeployedNotPublicNoExploitNoAttacks",
-    """Condition check for whether a fix has not been deployed, the public is unaware of the vulnerability, 
-    no exploit is public, and no attacks have been observed""",
-    CSinStateFixNotDeployed,
-    CSinStateNotPublicNoExploitNoAttacks,
-)
+CSinStateNotDeployedNotPublicNoExploitNoAttacks = sequence_node("CSinStateNotDeployedNotPublicNoExploitNoAttacks", """Condition check for whether a fix has not been deployed, the public is unaware of the vulnerability, 
+    no exploit is public, and no attacks have been observed""", CSinStateFixNotDeployed,
+                                                                CSinStateNotPublicNoExploitNoAttacks)
 
 
-CSinStateNotDeployedButPublicAware = sequence(
-    "CSinStateNotDeployedButPublicAware",
-    """Condition check for whether a fix has not been deployed but the public is aware of the vulnerability""",
-    CSinStateFixNotDeployed,
-    CSinStatePublicAware,
-)
+CSinStateNotDeployedButPublicAware = sequence_node("CSinStateNotDeployedButPublicAware",
+                                                   """Condition check for whether a fix has not been deployed but the public is aware of the vulnerability""",
+                                                   CSinStateFixNotDeployed, CSinStatePublicAware)
 
 
-CSinStateVendorAwareFixReadyFixNotDeployed = sequence(
-    "CSinStateVendorAwareFixReadyFixNotDeployed",
-    """Condition check for whether the vendor is aware of the vulnerability and has a fix ready, but the fix has not 
-    been deployed""",
-    CSinStateVendorAware,
-    CSinStateFixReady,
-    CSinStateFixNotDeployed,
-)
+CSinStateVendorAwareFixReadyFixNotDeployed = sequence_node("CSinStateVendorAwareFixReadyFixNotDeployed", """Condition check for whether the vendor is aware of the vulnerability and has a fix ready, but the fix has not 
+    been deployed""", CSinStateVendorAware, CSinStateFixReady, CSinStateFixNotDeployed)
 
 
 # aliases
