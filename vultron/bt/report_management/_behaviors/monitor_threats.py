@@ -16,11 +16,7 @@ Provides threat monitoring behaviors for the Vultron BT.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from vultron.bt.base.composites import (
-    ParallelNode,
-    SequenceNode,
-)
-from vultron.bt.base.factory import fallback, sequence
+from vultron.bt.base.factory import fallback, parallel_node, sequence
 from vultron.bt.case_state.conditions import CSinStatePublicAware
 from vultron.bt.case_state.transitions import q_cs_to_A, q_cs_to_P, q_cs_to_X
 from vultron.bt.embargo_management.behaviors import TerminateEmbargoBt
@@ -45,15 +41,16 @@ _NoticeAttack = sequence(
 )
 
 
-class _MoveToCsPublic(SequenceNode):
-    """ "
-    This node represents the process of moving the case state to the PUBLIC_AWARE state.
+_MoveToCsPublic = sequence(
+    "_MoveToCsPublic",
+    """This node represents the process of moving the case state to the PUBLIC_AWARE state.
     Steps:
     1. Transition the case state to the PUBLIC_AWARE state.
     2. Emit a CP message indicating that the case state has been updated.
-    """
-
-    _children = (q_cs_to_P, EmitCP)
+    """,
+    q_cs_to_P,
+    EmitCP,
+)
 
 
 _EnsureCsInPublic = fallback(
@@ -91,13 +88,16 @@ _NoticePublicReport = sequence(
 )
 
 
-class _MonitorExternalEvents(ParallelNode):
+_MonitorExternalEvents = parallel_node(
+    "_MonitorExternalEvents",
     """This node represents the process of monitoring external events for a report being coordinated by the case.
     It monitors for attacks, exploits, and public reports while the case is being coordinated.
-    """
-
-    m = 1
-    _children = (_NoticeAttack, _NoticeExploit, _NoticePublicReport)
+    """,
+    1,
+    _NoticeAttack,
+    _NoticeExploit,
+    _NoticePublicReport,
+)
 
 
 _EndEmbargoIfEventsWarrant = sequence(

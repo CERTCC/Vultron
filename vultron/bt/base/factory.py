@@ -18,8 +18,8 @@ Provides common tools for constructing behavior trees
 from typing import Callable, Type, TypeVar
 
 from vultron.bt.base.bt_node import ActionNode, BtNode, ConditionCheck
-from vultron.bt.base.composites import FallbackNode, SequenceNode
-from vultron.bt.base.decorators import Invert
+from vultron.bt.base.composites import FallbackNode, ParallelNode, SequenceNode
+from vultron.bt.base.decorators import Invert, RepeatUntilFail
 from vultron.bt.base.fuzzer import FuzzerNode
 
 NodeType = TypeVar("NodeType", bound=Type[BtNode])
@@ -82,6 +82,7 @@ def fallback(
         *child_classes: the child classes for the FallbackNode
 
     Returns:
+        object:
         A FallbackNode class with the given docstring and children
     """
     return node_factory(FallbackNode, name, description, *child_classes)
@@ -170,4 +171,33 @@ def action_node(
     """
     node_cls = node_factory(ActionNode, name, func.__doc__)
     node_cls.func = func
+    return node_cls
+
+
+def repeat_until_fail(
+    name: str, description: str, *child_classes: Type[BtNode]
+) -> Type[RepeatUntilFail]:
+    """
+    Convenience function to create a RepeatUntilFail node with a docstring.
+
+    Args:
+        name: the name of the RepeatUntilFail class
+        description: the docstring for the RepeatUntilFail class
+        *child_classes: the child class to repeat
+
+    Returns:
+
+    """
+    return node_factory(RepeatUntilFail, name, description, *child_classes)
+
+
+def parallel_node(
+    name: str, description: str, min_success: int, *child_classes: Type[BtNode]
+) -> Type[ParallelNode]:
+    # make sure min_success is a positive integer
+    if not isinstance(min_success, int) or min_success < 1:
+        raise ValueError("min_success must be a positive integer")
+
+    node_cls = node_factory(ParallelNode, name, description, *child_classes)
+    node_cls.min_success = min_success
     return node_cls

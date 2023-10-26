@@ -15,8 +15,8 @@ Provides report validation behaviors for Vultron.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
-from vultron.bt.base.composites import FallbackNode, SequenceNode
+from vultron.bt.base.factory import fallback, sequence
+from vultron.bt.common import show_graph
 from vultron.bt.messaging.outbound.behaviors import EmitRI, EmitRV
 from vultron.bt.report_management.conditions import (
     RMinStateInvalid,
@@ -33,46 +33,79 @@ from vultron.bt.report_management.fuzzer.validate_report import (
 from vultron.bt.report_management.transitions import q_rm_to_I, q_rm_to_V
 
 
-class _GetMoreValidationInfo(SequenceNode):
-    _children = (GatherValidationInfo, NoNewValidationInfo)
+_GetMoreValidationInfo = sequence(
+    "_GetMoreValidationInfo",
+    "Collect more validation info",
+    GatherValidationInfo,
+    NoNewValidationInfo,
+)
 
 
-class _EnsureAdequateValidationInfo(FallbackNode):
-    _children = (EnoughValidationInfo, _GetMoreValidationInfo)
+_EnsureAdequateValidationInfo = fallback(
+    "_EnsureAdequateValidationInfo",
+    "Check if there is enough validation info. If not, get more.",
+    EnoughValidationInfo,
+    _GetMoreValidationInfo,
+)
 
 
-class _HandleRmI(SequenceNode):
-    _children = (RMinStateInvalid, _EnsureAdequateValidationInfo)
+_HandleRmI = sequence(
+    "_HandleRmI",
+    "If we are in RM.INVALID, check to see if we need to collect more info",
+    RMinStateInvalid,
+    _EnsureAdequateValidationInfo,
+)
 
 
-class _ValidateReport(SequenceNode):
-    _children = (q_rm_to_V, EmitRV)
+_ValidateReport = sequence(
+    "_ValidateReport",
+    "Move to RM.VALID state and emit RV message",
+    q_rm_to_V,
+    EmitRV,
+)
 
 
-class _ValidationSequence(SequenceNode):
-    _children = (
-        RMinStateReceivedOrInvalid,
-        EvaluateReportCredibility,
-        EvaluateReportValidity,
-        _ValidateReport,
-    )
+_ValidationSequence = sequence(
+    "_ValidationSequence",
+    """This node represents the process of validating a report.
+    Steps:
+    1. Check if the report is in the RECEIVED or INVALID states.
+    2. Evaluate the credibility of the report.
+    3. Evaluate the validity of the report.
+    4. Change the report management state to VALID if all previous steps succeeded
+    """,
+    RMinStateReceivedOrInvalid,
+    EvaluateReportCredibility,
+    EvaluateReportValidity,
+    _ValidateReport,
+)
 
 
-class _InvalidateReport(SequenceNode):
-    _children = (q_rm_to_I, EmitRI)
+_InvalidateReport = sequence(
+    "_InvalidateReport",
+    "Move to RM.INVALID state and emit an RI message",
+    q_rm_to_I,
+    EmitRI,
+)
 
 
-class RMValidateBt(FallbackNode):
-    _children = (
-        RMinStateValid,
-        _HandleRmI,
-        _ValidationSequence,
-        _InvalidateReport,
-    )
+RMValidateBt = fallback(
+    "RMValidateBt",
+    """This node represents the process of validating a report.
+    Steps:
+    1. If the report is in the VALID state, then this node succeeds.
+    2. If the report is in the RECEIVED or INVALID states, then this node attempts to validate the report.
+    3. If validation fails, then move the report to INVALID.
+    """,
+    RMinStateValid,
+    _HandleRmI,
+    _ValidationSequence,
+    _InvalidateReport,
+)
 
 
 def main():
-    pass
+    show_graph(RMValidateBt)
 
 
 if __name__ == "__main__":

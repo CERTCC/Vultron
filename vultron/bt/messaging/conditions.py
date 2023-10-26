@@ -17,80 +17,76 @@ Provides messaging conditions for use in Vultron BTs.
 
 
 import logging
+from typing import Type
 
-from vultron.bt.base.bt_node import ConditionCheck
+from vultron.bt.base.bt_node import BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode
 from vultron.bt.base.decorators import Invert
+from vultron.bt.base.factory import condition_check, invert
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.states import MessageTypes
 
 logger = logging.getLogger(__name__)
 
 
-class MsgQueueNotEmpty(ConditionCheck):
-    def func(self):
-        # converts to boolean
-        return bool(self.bb.incoming_messages)
+def msg_queue_not_empty(obj: BtNode) -> bool:
+    """True if the message queue is not empty"""
+    return bool(obj.bb.incoming_messages)
 
 
-class MsgQueueEmpty(Invert):
-    _children = (MsgQueueNotEmpty,)
+MsgQueueNotEmpty = condition_check("MsgQueueNotEmpty", msg_queue_not_empty)
+
+MsgQueueEmpty = invert(
+    "MsgQueueEmpty", "True if the message queue is empty", MsgQueueNotEmpty
+)
 
 
-def is_msg_type_factory(msg_t: MessageTypes) -> ConditionCheck:
+def check_msg_type(msg_t: MessageTypes) -> Type[ConditionCheck]:
     """Given a message type, return a condition check class for that message type"""
-    assert msg_t in MessageTypes
 
-    class IsMsgType(ConditionCheck):
-        f"""
-        Returns SUCCESS if the current message type is {msg_t}.
-        """
-        msg_type = msg_t
+    if msg_t not in MessageTypes:
+        raise ValueError(f"Invalid message type: {msg_t}")
 
-        def __init__(self):
-            super().__init__()
-            self.name = (
-                f"{self.name_pfx}_IsMsgType_{self.msg_type}{self.name_sfx}"
-            )
+    def func(obj: BtNode) -> bool:
+        """True if the current message type is {msg_t}""" ""
+        return obj.bb.current_message.msg_type == msg_t
 
-        def func(self):
-            msg_type = self.bb.current_message.msg_type
-            return msg_type == self.msg_type
+    node_cls = condition_check(f"IsMsgType_{msg_t}", func)
 
-    return IsMsgType
+    return node_cls
 
 
-IsMsgTypeRS = is_msg_type_factory(MessageTypes.RS)
-IsMsgTypeRI = is_msg_type_factory(MessageTypes.RI)
-IsMsgTypeRV = is_msg_type_factory(MessageTypes.RV)
-IsMsgTypeRD = is_msg_type_factory(MessageTypes.RD)
-IsMsgTypeRA = is_msg_type_factory(MessageTypes.RA)
-IsMsgTypeRC = is_msg_type_factory(MessageTypes.RC)
-IsMsgTypeRK = is_msg_type_factory(MessageTypes.RK)
-IsMsgTypeRE = is_msg_type_factory(MessageTypes.RE)
+IsMsgTypeRS = check_msg_type(MessageTypes.RS)
+IsMsgTypeRI = check_msg_type(MessageTypes.RI)
+IsMsgTypeRV = check_msg_type(MessageTypes.RV)
+IsMsgTypeRD = check_msg_type(MessageTypes.RD)
+IsMsgTypeRA = check_msg_type(MessageTypes.RA)
+IsMsgTypeRC = check_msg_type(MessageTypes.RC)
+IsMsgTypeRK = check_msg_type(MessageTypes.RK)
+IsMsgTypeRE = check_msg_type(MessageTypes.RE)
 
-IsMsgTypeEP = is_msg_type_factory(MessageTypes.EP)
-IsMsgTypeER = is_msg_type_factory(MessageTypes.ER)
-IsMsgTypeEA = is_msg_type_factory(MessageTypes.EA)
-IsMsgTypeEV = is_msg_type_factory(MessageTypes.EV)
-IsMsgTypeEJ = is_msg_type_factory(MessageTypes.EJ)
-IsMsgTypeEC = is_msg_type_factory(MessageTypes.EC)
-IsMsgTypeET = is_msg_type_factory(MessageTypes.ET)
-IsMsgTypeEK = is_msg_type_factory(MessageTypes.EK)
-IsMsgTypeEE = is_msg_type_factory(MessageTypes.EE)
+IsMsgTypeEP = check_msg_type(MessageTypes.EP)
+IsMsgTypeER = check_msg_type(MessageTypes.ER)
+IsMsgTypeEA = check_msg_type(MessageTypes.EA)
+IsMsgTypeEV = check_msg_type(MessageTypes.EV)
+IsMsgTypeEJ = check_msg_type(MessageTypes.EJ)
+IsMsgTypeEC = check_msg_type(MessageTypes.EC)
+IsMsgTypeET = check_msg_type(MessageTypes.ET)
+IsMsgTypeEK = check_msg_type(MessageTypes.EK)
+IsMsgTypeEE = check_msg_type(MessageTypes.EE)
 
-IsMsgTypeCV = is_msg_type_factory(MessageTypes.CV)
-IsMsgTypeCF = is_msg_type_factory(MessageTypes.CF)
-IsMsgTypeCD = is_msg_type_factory(MessageTypes.CD)
-IsMsgTypeCP = is_msg_type_factory(MessageTypes.CP)
-IsMsgTypeCX = is_msg_type_factory(MessageTypes.CX)
-IsMsgTypeCA = is_msg_type_factory(MessageTypes.CA)
-IsMsgTypeCK = is_msg_type_factory(MessageTypes.CK)
-IsMsgTypeCE = is_msg_type_factory(MessageTypes.CE)
+IsMsgTypeCV = check_msg_type(MessageTypes.CV)
+IsMsgTypeCF = check_msg_type(MessageTypes.CF)
+IsMsgTypeCD = check_msg_type(MessageTypes.CD)
+IsMsgTypeCP = check_msg_type(MessageTypes.CP)
+IsMsgTypeCX = check_msg_type(MessageTypes.CX)
+IsMsgTypeCA = check_msg_type(MessageTypes.CA)
+IsMsgTypeCK = check_msg_type(MessageTypes.CK)
+IsMsgTypeCE = check_msg_type(MessageTypes.CE)
 
-IsMsgTypeGI = is_msg_type_factory(MessageTypes.GI)
-IsMsgTypeGK = is_msg_type_factory(MessageTypes.GK)
-IsMsgTypeGE = is_msg_type_factory(MessageTypes.GE)
+IsMsgTypeGI = check_msg_type(MessageTypes.GI)
+IsMsgTypeGK = check_msg_type(MessageTypes.GK)
+IsMsgTypeGE = check_msg_type(MessageTypes.GE)
 
 
 class IsRMMessage(FallbackNode):

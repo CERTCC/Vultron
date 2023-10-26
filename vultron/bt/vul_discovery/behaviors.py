@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-"""file: behaviors
-author: adh
-created_at: 6/23/22 12:08 PM
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,12 +11,14 @@ created_at: 6/23/22 12:08 PM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
-
-from vultron.bt.base.bt_node import ConditionCheck
-from vultron.bt.base.factory import fallback, sequence
+"""
+Provides vulnerability discovery behaviors
+"""
+from vultron.bt.base.bt_node import BtNode
+from vultron.bt.base.factory import condition_check, fallback, sequence
 from vultron.bt.case_state.conditions import CSinStateVendorUnaware
 from vultron.bt.case_state.transitions import q_cs_to_V
+from vultron.bt.common import show_graph
 from vultron.bt.messaging.outbound.behaviors import EmitCV, EmitRS
 from vultron.bt.report_management.conditions import RMnotInStateStart
 from vultron.bt.report_management.transitions import q_rm_to_R
@@ -33,12 +31,15 @@ from vultron.bt.vul_discovery.fuzzer import (
 )
 
 
-class HaveDiscoveryCapability(ConditionCheck):
-    """Check if the participant has the ability to discover vulnerabilities."""
+def have_discovery_capability(obj: BtNode) -> bool:
+    """True if the participant has the ability to discover vulnerabilities."""
+    return obj.bb.CVD_role & CVDRoles.FINDER
 
-    def func(self):
-        return self.bb.CVD_role & CVDRoles.FINDER
 
+HaveDiscoveryCapability = condition_check(
+    "HaveDiscoveryCapability",
+    have_discovery_capability,
+)
 
 VendorBecomesAware = sequence(
     "VendorBecomesAware",
@@ -64,7 +65,6 @@ SeeIfVendorIsAware = fallback(
     VendorBecomesAware,
 )
 
-
 FindVulnerabilities = sequence(
     "FindVulnerabilities",
     """This node represents the process of finding vulnerabilities.
@@ -84,7 +84,6 @@ FindVulnerabilities = sequence(
     SeeIfVendorIsAware,
 )
 
-
 DiscoverVulnerabilityBt = fallback(
     "DiscoverVulnerabilityBt",
     """This is the top-level node for the vulnerability discovery process.
@@ -100,8 +99,7 @@ DiscoverVulnerabilityBt = fallback(
 
 
 def main():
-    root = DiscoverVulnerabilityBt()
-    root.walk()
+    show_graph(DiscoverVulnerabilityBt)
 
 
 if __name__ == "__main__":

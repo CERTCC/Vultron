@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-"""file: fuzzer
-author: adh
-created_at: 2/22/23 10:24 AM
+"""Provides fuzzer behaviors for inbound messaging
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

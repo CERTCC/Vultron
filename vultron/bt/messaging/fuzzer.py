@@ -23,6 +23,7 @@ from vultron.bt.messaging.states import MessageTypes
 
 
 def random_message():
+    """Return a random message type."""
     return random.choice(list(MessageTypes))
 
 

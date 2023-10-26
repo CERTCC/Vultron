@@ -15,10 +15,25 @@ Provides publication behaviors.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.bt.base.factory import fallback, sequence
 
-from vultron.bt.base.composites import FallbackNode, SequenceNode
+#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+
 from vultron.bt.case_state.conditions import CSinStateVendorAwareAndFixReady
 from vultron.bt.case_state.transitions import q_cs_to_P
+from vultron.bt.common import show_graph
 from vultron.bt.embargo_management.behaviors import EmbargoManagementBt
 from vultron.bt.embargo_management.conditions import EMinStateNoneOrExited
 from vultron.bt.messaging.outbound.behaviors import EmitCP
@@ -44,69 +59,101 @@ from vultron.bt.report_management.fuzzer.publication import (
 )
 
 
-class _ReadyExploitForPublication(FallbackNode):
-    _children = (AcquireExploit, PrepareExploit)
+_ReadyExploitForPublication = fallback(
+    "_ReadyExploitForPublication",
+    """
+    This node represents the process of preparing an exploit for publication.
+    Either the exploit has to be acquired or prepared for publication.
+    """,
+    AcquireExploit,
+    PrepareExploit,
+)
 
 
-class _EnsureExploitPublishedIfDesired(FallbackNode):
-    _children = (
-        NoPublishExploit,
-        ExploitReady,
-        _ReadyExploitForPublication,
-        ReprioritizeExploit,
-    )
+_MaybePrepareExploitForPublication = fallback(
+    "_MaybePrepareExploitForPublication",
+    """This node represents the process of ensuring that the exploit is published if it is desired.""",
+    NoPublishExploit,
+    ExploitReady,
+    _ReadyExploitForPublication,
+    ReprioritizeExploit,
+)
 
 
-class _ReadyFixForPublication(SequenceNode):
-    _children = (DevelopFix, PrepareFix)
+_ReadyFixForPublication = sequence(
+    "_ReadyFixForPublication",
+    "Develop a fix then prepare it for publication.",
+    DevelopFix,
+    PrepareFix,
+)
 
 
-class _EnsureFixIsDevelopedIfDesired(FallbackNode):
-    _children = (
-        NoPublishFix,
-        CSinStateVendorAwareAndFixReady,
-        _ReadyFixForPublication,
-        ReprioritizeFix,
-    )
+_MaybePrepareFixForPublication = fallback(
+    "_MaybePrepareFixForPublication",
+    """Develop a fix if is desired and ready """,
+    NoPublishFix,
+    CSinStateVendorAwareAndFixReady,
+    _ReadyFixForPublication,
+    ReprioritizeFix,
+)
 
 
-class _EnsureReportIsPublishedIfDesired(FallbackNode):
-    _children = (NoPublishReport, PrepareReport, ReprioritizeReport)
+_MaybePrepareReportForPublication = fallback(
+    "_MaybePrepareReportForPublication",
+    "Prepare a report for publication if it is desired.",
+    NoPublishReport,
+    PrepareReport,
+    ReprioritizeReport,
+)
 
 
-class _PreparePublication(SequenceNode):
-    _children = (
-        _EnsureExploitPublishedIfDesired,
-        _EnsureFixIsDevelopedIfDesired,
-        _EnsureReportIsPublishedIfDesired,
-    )
+_PreparePublication = sequence(
+    "_PreparePublication",
+    "Prepare Report, Fix, and Exploit for publication.",
+    _MaybePrepareExploitForPublication,
+    _MaybePrepareFixForPublication,
+    _MaybePrepareReportForPublication,
+)
 
 
-class _EnsurePublicationPriorityIsSet(FallbackNode):
-    _children = (PublicationIntentsSet, PrioritizePublicationIntents)
+_EnsurePublicationPriorityIsSet = fallback(
+    "_EnsurePublicationPriorityIsSet",
+    """Ensure that the publication priorities are set.""",
+    PublicationIntentsSet,
+    PrioritizePublicationIntents,
+)
 
 
-class _EnsureAllDesiredItemsArePublished(SequenceNode):
-    _children = (_EnsurePublicationPriorityIsSet, AllPublished)
+_EnsureAllDesiredItemsArePublished = sequence(
+    "_EnsureAllDesiredItemsArePublished",
+    """Ensure that all desired items are published.""",
+    _EnsurePublicationPriorityIsSet,
+    AllPublished,
+)
 
 
-class _PublishWhenReady(SequenceNode):
-    _children = (
-        _PreparePublication,
-        EmbargoManagementBt,
-        EMinStateNoneOrExited,
-        Publish,
-        q_cs_to_P,
-        EmitCP,
-    )
+_PublishWhenReady = sequence(
+    "_PublishWhenReady",
+    """Publish the report, fix, and exploit when they are ready. Check that the embargo is not active first.""",
+    _PreparePublication,
+    EmbargoManagementBt,
+    EMinStateNoneOrExited,
+    Publish,
+    q_cs_to_P,
+    EmitCP,
+)
 
 
-class Publication(FallbackNode):
-    _children = (_EnsureAllDesiredItemsArePublished, _PublishWhenReady)
+Publication = fallback(
+    "Publication",
+    """This node represents the process of publishing a report, fix, and exploit.""",
+    _EnsureAllDesiredItemsArePublished,
+    _PublishWhenReady,
+)
 
 
 def main():
-    pass
+    show_graph(Publication)
 
 
 if __name__ == "__main__":

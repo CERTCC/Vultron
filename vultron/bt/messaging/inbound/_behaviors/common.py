@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-"""file: common
-author: adh
-created_at: 6/27/22 1:36 PM
-
+"""
 This module contains common behaviors that are used by the inbound message handler.
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.

@@ -13,7 +13,6 @@
 
 
 #!/usr/bin/env python
-"""file: __init__.py
-author: adh
-created_at: 6/23/22 1:32 PM
+"""
+Provides various behavior implementations that support the Report Management process.
 """

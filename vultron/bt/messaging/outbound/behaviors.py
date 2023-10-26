@@ -17,163 +17,86 @@ Provides outbound messaging behaviors for Vultron.
 
 
 import logging
+from typing import Callable
 
 from vultron.bt.base.bt_node import ActionNode
-from vultron.bt.base.node_status import NodeStatus
+from vultron.bt.base.factory import action_node
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.behaviors import incoming_message
-from vultron.bt.messaging.states import MessageTypes as MT
+from vultron.bt.messaging.states import MessageTypes, MessageTypes as MT
 from vultron.sim.messages import Message
 
 logger = logging.getLogger(__name__)
 
+# keep track of all emitters
+_emitters = set()
 
-class _EmitMsg(ActionNode):
-    name_pfx = "!"
-    msg_type = None
 
-    def __init__(self):
-        super().__init__()
-        self.name = f"{self.name}_{self.msg_type}"
+def _emitter_func(
+    msg_type: MessageTypes, body: str = "msg_body"
+) -> Callable[[ActionNode], bool]:
+    def func(obj: ActionNode) -> bool:
+        f"""Emit a message of type {msg_type}."""
 
-    def _tick(self, depth=0):
-        indent = "  " * (depth)
-        logger.info(f"->{indent}{self.msg_type}")
-
-        msg = Message(
-            sender=self.bb.name, msg_type=self.msg_type, body="msg_body"
-        )
-        emit = self.bb.emit_func
+        msg = Message(sender=obj.bb.name, msg_type=msg_type, body=body)
+        emit = obj.bb.emit_func
         if emit is not None:
             emit(msg)
         else:
             logger.debug("Emitter not set")
 
         # append history
-        self.bb.msg_history.append(msg)
-        self.bb.msgs_emitted_this_tick.append(msg.msg_type)
-        incoming_message(self.bb, msg)
+        obj.bb.msg_history.append(msg)
+        obj.bb.msgs_emitted_this_tick.append(msg.msg_type)
+        incoming_message(obj.bb, msg)
 
-        return NodeStatus.SUCCESS
+        return True
 
-
-class EmitCV(_EmitMsg):
-    msg_type = MT.CV
+    return func
 
 
-class EmitCF(_EmitMsg):
-    msg_type = MT.CF
+def emitter(msg_type, body="msg_body"):
+    node_cls = action_node(f"Emit_{msg_type}", _emitter_func(msg_type, body))
+    node_cls.name_pfx = "!"
+    node_cls.msg_type = msg_type
+
+    _emitters.add(node_cls)
+
+    return node_cls
 
 
-class EmitCD(_EmitMsg):
-    msg_type = MT.CD
-
-
-class EmitCP(_EmitMsg):
-    msg_type = MT.CP
-
-
-class EmitCX(_EmitMsg):
-    msg_type = MT.CX
-
-
-class EmitCA(_EmitMsg):
-    msg_type = MT.CA
-
-
-class EmitCE(_EmitMsg):
-    msg_type = MT.CE
-
-
-class EmitCK(_EmitMsg):
-    msg_type = MT.CK
-
-
-class EmitRS(_EmitMsg):
-    msg_type = MT.RS
-
-
-class EmitRI(_EmitMsg):
-    msg_type = MT.RI
-
-
-class EmitRV(_EmitMsg):
-    msg_type = MT.RV
-
-
-class EmitRA(_EmitMsg):
-    msg_type = MT.RA
-
-
-class EmitRD(_EmitMsg):
-    msg_type = MT.RD
-
-
-class EmitRC(_EmitMsg):
-    msg_type = MT.RC
-
-
-class EmitRE(_EmitMsg):
-    msg_type = MT.RE
-
-
-class EmitRK(_EmitMsg):
-    msg_type = MT.RK
-
-
-class EmitEP(_EmitMsg):
-    msg_type = MT.EP
-
-
-class EmitER(_EmitMsg):
-    msg_type = MT.ER
-
-
-class EmitEA(_EmitMsg):
-    msg_type = MT.EA
-
-
-class EmitEV(_EmitMsg):
-    msg_type = MT.EV
-
-
-class EmitEJ(_EmitMsg):
-    msg_type = MT.EJ
-
-
-class EmitEC(_EmitMsg):
-    msg_type = MT.EC
-
-
-class EmitET(_EmitMsg):
-    msg_type = MT.ET
-
-
-class EmitEK(_EmitMsg):
-    msg_type = MT.EK
-
-
-class EmitEE(_EmitMsg):
-    msg_type = MT.EE
-
-
-class EmitGI(_EmitMsg):
-    msg_type = MT.GI
-
-
-class EmitGE(_EmitMsg):
-    msg_type = MT.GE
-
-
-class EmitGK(_EmitMsg):
-    msg_type = MT.GK
-
-
-Emitters = _EmitMsg.__subclasses__()
+EmitCV = emitter(MT.CV)
+EmitCF = emitter(MT.CF)
+EmitCD = emitter(MT.CD)
+EmitCP = emitter(MT.CP)
+EmitCX = emitter(MT.CX)
+EmitCA = emitter(MT.CA)
+EmitCE = emitter(MT.CE)
+EmitCK = emitter(MT.CK)
+EmitRS = emitter(MT.RS)
+EmitRI = emitter(MT.RI)
+EmitRV = emitter(MT.RV)
+EmitRA = emitter(MT.RA)
+EmitRD = emitter(MT.RD)
+EmitRC = emitter(MT.RC)
+EmitRE = emitter(MT.RE)
+EmitRK = emitter(MT.RK)
+EmitEP = emitter(MT.EP)
+EmitER = emitter(MT.ER)
+EmitEA = emitter(MT.EA)
+EmitEV = emitter(MT.EV)
+EmitEJ = emitter(MT.EJ)
+EmitEC = emitter(MT.EC)
+EmitET = emitter(MT.ET)
+EmitEK = emitter(MT.EK)
+EmitEE = emitter(MT.EE)
+EmitGI = emitter(MT.GI)
+EmitGE = emitter(MT.GE)
+EmitGK = emitter(MT.GK)
 
 
 def main():
-    for emitter in Emitters:
+    for emitter in _emitters:
         show_graph(emitter)
 
 

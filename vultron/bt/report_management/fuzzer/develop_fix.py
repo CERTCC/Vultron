@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-"""
-Provides fuzzer leaf nodes for the report management workflow.
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -14,16 +11,20 @@ Provides fuzzer leaf nodes for the report management workflow.
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+Provides fuzzer leaf nodes for the report management workflow.
+"""
+from vultron.bt.base.factory import fuzzer
+from vultron.bt.base.fuzzer import AlmostAlwaysSucceed
 
-
-from vultron.bt.base import fuzzer as btz
-
-
-class CreateFix(btz.AlmostAlwaysSucceed):
+CreateFix = fuzzer(
+    AlmostAlwaysSucceed,
+    "CreateFix",
     """This node represents the process of creating a fix for the vulnerability.
     In a real implementation, this would probably be a prompt for a human to create a fix, for example by
     initiating an internal development process (e.g., in a bug tracking system).
     In our stub implementation, this node succeeds in 9 out of 10 attempts, allowing us to exercise the rest of the workflow.
-    """
+    """,
+)
 
-    # prompt a human to create a fix
+# prompt a human to create a fix

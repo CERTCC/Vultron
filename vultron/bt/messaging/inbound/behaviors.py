@@ -18,8 +18,7 @@ Provides behavior for inbound messaging.
 
 import logging
 
-from vultron.bt.base.decorators import RepeatUntilFail
-from vultron.bt.base.factory import fallback, sequence
+from vultron.bt.base.factory import fallback, repeat_until_fail, sequence
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.conditions import MsgQueueNotEmpty
 from vultron.bt.messaging.inbound._behaviors.common import (
@@ -96,10 +95,11 @@ _ReceiveNextMessage = sequence(
 )
 
 
-class ReceiveMessagesBt(RepeatUntilFail):
-    """This is the top-level bt tree for the incoming messaging subsystem."""
-
-    _children = (_ReceiveNextMessage,)
+ReceiveMessagesBt = repeat_until_fail(
+    "_ReceiveMessagesBt",
+    """This is the top-level bt tree for the incoming messaging subsystem.""",
+    _ReceiveNextMessage,
+)
 
 
 def main():

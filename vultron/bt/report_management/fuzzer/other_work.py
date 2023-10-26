@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-"""
-Provides fuzzer leaf nodes for the report management workflow.
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -14,15 +11,19 @@ Provides fuzzer leaf nodes for the report management workflow.
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+"""
+Provides fuzzer leaf nodes for the report management workflow.
+"""
+from vultron.bt.base.factory import fuzzer
+from vultron.bt.base.fuzzer import AlwaysSucceed
 
 
-from vultron.bt.base import fuzzer as btz
-
-
-class OtherWork(btz.AlwaysSucceed):
+# do other work under this node
+OtherWork = fuzzer(
+    AlwaysSucceed,
+    "OtherWork",
     """Placeholder for other work that may be done by in the do_work bt.
     This node could be replaced with any other tree of nodes that represent other work that may be done.
     In our stub implementation, this node always succeeds.
-    """
-
-    # do other work under this node
+    """,
+)

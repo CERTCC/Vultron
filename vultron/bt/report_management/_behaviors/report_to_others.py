@@ -14,13 +14,17 @@ Provides report_to_others behavior tree nodes.
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
-
 import logging
 
-from vultron.bt.base.bt_node import ActionNode, ConditionCheck
-from vultron.bt.base.composites import FallbackNode, SequenceNode
-from vultron.bt.base.decorators import Invert
+from vultron.bt.base.bt_node import BtNode
+from vultron.bt.base.factory import (
+    action_node,
+    condition_check,
+    fallback,
+    invert,
+    sequence,
+)
+from vultron.bt.common import show_graph
 from vultron.bt.embargo_management.conditions import (
     EMinStateActiveOrRevise,
     EMinStateNoneOrProposeOrRevise,
@@ -50,169 +54,230 @@ from vultron.sim.messages import Message
 logger = logging.getLogger(__name__)
 
 
-class _ReportingEffortAvailable(ConditionCheck):
-    """Succeeds when reporting effort budget remains"""
-
-    def func(self):
-        return self.bb.reporting_effort_budget > 0
+def reporting_effort_available(obj: BtNode) -> bool:
+    """True if reporting effort budget remains"""
+    return obj.bb.reporting_effort_budget > 0
 
 
-class _TotalEffortLimitMet(Invert):
-    """Succeeds when reporting effort budget is empty"""
+_ReportingEffortAvailable = condition_check(
+    "ReportingEffortAvailable", reporting_effort_available
+)
 
-    _children = (_ReportingEffortAvailable,)
+_TotalEffortLimitMet = invert(
+    "_TotalEffortLimitMet",
+    "Checks whether the effort limit has been met",
+    _ReportingEffortAvailable,
+)
 
-
-class _IdentifyVendors(SequenceNode):
-    _children = (MoreVendors, InjectVendor)
-
-
-class _IdentifyCoordinators(SequenceNode):
-    _children = (MoreCoordinators, InjectCoordinator)
-
-
-class _IdentifyOthers(SequenceNode):
-    _children = (MoreOthers, InjectOther)
+_IdentifyVendors = sequence(
+    "_IdentifyVendors", """XXX""", MoreVendors, InjectVendor
+)
 
 
-class _IdentifyPotentialCaseParticipants(SequenceNode):
-    _children = (_IdentifyVendors, _IdentifyCoordinators, _IdentifyOthers)
+_IdentifyCoordinators = sequence(
+    "_IdentifyCoordinators", """XXX""", MoreCoordinators, InjectCoordinator
+)
+
+
+_IdentifyOthers = sequence(
+    "_IdentifyOthers", """XXX""", MoreOthers, InjectOther
+)
+
+
+_IdentifyPotentialCaseParticipants = sequence(
+    "_IdentifyPotentialCaseParticipants",
+    "Identifies potential case participants: vendors, coordinators, and others",
+    _IdentifyVendors,
+    _IdentifyCoordinators,
+    _IdentifyOthers,
+)
 
 
 # TODO AllPartiesKnown should be a simulated annealing where p rises with tick count
 #  thereby forcing notification to happen toward the outset of a case
 #  but for now we'll just leave it as a dumb fuzzer
-class _IdentifyParticipants(FallbackNode):
-    _children = (AllPartiesKnown, _IdentifyPotentialCaseParticipants)
+_IdentifyParticipants = fallback(
+    "_IdentifyParticipants",
+    "Checks whether all parties are known, otherwise identifies potential case",
+    AllPartiesKnown,
+    _IdentifyPotentialCaseParticipants,
+)
 
 
-class _DecideWhetherToPruneRecipient(FallbackNode):
-    _children = (RcptNotInQrmS, RecipientEffortExceeded)
+_DecideWhetherToPruneRecipient = fallback(
+    "_DecideWhetherToPruneRecipient",
+    "Checks whether a recipient is already aware (RM != START) or effort budget exceeded",
+    RcptNotInQrmS,
+    RecipientEffortExceeded,
+)
 
 
-class _RemoveRecipient(ActionNode):
-    def func(self):
-        current = self.bb.currently_notifying
-        if current is None:
-            return True
-
-        logger.debug(f"Removing {current} from potential participants list")
-        try:
-            self.bb.case.potential_participants.remove(current)
-        except ValueError:
-            logger.warning(
-                f"Unable to remove {current}, not in potential participants list"
-            )
-        self.bb.currently_notifying = None
+def remove_recipient(obj: BtNode) -> bool:
+    """Removes the current recipient from the list of potential participants"""
+    current = obj.bb.currently_notifying
+    if current is None:
         return True
 
-
-class _PruneRecipients(SequenceNode):
-    _children = (_DecideWhetherToPruneRecipient, _RemoveRecipient)
-
-
-class _EnsureRcptPolicyCompatibleWithExistingEmbargo(SequenceNode):
-    _children = (EMinStateActiveOrRevise, PolicyCompatible)
-
-
-class _EnsureOkToNotify(FallbackNode):
-    _children = (
-        EMinStateNoneOrProposeOrRevise,
-        _EnsureRcptPolicyCompatibleWithExistingEmbargo,
-    )
-
-
-class _NewParticipantHandler(ActionNode):
-    def func(self):
-        if self.bb.currently_notifying is None:
-            logger.warning(f"Node blackboard currently_notifying is not set.")
-            return False
-
-        return self._func()
-
-
-class _ReportToNewParticipant(_NewParticipantHandler):
-    """Direct messages an initial report to a new participant in their inbox"""
-
-    def _func(self):
-        # inject an RS message from us into their inbox
-        report = Message(
-            sender="", body="Initial report", msg_type=MessageTypes.RS
+    logger.debug(f"Removing {current} from potential participants list")
+    try:
+        obj.bb.case.potential_participants.remove(current)
+    except ValueError:
+        logger.warning(
+            f"Unable to remove {current}, not in potential participants list"
         )
-
-        dm = self.bb.dm_func
-        dm(message=report, recipient=self.bb.currently_notifying)
-
-        return True
+    obj.bb.currently_notifying = None
+    return True
 
 
-class _ConnectNewParticipantToCase(_NewParticipantHandler):
-    """Wires up a new participant's inbox to the case"""
-
-    def _func(self):
-        # wire up their inbox to the case
-        add_func = self.bb.add_participant_func
-        if add_func is None:
-            logger.warning(f"Node blackboard add_participant_func is not set.")
-            return False
-
-        add_func(self.bb.currently_notifying)
-        return True
+_RemoveRecipient = action_node("RemoveRecipient", remove_recipient)
 
 
-class _BringNewParticipantUpToSpeed(_NewParticipantHandler):
-    """Sets a new participant's global state to match the current participant's global state"""
-
-    def _func(self):
-        # EM state is global to the case
-        self.bb.currently_notifying.bt.bb.q_em = self.bb.q_em
-
-        # CS.PXA is 000111, so only the P, X, and A states carry over
-        self.bb.currently_notifying.bt.bb.q_cs = CS.PXA & self.bb.q_cs
-
-        return True
+_PruneRecipients = sequence(
+    "_PruneRecipients",
+    """XXX""",
+    _DecideWhetherToPruneRecipient,
+    _RemoveRecipient,
+)
 
 
-class _EngageParticipant(SequenceNode):
-    _children = (
-        _ReportToNewParticipant,
-        _ConnectNewParticipantToCase,
-        _BringNewParticipantUpToSpeed,
+_EnsureRcptPolicyCompatibleWithExistingEmbargo = sequence(
+    "_EnsureRcptPolicyCompatibleWithExistingEmbargo",
+    "If there is an active embargo, then the recipient's policy must be compatible with the embargo policy",
+    EMinStateActiveOrRevise,
+    PolicyCompatible,
+)
+
+
+_EnsureOkToNotify = fallback(
+    "_EnsureOkToNotify",
+    "Verify that it is ok to notify a recipient",
+    EMinStateNoneOrProposeOrRevise,
+    _EnsureRcptPolicyCompatibleWithExistingEmbargo,
+)
+
+
+def report_to_new_participant(obj: BtNode) -> bool:
+    """Direct messages an initial report to a new participant in their inbox"""
+    # inject an RS message from us into their inbox
+    report = Message(
+        sender="", body="Initial report", msg_type=MessageTypes.RS
     )
+
+    dm = obj.bb.dm_func
+    dm(message=report, recipient=obj.bb.currently_notifying)
+
+    return True
+
+
+_ReportToNewParticipant = action_node(
+    "ReportToNewParticipant", report_to_new_participant
+)
+
+
+def connect_new_participant_to_case(obj: BtNode) -> bool:
+    """Wires up a new participant's inbox to the case"""
+    # wire up their inbox to the case
+    add_func = obj.bb.add_participant_func
+    if add_func is None:
+        logger.warning(f"Node blackboard add_participant_func is not set.")
+        return False
+
+    add_func(obj.bb.currently_notifying)
+    return True
+
+
+_ConnectNewParticipantToCase = action_node(
+    "ConnectNewParticipantToCase", connect_new_participant_to_case
+)
+
+
+def bring_new_participant_up_to_speed(obj: BtNode) -> bool:
+    """Sets a new participant's global state to match the current participant's global state"""
+    # EM state is global to the case
+    obj.bb.currently_notifying.bt.bb.q_em = obj.bb.q_em
+
+    # FIXME this doesn't work with the new CS enumerations
+    # CS.PXA is 000111, so only the P, X, and A states carry over
+    obj.bb.currently_notifying.bt.bb.q_cs = CS.PXA & obj.bb.q_cs
+
+    return True
+
+
+_BringNewParticipantUpToSpeed = action_node(
+    "BringNewParticipantUpToSpeed", bring_new_participant_up_to_speed
+)
+
+
+_EngageParticipant = sequence(
+    "_EngageParticipant",
+    "Reports to a new participant, connects them to the case, and brings them up to speed",
+    _ReportToNewParticipant,
+    _ConnectNewParticipantToCase,
+    _BringNewParticipantUpToSpeed,
+)
 
 
 # FIXED Replace EmitRS with inject RS into new participant then add participant to case
 #  will also need to sync case pxa and embargo status with new participant
-class _NotifyRecipient(SequenceNode):
-    _children = (_EnsureOkToNotify, FindContact, _EngageParticipant)
+_NotifyRecipient = sequence(
+    "_NotifyRecipient",
+    "Checks if it is ok to notify a recipient, finds their contact info, then notifies them",
+    _EnsureOkToNotify,
+    FindContact,
+    _EngageParticipant,
+)
 
 
-class _PruneOrNotifyRecipient(FallbackNode):
-    _children = (_PruneRecipients, _NotifyRecipient)
+_PruneOrNotifyRecipient = fallback(
+    "_PruneOrNotifyRecipient",
+    "Prunes a recipient if necessary, otherwise notifies them",
+    _PruneRecipients,
+    _NotifyRecipient,
+)
 
 
-class _SelectAndProcessRecipient(SequenceNode):
-    _children = (ChooseRecipient, _PruneOrNotifyRecipient)
+_SelectAndProcessRecipient = sequence(
+    "_SelectAndProcessRecipient",
+    "Chooses a recipient, then prunes or notifies them",
+    ChooseRecipient,
+    _PruneOrNotifyRecipient,
+)
 
 
-class _NotifyOthers(FallbackNode):
-    _children = (NotificationsComplete, _SelectAndProcessRecipient)
+_NotifyOthers = fallback(
+    "_NotifyOthers",
+    "Checks if there are more recipients to notify, then selects and processes a recipient",
+    NotificationsComplete,
+    _SelectAndProcessRecipient,
+)
 
 
-class _IdentifyAndNotifyParticipants(SequenceNode):
-    _children = (_IdentifyParticipants, _NotifyOthers)
+_IdentifyAndNotifyParticipants = sequence(
+    "_IdentifyAndNotifyParticipants",
+    "Identify participants and notify them",
+    _IdentifyParticipants,
+    _NotifyOthers,
+)
 
 
-class _ReportToOthers(FallbackNode):
-    _children = (_TotalEffortLimitMet, _IdentifyAndNotifyParticipants)
+_ReportToOthers = fallback(
+    "_ReportToOthers",
+    "Checks an effort budget remains, then identifies and notifies participants",
+    _TotalEffortLimitMet,
+    _IdentifyAndNotifyParticipants,
+)
 
 
-class MaybeReportToOthers(SequenceNode):
-    _children = (HaveReportToOthersCapability, _ReportToOthers)
+MaybeReportToOthers = sequence(
+    "MaybeReportToOthers",
+    "Checks for reporting capability, then reports to others if possible",
+    HaveReportToOthersCapability,
+    _ReportToOthers,
+)
 
 
 def main():
-    pass
+    show_graph(MaybeReportToOthers)
 
 
 if __name__ == "__main__":

@@ -17,27 +17,48 @@ created_at: 4/26/22 10:23 AM
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from vultron.bt.base.bt_node import ConditionCheck
-from vultron.bt.base.decorators import Invert
+from vultron.bt.base.bt_node import BtNode
+from vultron.bt.base.factory import condition_check, invert
 from vultron.bt.roles.states import CVDRoles
 
 
-class RoleIsVendor(ConditionCheck):
-    def func(self):
-        return self.bb.CVD_role & CVDRoles.VENDOR
+def role_is_vendor(obj: BtNode) -> bool:
+    """True if the CVD role is vendor"""
+    return obj.bb.CVD_role & CVDRoles.VENDOR
 
 
-class RoleIsDeployer(ConditionCheck):
-    def func(self):
-        return self.bb.CVD_role & CVDRoles.DEPLOYER
+RoleIsVendor = condition_check("RoleIsVendor", role_is_vendor)
 
 
-class RoleIsNotVendor(Invert):
-    _children = (RoleIsVendor,)
+def role_is_deployer(obj: BtNode) -> bool:
+    """True if the CVD role is deployer"""
+    return obj.bb.CVD_role & CVDRoles.DEPLOYER
 
 
-class RoleIsNotDeployer(Invert):
-    _children = (RoleIsDeployer,)
+RoleIsDeployer = condition_check("RoleIsDeployer", role_is_deployer)
+
+
+def role_is_coordinator(obj: BtNode) -> bool:
+    """True if the CVD role is coordinator"""
+    return obj.bb.CVD_role & CVDRoles.COORDINATOR
+
+
+RoleIsCoordinator = condition_check("RoleIsCoordinator", role_is_coordinator)
+
+
+RoleIsNotVendor = invert(
+    "RoleIsNotVendor", "SUCCEED if CVD role is not Vendor", RoleIsVendor
+)
+
+RoleIsNotDeployer = invert(
+    "RoleIsNotDeployer", "SUCCEED if CVD role is not Deployer", RoleIsDeployer
+)
+
+RoleIsNotCoordinator = invert(
+    "RoleIsNotCoordinator",
+    "SUCCEED if CVD role is not Coordinator",
+    RoleIsCoordinator,
+)
 
 
 def main():
