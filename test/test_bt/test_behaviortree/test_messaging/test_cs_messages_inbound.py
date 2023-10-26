@@ -33,6 +33,7 @@ class MockState:
     msg_history: list = []
     msgs_emitted_this_tick: list = []
     incoming_messages: list = []
+    q_cs_history: list = []
 
 
 class MyTestCase(unittest.TestCase):

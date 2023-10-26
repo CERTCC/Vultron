@@ -14,13 +14,15 @@
 """
 Provides a simulated Vultron behavior tree simulator bot.
 """
-
+import argparse
 import dataclasses
 import logging
+import sys
 
 import pandas as pd
 
-from vultron.bt.behaviors import CvdProtocolBt, STATELOG
+from vultron.bt.behaviors import CvdProtocolBt, CvdProtocolRoot, STATELOG
+from vultron.bt.common import show_graph
 from vultron.bt.messaging.behaviors import incoming_message
 from vultron.bt.messaging.inbound.fuzzer import generate_inbound_message
 from vultron.bt.roles.states import CVDRoles
@@ -62,7 +64,18 @@ def main() -> None:
         This demo is not intended to be a fully realistic simulation of a CVD case. It is only intended
         to demonstrate the behavior of the Vultron behavior tree.
     """
+    args = _parse_args()
+    _setup_logger(args)
 
+    if args.print_tree:
+        _print_tree(logger)
+        sys.exit()
+
+    _run_simulation()
+    _print_sim_result()
+
+
+def _run_simulation():
     tick = 0
     with CvdProtocolBt() as tree:
         tree.bb.CVD_role = CVDRoles.FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
@@ -81,7 +94,6 @@ def main() -> None:
                 # do one last snapshot
                 tree.root.children[0].tick()
                 break
-
     logger.info(f"Closed in {tick} ticks")
     for k, v in dataclasses.asdict(tree.bb).items():
         if "history" in k:
@@ -89,32 +101,83 @@ def main() -> None:
             for i, row in enumerate(v, start=1):
                 logger.info(f"  {i} {row}")
 
+
+def _print_sim_result():
     df = pd.DataFrame(STATELOG)
     df.index += 1
-
     shorten_names = lambda y: tuple([x.value for x in y])
-
     df.q_rm = df.q_rm.apply(lambda x: x.value)
     df.q_em = df.q_em.apply(lambda x: x.value)
-
     df.msgs_received_this_tick = df.msgs_received_this_tick.apply(
         shorten_names
     )
     df.msgs_emitted_this_tick = df.msgs_emitted_this_tick.apply(shorten_names)
-
     df.CVD_role = df.CVD_role.apply(lambda x: x.name)
     df.q_cs = df.q_cs.apply(lambda x: x.name)
-
     df = df.drop_duplicates()
     print(df)
 
 
-if __name__ == "__main__":
+def _setup_logger(args):
+    global logger
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(args.loglevel)
     hdlr = logging.StreamHandler()
     logger.addHandler(hdlr)
 
-    # for i in range(1):
-    # reset_statelog()
+
+def _print_tree(logger):
+    logger.info("Printing tree and exiting")
+    show_graph(CvdProtocolRoot)
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser(
+        description="Run a Vultron behavior tree demo"
+    )
+    # verbpse = INFO
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="loglevel",
+        action="store_const",
+        const=logging.INFO,
+        default=logging.WARNING,
+        help="verbose output",
+    )
+    # debug = DEBUG
+    parser.add_argument(
+        "-d",
+        "--debug",
+        dest="loglevel",
+        action="store_const",
+        const=logging.DEBUG,
+        default=logging.WARNING,
+        help="debug output",
+    )
+    # quiet = WARNING
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        dest="loglevel",
+        action="store_const",
+        const=logging.WARNING,
+        default=logging.WARNING,
+        help="quiet output",
+    )
+    # if print-tree just print the tree and exit
+    parser.add_argument(
+        "-t",
+        "--print-tree",
+        dest="print_tree",
+        action="store_true",
+        default=False,
+        help="print the tree and exit",
+    )
+
+    args = parser.parse_args()
+    return args
+
+
+if __name__ == "__main__":
     main()

@@ -24,7 +24,8 @@ class MyTestCase(unittest.TestCase):
     def test_main(self, stdout):
         for i in range(10):
             # capture the output
-            vultrabot.main()
+            vultrabot._run_simulation()
+            vultrabot._print_sim_result()
             # test the output
             self.assertIsNotNone(stdout)
             output = stdout.getvalue()
