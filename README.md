@@ -9,7 +9,7 @@ together to coordinate appropriate responses to vulnerabilities.
 
 Vultron is a collection of ideas, models, code, and work in progress, and is not yet ready for production use.
 
-# Background and related work
+## Background and related work
 
 Vultron is a continuation of the [CERT/CC](https://www.sei.cmu.edu/about/divisions/cert/index.cfm)'s work on improving the coordination of vulnerability disclosure and response.
 Our previous work in this area includes:
@@ -42,7 +42,7 @@ derived from both our process modeling work and from the experience of building 
 That same year, we published [Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198),
 which serves as the basis for the work contained in this repository.
 
-# So what _is_ Vultron?
+## So what _is_ Vultron?
 
 Vultron is:
 
@@ -62,7 +62,7 @@ Currently, the work is focused on mapping the formal protocol onto the syntax an
 protocol.
 Examples of our first steps in that direction can be found in [doc/examples](doc/examples)
 
-# What is Vultron _not_?
+## What is Vultron _not_?
 
 Vultron is **not** a drop-in replacement for any particular
 
@@ -80,7 +80,7 @@ prioritization schemes like [SSVC](https://github.com/CERTCC/SSVC) and [CVSS](ht
 Vultron is not intended to be a product, rather it's meant to be a feature set that can be implemented in a variety of
 CVD-related products and services to enable interoperability between them.
 
-# Other CERT CVD Resources
+## Other CERT CVD Resources
 
 For more about our work in modeling, formalizing, and describing the CVD process, see:
 
@@ -97,7 +97,7 @@ For more about our work in modeling, formalizing, and describing the CVD process
 is an older talk which looks at a number of prior models of the CVD process, and shows some of our early
 attempts to formally describe the concurrency aspects of the CVD process.
 
-# License and Copyright
+## License and Copyright
 
 We are still working out the correct licensing model for this effort, but for now, this repository is covered by the
 included [copyright statement](COPYRIGHT.md).
