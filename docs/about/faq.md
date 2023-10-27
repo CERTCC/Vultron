@@ -2,11 +2,10 @@
 
 ## What do we need to move the Vultron Protocol to widespread use?
 
-First, we need to finish the protocol and get it to a sufficiently stable state that we can start to use it even in 
+First, we need to finish the protocol and get it to a sufficiently stable state that we can start to use it even in
 test environments.  We're not there yet.
 
 In the meantime, there are a number of other things that can help. We're looking for help with:
-
 
 ## How do we apply encryption to ActivityPub messages to enable end-to-end encryption?
 
@@ -26,7 +25,7 @@ Some relevant links include:
   post [Towards End-to-End Encryption for Direct Messages in the Fediverse](https://soatok.blog/2022/11/22/towards-end-to-end-encryption-for-direct-messages-in-the-fediverse/)
 - [Issue #225](https://github.com/w3c/activitypub/issues/225) on the W3C ActivityPub Github repo talks about the
   need for encrypted content, but it seems to have been closed without a solution in 2017.
-    - However, a much more
+  - However, a much more
       recent [April 2023 comment](https://github.com/w3c/activitypub/issues/225#issuecomment-1493887382)
       mentions:
       > If we restrict to direct message (with a single recipient) one may just encrypt the message (Note) payload using
@@ -45,4 +44,3 @@ We'd be interested to know how we could help with efforts to bring encrypted mes
 ## What are the requirements for contributing?
 
 See [CONTRIBUTING](contributing.md)
-

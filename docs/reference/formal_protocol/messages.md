@@ -9,7 +9,7 @@ MPCVD process:
 - Vendor
 - Coordinator
 - Deployer
- 
+
 Here we will examine the messages passed between them.
 Revisiting the definitions from the [Formal Protocol Introduction](index.md):
 
@@ -19,7 +19,7 @@ Revisiting the definitions from the [Formal Protocol Introduction](index.md):
     $M_{ii}$ empty for all $i$: $M_{ij}$ represents the messages that can
     be sent from process $i$ to process $j$.
 
-The message types in the Vultron Protocol arise primarily from the following principle taken directly from the 
+The message types in the Vultron Protocol arise primarily from the following principle taken directly from the
 [CVD Guide](https://vuls.cert.org/confluence/display/CVD/2.3.+Avoid+Surprise):
 
 !!! quote "Avoid Surprise"
@@ -57,7 +57,7 @@ If you are looking for a one-sentence summary of the entire Vultron Protocol, th
 As a reminder, those transitions are shown at right.
 
 We will address the specific circumstances when each message should be emitted in
-[Transitions](transitions.md), but first we need to 
+[Transitions](transitions.md), but first we need to
 introduce the message types this recommendation implies.
 We cover messages associated with each state model, in turn, below, concluding the section with a few message types not
 directly connected to any particular state model.
@@ -65,12 +65,12 @@ directly connected to any particular state model.
 ## RM Message Types
 
 !!! tip inline end "Finders have hidden states"
-    
+
     As we discuss in [RM Interactions](../../topics/process_models/rm/rm_interactions.md#the-secret-lives-of-finders),
     the Finder's states $q^{rm} \in \{R,I,V\}$ are not observable to the CVD process because Finders start 
     coordination only when they have already reached $q^{rm} = A$.
 
-With the exception of the Finder/Reporter, each Participant's involvement in a CVD case starts with the receipt of a 
+With the exception of the Finder/Reporter, each Participant's involvement in a CVD case starts with the receipt of a
 report from another Participant who is already in the $Accepted$ ($q^{rm} \in A$) state.
 The remainder of a Participant's RM process is largely independent of the other Participants' RM processes.
 Therefore, the RM message types are primarily used to inform other Participants of the sender's state.
@@ -89,7 +89,6 @@ Therefore, the RM message types are primarily used to inform other Participants 
 | $RK$         | Report Acknowledgement | A message acknowledging the receipt of any RM message listed above.           |
 | $RE$         | Report Error | A message indicating a Participant received an unexpected RM message.                  |
 
-
 A summary of the RM message types is shown below.
 
 !!! note "RM Message Types"
@@ -97,7 +96,7 @@ A summary of the RM message types is shown below.
     $$M^{rm} = \{RS,RI,RV,RD,RA,RC,RK,RE\}$$
 
 All state changes are from the Participant's (sender's) perspective, not the recipient's perspective.
-We will see in [Transitions](transitions.md) that the receipt of a *Report Submission* is the 
+We will see in [Transitions](transitions.md) that the receipt of a *Report Submission* is the
 only message whose *receipt* directly triggers an RM state change in the receiver.
 All other RM messages are used to convey the sender's status.
 
@@ -114,7 +113,7 @@ All other RM messages are used to convey the sender's status.
 
     Instead, duplicate reports SHOULD pass through $Valid$ ($q^{rm} \in V$), although they MAY be subsequently
     (immediately or otherwise) deferred ($q^{rm} \in V \xrightarrow{d} D$) in favor of the original.
- 
+
 !!! note ""
 
     Participants SHOULD track the RM states of the other Participants in the case.
@@ -124,7 +123,7 @@ Furthermore, while these messages are expected to inform the receiving Participa
 this protocol intentionally does not specify any other recipient RM state changes upon receipt of an RM message.
 
 ## EM Message Types
- 
+
 Whereas the RM process is unique to each Participant, the EM process is global to the case.
 Therefore, we begin with the list of message types a Participant SHOULD emit when their EM state changes.
 
@@ -170,8 +169,6 @@ changes:
     **Vendor Awareness** ($CV$) messages SHOULD be sent only by Participants with direct knowledge of the notification (i.e.,
     either by the Participant who sent the report to the Vendor or by the Vendor upon receipt of the report).
 
-
-
 A summary of the CS message types is shown below.
 
 !!! note "CS Message Types"
@@ -191,15 +188,14 @@ be sent).
 | $GK$         | General Acknowledgement | A message from a Participant indicating their receipt of a GI message.            |
 | $GE$         | General Error | A message indicating a general error has occurred.                                                          |
 
-    
 Examples of general inquiry messages include but are not limited to
 
--   asking or responding to a question
--   requesting an update on a Participant's status
--   requesting review of a draft publication
--   suggesting a potential Participant to be added to a case
--   coordinating other events
--   resolving a loss of Participant state synchronization
+- asking or responding to a question
+- requesting an update on a Participant's status
+- requesting review of a draft publication
+- suggesting a potential Participant to be added to a case
+- coordinating other events
+- resolving a loss of Participant state synchronization
 
 A summary of the General message types is shown below.
 
@@ -240,8 +236,8 @@ For convenience, we collected these into the table below.
 | CS | $CA$ | Attacks Observed | $\cdot\cdot\cdot\cdot\cdot a \xrightarrow{\mathbf{A}} \cdot\cdot\cdot\cdot\cdot A$ |
 | CS | $CK$ | CS Acknowledgement | any valid CS message |
 | CS | $CE$ | CS Error | any unexpected CS message |
-| * | $GI$ | General Inquiry | any time |
-| * | $GK$ | General Acknowledgement | any valid GI message |
+| *| $GI$ | General Inquiry | any time |
+|* | $GK$ | General Acknowledgement | any valid GI message |
 | * | $GE$ | General Error | any unexpected GI message |
 
 !!! note "Message Types Formally Defined"
@@ -256,7 +252,4 @@ For convenience, we collected these into the table below.
             \end{array}
             \right\}\textrm{ where $i \neq j$; $\varnothing$ otherwise; for $i,j \leq N$}$$
 
-
-Message _formats_ are left as [future work](../../topics/future_work/index.md).
-
-
+Message *formats* are left as [future work](../../topics/future_work/index.md).

@@ -15,6 +15,4 @@ This work is funded in part by
 of the Software Engineering Institute, a federally funded research and development center sponsored by the United States
 Department of Defense.
 
-
 DM23-0698
-

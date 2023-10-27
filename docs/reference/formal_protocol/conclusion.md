@@ -32,7 +32,7 @@ where
 | $succ$ | a partial function mapping for each $i$ and $j$, $S_i \times M_{ij} \rightarrow S_i \textrm{ and } S_i \times M_{ji} \rightarrow S_i$ indicating the state changes arising from the sending and receiving of messages between Participants. | [Transitions](transitions.md) |
 
 !!! note inline end "Legend"
-    
+
     | Symbol  | Description              |
     |:-------:|:-------------------------|
     | &#8636; | Message Received         |
@@ -47,7 +47,7 @@ A summary of the MPCVD state model $S_i$ for an individual Participant is shown 
 
 The Report Management (RM) state model is shown below.
 Note that with the exception of receiving reports, the RM process primarily focuses on Participants communicating
-their status to other Participants, as it is primarily emitting messages as opposed to receiving them. 
+their status to other Participants, as it is primarily emitting messages as opposed to receiving them.
 
 ```mermaid
 stateDiagram-v2
@@ -64,7 +64,6 @@ stateDiagram-v2
     D --> C : c (#8640;RC)
     I --> C : c (#8640;RC)
 ```
-
 
 ### Embargo Management
 
@@ -145,8 +144,8 @@ stateDiagram-v2
 
     The symbol $\prec$ is read as *precedes*.
 
-In [Defining CVD Success](../../topics/background/cvd_success.md), we defined a set of 12 ordering preferences over the 
-6 events in the Case State model. The symbols for these preferences refer to the transition events in the Case State 
+In [Defining CVD Success](../../topics/background/cvd_success.md), we defined a set of 12 ordering preferences over the
+6 events in the Case State model. The symbols for these preferences refer to the transition events in the Case State
 diagrams above.
 
 | Ordering Preference | Notation |
@@ -165,5 +164,5 @@ diagrams above.
 | Vendor Awareness Before Attacks Observed | **V** $\prec$ **A** |
 
 !!! tip "Worked Example"
-    
+
     A [worked example](../../topics/formal_protocol/worked_example.md) of the protocol in action is available.

@@ -4,7 +4,7 @@ Throughout this documentation, we refer to CVD Roles from the [*CERT Guide to Co
 Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD):
 
 !!! info "Finder"
-    
+
     The individual or organization that identifies the vulnerability
 
 !!! info "Reporter"
@@ -25,7 +25,7 @@ in [SSVC](https://github.com/CERTCC/SSVC) Version 2 and above.
     The individual or organization that must deploy a patch or take
     other remediation action
 
-The *Deployer* role is synonymous with the *User* role in 
+The *Deployer* role is synonymous with the *User* role in
 [ISO/IEC 29147:2018](https://www.iso.org/standard/72311.html)
 and
 [ISO/IEC 30111:2019](https://www.iso.org/standard/69725.html),
@@ -36,7 +36,6 @@ while the other roles are named consistent with those standards.
     An individual or organization that facilitates the coordinated
     response process
 
-
 We also add a new role in this documentation, which we expect to incorporate
 into a future version of the *CVD Guide*:
 
@@ -45,8 +44,8 @@ into a future version of the *CVD Guide*:
     An individual or organization that publishes exploits
 
 Exploit Publishers might be the same as Finders, Reporters, Coordinators, or
-Vendors, but this is not guaranteed. 
-For example, Vendors that produce tools for Cybersecurity Red Teams might play a combination 
+Vendors, but this is not guaranteed.
+For example, Vendors that produce tools for Cybersecurity Red Teams might play a combination
 of roles: Finder, Reporter, Vendor, Coordinator, and/or Exploit Publisher.
 
 Finally, we have a few additional terms to define:
@@ -66,4 +65,3 @@ Finally, we have a few additional terms to define:
 
 A diagram showing the relationship between CVD Cases, Participants, and Reports can be
 found in [Case Object](../../howto/case_object.md).
-

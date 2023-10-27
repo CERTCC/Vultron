@@ -21,8 +21,7 @@ Specifically, the [RM](../rm/index.md) process is unique to each Participant, wh
 The [CS](../cs/index.md) process is a hybrid: some aspects are Participant-agnostic, while others are
 Participant-specific, which we will discuss in more detail below.
 
-
-Interactions between all these processes affect the overall MPCVD process for a case. 
+Interactions between all these processes affect the overall MPCVD process for a case.
 The following diagram illustrates this distinction.
 
 ```mermaid
@@ -46,7 +45,7 @@ stateDiagram-v2
     PS --> PA   
 ```
 
-### Global vs. Participant-Specific Aspects of the CS Model.
+### Global vs. Participant-Specific Aspects of the CS Model
 
 The [CS model](../cs/index.md) encompasses both Participant-specific and Participant-agnostic aspects of a
 CVD case. In particular, the Vendor fix path substates&mdash;Vendor unaware (_vfd_),
@@ -65,7 +64,7 @@ important in the [Formal Protocol](../../formal_protocol/index.md) definition.
 
     Participant-agnostic aspects of the MPCVD process are those that represent facts about the world with respect to a 
     case.
-    
+
 !!! example "Participant-Agnostic Examples"
 
     - The [Embargo Management](../em/index.md) process is global to all Participants in a case
@@ -80,4 +79,3 @@ important in the [Formal Protocol](../../formal_protocol/index.md) definition.
 
     - The [Report Management](../rm/index.md) process is unique to each Participant.
     - So is the Vendor Fix Path portion of the [Case State](../cs/index.md) process.
-

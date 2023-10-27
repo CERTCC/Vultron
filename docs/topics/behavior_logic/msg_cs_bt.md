@@ -36,9 +36,9 @@ flowchart LR
 
 We are still working through the children of [Receive Messages](msg_intro_bt.md) behavior tree.
 And as we've come to expect, a precondition check leads to a fallback node in which CS acknowledgement
-messages (_CK_) receive no further attention and return *Success*.
+messages (_CK_) receive no further attention and return _Success_.
 
-The main CS message-handling sequence comes next, with all matching incoming messages resulting in emission of an 
+The main CS message-handling sequence comes next, with all matching incoming messages resulting in emission of an
 acknowledgment message (_CK_).
 These messages are presented as sub-trees below:
 
@@ -50,7 +50,6 @@ of an error (_CE_) triggering a general inquiry (_GI_) to seek resolution.
 
 Finally, the tree has handled all expected messages, so anything else would result in an error
 condition and emission of a _CE_ message accordingly.
-
 
 ## Participant-agnostic CS Status Messages
 
@@ -110,10 +109,9 @@ flowchart LR
     global_seq -->|A2| terminate
 ```
 
-
 (A1a) Information that the vulnerability has been made public (_CP_) is met
-with a transition to the *Public Aware* state in the CS model when
-necessary. 
+with a transition to the _Public Aware_ state in the CS model when
+necessary.
 
 (A1b) Similarly, information that an exploit has been made public
 forces both the __X__ and __P__ transitions, as necessary.
@@ -133,10 +131,10 @@ termination tree](em_terminate_bt.md).
 
 ## Participant-Specific CS Status Messages
 
-Next, we see that messages indicating *Vendor Awareness* (_CV_), *Fix
-Readiness* (_CF_), and *Fix Deployed* (_CD_) are treated as mere status
+Next, we see that messages indicating _Vendor Awareness_ (_CV_), _Fix
+Readiness_ (_CF_), and _Fix Deployed_ (_CD_) are treated as mere status
 updates for the Participant because they are participant-specific.
-They are recognized and acknowledged but trigger no further action directly. 
+They are recognized and acknowledged but trigger no further action directly.
 
 ```mermaid
 ---
@@ -150,10 +148,9 @@ flowchart LR
     seq --> update_status
 ```
 
-
 Recall from
 [Model Interactions](../process_models/model_interactions/index.md) and
-the [Formal Protocol](../../reference/formal_protocol/index.md) that the 
+the [Formal Protocol](../../reference/formal_protocol/index.md) that the
 $vfd\cdot\cdot\cdot \rightarrow \dots \rightarrow VFD\cdot\cdot\cdot$ portion of the
 CS model is unique to each Vendor Participant, and similarly that the
 $\cdot\cdot d \cdot\cdot\cdot \rightarrow \cdot\cdot D \cdot\cdot\cdot$ portion is unique to
@@ -161,7 +158,5 @@ each Participant in the Deployer role.
 Therefore, messages representing another Participant's status change for this portion of the
 CS do not directly affect the receiving Participant's status.
 This is not to say that the Participant might not choose to take some action based on their knowledge of a
-Vendor's (or Deployer's) status. 
-Rather, such follow-up would be expected to occur as part of the Participant's [*do work* process](do_work_bt.md).
-
-
+Vendor's (or Deployer's) status.
+Rather, such follow-up would be expected to occur as part of the Participant's [_do work_ process](do_work_bt.md).

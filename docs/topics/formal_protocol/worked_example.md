@@ -45,9 +45,11 @@ sequenceDiagram
 ```
 
 ### Vendor Evaluates Embargo {#sec:vendor_eval_embargo_seq}
+
 In this section, we show a variety of responses a Vendor might have to an embargo proposal.
 
-#### Vendor Accepts Embargo 
+#### Vendor Accepts Embargo
+
 First is a basic accept sequence in which the Vendor accepts the proposed embargo and tells the
 Reporter this through an _EA_ message. The Reporter acknowledges this with an _EK_ in response.
 
@@ -69,6 +71,7 @@ sequenceDiagram
 ```
 
 #### Vendor Rejects Embargo
+
 Next we show a rejected proposal. As above, this is a simple sequence where the Vendor indicates their rejection of the
 proposal with an _ER_ message, and the Reporter acknowledges this with an _EK_ message.
 
@@ -123,15 +126,13 @@ sequenceDiagram
     It serves as a good model for cooperation among parties who share an interest in a positive outcome.
 
 Finally, the following diagram offers what we think is a better approach than a simple counterproposal.
-In this "Accept-then-Counter" sequence, we see that the Vendor initially accepts the Reporter's proposed embargo and 
-immediately follows up with a revision proposal of their own. 
+In this "Accept-then-Counter" sequence, we see that the Vendor initially accepts the Reporter's proposed embargo and
+immediately follows up with a revision proposal of their own.
 The difference is that by initially accepting the proposal, the Vendor ensures that they are in an active embargo state
 before attempting to renegotiate.
 The sequence shown here is intended to be consistent with the previous discussion surrounding [default embargo
 strategies](../process_models/em/defaults.md).
 One might think of this as the "Yes-And" rule for embargo negotiations.
-
-
 
 ```mermaid
 sequenceDiagram
@@ -157,10 +158,12 @@ sequenceDiagram
 ```
 
 ### Vendor Sets Priority
+
 Here we show two responses from a Vendor in the course of prioritizing a report.
 
 #### Vendor Accepts Report
-This figure shows a Vendor accepting the report for further work (presumably to develop a patch) with an _RA_ message. 
+
+This figure shows a Vendor accepting the report for further work (presumably to develop a patch) with an _RA_ message.
 
 ```mermaid
 sequenceDiagram
@@ -175,7 +178,7 @@ sequenceDiagram
 
 #### Vendor Defers Report
 
-On the contrary, this figure shows the Vendor deferring the report with an _RD_ message. 
+On the contrary, this figure shows the Vendor deferring the report with an _RD_ message.
 In both cases, the Reporter acknowledges the Vendor's messages with an _RK_ message.
 
 ```mermaid
@@ -191,7 +194,7 @@ sequenceDiagram
 
 ### Coordination With a Coordinator {#sec:coordinating_with_coordinator}
 
-The next two diagrams show the process of a Reporter engaging a Coordinator, who, in turn, engages a Vendor. 
+The next two diagrams show the process of a Reporter engaging a Coordinator, who, in turn, engages a Vendor.
 The process begins in the first diagram with the Reporter sending a report along with an embargo proposal to the Coordinator
 ($RS,EP$). The Coordinator acknowledges receipt with an $RK,EK$ response.
 After evaluating the proposed embargo, the Coordinator accepts it with an _EA_ message.
@@ -229,7 +232,7 @@ sequenceDiagram
     into a shared space can make the process more efficient.
 
 In the next diagram, the Coordinator now acts as a proxy for the Reporter, notifying the Vendor and passing along
-the embargo information through an $RS,EP$ message of its own. 
+the embargo information through an $RS,EP$ message of its own.
 The Vendor accepts the existing embargo (_EA_) and proceeds to validate (_RV_) and prioritize (_RA_) the report.
 Relevant responses from the Vendor are passed through to the Reporter.
 Having accepted the report for further work, the Vendor continues with creating a fix for the reported vulnerability.
@@ -278,7 +281,6 @@ sequenceDiagram
     deactivate Reporter
 ```
 
-
 ### Embargo Teardown, Publish, and Close
 
 Any Participant can initiate an embargo teardown.
@@ -291,7 +293,6 @@ Recipients of the _ET_ message acknowledge receipt and update their EM state acc
     Note that for all three scenarios in this section, there is no specific order in which Participants must act.
     We could just as easily have shown the Reporter initiating an embargo teardown because of a leaked media report or the 
     Vendor exiting an embargo early because they had their fix ready sooner than expected.
-
 
 ```mermaid
 sequenceDiagram
@@ -314,14 +315,13 @@ sequenceDiagram
     With the recognition that more concise publication scheduling might be needed in some situations, we revisit this 
     concern in [Process Implementation Notes](../../howto/process_implementation.md).
 
-
 #### Publishing After Embargo Teardown
 
 Once the embargo has been exited, any Participant may now publish.
 In the following figure, we show the Vendor publishing first.
 They notify the Coordinator that they have published using a _CP_ message to convey that information about the vulnerability
-is now public. 
-The Coordinator relays this information to the Reporter. 
+is now public.
+The Coordinator relays this information to the Reporter.
 Both the Reporter and the Coordinator publish their own reports shortly thereafter.
 
 ```mermaid
@@ -354,7 +354,6 @@ sequenceDiagram
     that there was nothing further to be done. This will not always be the
     case, nor is it necessary.
 
-
 #### Closing the Case
 
 Having no further work to be done on the case, the Reporter closes their
@@ -379,8 +378,3 @@ sequenceDiagram
     Vendor ->> Coordinator: RC
     Coordinator -->> Vendor: RK
 ```
-
-
-
-
-

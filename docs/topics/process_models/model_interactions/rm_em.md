@@ -45,7 +45,6 @@ stateDiagram-v2
     If it has not already begun, the [EM](../em/index.md) process SHOULD begin when a recipient
     is in RM _Received_ ($q^{rm} \in R$) whenever possible.
 
-
 ```mermaid
 stateDiagram-v2
     direction LR
@@ -98,7 +97,6 @@ stateDiagram-v2
     RM --> EM : avoid
 ```
 
-
 ## Negotiate Embargoes Through Validation and Prioritization
 
 !!! note ""
@@ -107,7 +105,6 @@ stateDiagram-v2
     ($q^{rm} \in \{R,I\} \xrightarrow{\{v,i\}} \{V,I\}$) and
     prioritization ($q^{rm} \in V \xrightarrow{\{a,d\}} \{A,D\}$)
     activities.
-
 
 ## Renegotiate Embargoes While Reports Are Valid Yet Unclosed
 
@@ -134,7 +131,7 @@ stateDiagram-v2
     RM --> EM : ok to<br/>proceed
 ```
 
-## Avoid Embargoes for Invalid Reports...
+## Avoid Embargoes for Invalid Reports
 
 !!! note ""
 
@@ -281,11 +278,10 @@ Notwithstanding the above,
     in force ($q^{em} \in \{A,R\}$) SHOULD communicate their intent to either continue to adhere to the embargo or 
     terminate their compliance with it.
 
-
 Report closure or deferral alone does not terminate an embargo.
 
 !!! note ""
-    
+
     A Participant's closure or deferral ($q^{rm} \in \{C,D\}$) of a report
     while an embargo remains active ($q^{em} \in \{A,R\}$) and while
     other Participants remain engaged ($q^{rm} \in \{R,V,A\}$) SHALL NOT
@@ -305,9 +301,9 @@ state RM {
     }
     RM --> EM : does not imply
 ```
-    
+
 It is expected that Participants will continue to adhere to the embargo until it is explicitly terminated.
-However, 
+However,
 
 !!! note ""
 

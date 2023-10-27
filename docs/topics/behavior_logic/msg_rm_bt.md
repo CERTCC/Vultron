@@ -56,12 +56,12 @@ flowchart LR
 
 This tree is a child of the fallback node started in [Receiving Messages Behavior](msg_intro_bt.md).
 Beginning with a precondition check for any RM message type, the tree proceeds to a fallback node.
-RM acknowledgment messages (_RK_) receive no further attention and return *Success*.
+RM acknowledgment messages (_RK_) receive no further attention and return _Success_.
 
 Next comes the main RM message processing sequence.
 A fallback node covers three major cases:
 
--   (A) First comes a sequence that handles new reports (_RS_ when
+- (A) First comes a sequence that handles new reports (_RS_ when
     $q^{rm} \in S$). This branch changes the recipient's
     RM state
     regardless of the Participant's role. If the Participant happens to
@@ -71,11 +71,11 @@ A fallback node covers three major cases:
     transition from $q^{cs} \in vfd \xrightarrow{\mathbf{V}} Vfd$ and
     emit a corresponding _CV_ message.
 
--   (B) Next, we see that an RM Error (_RE_) results in the emission
+- (B) Next, we see that an RM Error (_RE_) results in the emission
     of a general inquiry (_GI_) for Participants to sort out what the
     problem is, along with an _RK_ to acknowledge receipt of the error.
 
--   (C) Finally, recall that the RM process is unique to each
+- (C) Finally, recall that the RM process is unique to each
     CVD
     Participant, so most of the remaining RM messages are simply informational
     messages about other Participants' statuses that do not directly
@@ -86,4 +86,3 @@ A fallback node covers three major cases:
 For all three cases, an _RK_ message acknowledges receipt of the
 message. Any unhandled message results in an _RE_ response, indicating
 an error.
-

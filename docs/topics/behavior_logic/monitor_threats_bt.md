@@ -42,17 +42,16 @@ flowchart LR
     fb --> cs_unchanged
 ```
 
-
 For our purposes, monitoring consists of a set of parallel tasks, any one of which can lead to embargo termination.
 The three conditions of interest are taken straight from the [embargo exit criteria](../process_models/em/early_termination.md).
 
--   (A) If attacks are observed, the $q^{cs} \xrightarrow{\mathbf{A}} A$ transition occurs, and a $CA$ message is emitted.
+- (A) If attacks are observed, the $q^{cs} \xrightarrow{\mathbf{A}} A$ transition occurs, and a $CA$ message is emitted.
 
--   (B) If a public exploit is observed, the $q^{cs} \xrightarrow{\mathbf{X}} X$ transition occurs, and a $CX$ message is emitted.
+- (B) If a public exploit is observed, the $q^{cs} \xrightarrow{\mathbf{X}} X$ transition occurs, and a $CX$ message is emitted.
     In the special case where the exploit is made public prior to the vulnerability itself being made public,[^1]
     there is an additional $q^{cs} \xrightarrow{\mathbf{P}} P$ transition and $CP$ emission.
 
--   (C) Finally, if the vulnerability information has been made public, then the $q^{cs} \xrightarrow{\mathbf{P}} P$ and emits $CP$.
+- (C) Finally, if the vulnerability information has been made public, then the $q^{cs} \xrightarrow{\mathbf{P}} P$ and emits $CP$.
 
 In the event that one or more of these events is detected, the [Terminate Embargo Behavior Tree](em_terminate_bt.md) is triggered.
 

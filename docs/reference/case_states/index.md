@@ -1,6 +1,7 @@
 <!-- This file is auto-generated. Do not edit. -->
 
 # Case States
+
 This directory contains a description of each state in the case model.
 
 ## States
@@ -39,4 +40,3 @@ This directory contains a description of each state in the case model.
 | [VFDPxA](state__v__f__d__p_x_a_.md) | Vendor Is Aware Of Vulnerability| Fix Is Ready| Fix Has Been Deployed| Public Is Aware Of Vulnerability| No Exploits Have Been Made Public| Attacks Have Been Observed |
 | [VFDPXa](state__v__f__d__p__x_a.md) | Vendor Is Aware Of Vulnerability| Fix Is Ready| Fix Has Been Deployed| Public Is Aware Of Vulnerability| Exploits Have Been Made Public| No Attacks Have Been Observed |
 | [VFDPXA](state__v__f__d__p__x__a_.md) | Vendor Is Aware Of Vulnerability| Fix Is Ready| Fix Has Been Deployed| Public Is Aware Of Vulnerability| Exploits Have Been Made Public| Attacks Have Been Observed |
-

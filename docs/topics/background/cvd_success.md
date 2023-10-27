@@ -1,8 +1,7 @@
 # What Does *Success* Mean in CVD?
 
-    
 We take as a base set of criteria the ordering preferences given in the
-2021 report 
+2021 report
 [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771)
 by Householder and Spring.
 
@@ -18,7 +17,7 @@ in the lifespan of every vulnerability, shown in the table below.
 | Fix Deployed | **D** | Attacks Observed | **A** |
 
 Our 2021 [report](https://doi.org/10.1184/R1/16416771)
-defines a set of 12 ordering preferences over these 6 events. 
+defines a set of 12 ordering preferences over these 6 events.
 We present them in roughly descending order of desirability according to the partial
 order developed in that report.
 Items closer to the top of the list are indicators of CVD skill.
@@ -138,7 +137,6 @@ adversaries are far ahead of defenders.
 
 ## Summary
 
-
 Taken together, these twelve ordering preferences constitute the minimum
 set of outcomes we hope to facilitate with the Vultron protocol.
 
@@ -148,4 +146,3 @@ set of outcomes we hope to facilitate with the Vultron protocol.
 | $\mathbf{V} \prec \mathbf{X}$ | $\mathbf{F} \prec \mathbf{X}$ | $\mathbf{D} \prec \mathbf{X}$ |
 | $\mathbf{V} \prec \mathbf{A}$ | $\mathbf{F} \prec \mathbf{A}$ | $\mathbf{D} \prec \mathbf{A}$ |
 | $\mathbf{P} \prec \mathbf{X}$ | $\mathbf{P} \prec \mathbf{A}$ | $\mathbf{X} \prec \mathbf{A}$ |
-

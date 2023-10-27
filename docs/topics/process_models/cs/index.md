@@ -2,7 +2,7 @@
 
 {% include-markdown "../../../includes/normative.md" %}
 
-Here we revisit the CS model from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513). 
+Here we revisit the CS model from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
 <!-- start_excerpt -->
 The CVD Case State (CS) model provides a high-level view of the state of a CVD case.
 In it we model two main aspects of the case:
@@ -26,7 +26,7 @@ prior to defining the Case States in
 In our model, the state of the world is a specification of the current
 status of all the events in the vulnerability lifecycle model described
 in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
-We describe the relevant factors as substates below. 
+We describe the relevant factors as substates below.
 For notational purposes, each substate status is represented by a letter for that part
 of the state of the world. For example, _v_ means no Vendor awareness
 and _V_ means the Vendor is aware. The complete set of status labels is
@@ -44,14 +44,14 @@ shown in the table below.
 
 ### The _Vendor Awareness_ Substate (_v_, _V_)
 
-The *Vendor Awareness* substate corresponds to *Disclosure* in the
+The _Vendor Awareness_ substate corresponds to _Disclosure_ in the
 Arbaugh, Fithen, and McHugh article, [Windows of Vulnerability: A Case
-Study analysis](https://doi.org/10.1109/2.889093) and *vulnerability discovered by
-Vendor* in Bilge and Dumitraş's article, [Before we knew it: an
+Study analysis](https://doi.org/10.1109/2.889093) and _vulnerability discovered by
+Vendor_ in Bilge and Dumitraş's article, [Before we knew it: an
 empirical study of zero-day attacks in the real
 world](https://doi.org/10.1145/2382196.2382284).
 In the interest of model simplicity, we are
-not concerned with *how* the Vendor finds out about the vulnerability's
+not concerned with _how_ the Vendor finds out about the vulnerability's
 existence&mdash;whether it was found via internal testing, reported within a
 CVD process, or noticed as the result of incident or malware analysis.
 
@@ -84,14 +84,14 @@ stateDiagram-v2
     before *Fix Deployed* in the SAAS mode as well.
 
 ### The _Fix Readiness_ Substate (_f_, _F_)
- 
-The *Fix Readiness* substate refers to the Vendor's creation and possession of a fix that *could* be deployed to a 
-vulnerable system *if* the system owner knew of its existence.
+
+The _Fix Readiness_ substate refers to the Vendor's creation and possession of a fix that _could_ be deployed to a
+vulnerable system _if_ the system owner knew of its existence.
 Here we differ somewhat from previous models
 ([1](https://doi.org/10.1109/2.889093), [2](https://doi.org/10.1007/978-1-4419-6967-5_6), and [3](https://doi.org/10.1145/2382196.2382284))&mdash;their
-models address the *release* of the fix rather than its *readiness* for release.
+models address the _release_ of the fix rather than its _readiness_ for release.
 This distinction is necessary because we are interested in modeling the activities and states leading up to disclosure.
-Fix *release* is a goal of the CVD process, whereas fix *readiness* is a significant process milestone along the way.
+Fix _release_ is a goal of the CVD process, whereas fix _readiness_ is a significant process milestone along the way.
 
 ```mermaid
 stateDiagram-v2
@@ -101,9 +101,9 @@ stateDiagram-v2
     f --> F : fix is ready
 ```
 
-### The _Fix Deployed_ Substate (_d_, _D_) 
+### The _Fix Deployed_ Substate (_d_, _D_)
 
-The *Fix Deployed* substate reflects the deployment status of an
+The _Fix Deployed_ substate reflects the deployment status of an
 existing fix. The model in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) was initially designed to treat this substate as
 a singular binary state for a case, but we intend to relax that here to
 reflect a more realistic perspective in which each Deployer maintains
@@ -118,17 +118,16 @@ stateDiagram-v2
     d --> D : fix is deployed
 ```
 
+### The _Public Awareness_ Substate (_p_, _P_)
 
-### The _Public Awareness_ Substate (_p_, _P_) 
-
-The *Public Awareness* substate corresponds to *Publication* in the
-Arbaugh, Fithen, and McHugh [article](https://doi.org/10.1109/2.889093), *time of
-public disclosure* in Frei et al.'s article [Modeling the Security
+The _Public Awareness_ substate corresponds to _Publication_ in the
+Arbaugh, Fithen, and McHugh [article](https://doi.org/10.1109/2.889093), _time of
+public disclosure_ in Frei et al.'s article [Modeling the Security
 Ecosystem&mdash;The Dynamics of (In)Security](https://doi.org/10.1007/978-1-4419-6967-5_6) and
 *vulnerability disclosed publicly* in Bilge and Dumitraş's [article](https://doi.org/10.1145/2382196.2382284).
 The public might find out about a vulnerability through the Vendor's announcement of a fix, a news report about a
 security breach, a conference presentation by a researcher, or a variety of other means.
-As above, we are primarily concerned with the occurrence of the event itself rather than the details of *how* the public
+As above, we are primarily concerned with the occurrence of the event itself rather than the details of _how_ the public
 awareness event arises.
 
 ```mermaid
@@ -139,9 +138,9 @@ stateDiagram-v2
     p --> P : public becomes aware
 ```
 
-### The _Exploit Public_ Substate (_x_, _X_) 
+### The _Exploit Public_ Substate (_x_, _X_)
 
-The *Exploit Public* substate reflects whether the method of exploiting
+The _Exploit Public_ substate reflects whether the method of exploiting
 a vulnerability has been made public in sufficient detail to be
 reproduced by others. Posting PoC code to a widely available site or
 including the exploit code in a commonly available exploit tool meets
@@ -155,9 +154,9 @@ stateDiagram-v2
     x --> X : exploit is public
 ```
 
-### The _Attacks Observed_ Substate (_a_, _A_) 
+### The _Attacks Observed_ Substate (_a_, _A_)
 
-The *Attacks Observed* substate reflects whether attacks have been
+The _Attacks Observed_ substate reflects whether attacks have been
 observed in which the vulnerability was exploited. This substate
 requires evidence that the vulnerability was exploited; we can then
 presume the existence of exploit code regardless of its availability to
@@ -173,4 +172,3 @@ stateDiagram-v2
     A : Attacks Observed (A)
     a --> A : attacks are observed
 ```
-
