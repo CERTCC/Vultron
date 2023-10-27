@@ -9,7 +9,7 @@ We discuss the impact of these events on embargoes below.
 
 ## Impact of Case Mergers on Embargoes
 
-While relatively rare, it is sometimes necessary for two independent CVD cases to be merged into a single case. 
+While relatively rare, it is sometimes necessary for two independent CVD cases to be merged into a single case.
 
 !!! example "Case Merge Example"
 
@@ -50,7 +50,7 @@ It is also possible that a single case needs to be split into multiple cases aft
     longer to work through the logistics of delivering deployable fixes to their customers.
     In such a case, the case Participants might choose to split the case into its respective supply chain cohorts to
     better coordinate within each group.
-    
+
 Unlike the relatively simple situation of merging two cases, splitting a case into multiple cases is more complex.
 Case splits impose a dependency between the new case embargoes because the earlier embargo on one case might reveal the
 existence of a vulnerability in the products allocated to the later case.
@@ -92,4 +92,3 @@ Note that it may not always be possible for the split cases to have
 different embargo dates without the earlier case revealing the existence
 of a vulnerability in the products allocated to the later case. For this
 reason, it is often preferable to avoid case splits entirely.
-

@@ -4,7 +4,7 @@ By making any Contribution to this project, you agree to the terms outlined belo
 
 **IF YOU DO NOT AGREE TO THESE TERMS, DO NOT SUBMIT ANY CONTRIBUTION TO THIS PROJECT.**
 
-# TERMS OF SUBMISSION (“Agreement”):
+# TERMS OF SUBMISSION (“Agreement”)
 
 ## 1. Definitions
 
@@ -12,7 +12,7 @@ By making any Contribution to this project, you agree to the terms outlined belo
 - "**Contribution**" means any work of authorship, including but not limited to source code, object code, patch, tool,
    sample, graph, specification, manual documentation, that is Submitted by You to Us in which You own or assert
    ownership of the Copyright.
--  "**Copyright**" means all rights protecting works of authorship owned or controlled by You, including copyright, moral
+- "**Copyright**" means all rights protecting works of authorship owned or controlled by You, including copyright, moral
    and neighboring rights, as appropriate, for the full term of their existence including any extensions by You.
 - "**Material**" means the work of authorship which is made available by Us to third parties. When this Agreement covers
    more than one software project, the Material means the work of authorship to which the Contribution was Submitted.
@@ -39,22 +39,22 @@ provided that this license is conditioned upon compliance with Section 2.2.
 
 ### 2.2 Outbound License
 
-Based on the grant of rights in Section 2.1, if We include Your Contribution in a Material, 
+Based on the grant of rights in Section 2.1, if We include Your Contribution in a Material,
 We may license the Contribution under any license, including copyleft, permissive, commercial, or proprietary licenses.
-As a condition on the exercise of this right, We agree to also license the Contribution under the terms of the license 
+As a condition on the exercise of this right, We agree to also license the Contribution under the terms of the license
 or licenses which We are using for the Material on the Submission Date.
 
-### 2.3 Moral Rights.
+### 2.3 Moral Rights
 
-If moral rights apply to the Contribution, to the maximum extent permitted by law, You waive and agree not to assert 
+If moral rights apply to the Contribution, to the maximum extent permitted by law, You waive and agree not to assert
 such moral rights against Us or our successors in interest, or any of our licensees, either direct or indirect.
-   
-### 2.4 Our Rights.
+
+### 2.4 Our Rights
 
 You acknowledge that We are not obligated to use Your Contribution as part of the Material and may decide to include any
 Contribution We consider appropriate.
-   
-### 2.5 Reservation of Rights.
+
+### 2.5 Reservation of Rights
 
 Any rights not expressly assigned or licensed under this section are expressly reserved by You.
 
@@ -72,7 +72,7 @@ Contribution.
 **(c)** The grant of rights under Section 2 does not violate any grant of rights which You have made to third parties,
 including Your employer. If You are an employee, You warrant that Your employer has approved this Agreement. If You
 are less than eighteen years old, Your parent or guardian must sign a printed version of this Agreement and send it
-to permission@sei.cmu.edu.
+to <permission@sei.cmu.edu>.
 
 **(d)** You shall make each Contribution in full compliance with U.S. export control laws.
 
@@ -87,7 +87,7 @@ of this Agreement.
 ## 4. Miscellaneous
 
 **4.1** This Agreement will be governed by and construed in accordance with the laws of Pennsylvania excluding its
-conflicts of law provisions. 
+conflicts of law provisions.
 
 **4.2** This Agreement sets out the entire agreement between You and Us for Your Contributions to Us and overrides all
 other agreements or understandings.

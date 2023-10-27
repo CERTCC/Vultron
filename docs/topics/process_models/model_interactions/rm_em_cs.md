@@ -2,21 +2,18 @@
 
 {% include-markdown "../../../includes/normative.md" %}
 
-
 The [RM](../rm/index.md) and [EM](../em/index.md) models interact with the [Case State Model](../cs/index.md).
-Here we will review the constraints arising from the interaction of the [RM](../rm/index.md) and [EM](../em/index.md) 
+Here we will review the constraints arising from the interaction of the [RM](../rm/index.md) and [EM](../em/index.md)
 models with each of the CS transition events represented by its symbols.
 
 We have organized this page according to how each CS model [substate](../cs/index.md) interacts with the
 [RM](../rm/index.md) and [EM](../em/index.md) models.
-
 
 ???+ note inline end "CS Transition Symbols Defined"
 
     $\Sigma^{cs} = \{ \mathbf{V},~\mathbf{F},~\mathbf{D},~\mathbf{P},~\mathbf{X},~\mathbf{A} \}$
 
 As a reminder, a list of the CS model transition symbols is reproduced in the inset at right.
-
 
 ## Vendor Notification
 
@@ -25,7 +22,6 @@ As a reminder, a list of the CS model transition symbols is reproduced in the in
     $$q^{rm} \in S \xrightarrow{r} R$$
 
     $$q^{cs} \in vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$$
-
 
 Vendor Awareness (**V**) occurs when a Participant&mdash;typically a
 Finder, Coordinator, or another Vendor&mdash;is in RM _Accepted_ and notifies the Vendor.
@@ -72,7 +68,6 @@ need to engage with a new Vendor on the case. The latter example is
 consistent with [public narratives](https://www.techtarget.com/searchsecurity/news/252446638/Meltdown-and-Spectre-disclosure-suffered-extraordinary-miscommunication) about the Meltdown/Spectre
 vulnerabilities.
 
-
 !!! note ""
 
     Once a case has reached $q^{cs} \in Vfdpxa$ for at least one Vendor,
@@ -110,7 +105,7 @@ stateDiagram-v2
 ```
 
 ???+ note "Embargo Effects of Vendor Awareness Formalized"
-    
+
     $$q^{cs} \in Vfdpxa \implies q^{em} \in
         \begin{cases}
             None \xrightarrow{propose} Proposed \\
@@ -168,7 +163,7 @@ stateDiagram-v2
     CS --> EM: implies
 ```
 
-???+ note "Embargo Effects of Fix Readiness Formalized" 
+???+ note "Embargo Effects of Fix Readiness Formalized"
 
     $$q^{cs} \in VF\cdot pxa \implies q^{em} \in
         \begin{cases}
@@ -179,7 +174,7 @@ stateDiagram-v2
         \end{cases}$$
 
 !!! note ""
-    
+
     In MPCVD cases, where some Vendors are likely to reach $q^{cs} \in VF\cdot\cdot\cdot\cdot$
     before others,
 
@@ -214,7 +209,7 @@ stateDiagram-v2
 ```
 
 For vulnerabilities in systems whose software delivery model dictates that Public Awareness must precede
-Deployment ($\mathbf{P} \prec \mathbf{D}$), the Vendor status at the time of deployment might be 
+Deployment ($\mathbf{P} \prec \mathbf{D}$), the Vendor status at the time of deployment might be
 irrelevant&mdash;assuming, of course, that they at least passed through $q^{rm} = Accepted$ at some point as is required
 for Fix Ready (**F**), which, in turn, is a prerequisite for deployment (**D**).
 
@@ -263,8 +258,8 @@ stateDiagram-v2
             Revise \xrightarrow{terminate} eXited \\
         \end{cases}$$
 
-As with the *Fix Ready* scenario [above](#sec:cs_f_em), MPCVD cases may have Vendors in varying states of *Fix Deployment*.
-Therefore the embargo extension caveats from that section apply to the *Fix Deployed* state as well.
+As with the _Fix Ready_ scenario [above](#sec:cs_f_em), MPCVD cases may have Vendors in varying states of _Fix Deployment_.
+Therefore the embargo extension caveats from that section apply to the _Fix Deployed_ state as well.
 
 ## Public Awareness
 
@@ -272,10 +267,10 @@ Within the context of a coordinated publication process, (**P**)
 requires at least one Participant to be in the $q^{rm} = Accepted$ state
 because Participants are presumed to publish only on cases they have
 accepted. Ideally, the Vendor is among those Participants, but as
-outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD),
+outlined in the [_CERT Guide to Coordinated Vulnerability Disclosure_](https://vuls.cert.org/confluence/display/CVD),
 that is not strictly necessary.
 
-That said, the publishing party might be outside of *any* existing
+That said, the publishing party might be outside of _any_ existing
 coordination process. For example, this is the situation when a report
 is already in the midst of a CVD process and a party outside the
 CVD case reveals the vulnerability publicly (e.g., parallel discovery, embargo leaks).
@@ -340,8 +335,8 @@ That said,
     SHOULD comply with the protocol described here, especially when they also fulfill other roles 
     (e.g., Finder, Reporter, Coordinator, Vendor) in the process.
 
-For example, as described in 
-[A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513), 
+For example, as described in
+[A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513),
 the preference for $\mathbf{P} \prec \mathbf{X}$ dictates that
 
 !!! note ""
@@ -433,7 +428,7 @@ not imply widespread adversary knowledge of the vulnerability.
 In such scenarios, it is possible that early embargo termination&mdash;leading to publication&mdash;might be of more
 assistance to other adversaries than it is to defenders.
 Thus, we need to allow room for Participant judgment based on their case-specific situation awareness.
-Formally, 
+Formally,
 
 !!! note ""
 
@@ -441,7 +436,6 @@ Formally,
 
     - New embargoes SHALL NOT be sought.
     - Any existing embargo SHOULD terminate.
-
 
 ```mermaid
 ---

@@ -10,24 +10,22 @@ relative to the report at hand. Once an embargo has expired, there is no further
 about the vulnerability.
 <!-- end_excerpt -->
 
-
 !!! tip inline end "Reminder"
 
     Exploits are information about vulnerabilities too.
 
-
 CVD case Participants must be able to propose, accept, and reject embargo timing
 proposals according to their individual needs.
 Additionally, Participants may want to attempt to gain agreement that enables specific
-details about a vulnerability to be shared with other Participants or 
+details about a vulnerability to be shared with other Participants or
 made public.
 Such content considerations are outside the scope of this proposal.
 We focus our discussion on the *when* of an embargo, not the *what*.
 
 {% include-markdown "./embargo_defn.md"   %}
-    
+
 Unlike the [RM](../rm/index.md) model, in which each Participant has their own instance of the
-[RM](../rm/index.md) DFA, EM states are a global property of a CVD case. 
+[RM](../rm/index.md) DFA, EM states are a global property of a CVD case.
 
 !!! note ""
     A CVD case SHALL NOT have more than one active embargo at a time.
@@ -60,7 +58,6 @@ stateDiagram-v2
     v5 --> v6
 ```
 
-
 {% include-markdown "./nda-sidebar.md" %}
 
 ## EM State Machine
@@ -72,7 +69,7 @@ EM model using DFA notation.
 
 ### EM States
 
-CVD cases are either subject to an active embargo or they are not. 
+CVD cases are either subject to an active embargo or they are not.
 We begin with a simple two-state model for the embargo state:
 
 ```mermaid
@@ -84,10 +81,10 @@ stateDiagram-v2
 ```
 
 However, because embargo management is a process of coordinating across
-Participants, it will be useful to distinguish between the _None_ state
+Participants, it will be useful to distinguish between the *None* state
 and an intermediate state in which an embargo has been proposed but not
-yet accepted or rejected. We might call this the _None + Proposed_
-state, but we shortened it to _Proposed_.
+yet accepted or rejected. We might call this the *None + Proposed*
+state, but we shortened it to *Proposed*.
 
 ???+ note inline end "EM States ($\mathcal{Q}^{em}$) Defined"
 
@@ -99,12 +96,12 @@ state, but we shortened it to _Proposed_.
         & e\underline{X}ited \}
     \end{split}$
 
-Similarly, we want to be able to discriminate between an _Active_
+Similarly, we want to be able to discriminate between an *Active*
 embargo state and one in which a revision has been proposed but is not
-yet accepted or rejected, which we will denote as the _Active + Revise_
-state, shortened to _Revise_. Finally, we wish to distinguish between
-the state in which no embargo has ever been established (_None_), and
-the final state after an active embargo has ended (_eXited_). Combining
+yet accepted or rejected, which we will denote as the *Active + Revise*
+state, shortened to *Revise*. Finally, we wish to distinguish between
+the state in which no embargo has ever been established (*None*), and
+the final state after an active embargo has ended (*eXited*). Combining
 these, we get the following set of EM states, which we denote as
 $\mathcal{Q}^{em}$.
 
@@ -125,7 +122,7 @@ stateDiagram-v2
     eXited --> [*]
 ```
 
-We address the [state transitions](#em-state-transitions) in detail below. 
+We address the [state transitions](#em-state-transitions) in detail below.
 
 As a reminder, we use the underlined capital letters as shorthand for
 EM state names later in this documentation.
@@ -137,19 +134,17 @@ EM state names later in this documentation.
     [_Accepted_](../rm/index.md#the-accepted-a-state), and these are independent states. Be sure to check which
     model a state's shorthand notation is referring to.
 
-
-#### Start and Final States.
+#### Start and Final States
 
 ???+ note inline end "EM Start and Final States Defined"
     $q^{em}_0 = None$
-    
+
     $\mathcal{F}^{em} = \{None,~eXited\}$
 
-The EM process starts in the _None_ state. The process ends in one of two states: If an
-embargo agreement is eventually reached, the EM process ends in the _eXited_ state.
-Otherwise, if no agreement is ever reached, the EM process ends in the _None_ state. Formal
+The EM process starts in the *None* state. The process ends in one of two states: If an
+embargo agreement is eventually reached, the EM process ends in the *eXited* state.
+Otherwise, if no agreement is ever reached, the EM process ends in the *None* state. Formal
 definitions of each are shown in the box at right.
-
 
 ### EM State Transitions
 
@@ -158,22 +153,22 @@ definitions of each are shown in the box at right.
 The symbols of our EM DFA correspond to the actions that cause transitions between the states:
 
 !!! note ""
-    An embargo MAY be _proposed_.
+    An embargo MAY be *proposed*.
 
 !!! note ""
-    Once proposed, it MAY be _accepted_ or _rejected_.
+    Once proposed, it MAY be *accepted* or *rejected*.
 
 !!! note ""
-    Once accepted, revisions MAY be _proposed_, which MAY, in turn, be
-    _accepted_ or _rejected_.
+    Once accepted, revisions MAY be *proposed*, which MAY, in turn, be
+    *accepted* or *rejected*.
 
 !!! note ""
-    Finally, accepted embargoes MUST eventually _terminate_.
+    Finally, accepted embargoes MUST eventually *terminate*.
 
 A summary of the available actions is shown as $\Sigma^{em}$ below.
 
 ???+ note "EM Symbols ($\Sigma^{em}$) Defined"
-    
+
     $$   \begin{split}
             \Sigma^{em} = \{
              ~\underline{p}ropose, 
@@ -210,7 +205,6 @@ stateDiagram-v2
     dots --> [*]
 ```
 
-
 ##### Accept or Reject Embargo Proposal
 
 Once proposed, Participants can accept or reject the proposed embargo.
@@ -242,7 +236,6 @@ If the newly proposed embargo is accepted, then the old one is
 abandoned. On the other hand, if the newly proposed embargo is rejected,
 the old one remains accepted.
 
-
 ```mermaid
 stateDiagram-v2
     direction LR
@@ -265,7 +258,6 @@ stateDiagram-v2
 
     The revision process laid out here ensures that there is no break in active embargo coverage.
     The existing active embargo remains in effect until it is replaced by an accepted revision proposal.
-
 
 ##### Terminate Embargo
 
@@ -322,22 +314,22 @@ stateDiagram-v2
 ```
 
 Due to the numerous loops in the DFA shown in the state machine diagram above,
-the EM grammar is capable of generating arbitrarily long strings of _propose_-_propose_ and _propose_-_reject_
+the EM grammar is capable of generating arbitrarily long strings of *propose*-*propose* and *propose*-*reject*
 histories matching the regular expression `(p*r)*(pa(p*r)*(pa)?t)?`. As
 an example, here is an exhaustive list of all the possible traces of
 length seven or fewer:
 
-> _pr_, _pat_, _ppr_, _ppat_, _papt_, _prpr_, _pppr_, _ppppr_, _pprpr_,
-> _prppr_, _pappt_, _ppapt_, _pppat_, _papat_, _paprt_, _prpat_,
-> _pppppr_, _papppt_, _prpppr_, _ppprpr_, _ppappt_, _pppapt_, _prprpr_,
-> _papapt_, _pprppr_, _pappat_, _paprpt_, _prppat_, _prpapt_, _ppaprt_,
-> _pprpat_, _ppapat_, _papprt_, _ppppat_, _pprprpr_, _prprppr_,
-> _paprppt_, _prpprpr_, _pappprt_, _papppat_, _ppppapt_, _prpaprt_,
-> _papappt_, _pappapt_, _pppappt_, _pprpppr_, _pppprpr_, _prppppr_,
-> _ppprppr_, _ppapppt_, _ppaprpt_, _papprpt_, _ppapprt_, _ppappat_,
-> _prpppat_, _prpapat_, _ppprpat_, _ppppppr_, _pprppat_, _papapat_,
-> _paprpat_, _ppapapt_, _prprpat_, _paprprt_, _prppapt_, _pppapat_,
-> _pprpapt_, _pppaprt_, _pppppat_, _prpappt_, _papaprt_, _pappppt_
+> *pr*, *pat*, *ppr*, *ppat*, *papt*, *prpr*, *pppr*, *ppppr*, *pprpr*,
+> *prppr*, *pappt*, *ppapt*, *pppat*, *papat*, *paprt*, *prpat*,
+> *pppppr*, *papppt*, *prpppr*, *ppprpr*, *ppappt*, *pppapt*, *prprpr*,
+> *papapt*, *pprppr*, *pappat*, *paprpt*, *prppat*, *prpapt*, *ppaprt*,
+> *pprpat*, *ppapat*, *papprt*, *ppppat*, *pprprpr*, *prprppr*,
+> *paprppt*, *prpprpr*, *pappprt*, *papppat*, *ppppapt*, *prpaprt*,
+> *papappt*, *pappapt*, *pppappt*, *pprpppr*, *pppprpr*, *prppppr*,
+> *ppprppr*, *ppapppt*, *ppaprpt*, *papprpt*, *ppapprt*, *ppappat*,
+> *prpppat*, *prpapat*, *ppprpat*, *ppppppr*, *pprppat*, *papapat*,
+> *paprpat*, *ppapapt*, *prprpat*, *paprprt*, *prppapt*, *pppapat*,
+> *pprpapt*, *pppaprt*, *pppppat*, *prpappt*, *papaprt*, *pappppt*
 
 However, because EM
 is a human-oriented scheduling process, our experience suggests that we
@@ -348,10 +340,10 @@ potential reward function over EM DFA strings in [Future Work](../../future_work
 
 For example, it is often preferable for a Vendor to accept whatever embargo the Reporter initially proposes followed
 closely by proposing a revision to their preferred timeline than it is for the Vendor and Reporter to ping-pong
-proposals and rejections without ever establishing an embargo in the first place. 
+proposals and rejections without ever establishing an embargo in the first place.
 In the worst case (i.e., where the Reporter declines to extend their embargo), a short embargo is usually preferable to
 none at all.
-This implies a preference for strings starting with _par_ over strings starting with _ppa_ or _prpa_, among others.
+This implies a preference for strings starting with *par* over strings starting with *ppa* or *prpa*, among others.
 We will come back to this idea in [Default Embargoes](#default-embargoes) and in the
 [worked protocol example](../../formal_protocol/worked_example.md#vendor-accepts-then-proposes-revision).
 
@@ -378,6 +370,3 @@ Taken together, the complete DFA specification for the EM process is shown below
                         \end{cases}
                 \end{aligned}
         \end{pmatrix}$
-
-
-

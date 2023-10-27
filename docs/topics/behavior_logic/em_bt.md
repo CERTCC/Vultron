@@ -5,9 +5,9 @@ It follows the state transition function in the
 [Embargo Management Process Model](../process_models/em/index.md#em-state-transitions).
 Recall that the EM process begins in the $q^{em} \in N$ state and ends in one of two states:
 
--   in the *eXited* ($q^{em} \in X$) state after having established an
+- in the *eXited* ($q^{em} \in X$) state after having established an
     *Active* embargo, or
--   in the *None* ($q^{em} \in N$) state after having exhausted all
+- in the *None* ($q^{em} \in N$) state after having exhausted all
     attempts to reach an agreement
 
 ```mermaid
@@ -106,7 +106,7 @@ terminates, consistent with
     - [Terminate Embargo Behavior](em_terminate_bt.md)
     - [Evaluate Embargo Behavior](em_eval_bt.md)
 
-Otherwise, we continue through each remaining EM state. 
+Otherwise, we continue through each remaining EM state.
 
 (D) When there is no embargo and there are no outstanding proposals ($q^{em} \in N$), the only options are to
 either stop trying or [propose](em_propose_bt.md) a new embargo.
@@ -131,8 +131,7 @@ Otherwise, either the current embargo terms are acceptable, or a new embargo sho
 The structure of this branch mirrors that of the *Proposed* state discussed above.
 Again, we check to see if there is cause to [terminate](em_terminate_bt.md) doing so, if needed.
 If termination is not indicated, we proceed once again to [evaluate the proposed revision](em_eval_bt.md), either accepting
-or countering the proposal. 
+or countering the proposal.
 When neither of these succeed, the revision is rejected and the EM state returns to $q^{em} \in A$ with the
 original embargo terms intact.
 An $EJ$ message conveys this information to the other Participants.
-

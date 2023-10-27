@@ -1,4 +1,4 @@
-# Copyright &copy; 2023 Carnegie Mellon University.
+# Copyright &copy; 2023 Carnegie Mellon University
 
 This material is based upon work funded and supported by the Department of Homeland Security under Contract No. FA8702-15-D-0002 with Carnegie Mellon University for the operation of the Software Engineering Institute, a federally funded research and development center sponsored by the United States Department of Defense.
 
@@ -8,7 +8,7 @@ The view, opinions, and/or findings contained in this material are those of the 
 
 [DISTRIBUTION STATEMENT A] This material has been approved for public release and unlimited distribution.  Please see Copyright notice for non-US Government use and distribution.
 
-This material may be reproduced in its entirety, without modification, and freely distributed in written or electronic form without requesting formal permission. Permission is required for any other use.  Requests for permission should be directed to the Software Engineering Institute at permission@sei.cmu.edu.
+This material may be reproduced in its entirety, without modification, and freely distributed in written or electronic form without requesting formal permission. Permission is required for any other use.  Requests for permission should be directed to the Software Engineering Institute at <permission@sei.cmu.edu>.
 
 Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the U.S. Patent and Trademark Office by Carnegie Mellon University.
 

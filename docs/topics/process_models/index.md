@@ -57,8 +57,6 @@ graph LR
     Agent2 --> Agent1
 ```
 
-
-
 ## [Report Management process](rm/index.md)
 
 {% include-markdown "./rm/index.md" start="<!-- start_excerpt -->" end="<!-- end_excerpt -->" %}

@@ -5,9 +5,8 @@
     - :material-close: - Unsupported
     - :material-block-helper: - Out-of-scope
 
-
-| ID                            | Title                                                                                                                    |         Status          | 
-|-------------------------------|--------------------------------------------------------------------------------------------------------------------------|:-----------------------:| 
+| ID                            | Title                                                                                                                    |         Status          |
+|-------------------------------|--------------------------------------------------------------------------------------------------------------------------|:-----------------------:|
 | [2022_001](story_2022_001.md) | {% include-markdown "./story_2022_001.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |    :material-check:     |
 | [2022_002](story_2022_002.md) | {% include-markdown "./story_2022_002.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |  :material-check-all:   |
 | [2022_003](story_2022_003.md) | {% include-markdown "./story_2022_003.md" start="<!-- story-start -->" end="<!-- story-end -->" trailing-newlines=false %} |    :material-check:     |

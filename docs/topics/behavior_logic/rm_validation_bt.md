@@ -56,7 +56,7 @@ the report is in *Received* and its validity has never been evaluated or
 when the report was originally determined to be *Invalid* but new
 information is available to prompt reconsideration. The validation
 process shown here is comprised of two main steps: a credibility check
-followed by a validity check as outlined in our introduction of 
+followed by a validity check as outlined in our introduction of
 the [Received (R) state](../process_models/rm/index.md#the-received-r-state).
 
 As a reminder, a report might be in one of three categories: (a) neither

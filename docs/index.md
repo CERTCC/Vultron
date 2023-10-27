@@ -10,7 +10,7 @@
     - [Implementing Vultron](howto/index.md), which provides guidance for potential implementations of Vultron
     - [Reference](reference/formal_protocol/index.md), which provides the formal protocol specification
 
-The Vultron Protocol is a research project to explore the creation of a federated, decentralized, and open source protocol for 
+The Vultron Protocol is a research project to explore the creation of a federated, decentralized, and open source protocol for
 coordinated vulnerability disclosure (CVD).
 It has grown out of the CERT/CC's decades of experience in coordinating global response to software vulnerabilities.
 Our goal is to create a protocol that can be used by any organization to coordinate the disclosure of vulnerabilities in
@@ -22,7 +22,6 @@ The Vultron Protocol is a collection of ideas, models, code, and work in progres
 {% include-markdown "./includes/curr_ver.md" %}
 
 ## How this documentation is organized
-
 
 !!! tip inline "Learning About Vultron"
 
@@ -54,8 +53,7 @@ We are using the [Diátaxis Framework](https://diataxis.fr/) to organize our doc
 oriented around the different ways that people might need to learn about and use the Vultron Protocol.
 
 Our current focus is on the [Understanding Vultron](topics/background/index.md) section, which describes the protocol
-in detail. 
-
+in detail.
 
 ## Background
 
@@ -80,8 +78,8 @@ Our recent work in this area includes:
 
 - [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) (MPCVD), which also appeared in an
 abridged form as [Are We Skillful or Just Lucky? Interpreting the Possible Histories of Vulnerability Disclosures](https://doi.org/10.1145/3477431) in the
-ACM Journal Digital Threats: Research and Practice 
+ACM Journal Digital Threats: Research and Practice
 - A collection of [Coordinated Vulnerability Disclosure User Stories](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=886543) derived from both our process modeling work and from the experience of building VINCE.
-  These user stories are collected in the [User Stories](topics/user_stories/index.md) section of this documentation. 
+  These user stories are collected in the [User Stories](topics/user_stories/index.md) section of this documentation.
 - [Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) (MPCVD),
   which serves as the basis for the work contained here.

@@ -61,4 +61,3 @@ process-specific Behavior Tree, which we discuss in the following
 sections. Although each process-specific behavior is described in a
 subsection and shown in its own figure, they are all part of the same
 fallback node shown here.
-

@@ -1,6 +1,6 @@
 # Report Closure Behavior
 
-The Report Closure Behavior Tree is shown below. 
+The Report Closure Behavior Tree is shown below.
 As usual, the post-condition is checked before proceeding.
 (A) If the case is already *Closed* ($q^{rm} \in C$), we're done.
 Otherwise, (B) the main close sequence begins with a check for whether the report closure criteria have been met.
@@ -25,5 +25,3 @@ flowchart LR
     close_to_c["RM &rarr; C<br/>(emit RC)"]
     seq --> close_to_c
 ```
-
-

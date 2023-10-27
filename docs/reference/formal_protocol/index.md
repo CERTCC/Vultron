@@ -12,9 +12,9 @@ models described elsewhere.
 
 ## Communication Protocol Definitions {#sec:protocol_definition}
 
-A communication protocol allows independent processes, represented as finite state machines, to coordinate their state 
+A communication protocol allows independent processes, represented as finite state machines, to coordinate their state
 transitions through the passing of messages. [Brand and Zafiropulo](https://doi.org/10.1145/322374.322380) defined
-a protocol as follows. 
+a protocol as follows.
 
 !!! note "_Protocol_ Formally Defined"
 
@@ -82,5 +82,3 @@ multiple roles in a given case.
     The total number of processes $N$ is simply the count of unique Participants.
 
     $$N = |Participants| = | Reporters \cup Vendors \cup Coordinators \cup Deployers \cup Others |$$
-
-

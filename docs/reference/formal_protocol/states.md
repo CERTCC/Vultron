@@ -18,12 +18,12 @@ Good Participant situation awareness makes for good CVD decision making.
     Participants SHOULD track the state of other Participants in a case 
     to inform their own decision making as it pertains to the case.
 
-Elsewhere, we provide an example [Case Object](../../howto/case_object.md) model to facilitate such tracking. 
+Elsewhere, we provide an example [Case Object](../../howto/case_object.md) model to facilitate such tracking.
 However, the protocol we are developing is expected to function even when incomplete information is available to
 any given Participant.
 
 !!! note ""  
-   
+
     Adequate operation of the protocol MUST NOT depend on perfect information across all Participants.
 
 A generic state model for a CVD Participant can be composed from the Cartesian product of $\mathcal{Q}^{rm}$,
@@ -93,10 +93,10 @@ Note that the above definition splits the case state
 ($vfd \xrightarrow{\mathbf{V}} Vfd \xrightarrow{\mathbf{F}} VFd \xrightarrow{\mathbf{D}} VFD$)
 and the public-exploit-attack ($pxa \xrightarrow{\dots} PXA$) sub-models
 from the [Case State Model](../../topics/process_models/cs/index.md).
-This is done for two reasons. 
+This is done for two reasons.
 First, it gives us a more compact notation to represent the 32 states of the CS model.
-Second, as described in [Model Interactions](../../topics/process_models/model_interactions/index.md), it highlights the fact that 
-the Vendor fix path represents the state of an individual Participant, whereas the public-exploit-attack sub-model 
+Second, as described in [Model Interactions](../../topics/process_models/model_interactions/index.md), it highlights the fact that
+the Vendor fix path represents the state of an individual Participant, whereas the public-exploit-attack sub-model
 represents facts about the world at large.
 Because not all Participants
 are Vendors or Deployers, Participants might not have a corresponding
@@ -125,10 +125,10 @@ In the remainder of this section, we detail these differences.
 ## Unreachable States
 
 For any Participant, the RM $Closed$ state implies that the EM and CVD Case states do
-not matter. 
+not matter.
 Similarly, for any Participant, the RM $Start$ state represents a case that the
-Participant doesn't even know about yet. 
-Therefore, the $Start$ state also implies that the EM and CVD Case states do not matter. 
+Participant doesn't even know about yet.
+Therefore, the $Start$ state also implies that the EM and CVD Case states do not matter.
 We use $*$ to represent the "don't care" value.
 
 ???+ note "Unreachable EM and CS States when RM is in  _Closed_ or _Start_"
@@ -153,7 +153,7 @@ Furthermore, when a vulnerability becomes public, the EM state no longer matters
 Taken together, we can modify our state model to reflect these limitations.
 The result is shown below.
 
-!!! note "Participant States With Unreachable States Removed" 
+!!! note "Participant States With Unreachable States Removed"
 
     $$  S_i 
         % = \mathcal{Q}^{rm} \times \mathcal{Q}^{em} \times \mathcal{Q}^{cs}
@@ -256,23 +256,23 @@ This means that each Participant must be in one of 352 possible states.
 ## Vendors (Fix Suppliers)
 
 Vendors are the sole providers of fixes.
-Therefore, they are the only Participants in a CVD case for which the $Vfd \xrightarrow{\mathbf{F}} VFd \xrightarrow{\mathbf{D}} VFD$ 
+Therefore, they are the only Participants in a CVD case for which the $Vfd \xrightarrow{\mathbf{F}} VFd \xrightarrow{\mathbf{D}} VFD$
 path is possible.
-Furthermore, since they are Vendors by definition, they do not have access to the $vfd$ state or the $\varnothing$ 
+Furthermore, since they are Vendors by definition, they do not have access to the $vfd$ state or the $\varnothing$
 state that was just added.
 As a Vendor has a report in $Received$, it is, by definition, at least in the $Vfd$ case state.
 
 Vendors create fixes only when they are in the $Accepted$ RM state.
-Because the $Received$, $Invalid$, and $Valid$ states come strictly *before* the $Accepted$ state in the RM DFA,
+Because the $Received$, $Invalid$, and $Valid$ states come strictly _before_ the $Accepted$ state in the RM DFA,
 there is no way for the Vendor to be in either $VFd$ or $VFD$ while in any of those states.
 
 ???+ note "Vendor CS States When RM is in _Received_, _Invalid_, or _Valid_"
 
     $$q^{rm}_{Vendor} \in \{R,I,V\} \implies q^{cs}_{Vendor} \in Vfd\cdot\cdot\cdot$$
 
-Vendors with the ability to deploy fixes themselves have access to three states in the fix path: $\{Vfd,~VFd,~VFD\}$. 
+Vendors with the ability to deploy fixes themselves have access to three states in the fix path: $\{Vfd,~VFd,~VFD\}$.
 However, this is not always the case.
-Vendor Participants without a deployment capability can only create fixes, limiting them to the middle two states in 
+Vendor Participants without a deployment capability can only create fixes, limiting them to the middle two states in
 the fix path: $\{Vfd,~VFd\}$.
 Additional discussion of the distinction between Vendors with and without a deployment capability can be found in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
 
@@ -454,15 +454,15 @@ As tallied below, there are 128 possible states for a Vendor with deployment cap
 
 ## Non-Vendor Deployers
 
-We just explained that not all Vendors are Deployers. 
+We just explained that not all Vendors are Deployers.
 Likewise, not all Deployers are Vendors.
 Most CVD cases leave Non-Vendor Deployers entirely out of the CVD process, so their appearance is expected to be rare in
 actual cases.
-However, there are scenarios when an MPCVD case may include Non-Vendor Deployers, such as when a vulnerability in some 
+However, there are scenarios when an MPCVD case may include Non-Vendor Deployers, such as when a vulnerability in some
 critical infrastructure component is being handled or when the Vultron Protocol is used in the context of a Vulnerability
 Disclosure Program (VDP).
 These Non-Vendor Deployers participate only in the $d \xrightarrow{\mathbf{D}} D$ transition on the fix path.
-Similar to the [Vendor](#vendors-fix-suppliers) scenario above, it is expected that Deployers actually deploy fixes only when they are in the 
+Similar to the [Vendor](#vendors-fix-suppliers) scenario above, it is expected that Deployers actually deploy fixes only when they are in the
 RM $Accepted$ state (implying their intent to deploy).
 Therefore, their set of possible states is even more restricted than Vendors, as shown below.
 
@@ -476,7 +476,7 @@ Therefore, their set of possible states is even more restricted than Vendors, as
             I \\
             V \\
         \end{bmatrix}
-        \times 
+        \times
         % embargo state
         \begin{bmatrix}
             N \\
@@ -485,21 +485,21 @@ Therefore, their set of possible states is even more restricted than Vendors, as
             R \\
             X \\
         \end{bmatrix}
-        \times 
+        \times
         % case state
         \begin{bmatrix}
             \begin{bmatrix}
                 d \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 p \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 x \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 a \\
                 A \\
@@ -508,9 +508,9 @@ Therefore, their set of possible states is even more restricted than Vendors, as
         {}\\
         \begin{bmatrix}
             D \\
-            A \\ 
+            A \\
         \end{bmatrix}
-        \times 
+        \times
         % embargo state
         \begin{bmatrix}
             N \\
@@ -519,22 +519,22 @@ Therefore, their set of possible states is even more restricted than Vendors, as
             R \\
             X \\
         \end{bmatrix}
-        \times 
+        \times
         % case state
         \begin{bmatrix}
             \begin{bmatrix}
                 d \\
                 D \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 p \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 x \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 a \\
                 A \\
@@ -546,27 +546,27 @@ Therefore, their set of possible states is even more restricted than Vendors, as
             I \\
             V \\
         \end{bmatrix}
-        \times 
+        \times
         % embargo state
         \begin{bmatrix}
         * \\
         \end{bmatrix}
-        \times 
+        \times
         % case state
         \begin{bmatrix}
             \begin{bmatrix}
                 d \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 P \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 x \\
                 X \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 a \\
                 A \\
@@ -575,30 +575,30 @@ Therefore, their set of possible states is even more restricted than Vendors, as
         {} \\
         \begin{bmatrix}
             D \\
-            A \\ 
+            A \\
         \end{bmatrix}
-        \times 
+        \times
         % embargo state
         \begin{bmatrix}
         * \\
         \end{bmatrix}
-        \times 
+        \times
         % case state
         \begin{bmatrix}
             \begin{bmatrix}
                 d \\
                 D \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 P \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 x \\
                 X \\
             \end{bmatrix}
-            \times 
+            \times
             \begin{bmatrix}
                 a \\
                 A \\
@@ -616,14 +616,14 @@ states, as we show next.
             |S_{i_{Deployer}}| = & 1 + \big(3 \cdot 5 \cdot (1 \cdot 1 \cdot 1 \cdot 2)\big) + \big(2 \cdot 5 \cdot (2 \cdot 1 \cdot 1 \cdot 2)\big) \\
             & + \big(3 \cdot 1 \cdot (1 \cdot 1 \cdot 2 \cdot 2)\big) + \big(2 \cdot 1 \cdot (2 \cdot 1 \cdot 2 \cdot 2)\big) + 1 \\
             % = & 2 + 30 + 40 + 12 + 16 \\
-            = & 100 \\    
+            = & 100 \\
         \end{split}$$
 
 ## Non-Vendor, Non-Deployer Participants
 
 Finally, CVD cases often involve Participants who are neither Vendors nor Deployers.
 Specifically, Finder/Reporters fall into this category, as do Coordinators.
-Other roles, as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD),
+Other roles, as outlined in the [_CERT Guide to Coordinated Vulnerability Disclosure_](https://vuls.cert.org/confluence/display/CVD),
 could be included here as well.
 Because they do not participate directly in the Vendor fix path, these Non-Vendor, Non-Deployer CVD Participants fall
 into the $\varnothing$ case substate we added above.
@@ -812,7 +812,7 @@ become Reporters have only 29 possible states during a CVD case.
     $$  \begin{split}
             |S_{i_{Reporter}}| = & \big(2 \cdot 5 \cdot (1 \cdot 1 \cdot 1 \cdot 2)\big) + \big(2 \cdot 1 \cdot (1 \cdot 1 \cdot 2 \cdot 2)\big) + 1 \\
             % = & 20 + 8 + 1 \\
-            = & 29 \\    
+            = & 29 \\
         \end{split}$$
 
 ## A Lower Bounds on MPCVD State Space
@@ -825,7 +825,6 @@ Now we can touch on the lower bounds of the state space of an MPCVD case.
 Generically, we would expect the state space for $N$ Participants to
 take the form given at right.
 
-
 The upper bound on the MPCVD state space is simply $352^N \approx 10^{2.55N}$.
 However, because of the Role-specific limits just described, we already know that this overcounts the possible states
 significantly.
@@ -835,12 +834,12 @@ drastically reduce the state space for an MPCVD case.
 Why?
 There are two reasons:
 
-1.  Because they represent facts about the outside world, the eight
+1. Because they represent facts about the outside world, the eight
     $\cdot\cdot\cdot pxa \rightarrow \cdot\cdot\cdot PXA$ CS substates are global to the case, not
     to individual Participants. This means all Participants should
     rapidly converge to the same substate.
 
-2.  Similarly, the five EM states are also global to the case and should converge rapidly.
+2. Similarly, the five EM states are also global to the case and should converge rapidly.
 
 Given these two observations, we can pull those Participant-agnostic terms out of the state calculations for individual Participants,
 
@@ -883,14 +882,14 @@ So our state space looks like
 
 With these values in mind, we see that
 
--   A two-party (Finder-Vendor) case might have a lower bound state space of $40 \times 3 \times 16 = 1,920$ states.
+- A two-party (Finder-Vendor) case might have a lower bound state space of $40 \times 3 \times 16 = 1,920$ states.
 
--   A case like Meltdown/Spectre (with six Vendors and no Coordinators) might have $40 \times 3 \times 16^{6} \approx 10^{9}$ states.
+- A case like Meltdown/Spectre (with six Vendors and no Coordinators) might have $40 \times 3 \times 16^{6} \approx 10^{9}$ states.
 
--   A large, but not atypical, 200-Vendor case handled by the CERT/CC might have
+- A large, but not atypical, 200-Vendor case handled by the CERT/CC might have
     $40 \times 3 \times 16^{200} \times 7 \approx 10^{244}$ possible configurations.
 
--   In the case of the log4j vulnerability [CVE-2021-44228](https://www.kb.cert.org/vuls/id/930724) in December
+- In the case of the log4j vulnerability [CVE-2021-44228](https://www.kb.cert.org/vuls/id/930724) in December
     2021, the CERT/CC notified around 1,600 Vendors after the vulnerability had been made public. Had this been an
     embargoed disclosure, the case would have a total state space around $10^{2000}$.
 
@@ -918,7 +917,6 @@ Deployers, and other Participants are shown below.
     | Deployer         | $(S,N,dpxa)$ |
     | Other            | $(S,N,pxa)$ |
     | Finder/Reporter  | $(A,N,pxa)$ |
-
 
 For a case to really begin, the Finder must at least reach the $A$ state.
 Therefore, at the point when a second party finds out about the vulnerability from a Finder,

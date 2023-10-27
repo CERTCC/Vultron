@@ -75,7 +75,7 @@ addresses reports in the *Received* state ($q^{rm} \in R$).
 
 The only action to be taken from $q^{rm} \in R$ is to validate the report.
 We address [report validation](rm_validation_bt.md) shortly, but, for now, it is
-sufficient to say that the validate report behavior returns *Success* 
+sufficient to say that the validate report behavior returns *Success*
 after moving the report to either *Valid* ($q^{rm} \xrightarrow{v} V$)
 or *Invalid* ($q^{rm} \xrightarrow{i} I$).
 
@@ -101,4 +101,3 @@ We are taking advantage of the composability of Behavior Trees to
 simplify the presentation. Behaviors that appear in multiple places can
 be represented as their own trees. We explore the most relevant of these
 subtrees in the next few subsections.
-
