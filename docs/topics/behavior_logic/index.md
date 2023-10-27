@@ -63,14 +63,12 @@ Introduction*](https://arxiv.org/abs/1709.00084).
     | Loop | &#8634;               | repeatedly ticks child nodes until an exit condition is met. |
     | Parallel | &#8649;               | ticks all child nodes simultaneously, and returns *Success* when $m$ of $n$ children have returned *Success*. |
 
-
 A basic Behavior Tree is shown below.
 When a tree is presented in the vertical orientation, each node's children should be read left to right.
 In the example below, we see two motifs that come up through the remainder of this section.
 On the left side is a Fallback node ($\boxed{?}$), which short-circuits to *Success* when the $postcondition$ is already met.
 Otherwise, some activity will occur in $task_a$ and, assuming that it succeeds, the $postcondition$ is set.
 As a result, the fallback node ensures that *Success* means that the $postcondition$ is met.
-
 
 ```mermaid
 ---
@@ -146,8 +144,6 @@ flowchart LR
     r2 --> r21
 ```
 
-
 Behavior Trees are composable&mdash;that is, a task node in one tree can be replaced with a more refined Behavior Tree in another.
 We leverage this feature throughout the remainder of this chapter to describe an agent model for an MPCVD Participant
 as a set of nested Behavior Trees that reflect the protocol described in the previous chapters.
-

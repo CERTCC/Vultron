@@ -37,6 +37,3 @@ In both cases, acceptance leads to an EM state transition to $q^{em} \in A$ and 
 (B) On the other hand, the proposed terms may not be acceptable.
 In this case, the Participant might be willing to offer a counterproposal.
 The counterproposal is covered by the [propose](em_propose_bt.md) behavior.
-
-
-

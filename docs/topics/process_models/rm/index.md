@@ -4,7 +4,7 @@
 
 Here we describe a high-level workflow for the CVD Report Management (RM) process.
 <!-- start_excerpt -->
-The RM process should be reasonably familiar to anyone familiar with [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management) (ITSM) workflows such as problem, change, 
+The RM process should be reasonably familiar to anyone familiar with [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management) (ITSM) workflows such as problem, change,
 incident or service request management.
 In particular, any workflow in which work items (e.g., incident reports, problem tickets, change requests) are received, validated, prioritized, and work is subsequently
 completed, should map onto the RM process outlined here.
@@ -24,7 +24,7 @@ completed, should map onto the RM process outlined here.
 {% include-markdown "../dfa_notation_definition.md" %}
 
 In this section, we first cover the states themselves before proceeding
-to a discussion of the transitions between them. 
+to a discussion of the transitions between them.
 [Elsewhere](rm_interactions.md) , we provide a
 discussion of the Participant-specific semantics of the state
 transitions. We use Deterministic Finite Automata (DFA) notation to describe our
@@ -36,8 +36,7 @@ Our proposed RM DFA models a report lifecycle containing seven states, defined b
 
 {% include-markdown "./rm_state_machine_diagram.md" %}
 
-
-???+ note inline end "RM States $\mathcal{Q}^{rm}$ Defined" 
+???+ note inline end "RM States $\mathcal{Q}^{rm}$ Defined"
 
     $\begin{split}
         \mathcal{Q}^{rm} = \{ & \underline{S}tart, \\
@@ -63,7 +62,7 @@ the state names. Each Participant in a CVD case will have their own RM state.
 The _Start_ state is a simple placeholder state for reports that have
 yet to be received. It is, in effect, a null state that no
 CVD Participant would be expected to reflect in their report tracking system. We include
-it here because it is useful when modeling coordination 
+it here because it is useful when modeling coordination
 that spans multiple Participants in the [formal protocol](../../formal_protocol/index.md).
 Otherwise, the discussion until then will mostly ignore it.
 
@@ -106,8 +105,8 @@ Exiting the _Received_ state requires a Participant to assess the
 validity of a report. Note that validation is distinct from
 prioritization, as covered in our description of the [_Valid_](#the-valid-v-state) state.
 In other words, the _Received_ state corresponds to the
-[Validation phase](https://vuls.cert.org/confluence/display/CVD/4.3+Validation+and+Triage) 
-of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD).
+[Validation phase](https://vuls.cert.org/confluence/display/CVD/4.3+Validation+and+Triage)
+of the [_CERT Guide to Coordinated Vulnerability Disclosure_](https://vuls.cert.org/confluence/display/CVD).
 
 !!! note ""
 
@@ -176,7 +175,6 @@ stateDiagram-v2
     Received --> Invalid
 ```
 
-
 The reasons for a report to be put in this state will vary based on each
 recipient's validation criteria, and their technical capability and
 available resources. The _Invalid_ state is intended to be used as a
@@ -203,10 +201,10 @@ contradict that conclusion.
 
 Reports in the _Valid_ state are ready to be prioritized for possible
 future work. The result of this prioritization process will be to either
-accept the report for follow-up or defer further effort. 
+accept the report for follow-up or defer further effort.
 The _Valid_ state is equivalent to the [Prioritization
-(Triage)](https://vuls.cert.org/confluence/display/CVD/4.3+Validation+and+Triage) phase 
-of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD).
+(Triage)](https://vuls.cert.org/confluence/display/CVD/4.3+Validation+and+Triage) phase
+of the [_CERT Guide to Coordinated Vulnerability Disclosure_](https://vuls.cert.org/confluence/display/CVD).
 As an example, a Vendor might later choose to _defer_ further response on a _Valid_ report due to other priorities.
 
 ```mermaid
@@ -218,7 +216,6 @@ stateDiagram-v2
     Received --> Valid
     Invalid --> Valid
 ```
-
 
 !!! note ""
 
@@ -245,8 +242,6 @@ stateDiagram-v2
 In other words, prioritization is only necessary if the workload
 represented by active valid reports exceeds the organization's capacity
 to process those reports.
-
-
 
 Prioritization schemes, such as [SSVC](https://github.com/CERTCC/SSVC) or the
 [CVSS](https://first.org/cvss), are commonly used to
@@ -279,17 +274,16 @@ stateDiagram-v2
     Valid --> Accepted
 ```
 
-
--   For our purposes, Finders/Reporters enter the _Accepted_ state only
+- For our purposes, Finders/Reporters enter the _Accepted_ state only
     for reports that they intend to put through the
     CVD process. If
     they have no intention of pursuing CVD, there is no need for them to track
     their actions using this protocol. See [the secret lives of finders](rm_interactions.md#the-secret-lives-of-finders) for more.
 
--   Vendors usually do root cause analysis, understand the problem, and
+- Vendors usually do root cause analysis, understand the problem, and
     produce a fix or mitigation.
 
--   Coordinators typically identify potentially affected Vendors, notify
+- Coordinators typically identify potentially affected Vendors, notify
     them, and possibly negotiate embargoes.
 
 We provide additional elaboration on the sorts of activities that might
@@ -322,7 +316,6 @@ stateDiagram-v2
     Accepted --> Deferred
     Deferred --> Accepted
 ```
-
 
 For example, a Participant might use the _Deferred_ state when a valid
 report fails to meet their [prioritization criteria](#prioritize-report), or when a higher priority task takes
@@ -370,7 +363,6 @@ stateDiagram-v2
     Closed --> [*]
 ```
 
-
 !!! note ""
 
     Reports SHOULD be moved to the _Closed_ state once a Participant has
@@ -382,7 +374,7 @@ stateDiagram-v2
     - cases in _Accepted_ where all necessary tasks are complete.
 
 ???+ note "RM Start and End States ($q^{rm}_0, \mathcal{F}^{rm}$) Defined"
-    
+
     The RM process
     starts in the _Start_ state.
     
@@ -393,7 +385,6 @@ stateDiagram-v2
     
     $$\mathcal{F}^{rm} = \{Closed\}$$
 
-
 ### RM State Transitions
 
 A Participant's RM process begins when the Participant receives a report.
@@ -402,7 +393,7 @@ transitions in the corresponding DFA.
 
 ???+ note inline end "RM Symbols ($\Sigma^{rm}$) Defined"
     These actions constitute the set of symbols for the
-    RM DFA. 
+    RM DFA.
 
     $\begin{align*}
       \Sigma^{rm} = \{ & \underline{r}eceive, \\
@@ -433,7 +424,7 @@ protocol. Every state transition implies a different message type.
 To begin, a Participant must receive a report. Recall that the _Start_
 state is a placeholder, so this action simply puts the receiving
 Participant into the _Received_ state at the beginning of their
-involvement in the case. 
+involvement in the case.
 
 ```mermaid
 ---
@@ -457,7 +448,7 @@ periodically revalidate them to see if they have become _Valid_.
 !!! note ""
 
     Participants SHOULD create a case for all _Valid_ reports. 
-    
+
 !!! note ""
 
     Paricipants MAY create a case for _Invalid_ reports.
@@ -496,7 +487,7 @@ stateDiagram-v2
 Once a report has been validated (i.e., it is in the
 RM _Valid_ state,
 $q^{rm} \in V$), the Participant must prioritize it to determine what
-further effort, if any, is necessary. 
+further effort, if any, is necessary.
 
 !!! note ""
 
@@ -515,8 +506,6 @@ moving it to the _Accepted_ state.
 !!! note ""
 
     Participants MAY re-prioritize _Accepted_ or _Deferred_ cases.
-
-
 
 ```mermaid
 ---
@@ -554,7 +543,6 @@ stateDiagram-v2
     reprioritize2 --> do_work: accept
     reprioritize2 --> Deferred: defer
 ```
-
 
 ##### Participants Interact from the Accepted State
 
@@ -621,7 +609,6 @@ to _Deferred_ to _Closed_ in rapid (even immediate) succession.
 !!! note ""
 
     Participants MUST NOT close cases or reports from the _Valid_ state.
-
 
 #### Possible Report Management Histories
 
@@ -691,7 +678,7 @@ The full definition of the RM DFA is given below.
         \end{pmatrix}$$
 
 ???+ note "RM State Subsets Defined"
-    
+
     Before proceeding, we pause to define a few useful subsets of
     RM states
     ($\dots \subset \mathcal{Q}^{rm}$) for future use:
@@ -703,4 +690,3 @@ The full definition of the RM DFA is given below.
             Active &= \{ R,V,A \} \\
             Inactive &= \{ I,D,C \} 
         \end{align}$$
-

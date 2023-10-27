@@ -61,7 +61,6 @@ stateDiagram-v2
     If neither Sender nor Receiver proposes an embargo, _and_ no policy
     defaults apply, no embargo SHALL exist.
 
-
 ### Sender Proposes When Receiver Has No Default Embargo
 
 Next, we consider the case where the Sender has a default embargo or otherwise proposes an embargo
@@ -86,7 +85,6 @@ stateDiagram-v2
     embargo specified by policy, the Receiver SHOULD accept the Sender's
     proposal.
 
-
 !!! note ""  
 
     ???+ note inline end "Formalism"
@@ -94,7 +92,6 @@ stateDiagram-v2
         $$q^{em} \in A \xrightarrow{p_{receiver}} R$$
 
     The Receiver MAY then propose a revision.
-
 
 ### Receiver Has Default Embargo, Sender Implies Acceptance
 
@@ -109,7 +106,6 @@ stateDiagram-v2
     P --> A : sender accepts
 ```
 
-
 !!! note ""  
 
     ???+ note inline end "Formalism"
@@ -118,7 +114,6 @@ stateDiagram-v2
 
     A Receiver's default embargo specified in its vulnerability
     disclosure policy SHALL be treated as an initial embargo proposal.
-
 
 !!! note ""  
 
@@ -130,8 +125,6 @@ stateDiagram-v2
     disclosure policy and the Sender proposes nothing to the contrary,
     the Receiver's default embargo SHALL be considered as an accepted
     proposal.
-
-
 
 ### Sender Proposes an Embargo Longer than the Receiver Default
 
@@ -159,7 +152,6 @@ stateDiagram-v2
 
         $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{p_{sender}} P \xrightarrow{a_{receiver}} A \xrightarrow{r_{sender}} R$$
 
-
 !!! note ""  
 
     ???+ note inline end "Formalism"
@@ -170,7 +162,6 @@ stateDiagram-v2
             \end{cases}$$
 
     The Receiver MAY then *accept* or *reject* the proposed extension.
-
 
 ### Sender Proposes an Embargo Shorter than the Receiver Default
 
@@ -197,7 +188,6 @@ stateDiagram-v2
     ???+ note "Formalism"
     
         $$q^{em} \in N \xrightarrow{p_{receiver}} P \xrightarrow{p_{sender}} P \xrightarrow{a_{sender}} A \xrightarrow{r_{receiver}} R$$
-
 
 !!! note ""  
 
@@ -241,8 +231,6 @@ to lengthen it.
     [Negotiating Embargoes](#negotiating-embargoes). Rather, it once more
     acknowledges the time-dependent informational asymmetry inherent to the
     CVD process.
-
-    
 
 !!! info "A Logical Argument for Accepting the Shortest Proposed Embargo"
 
@@ -334,7 +322,6 @@ to lengthen it.
     lesser of _n_ and _m_:
     
     $$\Sigma ( \mathbf{z} ) = min(n,m)$$
-
 
 As an example:
 

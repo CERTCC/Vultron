@@ -12,12 +12,12 @@ stateDiagram-v2
     vfdpxA --> vfdPxA : P
     vfdpxA --> vfdpXA : X
     vfdpXA --> vfdPXA : P
- 	vfdpxa --> Vfdpxa : V
-	vfdpxA --> VfdpxA : V
-	vfdPxa --> VfdPxa : V
-	vfdPXa --> VfdPXa : V
-	vfdPxA --> VfdPxA : V
-	vfdPXA --> VfdPXA : V
+  vfdpxa --> Vfdpxa : V
+ vfdpxA --> VfdpxA : V
+ vfdPxa --> VfdPxa : V
+ vfdPXa --> VfdPXa : V
+ vfdPxA --> VfdPxA : V
+ vfdPXA --> VfdPXA : V
     Vfdpxa --> VfdPxa : P
     Vfdpxa --> VfdpXa : X
     VfdpXa --> VfdPXa : P
@@ -29,12 +29,12 @@ stateDiagram-v2
     VfdPxa --> VfdPXa : X
     VfdPXa --> VfdPXA : A
     VfdPxA --> VfdPXA : X
-	Vfdpxa --> VFdpxa : F
-	VfdpxA --> VFdpxA : F
-	VfdPxa --> VFdPxa : F
-	VfdPXa --> VFdPXa : F
-	VfdPxA --> VFdPxA : F
-	VfdPXA --> VFdPXA : F
+ Vfdpxa --> VFdpxa : F
+ VfdpxA --> VFdpxA : F
+ VfdPxa --> VFdPxa : F
+ VfdPXa --> VFdPXa : F
+ VfdPxA --> VFdPxA : F
+ VfdPXA --> VFdPXA : F
     VFdpxa --> VFdPxa : P
     VFdpxa --> VFdpXa : X
     VFdpXa --> VFdPXa : P
@@ -46,12 +46,12 @@ stateDiagram-v2
     VFdPxa --> VFdPXa : X
     VFdPXa --> VFdPXA : A
     VFdPxA --> VFdPXA : X
-	VFdpxa --> VFDpxa : D
-	VFdpxA --> VFDpxA : D
-	VFdPxa --> VFDPxa : D
-	VFdPXa --> VFDPXa : D
-	VFdPxA --> VFDPxA : D
-	VFdPXA --> VFDPXA : D
+ VFdpxa --> VFDpxa : D
+ VFdpxA --> VFDpxA : D
+ VFdPxa --> VFDPxa : D
+ VFdPXa --> VFDPXa : D
+ VFdPxA --> VFDPxA : D
+ VFdPXA --> VFDPXA : D
     VFDpxa --> VFDPxa : P
     VFDpxa --> VFDpXa : X
     VFDpXa --> VFDPXa : P

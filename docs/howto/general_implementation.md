@@ -12,13 +12,13 @@ Message formats can be thought of as two related problems:
 
 ### Structure and Semantic Content of Each Message Type
 
-In addition to the commentary throughout this section, messages will likely need to have some sort of consistent header 
+In addition to the commentary throughout this section, messages will likely need to have some sort of consistent header
 information and some content specifically designed to address the semantic needs of each message type.
 Such a format must include fields, datatypes, and an underlying formatting structure.
 
 ### Container Syntax for Messaging and Data Exchange
 
-While we have a predilection for JSON Schema-defined formats, other format specifications (e.g., XSD or protobuf) could 
+While we have a predilection for JSON Schema-defined formats, other format specifications (e.g., XSD or protobuf) could
 serve implementers' needs just as well.
 In fact, to the degree possible, it seems preferable for the container syntax to remain a late-binding decision in implementation.
 As long as the structure and semantics are well defined, most standard data formats should be adaptable to the task.
@@ -35,7 +35,6 @@ As long as the structure and semantics are well defined, most standard data form
     We anticipate that emerging formats like the [OASIS CSAF](https://oasis-open.github.io/csaf-documentation/) and ontologies
     like the [NIST Vulnerability Data Ontology](https://github.com/usnistgov/vulntology) ([Vulntology](https://github.com/usnistgov/vulntology)) will play a part.
 
-
 ## Transport Protocol
 
 We have not specified how Vultron Protocol implementations connect to each other.
@@ -45,13 +44,12 @@ For example, an XMPP message-routing system might be desired, or even blockchain
 to portions of this protocol as well.
 
 !!! note ""
-    
-    Vultron Protocol Implementations SHOULD use common API patterns (e.g., REST, WebSockets).
 
+    Vultron Protocol Implementations SHOULD use common API patterns (e.g., REST, WebSockets).
 
 ## Identity Management
 
-We have not addressed Participant authentication as part of the protocol, but obviously implementers will need to 
+We have not addressed Participant authentication as part of the protocol, but obviously implementers will need to
 determine how Participants know who they are talking to.
 Individual user accounts with multi-factor authentication are the de facto standard for modern CVD tools, but in
 an interoperable MPCVD world, the assumption of centralized identity management may not be practical.
@@ -68,7 +66,7 @@ necessary for Vultron Protocol implementations.
 ### Protecting Data in Transit
 
 It may be sufficient for implementations to rely on transport-layer encryption (e.g., TLS), but end-to-end encryption
-may be desirable in some cases. 
+may be desirable in some cases.
 For now at least, we leave this decision to implementers.
 
 !!! note ""

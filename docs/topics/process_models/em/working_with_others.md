@@ -8,14 +8,13 @@ an embargoed case.
 As anyone who has tried to schedule a meeting with multiple attendees
 can attest, multi-party scheduling can be difficult. When that schedule
 must also accommodate work completion schedules for an
-MPCVD case, it becomes even harder. In [Default Embargoes](#default-embargoes), 
+MPCVD case, it becomes even harder. In [Default Embargoes](#default-embargoes),
 we laid out a heuristic for resolving multiple embargo proposals, _The Shortest Embargo Proposed
 Wins_.
-More specifically, we recommended that Participants *accept* the
+More specifically, we recommended that Participants _accept_ the
 earliest proposed end date and immediately propose and evaluate the rest
 as potential revisions. This principle applies to any
 MPCVD case, even at its outset.
-
 
 ## Start Early, Start Small
 
@@ -131,25 +130,25 @@ the new Participant to accept the embargo prior to receiving the report.
 
 In MPCVD there are practical considerations to be made regarding the timing of *when*
 to notify individual Participants. The primary factor in these decisions
-stems from the interaction of the *Active* embargo with the potential
+stems from the interaction of the _Active_ embargo with the potential
 Participant's existing (explicit or implicit) disclosure policy.
 
-### Participants with Disclosure Policies Shorter Than an Existing Embargo.
+### Participants with Disclosure Policies Shorter Than an Existing Embargo
 
 Adding a potential Participant with a known default disclosure policy
 *shorter* than an extant embargo leaves Participants with these options
 to choose from:
 
-1.  Shorten the existing embargo to match the potential Participant's
+1. Shorten the existing embargo to match the potential Participant's
     policy.
 
-2.  Propose the existing embargo to the potential Participant, and, upon
+2. Propose the existing embargo to the potential Participant, and, upon
     acceptance, share the report with them.
 
-3.  Delay notifying the potential Participant until their default policy
+3. Delay notifying the potential Participant until their default policy
     aligns with the existing embargo.
 
-4.  Avoid including the potential Participant in the embargo entirely.
+4. Avoid including the potential Participant in the embargo entirely.
 
 !!! example "Example: A Vendor with a short default embargo"
 
@@ -168,27 +167,27 @@ to choose from:
     Participants with short default embargo policies until their policy
     aligns with the agreed embargo.
 
-### Participants with Disclosure Policies Longer Than an Existing Embargo.
+### Participants with Disclosure Policies Longer Than an Existing Embargo
 
 Similarly, adding a Participant with a known default disclosure policy
 *longer* than an extant embargo leaves Participants with the following
 options to choose from:
 
-1.  Lengthen the existing embargo to match the potential Participant's
+1. Lengthen the existing embargo to match the potential Participant's
     policy.
 
-2.  Propose the existing embargo to the potential Participant, and, upon
+2. Propose the existing embargo to the potential Participant, and, upon
     acceptance, share the report with them.
 
-3.  Avoid including the potential Participant in the embargo entirely.
+3. Avoid including the potential Participant in the embargo entirely.
 
-In the case of a Vendor with a *longer* default policy than the existing
+In the case of a Vendor with a _longer_ default policy than the existing
 embargo, it is still preferable to give them as much lead time as
-possible *even* if it is not possible to extend the embargo to their
+possible _even_ if it is not possible to extend the embargo to their
 preferred timing.
 
 !!! note ""
-   
+
     In the interest of receiving the report in the first place,
     potential Participants with a longer default policy than an existing
     case SHOULD accept the embargo terms offered.
@@ -215,10 +214,10 @@ preferred timing.
     Participants in a case with an existing embargo MAY choose to extend
     the embargo to accommodate a newly added Participant.
 
-### Untrustworthy Participants.
+### Untrustworthy Participants
 
 Unfortunately, not all potential CVD Participants are equally trustworthy with
-vulnerability information. 
+vulnerability information.
 
 !!! example "Examples of Untrustworthy Participants"
 
@@ -233,7 +232,6 @@ vulnerability information.
     trustworthy with non-public vulnerability information.
 
     In these or similar scenarios, these concerns might lead to the exclusion of otherwise trustworthy Participants from an embargo.
-    
 
 !!! note ""
 
@@ -254,7 +252,7 @@ Participants are left to be notified by the publication of the
 vulnerability report. This is the equivalent of treating them like a
 Participant with a default zero-day maximum embargo policy.
 
-### Coordinators.
+### Coordinators
 
 Third-party Coordinators, as Participants who are neither Finders nor
 Vendors, often play an important role in MPCVD cases, especially those with broad impact
@@ -267,7 +265,7 @@ make the argument for including third-party Coordinators in
 CVD cases of
 sufficient complexity, impact, or importance.
 
-### Other Parties.
+### Other Parties
 
 Some Participants in CVD have their own policies that prohibit notification of any parties unable to directly contribute
 to the development of a fix for a particular vulnerability.
@@ -279,22 +277,22 @@ coordinate the response within that community.
 
 However, it falls short in some cases, such as the following:
 
--   Vulnerabilities are found to affect a broad spectrum of Vendors and
+- Vulnerabilities are found to affect a broad spectrum of Vendors and
     products, especially when cases cross industry sectors or otherwise
     include Participants having widely divergent operational tempos or
     software delivery models.
 
--   Vulnerabilities affect systems deployed in high-impact niches, such
+- Vulnerabilities affect systems deployed in high-impact niches, such
     as critical infrastructure, public safety, and national security.
 
--   Outside expertise is needed to understand the implications or impact
+- Outside expertise is needed to understand the implications or impact
     of a vulnerability beyond the participating Vendors; sometimes the
     most knowledgeable parties work for someone else.
 
 ## Consequences of Non-Compliance
 
 Considering multiple cases over time, MPCVD can be thought of as an [iterated game](https://vuls.cert.org/confluence/display/CVD/5.5+Response+Pacing+and+Synchronization) analogous to the Prisoner's Dilemma.
-One notable strategy for the Prisoner's Dilemma is *tit for tat* in which non-cooperation from one party in one round
+One notable strategy for the Prisoner's Dilemma is _tit for tat_ in which non-cooperation from one party in one round
 can be met with non-cooperation from the opposite party in the next.
 While MPCVD is usually much bigger than a toy two-player game, we feel it is necessary to encode the possibility that
 non-cooperation will have downstream consequences.
@@ -303,4 +301,3 @@ non-cooperation will have downstream consequences.
 
     Participants MAY decline to participate in future
     CVD cases involving parties with a history of violating previous embargoes.
-

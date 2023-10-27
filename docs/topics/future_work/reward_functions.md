@@ -17,22 +17,22 @@ The following sections describe two additional reward functions.
 ## A Reward Function for Minimizing RM Strings
 
 In [RM State Transitions](../process_models/rm/index.md#rm-state-transitions), we described a grammar that generates
-RM histories. 
-The state machine can generate arbitrarily long histories because of the cycles in the state machine graph; 
+RM histories.
+The state machine can generate arbitrarily long histories because of the cycles in the state machine graph;
 however, we observed that human Participants in any real CVD case would likely check the amount of churn.
 That sort of reliance on human intervention will not scale as well as a more automatable solution might.
 
 As a result, we suggest that future work might produce a reward function that can be used to optimize RM histories.
 Such a function would need to include the following:
 
--   a preference for shorter paths over longer ones
+- a preference for shorter paths over longer ones
 
--   a preference for paths that traverse through $q^{rm} \in A$ over
+- a preference for paths that traverse through $q^{rm} \in A$ over
     ones that do not
 
--   a preference for Vendor attentiveness. 
+- a preference for Vendor attentiveness.
 
--   a preference for validation accuracy
+- a preference for validation accuracy
 
 !!! tip "Notes on Vendor attentiveness"
 
@@ -47,7 +47,7 @@ Such a function would need to include the following:
           $\mathbf{D} \prec \mathbf{A}$ are impossible when the Vendor ignores
           the report.
     No reward function should provide incentive for willful Vendor ignorance.
-     
+
 !!! tip "Notes on validation accuracy"
 
     Real vulnerabilities should pass through $q^{rm} \in V$, while bogus reports should pass through $q^{rm} \in I$.
@@ -76,22 +76,20 @@ quorum of Participants agree that a Vendor's products are affected even
 if the Vendor denies it, an opportunity exists to capture this
 information as part of the case.
 
-
-
 ## A Reward Function for Minimizing EM Strings
 
 Similarly, the EM process also has the potential to generate arbitrarily long histories,
-as shown in [A Regular Grammar for EM](../process_models/em/index.md#sec:em_grammar). 
+as shown in [A Regular Grammar for EM](../process_models/em/index.md#sec:em_grammar).
 Again, reliance on humans to resolve this shortcoming may be acceptable for now;
-however, looking to the future, we can imagine a reward function to be optimized. 
+however, looking to the future, we can imagine a reward function to be optimized.
 The EM reward function might include the following:
 
--   a preference for short paths
+- a preference for short paths
 
--   a preference for quick agreement (i.e., the $a$ transition appearing
+- a preference for quick agreement (i.e., the $a$ transition appearing
     early in the EM
     history)
 
--   a limit on how long an EM history can get without reaching
+- a limit on how long an EM history can get without reaching
     $q^{em} \in A$ at all (i.e., How many proposal-rejection cycles are
     tolerable before giving up?)

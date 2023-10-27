@@ -63,7 +63,6 @@ Finally, the EM state is updated to *eXited* and an $ET$ message is emitted.
     - [Threat Monitoring Behavior](monitor_threats_bt.md)
     - [Message Handling Behavior](msg_intro_bt.md)
 
-
 The Terminate Embargo Behavior Tree appears in multiple locations in the
 larger tree.
 We will encounter it again as a possible response to evidence collected via

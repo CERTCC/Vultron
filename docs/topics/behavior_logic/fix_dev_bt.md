@@ -1,6 +1,6 @@
 # Fix Development Behavior
 
-The Fix Development Behavior Tree is shown below. 
+The Fix Development Behavior Tree is shown below.
 
 ```mermaid
 ---
@@ -28,8 +28,8 @@ flowchart LR
 
 (B) For Vendors, if a fix is ready (i.e., the case is in $q^{cs} \in VF\cdot\cdot\cdot\cdot$), the tree returns *Success*.
 
-(C) Otherwise, engaged Vendors ($q^{rm} \in A$) can 
+(C) Otherwise, engaged Vendors ($q^{rm} \in A$) can
 
 - create fixes
-- set $q^{cs} \in Vfd\cdot\cdot\cdot \xrightarrow{\mathbf{F}} VFd\cdot\cdot\cdot$ 
+- set $q^{cs} \in Vfd\cdot\cdot\cdot \xrightarrow{\mathbf{F}} VFd\cdot\cdot\cdot$
 - emit $CF$ upon completion

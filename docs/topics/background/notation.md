@@ -7,7 +7,7 @@ This page provides a reference for the conventions and notation used throughout 
 
 ## Documentation Conventions
 
-We are using the [_Admonitions_](https://squidfunk.github.io/mkdocs-material/reference/admonitions/) (call-outs) provided by 
+We are using the [_Admonitions_](https://squidfunk.github.io/mkdocs-material/reference/admonitions/) (call-outs) provided by
 [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) to highlight specific types of information in this
 documentation.
 
@@ -30,7 +30,7 @@ documentation.
     Statements in boxes like this are informative notes. 
     They provide additional information that may be helpful in understanding the normative requirements.
 
-!!! tip 
+!!! tip
 
     Statements in boxes like this are tips. 
     They provide additional information that might point to other resources, or provide additional context that may be 
@@ -54,15 +54,15 @@ documentation.
     We use this (as you'll see below) as an indicator that a page contains
     normative content.
 
-!!! warning 
-    
+!!! warning
+
     This is a warning.
 
-Material for MkDocs supports a number of other [admonitions](https://squidfunk.github.io/mkdocs-material/reference/admonitions/). 
+Material for MkDocs supports a number of other [admonitions](https://squidfunk.github.io/mkdocs-material/reference/admonitions/).
 We're generally trying to keep our usage consistent with the admonition names used in the Material for MkDocs
-[documentation](https://squidfunk.github.io/mkdocs-material/reference/admonitions/), but we'd also like to list the 
+[documentation](https://squidfunk.github.io/mkdocs-material/reference/admonitions/), but we'd also like to list the
 ones we use here for completeness and clarity.
-If you spot us using one that is not listed here, or being inconsistent with the above in our usage, please let us 
+If you spot us using one that is not listed here, or being inconsistent with the above in our usage, please let us
 know by [opening an issue](https://github.com/CERTCC/Vultron/issues).
 
 ### Normative and Non-Normative Pages
@@ -75,7 +75,7 @@ We use the following conventions to indicate whether a page contains normative r
     {% include-markdown "../../includes/normative.md" %}
 
     Pages that contain normative requirements are marked with a banner at or near the top of the page:
-    
+
 !!! info "Recognizing Non-Normative Pages"
 
     {% include-markdown "../../includes/not_normative.md" %}
@@ -84,7 +84,6 @@ We use the following conventions to indicate whether a page contains normative r
     This banner may be omitted if the page is clearly non-normative.
     We include it on pages where that may not be clear, for example on pages where we are describing a specific implementation
     in terms of SHOULD, MUST, MAY, etc. statements, but those statements are not intended to be normative requirements.
-
 
 ## Mathematical Notation
 

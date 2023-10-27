@@ -3,8 +3,8 @@
 {% include-markdown "../includes/not_normative.md" %}
 
 In the context of the Vultron Protocol, once a report has been validated
-(i.e., it is in the RM [_Valid_](../topics/process_models/rm/index.md#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to 
-determine what further effort, if any, is necessary. 
+(i.e., it is in the RM [_Valid_](../topics/process_models/rm/index.md#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to
+determine what further effort, if any, is necessary.
 While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://github.com/CERTCC/SSVC) model.
 
 ## SSVC Supplier and Deployer Trees
@@ -31,7 +31,7 @@ the _Deployer Tree_.
     \end{cases}$$
 
 !!! note "SSVC _Deployer Tree_ Mapping to RM States"
-    
+
     $$\label{eq:ssvc_deployer_tree_output}
     q^{rm} \in
     \begin{cases}
@@ -58,7 +58,7 @@ We remind readers of a key takeaway from the protocol requirements in
 the main part of this documentation:
 
 !!! note ""
- 
+
     Vendors SHOULD communicate their prioritization choices when making
     either a _defer_ ($\{V,A\} \xrightarrow{d} D$) or _accept_
     ($\{V,D\} \xrightarrow{a} A$) transition out of the _Valid_,
@@ -85,13 +85,12 @@ Similar to the _Supplier Tree_ mapping above, the mapping here is simple, as sho
         \end{Bmatrix} \\
     \end{cases}$$
 
-
 Again, whereas the _Decline_ output maps directly to the RM [_Deferred_](../topics/process_models/rm/index.md#the-deferred-d-state) state, the remaining two
 states (_Track_ and _Coordinate_) imply the necessity for distinct processes within the Coordinator's RM [_Accepted_](../topics/process_models/rm/index.md#the-accepted-a-state) state.
 
-On the other hand, the SSVC _Coordinator Publish Tree_ falls entirely within the Coordinator's _Accepted_ state, so its 
+On the other hand, the SSVC _Coordinator Publish Tree_ falls entirely within the Coordinator's _Accepted_ state, so its
 output does not directly induce any Coordinator RM state transitions.
-However, a number of its decision points *do* touch on the protocol models, which we cover next.
+However, a number of its decision points _do_ touch on the protocol models, which we cover next.
 
 ## SSVC Decision Points and the Vultron Protocol
 
@@ -120,12 +119,11 @@ These values map directly onto state subsets in the [Case State (CS) model](../t
 
 A value of _None_ implies that no exploits have been made public, and no attacks have been observed
 (i.e., $q^{cs} \in \cdot\cdot\cdot\cdot xa$).
-The _PoC_ value means that an exploit is public, but no attacks have been observed 
-(i.e., $q^{cs} \in \cdot\cdot\cdot\cdot Xa$). 
+The _PoC_ value means that an exploit is public, but no attacks have been observed
+(i.e., $q^{cs} \in \cdot\cdot\cdot\cdot Xa$).
 Finally, the _Active_ value indicates attacks are occurring
 (i.e., $q^{cs} \in \cdot\cdot\cdot\cdot\cdot A$).
 These case states and SSVC values are equivalent in both directions, hence our use of the "if-and-only-if" ($\iff$) symbol.
-
 
 ### Report Public
 
@@ -144,7 +142,7 @@ As above, "$\iff$" indicates the bidirectional equivalence.
 
 ### Supplier Contacted
 
-If the Supplier (Vendor) has been notified (i.e., there is reason to believe they are at least in the RM [_Received_](../topics/process_models/rm/index.md#the-received-r-state) 
+If the Supplier (Vendor) has been notified (i.e., there is reason to believe they are at least in the RM [_Received_](../topics/process_models/rm/index.md#the-received-r-state)
 state, equivalent to the $V\cdot\cdot\cdot\cdot\cdot$ CS state subset) the _Supplier Contacted_ value should be _Yes_,
 otherwise it should be _No_.
 
@@ -157,17 +155,16 @@ otherwise it should be _No_.
         No & \iff q^{rm}_{Vendor} \in S \text{ or } q^{cs}_{Vendor} \in vfd \cdot\cdot\cdot \\
     \end{cases}$$
 
-
 ### Report Credibility
 
-Unlike most of the other SSVC decision points covered here that form a part of a Participant's report prioritization 
-process *after* report validation, the _Report Credibility_ decision point forms an important step in the Coordinator's
+Unlike most of the other SSVC decision points covered here that form a part of a Participant's report prioritization
+process _after_ report validation, the _Report Credibility_ decision point forms an important step in the Coordinator's
 validation process.
 In fact, it is often the only validation step possible when the Coordinator lacks the ability to reproduce a
 vulnerability whether due to constraints of resources, time, or skill.
 Thus, a value of _Credible_ can be expected to lead to an RM transition to [_Valid_](../topics/process_models/rm/index.md#the-valid-v-state) ($q^{rm} \in R \xrightarrow{v} V$),
-assuming any additional validation checks also pass. 
-On the contrary, _Not-Credible_ always implies the RM transition to [_Invalid_](../topics/process_models/rm/index.md#the-invalid-i-state) ($q^{rm} \in R \xrightarrow{i} I$) 
+assuming any additional validation checks also pass.
+On the contrary, _Not-Credible_ always implies the RM transition to [_Invalid_](../topics/process_models/rm/index.md#the-invalid-i-state) ($q^{rm} \in R \xrightarrow{i} I$)
 because "Valid-but-not-Credible" is a contradiction.
 
 !!! note "SSVC _Report Credibility_ Decision Point Mapped to RM States"
@@ -185,7 +182,7 @@ From the Coordinator's perspective, if enough Suppliers in a CVD case have commu
 (i.e., enough Vendors are in the RM _Accepted_ state already or are expected to make it there soon from either the
 _Received_ or _Valid_ states), then the SSVC value would be _Active_.
 
-Vendors in _Invalid_ or _Closed_ can be taken as disengaged, and it might be appropriate to select _Unresponsive_ for 
+Vendors in _Invalid_ or _Closed_ can be taken as disengaged, and it might be appropriate to select _Unresponsive_ for
 the SSVC _Engagement_ decision point.
 
 Vendors in either _Received_ or _Deferred_ might be either _Active_ or _Unresponsive_, depending on the specific report
@@ -322,5 +319,3 @@ graph LR
     yet to actively engage in the case for whatever reason&mdash;as indicated by their failure to reach the RM 
     _Accepted_ state or demonstrate progress toward it by at least getting to RM _Valid_ 
     ($q^{rm} \in \{A,V\}$)&mdash;then they can be categorized as _Uncooperative/Unresponsive_.
-
-

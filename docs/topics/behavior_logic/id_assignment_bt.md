@@ -40,6 +40,5 @@ for assigning an ID](https://www.cve.org/ResourcesSupport/AllResources/CNARules#
 
 Otherwise, if the Participant is not a CNA, they will have to [request an ID from a CNA](https://www.cve.org/About/Process).
 
-Should both assignment branches fail, the behavior fails. 
+Should both assignment branches fail, the behavior fails.
 Otherwise, as long as one of them succeeds, the behavior succeeds.
-

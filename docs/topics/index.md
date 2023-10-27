@@ -12,7 +12,6 @@
     For technical reference, see [Reference](../reference/index.md).
     If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://vuls.cert.org/confluence/display/CVD/).
 
-
 This section provides an overview of the Vultron Protocol, including:
 
 - [Background](background/index.md)

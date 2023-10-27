@@ -2,17 +2,17 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-The idea of CVD embargoes implies a means of dividing the world into 
+The idea of CVD embargoes implies a means of dividing the world into
 
-1. those who belong in the embargo 
+1. those who belong in the embargo
 2. those who do not
 
 Because _authentication_ is not the same as _authorization_, we cannot simply rely on knowing who a Participant
-is; we also have to be able to identify *why* they are *relevant* to a particular case.
+is; we also have to be able to identify _why_ they are _relevant_ to a particular case.
 
-Thus, we must ask: 
+Thus, we must ask:
 
-!!! question 
+!!! question
 
     How do Participants find other relevant potential Participants to invite to a case?
 
@@ -31,10 +31,10 @@ individual Vendor contact.
 But in larger MPCVD cases, there are a few entangled
 problems:
 
-1.  It can be difficult and inefficient to collect contact information
+1. It can be difficult and inefficient to collect contact information
     for all possibly relevant parties.
 
-2.  Even if contact information is widely available using searchable
+2. Even if contact information is widely available using searchable
     resources, many Vendors' preferred contact methods might preclude
     automation of mass notification (or require customized integration
     to ensure interoperability between report senders and receivers).
@@ -43,24 +43,23 @@ problems:
     Others ask for submissions via a customized web form. These and [other examples](https://vuls.cert.org/confluence/display/CVD/4.2+Reporting)
     hinder the interoperability of MPCVD processes.
 
-3.  It is not always clear which *other* Vendors' products contain the
+3. It is not always clear which _other_ Vendors' products contain the
     affected product, which limits the ability for an MPCVD cases to follow the software
     supply chain.
 
-4.  Sometimes vulnerabilities arise in protocols or specifications where
+4. Sometimes vulnerabilities arise in protocols or specifications where
     multiple implementations are affected. It can be difficult to
     identify Vendors whose products implement specific technologies.
     Software reverse engineering methods can be used to identify
     affected products in some cases.
 
-5.  At the same time, some Vendors treat their product's subcomponents
+5. At the same time, some Vendors treat their product's subcomponents
     as proprietary close-hold information for competitive advantage;
     this might happen, for example, with OEM or white label licensing agreements.
     While it is certainly their prerogative to do so, this desire to
     avoid disclosing internal components of a product can inhibit
     discovery---and therefore disclosure to the Vendor---that a
     vulnerability affects a product.
-
 
 !!! tip inline end "For more information"
 
@@ -79,15 +78,15 @@ solicits contributions from the community.
 But further improvements to MPCVD contact management could be made by
 standardizing the following:
 
--   contact information records and the APIs to access them
+- contact information records and the APIs to access them
 
--   contact methods, including common protocols such as the one we just
+- contact methods, including common protocols such as the one we just
     proposed, in conjunction with common data object models and
     vocabularies or ontologies
 
--   SBOM publication and aggregation services
+- SBOM publication and aggregation services
 
--   mechanisms for Vendors to register their interest in specific
+- mechanisms for Vendors to register their interest in specific
     technologies
 
 The last of these suggested improvements is not without its challenges.

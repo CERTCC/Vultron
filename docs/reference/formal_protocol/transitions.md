@@ -3,10 +3,10 @@
 {% include-markdown "../../includes/normative.md" %}
 
 In this section, we describe the transition functions for the RM, EM, and CVD Case processes, respectively.
-Note that while the RM process is largely independent of the other two process models, the EM and CVD process models 
+Note that while the RM process is largely independent of the other two process models, the EM and CVD process models
 have some noteworthy interactions, which we will cover in detail.
 
-Revisiting the formal protocol definition from the [introduction](index.md): 
+Revisiting the formal protocol definition from the [introduction](index.md):
 
 !!! note "Transition Function Defined"
 
@@ -18,7 +18,6 @@ Revisiting the formal protocol definition from the [introduction](index.md):
     message $x$ in state $s$. It is a transmission if $x$ is from $M_{ij}$
     and a reception if $x$ is from $M_{ji}$.
 
-
 !!! tip "Notation Conventions on this Page"
 
     - By convention, CS states are labeled in the order $vfdpxa$.
@@ -28,7 +27,6 @@ Revisiting the formal protocol definition from the [introduction](index.md):
     - Dashes ($−$) indicate no state change.
     - Left-harpoons ($\leftharpoondown$) indicate a message received.
     - Right-harpoons ($\rightharpoonup$) indicate a message sent.
-
 
 ## RM Transition Functions
 
@@ -69,7 +67,7 @@ Otherwise,
 
     Participants SHOULD send $RE$ regardless of the state when any error
     is encountered.
-   
+
 !!! note ""
 
     Recipients MAY ignore messages received on $Closed$ cases.
@@ -99,14 +97,13 @@ Otherwise,
     ($GI$) as to the nature of the error.
 
 !!! note inline end "RM Messages Sent and State Transitions"
-    
+
     $$S_i \times M_{ij}^{rm} \rightarrow S_i$$
 
 ### RM Messages Sent and State Transitions
 
 The table below lists each RM message type and the states in which that message is appropriate to send along with the
 corresponding sender state transition.
-
 
 | Sender Preconditions<br/>$s_n \in S_i$<br/>$q^{cs},q^{rm},q^{em}$ | Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm},q^{em}$ | Message Type<br/>$\rightharpoonup$<br/>$M_{ij}$ |
 |:-----------------------------------------------------------------:|:------------------------------------------------------------------------:|:-------------------------------------------------------:|
@@ -119,16 +116,14 @@ corresponding sender state transition.
 | $*,*,*$                                              | $-, -, -$                                              |                          $RE$                           |
 | $*,*,*$                                              | $-, -, -$                                              |                          $RK$                           |
 
-
 !!! note inline end "RM Messages Received and State Transitions"
 
     $$S_i \times M_{ji}^{rm} \rightarrow S_i$$
 
 ### RM Messages Received and State Transitions
 
-The table below lists the effects of receiving RM messages on the receiving Participant's state coupled with the 
+The table below lists the effects of receiving RM messages on the receiving Participant's state coupled with the
 expected response message.
-
 
 | Received Msg.<br/>$\leftharpoondown$<br/>$M_{ji}$ | Receiver Precondition<br/>$s_n \in S_i$<br/>$q^{cs},q^{rm},q^{em}$ | Receiver Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm},q^{em}$ | Response Msg.<br/>$\rightharpoonup$<br/>$M_{ij}$ |
 |:-------------------------------------------------:|:------------------------------------------------------------------:|:---------------------------------------------------------------------------------:|:------------------------------------------------:|
@@ -187,11 +182,9 @@ $q^{cs}$ is in $\cdot\cdot\cdot pxa$ or not.
     Participants SHOULD acknowledge ($EK$) and inquire ($GI$) about the
     nature of any error reported by an incoming $EE$ message.
 
-
 !!! note inline end "EM Messages Sent and State Transitions"
-    
-    $$S_i \times M_{ij}^{em} \rightarrow S_i$$
 
+    $$S_i \times M_{ij}^{em} \rightarrow S_i$$
 
 ### EM Messages Sent and State Transitions
 
@@ -213,7 +206,6 @@ the corresponding sender state transition.
 |                            $*,\lnot C,*$                            |                                     $-,-,-$                                      |                      $EK$                       |
 |                            $*,\lnot C,*$                            |                                     $-,-,-$                                      |                      $EE$                       |
 
-
 !!! note inline end "EM Messages Received and State Transitions"
 
     $$S_i \times M_{ji}^{em} \rightarrow S_i$$
@@ -227,7 +219,6 @@ The next table lists the effects of receiving an EM message to the receiving Par
     Incoming EM Messages do not trigger any change in $q^{cs}$ or $q^{rm}$.
     When CS is $q^{cs} \not \in  \cdot\cdot\cdot pxa$, embargoes are not viable.
 
-
 | Received Msg.<br/>$\leftharpoondown$<br/>$M_{ji}$ | Receiver Precondition<br/>$s_n \in S_i$<br/>$q^{cs},q^{rm}$ | Receiver Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm},q^{em}$ | Response Msg.<br/>$\rightharpoonup$<br/>$M_{ij}$ |
 |:--------------------------------------------------------:|:-----------------------------------------------------------:|:---------------------------------------------------------------------------------:|:------------------------------------------------:|
 |                           $EP$                           |              $\cdot\cdot\cdot pxa, \lnot C, N$              |                              $-,-,\xrightarrow{p} P$                              |                       $EK$                       |
@@ -239,7 +230,7 @@ The next table lists the effects of receiving an EM message to the receiving Par
 |                           $EC$                           |              $\cdot\cdot\cdot pxa, \lnot C, R$              |                              $-,-,\xrightarrow{a} A$                              |                       $EK$                       |
 |                           $ER$                           |                       $*, \lnot C, P$                       |                              $-,-,\xrightarrow{r} N$                              |                       $EK$                       |
 |                           $ET$                           |                       $*, \lnot C, A$                       |                              $-,-,\xrightarrow{t} X$                              |                       $EK$                       |
-|                           $ET$                           |                       $*, \lnot C, R$                       |                              $-,-,\xrightarrow{t} X$                              |                       $EK$                       | 
+|                           $ET$                           |                       $*, \lnot C, R$                       |                              $-,-,\xrightarrow{t} X$                              |                       $EK$                       |
 |                           $ET$                           |                       $*, \lnot C, X$                       |                                      $-,-,-$                                      |                       $EK$                       |
 |                           $EP$                           |           $\lnot \cdot\cdot\cdot pxa,\lnot C, N$            |                                      $-,-,-$                                      |                       $ER$                       |
 |                           $EP$                           |           $\lnot \cdot\cdot\cdot pxa,\lnot C, P$            |                              $-,-,\xrightarrow{r} N$                              |                       $ER$                       |
@@ -251,7 +242,6 @@ The next table lists the effects of receiving an EM message to the receiving Par
 |                           $EE$                           |                       $*,\lnot C,*$                       |                                      $-,-,-$                                      |                     $EK+GI$                      |
 |                           $EK$                           |                       $*,\lnot C,*$                       |                                      $-,-,-$                                      |                       $-$                        |
 |           Any EM msg. not<br/> addressed above           |                       $*,\lnot C,*$                       |                                      $-,-,-$                                      |                       $EE$                       |
-
 
 ## CVD Transition Functions
 
@@ -265,7 +255,7 @@ Therefore, the receiver of a message indicating another Participant has changed 
 status is not expected to change their own state as a result.
 
 However, this is not the case for the remainder of the CS substates.
-As above, the appropriate Participant response to receiving CS messages (namely, those surrounding *Public Awareness*, 
+As above, the appropriate Participant response to receiving CS messages (namely, those surrounding *Public Awareness*,
 *Exploit Public*, or *Attacks Observed*) depends on the state of the EM process.
 
 !!! note ""
@@ -274,14 +264,13 @@ As above, the appropriate Participant response to receiving CS messages (namely,
     of publicly available information about the vulnerability or its
     exploit code.
 
-
 !!! note ""
 
     Participants SHOULD initiate embargo termination upon becoming aware
     of attacks against an otherwise unpublished vulnerability.
 
 !!! note inline end "CS Messages Sent and State Transitions"
-    
+
     $$S_i \times M_{ij}^{cs} \rightarrow S_i$$
 
 ### CS Messages Sent and State Transitions
@@ -289,13 +278,10 @@ As above, the appropriate Participant response to receiving CS messages (namely,
 The following table lists each CVD message type and the states in which that message is appropriate to send along with
 the corresponding sender state transition.
 
-
-
 !!! tip "Notes on CS Messages Sent and State Transitions"
 
     Note that when a CS message induces a $q^{rm}$ or $q^{em}$ state change, the corresponding RM or EM message should 
     be sent as indicated in the tables above.
-
 
 | Sender Precondition<br/>$(s_n \in S_i)$<br/>$q^{cs},q^{rm},q^{em}$ | Sender Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm},q^{em}$ | Message Type<br/>$\rightharpoonup$<br/>$M_{ij}$ |
 |:------------------------------------------------------------------:|:-------------------------------------------------------------------------------:|:-----------------------------------------------:|
@@ -315,17 +301,14 @@ the corresponding sender state transition.
 |              $\cdot\cdot\cdot\cdot\cdot a,\lnot C,P$               |   $\xrightarrow{\mathbf{A}} \cdot\cdot\cdot\cdot\cdot A, -,\xrightarrow{r} N$   |                      $CA$                       |
 |           $\cdot\cdot\cdot\cdot\cdot a,\lnot C,\{A,R\}$            |   $\xrightarrow{\mathbf{A}} \cdot\cdot\cdot\cdot\cdot A, -,\xrightarrow{t} X$   |                      $CA$                       |
 
-
 !!! note inline end "CS Messages Received and State Transitions"
 
     $$S_i \times M_{ji}^{cs} \rightarrow S_i$$
-
 
 ### CS Messages Received and State Transitions
 
 The following table lists the effects of receiving a
 CS message to the receiving Participant's state coupled with the expected response message.
-
 
 | Received Msg.<br/>$\leftharpoondown$<br/>$M_{ji}$ | Receiver Precondition<br/>$s_n \in S_i$<br/>$q^{cs},q^{rm},q^{em}$ | Receiver Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm},q^{em}$ | Response Msg.<br/>$\rightharpoonup$<br/>$M_{ij}$ |
 |:-------------------------------------------------:|:------------------------------------------------------------------:|:---------------------------------------------------------------------------------:|:------------------------------------------------:|
@@ -349,11 +332,10 @@ CS message to the receiving Participant's state coupled with the expected respon
 | $CE$ | $*,\lnot C,*$ | $-,-,-$ |                     $CK+GI$                      |
 | $CK$ | $*,\lnot C,*$ | $-,-,-$ |                       $-$                        |
 
-
 ## General Transition Functions
 
-Finally, for the sake of completeness, we show that general inquiries, acknowledgments, and errors are otherwise independent 
-of the rest of the processes. 
+Finally, for the sake of completeness, we show that general inquiries, acknowledgments, and errors are otherwise independent
+of the rest of the processes.
 No state changes are expected to occur based on the receipt of a General message.
 
 !!! tip "General Messages are not a *No-Op*"
@@ -363,15 +345,13 @@ No state changes are expected to occur based on the receipt of a General message
     state change to either the sender or receiver Participants.
 
 !!! note inline end "General Messages Sent and State Transitions"
-    
+
     $$S_i \times M_{ij}^{gen} \rightarrow S_i$$
 
 ### General Messages Sent and State Transitions
 
 The following table lists each general message and the states in which it is appropriate to send along with the
-corresponding sender state. 
-
-
+corresponding sender state.
 
 | Sender Precondition<br/>$(s_n \in S_i)$<br/>$q^{cs},q^{rm},q^{em}$ | Sender Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm},q^{em}$ | Message Type<br/>$\rightharpoonup$<br/>$M_{ij}$ |
 |:------------------------------------------------------------------:|:-------------------------------------------------------------------------------:|:-----------------------------------------------:|
@@ -385,10 +365,8 @@ corresponding sender state.
 
 ### General Messages Received and State Transitions
 
-The next table lists the effects of receiving a general message to the receiving Participant's state coupled with the 
+The next table lists the effects of receiving a general message to the receiving Participant's state coupled with the
 expected response message.
-
-
 
 | Received Msg.<br/>$\leftharpoondown$<br/>$M_{ji}$ | Receiver Precondition<br/>$s_n \in S_i$<br/>$q^{cs},q^{rm},q^{em}$ | Receiver Transition<br/>$(s_n \xrightarrow{} s_{n+1})$<br/>$q^{cs},q^{rm},q^{em}$ | Response Msg.<br/>$\rightharpoonup$<br/>$M_{ij}$ |
 |:-------------------------------------------------:|:------------------------------------------------------------------:|:---------------------------------------------------------------------------------:|:------------------------------------------------:|

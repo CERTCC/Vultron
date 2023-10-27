@@ -1,7 +1,7 @@
 # The Need for Interoperability in Coordinated Vulnerability Disclosure
 
 The overall goal of our Vultron Protocol effort is to achieve *interoperability* among CVD process implementations according to the
-broad definition of that term found in the 2004 report, [*Current Perspectives on Interoperability*](https://doi.org/10.1184/R1/6572852.v1) by Brownsword et al.: 
+broad definition of that term found in the 2004 report, [*Current Perspectives on Interoperability*](https://doi.org/10.1184/R1/6572852.v1) by Brownsword et al.:
 
 !!! note inline "Brownsword et al. on *Interoperability*"
 
@@ -20,7 +20,7 @@ If we were to go in the reverse order, we might wind up with systems that
 exchange data quickly and accurately yet still fail to accomplish the
 mutually beneficial outcomes that MPCVD sets out to achieve.
 Carney et al. illustrate the importance of semantic interoperability in their 2005 report
-[*Some Current Approaches to Interoperability*](https://doi.org/10.1184/R1/6584258.v1): 
+[*Some Current Approaches to Interoperability*](https://doi.org/10.1184/R1/6584258.v1):
 
 !!! quote "Carney et al. on semantic interoperability"
 
@@ -66,27 +66,27 @@ write,
     trust: it is better to know that you cannot trust a particular party
     than to misplace trust in a party
 
-The protocol we propose is intended to promote trust between MPCVD Participants both within an individual case as well 
+The protocol we propose is intended to promote trust between MPCVD Participants both within an individual case as well
 as over time and across cases.
 
 ## Objectives
 
 The objectives of this documentation are as follows:
 
-1.  Provide a set of common primitives to serve as an ontological
+1. Provide a set of common primitives to serve as an ontological
     foundation for CVD process definitions across
     organizations.
 
-2.  Construct abstract workflows that support the inter-organizational
+2. Construct abstract workflows that support the inter-organizational
     coordination and synchronization required for the
     CVD process to
     be successful.
 
-3.  From those primitives and workflows, identify a set of message types
+3. From those primitives and workflows, identify a set of message types
     needed for the CVD process to function.
 
-4.  Provide high-level requirements for the semantic content of those
+4. Provide high-level requirements for the semantic content of those
     message types.
 
-5.  Explore options for the syntactic representation of those message
+5. Explore options for the syntactic representation of those message
     types.
