@@ -28,7 +28,7 @@ Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD):
     
     The CVD process continues until the answers to these questions are "nothing," and "nobody."
 
-### CVD *Is* MPCVD, and MPCVD *Is* CVD
+## CVD *Is* MPCVD, and MPCVD *Is* CVD
 
 Any given CVD case is made up of many individual disclosure events, for example,
 
@@ -51,7 +51,7 @@ $N_{vendors} \geq 1$
 and for which the "traditional" CVD case is merely a special (and often simpler) case where
 $N_{vendors} = 1$.
 
-### Context of Our Recent Work
+## Context of Our Recent Work
 
 This documentation, in the context of recent CVD work at the
 [CERT/CC](https://www.sei.cmu.edu/about/divisions/cert/index.cfm),
@@ -80,7 +80,7 @@ Whereas the [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD) offers a
 process and the many scenarios one can expect to encounter as a Participant therein, in this documentation we provide an
 additional layer of formality in the form of a *protocol* for MPCVD.
 
-### What We Mean by *Protocol*
+## What We Mean by *Protocol*
 
 We first define what we mean by our use of the term *protocol* by
 providing a few common usages from the [Oxford English Dictionary](https://www.oed.com/).
