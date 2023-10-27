@@ -6,8 +6,16 @@ name: Python application
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - vultron/**
+      - pyproject.toml
+      - .github/workflows/python-app.yml
   pull_request:
     branches: [ "main" ]
+    paths:
+      - vultron/**
+      - pyproject.toml
+      - .github/workflows/python-app.yml
 
 permissions:
   contents: read
