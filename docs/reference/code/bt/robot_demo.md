@@ -7,7 +7,6 @@ framework we've built.
 We're providing this as an example to show how to build a behavior tree that can be used
 to implement some context-aware behavior.
 
-
 ## Behaviors
 
 The robot has a number of behaviors:
@@ -19,7 +18,6 @@ The robot has a number of behaviors:
 - If the ball is not nearby, it will move toward the ball.
 - If the ball is not found, it will search for it.
 - If it fails to complete its task, it will ask for help.
-
 
 ## The Behavior Tree
 
@@ -38,8 +36,8 @@ Legend:
 | &#11052;  | ConditionNode |
 | &#127922; | Fuzzer node (randomly succeeds or fails some percentage of the time) |
 
-
 ## Demo Output
+
 When the tree is run, it will look something like this:
 
 ```text
@@ -51,4 +49,3 @@ When the tree is run, it will look something like this:
 ::: vultron.bt.base.demo.robot
     options:
         heading_level: 3
-    

@@ -23,7 +23,7 @@ Scoring is as follows:
 - 10 points per pill
 - 200 points for the first ghost, 400 for the second, 800 for the third, 1600 for the fourth
 
-There are 240 pills on the board. The max score is 
+There are 240 pills on the board. The max score is
 
 $$(240 \times 10) + (200 + 400 + 800 + 1600) = 5400$$
 
@@ -51,8 +51,8 @@ Legend:
 | &#11052;  | ConditionNode |
 | &#127922; | Fuzzer node (randomly succeeds or fails some percentage of the time) |
 
-
 ## Demo Output
+
 When the tree is run, it will look something like this:
 
 ```text
@@ -64,4 +64,3 @@ When the tree is run, it will look something like this:
 ::: vultron.bt.base.demo.pacman
     options:
         heading_level: 3
-    

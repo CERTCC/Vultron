@@ -27,20 +27,19 @@ change the code that creates them.
 Chosen option: "Use factory methods", because it allows us to create the nodes in a consistent way, and it allows us to
 change the underlying implementation without having to change the code that creates them.
 
-
 ### Consequences
 
 Good because:
-- retains flexibility to change the underlying implementation without having to change the code that creates them
-- allows us to create the nodes in a consistent way
-- allows us to keep the `vultron.bt.base` module clean and focused on the base classes 
-- allows us to keep the rest of the `vultron.bt` module focused on Vultron-specific needs
+* retains flexibility to change the underlying implementation without having to change the code that creates them
+* allows us to create the nodes in a consistent way
+* allows us to keep the `vultron.bt.base` module clean and focused on the base classes
+* allows us to keep the rest of the `vultron.bt` module focused on Vultron-specific needs
 
 Neutral because:
-- Adds a central place to maintain the factory methods
+* Adds a central place to maintain the factory methods
 
 Bad because:
-- less pythonic than just subclassing the BT node types
+* less pythonic than just subclassing the BT node types
 
 ## Pros and Cons of the Options
 
@@ -48,13 +47,13 @@ Bad because:
 
 Good because:
 
-- more pythonic
-- 
+* more pythonic
+*
 
 Neutral because:
 
 Bad because:
-- Harder to enforce consistency in how the nodes are created
+* Harder to enforce consistency in how the nodes are created
 
 ## More Information
 
@@ -63,5 +62,5 @@ This decision was inspired in part by the `py_trees` [documentation](https://py-
 
 > Don’t subclass merely to auto-populate it, build a create_<xyz>_subtree() library instead
 
-Which got us thinking about using factory methods to help maintain a clean separation between the `vultron.bt.base` 
+Which got us thinking about using factory methods to help maintain a clean separation between the `vultron.bt.base`
 module and the things that live above it.

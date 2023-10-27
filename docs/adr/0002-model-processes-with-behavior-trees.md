@@ -30,23 +30,24 @@ However, the interactions between them can be complex, so we need a way to model
 
 Chosen option: "Behavior Tree Agent implementation", because behavior trees allow us to model complex interactions
 between state machines. By building in stochastic behaviors, they also allow us to explore and exercise the state space
-of the protocol even if some states are rarely reached in practice. 
+of the protocol even if some states are rarely reached in practice.
 
 ### Consequences
 
 - Behavior trees are a new technology for the team, so there will be a learning curve.
 - Simulating changes to process logic should be easier with behavior trees than with object-oriented code.
 
-
 ## Pros and Cons of the Options
 
 ### Object-oriented implementation
 
 Good, because:
+
 - Standard OO python approach understood by the team
 - State management could be implemented as a set of classes for each state machine
 
 Bad, because:
+
 - Complex interactions between state machines would be difficult to model and maintain
 - Reactive behaviors (e.g., based on state changes in outside world) would be difficult to model
 
@@ -56,6 +57,6 @@ Bad, because:
   - [book @ Amazon](https://www.amazon.com/Behavior-Trees-Robotics-Introduction-Intelligence/dp/1138593737)
   - [pdf @ arXiv](https://arxiv.org/abs/1709.00084)
 - Petter Ögren's YouTube channel has a number of good videos on Behavior Trees
-  - https://www.youtube.com/@petterogren7535
+  - <https://www.youtube.com/@petterogren7535>
 - Wikipedia
   - [Behavior Tree (artificial intelligence, robotics and control)](https://en.wikipedia.org/wiki/Behavior_tree_(artificial_intelligence,_robotics_and_control))
