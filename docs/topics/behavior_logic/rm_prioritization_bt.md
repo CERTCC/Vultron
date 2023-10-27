@@ -3,7 +3,7 @@
 The Report Prioritization Behavior Tree is shown in the figure below.
 It bears some structural similarity to the Report Validation Behavior Tree just described: An initial
 post-condition check (A) falls back to the main process (B) leading toward
-$accept$, which, in turn, falls back to the deferral process (C). 
+$accept$, which, in turn, falls back to the deferral process (C).
 
 In more detail, (A) if the report is already in either the *Accepted* or *Deferred* states and no
 new information is available to prompt a change, the behavior ends.
@@ -57,7 +57,6 @@ flowchart LR
     defer_to_d["RM &rarr; D<br/>(emit RD)"]
     defer_seq --> defer_to_d
 ```
-
 
 Failing that, we enter the main prioritization sequence (B). The
 preconditions of the main sequence are that either the report has not

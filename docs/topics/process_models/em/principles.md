@@ -60,7 +60,6 @@ See [Adding Participants](working_with_others.md) for more information.
 
 ## Embargoes are Limited Short-Term Agreements
 
-
 Given all other facts about a vulnerability report being equal, there
 are two factors that contribute significantly to the success or failure
 of an embargo: scale and duration. The more people involved in an
@@ -110,7 +109,7 @@ any embargo at all. However, regardless of their choices, Participants
 should be clear about their status and intentions with other
 Participants. There are a few good reasons to exit an embargo early.
 (See [Early Termination](early_termination.md) for more information.)
- 
+
 !!! note ""
     Participants MAY propose a new embargo or revision to an existing
     embargo at any time within the constraints outlined in [Negotiating Embargoes](negotiating.md).
@@ -124,7 +123,7 @@ Participants. There are a few good reasons to exit an embargo early.
 ### Leaving an Embargo is Not Embargo Termination
 
 Note that a Participant leaving an embargo is not necessarily the same
-as the embargo itself terminating. 
+as the embargo itself terminating.
 Embargo termination corresponds to the $q^{em} \in \{A,R\} \xrightarrow{t} X$ transition in the
 [EM model](index.md) and reflects a consensus among case Participants that the embargo no longer
 applies. A Participant leaving an *Active* embargo means that the
@@ -151,8 +150,7 @@ the leaving Participant is no longer involved in the case.
 
 These points imply a need for Participants to track the status of other
 Participants with respect to their adherence to the embargo and
-engagement with the case. 
-
+engagement with the case.
 
 ### Leaving an Embargo May Have Consequences
 
@@ -170,8 +168,8 @@ Leaving an embargo early in one case may have repercussions to Participants' wil
 
 ## Embargo Termination is Not the Same as Publication
 
-Finally, embargo termination _removes a constraint_ rather than _adding an
-obligation_.
+Finally, embargo termination *removes a constraint* rather than *adding an
+obligation*.
 
 !!! note ""
     Participants SHOULD not publish information about the vulnerability

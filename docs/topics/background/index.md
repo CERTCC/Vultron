@@ -32,11 +32,11 @@ Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD):
 
 Any given CVD case is made up of many individual disclosure events, for example,
 
--   from a Finder to one or more Vendors and/or Coordinators
--   from Vendors and Coordinators to other Vendors and Coordinators
--   from Finders, Vendors, and Coordinators to Deployers and the Public
+- from a Finder to one or more Vendors and/or Coordinators
+- from Vendors and Coordinators to other Vendors and Coordinators
+- from Finders, Vendors, and Coordinators to Deployers and the Public
 
-In recent years, software supply chains have evolved such that software library and component vulnerabilities have 
+In recent years, software supply chains have evolved such that software library and component vulnerabilities have
 become just as much a part of the everyday CVD process as vulnerabilities in Vendors' proprietary code.
 This means that many CVD cases we encounter require coordination across multiple vendors.
 As a result, we find it decreasingly useful to differentiate between "traditional" (i.e., two-party) CVD and MPCVD.
@@ -44,9 +44,9 @@ In this documentation, we use both terms interchangeably.
 
 $$CVD \iff MPCVD$$
 
-Practically speaking, this means that readers should not infer from our use of _CVD_ in one place that we meant to 
-exclude the multi-party scenario, nor that our use of _MPCVD_ implies the exclusion of the single-vendor CVD scenario.
-Instead, our intent is to construct a protocol that adequately addresses the MPCVD scenario where 
+Practically speaking, this means that readers should not infer from our use of *CVD* in one place that we meant to
+exclude the multi-party scenario, nor that our use of *MPCVD* implies the exclusion of the single-vendor CVD scenario.
+Instead, our intent is to construct a protocol that adequately addresses the MPCVD scenario where
 $N_{vendors} \geq 1$
 and for which the "traditional" CVD case is merely a special (and often simpler) case where
 $N_{vendors} = 1$.
@@ -59,21 +59,21 @@ is one of four foundational documents aimed at increasing the
 professionalization of the CVD process. The following is the full set of
 foundational documents (thus far):
 
--   *The CERT Guide to Coordinated Vulnerability Disclosure* (the
+- *The CERT Guide to Coordinated Vulnerability Disclosure* (the
     *CVD Guide*) in both its [original](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=503330)
     and [updated](https://vuls.cert.org/confluence/display/CVD) forms, provides a "field guide" perspective to the
     CVD process and its natural extension into MPCVD.
 
--   The [*Stakeholder-Specific Vulnerability Categorization*](https://github.com/CERTCC/SSVC)
+- The [*Stakeholder-Specific Vulnerability Categorization*](https://github.com/CERTCC/SSVC)
     provides decision support for prioritizing vulnerability response activities
     closely associated with the CVD process.
 
--   [*A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure*](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
-    describes a model that encompasses all possible CVD case histories into a set of measures and metrics for the 
+- [*A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure*](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
+    describes a model that encompasses all possible CVD case histories into a set of measures and metrics for the
     efficacy of CVD processes. That report is an expanded version of [*Are We Skillful or Just Lucky? Interpreting the Possible
     Histories of Vulnerability Disclosures*](https://dl.acm.org/doi/10.1145/3477431), an article published in the ACM Journal [Digital Threats: Research and Practice](https://dl.acm.org/journal/dtrap).
 
--   *Designing Vultron*, the report on which this documentation was based, proposes an abstract formal protocol for
+- *Designing Vultron*, the report on which this documentation was based, proposes an abstract formal protocol for
     MPCVD, ties together various concepts from all three of the above.
 
 Whereas the [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD) offers a narrative description of both the CVD
@@ -112,7 +112,7 @@ Both usages are relevant to this effort.
 First, insofar as we seek to scale the MPCVD process through the use of automation and software-augmented human
 processes, we wish to propose a formal technical protocol that can serve as the basis of such technical tools.
 The [Formal Protocol](../../reference/formal_protocol/index.md) section of this documentation addresses this first definition in
-specific detail after explicating its component parts and their interactions in 
+specific detail after explicating its component parts and their interactions in
 [Report Management](../process_models/rm/index.md), [Embargo Management](../process_models/em/index.md), [Case State](../process_models/cs/index.md),
 and [Model Interactions](../process_models/model_interactions/index.md).
 
@@ -123,17 +123,16 @@ technical formalities of communicating code but also extend to the
 expected behaviors of the human Participants that rely on it. In this
 second sense, we address the term *protocol* in these ways:
 
--   The [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD)
+- The [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD)
     offers a *narrative* protocol for practitioners to follow based on
     decades of accumulated experience and observation of the
     CVD process at the CERT/CC.
 
--   The [Case State model](../process_models/cs/index.md) from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
+- The [Case State model](../process_models/cs/index.md) from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
     offers a *prescriptive* protocol outlining the high-level goals of the CVD process, as derived from a first-principles approach to possible
     CVD case histories.
 
--   This documentation and the [report](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) it is based
+- This documentation and the [report](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) it is based
     on describes a *normative* protocol designed to structure and guide practitioners toward those goals.
 
 To that end, we offer this documentation as a proposal for such an MPCVD protocol.
-

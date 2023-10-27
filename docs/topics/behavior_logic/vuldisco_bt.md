@@ -33,7 +33,6 @@ flowchart LR
     if_vendor --> cs_to_V
 ```
 
-
 The goal of the Discover Vulnerability Behavior is for the Participant
 to end up outside of the *Start* state of the Report Management process
 ($q^{rm} \not \in S$, branch A).
@@ -48,6 +47,3 @@ Participant, so the $RS$ message in this situation might be an internal message 
 
 Should no discovery occur (branch C), the branch returns *Success* so that the parent process in
 [CVD Behavior Tree](cvd_bt.md) can proceed to receive messages from others.
-
-
-

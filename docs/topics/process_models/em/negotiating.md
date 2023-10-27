@@ -36,7 +36,7 @@ Counterexamples include
 their fix delivery or deployment
 - when a Vendor has deployed a fix but wants to complete their root cause analysis prior to
 releasing information about the vulnerability.
- 
+
 !!! note ""
 
     CVD Participants MAY *propose* or *accept* a new embargo when the fix
@@ -50,7 +50,6 @@ releasing information about the vulnerability.
     CVD Participants MAY *propose* or *accept* an embargo in all other case
     states (${q^{cs} \in \cdot\cdot\cdot pxa}$).
 
-
 ## Asymmetry in Embargo Negotiation
 
 Asymmetry is inherent in the CVD process because those who currently have the vulnerability information get to decide
@@ -61,12 +60,12 @@ We discuss some ways to improve (but not fully remove) this asymmetry in [Defaul
 but for now we just need to acknowledge that it exists.
 
 !!! note ""  
-    
+
     Participants MAY *accept* or *reject* any proposed embargo as they
     see fit.
 
 !!! note ""  
- 
+
     Receivers SHOULD *accept* any embargo proposed by Reporters.
 
 !!! note ""  
@@ -75,7 +74,7 @@ but for now we just need to acknowledge that it exists.
     they see fit.
 
 !!! note ""  
-   
+
     Participants MAY withdraw (*reject*) their own unaccepted *Proposed*
     embargo.
 
@@ -98,7 +97,7 @@ is expected.
 !!! note ""
     In the absence of an explicit *accept* or *reject* response from a
     Receiver in a timely manner, the Sender MAY proceed in a manner
-    consistent with an EM state of _None_ ($q^{em} \in N$).
+    consistent with an EM state of *None* ($q^{em} \in N$).
 
 ## No Embargo means No Embargo
 
@@ -124,15 +123,14 @@ no further obligations.
 
 ## Don't Give Up Too Soon
 
-The above notwithstanding, Participants are encouraged to try again, especially when no explicit rejection has been 
-communicated (i.e., in the _tacitly rejected_ scenario described above). 
+The above notwithstanding, Participants are encouraged to try again, especially when no explicit rejection has been
+communicated (i.e., in the *tacitly rejected* scenario described above).
 
 !!! note ""  
 
     Participants SHOULD make reasonable attempts to retry embargo
     negotiations when prior proposals have been *reject*ed or otherwise
     failed to achieve *accept*ance.
-
 
 ## Submitting a Report Before Embargo Negotiations Conclude
 
@@ -173,4 +171,3 @@ point, it can be extended with a revision.
 
     Participants SHOULD remain flexible in adjusting embargo terms as
     the case evolves.
-

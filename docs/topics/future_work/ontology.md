@@ -9,9 +9,9 @@ perform MPCVD around the world every day.
 Thus, for adoption to occur, it will be necessary to map existing systems and processes into the semantics
 (and eventually, the syntax) of whatever protocol emerges as a descendant of our proposal.
 
-Combined with the abstract [case class model](../../howto/case_object.md), an ontology (e.g., using 
+Combined with the abstract [case class model](../../howto/case_object.md), an ontology (e.g., using
 [OWL](https://www.w3.org/OWL/)) could accelerate
-the semantic interoperability between independent Participant processes and tools that we set out to improve at the 
+the semantic interoperability between independent Participant processes and tools that we set out to improve at the
 beginning of this effort.
 
 ## Related Ontology and Data Definition Work

@@ -3,7 +3,7 @@
 {% include-markdown "../../../includes/normative.md" %}
 
 Here we complete the definition of the CVD Case State (CS) model begun in the [previous page](index.md).
-As a reminder, this model provides a high-level view of the state of a CVD case and is 
+As a reminder, this model provides a high-level view of the state of a CVD case and is
 derived from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
 
 ---
@@ -42,19 +42,17 @@ in the table below.
     $$D \implies F \implies V$$
 
 CS states can be any combination of statuses, provided that a number of caveats elaborated in
-[CS Transitions](#cs-transitions) are met. 
+[CS Transitions](#cs-transitions) are met.
 One such caveat worth noting here is that valid states must follow what we call the *Vendor fix path*.
 
-
-The reason is causal: For a fix to be deployed (_D_), it must have been ready (_F_) for deployment.
-And for it to be ready, the Vendor must have already known (_V_) about the vulnerability. 
-As a result, valid states must begin with one of the following strings: _vfd_, _Vfd_, _VFd_, or _VFD_.
+The reason is causal: For a fix to be deployed (*D*), it must have been ready (*F*) for deployment.
+And for it to be ready, the Vendor must have already known (*V*) about the vulnerability.
+As a result, valid states must begin with one of the following strings: *vfd*, *Vfd*, *VFd*, or *VFD*.
 
 !!! tip inline end "See also"
 
     See §2.4 of [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
     for an expanded explanation of the *Vendor fix path*.
-
 
 ```mermaid
 ---
@@ -69,7 +67,6 @@ stateDiagram-v2
     Vfd --> VFd : fix is ready
     VFd --> VFD : fix is deployed
 ```
-
 
 The CS model is thus
 composed of 32 possible states, which we define as $\mathcal{Q}^{cs}$.
@@ -97,11 +94,10 @@ composed of 32 possible states, which we define as $\mathcal{Q}^{cs}$.
 
 ## CS Start and End States
 
-All vulnerability cases start in the base state _vfdpxa_ in which no
+All vulnerability cases start in the base state *vfdpxa* in which no
 events have occurred.
 
-The lone final state in which all events have occurred is _VFDPXA_.  
-
+The lone final state in which all events have occurred is *VFDPXA*.  
 
 !!! tip "The Map is not the Territory"
 
@@ -128,12 +124,11 @@ The lone final state in which all events have occurred is _VFDPXA_.
     words, it remains possible for exploits to be published or attacks to be
     observed long after the [RM](../rm/index.md) process has closed a case.
 
-
 We frequently need to refer to subsets of $\mathcal{Q}^{cs}$. To do so,
 we will use a dot ($\cdot$) to represent a single character wildcard.
 
 !!! example "CS Model Wildcard Notation Example"
-    
+
     For example, $VFdP \cdot \cdot$ refers to the subset of $\mathcal{Q}^{cs}$ in
     which the Vendor is aware, a fix is ready but not yet deployed, and the
     public is aware of the vulnerability, yet we are indifferent to whether
@@ -157,7 +152,6 @@ implies a set of events corresponding to each specific substate change, which we
 | **X**  | An exploit for a vulnerability is made public | $\cdot\cdot\cdot\cdot x \cdot \xrightarrow{\mathbf{X}} \cdot\cdot\cdot\cdot X \cdot$ |
 | **A**  | Attacks exploiting a vulnerability are observed |  $\cdot\cdot\cdot\cdot\cdot a \xrightarrow{\mathbf{A}} \cdot\cdot\cdot\cdot\cdot A$  |
 
-
 ???+ note inline end "CS Model Input Symbols ($\Sigma^{cs}$) Defined"
 
     $$\Sigma^{cs} = \{\mathbf{V},\mathbf{F},\mathbf{D},\mathbf{P},\mathbf{X},\mathbf{A}\}$$
@@ -171,7 +165,6 @@ implies a set of events corresponding to each specific substate change, which we
 
 We define the set of symbols for our CS DFA as $\Sigma^{cs}$ at right.
 
-
 For the CS model, an input symbol $\sigma^{cs} \in \Sigma^{cs}$ is "read" when a Participant
 observes a change in status (a Vendor is notified and exploit code has
 been published, etc.).
@@ -183,24 +176,24 @@ is poised to ensure eventual
 consistency with this assumption through the communication of perceived
 case state across coordinating parties.
 
-### CS Transitions Defined 
+### CS Transitions Defined
 
 Here we define the allowable transitions between states in the
 CS model.
 Transitions in the CS model follow a few rules described in
 detail in §2.4 of [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) which we summarize here:
 
--   Because states correspond to the status of events that have or have
+- Because states correspond to the status of events that have or have
     not occurred, and all state transitions are irreversible (i.e., we
     assume history is immutable), the result will be an acyclic directed
     graph of states beginning at $q^{cs}_0={vfdpxa}$ and ending at
     $\mathcal{F}^{cs}=\{VFDPXA\}$ with allowed transitions as the edges.
     In practical terms for the CS model, this means there is an arrow
-    of time from _vfdpxa_ through _VFDPXA_ in which each individual
+    of time from *vfdpxa* through *VFDPXA* in which each individual
     state transition changes exactly one letter from lowercase to
     uppercase.
 
--   The *Vendor fix path*
+- The *Vendor fix path*
     ($vfd \cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd \cdot\cdot\cdot \xrightarrow{\mathbf{F}} VFd \cdot\cdot\cdot \xrightarrow{\mathbf{D}} VFD \cdot\cdot\cdot$)
     is a causal requirement as outlined in [substates](cs_model.md).
 
@@ -219,8 +212,7 @@ stateDiagram-v2
     VFD --> [*]
 ```
 
-
--   Vendors are presumed to know at least as much as the public does;
+- Vendors are presumed to know at least as much as the public does;
     therefore, $v\cdot\cdot P \cdot\cdot$ can only lead to $V\cdot\cdot P \cdot\cdot$.
 
 ```mermaid
@@ -230,7 +222,6 @@ stateDiagram-v2
     VP: V..P..
     vP --> VP
 ```
-
 
 #### Exploit Publication Causes Public Awareness
 
@@ -247,13 +238,11 @@ stateDiagram-v2
 
 Therefore, for all practical purposes, we can simplify the full $pxa \rightarrow PXA$ diagram:
 
-
 {% include-markdown "./pxa_diagram.md" %}
 
-down to the following: 
+down to the following:
 
 {% include-markdown "./pxa_diagram_simple.md" %}
-
 
 #### Attacks Do Not Necessarily Cause Public Awareness
 
@@ -274,12 +263,11 @@ twofold:
     available to all possible adversaries. Publication, in that case,
     might assist other adversaries more than it helps defenders.
 
-
 In other words, although $\cdot\cdot\cdot p \cdot A$ does not require an
 immediate transition to $\cdot\cdot\cdot P \cdot A$ the way
 $\cdot\cdot\cdot pX \cdot \xrightarrow{\mathbf{P}} \cdot\cdot\cdot PX \cdot$ does, it
 does seem plausible that the likelihood of **P** occurring
-increases when attacks are occurring. 
+increases when attacks are occurring.
 
 ???+ note "Formalism"
 
@@ -290,7 +278,7 @@ increases when attacks are occurring.
     P(\mathbf{P} \mid \cdot\cdot\cdot p \cdot A) > P(\mathbf{P} \mid \cdot\cdot\cdot p \cdot a)
     $$
 
-Logically, this is a result of there being more ways for the public to discover the vulnerability when attacks are 
+Logically, this is a result of there being more ways for the public to discover the vulnerability when attacks are
 happening than when they are not:
 
 - For states in $\cdot\cdot\cdot p \cdot a$, public awareness depends on the normal vulnerability discovery and reporting
@@ -305,7 +293,6 @@ Hence,
     Once attacks have been observed, fix development SHOULD accelerate,
     the embargo teardown process SHOULD begin, and publication and
     deployment SHOULD follow as soon as is practical.
-
 
 ## A Regular Grammar for the CS model
 
@@ -362,10 +349,9 @@ A diagram of the CS process, including its states and transitions, is shown belo
 
 {% include-markdown "./vfdpxa_diagram.md" %}
 
-
 ## CS Model Fully Defined
 
-In combination, the full definition of the Case State DFA $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ is shown 
+In combination, the full definition of the Case State DFA $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ is shown
 below.
 
 ???+ note "Case State Model $(\mathcal{Q},q_0,\mathcal{F},\Sigma,\delta)^{cs}$ Fully Defined"
