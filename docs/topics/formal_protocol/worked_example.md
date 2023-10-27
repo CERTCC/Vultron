@@ -5,7 +5,7 @@
 Here we give a brief worked example showing a few usage scenarios of the [protocol](../../reference/formal_protocol/index.md).
 We use UML Sequence Diagrams to show the interaction between Participant roles.
 
-### A Finder Becomes a Reporter
+## A Finder Becomes a Reporter
 
 As mentioned in
 [RM Interactions](../process_models/rm/rm_interactions.md#the-secret-lives-of-finders), Finders have a few hidden state
@@ -44,11 +44,11 @@ sequenceDiagram
     Vendor -->> Finder: RK, EK, CV
 ```
 
-### Vendor Evaluates Embargo {#sec:vendor_eval_embargo_seq}
+## Vendor Evaluates Embargo {#sec:vendor_eval_embargo_seq}
 
 In this section, we show a variety of responses a Vendor might have to an embargo proposal.
 
-#### Vendor Accepts Embargo
+### Vendor Accepts Embargo
 
 First is a basic accept sequence in which the Vendor accepts the proposed embargo and tells the
 Reporter this through an _EA_ message. The Reporter acknowledges this with an _EK_ in response.
@@ -70,7 +70,7 @@ sequenceDiagram
     deactivate Vendor
 ```
 
-#### Vendor Rejects Embargo
+### Vendor Rejects Embargo
 
 Next we show a rejected proposal. As above, this is a simple sequence where the Vendor indicates their rejection of the
 proposal with an _ER_ message, and the Reporter acknowledges this with an _EK_ message.
@@ -88,7 +88,7 @@ sequenceDiagram
     Reporter -->> Vendor: EK
 ```
 
-#### Vendor Counterproposal
+### Vendor Counterproposal
 
 Here we demonstrate a Vendor embargo counterproposal. The Vendor responds to the Reporter's prior
 _EP_ message with an _EP_ message of their own. The Reporter initially
@@ -117,7 +117,7 @@ sequenceDiagram
     deactivate Reporter
 ```
 
-#### Vendor Accepts then Proposes Revision
+### Vendor Accepts then Proposes Revision
 
 !!! tip inline end "Yes, And..."
 
@@ -157,11 +157,11 @@ sequenceDiagram
     deactivate Reporter
 ```
 
-### Vendor Sets Priority
+## Vendor Sets Priority
 
 Here we show two responses from a Vendor in the course of prioritizing a report.
 
-#### Vendor Accepts Report
+### Vendor Accepts Report
 
 This figure shows a Vendor accepting the report for further work (presumably to develop a patch) with an _RA_ message.
 
@@ -176,7 +176,7 @@ sequenceDiagram
     Reporter -->> Vendor: RK
 ```
 
-#### Vendor Defers Report
+### Vendor Defers Report
 
 On the contrary, this figure shows the Vendor deferring the report with an _RD_ message.
 In both cases, the Reporter acknowledges the Vendor's messages with an _RK_ message.
@@ -192,7 +192,7 @@ sequenceDiagram
     Reporter -->> Vendor: RK
 ```
 
-### Coordination With a Coordinator {#sec:coordinating_with_coordinator}
+## Coordination With a Coordinator {#sec:coordinating_with_coordinator}
 
 The next two diagrams show the process of a Reporter engaging a Coordinator, who, in turn, engages a Vendor.
 The process begins in the first diagram with the Reporter sending a report along with an embargo proposal to the Coordinator
@@ -281,7 +281,7 @@ sequenceDiagram
     deactivate Reporter
 ```
 
-### Embargo Teardown, Publish, and Close
+## Embargo Teardown, Publish, and Close
 
 Any Participant can initiate an embargo teardown.
 We happened to show the case where the Coordinator initiates it in the following diagram, sending an embargo
@@ -315,7 +315,7 @@ sequenceDiagram
     With the recognition that more concise publication scheduling might be needed in some situations, we revisit this 
     concern in [Process Implementation Notes](../../howto/process_implementation.md).
 
-#### Publishing After Embargo Teardown
+### Publishing After Embargo Teardown
 
 Once the embargo has been exited, any Participant may now publish.
 In the following figure, we show the Vendor publishing first.
@@ -354,7 +354,7 @@ sequenceDiagram
     that there was nothing further to be done. This will not always be the
     case, nor is it necessary.
 
-#### Closing the Case
+### Closing the Case
 
 Having no further work to be done on the case, the Reporter closes their
 report and tells the Coordinator using an _RC_ message in the next diagram.

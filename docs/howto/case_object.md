@@ -228,7 +228,7 @@ teardown procedure as a consequence.
     On the contrary the `-` on `emit_message` conveys that this capability is only accessible to the `Participant` class 
     itself (i.e., each `Participant` gets to decide if, when, and what messages to send).
 
-#### `Vendor` and `Deployer` `Participant` Classes
+### `Vendor` and `Deployer` `Participant` Classes
 
 The presence of the `VendorParticipant` and `DeployerParticipant`
 classes---depicted as implementations of the `Participant` class---is
