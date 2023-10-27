@@ -69,31 +69,47 @@ _TotalEffortLimitMet = invert(
     _ReportingEffortAvailable,
 )
 
-_IdentifyVendors = sequence_node("_IdentifyVendors", """XXX""", MoreVendors, InjectVendor)
+_IdentifyVendors = sequence_node(
+    "_IdentifyVendors", """XXX""", MoreVendors, InjectVendor
+)
 
 
-_IdentifyCoordinators = sequence_node("_IdentifyCoordinators", """XXX""", MoreCoordinators, InjectCoordinator)
+_IdentifyCoordinators = sequence_node(
+    "_IdentifyCoordinators", """XXX""", MoreCoordinators, InjectCoordinator
+)
 
 
-_IdentifyOthers = sequence_node("_IdentifyOthers", """XXX""", MoreOthers, InjectOther)
+_IdentifyOthers = sequence_node(
+    "_IdentifyOthers", """XXX""", MoreOthers, InjectOther
+)
 
 
-_IdentifyPotentialCaseParticipants = sequence_node("_IdentifyPotentialCaseParticipants",
-                                                   "Identifies potential case participants: vendors, coordinators, and others",
-                                                   _IdentifyVendors, _IdentifyCoordinators, _IdentifyOthers)
+_IdentifyPotentialCaseParticipants = sequence_node(
+    "_IdentifyPotentialCaseParticipants",
+    "Identifies potential case participants: vendors, coordinators, and others",
+    _IdentifyVendors,
+    _IdentifyCoordinators,
+    _IdentifyOthers,
+)
 
 
 # TODO AllPartiesKnown should be a simulated annealing where p rises with tick count
 #  thereby forcing notification to happen toward the outset of a case
 #  but for now we'll just leave it as a dumb fuzzer
-_IdentifyParticipants = fallback_node("_IdentifyParticipants",
-                                      "Checks whether all parties are known, otherwise identifies potential case",
-                                      AllPartiesKnown, _IdentifyPotentialCaseParticipants)
+_IdentifyParticipants = fallback_node(
+    "_IdentifyParticipants",
+    "Checks whether all parties are known, otherwise identifies potential case",
+    AllPartiesKnown,
+    _IdentifyPotentialCaseParticipants,
+)
 
 
-_DecideWhetherToPruneRecipient = fallback_node("_DecideWhetherToPruneRecipient",
-                                               "Checks whether a recipient is already aware (RM != START) or effort budget exceeded",
-                                               RcptNotInQrmS, RecipientEffortExceeded)
+_DecideWhetherToPruneRecipient = fallback_node(
+    "_DecideWhetherToPruneRecipient",
+    "Checks whether a recipient is already aware (RM != START) or effort budget exceeded",
+    RcptNotInQrmS,
+    RecipientEffortExceeded,
+)
 
 
 def remove_recipient(obj: BtNode) -> bool:
@@ -116,16 +132,28 @@ def remove_recipient(obj: BtNode) -> bool:
 _RemoveRecipient = action_node("RemoveRecipient", remove_recipient)
 
 
-_PruneRecipients = sequence_node("_PruneRecipients", """XXX""", _DecideWhetherToPruneRecipient, _RemoveRecipient)
+_PruneRecipients = sequence_node(
+    "_PruneRecipients",
+    """XXX""",
+    _DecideWhetherToPruneRecipient,
+    _RemoveRecipient,
+)
 
 
-_EnsureRcptPolicyCompatibleWithExistingEmbargo = sequence_node("_EnsureRcptPolicyCompatibleWithExistingEmbargo",
-                                                               "If there is an active embargo, then the recipient's policy must be compatible with the embargo policy",
-                                                               EMinStateActiveOrRevise, PolicyCompatible)
+_EnsureRcptPolicyCompatibleWithExistingEmbargo = sequence_node(
+    "_EnsureRcptPolicyCompatibleWithExistingEmbargo",
+    "If there is an active embargo, then the recipient's policy must be compatible with the embargo policy",
+    EMinStateActiveOrRevise,
+    PolicyCompatible,
+)
 
 
-_EnsureOkToNotify = fallback_node("_EnsureOkToNotify", "Verify that it is ok to notify a recipient",
-                                  EMinStateNoneOrProposeOrRevise, _EnsureRcptPolicyCompatibleWithExistingEmbargo)
+_EnsureOkToNotify = fallback_node(
+    "_EnsureOkToNotify",
+    "Verify that it is ok to notify a recipient",
+    EMinStateNoneOrProposeOrRevise,
+    _EnsureRcptPolicyCompatibleWithExistingEmbargo,
+)
 
 
 def report_to_new_participant(obj: BtNode) -> bool:
@@ -135,8 +163,12 @@ def report_to_new_participant(obj: BtNode) -> bool:
         sender="", body="Initial report", msg_type=MessageTypes.RS
     )
 
-    dm = obj.bb.dm_func
-    dm(message=report, recipient=obj.bb.currently_notifying)
+    try:
+        dm = obj.bb.dm_func
+        dm(message=report, recipient=obj.bb.currently_notifying)
+    except AttributeError:
+        logger.warning(f"Node blackboard dm_func is not set. No message sent.")
+        return False
 
     return True
 
@@ -180,46 +212,72 @@ _BringNewParticipantUpToSpeed = action_node(
 )
 
 
-_EngageParticipant = sequence_node("_EngageParticipant",
-                                   "Reports to a new participant, connects them to the case, and brings them up to speed",
-                                   _ReportToNewParticipant, _ConnectNewParticipantToCase, _BringNewParticipantUpToSpeed)
+_EngageParticipant = sequence_node(
+    "_EngageParticipant",
+    "Reports to a new participant, connects them to the case, and brings them up to speed",
+    _ReportToNewParticipant,
+    _ConnectNewParticipantToCase,
+    _BringNewParticipantUpToSpeed,
+)
 
 
 # FIXED Replace EmitRS with inject RS into new participant then add participant to case
 #  will also need to sync case pxa and embargo status with new participant
-_NotifyRecipient = sequence_node("_NotifyRecipient",
-                                 "Checks if it is ok to notify a recipient, finds their contact info, then notifies them",
-                                 _EnsureOkToNotify, FindContact, _EngageParticipant)
+_NotifyRecipient = sequence_node(
+    "_NotifyRecipient",
+    "Checks if it is ok to notify a recipient, finds their contact info, then notifies them",
+    _EnsureOkToNotify,
+    FindContact,
+    _EngageParticipant,
+)
 
 
-_PruneOrNotifyRecipient = fallback_node("_PruneOrNotifyRecipient",
-                                        "Prunes a recipient if necessary, otherwise notifies them", _PruneRecipients,
-                                        _NotifyRecipient)
+_PruneOrNotifyRecipient = fallback_node(
+    "_PruneOrNotifyRecipient",
+    "Prunes a recipient if necessary, otherwise notifies them",
+    _PruneRecipients,
+    _NotifyRecipient,
+)
 
 
-_SelectAndProcessRecipient = sequence_node("_SelectAndProcessRecipient",
-                                           "Chooses a recipient, then prunes or notifies them", ChooseRecipient,
-                                           _PruneOrNotifyRecipient)
+_SelectAndProcessRecipient = sequence_node(
+    "_SelectAndProcessRecipient",
+    "Chooses a recipient, then prunes or notifies them",
+    ChooseRecipient,
+    _PruneOrNotifyRecipient,
+)
 
 
-_NotifyOthers = fallback_node("_NotifyOthers",
-                              "Checks if there are more recipients to notify, then selects and processes a recipient",
-                              NotificationsComplete, _SelectAndProcessRecipient)
+_NotifyOthers = fallback_node(
+    "_NotifyOthers",
+    "Checks if there are more recipients to notify, then selects and processes a recipient",
+    NotificationsComplete,
+    _SelectAndProcessRecipient,
+)
 
 
-_IdentifyAndNotifyParticipants = sequence_node("_IdentifyAndNotifyParticipants",
-                                               "Identify participants and notify them", _IdentifyParticipants,
-                                               _NotifyOthers)
+_IdentifyAndNotifyParticipants = sequence_node(
+    "_IdentifyAndNotifyParticipants",
+    "Identify participants and notify them",
+    _IdentifyParticipants,
+    _NotifyOthers,
+)
 
 
-_ReportToOthers = fallback_node("_ReportToOthers",
-                                "Checks an effort budget remains, then identifies and notifies participants",
-                                _TotalEffortLimitMet, _IdentifyAndNotifyParticipants)
+_ReportToOthers = fallback_node(
+    "_ReportToOthers",
+    "Checks an effort budget remains, then identifies and notifies participants",
+    _TotalEffortLimitMet,
+    _IdentifyAndNotifyParticipants,
+)
 
 
-MaybeReportToOthers = sequence_node("MaybeReportToOthers",
-                                    "Checks for reporting capability, then reports to others if possible",
-                                    HaveReportToOthersCapability, _ReportToOthers)
+MaybeReportToOthers = sequence_node(
+    "MaybeReportToOthers",
+    "Checks for reporting capability, then reports to others if possible",
+    HaveReportToOthersCapability,
+    _ReportToOthers,
+)
 
 
 def main():
