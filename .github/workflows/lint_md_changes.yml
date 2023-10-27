@@ -18,3 +18,5 @@ jobs:
       with:
         globs: ${{ steps.changed-files.outputs.all_changed_files }}
         separator: ","
+        config: .markdownlint-cli2.yaml
+        
