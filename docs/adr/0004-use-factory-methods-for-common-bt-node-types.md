@@ -30,15 +30,18 @@ change the underlying implementation without having to change the code that crea
 ### Consequences
 
 Good because:
+
 * retains flexibility to change the underlying implementation without having to change the code that creates them
 * allows us to create the nodes in a consistent way
 * allows us to keep the `vultron.bt.base` module clean and focused on the base classes
 * allows us to keep the rest of the `vultron.bt` module focused on Vultron-specific needs
 
 Neutral because:
+
 * Adds a central place to maintain the factory methods
 
 Bad because:
+
 * less pythonic than just subclassing the BT node types
 
 ## Pros and Cons of the Options
@@ -53,6 +56,7 @@ Good because:
 Neutral because:
 
 Bad because:
+
 * Harder to enforce consistency in how the nodes are created
 
 ## More Information
