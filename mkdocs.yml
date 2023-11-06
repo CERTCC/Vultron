@@ -126,6 +126,13 @@ nav:
     - Code:
         - vultron: 'reference/code/index.md'
         - case_states: 'reference/code/case_states.md'
+        - Behavior Trees:
+          - BT: 'reference/code/bt/behavior_trees.md'
+          - Base: 'reference/code/bt//bt_base.md'
+          - Nodes: 'reference/code/bt/bt_base_nodes.md'
+          - Pacman Demo: 'reference/code/bt/pacman_demo.md'
+          - Robot Demo: 'reference/code/bt/robot_demo.md'
+          - Vultrabot Demo: 'reference/code/bt/vultrabot_demo.md'
     - ISO Crosswalk:
       - Introduction: 'reference/iso_crosswalk.md'
       - ISO 30111: 'reference/iso_30111_2019.md'
