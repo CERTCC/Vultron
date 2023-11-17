@@ -18,7 +18,7 @@ The `vultron.case_states.states` module implements the CVD Case State Model enum
 It also provides functions for converting between state strings and enums.
 """
 
-from enum import Enum, Flag, IntEnum
+from enum import Enum, IntEnum
 from typing import NamedTuple, Tuple
 
 from vultron.case_states.validations import ensure_valid_state
@@ -297,12 +297,11 @@ class CS_pxa(Enum):
 
 
 class CompoundState(NamedTuple):
-    vfd_state: VfdState
-    pxa_state: PxaState
+    vfd_state: CS_vfd
+    pxa_state: CS_pxa
 
 
-# TODO this is still broken
-class CS_vfdpxa(Enum):
+class CS(Enum):
     # vfd pxa
     vfdpxa = CompoundState(CS_vfd.vfd, CS_pxa.pxa)
     # vfd Pxa
@@ -370,164 +369,6 @@ class CS_vfdpxa(Enum):
     VFDPxA = CompoundState(CS_vfd.VFD, CS_pxa.PxA)
     # VFD PXA
     VFDPXA = CompoundState(CS_vfd.VFD, CS_pxa.PXA)
-
-
-class CS(Flag):
-    """Represents the state of a case. The state is a combination of the vendor fix path state and the public state.
-
-    Vendor fix path states:
-    v = vendor unaware
-    V = vendor aware
-
-    f = fix not ready
-    F = fix ready
-
-    d = fix not deployed
-    D = fix deployed
-
-    Public case states:
-    p = public unaware
-    P = public aware
-
-    x = exploit not published
-    X = exploit published
-
-    a = attacks not observed
-    A = attacks observed
-    """
-
-    vfDpxa = 32
-    vFdpxa = 16
-    Vfdpxa = 8
-    vfdPxa = 4
-    vfdpXa = 2
-    vfdpxA = 1
-    vfdpxa = 0
-
-    D = vfDpxa
-    F = vFdpxa
-    V = Vfdpxa
-    P = vfdPxa
-    X = vfdpXa
-    A = vfdpxA
-
-    VFdpxa = V | F
-    VFDpxa = V | F | D
-
-    vfdpXA = X | A
-    vfdPxA = P | A
-    vfdPXa = P | X
-    vfdPXA = P | X | A
-
-    VfdpxA = V | A
-    VfdpXa = V | X
-    VfdpXA = V | X | A
-    VfdPxa = V | P
-    VfdPxA = V | P | A
-    VfdPXa = V | P | X
-    VfdPXA = V | P | X | A
-
-    VFdpxA = V | F | A
-    VFdpXa = V | F | X
-    VFdpXA = V | F | X | A
-    VFdPxa = V | F | P
-    VFdPxA = V | F | P | A
-    VFdPXa = V | F | P | X
-    VFdPXA = V | F | P | X | A
-
-    VFDpxA = V | F | D | A
-    VFDpXa = V | F | D | X
-    VFDpXA = V | F | D | X | A
-    VFDPxa = V | F | D | P
-    VFDPxA = V | F | D | P | A
-    VFDPXa = V | F | D | P | X
-    VFDPXA = V | F | D | P | X | A
-
-    vfd = vfdpxa
-    Vfd = Vfdpxa
-    VFd = VFdpxa
-    VFD = VFDpxa
-
-    pxa = vfdpxa
-    Pxa = vfdPxa
-    pXa = vfdpXa
-    pxA = vfdpxA
-    PXa = vfdPXa
-    pXA = vfdpXA
-    PxA = vfdPxA
-    PXA = vfdPXA
-
-    # pairs
-    VF = VFdpxa
-    VP = VfdPxa
-    VX = VfdpXa
-    VA = VfdpxA
-
-    # triples
-    VFP = VFdPxa
-    VFX = VFdpXa
-    VFA = VFdpxA
-    VPA = VfdPxA
-    VPX = VfdPXa
-    VXA = VfdpXA
-
-    # quads
-    VFDP = VFDPxa
-    VFDX = VFDpXa
-    VFDA = VFDpxA
-
-    VFPX = VFdPXa
-    VFPA = VFdPxA
-    VFXA = VFdpXA
-
-    VPXA = VfdPXA
-
-    # quintuples
-    VFDPA = VFDPxA
-    VFDPX = VFDPXa
-    VFDXA = VFDpXA
-    VFPXA = VFdPXA
-
-
-# convenience aliases for the states
-all_states = (
-    # vendor unaware
-    CS.vfdpxa,
-    CS.vfdpxA,
-    CS.vfdpXa,
-    CS.vfdpXA,
-    CS.vfdPxa,
-    CS.vfdPxA,
-    CS.vfdPXa,
-    CS.vfdPXA,
-    # vendor aware, fix not ready
-    CS.Vfdpxa,
-    CS.VfdpxA,
-    CS.VfdpXa,
-    CS.VfdpXA,
-    CS.VfdPxa,
-    CS.VfdPxA,
-    CS.VfdPXa,
-    CS.VfdPXA,
-    # vendor aware, fix ready, fix not deployed
-    CS.VFdpxa,
-    CS.VFdpxA,
-    CS.VFdpXa,
-    CS.VFdpXA,
-    CS.VFdPxa,
-    CS.VFdPxA,
-    CS.VFdPXa,
-    CS.VFdPXA,
-    # vendor aware, fix ready, fix deployed
-    CS.VFDpxa,
-    CS.VFDpxA,
-    CS.VFDpXa,
-    CS.VFDpXA,
-    CS.VFDPxa,
-    CS.VFDPxA,
-    CS.VFDPXa,
-    CS.VFDPXA,
-)
 
 
 def _last3(s):
