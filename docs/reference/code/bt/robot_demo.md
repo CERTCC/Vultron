@@ -38,6 +38,19 @@ Legend:
 
 ## Demo Output
 
+!!! example Running the Demo
+    ```shell
+     # if vultron package is installed
+    # run the demo
+    $ vultrabot --robot
+    
+    # print the tree and exit
+    $ vultrabot --robot --print-tree
+    
+    # if vultron package is not installed
+    python -m vultron.bt.base.demo.robot
+    ```
+
 When the tree is run, it will look something like this:
 
 ```text

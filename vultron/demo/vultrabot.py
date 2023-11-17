@@ -34,41 +34,41 @@ pd.set_option("display.max_columns", 500)
 pd.set_option("display.width", 1000)
 
 
-def main() -> None:
+def main(args) -> None:
     """
-    Instantiates a CvdProtocolBt object and runs it until either it closes or 1000 ticks have passed.
+    Instantiates a `CvdProtocolBt` object and runs it until either it closes or 1000 ticks have passed.
     This demo is basically simulating a CVD agent coordinating a CVD case with itself.
-    The agent's role is set to FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR, which means it will
+    The agent's role is set to `FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR`, which means it will
     perform all the roles in the CVD case.
     Messages emitted in one tick might be received later in the same tick, or in a future tick.
 
     !!! tip
 
-       This demo leverages the ability to use leaf nodes as stochastic process fuzzers.
-       Using this feature, we can simulate the behavior of a CVD agent without having to
-       implement any actual communication mechanisms or simulate any complex real-world processes.
+         This demo leverages the ability to use leaf nodes as stochastic process fuzzers.
+         Using this feature, we can simulate the behavior of a CVD agent without having to
+         implement any actual communication mechanisms or simulate any complex real-world processes.
 
-       One interesting effect of this design is that the places where the demo uses a fuzzer node are often
-       indicative of places where an actual bot would either need to call out to either a data source or
-       a human to decide what to do next. This is a good example of how the Vultron behavior tree
-       can be used to model complex reactive processes in a way that is still easy to understand and reason about.
+         One interesting effect of this design is that the places where the demo uses a fuzzer node are often
+         indicative of places where an actual bot would either need to call out to either a data source or
+         a human to decide what to do next. This is a good example of how the Vultron behavior tree
+         can be used to model complex reactive processes in a way that is still easy to understand and reason about.
 
     !!! note
 
-        There is no underlying communication mechanism in this demo, so messages are not actually
-        sent anywhere. Instead, they are just added to the blackboard's incoming message queue.
-        They also have no content, and are only represented as message types.
+         There is no underlying communication mechanism in this demo, so messages are not actually
+         sent anywhere. Instead, they are just added to the blackboard's incoming message queue.
+         They also have no content, and are only represented as message types.
 
     !!! warning
 
-        This demo is not intended to be a fully realistic simulation of a CVD case. It is only intended
-        to demonstrate the behavior of the Vultron behavior tree.
+         This demo is not intended to be a fully realistic simulation of a CVD case. It is only intended
+         to demonstrate the behavior of the Vultron behavior tree.
     """
-    args = _parse_args()
     _setup_logger(args)
 
     if args.print_tree:
-        _print_tree(logger)
+        logger.info("Printing tree and exiting")
+        show_graph(CvdProtocolRoot)
         sys.exit()
 
     _run_simulation()
@@ -121,14 +121,9 @@ def _print_sim_result():
 def _setup_logger(args):
     global logger
     logger = logging.getLogger()
-    logger.setLevel(args.loglevel)
+    logger.setLevel(args.log_level)
     hdlr = logging.StreamHandler()
     logger.addHandler(hdlr)
-
-
-def _print_tree(logger):
-    logger.info("Printing tree and exiting")
-    show_graph(CvdProtocolRoot)
 
 
 def _parse_args():
@@ -139,7 +134,7 @@ def _parse_args():
     parser.add_argument(
         "-v",
         "--verbose",
-        dest="loglevel",
+        dest="log_level",
         action="store_const",
         const=logging.INFO,
         default=logging.WARNING,
@@ -149,7 +144,7 @@ def _parse_args():
     parser.add_argument(
         "-d",
         "--debug",
-        dest="loglevel",
+        dest="log_level",
         action="store_const",
         const=logging.DEBUG,
         default=logging.WARNING,
@@ -159,7 +154,7 @@ def _parse_args():
     parser.add_argument(
         "-q",
         "--quiet",
-        dest="loglevel",
+        dest="log_level",
         action="store_const",
         const=logging.WARNING,
         default=logging.WARNING,
@@ -180,4 +175,5 @@ def _parse_args():
 
 
 if __name__ == "__main__":
-    main()
+    args = _parse_args()
+    main(args)

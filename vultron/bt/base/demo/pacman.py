@@ -13,12 +13,12 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """
 This is a demo of the bt tree library. It is a stub implementation of a bot that plays Pacman.
-
 """
 
 
 import logging
 import random
+import sys
 from dataclasses import dataclass, field
 
 import vultron.bt.base.composites as bt
@@ -34,6 +34,7 @@ from vultron.bt.base.factory import (
     invert,
     sequence_node,
 )
+from vultron.bt.common import show_graph
 
 logger = logging.getLogger(__name__)
 
@@ -147,28 +148,53 @@ NoMoreGhosts = invert(
 NoGhostClose = invert(
     "NoGhostClose", "inverts the result of GhostClose.", GhostClose
 )
-CaughtGhost = sequence_node("CaughtGhost", "handles actions after catching a ghost.", DecrGhostCount, ScoreGhost,
-                            IncrGhostScore)
+CaughtGhost = sequence_node(
+    "CaughtGhost",
+    "handles actions after catching a ghost.",
+    DecrGhostCount,
+    ScoreGhost,
+    IncrGhostScore,
+)
 GhostsNotScared = invert(
     "GhostsNotScared", "inverts the result of GhostsScared.", GhostsScared
 )
-ChaseIfScared = sequence_node("ChaseIfScared", "implements chasing a ghost if it is scared.", GhostsScared, ChaseGhost,
-                              CaughtGhost)
-ChaseOrAvoidGhost = fallback_node("ChaseOrAvoidGhost",
-                                  "implements chasing a ghost if it is scared, otherwise it avoids the ghost.",
-                                  ChaseIfScared, GhostsScared, AvoidGhost)
+ChaseIfScared = sequence_node(
+    "ChaseIfScared",
+    "implements chasing a ghost if it is scared.",
+    GhostsScared,
+    ChaseGhost,
+    CaughtGhost,
+)
+ChaseOrAvoidGhost = fallback_node(
+    "ChaseOrAvoidGhost",
+    "implements chasing a ghost if it is scared, otherwise it avoids the ghost.",
+    ChaseIfScared,
+    GhostsScared,
+    AvoidGhost,
+)
 
-MaybeChaseOrAvoidGhost = fallback_node("MaybeChaseOrAvoidGhost", """
+MaybeChaseOrAvoidGhost = fallback_node(
+    "MaybeChaseOrAvoidGhost",
+    """
     implements chasing a ghost if it is scared, otherwise it avoids the ghost.
 
     Returns:
         SUCCESS if no ghosts remain, a ghost is caught or avoided, FAILURE otherwise
-    """, NoMoreGhosts, NoGhostClose, ChaseOrAvoidGhost)
+    """,
+    NoMoreGhosts,
+    NoGhostClose,
+    ChaseOrAvoidGhost,
+)
 
 
-MaybeEatPills = sequence_node("MaybeEatPills", """
+MaybeEatPills = sequence_node(
+    "MaybeEatPills",
+    """
     implements eating pills if no ghosts are close.
-    """, MaybeChaseOrAvoidGhost, EatPill)
+    """,
+    MaybeChaseOrAvoidGhost,
+    EatPill,
+)
 
 
 def do_tick(bot, ticks):
@@ -198,30 +224,19 @@ def do_tick(bot, ticks):
     return bot.status
 
 
-def main():
+def main(args):
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler()
     logger.addHandler(handler)
 
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.description = "Run the Pacman demo."
-    parser.add_argument(
-        "--print-tree",
-        action="store_true",
-        help="print the tree and exit",
-        default=False,
-    )
-    args = parser.parse_args()
-
     bot = BehaviorTree(root=MaybeEatPills(), bbclass=PacmanBlackboard)
     bot.setup()
 
     if args.print_tree:
-        print(bot.root.to_mermaid())
-        exit()
+        logger.info("Printing tree and exiting")
+        show_graph(MaybeEatPills)
+        sys.exit()
 
     ticks = 0
     while bot.bb.dots > 0:
@@ -244,4 +259,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = _parse_args()
+
+    main(args)

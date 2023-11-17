@@ -26,6 +26,7 @@ The implementation also shows how to use the included bt tree fuzzer to exercise
 """
 
 import logging
+import sys
 from dataclasses import dataclass
 
 import vultron.bt.base.fuzzer as btz
@@ -38,6 +39,7 @@ from vultron.bt.base.factory import (
     fallback_node,
     sequence_node,
 )
+from vultron.bt.common import show_graph
 
 logger = logging.getLogger(__name__)
 
@@ -75,15 +77,22 @@ SetBallPlaced = action_node(
     set_ball_placed,
 )
 
-PlaceBall = sequence_node("PlaceBall",
-                          "This is a stub for a task that places the ball in the bin. In our stub implementation, we just stochastically "
-                          "return Success or Failure to simulate placing the ball.", btz.UsuallySucceed, SetBallPlaced)
+PlaceBall = sequence_node(
+    "PlaceBall",
+    "This is a stub for a task that places the ball in the bin. In our stub implementation, we just stochastically "
+    "return Success or Failure to simulate placing the ball.",
+    btz.UsuallySucceed,
+    SetBallPlaced,
+)
 
 
-EnsureBallPlaced = fallback_node("EnsureBallPlaced",
-                                 "This is a fallback node that ensures the ball is placed in the bin. If the ball is placed, the task succeeds. If "
-                                 "the ball is not placed, and the robot cannot place the ball, the task fails.",
-                                 BallPlaced, PlaceBall)
+EnsureBallPlaced = fallback_node(
+    "EnsureBallPlaced",
+    "This is a fallback node that ensures the ball is placed in the bin. If the ball is placed, the task succeeds. If "
+    "the ball is not placed, and the robot cannot place the ball, the task fails.",
+    BallPlaced,
+    PlaceBall,
+)
 
 
 def bin_close(obj: BtNode) -> bool:
@@ -108,14 +117,21 @@ SetBinClose = action_node(
     set_bin_close,
 )
 
-ApproachBin = sequence_node("ApproachBin",
-                            "This is a stub for a task that approaches the bin. In our stub implementation, we just stochastically return "
-                            "Success or Failure to simulate approaching the bin.", btz.UsuallySucceed, SetBinClose)
+ApproachBin = sequence_node(
+    "ApproachBin",
+    "This is a stub for a task that approaches the bin. In our stub implementation, we just stochastically return "
+    "Success or Failure to simulate approaching the bin.",
+    btz.UsuallySucceed,
+    SetBinClose,
+)
 
-EnsureBinClose = fallback_node("EnsureBinClose",
-                               "This is a fallback node that ensures the bin is close. If the bin is close, the task succeeds. If the bin "
-                               "is not close, and the robot cannot approach the bin, the task fails.", BinClose,
-                               ApproachBin)
+EnsureBinClose = fallback_node(
+    "EnsureBinClose",
+    "This is a fallback node that ensures the bin is close. If the bin is close, the task succeeds. If the bin "
+    "is not close, and the robot cannot approach the bin, the task fails.",
+    BinClose,
+    ApproachBin,
+)
 
 
 def ball_grasped(obj: BtNode) -> bool:
@@ -140,14 +156,21 @@ SetBallGrasped = action_node(
     set_ball_grasped,
 )
 
-GraspBall = sequence_node("GraspBall",
-                          "This is a stub for a task that grasps the ball. In our stub implementation, we just stochastically return "
-                          "SUCCESS.", btz.OftenFail, SetBallGrasped)
+GraspBall = sequence_node(
+    "GraspBall",
+    "This is a stub for a task that grasps the ball. In our stub implementation, we just stochastically return "
+    "SUCCESS.",
+    btz.OftenFail,
+    SetBallGrasped,
+)
 
-EnsureBallGrasped = fallback_node("EnsureBallGrasped",
-                                  "This is a fallback node that ensures the ball is grasped. If the ball is grasped, the task succeeds. If the ball "
-                                  "is not already grasped, and the robot cannot grasp the ball, the task fails.",
-                                  BallGrasped, GraspBall)
+EnsureBallGrasped = fallback_node(
+    "EnsureBallGrasped",
+    "This is a fallback node that ensures the ball is grasped. If the ball is grasped, the task succeeds. If the ball "
+    "is not already grasped, and the robot cannot grasp the ball, the task fails.",
+    BallGrasped,
+    GraspBall,
+)
 
 
 def ball_close(obj: BtNode) -> bool:
@@ -172,15 +195,22 @@ SetBallClose = action_node(
     set_ball_close,
 )
 
-ApproachBall = sequence_node("ApproachBall",
-                             "This is a stub for a task that approaches the ball. In our stub implementation, we just stochastically return "
-                             "Success or Failure to simulate approaching the ball.", btz.UsuallySucceed, SetBallClose)
+ApproachBall = sequence_node(
+    "ApproachBall",
+    "This is a stub for a task that approaches the ball. In our stub implementation, we just stochastically return "
+    "Success or Failure to simulate approaching the ball.",
+    btz.UsuallySucceed,
+    SetBallClose,
+)
 
 
-EnsureBallClose = fallback_node("EnsureBallClose",
-                                "This is a fallback node that ensures the ball is close. If the ball is close, the task succeeds. If the ball "
-                                "is not close, and the robot cannot approach the ball, the task fails.", BallClose,
-                                ApproachBall)
+EnsureBallClose = fallback_node(
+    "EnsureBallClose",
+    "This is a fallback node that ensures the ball is close. If the ball is close, the task succeeds. If the ball "
+    "is not close, and the robot cannot approach the ball, the task fails.",
+    BallClose,
+    ApproachBall,
+)
 
 
 def set_ball_found(obj: BtNode) -> bool:
@@ -194,9 +224,13 @@ SetBallFound = action_node(
     set_ball_found,
 )
 
-FindBall = sequence_node("FindBall",
-                         "This is a stub for a task that finds the ball. In our stub implementation, we just stochastically return "
-                         "Success or Failure to simulate finding the ball.", btz.UsuallySucceed, SetBallFound)
+FindBall = sequence_node(
+    "FindBall",
+    "This is a stub for a task that finds the ball. In our stub implementation, we just stochastically return "
+    "Success or Failure to simulate finding the ball.",
+    btz.UsuallySucceed,
+    SetBallFound,
+)
 
 
 def ball_found(obj: BtNode) -> bool:
@@ -210,10 +244,13 @@ BallFound = condition_check(
 )
 
 
-EnsureBallFound = fallback_node("EnsureBallFound",
-                                "This is a fallback node that ensures the ball is found. If the ball is found, the task succeeds. If the ball "
-                                "is not found, and the robot cannot find the ball, the task fails.", BallFound,
-                                FindBall)
+EnsureBallFound = fallback_node(
+    "EnsureBallFound",
+    "This is a fallback node that ensures the ball is found. If the ball is found, the task succeeds. If the ball "
+    "is not found, and the robot cannot find the ball, the task fails.",
+    BallFound,
+    FindBall,
+)
 
 
 def time_to_ask_for_help(obj: BtNode) -> bool:
@@ -239,43 +276,46 @@ AskForHelp = action_node(
     ask_for_help,
 )
 
-MaybeAskForHelp = sequence_node("MaybeAskForHelp", "Decide whether we need to ask for help.", TimeToAskForHelp,
-                                AskForHelp)
+MaybeAskForHelp = sequence_node(
+    "MaybeAskForHelp",
+    "Decide whether we need to ask for help.",
+    TimeToAskForHelp,
+    AskForHelp,
+)
 
-MainSequence = sequence_node("MainSequence",
-                             "This is the main sequence of tasks the robot must perform in order to complete its mission.",
-                             EnsureBallFound, EnsureBallClose, EnsureBallGrasped, EnsureBinClose, EnsureBallPlaced)
+MainSequence = sequence_node(
+    "MainSequence",
+    "This is the main sequence of tasks the robot must perform in order to complete its mission.",
+    EnsureBallFound,
+    EnsureBallClose,
+    EnsureBallGrasped,
+    EnsureBinClose,
+    EnsureBallPlaced,
+)
 
-Robot = fallback_node("Robot",
-                      "This is the robot's main fallback node. It will try to complete its mission. If it fails, it will ask for help.",
-                      BallPlaced, MainSequence, MaybeAskForHelp)
+Robot = fallback_node(
+    "Robot",
+    "This is the robot's main fallback node. It will try to complete its mission. If it fails, it will ask for help.",
+    BallPlaced,
+    MainSequence,
+    MaybeAskForHelp,
+)
 
 
-def main():
+def main(args):
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
     hdlr = logging.StreamHandler()
     logger.addHandler(hdlr)
-
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.description = "Run the Pacman demo."
-    parser.add_argument(
-        "--print-tree",
-        action="store_true",
-        help="print the tree and exit",
-        default=False,
-    )
-    args = parser.parse_args()
 
     bot = BehaviorTree(root=Robot(), bbclass=RobotBlackboard)
 
     bot.setup()
 
     if args.print_tree:
-        print(bot.root.to_mermaid(topdown=False))
-        exit()
+        logger.info("Printing tree and exiting")
+        show_graph(Robot)
+        sys.exit()
 
     knockout = True
     while not bot.bb.ball_placed:
@@ -303,4 +343,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = _parse_args()
+    main(args)

@@ -57,7 +57,12 @@ Legend:
     
     ```shell
     # if vultron package is installed
-    $ vultrabot_pacman
+    # run the demo
+    $ vultrabot --pacman
+
+    # print tree and exit
+    $ vultrabot --pacman --print-tree
+
     # if vultron package is not installed
     $ python -m vultron.bt.base.demo.pacman
     ```

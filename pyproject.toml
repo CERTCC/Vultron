@@ -40,7 +40,9 @@ dynamic = ["version",]
 [project.scripts]
 vultrabot_pacman="vultron.bt.base.demo.pacman:main"
 vultrabot_robot="vultron.bt.base.demo.robot:main"
-vultrabot="vultron.demo.vultrabot:main"
+vultrabot_cvd="vultron.demo.vultrabot:main"
+vultrabot="vultron.scripts.vultrabot:main"
+
 
 [project.urls]
 "Homepage" = "https://certcc.github.io/Vultron"
