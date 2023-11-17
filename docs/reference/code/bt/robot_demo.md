@@ -43,7 +43,7 @@ Legend:
      # if vultron package is installed
     # run the demo
     $ vultrabot --robot
-    
+
     # print the tree and exit
     $ vultrabot --robot --print-tree
     

@@ -53,8 +53,8 @@ Legend:
 
 ## Demo Output
 
-!!! example 
-    
+!!! example
+
     ```shell
     # if vultron package is installed
     # run the demo

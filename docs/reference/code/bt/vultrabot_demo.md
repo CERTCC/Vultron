@@ -25,6 +25,7 @@ The Behavior Tree for this demo is essentially the entire tree defined in the
     ```
 
 When the tree is run, it will look something like this:
+
 ```text
 {% include-markdown './vultrabot_tree_example.txt' %}
 ```
