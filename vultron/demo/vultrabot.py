@@ -102,16 +102,20 @@ def _run_simulation():
                 logger.info(f"  {i} {row}")
 
 
+def _shorten_names(y):
+    return tuple([x.value for x in y])
+
+
 def _print_sim_result():
     df = pd.DataFrame(STATELOG)
     df.index += 1
-    shorten_names = lambda y: tuple([x.value for x in y])
+
     df.q_rm = df.q_rm.apply(lambda x: x.value)
     df.q_em = df.q_em.apply(lambda x: x.value)
     df.msgs_received_this_tick = df.msgs_received_this_tick.apply(
-        shorten_names
+        _shorten_names
     )
-    df.msgs_emitted_this_tick = df.msgs_emitted_this_tick.apply(shorten_names)
+    df.msgs_emitted_this_tick = df.msgs_emitted_this_tick.apply(_shorten_names)
     df.CVD_role = df.CVD_role.apply(lambda x: x.name)
     df.q_cs = df.q_cs.apply(lambda x: x.name)
     df = df.drop_duplicates()
@@ -130,7 +134,6 @@ def _parse_args():
     parser = argparse.ArgumentParser(
         description="Run a Vultron behavior tree demo"
     )
-    # verbpse = INFO
     parser.add_argument(
         "-v",
         "--verbose",
@@ -140,7 +143,6 @@ def _parse_args():
         default=logging.WARNING,
         help="verbose output",
     )
-    # debug = DEBUG
     parser.add_argument(
         "-d",
         "--debug",
@@ -150,7 +152,6 @@ def _parse_args():
         default=logging.WARNING,
         help="debug output",
     )
-    # quiet = WARNING
     parser.add_argument(
         "-q",
         "--quiet",
@@ -160,7 +161,6 @@ def _parse_args():
         default=logging.WARNING,
         help="quiet output",
     )
-    # if print-tree just print the tree and exit
     parser.add_argument(
         "-t",
         "--print-tree",
@@ -170,10 +170,8 @@ def _parse_args():
         help="print the tree and exit",
     )
 
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    args = _parse_args()
-    main(args)
+    main(_parse_args())
