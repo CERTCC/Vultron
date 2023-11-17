@@ -81,63 +81,111 @@ def evaluate_priority(obj: BtNode) -> bool:
 _EvaluatePriority = action_node("EvaluatePriority", evaluate_priority)
 
 
-_GetMorePrioritizationInfo = sequence_node("_GetMorePrioritizationInfo",
-                                           """This node represents the process of gathering more prioritization information.""",
-                                           GatherPrioritizationInfo, NoNewPrioritizationInfo)
+_GetMorePrioritizationInfo = sequence_node(
+    "_GetMorePrioritizationInfo",
+    """This node represents the process of gathering more prioritization information.""",
+    GatherPrioritizationInfo,
+    NoNewPrioritizationInfo,
+)
 
 
-_EnsureAdequatePrioritizationInfo = fallback_node("_EnsureAdequatePrioritizationInfo", """This node represents the process of ensuring that there is adequate prioritization information.
+_EnsureAdequatePrioritizationInfo = fallback_node(
+    "_EnsureAdequatePrioritizationInfo",
+    """This node represents the process of ensuring that there is adequate prioritization information.
     If there is adequate prioritization information, then this node succeeds.
     If there is not adequate prioritization information, then this node attempts to gather more prioritization
     information.
-    """, EnoughPrioritizationInfo, _GetMorePrioritizationInfo)
+    """,
+    EnoughPrioritizationInfo,
+    _GetMorePrioritizationInfo,
+)
 
 
-_ConsiderGatheringMorePrioritizationInfo = sequence_node("_ConsiderGatheringMorePrioritizationInfo", """This node represents the process of considering whether to gather more prioritization information.
+_ConsiderGatheringMorePrioritizationInfo = sequence_node(
+    "_ConsiderGatheringMorePrioritizationInfo",
+    """This node represents the process of considering whether to gather more prioritization information.
     If the RM state is in DEFERRED or ACCEPTED, then we might want to gather more prioritization information.
-    """, RMinStateDeferredOrAccepted, _EnsureAdequatePrioritizationInfo)
+    """,
+    RMinStateDeferredOrAccepted,
+    _EnsureAdequatePrioritizationInfo,
+)
 
 
-_TransitionToRmAccepted = sequence_node("_TransitionToRmAccepted", """This node represents the process of transitioning the RM state to the ACCEPTED state.
+_TransitionToRmAccepted = sequence_node(
+    "_TransitionToRmAccepted",
+    """This node represents the process of transitioning the RM state to the ACCEPTED state.
     Steps:
     1. Run the OnAccept behavior.
     2. Transition the RM state to the ACCEPTED state.
     3. Emit a RA message indicating that the RM state has been updated.
-    """, OnAccept, q_rm_to_A, EmitRA)
+    """,
+    OnAccept,
+    q_rm_to_A,
+    EmitRA,
+)
 
-_EnsureRmAccepted = fallback_node("_EnsureRmAccepted", """This node represents the process of ensuring that the RM state is in the ACCEPTED state.
+_EnsureRmAccepted = fallback_node(
+    "_EnsureRmAccepted",
+    """This node represents the process of ensuring that the RM state is in the ACCEPTED state.
     If the RM state is in the ACCEPTED state, then this node succeeds.
     If the RM state is not in the ACCEPTED state, then this node attempts to transition the RM state to the
     ACCEPTED state.
-    """, RMinStateAccepted, _TransitionToRmAccepted)
+    """,
+    RMinStateAccepted,
+    _TransitionToRmAccepted,
+)
 
 
-_DecideIfFurtherActionNeeded = sequence_node("_DecideIfFurtherActionNeeded", """This node represents the process of deciding whether prioritization action is needed.
+_DecideIfFurtherActionNeeded = sequence_node(
+    "_DecideIfFurtherActionNeeded",
+    """This node represents the process of deciding whether prioritization action is needed.
     If the RM state is in VALID or DEFERRED or ACCEPTED, then further action is needed.
-    """, RMinStateValidOrDeferredOrAccepted, _EvaluatePriority, _PriorityNotDefer, _EnsureRmAccepted)
+    """,
+    RMinStateValidOrDeferredOrAccepted,
+    _EvaluatePriority,
+    _PriorityNotDefer,
+    _EnsureRmAccepted,
+)
 
 
-_TransitionToRmDeferred = sequence_node("_TransitionToRmDeferred", """This node represents the process of transitioning the RM state to the DEFERRED state.
+_TransitionToRmDeferred = sequence_node(
+    "_TransitionToRmDeferred",
+    """This node represents the process of transitioning the RM state to the DEFERRED state.
     Steps:
     1. Run the OnDefer behavior.
     2. Transition the RM state to the DEFERRED state.
     3. Emit a RD message indicating that the RM state has been updated.
-    """, OnDefer, q_rm_to_D, EmitRD)
+    """,
+    OnDefer,
+    q_rm_to_D,
+    EmitRD,
+)
 
 
-_EnsureRmDeferred = fallback_node("_EnsureRmDeferred", """This node ensures that the RM state is in the DEFERRED state.
+_EnsureRmDeferred = fallback_node(
+    "_EnsureRmDeferred",
+    """This node ensures that the RM state is in the DEFERRED state.
     If the RM state is already in the DEFERRED state, then this node succeeds.
     If the RM state is not in the DEFERRED state, then this node attempts to transition the RM state to the
     DEFERRED state.
-    """, RMinStateDeferred, _TransitionToRmDeferred)
+    """,
+    RMinStateDeferred,
+    _TransitionToRmDeferred,
+)
 
 
-RMPrioritizeBt = fallback_node("RMPrioritizeBt", """This node represents the process of prioritizing a report.
+RMPrioritizeBt = fallback_node(
+    "RMPrioritizeBt",
+    """This node represents the process of prioritizing a report.
     Steps:
     1. Consider whether to gather more prioritization information.
     2. Decide whether prioritization action is needed. If so, possibly transition to the ACCEPTED state.
     3. If the previous steps fail, ensure that the RM state is in the DEFERRED state.
-    """, _ConsiderGatheringMorePrioritizationInfo, _DecideIfFurtherActionNeeded, _EnsureRmDeferred)
+    """,
+    _ConsiderGatheringMorePrioritizationInfo,
+    _DecideIfFurtherActionNeeded,
+    _EnsureRmDeferred,
+)
 
 
 def main():

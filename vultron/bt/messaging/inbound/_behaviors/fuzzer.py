@@ -20,6 +20,11 @@ from vultron.bt.base.factory import fallback_node
 from vultron.bt.messaging.outbound.behaviors import EmitGI
 
 
-FollowUpOnErrorMessage = fallback_node("FollowUpOnErrorMessage", """This is a stub for following up on an error message. In our stub implementation, we just stochastically (0.5
+FollowUpOnErrorMessage = fallback_node(
+    "FollowUpOnErrorMessage",
+    """This is a stub for following up on an error message. In our stub implementation, we just stochastically (0.5
     probability) emit a GI message to simulate sending a follow-up inquiry message.
-    """, btz.UniformSucceedFail, EmitGI)
+    """,
+    btz.UniformSucceedFail,
+    EmitGI,
+)

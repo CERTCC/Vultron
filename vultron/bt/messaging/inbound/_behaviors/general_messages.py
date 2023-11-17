@@ -32,22 +32,44 @@ from vultron.bt.messaging.outbound.behaviors import EmitGK
 # GENERAL messages
 
 
-_HandleGeMessage = sequence_node("_HandleGeMessage", """Handle general error (GE) messages.""", IsMsgTypeGE,
-                                 FollowUpOnErrorMessage)
+_HandleGeMessage = sequence_node(
+    "_HandleGeMessage",
+    """Handle general error (GE) messages.""",
+    IsMsgTypeGE,
+    FollowUpOnErrorMessage,
+)
 
 
-_HandleGmMessageTypes = fallback_node("_HandleGmMessageTypes", """Handle GI messages.""", IsMsgTypeGI, _HandleGeMessage)
+_HandleGmMessageTypes = fallback_node(
+    "_HandleGmMessageTypes",
+    """Handle GI messages.""",
+    IsMsgTypeGI,
+    _HandleGeMessage,
+)
 
 
-_HandleAckableGmMessages = sequence_node("_HandleAckableGmMessages", """Handle ackable GI messages.""",
-                                         _HandleGmMessageTypes, EmitGK)
+_HandleAckableGmMessages = sequence_node(
+    "_HandleAckableGmMessages",
+    """Handle ackable GI messages.""",
+    _HandleGmMessageTypes,
+    EmitGK,
+)
 
 
-_HandleGmMessage = fallback_node("_HandleGmMessage", """Handle GM messages.""", IsMsgTypeGK, _HandleAckableGmMessages)
+_HandleGmMessage = fallback_node(
+    "_HandleGmMessage",
+    """Handle GM messages.""",
+    IsMsgTypeGK,
+    _HandleAckableGmMessages,
+)
 
 
-ProcessMessagesOtherBt = sequence_node("ProcessMessagesOtherBt", """Process GI messages""", IsGMMessage,
-                                       _HandleGmMessage)
+ProcessMessagesOtherBt = sequence_node(
+    "ProcessMessagesOtherBt",
+    """Process GI messages""",
+    IsGMMessage,
+    _HandleGmMessage,
+)
 
 
 def main():

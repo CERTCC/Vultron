@@ -24,19 +24,32 @@ from vultron.bt.report_management.fuzzer.develop_fix import CreateFix
 from vultron.bt.roles.conditions import RoleIsNotVendor
 
 
-_CreateFixForAcceptedReports = sequence_node("_CreateFixForAcceptedReports", """This node represents the process of creating a fix for a report that is in the ACCEPTED state.
+_CreateFixForAcceptedReports = sequence_node(
+    "_CreateFixForAcceptedReports",
+    """This node represents the process of creating a fix for a report that is in the ACCEPTED state.
     Steps:
     1. Check that the report is in the ACCEPTED state, implying that the vendor has prioritized the report for a fix.
     2. Actually create the fix.
     3. Transition the case state to the FIX_READY state.
     4. Emit a CF message indicating that the fix has been created.
-    """, RMinStateAccepted, CreateFix, q_cs_to_F, EmitCF)
+    """,
+    RMinStateAccepted,
+    CreateFix,
+    q_cs_to_F,
+    EmitCF,
+)
 
 
-DevelopFix = fallback_node("DevelopFix", """This node represents the process of developing a fix for a vulnerability.
+DevelopFix = fallback_node(
+    "DevelopFix",
+    """This node represents the process of developing a fix for a vulnerability.
     It short-circuits in the following situations:
     1. The actor is not a vendor and therefore cannot develop a fix.
     2. The case is already in the FIX_READY state.
 
     Otherwise, it attempts to create a fix for the reported vulnerability.
-    """, RoleIsNotVendor, CSinStateVendorAwareAndFixReady, _CreateFixForAcceptedReports)
+    """,
+    RoleIsNotVendor,
+    CSinStateVendorAwareAndFixReady,
+    _CreateFixForAcceptedReports,
+)

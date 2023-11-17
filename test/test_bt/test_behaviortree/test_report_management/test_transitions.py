@@ -37,7 +37,9 @@ class TestRMTransitions(unittest.TestCase):
             expect_success.append(end_state)
 
         # Expect failure for all other states
-        expect_fail = [state for state in rmt.RM if state not in expect_success]
+        expect_fail = [
+            state for state in rmt.RM if state not in expect_success
+        ]
 
         for state in expect_success:
             # set up the node

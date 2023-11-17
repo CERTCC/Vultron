@@ -30,42 +30,67 @@ from vultron.bt.report_management.fuzzer.close_report import (
 from vultron.bt.report_management.transitions import q_rm_to_C
 
 
-_DeployedDeferredOrInvalid = fallback_node("_DeployedDeferredOrInvalid", """This node returns success when the case is in a state that allows the report to be closed.
+_DeployedDeferredOrInvalid = fallback_node(
+    "_DeployedDeferredOrInvalid",
+    """This node returns success when the case is in a state that allows the report to be closed.
     Possible success criteria:
     1. The case is in the FIX_DEPLOYED state.
     2. The report is in the DEFERRED state.
     3. The report is in the INVALID state.
     If any of these criteria are met, the node returns success.
     If none of these criteria are met, the node returns failure.
-    """, CSinStateFixDeployed, RMinStateDeferred, RMinStateInvalid)
+    """,
+    CSinStateFixDeployed,
+    RMinStateDeferred,
+    RMinStateInvalid,
+)
 
 
-_CloseCriteriaMet = sequence_node("_CloseCriteriaMet", """This node checks if the report is ready to be closed.
+_CloseCriteriaMet = sequence_node(
+    "_CloseCriteriaMet",
+    """This node checks if the report is ready to be closed.
     Steps:
     1. Check whether the case is in a state that allows the report to be closed.
     2. Check whether any other closure criteria are met.
-    """, _DeployedDeferredOrInvalid, OtherCloseCriteriaMet)
+    """,
+    _DeployedDeferredOrInvalid,
+    OtherCloseCriteriaMet,
+)
 
 
-_CloseAndNotify = sequence_node("_CloseAndNotify",
-                                """This node updates the report management state to CLOSED and emits a report closed message.""",
-                                q_rm_to_C, EmitRC)
+_CloseAndNotify = sequence_node(
+    "_CloseAndNotify",
+    """This node updates the report management state to CLOSED and emits a report closed message.""",
+    q_rm_to_C,
+    EmitRC,
+)
 
 
-_ReportClosureSequence = sequence_node("_ReportClosureSequence", """This sequence handles the closing of a report.
+_ReportClosureSequence = sequence_node(
+    "_ReportClosureSequence",
+    """This sequence handles the closing of a report.
     Steps:
     1. Check if the report is ready to be closed.
     2. Perform any pre-close actions.
     3. Close the report and notify other stakeholders.
     If all of these steps succeed, the report is closed.
     If any of these steps fail, the report is not closed.
-    """, _CloseCriteriaMet, PreCloseAction, _CloseAndNotify)
+    """,
+    _CloseCriteriaMet,
+    PreCloseAction,
+    _CloseAndNotify,
+)
 
 
-RMCloseBt = fallback_node("RMCloseBt", """This bt tree handles the closing of a report.
+RMCloseBt = fallback_node(
+    "RMCloseBt",
+    """This bt tree handles the closing of a report.
     Steps:
     1. Check if the report is in the CLOSED state. If so, return success.
     2. Otherwise start the report closure sequence.
     If either of these steps succeed, the report is closed.
     If both of these steps fail, the report is not closed.
-    """, RMinStateClosed, _ReportClosureSequence)
+    """,
+    RMinStateClosed,
+    _ReportClosureSequence,
+)

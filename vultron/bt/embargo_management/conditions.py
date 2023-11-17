@@ -52,28 +52,44 @@ EMinStateRevise = em_state_in(EM.REVISE)
 EMinStateExited = em_state_in(EM.EXITED)
 
 
-EMinStateActiveOrRevise = fallback_node("EMinStateActiveOrRevise",
-                                        """Check if the embargo management state is Active or Revise.""",
-                                        EMinStateActive, EMinStateRevise)
+EMinStateActiveOrRevise = fallback_node(
+    "EMinStateActiveOrRevise",
+    """Check if the embargo management state is Active or Revise.""",
+    EMinStateActive,
+    EMinStateRevise,
+)
 
 
-EMinStateNoneOrExited = fallback_node("EMinStateNoneOrExited",
-                                      """Check if the embargo management state is None or Exited.""", EMinStateNone,
-                                      EMinStateExited)
+EMinStateNoneOrExited = fallback_node(
+    "EMinStateNoneOrExited",
+    """Check if the embargo management state is None or Exited.""",
+    EMinStateNone,
+    EMinStateExited,
+)
 
-EMinStateProposeOrRevise = fallback_node("EMinStateProposeOrRevise",
-                                         """Check if the embargo management state is Proposed or Revise.""",
-                                         EMinStateProposed, EMinStateRevise)
+EMinStateProposeOrRevise = fallback_node(
+    "EMinStateProposeOrRevise",
+    """Check if the embargo management state is Proposed or Revise.""",
+    EMinStateProposed,
+    EMinStateRevise,
+)
 
 
-EMinStateNoneOrPropose = fallback_node("EMinStateNoneOrPropose",
-                                       """Check if the embargo management state is None or Proposed.""", EMinStateNone,
-                                       EMinStateProposed)
+EMinStateNoneOrPropose = fallback_node(
+    "EMinStateNoneOrPropose",
+    """Check if the embargo management state is None or Proposed.""",
+    EMinStateNone,
+    EMinStateProposed,
+)
 
 
-EMinStateNoneOrProposeOrRevise = fallback_node("EMinStateNoneOrProposeOrRevise",
-                                               """Check if the embargo management state is None or Proposed or Revise.""",
-                                               EMinStateNone, EMinStateProposed, EMinStateRevise)
+EMinStateNoneOrProposeOrRevise = fallback_node(
+    "EMinStateNoneOrProposeOrRevise",
+    """Check if the embargo management state is None or Proposed or Revise.""",
+    EMinStateNone,
+    EMinStateProposed,
+    EMinStateRevise,
+)
 
 
 def main():

@@ -33,41 +33,75 @@ from vultron.bt.report_management.fuzzer.validate_report import (
 from vultron.bt.report_management.transitions import q_rm_to_I, q_rm_to_V
 
 
-_GetMoreValidationInfo = sequence_node("_GetMoreValidationInfo", "Collect more validation info", GatherValidationInfo,
-                                       NoNewValidationInfo)
+_GetMoreValidationInfo = sequence_node(
+    "_GetMoreValidationInfo",
+    "Collect more validation info",
+    GatherValidationInfo,
+    NoNewValidationInfo,
+)
 
 
-_EnsureAdequateValidationInfo = fallback_node("_EnsureAdequateValidationInfo",
-                                              "Check if there is enough validation info. If not, get more.",
-                                              EnoughValidationInfo, _GetMoreValidationInfo)
+_EnsureAdequateValidationInfo = fallback_node(
+    "_EnsureAdequateValidationInfo",
+    "Check if there is enough validation info. If not, get more.",
+    EnoughValidationInfo,
+    _GetMoreValidationInfo,
+)
 
 
-_HandleRmI = sequence_node("_HandleRmI", "If we are in RM.INVALID, check to see if we need to collect more info",
-                           RMinStateInvalid, _EnsureAdequateValidationInfo)
+_HandleRmI = sequence_node(
+    "_HandleRmI",
+    "If we are in RM.INVALID, check to see if we need to collect more info",
+    RMinStateInvalid,
+    _EnsureAdequateValidationInfo,
+)
 
 
-_ValidateReport = sequence_node("_ValidateReport", "Move to RM.VALID state and emit RV message", q_rm_to_V, EmitRV)
+_ValidateReport = sequence_node(
+    "_ValidateReport",
+    "Move to RM.VALID state and emit RV message",
+    q_rm_to_V,
+    EmitRV,
+)
 
 
-_ValidationSequence = sequence_node("_ValidationSequence", """This node represents the process of validating a report.
+_ValidationSequence = sequence_node(
+    "_ValidationSequence",
+    """This node represents the process of validating a report.
     Steps:
     1. Check if the report is in the RECEIVED or INVALID states.
     2. Evaluate the credibility of the report.
     3. Evaluate the validity of the report.
     4. Change the report management state to VALID if all previous steps succeeded
-    """, RMinStateReceivedOrInvalid, EvaluateReportCredibility, EvaluateReportValidity, _ValidateReport)
+    """,
+    RMinStateReceivedOrInvalid,
+    EvaluateReportCredibility,
+    EvaluateReportValidity,
+    _ValidateReport,
+)
 
 
-_InvalidateReport = sequence_node("_InvalidateReport", "Move to RM.INVALID state and emit an RI message", q_rm_to_I,
-                                  EmitRI)
+_InvalidateReport = sequence_node(
+    "_InvalidateReport",
+    "Move to RM.INVALID state and emit an RI message",
+    q_rm_to_I,
+    EmitRI,
+)
 
 
-RMValidateBt = fallback_node("RMValidateBt", """This node represents the process of validating a report.
+RMValidateBt = fallback_node(
+    "RMValidateBt",
+    """This node represents the process of validating a report.
     Steps:
     1. If the report is in the VALID state, then this node succeeds.
     2. If the report is in the RECEIVED or INVALID states, then this node attempts to validate the report.
     3. If validation fails, then move the report to INVALID.
-    """, RMinStateValid, _HandleRmI, _ValidationSequence, _InvalidateReport)
+    """,
+    RMinStateValid,
+    _HandleRmI,
+    _ValidationSequence,
+    _InvalidateReport,
+)
 
 
 def main():

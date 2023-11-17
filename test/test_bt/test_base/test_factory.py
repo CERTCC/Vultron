@@ -68,15 +68,14 @@ class MyTestCase(unittest.TestCase):
             # can't test for instantiation here because some classes have requirements
             # we haven't met yet. We'll do those in the individual tests below.
 
-
     def test_sequence(self):
-
         for x in range(2):
             # throw an error if less than two children
-            self.assertRaises(ValueError, sequence_node, "foo", "bar", *self.children[:x])
+            self.assertRaises(
+                ValueError, sequence_node, "foo", "bar", *self.children[:x]
+            )
 
         node_cls = sequence_node("foo", "bar", *self.children)
-
 
         self.assertTrue(issubclass(node_cls, SequenceNode))
         self.assertEqual("foo", node_cls.__name__)
@@ -88,8 +87,9 @@ class MyTestCase(unittest.TestCase):
     def test_fallback(self):
         for x in range(1):
             # throw an error if less than one child
-            self.assertRaises(ValueError, fallback_node, "foo", "bar", *self.children[:x])
-
+            self.assertRaises(
+                ValueError, fallback_node, "foo", "bar", *self.children[:x]
+            )
 
         node_cls = fallback_node("foo", "bar", *self.children)
 
@@ -173,20 +173,26 @@ class MyTestCase(unittest.TestCase):
         self.assertGreater(len(self.children), 1)
         for x in range(2):
             # throw an error if less than two children
-            self.assertRaises(ValueError, parallel_node, "foo", "bar", 1, *self.children[:x])
-
-
+            self.assertRaises(
+                ValueError, parallel_node, "foo", "bar", 1, *self.children[:x]
+            )
 
         bad_values = [0, -1, None, "foo", len(self.children) + 1]
         for min_success in bad_values:
-            self.assertRaises(ValueError, parallel_node, "foo", "bar", min_success, *self.children)
+            self.assertRaises(
+                ValueError,
+                parallel_node,
+                "foo",
+                "bar",
+                min_success,
+                *self.children,
+            )
 
         # no empty children
         self.assertRaises(ValueError, parallel_node, "foo", "bar", 1, *[])
 
-        for m in range(1,len(self.children)+1):
+        for m in range(1, len(self.children) + 1):
             node_cls = parallel_node("foo", "bar", m, *self.children)
-
 
             self.assertTrue(issubclass(node_cls, ParallelNode))
             self.assertEqual("foo", node_cls.__name__)

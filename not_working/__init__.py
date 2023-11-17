@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-'''
+"""
 file: __init__.py
 author: adh
 created_at: 10/9/23 1:11 PM
-'''
+"""
 
 
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
@@ -19,9 +19,10 @@ created_at: 10/9/23 1:11 PM
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+
 def main():
     pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

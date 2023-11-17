@@ -18,9 +18,7 @@ from vultron.bt.base.blackboard import Blackboard
 
 
 class TestBlackBoard(unittest.TestCase):
-
     def test_bb_has_dataclass_semantics(self):
-
         # there really isn't anything to test since Blackboard doesn't have any
         # defined fields.  But we can test that it has dataclass semantics
 
@@ -30,7 +28,6 @@ class TestBlackBoard(unittest.TestCase):
 
         bb = BB()
         self.assertEqual("bar", bb.foo)
-
 
 
 if __name__ == "__main__":

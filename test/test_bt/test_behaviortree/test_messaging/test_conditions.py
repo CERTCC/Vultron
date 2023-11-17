@@ -21,6 +21,7 @@ from vultron.bt.messaging.states import MessageTypes
 class MockMsg:
     msg_type = None
 
+
 class MockState:
     current_message = MockMsg()
 
@@ -35,7 +36,6 @@ _TO_TEST = {
     MessageTypes.RC: vmc.IsMsgTypeRC,
     MessageTypes.RK: vmc.IsMsgTypeRK,
     MessageTypes.RE: vmc.IsMsgTypeRE,
-
     # EP ER EA EV EJ EC ET EK EE
     MessageTypes.EP: vmc.IsMsgTypeEP,
     MessageTypes.ER: vmc.IsMsgTypeER,
@@ -46,7 +46,6 @@ _TO_TEST = {
     MessageTypes.ET: vmc.IsMsgTypeET,
     MessageTypes.EK: vmc.IsMsgTypeEK,
     MessageTypes.EE: vmc.IsMsgTypeEE,
-
     # CV CF CD CP CX CA CK CE
     MessageTypes.CV: vmc.IsMsgTypeCV,
     MessageTypes.CF: vmc.IsMsgTypeCF,
@@ -56,7 +55,6 @@ _TO_TEST = {
     MessageTypes.CA: vmc.IsMsgTypeCA,
     MessageTypes.CK: vmc.IsMsgTypeCK,
     MessageTypes.CE: vmc.IsMsgTypeCE,
-
     # GI GK GE
     MessageTypes.GI: vmc.IsMsgTypeGI,
     MessageTypes.GK: vmc.IsMsgTypeGK,
@@ -64,12 +62,8 @@ _TO_TEST = {
 }
 
 
-
-
 class MyTestCase(unittest.TestCase):
-
-
-    def _test_is_msg_type_generic(self,cls,msg_type):
+    def _test_is_msg_type_generic(self, cls, msg_type):
         node = cls()
         node.bb = MockState()
         node.msg_type = msg_type
@@ -84,12 +78,16 @@ class MyTestCase(unittest.TestCase):
                     self.assertEqual(node.tick(), NodeStatus.FAILURE)
 
     def test_is_msg_type(self):
-        self.assertEqual(len(_TO_TEST),len(MessageTypes),msg="Not all message types are tested")
+        self.assertEqual(
+            len(_TO_TEST),
+            len(MessageTypes),
+            msg="Not all message types are tested",
+        )
 
-        for (msg_type,cls) in _TO_TEST.items():
-            self._test_is_msg_type_generic(cls,msg_type)
+        for msg_type, cls in _TO_TEST.items():
+            self._test_is_msg_type_generic(cls, msg_type)
 
-    def _test_msg_type_compound(self,cls,pfx):
+    def _test_msg_type_compound(self, cls, pfx):
         # loop through all message types
         for msg_type in MessageTypes:
             node = cls()
@@ -98,10 +96,10 @@ class MyTestCase(unittest.TestCase):
 
             if msg_type.value.startswith(pfx):
                 # if the message type starts with the prefix, it should succeed
-                self.assertEqual(NodeStatus.SUCCESS,node.tick())
+                self.assertEqual(NodeStatus.SUCCESS, node.tick())
             else:
                 # if the message type does not start with the prefix, it should fail
-                self.assertEqual(NodeStatus.FAILURE,node.tick())
+                self.assertEqual(NodeStatus.FAILURE, node.tick())
 
     def test_is_rm_msg(self):
         self._test_msg_type_compound(vmc.IsRMMessage, "R")
@@ -116,6 +114,5 @@ class MyTestCase(unittest.TestCase):
         self._test_msg_type_compound(vmc.IsGMMessage, "G")
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
