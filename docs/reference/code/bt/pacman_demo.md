@@ -53,6 +53,15 @@ Legend:
 
 ## Demo Output
 
+!!! example 
+    
+    ```shell
+    # if vultron package is installed
+    $ vultrabot_pacman
+    # if vultron package is not installed
+    $ python -m vultron.bt.base.demo.pacman
+    ```
+
 When the tree is run, it will look something like this:
 
 ```text
