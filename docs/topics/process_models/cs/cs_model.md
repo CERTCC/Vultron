@@ -347,7 +347,46 @@ right-linear grammar $\delta^{cs}$.
 
 A diagram of the CS process, including its states and transitions, is shown below.
 
+In this combined model, each point along the vendor fix flow above
+corresponds to an instance of the public/exploit/attack diagram.
+The full diagram below shows each of these as distinct macrostates embedded in
+the larger model.
+
 {% include-markdown "./vfdpxa_diagram.md" %}
+
+
+### The *Vendor Unware* macrostate (_vfd_)
+
+Found at the top of the diagram, the $vfd$ macrostate is the 
+least stable of the four because many of its internal transitions are disallowed,
+owing to the instability of both $pX$ and $vP$. The effect is a higher 
+likelihood of exiting this cube than the others. The practical 
+interpretation is that vendors are likely to become aware of
+vulnerabilities that exist in their products barring significant effort on 
+the part of adversaries to prevent exiting the $vfd$ states.
+
+### The *Vendor Aware* macrostate (_Vfd_)
+
+In this set of states, the vendor is aware of the vulnerability, but the fix is 
+not yet ready. Vulnerabilities remain in $Vfd$ until the vendor produces a fix.
+
+### The *Fix Available* macrostate (_VFd_)
+
+States in this macrostate share the fact that a fix is available but not yet 
+deployed. Many publicly-disclosed vulnerabilities spend a sizable amount of 
+time in this cube as they await system owner or deployer action to deploy 
+the fix.
+
+### The *Fix Deployed* macrostate (_VFD_)
+
+This macrostate is a sink: once it is reached, there are no exits. Attacks 
+attempted in this cube are expected to fail. The broader the scope of one's 
+concern in terms of number of systems, the less certain one can be of having 
+reached this macrostate. It is rather easy to tell when a single installed 
+instance of vulnerable software has been patched. It is less easy to tell 
+when the last of thousands or even millions of vulnerable software instances 
+across an enterprise has been fixed.
+
 
 ## CS Model Fully Defined
 

@@ -14,6 +14,9 @@ nav:
     - Background:
         - Context: 'topics/background/index.md'
         - Interoperability: 'topics/background/interoperability.md'
+        - Possible Vulnerability Case Histories:
+          - Introduction: 'topics/cs_model_bg/index.md'
+          - Possible Histories: 'topics/cs_model_bg/possible_histories.md'
         - Defining CVD Success: 'topics/background/cvd_success.md'
         - Documentation Overview: 'topics/background/overview.md'
         - Terms and Definitions: 'topics/background/terms.md'
@@ -33,6 +36,7 @@ nav:
         - Early Termination: 'topics/process_models/em/early_termination.md'
         - Case Splits and Merges: 'topics/process_models/em/split_merge.md'
       - Case State:
+        - Vulnerability Lifecycle Events: 'topics/process_models/cs/events.md'
         - Introduction: 'topics/process_models/cs/index.md'
         - CVD Case State Model: 'topics/process_models/cs/cs_model.md'
       - Model Interactions:
@@ -218,6 +222,8 @@ theme:
   icon:
     repo: fontawesome/brands/github
 plugins:
+  - bibtex:
+      bib_file: 'references.bib'
   - include-markdown:
       comments: false
   - mkdocstrings:
