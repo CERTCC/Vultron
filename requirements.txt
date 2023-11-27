@@ -6,5 +6,5 @@ mkdocstrings==0.23.0
 mkdocstrings-python==1.7.4
 pandas==2.1.1
 scipy==1.11.3
-networkx==3.2
+networkx==3.2.1
 mkdocs-print-site-plugin==2.3.6
