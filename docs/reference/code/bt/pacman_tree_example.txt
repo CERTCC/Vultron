@@ -1,0 +1,127 @@
+=== Tick 1 ===
+(>) >_MaybeEatPills_1
+ | (?) ?_MaybeChaseOrAvoidGhost_2
+ |  | (^) ^_NoMoreGhosts_3
+ |  |  | (c) c_GhostsRemain_4
+ |  |  |  | = SUCCESS
+ |  |  | = FAILURE
+ |  | (^) ^_NoGhostClose_5
+ |  |  | (z) z_GhostClose_6
+ |  |  |  | = SUCCESS
+ |  |  | = FAILURE
+ |  | (?) ?_ChaseOrAvoidGhost_7
+ |  |  | (>) >_ChaseIfScared_8
+ |  |  |  | (c) c_GhostsScared_9
+ |  |  |  |  | = FAILURE
+ |  |  |  | = FAILURE
+ |  |  | (c) c_GhostsScared_15
+ |  |  |  | = FAILURE
+ |  |  | (z) z_AvoidGhost_16
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | = SUCCESS
+ | (a) a_EatPill_17
+ |  | = SUCCESS
+ | = SUCCESS
+=== Tick 2 ===
+(>) >_MaybeEatPills_1
+ | (?) ?_MaybeChaseOrAvoidGhost_2
+ |  | (^) ^_NoMoreGhosts_3
+ |  |  | (c) c_GhostsRemain_4
+ |  |  |  | = SUCCESS
+ |  |  | = FAILURE
+ |  | (^) ^_NoGhostClose_5
+ |  |  | (z) z_GhostClose_6
+ |  |  |  | = FAILURE
+ |  |  | = SUCCESS
+ |  | = SUCCESS
+ | (a) a_EatPill_17
+ |  | = SUCCESS
+ | = SUCCESS
+=== Tick 3 ===
+Ghosts are scared!
+(>) >_MaybeEatPills_1
+ | (?) ?_MaybeChaseOrAvoidGhost_2
+ |  | (^) ^_NoMoreGhosts_3
+ |  |  | (c) c_GhostsRemain_4
+ |  |  |  | = SUCCESS
+ |  |  | = FAILURE
+ |  | (^) ^_NoGhostClose_5
+ |  |  | (z) z_GhostClose_6
+ |  |  |  | = SUCCESS
+ |  |  | = FAILURE
+ |  | (?) ?_ChaseOrAvoidGhost_7
+ |  |  | (>) >_ChaseIfScared_8
+ |  |  |  | (c) c_GhostsScared_9
+ |  |  |  |  | = SUCCESS
+ |  |  |  | (z) z_ChaseGhost_10
+ |  |  |  |  | = SUCCESS
+ |  |  |  | (>) >_CaughtGhost_11
+ |  |  |  |  | (a) a_DecrGhostCount_12
+Clyde was caught!
+ |  |  |  |  |  | = SUCCESS
+ |  |  |  |  | (a) a_ScoreGhost_13
+ |  |  |  |  |  | = SUCCESS
+ |  |  |  |  | (a) a_IncrGhostScore_14
+Ghost score is now 400
+ |  |  |  |  |  | = SUCCESS
+ |  |  |  |  | = SUCCESS
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | = SUCCESS
+ | (a) a_EatPill_17
+ |  | = SUCCESS
+ | = SUCCESS
+=== Tick 4 ===
+(>) >_MaybeEatPills_1
+ | (?) ?_MaybeChaseOrAvoidGhost_2
+ |  | (^) ^_NoMoreGhosts_3
+ |  |  | (c) c_GhostsRemain_4
+ |  |  |  | = SUCCESS
+ |  |  | = FAILURE
+ |  | (^) ^_NoGhostClose_5
+ |  |  | (z) z_GhostClose_6
+ |  |  |  | = SUCCESS
+ |  |  | = FAILURE
+ |  | (?) ?_ChaseOrAvoidGhost_7
+ |  |  | (>) >_ChaseIfScared_8
+ |  |  |  | (c) c_GhostsScared_9
+ |  |  |  |  | = FAILURE
+ |  |  |  | = FAILURE
+ |  |  | (c) c_GhostsScared_15
+ |  |  |  | = FAILURE
+ |  |  | (z) z_AvoidGhost_16
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | = SUCCESS
+ | (a) a_EatPill_17
+ |  | = SUCCESS
+ | = SUCCESS
+=== Tick 5 ===
+(>) >_MaybeEatPills_1
+ | (?) ?_MaybeChaseOrAvoidGhost_2
+ |  | (^) ^_NoMoreGhosts_3
+ |  |  | (c) c_GhostsRemain_4
+ |  |  |  | = SUCCESS
+ |  |  | = FAILURE
+ |  | (^) ^_NoGhostClose_5
+ |  |  | (z) z_GhostClose_6
+ |  |  |  | = SUCCESS
+ |  |  | = FAILURE
+ |  | (?) ?_ChaseOrAvoidGhost_7
+ |  |  | (>) >_ChaseIfScared_8
+ |  |  |  | (c) c_GhostsScared_9
+ |  |  |  |  | = FAILURE
+ |  |  |  | = FAILURE
+ |  |  | (c) c_GhostsScared_15
+ |  |  |  | = FAILURE
+ |  |  | (z) z_AvoidGhost_16
+ |  |  |  | = FAILURE
+ |  |  | = FAILURE
+ |  | = FAILURE
+ | = FAILURE
+Pacman died! He was eaten by Pinky!
+Final score: 240
+Ticks: 5
+Dots Remaining: 236
+Ghosts Remaining: 3 (Blinky, Pinky, Inky)

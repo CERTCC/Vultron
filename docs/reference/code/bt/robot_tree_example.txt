@@ -1,0 +1,132 @@
+(?) ?_Robot_1
+ | (c) c_BallPlaced_2
+ |  | = FAILURE
+ | (>) >_MainSequence_3
+ |  | (?) ?_EnsureBallFound_4
+ |  |  | (c) c_BallFound_5
+ |  |  |  | = FAILURE
+ |  |  | (>) >_FindBall_6
+ |  |  |  | (z) z_UsuallySucceed_7
+ |  |  |  |  | = SUCCESS
+ |  |  |  | (a) a_SetBallFound_8
+ |  |  |  |  | = SUCCESS
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBallClose_9
+ |  |  | (c) c_BallClose_10
+ |  |  |  | = FAILURE
+ |  |  | (>) >_ApproachBall_11
+ |  |  |  | (z) z_UsuallySucceed_12
+ |  |  |  |  | = SUCCESS
+ |  |  |  | (a) a_SetBallClose_13
+ |  |  |  |  | = SUCCESS
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBallGrasped_14
+ |  |  | (c) c_BallGrasped_15
+ |  |  |  | = FAILURE
+ |  |  | (>) >_GraspBall_16
+ |  |  |  | (z) z_OftenFail_17
+ |  |  |  |  | = SUCCESS
+ |  |  |  | (a) a_SetBallGrasped_18
+ |  |  |  |  | = SUCCESS
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBinClose_19
+ |  |  | (c) c_BinClose_20
+ |  |  |  | = FAILURE
+ |  |  | (>) >_ApproachBin_21
+ |  |  |  | (z) z_UsuallySucceed_22
+ |  |  |  |  | = SUCCESS
+ |  |  |  | (a) a_SetBinClose_23
+ |  |  |  |  | = SUCCESS
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBallPlaced_24
+ |  |  | (c) c_BallPlaced_25
+ |  |  |  | = FAILURE
+ |  |  | (>) >_PlaceBall_26
+ |  |  |  | (z) z_UsuallySucceed_27
+ |  |  |  |  | = FAILURE
+ |  |  |  | = FAILURE
+ |  |  | = FAILURE
+ |  | = FAILURE
+ | (>) >_MaybeAskForHelp_29
+ |  | (c) c_TimeToAskForHelp_30
+ |  |  | = FAILURE
+ |  | = FAILURE
+ | = FAILURE
+The ball was knocked out of the robot's grasp!
+(?) ?_Robot_1
+ | (c) c_BallPlaced_2
+ |  | = FAILURE
+ | (>) >_MainSequence_3
+ |  | (?) ?_EnsureBallFound_4
+ |  |  | (c) c_BallFound_5
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBallClose_9
+ |  |  | (c) c_BallClose_10
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBallGrasped_14
+ |  |  | (c) c_BallGrasped_15
+ |  |  |  | = FAILURE
+ |  |  | (>) >_GraspBall_16
+ |  |  |  | (z) z_OftenFail_17
+ |  |  |  |  | = SUCCESS
+ |  |  |  | (a) a_SetBallGrasped_18
+ |  |  |  |  | = SUCCESS
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBinClose_19
+ |  |  | (c) c_BinClose_20
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBallPlaced_24
+ |  |  | (c) c_BallPlaced_25
+ |  |  |  | = FAILURE
+ |  |  | (>) >_PlaceBall_26
+ |  |  |  | (z) z_UsuallySucceed_27
+ |  |  |  |  | = FAILURE
+ |  |  |  | = FAILURE
+ |  |  | = FAILURE
+ |  | = FAILURE
+ | (>) >_MaybeAskForHelp_29
+ |  | (c) c_TimeToAskForHelp_30
+ |  |  | = FAILURE
+ |  | = FAILURE
+ | = FAILURE
+(?) ?_Robot_1
+ | (c) c_BallPlaced_2
+ |  | = FAILURE
+ | (>) >_MainSequence_3
+ |  | (?) ?_EnsureBallFound_4
+ |  |  | (c) c_BallFound_5
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBallClose_9
+ |  |  | (c) c_BallClose_10
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBallGrasped_14
+ |  |  | (c) c_BallGrasped_15
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBinClose_19
+ |  |  | (c) c_BinClose_20
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | (?) ?_EnsureBallPlaced_24
+ |  |  | (c) c_BallPlaced_25
+ |  |  |  | = FAILURE
+ |  |  | (>) >_PlaceBall_26
+ |  |  |  | (z) z_UsuallySucceed_27
+ |  |  |  |  | = SUCCESS
+ |  |  |  | (a) a_SetBallPlaced_28
+ |  |  |  |  | = SUCCESS
+ |  |  |  | = SUCCESS
+ |  |  | = SUCCESS
+ |  | = SUCCESS
+ | = SUCCESS
+Robot completed its mission in 3 ticks.

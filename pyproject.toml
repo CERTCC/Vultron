@@ -37,6 +37,18 @@ dependencies = [
 ]
 dynamic = ["version",]
 
+[project.scripts]
+vultrabot_pacman="vultron.bt.base.demo.pacman:main"
+vultrabot_robot="vultron.bt.base.demo.robot:main"
+vultrabot_cvd="vultron.demo.vultrabot:main"
+vultrabot="vultron.scripts.vultrabot:main"
+
+
+[project.urls]
+"Homepage" = "https://certcc.github.io/Vultron"
+"Project" = "https://github.com/CERTCC/Vultron"
+"Bug Tracker" = "https://github.com/CERTCC/Vultron/issues"
+
 [tool.setuptools.packages.find]
 where = ["."]  # list of folders that contain the packages (["."] by default)
 include = ["vultron*"]  # package names should match these glob patterns (["*"] by default)
@@ -51,3 +63,10 @@ version_file = "vultron/_version.py"
 [tool.black]
 line-length = 79
 target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "test",
+]
