@@ -51,6 +51,10 @@ nav:
     - Measuring CVD:
         - Possible Histories: 'topics/measuring_cvd/possible_histories.md'
         - Desirable Histories: 'topics/measuring_cvd/desirable_histories.md'
+        - Random Walks: 'topics/measuring_cvd/random_walk.md'
+        - Reasoning Over Histories: 'topics/measuring_cvd/reasoning_over_histories.md'
+        - Discriminating Skill from Luck: 'topics/measuring_cvd/discriminating_skill_and_luck.md'
+        - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
     - Behavior Logic:
       - Behavior Tree Intro: 'topics/behavior_logic/index.md'
       - CVD Behaviors: 'topics/behavior_logic/cvd_bt.md'
