@@ -190,8 +190,7 @@ of ordered sets. From them, we adopt the following notation:
 -   The precedes ($\prec$) relation on members of an ordered set:
     $\sigma_i \prec \sigma_j \textrm{ if and only if } \sigma_i,\sigma_j \in s \textrm{ and } i < j$
     where $s$ is a sequence as defined in
-    [\[eq:sequence\]](#eq:sequence){reference-type="eqref"
-    reference="eq:sequence"}
+    [\[eq:sequence\]](#eq:sequence){== TODO fix ref to eq:sequence ==}
 
 ## Deterministic Finite State Automata {#sec:states}
 
@@ -284,8 +283,7 @@ one of the following strings: $vfd$, $Vfd$, $VFd$, or $VFD$.
 
 As a result, there are thirty-two possible states, which we define as
 the set of all states $\mathcal{Q}$ in
-[\[eq:all_states\]](#eq:all_states){reference-type="eqref"
-reference="eq:all_states"}.
+[\[eq:all_states\]](#eq:all_states){== TODO fix ref to eq:all_states ==}.
 
 $$\begin{split}    
 % \begin{align*}
@@ -399,8 +397,7 @@ $\mathbf{V} \prec \mathbf{F} \prec \mathbf{D}$ as a strong constraint on
 possible sequences.
 
 The DFA specification for this submodel is given in
-[\[eq:vfd_dfa\]](#eq:vfd_dfa){reference-type="eqref"
-reference="eq:vfd_dfa"}. The resulting state subsets and transitions are
+[\[eq:vfd_dfa\]](#eq:vfd_dfa){== TODO fix ref to eq:vfd_dfa ==}. The resulting state subsets and transitions are
 as shown in Table [2.3](#tab:delta_vfd){== TODO fix ref to tab:delta_vfd ==} and Figure
 [2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==}. The
 double circle in Figure [2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==} and subsequent state diagrams indicates the
@@ -472,8 +469,7 @@ action. This implies that states in $VFDp$ are unreachable to vendors
 whose distribution model requires system owner action to deploy fixes.
 
 The DFA specification for this submodel is given in
-[\[eq:vfdp_dfa\]](#eq:vfdp_dfa){reference-type="eqref"
-reference="eq:vfdp_dfa"}. Table
+[\[eq:vfdp_dfa\]](#eq:vfdp_dfa){== TODO fix ref to eq:vfdp_dfa ==}. Table
 [2.4](#tab:delta_vfdp){== TODO fix ref to tab:delta_vfdp ==}
 shows the transition function $\delta_{VFDP}$, while Figure
 [2.2](#fig:vfdp_map){== TODO fix ref to fig:vfdp_map ==}
@@ -563,18 +559,14 @@ security incident analysis.
 By composing these sub-parts, we arrive at our complete state transition
 model, which we construct by combining the vendor fix path
 $vfd \rightarrow Vfd \rightarrow VFd \rightarrow VFD$ defined by
-[\[eq:vfd_dfa\]](#eq:vfd_dfa){reference-type="eqref"
-reference="eq:vfd_dfa"} and its extension in
-[\[eq:vfdp_dfa\]](#eq:vfdp_dfa){reference-type="eqref"
-reference="eq:vfdp_dfa"} with the $PXA$ cube defined by
-[\[eq:pxa_dfa\]](#eq:pxa_dfa){reference-type="eqref"
-reference="eq:pxa_dfa"}. The complete map is shown in Figure
+[\[eq:vfd_dfa\]](#eq:vfd_dfa){== TODO fix ref to eq:vfd_dfa ==} and its extension in
+[\[eq:vfdp_dfa\]](#eq:vfdp_dfa){== TODO fix ref to eq:vfdp_dfa ==} with the $PXA$ cube defined by
+[\[eq:pxa_dfa\]](#eq:pxa_dfa){== TODO fix ref to eq:pxa_dfa ==}. The complete map is shown in Figure
 [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
 We also can now define the transition function $\delta$ for the entire
 model, as shown in Table [2.6](#tab:delta_vfdpxa){== TODO fix ref to tab:delta_vfdpxa ==}. A summary of the complete
 DFA specification
-is given in [\[eq:vfdpxa_dfa\]](#eq:vfdpxa_dfa){reference-type="eqref"
-reference="eq:vfdpxa_dfa"}.
+is given in [\[eq:vfdpxa_dfa\]](#eq:vfdpxa_dfa){== TODO fix ref to eq:vfdpxa_dfa ==}.
 
 $$\label{eq:vfdpxa_dfa}
 \begin{split}
@@ -702,12 +694,9 @@ position from left to right are given in Table
 represents a single bit flip in the state encoding. Some edges
 (transitions) are disallowed by the causal requirements described in
 this section and formalized in the next section (see
-[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){reference-type="eqref"
-reference="eq:history_vfd_rule"},
-[\[eq:history_vp_rule\]](#eq:history_vp_rule){reference-type="eqref"
-reference="eq:history_vp_rule"}, and
-[\[eq:history_px_rule\]](#eq:history_px_rule){reference-type="eqref"
-reference="eq:history_px_rule"}). This observation serves as the basis
+[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){== TODO fix ref to eq:history_vfd_rule ==},
+[\[eq:history_vp_rule\]](#eq:history_vp_rule){== TODO fix ref to eq:history_vp_rule ==}, and
+[\[eq:history_px_rule\]](#eq:history_px_rule){== TODO fix ref to eq:history_px_rule ==}). This observation serves as the basis
 of the visualization given in
 Figure [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
 

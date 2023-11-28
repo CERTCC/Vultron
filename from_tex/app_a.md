@@ -6,13 +6,10 @@ $q \in \mathcal{Q}$ as developed in
 §[2.3](#sec:states){== TODO fix ref to sec:states ==} for an
 explanation of the states in the model. States are presented in the
 order given in
-[\[eq:all_states\]](#eq:all_states){reference-type="eqref"
-reference="eq:all_states"}, which follows a hierarchy implied by
+[\[eq:all_states\]](#eq:all_states){== TODO fix ref to eq:all_states ==}, which follows a hierarchy implied by
 traversal of the $PXA$ submodel found in
-[\[eq:pxa_dfa\]](#eq:pxa_dfa){reference-type="eqref"
-reference="eq:pxa_dfa"} for each step of the $VFD$ submodel given in
-[\[eq:vfd_dfa\]](#eq:vfd_dfa){reference-type="eqref"
-reference="eq:vfd_dfa"}. See
+[\[eq:pxa_dfa\]](#eq:pxa_dfa){== TODO fix ref to eq:pxa_dfa ==} for each step of the $VFD$ submodel given in
+[\[eq:vfd_dfa\]](#eq:vfd_dfa){== TODO fix ref to eq:vfd_dfa ==}. See
 §[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==} for an explanation of the state transitions
 permitted by the model.
 

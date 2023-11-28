@@ -111,8 +111,7 @@ distribution. We address uncertainty further in
 
 ### Computing $\alpha_d$ from Observations {#sec:computing_observations}
 
-Although Eq. [\[eq:alpha_freq\]](#eq:alpha_freq){reference-type="eqref"
-reference="eq:alpha_freq"} develops a skill metric from observed
+Although Eq. [\[eq:alpha_freq\]](#eq:alpha_freq){== TODO fix ref to eq:alpha_freq ==} develops a skill metric from observed
 frequencies, our observations will in fact be based on counts.
 Observations consist of some number of successes $S_d^{obs}$ out of some
 number of trials $T$, i.e., $$\label{eq:observed_wins}
@@ -122,21 +121,16 @@ interpretation of $f_d$. $$\label{eq:lucky_wins}
 successes at $d$ we would expect due to luck in $T$ trials.
 
 Substituting
-[\[eq:observed_wins\]](#eq:observed_wins){reference-type="eqref"
-reference="eq:observed_wins"} and
-[\[eq:lucky_wins\]](#eq:lucky_wins){reference-type="eqref"
-reference="eq:lucky_wins"} into
-[\[eq:alpha_freq\]](#eq:alpha_freq){reference-type="eqref"
-reference="eq:alpha_freq"}, and recalling that $p_{skill} = 1$ because a
+[\[eq:observed_wins\]](#eq:observed_wins){== TODO fix ref to eq:observed_wins ==} and
+[\[eq:lucky_wins\]](#eq:lucky_wins){== TODO fix ref to eq:lucky_wins ==} into
+[\[eq:alpha_freq\]](#eq:alpha_freq){== TODO fix ref to eq:alpha_freq ==}, and recalling that $p_{skill} = 1$ because a
 maximally skillful player succeeds in $T$ out of $T$ trials, we get
 $$\label{eq:alpha_obs1}
     \alpha_{d} = \frac{\cfrac{S_d^{obs}}{T}-\cfrac{S_d^{luck}}{T}}
     {\cfrac{T}{T}-\cfrac{S_d^l}{T}}$$
 
-Rearranging [\[eq:lucky_wins\]](#eq:lucky_wins){reference-type="eqref"
-reference="eq:lucky_wins"} to $S_d^{luck} = {f_d}T$, substituting into
-[\[eq:alpha_obs1\]](#eq:alpha_obs1){reference-type="eqref"
-reference="eq:alpha_obs1"}, and simplifying, we arrive at:
+Rearranging [\[eq:lucky_wins\]](#eq:lucky_wins){== TODO fix ref to eq:lucky_wins ==} to $S_d^{luck} = {f_d}T$, substituting into
+[\[eq:alpha_obs1\]](#eq:alpha_obs1){== TODO fix ref to eq:alpha_obs1 ==}, and simplifying, we arrive at:
 $$\alpha_{d} = \frac{{S_d^{obs}}-{f_d}T}{(1-{f_d})T}$$ Hence for any of
 our desiderata $\mathbb{D}$ we can compute $\alpha_d$ given $S_d^{obs}$
 observed successes out of $T$ trials in light of $f_d$ taken from Table
@@ -168,8 +162,7 @@ successes and $b = T - S_d^{obs}$ representing the number of failures
 using the `scipy.stats.beta.interval` function in Python. This gives us
 an upper and lower estimate for $f_d^{obs}$, which we multiply by $T$ to
 get upper and lower estimates of $S_d^{obs}$ as in
-[\[eq:observed_wins\]](#eq:observed_wins){reference-type="eqref"
-reference="eq:observed_wins"}.
+[\[eq:observed_wins\]](#eq:observed_wins){== TODO fix ref to eq:observed_wins ==}.
 
 ## Observing CVD in the Wild {#sec:observation}
 

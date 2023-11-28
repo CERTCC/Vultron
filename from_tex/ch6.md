@@ -125,8 +125,7 @@ benchmarks rather than change expectations of the role of chance.
 
 As an applied example, if we take the first item in the above list as a
 broad observation of $f_{\mathbf{D} \prec \mathbf{A}} = 0.95$, we can
-plug into [\[eq:alpha_freq\]](#eq:alpha_freq){reference-type="eqref"
-reference="eq:alpha_freq"} to get a potential benchmark of
+plug into [\[eq:alpha_freq\]](#eq:alpha_freq){== TODO fix ref to eq:alpha_freq ==} to get a potential benchmark of
 $\alpha_{\mathbf{D} \prec \mathbf{A}} = 0.94$, which is considerably
 higher than the naïve generic benchmark $\alpha_d = 0$. It also implies
 that we should expect actual observations of histories
@@ -543,17 +542,14 @@ vulnerabilities, report them to vendors, and sometimes release
 proof-of-concept exploits for system security evaluation purposes) can
 do their part to ensure that vendors are aware of vulnerabilities as
 early as possible prior to public disclosure
-[\[eq:notify_vendor\]](#eq:notify_vendor){reference-type="eqref"
-reference="eq:notify_vendor"}. $$\label{eq:notify_vendor}
+[\[eq:notify_vendor\]](#eq:notify_vendor){== TODO fix ref to eq:notify_vendor ==}. $$\label{eq:notify_vendor}
 vfdpxa \xrightarrow{\mathbf{V}} Vfdpxa \implies \mathbf{V} \prec \mathbf{P} \textrm{, } \mathbf{V} \prec \mathbf{X} \textrm{ and } \mathbf{V} \prec \mathbf{A}$$
 
 Security researchers can also delay the publication of exploits until
-after fixes exist [\[eq:fx\]](#eq:fx){reference-type="eqref"
-reference="eq:fx"}, are public
-[\[eq:fxpx\]](#eq:fxpx){reference-type="eqref" reference="eq:fxpx"}, and
+after fixes exist [\[eq:fx\]](#eq:fx){== TODO fix ref to eq:fx ==}, are public
+[\[eq:fxpx\]](#eq:fxpx){== TODO fix ref to eq:fxpx ==}, and
 possibly even until most system owners have deployed the fix
-[\[eq:fxpxdx\]](#eq:fxpxdx){reference-type="eqref"
-reference="eq:fxpxdx"}. $$\begin{aligned}
+[\[eq:fxpxdx\]](#eq:fxpxdx){== TODO fix ref to eq:fxpxdx ==}. $$\begin{aligned}
 \label{eq:fx}
   \mathbf{X}|q \in VFdpx &\implies \mathbf{F} \prec \mathbf{X} \\
   \label{eq:fxpx}
@@ -741,11 +737,9 @@ $$\label{eq:embargo_viable}
 
 In summary, embargoes can be initiated if the case is in
 $\mathcal{Q}_{E}^{0}$ as in Eq.
-[\[eq:embargo_start\]](#eq:embargo_start){reference-type="eqref"
-reference="eq:embargo_start"}, and remain viable through any state in
+[\[eq:embargo_start\]](#eq:embargo_start){== TODO fix ref to eq:embargo_start ==}, and remain viable through any state in
 $\mathcal{Q}_{E}$ as in Eq.
-[\[eq:embargo_viable\]](#eq:embargo_viable){reference-type="eqref"
-reference="eq:embargo_viable"}. This in turn gives us specific things to
+[\[eq:embargo_viable\]](#eq:embargo_viable){== TODO fix ref to eq:embargo_viable ==}. This in turn gives us specific things to
 look for in order to determine when to end an embargo:
 
 -   The embargo timer has expired.
@@ -1211,8 +1205,7 @@ note that because a public exploit ($\mathcal{Q}_X$) would also meet the
 definition of "vulnerability information in the public domain," we can
 narrow the scope from ${vp}$ to ${vpx}$. Lastly, we note that due to the
 vendor fix path causality rule in Eq.
-[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){reference-type="eqref"
-reference="eq:history_vfd_rule"}, ${vpx}$ is equivalent to ${vfdpx}$,
+[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){== TODO fix ref to eq:history_vfd_rule ==}, ${vpx}$ is equivalent to ${vfdpx}$,
 and therefore we can formally specify that VEP is only applicable to vulnerabilities in
 
 $$\mathcal{S}_{VEP} = {vfdpx} = \{vfdpxa, vfdpxA\}$$

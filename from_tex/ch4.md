@@ -131,11 +131,9 @@ $$\label{eq:ordering_d}
 (\mathbb{D},\leq_{\mathbb{D}}) \stackrel{\mathsf{def}}{=}d_2 \leq_{\mathbb{D}} d_1 \iff {f_{d_2}} \stackrel{\mathbb{R}}{\geq} {f_{d_1}}$$
 
 Note that the inequalities on the left and right sides of
-[\[eq:ordering_d\]](#eq:ordering_d){reference-type="eqref"
-reference="eq:ordering_d"} are flipped because skill is inversely
+[\[eq:ordering_d\]](#eq:ordering_d){== TODO fix ref to eq:ordering_d ==} are flipped because skill is inversely
 proportional to luck. Also, while $\leq_{\mathbb{D}}$ on the left side
-of [\[eq:ordering_d\]](#eq:ordering_d){reference-type="eqref"
-reference="eq:ordering_d"} defines a preorder over the poset
+of [\[eq:ordering_d\]](#eq:ordering_d){== TODO fix ref to eq:ordering_d ==} defines a preorder over the poset
 $\mathcal{H}$, the $\stackrel{\mathbb{R}}{\geq}$ is the usual ordering
 over the set of real numbers. The result is a partial order
 $(\mathbb{D},\leq_{\mathbb{D}})$ because a few $d$ have the same $f_d$

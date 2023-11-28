@@ -1703,16 +1703,11 @@ orderings $\mathbb{D}$. Table
 [3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==} displays all 36 possible orderings of
 paired transitions and whether they are considered impossible, required
 (as defined by
-[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){reference-type="eqref"
-reference="eq:history_vfd_rule"},
-[\[eq:history_vp_rule\]](#eq:history_vp_rule){reference-type="eqref"
-reference="eq:history_vp_rule"}, and
-[\[eq:history_px_rule\]](#eq:history_px_rule){reference-type="eqref"
-reference="eq:history_px_rule"}), desirable (as defined by
-[\[eq:desiderata\]](#eq:desiderata){reference-type="eqref"
-reference="eq:desiderata"}), or undesirable (the complement of the set
-defined in [\[eq:desiderata\]](#eq:desiderata){reference-type="eqref"
-reference="eq:desiderata"}).
+[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){== TODO fix ref to eq:history_vfd_rule ==},
+[\[eq:history_vp_rule\]](#eq:history_vp_rule){== TODO fix ref to eq:history_vp_rule ==}, and
+[\[eq:history_px_rule\]](#eq:history_px_rule){== TODO fix ref to eq:history_px_rule ==}), desirable (as defined by
+[\[eq:desiderata\]](#eq:desiderata){== TODO fix ref to eq:desiderata ==}), or undesirable (the complement of the set
+defined in [\[eq:desiderata\]](#eq:desiderata){== TODO fix ref to eq:desiderata ==}).
 
 Before proceeding, we note that our model focuses on the ordering of
 transitions, not their timing. We acknowledge that in some situations,
@@ -1738,8 +1733,7 @@ such relations.
 ##### Some states are preferable to others {#sec:state_preference}
 
 The desiderata in
-[\[eq:desiderata\]](#eq:desiderata){reference-type="eqref"
-reference="eq:desiderata"} address the preferred ordering of transitions
+[\[eq:desiderata\]](#eq:desiderata){== TODO fix ref to eq:desiderata ==} address the preferred ordering of transitions
 in CVD histories,
 which imply that one should prefer to pass through some states and avoid
 others. For example, $\mathbf{V} \prec \mathbf{P}$ implies that we
@@ -1774,14 +1768,11 @@ to be met.
 
 Given the desired preferences over orderings of transitions
 ($\mathbb{D}$ in
-[\[eq:desiderata\]](#eq:desiderata){reference-type="eqref"
-reference="eq:desiderata"}), we can construct a partial ordering over
+[\[eq:desiderata\]](#eq:desiderata){== TODO fix ref to eq:desiderata ==}), we can construct a partial ordering over
 all possible histories $\mathcal{H}$, as defined in
-[\[eq:ordering\]](#eq:ordering){reference-type="eqref"
-reference="eq:ordering"}. This partial order requires a formal
+[\[eq:ordering\]](#eq:ordering){== TODO fix ref to eq:ordering ==}. This partial order requires a formal
 definition of which desiderata are met by a given history, provided by
-[\[eq:desiderata_h\]](#eq:desiderata_h){reference-type="eqref"
-reference="eq:desiderata_h"}. $$\label{eq:desiderata_h}
+[\[eq:desiderata_h\]](#eq:desiderata_h){== TODO fix ref to eq:desiderata_h ==}. $$\label{eq:desiderata_h}
 \setlength{\jot}{-1pt} % decrease vertical line spacing inside the following split.
 \begin{split}
     \mathbb{D}^{h} \stackrel{\mathsf{def}}{=}\{ d \in \mathbb{D} \textrm{ such that } d \textrm{ is true for } h \} \textrm{, for } h \in \mathcal{H} \\
@@ -1800,8 +1791,7 @@ Diagrams represent the transitive reduction of a poset. Each node in the
 diagram represents an individual history $h_a$ from
 Table [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}; labels correspond to the index of
 the table. Figure [3.1](#fig:poset){== TODO fix ref to fig:poset ==} follows
-[\[eq:ordering\]](#eq:ordering){reference-type="eqref"
-reference="eq:ordering"}, in that $h_a$ is higher in the order than
+[\[eq:ordering\]](#eq:ordering){== TODO fix ref to eq:ordering ==}, in that $h_a$ is higher in the order than
 $h_b$ when $h_a$ contains all the desiderata from $h_b$ and at least one
 more. Histories that do not share a path are incomparable (formally, two
 histories incomparable if both
@@ -1839,8 +1829,7 @@ In the next section we will expand the model to include a partial order
 over our desiderata, but for now it is sufficient to note that any
 simple ordering over $\mathbb{D}$ would remain compatible with the
 partial order given in
-[\[eq:ordering\]](#eq:ordering){reference-type="eqref"
-reference="eq:ordering"}. In fact, a total order on $\mathbb{D}$ would
+[\[eq:ordering\]](#eq:ordering){== TODO fix ref to eq:ordering ==}. In fact, a total order on $\mathbb{D}$ would
 create a linear extension of the poset defined here, whereas a partial
 order on $\mathbb{D}$ would result in a more constrained poset of which
 this poset would be a subset.
@@ -1848,8 +1837,7 @@ this poset would be a subset.
 ![The Lattice of Possible CVD Histories: A Hasse Diagram of the partial
 ordering $(\mathcal{H}, \leq_{H})$ of $h_a \in \mathcal{H}$ given
 $\mathbb{D}$ as defined in
-[\[eq:ordering\]](#eq:ordering){reference-type="eqref"
-reference="eq:ordering"}. The diagram flows from least desirable
+[\[eq:ordering\]](#eq:ordering){== TODO fix ref to eq:ordering ==}. The diagram flows from least desirable
 histories at the bottom to most desirable at the top. Histories that do
 not share a path are incomparable. Labels indicate the index (row
 number) $a$ of $h_a$ in Table
@@ -1889,8 +1877,7 @@ $h \in \mathcal{H}$ are paths (traces) through the states. This meets
 the definition above because each $\sigma \in \Sigma$ is unique
 (mutually exclusive) and $\delta$ defines an exhaustive set of valid
 $\sigma$ at each state $q \in \mathcal{Q}$. For example, because
-[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){reference-type="eqref"
-reference="eq:history_vfd_rule"} requires $\mathbf{V} \prec \mathbf{F}$
+[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){== TODO fix ref to eq:history_vfd_rule ==} requires $\mathbf{V} \prec \mathbf{F}$
 and $\mathbf{F} \prec \mathbf{D}$, only four of the six events in
 $\Sigma$ are possible at the beginning of each history at $q_0=vfdpxa$:
 $\{\mathbf{V},\mathbf{P},\mathbf{X},\mathbf{A}\}$. Since the principle
@@ -1903,14 +1890,11 @@ probability of 0.25 to each possible event. $$\begin{aligned}
 
 From there, we see that the other rules dictate possible transitions
 from each subsequent state. For example,
-[\[eq:history_vp_rule\]](#eq:history_vp_rule){reference-type="eqref"
-reference="eq:history_vp_rule"} says that any $h$ starting with
+[\[eq:history_vp_rule\]](#eq:history_vp_rule){== TODO fix ref to eq:history_vp_rule ==} says that any $h$ starting with
 $(\mathbf{P})$ must start with $(\mathbf{P},\mathbf{V})$. And
-[\[eq:history_px_rule\]](#eq:history_px_rule){reference-type="eqref"
-reference="eq:history_px_rule"} requires any $h$ starting with
+[\[eq:history_px_rule\]](#eq:history_px_rule){== TODO fix ref to eq:history_px_rule ==} requires any $h$ starting with
 $(\mathbf{X})$ must proceed through $(\mathbf{X},\mathbf{P})$ and again
-[\[eq:history_vp_rule\]](#eq:history_vp_rule){reference-type="eqref"
-reference="eq:history_vp_rule"} gets us to
+[\[eq:history_vp_rule\]](#eq:history_vp_rule){== TODO fix ref to eq:history_vp_rule ==} gets us to
 $(\mathbf{X},\mathbf{P},\mathbf{V})$. Therefore, we expect histories
 starting with $(\mathbf{P},\mathbf{V})$ or
 $(\mathbf{X},\mathbf{P},\mathbf{V})$ to occur with frequency 0.25 as

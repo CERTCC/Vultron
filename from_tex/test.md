@@ -480,8 +480,7 @@ of ordered sets. From them, we adopt the following notation:
 -   The precedes ($\prec$) relation on members of an ordered set:
     $\sigma_i \prec \sigma_j \textrm{ if and only if } \sigma_i,\sigma_j \in s \textrm{ and } i < j$
     where $s$ is a sequence as defined in
-    [\[eq:sequence\]](#eq:sequence){reference-type="eqref"
-    reference="eq:sequence"}
+    [\[eq:sequence\]](#eq:sequence){== TODO fix ref to eq:sequence ==}
 
 ## Deterministic Finite State Automata {#sec:states}
 
@@ -574,8 +573,7 @@ one of the following strings: $vfd$, $Vfd$, $VFd$, or $VFD$.
 
 As a result, there are thirty-two possible states, which we define as
 the set of all states $\mathcal{Q}$ in
-[\[eq:all_states\]](#eq:all_states){reference-type="eqref"
-reference="eq:all_states"}.
+[\[eq:all_states\]](#eq:all_states){== TODO fix ref to eq:all_states ==}.
 
 $$\begin{split}    
 % \begin{align*}
@@ -689,8 +687,7 @@ $\mathbf{V} \prec \mathbf{F} \prec \mathbf{D}$ as a strong constraint on
 possible sequences.
 
 The DFA specification for this submodel is given in
-[\[eq:vfd_dfa\]](#eq:vfd_dfa){reference-type="eqref"
-reference="eq:vfd_dfa"}. The resulting state subsets and transitions are
+[\[eq:vfd_dfa\]](#eq:vfd_dfa){== TODO fix ref to eq:vfd_dfa ==}. The resulting state subsets and transitions are
 as shown in Table [2.3](#tab:delta_vfd){== TODO fix ref to tab:delta_vfd ==} and Figure
 [2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==}. The
 double circle in Figure [2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==} and subsequent state diagrams indicates the
@@ -762,8 +759,7 @@ action. This implies that states in $VFDp$ are unreachable to vendors
 whose distribution model requires system owner action to deploy fixes.
 
 The DFA specification for this submodel is given in
-[\[eq:vfdp_dfa\]](#eq:vfdp_dfa){reference-type="eqref"
-reference="eq:vfdp_dfa"}. Table
+[\[eq:vfdp_dfa\]](#eq:vfdp_dfa){== TODO fix ref to eq:vfdp_dfa ==}. Table
 [2.4](#tab:delta_vfdp){== TODO fix ref to tab:delta_vfdp ==}
 shows the transition function $\delta_{VFDP}$, while Figure
 [2.2](#fig:vfdp_map){== TODO fix ref to fig:vfdp_map ==}
@@ -853,18 +849,14 @@ security incident analysis.
 By composing these sub-parts, we arrive at our complete state transition
 model, which we construct by combining the vendor fix path
 $vfd \rightarrow Vfd \rightarrow VFd \rightarrow VFD$ defined by
-[\[eq:vfd_dfa\]](#eq:vfd_dfa){reference-type="eqref"
-reference="eq:vfd_dfa"} and its extension in
-[\[eq:vfdp_dfa\]](#eq:vfdp_dfa){reference-type="eqref"
-reference="eq:vfdp_dfa"} with the $PXA$ cube defined by
-[\[eq:pxa_dfa\]](#eq:pxa_dfa){reference-type="eqref"
-reference="eq:pxa_dfa"}. The complete map is shown in Figure
+[\[eq:vfd_dfa\]](#eq:vfd_dfa){== TODO fix ref to eq:vfd_dfa ==} and its extension in
+[\[eq:vfdp_dfa\]](#eq:vfdp_dfa){== TODO fix ref to eq:vfdp_dfa ==} with the $PXA$ cube defined by
+[\[eq:pxa_dfa\]](#eq:pxa_dfa){== TODO fix ref to eq:pxa_dfa ==}. The complete map is shown in Figure
 [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
 We also can now define the transition function $\delta$ for the entire
 model, as shown in Table [2.6](#tab:delta_vfdpxa){== TODO fix ref to tab:delta_vfdpxa ==}. A summary of the complete
 DFA specification
-is given in [\[eq:vfdpxa_dfa\]](#eq:vfdpxa_dfa){reference-type="eqref"
-reference="eq:vfdpxa_dfa"}.
+is given in [\[eq:vfdpxa_dfa\]](#eq:vfdpxa_dfa){== TODO fix ref to eq:vfdpxa_dfa ==}.
 
 $$\label{eq:vfdpxa_dfa}
 \begin{split}
@@ -992,12 +984,9 @@ position from left to right are given in Table
 represents a single bit flip in the state encoding. Some edges
 (transitions) are disallowed by the causal requirements described in
 this section and formalized in the next section (see
-[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){reference-type="eqref"
-reference="eq:history_vfd_rule"},
-[\[eq:history_vp_rule\]](#eq:history_vp_rule){reference-type="eqref"
-reference="eq:history_vp_rule"}, and
-[\[eq:history_px_rule\]](#eq:history_px_rule){reference-type="eqref"
-reference="eq:history_px_rule"}). This observation serves as the basis
+[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){== TODO fix ref to eq:history_vfd_rule ==},
+[\[eq:history_vp_rule\]](#eq:history_vp_rule){== TODO fix ref to eq:history_vp_rule ==}, and
+[\[eq:history_px_rule\]](#eq:history_px_rule){== TODO fix ref to eq:history_px_rule ==}). This observation serves as the basis
 of the visualization given in
 Figure [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
 
@@ -2706,16 +2695,11 @@ orderings $\mathbb{D}$. Table
 [3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==} displays all 36 possible orderings of
 paired transitions and whether they are considered impossible, required
 (as defined by
-[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){reference-type="eqref"
-reference="eq:history_vfd_rule"},
-[\[eq:history_vp_rule\]](#eq:history_vp_rule){reference-type="eqref"
-reference="eq:history_vp_rule"}, and
-[\[eq:history_px_rule\]](#eq:history_px_rule){reference-type="eqref"
-reference="eq:history_px_rule"}), desirable (as defined by
-[\[eq:desiderata\]](#eq:desiderata){reference-type="eqref"
-reference="eq:desiderata"}), or undesirable (the complement of the set
-defined in [\[eq:desiderata\]](#eq:desiderata){reference-type="eqref"
-reference="eq:desiderata"}).
+[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){== TODO fix ref to eq:history_vfd_rule ==},
+[\[eq:history_vp_rule\]](#eq:history_vp_rule){== TODO fix ref to eq:history_vp_rule ==}, and
+[\[eq:history_px_rule\]](#eq:history_px_rule){== TODO fix ref to eq:history_px_rule ==}), desirable (as defined by
+[\[eq:desiderata\]](#eq:desiderata){== TODO fix ref to eq:desiderata ==}), or undesirable (the complement of the set
+defined in [\[eq:desiderata\]](#eq:desiderata){== TODO fix ref to eq:desiderata ==}).
 
 Before proceeding, we note that our model focuses on the ordering of
 transitions, not their timing. We acknowledge that in some situations,
@@ -2741,8 +2725,7 @@ such relations.
 ##### Some states are preferable to others {#sec:state_preference}
 
 The desiderata in
-[\[eq:desiderata\]](#eq:desiderata){reference-type="eqref"
-reference="eq:desiderata"} address the preferred ordering of transitions
+[\[eq:desiderata\]](#eq:desiderata){== TODO fix ref to eq:desiderata ==} address the preferred ordering of transitions
 in CVD histories,
 which imply that one should prefer to pass through some states and avoid
 others. For example, $\mathbf{V} \prec \mathbf{P}$ implies that we
@@ -2777,14 +2760,11 @@ to be met.
 
 Given the desired preferences over orderings of transitions
 ($\mathbb{D}$ in
-[\[eq:desiderata\]](#eq:desiderata){reference-type="eqref"
-reference="eq:desiderata"}), we can construct a partial ordering over
+[\[eq:desiderata\]](#eq:desiderata){== TODO fix ref to eq:desiderata ==}), we can construct a partial ordering over
 all possible histories $\mathcal{H}$, as defined in
-[\[eq:ordering\]](#eq:ordering){reference-type="eqref"
-reference="eq:ordering"}. This partial order requires a formal
+[\[eq:ordering\]](#eq:ordering){== TODO fix ref to eq:ordering ==}. This partial order requires a formal
 definition of which desiderata are met by a given history, provided by
-[\[eq:desiderata_h\]](#eq:desiderata_h){reference-type="eqref"
-reference="eq:desiderata_h"}. $$\label{eq:desiderata_h}
+[\[eq:desiderata_h\]](#eq:desiderata_h){== TODO fix ref to eq:desiderata_h ==}. $$\label{eq:desiderata_h}
 \setlength{\jot}{-1pt} % decrease vertical line spacing inside the following split.
 \begin{split}
     \mathbb{D}^{h} \stackrel{\mathsf{def}}{=}\{ d \in \mathbb{D} \textrm{ such that } d \textrm{ is true for } h \} \textrm{, for } h \in \mathcal{H} \\
@@ -2803,8 +2783,7 @@ Diagrams represent the transitive reduction of a poset. Each node in the
 diagram represents an individual history $h_a$ from
 Table [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}; labels correspond to the index of
 the table. Figure [3.1](#fig:poset){== TODO fix ref to fig:poset ==} follows
-[\[eq:ordering\]](#eq:ordering){reference-type="eqref"
-reference="eq:ordering"}, in that $h_a$ is higher in the order than
+[\[eq:ordering\]](#eq:ordering){== TODO fix ref to eq:ordering ==}, in that $h_a$ is higher in the order than
 $h_b$ when $h_a$ contains all the desiderata from $h_b$ and at least one
 more. Histories that do not share a path are incomparable (formally, two
 histories incomparable if both
@@ -2842,8 +2821,7 @@ In the next section we will expand the model to include a partial order
 over our desiderata, but for now it is sufficient to note that any
 simple ordering over $\mathbb{D}$ would remain compatible with the
 partial order given in
-[\[eq:ordering\]](#eq:ordering){reference-type="eqref"
-reference="eq:ordering"}. In fact, a total order on $\mathbb{D}$ would
+[\[eq:ordering\]](#eq:ordering){== TODO fix ref to eq:ordering ==}. In fact, a total order on $\mathbb{D}$ would
 create a linear extension of the poset defined here, whereas a partial
 order on $\mathbb{D}$ would result in a more constrained poset of which
 this poset would be a subset.
@@ -2851,8 +2829,7 @@ this poset would be a subset.
 ![The Lattice of Possible CVD Histories: A Hasse Diagram of the partial
 ordering $(\mathcal{H}, \leq_{H})$ of $h_a \in \mathcal{H}$ given
 $\mathbb{D}$ as defined in
-[\[eq:ordering\]](#eq:ordering){reference-type="eqref"
-reference="eq:ordering"}. The diagram flows from least desirable
+[\[eq:ordering\]](#eq:ordering){== TODO fix ref to eq:ordering ==}. The diagram flows from least desirable
 histories at the bottom to most desirable at the top. Histories that do
 not share a path are incomparable. Labels indicate the index (row
 number) $a$ of $h_a$ in Table
@@ -2892,8 +2869,7 @@ $h \in \mathcal{H}$ are paths (traces) through the states. This meets
 the definition above because each $\sigma \in \Sigma$ is unique
 (mutually exclusive) and $\delta$ defines an exhaustive set of valid
 $\sigma$ at each state $q \in \mathcal{Q}$. For example, because
-[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){reference-type="eqref"
-reference="eq:history_vfd_rule"} requires $\mathbf{V} \prec \mathbf{F}$
+[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){== TODO fix ref to eq:history_vfd_rule ==} requires $\mathbf{V} \prec \mathbf{F}$
 and $\mathbf{F} \prec \mathbf{D}$, only four of the six events in
 $\Sigma$ are possible at the beginning of each history at $q_0=vfdpxa$:
 $\{\mathbf{V},\mathbf{P},\mathbf{X},\mathbf{A}\}$. Since the principle
@@ -2906,14 +2882,11 @@ probability of 0.25 to each possible event. $$\begin{aligned}
 
 From there, we see that the other rules dictate possible transitions
 from each subsequent state. For example,
-[\[eq:history_vp_rule\]](#eq:history_vp_rule){reference-type="eqref"
-reference="eq:history_vp_rule"} says that any $h$ starting with
+[\[eq:history_vp_rule\]](#eq:history_vp_rule){== TODO fix ref to eq:history_vp_rule ==} says that any $h$ starting with
 $(\mathbf{P})$ must start with $(\mathbf{P},\mathbf{V})$. And
-[\[eq:history_px_rule\]](#eq:history_px_rule){reference-type="eqref"
-reference="eq:history_px_rule"} requires any $h$ starting with
+[\[eq:history_px_rule\]](#eq:history_px_rule){== TODO fix ref to eq:history_px_rule ==} requires any $h$ starting with
 $(\mathbf{X})$ must proceed through $(\mathbf{X},\mathbf{P})$ and again
-[\[eq:history_vp_rule\]](#eq:history_vp_rule){reference-type="eqref"
-reference="eq:history_vp_rule"} gets us to
+[\[eq:history_vp_rule\]](#eq:history_vp_rule){== TODO fix ref to eq:history_vp_rule ==} gets us to
 $(\mathbf{X},\mathbf{P},\mathbf{V})$. Therefore, we expect histories
 starting with $(\mathbf{P},\mathbf{V})$ or
 $(\mathbf{X},\mathbf{P},\mathbf{V})$ to occur with frequency 0.25 as
@@ -3127,11 +3100,9 @@ $$\label{eq:ordering_d}
 (\mathbb{D},\leq_{\mathbb{D}}) \stackrel{\mathsf{def}}{=}d_2 \leq_{\mathbb{D}} d_1 \iff {f_{d_2}} \stackrel{\mathbb{R}}{\geq} {f_{d_1}}$$
 
 Note that the inequalities on the left and right sides of
-[\[eq:ordering_d\]](#eq:ordering_d){reference-type="eqref"
-reference="eq:ordering_d"} are flipped because skill is inversely
+[\[eq:ordering_d\]](#eq:ordering_d){== TODO fix ref to eq:ordering_d ==} are flipped because skill is inversely
 proportional to luck. Also, while $\leq_{\mathbb{D}}$ on the left side
-of [\[eq:ordering_d\]](#eq:ordering_d){reference-type="eqref"
-reference="eq:ordering_d"} defines a preorder over the poset
+of [\[eq:ordering_d\]](#eq:ordering_d){== TODO fix ref to eq:ordering_d ==} defines a preorder over the poset
 $\mathcal{H}$, the $\stackrel{\mathbb{R}}{\geq}$ is the usual ordering
 over the set of real numbers. The result is a partial order
 $(\mathbb{D},\leq_{\mathbb{D}})$ because a few $d$ have the same $f_d$
@@ -3327,8 +3298,7 @@ distribution. We address uncertainty further in
 
 ### Computing $\alpha_d$ from Observations {#sec:computing_observations}
 
-Although Eq. [\[eq:alpha_freq\]](#eq:alpha_freq){reference-type="eqref"
-reference="eq:alpha_freq"} develops a skill metric from observed
+Although Eq. [\[eq:alpha_freq\]](#eq:alpha_freq){== TODO fix ref to eq:alpha_freq ==} develops a skill metric from observed
 frequencies, our observations will in fact be based on counts.
 Observations consist of some number of successes $S_d^{obs}$ out of some
 number of trials $T$, i.e., $$\label{eq:observed_wins}
@@ -3338,21 +3308,16 @@ interpretation of $f_d$. $$\label{eq:lucky_wins}
 successes at $d$ we would expect due to luck in $T$ trials.
 
 Substituting
-[\[eq:observed_wins\]](#eq:observed_wins){reference-type="eqref"
-reference="eq:observed_wins"} and
-[\[eq:lucky_wins\]](#eq:lucky_wins){reference-type="eqref"
-reference="eq:lucky_wins"} into
-[\[eq:alpha_freq\]](#eq:alpha_freq){reference-type="eqref"
-reference="eq:alpha_freq"}, and recalling that $p_{skill} = 1$ because a
+[\[eq:observed_wins\]](#eq:observed_wins){== TODO fix ref to eq:observed_wins ==} and
+[\[eq:lucky_wins\]](#eq:lucky_wins){== TODO fix ref to eq:lucky_wins ==} into
+[\[eq:alpha_freq\]](#eq:alpha_freq){== TODO fix ref to eq:alpha_freq ==}, and recalling that $p_{skill} = 1$ because a
 maximally skillful player succeeds in $T$ out of $T$ trials, we get
 $$\label{eq:alpha_obs1}
     \alpha_{d} = \frac{\cfrac{S_d^{obs}}{T}-\cfrac{S_d^{luck}}{T}}
     {\cfrac{T}{T}-\cfrac{S_d^l}{T}}$$
 
-Rearranging [\[eq:lucky_wins\]](#eq:lucky_wins){reference-type="eqref"
-reference="eq:lucky_wins"} to $S_d^{luck} = {f_d}T$, substituting into
-[\[eq:alpha_obs1\]](#eq:alpha_obs1){reference-type="eqref"
-reference="eq:alpha_obs1"}, and simplifying, we arrive at:
+Rearranging [\[eq:lucky_wins\]](#eq:lucky_wins){== TODO fix ref to eq:lucky_wins ==} to $S_d^{luck} = {f_d}T$, substituting into
+[\[eq:alpha_obs1\]](#eq:alpha_obs1){== TODO fix ref to eq:alpha_obs1 ==}, and simplifying, we arrive at:
 $$\alpha_{d} = \frac{{S_d^{obs}}-{f_d}T}{(1-{f_d})T}$$ Hence for any of
 our desiderata $\mathbb{D}$ we can compute $\alpha_d$ given $S_d^{obs}$
 observed successes out of $T$ trials in light of $f_d$ taken from Table
@@ -3384,8 +3349,7 @@ successes and $b = T - S_d^{obs}$ representing the number of failures
 using the `scipy.stats.beta.interval` function in Python. This gives us
 an upper and lower estimate for $f_d^{obs}$, which we multiply by $T$ to
 get upper and lower estimates of $S_d^{obs}$ as in
-[\[eq:observed_wins\]](#eq:observed_wins){reference-type="eqref"
-reference="eq:observed_wins"}.
+[\[eq:observed_wins\]](#eq:observed_wins){== TODO fix ref to eq:observed_wins ==}.
 
 ## Observing CVD in the Wild {#sec:observation}
 
@@ -3680,8 +3644,7 @@ benchmarks rather than change expectations of the role of chance.
 
 As an applied example, if we take the first item in the above list as a
 broad observation of $f_{\mathbf{D} \prec \mathbf{A}} = 0.95$, we can
-plug into [\[eq:alpha_freq\]](#eq:alpha_freq){reference-type="eqref"
-reference="eq:alpha_freq"} to get a potential benchmark of
+plug into [\[eq:alpha_freq\]](#eq:alpha_freq){== TODO fix ref to eq:alpha_freq ==} to get a potential benchmark of
 $\alpha_{\mathbf{D} \prec \mathbf{A}} = 0.94$, which is considerably
 higher than the naïve generic benchmark $\alpha_d = 0$. It also implies
 that we should expect actual observations of histories
@@ -4098,17 +4061,14 @@ vulnerabilities, report them to vendors, and sometimes release
 proof-of-concept exploits for system security evaluation purposes) can
 do their part to ensure that vendors are aware of vulnerabilities as
 early as possible prior to public disclosure
-[\[eq:notify_vendor\]](#eq:notify_vendor){reference-type="eqref"
-reference="eq:notify_vendor"}. $$\label{eq:notify_vendor}
+[\[eq:notify_vendor\]](#eq:notify_vendor){== TODO fix ref to eq:notify_vendor ==}. $$\label{eq:notify_vendor}
 vfdpxa \xrightarrow{\mathbf{V}} Vfdpxa \implies \mathbf{V} \prec \mathbf{P} \textrm{, } \mathbf{V} \prec \mathbf{X} \textrm{ and } \mathbf{V} \prec \mathbf{A}$$
 
 Security researchers can also delay the publication of exploits until
-after fixes exist [\[eq:fx\]](#eq:fx){reference-type="eqref"
-reference="eq:fx"}, are public
-[\[eq:fxpx\]](#eq:fxpx){reference-type="eqref" reference="eq:fxpx"}, and
+after fixes exist [\[eq:fx\]](#eq:fx){== TODO fix ref to eq:fx ==}, are public
+[\[eq:fxpx\]](#eq:fxpx){== TODO fix ref to eq:fxpx ==}, and
 possibly even until most system owners have deployed the fix
-[\[eq:fxpxdx\]](#eq:fxpxdx){reference-type="eqref"
-reference="eq:fxpxdx"}. $$\begin{aligned}
+[\[eq:fxpxdx\]](#eq:fxpxdx){== TODO fix ref to eq:fxpxdx ==}. $$\begin{aligned}
 \label{eq:fx}
   \mathbf{X}|q \in VFdpx &\implies \mathbf{F} \prec \mathbf{X} \\
   \label{eq:fxpx}
@@ -4296,11 +4256,9 @@ $$\label{eq:embargo_viable}
 
 In summary, embargoes can be initiated if the case is in
 $\mathcal{Q}_{E}^{0}$ as in Eq.
-[\[eq:embargo_start\]](#eq:embargo_start){reference-type="eqref"
-reference="eq:embargo_start"}, and remain viable through any state in
+[\[eq:embargo_start\]](#eq:embargo_start){== TODO fix ref to eq:embargo_start ==}, and remain viable through any state in
 $\mathcal{Q}_{E}$ as in Eq.
-[\[eq:embargo_viable\]](#eq:embargo_viable){reference-type="eqref"
-reference="eq:embargo_viable"}. This in turn gives us specific things to
+[\[eq:embargo_viable\]](#eq:embargo_viable){== TODO fix ref to eq:embargo_viable ==}. This in turn gives us specific things to
 look for in order to determine when to end an embargo:
 
 -   The embargo timer has expired.
@@ -4766,8 +4724,7 @@ note that because a public exploit ($\mathcal{Q}_X$) would also meet the
 definition of "vulnerability information in the public domain," we can
 narrow the scope from ${vp}$ to ${vpx}$. Lastly, we note that due to the
 vendor fix path causality rule in Eq.
-[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){reference-type="eqref"
-reference="eq:history_vfd_rule"}, ${vpx}$ is equivalent to ${vfdpx}$,
+[\[eq:history_vfd_rule\]](#eq:history_vfd_rule){== TODO fix ref to eq:history_vfd_rule ==}, ${vpx}$ is equivalent to ${vfdpx}$,
 and therefore we can formally specify that VEP is only applicable to vulnerabilities in
 
 $$\mathcal{S}_{VEP} = {vfdpx} = \{vfdpxa, vfdpxA\}$$
@@ -5353,13 +5310,10 @@ $q \in \mathcal{Q}$ as developed in
 §[2.3](#sec:states){== TODO fix ref to sec:states ==} for an
 explanation of the states in the model. States are presented in the
 order given in
-[\[eq:all_states\]](#eq:all_states){reference-type="eqref"
-reference="eq:all_states"}, which follows a hierarchy implied by
+[\[eq:all_states\]](#eq:all_states){== TODO fix ref to eq:all_states ==}, which follows a hierarchy implied by
 traversal of the $PXA$ submodel found in
-[\[eq:pxa_dfa\]](#eq:pxa_dfa){reference-type="eqref"
-reference="eq:pxa_dfa"} for each step of the $VFD$ submodel given in
-[\[eq:vfd_dfa\]](#eq:vfd_dfa){reference-type="eqref"
-reference="eq:vfd_dfa"}. See
+[\[eq:pxa_dfa\]](#eq:pxa_dfa){== TODO fix ref to eq:pxa_dfa ==} for each step of the $VFD$ submodel given in
+[\[eq:vfd_dfa\]](#eq:vfd_dfa){== TODO fix ref to eq:vfd_dfa ==}. See
 §[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==} for an explanation of the state transitions
 permitted by the model.
 
