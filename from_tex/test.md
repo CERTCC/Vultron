@@ -260,21 +260,18 @@ the toy model, one might wonder what it *is* doing.
 ## Organization of This Document
 
 We begin by deriving a model of all possible CVD case states and histories from first
-principles in §[2](#sec:model){reference-type="ref"
-reference="sec:model"} and §[3](#sec:poss_hist){reference-type="ref"
-reference="sec:poss_hist"}, organizing those histories into a partial
+principles in §[2](#sec:model){== TODO fix ref to sec:model ==} and §[3](#sec:poss_hist){== TODO fix ref to sec:poss_hist ==}, organizing those histories into a partial
 ordering based on a set of desired criteria in
-§[4](#sec:reasoning){reference-type="ref" reference="sec:reasoning"}. We
+§[4](#sec:reasoning){== TODO fix ref to sec:reasoning ==}. We
 then compute a baseline expectation for the frequency of each desired
 criteria and propose a new set of performance indicators to measure the
 efficacy of CVD
 practices based on the differentiation of skill and luck in observation
-data in §[5](#sec:skill_luck){reference-type="ref"
-reference="sec:skill_luck"}. As a proof of concept, we apply these
+data in §[5](#sec:skill_luck){== TODO fix ref to sec:skill_luck ==}. As a proof of concept, we apply these
 indicators to a variety of longitudinal observations of
 CVD practice and
 find evidence of significant skill to be prevalent. In
-§[6](#sec:discussion){reference-type="ref" reference="sec:discussion"},
+§[6](#sec:discussion){== TODO fix ref to sec:discussion ==},
 we explore some of the implications and uses of such a model in any
 CVD case before
 extending it to MPCVD. The remainder of that section offers
@@ -284,15 +281,12 @@ owners, coordinators, and governments) to interpret the quality of their
 CVD and
 MPCVD practices
 We continue with a review of related work in
-§[7](#sec:related_work){reference-type="ref"
-reference="sec:related_work"}, future work in
-§[8](#sec:limitationsAnd){reference-type="ref"
-reference="sec:limitationsAnd"}, and give our conclusions in
-§[9](#sec:conclusion){reference-type="ref" reference="sec:conclusion"}.
+§[7](#sec:related_work){== TODO fix ref to sec:related_work ==}, future work in
+§[8](#sec:limitationsAnd){== TODO fix ref to sec:limitationsAnd ==}, and give our conclusions in
+§[9](#sec:conclusion){== TODO fix ref to sec:conclusion ==}.
 
 An appendix summarizing each state in the model in conjunction with the
-discussion in §[6](#sec:discussion){reference-type="ref"
-reference="sec:discussion"} is also provided.
+discussion in §[6](#sec:discussion){== TODO fix ref to sec:discussion ==} is also provided.
 
 # A State-based model for CVD {#sec:model}
 
@@ -344,8 +338,7 @@ transitions between them.
   -------------------------------------------------------------------------------------------
 
   : Vulnerability Lifecycle Events: Comparing Models. Symbols for our
-  model are defined in §[2.4](#sec:transitions){reference-type="ref"
-  reference="sec:transitions"}.
+  model are defined in §[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==}.
 :::
 
 The goal of this section is to establish a model of events that affect
@@ -358,8 +351,7 @@ are primarily interested in events that are usually observable to the
 stakeholders of a CVD case. Stakeholders include software
 vendors, vulnerability finder/reporters, coordinators, and
 deployers [@householder2017cert]. A summary of this model comparison is
-shown in Table [2.1](#tab:lifecycle_events){reference-type="ref"
-reference="tab:lifecycle_events"}.
+shown in Table [2.1](#tab:lifecycle_events){== TODO fix ref to tab:lifecycle_events ==}.
 
 Since we are modeling only the disclosure process, we assume the
 vulnerability both exists and is known to at least someone. Therefore we
@@ -464,16 +456,14 @@ inferred from the observation of either *exploit public* or *attacks
 observed*.
 
 Further discussion of related work can be found in
-§[7](#sec:related_work){reference-type="ref"
-reference="sec:related_work"}.
+§[7](#sec:related_work){== TODO fix ref to sec:related_work ==}.
 
 ## Notation {#sec:notation}
 
 Before we discuss CVD states
-(§[2.3](#sec:states){reference-type="ref" reference="sec:states"}),
-transitions (§[2.4](#sec:transitions){reference-type="ref"
-reference="sec:transitions"}), or possible histories
-(§[3](#sec:poss_hist){reference-type="ref" reference="sec:poss_hist"})
+(§[2.3](#sec:states){== TODO fix ref to sec:states ==}),
+transitions (§[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==}), or possible histories
+(§[3](#sec:poss_hist){== TODO fix ref to sec:poss_hist ==})
 in the vulnerability life cycle, we need to formally define our terms.
 In all of these definitions, we take standard Zermelo-Fraenkel set
 theory. The concept of sequences extends set theory to include a concept
@@ -521,13 +511,12 @@ is defined as a 5-tuple $(\mathcal{Q},\Sigma,\delta,q_0,F)
 
 In our model, the state of the world is a specification of the current
 status of all the events in the vulnerability lifecycle model described
-in §[2.1](#sec:events){reference-type="ref" reference="sec:events"}. We
+in §[2.1](#sec:events){== TODO fix ref to sec:events ==}. We
 represent each of these statuses in vulnerability coordination by a
 letter for that part of the state of the world. For example, $v$ means
 no vendor awareness and $V$ means vendor is aware. The complete set of
 status labels is given in
-Table [2.2](#tab:event_status){reference-type="ref"
-reference="tab:event_status"}.
+Table [2.2](#tab:event_status){== TODO fix ref to tab:event_status ==}.
 
 ::: {#tab:event_status}
    Status  Meaning
@@ -580,8 +569,7 @@ CVD case has been
 closed.
 
 Intermediate states can be any combination of statuses, with the caveats
-elaborated in §[2.4](#sec:transitions){reference-type="ref"
-reference="sec:transitions"}. In other words, valid states must contain
+elaborated in §[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==}. In other words, valid states must contain
 one of the following strings: $vfd$, $Vfd$, $VFd$, or $VFD$.
 
 As a result, there are thirty-two possible states, which we define as
@@ -620,8 +608,7 @@ function for our DFA.
 ### Input Symbols
 
 The input symbols to our DFA correspond to observations of the events
-outlined in Table [2.1](#tab:lifecycle_events){reference-type="ref"
-reference="tab:lifecycle_events"}. For our model, an input symbol
+outlined in Table [2.1](#tab:lifecycle_events){== TODO fix ref to tab:lifecycle_events ==}. For our model, an input symbol
 $\sigma$ is "read" when a participant observes a change in status (the
 vendor is notified, an exploit has been published, etc.). For the sake
 of simplicity, we begin with the assumption that observations are
@@ -704,11 +691,9 @@ possible sequences.
 The DFA specification for this submodel is given in
 [\[eq:vfd_dfa\]](#eq:vfd_dfa){reference-type="eqref"
 reference="eq:vfd_dfa"}. The resulting state subsets and transitions are
-as shown in Table [2.3](#tab:delta_vfd){reference-type="ref"
-reference="tab:delta_vfd"} and Figure
-[2.1](#fig:vfd_map){reference-type="ref" reference="fig:vfd_map"}. The
-double circle in Figure [2.1](#fig:vfd_map){reference-type="ref"
-reference="fig:vfd_map"} and subsequent state diagrams indicates the
+as shown in Table [2.3](#tab:delta_vfd){== TODO fix ref to tab:delta_vfd ==} and Figure
+[2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==}. The
+double circle in Figure [2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==} and subsequent state diagrams indicates the
 final state $\mathcal{F}$ for that submap.
 
 $$\label{eq:vfd_dfa}
@@ -779,9 +764,9 @@ whose distribution model requires system owner action to deploy fixes.
 The DFA specification for this submodel is given in
 [\[eq:vfdp_dfa\]](#eq:vfdp_dfa){reference-type="eqref"
 reference="eq:vfdp_dfa"}. Table
-[2.4](#tab:delta_vfdp){reference-type="ref" reference="tab:delta_vfdp"}
+[2.4](#tab:delta_vfdp){== TODO fix ref to tab:delta_vfdp ==}
 shows the transition function $\delta_{VFDP}$, while Figure
-[2.2](#fig:vfdp_map){reference-type="ref" reference="fig:vfdp_map"}
+[2.2](#fig:vfdp_map){== TODO fix ref to fig:vfdp_map ==}
 depicts the transitions among these states. $$\label{eq:vfdp_dfa}
 \begin{split}
     \mathcal{Q}_{VFDP} =&\,\{vfdp,vfdP,Vfdp,VfdP,\\
@@ -798,10 +783,10 @@ Before fully integrating all thirty two states, we pause here to develop
 a three dimensional sub-model that highlights the interaction of public
 awareness, exploit publication, and attacks. Unlike the causal
 relationship representing the vendor process in Figure
-[2.1](#fig:vfd_map){reference-type="ref" reference="fig:vfd_map"}, these
+[2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==}, these
 three transitions can occur independently. We therefore treat them as
 their own dimensions, as shown in Figure
-[2.3](#fig:pxa_map){reference-type="ref" reference="fig:pxa_map"}.
+[2.3](#fig:pxa_map){== TODO fix ref to fig:pxa_map ==}.
 
 ::: {#tab:delta_pxa}
    State   $\mathbf{P}$   $\mathbf{X}$   $\mathbf{A}$
@@ -833,12 +818,9 @@ previously unaware of the vulnerability. For practical purposes, this
 constraint means that all states in ${pX}$ are unstable and must lead to
 the corresponding state in ${PX}$ in the subsequent step. As a result,
 transitions from ${pXa}$ to ${pXA}$ are disallowed, as reflected in
-Figure [2.3](#fig:pxa_map){reference-type="ref"
-reference="fig:pxa_map"}. The transition function $\delta_{PXA}$ is
-given in Table [2.5](#tab:delta_pxa){reference-type="ref"
-reference="tab:delta_pxa"}. Further discussion of this transition can be
-found in §[6.5.1](#sec:zerodays){reference-type="ref"
-reference="sec:zerodays"}.
+Figure [2.3](#fig:pxa_map){== TODO fix ref to fig:pxa_map ==}. The transition function $\delta_{PXA}$ is
+given in Table [2.5](#tab:delta_pxa){== TODO fix ref to tab:delta_pxa ==}. Further discussion of this transition can be
+found in §[6.5.1](#sec:zerodays){== TODO fix ref to sec:zerodays ==}.
 
 $$\label{eq:pxa_dfa}
 \begin{split}
@@ -877,10 +859,9 @@ reference="eq:vfd_dfa"} and its extension in
 reference="eq:vfdp_dfa"} with the $PXA$ cube defined by
 [\[eq:pxa_dfa\]](#eq:pxa_dfa){reference-type="eqref"
 reference="eq:pxa_dfa"}. The complete map is shown in Figure
-[2.4](#fig:vfdpxa_map){reference-type="ref" reference="fig:vfdpxa_map"}.
+[2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
 We also can now define the transition function $\delta$ for the entire
-model, as shown in Table [2.6](#tab:delta_vfdpxa){reference-type="ref"
-reference="tab:delta_vfdpxa"}. A summary of the complete
+model, as shown in Table [2.6](#tab:delta_vfdpxa){== TODO fix ref to tab:delta_vfdpxa ==}. A summary of the complete
 DFA specification
 is given in [\[eq:vfdpxa_dfa\]](#eq:vfdpxa_dfa){reference-type="eqref"
 reference="eq:vfdpxa_dfa"}.
@@ -948,18 +929,16 @@ class="math inline"><strong>A</strong></span>)</figcaption>
 </figure>
 
 In this combined model, each point along the vendor fix flow in Figure
-[2.1](#fig:vfd_map){reference-type="ref" reference="fig:vfd_map"}
+[2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==}
 corresponds to an instance of the public/exploit/attack cube from Figure
-[2.3](#fig:pxa_map){reference-type="ref" reference="fig:pxa_map"}.
-Figure [2.4](#fig:vfdpxa_map){reference-type="ref"
-reference="fig:vfdpxa_map"} shows each of these as distinct cubes
+[2.3](#fig:pxa_map){== TODO fix ref to fig:pxa_map ==}.
+Figure [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==} shows each of these as distinct cubes
 embedded in the larger model.
 
 The *ignorant vendor* cube ($vfd$)
 
 :   Found at the lower right of Figure
-    [2.4](#fig:vfdpxa_map){reference-type="ref"
-    reference="fig:vfdpxa_map"}, the $vfd$ cube is the least stable of
+    [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}, the $vfd$ cube is the least stable of
     the four because many of its internal transitions are disallowed,
     owing to the instability of both $pX$ and $vP$. The effect is a
     higher likelihood of exiting this cube than the others. The
@@ -1009,8 +988,7 @@ Hamming cube in in 5 dimensions. In this representation, each state maps
 onto a binary value between 00000 and 11111, corresponding to the 32
 vertices of the 5-dimensional Hamming Cube. The semantics of each bit
 position from left to right are given in Table
-[2.7](#tab:state_encoding){reference-type="ref"
-reference="tab:state_encoding"}. Correspondingly, each transition
+[2.7](#tab:state_encoding){== TODO fix ref to tab:state_encoding ==}. Correspondingly, each transition
 represents a single bit flip in the state encoding. Some edges
 (transitions) are disallowed by the causal requirements described in
 this section and formalized in the next section (see
@@ -1021,12 +999,11 @@ reference="eq:history_vp_rule"}, and
 [\[eq:history_px_rule\]](#eq:history_px_rule){reference-type="eqref"
 reference="eq:history_px_rule"}). This observation serves as the basis
 of the visualization given in
-Figure [2.4](#fig:vfdpxa_map){reference-type="ref"
-reference="fig:vfdpxa_map"}.
+Figure [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
 
 # Sequences of Events and Possible Histories in CVD {#sec:poss_hist}
 
-In §[2](#sec:model){reference-type="ref" reference="sec:model"}, we
+In §[2](#sec:model){== TODO fix ref to sec:model ==}, we
 began by identifying a set of events of interest in
 CVD cases. Then we
 constructed a state model describing how the occurrence of these events
@@ -1037,7 +1014,7 @@ A sequence $s$ is an ordered set of some number of events
 $\sigma_i \in \Sigma$ for $1 \leq i \leq n$ and the length of $s$ is
 $|s| \stackrel{\mathsf{def}}{=}n$. In other words, a sequence $s$ is an
 input string to the DFA defined in
-§[2](#sec:model){reference-type="ref" reference="sec:model"}.
+§[2](#sec:model){== TODO fix ref to sec:model ==}.
 
 $$\label{eq:sequence}
     s \stackrel{\mathsf{def}}{=}\left( \sigma_1, \sigma_2, \dots \sigma_n \right)$$
@@ -1064,13 +1041,12 @@ satisfy this definition.
 Given that a history $h$ contains all six events $\Sigma$ in some order,
 there could be at most 720 ($_{6} \mathrm{P}_{6} = 6! = 720$) potential
 histories. However, because of the causal requirements outlined in
-[2.4.2](#sec:transition_function){reference-type="ref"
-reference="sec:transition_function"}, we know that Vendor Awareness
+[2.4.2](#sec:transition_function){== TODO fix ref to sec:transition_function ==}, we know that Vendor Awareness
 ($\mathbf{V}$) must precede Fix Ready ($\mathbf{F}$) and that Fix Ready
 must precede Fix Deployed ($\mathbf{D}$).
 
 The DFA developed
-in §[2](#sec:model){reference-type="ref" reference="sec:model"} provides
+in §[2](#sec:model){== TODO fix ref to sec:model ==} provides
 the mechanism to validate histories: a history $h$ is valid if the
 DFA accepts it as a
 valid input string. Once this constraint is applied, only 70 possible
@@ -1078,23 +1054,18 @@ histories $h \in \mathcal{H}p$ remain viable. We denote the set of all
 such valid histories as $\mathcal{H}$ and have $|\mathcal{H}| = 70$. The
 set of possible histories $\mathcal{H}$ corresponds to the 70 allowable
 paths through $\mathcal{Q}$ as can be derived from Table
-[2.6](#tab:delta_vfdpxa){reference-type="ref"
-reference="tab:delta_vfdpxa"} and Fig.
-[2.4](#fig:vfdpxa_map){reference-type="ref" reference="fig:vfdpxa_map"}.
+[2.6](#tab:delta_vfdpxa){== TODO fix ref to tab:delta_vfdpxa ==} and Fig.
+[2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
 
 The set of possible histories $\mathcal{H}$ is listed exhaustively in
-Table [3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"}. Commas and parentheses indicating
+Table [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}. Commas and parentheses indicating
 ordered sets were omitted from column $h$ for readability. The skill
 ranking function on the histories will be defined in
-§[4.4](#sec:h_poset_skill){reference-type="ref"
-reference="sec:h_poset_skill"}. The desirability of the history
+§[4.4](#sec:h_poset_skill){== TODO fix ref to sec:h_poset_skill ==}. The desirability of the history
 ($\mathbb{D}^h$) will be defined in
-§[3.2](#sec:desirability){reference-type="ref"
-reference="sec:desirability"}. The expected frequency of each history
+§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==}. The expected frequency of each history
 $f_h$ is explained in
-§[4.1](#sec:history_frequency_analysis){reference-type="ref"
-reference="sec:history_frequency_analysis"}.
+§[4.1](#sec:history_frequency_analysis){== TODO fix ref to sec:history_frequency_analysis ==}.
 
 ::: {#tab:possible_histories}
 <table>
@@ -2647,10 +2618,8 @@ class="math inline"><strong>V</strong><strong>F</strong><strong>D</strong><stron
 
 Now that we have defined the set of histories $\mathcal{H}$, we can
 summarize the effects of the transition function $\delta$ developed in
-§[2.4](#sec:transitions){reference-type="ref"
-reference="sec:transitions"} (Table
-[2.6](#tab:delta_vfdpxa){reference-type="ref"
-reference="tab:delta_vfdpxa"}) as a set of patterns it imposes on all
+§[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==} (Table
+[2.6](#tab:delta_vfdpxa){== TODO fix ref to tab:delta_vfdpxa ==}) as a set of patterns it imposes on all
 histories $h \in \mathcal{H}$. First, the causality constraint of the
 vendor fix path must hold. $$\label{eq:history_vfd_rule}
 \mathbf{V} \prec \mathbf{F} \prec \mathbf{D}$$
@@ -2672,7 +2641,7 @@ $$\label{eq:history_px_rule}
 
 This model is amenable for analysis of CVD, but we need to add a way to express
 preferences before it is complete. Thus we are part way through **RQ1**.
-§[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"} will
+§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==} will
 address how this model can generalize from CVD to MPCVD.
 
 ## On the Desirability of Possible Histories {#sec:desirability}
@@ -2732,11 +2701,9 @@ following ordering preferences:
     advantages in the latter case than the former, and therefore we
     should prefer histories in which $\mathbf{X} \prec \mathbf{A}$.
 
-Equation [\[eq:desiderata\]](#eq:desiderata){reference-type="ref"
-reference="eq:desiderata"} formalizes our definition of desired
+Equation [\[eq:desiderata\]](#eq:desiderata){== TODO fix ref to eq:desiderata ==} formalizes our definition of desired
 orderings $\mathbb{D}$. Table
-[3.3](#tab:ordered_pairs){reference-type="ref"
-reference="tab:ordered_pairs"} displays all 36 possible orderings of
+[3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==} displays all 36 possible orderings of
 paired transitions and whether they are considered impossible, required
 (as defined by
 [\[eq:history_vfd_rule\]](#eq:history_vfd_rule){reference-type="eqref"
@@ -2755,8 +2722,7 @@ transitions, not their timing. We acknowledge that in some situations,
 the interval between transitions may be of more interest than merely the
 order of those transitions, as a rapid tempo of transitions can alter
 the options available to stakeholders in their response. We discuss this
-limitation further in §[8](#sec:limitationsAnd){reference-type="ref"
-reference="sec:limitationsAnd"}; however, the following model posits
+limitation further in §[8](#sec:limitationsAnd){== TODO fix ref to sec:limitationsAnd ==}; however, the following model posits
 event sequence timing on a human-oriented timescale measured in minutes
 to weeks.
 
@@ -2784,8 +2750,7 @@ prefer the paths
 ${vp} \xrightarrow{\mathbf{V}} {Vp} \xrightarrow{\mathbf{P}} {VP}$ over
 the paths
 ${vp} \xrightarrow{\mathbf{P}} {vP} \xrightarrow{\mathbf{V}} {VP}$. In
-Table [3.2](#tab:desired_states){reference-type="ref"
-reference="tab:desired_states"} we adapt those desiderata into specific
+Table [3.2](#tab:desired_states){== TODO fix ref to tab:desired_states ==} we adapt those desiderata into specific
 subsets of states that should be preferred or avoided if the criteria is
 to be met.
 
@@ -2833,13 +2798,11 @@ $$\label{eq:ordering}
 
 A visualization of the resulting partially ordered set, or poset,
 $(\mathcal{H},\leq_{H})$ is shown as a Hasse Diagram in Figure
-[3.1](#fig:poset){reference-type="ref" reference="fig:poset"}. Hasse
+[3.1](#fig:poset){== TODO fix ref to fig:poset ==}. Hasse
 Diagrams represent the transitive reduction of a poset. Each node in the
 diagram represents an individual history $h_a$ from
-Table [3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"}; labels correspond to the index of
-the table. Figure [3.1](#fig:poset){reference-type="ref"
-reference="fig:poset"} follows
+Table [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}; labels correspond to the index of
+the table. Figure [3.1](#fig:poset){== TODO fix ref to fig:poset ==} follows
 [\[eq:ordering\]](#eq:ordering){reference-type="eqref"
 reference="eq:ordering"}, in that $h_a$ is higher in the order than
 $h_b$ when $h_a$ contains all the desiderata from $h_b$ and at least one
@@ -2848,12 +2811,10 @@ histories incomparable if both
 $\mathbb{D}^{h_a} \not\supset \mathbb{D}^{h_b}$ and
 $\mathbb{D}^{h_a} \not\subset \mathbb{D}^{h_b}$). The diagram flows from
 least desirable histories at the bottom to most desirable at the top.
-This model satisfies **RQ1**; §[4](#sec:reasoning){reference-type="ref"
-reference="sec:reasoning"} and
-§[5](#sec:skill_luck){reference-type="ref" reference="sec:skill_luck"}
+This model satisfies **RQ1**; §[4](#sec:reasoning){== TODO fix ref to sec:reasoning ==} and
+§[5](#sec:skill_luck){== TODO fix ref to sec:skill_luck ==}
 will demonstrate that the model is amenable to analysis and
-§[6.2.2](#sec:mpcvd criteria){reference-type="ref"
-reference="sec:mpcvd criteria"} will lay out the criteria for extending
+§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} will lay out the criteria for extending
 it to cover MPCVD.
 
 The poset $(\mathcal{H},\leq_{H})$, has as its upper bound
@@ -2895,8 +2856,7 @@ reference="eq:ordering"}. The diagram flows from least desirable
 histories at the bottom to most desirable at the top. Histories that do
 not share a path are incomparable. Labels indicate the index (row
 number) $a$ of $h_a$ in Table
-[3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"}.](figures/h_poset.png){#fig:poset
+[3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}.](figures/h_poset.png){#fig:poset
 width="140mm"}
 
 ## A Random Walk through CVD States {#sec:random_walk}
@@ -2963,8 +2923,7 @@ anything special to coordinate vulnerability disclosures. Specifically,
 for each state we set the transition probability to any other state
 proportional to the inverse of the outdegree of the state, as shown in
 the $p(transition)$ column of Table
-[3.4](#tab:allowed_state_transitions){reference-type="ref"
-reference="tab:allowed_state_transitions"}. Real world data is unlikely
+[3.4](#tab:allowed_state_transitions){== TODO fix ref to tab:allowed_state_transitions ==}. Real world data is unlikely
 to ever reflect such a sad state of affairs (because
 CVD *is* happening
 after all).
@@ -3007,8 +2966,7 @@ after all).
 
   : Sparse state transition matrix and state PageRank assuming
   equiprobable transitions in a random walk over $\mathcal{S}$ as shown
-  Figure [2.4](#fig:vfdpxa_map){reference-type="ref"
-  reference="fig:vfdpxa_map"}.)
+  Figure [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.)
 :::
 
 ##### Using PageRank to Estimate Baseline State Probabilities
@@ -3034,23 +2992,19 @@ PageRank traversals to wrap around naturally and reach the early states
 in the random walk process without needing to rely on teleportation.
 With our modification in place, we are ready to compute the PageRank of
 each node in the graph. Results are shown in Table
-[3.4](#tab:allowed_state_transitions){reference-type="ref"
-reference="tab:allowed_state_transitions"}
+[3.4](#tab:allowed_state_transitions){== TODO fix ref to tab:allowed_state_transitions ==}
 
 # Reasoning over Possible Histories {#sec:reasoning}
 
 Our goal in this section is to formulate a way to rank our
 undifferentiated desiderata $\mathbb{D}$ from
-§[3.2](#sec:desirability){reference-type="ref"
-reference="sec:desirability"} in order to develop the concept of CVD
-skill and its measurement in §[5](#sec:skill_luck){reference-type="ref"
-reference="sec:skill_luck"}. This will provide a baseline expectation
+§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==} in order to develop the concept of CVD
+skill and its measurement in §[5](#sec:skill_luck){== TODO fix ref to sec:skill_luck ==}. This will provide a baseline expectation
 about events (**RQ2)**.
 
 ## History Frequency Analysis {#sec:history_frequency_analysis}
 
-As described in §[3.3](#sec:random_walk){reference-type="ref"
-reference="sec:random_walk"}, we apply the principle of indifference to
+As described in §[3.3](#sec:random_walk){== TODO fix ref to sec:random_walk ==}, we apply the principle of indifference to
 the available transition events $\sigma_{i+1}$ at each state $q$ for
 each of the possible histories to compute the expected frequency of each
 history, which we denote as $f_h$. The frequency of a history $f_h$ is
@@ -3061,8 +3015,7 @@ sequence constraints, namely $h \in \mathcal{H}$.
 $$\label{eq:history_freq}
     f_h = \prod_{i=0}^{5} p(\sigma_{i+1}|h_i) %\textrm{ where } \sigma_i \in h \textrm{ and } h \in H$$
 
-Table [3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"} displays the value of $f_h$ for each
+Table [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==} displays the value of $f_h$ for each
 history. Having an expected frequency ($f_h$) for each history $h$ will
 allow us to examine how often we might expect our desiderata
 $d \in \mathbb{D}$ to occur across $\mathcal{H}$.
@@ -3081,23 +3034,20 @@ uniform distribution over histories.
 ## Event Order Frequency Analysis {#sec:ordering_frequency_analysis}
 
 Each of the event pair orderings in Table
-[3.3](#tab:ordered_pairs){reference-type="ref"
-reference="tab:ordered_pairs"} can be treated as a Boolean condition
+[3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==} can be treated as a Boolean condition
 that either holds or does not hold in any given history. In
-§[4.1](#sec:history_frequency_analysis){reference-type="ref"
-reference="sec:history_frequency_analysis"} we described how to compute
+§[4.1](#sec:history_frequency_analysis){== TODO fix ref to sec:history_frequency_analysis ==} we described how to compute
 the expected frequency of each history ($f_h$) given the presumption of
 indifference to possible events at each step. We can use $f_h$ as a
 weighting factor to compute the expected frequency of event orderings
 ($\sigma_i \prec \sigma_j$) across all possible histories $H$. Equations
-[\[eq:h_ord\]](#eq:h_ord){reference-type="ref" reference="eq:h_ord"} and
-[\[eq:d_freq\]](#eq:d_freq){reference-type="ref" reference="eq:d_freq"}
+[\[eq:h_ord\]](#eq:h_ord){== TODO fix ref to eq:h_ord ==} and
+[\[eq:d_freq\]](#eq:d_freq){== TODO fix ref to eq:d_freq ==}
 define the frequency of an ordering $f_{\sigma_i \prec \sigma_j}$ as the
 sum over all histories in which the ordering occurs
 ($H^{\sigma_i \prec \sigma_j}$) of the frequency of each such history
 ($f_h$) as shown in Table
-[3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"}.
+[3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}.
 
 $$\label{eq:h_ord}
     H^{\sigma_i \prec \sigma_j} \stackrel{\mathsf{def}}{=}\{h \in H \textrm{ where } \sigma_i \prec \sigma_j \textrm{ is true for } h \textrm{ and } i \neq j\}$$
@@ -3119,17 +3069,14 @@ $$\label{eq:d_freq}
   uniformly from possible transitions in each state
 :::
 
-Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"} displays the results of this calculation.
+Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} displays the results of this calculation.
 Required event orderings have an expected frequency of 1, while
 impossible orderings have an expected frequency of 0. As defined in
-§[3.2](#sec:desirability){reference-type="ref"
-reference="sec:desirability"}, each desiderata $d \in \mathbb{D}$ is
+§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==}, each desiderata $d \in \mathbb{D}$ is
 specified as an event ordering of the form $\sigma_i \prec \sigma_j$. We
 use $f_d$ to denote the expected frequency of a given desiderata
 $d \in \mathbb{D}$. The values for the relevant $f_d$ appear in the
-upper right of Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"}. Some event orderings have higher expected
+upper right of Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}. Some event orderings have higher expected
 frequencies than others. For example, vendor awareness precedes attacks
 in 3 out of 4 histories in a uniform distribution of event transitions
 ($f_{\mathbf{V} \prec \mathbf{A}} = 0.75$), whereas fix deployed prior
@@ -3157,13 +3104,12 @@ world where neither attackers nor defenders held any advantage and
 events were chosen uniformly from $\Sigma$ whenever they were possible,
 we would expect to see the preferred orderings occur with probability
 equivalent to their frequency $f_d$ as shown in Table
-[4.1](#tab:event_freq){reference-type="ref" reference="tab:event_freq"}.
+[4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}.
 
 Skill, on the other hand, accounts for the outcomes once luck has been
 accounted for. So the more likely an outcome is due to luck, the less
 skill we can infer when it is observed. As an example, from
-Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"} we see that fix deployed before the
+Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} we see that fix deployed before the
 vulnerability is public is the rarest of our desiderata with
 $f_{\mathbf{D} \prec \mathbf{P}} = 0.037$, and thus exhibits the most
 skill when observed. On the other hand, vendor awareness before attacks
@@ -3192,8 +3138,7 @@ $(\mathbb{D},\leq_{\mathbb{D}})$ because a few $d$ have the same $f_d$
 ($f_{\mathbf{F} \prec \mathbf{X}} = f_{\mathbf{V} \prec \mathbf{P}} = 0.333$
 for example). The full Hasse Diagram for the partial order
 $(\mathbb{D},\leq_{\mathbb{D}})$ is shown in
-Figure [\[fig:d_poset\]](#fig:d_poset){reference-type="ref"
-reference="fig:d_poset"}.
+Figure [\[fig:d_poset\]](#fig:d_poset){== TODO fix ref to fig:d_poset ==}.
 
 ## Ordering Possible Histories by Skill {#sec:h_poset_skill}
 
@@ -3223,8 +3168,7 @@ corpus of possible histories $\mathcal{H}$.
 We have now computed a skill value for every $h \in \mathcal{H}$, which
 allows us to sort $\mathcal{H}$ and assign a rank to each history $h$
 contained therein. The rank is shown in
-Table [3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"}. Rank values start at 1 for least
+Table [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}. Rank values start at 1 for least
 skill up to a maximum of 62 for most skill. Owing to the partial order
 $(\mathbb{D},\leq_{\mathbb{D}})$, some $h$ have the same computed skill
 values, and these are given the same rank.
@@ -3232,13 +3176,11 @@ values, and these are given the same rank.
 The ranks for $h \in \mathcal{H}$ lead directly to a new poset
 $(\mathcal{H},\leq_{\mathbb{D}})$. It is an extension of and fully
 compatible with $(\mathcal{H},\leq_{H})$ as developed in
-§[3.2](#sec:desirability){reference-type="ref"
-reference="sec:desirability"}.
+§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==}.
 
 The resulting Hasse Diagram would be too large to reproduce here.
 Instead, we include the resulting rank for each $h$ as a column in
-Table [3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"}. In the table, rank is ordered from
+Table [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}. In the table, rank is ordered from
 least desirable and skillful histories to most. Histories having
 identical rank are incomparable to each other within the poset. The
 refined poset $(\mathcal{H},\leq_{\mathbb{D}})$ is much closer to a
@@ -3248,8 +3190,7 @@ histories having duplicate ranks.
 The remaining incomparable histories are the direct result of the
 incomparable $d$ in $(\mathbb{D},\leq_{\mathbb{D}})$, corresponding to
 the branches in Figure
-[\[fig:d_poset\]](#fig:d_poset){reference-type="ref"
-reference="fig:d_poset"}. Achieving a total order on $\mathbb{D}$ would
+[\[fig:d_poset\]](#fig:d_poset){== TODO fix ref to fig:d_poset ==}. Achieving a total order on $\mathbb{D}$ would
 require determining a preference for one of each of the following:
 
 -   that fix ready precede exploit publication
@@ -3299,7 +3240,7 @@ determining our observed outcomes.
 
 There are many reasons why we might expect our observations to differ
 from the expected frequencies we established in
-§[4](#sec:reasoning){reference-type="ref" reference="sec:reasoning"}.
+§[4](#sec:reasoning){== TODO fix ref to sec:reasoning ==}.
 Adversaries might be rare, or conversely very well equipped. Vendors
 might be very good at releasing fixes faster than adversaries can
 discover vulnerabilities and develop exploits for them. System owners
@@ -3316,8 +3257,7 @@ with probability $p_{skill} = 1$.
 Thus, we construct the following model: for each of our preferred
 orderings $d \in \mathbb{D}$, we model their occurrence due to luck
 using the binomial distribution with parameter $p_{luck} = f_d$ taken
-from Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"}.
+from Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}.
 
 Recall that the mean of a binomial distribution is simply the
 probability of success $p$, and that the mean of a weighted mixture of
@@ -3334,8 +3274,7 @@ $$\label{eq:obs_skill_luck}
 Where $f_d^{obs}$ is the observed frequency of successes for desiderata
 $d$. Because $p_{skill} = 1$, one of those binomial distributions is
 degenerate. Substituting $p_{skill} = 1$, $p_{luck} = f_d$ and solving
-Eq. [\[eq:obs_skill_luck\]](#eq:obs_skill_luck){reference-type="ref"
-reference="eq:obs_skill_luck"} for $\alpha$, we get
+Eq. [\[eq:obs_skill_luck\]](#eq:obs_skill_luck){== TODO fix ref to eq:obs_skill_luck ==} for $\alpha$, we get
 
 $$\label{eq:alpha_freq}
     \alpha_d \stackrel{\mathsf{def}}{=}\frac{f_d^{obs} - f_d} {1 - f_d}$$
@@ -3365,7 +3304,7 @@ luck. In other words, we can only infer positive skill when the
 observations are higher ($f_d^{obs} > f_d$). That makes intuitive sense:
 if you are likely to win purely by chance, then you have to attribute
 most of your wins to luck rather than skill. From Table
-[4.1](#tab:event_freq){reference-type="ref" reference="tab:event_freq"},
+[4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==},
 the largest value for any $d \in \mathbb{D}$ is
 $f_{\mathbf{V} \prec \mathbf{A}}=0.75$, implying that even if a vendor
 knows about 7 out of 10 vulnerabilities before attacks occur
@@ -3376,7 +3315,7 @@ On the other hand, when $f_d$ is small it is easier to infer skill
 should we observe anything better than $f_d$. However, it takes larger
 increments of observations $f_d^{obs}$ to infer growth in skill when
 $f_d$ is small than when it is large. The smallest $f_d$ we see in Table
-[4.1](#tab:event_freq){reference-type="ref" reference="tab:event_freq"}
+[4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}
 is $f_{\mathbf{D} \prec \mathbf{P}} = 0.037$.
 
 Inherent to the binomial distribution is the expectation that the
@@ -3384,8 +3323,7 @@ variance of results is lower for both extremes (as $p$ approaches either
 0 or 1) and highest at $p=0.5$. Therefore we should generally be less
 certain of our observations when they fall in the middle of the
 distribution. We address uncertainty further in
-§[5.1.2](#sec:uncertainty){reference-type="ref"
-reference="sec:uncertainty"}.
+§[5.1.2](#sec:uncertainty){== TODO fix ref to sec:uncertainty ==}.
 
 ### Computing $\alpha_d$ from Observations {#sec:computing_observations}
 
@@ -3418,7 +3356,7 @@ reference="eq:alpha_obs1"}, and simplifying, we arrive at:
 $$\alpha_{d} = \frac{{S_d^{obs}}-{f_d}T}{(1-{f_d})T}$$ Hence for any of
 our desiderata $\mathbb{D}$ we can compute $\alpha_d$ given $S_d^{obs}$
 observed successes out of $T$ trials in light of $f_d$ taken from Table
-[4.1](#tab:event_freq){reference-type="ref" reference="tab:event_freq"}.
+[4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}.
 
 Before we address the data analysis we take a moment to discuss
 uncertainty.
@@ -3453,21 +3391,17 @@ reference="eq:observed_wins"}.
 
 As a proof of concept, we apply the model to two data sets: Microsoft's
 security updates from 2017 through early 2020 in
-§[5.2.1](#sec:ms2017-20){reference-type="ref"
-reference="sec:ms2017-20"}, and commodity public exploits from 2015-2019
-in §[5.2.2](#sec:commodity_15_19){reference-type="ref"
-reference="sec:commodity_15_19"}.
+§[5.2.1](#sec:ms2017-20){== TODO fix ref to sec:ms2017-20 ==}, and commodity public exploits from 2015-2019
+in §[5.2.2](#sec:commodity_15_19){== TODO fix ref to sec:commodity_15_19 ==}.
 
 ### Microsoft 2017-2020 {#sec:ms2017-20}
 
 We are now ready to proceed with our data analysis. First, we examine
 Microsoft's monthly security updates for the period between March 2017
 and May 2020, as curated by the Zero Day Initiative blog[^4]. Figure
-[\[fig:ms_patched\]](#fig:ms_patched){reference-type="ref"
-reference="fig:ms_patched"} shows monthly totals for all vulnerabilities
+[\[fig:ms_patched\]](#fig:ms_patched){== TODO fix ref to fig:ms_patched ==} shows monthly totals for all vulnerabilities
 while
-[\[fig:ms_observations\]](#fig:ms_observations){reference-type="ref"
-reference="fig:ms_observations"} has monthly observations of
+[\[fig:ms_observations\]](#fig:ms_observations){== TODO fix ref to fig:ms_observations ==} has monthly observations of
 $\mathbf{P} \prec \mathbf{F}$ and $\mathbf{A} \prec \mathbf{F}$. This
 data set allowed us to compute the monthly counts for two of our
 desiderata, $\mathbf{F} \prec \mathbf{P}$ and
@@ -3488,8 +3422,7 @@ $\alpha_{\mathbf{F} \prec \mathbf{P}} = 0.967$, with a range of \[0.878,
 level for the observation period, which gives us a bit more precision on
 $\alpha_{\mathbf{F} \prec \mathbf{P}} = 0.969$ with the 0.95 interval of
 \[0.962, 0.975\]. Figure
-[\[fig:ms_fapa\]](#fig:ms_fapa){reference-type="ref"
-reference="fig:ms_fapa"} shows the trend for both the monthly
+[\[fig:ms_fapa\]](#fig:ms_fapa){== TODO fix ref to fig:ms_fapa ==} shows the trend for both the monthly
 observations and the cumulative estimate of
 $\alpha_{\mathbf{F} \prec \mathbf{P}}$.
 
@@ -3506,8 +3439,7 @@ $\alpha_{\mathbf{F} \prec \mathbf{A}} = 0.976$ with range \[0.893,
 1.0\]. The cumulative estimate yields
 $\alpha_{\mathbf{F} \prec \mathbf{A}} = 0.986$ with an interval of
 \[0.980, 0.989\]. The trend for both is shown in Figure
-[\[fig:ms_faat\]](#fig:ms_faat){reference-type="ref"
-reference="fig:ms_faat"}.
+[\[fig:ms_faat\]](#fig:ms_faat){== TODO fix ref to fig:ms_faat ==}.
 
 *Inferring Histories from Observations:* []{#sec:inferring_history
 label="sec:inferring_history"} Another possible application of our model
@@ -3556,8 +3488,7 @@ $\mathbf{F}$. We also estimate that $\alpha_d$ is positive---indicating
 that we are observing skill over and above mere luck---for all $d$
 except $\mathbf{P} \prec \mathbf{A}$ and $\mathbf{X} \prec \mathbf{A}$
 which are slightly negative. The results are shown in Figure
-[5.1](#fig:ms_estimates){reference-type="ref"
-reference="fig:ms_estimates"}. The most common sample median history
+[5.1](#fig:ms_estimates){== TODO fix ref to fig:ms_estimates ==}. The most common sample median history
 rank across all runs is 53, with all sample median history ranks falling
 between 51-55. The median rank of possible histories weighted according
 to the assumption of equiprobable transitions is 11. We take this as
@@ -3597,8 +3528,7 @@ $\alpha_{\mathbf{P} \prec \mathbf{X}}$ is 0.966 with a range of \[0.873,
 of the Microsoft data. The cumulative
 $\alpha_{\mathbf{P} \prec \mathbf{X}}$ comes in at 0.968 with an
 interval spanning \[0.966, 0.970\]. A chart of the trend is shown in
-Fig. [5.2](#fig:ov_paea_2013_2019){reference-type="ref"
-reference="fig:ov_paea_2013_2019"}.
+Fig. [5.2](#fig:ov_paea_2013_2019){== TODO fix ref to fig:ov_paea_2013_2019 ==}.
 
 ![$\alpha_{\mathbf{P} \prec \mathbf{X}}$ for all NVD vulnerabilities
 2013-2019 ($\mathbf{X}$ observations based on Metasploit and
@@ -3607,8 +3537,7 @@ width="100mm"}
 
 To estimate unobserved $\alpha_d$ from the commodity exploit
 observations, we repeat the procedure outlined in
-§[\[sec:inferring_history\]](#sec:inferring_history){reference-type="ref"
-reference="sec:inferring_history"}. This time, we use $N=73,474$ and
+§[\[sec:inferring_history\]](#sec:inferring_history){== TODO fix ref to sec:inferring_history ==}. This time, we use $N=73,474$ and
 estimate $f^{est}_{d}$ for $\mathbf{P} \prec \mathbf{X}$ with Beta
 parameters $a=72,288$ and $b=1186$. As above, we find evidence of skill
 in positive estimates of $\alpha_d$ for all desiderata except
@@ -3616,11 +3545,9 @@ $\mathbf{P} \prec \mathbf{A}$ and $\mathbf{X} \prec \mathbf{A}$, which
 are negative. The most common sample median history rank in this
 estimate is 33 with a range of \[32,33\], which while lower than the
 median rank of 53 in the Microsoft estimate from
-§[5.2.1](#sec:ms2017-20){reference-type="ref"
-reference="sec:ms2017-20"}, still beats the median rank of 11 assuming
+§[5.2.1](#sec:ms2017-20){== TODO fix ref to sec:ms2017-20 ==}, still beats the median rank of 11 assuming
 uniform event probabilities. The results are shown in Figure
-[5.3](#fig:nvd_estimates){reference-type="ref"
-reference="fig:nvd_estimates"}.
+[5.3](#fig:nvd_estimates){== TODO fix ref to fig:nvd_estimates ==}.
 
 ![Simulated skill $\alpha_d$ for all NVD vulnerabilities 2013-2019 based
 on observations of $\mathbf{P} \prec \mathbf{X}$ over the
@@ -3629,8 +3556,7 @@ period.](figures/nvd_estimates.png){#fig:nvd_estimates width="100mm"}
 # Discussion {#sec:discussion}
 
 The observational analysis in
-§[5.2](#sec:observation){reference-type="ref"
-reference="sec:observation"} supports an affirmative response to
+§[5.2](#sec:observation){== TODO fix ref to sec:observation ==} supports an affirmative response to
 **RQ3**: vulnerability disclosure as currently practiced demonstrates
 skill. In both data sets examined, our estimated $\alpha_d$ is positive
 for most $d \in \mathbb{D}$. However, there is uncertainty in our
@@ -3638,10 +3564,8 @@ estimates due to the application of the principle of indifference to
 unobserved data. This principle assumes a uniform distribution across
 event transitions in the absence of CVD, which is an assumption we cannot readily
 test. The spread of the estimates in Figures
-[5.1](#fig:ms_estimates){reference-type="ref"
-reference="fig:ms_estimates"} and
-[5.3](#fig:nvd_estimates){reference-type="ref"
-reference="fig:nvd_estimates"} represents the variance in our samples,
+[5.1](#fig:ms_estimates){== TODO fix ref to fig:ms_estimates ==} and
+[5.3](#fig:nvd_estimates){== TODO fix ref to fig:nvd_estimates ==} represents the variance in our samples,
 not this assumption-based uncertainty. Our interpretation of $\alpha_d$
 values near zero is therefore that they reflect an absence of evidence
 rather than evidence that skill is absent. While we cannot rule
@@ -3652,42 +3576,35 @@ If, as seems plausible from the evidence, it turns out that further
 observations of $h$ are significantly skewed toward the higher end of
 the poset $(\mathcal{H},\leq_{\mathbb{D}})$, then it may be useful to
 empirically calibrate our metrics rather than using the *a priori*
-frequencies in Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"} as our baseline. This analysis baseline
+frequencies in Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} as our baseline. This analysis baseline
 would provide context on "more skillful than the average for some set of
 teams" rather than more skillful than blind luck.
-§[6.1](#sec:benchmarks){reference-type="ref" reference="sec:benchmarks"}
+§[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}
 discusses this topic, which should be viewed as an examination of what
 "reasonable" in **RQ2** should mean in the context of "reasonable
 baseline expectation."
 
-§[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"} suggests
+§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==} suggests
 how the model might be applied to establish benchmarks for
 CVD processes
 involving any number of participants, which closes the analysis of
-**RQ1** in relation to MPCVD. §[6.3](#sec:roles){reference-type="ref"
-reference="sec:roles"} surveys the stakeholders in
+**RQ1** in relation to MPCVD. §[6.3](#sec:roles){== TODO fix ref to sec:roles ==} surveys the stakeholders in
 CVD and how they
 might use our model; the stakeholders are vendors, system owners, the
 security research community, coordinators, and governments. In
 particular, we focus on how these stakeholders might respond to the
 affirmative answer to **RQ3** and a method to measure skill in a way
 more tailored to each stakeholder group.
-§[6.4](#sec:policy_formalism){reference-type="ref"
-reference="sec:policy_formalism"} discusses the potential for
+§[6.4](#sec:policy_formalism){== TODO fix ref to sec:policy_formalism ==} discusses the potential for
 formalizing disclosure policy specifications using the model.
-§[6.5](#sec:defining_common_terms){reference-type="ref"
-reference="sec:defining_common_terms"} offers formal definitions of some
+§[6.5](#sec:defining_common_terms){== TODO fix ref to sec:defining_common_terms ==} offers formal definitions of some
 common terms in vulnerability disclosure. We then proceed to address
 vulnerability response situation awareness in
-§[6.6](#sec:situation_awareness){reference-type="ref"
-reference="sec:situation_awareness"}, with a brief note about the
+§[6.6](#sec:situation_awareness){== TODO fix ref to sec:situation_awareness ==}, with a brief note about the
 VEP in relation to
-this model in §[6.7](#sec:vep){reference-type="ref"
-reference="sec:vep"}. Finally, a set of state-based rules for
+this model in §[6.7](#sec:vep){== TODO fix ref to sec:vep ==}. Finally, a set of state-based rules for
 CVD actions is
-given in §[6.8](#sec:cvd_action_rules){reference-type="ref"
-reference="sec:cvd_action_rules"}.
+given in §[6.8](#sec:cvd_action_rules){== TODO fix ref to sec:cvd_action_rules ==}.
 
 ## CVD Benchmarks {#sec:benchmarks}
 
@@ -3695,8 +3612,7 @@ As described above, in an ideal CVD situation, each observed history would
 achieve all 12 desiderata $\mathbb{D}$. Realistically, this is unlikely
 to happen. We can at least state that we would prefer that most cases
 reach fix ready before attacks ($\mathbf{F} \prec \mathbf{A}$). Per
-Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"}, even in a world without skill we would
+Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}, even in a world without skill we would
 expect $\mathbf{F} \prec \mathbf{A}$ to hold in 73% of cases. This means
 that $\alpha_{\mathbf{F} \prec \mathbf{A}} < 0$ for anything less than a
 0.73 success rate. In fact, we propose to generalize this for any
@@ -3725,8 +3641,7 @@ or attacks may be more likely when an exploit is public
 If the i.i.d. assumption fails to hold for transition events
 $\sigma \in \Sigma$, observed frequencies of $h \in \mathcal{H}$ could
 differ significantly from the rates predicted by the uniform probability
-assumption behind Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"}.
+assumption behind Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}.
 
 Some example suggestive observations are:
 
@@ -3793,11 +3708,9 @@ incorporate the affected component. Alternatively, vulnerabilities are
 sometimes found in protocol specifications or other design-time issues
 where multiple vendors may have each implemented their own components
 based on a vulnerable design.
-§[6.2.1](#sec:mpcvd_states){reference-type="ref"
-reference="sec:mpcvd_states"} applies the state-based view of our model
+§[6.2.1](#sec:mpcvd_states){== TODO fix ref to sec:mpcvd_states ==} applies the state-based view of our model
 to MPCVD, while
-§[6.2.2](#sec:mpcvd criteria){reference-type="ref"
-reference="sec:mpcvd criteria"} addresses the topic from the possible
+§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} addresses the topic from the possible
 history perspective.
 
 ### State Tracking in MPCVD {#sec:mpcvd_states}
@@ -3860,8 +3773,7 @@ This is of course undesirable, as it would result in a wide distribution
 of realized histories that more closely resemble the randomness
 assumptions outlined above than a skillful, coordinated effort. Further
 discussion of measuring MPCVD skill can be found in
-[6.2.2](#sec:mpcvd criteria){reference-type="ref"
-reference="sec:mpcvd criteria"}. For now, though, we posit that the goal
+[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==}. For now, though, we posit that the goal
 of a good MPCVD
 process is to reduce the dimensionality of a given
 MPCVD case as
@@ -3932,8 +3844,7 @@ along some with variations. Each use case variant includes a list of
 potential causes along with recommendations for prevention and responses
 when the scenario is encountered. A mapping of which use cases and
 variants apply to which subsets of states is given in Table
-[6.1](#tab:first_use_cases){reference-type="ref"
-reference="tab:first_use_cases"}.
+[6.1](#tab:first_use_cases){== TODO fix ref to tab:first_use_cases ==}.
 
 ::: {#tab:first_use_cases}
            States           FIRST Use Case  Description
@@ -3977,8 +3888,7 @@ Where $m = |\mathcal{M}| \geq 1$. The edge case when $|\mathcal{M}| = 1$
 is simply the regular (non-multiparty) case.
 
 We can then set desired criteria for the set $\mathcal{M}$, as in the
-benchmarks described in §[6.1](#sec:benchmarks){reference-type="ref"
-reference="sec:benchmarks"}. In the MPCVD case, we propose to generalize the
+benchmarks described in §[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}. In the MPCVD case, we propose to generalize the
 benchmark concept such that the median $\Tilde{\alpha_d}$ should be
 greater than some benchmark constant $c_d$:
 
@@ -4017,8 +3927,7 @@ they can cause. For example, a *coordinator* can notify the *vendor*
 can create the fix but not notify itself (although a *vendor* with an
 in-house vulnerability discovery capability might also play the role of
 a *finder/reporter* as well). A mapping of CVD Roles to the transitions they can control
-can be found in Table [6.2](#tab:cvd_roles){reference-type="ref"
-reference="tab:cvd_roles"}. We also included a role of *adversary* just
+can be found in Table [6.2](#tab:cvd_roles){== TODO fix ref to tab:cvd_roles ==}. We also included a role of *adversary* just
 to cover the $\mathbf{A}$ transition.
 
 ::: {#tab:cvd_roles}
@@ -4039,8 +3948,7 @@ to cover the $\mathbf{A}$ transition.
 Different stakeholders might want different things, although most
 benevolent parties will likely seek some subset of $\mathbb{D}$. Because
 $\mathcal{H}$ is the same for all stakeholders, the expected frequencies
-shown in Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"} will be consistent across any such
+shown in Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} will be consistent across any such
 variations in desiderata.
 
 ::: {#tab:stakeholder_order}
@@ -4087,13 +3995,11 @@ and $\mathbf{D} \prec \mathbf{X}$ depending on their risk tolerance.
 
 A discussion of some stakeholder preferences is given below, while a
 summary can be found in Table
-[6.3](#tab:stakeholder_order){reference-type="ref"
-reference="tab:stakeholder_order"}. We notate these variations of the
+[6.3](#tab:stakeholder_order){== TODO fix ref to tab:stakeholder_order ==}. We notate these variations of the
 set of desiderata $\mathbb{D}$ with subscripts: $\mathbb{D}_v$ for
 vendors, $\mathbb{D}_s$ for system owners, $\mathbb{D}_c$ for
 coordinators, and $\mathbb{D}_g$ for governments. In
-Table [3.3](#tab:ordered_pairs){reference-type="ref"
-reference="tab:ordered_pairs"} we defined a preference ordering between
+Table [3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==} we defined a preference ordering between
 every possible pairing of events, therefore $\mathbb{D}$ is the largest
 possible set of desiderata. We thus expect the desiderata of benevolent
 stakeholders to be a subset of $\mathbb{D}$ in most cases. That said, we
@@ -4101,8 +4007,7 @@ note a few exceptions in the text that follows.
 
 ### Vendors
 
-As shown in Table [6.3](#tab:stakeholder_order){reference-type="ref"
-reference="tab:stakeholder_order"}, we expect vendors' desiderata
+As shown in Table [6.3](#tab:stakeholder_order){== TODO fix ref to tab:stakeholder_order ==}, we expect vendors' desiderata
 $\mathbb{D}_v$ to be a subset of $\mathbb{D}$. It seems reasonable to
 expect vendors to prefer that a fix is ready before either exploit
 publication or attacks ($\mathbf{F} \prec \mathbf{X}$ and
@@ -4237,8 +4142,7 @@ coordinator becomes involved in a case, the objective is to choose
 actions that make preferred histories more likely and non-preferred
 histories less likely.
 
-The rules outlined in §[6.8](#sec:cvd_action_rules){reference-type="ref"
-reference="sec:cvd_action_rules"} suggest available actions to improve
+The rules outlined in §[6.8](#sec:cvd_action_rules){== TODO fix ref to sec:cvd_action_rules ==} suggest available actions to improve
 outcomes. Namely, this means focusing coordination efforts as needed on
 vendor awareness, fix availability, fix deployment, and the
 appropriately timed public awareness of vulnerabilities and their
@@ -4255,8 +4159,7 @@ However, governments sometimes also have an adversarial role to play for
 national security, law enforcement, or other reasons. The model
 presented in this paper could be adapted to that role by drawing some
 desiderata from the lower left triangle of Table
-[3.3](#tab:ordered_pairs){reference-type="ref"
-reference="tab:ordered_pairs"}. While defining such adversarial
+[3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==}. While defining such adversarial
 desiderata ($\mathbb{D}_a$) is out of scope for this paper, we leave the
 topic with our expectation that $\mathbb{D}_a \not\subseteq \mathbb{D}$.
 
@@ -4303,7 +4206,7 @@ $Fdpxa$). However, while may be tempted to expand the requirement and
 narrow the states of interest to $fdpxa$, we must allow for the
 multiparty situation in which some vendors have a fix ready ($Fp$) while
 others do not ($fp$). We discuss MPCVD further in section
-§[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"}. Here we
+§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==}. Here we
 note that in MPCVD cases, prudence requires us to allow for
 a (hopefully brief) embargo period to enable more vendors to achieve
 $fp \xrightarrow{\mathbf{F}} Fp$ prior to public disclosure
@@ -4550,8 +4453,7 @@ zero day vulnerability
 
     1.  $q \in vp$ The United States VEP [@usg2017vep] defines *zero day
         vulnerability* in a manner consistent with $q \in {vp}$. Further
-        discussion appears in §[6.7](#sec:vep){reference-type="ref"
-        reference="sec:vep"}.
+        discussion appears in §[6.7](#sec:vep){== TODO fix ref to sec:vep ==}.
 
     2.  ${vp} \xrightarrow{\mathbf{P}} {vP}$ when the vulnerability
         becomes public before the vendor is aware of it. Note that our
@@ -4682,8 +4584,7 @@ increased priority to states in higher threat levels, corresponding to
 $q \in \mathcal{Q}_X \cup \mathcal{Q}_A$. SSVC also includes decision
 points surrounding other states in our model. A summary of the relevant
 SSVC decision points and their intersection with our model is given in
-Table [6.4](#tab:ssvc_v2_states){reference-type="ref"
-reference="tab:ssvc_v2_states"}.
+Table [6.4](#tab:ssvc_v2_states){== TODO fix ref to tab:ssvc_v2_states ==}.
 
 Not all SSVC decision point values map as clearly onto states in this
 model however. For example, *Supplier Contacted=No* likely means
@@ -4707,7 +4608,7 @@ CVSS version 3.1
 includes a few Temporal Metric variables that connect to this model
 [@first2019cvss31]. Unfortunately, differences in abstraction between
 the models leaves a good deal of ambiguity in the translation. Table
-[6.5](#tab:cvss_31){reference-type="ref" reference="tab:cvss_31"} shows
+[6.5](#tab:cvss_31){== TODO fix ref to tab:cvss_31 ==} shows
 the relationship between the two models.
 
 ::: {#tab:cvss_31}
@@ -4738,16 +4639,14 @@ possible states for the case to be in: $$\begin{aligned}
 Can we do better than simply assigning equal likelihood
 $p(q|Vf) = 0.125$ to each of these states? Yes: we can use the PageRank
 computations from Table
-[3.4](#tab:allowed_state_transitions){reference-type="ref"
-reference="tab:allowed_state_transitions"} to inform our estimates.
+[3.4](#tab:allowed_state_transitions){== TODO fix ref to tab:allowed_state_transitions ==} to inform our estimates.
 
 To assess our presence in ${Vf}$, we can select just the subset of
 states we are interested in. But our PageRank values are computed across
 all 32 states and we are only interested in the relative probabilities
 within a subset of 8 states. Thus, we normalize the PageRank for the
 subset to find the results shown in Table
-[6.6](#tab:pagerank_vf){reference-type="ref"
-reference="tab:pagerank_vf"}. As a result, we find that the most likely
+[6.6](#tab:pagerank_vf){== TODO fix ref to tab:pagerank_vf ==}. As a result, we find that the most likely
 state in ${Vf}$ is ${VfdPXA}$ with probability $0.24$, nearly twice what
 we would have expected ($1/8 = 0.125$) if we just assumed each state was
 equally probable.
@@ -4888,8 +4787,7 @@ Another application of this model is to recommend actions for
 coordinating parties in CVD based on the subset of states that
 currently apply to a case. What a coordinating party does depends on
 their role and where they engage, as shown in the list below. As
-described in §[6.2](#sec:mpcvd){reference-type="ref"
-reference="sec:mpcvd"}, MPCVD attempts to synchronize state transitions
+described in §[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==}, MPCVD attempts to synchronize state transitions
 across vendors.
 
 A significant portion of CVD can be formally described as a set of
@@ -4925,8 +4823,7 @@ This rule structure follows a common user story pattern:
 > can do *Action* for *Reason*, resulting in the transition event
 > $\sigma \in \Sigma$
 
-The list in Table [6.7](#tab:cvd_rules){reference-type="ref"
-reference="tab:cvd_rules"} can be built into a rules engine that
+The list in Table [6.7](#tab:cvd_rules){== TODO fix ref to tab:cvd_rules ==} can be built into a rules engine that
 translates each state in the model to a set of suggested
 CVD actions.
 
@@ -4997,7 +4894,7 @@ life cycle of vulnerabilities from inception to attacks and remediation
 [@arbaugh2000windows], which we refined with those of Frei et al.
 [@frei2010modeling], and Bilge and et al. [@bilge2012before] to form the
 basis of this model as described in
-§[2.1](#sec:events){reference-type="ref" reference="sec:events"}. We
+§[2.1](#sec:events){== TODO fix ref to sec:events ==}. We
 also found Lewis' literature review of vulnerability lifecycle models to
 be useful [@lewis2017global].
 
@@ -5021,7 +4918,7 @@ FIRST *Guidelines
 and Practices for Multi-Party Vulnerability Coordination and Disclosure*
 provides a number of scenarios for MPCVD [@first2020mpcvd]. Many of these
 scenarios can be mapped directly to the histories $h \in H$ described in
-§[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"}.
+§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==}.
 
 Benchmarking CVD
 capability is the topic of the VCMM from Luta Security [@luta2020]. The
@@ -5029,7 +4926,7 @@ VCMM addresses
 five capability areas: organizational, engineering, communications,
 analytics, and incentives. Of these, our model is perhaps most relevant
 to the analytics capability, and the metrics described in
-§[5](#sec:skill_luck){reference-type="ref" reference="sec:skill_luck"}
+§[5](#sec:skill_luck){== TODO fix ref to sec:skill_luck ==}
 could be used to inform an organization's assessment of progress in this
 dimension. Concise description of case states using the model presented
 here could also be used to improve the communications dimension of the
@@ -5136,9 +5033,8 @@ the opportunities for expanding the model include
 ## State Explosion
 
 Although our discussion of MPCVD in
-§[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"} and
-§[6.2.2](#sec:mpcvd criteria){reference-type="ref"
-reference="sec:mpcvd criteria"} highlights one area in which the number
+§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==} and
+§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} highlights one area in which the number
 of states to track can increase dramatically, an even larger problem
 could arise in the context of VM efforts even within normal
 CVD cases. Our
@@ -5198,8 +5094,7 @@ MPCVD) practices.
 
 ## The Model Does Not Achieve a Total Order Over Histories
 
-As described in §[4.4](#sec:h_poset_skill){reference-type="ref"
-reference="sec:h_poset_skill"}, some ambiguity remains regarding
+As described in §[4.4](#sec:h_poset_skill){== TODO fix ref to sec:h_poset_skill ==}, some ambiguity remains regarding
 preferences for elements of $\mathbb{D}$. These preferences would need
 to be addressed before the model can achieve a total order over
 histories $\mathcal{H}$. Specifically, we need to decide whether it is
@@ -5279,7 +5174,7 @@ they arise.
 
 ## Gather Data About CVD
 
-§[6.1](#sec:benchmarks){reference-type="ref" reference="sec:benchmarks"}
+§[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}
 discusses how different benchmarks and "reasonable baseline
 expectations" might change the results of a skill assessment. It also
 proposes how to use observations of the actions a certain team or team
@@ -5303,8 +5198,7 @@ past observations.
 
 While there is a modeling choice about using the uniformity assumption
 versus observations from past CVD (see
-§[6.1](#sec:benchmarks){reference-type="ref"
-reference="sec:benchmarks"}), the model does not depend on whether the
+§[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}), the model does not depend on whether the
 uniformity assumption actually holds. We have provided a means to
 calculate from observations a deviation from the desired "reasonable
 baseline," whether this is based on the i.i.d. assumption or not.
@@ -5319,8 +5213,7 @@ Not all events $\sigma \in \Sigma$, and therefore not all desiderata
 $d \in \mathbb{D}$, will be observable by all interested parties. But in
 many cases at least some are, which can still help to infer reasonable
 limits on the others, as shown in
-§[\[sec:inferring_history\]](#sec:inferring_history){reference-type="ref"
-reference="sec:inferring_history"}.
+§[\[sec:inferring_history\]](#sec:inferring_history){== TODO fix ref to sec:inferring_history ==}.
 
 Vendors are in a good position to observe most of the events in each
 case. This is even more so if they have good sources of threat
@@ -5334,8 +5227,7 @@ parties, for the reasons described in the timing discussion above.
 
 ## CVD Action Rules Are Not Algorithms
 
-The rules given in §[6.8](#sec:cvd_action_rules){reference-type="ref"
-reference="sec:cvd_action_rules"} are not algorithms. We do not propose
+The rules given in §[6.8](#sec:cvd_action_rules){== TODO fix ref to sec:cvd_action_rules ==} are not algorithms. We do not propose
 them as a set of required actions for every CVD case. However, following Atul Gawande's
 lead, we offer them as a mechanism to generate CVD checklists:
 
@@ -5350,8 +5242,7 @@ lead, we offer them as a mechanism to generate CVD checklists:
 ## MPCVD Criteria Do Not Account for Equitable Resilience
 
 The proposed criteria for MPCVD in
-§[6.2.2](#sec:mpcvd criteria){reference-type="ref"
-reference="sec:mpcvd criteria"} fail to account for either user
+§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} fail to account for either user
 populations or their relative importance. For example, suppose an
 MPCVD case had a
 total of 15 vendors, with 5 vendors representing 95% of the total
@@ -5458,8 +5349,8 @@ Email: <info@sei.cmu.edu>\
 
 This appendix gives a brief description of each state
 $q \in \mathcal{Q}$ as developed in
-§[2](#sec:model){reference-type="ref" reference="sec:model"}. See
-§[2.3](#sec:states){reference-type="ref" reference="sec:states"} for an
+§[2](#sec:model){== TODO fix ref to sec:model ==}. See
+§[2.3](#sec:states){== TODO fix ref to sec:states ==} for an
 explanation of the states in the model. States are presented in the
 order given in
 [\[eq:all_states\]](#eq:all_states){reference-type="eqref"
@@ -5469,26 +5360,21 @@ traversal of the $PXA$ submodel found in
 reference="eq:pxa_dfa"} for each step of the $VFD$ submodel given in
 [\[eq:vfd_dfa\]](#eq:vfd_dfa){reference-type="eqref"
 reference="eq:vfd_dfa"}. See
-§[2.4](#sec:transitions){reference-type="ref"
-reference="sec:transitions"} for an explanation of the state transitions
+§[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==} for an explanation of the state transitions
 permitted by the model.
 
 In this appendix, state transitions are cross-referenced by page number
 to enable easier navigation through the state descriptions. See
-§[3.2](#sec:desirability){reference-type="ref"
-reference="sec:desirability"} for more on transition ordering
+§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==} for more on transition ordering
 desiderata. Where applicable, the specific definitions of *zero day*
 matched by a given state are shown based on
-§[6.5.1](#sec:zerodays){reference-type="ref" reference="sec:zerodays"}.
+§[6.5.1](#sec:zerodays){== TODO fix ref to sec:zerodays ==}.
 Additional notes on each state are consistent with
-§[6.6](#sec:situation_awareness){reference-type="ref"
-reference="sec:situation_awareness"}. Also included for each state is a
+§[6.6](#sec:situation_awareness){== TODO fix ref to sec:situation_awareness ==}. Also included for each state is a
 table containing suggested actions as derived from
-§[6.8](#sec:cvd_action_rules){reference-type="ref"
-reference="sec:cvd_action_rules"}. The embargo initiation, continuation,
+§[6.8](#sec:cvd_action_rules){== TODO fix ref to sec:cvd_action_rules ==}. The embargo initiation, continuation,
 and exit advice in those rules are consistent with the discussion found
-in §[6.4](#sec:policy_formalism){reference-type="ref"
-reference="sec:policy_formalism"}. Each state is given its own page to
+in §[6.4](#sec:policy_formalism){== TODO fix ref to sec:policy_formalism ==}. Each state is given its own page to
 allow for consistent formatting.
 
 ## vfdpxa {#sec:vfdpxa}
@@ -5513,8 +5399,7 @@ Unproven (U) or Not Defined (X). Embargo continuation is viable. Embargo
 initiation may be appropriate. SSVC v2 Exploitation: None. SSVC v2
 Public Value Added: Precedence. SSVC v2 Report Public: No. SSVC v2
 Supplier Contacted: No. VEP remains tenable. See Table
-[10.1](#tab:vfdpxa_actions){reference-type="ref"
-reference="tab:vfdpxa_actions"} for actions.
+[10.1](#tab:vfdpxa_actions){== TODO fix ref to tab:vfdpxa_actions ==} for actions.
 
 ::: {#tab:vfdpxa_actions}
   Role         Action                                                  Reason                       Transition
@@ -5554,8 +5439,7 @@ Attack Type 1, Zero Day Attack Type 2, Zero Day Attack Type 3
 *Other notes:* Attack success likely. Embargo is at risk. SSVC v2
 Exploitation: Active. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: No. VEP remains tenable.
-See Table [10.2](#tab:vfdpxA_actions){reference-type="ref"
-reference="tab:vfdpxA_actions"} for actions.
+See Table [10.2](#tab:vfdpxA_actions){== TODO fix ref to tab:vfdpxA_actions ==} for actions.
 
 ::: {#tab:vfdpxA_actions}
   Role         Action                                                  Reason               Transition
@@ -5597,8 +5481,7 @@ Exploit Type 1, Zero Day Exploit Type 2, Zero Day Exploit Type 3
 both Vendor and Public awareness imminently. SSVC v2 Exploitation: PoC.
 SSVC v2 Public Value Added: Precedence. SSVC v2 Report Public: No. SSVC
 v2 Supplier Contacted: No. VEP does not apply. See Table
-[10.3](#tab:vfdpXa_actions){reference-type="ref"
-reference="tab:vfdpXa_actions"} for actions.
+[10.3](#tab:vfdpXa_actions){== TODO fix ref to tab:vfdpXa_actions ==} for actions.
 
 ::: {#tab:vfdpXa_actions}
   Role         Action                                                  Reason                Transition
@@ -5643,8 +5526,7 @@ Day Attack Type 1, Zero Day Attack Type 2, Zero Day Attack Type 3
 awareness imminently. SSVC v2 Exploitation: Active. SSVC v2 Public Value
 Added: Precedence. SSVC v2 Report Public: No. SSVC v2 Supplier
 Contacted: No. VEP does not apply. See Table
-[10.4](#tab:vfdpXA_actions){reference-type="ref"
-reference="tab:vfdpXA_actions"} for actions.
+[10.4](#tab:vfdpXA_actions){== TODO fix ref to tab:vfdpXA_actions ==} for actions.
 
 ::: {#tab:vfdpXA_actions}
   Role         Action                                                  Reason                Transition
@@ -5688,8 +5570,7 @@ Unproven (U) or Not Defined (X). Embargo is no longer viable. Expect
 Vendor awareness imminently. SSVC v2 Exploitation: None. SSVC v2 Public
 Value Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2 Supplier
 Contacted: No. VEP does not apply. See Table
-[10.5](#tab:vfdPxa_actions){reference-type="ref"
-reference="tab:vfdPxa_actions"} for actions.
+[10.5](#tab:vfdPxa_actions){== TODO fix ref to tab:vfdPxa_actions ==} for actions.
 
 ::: {#tab:vfdPxa_actions}
   Role         Action                                                Reason                       Transition
@@ -5730,8 +5611,7 @@ Vulnerability Type 3, Zero Day Attack Type 1, Zero Day Attack Type 2
 Expect Vendor awareness imminently. SSVC v2 Exploitation: Active. SSVC
 v2 Public Value Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2
 Supplier Contacted: No. VEP does not apply. See Table
-[10.6](#tab:vfdPxA_actions){reference-type="ref"
-reference="tab:vfdPxA_actions"} for actions.
+[10.6](#tab:vfdPxA_actions){== TODO fix ref to tab:vfdPxA_actions ==} for actions.
 
 ::: {#tab:vfdPxA_actions}
   Role         Action                                                Reason                 Transition
@@ -5776,8 +5656,7 @@ Vulnerability Type 3, Zero Day Exploit Type 1, Zero Day Exploit Type 2
 viable. Expect Vendor awareness imminently. SSVC v2 Exploitation: PoC.
 SSVC v2 Public Value Added: Ampliative. SSVC v2 Report Public: Yes. SSVC
 v2 Supplier Contacted: No. VEP does not apply. See Table
-[10.7](#tab:vfdPXa_actions){reference-type="ref"
-reference="tab:vfdPXa_actions"} for actions.
+[10.7](#tab:vfdPXa_actions){== TODO fix ref to tab:vfdPXa_actions ==} for actions.
 
 ::: {#tab:vfdPXa_actions}
   Role         Action                                                Reason                Transition
@@ -5824,8 +5703,7 @@ Zero Day Attack Type 1, Zero Day Attack Type 2
 awareness imminently. SSVC v2 Exploitation: Active. SSVC v2 Public Value
 Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2 Supplier
 Contacted: No. VEP does not apply. See Table
-[10.8](#tab:vfdPXA_actions){reference-type="ref"
-reference="tab:vfdPXA_actions"} for actions.
+[10.8](#tab:vfdPXA_actions){== TODO fix ref to tab:vfdPXA_actions ==} for actions.
 
 ::: {#tab:vfdPXA_actions}
   Role         Action                                                Reason                Transition
@@ -5869,8 +5747,7 @@ Unproven (U) or Not Defined (X). CVSS 3.1 remediation level: Not Defined
 continuation is viable. Embargo initiation may be appropriate. SSVC v2
 Exploitation: None. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.9](#tab:Vfdpxa_actions){reference-type="ref"
-reference="tab:Vfdpxa_actions"} for actions.
+See Table [10.9](#tab:Vfdpxa_actions){== TODO fix ref to tab:Vfdpxa_actions ==} for actions.
 
 ::: {#tab:Vfdpxa_actions}
   Role         Action                                                   Reason                                           Transition
@@ -5915,8 +5792,7 @@ Defined (X), Unavailable (U), Workaround (W), or Temporary Fix (T).
 Embargo is at risk. SSVC v2 Exploitation: Active. SSVC v2 Public Value
 Added: Precedence. SSVC v2 Report Public: No. SSVC v2 Supplier
 Contacted: Yes. VEP does not apply. See Table
-[10.10](#tab:VfdpxA_actions){reference-type="ref"
-reference="tab:VfdpxA_actions"} for actions.
+[10.10](#tab:VfdpxA_actions){== TODO fix ref to tab:VfdpxA_actions ==} for actions.
 
 ::: {#tab:VfdpxA_actions}
   Role         Action                                                   Reason                                           Transition
@@ -5961,8 +5837,7 @@ level: Not Defined (X), Unavailable (U), Workaround (W), or Temporary
 Fix (T). Embargo is at risk. Expect Public awareness imminently. SSVC v2
 Exploitation: PoC. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.11](#tab:VfdpXa_actions){reference-type="ref"
-reference="tab:VfdpXa_actions"} for actions.
+See Table [10.11](#tab:VfdpXa_actions){== TODO fix ref to tab:VfdpXa_actions ==} for actions.
 
 ::: {#tab:VfdpXa_actions}
   Role         Action                                                   Reason                                           Transition
@@ -6009,8 +5884,7 @@ Unavailable (U), Workaround (W), or Temporary Fix (T). Embargo is at
 risk. Expect Public awareness imminently. SSVC v2 Exploitation: Active.
 SSVC v2 Public Value Added: Precedence. SSVC v2 Report Public: No. SSVC
 v2 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.12](#tab:VfdpXA_actions){reference-type="ref"
-reference="tab:VfdpXA_actions"} for actions.
+[10.12](#tab:VfdpXA_actions){== TODO fix ref to tab:VfdpXA_actions ==} for actions.
 
 ::: {#tab:VfdpXA_actions}
   Role         Action                                                   Reason                                           Transition
@@ -6058,8 +5932,7 @@ Unproven (U) or Not Defined (X). CVSS 3.1 remediation level: Not Defined
 no longer viable. SSVC v2 Exploitation: None. SSVC v2 Public Value
 Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2 Supplier
 Contacted: Yes. VEP does not apply. See Table
-[10.13](#tab:VfdPxa_actions){reference-type="ref"
-reference="tab:VfdPxa_actions"} for actions.
+[10.13](#tab:VfdPxa_actions){== TODO fix ref to tab:VfdPxa_actions ==} for actions.
 
 ::: {#tab:VfdPxa_actions}
   Role         Action                                                  Reason                       Transition
@@ -6104,8 +5977,7 @@ Defined (X), Unavailable (U), Workaround (W), or Temporary Fix (T).
 Embargo is no longer viable. SSVC v2 Exploitation: Active. SSVC v2
 Public Value Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2
 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.14](#tab:VfdPxA_actions){reference-type="ref"
-reference="tab:VfdPxA_actions"} for actions.
+[10.14](#tab:VfdPxA_actions){== TODO fix ref to tab:VfdPxA_actions ==} for actions.
 
 ::: {#tab:VfdPxA_actions}
   Role         Action                                                  Reason                 Transition
@@ -6153,8 +6025,7 @@ level: Not Defined (X), Unavailable (U), Workaround (W), or Temporary
 Fix (T). Embargo is no longer viable. SSVC v2 Exploitation: PoC. SSVC v2
 Public Value Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2
 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.15](#tab:VfdPXa_actions){reference-type="ref"
-reference="tab:VfdPXa_actions"} for actions.
+[10.15](#tab:VfdPXa_actions){== TODO fix ref to tab:VfdPXa_actions ==} for actions.
 
 ::: {#tab:VfdPXa_actions}
   Role         Action                                                  Reason                Transition
@@ -6204,8 +6075,7 @@ Unavailable (U), Workaround (W), or Temporary Fix (T). Embargo is no
 longer viable. SSVC v2 Exploitation: Active. SSVC v2 Public Value Added:
 Ampliative. SSVC v2 Report Public: Yes. SSVC v2 Supplier Contacted: Yes.
 VEP does not apply. See Table
-[10.16](#tab:VfdPXA_actions){reference-type="ref"
-reference="tab:VfdPXA_actions"} for actions.
+[10.16](#tab:VfdPXA_actions){== TODO fix ref to tab:VfdPXA_actions ==} for actions.
 
 ::: {#tab:VfdPXA_actions}
   Role         Action                                                  Reason                Transition
@@ -6255,8 +6125,7 @@ initiation may be appropriate. Embargo initiation with careful
 consideration only. SSVC v2 Exploitation: None. SSVC v2 Public Value
 Added: Ampliative. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.17](#tab:VFdpxa_actions){reference-type="ref"
-reference="tab:VFdpxa_actions"} for actions.
+See Table [10.17](#tab:VFdpxa_actions){== TODO fix ref to tab:VFdpxa_actions ==} for actions.
 
 ::: {#tab:VFdpxa_actions}
   Role               Action                                                              Reason                    Transition
@@ -6299,8 +6168,7 @@ Temporary Fix (T) or Official Fix (O). Embargo is at risk. SSVC v2
 Exploitation: Active. SSVC v2 Public Value Added: Ampliative. SSVC v2
 Public Value Added: Precedence. SSVC v2 Report Public: No. SSVC v2
 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.18](#tab:VFdpxA_actions){reference-type="ref"
-reference="tab:VFdpxA_actions"} for actions.
+[10.18](#tab:VFdpxA_actions){== TODO fix ref to tab:VFdpxA_actions ==} for actions.
 
 ::: {#tab:VFdpxA_actions}
   Role               Action                                                   Reason                    Transition
@@ -6344,8 +6212,7 @@ level: Temporary Fix (T) or Official Fix (O). Embargo is at risk. Expect
 Public awareness imminently. SSVC v2 Exploitation: PoC. SSVC v2 Public
 Value Added: Ampliative. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.19](#tab:VFdpXa_actions){reference-type="ref"
-reference="tab:VFdpXa_actions"} for actions.
+See Table [10.19](#tab:VFdpXa_actions){== TODO fix ref to tab:VFdpXa_actions ==} for actions.
 
 ::: {#tab:VFdpXa_actions}
   Role               Action                                                   Reason                    Transition
@@ -6391,8 +6258,7 @@ Official Fix (O). Embargo is at risk. Expect Public awareness
 imminently. SSVC v2 Exploitation: Active. SSVC v2 Public Value Added:
 Ampliative. SSVC v2 Public Value Added: Precedence. SSVC v2 Report
 Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply. See
-Table [10.20](#tab:VFdpXA_actions){reference-type="ref"
-reference="tab:VFdpXA_actions"} for actions.
+Table [10.20](#tab:VFdpXA_actions){== TODO fix ref to tab:VFdpXA_actions ==} for actions.
 
 ::: {#tab:VFdpXA_actions}
   Role               Action                                                   Reason                    Transition
@@ -6437,8 +6303,7 @@ Fix (T) or Official Fix (O). Embargo is no longer viable. SSVC v2
 Exploitation: None. SSVC v2 Public Value Added: Ampliative. SSVC v2
 Public Value Added: Limited. SSVC v2 Report Public: Yes. SSVC v2
 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.21](#tab:VFdPxa_actions){reference-type="ref"
-reference="tab:VFdPxa_actions"} for actions.
+[10.21](#tab:VFdPxa_actions){== TODO fix ref to tab:VFdPxa_actions ==} for actions.
 
 ::: {#tab:VFdPxa_actions}
   Role       Action                                                Reason                                        Transition
@@ -6475,8 +6340,7 @@ Temporary Fix (T) or Official Fix (O). Embargo is no longer viable. SSVC
 v2 Exploitation: Active. SSVC v2 Public Value Added: Ampliative. SSVC v2
 Public Value Added: Limited. SSVC v2 Report Public: Yes. SSVC v2
 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.22](#tab:VFdPxA_actions){reference-type="ref"
-reference="tab:VFdPxA_actions"} for actions.
+[10.22](#tab:VFdPxA_actions){== TODO fix ref to tab:VFdPxA_actions ==} for actions.
 
 ::: {#tab:VFdPxA_actions}
   Role       Action                                                Reason                    Transition
@@ -6516,8 +6380,7 @@ level: Temporary Fix (T) or Official Fix (O). Embargo is no longer
 viable. SSVC v2 Exploitation: PoC. SSVC v2 Public Value Added:
 Ampliative. SSVC v2 Public Value Added: Limited. SSVC v2 Report Public:
 Yes. SSVC v2 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.23](#tab:VFdPXa_actions){reference-type="ref"
-reference="tab:VFdPXa_actions"} for actions.
+[10.23](#tab:VFdPXa_actions){== TODO fix ref to tab:VFdPXa_actions ==} for actions.
 
 ::: {#tab:VFdPXa_actions}
   Role       Action                                                Reason                    Transition
@@ -6558,8 +6421,7 @@ Official Fix (O). Embargo is no longer viable. SSVC v2 Exploitation:
 Active. SSVC v2 Public Value Added: Ampliative. SSVC v2 Public Value
 Added: Limited. SSVC v2 Report Public: Yes. SSVC v2 Supplier Contacted:
 Yes. VEP does not apply. See Table
-[10.24](#tab:VFdPXA_actions){reference-type="ref"
-reference="tab:VFdPXA_actions"} for actions.
+[10.24](#tab:VFdPXA_actions){== TODO fix ref to tab:VFdPXA_actions ==} for actions.
 
 ::: {#tab:VFdPXA_actions}
   Role       Action                                                Reason                    Transition
@@ -6604,8 +6466,7 @@ Fix (T) or Official Fix (O). Do not initiate a new disclosure embargo,
 but an existing embargo may continue. Embargo continuation is viable.
 SSVC v2 Exploitation: None. SSVC v2 Public Value Added: Precedence. SSVC
 v2 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not
-apply. See Table [10.25](#tab:VFDpxa_actions){reference-type="ref"
-reference="tab:VFDpxa_actions"} for actions.
+apply. See Table [10.25](#tab:VFDpxa_actions){== TODO fix ref to tab:VFDpxa_actions ==} for actions.
 
 ::: {#tab:VFDpxa_actions}
   Role   Action                                                   Reason                            Transition
@@ -6645,8 +6506,7 @@ $\mathbf{X} \prec \mathbf{A}$
 Temporary Fix (T) or Official Fix (O). Embargo is at risk. SSVC v2
 Exploitation: Active. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.26](#tab:VFDpxA_actions){reference-type="ref"
-reference="tab:VFDpxA_actions"} for actions.
+See Table [10.26](#tab:VFDpxA_actions){== TODO fix ref to tab:VFDpxA_actions ==} for actions.
 
 ::: {#tab:VFDpxA_actions}
   Role   Action                                                   Reason                            Transition
@@ -6688,8 +6548,7 @@ level: Temporary Fix (T) or Official Fix (O). Embargo is at risk. Expect
 Public awareness imminently. SSVC v2 Exploitation: PoC. SSVC v2 Public
 Value Added: Precedence. SSVC v2 Report Public: No. SSVC v2 Supplier
 Contacted: Yes. VEP does not apply. See Table
-[10.27](#tab:VFDpXa_actions){reference-type="ref"
-reference="tab:VFDpXa_actions"} for actions.
+[10.27](#tab:VFDpXa_actions){== TODO fix ref to tab:VFDpXa_actions ==} for actions.
 
 ::: {#tab:VFDpXa_actions}
   Role   Action                                                   Reason                            Transition
@@ -6732,8 +6591,7 @@ Official Fix (O). Embargo is at risk. Expect Public awareness
 imminently. SSVC v2 Exploitation: Active. SSVC v2 Public Value Added:
 Precedence. SSVC v2 Report Public: No. SSVC v2 Supplier Contacted: Yes.
 VEP does not apply. See Table
-[10.28](#tab:VFDpXA_actions){reference-type="ref"
-reference="tab:VFDpXA_actions"} for actions.
+[10.28](#tab:VFDpXA_actions){== TODO fix ref to tab:VFDpXA_actions ==} for actions.
 
 ::: {#tab:VFDpXA_actions}
   Role   Action                                                   Reason                            Transition
@@ -6776,8 +6634,7 @@ Unproven (U) or Not Defined (X). CVSS 3.1 remediation level: Temporary
 Fix (T) or Official Fix (O). Embargo is no longer viable. SSVC v2
 Exploitation: None. SSVC v2 Public Value Added: Limited. SSVC v2 Report
 Public: Yes. SSVC v2 Supplier Contacted: Yes. VEP does not apply. See
-Table [10.29](#tab:VFDPxa_actions){reference-type="ref"
-reference="tab:VFDPxa_actions"} for actions.
+Table [10.29](#tab:VFDPxa_actions){== TODO fix ref to tab:VFDPxa_actions ==} for actions.
 
 ::: {#tab:VFDPxa_actions}
   Role   Action                                      Reason                        Transition
@@ -6810,8 +6667,7 @@ $\mathbf{V} \prec \mathbf{X}$
 Temporary Fix (T) or Official Fix (O). Embargo is no longer viable. SSVC
 v2 Exploitation: Active. SSVC v2 Public Value Added: Limited. SSVC v2
 Report Public: Yes. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.30](#tab:VFDPxA_actions){reference-type="ref"
-reference="tab:VFDPxA_actions"} for actions.
+See Table [10.30](#tab:VFDPxA_actions){== TODO fix ref to tab:VFDPxA_actions ==} for actions.
 
 ::: {#tab:VFDPxA_actions}
   Role   Action                                 Reason                         Transition
@@ -6847,8 +6703,7 @@ $\mathbf{V} \prec \mathbf{A}$, $\mathbf{X} \prec \mathbf{A}$
 level: Temporary Fix (T) or Official Fix (O). Embargo is no longer
 viable. SSVC v2 Exploitation: PoC. SSVC v2 Public Value Added: Limited.
 SSVC v2 Report Public: Yes. SSVC v2 Supplier Contacted: Yes. VEP does
-not apply. See Table [10.31](#tab:VFDPXa_actions){reference-type="ref"
-reference="tab:VFDPXa_actions"} for actions.
+not apply. See Table [10.31](#tab:VFDPXa_actions){== TODO fix ref to tab:VFDPXa_actions ==} for actions.
 
 ::: {#tab:VFDPXa_actions}
   Role   Action                                   Reason                         Transition
@@ -6885,8 +6740,7 @@ $VFDPXa$ (p.)
 Official Fix (O). Embargo is no longer viable. SSVC v2 Exploitation:
 Active. SSVC v2 Public Value Added: Limited. SSVC v2 Report Public: Yes.
 SSVC v2 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.32](#tab:VFDPXA_actions){reference-type="ref"
-reference="tab:VFDPXA_actions"} for actions.
+[10.32](#tab:VFDPXA_actions){== TODO fix ref to tab:VFDPXA_actions ==} for actions.
 
 ::: {#tab:VFDPXA_actions}
   Role   Action                                   Reason                         Transition
@@ -6971,8 +6825,7 @@ Computer Emergency Readiness Team
 
 [^11]: The phrase *zero day* means many things to many people. We
     provide more formal definitions in
-    §[6.5](#sec:defining_common_terms){reference-type="ref"
-    reference="sec:defining_common_terms"}
+    §[6.5](#sec:defining_common_terms){== TODO fix ref to sec:defining_common_terms ==}
 
 [^12]: User concentration is one way to think about risk, but it is not
     the only way. Value density, as defined in [@spring2020ssvc] is
