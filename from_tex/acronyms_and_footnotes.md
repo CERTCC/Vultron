@@ -64,8 +64,7 @@ Computer Emergency Readiness Team
 
 [^11]: The phrase *zero day* means many things to many people. We
     provide more formal definitions in
-    §[6.5](#sec:defining_common_terms){reference-type="ref"
-    reference="sec:defining_common_terms"}
+    §[6.5](#sec:defining_common_terms){== TODO fix ref to sec:defining_common_terms ==}
 
 [^12]: User concentration is one way to think about risk, but it is not
     the only way. Value density, as defined in [@spring2020ssvc] is

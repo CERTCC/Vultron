@@ -140,21 +140,18 @@ the toy model, one might wonder what it *is* doing.
 ## Organization of This Document
 
 We begin by deriving a model of all possible CVD case states and histories from first
-principles in §[2](#sec:model){reference-type="ref"
-reference="sec:model"} and §[3](#sec:poss_hist){reference-type="ref"
-reference="sec:poss_hist"}, organizing those histories into a partial
+principles in §[2](#sec:model){== TODO fix ref to sec:model ==} and §[3](#sec:poss_hist){== TODO fix ref to sec:poss_hist ==}, organizing those histories into a partial
 ordering based on a set of desired criteria in
-§[4](#sec:reasoning){reference-type="ref" reference="sec:reasoning"}. We
+§[4](#sec:reasoning){== TODO fix ref to sec:reasoning ==}. We
 then compute a baseline expectation for the frequency of each desired
 criteria and propose a new set of performance indicators to measure the
 efficacy of CVD
 practices based on the differentiation of skill and luck in observation
-data in §[5](#sec:skill_luck){reference-type="ref"
-reference="sec:skill_luck"}. As a proof of concept, we apply these
+data in §[5](#sec:skill_luck){== TODO fix ref to sec:skill_luck ==}. As a proof of concept, we apply these
 indicators to a variety of longitudinal observations of
 CVD practice and
 find evidence of significant skill to be prevalent. In
-§[6](#sec:discussion){reference-type="ref" reference="sec:discussion"},
+§[6](#sec:discussion){== TODO fix ref to sec:discussion ==},
 we explore some of the implications and uses of such a model in any
 CVD case before
 extending it to MPCVD. The remainder of that section offers
@@ -164,13 +161,10 @@ owners, coordinators, and governments) to interpret the quality of their
 CVD and
 MPCVD practices
 We continue with a review of related work in
-§[7](#sec:related_work){reference-type="ref"
-reference="sec:related_work"}, future work in
-§[8](#sec:limitationsAnd){reference-type="ref"
-reference="sec:limitationsAnd"}, and give our conclusions in
-§[9](#sec:conclusion){reference-type="ref" reference="sec:conclusion"}.
+§[7](#sec:related_work){== TODO fix ref to sec:related_work ==}, future work in
+§[8](#sec:limitationsAnd){== TODO fix ref to sec:limitationsAnd ==}, and give our conclusions in
+§[9](#sec:conclusion){== TODO fix ref to sec:conclusion ==}.
 
 An appendix summarizing each state in the model in conjunction with the
-discussion in §[6](#sec:discussion){reference-type="ref"
-reference="sec:discussion"} is also provided.
+discussion in §[6](#sec:discussion){== TODO fix ref to sec:discussion ==} is also provided.
 

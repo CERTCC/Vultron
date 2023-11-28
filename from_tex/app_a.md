@@ -2,8 +2,8 @@
 
 This appendix gives a brief description of each state
 $q \in \mathcal{Q}$ as developed in
-§[2](#sec:model){reference-type="ref" reference="sec:model"}. See
-§[2.3](#sec:states){reference-type="ref" reference="sec:states"} for an
+§[2](#sec:model){== TODO fix ref to sec:model ==}. See
+§[2.3](#sec:states){== TODO fix ref to sec:states ==} for an
 explanation of the states in the model. States are presented in the
 order given in
 [\[eq:all_states\]](#eq:all_states){reference-type="eqref"
@@ -13,26 +13,21 @@ traversal of the $PXA$ submodel found in
 reference="eq:pxa_dfa"} for each step of the $VFD$ submodel given in
 [\[eq:vfd_dfa\]](#eq:vfd_dfa){reference-type="eqref"
 reference="eq:vfd_dfa"}. See
-§[2.4](#sec:transitions){reference-type="ref"
-reference="sec:transitions"} for an explanation of the state transitions
+§[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==} for an explanation of the state transitions
 permitted by the model.
 
 In this appendix, state transitions are cross-referenced by page number
 to enable easier navigation through the state descriptions. See
-§[3.2](#sec:desirability){reference-type="ref"
-reference="sec:desirability"} for more on transition ordering
+§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==} for more on transition ordering
 desiderata. Where applicable, the specific definitions of *zero day*
 matched by a given state are shown based on
-§[6.5.1](#sec:zerodays){reference-type="ref" reference="sec:zerodays"}.
+§[6.5.1](#sec:zerodays){== TODO fix ref to sec:zerodays ==}.
 Additional notes on each state are consistent with
-§[6.6](#sec:situation_awareness){reference-type="ref"
-reference="sec:situation_awareness"}. Also included for each state is a
+§[6.6](#sec:situation_awareness){== TODO fix ref to sec:situation_awareness ==}. Also included for each state is a
 table containing suggested actions as derived from
-§[6.8](#sec:cvd_action_rules){reference-type="ref"
-reference="sec:cvd_action_rules"}. The embargo initiation, continuation,
+§[6.8](#sec:cvd_action_rules){== TODO fix ref to sec:cvd_action_rules ==}. The embargo initiation, continuation,
 and exit advice in those rules are consistent with the discussion found
-in §[6.4](#sec:policy_formalism){reference-type="ref"
-reference="sec:policy_formalism"}. Each state is given its own page to
+in §[6.4](#sec:policy_formalism){== TODO fix ref to sec:policy_formalism ==}. Each state is given its own page to
 allow for consistent formatting.
 
 ## vfdpxa {#sec:vfdpxa}
@@ -57,8 +52,7 @@ Unproven (U) or Not Defined (X). Embargo continuation is viable. Embargo
 initiation may be appropriate. SSVC v2 Exploitation: None. SSVC v2
 Public Value Added: Precedence. SSVC v2 Report Public: No. SSVC v2
 Supplier Contacted: No. VEP remains tenable. See Table
-[10.1](#tab:vfdpxa_actions){reference-type="ref"
-reference="tab:vfdpxa_actions"} for actions.
+[10.1](#tab:vfdpxa_actions){== TODO fix ref to tab:vfdpxa_actions ==} for actions.
 
 ::: {#tab:vfdpxa_actions}
   Role         Action                                                  Reason                       Transition
@@ -98,8 +92,7 @@ Attack Type 1, Zero Day Attack Type 2, Zero Day Attack Type 3
 *Other notes:* Attack success likely. Embargo is at risk. SSVC v2
 Exploitation: Active. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: No. VEP remains tenable.
-See Table [10.2](#tab:vfdpxA_actions){reference-type="ref"
-reference="tab:vfdpxA_actions"} for actions.
+See Table [10.2](#tab:vfdpxA_actions){== TODO fix ref to tab:vfdpxA_actions ==} for actions.
 
 ::: {#tab:vfdpxA_actions}
   Role         Action                                                  Reason               Transition
@@ -141,8 +134,7 @@ Exploit Type 1, Zero Day Exploit Type 2, Zero Day Exploit Type 3
 both Vendor and Public awareness imminently. SSVC v2 Exploitation: PoC.
 SSVC v2 Public Value Added: Precedence. SSVC v2 Report Public: No. SSVC
 v2 Supplier Contacted: No. VEP does not apply. See Table
-[10.3](#tab:vfdpXa_actions){reference-type="ref"
-reference="tab:vfdpXa_actions"} for actions.
+[10.3](#tab:vfdpXa_actions){== TODO fix ref to tab:vfdpXa_actions ==} for actions.
 
 ::: {#tab:vfdpXa_actions}
   Role         Action                                                  Reason                Transition
@@ -187,8 +179,7 @@ Day Attack Type 1, Zero Day Attack Type 2, Zero Day Attack Type 3
 awareness imminently. SSVC v2 Exploitation: Active. SSVC v2 Public Value
 Added: Precedence. SSVC v2 Report Public: No. SSVC v2 Supplier
 Contacted: No. VEP does not apply. See Table
-[10.4](#tab:vfdpXA_actions){reference-type="ref"
-reference="tab:vfdpXA_actions"} for actions.
+[10.4](#tab:vfdpXA_actions){== TODO fix ref to tab:vfdpXA_actions ==} for actions.
 
 ::: {#tab:vfdpXA_actions}
   Role         Action                                                  Reason                Transition
@@ -232,8 +223,7 @@ Unproven (U) or Not Defined (X). Embargo is no longer viable. Expect
 Vendor awareness imminently. SSVC v2 Exploitation: None. SSVC v2 Public
 Value Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2 Supplier
 Contacted: No. VEP does not apply. See Table
-[10.5](#tab:vfdPxa_actions){reference-type="ref"
-reference="tab:vfdPxa_actions"} for actions.
+[10.5](#tab:vfdPxa_actions){== TODO fix ref to tab:vfdPxa_actions ==} for actions.
 
 ::: {#tab:vfdPxa_actions}
   Role         Action                                                Reason                       Transition
@@ -274,8 +264,7 @@ Vulnerability Type 3, Zero Day Attack Type 1, Zero Day Attack Type 2
 Expect Vendor awareness imminently. SSVC v2 Exploitation: Active. SSVC
 v2 Public Value Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2
 Supplier Contacted: No. VEP does not apply. See Table
-[10.6](#tab:vfdPxA_actions){reference-type="ref"
-reference="tab:vfdPxA_actions"} for actions.
+[10.6](#tab:vfdPxA_actions){== TODO fix ref to tab:vfdPxA_actions ==} for actions.
 
 ::: {#tab:vfdPxA_actions}
   Role         Action                                                Reason                 Transition
@@ -320,8 +309,7 @@ Vulnerability Type 3, Zero Day Exploit Type 1, Zero Day Exploit Type 2
 viable. Expect Vendor awareness imminently. SSVC v2 Exploitation: PoC.
 SSVC v2 Public Value Added: Ampliative. SSVC v2 Report Public: Yes. SSVC
 v2 Supplier Contacted: No. VEP does not apply. See Table
-[10.7](#tab:vfdPXa_actions){reference-type="ref"
-reference="tab:vfdPXa_actions"} for actions.
+[10.7](#tab:vfdPXa_actions){== TODO fix ref to tab:vfdPXa_actions ==} for actions.
 
 ::: {#tab:vfdPXa_actions}
   Role         Action                                                Reason                Transition
@@ -368,8 +356,7 @@ Zero Day Attack Type 1, Zero Day Attack Type 2
 awareness imminently. SSVC v2 Exploitation: Active. SSVC v2 Public Value
 Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2 Supplier
 Contacted: No. VEP does not apply. See Table
-[10.8](#tab:vfdPXA_actions){reference-type="ref"
-reference="tab:vfdPXA_actions"} for actions.
+[10.8](#tab:vfdPXA_actions){== TODO fix ref to tab:vfdPXA_actions ==} for actions.
 
 ::: {#tab:vfdPXA_actions}
   Role         Action                                                Reason                Transition
@@ -413,8 +400,7 @@ Unproven (U) or Not Defined (X). CVSS 3.1 remediation level: Not Defined
 continuation is viable. Embargo initiation may be appropriate. SSVC v2
 Exploitation: None. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.9](#tab:Vfdpxa_actions){reference-type="ref"
-reference="tab:Vfdpxa_actions"} for actions.
+See Table [10.9](#tab:Vfdpxa_actions){== TODO fix ref to tab:Vfdpxa_actions ==} for actions.
 
 ::: {#tab:Vfdpxa_actions}
   Role         Action                                                   Reason                                           Transition
@@ -459,8 +445,7 @@ Defined (X), Unavailable (U), Workaround (W), or Temporary Fix (T).
 Embargo is at risk. SSVC v2 Exploitation: Active. SSVC v2 Public Value
 Added: Precedence. SSVC v2 Report Public: No. SSVC v2 Supplier
 Contacted: Yes. VEP does not apply. See Table
-[10.10](#tab:VfdpxA_actions){reference-type="ref"
-reference="tab:VfdpxA_actions"} for actions.
+[10.10](#tab:VfdpxA_actions){== TODO fix ref to tab:VfdpxA_actions ==} for actions.
 
 ::: {#tab:VfdpxA_actions}
   Role         Action                                                   Reason                                           Transition
@@ -505,8 +490,7 @@ level: Not Defined (X), Unavailable (U), Workaround (W), or Temporary
 Fix (T). Embargo is at risk. Expect Public awareness imminently. SSVC v2
 Exploitation: PoC. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.11](#tab:VfdpXa_actions){reference-type="ref"
-reference="tab:VfdpXa_actions"} for actions.
+See Table [10.11](#tab:VfdpXa_actions){== TODO fix ref to tab:VfdpXa_actions ==} for actions.
 
 ::: {#tab:VfdpXa_actions}
   Role         Action                                                   Reason                                           Transition
@@ -553,8 +537,7 @@ Unavailable (U), Workaround (W), or Temporary Fix (T). Embargo is at
 risk. Expect Public awareness imminently. SSVC v2 Exploitation: Active.
 SSVC v2 Public Value Added: Precedence. SSVC v2 Report Public: No. SSVC
 v2 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.12](#tab:VfdpXA_actions){reference-type="ref"
-reference="tab:VfdpXA_actions"} for actions.
+[10.12](#tab:VfdpXA_actions){== TODO fix ref to tab:VfdpXA_actions ==} for actions.
 
 ::: {#tab:VfdpXA_actions}
   Role         Action                                                   Reason                                           Transition
@@ -602,8 +585,7 @@ Unproven (U) or Not Defined (X). CVSS 3.1 remediation level: Not Defined
 no longer viable. SSVC v2 Exploitation: None. SSVC v2 Public Value
 Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2 Supplier
 Contacted: Yes. VEP does not apply. See Table
-[10.13](#tab:VfdPxa_actions){reference-type="ref"
-reference="tab:VfdPxa_actions"} for actions.
+[10.13](#tab:VfdPxa_actions){== TODO fix ref to tab:VfdPxa_actions ==} for actions.
 
 ::: {#tab:VfdPxa_actions}
   Role         Action                                                  Reason                       Transition
@@ -648,8 +630,7 @@ Defined (X), Unavailable (U), Workaround (W), or Temporary Fix (T).
 Embargo is no longer viable. SSVC v2 Exploitation: Active. SSVC v2
 Public Value Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2
 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.14](#tab:VfdPxA_actions){reference-type="ref"
-reference="tab:VfdPxA_actions"} for actions.
+[10.14](#tab:VfdPxA_actions){== TODO fix ref to tab:VfdPxA_actions ==} for actions.
 
 ::: {#tab:VfdPxA_actions}
   Role         Action                                                  Reason                 Transition
@@ -697,8 +678,7 @@ level: Not Defined (X), Unavailable (U), Workaround (W), or Temporary
 Fix (T). Embargo is no longer viable. SSVC v2 Exploitation: PoC. SSVC v2
 Public Value Added: Ampliative. SSVC v2 Report Public: Yes. SSVC v2
 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.15](#tab:VfdPXa_actions){reference-type="ref"
-reference="tab:VfdPXa_actions"} for actions.
+[10.15](#tab:VfdPXa_actions){== TODO fix ref to tab:VfdPXa_actions ==} for actions.
 
 ::: {#tab:VfdPXa_actions}
   Role         Action                                                  Reason                Transition
@@ -748,8 +728,7 @@ Unavailable (U), Workaround (W), or Temporary Fix (T). Embargo is no
 longer viable. SSVC v2 Exploitation: Active. SSVC v2 Public Value Added:
 Ampliative. SSVC v2 Report Public: Yes. SSVC v2 Supplier Contacted: Yes.
 VEP does not apply. See Table
-[10.16](#tab:VfdPXA_actions){reference-type="ref"
-reference="tab:VfdPXA_actions"} for actions.
+[10.16](#tab:VfdPXA_actions){== TODO fix ref to tab:VfdPXA_actions ==} for actions.
 
 ::: {#tab:VfdPXA_actions}
   Role         Action                                                  Reason                Transition
@@ -799,8 +778,7 @@ initiation may be appropriate. Embargo initiation with careful
 consideration only. SSVC v2 Exploitation: None. SSVC v2 Public Value
 Added: Ampliative. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.17](#tab:VFdpxa_actions){reference-type="ref"
-reference="tab:VFdpxa_actions"} for actions.
+See Table [10.17](#tab:VFdpxa_actions){== TODO fix ref to tab:VFdpxa_actions ==} for actions.
 
 ::: {#tab:VFdpxa_actions}
   Role               Action                                                              Reason                    Transition
@@ -843,8 +821,7 @@ Temporary Fix (T) or Official Fix (O). Embargo is at risk. SSVC v2
 Exploitation: Active. SSVC v2 Public Value Added: Ampliative. SSVC v2
 Public Value Added: Precedence. SSVC v2 Report Public: No. SSVC v2
 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.18](#tab:VFdpxA_actions){reference-type="ref"
-reference="tab:VFdpxA_actions"} for actions.
+[10.18](#tab:VFdpxA_actions){== TODO fix ref to tab:VFdpxA_actions ==} for actions.
 
 ::: {#tab:VFdpxA_actions}
   Role               Action                                                   Reason                    Transition
@@ -888,8 +865,7 @@ level: Temporary Fix (T) or Official Fix (O). Embargo is at risk. Expect
 Public awareness imminently. SSVC v2 Exploitation: PoC. SSVC v2 Public
 Value Added: Ampliative. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.19](#tab:VFdpXa_actions){reference-type="ref"
-reference="tab:VFdpXa_actions"} for actions.
+See Table [10.19](#tab:VFdpXa_actions){== TODO fix ref to tab:VFdpXa_actions ==} for actions.
 
 ::: {#tab:VFdpXa_actions}
   Role               Action                                                   Reason                    Transition
@@ -935,8 +911,7 @@ Official Fix (O). Embargo is at risk. Expect Public awareness
 imminently. SSVC v2 Exploitation: Active. SSVC v2 Public Value Added:
 Ampliative. SSVC v2 Public Value Added: Precedence. SSVC v2 Report
 Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply. See
-Table [10.20](#tab:VFdpXA_actions){reference-type="ref"
-reference="tab:VFdpXA_actions"} for actions.
+Table [10.20](#tab:VFdpXA_actions){== TODO fix ref to tab:VFdpXA_actions ==} for actions.
 
 ::: {#tab:VFdpXA_actions}
   Role               Action                                                   Reason                    Transition
@@ -981,8 +956,7 @@ Fix (T) or Official Fix (O). Embargo is no longer viable. SSVC v2
 Exploitation: None. SSVC v2 Public Value Added: Ampliative. SSVC v2
 Public Value Added: Limited. SSVC v2 Report Public: Yes. SSVC v2
 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.21](#tab:VFdPxa_actions){reference-type="ref"
-reference="tab:VFdPxa_actions"} for actions.
+[10.21](#tab:VFdPxa_actions){== TODO fix ref to tab:VFdPxa_actions ==} for actions.
 
 ::: {#tab:VFdPxa_actions}
   Role       Action                                                Reason                                        Transition
@@ -1019,8 +993,7 @@ Temporary Fix (T) or Official Fix (O). Embargo is no longer viable. SSVC
 v2 Exploitation: Active. SSVC v2 Public Value Added: Ampliative. SSVC v2
 Public Value Added: Limited. SSVC v2 Report Public: Yes. SSVC v2
 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.22](#tab:VFdPxA_actions){reference-type="ref"
-reference="tab:VFdPxA_actions"} for actions.
+[10.22](#tab:VFdPxA_actions){== TODO fix ref to tab:VFdPxA_actions ==} for actions.
 
 ::: {#tab:VFdPxA_actions}
   Role       Action                                                Reason                    Transition
@@ -1060,8 +1033,7 @@ level: Temporary Fix (T) or Official Fix (O). Embargo is no longer
 viable. SSVC v2 Exploitation: PoC. SSVC v2 Public Value Added:
 Ampliative. SSVC v2 Public Value Added: Limited. SSVC v2 Report Public:
 Yes. SSVC v2 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.23](#tab:VFdPXa_actions){reference-type="ref"
-reference="tab:VFdPXa_actions"} for actions.
+[10.23](#tab:VFdPXa_actions){== TODO fix ref to tab:VFdPXa_actions ==} for actions.
 
 ::: {#tab:VFdPXa_actions}
   Role       Action                                                Reason                    Transition
@@ -1102,8 +1074,7 @@ Official Fix (O). Embargo is no longer viable. SSVC v2 Exploitation:
 Active. SSVC v2 Public Value Added: Ampliative. SSVC v2 Public Value
 Added: Limited. SSVC v2 Report Public: Yes. SSVC v2 Supplier Contacted:
 Yes. VEP does not apply. See Table
-[10.24](#tab:VFdPXA_actions){reference-type="ref"
-reference="tab:VFdPXA_actions"} for actions.
+[10.24](#tab:VFdPXA_actions){== TODO fix ref to tab:VFdPXA_actions ==} for actions.
 
 ::: {#tab:VFdPXA_actions}
   Role       Action                                                Reason                    Transition
@@ -1148,8 +1119,7 @@ Fix (T) or Official Fix (O). Do not initiate a new disclosure embargo,
 but an existing embargo may continue. Embargo continuation is viable.
 SSVC v2 Exploitation: None. SSVC v2 Public Value Added: Precedence. SSVC
 v2 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not
-apply. See Table [10.25](#tab:VFDpxa_actions){reference-type="ref"
-reference="tab:VFDpxa_actions"} for actions.
+apply. See Table [10.25](#tab:VFDpxa_actions){== TODO fix ref to tab:VFDpxa_actions ==} for actions.
 
 ::: {#tab:VFDpxa_actions}
   Role   Action                                                   Reason                            Transition
@@ -1189,8 +1159,7 @@ $\mathbf{X} \prec \mathbf{A}$
 Temporary Fix (T) or Official Fix (O). Embargo is at risk. SSVC v2
 Exploitation: Active. SSVC v2 Public Value Added: Precedence. SSVC v2
 Report Public: No. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.26](#tab:VFDpxA_actions){reference-type="ref"
-reference="tab:VFDpxA_actions"} for actions.
+See Table [10.26](#tab:VFDpxA_actions){== TODO fix ref to tab:VFDpxA_actions ==} for actions.
 
 ::: {#tab:VFDpxA_actions}
   Role   Action                                                   Reason                            Transition
@@ -1232,8 +1201,7 @@ level: Temporary Fix (T) or Official Fix (O). Embargo is at risk. Expect
 Public awareness imminently. SSVC v2 Exploitation: PoC. SSVC v2 Public
 Value Added: Precedence. SSVC v2 Report Public: No. SSVC v2 Supplier
 Contacted: Yes. VEP does not apply. See Table
-[10.27](#tab:VFDpXa_actions){reference-type="ref"
-reference="tab:VFDpXa_actions"} for actions.
+[10.27](#tab:VFDpXa_actions){== TODO fix ref to tab:VFDpXa_actions ==} for actions.
 
 ::: {#tab:VFDpXa_actions}
   Role   Action                                                   Reason                            Transition
@@ -1276,8 +1244,7 @@ Official Fix (O). Embargo is at risk. Expect Public awareness
 imminently. SSVC v2 Exploitation: Active. SSVC v2 Public Value Added:
 Precedence. SSVC v2 Report Public: No. SSVC v2 Supplier Contacted: Yes.
 VEP does not apply. See Table
-[10.28](#tab:VFDpXA_actions){reference-type="ref"
-reference="tab:VFDpXA_actions"} for actions.
+[10.28](#tab:VFDpXA_actions){== TODO fix ref to tab:VFDpXA_actions ==} for actions.
 
 ::: {#tab:VFDpXA_actions}
   Role   Action                                                   Reason                            Transition
@@ -1320,8 +1287,7 @@ Unproven (U) or Not Defined (X). CVSS 3.1 remediation level: Temporary
 Fix (T) or Official Fix (O). Embargo is no longer viable. SSVC v2
 Exploitation: None. SSVC v2 Public Value Added: Limited. SSVC v2 Report
 Public: Yes. SSVC v2 Supplier Contacted: Yes. VEP does not apply. See
-Table [10.29](#tab:VFDPxa_actions){reference-type="ref"
-reference="tab:VFDPxa_actions"} for actions.
+Table [10.29](#tab:VFDPxa_actions){== TODO fix ref to tab:VFDPxa_actions ==} for actions.
 
 ::: {#tab:VFDPxa_actions}
   Role   Action                                      Reason                        Transition
@@ -1354,8 +1320,7 @@ $\mathbf{V} \prec \mathbf{X}$
 Temporary Fix (T) or Official Fix (O). Embargo is no longer viable. SSVC
 v2 Exploitation: Active. SSVC v2 Public Value Added: Limited. SSVC v2
 Report Public: Yes. SSVC v2 Supplier Contacted: Yes. VEP does not apply.
-See Table [10.30](#tab:VFDPxA_actions){reference-type="ref"
-reference="tab:VFDPxA_actions"} for actions.
+See Table [10.30](#tab:VFDPxA_actions){== TODO fix ref to tab:VFDPxA_actions ==} for actions.
 
 ::: {#tab:VFDPxA_actions}
   Role   Action                                 Reason                         Transition
@@ -1391,8 +1356,7 @@ $\mathbf{V} \prec \mathbf{A}$, $\mathbf{X} \prec \mathbf{A}$
 level: Temporary Fix (T) or Official Fix (O). Embargo is no longer
 viable. SSVC v2 Exploitation: PoC. SSVC v2 Public Value Added: Limited.
 SSVC v2 Report Public: Yes. SSVC v2 Supplier Contacted: Yes. VEP does
-not apply. See Table [10.31](#tab:VFDPXa_actions){reference-type="ref"
-reference="tab:VFDPXa_actions"} for actions.
+not apply. See Table [10.31](#tab:VFDPXa_actions){== TODO fix ref to tab:VFDPXa_actions ==} for actions.
 
 ::: {#tab:VFDPXa_actions}
   Role   Action                                   Reason                         Transition
@@ -1429,8 +1393,7 @@ $VFDPXa$ (p.)
 Official Fix (O). Embargo is no longer viable. SSVC v2 Exploitation:
 Active. SSVC v2 Public Value Added: Limited. SSVC v2 Report Public: Yes.
 SSVC v2 Supplier Contacted: Yes. VEP does not apply. See Table
-[10.32](#tab:VFDPXA_actions){reference-type="ref"
-reference="tab:VFDPXA_actions"} for actions.
+[10.32](#tab:VFDPXA_actions){== TODO fix ref to tab:VFDPXA_actions ==} for actions.
 
 ::: {#tab:VFDPXA_actions}
   Role   Action                                   Reason                         Transition

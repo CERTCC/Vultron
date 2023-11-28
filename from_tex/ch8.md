@@ -23,9 +23,8 @@ the opportunities for expanding the model include
 ## State Explosion
 
 Although our discussion of MPCVD in
-§[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"} and
-§[6.2.2](#sec:mpcvd criteria){reference-type="ref"
-reference="sec:mpcvd criteria"} highlights one area in which the number
+§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==} and
+§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} highlights one area in which the number
 of states to track can increase dramatically, an even larger problem
 could arise in the context of VM efforts even within normal
 CVD cases. Our
@@ -85,8 +84,7 @@ MPCVD) practices.
 
 ## The Model Does Not Achieve a Total Order Over Histories
 
-As described in §[4.4](#sec:h_poset_skill){reference-type="ref"
-reference="sec:h_poset_skill"}, some ambiguity remains regarding
+As described in §[4.4](#sec:h_poset_skill){== TODO fix ref to sec:h_poset_skill ==}, some ambiguity remains regarding
 preferences for elements of $\mathbb{D}$. These preferences would need
 to be addressed before the model can achieve a total order over
 histories $\mathcal{H}$. Specifically, we need to decide whether it is
@@ -166,7 +164,7 @@ they arise.
 
 ## Gather Data About CVD
 
-§[6.1](#sec:benchmarks){reference-type="ref" reference="sec:benchmarks"}
+§[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}
 discusses how different benchmarks and "reasonable baseline
 expectations" might change the results of a skill assessment. It also
 proposes how to use observations of the actions a certain team or team
@@ -190,8 +188,7 @@ past observations.
 
 While there is a modeling choice about using the uniformity assumption
 versus observations from past CVD (see
-§[6.1](#sec:benchmarks){reference-type="ref"
-reference="sec:benchmarks"}), the model does not depend on whether the
+§[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}), the model does not depend on whether the
 uniformity assumption actually holds. We have provided a means to
 calculate from observations a deviation from the desired "reasonable
 baseline," whether this is based on the i.i.d. assumption or not.
@@ -206,8 +203,7 @@ Not all events $\sigma \in \Sigma$, and therefore not all desiderata
 $d \in \mathbb{D}$, will be observable by all interested parties. But in
 many cases at least some are, which can still help to infer reasonable
 limits on the others, as shown in
-§[\[sec:inferring_history\]](#sec:inferring_history){reference-type="ref"
-reference="sec:inferring_history"}.
+§[\[sec:inferring_history\]](#sec:inferring_history){== TODO fix ref to sec:inferring_history ==}.
 
 Vendors are in a good position to observe most of the events in each
 case. This is even more so if they have good sources of threat
@@ -221,8 +217,7 @@ parties, for the reasons described in the timing discussion above.
 
 ## CVD Action Rules Are Not Algorithms
 
-The rules given in §[6.8](#sec:cvd_action_rules){reference-type="ref"
-reference="sec:cvd_action_rules"} are not algorithms. We do not propose
+The rules given in §[6.8](#sec:cvd_action_rules){== TODO fix ref to sec:cvd_action_rules ==} are not algorithms. We do not propose
 them as a set of required actions for every CVD case. However, following Atul Gawande's
 lead, we offer them as a mechanism to generate CVD checklists:
 
@@ -237,8 +232,7 @@ lead, we offer them as a mechanism to generate CVD checklists:
 ## MPCVD Criteria Do Not Account for Equitable Resilience
 
 The proposed criteria for MPCVD in
-§[6.2.2](#sec:mpcvd criteria){reference-type="ref"
-reference="sec:mpcvd criteria"} fail to account for either user
+§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} fail to account for either user
 populations or their relative importance. For example, suppose an
 MPCVD case had a
 total of 15 vendors, with 5 vendors representing 95% of the total

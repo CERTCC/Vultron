@@ -1,8 +1,7 @@
 # Discussion {#sec:discussion}
 
 The observational analysis in
-§[5.2](#sec:observation){reference-type="ref"
-reference="sec:observation"} supports an affirmative response to
+§[5.2](#sec:observation){== TODO fix ref to sec:observation ==} supports an affirmative response to
 **RQ3**: vulnerability disclosure as currently practiced demonstrates
 skill. In both data sets examined, our estimated $\alpha_d$ is positive
 for most $d \in \mathbb{D}$. However, there is uncertainty in our
@@ -10,10 +9,8 @@ estimates due to the application of the principle of indifference to
 unobserved data. This principle assumes a uniform distribution across
 event transitions in the absence of CVD, which is an assumption we cannot readily
 test. The spread of the estimates in Figures
-[5.1](#fig:ms_estimates){reference-type="ref"
-reference="fig:ms_estimates"} and
-[5.3](#fig:nvd_estimates){reference-type="ref"
-reference="fig:nvd_estimates"} represents the variance in our samples,
+[5.1](#fig:ms_estimates){== TODO fix ref to fig:ms_estimates ==} and
+[5.3](#fig:nvd_estimates){== TODO fix ref to fig:nvd_estimates ==} represents the variance in our samples,
 not this assumption-based uncertainty. Our interpretation of $\alpha_d$
 values near zero is therefore that they reflect an absence of evidence
 rather than evidence that skill is absent. While we cannot rule
@@ -24,42 +21,35 @@ If, as seems plausible from the evidence, it turns out that further
 observations of $h$ are significantly skewed toward the higher end of
 the poset $(\mathcal{H},\leq_{\mathbb{D}})$, then it may be useful to
 empirically calibrate our metrics rather than using the *a priori*
-frequencies in Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"} as our baseline. This analysis baseline
+frequencies in Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} as our baseline. This analysis baseline
 would provide context on "more skillful than the average for some set of
 teams" rather than more skillful than blind luck.
-§[6.1](#sec:benchmarks){reference-type="ref" reference="sec:benchmarks"}
+§[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}
 discusses this topic, which should be viewed as an examination of what
 "reasonable" in **RQ2** should mean in the context of "reasonable
 baseline expectation."
 
-§[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"} suggests
+§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==} suggests
 how the model might be applied to establish benchmarks for
 CVD processes
 involving any number of participants, which closes the analysis of
-**RQ1** in relation to MPCVD. §[6.3](#sec:roles){reference-type="ref"
-reference="sec:roles"} surveys the stakeholders in
+**RQ1** in relation to MPCVD. §[6.3](#sec:roles){== TODO fix ref to sec:roles ==} surveys the stakeholders in
 CVD and how they
 might use our model; the stakeholders are vendors, system owners, the
 security research community, coordinators, and governments. In
 particular, we focus on how these stakeholders might respond to the
 affirmative answer to **RQ3** and a method to measure skill in a way
 more tailored to each stakeholder group.
-§[6.4](#sec:policy_formalism){reference-type="ref"
-reference="sec:policy_formalism"} discusses the potential for
+§[6.4](#sec:policy_formalism){== TODO fix ref to sec:policy_formalism ==} discusses the potential for
 formalizing disclosure policy specifications using the model.
-§[6.5](#sec:defining_common_terms){reference-type="ref"
-reference="sec:defining_common_terms"} offers formal definitions of some
+§[6.5](#sec:defining_common_terms){== TODO fix ref to sec:defining_common_terms ==} offers formal definitions of some
 common terms in vulnerability disclosure. We then proceed to address
 vulnerability response situation awareness in
-§[6.6](#sec:situation_awareness){reference-type="ref"
-reference="sec:situation_awareness"}, with a brief note about the
+§[6.6](#sec:situation_awareness){== TODO fix ref to sec:situation_awareness ==}, with a brief note about the
 VEP in relation to
-this model in §[6.7](#sec:vep){reference-type="ref"
-reference="sec:vep"}. Finally, a set of state-based rules for
+this model in §[6.7](#sec:vep){== TODO fix ref to sec:vep ==}. Finally, a set of state-based rules for
 CVD actions is
-given in §[6.8](#sec:cvd_action_rules){reference-type="ref"
-reference="sec:cvd_action_rules"}.
+given in §[6.8](#sec:cvd_action_rules){== TODO fix ref to sec:cvd_action_rules ==}.
 
 ## CVD Benchmarks {#sec:benchmarks}
 
@@ -67,8 +57,7 @@ As described above, in an ideal CVD situation, each observed history would
 achieve all 12 desiderata $\mathbb{D}$. Realistically, this is unlikely
 to happen. We can at least state that we would prefer that most cases
 reach fix ready before attacks ($\mathbf{F} \prec \mathbf{A}$). Per
-Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"}, even in a world without skill we would
+Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}, even in a world without skill we would
 expect $\mathbf{F} \prec \mathbf{A}$ to hold in 73% of cases. This means
 that $\alpha_{\mathbf{F} \prec \mathbf{A}} < 0$ for anything less than a
 0.73 success rate. In fact, we propose to generalize this for any
@@ -97,8 +86,7 @@ or attacks may be more likely when an exploit is public
 If the i.i.d. assumption fails to hold for transition events
 $\sigma \in \Sigma$, observed frequencies of $h \in \mathcal{H}$ could
 differ significantly from the rates predicted by the uniform probability
-assumption behind Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"}.
+assumption behind Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}.
 
 Some example suggestive observations are:
 
@@ -165,11 +153,9 @@ incorporate the affected component. Alternatively, vulnerabilities are
 sometimes found in protocol specifications or other design-time issues
 where multiple vendors may have each implemented their own components
 based on a vulnerable design.
-§[6.2.1](#sec:mpcvd_states){reference-type="ref"
-reference="sec:mpcvd_states"} applies the state-based view of our model
+§[6.2.1](#sec:mpcvd_states){== TODO fix ref to sec:mpcvd_states ==} applies the state-based view of our model
 to MPCVD, while
-§[6.2.2](#sec:mpcvd criteria){reference-type="ref"
-reference="sec:mpcvd criteria"} addresses the topic from the possible
+§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} addresses the topic from the possible
 history perspective.
 
 ### State Tracking in MPCVD {#sec:mpcvd_states}
@@ -232,8 +218,7 @@ This is of course undesirable, as it would result in a wide distribution
 of realized histories that more closely resemble the randomness
 assumptions outlined above than a skillful, coordinated effort. Further
 discussion of measuring MPCVD skill can be found in
-[6.2.2](#sec:mpcvd criteria){reference-type="ref"
-reference="sec:mpcvd criteria"}. For now, though, we posit that the goal
+[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==}. For now, though, we posit that the goal
 of a good MPCVD
 process is to reduce the dimensionality of a given
 MPCVD case as
@@ -304,8 +289,7 @@ along some with variations. Each use case variant includes a list of
 potential causes along with recommendations for prevention and responses
 when the scenario is encountered. A mapping of which use cases and
 variants apply to which subsets of states is given in Table
-[6.1](#tab:first_use_cases){reference-type="ref"
-reference="tab:first_use_cases"}.
+[6.1](#tab:first_use_cases){== TODO fix ref to tab:first_use_cases ==}.
 
 ::: {#tab:first_use_cases}
            States           FIRST Use Case  Description
@@ -349,8 +333,7 @@ Where $m = |\mathcal{M}| \geq 1$. The edge case when $|\mathcal{M}| = 1$
 is simply the regular (non-multiparty) case.
 
 We can then set desired criteria for the set $\mathcal{M}$, as in the
-benchmarks described in §[6.1](#sec:benchmarks){reference-type="ref"
-reference="sec:benchmarks"}. In the MPCVD case, we propose to generalize the
+benchmarks described in §[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}. In the MPCVD case, we propose to generalize the
 benchmark concept such that the median $\Tilde{\alpha_d}$ should be
 greater than some benchmark constant $c_d$:
 
@@ -389,8 +372,7 @@ they can cause. For example, a *coordinator* can notify the *vendor*
 can create the fix but not notify itself (although a *vendor* with an
 in-house vulnerability discovery capability might also play the role of
 a *finder/reporter* as well). A mapping of CVD Roles to the transitions they can control
-can be found in Table [6.2](#tab:cvd_roles){reference-type="ref"
-reference="tab:cvd_roles"}. We also included a role of *adversary* just
+can be found in Table [6.2](#tab:cvd_roles){== TODO fix ref to tab:cvd_roles ==}. We also included a role of *adversary* just
 to cover the $\mathbf{A}$ transition.
 
 ::: {#tab:cvd_roles}
@@ -411,8 +393,7 @@ to cover the $\mathbf{A}$ transition.
 Different stakeholders might want different things, although most
 benevolent parties will likely seek some subset of $\mathbb{D}$. Because
 $\mathcal{H}$ is the same for all stakeholders, the expected frequencies
-shown in Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"} will be consistent across any such
+shown in Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} will be consistent across any such
 variations in desiderata.
 
 ::: {#tab:stakeholder_order}
@@ -459,13 +440,11 @@ and $\mathbf{D} \prec \mathbf{X}$ depending on their risk tolerance.
 
 A discussion of some stakeholder preferences is given below, while a
 summary can be found in Table
-[6.3](#tab:stakeholder_order){reference-type="ref"
-reference="tab:stakeholder_order"}. We notate these variations of the
+[6.3](#tab:stakeholder_order){== TODO fix ref to tab:stakeholder_order ==}. We notate these variations of the
 set of desiderata $\mathbb{D}$ with subscripts: $\mathbb{D}_v$ for
 vendors, $\mathbb{D}_s$ for system owners, $\mathbb{D}_c$ for
 coordinators, and $\mathbb{D}_g$ for governments. In
-Table [3.3](#tab:ordered_pairs){reference-type="ref"
-reference="tab:ordered_pairs"} we defined a preference ordering between
+Table [3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==} we defined a preference ordering between
 every possible pairing of events, therefore $\mathbb{D}$ is the largest
 possible set of desiderata. We thus expect the desiderata of benevolent
 stakeholders to be a subset of $\mathbb{D}$ in most cases. That said, we
@@ -473,8 +452,7 @@ note a few exceptions in the text that follows.
 
 ### Vendors
 
-As shown in Table [6.3](#tab:stakeholder_order){reference-type="ref"
-reference="tab:stakeholder_order"}, we expect vendors' desiderata
+As shown in Table [6.3](#tab:stakeholder_order){== TODO fix ref to tab:stakeholder_order ==}, we expect vendors' desiderata
 $\mathbb{D}_v$ to be a subset of $\mathbb{D}$. It seems reasonable to
 expect vendors to prefer that a fix is ready before either exploit
 publication or attacks ($\mathbf{F} \prec \mathbf{X}$ and
@@ -609,8 +587,7 @@ coordinator becomes involved in a case, the objective is to choose
 actions that make preferred histories more likely and non-preferred
 histories less likely.
 
-The rules outlined in §[6.8](#sec:cvd_action_rules){reference-type="ref"
-reference="sec:cvd_action_rules"} suggest available actions to improve
+The rules outlined in §[6.8](#sec:cvd_action_rules){== TODO fix ref to sec:cvd_action_rules ==} suggest available actions to improve
 outcomes. Namely, this means focusing coordination efforts as needed on
 vendor awareness, fix availability, fix deployment, and the
 appropriately timed public awareness of vulnerabilities and their
@@ -627,8 +604,7 @@ However, governments sometimes also have an adversarial role to play for
 national security, law enforcement, or other reasons. The model
 presented in this paper could be adapted to that role by drawing some
 desiderata from the lower left triangle of Table
-[3.3](#tab:ordered_pairs){reference-type="ref"
-reference="tab:ordered_pairs"}. While defining such adversarial
+[3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==}. While defining such adversarial
 desiderata ($\mathbb{D}_a$) is out of scope for this paper, we leave the
 topic with our expectation that $\mathbb{D}_a \not\subseteq \mathbb{D}$.
 
@@ -675,7 +651,7 @@ $Fdpxa$). However, while may be tempted to expand the requirement and
 narrow the states of interest to $fdpxa$, we must allow for the
 multiparty situation in which some vendors have a fix ready ($Fp$) while
 others do not ($fp$). We discuss MPCVD further in section
-§[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"}. Here we
+§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==}. Here we
 note that in MPCVD cases, prudence requires us to allow for
 a (hopefully brief) embargo period to enable more vendors to achieve
 $fp \xrightarrow{\mathbf{F}} Fp$ prior to public disclosure
@@ -922,8 +898,7 @@ zero day vulnerability
 
     1.  $q \in vp$ The United States VEP [@usg2017vep] defines *zero day
         vulnerability* in a manner consistent with $q \in {vp}$. Further
-        discussion appears in §[6.7](#sec:vep){reference-type="ref"
-        reference="sec:vep"}.
+        discussion appears in §[6.7](#sec:vep){== TODO fix ref to sec:vep ==}.
 
     2.  ${vp} \xrightarrow{\mathbf{P}} {vP}$ when the vulnerability
         becomes public before the vendor is aware of it. Note that our
@@ -1054,8 +1029,7 @@ increased priority to states in higher threat levels, corresponding to
 $q \in \mathcal{Q}_X \cup \mathcal{Q}_A$. SSVC also includes decision
 points surrounding other states in our model. A summary of the relevant
 SSVC decision points and their intersection with our model is given in
-Table [6.4](#tab:ssvc_v2_states){reference-type="ref"
-reference="tab:ssvc_v2_states"}.
+Table [6.4](#tab:ssvc_v2_states){== TODO fix ref to tab:ssvc_v2_states ==}.
 
 Not all SSVC decision point values map as clearly onto states in this
 model however. For example, *Supplier Contacted=No* likely means
@@ -1079,7 +1053,7 @@ CVSS version 3.1
 includes a few Temporal Metric variables that connect to this model
 [@first2019cvss31]. Unfortunately, differences in abstraction between
 the models leaves a good deal of ambiguity in the translation. Table
-[6.5](#tab:cvss_31){reference-type="ref" reference="tab:cvss_31"} shows
+[6.5](#tab:cvss_31){== TODO fix ref to tab:cvss_31 ==} shows
 the relationship between the two models.
 
 ::: {#tab:cvss_31}
@@ -1110,16 +1084,14 @@ possible states for the case to be in: $$\begin{aligned}
 Can we do better than simply assigning equal likelihood
 $p(q|Vf) = 0.125$ to each of these states? Yes: we can use the PageRank
 computations from Table
-[3.4](#tab:allowed_state_transitions){reference-type="ref"
-reference="tab:allowed_state_transitions"} to inform our estimates.
+[3.4](#tab:allowed_state_transitions){== TODO fix ref to tab:allowed_state_transitions ==} to inform our estimates.
 
 To assess our presence in ${Vf}$, we can select just the subset of
 states we are interested in. But our PageRank values are computed across
 all 32 states and we are only interested in the relative probabilities
 within a subset of 8 states. Thus, we normalize the PageRank for the
 subset to find the results shown in Table
-[6.6](#tab:pagerank_vf){reference-type="ref"
-reference="tab:pagerank_vf"}. As a result, we find that the most likely
+[6.6](#tab:pagerank_vf){== TODO fix ref to tab:pagerank_vf ==}. As a result, we find that the most likely
 state in ${Vf}$ is ${VfdPXA}$ with probability $0.24$, nearly twice what
 we would have expected ($1/8 = 0.125$) if we just assumed each state was
 equally probable.
@@ -1260,8 +1232,7 @@ Another application of this model is to recommend actions for
 coordinating parties in CVD based on the subset of states that
 currently apply to a case. What a coordinating party does depends on
 their role and where they engage, as shown in the list below. As
-described in §[6.2](#sec:mpcvd){reference-type="ref"
-reference="sec:mpcvd"}, MPCVD attempts to synchronize state transitions
+described in §[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==}, MPCVD attempts to synchronize state transitions
 across vendors.
 
 A significant portion of CVD can be formally described as a set of
@@ -1297,8 +1268,7 @@ This rule structure follows a common user story pattern:
 > can do *Action* for *Reason*, resulting in the transition event
 > $\sigma \in \Sigma$
 
-The list in Table [6.7](#tab:cvd_rules){reference-type="ref"
-reference="tab:cvd_rules"} can be built into a rules engine that
+The list in Table [6.7](#tab:cvd_rules){== TODO fix ref to tab:cvd_rules ==} can be built into a rules engine that
 translates each state in the model to a set of suggested
 CVD actions.
 

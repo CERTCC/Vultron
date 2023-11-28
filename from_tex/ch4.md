@@ -2,16 +2,13 @@
 
 Our goal in this section is to formulate a way to rank our
 undifferentiated desiderata $\mathbb{D}$ from
-§[3.2](#sec:desirability){reference-type="ref"
-reference="sec:desirability"} in order to develop the concept of CVD
-skill and its measurement in §[5](#sec:skill_luck){reference-type="ref"
-reference="sec:skill_luck"}. This will provide a baseline expectation
+§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==} in order to develop the concept of CVD
+skill and its measurement in §[5](#sec:skill_luck){== TODO fix ref to sec:skill_luck ==}. This will provide a baseline expectation
 about events (**RQ2)**.
 
 ## History Frequency Analysis {#sec:history_frequency_analysis}
 
-As described in §[3.3](#sec:random_walk){reference-type="ref"
-reference="sec:random_walk"}, we apply the principle of indifference to
+As described in §[3.3](#sec:random_walk){== TODO fix ref to sec:random_walk ==}, we apply the principle of indifference to
 the available transition events $\sigma_{i+1}$ at each state $q$ for
 each of the possible histories to compute the expected frequency of each
 history, which we denote as $f_h$. The frequency of a history $f_h$ is
@@ -22,8 +19,7 @@ sequence constraints, namely $h \in \mathcal{H}$.
 $$\label{eq:history_freq}
     f_h = \prod_{i=0}^{5} p(\sigma_{i+1}|h_i) %\textrm{ where } \sigma_i \in h \textrm{ and } h \in H$$
 
-Table [3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"} displays the value of $f_h$ for each
+Table [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==} displays the value of $f_h$ for each
 history. Having an expected frequency ($f_h$) for each history $h$ will
 allow us to examine how often we might expect our desiderata
 $d \in \mathbb{D}$ to occur across $\mathcal{H}$.
@@ -42,23 +38,20 @@ uniform distribution over histories.
 ## Event Order Frequency Analysis {#sec:ordering_frequency_analysis}
 
 Each of the event pair orderings in Table
-[3.3](#tab:ordered_pairs){reference-type="ref"
-reference="tab:ordered_pairs"} can be treated as a Boolean condition
+[3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==} can be treated as a Boolean condition
 that either holds or does not hold in any given history. In
-§[4.1](#sec:history_frequency_analysis){reference-type="ref"
-reference="sec:history_frequency_analysis"} we described how to compute
+§[4.1](#sec:history_frequency_analysis){== TODO fix ref to sec:history_frequency_analysis ==} we described how to compute
 the expected frequency of each history ($f_h$) given the presumption of
 indifference to possible events at each step. We can use $f_h$ as a
 weighting factor to compute the expected frequency of event orderings
 ($\sigma_i \prec \sigma_j$) across all possible histories $H$. Equations
-[\[eq:h_ord\]](#eq:h_ord){reference-type="ref" reference="eq:h_ord"} and
-[\[eq:d_freq\]](#eq:d_freq){reference-type="ref" reference="eq:d_freq"}
+[\[eq:h_ord\]](#eq:h_ord){== TODO fix ref to eq:h_ord ==} and
+[\[eq:d_freq\]](#eq:d_freq){== TODO fix ref to eq:d_freq ==}
 define the frequency of an ordering $f_{\sigma_i \prec \sigma_j}$ as the
 sum over all histories in which the ordering occurs
 ($H^{\sigma_i \prec \sigma_j}$) of the frequency of each such history
 ($f_h$) as shown in Table
-[3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"}.
+[3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}.
 
 $$\label{eq:h_ord}
     H^{\sigma_i \prec \sigma_j} \stackrel{\mathsf{def}}{=}\{h \in H \textrm{ where } \sigma_i \prec \sigma_j \textrm{ is true for } h \textrm{ and } i \neq j\}$$
@@ -80,17 +73,14 @@ $$\label{eq:d_freq}
   uniformly from possible transitions in each state
 :::
 
-Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"} displays the results of this calculation.
+Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} displays the results of this calculation.
 Required event orderings have an expected frequency of 1, while
 impossible orderings have an expected frequency of 0. As defined in
-§[3.2](#sec:desirability){reference-type="ref"
-reference="sec:desirability"}, each desiderata $d \in \mathbb{D}$ is
+§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==}, each desiderata $d \in \mathbb{D}$ is
 specified as an event ordering of the form $\sigma_i \prec \sigma_j$. We
 use $f_d$ to denote the expected frequency of a given desiderata
 $d \in \mathbb{D}$. The values for the relevant $f_d$ appear in the
-upper right of Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"}. Some event orderings have higher expected
+upper right of Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}. Some event orderings have higher expected
 frequencies than others. For example, vendor awareness precedes attacks
 in 3 out of 4 histories in a uniform distribution of event transitions
 ($f_{\mathbf{V} \prec \mathbf{A}} = 0.75$), whereas fix deployed prior
@@ -118,13 +108,12 @@ world where neither attackers nor defenders held any advantage and
 events were chosen uniformly from $\Sigma$ whenever they were possible,
 we would expect to see the preferred orderings occur with probability
 equivalent to their frequency $f_d$ as shown in Table
-[4.1](#tab:event_freq){reference-type="ref" reference="tab:event_freq"}.
+[4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}.
 
 Skill, on the other hand, accounts for the outcomes once luck has been
 accounted for. So the more likely an outcome is due to luck, the less
 skill we can infer when it is observed. As an example, from
-Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"} we see that fix deployed before the
+Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} we see that fix deployed before the
 vulnerability is public is the rarest of our desiderata with
 $f_{\mathbf{D} \prec \mathbf{P}} = 0.037$, and thus exhibits the most
 skill when observed. On the other hand, vendor awareness before attacks
@@ -153,8 +142,7 @@ $(\mathbb{D},\leq_{\mathbb{D}})$ because a few $d$ have the same $f_d$
 ($f_{\mathbf{F} \prec \mathbf{X}} = f_{\mathbf{V} \prec \mathbf{P}} = 0.333$
 for example). The full Hasse Diagram for the partial order
 $(\mathbb{D},\leq_{\mathbb{D}})$ is shown in
-Figure [\[fig:d_poset\]](#fig:d_poset){reference-type="ref"
-reference="fig:d_poset"}.
+Figure [\[fig:d_poset\]](#fig:d_poset){== TODO fix ref to fig:d_poset ==}.
 
 ## Ordering Possible Histories by Skill {#sec:h_poset_skill}
 
@@ -184,8 +172,7 @@ corpus of possible histories $\mathcal{H}$.
 We have now computed a skill value for every $h \in \mathcal{H}$, which
 allows us to sort $\mathcal{H}$ and assign a rank to each history $h$
 contained therein. The rank is shown in
-Table [3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"}. Rank values start at 1 for least
+Table [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}. Rank values start at 1 for least
 skill up to a maximum of 62 for most skill. Owing to the partial order
 $(\mathbb{D},\leq_{\mathbb{D}})$, some $h$ have the same computed skill
 values, and these are given the same rank.
@@ -193,13 +180,11 @@ values, and these are given the same rank.
 The ranks for $h \in \mathcal{H}$ lead directly to a new poset
 $(\mathcal{H},\leq_{\mathbb{D}})$. It is an extension of and fully
 compatible with $(\mathcal{H},\leq_{H})$ as developed in
-§[3.2](#sec:desirability){reference-type="ref"
-reference="sec:desirability"}.
+§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==}.
 
 The resulting Hasse Diagram would be too large to reproduce here.
 Instead, we include the resulting rank for each $h$ as a column in
-Table [3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"}. In the table, rank is ordered from
+Table [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}. In the table, rank is ordered from
 least desirable and skillful histories to most. Histories having
 identical rank are incomparable to each other within the poset. The
 refined poset $(\mathcal{H},\leq_{\mathbb{D}})$ is much closer to a
@@ -209,8 +194,7 @@ histories having duplicate ranks.
 The remaining incomparable histories are the direct result of the
 incomparable $d$ in $(\mathbb{D},\leq_{\mathbb{D}})$, corresponding to
 the branches in Figure
-[\[fig:d_poset\]](#fig:d_poset){reference-type="ref"
-reference="fig:d_poset"}. Achieving a total order on $\mathbb{D}$ would
+[\[fig:d_poset\]](#fig:d_poset){== TODO fix ref to fig:d_poset ==}. Achieving a total order on $\mathbb{D}$ would
 require determining a preference for one of each of the following:
 
 -   that fix ready precede exploit publication

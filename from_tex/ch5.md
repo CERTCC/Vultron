@@ -24,7 +24,7 @@ determining our observed outcomes.
 
 There are many reasons why we might expect our observations to differ
 from the expected frequencies we established in
-§[4](#sec:reasoning){reference-type="ref" reference="sec:reasoning"}.
+§[4](#sec:reasoning){== TODO fix ref to sec:reasoning ==}.
 Adversaries might be rare, or conversely very well equipped. Vendors
 might be very good at releasing fixes faster than adversaries can
 discover vulnerabilities and develop exploits for them. System owners
@@ -41,8 +41,7 @@ with probability $p_{skill} = 1$.
 Thus, we construct the following model: for each of our preferred
 orderings $d \in \mathbb{D}$, we model their occurrence due to luck
 using the binomial distribution with parameter $p_{luck} = f_d$ taken
-from Table [4.1](#tab:event_freq){reference-type="ref"
-reference="tab:event_freq"}.
+from Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}.
 
 Recall that the mean of a binomial distribution is simply the
 probability of success $p$, and that the mean of a weighted mixture of
@@ -59,8 +58,7 @@ $$\label{eq:obs_skill_luck}
 Where $f_d^{obs}$ is the observed frequency of successes for desiderata
 $d$. Because $p_{skill} = 1$, one of those binomial distributions is
 degenerate. Substituting $p_{skill} = 1$, $p_{luck} = f_d$ and solving
-Eq. [\[eq:obs_skill_luck\]](#eq:obs_skill_luck){reference-type="ref"
-reference="eq:obs_skill_luck"} for $\alpha$, we get
+Eq. [\[eq:obs_skill_luck\]](#eq:obs_skill_luck){== TODO fix ref to eq:obs_skill_luck ==} for $\alpha$, we get
 
 $$\label{eq:alpha_freq}
     \alpha_d \stackrel{\mathsf{def}}{=}\frac{f_d^{obs} - f_d} {1 - f_d}$$
@@ -90,7 +88,7 @@ luck. In other words, we can only infer positive skill when the
 observations are higher ($f_d^{obs} > f_d$). That makes intuitive sense:
 if you are likely to win purely by chance, then you have to attribute
 most of your wins to luck rather than skill. From Table
-[4.1](#tab:event_freq){reference-type="ref" reference="tab:event_freq"},
+[4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==},
 the largest value for any $d \in \mathbb{D}$ is
 $f_{\mathbf{V} \prec \mathbf{A}}=0.75$, implying that even if a vendor
 knows about 7 out of 10 vulnerabilities before attacks occur
@@ -101,7 +99,7 @@ On the other hand, when $f_d$ is small it is easier to infer skill
 should we observe anything better than $f_d$. However, it takes larger
 increments of observations $f_d^{obs}$ to infer growth in skill when
 $f_d$ is small than when it is large. The smallest $f_d$ we see in Table
-[4.1](#tab:event_freq){reference-type="ref" reference="tab:event_freq"}
+[4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}
 is $f_{\mathbf{D} \prec \mathbf{P}} = 0.037$.
 
 Inherent to the binomial distribution is the expectation that the
@@ -109,8 +107,7 @@ variance of results is lower for both extremes (as $p$ approaches either
 0 or 1) and highest at $p=0.5$. Therefore we should generally be less
 certain of our observations when they fall in the middle of the
 distribution. We address uncertainty further in
-§[5.1.2](#sec:uncertainty){reference-type="ref"
-reference="sec:uncertainty"}.
+§[5.1.2](#sec:uncertainty){== TODO fix ref to sec:uncertainty ==}.
 
 ### Computing $\alpha_d$ from Observations {#sec:computing_observations}
 
@@ -143,7 +140,7 @@ reference="eq:alpha_obs1"}, and simplifying, we arrive at:
 $$\alpha_{d} = \frac{{S_d^{obs}}-{f_d}T}{(1-{f_d})T}$$ Hence for any of
 our desiderata $\mathbb{D}$ we can compute $\alpha_d$ given $S_d^{obs}$
 observed successes out of $T$ trials in light of $f_d$ taken from Table
-[4.1](#tab:event_freq){reference-type="ref" reference="tab:event_freq"}.
+[4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}.
 
 Before we address the data analysis we take a moment to discuss
 uncertainty.
@@ -178,21 +175,17 @@ reference="eq:observed_wins"}.
 
 As a proof of concept, we apply the model to two data sets: Microsoft's
 security updates from 2017 through early 2020 in
-§[5.2.1](#sec:ms2017-20){reference-type="ref"
-reference="sec:ms2017-20"}, and commodity public exploits from 2015-2019
-in §[5.2.2](#sec:commodity_15_19){reference-type="ref"
-reference="sec:commodity_15_19"}.
+§[5.2.1](#sec:ms2017-20){== TODO fix ref to sec:ms2017-20 ==}, and commodity public exploits from 2015-2019
+in §[5.2.2](#sec:commodity_15_19){== TODO fix ref to sec:commodity_15_19 ==}.
 
 ### Microsoft 2017-2020 {#sec:ms2017-20}
 
 We are now ready to proceed with our data analysis. First, we examine
 Microsoft's monthly security updates for the period between March 2017
 and May 2020, as curated by the Zero Day Initiative blog[^4]. Figure
-[\[fig:ms_patched\]](#fig:ms_patched){reference-type="ref"
-reference="fig:ms_patched"} shows monthly totals for all vulnerabilities
+[\[fig:ms_patched\]](#fig:ms_patched){== TODO fix ref to fig:ms_patched ==} shows monthly totals for all vulnerabilities
 while
-[\[fig:ms_observations\]](#fig:ms_observations){reference-type="ref"
-reference="fig:ms_observations"} has monthly observations of
+[\[fig:ms_observations\]](#fig:ms_observations){== TODO fix ref to fig:ms_observations ==} has monthly observations of
 $\mathbf{P} \prec \mathbf{F}$ and $\mathbf{A} \prec \mathbf{F}$. This
 data set allowed us to compute the monthly counts for two of our
 desiderata, $\mathbf{F} \prec \mathbf{P}$ and
@@ -213,8 +206,7 @@ $\alpha_{\mathbf{F} \prec \mathbf{P}} = 0.967$, with a range of \[0.878,
 level for the observation period, which gives us a bit more precision on
 $\alpha_{\mathbf{F} \prec \mathbf{P}} = 0.969$ with the 0.95 interval of
 \[0.962, 0.975\]. Figure
-[\[fig:ms_fapa\]](#fig:ms_fapa){reference-type="ref"
-reference="fig:ms_fapa"} shows the trend for both the monthly
+[\[fig:ms_fapa\]](#fig:ms_fapa){== TODO fix ref to fig:ms_fapa ==} shows the trend for both the monthly
 observations and the cumulative estimate of
 $\alpha_{\mathbf{F} \prec \mathbf{P}}$.
 
@@ -231,8 +223,7 @@ $\alpha_{\mathbf{F} \prec \mathbf{A}} = 0.976$ with range \[0.893,
 1.0\]. The cumulative estimate yields
 $\alpha_{\mathbf{F} \prec \mathbf{A}} = 0.986$ with an interval of
 \[0.980, 0.989\]. The trend for both is shown in Figure
-[\[fig:ms_faat\]](#fig:ms_faat){reference-type="ref"
-reference="fig:ms_faat"}.
+[\[fig:ms_faat\]](#fig:ms_faat){== TODO fix ref to fig:ms_faat ==}.
 
 *Inferring Histories from Observations:* []{#sec:inferring_history
 label="sec:inferring_history"} Another possible application of our model
@@ -281,8 +272,7 @@ $\mathbf{F}$. We also estimate that $\alpha_d$ is positive---indicating
 that we are observing skill over and above mere luck---for all $d$
 except $\mathbf{P} \prec \mathbf{A}$ and $\mathbf{X} \prec \mathbf{A}$
 which are slightly negative. The results are shown in Figure
-[5.1](#fig:ms_estimates){reference-type="ref"
-reference="fig:ms_estimates"}. The most common sample median history
+[5.1](#fig:ms_estimates){== TODO fix ref to fig:ms_estimates ==}. The most common sample median history
 rank across all runs is 53, with all sample median history ranks falling
 between 51-55. The median rank of possible histories weighted according
 to the assumption of equiprobable transitions is 11. We take this as
@@ -322,8 +312,7 @@ $\alpha_{\mathbf{P} \prec \mathbf{X}}$ is 0.966 with a range of \[0.873,
 of the Microsoft data. The cumulative
 $\alpha_{\mathbf{P} \prec \mathbf{X}}$ comes in at 0.968 with an
 interval spanning \[0.966, 0.970\]. A chart of the trend is shown in
-Fig. [5.2](#fig:ov_paea_2013_2019){reference-type="ref"
-reference="fig:ov_paea_2013_2019"}.
+Fig. [5.2](#fig:ov_paea_2013_2019){== TODO fix ref to fig:ov_paea_2013_2019 ==}.
 
 ![$\alpha_{\mathbf{P} \prec \mathbf{X}}$ for all NVD vulnerabilities
 2013-2019 ($\mathbf{X}$ observations based on Metasploit and
@@ -332,8 +321,7 @@ width="100mm"}
 
 To estimate unobserved $\alpha_d$ from the commodity exploit
 observations, we repeat the procedure outlined in
-§[\[sec:inferring_history\]](#sec:inferring_history){reference-type="ref"
-reference="sec:inferring_history"}. This time, we use $N=73,474$ and
+§[\[sec:inferring_history\]](#sec:inferring_history){== TODO fix ref to sec:inferring_history ==}. This time, we use $N=73,474$ and
 estimate $f^{est}_{d}$ for $\mathbf{P} \prec \mathbf{X}$ with Beta
 parameters $a=72,288$ and $b=1186$. As above, we find evidence of skill
 in positive estimates of $\alpha_d$ for all desiderata except
@@ -341,11 +329,9 @@ $\mathbf{P} \prec \mathbf{A}$ and $\mathbf{X} \prec \mathbf{A}$, which
 are negative. The most common sample median history rank in this
 estimate is 33 with a range of \[32,33\], which while lower than the
 median rank of 53 in the Microsoft estimate from
-§[5.2.1](#sec:ms2017-20){reference-type="ref"
-reference="sec:ms2017-20"}, still beats the median rank of 11 assuming
+§[5.2.1](#sec:ms2017-20){== TODO fix ref to sec:ms2017-20 ==}, still beats the median rank of 11 assuming
 uniform event probabilities. The results are shown in Figure
-[5.3](#fig:nvd_estimates){reference-type="ref"
-reference="fig:nvd_estimates"}.
+[5.3](#fig:nvd_estimates){== TODO fix ref to fig:nvd_estimates ==}.
 
 ![Simulated skill $\alpha_d$ for all NVD vulnerabilities 2013-2019 based
 on observations of $\mathbf{P} \prec \mathbf{X}$ over the

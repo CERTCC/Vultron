@@ -48,8 +48,7 @@ transitions between them.
   -------------------------------------------------------------------------------------------
 
   : Vulnerability Lifecycle Events: Comparing Models. Symbols for our
-  model are defined in §[2.4](#sec:transitions){reference-type="ref"
-  reference="sec:transitions"}.
+  model are defined in §[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==}.
 :::
 
 The goal of this section is to establish a model of events that affect
@@ -62,8 +61,7 @@ are primarily interested in events that are usually observable to the
 stakeholders of a CVD case. Stakeholders include software
 vendors, vulnerability finder/reporters, coordinators, and
 deployers [@householder2017cert]. A summary of this model comparison is
-shown in Table [2.1](#tab:lifecycle_events){reference-type="ref"
-reference="tab:lifecycle_events"}.
+shown in Table [2.1](#tab:lifecycle_events){== TODO fix ref to tab:lifecycle_events ==}.
 
 Since we are modeling only the disclosure process, we assume the
 vulnerability both exists and is known to at least someone. Therefore we
@@ -168,16 +166,14 @@ inferred from the observation of either *exploit public* or *attacks
 observed*.
 
 Further discussion of related work can be found in
-§[7](#sec:related_work){reference-type="ref"
-reference="sec:related_work"}.
+§[7](#sec:related_work){== TODO fix ref to sec:related_work ==}.
 
 ## Notation {#sec:notation}
 
 Before we discuss CVD states
-(§[2.3](#sec:states){reference-type="ref" reference="sec:states"}),
-transitions (§[2.4](#sec:transitions){reference-type="ref"
-reference="sec:transitions"}), or possible histories
-(§[3](#sec:poss_hist){reference-type="ref" reference="sec:poss_hist"})
+(§[2.3](#sec:states){== TODO fix ref to sec:states ==}),
+transitions (§[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==}), or possible histories
+(§[3](#sec:poss_hist){== TODO fix ref to sec:poss_hist ==})
 in the vulnerability life cycle, we need to formally define our terms.
 In all of these definitions, we take standard Zermelo-Fraenkel set
 theory. The concept of sequences extends set theory to include a concept
@@ -225,13 +221,12 @@ is defined as a 5-tuple $(\mathcal{Q},\Sigma,\delta,q_0,F)
 
 In our model, the state of the world is a specification of the current
 status of all the events in the vulnerability lifecycle model described
-in §[2.1](#sec:events){reference-type="ref" reference="sec:events"}. We
+in §[2.1](#sec:events){== TODO fix ref to sec:events ==}. We
 represent each of these statuses in vulnerability coordination by a
 letter for that part of the state of the world. For example, $v$ means
 no vendor awareness and $V$ means vendor is aware. The complete set of
 status labels is given in
-Table [2.2](#tab:event_status){reference-type="ref"
-reference="tab:event_status"}.
+Table [2.2](#tab:event_status){== TODO fix ref to tab:event_status ==}.
 
 ::: {#tab:event_status}
    Status  Meaning
@@ -284,8 +279,7 @@ CVD case has been
 closed.
 
 Intermediate states can be any combination of statuses, with the caveats
-elaborated in §[2.4](#sec:transitions){reference-type="ref"
-reference="sec:transitions"}. In other words, valid states must contain
+elaborated in §[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==}. In other words, valid states must contain
 one of the following strings: $vfd$, $Vfd$, $VFd$, or $VFD$.
 
 As a result, there are thirty-two possible states, which we define as
@@ -324,8 +318,7 @@ function for our DFA.
 ### Input Symbols
 
 The input symbols to our DFA correspond to observations of the events
-outlined in Table [2.1](#tab:lifecycle_events){reference-type="ref"
-reference="tab:lifecycle_events"}. For our model, an input symbol
+outlined in Table [2.1](#tab:lifecycle_events){== TODO fix ref to tab:lifecycle_events ==}. For our model, an input symbol
 $\sigma$ is "read" when a participant observes a change in status (the
 vendor is notified, an exploit has been published, etc.). For the sake
 of simplicity, we begin with the assumption that observations are
@@ -408,11 +401,9 @@ possible sequences.
 The DFA specification for this submodel is given in
 [\[eq:vfd_dfa\]](#eq:vfd_dfa){reference-type="eqref"
 reference="eq:vfd_dfa"}. The resulting state subsets and transitions are
-as shown in Table [2.3](#tab:delta_vfd){reference-type="ref"
-reference="tab:delta_vfd"} and Figure
-[2.1](#fig:vfd_map){reference-type="ref" reference="fig:vfd_map"}. The
-double circle in Figure [2.1](#fig:vfd_map){reference-type="ref"
-reference="fig:vfd_map"} and subsequent state diagrams indicates the
+as shown in Table [2.3](#tab:delta_vfd){== TODO fix ref to tab:delta_vfd ==} and Figure
+[2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==}. The
+double circle in Figure [2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==} and subsequent state diagrams indicates the
 final state $\mathcal{F}$ for that submap.
 
 $$\label{eq:vfd_dfa}
@@ -483,9 +474,9 @@ whose distribution model requires system owner action to deploy fixes.
 The DFA specification for this submodel is given in
 [\[eq:vfdp_dfa\]](#eq:vfdp_dfa){reference-type="eqref"
 reference="eq:vfdp_dfa"}. Table
-[2.4](#tab:delta_vfdp){reference-type="ref" reference="tab:delta_vfdp"}
+[2.4](#tab:delta_vfdp){== TODO fix ref to tab:delta_vfdp ==}
 shows the transition function $\delta_{VFDP}$, while Figure
-[2.2](#fig:vfdp_map){reference-type="ref" reference="fig:vfdp_map"}
+[2.2](#fig:vfdp_map){== TODO fix ref to fig:vfdp_map ==}
 depicts the transitions among these states. $$\label{eq:vfdp_dfa}
 \begin{split}
     \mathcal{Q}_{VFDP} =&\,\{vfdp,vfdP,Vfdp,VfdP,\\
@@ -502,10 +493,10 @@ Before fully integrating all thirty two states, we pause here to develop
 a three dimensional sub-model that highlights the interaction of public
 awareness, exploit publication, and attacks. Unlike the causal
 relationship representing the vendor process in Figure
-[2.1](#fig:vfd_map){reference-type="ref" reference="fig:vfd_map"}, these
+[2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==}, these
 three transitions can occur independently. We therefore treat them as
 their own dimensions, as shown in Figure
-[2.3](#fig:pxa_map){reference-type="ref" reference="fig:pxa_map"}.
+[2.3](#fig:pxa_map){== TODO fix ref to fig:pxa_map ==}.
 
 ::: {#tab:delta_pxa}
    State   $\mathbf{P}$   $\mathbf{X}$   $\mathbf{A}$
@@ -537,12 +528,9 @@ previously unaware of the vulnerability. For practical purposes, this
 constraint means that all states in ${pX}$ are unstable and must lead to
 the corresponding state in ${PX}$ in the subsequent step. As a result,
 transitions from ${pXa}$ to ${pXA}$ are disallowed, as reflected in
-Figure [2.3](#fig:pxa_map){reference-type="ref"
-reference="fig:pxa_map"}. The transition function $\delta_{PXA}$ is
-given in Table [2.5](#tab:delta_pxa){reference-type="ref"
-reference="tab:delta_pxa"}. Further discussion of this transition can be
-found in §[6.5.1](#sec:zerodays){reference-type="ref"
-reference="sec:zerodays"}.
+Figure [2.3](#fig:pxa_map){== TODO fix ref to fig:pxa_map ==}. The transition function $\delta_{PXA}$ is
+given in Table [2.5](#tab:delta_pxa){== TODO fix ref to tab:delta_pxa ==}. Further discussion of this transition can be
+found in §[6.5.1](#sec:zerodays){== TODO fix ref to sec:zerodays ==}.
 
 $$\label{eq:pxa_dfa}
 \begin{split}
@@ -581,10 +569,9 @@ reference="eq:vfd_dfa"} and its extension in
 reference="eq:vfdp_dfa"} with the $PXA$ cube defined by
 [\[eq:pxa_dfa\]](#eq:pxa_dfa){reference-type="eqref"
 reference="eq:pxa_dfa"}. The complete map is shown in Figure
-[2.4](#fig:vfdpxa_map){reference-type="ref" reference="fig:vfdpxa_map"}.
+[2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
 We also can now define the transition function $\delta$ for the entire
-model, as shown in Table [2.6](#tab:delta_vfdpxa){reference-type="ref"
-reference="tab:delta_vfdpxa"}. A summary of the complete
+model, as shown in Table [2.6](#tab:delta_vfdpxa){== TODO fix ref to tab:delta_vfdpxa ==}. A summary of the complete
 DFA specification
 is given in [\[eq:vfdpxa_dfa\]](#eq:vfdpxa_dfa){reference-type="eqref"
 reference="eq:vfdpxa_dfa"}.
@@ -652,18 +639,16 @@ class="math inline"><strong>A</strong></span>)</figcaption>
 </figure>
 
 In this combined model, each point along the vendor fix flow in Figure
-[2.1](#fig:vfd_map){reference-type="ref" reference="fig:vfd_map"}
+[2.1](#fig:vfd_map){== TODO fix ref to fig:vfd_map ==}
 corresponds to an instance of the public/exploit/attack cube from Figure
-[2.3](#fig:pxa_map){reference-type="ref" reference="fig:pxa_map"}.
-Figure [2.4](#fig:vfdpxa_map){reference-type="ref"
-reference="fig:vfdpxa_map"} shows each of these as distinct cubes
+[2.3](#fig:pxa_map){== TODO fix ref to fig:pxa_map ==}.
+Figure [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==} shows each of these as distinct cubes
 embedded in the larger model.
 
 The *ignorant vendor* cube ($vfd$)
 
 :   Found at the lower right of Figure
-    [2.4](#fig:vfdpxa_map){reference-type="ref"
-    reference="fig:vfdpxa_map"}, the $vfd$ cube is the least stable of
+    [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}, the $vfd$ cube is the least stable of
     the four because many of its internal transitions are disallowed,
     owing to the instability of both $pX$ and $vP$. The effect is a
     higher likelihood of exiting this cube than the others. The
@@ -713,8 +698,7 @@ Hamming cube in in 5 dimensions. In this representation, each state maps
 onto a binary value between 00000 and 11111, corresponding to the 32
 vertices of the 5-dimensional Hamming Cube. The semantics of each bit
 position from left to right are given in Table
-[2.7](#tab:state_encoding){reference-type="ref"
-reference="tab:state_encoding"}. Correspondingly, each transition
+[2.7](#tab:state_encoding){== TODO fix ref to tab:state_encoding ==}. Correspondingly, each transition
 represents a single bit flip in the state encoding. Some edges
 (transitions) are disallowed by the causal requirements described in
 this section and formalized in the next section (see
@@ -725,6 +709,5 @@ reference="eq:history_vp_rule"}, and
 [\[eq:history_px_rule\]](#eq:history_px_rule){reference-type="eqref"
 reference="eq:history_px_rule"}). This observation serves as the basis
 of the visualization given in
-Figure [2.4](#fig:vfdpxa_map){reference-type="ref"
-reference="fig:vfdpxa_map"}.
+Figure [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
 
