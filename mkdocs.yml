@@ -38,7 +38,9 @@ nav:
       - Case State:
         - Vulnerability Lifecycle Events: 'topics/process_models/cs/events.md'
         - Introduction: 'topics/process_models/cs/index.md'
-        - CVD Case State Model: 'topics/process_models/cs/cs_model.md'
+        - CS States: 'topics/process_models/cs/cs_model.md'
+        - CS Transitions: 'topics/process_models/cs/transitions.md'
+        - CS Process Model: 'topics/process_models/cs/model_definition.md'
       - Model Interactions:
         - Global vs Local Aspects: 'topics/process_models/model_interactions/index.md'
         - RM and EM Interactions: 'topics/process_models/model_interactions/rm_em.md'
@@ -46,6 +48,9 @@ nav:
     - The Vultron Protocol:
         - Formal Protocol Summary: 'topics/formal_protocol/index.md'
         - Worked Example: 'topics/formal_protocol/worked_example.md'
+    - Measuring CVD:
+        - Possible Histories: 'topics/measuring_cvd/possible_histories.md'
+        - Desirable Histories: 'topics/measuring_cvd/desirable_histories.md'
     - Behavior Logic:
       - Behavior Tree Intro: 'topics/behavior_logic/index.md'
       - CVD Behaviors: 'topics/behavior_logic/cvd_bt.md'
