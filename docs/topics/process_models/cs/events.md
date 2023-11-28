@@ -37,8 +37,7 @@ shown in the Table below.
 | Exploit Automation | n/a | n/a | Attacks Observed ($\mathbf{A}$) |
 | n/a | n/a | anti-virus signatures released ($t_s$) | n/a |
 
-Vulnerability Lifecycle Events: Comparing Models. Symbols for our model are defined in §[2.4](#sec:transitions){reference-type="ref"
-reference="sec:transitions"}.
+Vulnerability Lifecycle Events: Comparing Models. Symbols for our model are defined in §[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==}.
 
 Since we are modeling only the disclosure process, we assume the
 vulnerability both exists and is known to at least someone. Therefore we
@@ -149,6 +148,5 @@ inferred from the observation of either *exploit public* or *attacks
 observed*.
 
 Further discussion of related work can be found in
-§[7](#sec:related_work){reference-type="ref"
-reference="sec:related_work"}.
+§[7](#sec:related_work){== TODO fix ref to sec:related_work ==}.
 

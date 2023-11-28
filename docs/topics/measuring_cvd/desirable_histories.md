@@ -56,11 +56,9 @@ following ordering preferences:
     advantages in the latter case than the former, and therefore we
     should prefer histories in which $\mathbf{X} \prec \mathbf{A}$.
 
-Equation [\[eq:desiderata\]](#eq:desiderata){reference-type="ref"
-reference="eq:desiderata"} formalizes our definition of desired
+Equation [\[eq:desiderata\]](#eq:desiderata){== TODO fix ref to eq:desiderata ==} formalizes our definition of desired
 orderings $\mathbb{D}$. Table
-[3.3](#tab:ordered_pairs){reference-type="ref"
-reference="tab:ordered_pairs"} displays all 36 possible orderings of
+[3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==} displays all 36 possible orderings of
 paired transitions and whether they are considered impossible, required
 (as defined by
 [\[eq:history_vfd_rule\]](#eq:history_vfd_rule){reference-type="eqref"
@@ -79,8 +77,7 @@ transitions, not their timing. We acknowledge that in some situations,
 the interval between transitions may be of more interest than merely the
 order of those transitions, as a rapid tempo of transitions can alter
 the options available to stakeholders in their response. We discuss this
-limitation further in §[8](#sec:limitationsAnd){reference-type="ref"
-reference="sec:limitationsAnd"}; however, the following model posits
+limitation further in §[8](#sec:limitationsAnd){== TODO fix ref to sec:limitationsAnd ==}; however, the following model posits
 event sequence timing on a human-oriented timescale measured in minutes
 to weeks.
 
@@ -108,8 +105,7 @@ prefer the paths
 ${vp} \xrightarrow{\mathbf{V}} {Vp} \xrightarrow{\mathbf{P}} {VP}$ over
 the paths
 ${vp} \xrightarrow{\mathbf{P}} {vP} \xrightarrow{\mathbf{V}} {VP}$. In
-Table [3.2](#tab:desired_states){reference-type="ref"
-reference="tab:desired_states"} we adapt those desiderata into specific
+Table [3.2](#tab:desired_states){== TODO fix ref to tab:desired_states ==} we adapt those desiderata into specific
 subsets of states that should be preferred or avoided if the criteria is
 to be met.
 
@@ -157,13 +153,11 @@ $$\label{eq:ordering}
 
 A visualization of the resulting partially ordered set, or poset,
 $(\mathcal{H},\leq_{H})$ is shown as a Hasse Diagram in Figure
-[3.1](#fig:poset){reference-type="ref" reference="fig:poset"}. Hasse
+[3.1](#fig:poset){== TODO fix ref to fig:poset ==}. Hasse
 Diagrams represent the transitive reduction of a poset. Each node in the
 diagram represents an individual history $h_a$ from
-Table [3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"}; labels correspond to the index of
-the table. Figure [3.1](#fig:poset){reference-type="ref"
-reference="fig:poset"} follows
+Table [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}; labels correspond to the index of
+the table. Figure [3.1](#fig:poset){== TODO fix ref to fig:poset ==} follows
 [\[eq:ordering\]](#eq:ordering){reference-type="eqref"
 reference="eq:ordering"}, in that $h_a$ is higher in the order than
 $h_b$ when $h_a$ contains all the desiderata from $h_b$ and at least one
@@ -172,12 +166,10 @@ histories incomparable if both
 $\mathbb{D}^{h_a} \not\supset \mathbb{D}^{h_b}$ and
 $\mathbb{D}^{h_a} \not\subset \mathbb{D}^{h_b}$). The diagram flows from
 least desirable histories at the bottom to most desirable at the top.
-This model satisfies **RQ1**; §[4](#sec:reasoning){reference-type="ref"
-reference="sec:reasoning"} and
-§[5](#sec:skill_luck){reference-type="ref" reference="sec:skill_luck"}
+This model satisfies **RQ1**; §[4](#sec:reasoning){== TODO fix ref to sec:reasoning ==} and
+§[5](#sec:skill_luck){== TODO fix ref to sec:skill_luck ==}
 will demonstrate that the model is amenable to analysis and
-§[6.2.2](#sec:mpcvd criteria){reference-type="ref"
-reference="sec:mpcvd criteria"} will lay out the criteria for extending
+§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} will lay out the criteria for extending
 it to cover MPCVD.
 
 The poset $(\mathcal{H},\leq_{H})$, has as its upper bound
@@ -219,8 +211,7 @@ reference="eq:ordering"}. The diagram flows from least desirable
 histories at the bottom to most desirable at the top. Histories that do
 not share a path are incomparable. Labels indicate the index (row
 number) $a$ of $h_a$ in Table
-[3.1](#tab:possible_histories){reference-type="ref"
-reference="tab:possible_histories"}.](figures/h_poset.png){#fig:poset
+[3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}.](figures/h_poset.png){#fig:poset
 width="140mm"}
 
 ## A Random Walk through CVD States {#sec:random_walk}
@@ -287,8 +278,7 @@ anything special to coordinate vulnerability disclosures. Specifically,
 for each state we set the transition probability to any other state
 proportional to the inverse of the outdegree of the state, as shown in
 the $p(transition)$ column of Table
-[3.4](#tab:allowed_state_transitions){reference-type="ref"
-reference="tab:allowed_state_transitions"}. Real world data is unlikely
+[3.4](#tab:allowed_state_transitions){== TODO fix ref to tab:allowed_state_transitions ==}. Real world data is unlikely
 to ever reflect such a sad state of affairs (because
 CVD *is* happening
 after all).
@@ -331,8 +321,7 @@ after all).
 
   : Sparse state transition matrix and state PageRank assuming
   equiprobable transitions in a random walk over $\mathcal{S}$ as shown
-  Figure [2.4](#fig:vfdpxa_map){reference-type="ref"
-  reference="fig:vfdpxa_map"}.)
+  Figure [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.)
 :::
 
 ##### Using PageRank to Estimate Baseline State Probabilities
@@ -358,6 +347,5 @@ PageRank traversals to wrap around naturally and reach the early states
 in the random walk process without needing to rely on teleportation.
 With our modification in place, we are ready to compute the PageRank of
 each node in the graph. Results are shown in Table
-[3.4](#tab:allowed_state_transitions){reference-type="ref"
-reference="tab:allowed_state_transitions"}
+[3.4](#tab:allowed_state_transitions){== TODO fix ref to tab:allowed_state_transitions ==}
 

@@ -1,6 +1,6 @@
 # Sequences of Events and Possible Histories in CVD
 
-In §[2](#sec:model){reference-type="ref" reference="sec:model"}, we
+In [Case State Events](../process_models/cs/events.md), we
 began by identifying a set of events of interest in
 CVD cases. Then we
 constructed a state model describing how the occurrence of these events
@@ -11,13 +11,13 @@ the resulting state model.
 
 !!! note "Sequences Formally Defined"
 
-    A sequence $s$ is an ordered set of some number of events     
+    A sequence $s$ is an ordered set of some number of events
     $\sigma_i \in \Sigma$ for $1 \leq i \leq n$ and the length of $s$ is
     $|s| \stackrel{\mathsf{def}}{=}n$.
 
     In other words, a sequence $s$ is an
     input string to the DFA defined in
-    §[2](#sec:model){reference-type="ref" reference="sec:model"}.
+    §[2](#sec:model){== TODO fix ref to sec:model ==}.
 
     $$s \stackrel{\mathsf{def}}{=}\left( \sigma_1, \sigma_2, \dots \sigma_n \right)$$
 
@@ -48,35 +48,30 @@ satisfy this definition.
 Given that a history $h$ contains all six events $\Sigma$ in some order,
 there could be at most 720 ($_{6} \mathrm{P}_{6} = 6! = 720$) potential
 histories. However, because of the causal requirements outlined in
-[2.4.2](#sec:transition_function){reference-type="ref"
-reference="sec:transition_function"}, we know that Vendor Awareness
-($\mathbf{V}$) must precede Fix Ready ($\mathbf{F}$) and that Fix Ready
-must precede Fix Deployed ($\mathbf{D}$).
+[CS Transitions](../process_models/cs/transitions.md), we know that Vendor 
+Awareness (**V**) must precede Fix Ready (**F**) and that Fix Ready
+must precede Fix Deployed (**D**).
 
 The DFA developed
-in §[2](#sec:model){reference-type="ref" reference="sec:model"} provides
+in [CS Process Model](../process_models/cs/model_definition.md) provides
 the mechanism to validate histories: a history $h$ is valid if the
-DFA accepts it as a
-valid input string. Once this constraint is applied, only 70 possible
-histories $h \in \mathcal{H}p$ remain viable. We denote the set of all
+DFA accepts it as a valid input string. Once this constraint is applied, 
+only 70 possible histories $h \in \mathcal{H}p$ remain viable.
+We denote the set of all
 such valid histories as $\mathcal{H}$ and have $|\mathcal{H}| = 70$. The
 set of possible histories $\mathcal{H}$ corresponds to the 70 allowable
 paths through $\mathcal{Q}$ as can be derived from Table
-[2.6](#tab:delta_vfdpxa){reference-type="ref"
-reference="tab:delta_vfdpxa"} and Fig.
-[2.4](#fig:vfdpxa_map){reference-type="ref" reference="fig:vfdpxa_map"}.
+[2.6](#tab:delta_vfdpxa){== TODO fix ref to tab:delta_vfdpxa ==} and Fig.
+[2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
 
 The set of possible histories $\mathcal{H}$ is listed exhaustively in
 the table below. 
 The skill ranking function on the histories will be defined in
-§[4.4](#sec:h_poset_skill){reference-type="ref"
-reference="sec:h_poset_skill"}. The desirability of the history
+§[4.4](#sec:h_poset_skill){== TODO fix ref to sec:h_poset_skill ==}. The desirability of the history
 ($\mathbb{D}^h$) will be defined in
-§[3.2](#sec:desirability){reference-type="ref"
-reference="sec:desirability"}. The expected frequency of each history
+§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==}. The expected frequency of each history
 $f_h$ is explained in
-§[4.1](#sec:history_frequency_analysis){reference-type="ref"
-reference="sec:history_frequency_analysis"}.
+§[4.1](#sec:history_frequency_analysis){== TODO fix ref to sec:history_frequency_analysis ==}.
 
 
 | # |            $h \in \mathcal{H}$             | rank | $\mathbb{D}^h$ count |  $f_h$ | 
@@ -152,45 +147,43 @@ reference="sec:history_frequency_analysis"}.
 | 68 | (**V**, **F**, **D**, **P**, **A**, **X**) | 61 |          11          | 0.0026 |
 | 69 | (**V**, **F**, **D**, **P**, **X**, **A**) | 62 |          12          | 0.0026 |
 
-!!! note inline end "Vendor Fix Path Causality"
-
-    $$\mathbf{V} \prec \mathbf{F} \prec \mathbf{D}$$
 
 Now that we have defined the set of histories $\mathcal{H}$, we can
 summarize the effects of the transition function $\delta$ developed in
-§[2.4](#sec:transitions){reference-type="ref"
-reference="sec:transitions"} (Table
-[2.6](#tab:delta_vfdpxa){reference-type="ref"
-reference="tab:delta_vfdpxa"}) as a set of patterns it imposes on all
+§[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==} (Table
+[2.6](#tab:delta_vfdpxa){== TODO fix ref to tab:delta_vfdpxa ==}) as a set of patterns it imposes on all
 histories $h \in \mathcal{H}$:
+
+!!! note inline end "Formalisms"
+
+    _Vendor Fix Path_ causality must hold
+
+    $$\mathbf{V} \prec \mathbf{F} \prec \mathbf{D}$$
+  
+    _Vendor Awareness_ precedes or is caused by _Public Awareness_
+
+    $$\mathbf{V} \prec \mathbf{P} \textrm{ or } \mathbf{P} \rightarrow \mathbf{V}$$
+
+    _Public Awareness_ precedes or is caused by _Exploit Public_
+
+    $$\mathbf{P} \prec \mathbf{X} \textrm{ or } \mathbf{X} \rightarrow \mathbf{P}$$
 
  
 - First, the causality constraint of the
 vendor fix path must hold. 
 
-!!! note inline end "Vendor Awareness Precedes or is caused by Public 
-Awareness"
-
-    $$\mathbf{V} \prec \mathbf{P} \textrm{ or } \mathbf{P} \rightarrow \mathbf{V}$$
-
 - Second, the model makes the simplifying assumption that vendors know at
 least as much as the public does. In other words, all histories must
 meet one of two criteria: either Vendor Awareness precedes Public
-  Awareness ($\mathbf{P}$) or Vendor Awareness must immediately follow it.
-
-
-!!! note inline end "Public Awareness Precedes or is caused by Exploit 
-Public"
-
-    $$\mathbf{P} \prec \mathbf{X} \textrm{ or } \mathbf{X} \rightarrow \mathbf{P}$$
+  Awareness (**P**) or Vendor Awareness must immediately follow it.
 
 - Third, the model assumes that the public can be informed about a
 vulnerability by a public exploit. Therefore, either Public Awareness
-precedes Exploit Public ($\mathbf{X}$) or must immediately follow it.
+precedes Exploit Public (**X**) or must immediately follow it.
 
 
 This model is amenable for analysis of CVD, but we need to add a way to express
 preferences before it is complete. Thus we are part way through **RQ1**.
-§[6.2](#sec:mpcvd){reference-type="ref" reference="sec:mpcvd"} will
+§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==} will
 address how this model can generalize from CVD to MPCVD.
 
