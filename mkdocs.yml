@@ -56,6 +56,7 @@ nav:
         - Discriminating Skill from Luck: 'topics/measuring_cvd/discriminating_skill_and_luck.md'
         - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
     - Other Uses of Vultron:
+        - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
         - Defining Zero Days: 'topics/other_uses/zero_day.md'
         - VEP: 'topics/other_uses/vep.md'
     - Behavior Logic:
