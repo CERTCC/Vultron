@@ -61,6 +61,12 @@ nav:
         - Policy Formalization: 'topics/other_uses/policy_formalization.md'
         - Situation Awareness: 'topics/other_uses/situation_awareness.md'
         - VEP: 'topics/other_uses/vep.md'
+        - CVD Action Rules: 'topics/other_uses/action_rules.md'
+
+      #        - CVD Directory: 'topics/other_uses/cvd_directory.md'
+#        - Reward Functions: 'topics/other_uses/reward_functions.md'
+#        - Ontology: 'topics/other_uses/ontology.md'
+#        - Modeling and Simulation: 'topics/other_uses/mod_sim.md'
     - Behavior Logic:
       - Behavior Tree Intro: 'topics/behavior_logic/index.md'
       - CVD Behaviors: 'topics/behavior_logic/cvd_bt.md'
