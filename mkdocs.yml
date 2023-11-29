@@ -58,6 +58,7 @@ nav:
     - Other Uses of Vultron:
         - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
         - Defining Zero Days: 'topics/other_uses/zero_day.md'
+        - Policy Formalization: 'topics/other_uses/policy_formalization.md'
         - VEP: 'topics/other_uses/vep.md'
     - Behavior Logic:
       - Behavior Tree Intro: 'topics/behavior_logic/index.md'
