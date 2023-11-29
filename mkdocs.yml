@@ -14,9 +14,6 @@ nav:
     - Background:
         - Context: 'topics/background/index.md'
         - Interoperability: 'topics/background/interoperability.md'
-        - Possible Vulnerability Case Histories:
-          - Introduction: 'topics/cs_model_bg/index.md'
-          - Possible Histories: 'topics/cs_model_bg/possible_histories.md'
         - Defining CVD Success: 'topics/background/cvd_success.md'
         - Documentation Overview: 'topics/background/overview.md'
         - Terms and Definitions: 'topics/background/terms.md'
@@ -49,13 +46,17 @@ nav:
         - Formal Protocol Summary: 'topics/formal_protocol/index.md'
         - Worked Example: 'topics/formal_protocol/worked_example.md'
     - Measuring CVD:
+        - Introduction: 'topics/measuring_cvd/index.md'
         - Possible Histories: 'topics/measuring_cvd/possible_histories.md'
         - Desirable Histories: 'topics/measuring_cvd/desirable_histories.md'
         - Random Walks: 'topics/measuring_cvd/random_walk.md'
         - Reasoning Over Histories: 'topics/measuring_cvd/reasoning_over_histories.md'
         - Discriminating Skill from Luck: 'topics/measuring_cvd/discriminating_skill_and_luck.md'
         - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
+        - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
+        - Limitations and Future Work: 'topics/measuring_cvd/limitations_future_work.md'
     - Other Uses of Vultron:
+        - Introduction: 'topics/other_uses/index.md'
         - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
         - Defining Zero Days: 'topics/other_uses/zero_day.md'
         - Policy Formalization: 'topics/other_uses/policy_formalization.md'
