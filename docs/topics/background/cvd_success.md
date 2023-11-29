@@ -1,5 +1,7 @@
 # What Does *Success* Mean in CVD?
 
+{== TODO merge or deduplicate with [Desirable Histories](../measuring_cvd/desirable_histories.md) ==}
+
 We take as a base set of criteria the ordering preferences given in the
 2021 report
 [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771)

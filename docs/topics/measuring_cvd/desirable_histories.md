@@ -1,5 +1,7 @@
 # On the Desirability of Possible Histories
 
+{== TODO merge or deduplicate with [CVD Success](../background/cvd_success.md) ==}
+
 All possible case histories are not equally preferable. Some are quite 
 bad&mdash;for 
 example, those in which attacks precede vendor awareness
