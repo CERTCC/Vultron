@@ -57,6 +57,7 @@ nav:
         - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
     - Other Uses of Vultron:
         - Defining Zero Days: 'topics/other_uses/zero_day.md'
+        - VEP: 'topics/other_uses/vep.md'
     - Behavior Logic:
       - Behavior Tree Intro: 'topics/behavior_logic/index.md'
       - CVD Behaviors: 'topics/behavior_logic/cvd_bt.md'
