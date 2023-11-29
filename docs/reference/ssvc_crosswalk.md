@@ -7,6 +7,8 @@ In the context of the Vultron Protocol, once a report has been validated
 determine what further effort, if any, is necessary.
 While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://github.com/CERTCC/SSVC) model.
 
+{== TODO merge with SSVC section of [Situation Awareness](../topics/other_uses/situation_awareness.md) ==}
+
 ## SSVC Supplier and Deployer Trees
 
 The default outcomes for both the SSVC [*Supplier*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_supplier.pdf)
