@@ -23,15 +23,15 @@ A mapping of EM concepts to `iCalendar` field mappings is provided in the table 
 | Embargo ID                                                     | `SUMMARY:<case id> embargo expiration` | -           |
 | Embargo End Time and Date                                      | `DSTART = DTEND` (0 duration event) | -           |
 | Proposer                                                       | `ORGANIZER` | -           |
-| Participant (proposed)                                         | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=NEEDS-ACTION` | _EP_, _EV_  |
-| Participant (acknowledge without acceptance)                   | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=TENTATIVE` | _EK_        |
-| Participant (accept)                                           | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=ACCEPTED` | _EA_, _EC_  |
-| Participant (reject)                                           | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=DECLINED` | _ER_, _EJ_  |
+| Participant (proposed)                                         | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=NEEDS-ACTION` | *EP*, *EV*  |
+| Participant (acknowledge without acceptance)                   | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=TENTATIVE` | *EK*        |
+| Participant (accept)                                           | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=ACCEPTED` | *EA*, *EC*  |
+| Participant (reject)                                           | `ATTENDEE;`<br/>`ROLE=OPT-PARTICIPANT;`<br/>`PARTSTAT=DECLINED` | *ER*, *EJ*  |
 | Details (link to case trackers, etc.)                          | `DESCRIPTION` | -           |
-| Embargo Status $q^{em} \in P$                                  | `STATUS:TENTATIVE` | _EP_        |
-| Embargo Status $q^{em} \in A$                                  | `STATUS:CONFIRMED` | _EA_, _EC_  |
-| Embargo Status $q^{em} \in X$ due to early termination         | `STATUS:CANCELLED` | _ET_        |
-| Embargo Status $q^{em} \in N$ due to lack of acceptance quorum | `STATUS:CANCELLED` | _ER_        |
+| Embargo Status $q^{em} \in P$                                  | `STATUS:TENTATIVE` | *EP*        |
+| Embargo Status $q^{em} \in A$                                  | `STATUS:CONFIRMED` | *EA*, *EC*  |
+| Embargo Status $q^{em} \in X$ due to early termination         | `STATUS:CANCELLED` | *ET*        |
+| Embargo Status $q^{em} \in N$ due to lack of acceptance quorum | `STATUS:CANCELLED` | *ER*        |
 | Other | `CATEGORIES:EMBARGO`<br/>`RSVP: TRUE` | - |
 
 !!! note ""
@@ -142,10 +142,10 @@ existing embargo can be achieved as follows.
 Terminating an existing embargo ($q^{em} \in \{A,R\} \xrightarrow{t} X$)
 can be triggered in one of two ways:
 
-- A _normal_ exit occurs when the planned embargo end time has
+- A *normal* exit occurs when the planned embargo end time has
     expired.
 
-- An _abnormal_ exit occurs when some external event causes the
+- An *abnormal* exit occurs when some external event causes the
     embargo to fail, such as when the vulnerability or its exploit has
     been made public, attacks have been observed, etc., as outlined in
     [Early Termination](../topics/process_models/em/early_termination.md).
@@ -154,11 +154,11 @@ Translating this into `iCalendar` semantics, we have the following,
 which assumes an existing embargo is represented by a `VEVENT` with
 `STATUS:CONFIRMED`.
 
-1. _Normal termination_: The `VEVENT` retains its `STATUS:CONFIRMED`
+1. *Normal termination*: The `VEVENT` retains its `STATUS:CONFIRMED`
     and passes quietly from the future through the present into the
     past.
 
-2. _Abnormal termination_: The `ORGANIZER` sets the `VEVENT` to
+2. *Abnormal termination*: The `ORGANIZER` sets the `VEVENT` to
     `STATUS:CANCELLED` and sends it out to the `ATTENDEE` list.
 
 The above is consistent with our premise in

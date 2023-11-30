@@ -24,7 +24,7 @@ As a reminder, a list of the CS model transition symbols is reproduced in the in
     $$q^{cs} \in vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$$
 
 Vendor Awareness (**V**) occurs when a Participant&mdash;typically a
-Finder, Coordinator, or another Vendor&mdash;is in RM _Accepted_ and notifies the Vendor.
+Finder, Coordinator, or another Vendor&mdash;is in RM *Accepted* and notifies the Vendor.
 In turn, the Vendor starts in $q^{rm} = Received$ and proceeds to follow their validation and prioritization routines.
 We previously outlined this in [RM Interactions Between CVD Participants](../rm/rm_interactions.md).
 
@@ -120,7 +120,7 @@ stateDiagram-v2
 ## Fix Ready {#sec:cs_f_em}
 
 Fix Readiness (**F**) can occur only when a Vendor is in the
-_Accepted_ state. As a reminder, in MPCVD cases, each affected Vendor has their own
+*Accepted* state. As a reminder, in MPCVD cases, each affected Vendor has their own
 [RM](../rm/index.md) state, so this constraint applies to each Vendor individually.
 
 ---
@@ -258,8 +258,8 @@ stateDiagram-v2
             Revise \xrightarrow{terminate} eXited \\
         \end{cases}$$
 
-As with the _Fix Ready_ scenario [above](#sec:cs_f_em), MPCVD cases may have Vendors in varying states of _Fix Deployment_.
-Therefore the embargo extension caveats from that section apply to the _Fix Deployed_ state as well.
+As with the *Fix Ready* scenario [above](#sec:cs_f_em), MPCVD cases may have Vendors in varying states of *Fix Deployment*.
+Therefore the embargo extension caveats from that section apply to the *Fix Deployed* state as well.
 
 ## Public Awareness
 
@@ -267,10 +267,10 @@ Within the context of a coordinated publication process, (**P**)
 requires at least one Participant to be in the $q^{rm} = Accepted$ state
 because Participants are presumed to publish only on cases they have
 accepted. Ideally, the Vendor is among those Participants, but as
-outlined in the [_CERT Guide to Coordinated Vulnerability Disclosure_](https://vuls.cert.org/confluence/display/CVD),
+outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD),
 that is not strictly necessary.
 
-That said, the publishing party might be outside of _any_ existing
+That said, the publishing party might be outside of *any* existing
 coordination process. For example, this is the situation when a report
 is already in the midst of a CVD process and a party outside the
 CVD case reveals the vulnerability publicly (e.g., parallel discovery, embargo leaks).
@@ -325,7 +325,7 @@ stateDiagram-v2
 ## Exploit Public
 
 Exploit publishers may also be presumed to have a similar [RM](../rm/index.md) state model for their own work.
-Therefore, we can expect them to be in an RM _Accepted_ state at the time of exploit code publication (**X**).
+Therefore, we can expect them to be in an RM *Accepted* state at the time of exploit code publication (**X**).
 However, we cannot presume that those who publish exploit code will be Participants in a pre-public CVD process.
 That said,
 

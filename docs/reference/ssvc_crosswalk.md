@@ -3,19 +3,19 @@
 {% include-markdown "../includes/not_normative.md" %}
 
 In the context of the Vultron Protocol, once a report has been validated
-(i.e., it is in the RM [_Valid_](../topics/process_models/rm/index.md#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to
+(i.e., it is in the RM [*Valid*](../topics/process_models/rm/index.md#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to
 determine what further effort, if any, is necessary.
 While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://github.com/CERTCC/SSVC) model.
 
 ## SSVC Supplier and Deployer Trees
 
-The default outcomes for both the SSVC [_Supplier_](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_supplier.pdf)
-and [_Deployer_](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_deployer_SeEUMss.pdf) Trees are
-_Defer_, _Scheduled_, _Out of Cycle_, and _Immediate_.
-The mapping from SSVC outcomes to RM states is straightforward, as shown below for the _Supplier Tree_ and
-the _Deployer Tree_.
+The default outcomes for both the SSVC [*Supplier*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_supplier.pdf)
+and [*Deployer*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_deployer_SeEUMss.pdf) Trees are
+*Defer*, *Scheduled*, *Out of Cycle*, and *Immediate*.
+The mapping from SSVC outcomes to RM states is straightforward, as shown below for the *Supplier Tree* and
+the *Deployer Tree*.
 
-!!! note "SSVC _Supplier Tree_ Mapping to RM States"
+!!! note "SSVC *Supplier Tree* Mapping to RM States"
 
     $$\label{eq:ssvc_supplier_tree_output}
     q^{rm} \in
@@ -30,7 +30,7 @@ the _Deployer Tree_.
         \end{Bmatrix} \\
     \end{cases}$$
 
-!!! note "SSVC _Deployer Tree_ Mapping to RM States"
+!!! note "SSVC *Deployer Tree* Mapping to RM States"
 
     $$\label{eq:ssvc_deployer_tree_output}
     q^{rm} \in
@@ -46,11 +46,11 @@ the _Deployer Tree_.
     \end{cases}$$
 
 The
-SSVC _Defer_
-output maps directly onto the RM [_Deferred_](../topics/process_models/rm/index.md#the-deferred-d-state) state.
+SSVC *Defer*
+output maps directly onto the RM [*Deferred*](../topics/process_models/rm/index.md#the-deferred-d-state) state.
 Otherwise, the three outputs that imply further action is necessary&mdash;Scheduled_,
-_Out-of-Cycle_, and _Immediate_&mdash;all proceed to the RM [_Accepted_](../topics/process_models/rm/index.md#the-accepted-a-state) state.
-The different categories imply different processes within the _Accepted_ state.
+*Out-of-Cycle*, and *Immediate*&mdash;all proceed to the RM [*Accepted*](../topics/process_models/rm/index.md#the-accepted-a-state) state.
+The different categories imply different processes within the *Accepted* state.
 But because the RM model does not dictate internal organizational processes, further description of what those processes
 might look like is out of scope for this crosswalk.
 
@@ -66,12 +66,12 @@ the main part of this documentation:
 
 ## SSVC Coordinator Trees
 
-SSVC version 2 offers two decision trees for Coordinators: A [_Coordinator Triage Tree_](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-triage.pdf)
-and a [_Coordinator Publish Tree_](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-publish.pdf).
-The outputs for the _Coordinator Triage_ Decision Tree are _Decline_, _Track_, and _Coordinate_.
-Similar to the _Supplier Tree_ mapping above, the mapping here is simple, as shown below.
+SSVC version 2 offers two decision trees for Coordinators: A [*Coordinator Triage Tree*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-triage.pdf)
+and a [*Coordinator Publish Tree*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-publish.pdf).
+The outputs for the *Coordinator Triage* Decision Tree are *Decline*, *Track*, and *Coordinate*.
+Similar to the *Supplier Tree* mapping above, the mapping here is simple, as shown below.
 
-!!! note "SSVC _Coordinator Triage Tree_ Mapped to RM States"
+!!! note "SSVC *Coordinator Triage Tree* Mapped to RM States"
 
     $$\label{eq:ssvc_coordinator_triage_tree_output}
     q^{rm} \in
@@ -85,12 +85,12 @@ Similar to the _Supplier Tree_ mapping above, the mapping here is simple, as sho
         \end{Bmatrix} \\
     \end{cases}$$
 
-Again, whereas the _Decline_ output maps directly to the RM [_Deferred_](../topics/process_models/rm/index.md#the-deferred-d-state) state, the remaining two
-states (_Track_ and _Coordinate_) imply the necessity for distinct processes within the Coordinator's RM [_Accepted_](../topics/process_models/rm/index.md#the-accepted-a-state) state.
+Again, whereas the *Decline* output maps directly to the RM [*Deferred*](../topics/process_models/rm/index.md#the-deferred-d-state) state, the remaining two
+states (*Track* and *Coordinate*) imply the necessity for distinct processes within the Coordinator's RM [*Accepted*](../topics/process_models/rm/index.md#the-accepted-a-state) state.
 
-On the other hand, the SSVC _Coordinator Publish Tree_ falls entirely within the Coordinator's _Accepted_ state, so its
+On the other hand, the SSVC *Coordinator Publish Tree* falls entirely within the Coordinator's *Accepted* state, so its
 output does not directly induce any Coordinator RM state transitions.
-However, a number of its decision points _do_ touch on the protocol models, which we cover next.
+However, a number of its decision points *do* touch on the protocol models, which we cover next.
 
 ## SSVC Decision Points and the Vultron Protocol
 
@@ -100,15 +100,15 @@ Vultron Protocol.
 
 ### Exploitation
 
-The SSVC _Exploitation_ decision point permits three possible values:
+The SSVC *Exploitation* decision point permits three possible values:
 
-- _None_
-- _PoC_
-- _Active_
+- *None*
+- *PoC*
+- *Active*
 
 These values map directly onto state subsets in the [Case State (CS) model](../topics/process_models/cs/index.md), as shown below.
 
-!!! note "SSVC _Exploitation_ Decision Point Mapped to CS States"
+!!! note "SSVC *Exploitation* Decision Point Mapped to CS States"
 
     $$ SSVC(exploitation) =
     \begin{cases}
@@ -117,22 +117,22 @@ These values map directly onto state subsets in the [Case State (CS) model](../t
         Active & \iff q^{cs} \in \cdot\cdot\cdot\cdot\cdot A \\
     \end{cases}$$
 
-A value of _None_ implies that no exploits have been made public, and no attacks have been observed
+A value of *None* implies that no exploits have been made public, and no attacks have been observed
 (i.e., $q^{cs} \in \cdot\cdot\cdot\cdot xa$).
-The _PoC_ value means that an exploit is public, but no attacks have been observed
+The *PoC* value means that an exploit is public, but no attacks have been observed
 (i.e., $q^{cs} \in \cdot\cdot\cdot\cdot Xa$).
-Finally, the _Active_ value indicates attacks are occurring
+Finally, the *Active* value indicates attacks are occurring
 (i.e., $q^{cs} \in \cdot\cdot\cdot\cdot\cdot A$).
 These case states and SSVC values are equivalent in both directions, hence our use of the "if-and-only-if" ($\iff$) symbol.
 
 ### Report Public
 
-The SSVC _Report Public_ decision point also maps directly onto the [CS model](../topics/process_models/cs/index.md).
-A value of _Yes_ means that the report is public, equivalent to $q^{cs} \in \cdot\cdot\cdot P \cdot\cdot$.
-On the other hand, a _No_ value is the same as $q^{cs} \in \cdot\cdot\cdot p \cdot\cdot$.
+The SSVC *Report Public* decision point also maps directly onto the [CS model](../topics/process_models/cs/index.md).
+A value of *Yes* means that the report is public, equivalent to $q^{cs} \in \cdot\cdot\cdot P \cdot\cdot$.
+On the other hand, a *No* value is the same as $q^{cs} \in \cdot\cdot\cdot p \cdot\cdot$.
 As above, "$\iff$" indicates the bidirectional equivalence.
 
-!!! note "SSVC _Report Public_ Decision Point Mapped to CS States"
+!!! note "SSVC *Report Public* Decision Point Mapped to CS States"
 
     $$SSVC(report~public) = 
     \begin{cases}
@@ -142,11 +142,11 @@ As above, "$\iff$" indicates the bidirectional equivalence.
 
 ### Supplier Contacted
 
-If the Supplier (Vendor) has been notified (i.e., there is reason to believe they are at least in the RM [_Received_](../topics/process_models/rm/index.md#the-received-r-state)
-state, equivalent to the $V\cdot\cdot\cdot\cdot\cdot$ CS state subset) the _Supplier Contacted_ value should be _Yes_,
-otherwise it should be _No_.
+If the Supplier (Vendor) has been notified (i.e., there is reason to believe they are at least in the RM [*Received*](../topics/process_models/rm/index.md#the-received-r-state)
+state, equivalent to the $V\cdot\cdot\cdot\cdot\cdot$ CS state subset) the *Supplier Contacted* value should be *Yes*,
+otherwise it should be *No*.
 
-!!! note "SSVC _Supplier Contacted_ Decision Point Mapped to RM States"
+!!! note "SSVC *Supplier Contacted* Decision Point Mapped to RM States"
 
     $$SSVC(supp.~contacted) = 
     \begin{cases}
@@ -158,16 +158,16 @@ otherwise it should be _No_.
 ### Report Credibility
 
 Unlike most of the other SSVC decision points covered here that form a part of a Participant's report prioritization
-process _after_ report validation, the _Report Credibility_ decision point forms an important step in the Coordinator's
+process *after* report validation, the *Report Credibility* decision point forms an important step in the Coordinator's
 validation process.
 In fact, it is often the only validation step possible when the Coordinator lacks the ability to reproduce a
 vulnerability whether due to constraints of resources, time, or skill.
-Thus, a value of _Credible_ can be expected to lead to an RM transition to [_Valid_](../topics/process_models/rm/index.md#the-valid-v-state) ($q^{rm} \in R \xrightarrow{v} V$),
+Thus, a value of *Credible* can be expected to lead to an RM transition to [*Valid*](../topics/process_models/rm/index.md#the-valid-v-state) ($q^{rm} \in R \xrightarrow{v} V$),
 assuming any additional validation checks also pass.
-On the contrary, _Not-Credible_ always implies the RM transition to [_Invalid_](../topics/process_models/rm/index.md#the-invalid-i-state) ($q^{rm} \in R \xrightarrow{i} I$)
+On the contrary, *Not-Credible* always implies the RM transition to [*Invalid*](../topics/process_models/rm/index.md#the-invalid-i-state) ($q^{rm} \in R \xrightarrow{i} I$)
 because "Valid-but-not-Credible" is a contradiction.
 
-!!! note "SSVC _Report Credibility_ Decision Point Mapped to RM States"
+!!! note "SSVC *Report Credibility* Decision Point Mapped to RM States"
 
     $$SSVC(report~cred.) = 
     \begin{cases}
@@ -177,20 +177,20 @@ because "Valid-but-not-Credible" is a contradiction.
 
 ### Supplier Engagement
 
-The possible values for the _Supplier_ (Vendor) _Engagement_ decision point are _Active_ or _Unresponsive_.
+The possible values for the *Supplier* (Vendor) *Engagement* decision point are *Active* or *Unresponsive*.
 From the Coordinator's perspective, if enough Suppliers in a CVD case have communicated their engagement in a case
-(i.e., enough Vendors are in the RM _Accepted_ state already or are expected to make it there soon from either the
-_Received_ or _Valid_ states), then the SSVC value would be _Active_.
+(i.e., enough Vendors are in the RM *Accepted* state already or are expected to make it there soon from either the
+*Received* or *Valid* states), then the SSVC value would be *Active*.
 
-Vendors in _Invalid_ or _Closed_ can be taken as disengaged, and it might be appropriate to select _Unresponsive_ for
-the SSVC _Engagement_ decision point.
+Vendors in *Invalid* or *Closed* can be taken as disengaged, and it might be appropriate to select *Unresponsive* for
+the SSVC *Engagement* decision point.
 
-Vendors in either _Received_ or _Deferred_ might be either _Active_ or _Unresponsive_, depending on the specific report
+Vendors in either *Received* or *Deferred* might be either *Active* or *Unresponsive*, depending on the specific report
 history.
 
 This mapping is formalized below and in the figure that follows.
 
-!!! note "SSVC _Supplier Engagement_ Decision Point Mapped to RM States"
+!!! note "SSVC *Supplier Engagement* Decision Point Mapped to RM States"
 
     $$ SSVC(supp.~eng.) = 
     \begin{cases}
@@ -235,10 +235,10 @@ graph LR
 
 ### Supplier Involvement
 
-The _Supplier Involvement_ decision point can take on the values _Fix-Ready_, _Cooperative_, or _Uncooperative/Unresponsive_.
-We begin by noting the equivalence of the _Fix-Ready_ value with the similarly named substate of the CS model.
+The *Supplier Involvement* decision point can take on the values *Fix-Ready*, *Cooperative*, or *Uncooperative/Unresponsive*.
+We begin by noting the equivalence of the *Fix-Ready* value with the similarly named substate of the CS model.
 
-!!! note "SSVC _Supplier Involvement_ Decision Point Mapped to CS States"
+!!! note "SSVC *Supplier Involvement* Decision Point Mapped to CS States"
 
     $$\begin{aligned}
     \label{eq:ssvc_supplier_involvement_fr}
@@ -294,7 +294,7 @@ graph LR
     S --> un
 ```
 
-!!! tip "_Engagement_ vs. _Involvement_: What's the Difference?"
+!!! tip "*Engagement* vs. *Involvement*: What's the Difference?"
 
     Note the discrepancy between the mappings given for SSVC _Supplier Engagement_ versus those for _Supplier Involvement_.
     This distinction is most prominent in the connections from the _Received_ and _Deferred_ RM states in the two figures above.

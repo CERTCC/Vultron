@@ -5,7 +5,7 @@
 Each Participant in an MPCVD case has a corresponding RM state, an EM state, and an overall CS state.
 Therefore, we can represent a Participant's state as a triple comprising the state of each of these models.
 
-!!! note "_Participant State_"
+!!! note "*Participant State*"
 
     A Participant's state is a triple comprising the state of each of the RM, EM, and CS models.
 
@@ -29,7 +29,7 @@ any given Participant.
 A generic state model for a CVD Participant can be composed from the Cartesian product of $\mathcal{Q}^{rm}$,
 $\mathcal{Q}^{em}$, and $\mathcal{Q}^{cs}$ as shown below.
 
-!!! note "_Participant State Space_"
+!!! note "*Participant State Space*"
 
     A Participant's state is a triple comprising the state of each of the RM, EM, and CS models.
     The set of all possible Participant states is the Cartesian product of the RM, EM, and CS state sets.
@@ -131,7 +131,7 @@ Participant doesn't even know about yet.
 Therefore, the $Start$ state also implies that the EM and CVD Case states do not matter.
 We use $*$ to represent the "don't care" value.
 
-???+ note "Unreachable EM and CS States when RM is in  _Closed_ or _Start_"
+???+ note "Unreachable EM and CS States when RM is in  *Closed* or *Start*"
 
     $$q^{rm} \in \{S,C\} \implies (q^{em} \in *) \cup (q^{cs} \in *)$$
 
@@ -140,13 +140,13 @@ words, $q^{cs} \in \cdot\cdot\cdot pX \cdot$ is an ephemeral state that resolves
 quickly to $q^{cs} \in \cdot\cdot\cdot PX \cdot$. (As a reminder, dots ($\cdot$)
 in CVD case state notation indicate single-character wildcards.)
 
-???+ note "Unreachable CS States when CS is in _Public_ or _Exploit_"
+???+ note "Unreachable CS States when CS is in *Public* or *Exploit*"
 
     $$q^{cs} \in \cdot\cdot\cdot pX \cdot \implies q^{cs} \in \cdot\cdot\cdot PX \cdot$$
 
 Furthermore, when a vulnerability becomes public, the EM state no longer matters.
 
-???+ note "Unreachable EM States when CS is in _Public_"
+???+ note "Unreachable EM States when CS is in *Public*"
 
     $$q^{cs} \in \cdot\cdot\cdot PX \cdot \implies q^{em} \in *$$
 
@@ -263,10 +263,10 @@ state that was just added.
 As a Vendor has a report in $Received$, it is, by definition, at least in the $Vfd$ case state.
 
 Vendors create fixes only when they are in the $Accepted$ RM state.
-Because the $Received$, $Invalid$, and $Valid$ states come strictly _before_ the $Accepted$ state in the RM DFA,
+Because the $Received$, $Invalid$, and $Valid$ states come strictly *before* the $Accepted$ state in the RM DFA,
 there is no way for the Vendor to be in either $VFd$ or $VFD$ while in any of those states.
 
-???+ note "Vendor CS States When RM is in _Received_, _Invalid_, or _Valid_"
+???+ note "Vendor CS States When RM is in *Received*, *Invalid*, or *Valid*"
 
     $$q^{rm}_{Vendor} \in \{R,I,V\} \implies q^{cs}_{Vendor} \in Vfd\cdot\cdot\cdot$$
 
@@ -623,7 +623,7 @@ states, as we show next.
 
 Finally, CVD cases often involve Participants who are neither Vendors nor Deployers.
 Specifically, Finder/Reporters fall into this category, as do Coordinators.
-Other roles, as outlined in the [_CERT Guide to Coordinated Vulnerability Disclosure_](https://vuls.cert.org/confluence/display/CVD),
+Other roles, as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD),
 could be included here as well.
 Because they do not participate directly in the Vendor fix path, these Non-Vendor, Non-Deployer CVD Participants fall
 into the $\varnothing$ case substate we added above.

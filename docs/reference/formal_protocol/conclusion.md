@@ -97,7 +97,7 @@ driven by outside events (e.g., public awareness, exploits in the wild, attacks 
 
 #### Participant-Specific
 
-The _Vendor fix path_ is shown below, and is specific to individual Vendor Participants.
+The *Vendor fix path* is shown below, and is specific to individual Vendor Participants.
 It reflects each Participant's state changes in the fix development and deployment process.
 
 ```mermaid

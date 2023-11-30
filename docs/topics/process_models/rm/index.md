@@ -57,9 +57,9 @@ the state names. Each Participant in a CVD case will have their own RM state.
     in [Case State Model](../cs/index.md). Further discussion of the interactions of the RM and CS models is found
     in [Model Interactions](../model_interactions/index.md).
 
-#### The _Start_ (_S_) State
+#### The *Start* (*S*) State
 
-The _Start_ state is a simple placeholder state for reports that have
+The *Start* state is a simple placeholder state for reports that have
 yet to be received. It is, in effect, a null state that no
 CVD Participant would be expected to reflect in their report tracking system. We include
 it here because it is useful when modeling coordination
@@ -72,9 +72,9 @@ stateDiagram-v2
     [*] --> Start
 ```
 
-#### The _Received_ (_R_) State
+#### The *Received* (*R*) State
 
-Reports initially arrive in the _Received_ state.
+Reports initially arrive in the *Received* state.
 
 ```mermaid
 stateDiagram-v2
@@ -101,12 +101,12 @@ are not capable of coordinating vulnerability disclosures. Hence,
     Coordinators MUST have a clearly defined and publicly available
     mechanism for receiving reports.
 
-Exiting the _Received_ state requires a Participant to assess the
+Exiting the *Received* state requires a Participant to assess the
 validity of a report. Note that validation is distinct from
-prioritization, as covered in our description of the [_Valid_](#the-valid-v-state) state.
-In other words, the _Received_ state corresponds to the
+prioritization, as covered in our description of the [*Valid*](#the-valid-v-state) state.
+In other words, the *Received* state corresponds to the
 [Validation phase](https://vuls.cert.org/confluence/display/CVD/4.3+Validation+and+Triage)
-of the [_CERT Guide to Coordinated Vulnerability Disclosure_](https://vuls.cert.org/confluence/display/CVD).
+of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD).
 
 !!! note ""
 
@@ -117,10 +117,10 @@ of the [_CERT Guide to Coordinated Vulnerability Disclosure_](https://vuls.cert.
 Validity criteria need not be limited to technical analysis. For
 instance, a Coordinator might only accept reports within their specific
 scope of concern and consider reports outside their scope to be
-_Invalid_ even if they believe the report accurately describes a real
+*Invalid* even if they believe the report accurately describes a real
 vulnerability. Alternatively, a Vendor might institute a policy
 designating reports unaccompanied by a working proof-of-concept exploit
-as _Invalid_ by default.
+as *Invalid* by default.
 
 !!! note ""
 
@@ -160,12 +160,12 @@ as _Invalid_ by default.
 
     Participants MAY create a case object to track any report in the _Received_ state.
 
-#### The _Invalid_ (_I_) State
+#### The *Invalid* (*I*) State
 
-Reports in the _Invalid_ state have been evaluated and found lacking by
+Reports in the *Invalid* state have been evaluated and found lacking by
 the recipient. This state allows time for the Reporter to provide
 additional information and for the receiver to revisit the validation
-before moving the report to _Closed_.
+before moving the report to *Closed*.
 
 ```mermaid
 stateDiagram-v2
@@ -177,7 +177,7 @@ stateDiagram-v2
 
 The reasons for a report to be put in this state will vary based on each
 recipient's validation criteria, and their technical capability and
-available resources. The _Invalid_ state is intended to be used as a
+available resources. The *Invalid* state is intended to be used as a
 temporary holding place to allow for additional evidence to be sought to
 contradict that conclusion.
 
@@ -197,15 +197,15 @@ contradict that conclusion.
     Participants MAY set a timer to move reports from _Invalid_ to
     _Closed_ after a set period of inactivity.
 
-#### The _Valid_ (_V_) State
+#### The *Valid* (*V*) State
 
-Reports in the _Valid_ state are ready to be prioritized for possible
+Reports in the *Valid* state are ready to be prioritized for possible
 future work. The result of this prioritization process will be to either
 accept the report for follow-up or defer further effort.
-The _Valid_ state is equivalent to the [Prioritization
+The *Valid* state is equivalent to the [Prioritization
 (Triage)](https://vuls.cert.org/confluence/display/CVD/4.3+Validation+and+Triage) phase
-of the [_CERT Guide to Coordinated Vulnerability Disclosure_](https://vuls.cert.org/confluence/display/CVD).
-As an example, a Vendor might later choose to _defer_ further response on a _Valid_ report due to other priorities.
+of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD).
+As an example, a Vendor might later choose to *defer* further response on a *Valid* report due to other priorities.
 
 ```mermaid
 stateDiagram-v2
@@ -254,13 +254,13 @@ action".
 [SSVC Crosswalk](../../../reference/ssvc_crosswalk.md) takes a closer look at how
 SSVC fits into the protocol we are defining.
 
-#### The _Accepted_ (_A_) State
+#### The *Accepted* (*A*) State
 
-The _Accepted_ state is where the bulk of the work for a given
+The *Accepted* state is where the bulk of the work for a given
 CVD Participant
 occurs. Reports reach this state for a Participant only once the
 Participant has deemed the report to be both valid and of sufficient
-priority to warrant further action. The _Accepted_ state has a different
+priority to warrant further action. The *Accepted* state has a different
 meaning for each different Participant.
 
 ```mermaid
@@ -274,7 +274,7 @@ stateDiagram-v2
     Valid --> Accepted
 ```
 
-- For our purposes, Finders/Reporters enter the _Accepted_ state only
+- For our purposes, Finders/Reporters enter the *Accepted* state only
     for reports that they intend to put through the
     CVD process. If
     they have no intention of pursuing CVD, there is no need for them to track
@@ -287,7 +287,7 @@ stateDiagram-v2
     them, and possibly negotiate embargoes.
 
 We provide additional elaboration on the sorts of activities that might
-happen in the _Accept_ state in [Do Work Behavior](../../behavior_logic/do_work_bt.md).
+happen in the *Accept* state in [Do Work Behavior](../../behavior_logic/do_work_bt.md).
 
 !!! note ""
 
@@ -295,11 +295,11 @@ happen in the _Accept_ state in [Do Work Behavior](../../behavior_logic/do_work_
     in its lifespan as a Participant resumes or pauses work (i.e.,
     transitions to/from the _Deferred_ state).
 
-#### The _Deferred_ (_D_) State
+#### The *Deferred* (*D*) State
 
-The _Deferred_ state is reserved for valid, unclosed reports that are
-otherwise not being actively worked on (i.e., those in _Accepted_). It
-parallels the _Invalid_ state for reports that fail to meet the
+The *Deferred* state is reserved for valid, unclosed reports that are
+otherwise not being actively worked on (i.e., those in *Accepted*). It
+parallels the *Invalid* state for reports that fail to meet the
 necessary validation criteria in that both states are awaiting closure
 once it is determined that no further action is necessary.
 
@@ -317,7 +317,7 @@ stateDiagram-v2
     Deferred --> Accepted
 ```
 
-For example, a Participant might use the _Deferred_ state when a valid
+For example, a Participant might use the *Deferred* state when a valid
 report fails to meet their [prioritization criteria](#prioritize-report), or when a higher priority task takes
 precedence over an active case.
 
@@ -338,12 +338,12 @@ precedence over an active case.
     state to ensure they are moved to _Closed_ after a set period of
     inactivity.
 
-#### The _Closed_ (_C_) State
+#### The *Closed* (*C*) State
 
-The _Closed_ state implies no further work is to be done; therefore, any
+The *Closed* state implies no further work is to be done; therefore, any
 pre-closure review (e.g., for quality assurance purposes) should be
-performed before the case moves to the _Closed_ state (i.e., while the
-report is in _Invalid_, _Deferred_, or _Accepted_).
+performed before the case moves to the *Closed* state (i.e., while the
+report is in *Invalid*, *Deferred*, or *Accepted*).
 
 ```mermaid
 stateDiagram-v2
@@ -421,9 +421,9 @@ protocol. Every state transition implies a different message type.
 
 ##### Receive Report
 
-To begin, a Participant must receive a report. Recall that the _Start_
+To begin, a Participant must receive a report. Recall that the *Start*
 state is a placeholder, so this action simply puts the receiving
-Participant into the _Received_ state at the beginning of their
+Participant into the *Received* state at the beginning of their
 involvement in the case.
 
 ```mermaid
@@ -437,13 +437,13 @@ stateDiagram-v2
 
 ##### Validate Report
 
-The Participant must validate the report to exit the _Received_ state.
+The Participant must validate the report to exit the *Received* state.
 Depending on the validation outcome, the report will be in either the
-_Valid_ or _Invalid_ state. _Invalid_ reports are often waiting for
+*Valid* or *Invalid* state. *Invalid* reports are often waiting for
 additional information from the reporter, but they may also be reports
 that are not in scope for the Participant. Some Participants may choose
-to close _Invalid_ reports immediately, while others may choose to
-periodically revalidate them to see if they have become _Valid_.
+to close *Invalid* reports immediately, while others may choose to
+periodically revalidate them to see if they have become *Valid*.
 
 !!! note ""
 
@@ -485,7 +485,7 @@ stateDiagram-v2
 ##### Prioritize Report
 
 Once a report has been validated (i.e., it is in the
-RM _Valid_ state,
+RM *Valid* state,
 $q^{rm} \in V$), the Participant must prioritize it to determine what
 further effort, if any, is necessary.
 
@@ -495,13 +495,13 @@ further effort, if any, is necessary.
 
 Our [SSVC Crosswalk](../../../reference/ssvc_crosswalk.md) contains an example of how the
 SSVC model can be applied here, although any prioritization scheme could be substituted.
-Prioritization ends with the report in either the _Accepted_ or _Deferred_ state.
+Prioritization ends with the report in either the *Accepted* or *Deferred* state.
 
-A Participant might choose to pause work on a previously _Accepted_
+A Participant might choose to pause work on a previously *Accepted*
 report after revisiting their prioritization decision. When this
-happens, the Participant moves the report to the _Deferred_ state.
-Similarly, a Participant might resume work on a _Deferred_ report,
-moving it to the _Accepted_ state.
+happens, the Participant moves the report to the *Deferred* state.
+Similarly, a Participant might resume work on a *Deferred* report,
+moving it to the *Accepted* state.
 
 !!! note ""
 
@@ -548,10 +548,10 @@ stateDiagram-v2
 
 Some Participants (e.g., Finders and Coordinators) need to engage
 someone else (e.g., a Vendor) to resolve a case. To do this, the
-_sender_ Participants must also be in the _Accepted_ state; otherwise,
+*sender* Participants must also be in the *Accepted* state; otherwise,
 why are they working on the case? In the following diagram, we show the interaction between two
-instances of the RM model: the left side represents the _sender_ while the right side represents the _recipient_.
-Although the _sender_'s state does not change, the _recipient_'s state moves from _Start_ to _Received_.
+instances of the RM model: the left side represents the *sender* while the right side represents the *recipient*.
+Although the *sender*'s state does not change, the *recipient*'s state moves from *Start* to *Received*.
 
 !!! note ""
 
@@ -578,8 +578,8 @@ stateDiagram-v2
 
 ##### Case Closure
 
-Finally, a Participant can complete work on an _Accepted_ report or
-abandon further work on an _Invalid_ or _Deferred_ report.
+Finally, a Participant can complete work on an *Accepted* report or
+abandon further work on an *Invalid* or *Deferred* report.
 
 !!! note ""
 
@@ -596,15 +596,15 @@ stateDiagram-v2
     Invalid --> Closed: close
 ```
 
-Our model assumes that _Valid_ reports cannot be closed directly without
-first passing through either _Accepted_ or _Deferred_. It is reasonable
-to wonder why _close_ is not a valid transition from the _Valid_ state.
+Our model assumes that *Valid* reports cannot be closed directly without
+first passing through either *Accepted* or *Deferred*. It is reasonable
+to wonder why *close* is not a valid transition from the *Valid* state.
 The answer is that we wanted to allow prioritization and closure to be
 distinct activities; deferral is reversible, whereas closure is not.
-Often a Participant might initially _defer_ a case only to resume work
+Often a Participant might initially *defer* a case only to resume work
 later, once more information has arrived. However, there is nothing
-stopping a Participant from instituting a process that goes from _Valid_
-to _Deferred_ to _Closed_ in rapid (even immediate) succession.
+stopping a Participant from instituting a process that goes from *Valid*
+to *Deferred* to *Closed* in rapid (even immediate) succession.
 
 !!! note ""
 
@@ -629,12 +629,12 @@ to _Deferred_ to _Closed_ in rapid (even immediate) succession.
 
 The strings generated in the language defined by this grammar can be
 useful for exploring the possible sequences of states each report might
-encounter for each Participant. The 15 shortest paths are _ric_, _rvac_,
-_rvdc_, _rivac_, _rivdc_, _rvadc_, _rvdac_, _rivadc_, _rvadac_,
-_rvdadc_, _rivdac_, _rivdadc_, _rvdadac_, _rivadac_, and _rvadadc_. Due
+encounter for each Participant. The 15 shortest paths are *ric*, *rvac*,
+*rvdc*, *rivac*, *rivdc*, *rvadc*, *rvdac*, *rivadc*, *rvadac*,
+*rvdadc*, *rivdac*, *rivdadc*, *rvdadac*, *rivadac*, and *rvadadc*. Due
 to the structure of the RM DFA, longer strings just add more
-_defer_-_accept_ (_da_) or _accept_-_defer_ (_ad_) cycles prior to
-closure (_c_). The usually limited duration of the
+*defer*-*accept* (*da*) or *accept*-*defer* (*ad*) cycles prior to
+closure (*c*). The usually limited duration of the
 RM process coupled
 with the tendency for CVD Participants to prefer to avoid frequent
 starts and stops means that we expect the vast majority of reports to
