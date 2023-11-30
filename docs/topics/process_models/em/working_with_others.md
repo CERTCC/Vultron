@@ -9,9 +9,9 @@ As anyone who has tried to schedule a meeting with multiple attendees
 can attest, multi-party scheduling can be difficult. When that schedule
 must also accommodate work completion schedules for an
 MPCVD case, it becomes even harder. In [Default Embargoes](#default-embargoes),
-we laid out a heuristic for resolving multiple embargo proposals, _The Shortest Embargo Proposed
-Wins_.
-More specifically, we recommended that Participants _accept_ the
+we laid out a heuristic for resolving multiple embargo proposals, *The Shortest Embargo Proposed
+Wins*.
+More specifically, we recommended that Participants *accept* the
 earliest proposed end date and immediately propose and evaluate the rest
 as potential revisions. This principle applies to any
 MPCVD case, even at its outset.
@@ -130,7 +130,7 @@ the new Participant to accept the embargo prior to receiving the report.
 
 In MPCVD there are practical considerations to be made regarding the timing of *when*
 to notify individual Participants. The primary factor in these decisions
-stems from the interaction of the _Active_ embargo with the potential
+stems from the interaction of the *Active* embargo with the potential
 Participant's existing (explicit or implicit) disclosure policy.
 
 ### Participants with Disclosure Policies Shorter Than an Existing Embargo
@@ -181,9 +181,9 @@ options to choose from:
 
 3. Avoid including the potential Participant in the embargo entirely.
 
-In the case of a Vendor with a _longer_ default policy than the existing
+In the case of a Vendor with a *longer* default policy than the existing
 embargo, it is still preferable to give them as much lead time as
-possible _even_ if it is not possible to extend the embargo to their
+possible *even* if it is not possible to extend the embargo to their
 preferred timing.
 
 !!! note ""
@@ -240,7 +240,7 @@ vulnerability information.
     historical fact SHOULD be treated similar to Participants with brief
     disclosure policies.
 
-!!! tip "My Adversary Is _Not Necessarily_ Your Adversary"
+!!! tip "My Adversary Is *Not Necessarily* Your Adversary"
 
     Trustworthiness has a strong subjective component, and individual perspectives on who is or is not trustworthy
     can vary widely.
@@ -292,7 +292,7 @@ However, it falls short in some cases, such as the following:
 ## Consequences of Non-Compliance
 
 Considering multiple cases over time, MPCVD can be thought of as an [iterated game](https://vuls.cert.org/confluence/display/CVD/5.5+Response+Pacing+and+Synchronization) analogous to the Prisoner's Dilemma.
-One notable strategy for the Prisoner's Dilemma is _tit for tat_ in which non-cooperation from one party in one round
+One notable strategy for the Prisoner's Dilemma is *tit for tat* in which non-cooperation from one party in one round
 can be met with non-cooperation from the opposite party in the next.
 While MPCVD is usually much bigger than a toy two-player game, we feel it is necessary to encode the possibility that
 non-cooperation will have downstream consequences.

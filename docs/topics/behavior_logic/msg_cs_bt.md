@@ -36,20 +36,20 @@ flowchart LR
 
 We are still working through the children of [Receive Messages](msg_intro_bt.md) behavior tree.
 And as we've come to expect, a precondition check leads to a fallback node in which CS acknowledgement
-messages (_CK_) receive no further attention and return _Success_.
+messages (*CK*) receive no further attention and return *Success*.
 
 The main CS message-handling sequence comes next, with all matching incoming messages resulting in emission of an
-acknowledgment message (_CK_).
+acknowledgment message (*CK*).
 These messages are presented as sub-trees below:
 
 - (A) [Participant-agnostic CS Status Messages](#participant-agnostic-cs-status-messages)
 - (B) [Participant-Specific CS Status Messages](#participant-specific-cs-status-messages)
 
-Returning from handling regular CS messages, the tree next (C) handles error messages (_CE_) with the familiar motif
-of an error (_CE_) triggering a general inquiry (_GI_) to seek resolution.
+Returning from handling regular CS messages, the tree next (C) handles error messages (*CE*) with the familiar motif
+of an error (*CE*) triggering a general inquiry (*GI*) to seek resolution.
 
 Finally, the tree has handled all expected messages, so anything else would result in an error
-condition and emission of a _CE_ message accordingly.
+condition and emission of a *CE* message accordingly.
 
 ## Participant-agnostic CS Status Messages
 
@@ -109,30 +109,30 @@ flowchart LR
     global_seq -->|A2| terminate
 ```
 
-(A1a) Information that the vulnerability has been made public (_CP_) is met
-with a transition to the _Public Aware_ state in the CS model when
+(A1a) Information that the vulnerability has been made public (*CP*) is met
+with a transition to the *Public Aware* state in the CS model when
 necessary.
 
 (A1b) Similarly, information that an exploit has been made public
-forces both the __X__ and __P__ transitions, as necessary.
-Because the __P__ transition, should it occur in response to a
-_CX_ message, represents possibly new information to the case, it
-triggers the emission of a _CP_ message to convey this information to
+forces both the **X** and **P** transitions, as necessary.
+Because the **P** transition, should it occur in response to a
+*CX* message, represents possibly new information to the case, it
+triggers the emission of a *CP* message to convey this information to
 the other Participants.
 
 (A1c) Likewise, a message indicating attacks underway
-triggers the __A__ transition.
+triggers the **A** transition.
 
-Again, we note that any of the __P__, __X__, or
-__A__ transitions in the CS model imply that no new embargo should be
+Again, we note that any of the **P**, **X**, or
+**A** transitions in the CS model imply that no new embargo should be
 entered, and any existing embargo should be terminated. Hence, the
 sequence described in the previous paragraph leads to the [embargo
 termination tree](em_terminate_bt.md).
 
 ## Participant-Specific CS Status Messages
 
-Next, we see that messages indicating _Vendor Awareness_ (_CV_), _Fix
-Readiness_ (_CF_), and _Fix Deployed_ (_CD_) are treated as mere status
+Next, we see that messages indicating *Vendor Awareness* (*CV*), *Fix
+Readiness* (*CF*), and *Fix Deployed* (*CD*) are treated as mere status
 updates for the Participant because they are participant-specific.
 They are recognized and acknowledged but trigger no further action directly.
 
@@ -159,4 +159,4 @@ Therefore, messages representing another Participant's status change for this po
 CS do not directly affect the receiving Participant's status.
 This is not to say that the Participant might not choose to take some action based on their knowledge of a
 Vendor's (or Deployer's) status.
-Rather, such follow-up would be expected to occur as part of the Participant's [_do work_ process](do_work_bt.md).
+Rather, such follow-up would be expected to occur as part of the Participant's [*do work* process](do_work_bt.md).

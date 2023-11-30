@@ -7,8 +7,8 @@ The idea of CVD embargoes implies a means of dividing the world into
 1. those who belong in the embargo
 2. those who do not
 
-Because _authentication_ is not the same as _authorization_, we cannot simply rely on knowing who a Participant
-is; we also have to be able to identify _why_ they are _relevant_ to a particular case.
+Because *authentication* is not the same as *authorization*, we cannot simply rely on knowing who a Participant
+is; we also have to be able to identify *why* they are *relevant* to a particular case.
 
 Thus, we must ask:
 
@@ -43,7 +43,7 @@ problems:
     Others ask for submissions via a customized web form. These and [other examples](https://vuls.cert.org/confluence/display/CVD/4.2+Reporting)
     hinder the interoperability of MPCVD processes.
 
-3. It is not always clear which _other_ Vendors' products contain the
+3. It is not always clear which *other* Vendors' products contain the
     affected product, which limits the ability for an MPCVD cases to follow the software
     supply chain.
 

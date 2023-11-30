@@ -152,7 +152,7 @@ Here, we highlight the minimum requirements that the protocol demands:
 - Each `Message` has an identified sender (who is a `Participant` in the case) and one or more message
 types as enumerated in [Message Types](../reference/formal_protocol/messages.md).
 - Message types are represented as flags since a single actual message might represent multiple message types.
-- For example, a report submission that includes an embargo proposal might have both the _RS_ and _EP_ message type flags set.
+- For example, a report submission that includes an embargo proposal might have both the *RS* and *EP* message type flags set.
 
 Conceptually, one might think of the `Case` as a shared object among engaged `Participants` and that `Messages` are sent
 to the `Case` for all `Participants` to see.

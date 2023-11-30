@@ -4,7 +4,7 @@ Each Participant in a case has their own instance of the RM state model.
 Participants can change their local state independent of the state of other Participants.
 Events within a CVD case may trigger a state transition in one Participant while no transition occurs in another.
 For example, in [particpants interact from the accepted state](#participants-interact-from-the-accepted-state) we showed
-that even though the _sender_ is the one taking the action, it is the _recipient_'s state that changes.
+that even though the *sender* is the one taking the action, it is the *recipient*'s state that changes.
 The table below lists role-based actions.
 
 | Finder/Reporter  |      Vendor      |   Coordinator    | Action                                  |                                         RM Transition                                          |
@@ -25,15 +25,15 @@ A few examples of this model applied to common CVD and MPCVD case scenarios foll
 
 ## The Secret Lives of Finders
 
-While the Finder's _Received_, _Valid_, and _Invalid_ states are useful
+While the Finder's *Received*, *Valid*, and *Invalid* states are useful
 for modeling and simulation purposes, they are less useful to us as part
 of a potential CVD protocol. Why? Because for anyone else to know about the vulnerability
 (and as a prerequisite to CVD happening at all), the Finder must have
 already validated the report and prioritized it as worthy of further
 effort to have any reason to attempt to coordinate its disclosure. In
-other words, CVD only starts _after_ the Finder has already reached the
-_Accepted_ state for any given vulnerability to be reported.
-Correspondingly, this also represents their transition from _Finder_ to
+other words, CVD only starts *after* the Finder has already reached the
+*Accepted* state for any given vulnerability to be reported.
+Correspondingly, this also represents their transition from *Finder* to
 *Reporter*. Nevertheless, for now, we retain these states for
 completeness.
 We revisit this topic in our [formal derivation](../../../reference/formal_protocol/states.md#finder-reporters)
@@ -80,8 +80,8 @@ stateDiagram-v2
 
 A simple Finder-Vendor CVD scenario is shown below.
 As explained [above](#the-secret-lives-of-finders), many of the Finder's states would be
-hidden from view until they reach the _Accepted_ ($A_f$) state. The
-_receive_ action bridging $A_f \xrightarrow{r} R_v$ corresponds to the
+hidden from view until they reach the *Accepted* ($A_f$) state. The
+*receive* action bridging $A_f \xrightarrow{r} R_v$ corresponds to the
 [participants interact from the accepted state](#participants-interact-from-the-accepted-state) scenario above.
 
 ```mermaid
