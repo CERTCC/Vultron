@@ -19,8 +19,8 @@ principle of indifference as stated in the box at right.
 While the principle of indifference is rather strong, it is inherently
 difficult to reason about absolutely skill-less CVD when the work
 of CVD is, by its nature, a skilled job.
-Given the set of states and allowable transitions between them, we can apply 
-the principle of indifference to define a baseline against which 
+Given the set of states and allowable transitions between them, we can apply
+the principle of indifference to define a baseline against which
 measurement can be meaningful.
 
 ## Estimating State Transition Probabilities
@@ -66,39 +66,38 @@ after all).
 
 |  Start State | Next State(s)                          | $p({transition})$  |  PageRank |
 |:------------:|:---------------------------------------|:-------------------|:----------|
-|   _vfdpxa_   | _vfdpxA_, _vfdpXa_, _vfdPxa_, _Vfdpxa_ | 0.250              | 0.123     |
-|   _vfdpxA_   | _vfdpXA_, _vfdPxA_, _VfdpxA_           | 0.333              | 0.031     |
-|   _vfdpXa_   | _vfdPXa_                               | 1.000              | 0.031     |
-|   _vfdpXA_   | _vfdPXA_                               | 1.000              | 0.013     |
-|   _vfdPxa_   | _VfdPxa_                               | 1.000              | 0.031     |
-|   _vfdPxA_   | _VfdPxA_                               | 1.000              | 0.013     |
-|   _vfdPXa_   | _VfdPXa_                               | 1.000              | 0.031     |
-|   _vfdPXA_   | _VfdPXA_                               | 1.000              | 0.016     |
-|   _Vfdpxa_   | _VfdpxA_, _VfdpXa_, _VfdPxa_, _VFdpxa_ | 0.250              | 0.031     |
-|   _VfdpxA_   | _VfdpXA_, _VfdPxA_, _VFdpxA_           | 0.333              | 0.020     |
-|   _VfdpXa_   | _VfdPXa_                               | 1.000              | 0.011     |
-|   _VfdpXA_   | _VfdPXA_                               | 1.000              | 0.010     |
-|   _VfdPxa_   | _VfdPxA_, _VfdPXa_, _VFdPxa_           | 0.333              | 0.037     |
-|   _VfdPxA_   | _VfdPXA_, _VFdPxA_                     | 0.500              | 0.032     |
-|   _VfdPXa_   | _VfdPXA_, _VFdPXa_                     | 0.500              | 0.051     |
-|   _VfdPXA_   | _VFdPXA_                               | 1.000              | 0.063     |
-|   _VFdpxa_   | _VFdpxA_, _VFdpXa_, _VFdPxa_, _VFDpxa_ | 0.250              | 0.011     |
-|   _VFdpxA_   | _VFdpXA_, _VFdPxA_, _VFDpxA_           | 0.333              | 0.013     |
-|   _VFdpXa_   | _VFdPXa_                               | 1.000              | 0.007     |
-|   _VFdpXA_   | _VFdPXA_                               | 1.000              | 0.008     |
-|   _VFdPxa_   | _VFdPxA_, _VFdPXa_, _VFDPxa_           | 0.333              | 0.018     |
-|   _VFdPxA_   | _VFdPXA_, _VFDPxA_                     | 0.500              | 0.027     |
-|   _VFdPXa_   | _VFdPXA_, _VFDPXa_                     | 0.500              | 0.037     |
-|   _VFdPXA_   | _VFDPXA_                               | 1.000              | 0.092     |
-|   _VFDpxa_   | _VFDpxA_, _VFDpXa_, _VFDPxa_           | 0.333              | 0.007     |
-|   _VFDpxA_   | _VFDpXA_, _VFDPxA_                     | 0.500              | 0.010     |
-|   _VFDpXa_   | _VFDPXa_                               | 1.000              | 0.007     |
-|   _VFDpXA_   | _VFDPXA_                               | 1.000              | 0.009     |
-|   _VFDPxa_   | _VFDPxA_, _VFDPXa_                     | 0.500              | 0.012     |
-|   _VFDPxA_   | _VFDPXA_                               | 1.000              | 0.026     |
-|   _VFDPXa_   | _VFDPXA_                               | 1.000              | 0.031     |
-|   _VFDPXA_   | $\emptyset$                            | 0.000              | 0.139     |
-
+|   *vfdpxa*   | *vfdpxA*, *vfdpXa*, *vfdPxa*, *Vfdpxa* | 0.250              | 0.123     |
+|   *vfdpxA*   | *vfdpXA*, *vfdPxA*, *VfdpxA*           | 0.333              | 0.031     |
+|   *vfdpXa*   | *vfdPXa*                               | 1.000              | 0.031     |
+|   *vfdpXA*   | *vfdPXA*                               | 1.000              | 0.013     |
+|   *vfdPxa*   | *VfdPxa*                               | 1.000              | 0.031     |
+|   *vfdPxA*   | *VfdPxA*                               | 1.000              | 0.013     |
+|   *vfdPXa*   | *VfdPXa*                               | 1.000              | 0.031     |
+|   *vfdPXA*   | *VfdPXA*                               | 1.000              | 0.016     |
+|   *Vfdpxa*   | *VfdpxA*, *VfdpXa*, *VfdPxa*, *VFdpxa* | 0.250              | 0.031     |
+|   *VfdpxA*   | *VfdpXA*, *VfdPxA*, *VFdpxA*           | 0.333              | 0.020     |
+|   *VfdpXa*   | *VfdPXa*                               | 1.000              | 0.011     |
+|   *VfdpXA*   | *VfdPXA*                               | 1.000              | 0.010     |
+|   *VfdPxa*   | *VfdPxA*, *VfdPXa*, *VFdPxa*           | 0.333              | 0.037     |
+|   *VfdPxA*   | *VfdPXA*, *VFdPxA*                     | 0.500              | 0.032     |
+|   *VfdPXa*   | *VfdPXA*, *VFdPXa*                     | 0.500              | 0.051     |
+|   *VfdPXA*   | *VFdPXA*                               | 1.000              | 0.063     |
+|   *VFdpxa*   | *VFdpxA*, *VFdpXa*, *VFdPxa*, *VFDpxa* | 0.250              | 0.011     |
+|   *VFdpxA*   | *VFdpXA*, *VFdPxA*, *VFDpxA*           | 0.333              | 0.013     |
+|   *VFdpXa*   | *VFdPXa*                               | 1.000              | 0.007     |
+|   *VFdpXA*   | *VFdPXA*                               | 1.000              | 0.008     |
+|   *VFdPxa*   | *VFdPxA*, *VFdPXa*, *VFDPxa*           | 0.333              | 0.018     |
+|   *VFdPxA*   | *VFdPXA*, *VFDPxA*                     | 0.500              | 0.027     |
+|   *VFdPXa*   | *VFdPXA*, *VFDPXa*                     | 0.500              | 0.037     |
+|   *VFdPXA*   | *VFDPXA*                               | 1.000              | 0.092     |
+|   *VFDpxa*   | *VFDpxA*, *VFDpXa*, *VFDPxa*           | 0.333              | 0.007     |
+|   *VFDpxA*   | *VFDpXA*, *VFDPxA*                     | 0.500              | 0.010     |
+|   *VFDpXa*   | *VFDPXa*                               | 1.000              | 0.007     |
+|   *VFDpXA*   | *VFDPXA*                               | 1.000              | 0.009     |
+|   *VFDPxa*   | *VFDPxA*, *VFDPXa*                     | 0.500              | 0.012     |
+|   *VFDPxA*   | *VFDPXA*                               | 1.000              | 0.026     |
+|   *VFDPXa*   | *VFDPXA*                               | 1.000              | 0.031     |
+|   *VFDPXA*   | $\emptyset$                            | 0.000              | 0.139     |
 
 ## Using PageRank to Estimate Baseline State Probabilities
 
@@ -117,11 +116,10 @@ states is for the algorithm to teleport there. Teleportation chooses
 states uniformly, so for example there is only a $1/32$ chance of our
 actual start state ($q_0={vfdpxa}$) ever being chosen. Therefore, to
 ensure that the early states in our process are fairly represented we
-add a single link from _VFDPXA_ to _vfdpxa_, representing a model
+add a single link from *VFDPXA* to *vfdpxa*, representing a model
 reset whenever the end state is reached. This modification allows
 PageRank traversals to wrap around naturally and reach the early states
 in the random walk process without needing to rely on teleportation.
 With our modification in place, we are ready to compute the PageRank of
 each node in the graph. Results are shown in Table
 [3.4](#tab:allowed_state_transitions){== TODO fix ref to tab:allowed_state_transitions ==}
-

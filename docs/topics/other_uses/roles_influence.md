@@ -23,24 +23,21 @@ to cover the **A** transition.
 | Vendor          |                            | :octicons-check-circle-24: |                            | :octicons-check-circle-24: | :octicons-check-circle-24: |                            |
 | Deployer        |                            |                            | :octicons-check-circle-24: |                            |                            |                            |
 | Coordinator     | :octicons-check-circle-24: |                            |                            | :octicons-check-circle-24: | :octicons-check-circle-24: |                            |
-| Adversary       |                            |                            |                            |                            |                            | :octicons-check-circle-24: | 
-
+| Adversary       |                            |                            |                            |                            |                            | :octicons-check-circle-24: |
 
 Different stakeholders might want different things, although most
 benevolent parties will likely seek some subset of $\mathbb{D}$. Because
 $\mathcal{H}$ is the same for all stakeholders, the expected frequencies
-shown in [Event Order Frequency](../measuring_cvd/reasoning_over_histories.md/#event-order-frequency) 
+shown in [Event Order Frequency](../measuring_cvd/reasoning_over_histories.md/#event-order-frequency)
 will be consistent across any such variations in desiderata.
 
 A discussion of some stakeholder preferences is given below, while a
 summary can be found in the following table. We notate these variations of the
 set of desiderata $\mathbb{D}$ with subscripts: $\mathbb{D}_v$ for
 vendors, $\mathbb{D}_s$ for system owners, $\mathbb{D}_c$ for
-coordinators, and $\mathbb{D}_g$ for governments. (Government stakeholders 
+coordinators, and $\mathbb{D}_g$ for governments. (Government stakeholders
 are omitted from the table because they are expected to have similar preferences to
 coordinators.)
-
-
 
 | Desideratum $d \in \mathbb{D}$ | Vendor ($\mathbb{D}_v$) | System Owner ($\mathbb{D}_s$) | Coordinator ($\mathbb{D}_c$) |
 |:------------------------------:|:-----------------------:|:-----------------------------:|:----------------------------:|
@@ -56,7 +53,6 @@ coordinators.)
 |        **P** $\prec$ **X**        |           yes           |              yes              |             yes              |
 |        **P** $\prec$ **A**        |           yes           |              yes              |             yes              |
 |        **X** $\prec$ **A**        |        maybe^3^         |           maybe^3^            |           maybe^3^           |
- 
 
 !!! tip "Table Notes"
 
@@ -74,7 +70,6 @@ coordinators.)
     **V** insofar as it is a prerequisite for **F**.
     5. System owners might be indifferent to **F** $\prec$ **P**
     and **D** $\prec$ **X** depending on their risk tolerance.
-
 
  In
 Table [3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==} we defined a preference ordering between
@@ -124,7 +119,7 @@ to take action, the feasibility of **D** $\prec$ **P** is
 limited.
 
 !!! tip "Silent Patches"
-    
+
     "Silent patches" can obviously occur when vendors fix a
     vulnerability but do not make that fact known. In principle, silent
     patches could achieve $\mathbf{D} \prec \mathbf{P}$ even in
@@ -137,9 +132,6 @@ influence their deployment, it would not be unreasonable for them to
 prefer that public awareness precedes both public exploits and attacks
 (**P** $\prec$ **X** and **P** $\prec$ **A**,
 respectively).
-
-
-
 
 Ensuring the ease of patch deployment by system owners remains a likely
 concern for vendors. Conscientious vendors might still prefer
@@ -235,9 +227,8 @@ early as possible prior to public disclosure
     similarly impossible without both **V** $\prec$ **P**, **X**, or **A** and 
     **F** $\prec$ **P**, **X**, or **A** for the reasons discussed above.
 
-
 Security researchers can also delay the publication of exploits until
-after fixes exist, are public, and possibly even until most system owners 
+after fixes exist, are public, and possibly even until most system owners
 have deployed the fix.
 
 !!! note "Exploit Delay Improves Outcomes"
@@ -257,7 +248,6 @@ have deployed the fix.
     This does not preclude adversaries from doing their own exploit development 
     on the way to **A**, but it avoids providing them with unnecessary assistance.
 
-
 ## Coordinators
 
 Coordinators have been characterized as seeking to balance the social
@@ -266,7 +256,7 @@ implies that they are likely interested in the union of the vendors' and
 system owners' preferences. In other words, coordinators want the full
 set of desiderata ($\mathbb{D}_c = \mathbb{D}$).
 
-!!! question "Why not a _Coordinator Awareness_ event?"
+!!! question "Why not a *Coordinator Awareness* event?"
 
     We pause for a brief aside about the design of the model with respect to
     the coordination role. We considered adding a *Coordinator Awareness*
@@ -283,8 +273,8 @@ set of desiderata ($\mathbb{D}_c = \mathbb{D}$).
     actions that make preferred histories more likely and non-preferred
     histories less likely.
 
-The rules outlined in [CVD Action Rules](./action_rules.md) suggest available 
-actions to improve outcomes. Namely, this means focusing coordination 
+The rules outlined in [CVD Action Rules](./action_rules.md) suggest available
+actions to improve outcomes. Namely, this means focusing coordination
 efforts as needed on vendor awareness, fix availability, fix deployment, and the
 appropriately timed public awareness of vulnerabilities and their exploits
 (**V**,**F**,**D**, **P**, and **X**).
@@ -302,5 +292,3 @@ desiderata from the lower left triangle of Table
 [3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==}. While defining such adversarial
 desiderata ($\mathbb{D}_a$) is out of scope for this paper, we leave the
 topic with our expectation that $\mathbb{D}_a \not\subseteq \mathbb{D}$.
-
-

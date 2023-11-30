@@ -18,7 +18,7 @@ formally define their meaning.
     controls for intrusion software.
 
 The information security community uses a variety of common phrases that
-contain the words *zero day*. This creates confusion that we can resolve 
+contain the words *zero day*. This creates confusion that we can resolve
 formally using our model.
 
 !!! example "What does *zero day* mean to you?"
@@ -31,10 +31,7 @@ formally using our model.
     agree that an instance is a "zero day" without realizing that they
     disagree on its definition.
 
-
-
 ### Zero Day Vulnerability
-
 
 Two common definitions for this term are in widespread use; a third
 is drawn from an important policy context. The two commonly-used
@@ -44,7 +41,7 @@ public and no attacks have occurred. We ordered all three
 definitions in approximately descending risk due to the expected
 duration until **D** can be achieved.
 
-|  Zero Day Vulnerability Type  |                                                  Definition                                                   | Description                                                                                                                                                                                                                                                                                                                                | 
+|  Zero Day Vulnerability Type  |                                                  Definition                                                   | Description                                                                                                                                                                                                                                                                                                                                |
 |:-----------------------------:|:-------------------------------------------------------------------------------------------------------------:|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |               1               |                                           $q \in vfdp \cdot \cdot$                                            | The United States VEP [@usg2017vep] defines *zero day vulnerability* in a manner consistent with $q \in {vp}$. Further discussion appears in [VEP](vep.md).                                                                                                                               |
 |               2               |  **P** $\prec$ **V**<br/>${v \cdot \cdot p \cdot \cdot} \xrightarrow{\mathbf{P}} {v \cdot \cdot P \cdot \cdot}$  | when the vulnerability becomes public before the vendor is aware of it. Note that our model assumes that states in ${vP}$ are unstable and resolve to ${vP} \xrightarrow{\mathbf{V}} {VP}$ in the next step.                                                                                                                               |
@@ -82,7 +79,7 @@ be achieved.
 
 In common usage, a *forever day* vulnerability is one that is expected
 to remain unpatched indefinitely [@ars2012forever]. In other words, the
-vulnerability is expected to remain in *..d...* forever. This 
+vulnerability is expected to remain in *..d...* forever. This
 situation can
 occur when deployed code is abandoned for a number of reasons,
 including:
@@ -93,7 +90,6 @@ including:
 |     No Vendor      |       $q \in {vfd \cdot \cdot \cdot}$       | The vendor no longer exists, implying a state $q \in {vfd}$. Neither **F** nor **D** transitions can be expected although **P**, **X**, and **A** remain possible. For this reason alone, coordinators or other stakeholders may choose to publish anyway to cause **P**. In this situation, if deployers are to respond at all, states in ${vfdP}$ are preferable to states in ${vfdp}$. Defender options in this case are usually limited to retiring or otherwise isolating affected systems, especially for vulnerabilities in either ${vfdPX}$ or ${vfdPA}$.                                                                                   |
 |    Never Deploy    | $q \in {\cdot \cdot d \cdot \cdot \cdot }$  | The deployer chooses to never deploy, implying an expectation to remain in ${d}$ until the affected systems are retired or otherwise removed from service. This situation may be more common in deployments of safety-critical systems and OT than it is in IT deployments. It is also the most reversible of the three *forever day* scenarios, because the deployer can always reverse their decision as long as a fix is available ($q \in {VF}$). In deployment environments where other mitigations are in place and judged to be adequate, and where the risk posed by **X** and/or **A** are perceived to be low, this can be a reasonable strategy within a VM program. |
 
-
 !!! question "What about when a vendor declines to fix a vulnerability in a supported product?"
 
     Scenarios in which the vendor has chosen not to develop a patch for an
@@ -101,4 +97,3 @@ including:
     omitted from the above definition because as long as the vendor exists
     the choice to not develop a fix remains reversible. That said, such
     scenarios most closely follow the first bullet in the list above.
-

@@ -90,14 +90,14 @@ assumption behind Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq
 
 Some example suggestive observations are:
 
--   There is reason to suspect that only a fraction of vulnerabilities
+- There is reason to suspect that only a fraction of vulnerabilities
     ever reach the *exploit public* event $\mathbf{X}$, and fewer still
     reach the *attack* event $\mathbf{A}$. Recent work by the Cyentia
     Institute found that "5% of all CVEs are both observed within
     organizations AND known to be exploited" [@cyentia2019getting],
     which suggests that $f_{\mathbf{D} \prec \mathbf{A}} \approx 0.95$.
 
--   Likewise, $\mathbf{D} \prec \mathbf{X}$ holds in 28 of 70 (0.4) $h$.
+- Likewise, $\mathbf{D} \prec \mathbf{X}$ holds in 28 of 70 (0.4) $h$.
     However Cyentia found that "15.6% of all open vulnerabilities
     observed across organizational assets in our sample have known
     exploits" [@cyentia2019getting], which suggests that
@@ -279,7 +279,7 @@ both users and risk on a case-by-case basis. At present, there is no
 clear consensus on such policies, although we hope that future work can
 use the model presented here to formalize the necessary analysis.
 
-##### Integrating FIRST MPCVD Guidance
+### Integrating FIRST MPCVD Guidance
 
 FIRST has
 published MPCVD
@@ -351,15 +351,14 @@ involved will mean that most vendors achieved acceptable outcomes.
 
 To summarize:
 
--   The median $\alpha_d$ for all histories $h \in \mathcal{M}$ should
+- The median $\alpha_d$ for all histories $h \in \mathcal{M}$ should
     be positive and preferably above some benchmark constant $c_d$,
     which may be different for each $d \in \mathbb{D}$.
 
     $$Median(\{ \alpha_d(h) : h \in \mathcal{M} \}) \geq c_d > 0$$
 
--   The variance of each $\alpha_d$ for all histories
+- The variance of each $\alpha_d$ for all histories
     $h \in \mathcal{M}$ should be low. The constant $\varepsilon$ is
     presumed to be small.
 
     $$\sigma^2(\{ \alpha_d(h) : h \in \mathcal{M} \}) \leq \varepsilon$$
-

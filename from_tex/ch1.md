@@ -167,4 +167,3 @@ We continue with a review of related work in
 
 An appendix summarizing each state in the model in conjunction with the
 discussion in §[6](#sec:discussion){== TODO fix ref to sec:discussion ==} is also provided.
-

@@ -107,4 +107,3 @@ ACM Journal Digital Threats: Research and Practice
   These user stories are collected in the [User Stories](topics/user_stories/index.md) section of this documentation.
 - [Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) (MPCVD),
   which serves as the basis for the work contained here.
-

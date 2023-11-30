@@ -165,4 +165,3 @@ get upper and lower estimates of $S_d^{obs}$ as in
 [\[eq:observed_wins\]](#eq:observed_wins){== TODO fix ref to eq:observed_wins ==}.
 
 period.](figures/nvd_estimates.png){#fig:nvd_estimates width="100mm"}
-

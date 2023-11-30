@@ -72,6 +72,7 @@ we are primarily concerned with the occurrence of the event itself
 rather than the details of *how* the public awareness event arises.
 
 ### Fix Readiness and Deployment
+
 The third event we address is *Fix Readiness*, by which we refer to the
 vendor's creation and possession of a fix that *could* be deployed to a
 vulnerable system, *if* the system owner knew of its existence. Here we
@@ -88,14 +89,14 @@ We chose to include the *Fix Ready*, *Fix Deployed*, and *Public
 Awareness* events so that our model could better accommodate two common
 modes of modern software deployment:
 
--   *shrinkwrap* - The traditional distribution mode in which the vendor
+- *shrinkwrap* - The traditional distribution mode in which the vendor
     and deployer are distinct entities and deployers must be made aware
     of the fix before it can be deployed. In this case, which
     corresponds to the previously mentioned *fix release* event, both
     fix readiness and public awareness are necessary for the fix to be
     deployed.
 
--   *SaaS* - A more recent delivery mode in which the vendor also plays
+- *SaaS* - A more recent delivery mode in which the vendor also plays
     the role of deployer. In this distribution mode, fix readiness can
     lead directly to fix deployed with no dependency on public
     awareness.
@@ -108,6 +109,7 @@ is also possible, and somewhat more likely, for *public awareness* to
 occur before *fix deployed* in the *SaaS* case as well.
 
 ### Exploit Public and Attacks Observed
+
 We diverge
 from [@arbaugh2000windows; @frei2010modeling; @bilge2012before] again in
 our treatment of exploits and attacks. Because attacks and exploit
@@ -122,14 +124,14 @@ wild*. Both refer to the state in which an exploit is known to exist.
 This can arise for at least two distinct reasons, which we wish to
 differentiate:
 
--   *exploit public*---the method of exploitation for a vulnerability
+- *exploit public*---the method of exploitation for a vulnerability
     was made public in sufficient detail to be reproduced by others.
     Posting PoC
     code to a widely available site or including the exploit in a
     commonly available exploit tool meets this criteria; privately held
     exploits do not.
 
--   *attacks observed*---the vulnerability was observed to be exploited
+- *attacks observed*---the vulnerability was observed to be exploited
     in attacks. This case requires evidence that the vulnerability was
     exploited; we can then presume the existence of an exploit
     regardless of its availability to the public. Analysis of malware
@@ -149,4 +151,3 @@ observed*.
 
 Further discussion of related work can be found in
 §[7](#sec:related_work){== TODO fix ref to sec:related_work ==}.
-

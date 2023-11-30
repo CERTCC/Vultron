@@ -1,11 +1,11 @@
-# Observing CVD in the Wild 
+# Observing CVD in the Wild
 
 As a proof of concept, we apply the model to two data sets: Microsoft's
 security updates from 2017 through early 2020 in
 §[5.2.1](#sec:ms2017-20){== TODO fix ref to sec:ms2017-20 ==}, and commodity public exploits from 2015-2019
 in §[5.2.2](#sec:commodity_15_19){== TODO fix ref to sec:commodity_15_19 ==}.
 
-## Microsoft 2017-2020 
+## Microsoft 2017-2020
 
 We are now ready to proceed with our data analysis. First, we examine
 Microsoft's monthly security updates for the period between March 2017
@@ -60,18 +60,18 @@ $f_{\mathbf{F} \prec \mathbf{A}}^{obs}$ above. Here we estimate the
 frequency $f_d$ of the other $d \in \mathbb{D}$ for this period. Our
 procedure is as follows:
 
-1.  For 10000 rounds, draw an $f_d^{est}$ for both
+1. For 10000 rounds, draw an $f_d^{est}$ for both
     $\mathbf{F} \prec \mathbf{P}$ and $\mathbf{F} \prec \mathbf{A}$ from
     the Beta distribution with parameters $a=S_d^{obs}$ and
     $b=T-S_d^{obs}$ where $S_d^{obs}$ is 2,610 or 2,655, respectively,
     and $T$ is 2,694.
 
-2.  Assign each $h \in \mathcal{H}$ a weight according to standard joint
+2. Assign each $h \in \mathcal{H}$ a weight according to standard joint
     probability based whether it meets both, either, or neither
     $A = \mathbf{F} \prec \mathbf{P}$ and
     $B = \mathbf{F} \prec \mathbf{A}$, respectively.
 
-    $$w_h = 
+    $$w_h =
     \begin{cases}
     p_{AB} = f_A * f_B \textrm{ if } A \textrm{ and } B\\
     p_{Ab} = f_A * f_b \textrm{ if } A \textrm{ and } \lnot B\\
@@ -79,18 +79,18 @@ procedure is as follows:
     p_{ab} = f_a * f_b \textrm{ if } \lnot A \textrm{ and } \lnot B
     \end{cases}$$ where $f_a = 1 - f_A$ and $f_b = 1-f_B$
 
-3.  Draw a weighted sample (with replacement) of size $N = 2,694$ from
+3. Draw a weighted sample (with replacement) of size $N = 2,694$ from
     $\mathcal{H}$ according to these weights.
 
-4.  Compute the sample frequency $f_{d}^{sample} = S_d^{sample} / N$ for
+4. Compute the sample frequency $f_{d}^{sample} = S_d^{sample} / N$ for
     each $d \in \mathbb{D}$, and record the median rank of all histories
     $h$ in the sample.
 
-5.  Compute the estimated frequency as the mean of the sample
+5. Compute the estimated frequency as the mean of the sample
     frequencies, namely $f_{d}^{est} = \langle f_{d}^{sample} \rangle$,
     for each $d \in \mathbb{D}$.
 
-6.  Compute $\alpha_d$ from $f_{d}^{est}$ for each $d \in \mathbb{D}$ .
+6. Compute $\alpha_d$ from $f_{d}^{est}$ for each $d \in \mathbb{D}$ .
 
 As one might expect given the causal requirement that vendor awareness
 precedes fix availability, the estimated values of $\alpha_d$ are quite
@@ -110,7 +110,7 @@ observations of $\mathbf{F} \prec \mathbf{P}$ and
 $\mathbf{F} \prec \mathbf{A}$ over the
 period.](figures/ms_estimates.png){#fig:ms_estimates width="100mm"}
 
-## Commodity Exploits 2015-2019 
+## Commodity Exploits 2015-2019
 
 Next, we examine the overall trend in $\mathbf{P} \prec \mathbf{X}$ for
 commodity exploits between 2015 and 2019. The data set is based on the

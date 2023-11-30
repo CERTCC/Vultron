@@ -13,44 +13,43 @@ the larger model.
 
 {% include-markdown "./vfdpxa_diagram.md" %}
 
+### The *Vendor Unware* macrostate (*vfd*)
 
-### The *Vendor Unware* macrostate (_vfd_)
-
-Found at the top of the diagram, the $vfd$ macrostate is the 
+Found at the top of the diagram, the $vfd$ macrostate is the
 least stable of the four because many of its internal transitions are disallowed,
-owing to the instability of both $pX$ and $vP$. The effect is a higher 
-likelihood of exiting this cube than the others. The practical 
+owing to the instability of both $pX$ and $vP$. The effect is a higher
+likelihood of exiting this cube than the others. The practical
 interpretation is that vendors are likely to become aware of
-vulnerabilities that exist in their products barring significant effort on 
+vulnerabilities that exist in their products barring significant effort on
 the part of adversaries to prevent exiting the $vfd$ states.
 
-### The *Vendor Aware* macrostate (_Vfd_)
+### The *Vendor Aware* macrostate (*Vfd*)
 
-In this set of states, the vendor is aware of the vulnerability, but the fix is 
+In this set of states, the vendor is aware of the vulnerability, but the fix is
 not yet ready. Vulnerabilities remain in $Vfd$ until the vendor produces a fix.
 
-### The *Fix Available* macrostate (_VFd_)
+### The *Fix Available* macrostate (*VFd*)
 
-States in this macrostate share the fact that a fix is available but not yet 
-deployed. Many publicly-disclosed vulnerabilities spend a sizable amount of 
-time in this cube as they await system owner or deployer action to deploy 
+States in this macrostate share the fact that a fix is available but not yet
+deployed. Many publicly-disclosed vulnerabilities spend a sizable amount of
+time in this cube as they await system owner or deployer action to deploy
 the fix.
 
-### The *Fix Deployed* macrostate (_VFD_)
+### The *Fix Deployed* macrostate (*VFD*)
 
-This macrostate is a sink: once it is reached, there are no exits. Attacks 
-attempted in this cube are expected to fail. The broader the scope of one's 
-concern in terms of number of systems, the less certain one can be of having 
-reached this macrostate. It is rather easy to tell when a single installed 
-instance of vulnerable software has been patched. It is less easy to tell 
-when the last of thousands or even millions of vulnerable software instances 
+This macrostate is a sink: once it is reached, there are no exits. Attacks
+attempted in this cube are expected to fail. The broader the scope of one's
+concern in terms of number of systems, the less certain one can be of having
+reached this macrostate. It is rather easy to tell when a single installed
+instance of vulnerable software has been patched. It is less easy to tell
+when the last of thousands or even millions of vulnerable software instances
 across an enterprise has been fixed.
 
 ## Simplified CS Model Diagram
 
 A simplified version of the CS model diagram is shown below.
-In this version, we are only demonstrating the parallelism between the 
-participant-specific (vendor fix path) and participant-agnostic (public, 
+In this version, we are only demonstrating the parallelism between the
+participant-specific (vendor fix path) and participant-agnostic (public,
 exploit, attacks) aspects of the model, without the additional complexity
 of the interactions between the two.
 

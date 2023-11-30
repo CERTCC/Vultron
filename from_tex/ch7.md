@@ -89,10 +89,10 @@ finding a lag of over 300 days [@bilge2012before]. Jacobs et al.
 proposed an Exploit Prediction Scoring System [@jacobs2020epss], which
 could provide insight into the relative frequencies of $$\begin{aligned}
 {vfda} \xrightarrow{\mathbf{V}} {Va} \xrightarrow{\mathbf{A}} {VA}
-&\textrm{ vs. } 
+&\textrm{ vs. }
 {vfda} \xrightarrow{\mathbf{A}} {vA} \xrightarrow{\mathbf{V}} {VA} \\
-{fda} \xrightarrow{\mathbf{F}} {Fa} \xrightarrow{\mathbf{A}} {FA} 
-&\textrm{ vs. } 
+{fda} \xrightarrow{\mathbf{F}} {Fa} \xrightarrow{\mathbf{A}} {FA}
+&\textrm{ vs. }
 {fda} \xrightarrow{\mathbf{A}} {fA} \xrightarrow{\mathbf{F}} {FA}
 \end{aligned}$$ and possibly other transitions.
 
@@ -120,4 +120,3 @@ that ${fp} \xrightarrow{\mathbf{F}} {Fp} \xrightarrow{\mathbf{P}} {FP}$
 43% of the time, implying that
 ${fp} \xrightarrow{\mathbf{P}} {fP} \xrightarrow{\mathbf{F}} {FP}$ 57%
 of the time.
-

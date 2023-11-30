@@ -4,20 +4,20 @@ This section highlights some limitations of the current work and lays
 out a path for improving on those limitations in future work. Broadly,
 the opportunities for expanding the model include
 
--   addressing the complexities of tracking CVD and MPCVD cases throughout their lifecycle
+- addressing the complexities of tracking CVD and MPCVD cases throughout their lifecycle
 
--   addressing the importance of both state transition probabilities and
+- addressing the importance of both state transition probabilities and
     the time interval between them
 
--   options for modeling attacker behavior
+- options for modeling attacker behavior
 
--   modeling multiple agents
+- modeling multiple agents
 
--   gathering more data about CVD in the world
+- gathering more data about CVD in the world
 
--   managing the impact of partial information
+- managing the impact of partial information
 
--   working to account for fairness and the complexity of
+- working to account for fairness and the complexity of
     MPCVD
 
 ## State Explosion
@@ -90,15 +90,15 @@ to be addressed before the model can achieve a total order over
 histories $\mathcal{H}$. Specifically, we need to decide whether it is
 preferable
 
--   that Fix Ready precede Exploit Publication
+- that Fix Ready precede Exploit Publication
     ($\mathbf{F} \prec \mathbf{X}$) or that Vendor Awareness precede
     Public Awareness ($\mathbf{V} \prec \mathbf{P}$)
 
--   that Public Awareness precede Exploit Publication
+- that Public Awareness precede Exploit Publication
     ($\mathbf{P} \prec \mathbf{X}$) or that Exploit Publication Precede
     Attacks ($\mathbf{X} \prec \mathbf{A}$)
 
--   that Public Awareness precede Attacks
+- that Public Awareness precede Attacks
     ($\mathbf{P} \prec \mathbf{A}$) or Vendor Awareness precede Exploit
     Publication ($\mathbf{V} \prec \mathbf{X}$)
 
@@ -282,4 +282,3 @@ is that the model found here will help to clarify decisions,
 communication, and policies that all have their part to play in
 MPCVD process
 improvement.
-

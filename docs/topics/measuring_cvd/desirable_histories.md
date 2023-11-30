@@ -2,8 +2,8 @@
 
 {== TODO merge or deduplicate with [CVD Success](../background/cvd_success.md) ==}
 
-All possible case histories are not equally preferable. Some are quite 
-bad&mdash;for 
+All possible case histories are not equally preferable. Some are quite
+bad&mdash;for
 example, those in which attacks precede vendor awareness
 ($\mathbf{A} \prec \mathbf{V}$). Others are very desirable&mdash;for example,
 those in which fixes are deployed before either an exploit is made
@@ -43,7 +43,7 @@ adversaries are far ahead of defenders.
 | :--- | :--- |
 | $\mathbf{F} \prec \mathbf{P}$ | Fix availability precedes public awareness |
 | $\mathbf{F} \prec \mathbf{X}$ | Fix availability precedes exploit publication |
-| $\mathbf{F} \prec \mathbf{A}$ | Fix availability precedes attacks |    
+| $\mathbf{F} \prec \mathbf{A}$ | Fix availability precedes attacks |
 
 As noted above, the public can take
 no action until a fix is ready. Because public awareness also
@@ -131,7 +131,7 @@ to weeks.
 ## Some states are preferable to others
 
 The desiderata defined above address the preferred ordering of transitions
-in CVD histories, which imply that one should prefer to pass through some 
+in CVD histories, which imply that one should prefer to pass through some
 states and avoid others.
 
 !!! example "Preferences over states"
@@ -164,11 +164,11 @@ to be met.
 ## A partial order over possible histories
 
 Given the desired preferences over orderings of transitions
-($\mathbb{D}$ in _Formalizing Desirable Orderings_ above,  we can construct 
+($\mathbb{D}$ in *Formalizing Desirable Orderings* above,  we can construct
 a partial ordering over all possible histories $\mathcal{H}$, as defined in
 [\[eq:ordering\]](#eq:ordering){== TODO fix ref to eq:ordering ==}. This partial order requires a formal
 definition of which desiderata are met by a given history, provided by
-_Formalizing Desirable Histories_ below. 
+*Formalizing Desirable Histories* below.
 
 !!! note "Formalizing Desirable Histories"
 
@@ -220,7 +220,6 @@ $$h_{0} = (\mathbf{A}, \mathbf{X}, \mathbf{P}, \mathbf{V}, \mathbf{F}, \mathbf{D
 |  $\mathbf{P}$   |  undesired   |  undesired   |  undesired   |  impossible  |   desired    |   desired    |
 |  $\mathbf{X}$   |  undesired   |  undesired   |  undesired   |  undesired   |  impossible  |   desired    |
 |  $\mathbf{A}$   |  undesired   |  undesired   |  undesired   |  undesired   |  undesired   |  impossible  |
-    
 
   : Ordered pairs of events where ${row} \prec {col}$ (Key: - =
   impossible, r = required, d = desired, u = undesired)
@@ -248,4 +247,3 @@ not share a path are incomparable. Labels indicate the index (row
 number) $a$ of $h_a$ in Table
 [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}.](figures/h_poset.png){#fig:poset
 width="140mm"}
-

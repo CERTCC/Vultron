@@ -1,15 +1,15 @@
 # Recommended Action Rules for CVD {#sec:cvd_action_rules}
 
-Another application of the [CS model](../process_models/cs/cs_model.md) is to 
+Another application of the [CS model](../process_models/cs/cs_model.md) is to
 recommend actions for coordinating parties in CVD based on the subset of states that
 currently apply to a case. What a coordinating party does depends on
 their role and where they engage, as shown in the list below. As
 described throughout this documentation, the Vultron protocol is intended
-to synchronize state transitions across CVD stakeholders. 
+to synchronize state transitions across CVD stakeholders.
 
 ## Defining CVD Action Rules
 
-A significant portion of CVD can be formally described as a set of action 
+A significant portion of CVD can be formally described as a set of action
 rules based on this model. For our purposes, a CVD action rule consists of:
 
 | Rule Component | Description                                                                             |
@@ -19,7 +19,6 @@ rules based on this model. For our purposes, a CVD action rule consists of:
 | Action         | A summary of the action to be taken                                                     |
 | Reason         | The rationale for taking the action                                                     |
 | Transition     | The state transition event $\sigma^{cs} \in \Sigma^{cs}$ induced by the action (if any) |
-
 
 This rule structure follows a common user story pattern:
 
@@ -88,5 +87,5 @@ We define a set of such rules in the table below.
 
 The rules listed in the table above can be built into a rules engine that
 translates each state in the model to a set of suggested CVD actions.
-The detailed [case state listings](../../reference/case_states.md) in the 
+The detailed [case state listings](../../reference/case_states.md) in the
 references section show these rules applied to each $q^{cs}$ state.

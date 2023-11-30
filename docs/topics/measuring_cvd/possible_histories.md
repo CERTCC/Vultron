@@ -48,14 +48,14 @@ satisfy this definition.
 Given that a history $h$ contains all six events $\Sigma$ in some order,
 there could be at most 720 ($_{6} \mathrm{P}_{6} = 6! = 720$) potential
 histories. However, because of the causal requirements outlined in
-[CS Transitions](../process_models/cs/transitions.md), we know that Vendor 
+[CS Transitions](../process_models/cs/transitions.md), we know that Vendor
 Awareness (**V**) must precede Fix Ready (**F**) and that Fix Ready
 must precede Fix Deployed (**D**).
 
 The DFA developed
 in [CS Process Model](../process_models/cs/model_definition.md) provides
 the mechanism to validate histories: a history $h$ is valid if the
-DFA accepts it as a valid input string. Once this constraint is applied, 
+DFA accepts it as a valid input string. Once this constraint is applied,
 only 70 possible histories $h \in \mathcal{H}p$ remain viable.
 We denote the set of all
 such valid histories as $\mathcal{H}$ and have $|\mathcal{H}| = 70$. The
@@ -65,7 +65,7 @@ paths through $\mathcal{Q}$ as can be derived from Table
 [2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
 
 The set of possible histories $\mathcal{H}$ is listed exhaustively in
-the table below. 
+the table below.
 The skill ranking function on the histories will be defined in
 §[4.4](#sec:h_poset_skill){== TODO fix ref to sec:h_poset_skill ==}. The desirability of the history
 ($\mathbb{D}^h$) will be defined in
@@ -73,9 +73,8 @@ The skill ranking function on the histories will be defined in
 $f_h$ is explained in
 §[4.1](#sec:history_frequency_analysis){== TODO fix ref to sec:history_frequency_analysis ==}.
 
-
-| # |            $h \in \mathcal{H}$             | rank | $\mathbb{D}^h$ count |  $f_h$ | 
-| :---: |:------------------------------------------:| :--: |:--------------------:|-------:| 
+| # |            $h \in \mathcal{H}$             | rank | $\mathbb{D}^h$ count |  $f_h$ |
+| :---: |:------------------------------------------:| :--: |:--------------------:|-------:|
 | 0 | (**A**, **X**, **P**, **V**, **F**, **D**) | 1 |          0           | 0.0833 |
 | 1 | (**A**, **P**, **V**, **X**, **F**, **D**) | 2 |          2           | 0.0417 |
 | 2 | (**A**, **V**, **X**, **P**, **F**, **D**) | 3 |          2           | 0.0278 |
@@ -147,7 +146,6 @@ $f_h$ is explained in
 | 68 | (**V**, **F**, **D**, **P**, **A**, **X**) | 61 |          11          | 0.0026 |
 | 69 | (**V**, **F**, **D**, **P**, **X**, **A**) | 62 |          12          | 0.0026 |
 
-
 Now that we have defined the set of histories $\mathcal{H}$, we can
 summarize the effects of the transition function $\delta$ developed in
 §[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==} (Table
@@ -168,9 +166,8 @@ histories $h \in \mathcal{H}$:
 
     $$\mathbf{P} \prec \mathbf{X} \textrm{ or } \mathbf{X} \rightarrow \mathbf{P}$$
 
- 
 - First, the causality constraint of the
-vendor fix path must hold. 
+vendor fix path must hold.
 
 - Second, the model makes the simplifying assumption that vendors know at
 least as much as the public does. In other words, all histories must
@@ -181,9 +178,7 @@ meet one of two criteria: either Vendor Awareness precedes Public
 vulnerability by a public exploit. Therefore, either Public Awareness
 precedes Exploit Public (**X**) or must immediately follow it.
 
-
 This model is amenable for analysis of CVD, but we need to add a way to express
 preferences before it is complete. Thus we are part way through **RQ1**.
 §[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==} will
 address how this model can generalize from CVD to MPCVD.
-

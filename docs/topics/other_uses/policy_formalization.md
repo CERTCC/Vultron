@@ -136,16 +136,16 @@ $\mathcal{Q}_{E}$ as in Eq.
 [\[eq:embargo_viable\]](#eq:embargo_viable){== TODO fix ref to eq:embargo_viable ==}. This in turn gives us specific things to
 look for in order to determine when to end an embargo:
 
--   The embargo timer has expired.
+- The embargo timer has expired.
 
--   Any observation of $\mathbf{P}$, $\mathbf{X}$, or $\mathbf{A}$ has
+- Any observation of $\mathbf{P}$, $\mathbf{X}$, or $\mathbf{A}$ has
     been made ($q \not\in {pxa}$).
 
--   $\mathbf{F}$ or $\mathbf{D}$ have occurred
+- $\mathbf{F}$ or $\mathbf{D}$ have occurred
     ($q \in \{{VFdpxa}, {VFDpxa}\})$, and no reasons specific to the
     case to maintain the embargo remain.
 
--   Any other embargo exit rules---such as those specified in the
+- Any other embargo exit rules---such as those specified in the
     relevant disclosure policies---have been triggered.
 
 ## CVD Service Level Expectations
@@ -207,18 +207,18 @@ ${FdP} \xrightarrow{\mathbf{D}} {FDP}$.
 Future formal definitions of policy statements might take the general
 form of specifications including
 
--   Starting state ($q \in \mathcal{Q}$) or subset of states
+- Starting state ($q \in \mathcal{Q}$) or subset of states
     ($S \subset \mathcal{Q}$)
 
--   Expected transitions ($\sigma \in \Sigma$) and
+- Expected transitions ($\sigma \in \Sigma$) and
     SLEs around their
     timing, including possible constraints such as "not before" and "no
     later than" specifications
 
--   An indication of constraint rigidity (negotiable, fixed, *MUST*,
+- An indication of constraint rigidity (negotiable, fixed, *MUST*,
     *SHOULD*, *MAY* [@bradner1997rfc2119], etc.)
 
--   Potential exceptions in the form of other transitions
+- Potential exceptions in the form of other transitions
     ($\sigma \in \Sigma$) that might alter expected behavior, and a
     description of the anticipated response.
 

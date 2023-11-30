@@ -136,4 +136,3 @@ we will use a dot ($\cdot$) to represent a single character wildcard.
     Specifically,
 
     $${VFdP\cdot\cdot} = \{{VFdPxa}, {VFdPxA}, {VFdPXa}, {VFdPXA}\} \subset{\mathcal{Q}}^{cs}$$
-

@@ -1,6 +1,6 @@
 # Measuring CVD
 
-!!! abstract "Measuring CVD" 
+!!! abstract "Measuring CVD"
 
     CVD stands as a consensus response to the persistent fact of vulnerable 
     software, yet few performance indicators have been proposed to measure its 
@@ -19,5 +19,5 @@
     CVD practices.
 
 This section is derived from the following paper:
-_A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure 
-(MPCVD)_ by Allen Householder and Jonathan Spring
+*A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure
+(MPCVD)* by Allen Householder and Jonathan Spring

@@ -17,4 +17,3 @@ reflections on how this model and its accompanying performance
 indicators could be used by various stakeholders (vendors, system
 owners, coordinators, and governments) to interpret the quality of their
 CVD practices.
-
