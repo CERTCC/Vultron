@@ -30,14 +30,14 @@ Where appropriate, we intend to provide a reference implementation for each appl
 Each story page indicates a categorization according to the level of support provided
 by the originally published Vultron Protocol (version 0.4.0):
 
-- _Provided_ - Stories in this category are directly supported by the Vultron Protocol v0.4.0.
-- _Allowed_ - Stories in this category are indirectly supported by the Vultron Protocol v0.4.0.
-- _Unsupported_ - Stories in this category are not supported by the Vultron Protocol v0.4.0.
-- _Out-of-scope_ - Stories in this category are out of scope for the Vultron Protocol v0.4.0.
+- *Provided* - Stories in this category are directly supported by the Vultron Protocol v0.4.0.
+- *Allowed* - Stories in this category are indirectly supported by the Vultron Protocol v0.4.0.
+- *Unsupported* - Stories in this category are not supported by the Vultron Protocol v0.4.0.
+- *Out-of-scope* - Stories in this category are out of scope for the Vultron Protocol v0.4.0.
 
-In the future, we expect these categories will change toward simply _Supported_, _Unsupported_ and _Out-of-scope_.
+In the future, we expect these categories will change toward simply *Supported*, *Unsupported* and *Out-of-scope*.
 We also anticipate that as we learn more about ActivityPub and make progress on the protocol development, some of
-the stories in the _Unsupported_ category could move to _Supported_.
+the stories in the *Unsupported* category could move to *Supported*.
 
 ## User Stories Table
 

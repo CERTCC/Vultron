@@ -17,7 +17,7 @@ beginning of this effort.
 ## Related Ontology and Data Definition Work
 
 It is currently unclear how this work might intersect with the NIST
-[Vulnerability Data Ontology](https://github.com/usnistgov/vulntology) (a.k.a. _Vulntology_), but we anticipate that there may be some
+[Vulnerability Data Ontology](https://github.com/usnistgov/vulntology) (a.k.a. *Vulntology*), but we anticipate that there may be some
 opportunity for further collaboration.
 Also, we recognize that the OASIS [Common Security Advisory Framework](https://oasis-open.github.io/csaf-documentation/)
 is addressing a different abstraction of a closely related problem (representing vulnerability reports and advisories),

@@ -72,21 +72,21 @@ flowchart LR
 
 It is a child of the fallback node started in [Receiving Messages Behavior](msg_intro_bt.md).
 A precondition check for EM message types is followed by a fallback node.
-EM acknowledgment messages (_EK_) receive no further attention and return _Success_.
+EM acknowledgment messages (*EK*) receive no further attention and return *Success*.
 
 ## Messages That Lead to a Simple Acknowledgment
 
-Next is a branch handling all the messages that will result in a simple acknowledgment (_EK_).
+Next is a branch handling all the messages that will result in a simple acknowledgment (*EK*).
 
-(A) First, we handle embargo error messages (_EE_), which additionally trigger a general inquiry (_GI_) message to attempt
+(A) First, we handle embargo error messages (*EE*), which additionally trigger a general inquiry (*GI*) message to attempt
 to resolve the problem.
 
-(B) Second are embargo termination messages (_ET_).
-If the Participant is already in the EM _eXited_ state (_X_), no further action is taken (aside from the _EK_).
-Otherwise, if the Participant is in either _Active_ or _Revise_ EM states, the _ET_ message triggers a state
+(B) Second are embargo termination messages (*ET*).
+If the Participant is already in the EM *eXited* state (*X*), no further action is taken (aside from the *EK*).
+Otherwise, if the Participant is in either *Active* or *Revise* EM states, the *ET* message triggers a state
 transition $q^{em} \xrightarrow{t} X$.
 
-(C) Embargo rejections are handled next in a simple sequence that returns the state from _Proposed_ to _None_.
+(C) Embargo rejections are handled next in a simple sequence that returns the state from *Proposed* to *None*.
 
 ### Handling Viable Embargo Messages
 
@@ -170,24 +170,24 @@ flowchart LR
     ec_seq --> ec_em_to_A
 ```
 
-(D2a) An embargo proposal (_EP_)
-results in either a move from _None_ to _Proposed_ or stays in
+(D2a) An embargo proposal (*EP*)
+results in either a move from *None* to *Proposed* or stays in
 *Proposed*, if that was already the case.
 
-(D2b) An embargo acceptance (_EA_)
-transitions from _Proposed_ to _Active_.
+(D2b) An embargo acceptance (*EA*)
+transitions from *Proposed* to *Active*.
 
-(D2c) Similar to the _EP_ behavior,
-an embargo revision proposal (_EV_) either moves from _Active_ to
-*Revise* or stays in _Revise_, as appropriate.
+(D2c) Similar to the *EP* behavior,
+an embargo revision proposal (*EV*) either moves from *Active* to
+*Revise* or stays in *Revise*, as appropriate.
 
 (D2d) Finally, we deal with
-revision rejection (_EJ_) or acceptance (_EC_) when in the *Revise*
+revision rejection (*EJ*) or acceptance (*EC*) when in the *Revise*
 state.
 
-Climbing back up the tree, we see that _Success_ in any of the
+Climbing back up the tree, we see that *Success* in any of the
 branches in this or the previous paragraph results in an acknowledgment
-message _EK_.
+message *EK*.
 
 ## Messages That Require More than a Simple Acknowledgment
 
@@ -199,4 +199,4 @@ This branch takes us to the [Terminate Embargo tree](em_terminate_bt.md), which 
 other messages being emitted.
 
 Finally, back at the end of the tree at the top of the page, when no other branch has succeeded,
-we emit an embargo error (_EE_) message to relay the failure.
+we emit an embargo error (*EE*) message to relay the failure.

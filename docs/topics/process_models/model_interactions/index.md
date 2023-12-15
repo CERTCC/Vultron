@@ -48,12 +48,12 @@ stateDiagram-v2
 ### Global vs. Participant-Specific Aspects of the CS Model
 
 The [CS model](../cs/index.md) encompasses both Participant-specific and Participant-agnostic aspects of a
-CVD case. In particular, the Vendor fix path substates&mdash;Vendor unaware (_vfd_),
-Vendor aware (_Vfd_), fix ready (_VFd_), and fix deployed (_VFD_)&mdash;are
+CVD case. In particular, the Vendor fix path substates&mdash;Vendor unaware (*vfd*),
+Vendor aware (*Vfd*), fix ready (*VFd*), and fix deployed (*VFD*)&mdash;are
 specific to each Vendor Participant in a case. On the other hand, the
 remaining substates represent Participant-agnostic facts about the case
-status&mdash;public awareness (_p,P_), exploit public (_x,X_), and attacks
-observed (_a,A_). This distinction in perspectives will become
+status&mdash;public awareness (*p,P*), exploit public (*x,X*), and attacks
+observed (*a,A*). This distinction in perspectives will become
 important in the [Formal Protocol](../../formal_protocol/index.md) definition.
 
 {% include-markdown "./cs_global_local.md" %}

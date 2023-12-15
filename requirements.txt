@@ -1,10 +1,10 @@
 mkdocs==1.5.3
 mkdocs-include-markdown-plugin==6.0.4
-mkdocs-material==9.4.14
-mkdocs-material-extensions==1.3
+mkdocs-material==9.5.2
+mkdocs-material-extensions==1.3.1
 mkdocstrings==0.24.0
-mkdocstrings-python==1.7.4
-pandas==2.1.1
-scipy==1.11.3
+mkdocstrings-python==1.7.5
+pandas==2.1.4
+scipy==1.11.4
 networkx==3.2.1
 mkdocs-print-site-plugin==2.3.6

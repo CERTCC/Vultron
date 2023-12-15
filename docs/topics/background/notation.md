@@ -7,7 +7,7 @@ This page provides a reference for the conventions and notation used throughout 
 
 ## Documentation Conventions
 
-We are using the [_Admonitions_](https://squidfunk.github.io/mkdocs-material/reference/admonitions/) (call-outs) provided by
+We are using the [*Admonitions*](https://squidfunk.github.io/mkdocs-material/reference/admonitions/) (call-outs) provided by
 [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) to highlight specific types of information in this
 documentation.
 

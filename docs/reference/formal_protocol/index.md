@@ -16,7 +16,7 @@ A communication protocol allows independent processes, represented as finite sta
 transitions through the passing of messages. [Brand and Zafiropulo](https://doi.org/10.1145/322374.322380) defined
 a protocol as follows.
 
-!!! note "_Protocol_ Formally Defined"
+!!! note "*Protocol* Formally Defined"
 
     A **protocol** with $N$ processes is a quadruple:
 
@@ -49,7 +49,7 @@ a protocol as follows.
     receives message $x$ in state $s$. It is a transmission if $x$ is
     from $M_{ij}$ and a reception if $x$ is from $M_{ji}$.
 
-!!! note "_Global State_ Formally Defined"
+!!! note "*Global State* Formally Defined"
 
     The **global state** of a protocol given by the above is a pair $\langle S, C \rangle$, where
 
@@ -77,7 +77,7 @@ in their roles (Finder, Vendor, Coordinator, Deployer, and Other). Each
 Participant has their own process, but Participants might take on
 multiple roles in a given case.
 
-!!! note "_Number of Processes_"
+!!! note "*Number of Processes*"
 
     The total number of processes $N$ is simply the count of unique Participants.
 

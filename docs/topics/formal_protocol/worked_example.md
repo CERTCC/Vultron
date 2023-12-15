@@ -23,13 +23,13 @@ sequenceDiagram
 
 Finders become Reporters when they report a vulnerability to someone
 else. The next figure shows a Finder sending a
-report (_RS_) in conjunction with an embargo proposal (_EP_) to a
+report (*RS*) in conjunction with an embargo proposal (*EP*) to a
 Vendor. The Vendor receives the report and updates their state
 accordingly. Then the Vendor replies to acknowledge receipt of the
 report and the embargo proposal, and confirms that they (i.e., the
-Vendor) are aware of the report (_RK_, _EK_, and _CV_, respectively).
-Note that the _EK_ response is intended to convey receipt of the embargo
-proposal (_EP_) but does not constitute acceptance of the proposal. We
+Vendor) are aware of the report (*RK*, *EK*, and *CV*, respectively).
+Note that the *EK* response is intended to convey receipt of the embargo
+proposal (*EP*) but does not constitute acceptance of the proposal. We
 will discuss that in the next subsection.
 
 ```mermaid
@@ -51,7 +51,7 @@ In this section, we show a variety of responses a Vendor might have to an embarg
 ### Vendor Accepts Embargo
 
 First is a basic accept sequence in which the Vendor accepts the proposed embargo and tells the
-Reporter this through an _EA_ message. The Reporter acknowledges this with an _EK_ in response.
+Reporter this through an *EA* message. The Reporter acknowledges this with an *EK* in response.
 
 ```mermaid
 sequenceDiagram
@@ -73,7 +73,7 @@ sequenceDiagram
 ### Vendor Rejects Embargo
 
 Next we show a rejected proposal. As above, this is a simple sequence where the Vendor indicates their rejection of the
-proposal with an _ER_ message, and the Reporter acknowledges this with an _EK_ message.
+proposal with an *ER* message, and the Reporter acknowledges this with an *EK* message.
 
 ```mermaid
 sequenceDiagram
@@ -91,10 +91,10 @@ sequenceDiagram
 ### Vendor Counterproposal
 
 Here we demonstrate a Vendor embargo counterproposal. The Vendor responds to the Reporter's prior
-_EP_ message with an _EP_ message of their own. The Reporter initially
-acknowledges the counterproposal with an _RK_ message and then evaluates
-it and accepts with an _EA_ message. Finally, the Vendor acknowledges
-the acceptance with an _EK_ message. Note, however, that there is no
+*EP* message with an *EP* message of their own. The Reporter initially
+acknowledges the counterproposal with an *RK* message and then evaluates
+it and accepts with an *EA* message. Finally, the Vendor acknowledges
+the acceptance with an *EK* message. Note, however, that there is no
 active embargo until the Reporter accepts it. This method of
 counterproposal might delay the establishment of an embargo.
 
@@ -163,7 +163,7 @@ Here we show two responses from a Vendor in the course of prioritizing a report.
 
 ### Vendor Accepts Report
 
-This figure shows a Vendor accepting the report for further work (presumably to develop a patch) with an _RA_ message.
+This figure shows a Vendor accepting the report for further work (presumably to develop a patch) with an *RA* message.
 
 ```mermaid
 sequenceDiagram
@@ -178,8 +178,8 @@ sequenceDiagram
 
 ### Vendor Defers Report
 
-On the contrary, this figure shows the Vendor deferring the report with an _RD_ message.
-In both cases, the Reporter acknowledges the Vendor's messages with an _RK_ message.
+On the contrary, this figure shows the Vendor deferring the report with an *RD* message.
+In both cases, the Reporter acknowledges the Vendor's messages with an *RK* message.
 
 ```mermaid
 sequenceDiagram
@@ -197,8 +197,8 @@ sequenceDiagram
 The next two diagrams show the process of a Reporter engaging a Coordinator, who, in turn, engages a Vendor.
 The process begins in the first diagram with the Reporter sending a report along with an embargo proposal to the Coordinator
 ($RS,EP$). The Coordinator acknowledges receipt with an $RK,EK$ response.
-After evaluating the proposed embargo, the Coordinator accepts it with an _EA_ message.
-The Coordinator proceeds to validate and prioritize the report, emitting an _RV_ and _RA_ along the way.
+After evaluating the proposed embargo, the Coordinator accepts it with an *EA* message.
+The Coordinator proceeds to validate and prioritize the report, emitting an *RV* and *RA* along the way.
 
 ```mermaid
 sequenceDiagram
@@ -233,11 +233,11 @@ sequenceDiagram
 
 In the next diagram, the Coordinator now acts as a proxy for the Reporter, notifying the Vendor and passing along
 the embargo information through an $RS,EP$ message of its own.
-The Vendor accepts the existing embargo (_EA_) and proceeds to validate (_RV_) and prioritize (_RA_) the report.
+The Vendor accepts the existing embargo (*EA*) and proceeds to validate (*RV*) and prioritize (*RA*) the report.
 Relevant responses from the Vendor are passed through to the Reporter.
 Having accepted the report for further work, the Vendor continues with creating a fix for the reported vulnerability.
 When complete, the Vendor conveys their readiness to the Coordinator, who in turn passes this information along
-to the Reporter through the _CF_ message.
+to the Reporter through the *CF* message.
 
 ```mermaid
 sequenceDiagram
@@ -285,8 +285,8 @@ sequenceDiagram
 
 Any Participant can initiate an embargo teardown.
 We happened to show the case where the Coordinator initiates it in the following diagram, sending an embargo
-termination message (_ET_) to all parties in the case (Reporter and Vendor in this scenario).
-Recipients of the _ET_ message acknowledge receipt and update their EM state accordingly.
+termination message (*ET*) to all parties in the case (Reporter and Vendor in this scenario).
+Recipients of the *ET* message acknowledge receipt and update their EM state accordingly.
 
 !!! tip "Embargo Teardown, Publication, and Closure Can Start with Any Participant"
 
@@ -319,7 +319,7 @@ sequenceDiagram
 
 Once the embargo has been exited, any Participant may now publish.
 In the following figure, we show the Vendor publishing first.
-They notify the Coordinator that they have published using a _CP_ message to convey that information about the vulnerability
+They notify the Coordinator that they have published using a *CP* message to convey that information about the vulnerability
 is now public.
 The Coordinator relays this information to the Reporter.
 Both the Reporter and the Coordinator publish their own reports shortly thereafter.
@@ -357,7 +357,7 @@ sequenceDiagram
 ### Closing the Case
 
 Having no further work to be done on the case, the Reporter closes their
-report and tells the Coordinator using an _RC_ message in the next diagram.
+report and tells the Coordinator using an *RC* message in the next diagram.
 This prompts the Coordinator to review their outstanding tasks and decide to initiate the closure of their own report.
 In turn, the Coordinator relays this to the Vendor, who also closes their report.
 

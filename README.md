@@ -36,13 +36,13 @@ More recently, the CERT/CC has been working towards formalizing this knowledge i
 This work began
 with [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513),
 which also appeared in an abridged form as [Are We Skillful or Just Lucky? Interpreting the Possible Histories of Vulnerability Disclosures](https://dl.acm.org/doi/10.1145/3477431)
-in the ACM Journal _Digital Threats: Research and Practice_.
+in the ACM Journal *Digital Threats: Research and Practice*.
 In 2022, we published a collection of [Coordinated Vulnerability Disclosure User Stories](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=886543)
 derived from both our process modeling work and from the experience of building VINCE.
 That same year, we published [Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198),
 which serves as the basis for the work contained in this repository.
 
-## So what _is_ Vultron?
+## So what *is* Vultron?
 
 Vultron is:
 
@@ -62,16 +62,16 @@ Currently, the work is focused on mapping the formal protocol onto the syntax an
 protocol.
 Examples of our first steps in that direction can be found in [doc/examples](doc/examples)
 
-## What is Vultron _not_?
+## What is Vultron *not*?
 
 Vultron is **not** a drop-in replacement for any particular
 
-- _tracking system_&mdash;e.g., [Bugzilla](https://www.bugzilla.org/), [Jira](https://www.atlassian.com/software/jira)
-- _CVD or threat coordination tool_&mdash;e.g., [VINCE](https://github.com/CERTCC/VINCE), [MISP](https://www.misp-project.org/)
-- _Vulnerability disclosure program_&mdash;e.g.,  [DC3 VDP](https://www.dc3.mil/Missions/Vulnerability-Disclosure/Vulnerability-Disclosure-Program-VDP/)
-- _Vulnerability disclosure platform or service_&mdash;e.g., [HackerOne](https://hackerone.com/), [Bugcrowd](https://www.bugcrowd.com/), [Synack](https://www.synack.com/)
+- *tracking system*&mdash;e.g., [Bugzilla](https://www.bugzilla.org/), [Jira](https://www.atlassian.com/software/jira)
+- *CVD or threat coordination tool*&mdash;e.g., [VINCE](https://github.com/CERTCC/VINCE), [MISP](https://www.misp-project.org/)
+- *Vulnerability disclosure program*&mdash;e.g.,  [DC3 VDP](https://www.dc3.mil/Missions/Vulnerability-Disclosure/Vulnerability-Disclosure-Program-VDP/)
+- *Vulnerability disclosure platform or service*&mdash;e.g., [HackerOne](https://hackerone.com/), [Bugcrowd](https://www.bugcrowd.com/), [Synack](https://www.synack.com/)
 
-Instead, it is our hope that Vultron could serve as a _lingua franca_ for the exchange of vulnerability case coordination information
+Instead, it is our hope that Vultron could serve as a *lingua franca* for the exchange of vulnerability case coordination information
 between those systems and services.
 
 Vultron is not a vulnerability priortization tool, although it is intended to be compatible with common
