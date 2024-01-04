@@ -133,6 +133,13 @@ nav:
           - Pacman Demo: 'reference/code/bt/pacman_demo.md'
           - Robot Demo: 'reference/code/bt/robot_demo.md'
           - Vultrabot Demo: 'reference/code/bt/vultrabot_demo.md'
+    - Ontology:
+      - Intro: 'reference/ontology/index.md'
+      - Vultron_AS: 'reference/ontology/vultron_as.md'
+      - Vultron_Protocol: 'reference/ontology/vultron_protocol.md'
+      - Vultron_Process: 'reference/ontology/vultron_process.md'
+      - DFA: 'reference/ontology/dfa.md'
+      - RFC 2119: 'reference/ontology/rfc2119.md'
     - ISO Crosswalk:
       - Introduction: 'reference/iso_crosswalk.md'
       - ISO 30111: 'reference/iso_30111_2019.md'
