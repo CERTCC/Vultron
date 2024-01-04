@@ -26,7 +26,6 @@ from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.utils import exclude_if_none
 from vultron.as_vocab.objects.base import VultronObject
 from vultron.as_vocab.objects.case_status import ParticipantStatus
-# from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.bt.roles.states import CVDRoles as CVDRole
 
 
