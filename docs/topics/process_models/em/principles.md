@@ -17,7 +17,7 @@ to. Rather,
 
 Hence our definition of an embargo:
 
-{% include-markdown "./embargo_defn.md"   %}
+{% include-markdown "./_embargo_defn.md"   %}
 
 ## Embargoes Are a Social Agreement
 
@@ -94,7 +94,7 @@ Furthermore, we need to establish a few norms related to embargo timing.
     Embargoes SHOULD be of short duration, from a few days to a few
     months.
 
-{% include-markdown "./nda-sidebar.md" %}
+{% include-markdown "./_nda_sidebar.md" %}
 
 ## Embargo Participants Are Free to Engage or Disengage {#sec:embargo_engagement}
 

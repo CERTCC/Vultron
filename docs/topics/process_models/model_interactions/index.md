@@ -56,7 +56,7 @@ status&mdash;public awareness (*p,P*), exploit public (*x,X*), and attacks
 observed (*a,A*). This distinction in perspectives will become
 important in the [Formal Protocol](../../formal_protocol/index.md) definition.
 
-{% include-markdown "./cs_global_local.md" %}
+{% include-markdown "./_cs_global_local.md" %}
 
 ## Summary
 
