@@ -79,6 +79,10 @@ nav:
       - Implementation Intro: 'howto/index.md'
       - A Case Object: 'howto/case_object.md'
       - Process Implementation: 'howto/process_implementation.md'
+      - Vultron ActivityPub:
+          - ActivityPub Intro: 'howto/activitypub/index.md'
+          - Vultron AS Objects: 'howto/activitypub/objects.md'
+          - Vultron AS Activities: 'howto/activitypub/activities.md'
       - EM and iCalendar: 'howto/em_icalendar.md'
       - General Notes: 'howto/general_implementation.md'
   - Reference:
