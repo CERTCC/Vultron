@@ -137,6 +137,7 @@ nav:
           - Pacman Demo: 'reference/code/bt/pacman_demo.md'
           - Robot Demo: 'reference/code/bt/robot_demo.md'
           - Vultrabot Demo: 'reference/code/bt/vultrabot_demo.md'
+          - Vultron Case State BT: 'reference/code/bt/case_states.md'
         - ActivityStreams Vocabulary:
           - Vocabulary: 'reference/code/as_vocab/index.md'
           - Base Package: 'reference/code/as_vocab/as_base.md'
