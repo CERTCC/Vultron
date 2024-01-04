@@ -1,4 +1,4 @@
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2024 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -41,13 +41,11 @@ class BehaviorTree:
 
     def __init__(self, root: BtNode = None, bbclass: Type[Blackboard] = None):
         """
-        Initializes the bt tree.
+        Initialize the BehaviorTree object.
 
         Args:
             root: the root node of the tree
-
-        Returns:
-            None
+            bbclass: the blackboard class to use
         """
         self.root: BtNode = root
         if bbclass is not None:
@@ -60,25 +58,29 @@ class BehaviorTree:
         self._setup: bool = False
 
     # runtime context
-    def __enter__(self):
+    def __enter__(self) -> "BehaviorTree":
         """
+        Runtime context for the BehaviorTree object.
 
         Returns:
-
+            self: the BehaviorTree object
         """
         self._ensure_setup()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self, exc_type: Exception, exc_val: str, exc_tb: list
+    ) -> bool:
         """
+        Runtime context for the BehaviorTree object.
 
         Args:
-            exc_type:
-            exc_val:
-            exc_tb:
+            exc_type: the exception type
+            exc_val: the exception value
+            exc_tb: the exception traceback
 
         Returns:
-
+            bool: True if the exception was handled, False otherwise
         """
         if exc_type is not None:
             # where were we in the tree?
@@ -145,9 +147,6 @@ class BehaviorTree:
         It calls the root node's tick() method.
         Two callbacks are provided for subclasses to override:
         _pre_tick() and _post_tick().
-
-        Args:
-            None
 
         Returns:
             NodeStatus: the status of the root node after the tick

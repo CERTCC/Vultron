@@ -1,4 +1,4 @@
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2024 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -33,7 +33,6 @@ def cs_state_change(
 
     Args:
         name: the name of the class
-        docstr: the docstring for the class
         target_state: the target state shorthand for the transition (V,F,D,P,X,A)
 
     Returns:
