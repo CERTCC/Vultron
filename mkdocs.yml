@@ -63,11 +63,6 @@ nav:
         - Situation Awareness: 'topics/other_uses/situation_awareness.md'
         - VEP: 'topics/other_uses/vep.md'
         - CVD Action Rules: 'topics/other_uses/action_rules.md'
-
-      #        - CVD Directory: 'topics/other_uses/cvd_directory.md'
-#        - Reward Functions: 'topics/other_uses/reward_functions.md'
-#        - Ontology: 'topics/other_uses/ontology.md'
-#        - Modeling and Simulation: 'topics/other_uses/mod_sim.md'
     - Behavior Logic:
       - Behavior Tree Intro: 'topics/behavior_logic/index.md'
       - CVD Behaviors: 'topics/behavior_logic/cvd_bt.md'
@@ -98,6 +93,7 @@ nav:
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
     - User Stories: 'topics/user_stories/index.md'
+    - Related Work: 'topics/related_work/index.md'
     - Future Work:
         - Intro: 'topics/future_work/index.md'
         - CVD Directory: 'topics/future_work/cvd_directory.md'

@@ -5,7 +5,7 @@
 In this page, we demonstrate how the model can be applied to improve
 situation awareness for coordinating parties and other stakeholders.
 
-## SSVC v2.0 {#sec:ssvc}
+## SSVC v2.0
 
 {== TODO merge with [SSVC crosswalk](../../reference/ssvc_crosswalk.md) ==}
 
@@ -48,7 +48,7 @@ Coordination becomes more necessary the lower that likelihood is.
 Second, *Utility* (the usefulness of the exploit to the adversary) acts
 to gauge the likelihood of the **A** transition.
 
-## Mapping to CVSS v3.1 {#sec:cvss}
+## Mapping to CVSS v3.1
 
 {== TODO update to CVSS v4. ==}
 

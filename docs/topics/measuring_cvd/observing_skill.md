@@ -1,5 +1,7 @@
 # Observing CVD in the Wild
 
+{% include-markdown "../../includes/not_normative.md" %}
+
 As a proof of concept, we apply the model to two data sets: Microsoft's
 security updates from 2017 through early 2020 in
 §[5.2.1](#sec:ms2017-20){== TODO fix ref to sec:ms2017-20 ==}, and commodity public exploits from 2015-2019
@@ -52,8 +54,7 @@ $\alpha_{\mathbf{F} \prec \mathbf{A}} = 0.986$ with an interval of
 \[0.980, 0.989\]. The trend for both is shown in Figure
 [\[fig:ms_faat\]](#fig:ms_faat){== TODO fix ref to fig:ms_faat ==}.
 
-*Inferring Histories from Observations:* []{#sec:inferring_history
-label="sec:inferring_history"} Another possible application of our model
+*Inferring Histories from Observations:* [] Another possible application of our model
 is to estimate unobserved $\alpha_d$ based on the cumulative
 observations of both $f_{\mathbf{F} \prec \mathbf{P}}^{obs}$ and
 $f_{\mathbf{F} \prec \mathbf{A}}^{obs}$ above. Here we estimate the
@@ -108,7 +109,7 @@ evidence that the observations are indicative of skill.
 ![Simulated skill $\alpha_d$ for Microsoft 2017-2020 based on
 observations of $\mathbf{F} \prec \mathbf{P}$ and
 $\mathbf{F} \prec \mathbf{A}$ over the
-period.](figures/ms_estimates.png){#fig:ms_estimates width="100mm"}
+period.](figures/ms_estimates.png)
 
 ## Commodity Exploits 2015-2019
 
@@ -143,8 +144,7 @@ Fig. [5.2](#fig:ov_paea_2013_2019){== TODO fix ref to fig:ov_paea_2013_2019 ==}.
 
 ![$\alpha_{\mathbf{P} \prec \mathbf{X}}$ for all NVD vulnerabilities
 2013-2019 ($\mathbf{X}$ observations based on Metasploit and
-ExploitDb)](figures/overall_skill_obs_paea.png){#fig:ov_paea_2013_2019
-width="100mm"}
+ExploitDb)](figures/overall_skill_obs_paea.png)
 
 To estimate unobserved $\alpha_d$ from the commodity exploit
 observations, we repeat the procedure outlined in

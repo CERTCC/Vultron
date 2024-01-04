@@ -1,4 +1,6 @@
-# Limitations and Future Work {#sec:limitationsAnd}
+# Limitations and Future Work
+
+{% include-markdown "../../includes/not_normative.md" %}
 
 This section highlights some limitations of the current work and lays
 out a path for improving on those limitations in future work. Broadly,

@@ -1,4 +1,6 @@
-# Disclosure Policy Formalization {#sec:policy_formalism}
+# Disclosure Policy Formalization
+
+{% include-markdown "../../includes/not_normative.md" %}
 
 In this section, we apply our model to the formalization of
 vulnerability disclosure policies. This discussion is not intended to be

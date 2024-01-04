@@ -1,4 +1,4 @@
-# Improving Definitions of Common Terms {#sec:defining_common_terms}
+# Improving Definitions of Common Terms
 
 {% include-markdown "../../includes/not_normative.md" %}
 
@@ -8,7 +8,7 @@ histories presented in this whitepaper is an opportunity to clarify
 definitions of related terms. In this section we will use our model to
 formally define their meaning.
 
-## Zero Day {#sec:zerodays}
+## Zero Day
 
 !!! info inline end "Vultron and the Wassenaar Arrangement"
 

@@ -1,5 +1,7 @@
 # On the Desirability of Possible Histories
 
+{% include-markdown "../../includes/not_normative.md" %}
+
 {== TODO merge or deduplicate with [CVD Success](../background/cvd_success.md) ==}
 
 All possible case histories are not equally preferable. Some are quite
@@ -245,5 +247,4 @@ $\mathbb{D}$ as defined in
 histories at the bottom to most desirable at the top. Histories that do
 not share a path are incomparable. Labels indicate the index (row
 number) $a$ of $h_a$ in Table
-[3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}.](figures/h_poset.png){#fig:poset
-width="140mm"}
+[3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}.](figures/h_poset.png)

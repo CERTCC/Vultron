@@ -1,5 +1,7 @@
 # Sequences of Events and Possible Histories in CVD
 
+{% include-markdown "../../includes/not_normative.md" %}
+
 In [Case State Events](../process_models/cs/events.md), we
 began by identifying a set of events of interest in
 CVD cases. Then we

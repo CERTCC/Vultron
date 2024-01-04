@@ -1,34 +1,4 @@
-# Acronym List {#acronym-list .unnumbered}
-
-::: acronym
-\[ATT&CK\]Adversarial Tactics, Techniques, and Common Knowledge
-\[CNA\]CVE
-Numbering Authority \[CNAs\]CVE Numbering Authorities \[IODEF+\]Incident
-Object Description Exchange Format Extensions
-
-\[SANS Institute\]Sysadmin, Audit, Network, and Security Institute
-\[US-CERT\]US
-Computer Emergency Readiness Team
-:::
-
-[^1]: Specifically, skill in our model will align with fulfilling the
-    duty of coordinated vulnerability disclosure, duty of
-    confidentiality, duty to inform, duty to team ability, and duty of
-    evidence-based reasoning.
-
-[^2]: CERT/CC Vulnerability Information and Coordination Environment
-    (VINCE). <https://www.kb.cert.org/vince/>
-
-[^3]: Although we do believe there is some value in exploit publication
-    because it allows defenders to develop detection controls (e.g., in
-    the form of behavioral patterns or signatures). Even if those
-    detection mechanisms are imperfect, it seems better that they be in
-    place prior to adversaries using them than the opposite.
-
-[^4]: <https://www.zerodayinitiative.com/blog>. The ZDI blog posts were
-    more directly useful than the monthly Microsoft security updates
-    because ZDI had already condensed the counts of how many
-    vulnerabilities were known ($\mathbf{P}$) or exploited
+# Acronym List$) or exploited
     ($\mathbf{A}$) prior to their fix readiness $\mathbf{F}$. Retrieving
     this data from Microsoft's published vulnerability information
     requires collecting it from all the individual vulnerabilities

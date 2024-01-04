@@ -1,4 +1,4 @@
-# CVD Roles and Their Influence {#sec:roles}
+# CVD Roles and Their Influence
 
 {% include-markdown "../../includes/not_normative.md" %}
 

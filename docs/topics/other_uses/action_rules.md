@@ -1,6 +1,8 @@
-# Recommended Action Rules for CVD {#sec:cvd_action_rules}
+# Recommended Action Rules for CVD
 
-Another application of the [CS model](../process_models/cs/cs_model.md) is to
+{% include-markdown "../../includes/not_normative.md" %}
+
+Another application of the [CS model](../process_models/cs/cs_model.md){== TODO fix link ==} is to
 recommend actions for coordinating parties in CVD based on the subset of states that
 currently apply to a case. What a coordinating party does depends on
 their role and where they engage, as shown in the list below. As

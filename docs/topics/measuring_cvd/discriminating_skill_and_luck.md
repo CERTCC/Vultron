@@ -1,4 +1,6 @@
-# Discriminating Skill and Luck in Observations {#sec:skill_luck}
+# Discriminating Skill and Luck in Observations
+
+{% include-markdown "../../includes/not_normative.md" %}
 
 This section defines a method for measuring skillful behavior in
 CVD, which we will
@@ -20,7 +22,7 @@ complete histories. Continuing towards our goal of measuring efficacy,
 we return to considering the balance between skill and luck in
 determining our observed outcomes.
 
-## A Measure of Skill in CVD {#sec:skillmodel}
+## A Measure of Skill in CVD
 
 There are many reasons why we might expect our observations to differ
 from the expected frequencies we established in
@@ -109,7 +111,7 @@ certain of our observations when they fall in the middle of the
 distribution. We address uncertainty further in
 §[5.1.2](#sec:uncertainty){== TODO fix ref to sec:uncertainty ==}.
 
-### Computing $\alpha_d$ from Observations {#sec:computing_observations}
+### Computing $\alpha_d$ from Observations
 
 Although Eq. [\[eq:alpha_freq\]](#eq:alpha_freq){== TODO fix ref to eq:alpha_freq ==} develops a skill metric from observed
 frequencies, our observations will in fact be based on counts.
@@ -139,7 +141,7 @@ observed successes out of $T$ trials in light of $f_d$ taken from Table
 Before we address the data analysis we take a moment to discuss
 uncertainty.
 
-### Calculating Measurement Error {#sec:uncertainty}
+### Calculating Measurement Error
 
 We have already described the basis of our $f_d^{obs}$ model in the
 binomial distribution. While we could just estimate the error in our
@@ -164,4 +166,4 @@ an upper and lower estimate for $f_d^{obs}$, which we multiply by $T$ to
 get upper and lower estimates of $S_d^{obs}$ as in
 [\[eq:observed_wins\]](#eq:observed_wins){== TODO fix ref to eq:observed_wins ==}.
 
-period.](figures/nvd_estimates.png){#fig:nvd_estimates width="100mm"}
+period.](figures/nvd_estimates.png)

@@ -1,4 +1,4 @@
-# Introduction {#sec:introduction}
+# Introduction
 
 Software vulnerabilities remain pervasive. To date, there is little
 evidence that we are anywhere close to equilibrium between the

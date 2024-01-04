@@ -1,5 +1,7 @@
 # A Random Walk through CVD States
 
+{% include-markdown "../../includes/not_normative.md" %}
+
 !!! note inline end "Principle of Indifference[@pittphilsci16041]"
 
      Let $X = \{x_1,x_2,...,x_n\}$ be a

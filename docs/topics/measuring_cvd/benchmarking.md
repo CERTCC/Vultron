@@ -1,7 +1,9 @@
-# Discussion {#sec:discussion}
+# Benchmarking CVD
 
-The observational analysis in
-§[5.2](#sec:observation){== TODO fix ref to sec:observation ==} supports an affirmative response to
+{% include-markdown "../../includes/not_normative.md" %}
+
+
+[Observational analysis](./observing_skill.md) supports an affirmative response to
 **RQ3**: vulnerability disclosure as currently practiced demonstrates
 skill. In both data sets examined, our estimated $\alpha_d$ is positive
 for most $d \in \mathbb{D}$. However, there is uncertainty in our
@@ -21,37 +23,16 @@ If, as seems plausible from the evidence, it turns out that further
 observations of $h$ are significantly skewed toward the higher end of
 the poset $(\mathcal{H},\leq_{\mathbb{D}})$, then it may be useful to
 empirically calibrate our metrics rather than using the *a priori*
-frequencies in Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} as our baseline. This analysis baseline
+frequencies in [Reasoning over Histories](./reasoning_over_histories.md#event-order-frequency-analysis) as our baseline.
+This analysis baseline
 would provide context on "more skillful than the average for some set of
 teams" rather than more skillful than blind luck.
-§[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}
-discusses this topic, which should be viewed as an examination of what
-"reasonable" in **RQ2** should mean in the context of "reasonable
-baseline expectation."
+- [CVD Benchmarks](#cvd-benchmarks) discusses this topic, which should be viewed as an examination of what
+"reasonable" should mean in the context of a "reasonable baseline expectation."
+- [MPCVD](#mpcvd) suggests how the model might be applied to establish benchmarks for
+CVD processes involving any number of participants.
 
-§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==} suggests
-how the model might be applied to establish benchmarks for
-CVD processes
-involving any number of participants, which closes the analysis of
-**RQ1** in relation to MPCVD. §[6.3](#sec:roles){== TODO fix ref to sec:roles ==} surveys the stakeholders in
-CVD and how they
-might use our model; the stakeholders are vendors, system owners, the
-security research community, coordinators, and governments. In
-particular, we focus on how these stakeholders might respond to the
-affirmative answer to **RQ3** and a method to measure skill in a way
-more tailored to each stakeholder group.
-§[6.4](#sec:policy_formalism){== TODO fix ref to sec:policy_formalism ==} discusses the potential for
-formalizing disclosure policy specifications using the model.
-§[6.5](#sec:defining_common_terms){== TODO fix ref to sec:defining_common_terms ==} offers formal definitions of some
-common terms in vulnerability disclosure. We then proceed to address
-vulnerability response situation awareness in
-§[6.6](#sec:situation_awareness){== TODO fix ref to sec:situation_awareness ==}, with a brief note about the
-VEP in relation to
-this model in §[6.7](#sec:vep){== TODO fix ref to sec:vep ==}. Finally, a set of state-based rules for
-CVD actions is
-given in §[6.8](#sec:cvd_action_rules){== TODO fix ref to sec:cvd_action_rules ==}.
-
-## CVD Benchmarks {#sec:benchmarks}
+## CVD Benchmarks
 
 As described above, in an ideal CVD situation, each observed history would
 achieve all 12 desiderata $\mathbb{D}$. Realistically, this is unlikely
@@ -137,7 +118,7 @@ $f_{\mathbf{D} \prec \mathbf{X}} = 0.844$, we can then compute a
 benchmark $\alpha_{\mathbf{D} \prec \mathbf{X}} = 0.81$, which is again
 a significant improvement over the naïve $\alpha_d = 0$ benchmark.
 
-## MPCVD {#sec:mpcvd}
+## MPCVD
 
 MPCVD is the
 process of coordinating the creation, release, publication, and
@@ -157,7 +138,7 @@ to MPCVD, while
 §[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} addresses the topic from the possible
 history perspective.
 
-### State Tracking in MPCVD {#sec:mpcvd_states}
+### State Tracking in MPCVD
 
 Applying our state-based model to MPCVD requires a forking approach to the state
 tracking. At the time of discovery, the vulnerability is in state
@@ -292,7 +273,7 @@ variants apply to which subsets of states is given in Table
 
 {== TODO fix table here ==}
 <!-- 
-::: {#tab:first_use_cases}
+:::
            States           FIRST Use Case  Description
   ------------------------ ----------------------------------------------------------------------- ----------------------------------------------------------------------------------------------
             n/a                                               0                                    No vulnerability exists
@@ -318,7 +299,7 @@ variants apply to which subsets of states is given in Table
 
 -->
 
-### MPCVD Benchmarks {#sec:mpcvd criteria}
+### MPCVD Benchmarks
 
 A common problem in MPCVD is that of fairness: coordinators are
 often motivated to optimize the CVD process to maximize the deployment of
