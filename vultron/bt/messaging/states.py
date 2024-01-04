@@ -1,8 +1,4 @@
 #!/usr/bin/env python
-"""file: message_types
-author: adh
-created_at: 4/7/22 12:39 PM
-"""
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -15,7 +11,9 @@ created_at: 4/7/22 12:39 PM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
+"""
+Provides Vultron Message Type Enumerations
+"""
 
 from enum import Enum
 
