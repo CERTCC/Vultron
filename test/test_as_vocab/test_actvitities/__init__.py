@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-'''
+"""
 Provides unit tests for vultron.as_vocab.activities
-'''
+"""
 
 
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
