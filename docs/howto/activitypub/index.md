@@ -20,5 +20,5 @@ Vultron AS defines a number of new objects and activities that are used in the
 Vultron protocol. These are described in the following sections.
 
 We begin with a description of a few [objects](objects.md) that are used in the
-Vultron AS vocabulary. Then we describe the [activities](activities.md) that
+Vultron AS vocabulary. Then we describe the [activities](activities/index) that
 are used in the Vultron AS vocabulary.

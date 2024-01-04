@@ -6,15 +6,15 @@
 
 ## Objects
 
-- see [ActivityStreams Vocabulary Objects](/reference/code/as_vocab/as_objects.md)
+- see [ActivityStreams Vocabulary Objects](as_objects.md)
 
 ## Links
 
-- see [ActivityStreams Vocabulary Links](/reference/code/as_vocab/as_links.md)
+- see [ActivityStreams Vocabulary Links](as_links.md)
 
 ## Activities
 
-- see [ActivityStreams Vocabulary Activities](/reference/code/as_vocab/as_activities.md)
+- see [ActivityStreams Vocabulary Activities](as_activities.md)
 
 ## Utilities
 
