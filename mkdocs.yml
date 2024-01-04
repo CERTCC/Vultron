@@ -190,6 +190,7 @@ plugins:
             show_bases: true
             show_root_heading: true
             heading_level: 2
+  - markdown-exec
   - search
   # NOTE print-site MUST be the last plugin in the list (see its docs for why)
   - print-site
