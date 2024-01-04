@@ -135,3 +135,5 @@ dmypy.json
 /node_modules/
 /package.json
 /package-lock.json
+/ontology/*.properties
+catalog-*.xml

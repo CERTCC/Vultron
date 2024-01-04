@@ -23,37 +23,61 @@ The Vultron Protocol is a collection of ideas, models, code, and work in progres
 
 ## How this documentation is organized
 
-!!! tip inline "Learning About Vultron"
-
-    The [Learning Vultron](tutorials/index.md) section is intended to eventually include tutorials and other 
-    information about the Vultron Protocol that is oriented towards novice users and getting started with the protocol.
-    However, because we are still in the early stages of the project, this section is just a placeholder for now.
-
-!!! abstract inline end "Understanding Vultron"
-
-    The [Understanding Vultron](topics/background/index.md) section includes background information about Vultron,
-    including the motivation for the project, the problem space that we are trying to address, and the design principles
-    that we are using to guide our work. It also includes a detailed description of the Vultron Protocol, including
-    the state machines and behavior logic that we use to model the behavior of the protocol.
-
-!!! question inline  "Implementing Vultron"
-
-    The [Implementing Vultron](howto/index.md) section includes guidance for potential implementations of Vultron.
-    In the future, we plan to include how-to guides to help you use Vultron, but for now it is focused on guidance for
-    potential implementers of Vultron.
-
-!!! info inline end "Vultron Protocol Reference"
-
-    The [Reference](reference/index.md) section includes the formal Vultron Protocol specification, crosswalks the 
-    protocol with other related standards and protocols, etc.
-    In the future, we plan to include other reference information about Vultron, including code documentation.
-
 We are in the process of documenting the Vultron CVD Protocol as we work towards a prototype implementation.
 We are using the [Diátaxis Framework](https://diataxis.fr/) to organize our documentation into four main categories,
 oriented around the different ways that people might need to learn about and use the Vultron Protocol.
 
 Our current focus is on the [Understanding Vultron](topics/background/index.md) section, which describes the protocol
 in detail.
+
+<div class="grid cards" markdown>
+
+- :material-school:{ .lg .middle } **Learning About Vultron**
+
+    ---
+
+    The [Learning Vultron](tutorials/index.md) section is intended to eventually include tutorials and other
+    information about the Vultron Protocol that is oriented towards novice users and getting started with the protocol.
+    However, because we are still in the early stages of the project, this section is just a placeholder for now.
+
+    [:octicons-arrow-right-24: Learning Vultron](tutorials/index.md)
+
+- :fontawesome-solid-book-open:{ .lg .middle } **Understanding Vultron**
+
+    ---
+
+    The [Understanding Vultron](topics/background/index.md) section includes background information about Vultron,
+    including the motivation for the project, the problem space that we are trying to address, and the design principles
+    that we are using to guide our work. It also includes a detailed description of the Vultron Protocol, including
+    the state machines and behavior logic that we use to model the behavior of the protocol.
+
+    Focus on your content and generate a responsive and searchable static site
+
+    [:octicons-arrow-right-24: Understanding Vultron](topics/background/index.md)
+
+- :fontawesome-solid-code:{ .lg .middle } **Implementing Vultron**
+
+    ---
+
+    The [Implementing Vultron](howto/index.md) section includes guidance for potential implementations of Vultron.
+    In the future, we plan to include how-to guides to help you use Vultron, but for now it is focused on guidance for
+    potential implementers of Vultron.
+
+    Change the colors, fonts, language, icons, logo and more with a few lines
+
+    [:octicons-arrow-right-24: Implementing Vultron](howto/index.md)
+
+- :material-bookshelf:{ .lg .middle } **Reference**
+
+    ---
+
+    The [Reference](reference/index.md) section includes the formal Vultron Protocol specification, crosswalks the
+    protocol with other related standards and protocols, etc.
+    In the future, we plan to include other reference information about Vultron, including code documentation.
+
+    [:octicons-arrow-right-24: Reference](reference/index.md)
+
+</div>
 
 ## Background
 

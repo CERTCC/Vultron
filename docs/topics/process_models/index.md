@@ -77,6 +77,6 @@ graph LR
 
 {% include-markdown "./cs/index.md" start="<!-- start_excerpt -->" end="<!-- end_excerpt -->" %}
 
-{% include-markdown "./model_interactions/cs_global_local.md" %}
+{% include-markdown "./model_interactions/_cs_global_local.md" %}
 
 [Read More...](cs/index.md)

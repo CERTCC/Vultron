@@ -10,10 +10,3 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
-
-#!/usr/bin/env python
-"""file: __init__.py
-author: adh
-created_at: 2/21/23 1:55 PM
-"""

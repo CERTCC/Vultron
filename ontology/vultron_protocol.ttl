@@ -1,0 +1,1674 @@
+@base <http://www.cert.org/ns/vultron_protocol#> .
+@prefix : <http://www.cert.org/ns/vultron_protocol#> .
+@prefix dfa: <http://www.cert.org/ns/deterministicfiniteautomata#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rfc2119: <http://www.cert.org/ns/rfc2119#> .
+@prefix vultron_process: <http://www.cert.org/ns/vultron_process#> .
+# 
+# 
+# #################################################################
+# #
+# #    Object Properties
+# #
+# #################################################################
+# 
+# 
+# http://www.cert.org/ns/vultron_protocol#actor
+# 
+# http://www.cert.org/ns/vultron_protocol#emState
+# 
+# http://www.cert.org/ns/vultron_protocol#hasCaseRole
+# 
+# http://www.cert.org/ns/vultron_protocol#hasCaseStatus
+# 
+# http://www.cert.org/ns/vultron_protocol#hasMessageType
+# 
+# http://www.cert.org/ns/vultron_protocol#hasParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#hasParticipantStatus
+# 
+# http://www.cert.org/ns/vultron_protocol#isCaseRoleOf
+# 
+# http://www.cert.org/ns/vultron_protocol#isCaseStatusOf
+# 
+# http://www.cert.org/ns/vultron_protocol#isMessageTypeOf
+# 
+# http://www.cert.org/ns/vultron_protocol#isParticipantOf
+# 
+# http://www.cert.org/ns/vultron_protocol#pxaState
+# 
+# http://www.cert.org/ns/vultron_protocol#pxaStateForParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#rmState
+# 
+# http://www.cert.org/ns/vultron_protocol#vfdState
+# 
+# 
+# 
+# #################################################################
+# #
+# #    Classes
+# #
+# #################################################################
+# 
+# 
+# http://www.cert.org/ns/vultron_protocol#Actor
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseOwnerParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseOwnerRole
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStateMessageType
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatus
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusCA
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusCP
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusCX
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusCs
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusEA
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusEN
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusEP
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusER
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusEX
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusEm
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusEmActiveOrReviseNotExited
+# 
+# http://www.cert.org/ns/vultron_protocol#CaseStatusEmNotExited
+# 
+# http://www.cert.org/ns/vultron_protocol#CoordinatorParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#CoordinatorRole
+# 
+# http://www.cert.org/ns/vultron_protocol#CvdCaseRole
+# 
+# http://www.cert.org/ns/vultron_protocol#DeployerParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#DeployerRole
+# 
+# http://www.cert.org/ns/vultron_protocol#EmbargoManagementMessageType
+# 
+# http://www.cert.org/ns/vultron_protocol#FinderParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#FinderReporterParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#FinderRole
+# 
+# http://www.cert.org/ns/vultron_protocol#GeneralMessageType
+# 
+# http://www.cert.org/ns/vultron_protocol#MayAcceptEmbargo
+# 
+# http://www.cert.org/ns/vultron_protocol#MayProposeEmbargo
+# 
+# http://www.cert.org/ns/vultron_protocol#MayTerminateEmbargoEarly
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeAckableCs
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeAckableEm
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeAckableGm
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeAckableRm
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeCA
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeCD
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeCE
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeCF
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeCK
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeCP
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeCV
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeCX
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeEA
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeEC
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeEE
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeEJ
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeEK
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeEP
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeER
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeET
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeEV
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeGE
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeGI
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeGK
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeRA
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeRC
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeRD
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeRE
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeRI
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeRK
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeRS
+# 
+# http://www.cert.org/ns/vultron_protocol#MsgTypeRV
+# 
+# http://www.cert.org/ns/vultron_protocol#MustNotAcceptEmbargo
+# 
+# http://www.cert.org/ns/vultron_protocol#MustNotProposeEmbargo
+# 
+# http://www.cert.org/ns/vultron_protocol#MustTerminateEmbargoEarly
+# 
+# http://www.cert.org/ns/vultron_protocol#OtherParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#OtherRole
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatus
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusCD
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusCF
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusCV
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusCs
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusRm
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusRmAccepted
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusRmClosed
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusRmDeferred
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusRmInvalid
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusRmReceived
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusRmStart
+# 
+# http://www.cert.org/ns/vultron_protocol#ParticipantStatusRmValid
+# 
+# http://www.cert.org/ns/vultron_protocol#ReportManagementMessageType
+# 
+# http://www.cert.org/ns/vultron_protocol#ReporterParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#ReporterRole
+# 
+# http://www.cert.org/ns/vultron_protocol#ShouldBeBriefEmbargo
+# 
+# http://www.cert.org/ns/vultron_protocol#ShouldDeployASAP
+# 
+# http://www.cert.org/ns/vultron_protocol#ShouldFixASAP
+# 
+# http://www.cert.org/ns/vultron_protocol#ShouldNotAcceptEmbargo
+# 
+# http://www.cert.org/ns/vultron_protocol#ShouldNotProposeEmbargo
+# 
+# http://www.cert.org/ns/vultron_protocol#ShouldPublishASAP
+
+<vultron_protocol> a owl:Ontology;
+  owl:imports <rfc2119>, <vultron_process>;
+  rdfs:comment "Defines the Vultron protocol in terms of interactions between the Vultron process models and message types between instances of those processes." .
+
+:actor a owl:ObjectProperty;
+  rdfs:domain :CaseParticipant;
+  rdfs:range :Actor;
+  rdfs:comment "Designates the Actor of an Activity" .
+
+:emState a owl:ObjectProperty;
+  rdfs:domain _:genid1;
+  rdfs:range vultron_process:EmbargoManagementState .
+
+_:genid1 a owl:Class;
+  owl:unionOf _:genid3 .
+
+_:genid3 a rdf:List;
+  rdf:first :CaseStatus;
+  rdf:rest _:genid2 .
+
+_:genid2 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest rdf:nil .
+
+:hasCaseRole a owl:ObjectProperty;
+  owl:inverseOf :isCaseRoleOf;
+  rdfs:domain :CaseParticipant;
+  rdfs:range :CvdCaseRole;
+  rdfs:comment "delineates the CvdCaseRole of a CaseParticipant" .
+
+:hasCaseStatus a owl:ObjectProperty;
+  owl:inverseOf :isCaseStatusOf;
+  rdfs:domain :VulnerabilityCase;
+  rdfs:range :CaseStatus .
+
+:hasMessageType a owl:ObjectProperty;
+  rdfs:subPropertyOf owl:topObjectProperty;
+  owl:inverseOf :isMessageTypeOf;
+  rdfs:domain vultron_process:ProcessModel;
+  rdfs:range :VultronMessageType;
+  rdfs:comment "Each VultronProcess relies on a set of VultronMessageType classes" .
+
+:hasParticipant a owl:ObjectProperty;
+  owl:inverseOf :isParticipantOf;
+  rdfs:domain :VulnerabilityCase;
+  rdfs:range :CaseParticipant .
+
+:hasParticipantStatus a owl:ObjectProperty;
+  rdfs:domain :CaseParticipant;
+  rdfs:range :ParticipantStatus;
+  rdfs:comment "connects a CaseParticipant to a ParticipantStatus that describes their state within a VulnerabilityCase" .
+
+:isCaseRoleOf a owl:ObjectProperty;
+  rdfs:comment "relates a CaseRole to a CaseParticipant" .
+
+:isCaseStatusOf a owl:ObjectProperty .
+
+:isMessageTypeOf a owl:ObjectProperty;
+  rdfs:subPropertyOf owl:topObjectProperty;
+  rdfs:comment "A VultronMessageType belongs to a VultronProcess" .
+
+:isParticipantOf a owl:ObjectProperty;
+  rdfs:domain :CaseParticipant;
+  rdfs:range :VulnerabilityCase .
+
+:pxaState a owl:ObjectProperty;
+  rdfs:domain _:genid4;
+  rdfs:range vultron_process:CsParticipantAgnosticState;
+  rdfs:comment "links a CaseStatus to a specific CsParticipantAgnosticState" .
+
+_:genid4 a owl:Class;
+  owl:unionOf _:genid6 .
+
+_:genid6 a rdf:List;
+  rdf:first :CaseStatus;
+  rdf:rest _:genid5 .
+
+_:genid5 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest rdf:nil .
+
+:pxaStateForParticipant a owl:ObjectProperty;
+  rdfs:subPropertyOf owl:topObjectProperty;
+  rdfs:domain :CaseParticipant;
+  rdfs:range vultron_process:CsParticipantAgnosticState .
+
+:rmState a owl:ObjectProperty;
+  rdfs:domain :ParticipantStatus;
+  rdfs:range vultron_process:ReportManagementState;
+  rdfs:comment "links a ParticipantStatus to a specific ReportManagementState" .
+
+:vfdState a owl:ObjectProperty;
+  rdfs:domain :ParticipantStatus;
+  rdfs:range vultron_process:CsParticipantSpecificState;
+  rdfs:comment "links a ParticipantStatus to a specific CsParticipantSpecificState" .
+
+:Actor a owl:Class .
+
+:CaseOwnerParticipant a owl:Class;
+  owl:equivalentClass _:genid7;
+  rdfs:subClassOf :CaseParticipant .
+
+_:genid7 a owl:Class;
+  owl:intersectionOf _:genid10 .
+
+_:genid10 a rdf:List;
+  rdf:first :CaseParticipant;
+  rdf:rest _:genid8 .
+
+_:genid8 a rdf:List;
+  rdf:first _:genid9;
+  rdf:rest rdf:nil .
+
+_:genid9 a owl:Restriction;
+  owl:someValuesFrom :CaseOwnerRole;
+  owl:onProperty :hasCaseRole .
+
+:CaseOwnerRole a owl:Class;
+  rdfs:subClassOf :CvdCaseRole;
+  rdfs:comment "A role representing the owner of a VulnerabilityCase" .
+
+:CaseParticipant a owl:Class;
+  owl:equivalentClass _:genid11;
+  rdfs:comment "A CaseParticipant is a wrapper around an Actor in a VulnerabilityCase. It is used to track the status of the participant within the context of a specific case, as well as the roles they play in the case. Several subclasses of CaseParticipant are provided for convenience." .
+
+_:genid11 a owl:Class;
+  owl:intersectionOf _:genid18 .
+
+_:genid18 a rdf:List;
+  rdf:first _:genid19;
+  rdf:rest _:genid16 .
+
+_:genid16 a rdf:List;
+  rdf:first _:genid17;
+  rdf:rest _:genid14 .
+
+_:genid14 a rdf:List;
+  rdf:first _:genid15;
+  rdf:rest _:genid12 .
+
+_:genid12 a rdf:List;
+  rdf:first _:genid13;
+  rdf:rest rdf:nil .
+
+_:genid13 a owl:Restriction;
+  owl:allValuesFrom :CvdCaseRole;
+  owl:onProperty :hasCaseRole .
+
+_:genid15 a owl:Restriction;
+  owl:someValuesFrom :VulnerabilityCase;
+  owl:onProperty :isParticipantOf .
+
+_:genid17 a owl:Restriction;
+  owl:someValuesFrom :CvdCaseRole;
+  owl:onProperty :hasCaseRole .
+
+_:genid19 a owl:Restriction;
+  owl:someValuesFrom :Actor;
+  owl:onProperty :actor .
+
+:CaseStateMessageType a owl:Class;
+  rdfs:subClassOf :VultronMessageType;
+  rdfs:comment "Messages regarding the Vultron Case State Model" .
+
+:CaseStatus a owl:Class;
+  owl:equivalentClass _:genid20;
+  rdfs:comment "Represents the case-level (global, participant-agnostic) status of a VulnerabilityCase." .
+
+_:genid20 a owl:Class;
+  owl:intersectionOf _:genid23 .
+
+_:genid23 a rdf:List;
+  rdf:first _:genid24;
+  rdf:rest _:genid21 .
+
+_:genid21 a rdf:List;
+  rdf:first _:genid22;
+  rdf:rest rdf:nil .
+
+_:genid22 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsParticipantAgnosticState;
+  owl:onProperty :pxaState .
+
+_:genid24 a owl:Restriction;
+  owl:someValuesFrom vultron_process:EmbargoManagementState;
+  owl:onProperty :emState .
+
+:CaseStatusCA a owl:Class;
+  owl:equivalentClass _:genid25;
+  rdfs:subClassOf :CaseStatusCs, :MsgTypeCA;
+  rdfs:comment "A CaseStatus indicating CsAttacksObservedState" .
+
+_:genid25 a owl:Class;
+  owl:intersectionOf _:genid28 .
+
+_:genid28 a rdf:List;
+  rdf:first :CaseStatus;
+  rdf:rest _:genid26 .
+
+_:genid26 a rdf:List;
+  rdf:first _:genid27;
+  rdf:rest rdf:nil .
+
+_:genid27 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsAttacksObservedState;
+  owl:onProperty :pxaState .
+
+:CaseStatusCP a owl:Class;
+  owl:equivalentClass _:genid29;
+  rdfs:subClassOf :CaseStatusCs, :MsgTypeCP;
+  rdfs:comment "A CaseStatus indicating CsPublicAwareState" .
+
+_:genid29 a owl:Class;
+  owl:intersectionOf _:genid32 .
+
+_:genid32 a rdf:List;
+  rdf:first :CaseStatus;
+  rdf:rest _:genid30 .
+
+_:genid30 a rdf:List;
+  rdf:first _:genid31;
+  rdf:rest rdf:nil .
+
+_:genid31 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsPublicAwareState;
+  owl:onProperty :pxaState .
+
+:CaseStatusCX a owl:Class;
+  owl:equivalentClass _:genid33;
+  rdfs:subClassOf :CaseStatusCs, :MsgTypeCX;
+  rdfs:comment "A CaseStatus indicating CsPublicExploitState" .
+
+_:genid33 a owl:Class;
+  owl:intersectionOf _:genid36 .
+
+_:genid36 a rdf:List;
+  rdf:first :CaseStatus;
+  rdf:rest _:genid34 .
+
+_:genid34 a rdf:List;
+  rdf:first _:genid35;
+  rdf:rest rdf:nil .
+
+_:genid35 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsPublicExploitState;
+  owl:onProperty :pxaState .
+
+:CaseStatusCs a owl:Class;
+  rdfs:subClassOf :CaseStatus;
+  rdfs:comment "A CaseStatus that includes a Vultron CaseState update" .
+
+:CaseStatusEA a owl:Class;
+  owl:equivalentClass _:genid37;
+  rdfs:subClassOf :CaseStatus, :CaseStatusEm;
+  rdfs:comment "A CaseStatus indicating EmActiveState" .
+
+_:genid37 a owl:Class;
+  owl:intersectionOf _:genid40 .
+
+_:genid40 a rdf:List;
+  rdf:first :CaseStatus;
+  rdf:rest _:genid38 .
+
+_:genid38 a rdf:List;
+  rdf:first _:genid39;
+  rdf:rest rdf:nil .
+
+_:genid39 a owl:Restriction;
+  owl:someValuesFrom vultron_process:EmActiveState;
+  owl:onProperty :emState .
+
+:CaseStatusEN a owl:Class;
+  owl:equivalentClass _:genid41;
+  rdfs:subClassOf :CaseStatus, :CaseStatusEm;
+  rdfs:comment "A CaseStatus indicating EmNoneState" .
+
+_:genid41 a owl:Class;
+  owl:intersectionOf _:genid44 .
+
+_:genid44 a rdf:List;
+  rdf:first :CaseStatus;
+  rdf:rest _:genid42 .
+
+_:genid42 a rdf:List;
+  rdf:first _:genid43;
+  rdf:rest rdf:nil .
+
+_:genid43 a owl:Restriction;
+  owl:someValuesFrom vultron_process:EmNoneState;
+  owl:onProperty :emState .
+
+:CaseStatusEP a owl:Class;
+  owl:equivalentClass _:genid45;
+  rdfs:subClassOf :CaseStatus, :CaseStatusEm;
+  rdfs:comment "A CaseStatus indicating EmProposedState" .
+
+_:genid45 a owl:Class;
+  owl:intersectionOf _:genid48 .
+
+_:genid48 a rdf:List;
+  rdf:first :CaseStatus;
+  rdf:rest _:genid46 .
+
+_:genid46 a rdf:List;
+  rdf:first _:genid47;
+  rdf:rest rdf:nil .
+
+_:genid47 a owl:Restriction;
+  owl:someValuesFrom vultron_process:EmProposedState;
+  owl:onProperty :emState .
+
+:CaseStatusER a owl:Class;
+  owl:equivalentClass _:genid49;
+  rdfs:subClassOf :CaseStatus, :CaseStatusEm;
+  rdfs:comment "A CaseStatus indicating EmReviseState" .
+
+_:genid49 a owl:Class;
+  owl:intersectionOf _:genid52 .
+
+_:genid52 a rdf:List;
+  rdf:first :CaseStatus;
+  rdf:rest _:genid50 .
+
+_:genid50 a rdf:List;
+  rdf:first _:genid51;
+  rdf:rest rdf:nil .
+
+_:genid51 a owl:Restriction;
+  owl:someValuesFrom vultron_process:EmReviseState;
+  owl:onProperty :emState .
+
+:CaseStatusEX a owl:Class;
+  owl:equivalentClass _:genid53;
+  rdfs:subClassOf :CaseStatus, :CaseStatusEm;
+  rdfs:comment "A CaseStatus indicating EmExitedState" .
+
+_:genid53 a owl:Class;
+  owl:intersectionOf _:genid56 .
+
+_:genid56 a rdf:List;
+  rdf:first :CaseStatus;
+  rdf:rest _:genid54 .
+
+_:genid54 a rdf:List;
+  rdf:first _:genid55;
+  rdf:rest rdf:nil .
+
+_:genid55 a owl:Restriction;
+  owl:someValuesFrom vultron_process:EmExitedState;
+  owl:onProperty :emState .
+
+:CaseStatusEm a owl:Class;
+  rdfs:subClassOf :CaseStatus;
+  rdfs:comment "A CaseStatus containing information about the EmbargoManagementState of a VulnerabilityCase" .
+
+:CaseStatusEmActiveOrReviseNotExited a owl:Class;
+  owl:equivalentClass _:genid57;
+  rdfs:subClassOf :CaseStatusEmNotExited;
+  rdfs:comment "A CaseStatus in which the EmbargoManagementState is in either EmActiveState or EmReviseState" .
+
+_:genid57 a owl:Class;
+  owl:intersectionOf _:genid60 .
+
+_:genid60 a rdf:List;
+  rdf:first :CaseStatusEmNotExited;
+  rdf:rest _:genid58 .
+
+_:genid58 a rdf:List;
+  rdf:first _:genid59;
+  rdf:rest rdf:nil .
+
+_:genid59 a owl:Restriction;
+  owl:someValuesFrom vultron_process:ActiveEmbargoState;
+  owl:onProperty :emState .
+
+:CaseStatusEmNotExited a owl:Class;
+  owl:equivalentClass _:genid61;
+  rdfs:subClassOf :CaseStatusEm;
+  rdfs:comment "A CaseStatus indicating EmbargoManagementState is anything but EmExitedState" .
+
+_:genid61 a owl:Class;
+  owl:unionOf _:genid65 .
+
+_:genid65 a rdf:List;
+  rdf:first vultron_process:EmActiveState;
+  rdf:rest _:genid64 .
+
+_:genid64 a rdf:List;
+  rdf:first vultron_process:EmNoneState;
+  rdf:rest _:genid63 .
+
+_:genid63 a rdf:List;
+  rdf:first vultron_process:EmProposedState;
+  rdf:rest _:genid62 .
+
+_:genid62 a rdf:List;
+  rdf:first vultron_process:EmReviseState;
+  rdf:rest rdf:nil .
+
+:CoordinatorParticipant a owl:Class;
+  owl:equivalentClass _:genid66;
+  rdfs:subClassOf :CaseParticipant;
+  rdfs:comment "A CoordinatorParticipant is a CaseParticipant having the role of Coordinator" .
+
+_:genid66 a owl:Class;
+  owl:intersectionOf _:genid69 .
+
+_:genid69 a rdf:List;
+  rdf:first :CaseParticipant;
+  rdf:rest _:genid67 .
+
+_:genid67 a rdf:List;
+  rdf:first _:genid68;
+  rdf:rest rdf:nil .
+
+_:genid68 a owl:Restriction;
+  owl:someValuesFrom :CoordinatorRole;
+  owl:onProperty :hasCaseRole .
+
+:CoordinatorRole a owl:Class;
+  rdfs:subClassOf :CvdCaseRole;
+  rdfs:comment "A role representing a Coordinator in a VulnerabilityCase" .
+
+:CvdCaseRole a owl:Class;
+  rdfs:comment "A role within a CVD case. Roles are intended to be consistent with the Vultron documentation and the CERT Guide to Coordinated Vulnerability Disclosure." .
+
+:DeployerParticipant a owl:Class;
+  owl:equivalentClass _:genid70;
+  rdfs:subClassOf :CaseParticipant;
+  rdfs:comment "A DeployerParticipant is a CaseParticipant having the role of Deployer" .
+
+_:genid70 a owl:Class;
+  owl:intersectionOf _:genid73 .
+
+_:genid73 a rdf:List;
+  rdf:first :CaseParticipant;
+  rdf:rest _:genid71 .
+
+_:genid71 a rdf:List;
+  rdf:first _:genid72;
+  rdf:rest rdf:nil .
+
+_:genid72 a owl:Restriction;
+  owl:someValuesFrom :DeployerRole;
+  owl:onProperty :hasCaseRole .
+
+:DeployerRole a owl:Class;
+  rdfs:subClassOf :CvdCaseRole;
+  rdfs:comment "A role representing a Deployer in a VulnerabilityCase" .
+
+:EmbargoManagementMessageType a owl:Class;
+  rdfs:subClassOf :VultronMessageType;
+  rdfs:comment "A VultronMessageType regarding the embargo management process" .
+
+:FinderParticipant a owl:Class;
+  owl:equivalentClass _:genid74;
+  rdfs:subClassOf :CaseParticipant;
+  rdfs:comment "A FinderParticipant is a CaseParticipant having the role of Finder" .
+
+_:genid74 a owl:Class;
+  owl:intersectionOf _:genid77 .
+
+_:genid77 a rdf:List;
+  rdf:first :CaseParticipant;
+  rdf:rest _:genid75 .
+
+_:genid75 a rdf:List;
+  rdf:first _:genid76;
+  rdf:rest rdf:nil .
+
+_:genid76 a owl:Restriction;
+  owl:someValuesFrom :FinderRole;
+  owl:onProperty :hasCaseRole .
+
+:FinderReporterParticipant a owl:Class;
+  owl:equivalentClass _:genid78;
+  rdfs:subClassOf :FinderParticipant, :ReporterParticipant;
+  rdfs:comment "A FinderReporterParticipant is a CaseParticipant having the roles of Finder and Reporter" .
+
+_:genid78 a owl:Class;
+  owl:intersectionOf _:genid83 .
+
+_:genid83 a rdf:List;
+  rdf:first :CaseParticipant;
+  rdf:rest _:genid81 .
+
+_:genid81 a rdf:List;
+  rdf:first _:genid82;
+  rdf:rest _:genid79 .
+
+_:genid79 a rdf:List;
+  rdf:first _:genid80;
+  rdf:rest rdf:nil .
+
+_:genid80 a owl:Restriction;
+  owl:someValuesFrom :ReporterRole;
+  owl:onProperty :hasCaseRole .
+
+_:genid82 a owl:Restriction;
+  owl:someValuesFrom :FinderRole;
+  owl:onProperty :hasCaseRole .
+
+:FinderRole a owl:Class;
+  rdfs:subClassOf :CvdCaseRole;
+  rdfs:comment "A role representing a Finder in a VulnerabilityCase" .
+
+:GeneralMessageType a owl:Class;
+  rdfs:subClassOf :VultronMessageType;
+  rdfs:comment "A VultronMessageType for a general (non-state-machine related) message" .
+
+:MayAcceptEmbargo a owl:Class;
+  owl:equivalentClass :MayProposeEmbargo, _:genid84;
+  rdfs:subClassOf rfc2119:MAY, :VultronSpec .
+
+_:genid84 a owl:Class;
+  owl:intersectionOf _:genid88 .
+
+_:genid88 a rdf:List;
+  rdf:first :VulnerabilityCase;
+  rdf:rest _:genid85 .
+
+_:genid85 a rdf:List;
+  rdf:first _:genid86;
+  rdf:rest rdf:nil .
+
+_:genid86 a owl:Restriction;
+  owl:allValuesFrom _:genid87;
+  owl:onProperty :hasCaseStatus .
+
+_:genid87 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CspxaState;
+  owl:onProperty :pxaState .
+
+:MayProposeEmbargo a owl:Class;
+  rdfs:subClassOf rfc2119:MAY, :VultronSpec .
+
+:MayTerminateEmbargoEarly a owl:Class;
+  owl:equivalentClass _:genid89;
+  rdfs:subClassOf rfc2119:MAY, :VultronSpec;
+  rdfs:comment "Defines conditions under which an embargo may terminate only" .
+
+_:genid89 a owl:Class;
+  owl:intersectionOf _:genid92 .
+
+_:genid92 a rdf:List;
+  rdf:first :CaseStatusEmActiveOrReviseNotExited;
+  rdf:rest _:genid90 .
+
+_:genid90 a rdf:List;
+  rdf:first _:genid91;
+  rdf:rest rdf:nil .
+
+_:genid91 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsFixReadyState;
+  owl:onProperty :vfdState .
+
+:MsgTypeAckableCs a owl:Class;
+  owl:equivalentClass _:genid93;
+  rdfs:subClassOf vultron_process:CaseStateSymbol, :CaseStateMessageType, :VultronStateMessageType;
+  rdfs:comment "A CaseStateMessageType that can be acknowledged with a MsgTypeCK" .
+
+_:genid93 a owl:Class;
+  owl:unionOf _:genid99 .
+
+_:genid99 a rdf:List;
+  rdf:first :MsgTypeCA;
+  rdf:rest _:genid98 .
+
+_:genid98 a rdf:List;
+  rdf:first :MsgTypeCD;
+  rdf:rest _:genid97 .
+
+_:genid97 a rdf:List;
+  rdf:first :MsgTypeCF;
+  rdf:rest _:genid96 .
+
+_:genid96 a rdf:List;
+  rdf:first :MsgTypeCP;
+  rdf:rest _:genid95 .
+
+_:genid95 a rdf:List;
+  rdf:first :MsgTypeCV;
+  rdf:rest _:genid94 .
+
+_:genid94 a rdf:List;
+  rdf:first :MsgTypeCX;
+  rdf:rest rdf:nil .
+
+:MsgTypeAckableEm a owl:Class;
+  owl:equivalentClass _:genid100;
+  rdfs:subClassOf vultron_process:EmbargoManagementSymbol, :EmbargoManagementMessageType,
+    :VultronStateMessageType .
+
+_:genid100 a owl:Class;
+  owl:unionOf _:genid107 .
+
+_:genid107 a rdf:List;
+  rdf:first :MsgTypeEA;
+  rdf:rest _:genid106 .
+
+_:genid106 a rdf:List;
+  rdf:first :MsgTypeEC;
+  rdf:rest _:genid105 .
+
+_:genid105 a rdf:List;
+  rdf:first :MsgTypeEJ;
+  rdf:rest _:genid104 .
+
+_:genid104 a rdf:List;
+  rdf:first :MsgTypeEP;
+  rdf:rest _:genid103 .
+
+_:genid103 a rdf:List;
+  rdf:first :MsgTypeER;
+  rdf:rest _:genid102 .
+
+_:genid102 a rdf:List;
+  rdf:first :MsgTypeET;
+  rdf:rest _:genid101 .
+
+_:genid101 a rdf:List;
+  rdf:first :MsgTypeEV;
+  rdf:rest rdf:nil .
+
+:MsgTypeAckableGm a owl:Class;
+  owl:equivalentClass :MsgTypeGI;
+  rdfs:subClassOf :GeneralMessageType .
+
+:MsgTypeAckableRm a owl:Class;
+  owl:equivalentClass _:genid108;
+  rdfs:subClassOf vultron_process:ReportManagementSymbol, :ReportManagementMessageType,
+    :VultronStateMessageType .
+
+_:genid108 a owl:Class;
+  owl:unionOf _:genid114 .
+
+_:genid114 a rdf:List;
+  rdf:first :MsgTypeRA;
+  rdf:rest _:genid113 .
+
+_:genid113 a rdf:List;
+  rdf:first :MsgTypeRC;
+  rdf:rest _:genid112 .
+
+_:genid112 a rdf:List;
+  rdf:first :MsgTypeRD;
+  rdf:rest _:genid111 .
+
+_:genid111 a rdf:List;
+  rdf:first :MsgTypeRI;
+  rdf:rest _:genid110 .
+
+_:genid110 a rdf:List;
+  rdf:first :MsgTypeRS;
+  rdf:rest _:genid109 .
+
+_:genid109 a rdf:List;
+  rdf:first :MsgTypeRV;
+  rdf:rest rdf:nil .
+
+:MsgTypeCA a owl:Class;
+  rdfs:subClassOf vultron_process:CsASymbol, :CaseStateMessageType, :MsgTypeAckableCs;
+  rdfs:comment "A VultronMessageType indicating CsAttacksObservedState" .
+
+:MsgTypeCD a owl:Class;
+  rdfs:subClassOf vultron_process:CsDSymbol, :CaseStateMessageType, :MsgTypeAckableCs;
+  rdfs:comment "A VultronMessageType indicating CsFixDeployedState" .
+
+:MsgTypeCE a owl:Class;
+  rdfs:subClassOf :CaseStateMessageType;
+  rdfs:comment "A VultronMessageType indicating an error in handling a CaseStateMessageType message" .
+
+:MsgTypeCF a owl:Class;
+  rdfs:subClassOf vultron_process:CsFSymbol, :CaseStateMessageType, :MsgTypeAckableCs;
+  rdfs:comment "A VultronMessageType indicating a CaseParticipant has reached the CsFixReadyState" .
+
+:MsgTypeCK a owl:Class;
+  rdfs:subClassOf :CaseStateMessageType;
+  rdfs:comment "An acknowledgement of a CsAckableMsgType" .
+
+:MsgTypeCP a owl:Class;
+  rdfs:subClassOf vultron_process:CsPSymbol, :CaseStateMessageType, :MsgTypeAckableCs;
+  rdfs:comment "A VultronMessageType indicating CsPublicAwareState" .
+
+:MsgTypeCV a owl:Class;
+  rdfs:subClassOf vultron_process:CsVSymbol, :CaseStateMessageType, :MsgTypeAckableCs;
+  rdfs:comment "VultronMessageType indicating CsVendorAwareState" .
+
+:MsgTypeCX a owl:Class;
+  rdfs:subClassOf vultron_process:CsXSymbol, :CaseStateMessageType, :MsgTypeAckableCs;
+  rdfs:comment "VultronMessageType indicating CsPublicExploitState" .
+
+:MsgTypeEA a owl:Class;
+  rdfs:subClassOf vultron_process:EmASymbol, :EmbargoManagementMessageType, :MsgTypeAckableEm .
+
+:MsgTypeEC a owl:Class;
+  rdfs:subClassOf vultron_process:EmASymbol, :EmbargoManagementMessageType, :MsgTypeAckableEm .
+
+:MsgTypeEE a owl:Class;
+  rdfs:subClassOf :EmbargoManagementMessageType .
+
+:MsgTypeEJ a owl:Class;
+  rdfs:subClassOf vultron_process:EmRSymbol, :EmbargoManagementMessageType, :MsgTypeAckableEm .
+
+:MsgTypeEK a owl:Class;
+  rdfs:subClassOf :EmbargoManagementMessageType .
+
+:MsgTypeEP a owl:Class;
+  rdfs:subClassOf vultron_process:EmPSymbol, :EmbargoManagementMessageType, :MsgTypeAckableEm .
+
+:MsgTypeER a owl:Class;
+  rdfs:subClassOf vultron_process:EmRSymbol, :EmbargoManagementMessageType, :MsgTypeAckableEm .
+
+:MsgTypeET a owl:Class;
+  rdfs:subClassOf vultron_process:EmTSymbol, :EmbargoManagementMessageType, :MsgTypeAckableEm .
+
+:MsgTypeEV a owl:Class;
+  rdfs:subClassOf vultron_process:EmASymbol, :EmbargoManagementMessageType, :MsgTypeAckableEm .
+
+:MsgTypeGE a owl:Class;
+  rdfs:subClassOf :GeneralMessageType .
+
+:MsgTypeGI a owl:Class;
+  rdfs:subClassOf :GeneralMessageType .
+
+:MsgTypeGK a owl:Class;
+  rdfs:subClassOf :GeneralMessageType .
+
+:MsgTypeRA a owl:Class;
+  rdfs:subClassOf vultron_process:RmASymbol, :MsgTypeAckableRm, :ReportManagementMessageType .
+
+:MsgTypeRC a owl:Class;
+  rdfs:subClassOf vultron_process:RmCSymbol, :MsgTypeAckableRm, :ReportManagementMessageType .
+
+:MsgTypeRD a owl:Class;
+  rdfs:subClassOf vultron_process:RmDSymbol, :MsgTypeAckableRm, :ReportManagementMessageType .
+
+:MsgTypeRE a owl:Class;
+  rdfs:subClassOf :ReportManagementMessageType .
+
+:MsgTypeRI a owl:Class;
+  rdfs:subClassOf vultron_process:RmISymbol, :MsgTypeAckableRm, :ReportManagementMessageType .
+
+:MsgTypeRK a owl:Class;
+  rdfs:subClassOf :ReportManagementMessageType .
+
+:MsgTypeRS a owl:Class;
+  rdfs:subClassOf vultron_process:RmRSymbol, :MsgTypeAckableRm, :ReportManagementMessageType .
+
+:MsgTypeRV a owl:Class;
+  rdfs:subClassOf vultron_process:RmVSymbol, :MsgTypeAckableRm, :ReportManagementMessageType .
+
+:MustNotAcceptEmbargo a owl:Class;
+  owl:equivalentClass :MustNotProposeEmbargo, _:genid115;
+  rdfs:subClassOf rfc2119:MUSTNOT, :VultronSpec .
+
+_:genid115 a owl:Restriction;
+  owl:someValuesFrom _:genid116;
+  owl:onProperty :pxaState .
+
+_:genid116 a owl:Class;
+  owl:unionOf _:genid119 .
+
+_:genid119 a rdf:List;
+  rdf:first vultron_process:CsAttacksObservedState;
+  rdf:rest _:genid118 .
+
+_:genid118 a rdf:List;
+  rdf:first vultron_process:CsPublicAwareState;
+  rdf:rest _:genid117 .
+
+_:genid117 a rdf:List;
+  rdf:first vultron_process:CsPublicExploitState;
+  rdf:rest rdf:nil .
+
+:MustNotProposeEmbargo a owl:Class;
+  owl:equivalentClass _:genid120;
+  rdfs:subClassOf rfc2119:MUSTNOT, :VultronSpec .
+
+_:genid120 a owl:Restriction;
+  owl:someValuesFrom _:genid121;
+  owl:onProperty :pxaState .
+
+_:genid121 a owl:Class;
+  owl:unionOf _:genid124 .
+
+_:genid124 a rdf:List;
+  rdf:first vultron_process:CsAttacksObservedState;
+  rdf:rest _:genid123 .
+
+_:genid123 a rdf:List;
+  rdf:first vultron_process:CsPublicAwareState;
+  rdf:rest _:genid122 .
+
+_:genid122 a rdf:List;
+  rdf:first vultron_process:CsPublicExploitState;
+  rdf:rest rdf:nil .
+
+:MustTerminateEmbargoEarly a owl:Class;
+  owl:equivalentClass _:genid125;
+  rdfs:subClassOf rfc2119:MUST, :VultronSpec;
+  rdfs:comment "Conditions under which an embargo must terminate early" .
+
+_:genid125 a owl:Class;
+  owl:intersectionOf _:genid131 .
+
+_:genid131 a rdf:List;
+  rdf:first :CaseStatusEmActiveOrReviseNotExited;
+  rdf:rest _:genid126 .
+
+_:genid126 a rdf:List;
+  rdf:first _:genid127;
+  rdf:rest rdf:nil .
+
+_:genid127 a owl:Restriction;
+  owl:someValuesFrom _:genid128;
+  owl:onProperty :pxaState .
+
+_:genid128 a owl:Class;
+  owl:unionOf _:genid130 .
+
+_:genid130 a rdf:List;
+  rdf:first vultron_process:CsPublicAwareState;
+  rdf:rest _:genid129 .
+
+_:genid129 a rdf:List;
+  rdf:first vultron_process:CsPublicExploitState;
+  rdf:rest rdf:nil .
+
+:OtherParticipant a owl:Class;
+  owl:equivalentClass _:genid132;
+  rdfs:subClassOf :CaseParticipant;
+  rdfs:comment "An OtherParticipant is a CaseParticipant having the role of Other" .
+
+_:genid132 a owl:Class;
+  owl:intersectionOf _:genid135 .
+
+_:genid135 a rdf:List;
+  rdf:first :CaseParticipant;
+  rdf:rest _:genid133 .
+
+_:genid133 a rdf:List;
+  rdf:first _:genid134;
+  rdf:rest rdf:nil .
+
+_:genid134 a owl:Restriction;
+  owl:someValuesFrom :OtherRole;
+  owl:onProperty :hasCaseRole .
+
+:OtherRole a owl:Class;
+  rdfs:subClassOf :CvdCaseRole;
+  rdfs:comment "Represents a miscellaneous (not otherwise specified) role in a VulnerabilityCase" .
+
+:ParticipantStatus a owl:Class;
+  owl:equivalentClass _:genid136;
+  rdfs:subClassOf :CaseStatus;
+  rdfs:comment "Represents the status of a participant with respect to a VulnerabilityCase (participant-specific)." .
+
+_:genid136 a owl:Class;
+  owl:intersectionOf _:genid143 .
+
+_:genid143 a rdf:List;
+  rdf:first :CaseStatus;
+  rdf:rest _:genid141 .
+
+_:genid141 a rdf:List;
+  rdf:first _:genid142;
+  rdf:rest _:genid139 .
+
+_:genid139 a rdf:List;
+  rdf:first _:genid140;
+  rdf:rest _:genid137 .
+
+_:genid137 a rdf:List;
+  rdf:first _:genid138;
+  rdf:rest rdf:nil .
+
+_:genid138 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsParticipantSpecificState;
+  owl:onProperty :vfdState .
+
+_:genid140 a owl:Restriction;
+  owl:someValuesFrom vultron_process:ReportManagementState;
+  owl:onProperty :rmState .
+
+_:genid142 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsParticipantAgnosticState;
+  owl:onProperty :pxaState .
+
+:ParticipantStatusCD a owl:Class;
+  owl:equivalentClass _:genid144;
+  rdfs:subClassOf :MsgTypeCD, :ParticipantStatusCs;
+  rdfs:comment "A CaseStatus indicating a CaseParticipant is in the FixDeployedState" .
+
+_:genid144 a owl:Class;
+  owl:intersectionOf _:genid147 .
+
+_:genid147 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest _:genid145 .
+
+_:genid145 a rdf:List;
+  rdf:first _:genid146;
+  rdf:rest rdf:nil .
+
+_:genid146 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsFixDeployedState;
+  owl:onProperty :vfdState .
+
+:ParticipantStatusCF a owl:Class;
+  owl:equivalentClass _:genid148;
+  rdfs:subClassOf :MsgTypeCF, :ParticipantStatusCs;
+  rdfs:comment "A CaseStatus indicating a CaseParticipant is in the FixReadyState" .
+
+_:genid148 a owl:Class;
+  owl:intersectionOf _:genid151 .
+
+_:genid151 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest _:genid149 .
+
+_:genid149 a rdf:List;
+  rdf:first _:genid150;
+  rdf:rest rdf:nil .
+
+_:genid150 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsFixReadyState;
+  owl:onProperty :vfdState .
+
+:ParticipantStatusCV a owl:Class;
+  owl:equivalentClass _:genid152;
+  rdfs:subClassOf :MsgTypeCV, :ParticipantStatusCs;
+  rdfs:comment "A CaseStatus indicating a CaseParticipant is in the VendorAwareState" .
+
+_:genid152 a owl:Class;
+  owl:intersectionOf _:genid155 .
+
+_:genid155 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest _:genid153 .
+
+_:genid153 a rdf:List;
+  rdf:first _:genid154;
+  rdf:rest rdf:nil .
+
+_:genid154 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsVendorAwareState;
+  owl:onProperty :vfdState .
+
+:ParticipantStatusCs a owl:Class;
+  rdfs:subClassOf :CaseStatusCs, :ParticipantStatus;
+  rdfs:comment "A CaseStatus regarding a participant-specific CaseState status" .
+
+:ParticipantStatusRm a owl:Class;
+  rdfs:subClassOf :ParticipantStatus .
+
+:ParticipantStatusRmAccepted a owl:Class;
+  owl:equivalentClass _:genid156;
+  rdfs:subClassOf :MsgTypeRA, :ParticipantStatusRm .
+
+_:genid156 a owl:Class;
+  owl:intersectionOf _:genid159 .
+
+_:genid159 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest _:genid157 .
+
+_:genid157 a rdf:List;
+  rdf:first _:genid158;
+  rdf:rest rdf:nil .
+
+_:genid158 a owl:Restriction;
+  owl:someValuesFrom vultron_process:RmAcceptedState;
+  owl:onProperty :rmState .
+
+:ParticipantStatusRmClosed a owl:Class;
+  owl:equivalentClass _:genid160;
+  rdfs:subClassOf :MsgTypeRC, :ParticipantStatusRm .
+
+_:genid160 a owl:Class;
+  owl:intersectionOf _:genid163 .
+
+_:genid163 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest _:genid161 .
+
+_:genid161 a rdf:List;
+  rdf:first _:genid162;
+  rdf:rest rdf:nil .
+
+_:genid162 a owl:Restriction;
+  owl:someValuesFrom vultron_process:RmClosedState;
+  owl:onProperty :rmState .
+
+:ParticipantStatusRmDeferred a owl:Class;
+  owl:equivalentClass _:genid164;
+  rdfs:subClassOf :MsgTypeRD, :ParticipantStatusRm .
+
+_:genid164 a owl:Class;
+  owl:intersectionOf _:genid167 .
+
+_:genid167 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest _:genid165 .
+
+_:genid165 a rdf:List;
+  rdf:first _:genid166;
+  rdf:rest rdf:nil .
+
+_:genid166 a owl:Restriction;
+  owl:someValuesFrom vultron_process:RmDeferredState;
+  owl:onProperty :rmState .
+
+:ParticipantStatusRmInvalid a owl:Class;
+  owl:equivalentClass _:genid168;
+  rdfs:subClassOf :MsgTypeRI, :ParticipantStatusRm .
+
+_:genid168 a owl:Class;
+  owl:intersectionOf _:genid171 .
+
+_:genid171 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest _:genid169 .
+
+_:genid169 a rdf:List;
+  rdf:first _:genid170;
+  rdf:rest rdf:nil .
+
+_:genid170 a owl:Restriction;
+  owl:someValuesFrom vultron_process:RmInvalidState;
+  owl:onProperty :rmState .
+
+:ParticipantStatusRmReceived a owl:Class;
+  owl:equivalentClass _:genid172;
+  rdfs:subClassOf :MsgTypeRS, :ParticipantStatusRm .
+
+_:genid172 a owl:Class;
+  owl:intersectionOf _:genid175 .
+
+_:genid175 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest _:genid173 .
+
+_:genid173 a rdf:List;
+  rdf:first _:genid174;
+  rdf:rest rdf:nil .
+
+_:genid174 a owl:Restriction;
+  owl:someValuesFrom vultron_process:RmReceivedState;
+  owl:onProperty :rmState .
+
+:ParticipantStatusRmStart a owl:Class;
+  owl:equivalentClass _:genid176;
+  rdfs:subClassOf :ParticipantStatusRm .
+
+_:genid176 a owl:Class;
+  owl:intersectionOf _:genid179 .
+
+_:genid179 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest _:genid177 .
+
+_:genid177 a rdf:List;
+  rdf:first _:genid178;
+  rdf:rest rdf:nil .
+
+_:genid178 a owl:Restriction;
+  owl:someValuesFrom vultron_process:RmStartState;
+  owl:onProperty :rmState .
+
+:ParticipantStatusRmValid a owl:Class;
+  owl:equivalentClass _:genid180;
+  rdfs:subClassOf :MsgTypeRV, :ParticipantStatusRm .
+
+_:genid180 a owl:Class;
+  owl:intersectionOf _:genid183 .
+
+_:genid183 a rdf:List;
+  rdf:first :ParticipantStatus;
+  rdf:rest _:genid181 .
+
+_:genid181 a rdf:List;
+  rdf:first _:genid182;
+  rdf:rest rdf:nil .
+
+_:genid182 a owl:Restriction;
+  owl:someValuesFrom vultron_process:RmValidState;
+  owl:onProperty :rmState .
+
+:ReportManagementMessageType a owl:Class;
+  rdfs:subClassOf :VultronMessageType .
+
+:ReporterParticipant a owl:Class;
+  owl:equivalentClass _:genid184;
+  rdfs:subClassOf :CaseParticipant;
+  rdfs:comment "A ReporterParticipant is a CaseParticipant having the role of Reporter" .
+
+_:genid184 a owl:Class;
+  owl:intersectionOf _:genid187 .
+
+_:genid187 a rdf:List;
+  rdf:first :CaseParticipant;
+  rdf:rest _:genid185 .
+
+_:genid185 a rdf:List;
+  rdf:first _:genid186;
+  rdf:rest rdf:nil .
+
+_:genid186 a owl:Restriction;
+  owl:someValuesFrom :ReporterRole;
+  owl:onProperty :hasCaseRole .
+
+:ReporterRole a owl:Class;
+  rdfs:subClassOf :CvdCaseRole;
+  rdfs:comment "A role representing the Reporter of a vulnerability in a VulnerabilityCase. Often, but not always, will appear along with the FinderRole." .
+
+:ShouldBeBriefEmbargo a owl:Class;
+  owl:equivalentClass _:genid188;
+  rdfs:subClassOf rfc2119:SHOULD, :MayAcceptEmbargo, :MayProposeEmbargo .
+
+_:genid188 a owl:Class;
+  owl:intersectionOf _:genid194 .
+
+_:genid194 a rdf:List;
+  rdf:first :MayAcceptEmbargo;
+  rdf:rest _:genid193 .
+
+_:genid193 a rdf:List;
+  rdf:first :VulnerabilityCase;
+  rdf:rest _:genid189 .
+
+_:genid189 a rdf:List;
+  rdf:first _:genid190;
+  rdf:rest rdf:nil .
+
+_:genid190 a owl:Restriction;
+  owl:someValuesFrom _:genid191;
+  owl:onProperty :hasParticipant .
+
+_:genid191 a owl:Restriction;
+  owl:someValuesFrom _:genid192;
+  owl:onProperty :hasParticipantStatus .
+
+_:genid192 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsFixReadyState;
+  owl:onProperty :vfdState .
+
+:ShouldDeployASAP a owl:Class;
+  owl:equivalentClass _:genid195;
+  rdfs:subClassOf rfc2119:SHOULD, :VultronSpec .
+
+_:genid195 a owl:Class;
+  owl:intersectionOf _:genid200 .
+
+_:genid200 a rdf:List;
+  rdf:first _:genid201;
+  rdf:rest _:genid198 .
+
+_:genid198 a rdf:List;
+  rdf:first _:genid199;
+  rdf:rest _:genid196 .
+
+_:genid196 a rdf:List;
+  rdf:first _:genid197;
+  rdf:rest rdf:nil .
+
+_:genid197 a owl:Restriction;
+  owl:allValuesFrom vultron_process:CsFixNotDeployedState;
+  owl:onProperty :vfdState .
+
+_:genid199 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsFixReadyState;
+  owl:onProperty :vfdState .
+
+_:genid201 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsAttacksObservedState;
+  owl:onProperty :pxaState .
+
+:ShouldFixASAP a owl:Class;
+  owl:equivalentClass _:genid202;
+  rdfs:subClassOf rfc2119:SHOULD, :VultronSpec .
+
+_:genid202 a owl:Class;
+  owl:intersectionOf _:genid205 .
+
+_:genid205 a rdf:List;
+  rdf:first _:genid206;
+  rdf:rest _:genid203 .
+
+_:genid203 a rdf:List;
+  rdf:first _:genid204;
+  rdf:rest rdf:nil .
+
+_:genid204 a owl:Restriction;
+  owl:allValuesFrom vultron_process:CsFixNotReadyState;
+  owl:onProperty :vfdState .
+
+_:genid206 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsAttacksObservedState;
+  owl:onProperty :pxaState .
+
+:ShouldNotAcceptEmbargo a owl:Class;
+  owl:equivalentClass :ShouldNotProposeEmbargo, _:genid207;
+  rdfs:subClassOf rfc2119:SHOULDNOT, :MayAcceptEmbargo, :MayProposeEmbargo, :VultronSpec .
+
+_:genid207 a owl:Class;
+  owl:intersectionOf _:genid213 .
+
+_:genid213 a rdf:List;
+  rdf:first :MayAcceptEmbargo;
+  rdf:rest _:genid212 .
+
+_:genid212 a rdf:List;
+  rdf:first :VulnerabilityCase;
+  rdf:rest _:genid208 .
+
+_:genid208 a rdf:List;
+  rdf:first _:genid209;
+  rdf:rest rdf:nil .
+
+_:genid209 a owl:Restriction;
+  owl:someValuesFrom _:genid210;
+  owl:onProperty :hasParticipant .
+
+_:genid210 a owl:Restriction;
+  owl:someValuesFrom _:genid211;
+  owl:onProperty :hasParticipantStatus .
+
+_:genid211 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsFixDeployedState;
+  owl:onProperty :vfdState .
+
+:ShouldNotProposeEmbargo a owl:Class;
+  rdfs:subClassOf rfc2119:SHOULDNOT, :MayAcceptEmbargo, :MayProposeEmbargo, :VultronSpec .
+
+:ShouldPublishASAP a owl:Class;
+  owl:equivalentClass _:genid214 .
+# 
+# http://www.cert.org/ns/vultron_protocol#ShouldTerminateEmbargoEarly
+# 
+# http://www.cert.org/ns/vultron_protocol#VendorDeployerParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#VendorParticipant
+# 
+# http://www.cert.org/ns/vultron_protocol#VendorRole
+# 
+# http://www.cert.org/ns/vultron_protocol#VulnerabilityCase
+# 
+# http://www.cert.org/ns/vultron_protocol#VulnerabilityReport
+# 
+# http://www.cert.org/ns/vultron_protocol#VultronMessageType
+# 
+# http://www.cert.org/ns/vultron_protocol#VultronSpec
+# 
+# http://www.cert.org/ns/vultron_protocol#VultronStateMessageType
+# 
+# 
+# 
+# #################################################################
+# #
+# #    General axioms
+# #
+# #################################################################
+# 
+# 
+# 
+# 
+# Generated by the OWL API (version 4.5.26.2023-07-17T20:34:13Z) https://github.com/owlcs/owlapi
+
+_:genid214 a owl:Class;
+  owl:intersectionOf _:genid217 .
+
+_:genid217 a rdf:List;
+  rdf:first _:genid218;
+  rdf:rest _:genid215 .
+
+_:genid215 a rdf:List;
+  rdf:first _:genid216;
+  rdf:rest rdf:nil .
+
+_:genid216 a owl:Restriction;
+  owl:allValuesFrom vultron_process:CsPublicUnawareState;
+  owl:onProperty :pxaState .
+
+_:genid218 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsAttacksObservedState;
+  owl:onProperty :pxaState .
+
+:ShouldPublishASAP rdfs:subClassOf rfc2119:SHOULD, :VultronSpec .
+
+:ShouldTerminateEmbargoEarly a owl:Class;
+  owl:equivalentClass _:genid219;
+  rdfs:subClassOf rfc2119:SHOULD, :VultronSpec;
+  rdfs:comment "Defines conditions under which an embargo should terminate early" .
+
+_:genid219 a owl:Class;
+  owl:intersectionOf _:genid222 .
+
+_:genid222 a rdf:List;
+  rdf:first :CaseStatusEmActiveOrReviseNotExited;
+  rdf:rest _:genid220 .
+
+_:genid220 a rdf:List;
+  rdf:first _:genid221;
+  rdf:rest rdf:nil .
+
+_:genid221 a owl:Restriction;
+  owl:someValuesFrom vultron_process:CsAttacksObservedState;
+  owl:onProperty :pxaState .
+
+:VendorDeployerParticipant a owl:Class;
+  owl:equivalentClass _:genid223;
+  rdfs:subClassOf :CaseParticipant, :DeployerParticipant, :VendorParticipant .
+
+_:genid223 a owl:Class;
+  owl:intersectionOf _:genid228 .
+
+_:genid228 a rdf:List;
+  rdf:first :CaseParticipant;
+  rdf:rest _:genid226 .
+
+_:genid226 a rdf:List;
+  rdf:first _:genid227;
+  rdf:rest _:genid224 .
+
+_:genid224 a rdf:List;
+  rdf:first _:genid225;
+  rdf:rest rdf:nil .
+
+_:genid225 a owl:Restriction;
+  owl:someValuesFrom :VendorRole;
+  owl:onProperty :hasCaseRole .
+
+_:genid227 a owl:Restriction;
+  owl:someValuesFrom :DeployerRole;
+  owl:onProperty :hasCaseRole .
+
+:VendorParticipant a owl:Class;
+  owl:equivalentClass _:genid229;
+  rdfs:subClassOf :CaseParticipant;
+  rdfs:comment "A VendorParticipant is a CaseParticipant having the role of Vendor" .
+
+_:genid229 a owl:Class;
+  owl:intersectionOf _:genid232 .
+
+_:genid232 a rdf:List;
+  rdf:first :CaseParticipant;
+  rdf:rest _:genid230 .
+
+_:genid230 a rdf:List;
+  rdf:first _:genid231;
+  rdf:rest rdf:nil .
+
+_:genid231 a owl:Restriction;
+  owl:someValuesFrom :VendorRole;
+  owl:onProperty :hasCaseRole .
+
+:VendorRole a owl:Class;
+  rdfs:subClassOf :CvdCaseRole .
+
+:VulnerabilityCase a owl:Class;
+  rdfs:comment "A Vulnerability Case is a container for vulnerability reports, and is used to track the lifecycle of the case and its constituent vulnerability reports, including the status of the case itself, the participants in the case, and the embargo status of the case." .
+
+:VulnerabilityReport a owl:Class;
+  rdfs:comment "Represents a VulnerabilityReport object" .
+
+:VultronMessageType a owl:Class;
+  rdfs:comment "Describes a message type within the Vultron Protocol" .
+
+:VultronSpec a owl:Class .
+
+:VultronStateMessageType a owl:Class;
+  owl:equivalentClass _:genid233;
+  rdfs:subClassOf dfa:Symbol, :VultronMessageType;
+  rdfs:comment "A MessageType directly related to the operation of the Vultron protocol state machines" .
+
+_:genid233 a owl:Class;
+  owl:intersectionOf _:genid235 .
+
+_:genid235 a rdf:List;
+  rdf:first dfa:Symbol;
+  rdf:rest _:genid234 .
+
+_:genid234 a rdf:List;
+  rdf:first :VultronMessageType;
+  rdf:rest rdf:nil .
+
+_:genid236 a owl:AllDisjointClasses;
+  owl:members _:genid243 .
+
+_:genid243 a rdf:List;
+  rdf:first :CaseOwnerRole;
+  rdf:rest _:genid242 .
+
+_:genid242 a rdf:List;
+  rdf:first :CoordinatorRole;
+  rdf:rest _:genid241 .
+
+_:genid241 a rdf:List;
+  rdf:first :DeployerRole;
+  rdf:rest _:genid240 .
+
+_:genid240 a rdf:List;
+  rdf:first :FinderRole;
+  rdf:rest _:genid239 .
+
+_:genid239 a rdf:List;
+  rdf:first :OtherRole;
+  rdf:rest _:genid238 .
+
+_:genid238 a rdf:List;
+  rdf:first :ReporterRole;
+  rdf:rest _:genid237 .
+
+_:genid237 a rdf:List;
+  rdf:first :VendorRole;
+  rdf:rest rdf:nil .
+
+_:genid244 a owl:AllDisjointClasses;
+  owl:members _:genid248 .
+
+_:genid248 a rdf:List;
+  rdf:first :CaseStateMessageType;
+  rdf:rest _:genid247 .
+
+_:genid247 a rdf:List;
+  rdf:first :EmbargoManagementMessageType;
+  rdf:rest _:genid246 .
+
+_:genid246 a rdf:List;
+  rdf:first :GeneralMessageType;
+  rdf:rest _:genid245 .
+
+_:genid245 a rdf:List;
+  rdf:first :ReportManagementMessageType;
+  rdf:rest rdf:nil .

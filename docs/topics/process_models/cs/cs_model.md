@@ -8,7 +8,7 @@ derived from [A State-Based Model for Multi-Party Coordinated Vulnerability Disc
 
 ---
 
-{% include-markdown "../dfa_notation_definition.md" %}
+{% include-markdown "../_dfa_notation_definition.md" %}
 
 As in the [RM](../rm/index.md) and [EM](../em/index.md) process models, we wish to define a 5-tuple
 $(\mathcal{Q},\Sigma,\delta,q_0,F)$, this time for the CS model.

@@ -14,6 +14,9 @@ Combined with the abstract [case class model](../../howto/case_object.md), an on
 the semantic interoperability between independent Participant processes and tools that we set out to improve at the
 beginning of this effort.
 
+We have provided an example of a [Vultron Protocol OWL Ontology](../../reference/ontology/index.md)
+that is intended to be a starting point for further discussion and refinement.
+
 ## Related Ontology and Data Definition Work
 
 It is currently unclear how this work might intersect with the NIST

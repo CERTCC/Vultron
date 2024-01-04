@@ -1,11 +1,3 @@
-#!/usr/bin/env python
-"""
-file: __init__.py
-author: adh
-created_at: 10/9/23 1:11 PM
-"""
-
-
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -18,11 +10,6 @@ created_at: 10/9/23 1:11 PM
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
-
-def main():
-    pass
-
-
-if __name__ == "__main__":
-    main()
+"""
+Provides Vultron-specific Activity Streams 2.0 objects.
+"""

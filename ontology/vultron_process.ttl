@@ -1,0 +1,2813 @@
+@prefix : <http://www.cert.org/ns/vultron_process#> .
+@prefix dfa: <http://www.cert.org/ns/deterministicfiniteautomata#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+# 
+# 
+# #################################################################
+# #
+# #    Object Properties
+# #
+# #################################################################
+# 
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#fromState
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#hasFinalState
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#hasInputSymbol
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#hasStartState
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#hasState
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#hasTransition
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#isFinalStateOf
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#onSymbol
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#toState
+# 
+# 
+# 
+# #################################################################
+# #
+# #    Classes
+# #
+# #################################################################
+# 
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#DeterministicFiniteAutomata
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#State
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#Symbol
+# 
+# http://www.cert.org/ns/deterministicfiniteautomata#Transition
+# 
+# http://www.cert.org/ns/vultron_process#ActiveEmbargoState
+# 
+# http://www.cert.org/ns/vultron_process#AttackObservationTransition
+# 
+# http://www.cert.org/ns/vultron_process#CaseState
+# 
+# http://www.cert.org/ns/vultron_process#CaseStateProcess
+# 
+# http://www.cert.org/ns/vultron_process#CaseStateSymbol
+# 
+# http://www.cert.org/ns/vultron_process#CsASymbol
+# 
+# http://www.cert.org/ns/vultron_process#CsAttacksObservedState
+# 
+# http://www.cert.org/ns/vultron_process#CsDSymbol
+# 
+# http://www.cert.org/ns/vultron_process#CsFSymbol
+# 
+# http://www.cert.org/ns/vultron_process#CsFinalState
+# 
+# http://www.cert.org/ns/vultron_process#CsFixDeployedState
+# 
+# http://www.cert.org/ns/vultron_process#CsFixNotDeployedState
+# 
+# http://www.cert.org/ns/vultron_process#CsFixNotReadyState
+# 
+# http://www.cert.org/ns/vultron_process#CsFixReadyState
+# 
+# http://www.cert.org/ns/vultron_process#CsInitialState
+# 
+# http://www.cert.org/ns/vultron_process#CsNoAttacksObservedState
+# 
+# http://www.cert.org/ns/vultron_process#CsNoPublicExploitState
+# 
+# http://www.cert.org/ns/vultron_process#CsPSymbol
+# 
+# http://www.cert.org/ns/vultron_process#CsPXAState
+# 
+# http://www.cert.org/ns/vultron_process#CsPXaState
+# 
+# http://www.cert.org/ns/vultron_process#CsParticipantAgnosticState
+# 
+# http://www.cert.org/ns/vultron_process#CsParticipantSpecificState
+# 
+# http://www.cert.org/ns/vultron_process#CsPublicAwareState
+# 
+# http://www.cert.org/ns/vultron_process#CsPublicAwarenessExploitAttacksState
+# 
+# http://www.cert.org/ns/vultron_process#CsPublicExploitState
+# 
+# http://www.cert.org/ns/vultron_process#CsPublicUnawareState
+# 
+# http://www.cert.org/ns/vultron_process#CsPxAState
+# 
+# http://www.cert.org/ns/vultron_process#CsPxaState
+# 
+# http://www.cert.org/ns/vultron_process#CsSimpleState
+# 
+# http://www.cert.org/ns/vultron_process#CsSubstate
+# 
+# http://www.cert.org/ns/vultron_process#CsTransition
+# 
+# http://www.cert.org/ns/vultron_process#CsVFDPXAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFDPXaState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFDPxAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFDPxaState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFDState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFDpXAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFDpXaState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFDpxAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFDpxaState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFdPXAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFdPXaState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFdPxAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFdPxaState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFdState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFdpXAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFdpXaState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFdpxAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVFdpxaState
+# 
+# http://www.cert.org/ns/vultron_process#CsVSymbol
+# 
+# http://www.cert.org/ns/vultron_process#CsVendorAwareState
+# 
+# http://www.cert.org/ns/vultron_process#CsVendorFixPathState
+# 
+# http://www.cert.org/ns/vultron_process#CsVendorUnawareState
+# 
+# http://www.cert.org/ns/vultron_process#CsVfdPXAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVfdPXaState
+# 
+# http://www.cert.org/ns/vultron_process#CsVfdPxAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVfdPxaState
+# 
+# http://www.cert.org/ns/vultron_process#CsVfdState
+# 
+# http://www.cert.org/ns/vultron_process#CsVfdpXAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVfdpXaState
+# 
+# http://www.cert.org/ns/vultron_process#CsVfdpxAState
+# 
+# http://www.cert.org/ns/vultron_process#CsVfdpxaState
+# 
+# http://www.cert.org/ns/vultron_process#CsXSymbol
+# 
+# http://www.cert.org/ns/vultron_process#CspXAState
+# 
+# http://www.cert.org/ns/vultron_process#CspXaState
+# 
+# http://www.cert.org/ns/vultron_process#CspxAState
+# 
+# http://www.cert.org/ns/vultron_process#CspxaState
+# 
+# http://www.cert.org/ns/vultron_process#CsvfdPXAState
+# 
+# http://www.cert.org/ns/vultron_process#CsvfdPXaState
+# 
+# http://www.cert.org/ns/vultron_process#CsvfdPxAState
+# 
+# http://www.cert.org/ns/vultron_process#CsvfdPxaState
+# 
+# http://www.cert.org/ns/vultron_process#CsvfdState
+# 
+# http://www.cert.org/ns/vultron_process#CsvfdpXAState
+# 
+# http://www.cert.org/ns/vultron_process#CsvfdpXaState
+# 
+# http://www.cert.org/ns/vultron_process#CsvfdpxAState
+# 
+# http://www.cert.org/ns/vultron_process#CsvfdpxaState
+# 
+# http://www.cert.org/ns/vultron_process#EmASymbol
+# 
+# http://www.cert.org/ns/vultron_process#EmActiveState
+# 
+# http://www.cert.org/ns/vultron_process#EmApRTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmAtXTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmCompoundState
+# 
+# http://www.cert.org/ns/vultron_process#EmExitedState
+# 
+# http://www.cert.org/ns/vultron_process#EmFromActiveTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmFromNoneTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmFromProposedTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmFromReviseTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmNoneState
+# 
+# http://www.cert.org/ns/vultron_process#EmNpPTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmOnActivateTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmOnProposeTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmOnRejectTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmOnTerminateTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmPSymbol
+# 
+# http://www.cert.org/ns/vultron_process#EmPaATransition
+# 
+# http://www.cert.org/ns/vultron_process#EmPpPTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmPrNTransition
+
+<http://www.cert.org/ns/vultron_process> a owl:Ontology;
+  owl:imports <http://www.cert.org/ns/deterministicfiniteautomata>;
+  rdfs:comment "Defines the individual state machines (deterministic finite automata) that serve as the foundational process models of the Vultron protocol." .
+
+dfa:fromState a owl:ObjectProperty .
+
+dfa:hasFinalState a owl:ObjectProperty;
+  owl:inverseOf dfa:isFinalStateOf .
+
+dfa:hasInputSymbol a owl:ObjectProperty .
+
+dfa:hasStartState a owl:ObjectProperty .
+
+dfa:hasState a owl:ObjectProperty .
+
+dfa:hasTransition a owl:ObjectProperty .
+
+dfa:isFinalStateOf a owl:ObjectProperty .
+
+dfa:onSymbol a owl:ObjectProperty .
+
+dfa:toState a owl:ObjectProperty .
+
+dfa:DeterministicFiniteAutomata a owl:Class .
+
+dfa:State a owl:Class .
+
+dfa:Symbol a owl:Class .
+
+dfa:Transition a owl:Class .
+
+:ActiveEmbargoState a owl:Class;
+  owl:equivalentClass _:genid1;
+  rdfs:subClassOf :EmCompoundState;
+  rdfs:comment "An EmbargoManagementState in which an embargo is currently active." .
+
+_:genid1 a owl:Class;
+  owl:unionOf _:genid3 .
+
+_:genid3 a rdf:List;
+  rdf:first :EmActiveState;
+  rdf:rest _:genid2 .
+
+_:genid2 a rdf:List;
+  rdf:first :EmReviseState;
+  rdf:rest rdf:nil .
+
+:AttackObservationTransition a owl:Class;
+  owl:equivalentClass _:genid4;
+  rdfs:subClassOf :CsTransition .
+
+_:genid4 a owl:Class;
+  owl:intersectionOf _:genid9 .
+
+_:genid9 a rdf:List;
+  rdf:first _:genid10;
+  rdf:rest _:genid7 .
+
+_:genid7 a rdf:List;
+  rdf:first _:genid8;
+  rdf:rest _:genid5 .
+
+_:genid5 a rdf:List;
+  rdf:first _:genid6;
+  rdf:rest rdf:nil .
+
+_:genid6 a owl:Restriction;
+  owl:someValuesFrom :CsAttacksObservedState;
+  owl:onProperty dfa:toState .
+
+_:genid8 a owl:Restriction;
+  owl:someValuesFrom :CsASymbol;
+  owl:onProperty dfa:onSymbol .
+
+_:genid10 a owl:Restriction;
+  owl:someValuesFrom :CsNoAttacksObservedState;
+  owl:onProperty dfa:fromState .
+
+:CaseState a owl:Class;
+  rdfs:subClassOf dfa:State;
+  rdfs:comment "A Vultron Case State" .
+
+:CaseStateProcess a owl:Class;
+  owl:equivalentClass _:genid11;
+  rdfs:subClassOf :ProcessModel;
+  rdfs:comment "A VultronProcess describing the case state process model" .
+
+_:genid11 a owl:Class;
+  owl:intersectionOf _:genid32 .
+
+_:genid32 a rdf:List;
+  rdf:first dfa:DeterministicFiniteAutomata;
+  rdf:rest _:genid30 .
+
+_:genid30 a rdf:List;
+  rdf:first _:genid31;
+  rdf:rest _:genid28 .
+
+_:genid28 a rdf:List;
+  rdf:first _:genid29;
+  rdf:rest _:genid26 .
+
+_:genid26 a rdf:List;
+  rdf:first _:genid27;
+  rdf:rest _:genid24 .
+
+_:genid24 a rdf:List;
+  rdf:first _:genid25;
+  rdf:rest _:genid22 .
+
+_:genid22 a rdf:List;
+  rdf:first _:genid23;
+  rdf:rest _:genid20 .
+
+_:genid20 a rdf:List;
+  rdf:first _:genid21;
+  rdf:rest _:genid18 .
+
+_:genid18 a rdf:List;
+  rdf:first _:genid19;
+  rdf:rest _:genid16 .
+
+_:genid16 a rdf:List;
+  rdf:first _:genid17;
+  rdf:rest _:genid14 .
+
+_:genid14 a rdf:List;
+  rdf:first _:genid15;
+  rdf:rest _:genid12 .
+
+_:genid12 a rdf:List;
+  rdf:first _:genid13;
+  rdf:rest rdf:nil .
+
+_:genid13 a owl:Restriction;
+  owl:allValuesFrom :CsTransition;
+  owl:onProperty dfa:hasTransition .
+
+_:genid15 a owl:Restriction;
+  owl:allValuesFrom :CsSimpleState;
+  owl:onProperty dfa:hasState .
+
+_:genid17 a owl:Restriction;
+  owl:allValuesFrom :CsvfdpxaState;
+  owl:onProperty dfa:hasStartState .
+
+_:genid19 a owl:Restriction;
+  owl:allValuesFrom :CaseStateSymbol;
+  owl:onProperty dfa:hasInputSymbol .
+
+_:genid21 a owl:Restriction;
+  owl:allValuesFrom :CsVFDPXAState;
+  owl:onProperty dfa:hasFinalState .
+
+_:genid23 a owl:Restriction;
+  owl:someValuesFrom :CsTransition;
+  owl:onProperty dfa:hasTransition .
+
+_:genid25 a owl:Restriction;
+  owl:someValuesFrom :CsSimpleState;
+  owl:onProperty dfa:hasState .
+
+_:genid27 a owl:Restriction;
+  owl:someValuesFrom :CsvfdpxaState;
+  owl:onProperty dfa:hasStartState .
+
+_:genid29 a owl:Restriction;
+  owl:someValuesFrom :CaseStateSymbol;
+  owl:onProperty dfa:hasInputSymbol .
+
+_:genid31 a owl:Restriction;
+  owl:someValuesFrom :CsVFDPXAState;
+  owl:onProperty dfa:hasFinalState .
+
+:CaseStateSymbol a owl:Class;
+  rdfs:subClassOf dfa:Symbol .
+
+:CsASymbol a owl:Class;
+  rdfs:subClassOf :CaseStateSymbol .
+
+:CsAttacksObservedState a owl:Class;
+  rdfs:subClassOf :CsParticipantAgnosticState, :CsSubstate;
+  owl:disjointWith :CsNoAttacksObservedState;
+  rdfs:comment "CaseState in which attacks have been observed" .
+
+:CsDSymbol a owl:Class;
+  rdfs:subClassOf :CaseStateSymbol .
+
+:CsFSymbol a owl:Class;
+  rdfs:subClassOf :CaseStateSymbol .
+
+:CsFinalState a owl:Class;
+  owl:equivalentClass _:genid33;
+  rdfs:subClassOf :CaseState .
+
+_:genid33 a owl:Class;
+  owl:intersectionOf _:genid36 .
+
+_:genid36 a rdf:List;
+  rdf:first :CsSimpleState;
+  rdf:rest _:genid34 .
+
+_:genid34 a rdf:List;
+  rdf:first _:genid35;
+  rdf:rest rdf:nil .
+
+_:genid35 a owl:Restriction;
+  owl:someValuesFrom :CaseStateProcess;
+  owl:onProperty dfa:isFinalStateOf .
+
+:CsFixDeployedState a owl:Class;
+  rdfs:subClassOf :CsParticipantSpecificState, :CsSubstate;
+  owl:disjointWith :CsFixNotDeployedState;
+  rdfs:comment "CaseState in which a fix has been deployed" .
+
+:CsFixNotDeployedState a owl:Class;
+  rdfs:subClassOf :CsParticipantSpecificState, :CsSubstate;
+  rdfs:comment "CaseState in which no fix has been deployed" .
+
+:CsFixNotReadyState a owl:Class;
+  rdfs:subClassOf :CsParticipantSpecificState, :CsSubstate;
+  owl:disjointWith :CsFixReadyState;
+  rdfs:comment "CaseState in which no fix is ready" .
+
+:CsFixReadyState a owl:Class;
+  rdfs:subClassOf :CsParticipantSpecificState, :CsSubstate;
+  rdfs:comment "CaseState in which a fix is ready" .
+
+:CsInitialState a owl:Class;
+  rdfs:subClassOf :CaseState .
+
+:CsNoAttacksObservedState a owl:Class;
+  rdfs:subClassOf :CsParticipantAgnosticState, :CsSubstate;
+  rdfs:comment "CaseState in which no attacks have been observed" .
+
+:CsNoPublicExploitState a owl:Class;
+  rdfs:subClassOf :CsParticipantAgnosticState, :CsSubstate;
+  owl:disjointWith :CsPublicExploitState;
+  rdfs:comment "CaseState in which no exploits have been made public" .
+
+:CsPSymbol a owl:Class;
+  rdfs:subClassOf :CaseStateSymbol .
+
+:CsPXAState a owl:Class;
+  owl:equivalentClass _:genid37;
+  rdfs:subClassOf :CsPublicAwarenessExploitAttacksState .
+
+_:genid37 a owl:Class;
+  owl:intersectionOf _:genid40 .
+
+_:genid40 a rdf:List;
+  rdf:first :CsAttacksObservedState;
+  rdf:rest _:genid39 .
+
+_:genid39 a rdf:List;
+  rdf:first :CsPublicAwareState;
+  rdf:rest _:genid38 .
+
+_:genid38 a rdf:List;
+  rdf:first :CsPublicExploitState;
+  rdf:rest rdf:nil .
+
+:CsPXaState a owl:Class;
+  owl:equivalentClass _:genid41;
+  rdfs:subClassOf :CsPublicAwarenessExploitAttacksState .
+
+_:genid41 a owl:Class;
+  owl:intersectionOf _:genid44 .
+
+_:genid44 a rdf:List;
+  rdf:first :CsNoAttacksObservedState;
+  rdf:rest _:genid43 .
+
+_:genid43 a rdf:List;
+  rdf:first :CsPublicAwareState;
+  rdf:rest _:genid42 .
+
+_:genid42 a rdf:List;
+  rdf:first :CsPublicExploitState;
+  rdf:rest rdf:nil .
+
+:CsParticipantAgnosticState a owl:Class;
+  rdfs:subClassOf :CaseState, :ParticipantAgnosticState .
+
+:CsParticipantSpecificState a owl:Class;
+  rdfs:subClassOf :CaseState, :ParticipantSpecificState .
+
+:CsPublicAwareState a owl:Class;
+  rdfs:subClassOf :CsParticipantAgnosticState, :CsSubstate;
+  owl:disjointWith :CsPublicUnawareState;
+  rdfs:comment "CaseState in which the public is aware of the vulnerability" .
+
+:CsPublicAwarenessExploitAttacksState a owl:Class;
+  rdfs:subClassOf :CaseState;
+  rdfs:comment "Organizes states according to Public Awareness, Exploit Public, and Attack  Observation status" .
+
+:CsPublicExploitState a owl:Class;
+  rdfs:subClassOf :CsParticipantAgnosticState, :CsSubstate;
+  rdfs:comment "CaseState in which there is a public exploit for the vulnerability. Subclass of CsPublicAwareState because a public exploit implies public awareness of the vulnerability." .
+
+:CsPublicUnawareState a owl:Class;
+  rdfs:subClassOf :CsParticipantAgnosticState, :CsSubstate;
+  rdfs:comment "CaseState in which the public is not aware of the vulnerability. Subclass of CsNoPublicExploitState because public unaware requires there to be no public exploit as well. See CsPublicExploitState for the opposite." .
+
+:CsPxAState a owl:Class;
+  owl:equivalentClass _:genid45;
+  rdfs:subClassOf :CsPublicAwarenessExploitAttacksState .
+
+_:genid45 a owl:Class;
+  owl:intersectionOf _:genid48 .
+
+_:genid48 a rdf:List;
+  rdf:first :CsAttacksObservedState;
+  rdf:rest _:genid47 .
+
+_:genid47 a rdf:List;
+  rdf:first :CsNoPublicExploitState;
+  rdf:rest _:genid46 .
+
+_:genid46 a rdf:List;
+  rdf:first :CsPublicAwareState;
+  rdf:rest rdf:nil .
+
+:CsPxaState a owl:Class;
+  owl:equivalentClass _:genid49;
+  rdfs:subClassOf :CsPublicAwarenessExploitAttacksState .
+
+_:genid49 a owl:Class;
+  owl:intersectionOf _:genid52 .
+
+_:genid52 a rdf:List;
+  rdf:first :CsNoAttacksObservedState;
+  rdf:rest _:genid51 .
+
+_:genid51 a rdf:List;
+  rdf:first :CsNoPublicExploitState;
+  rdf:rest _:genid50 .
+
+_:genid50 a rdf:List;
+  rdf:first :CsPublicAwareState;
+  rdf:rest rdf:nil .
+
+:CsSimpleState a owl:Class;
+  rdfs:subClassOf :CaseState .
+
+:CsSubstate a owl:Class;
+  rdfs:subClassOf :CaseState .
+
+:CsTransition a owl:Class;
+  owl:equivalentClass _:genid53;
+  rdfs:subClassOf dfa:Transition .
+
+_:genid53 a owl:Class;
+  owl:intersectionOf _:genid60 .
+
+_:genid60 a rdf:List;
+  rdf:first dfa:Transition;
+  rdf:rest _:genid58 .
+
+_:genid58 a rdf:List;
+  rdf:first _:genid59;
+  rdf:rest _:genid56 .
+
+_:genid56 a rdf:List;
+  rdf:first _:genid57;
+  rdf:rest _:genid54 .
+
+_:genid54 a rdf:List;
+  rdf:first _:genid55;
+  rdf:rest rdf:nil .
+
+_:genid55 a owl:Restriction;
+  owl:someValuesFrom :CsSimpleState;
+  owl:onProperty dfa:toState .
+
+_:genid57 a owl:Restriction;
+  owl:someValuesFrom :CaseStateSymbol;
+  owl:onProperty dfa:onSymbol .
+
+_:genid59 a owl:Restriction;
+  owl:someValuesFrom :CsSimpleState;
+  owl:onProperty dfa:fromState .
+
+:CsVFDPXAState a owl:Class;
+  owl:equivalentClass _:genid61;
+  rdfs:subClassOf :CsPXAState, :CsSimpleState, :CsVFDState, :FixDeployedState .
+
+_:genid61 a owl:Class;
+  owl:intersectionOf _:genid63 .
+
+_:genid63 a rdf:List;
+  rdf:first :CsPXAState;
+  rdf:rest _:genid62 .
+
+_:genid62 a rdf:List;
+  rdf:first :CsVFDState;
+  rdf:rest rdf:nil .
+
+:CsVFDPXaState a owl:Class;
+  owl:equivalentClass _:genid64;
+  rdfs:subClassOf :CsPXaState, :CsSimpleState, :CsVFDState, :FixDeployedState .
+
+_:genid64 a owl:Class;
+  owl:intersectionOf _:genid66 .
+
+_:genid66 a rdf:List;
+  rdf:first :CsPXaState;
+  rdf:rest _:genid65 .
+
+_:genid65 a rdf:List;
+  rdf:first :CsVFDState;
+  rdf:rest rdf:nil .
+
+:CsVFDPxAState a owl:Class;
+  owl:equivalentClass _:genid67;
+  rdfs:subClassOf :CsPxAState, :CsSimpleState, :CsVFDState, :FixDeployedState .
+
+_:genid67 a owl:Class;
+  owl:intersectionOf _:genid69 .
+
+_:genid69 a rdf:List;
+  rdf:first :CsPxAState;
+  rdf:rest _:genid68 .
+
+_:genid68 a rdf:List;
+  rdf:first :CsVFDState;
+  rdf:rest rdf:nil .
+
+:CsVFDPxaState a owl:Class;
+  owl:equivalentClass _:genid70;
+  rdfs:subClassOf :CsPxaState, :CsSimpleState, :CsVFDState, :FixDeployedState .
+
+_:genid70 a owl:Class;
+  owl:intersectionOf _:genid72 .
+
+_:genid72 a rdf:List;
+  rdf:first :CsPxaState;
+  rdf:rest _:genid71 .
+
+_:genid71 a rdf:List;
+  rdf:first :CsVFDState;
+  rdf:rest rdf:nil .
+
+:CsVFDState a owl:Class;
+  owl:equivalentClass :FixDeployedState, _:genid73;
+  rdfs:subClassOf :CsFixDeployedState, :CsVendorFixPathState, :FixReadyState .
+
+_:genid73 a owl:Class;
+  owl:intersectionOf _:genid76 .
+
+_:genid76 a rdf:List;
+  rdf:first :CsFixDeployedState;
+  rdf:rest _:genid75 .
+
+_:genid75 a rdf:List;
+  rdf:first :CsFixReadyState;
+  rdf:rest _:genid74 .
+
+_:genid74 a rdf:List;
+  rdf:first :CsVendorAwareState;
+  rdf:rest rdf:nil .
+
+:CsVFDpXAState a owl:Class;
+  owl:equivalentClass _:genid77;
+  rdfs:subClassOf :CsSimpleState, :CsVFDState, :CspXAState, :FixDeployedState .
+
+_:genid77 a owl:Class;
+  owl:intersectionOf _:genid79 .
+
+_:genid79 a rdf:List;
+  rdf:first :CsVFDState;
+  rdf:rest _:genid78 .
+
+_:genid78 a rdf:List;
+  rdf:first :CspXAState;
+  rdf:rest rdf:nil .
+
+:CsVFDpXaState a owl:Class;
+  owl:equivalentClass _:genid80;
+  rdfs:subClassOf :CsSimpleState, :CsVFDState, :CspXaState, :FixDeployedState .
+
+_:genid80 a owl:Class;
+  owl:intersectionOf _:genid82 .
+
+_:genid82 a rdf:List;
+  rdf:first :CsVFDState;
+  rdf:rest _:genid81 .
+
+_:genid81 a rdf:List;
+  rdf:first :CspXaState;
+  rdf:rest rdf:nil .
+
+:CsVFDpxAState a owl:Class;
+  owl:equivalentClass _:genid83;
+  rdfs:subClassOf :CsSimpleState, :CsVFDState, :CspxAState, :FixDeployedState .
+
+_:genid83 a owl:Class;
+  owl:intersectionOf _:genid85 .
+
+_:genid85 a rdf:List;
+  rdf:first :CsVFDState;
+  rdf:rest _:genid84 .
+
+_:genid84 a rdf:List;
+  rdf:first :CspxAState;
+  rdf:rest rdf:nil .
+
+:CsVFDpxaState a owl:Class;
+  owl:equivalentClass _:genid86;
+  rdfs:subClassOf :CsSimpleState, :CsVFDState, :CspxaState, :FixDeployedState .
+
+_:genid86 a owl:Class;
+  owl:intersectionOf _:genid88 .
+
+_:genid88 a rdf:List;
+  rdf:first :CsVFDState;
+  rdf:rest _:genid87 .
+
+_:genid87 a rdf:List;
+  rdf:first :CspxaState;
+  rdf:rest rdf:nil .
+
+:CsVFdPXAState a owl:Class;
+  owl:equivalentClass _:genid89;
+  rdfs:subClassOf :CsPXAState, :CsSimpleState, :CsVFdState .
+
+_:genid89 a owl:Class;
+  owl:intersectionOf _:genid91 .
+
+_:genid91 a rdf:List;
+  rdf:first :CsPXAState;
+  rdf:rest _:genid90 .
+
+_:genid90 a rdf:List;
+  rdf:first :CsVFdState;
+  rdf:rest rdf:nil .
+
+:CsVFdPXaState a owl:Class;
+  owl:equivalentClass _:genid92;
+  rdfs:subClassOf :CsPXaState, :CsSimpleState, :CsVFdState .
+
+_:genid92 a owl:Class;
+  owl:intersectionOf _:genid94 .
+
+_:genid94 a rdf:List;
+  rdf:first :CsPXaState;
+  rdf:rest _:genid93 .
+
+_:genid93 a rdf:List;
+  rdf:first :CsVFdState;
+  rdf:rest rdf:nil .
+
+:CsVFdPxAState a owl:Class;
+  owl:equivalentClass _:genid95;
+  rdfs:subClassOf :CsPxAState, :CsSimpleState, :CsVFdState .
+
+_:genid95 a owl:Class;
+  owl:intersectionOf _:genid97 .
+
+_:genid97 a rdf:List;
+  rdf:first :CsPxAState;
+  rdf:rest _:genid96 .
+
+_:genid96 a rdf:List;
+  rdf:first :CsVFdState;
+  rdf:rest rdf:nil .
+
+:CsVFdPxaState a owl:Class;
+  owl:equivalentClass _:genid98;
+  rdfs:subClassOf :CsPxaState, :CsSimpleState, :CsVFdState .
+
+_:genid98 a owl:Class;
+  owl:intersectionOf _:genid100 .
+
+_:genid100 a rdf:List;
+  rdf:first :CsPxaState;
+  rdf:rest _:genid99 .
+
+_:genid99 a rdf:List;
+  rdf:first :CsVFdState;
+  rdf:rest rdf:nil .
+
+:CsVFdState a owl:Class;
+  owl:equivalentClass _:genid101;
+  rdfs:subClassOf :CsFixNotDeployedState, :CsVendorFixPathState, :FixReadyState .
+
+_:genid101 a owl:Class;
+  owl:intersectionOf _:genid104 .
+
+_:genid104 a rdf:List;
+  rdf:first :CsFixNotDeployedState;
+  rdf:rest _:genid103 .
+
+_:genid103 a rdf:List;
+  rdf:first :CsFixReadyState;
+  rdf:rest _:genid102 .
+
+_:genid102 a rdf:List;
+  rdf:first :CsVendorAwareState;
+  rdf:rest rdf:nil .
+
+:CsVFdpXAState a owl:Class;
+  owl:equivalentClass _:genid105;
+  rdfs:subClassOf :CsSimpleState, :CsVFdState, :CspXAState .
+
+_:genid105 a owl:Class;
+  owl:intersectionOf _:genid107 .
+
+_:genid107 a rdf:List;
+  rdf:first :CsVFdState;
+  rdf:rest _:genid106 .
+
+_:genid106 a rdf:List;
+  rdf:first :CspXAState;
+  rdf:rest rdf:nil .
+
+:CsVFdpXaState a owl:Class;
+  owl:equivalentClass _:genid108;
+  rdfs:subClassOf :CsSimpleState, :CsVFdState, :CspXaState .
+
+_:genid108 a owl:Class;
+  owl:intersectionOf _:genid110 .
+
+_:genid110 a rdf:List;
+  rdf:first :CsVFdState;
+  rdf:rest _:genid109 .
+
+_:genid109 a rdf:List;
+  rdf:first :CspXaState;
+  rdf:rest rdf:nil .
+
+:CsVFdpxAState a owl:Class;
+  owl:equivalentClass _:genid111;
+  rdfs:subClassOf :CsSimpleState, :CsVFdState, :CspxAState .
+
+_:genid111 a owl:Class;
+  owl:intersectionOf _:genid113 .
+
+_:genid113 a rdf:List;
+  rdf:first :CsVFdState;
+  rdf:rest _:genid112 .
+
+_:genid112 a rdf:List;
+  rdf:first :CspxAState;
+  rdf:rest rdf:nil .
+
+:CsVFdpxaState a owl:Class;
+  owl:equivalentClass _:genid114;
+  rdfs:subClassOf :CsSimpleState, :CsVFdState, :CspxaState .
+
+_:genid114 a owl:Class;
+  owl:intersectionOf _:genid116 .
+
+_:genid116 a rdf:List;
+  rdf:first :CsVFdState;
+  rdf:rest _:genid115 .
+
+_:genid115 a rdf:List;
+  rdf:first :CspxaState;
+  rdf:rest rdf:nil .
+
+:CsVSymbol a owl:Class;
+  rdfs:subClassOf :CaseStateSymbol .
+
+:CsVendorAwareState a owl:Class;
+  rdfs:subClassOf :CsParticipantSpecificState, :CsSubstate;
+  owl:disjointWith :CsVendorUnawareState .
+
+:CsVendorFixPathState a owl:Class;
+  rdfs:subClassOf :CaseState;
+  rdfs:comment "Organizes Case States along the vendor fix path" .
+
+:CsVendorUnawareState a owl:Class;
+  rdfs:subClassOf :CsParticipantSpecificState, :CsSubstate .
+
+:CsVfdPXAState a owl:Class;
+  owl:equivalentClass _:genid117;
+  rdfs:subClassOf :CsPXAState, :CsSimpleState, :CsVfdState .
+
+_:genid117 a owl:Class;
+  owl:intersectionOf _:genid119 .
+
+_:genid119 a rdf:List;
+  rdf:first :CsPXAState;
+  rdf:rest _:genid118 .
+
+_:genid118 a rdf:List;
+  rdf:first :CsVfdState;
+  rdf:rest rdf:nil .
+
+:CsVfdPXaState a owl:Class;
+  owl:equivalentClass _:genid120;
+  rdfs:subClassOf :CsPXaState, :CsSimpleState, :CsVfdState .
+
+_:genid120 a owl:Class;
+  owl:intersectionOf _:genid122 .
+
+_:genid122 a rdf:List;
+  rdf:first :CsPXaState;
+  rdf:rest _:genid121 .
+
+_:genid121 a rdf:List;
+  rdf:first :CsVfdState;
+  rdf:rest rdf:nil .
+
+:CsVfdPxAState a owl:Class;
+  owl:equivalentClass _:genid123;
+  rdfs:subClassOf :CsPxAState, :CsSimpleState, :CsVfdState .
+
+_:genid123 a owl:Class;
+  owl:intersectionOf _:genid125 .
+
+_:genid125 a rdf:List;
+  rdf:first :CsPxAState;
+  rdf:rest _:genid124 .
+
+_:genid124 a rdf:List;
+  rdf:first :CsVfdState;
+  rdf:rest rdf:nil .
+
+:CsVfdPxaState a owl:Class;
+  owl:equivalentClass _:genid126;
+  rdfs:subClassOf :CsPxaState, :CsSimpleState, :CsVfdState .
+
+_:genid126 a owl:Class;
+  owl:intersectionOf _:genid128 .
+
+_:genid128 a rdf:List;
+  rdf:first :CsPxaState;
+  rdf:rest _:genid127 .
+
+_:genid127 a rdf:List;
+  rdf:first :CsVfdState;
+  rdf:rest rdf:nil .
+
+:CsVfdState a owl:Class;
+  owl:equivalentClass _:genid129;
+  rdfs:subClassOf :CsVendorFixPathState .
+
+_:genid129 a owl:Class;
+  owl:intersectionOf _:genid132 .
+
+_:genid132 a rdf:List;
+  rdf:first :CsFixNotDeployedState;
+  rdf:rest _:genid131 .
+
+_:genid131 a rdf:List;
+  rdf:first :CsFixNotReadyState;
+  rdf:rest _:genid130 .
+
+_:genid130 a rdf:List;
+  rdf:first :CsVendorAwareState;
+  rdf:rest rdf:nil .
+
+:CsVfdpXAState a owl:Class;
+  owl:equivalentClass _:genid133;
+  rdfs:subClassOf :CsSimpleState, :CsVfdState, :CspXAState .
+
+_:genid133 a owl:Class;
+  owl:intersectionOf _:genid135 .
+
+_:genid135 a rdf:List;
+  rdf:first :CsVfdState;
+  rdf:rest _:genid134 .
+
+_:genid134 a rdf:List;
+  rdf:first :CspXAState;
+  rdf:rest rdf:nil .
+
+:CsVfdpXaState a owl:Class;
+  owl:equivalentClass _:genid136;
+  rdfs:subClassOf :CsSimpleState, :CsVfdState, :CspXaState .
+
+_:genid136 a owl:Class;
+  owl:intersectionOf _:genid138 .
+
+_:genid138 a rdf:List;
+  rdf:first :CsVfdState;
+  rdf:rest _:genid137 .
+
+_:genid137 a rdf:List;
+  rdf:first :CspXaState;
+  rdf:rest rdf:nil .
+
+:CsVfdpxAState a owl:Class;
+  owl:equivalentClass _:genid139;
+  rdfs:subClassOf :CsSimpleState, :CsVfdState, :CspxAState .
+
+_:genid139 a owl:Class;
+  owl:intersectionOf _:genid141 .
+
+_:genid141 a rdf:List;
+  rdf:first :CsVfdState;
+  rdf:rest _:genid140 .
+
+_:genid140 a rdf:List;
+  rdf:first :CspxAState;
+  rdf:rest rdf:nil .
+
+:CsVfdpxaState a owl:Class;
+  owl:equivalentClass _:genid142;
+  rdfs:subClassOf :CsSimpleState, :CsVfdState, :CspxaState .
+
+_:genid142 a owl:Class;
+  owl:intersectionOf _:genid144 .
+
+_:genid144 a rdf:List;
+  rdf:first :CsVfdState;
+  rdf:rest _:genid143 .
+
+_:genid143 a rdf:List;
+  rdf:first :CspxaState;
+  rdf:rest rdf:nil .
+
+:CsXSymbol a owl:Class;
+  rdfs:subClassOf :CaseStateSymbol .
+
+:CspXAState a owl:Class;
+  owl:equivalentClass _:genid145;
+  rdfs:subClassOf :CsPublicAwarenessExploitAttacksState .
+
+_:genid145 a owl:Class;
+  owl:intersectionOf _:genid148 .
+
+_:genid148 a rdf:List;
+  rdf:first :CsAttacksObservedState;
+  rdf:rest _:genid147 .
+
+_:genid147 a rdf:List;
+  rdf:first :CsPublicExploitState;
+  rdf:rest _:genid146 .
+
+_:genid146 a rdf:List;
+  rdf:first :CsPublicUnawareState;
+  rdf:rest rdf:nil .
+
+:CspXaState a owl:Class;
+  owl:equivalentClass _:genid149;
+  rdfs:subClassOf :CsPublicAwarenessExploitAttacksState .
+
+_:genid149 a owl:Class;
+  owl:intersectionOf _:genid152 .
+
+_:genid152 a rdf:List;
+  rdf:first :CsNoAttacksObservedState;
+  rdf:rest _:genid151 .
+
+_:genid151 a rdf:List;
+  rdf:first :CsPublicExploitState;
+  rdf:rest _:genid150 .
+
+_:genid150 a rdf:List;
+  rdf:first :CsPublicUnawareState;
+  rdf:rest rdf:nil .
+
+:CspxAState a owl:Class;
+  owl:equivalentClass _:genid153;
+  rdfs:subClassOf :CsPublicAwarenessExploitAttacksState .
+
+_:genid153 a owl:Class;
+  owl:intersectionOf _:genid156 .
+
+_:genid156 a rdf:List;
+  rdf:first :CsAttacksObservedState;
+  rdf:rest _:genid155 .
+
+_:genid155 a rdf:List;
+  rdf:first :CsNoPublicExploitState;
+  rdf:rest _:genid154 .
+
+_:genid154 a rdf:List;
+  rdf:first :CsPublicUnawareState;
+  rdf:rest rdf:nil .
+
+:CspxaState a owl:Class;
+  owl:equivalentClass _:genid157;
+  rdfs:subClassOf :CsPublicAwarenessExploitAttacksState .
+
+_:genid157 a owl:Class;
+  owl:intersectionOf _:genid160 .
+
+_:genid160 a rdf:List;
+  rdf:first :CsNoAttacksObservedState;
+  rdf:rest _:genid159 .
+
+_:genid159 a rdf:List;
+  rdf:first :CsNoPublicExploitState;
+  rdf:rest _:genid158 .
+
+_:genid158 a rdf:List;
+  rdf:first :CsPublicUnawareState;
+  rdf:rest rdf:nil .
+
+:CsvfdPXAState a owl:Class;
+  owl:equivalentClass _:genid161;
+  rdfs:subClassOf :CsPXAState, :CsSimpleState, :CsvfdState, :IgnorantVendorState .
+
+_:genid161 a owl:Class;
+  owl:intersectionOf _:genid163 .
+
+_:genid163 a rdf:List;
+  rdf:first :CsPXAState;
+  rdf:rest _:genid162 .
+
+_:genid162 a rdf:List;
+  rdf:first :CsvfdState;
+  rdf:rest rdf:nil .
+
+:CsvfdPXaState a owl:Class;
+  owl:equivalentClass _:genid164;
+  rdfs:subClassOf :CsPXaState, :CsSimpleState, :CsvfdState, :IgnorantVendorState .
+
+_:genid164 a owl:Class;
+  owl:intersectionOf _:genid166 .
+
+_:genid166 a rdf:List;
+  rdf:first :CsPXaState;
+  rdf:rest _:genid165 .
+
+_:genid165 a rdf:List;
+  rdf:first :CsvfdState;
+  rdf:rest rdf:nil .
+
+:CsvfdPxAState a owl:Class;
+  owl:equivalentClass _:genid167;
+  rdfs:subClassOf :CsPxAState, :CsSimpleState, :CsvfdState, :IgnorantVendorState .
+
+_:genid167 a owl:Class;
+  owl:intersectionOf _:genid169 .
+
+_:genid169 a rdf:List;
+  rdf:first :CsPxAState;
+  rdf:rest _:genid168 .
+
+_:genid168 a rdf:List;
+  rdf:first :CsvfdState;
+  rdf:rest rdf:nil .
+
+:CsvfdPxaState a owl:Class;
+  owl:equivalentClass _:genid170;
+  rdfs:subClassOf :CsPxaState, :CsSimpleState, :CsvfdState, :IgnorantVendorState .
+
+_:genid170 a owl:Class;
+  owl:intersectionOf _:genid172 .
+
+_:genid172 a rdf:List;
+  rdf:first :CsPxaState;
+  rdf:rest _:genid171 .
+
+_:genid171 a rdf:List;
+  rdf:first :CsvfdState;
+  rdf:rest rdf:nil .
+
+:CsvfdState a owl:Class;
+  owl:equivalentClass :IgnorantVendorState, _:genid173;
+  rdfs:subClassOf :CsFixNotDeployedState, :CsFixNotReadyState, :CsVendorFixPathState,
+    :CsVendorUnawareState .
+
+_:genid173 a owl:Class;
+  owl:intersectionOf _:genid176 .
+
+_:genid176 a rdf:List;
+  rdf:first :CsFixNotDeployedState;
+  rdf:rest _:genid175 .
+
+_:genid175 a rdf:List;
+  rdf:first :CsFixNotReadyState;
+  rdf:rest _:genid174 .
+
+_:genid174 a rdf:List;
+  rdf:first :CsVendorUnawareState;
+  rdf:rest rdf:nil .
+
+:CsvfdpXAState a owl:Class;
+  owl:equivalentClass _:genid177;
+  rdfs:subClassOf :CsSimpleState, :CspXAState, :CsvfdState, :IgnorantVendorState .
+
+_:genid177 a owl:Class;
+  owl:intersectionOf _:genid179 .
+
+_:genid179 a rdf:List;
+  rdf:first :CspXAState;
+  rdf:rest _:genid178 .
+
+_:genid178 a rdf:List;
+  rdf:first :CsvfdState;
+  rdf:rest rdf:nil .
+
+:CsvfdpXaState a owl:Class;
+  owl:equivalentClass _:genid180;
+  rdfs:subClassOf :CsSimpleState, :CspXaState, :CsvfdState, :IgnorantVendorState .
+
+_:genid180 a owl:Class;
+  owl:intersectionOf _:genid182 .
+
+_:genid182 a rdf:List;
+  rdf:first :CspXaState;
+  rdf:rest _:genid181 .
+
+_:genid181 a rdf:List;
+  rdf:first :CsvfdState;
+  rdf:rest rdf:nil .
+
+:CsvfdpxAState a owl:Class;
+  owl:equivalentClass _:genid183;
+  rdfs:subClassOf :CsSimpleState, :CspxAState, :CsvfdState, :IgnorantVendorState .
+
+_:genid183 a owl:Class;
+  owl:intersectionOf _:genid185 .
+
+_:genid185 a rdf:List;
+  rdf:first :CspxAState;
+  rdf:rest _:genid184 .
+
+_:genid184 a rdf:List;
+  rdf:first :CsvfdState;
+  rdf:rest rdf:nil .
+
+:CsvfdpxaState a owl:Class;
+  owl:equivalentClass _:genid186;
+  rdfs:subClassOf :CsSimpleState, :CspxaState, :CsvfdState, :IgnorantVendorState .
+
+_:genid186 a owl:Class;
+  owl:intersectionOf _:genid188 .
+
+_:genid188 a rdf:List;
+  rdf:first :CspxaState;
+  rdf:rest _:genid187 .
+
+_:genid187 a rdf:List;
+  rdf:first :CsvfdState;
+  rdf:rest rdf:nil .
+
+:EmASymbol a owl:Class;
+  rdfs:subClassOf :EmbargoManagementSymbol .
+
+:EmActiveState a owl:Class;
+  rdfs:subClassOf :ActiveEmbargoState, :EmSimpleState .
+
+:EmApRTransition a owl:Class;
+  owl:equivalentClass _:genid189;
+  rdfs:subClassOf :EmSimpleTransition .
+
+_:genid189 a owl:Class;
+  owl:intersectionOf _:genid192 .
+
+_:genid192 a rdf:List;
+  rdf:first :EmFromActiveTransition;
+  rdf:rest _:genid191 .
+
+_:genid191 a rdf:List;
+  rdf:first :EmOnProposeTransition;
+  rdf:rest _:genid190 .
+
+_:genid190 a rdf:List;
+  rdf:first :EmToReviseTransition;
+  rdf:rest rdf:nil .
+
+:EmAtXTransition a owl:Class;
+  owl:equivalentClass _:genid193;
+  rdfs:subClassOf :EmSimpleTransition .
+
+_:genid193 a owl:Class;
+  owl:intersectionOf _:genid196 .
+
+_:genid196 a rdf:List;
+  rdf:first :EmFromActiveTransition;
+  rdf:rest _:genid195 .
+
+_:genid195 a rdf:List;
+  rdf:first :EmOnTerminateTransition;
+  rdf:rest _:genid194 .
+
+_:genid194 a rdf:List;
+  rdf:first :EmToExitedTransition;
+  rdf:rest rdf:nil .
+
+:EmCompoundState a owl:Class;
+  rdfs:subClassOf :EmbargoManagementState .
+
+:EmExitedState a owl:Class;
+  rdfs:subClassOf :EmSimpleState, :NoActiveEmbargoState .
+
+:EmFromActiveTransition a owl:Class;
+  owl:equivalentClass _:genid197;
+  rdfs:subClassOf :EmTransition .
+
+_:genid197 a owl:Restriction;
+  owl:someValuesFrom :EmActiveState;
+  owl:onProperty dfa:fromState .
+
+:EmFromNoneTransition a owl:Class;
+  owl:equivalentClass _:genid198;
+  rdfs:subClassOf :EmTransition .
+
+_:genid198 a owl:Restriction;
+  owl:someValuesFrom :EmNoneState;
+  owl:onProperty dfa:fromState .
+
+:EmFromProposedTransition a owl:Class;
+  owl:equivalentClass _:genid199;
+  rdfs:subClassOf :EmTransition .
+
+_:genid199 a owl:Restriction;
+  owl:someValuesFrom :EmProposedState;
+  owl:onProperty dfa:fromState .
+
+:EmFromReviseTransition a owl:Class;
+  owl:equivalentClass _:genid200;
+  rdfs:subClassOf :EmTransition .
+
+_:genid200 a owl:Restriction;
+  owl:someValuesFrom :EmReviseState;
+  owl:onProperty dfa:fromState .
+
+:EmNoneState a owl:Class;
+  rdfs:subClassOf :EmSimpleState, :NoActiveEmbargoState .
+
+:EmNpPTransition a owl:Class;
+  owl:equivalentClass _:genid201;
+  rdfs:subClassOf :EmSimpleTransition .
+
+_:genid201 a owl:Class;
+  owl:intersectionOf _:genid204 .
+
+_:genid204 a rdf:List;
+  rdf:first :EmFromNoneTransition;
+  rdf:rest _:genid203 .
+
+_:genid203 a rdf:List;
+  rdf:first :EmOnProposeTransition;
+  rdf:rest _:genid202 .
+
+_:genid202 a rdf:List;
+  rdf:first :EmToProposeTransition;
+  rdf:rest rdf:nil .
+
+:EmOnActivateTransition a owl:Class;
+  owl:equivalentClass _:genid205;
+  rdfs:subClassOf :EmTransition .
+
+_:genid205 a owl:Restriction;
+  owl:someValuesFrom :EmASymbol;
+  owl:onProperty dfa:onSymbol .
+
+:EmOnProposeTransition a owl:Class;
+  owl:equivalentClass _:genid206;
+  rdfs:subClassOf :EmTransition .
+
+_:genid206 a owl:Restriction;
+  owl:someValuesFrom :EmPSymbol;
+  owl:onProperty dfa:onSymbol .
+
+:EmOnRejectTransition a owl:Class;
+  owl:equivalentClass _:genid207;
+  rdfs:subClassOf :EmTransition .
+
+_:genid207 a owl:Restriction;
+  owl:someValuesFrom :EmRSymbol;
+  owl:onProperty dfa:onSymbol .
+
+:EmOnTerminateTransition a owl:Class;
+  owl:equivalentClass _:genid208;
+  rdfs:subClassOf :EmTransition .
+
+_:genid208 a owl:Restriction;
+  owl:someValuesFrom :EmTSymbol;
+  owl:onProperty dfa:onSymbol .
+
+:EmPSymbol a owl:Class;
+  rdfs:subClassOf :EmbargoManagementSymbol .
+
+:EmPaATransition a owl:Class;
+  owl:equivalentClass _:genid209;
+  rdfs:subClassOf :EmSimpleTransition .
+
+_:genid209 a owl:Class;
+  owl:intersectionOf _:genid212 .
+
+_:genid212 a rdf:List;
+  rdf:first :EmFromProposedTransition;
+  rdf:rest _:genid211 .
+
+_:genid211 a rdf:List;
+  rdf:first :EmOnActivateTransition;
+  rdf:rest _:genid210 .
+
+_:genid210 a rdf:List;
+  rdf:first :EmToActiveTransition;
+  rdf:rest rdf:nil .
+
+:EmPpPTransition a owl:Class;
+  owl:equivalentClass _:genid213;
+  rdfs:subClassOf :EmSimpleTransition .
+
+_:genid213 a owl:Class;
+  owl:intersectionOf _:genid216 .
+
+_:genid216 a rdf:List;
+  rdf:first :EmFromProposedTransition;
+  rdf:rest _:genid215 .
+
+_:genid215 a rdf:List;
+  rdf:first :EmOnProposeTransition;
+  rdf:rest _:genid214 .
+
+_:genid214 a rdf:List;
+  rdf:first :EmToProposeTransition;
+  rdf:rest rdf:nil .
+
+:EmPrNTransition a owl:Class;
+  owl:equivalentClass _:genid217 .
+
+_:genid217 a owl:Class;
+  owl:intersectionOf _:genid220 .
+
+_:genid220 rdf:rest _:genid219 .
+
+_:genid219 rdf:first :EmOnRejectTransition;
+  rdf:rest _:genid218 .
+
+_:genid218 a rdf:List;
+  rdf:first :EmToNoneTransition;
+  rdf:rest rdf:nil .
+# 
+# http://www.cert.org/ns/vultron_process#EmProposedState
+# 
+# http://www.cert.org/ns/vultron_process#EmRSymbol
+# 
+# http://www.cert.org/ns/vultron_process#EmRaATransition
+# 
+# http://www.cert.org/ns/vultron_process#EmReviseState
+# 
+# http://www.cert.org/ns/vultron_process#EmRpRTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmRrATransition
+# 
+# http://www.cert.org/ns/vultron_process#EmRtXTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmSimpleState
+# 
+# http://www.cert.org/ns/vultron_process#EmSimpleTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmTSymbol
+# 
+# http://www.cert.org/ns/vultron_process#EmToActiveTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmToExitedTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmToNoneTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmToProposeTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmToReviseTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmTransition
+# 
+# http://www.cert.org/ns/vultron_process#EmbargoManagementProcess
+# 
+# http://www.cert.org/ns/vultron_process#EmbargoManagementState
+# 
+# http://www.cert.org/ns/vultron_process#EmbargoManagementSymbol
+# 
+# http://www.cert.org/ns/vultron_process#ExploitPublicationTransition
+# 
+# http://www.cert.org/ns/vultron_process#FixDeployedState
+# 
+# http://www.cert.org/ns/vultron_process#FixDeploymentTransition
+# 
+# http://www.cert.org/ns/vultron_process#FixReadinessTransition
+# 
+# http://www.cert.org/ns/vultron_process#FixReadyState
+# 
+# http://www.cert.org/ns/vultron_process#IgnorantVendorState
+# 
+# http://www.cert.org/ns/vultron_process#NoActiveEmbargoState
+# 
+# http://www.cert.org/ns/vultron_process#ParticipantAgnosticState
+# 
+# http://www.cert.org/ns/vultron_process#ParticipantSpecificState
+# 
+# http://www.cert.org/ns/vultron_process#ProcessModel
+# 
+# http://www.cert.org/ns/vultron_process#PublicAwarenessTransition
+# 
+# http://www.cert.org/ns/vultron_process#ReportManagementProcess
+# 
+# http://www.cert.org/ns/vultron_process#ReportManagementState
+# 
+# http://www.cert.org/ns/vultron_process#ReportManagementSymbol
+# 
+# http://www.cert.org/ns/vultron_process#RmASymbol
+# 
+# http://www.cert.org/ns/vultron_process#RmAcCTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmAcceptedState
+# 
+# http://www.cert.org/ns/vultron_process#RmActiveState
+# 
+# http://www.cert.org/ns/vultron_process#RmAdDTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmCSymbol
+# 
+# http://www.cert.org/ns/vultron_process#RmClosedState
+# 
+# http://www.cert.org/ns/vultron_process#RmCompoundState
+# 
+# http://www.cert.org/ns/vultron_process#RmDSymbol
+# 
+# http://www.cert.org/ns/vultron_process#RmDaATransition
+# 
+# http://www.cert.org/ns/vultron_process#RmDcCTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmDeferredState
+# 
+# http://www.cert.org/ns/vultron_process#RmFromAcceptedTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmFromDeferredTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmFromInvalidTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmFromReceivedTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmFromStartTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmFromValidTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmISymbol
+# 
+# http://www.cert.org/ns/vultron_process#RmIcCTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmInactiveState
+# 
+# http://www.cert.org/ns/vultron_process#RmInvalidState
+# 
+# http://www.cert.org/ns/vultron_process#RmIvVTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmOnAcceptTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmOnCloseTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmOnDeferTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmOnInvalidateTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmOnReceiveTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmOnValidateTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmOpenState
+# 
+# http://www.cert.org/ns/vultron_process#RmPotentiallyValidYetUnclosedState
+# 
+# http://www.cert.org/ns/vultron_process#RmRSymbol
+# 
+# http://www.cert.org/ns/vultron_process#RmReceivedState
+# 
+# http://www.cert.org/ns/vultron_process#RmRiVTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmRvVTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmSimpleState
+# 
+# http://www.cert.org/ns/vultron_process#RmSimpleTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmSrRTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmStartState
+# 
+# http://www.cert.org/ns/vultron_process#RmToAcceptedTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmToClosedTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmToDeferredTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmToInvalidTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmToReceivedTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmToValidTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmTransition
+# 
+# http://www.cert.org/ns/vultron_process#RmVSymbol
+# 
+# http://www.cert.org/ns/vultron_process#RmVaATransition
+# 
+# http://www.cert.org/ns/vultron_process#RmValidState
+# 
+# http://www.cert.org/ns/vultron_process#RmValidYetUnclosedState
+# 
+# http://www.cert.org/ns/vultron_process#RmVdDTransition
+# 
+# http://www.cert.org/ns/vultron_process#VendorAwareState
+# 
+# http://www.cert.org/ns/vultron_process#VendorAwarenessTransition
+# 
+# 
+# 
+# #################################################################
+# #
+# #    General axioms
+# #
+# #################################################################
+# 
+# 
+# 
+# Generated by the OWL API (version 4.5.26.2023-07-17T20:34:13Z) https://github.com/owlcs/owlapi
+
+_:genid219 a rdf:List .
+
+_:genid220 a rdf:List;
+  rdf:first :EmFromProposedTransition .
+
+:EmPrNTransition rdfs:subClassOf :EmSimpleTransition .
+
+:EmProposedState a owl:Class;
+  rdfs:subClassOf :EmSimpleState, :NoActiveEmbargoState .
+
+:EmRSymbol a owl:Class;
+  rdfs:subClassOf :EmbargoManagementSymbol .
+
+:EmRaATransition a owl:Class;
+  owl:equivalentClass _:genid221;
+  rdfs:subClassOf :EmSimpleTransition .
+
+_:genid221 a owl:Class;
+  owl:intersectionOf _:genid224 .
+
+_:genid224 a rdf:List;
+  rdf:first :EmFromReviseTransition;
+  rdf:rest _:genid223 .
+
+_:genid223 a rdf:List;
+  rdf:first :EmOnActivateTransition;
+  rdf:rest _:genid222 .
+
+_:genid222 a rdf:List;
+  rdf:first :EmToActiveTransition;
+  rdf:rest rdf:nil .
+
+:EmReviseState a owl:Class;
+  rdfs:subClassOf :ActiveEmbargoState, :EmSimpleState .
+
+:EmRpRTransition a owl:Class;
+  owl:equivalentClass _:genid225;
+  rdfs:subClassOf :EmSimpleTransition .
+
+_:genid225 a owl:Class;
+  owl:intersectionOf _:genid228 .
+
+_:genid228 a rdf:List;
+  rdf:first :EmFromReviseTransition;
+  rdf:rest _:genid227 .
+
+_:genid227 a rdf:List;
+  rdf:first :EmOnProposeTransition;
+  rdf:rest _:genid226 .
+
+_:genid226 a rdf:List;
+  rdf:first :EmToReviseTransition;
+  rdf:rest rdf:nil .
+
+:EmRrATransition a owl:Class;
+  owl:equivalentClass _:genid229;
+  rdfs:subClassOf :EmSimpleTransition .
+
+_:genid229 a owl:Class;
+  owl:intersectionOf _:genid232 .
+
+_:genid232 a rdf:List;
+  rdf:first :EmFromReviseTransition;
+  rdf:rest _:genid231 .
+
+_:genid231 a rdf:List;
+  rdf:first :EmOnRejectTransition;
+  rdf:rest _:genid230 .
+
+_:genid230 a rdf:List;
+  rdf:first :EmToActiveTransition;
+  rdf:rest rdf:nil .
+
+:EmRtXTransition a owl:Class;
+  owl:equivalentClass _:genid233;
+  rdfs:subClassOf :EmSimpleTransition .
+
+_:genid233 a owl:Class;
+  owl:intersectionOf _:genid236 .
+
+_:genid236 a rdf:List;
+  rdf:first :EmFromReviseTransition;
+  rdf:rest _:genid235 .
+
+_:genid235 a rdf:List;
+  rdf:first :EmOnTerminateTransition;
+  rdf:rest _:genid234 .
+
+_:genid234 a rdf:List;
+  rdf:first :EmToExitedTransition;
+  rdf:rest rdf:nil .
+
+:EmSimpleState a owl:Class;
+  rdfs:subClassOf :EmbargoManagementState;
+  rdfs:comment "Basic Embargo Management States" .
+
+:EmSimpleTransition a owl:Class;
+  rdfs:subClassOf :EmTransition .
+
+:EmTSymbol a owl:Class;
+  rdfs:subClassOf :EmbargoManagementSymbol .
+
+:EmToActiveTransition a owl:Class;
+  owl:equivalentClass _:genid237;
+  rdfs:subClassOf :EmTransition .
+
+_:genid237 a owl:Restriction;
+  owl:someValuesFrom :EmActiveState;
+  owl:onProperty dfa:toState .
+
+:EmToExitedTransition a owl:Class;
+  owl:equivalentClass _:genid238;
+  rdfs:subClassOf :EmTransition .
+
+_:genid238 a owl:Restriction;
+  owl:someValuesFrom :EmExitedState;
+  owl:onProperty dfa:toState .
+
+:EmToNoneTransition a owl:Class;
+  owl:equivalentClass _:genid239;
+  rdfs:subClassOf :EmTransition .
+
+_:genid239 a owl:Restriction;
+  owl:someValuesFrom :EmNoneState;
+  owl:onProperty dfa:toState .
+
+:EmToProposeTransition a owl:Class;
+  owl:equivalentClass _:genid240;
+  rdfs:subClassOf :EmTransition .
+
+_:genid240 a owl:Restriction;
+  owl:someValuesFrom :EmProposedState;
+  owl:onProperty dfa:toState .
+
+:EmToReviseTransition a owl:Class;
+  owl:equivalentClass _:genid241;
+  rdfs:subClassOf :EmTransition .
+
+_:genid241 a owl:Restriction;
+  owl:someValuesFrom :EmReviseState;
+  owl:onProperty dfa:toState .
+
+:EmTransition a owl:Class;
+  owl:equivalentClass _:genid242;
+  rdfs:subClassOf dfa:Transition .
+
+_:genid242 a owl:Class;
+  owl:intersectionOf _:genid249 .
+
+_:genid249 a rdf:List;
+  rdf:first dfa:Transition;
+  rdf:rest _:genid247 .
+
+_:genid247 a rdf:List;
+  rdf:first _:genid248;
+  rdf:rest _:genid245 .
+
+_:genid245 a rdf:List;
+  rdf:first _:genid246;
+  rdf:rest _:genid243 .
+
+_:genid243 a rdf:List;
+  rdf:first _:genid244;
+  rdf:rest rdf:nil .
+
+_:genid244 a owl:Restriction;
+  owl:someValuesFrom :EmSimpleState;
+  owl:onProperty dfa:toState .
+
+_:genid246 a owl:Restriction;
+  owl:someValuesFrom :EmbargoManagementSymbol;
+  owl:onProperty dfa:onSymbol .
+
+_:genid248 a owl:Restriction;
+  owl:someValuesFrom :EmSimpleState;
+  owl:onProperty dfa:fromState .
+
+:EmbargoManagementProcess a owl:Class;
+  owl:equivalentClass _:genid250;
+  rdfs:subClassOf :ProcessModel;
+  rdfs:comment "A VultronProcess describing the embargo management process model" .
+
+_:genid250 a owl:Class;
+  owl:intersectionOf _:genid271 .
+
+_:genid271 a rdf:List;
+  rdf:first dfa:DeterministicFiniteAutomata;
+  rdf:rest _:genid269 .
+
+_:genid269 a rdf:List;
+  rdf:first _:genid270;
+  rdf:rest _:genid267 .
+
+_:genid267 a rdf:List;
+  rdf:first _:genid268;
+  rdf:rest _:genid265 .
+
+_:genid265 a rdf:List;
+  rdf:first _:genid266;
+  rdf:rest _:genid263 .
+
+_:genid263 a rdf:List;
+  rdf:first _:genid264;
+  rdf:rest _:genid261 .
+
+_:genid261 a rdf:List;
+  rdf:first _:genid262;
+  rdf:rest _:genid259 .
+
+_:genid259 a rdf:List;
+  rdf:first _:genid260;
+  rdf:rest _:genid257 .
+
+_:genid257 a rdf:List;
+  rdf:first _:genid258;
+  rdf:rest _:genid255 .
+
+_:genid255 a rdf:List;
+  rdf:first _:genid256;
+  rdf:rest _:genid253 .
+
+_:genid253 a rdf:List;
+  rdf:first _:genid254;
+  rdf:rest _:genid251 .
+
+_:genid251 a rdf:List;
+  rdf:first _:genid252;
+  rdf:rest rdf:nil .
+
+_:genid252 a owl:Restriction;
+  owl:allValuesFrom :EmTransition;
+  owl:onProperty dfa:hasTransition .
+
+_:genid254 a owl:Restriction;
+  owl:allValuesFrom :EmbargoManagementState;
+  owl:onProperty dfa:hasState .
+
+_:genid256 a owl:Restriction;
+  owl:allValuesFrom :EmNoneState;
+  owl:onProperty dfa:hasStartState .
+
+_:genid258 a owl:Restriction;
+  owl:allValuesFrom :EmbargoManagementSymbol;
+  owl:onProperty dfa:hasInputSymbol .
+
+_:genid260 a owl:Restriction;
+  owl:allValuesFrom :EmExitedState;
+  owl:onProperty dfa:hasFinalState .
+
+_:genid262 a owl:Restriction;
+  owl:someValuesFrom :EmTransition;
+  owl:onProperty dfa:hasTransition .
+
+_:genid264 a owl:Restriction;
+  owl:someValuesFrom :EmbargoManagementState;
+  owl:onProperty dfa:hasState .
+
+_:genid266 a owl:Restriction;
+  owl:someValuesFrom :EmNoneState;
+  owl:onProperty dfa:hasStartState .
+
+_:genid268 a owl:Restriction;
+  owl:someValuesFrom :EmbargoManagementSymbol;
+  owl:onProperty dfa:hasInputSymbol .
+
+_:genid270 a owl:Restriction;
+  owl:someValuesFrom :EmExitedState;
+  owl:onProperty dfa:hasFinalState .
+
+:EmbargoManagementState a owl:Class;
+  rdfs:subClassOf dfa:State, :ParticipantAgnosticState;
+  rdfs:comment "An Embargo Management State" .
+
+:EmbargoManagementSymbol a owl:Class;
+  rdfs:subClassOf dfa:Symbol .
+
+:ExploitPublicationTransition a owl:Class;
+  owl:equivalentClass _:genid272;
+  rdfs:subClassOf :CsTransition .
+
+_:genid272 a owl:Class;
+  owl:intersectionOf _:genid277 .
+
+_:genid277 a rdf:List;
+  rdf:first _:genid278;
+  rdf:rest _:genid275 .
+
+_:genid275 a rdf:List;
+  rdf:first _:genid276;
+  rdf:rest _:genid273 .
+
+_:genid273 a rdf:List;
+  rdf:first _:genid274;
+  rdf:rest rdf:nil .
+
+_:genid274 a owl:Restriction;
+  owl:someValuesFrom :CsPublicExploitState;
+  owl:onProperty dfa:toState .
+
+_:genid276 a owl:Restriction;
+  owl:someValuesFrom :CsPSymbol;
+  owl:onProperty dfa:onSymbol .
+
+_:genid278 a owl:Restriction;
+  owl:someValuesFrom :CsNoPublicExploitState;
+  owl:onProperty dfa:fromState .
+
+:FixDeployedState a owl:Class;
+  rdfs:subClassOf :CsFixDeployedState, :FixReadyState .
+
+:FixDeploymentTransition a owl:Class;
+  owl:equivalentClass _:genid279;
+  rdfs:subClassOf :CsTransition .
+
+_:genid279 a owl:Class;
+  owl:intersectionOf _:genid284 .
+
+_:genid284 a rdf:List;
+  rdf:first _:genid285;
+  rdf:rest _:genid282 .
+
+_:genid282 a rdf:List;
+  rdf:first _:genid283;
+  rdf:rest _:genid280 .
+
+_:genid280 a rdf:List;
+  rdf:first _:genid281;
+  rdf:rest rdf:nil .
+
+_:genid281 a owl:Restriction;
+  owl:someValuesFrom :CsFixDeployedState;
+  owl:onProperty dfa:toState .
+
+_:genid283 a owl:Restriction;
+  owl:someValuesFrom :CsDSymbol;
+  owl:onProperty dfa:onSymbol .
+
+_:genid285 a owl:Restriction;
+  owl:someValuesFrom :CsFixNotDeployedState;
+  owl:onProperty dfa:fromState .
+
+:FixReadinessTransition a owl:Class;
+  owl:equivalentClass _:genid286;
+  rdfs:subClassOf :CsTransition .
+
+_:genid286 a owl:Class;
+  owl:intersectionOf _:genid291 .
+
+_:genid291 a rdf:List;
+  rdf:first _:genid292;
+  rdf:rest _:genid289 .
+
+_:genid289 a rdf:List;
+  rdf:first _:genid290;
+  rdf:rest _:genid287 .
+
+_:genid287 a rdf:List;
+  rdf:first _:genid288;
+  rdf:rest rdf:nil .
+
+_:genid288 a owl:Restriction;
+  owl:someValuesFrom :CsFixReadyState;
+  owl:onProperty dfa:toState .
+
+_:genid290 a owl:Restriction;
+  owl:someValuesFrom :CsFSymbol;
+  owl:onProperty dfa:onSymbol .
+
+_:genid292 a owl:Restriction;
+  owl:someValuesFrom :CsFixNotReadyState;
+  owl:onProperty dfa:fromState .
+
+:FixReadyState a owl:Class;
+  owl:equivalentClass _:genid293;
+  rdfs:subClassOf :VendorAwareState .
+
+_:genid293 a owl:Class;
+  owl:unionOf _:genid295 .
+
+_:genid295 a rdf:List;
+  rdf:first :CsVFDState;
+  rdf:rest _:genid294 .
+
+_:genid294 a rdf:List;
+  rdf:first :CsVFdState;
+  rdf:rest rdf:nil .
+
+:IgnorantVendorState a owl:Class;
+  rdfs:subClassOf :CsFixNotDeployedState, :CsFixNotReadyState, :CsVendorFixPathState,
+    :CsVendorUnawareState .
+
+:NoActiveEmbargoState a owl:Class;
+  owl:equivalentClass _:genid296, _:genid300;
+  rdfs:subClassOf :EmCompoundState .
+
+_:genid296 a owl:Class;
+  owl:unionOf _:genid299 .
+
+_:genid299 a rdf:List;
+  rdf:first :EmExitedState;
+  rdf:rest _:genid298 .
+
+_:genid298 a rdf:List;
+  rdf:first :EmNoneState;
+  rdf:rest _:genid297 .
+
+_:genid297 a rdf:List;
+  rdf:first :EmProposedState;
+  rdf:rest rdf:nil .
+
+_:genid300 a owl:Class;
+  owl:unionOf _:genid302 .
+
+_:genid302 a rdf:List;
+  rdf:first :EmNoneState;
+  rdf:rest _:genid301 .
+
+_:genid301 a rdf:List;
+  rdf:first :EmProposedState;
+  rdf:rest rdf:nil .
+
+:ParticipantAgnosticState a owl:Class;
+  rdfs:subClassOf dfa:State;
+  rdfs:comment "Vultron States that are global to a case" .
+
+:ParticipantSpecificState a owl:Class;
+  rdfs:subClassOf dfa:State;
+  rdfs:comment "Vultron states that are unique to each case participant" .
+
+:ProcessModel a owl:Class;
+  rdfs:subClassOf dfa:DeterministicFiniteAutomata .
+
+:PublicAwarenessTransition a owl:Class;
+  owl:equivalentClass _:genid303;
+  rdfs:subClassOf :CsTransition .
+
+_:genid303 a owl:Class;
+  owl:intersectionOf _:genid308 .
+
+_:genid308 a rdf:List;
+  rdf:first _:genid309;
+  rdf:rest _:genid306 .
+
+_:genid306 a rdf:List;
+  rdf:first _:genid307;
+  rdf:rest _:genid304 .
+
+_:genid304 a rdf:List;
+  rdf:first _:genid305;
+  rdf:rest rdf:nil .
+
+_:genid305 a owl:Restriction;
+  owl:someValuesFrom :CsPublicAwareState;
+  owl:onProperty dfa:toState .
+
+_:genid307 a owl:Restriction;
+  owl:someValuesFrom :CsPSymbol;
+  owl:onProperty dfa:onSymbol .
+
+_:genid309 a owl:Restriction;
+  owl:someValuesFrom :CsPublicUnawareState;
+  owl:onProperty dfa:fromState .
+
+:ReportManagementProcess a owl:Class;
+  owl:equivalentClass _:genid310;
+  rdfs:subClassOf :ProcessModel;
+  rdfs:comment "A VultronProcess describing the report management process model" .
+
+_:genid310 a owl:Class;
+  owl:intersectionOf _:genid331 .
+
+_:genid331 a rdf:List;
+  rdf:first dfa:DeterministicFiniteAutomata;
+  rdf:rest _:genid329 .
+
+_:genid329 a rdf:List;
+  rdf:first _:genid330;
+  rdf:rest _:genid327 .
+
+_:genid327 a rdf:List;
+  rdf:first _:genid328;
+  rdf:rest _:genid325 .
+
+_:genid325 a rdf:List;
+  rdf:first _:genid326;
+  rdf:rest _:genid323 .
+
+_:genid323 a rdf:List;
+  rdf:first _:genid324;
+  rdf:rest _:genid321 .
+
+_:genid321 a rdf:List;
+  rdf:first _:genid322;
+  rdf:rest _:genid319 .
+
+_:genid319 a rdf:List;
+  rdf:first _:genid320;
+  rdf:rest _:genid317 .
+
+_:genid317 a rdf:List;
+  rdf:first _:genid318;
+  rdf:rest _:genid315 .
+
+_:genid315 a rdf:List;
+  rdf:first _:genid316;
+  rdf:rest _:genid313 .
+
+_:genid313 a rdf:List;
+  rdf:first _:genid314;
+  rdf:rest _:genid311 .
+
+_:genid311 a rdf:List;
+  rdf:first _:genid312;
+  rdf:rest rdf:nil .
+
+_:genid312 a owl:Restriction;
+  owl:allValuesFrom :RmTransition;
+  owl:onProperty dfa:hasTransition .
+
+_:genid314 a owl:Restriction;
+  owl:allValuesFrom :RmSimpleState;
+  owl:onProperty dfa:hasState .
+
+_:genid316 a owl:Restriction;
+  owl:allValuesFrom :RmStartState;
+  owl:onProperty dfa:hasStartState .
+
+_:genid318 a owl:Restriction;
+  owl:allValuesFrom :ReportManagementSymbol;
+  owl:onProperty dfa:hasInputSymbol .
+
+_:genid320 a owl:Restriction;
+  owl:allValuesFrom :RmClosedState;
+  owl:onProperty dfa:hasFinalState .
+
+_:genid322 a owl:Restriction;
+  owl:someValuesFrom :RmTransition;
+  owl:onProperty dfa:hasTransition .
+
+_:genid324 a owl:Restriction;
+  owl:someValuesFrom :RmSimpleState;
+  owl:onProperty dfa:hasState .
+
+_:genid326 a owl:Restriction;
+  owl:someValuesFrom :RmStartState;
+  owl:onProperty dfa:hasStartState .
+
+_:genid328 a owl:Restriction;
+  owl:someValuesFrom :ReportManagementSymbol;
+  owl:onProperty dfa:hasInputSymbol .
+
+_:genid330 a owl:Restriction;
+  owl:someValuesFrom :RmClosedState;
+  owl:onProperty dfa:hasFinalState .
+
+:ReportManagementState a owl:Class;
+  rdfs:subClassOf dfa:State, :ParticipantSpecificState .
+
+:ReportManagementSymbol a owl:Class;
+  rdfs:subClassOf dfa:Symbol .
+
+:RmASymbol a owl:Class;
+  rdfs:subClassOf :ReportManagementSymbol .
+
+:RmAcCTransition a owl:Class;
+  owl:equivalentClass _:genid332;
+  rdfs:subClassOf :RmSimpleTransition .
+
+_:genid332 a owl:Class;
+  owl:intersectionOf _:genid335 .
+
+_:genid335 a rdf:List;
+  rdf:first :RmFromAcceptedTransition;
+  rdf:rest _:genid334 .
+
+_:genid334 a rdf:List;
+  rdf:first :RmOnCloseTransition;
+  rdf:rest _:genid333 .
+
+_:genid333 a rdf:List;
+  rdf:first :RmToClosedTransition;
+  rdf:rest rdf:nil .
+
+:RmAcceptedState a owl:Class;
+  rdfs:subClassOf :RmActiveState, :RmSimpleState, :RmValidYetUnclosedState .
+
+:RmActiveState a owl:Class;
+  owl:equivalentClass _:genid336;
+  rdfs:subClassOf :RmCompoundState .
+
+_:genid336 a owl:Class;
+  owl:unionOf _:genid339 .
+
+_:genid339 a rdf:List;
+  rdf:first :RmAcceptedState;
+  rdf:rest _:genid338 .
+
+_:genid338 a rdf:List;
+  rdf:first :RmReceivedState;
+  rdf:rest _:genid337 .
+
+_:genid337 a rdf:List;
+  rdf:first :RmValidState;
+  rdf:rest rdf:nil .
+
+:RmAdDTransition a owl:Class;
+  owl:equivalentClass _:genid340;
+  rdfs:subClassOf :RmSimpleTransition .
+
+_:genid340 a owl:Class;
+  owl:intersectionOf _:genid343 .
+
+_:genid343 a rdf:List;
+  rdf:first :RmFromAcceptedTransition;
+  rdf:rest _:genid342 .
+
+_:genid342 a rdf:List;
+  rdf:first :RmOnDeferTransition;
+  rdf:rest _:genid341 .
+
+_:genid341 a rdf:List;
+  rdf:first :RmToDeferredTransition;
+  rdf:rest rdf:nil .
+
+:RmCSymbol a owl:Class;
+  rdfs:subClassOf :ReportManagementSymbol .
+
+:RmClosedState a owl:Class;
+  rdfs:subClassOf :RmInactiveState, :RmSimpleState .
+
+:RmCompoundState a owl:Class;
+  rdfs:subClassOf :ReportManagementState;
+  rdfs:comment "Report Management states that represent sets of simple states." .
+
+:RmDSymbol a owl:Class;
+  rdfs:subClassOf :ReportManagementSymbol .
+
+:RmDaATransition a owl:Class;
+  owl:equivalentClass _:genid344;
+  rdfs:subClassOf :RmSimpleTransition .
+
+_:genid344 a owl:Class;
+  owl:intersectionOf _:genid347 .
+
+_:genid347 a rdf:List;
+  rdf:first :RmFromDeferredTransition;
+  rdf:rest _:genid346 .
+
+_:genid346 a rdf:List;
+  rdf:first :RmOnAcceptTransition;
+  rdf:rest _:genid345 .
+
+_:genid345 a rdf:List;
+  rdf:first :RmToAcceptedTransition;
+  rdf:rest rdf:nil .
+
+:RmDcCTransition a owl:Class;
+  owl:equivalentClass _:genid348;
+  rdfs:subClassOf :RmSimpleTransition .
+
+_:genid348 a owl:Class;
+  owl:intersectionOf _:genid351 .
+
+_:genid351 a rdf:List;
+  rdf:first :RmFromDeferredTransition;
+  rdf:rest _:genid350 .
+
+_:genid350 a rdf:List;
+  rdf:first :RmOnCloseTransition;
+  rdf:rest _:genid349 .
+
+_:genid349 a rdf:List;
+  rdf:first :RmToClosedTransition;
+  rdf:rest rdf:nil .
+
+:RmDeferredState a owl:Class;
+  rdfs:subClassOf :RmInactiveState, :RmSimpleState, :RmValidYetUnclosedState .
+
+:RmFromAcceptedTransition a owl:Class;
+  owl:equivalentClass _:genid352;
+  rdfs:subClassOf :RmTransition .
+
+_:genid352 a owl:Restriction;
+  owl:someValuesFrom :RmAcceptedState;
+  owl:onProperty dfa:fromState .
+
+:RmFromDeferredTransition a owl:Class;
+  owl:equivalentClass _:genid353;
+  rdfs:subClassOf :RmTransition .
+
+_:genid353 a owl:Restriction;
+  owl:someValuesFrom :RmDeferredState;
+  owl:onProperty dfa:fromState .
+
+:RmFromInvalidTransition a owl:Class;
+  owl:equivalentClass _:genid354;
+  rdfs:subClassOf :RmTransition .
+
+_:genid354 a owl:Restriction;
+  owl:someValuesFrom :RmInvalidState;
+  owl:onProperty dfa:fromState .
+
+:RmFromReceivedTransition a owl:Class;
+  owl:equivalentClass _:genid355;
+  rdfs:subClassOf :RmTransition .
+
+_:genid355 a owl:Restriction;
+  owl:someValuesFrom :RmReceivedState;
+  owl:onProperty dfa:fromState .
+
+:RmFromStartTransition a owl:Class;
+  owl:equivalentClass _:genid356;
+  rdfs:subClassOf :RmTransition .
+
+_:genid356 a owl:Restriction;
+  owl:someValuesFrom :RmStartState;
+  owl:onProperty dfa:fromState .
+
+:RmFromValidTransition a owl:Class;
+  owl:equivalentClass _:genid357;
+  rdfs:subClassOf :RmTransition .
+
+_:genid357 a owl:Restriction;
+  owl:someValuesFrom :RmValidState;
+  owl:onProperty dfa:fromState .
+
+:RmISymbol a owl:Class;
+  rdfs:subClassOf :ReportManagementSymbol .
+
+:RmIcCTransition a owl:Class;
+  owl:equivalentClass _:genid358;
+  rdfs:subClassOf :RmSimpleTransition .
+
+_:genid358 a owl:Class;
+  owl:intersectionOf _:genid361 .
+
+_:genid361 a rdf:List;
+  rdf:first :RmFromInvalidTransition;
+  rdf:rest _:genid360 .
+
+_:genid360 a rdf:List;
+  rdf:first :RmOnCloseTransition;
+  rdf:rest _:genid359 .
+
+_:genid359 a rdf:List;
+  rdf:first :RmToClosedTransition;
+  rdf:rest rdf:nil .
+
+:RmInactiveState a owl:Class;
+  owl:equivalentClass _:genid362;
+  rdfs:subClassOf :RmCompoundState .
+
+_:genid362 a owl:Class;
+  owl:unionOf _:genid365 .
+
+_:genid365 a rdf:List;
+  rdf:first :RmClosedState;
+  rdf:rest _:genid364 .
+
+_:genid364 a rdf:List;
+  rdf:first :RmDeferredState;
+  rdf:rest _:genid363 .
+
+_:genid363 a rdf:List;
+  rdf:first :RmInvalidState;
+  rdf:rest rdf:nil .
+
+:RmInvalidState a owl:Class;
+  rdfs:subClassOf :RmInactiveState, :RmOpenState, :RmSimpleState .
+
+:RmIvVTransition a owl:Class;
+  owl:equivalentClass _:genid366;
+  rdfs:subClassOf :RmSimpleTransition .
+
+_:genid366 a owl:Class;
+  owl:intersectionOf _:genid369 .
+
+_:genid369 a rdf:List;
+  rdf:first :RmFromInvalidTransition;
+  rdf:rest _:genid368 .
+
+_:genid368 a rdf:List;
+  rdf:first :RmOnValidateTransition;
+  rdf:rest _:genid367 .
+
+_:genid367 a rdf:List;
+  rdf:first :RmToValidTransition;
+  rdf:rest rdf:nil .
+
+:RmOnAcceptTransition a owl:Class;
+  owl:equivalentClass _:genid370;
+  rdfs:subClassOf :RmTransition .
+
+_:genid370 a owl:Restriction;
+  owl:someValuesFrom :RmASymbol;
+  owl:onProperty dfa:onSymbol .
+
+:RmOnCloseTransition a owl:Class;
+  owl:equivalentClass _:genid371;
+  rdfs:subClassOf :RmTransition .
+
+_:genid371 a owl:Restriction;
+  owl:someValuesFrom :RmCSymbol;
+  owl:onProperty dfa:onSymbol .
+
+:RmOnDeferTransition a owl:Class;
+  owl:equivalentClass _:genid372;
+  rdfs:subClassOf :RmTransition .
+
+_:genid372 a owl:Restriction;
+  owl:someValuesFrom :RmDSymbol;
+  owl:onProperty dfa:onSymbol .
+
+:RmOnInvalidateTransition a owl:Class;
+  owl:equivalentClass _:genid373;
+  rdfs:subClassOf :RmTransition .
+
+_:genid373 a owl:Restriction;
+  owl:someValuesFrom :RmISymbol;
+  owl:onProperty dfa:onSymbol .
+
+:RmOnReceiveTransition a owl:Class;
+  owl:equivalentClass _:genid374;
+  rdfs:subClassOf :RmTransition .
+
+_:genid374 a owl:Restriction;
+  owl:someValuesFrom :RmRSymbol;
+  owl:onProperty dfa:onSymbol .
+
+:RmOnValidateTransition a owl:Class;
+  owl:equivalentClass _:genid375;
+  rdfs:subClassOf :RmTransition .
+
+_:genid375 a owl:Restriction;
+  owl:someValuesFrom :RmVSymbol;
+  owl:onProperty dfa:onSymbol .
+
+:RmOpenState a owl:Class;
+  owl:equivalentClass _:genid376;
+  rdfs:subClassOf :RmCompoundState .
+
+_:genid376 a owl:Class;
+  owl:unionOf _:genid381 .
+
+_:genid381 a rdf:List;
+  rdf:first :RmAcceptedState;
+  rdf:rest _:genid380 .
+
+_:genid380 a rdf:List;
+  rdf:first :RmDeferredState;
+  rdf:rest _:genid379 .
+
+_:genid379 a rdf:List;
+  rdf:first :RmInvalidState;
+  rdf:rest _:genid378 .
+
+_:genid378 a rdf:List;
+  rdf:first :RmReceivedState;
+  rdf:rest _:genid377 .
+
+_:genid377 a rdf:List;
+  rdf:first :RmValidState;
+  rdf:rest rdf:nil .
+
+:RmPotentiallyValidYetUnclosedState a owl:Class;
+  owl:equivalentClass _:genid382;
+  rdfs:subClassOf :RmCompoundState, :RmOpenState .
+
+_:genid382 a owl:Class;
+  owl:unionOf _:genid384 .
+
+_:genid384 a rdf:List;
+  rdf:first :RmReceivedState;
+  rdf:rest _:genid383 .
+
+_:genid383 a rdf:List;
+  rdf:first :RmValidYetUnclosedState;
+  rdf:rest rdf:nil .
+
+:RmRSymbol a owl:Class;
+  rdfs:subClassOf :ReportManagementSymbol .
+
+:RmReceivedState a owl:Class;
+  rdfs:subClassOf :RmActiveState, :RmSimpleState .
+
+:RmRiVTransition a owl:Class;
+  owl:equivalentClass _:genid385;
+  rdfs:subClassOf :RmSimpleTransition .
+
+_:genid385 a owl:Class;
+  owl:intersectionOf _:genid388 .
+
+_:genid388 a rdf:List;
+  rdf:first :RmFromReceivedTransition;
+  rdf:rest _:genid387 .
+
+_:genid387 a rdf:List;
+  rdf:first :RmOnInvalidateTransition;
+  rdf:rest _:genid386 .
+
+_:genid386 a rdf:List;
+  rdf:first :RmToInvalidTransition;
+  rdf:rest rdf:nil .
+
+:RmRvVTransition a owl:Class;
+  owl:equivalentClass _:genid389;
+  rdfs:subClassOf :RmSimpleTransition .
+
+_:genid389 a owl:Class;
+  owl:intersectionOf _:genid392 .
+
+_:genid392 a rdf:List;
+  rdf:first :RmFromReceivedTransition;
+  rdf:rest _:genid391 .
+
+_:genid391 a rdf:List;
+  rdf:first :RmOnValidateTransition;
+  rdf:rest _:genid390 .
+
+_:genid390 a rdf:List;
+  rdf:first :RmToValidTransition;
+  rdf:rest rdf:nil .
+
+:RmSimpleState a owl:Class;
+  rdfs:subClassOf :ReportManagementState .
+
+:RmSimpleTransition a owl:Class;
+  rdfs:subClassOf :RmTransition .
+
+:RmSrRTransition a owl:Class;
+  owl:equivalentClass _:genid393;
+  rdfs:subClassOf :RmSimpleTransition .
+
+_:genid393 a owl:Class;
+  owl:intersectionOf _:genid396 .
+
+_:genid396 a rdf:List;
+  rdf:first :RmFromStartTransition;
+  rdf:rest _:genid395 .
+
+_:genid395 a rdf:List;
+  rdf:first :RmOnReceiveTransition;
+  rdf:rest _:genid394 .
+
+_:genid394 a rdf:List;
+  rdf:first :RmToReceivedTransition;
+  rdf:rest rdf:nil .
+
+:RmStartState a owl:Class;
+  rdfs:subClassOf :RmSimpleState .
+
+:RmToAcceptedTransition a owl:Class;
+  owl:equivalentClass _:genid397;
+  rdfs:subClassOf :RmTransition .
+
+_:genid397 a owl:Restriction;
+  owl:someValuesFrom :RmAcceptedState;
+  owl:onProperty dfa:toState .
+
+:RmToClosedTransition a owl:Class;
+  owl:equivalentClass _:genid398;
+  rdfs:subClassOf :RmTransition .
+
+_:genid398 a owl:Restriction;
+  owl:someValuesFrom :RmClosedState;
+  owl:onProperty dfa:toState .
+
+:RmToDeferredTransition a owl:Class;
+  owl:equivalentClass _:genid399;
+  rdfs:subClassOf :RmTransition .
+
+_:genid399 a owl:Restriction;
+  owl:someValuesFrom :RmDeferredState;
+  owl:onProperty dfa:toState .
+
+:RmToInvalidTransition a owl:Class;
+  owl:equivalentClass _:genid400;
+  rdfs:subClassOf :RmTransition .
+
+_:genid400 a owl:Restriction;
+  owl:someValuesFrom :RmInvalidState;
+  owl:onProperty dfa:toState .
+
+:RmToReceivedTransition a owl:Class;
+  owl:equivalentClass _:genid401;
+  rdfs:subClassOf :RmTransition .
+
+_:genid401 a owl:Restriction;
+  owl:someValuesFrom :RmReceivedState;
+  owl:onProperty dfa:toState .
+
+:RmToValidTransition a owl:Class;
+  owl:equivalentClass _:genid402;
+  rdfs:subClassOf :RmTransition .
+
+_:genid402 a owl:Restriction;
+  owl:someValuesFrom :RmValidState;
+  owl:onProperty dfa:toState .
+
+:RmTransition a owl:Class;
+  owl:equivalentClass _:genid403;
+  rdfs:subClassOf dfa:Transition .
+
+_:genid403 a owl:Class;
+  owl:intersectionOf _:genid410 .
+
+_:genid410 a rdf:List;
+  rdf:first dfa:Transition;
+  rdf:rest _:genid408 .
+
+_:genid408 a rdf:List;
+  rdf:first _:genid409;
+  rdf:rest _:genid406 .
+
+_:genid406 a rdf:List;
+  rdf:first _:genid407;
+  rdf:rest _:genid404 .
+
+_:genid404 a rdf:List;
+  rdf:first _:genid405;
+  rdf:rest rdf:nil .
+
+_:genid405 a owl:Restriction;
+  owl:someValuesFrom :RmSimpleState;
+  owl:onProperty dfa:toState .
+
+_:genid407 a owl:Restriction;
+  owl:someValuesFrom :ReportManagementSymbol;
+  owl:onProperty dfa:onSymbol .
+
+_:genid409 a owl:Restriction;
+  owl:someValuesFrom :RmSimpleState;
+  owl:onProperty dfa:fromState .
+
+:RmVSymbol a owl:Class;
+  rdfs:subClassOf :ReportManagementSymbol .
+
+:RmVaATransition a owl:Class;
+  owl:equivalentClass _:genid411;
+  rdfs:subClassOf :RmSimpleTransition .
+
+_:genid411 a owl:Class;
+  owl:intersectionOf _:genid414 .
+
+_:genid414 a rdf:List;
+  rdf:first :RmFromValidTransition;
+  rdf:rest _:genid413 .
+
+_:genid413 a rdf:List;
+  rdf:first :RmOnAcceptTransition;
+  rdf:rest _:genid412 .
+
+_:genid412 a rdf:List;
+  rdf:first :RmToAcceptedTransition;
+  rdf:rest rdf:nil .
+
+:RmValidState a owl:Class;
+  rdfs:subClassOf :RmActiveState, :RmSimpleState, :RmValidYetUnclosedState .
+
+:RmValidYetUnclosedState a owl:Class;
+  owl:equivalentClass _:genid415;
+  rdfs:subClassOf :RmCompoundState .
+
+_:genid415 a owl:Class;
+  owl:unionOf _:genid418 .
+
+_:genid418 a rdf:List;
+  rdf:first :RmAcceptedState;
+  rdf:rest _:genid417 .
+
+_:genid417 a rdf:List;
+  rdf:first :RmDeferredState;
+  rdf:rest _:genid416 .
+
+_:genid416 a rdf:List;
+  rdf:first :RmValidState;
+  rdf:rest rdf:nil .
+
+:RmVdDTransition a owl:Class;
+  owl:equivalentClass _:genid419;
+  rdfs:subClassOf :RmSimpleTransition .
+
+_:genid419 a owl:Class;
+  owl:intersectionOf _:genid422 .
+
+_:genid422 a rdf:List;
+  rdf:first :RmFromValidTransition;
+  rdf:rest _:genid421 .
+
+_:genid421 a rdf:List;
+  rdf:first :RmOnDeferTransition;
+  rdf:rest _:genid420 .
+
+_:genid420 a rdf:List;
+  rdf:first :RmToDeferredTransition;
+  rdf:rest rdf:nil .
+
+:VendorAwareState a owl:Class;
+  owl:equivalentClass _:genid423;
+  rdfs:subClassOf :CsVendorFixPathState .
+
+_:genid423 a owl:Class;
+  owl:unionOf _:genid426 .
+
+_:genid426 a rdf:List;
+  rdf:first :CsVFDState;
+  rdf:rest _:genid425 .
+
+_:genid425 a rdf:List;
+  rdf:first :CsVFdState;
+  rdf:rest _:genid424 .
+
+_:genid424 a rdf:List;
+  rdf:first :CsVfdState;
+  rdf:rest rdf:nil .
+
+:VendorAwarenessTransition a owl:Class;
+  owl:equivalentClass _:genid427;
+  rdfs:subClassOf :CsTransition .
+
+_:genid427 a owl:Class;
+  owl:intersectionOf _:genid432 .
+
+_:genid432 a rdf:List;
+  rdf:first _:genid433;
+  rdf:rest _:genid430 .
+
+_:genid430 a rdf:List;
+  rdf:first _:genid431;
+  rdf:rest _:genid428 .
+
+_:genid428 a rdf:List;
+  rdf:first _:genid429;
+  rdf:rest rdf:nil .
+
+_:genid429 a owl:Restriction;
+  owl:someValuesFrom :CsVendorAwareState;
+  owl:onProperty dfa:toState .
+
+_:genid431 a owl:Restriction;
+  owl:someValuesFrom :CsVSymbol;
+  owl:onProperty dfa:onSymbol .
+
+_:genid433 a owl:Restriction;
+  owl:someValuesFrom :CsVendorUnawareState;
+  owl:onProperty dfa:fromState .
+
+_:genid434 a owl:AllDisjointClasses;
+  owl:members _:genid437 .
+
+_:genid437 a rdf:List;
+  rdf:first :CaseState;
+  rdf:rest _:genid436 .
+
+_:genid436 a rdf:List;
+  rdf:first :EmbargoManagementState;
+  rdf:rest _:genid435 .
+
+_:genid435 a rdf:List;
+  rdf:first :ReportManagementState;
+  rdf:rest rdf:nil .

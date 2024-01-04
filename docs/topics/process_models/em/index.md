@@ -22,7 +22,7 @@ made public.
 Such content considerations are outside the scope of this proposal.
 We focus our discussion on the *when* of an embargo, not the *what*.
 
-{% include-markdown "./embargo_defn.md"   %}
+{% include-markdown "./_embargo_defn.md"   %}
 
 Unlike the [RM](../rm/index.md) model, in which each Participant has their own instance of the
 [RM](../rm/index.md) DFA, EM states are a global property of a CVD case.
@@ -58,14 +58,14 @@ stateDiagram-v2
     v5 --> v6
 ```
 
-{% include-markdown "./nda-sidebar.md" %}
+{% include-markdown "./_nda_sidebar.md" %}
 
 ## EM State Machine
 
 As with our definition of the [RM](../rm/index.md) model, we describe our
 EM model using DFA notation.
 
-{% include-markdown "../dfa_notation_definition.md" %}
+{% include-markdown "../_dfa_notation_definition.md" %}
 
 ### EM States
 
