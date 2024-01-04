@@ -139,6 +139,14 @@ nav:
       - ISO 29147: 'reference/iso_29147_2018.md'
       - ISO 5895: 'reference/iso_5895_2022.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
+    - Decision Records:
+      - ADR Index: 'adr/index.md'
+      - Record decisions: 'adr/0000-record-architecture-decisions.md'
+      - Use MADR: 'adr/0001-use-markdown-any-decision-records.md'
+      - Use Behavior Trees: 'adr/0002-model-processes-with-behavior-trees.md'
+      - Build a Behavior Tree library: 'adr/0003-build-custom-python-bt-engine.md'
+      - Use Factory Pattern for BT nodes: 'adr/0004-use-factory-methods-for-common-bt-node-types.md'
+      - Use ActivityStreams Vocabulary as Message Format: 'adr/0005-activitystreams-vocabulary-as-vultron-message-format.md'
   - About:
     - Contributing: 'about/contributing.md'
     - FAQ: 'about/faq.md'
@@ -235,5 +243,3 @@ extra_javascript:
   - javascripts/tablesort.js
 extra_css:
   - stylesheets/extra.css
-exclude_docs: |
-  /adr/
