@@ -54,9 +54,8 @@ Bad, because:
 ## More Information
 
 - Michele Colledanchise, Petter Ögren: Behavior Trees in Robotics and AI
-  - [book @ Amazon](https://www.amazon.com/Behavior-Trees-Robotics-Introduction-Intelligence/dp/1138593737)
-  - [pdf @ arXiv](https://arxiv.org/abs/1709.00084)
-- Petter Ögren's YouTube channel has a number of good videos on Behavior Trees
-  - <https://www.youtube.com/@petterogren7535>
-- Wikipedia
-  - [Behavior Tree (artificial intelligence, robotics and control)](https://en.wikipedia.org/wiki/Behavior_tree_(artificial_intelligence,_robotics_and_control))
+  [book @ Amazon](https://www.amazon.com/Behavior-Trees-Robotics-Introduction-Intelligence/dp/1138593737)  
+  [pdf @ arXiv](https://arxiv.org/abs/1709.00084)
+- [Petter Ögren's YouTube channel](https://www.youtube.com/@petterogren7535)
+  has a number of good videos on Behavior Trees
+- Wikipedia [Behavior Tree (artificial intelligence, robotics and control)](https://en.wikipedia.org/wiki/Behavior_tree_(artificial_intelligence,_robotics_and_control))

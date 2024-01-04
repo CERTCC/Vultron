@@ -14,13 +14,13 @@ change the code that creates them.
 
 ## Decision Drivers
 
-* We want to be able to create these nodes in a consistent way
-* Preserve future flexibility to change the underlying BT node implementation without having to change the code that creates them
+- We want to be able to create these nodes in a consistent way
+-Preserve future flexibility to change the underlying BT node implementation without having to change the code that creates them
 
 ## Considered Options
 
-* No factory methods, directly subclass the BT node types
-* Use factory methods
+- No factory methods, directly subclass the BT node types
+- Use factory methods
 
 ## Decision Outcome
 
@@ -31,18 +31,18 @@ change the underlying implementation without having to change the code that crea
 
 Good because:
 
-* retains flexibility to change the underlying implementation without having to change the code that creates them
-* allows us to create the nodes in a consistent way
-* allows us to keep the `vultron.bt.base` module clean and focused on the base classes
-* allows us to keep the rest of the `vultron.bt` module focused on Vultron-specific needs
+- retains flexibility to change the underlying implementation without having to change the code that creates them
+- allows us to create the nodes in a consistent way
+- allows us to keep the `vultron.bt.base` module clean and focused on the base classes
+- allows us to keep the rest of the `vultron.bt` module focused on Vultron-specific needs
 
 Neutral because:
 
-* Adds a central place to maintain the factory methods
+- Adds a central place to maintain the factory methods
 
 Bad because:
 
-* less pythonic than just subclassing the BT node types
+- less pythonic than just subclassing the BT node types
 
 ## Pros and Cons of the Options
 
@@ -50,14 +50,11 @@ Bad because:
 
 Good because:
 
-* more pythonic
-*
-
-Neutral because:
+- more pythonic
 
 Bad because:
 
-* Harder to enforce consistency in how the nodes are created
+- Harder to enforce consistency in how the nodes are created
 
 ## More Information
 
