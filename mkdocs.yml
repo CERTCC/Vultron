@@ -137,6 +137,15 @@ nav:
           - Pacman Demo: 'reference/code/bt/pacman_demo.md'
           - Robot Demo: 'reference/code/bt/robot_demo.md'
           - Vultrabot Demo: 'reference/code/bt/vultrabot_demo.md'
+        - ActivityStreams Vocabulary:
+          - Vocabulary: 'reference/code/as_vocab/index.md'
+          - Base Package: 'reference/code/as_vocab/as_base.md'
+          - Base Objects: 'reference/code/as_vocab/as_objects.md'
+          - Base Links: 'reference/code/as_vocab/as_links.md'
+          - Base Activities: 'reference/code/as_vocab/as_activities.md'
+          - Vultron Extensions: 'reference/code/as_vocab/vultron.md'
+          - Vultron Objects: 'reference/code/as_vocab/v_objects.md'
+          - Vultron Activities: 'reference/code/as_vocab/v_activities.md'
     - Ontology:
       - Intro: 'reference/ontology/index.md'
       - Vultron_AS: 'reference/ontology/vultron_as.md'
