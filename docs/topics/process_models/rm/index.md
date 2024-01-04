@@ -21,7 +21,7 @@ completed, should map onto the RM process outlined here.
 
 ## RM State Machine
 
-{% include-markdown "../dfa_notation_definition.md" %}
+{% include-markdown "../_dfa_notation_definition.md" %}
 
 In this section, we first cover the states themselves before proceeding
 to a discussion of the transitions between them.

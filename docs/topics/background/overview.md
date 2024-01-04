@@ -71,4 +71,3 @@ Reference material includes
   and relevant portions of the [Stakeholder Specific Vulnerability Categorization](https://github.com/CERTCC/SSVC)
   ([SSVC](https://github.com/CERTCC/SSVC)), a vulnerability response prioritization
   model also developed by the CERT/CC
-- a [Glossary](../../reference/glossary.md) of terms used in this documentation
