@@ -133,6 +133,13 @@ nav:
           - Pacman Demo: 'reference/code/bt/pacman_demo.md'
           - Robot Demo: 'reference/code/bt/robot_demo.md'
           - Vultrabot Demo: 'reference/code/bt/vultrabot_demo.md'
+    - Ontology:
+      - Intro: 'reference/ontology/index.md'
+      - Vultron_AS: 'reference/ontology/vultron_as.md'
+      - Vultron_Protocol: 'reference/ontology/vultron_protocol.md'
+      - Vultron_Process: 'reference/ontology/vultron_process.md'
+      - DFA: 'reference/ontology/dfa.md'
+      - RFC 2119: 'reference/ontology/rfc2119.md'
     - ISO Crosswalk:
       - Introduction: 'reference/iso_crosswalk.md'
       - ISO 30111: 'reference/iso_30111_2019.md'
@@ -150,6 +157,7 @@ not_in_nav: |
     topics/user_stories/story_*.md
     *diagram*.md
     *table*.md
+    _*.md
 theme:
   logo: 'assets/cert_seal.svg'
   name: 'material'
@@ -181,6 +189,7 @@ plugins:
             show_bases: true
             show_root_heading: true
             heading_level: 2
+  - markdown-exec
   - search
   # NOTE print-site MUST be the last plugin in the list (see its docs for why)
   - print-site
@@ -198,8 +207,8 @@ markdown_extensions:
   - pymdownx.caret
   - pymdownx.details
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
@@ -207,6 +216,8 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.keys
   - pymdownx.mark
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde

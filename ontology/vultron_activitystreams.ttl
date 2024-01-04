@@ -1,0 +1,1039 @@
+@prefix : <http://www.cert.org/ns/vultron_activitystreams#> .
+@prefix as: <http://www.w3.org/ns/activitystreams#> .
+@prefix dfa: <http://www.cert.org/ns/deterministicfiniteautomata#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rfc2119: <http://www.cert.org/ns/rfc2119#> .
+@prefix vultron_as: <http://www.cert.org/ns/vultron_activitystreams#> .
+@prefix vultron_proto: <http://www.cert.org/ns/vultron_protocol#> .
+@prefix vultron_process: <http://www.cert.org/ns/vultron_process#> .
+@base <http://www.cert.org/ns/vultron_activitystreams#> .
+
+<http://www.cert.org/ns/vultron_activitystreams> rdf:type owl:Ontology ;
+                                                  owl:imports <http://www.cert.org/ns/vultron_protocol> ,
+                                                              as: ;
+                                                  rdfs:comment "An ontology representing version Vultron Message Types and related classes building on the ActivityStreams 2 ontology." .
+
+#################################################################
+#    Annotation properties
+#################################################################
+
+###  http://www.w3.org/2002/07/owl#maxQualifiedCardinality
+owl:maxQualifiedCardinality rdf:type owl:AnnotationProperty .
+
+
+###  http://www.w3.org/2002/07/owl#minQualifiedCardinality
+owl:minQualifiedCardinality rdf:type owl:AnnotationProperty .
+
+
+###  http://www.w3.org/2002/07/owl#qualifiedCardinality
+owl:qualifiedCardinality rdf:type owl:AnnotationProperty .
+
+
+#################################################################
+#    Classes
+#################################################################
+
+###  http://www.cert.org/ns/vultron_activitystreams#AcceptActorRecommendation
+vultron_as:AcceptActorRecommendation rdf:type owl:Class ;
+                                     owl:equivalentClass [ owl:intersectionOf ( as:Accept
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:inReplyTo ;
+                                                                                  owl:someValuesFrom vultron_as:RecommendActor
+                                                                                ]
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:object ;
+                                                                                  owl:someValuesFrom vultron_as:Actor
+                                                                                ]
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:target ;
+                                                                                  owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                                ]
+                                                                              ) ;
+                                                           rdf:type owl:Class
+                                                         ] ;
+                                     rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                                     as:Accept ;
+                                     rdfs:comment "The case owner is accepting a recommendation to add an actor to the case. Should be followed by an RmInviteToCase activity targeted at the recommended actor." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#AcceptCaseOwnershipTransfer
+vultron_as:AcceptCaseOwnershipTransfer rdf:type owl:Class ;
+                                       owl:equivalentClass [ owl:intersectionOf ( as:Accept
+                                                                                  [ rdf:type owl:Restriction ;
+                                                                                    owl:onProperty as:inReplyTo ;
+                                                                                    owl:someValuesFrom vultron_as:OfferCaseOwnershipTransfer
+                                                                                  ]
+                                                                                  [ rdf:type owl:Restriction ;
+                                                                                    owl:onProperty as:object ;
+                                                                                    owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                                  ]
+                                                                                  [ rdf:type owl:Restriction ;
+                                                                                    owl:onProperty as:object ;
+                                                                                    owl:allValuesFrom vultron_proto:VulnerabilityCase
+                                                                                  ]
+                                                                                ) ;
+                                                             rdf:type owl:Class
+                                                           ] ;
+                                       rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                                       as:Accept ;
+                                       rdfs:comment "The actor is accepting transfer of ownership of a VulnerabilityCase." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#ActivateEmbargo
+vultron_as:ActivateEmbargo rdf:type owl:Class ;
+                           owl:equivalentClass [ owl:intersectionOf ( as:Add
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:inReplyTo ;
+                                                                        owl:someValuesFrom vultron_as:EmProposeEmbargo
+                                                                      ]
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:object ;
+                                                                        owl:someValuesFrom vultron_as:EmbargoEvent
+                                                                      ]
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:target ;
+                                                                        owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                      ]
+                                                                    ) ;
+                                                 rdf:type owl:Class
+                                               ] ;
+                           rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                           vultron_proto:MsgTypeEA ,
+                                           vultron_proto:MsgTypeEC ,
+                                           as:Add ;
+                           rdfs:comment "The case owner is activating an embargo on the case. This corresponds to the Vultron Message Types EA and EC at the case level. Note that this is identical to AddEmbargoToCase with the addition of being inReplyTo some EmProposeEmbargo." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#Actor
+vultron_as:Actor rdf:type owl:Class ;
+                 owl:equivalentClass [ rdf:type owl:Class ;
+                                       owl:unionOf ( as:Application
+                                                     as:Group
+                                                     as:Organization
+                                                     as:Person
+                                                     as:Service
+                                                   )
+                                     ] ;
+                 rdfs:subClassOf vultron_proto:Actor ,
+                                 as:Object ;
+                 rdfs:comment "One of Person, Group, Organization, Application, or Service" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#AddEmbargoToCase
+vultron_as:AddEmbargoToCase rdf:type owl:Class ;
+                            owl:equivalentClass [ owl:intersectionOf ( as:Add
+                                                                       [ rdf:type owl:Restriction ;
+                                                                         owl:onProperty as:object ;
+                                                                         owl:someValuesFrom vultron_as:EmbargoEvent
+                                                                       ]
+                                                                       [ rdf:type owl:Restriction ;
+                                                                         owl:onProperty as:target ;
+                                                                         owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                       ]
+                                                                     ) ;
+                                                  rdf:type owl:Class
+                                                ] ;
+                            rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                            as:Add ;
+                            rdfs:comment "Add an EmbargoEvent to a VulnerabilityCase. This implies that the case owner is setting the embargo for the case, which would usually come after an embargo proposal has been accepted by the case owner as in ActivateEmbargo. For embargo proposals, see EmProposeEmbargo." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#AddNoteToCase
+vultron_as:AddNoteToCase rdf:type owl:Class ;
+                         owl:equivalentClass [ owl:intersectionOf ( as:Add
+                                                                    [ rdf:type owl:Restriction ;
+                                                                      owl:onProperty as:object ;
+                                                                      owl:someValuesFrom as:Note
+                                                                    ]
+                                                                    [ rdf:type owl:Restriction ;
+                                                                      owl:onProperty as:target ;
+                                                                      owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                    ]
+                                                                  ) ;
+                                               rdf:type owl:Class
+                                             ] ;
+                         rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                         vultron_proto:MsgTypeGI ,
+                                         as:Add ;
+                         rdfs:comment "Add a Note to a VulnerabilityCase" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#AddParticipantToCase
+vultron_as:AddParticipantToCase rdf:type owl:Class ;
+                                owl:equivalentClass [ owl:intersectionOf ( as:Add
+                                                                           [ rdf:type owl:Restriction ;
+                                                                             owl:onProperty as:object ;
+                                                                             owl:someValuesFrom vultron_proto:CaseParticipant
+                                                                           ]
+                                                                           [ rdf:type owl:Restriction ;
+                                                                             owl:onProperty as:target ;
+                                                                             owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                           ]
+                                                                         ) ;
+                                                      rdf:type owl:Class
+                                                    ] ;
+                                rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                                as:Add ;
+                                rdfs:comment "Add a CaseParticipant to a VulnerabilityCase" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#AddReportToCase
+vultron_as:AddReportToCase rdf:type owl:Class ;
+                           owl:equivalentClass [ owl:intersectionOf ( as:Add
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:object ;
+                                                                        owl:someValuesFrom vultron_proto:VulnerabilityReport
+                                                                      ]
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:target ;
+                                                                        owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                      ]
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:object ;
+                                                                        owl:allValuesFrom vultron_proto:VulnerabilityReport
+                                                                      ]
+                                                                    ) ;
+                                                 rdf:type owl:Class
+                                               ] ;
+                           rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                           as:Add ;
+                           rdfs:comment "An Actor is Adding a VulnerabilityReport to a VulnerabilityCase" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#AddStatusToCase
+vultron_as:AddStatusToCase rdf:type owl:Class ;
+                           owl:equivalentClass [ owl:intersectionOf ( as:Add
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:object ;
+                                                                        owl:someValuesFrom vultron_proto:CaseStatus
+                                                                      ]
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:target ;
+                                                                        owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                      ]
+                                                                    ) ;
+                                                 rdf:type owl:Class
+                                               ] ;
+                           rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                           as:Add ;
+                           rdfs:comment "Add a CaseStatus to a VulnerabilityCase. This should only be performed by the case owner. Other case participants can add a case status to their participant record, which the case owner should then add to the case if appropriate." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#AddStatusToParticipant
+vultron_as:AddStatusToParticipant rdf:type owl:Class ;
+                                  owl:equivalentClass [ owl:intersectionOf ( as:Add
+                                                                             [ rdf:type owl:Restriction ;
+                                                                               owl:onProperty as:object ;
+                                                                               owl:someValuesFrom vultron_proto:ParticipantStatus
+                                                                             ]
+                                                                             [ rdf:type owl:Restriction ;
+                                                                               owl:onProperty as:target ;
+                                                                               owl:someValuesFrom vultron_proto:CaseParticipant
+                                                                             ]
+                                                                           ) ;
+                                                        rdf:type owl:Class
+                                                      ] ;
+                                  rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                                  as:Add ;
+                                  rdfs:comment """Add a CaseStatus to a CaseParticipant
+
+TODO do we really need both CreateStatusForParticipant and AddStatusToParticipant?""" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#AnnounceEmbargo
+vultron_as:AnnounceEmbargo rdf:type owl:Class ;
+                           owl:equivalentClass [ owl:intersectionOf ( as:Announce
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:context ;
+                                                                        owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                      ]
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:object ;
+                                                                        owl:someValuesFrom vultron_as:EmbargoEvent
+                                                                      ]
+                                                                    ) ;
+                                                 rdf:type owl:Class
+                                               ] ;
+                           rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                           as:Announce ;
+                           rdfs:comment "The case owner is announcing an embargo on the case." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#AnnounceEmbargoTermination
+vultron_as:AnnounceEmbargoTermination rdf:type owl:Class ;
+                                      rdfs:subClassOf vultron_as:AnnounceEmbargo ,
+                                                      vultron_proto:MsgTypeET ;
+                                      rdfs:comment """An announcement declaring an embargo termination. This should include an EmbargoEvent in the context of the VulnerabilityCase with an endTime of now or in the past.
+
+The announcement itself is not the termination event, it is the fact that the case has no EmbargoEvent whose endtime is in the future that defines the end of the embargo.
+
+TODO this class is underspecified, and should have a data property restriction that matches the explanation above.""" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#CaseOwnerActivity
+vultron_as:CaseOwnerActivity rdf:type owl:Class ;
+                             owl:equivalentClass [ owl:intersectionOf ( as:Activity
+                                                                        [ rdf:type owl:Restriction ;
+                                                                          owl:onProperty as:attributedTo ;
+                                                                          owl:someValuesFrom vultron_proto:CaseOwnerParticipant
+                                                                        ]
+                                                                      ) ;
+                                                   rdf:type owl:Class
+                                                 ] ;
+                             rdfs:subClassOf vultron_as:CaseParticipantActivity ;
+                             rdfs:comment "Activity performed by a CaseOwner Participant" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#CaseParticipant
+vultron_as:CaseParticipant rdf:type owl:Class ;
+                           rdfs:subClassOf vultron_proto:CaseParticipant ,
+                                           as:Object .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#CaseParticipantActivity
+vultron_as:CaseParticipantActivity rdf:type owl:Class ;
+                                   owl:equivalentClass [ owl:intersectionOf ( as:Activity
+                                                                              [ rdf:type owl:Restriction ;
+                                                                                owl:onProperty as:attributedTo ;
+                                                                                owl:someValuesFrom vultron_proto:CaseParticipant
+                                                                              ]
+                                                                            ) ;
+                                                         rdf:type owl:Class
+                                                       ] ;
+                                   rdfs:subClassOf as:Activity ;
+                                   rdfs:comment "Activity performed by a CaseParticipant" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#ChoosePreferredEmbargo
+vultron_as:ChoosePreferredEmbargo rdf:type owl:Class ;
+                                  owl:equivalentClass [ owl:intersectionOf ( as:Question
+                                                                             [ rdf:type owl:Class ;
+                                                                               owl:unionOf ( [ owl:intersectionOf ( [ rdf:type owl:Restriction ;
+                                                                                                                      owl:onProperty as:anyOf ;
+                                                                                                                      owl:someValuesFrom vultron_as:EmbargoEvent
+                                                                                                                    ]
+                                                                                                                    [ rdf:type owl:Restriction ;
+                                                                                                                      owl:onProperty as:anyOf ;
+                                                                                                                      owl:allValuesFrom vultron_as:EmbargoEvent
+                                                                                                                    ]
+                                                                                                                  ) ;
+                                                                                               rdf:type owl:Class
+                                                                                             ]
+                                                                                             [ owl:intersectionOf ( [ rdf:type owl:Restriction ;
+                                                                                                                      owl:onProperty as:oneOf ;
+                                                                                                                      owl:someValuesFrom vultron_as:EmbargoEvent
+                                                                                                                    ]
+                                                                                                                    [ rdf:type owl:Restriction ;
+                                                                                                                      owl:onProperty as:oneOf ;
+                                                                                                                      owl:allValuesFrom vultron_as:EmbargoEvent
+                                                                                                                    ]
+                                                                                                                  ) ;
+                                                                                               rdf:type owl:Class
+                                                                                             ]
+                                                                                           )
+                                                                             ]
+                                                                           ) ;
+                                                        rdf:type owl:Class
+                                                      ] ;
+                                  rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                                  as:Question ;
+                                  rdfs:comment "The case owner is asking the participants to indicate their embargo preferences from among the proposed embargoes. Case participants should respond with an EmAcceptEmbargo or EmRejectEmbargo activity for each proposed embargo. Either anyOf or oneOf should be specified, but not both. The Case owner will then need to decide which embargo to make active on the case." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#CreateCase
+vultron_as:CreateCase rdf:type owl:Class ;
+                      owl:equivalentClass [ owl:intersectionOf ( as:Create
+                                                                 [ rdf:type owl:Restriction ;
+                                                                   owl:onProperty as:object ;
+                                                                   owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                 ]
+                                                               ) ;
+                                            rdf:type owl:Class
+                                          ] ;
+                      rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                      as:Create ;
+                      rdfs:comment "Create a VulnerabilityCase." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#CreateCaseStatus
+vultron_as:CreateCaseStatus rdf:type owl:Class ;
+                            owl:equivalentClass [ owl:intersectionOf ( as:Create
+                                                                       [ rdf:type owl:Restriction ;
+                                                                         owl:onProperty as:object ;
+                                                                         owl:someValuesFrom vultron_proto:CaseStatus
+                                                                       ]
+                                                                     ) ;
+                                                  rdf:type owl:Class
+                                                ] ;
+                            rdfs:subClassOf as:Create .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#CreateNote
+vultron_as:CreateNote rdf:type owl:Class ;
+                      owl:equivalentClass [ owl:intersectionOf ( as:Create
+                                                                 [ rdf:type owl:Restriction ;
+                                                                   owl:onProperty as:object ;
+                                                                   owl:someValuesFrom as:Note
+                                                                 ]
+                                                               ) ;
+                                            rdf:type owl:Class
+                                          ] ;
+                      rdfs:subClassOf as:Create .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#CreateParticipant
+vultron_as:CreateParticipant rdf:type owl:Class ;
+                             owl:equivalentClass [ owl:intersectionOf ( as:Create
+                                                                        [ rdf:type owl:Restriction ;
+                                                                          owl:onProperty as:object ;
+                                                                          owl:someValuesFrom vultron_proto:CaseParticipant
+                                                                        ]
+                                                                      ) ;
+                                                   rdf:type owl:Class
+                                                 ] ;
+                             rdfs:subClassOf as:Create .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#CreateParticipantStatus
+vultron_as:CreateParticipantStatus rdf:type owl:Class ;
+                                   owl:equivalentClass [ owl:intersectionOf ( as:Create
+                                                                              [ rdf:type owl:Restriction ;
+                                                                                owl:onProperty as:object ;
+                                                                                owl:someValuesFrom vultron_proto:ParticipantStatus
+                                                                              ]
+                                                                            ) ;
+                                                         rdf:type owl:Class
+                                                       ] ;
+                                   rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                                   as:Create ;
+                                   rdfs:comment """Create a new CaseStatus for a CaseParticipant
+
+TODO do we really need both CreateStatusForParticipant and AddStatusToParticipant?""" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#CsError
+vultron_as:CsError rdf:type owl:Class ;
+                   owl:equivalentClass [ owl:intersectionOf ( as:Reject
+                                                              [ rdf:type owl:Restriction ;
+                                                                owl:onProperty as:object ;
+                                                                owl:someValuesFrom vultron_proto:CaseStateMessageType
+                                                              ]
+                                                            ) ;
+                                         rdf:type owl:Class
+                                       ] ;
+                   rdfs:subClassOf vultron_as:VultronError ,
+                                   vultron_proto:MsgTypeCE .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#CsReadMsg
+vultron_as:CsReadMsg rdf:type owl:Class ;
+                     owl:equivalentClass [ rdf:type owl:Class ;
+                                           owl:unionOf ( [ owl:intersectionOf ( as:Read
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:object ;
+                                                                                  owl:someValuesFrom vultron_proto:MsgTypeAckableCs
+                                                                                ]
+                                                                              ) ;
+                                                           rdf:type owl:Class
+                                                         ]
+                                                         [ rdf:type owl:Restriction ;
+                                                           owl:onProperty as:inReplyTo ;
+                                                           owl:someValuesFrom vultron_proto:MsgTypeAckableCs
+                                                         ]
+                                                       )
+                                         ] ;
+                     rdfs:subClassOf vultron_proto:MsgTypeCK .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#EmAcceptEmbargo
+vultron_as:EmAcceptEmbargo rdf:type owl:Class ;
+                           owl:equivalentClass [ owl:intersectionOf ( as:Accept
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:context ;
+                                                                        owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                      ]
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:inReplyTo ;
+                                                                        owl:someValuesFrom vultron_as:EmProposeEmbargo
+                                                                      ]
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:object ;
+                                                                        owl:someValuesFrom vultron_as:EmbargoEvent
+                                                                      ]
+                                                                    ) ;
+                                                 rdf:type owl:Class
+                                               ] ;
+                           rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                           vultron_proto:MsgTypeEA ,
+                                           vultron_proto:MsgTypeEC ,
+                                           as:Accept ;
+                           rdfs:comment "The actor is accepting an embargo on the case. This corresponds to the Vultron Message Types EA and EC" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#EmError
+vultron_as:EmError rdf:type owl:Class ;
+                   owl:equivalentClass [ owl:intersectionOf ( as:Reject
+                                                              [ rdf:type owl:Restriction ;
+                                                                owl:onProperty as:object ;
+                                                                owl:someValuesFrom vultron_proto:EmbargoManagementMessageType
+                                                              ]
+                                                            ) ;
+                                         rdf:type owl:Class
+                                       ] ;
+                   rdfs:subClassOf vultron_as:VultronError ,
+                                   vultron_proto:MsgTypeEE .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#EmProposeEmbargo
+vultron_as:EmProposeEmbargo rdf:type owl:Class ;
+                            owl:equivalentClass [ owl:intersectionOf ( as:Invite
+                                                                       [ rdf:type owl:Restriction ;
+                                                                         owl:onProperty as:context ;
+                                                                         owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                       ]
+                                                                       [ rdf:type owl:Restriction ;
+                                                                         owl:onProperty as:object ;
+                                                                         owl:someValuesFrom vultron_as:EmbargoEvent
+                                                                       ]
+                                                                     ) ;
+                                                  rdf:type owl:Class
+                                                ] ;
+                            rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                            vultron_proto:MsgTypeEP ,
+                                            vultron_proto:MsgTypeEV ,
+                                            as:Invite ;
+                            rdfs:comment "The actor is proposing an embargo on the case. This corresponds to the Vultron Message Types EP and EV" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#EmReadMsg
+vultron_as:EmReadMsg rdf:type owl:Class ;
+                     owl:equivalentClass [ rdf:type owl:Class ;
+                                           owl:unionOf ( [ owl:intersectionOf ( as:Read
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:object ;
+                                                                                  owl:someValuesFrom vultron_proto:MsgTypeAckableEm
+                                                                                ]
+                                                                              ) ;
+                                                           rdf:type owl:Class
+                                                         ]
+                                                         [ rdf:type owl:Restriction ;
+                                                           owl:onProperty as:inReplyTo ;
+                                                           owl:someValuesFrom vultron_proto:MsgTypeAckableEm
+                                                         ]
+                                                       )
+                                         ] ;
+                     rdfs:subClassOf vultron_proto:MsgTypeEK .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#EmRejectEmbargo
+vultron_as:EmRejectEmbargo rdf:type owl:Class ;
+                           owl:equivalentClass [ owl:intersectionOf ( as:Reject
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:context ;
+                                                                        owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                      ]
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:inReplyTo ;
+                                                                        owl:someValuesFrom vultron_as:EmProposeEmbargo
+                                                                      ]
+                                                                      [ rdf:type owl:Restriction ;
+                                                                        owl:onProperty as:object ;
+                                                                        owl:someValuesFrom vultron_as:EmbargoEvent
+                                                                      ]
+                                                                    ) ;
+                                                 rdf:type owl:Class
+                                               ] ;
+                           rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                           vultron_proto:MsgTypeEJ ,
+                                           vultron_proto:MsgTypeER ,
+                                           as:Reject ;
+                           rdfs:comment "The actor is rejecting an embargo on the case. This corresponds to the Vultron Message Types ER and EJ" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#EmbargoEvent
+vultron_as:EmbargoEvent rdf:type owl:Class ;
+                        rdfs:subClassOf as:Event ,
+                                        [ rdf:type owl:Restriction ;
+                                          owl:onProperty as:endTime ;
+                                          owl:someValuesFrom xsd:dateTime
+                                        ] ;
+                        rdfs:comment "An EmbargoEvent is an Event that represents an embargo on a VulnerabilityCase." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#GmError
+vultron_as:GmError rdf:type owl:Class ;
+                   owl:equivalentClass [ owl:intersectionOf ( as:Reject
+                                                              [ rdf:type owl:Restriction ;
+                                                                owl:onProperty as:object ;
+                                                                owl:someValuesFrom vultron_proto:GeneralMessageType
+                                                              ]
+                                                            ) ;
+                                         rdf:type owl:Class
+                                       ] ;
+                   rdfs:subClassOf vultron_as:VultronError ,
+                                   vultron_proto:MsgTypeGE .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#GmReadMsg
+vultron_as:GmReadMsg rdf:type owl:Class ;
+                     owl:equivalentClass [ rdf:type owl:Class ;
+                                           owl:unionOf ( [ owl:intersectionOf ( as:Read
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:object ;
+                                                                                  owl:someValuesFrom vultron_proto:MsgTypeAckableGm
+                                                                                ]
+                                                                              ) ;
+                                                           rdf:type owl:Class
+                                                         ]
+                                                         [ rdf:type owl:Restriction ;
+                                                           owl:onProperty as:inReplyTo ;
+                                                           owl:someValuesFrom vultron_proto:MsgTypeAckableGm
+                                                         ]
+                                                       )
+                                         ] ;
+                     rdfs:subClassOf vultron_proto:MsgTypeGK .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#OfferCaseOwnershipTransfer
+vultron_as:OfferCaseOwnershipTransfer rdf:type owl:Class ;
+                                      owl:equivalentClass [ owl:intersectionOf ( as:Offer
+                                                                                 [ rdf:type owl:Restriction ;
+                                                                                   owl:onProperty as:object ;
+                                                                                   owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                                 ]
+                                                                                 [ rdf:type owl:Restriction ;
+                                                                                   owl:onProperty as:target ;
+                                                                                   owl:someValuesFrom vultron_proto:CaseParticipant
+                                                                                 ]
+                                                                               ) ;
+                                                            rdf:type owl:Class
+                                                          ] ;
+                                      rdfs:subClassOf vultron_as:CaseOwnerActivity ;
+                                      rdfs:comment "The CaseOwner is offering to transfer ownership of a VulnerabilityCase to another CaseParticipant." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RecommendActor
+vultron_as:RecommendActor rdf:type owl:Class ;
+                          owl:equivalentClass [ owl:intersectionOf ( as:Offer
+                                                                     [ rdf:type owl:Restriction ;
+                                                                       owl:onProperty as:object ;
+                                                                       owl:someValuesFrom vultron_as:Actor
+                                                                     ]
+                                                                     [ rdf:type owl:Restriction ;
+                                                                       owl:onProperty as:target ;
+                                                                       owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                     ]
+                                                                   ) ;
+                                                rdf:type owl:Class
+                                              ] ;
+                          rdfs:subClassOf vultron_as:CaseParticipantActivity ;
+                          rdfs:comment "The Actor is recommending another Actor to a VulnerabilityCase." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RejectActorRecommendation
+vultron_as:RejectActorRecommendation rdf:type owl:Class ;
+                                     owl:equivalentClass [ owl:intersectionOf ( as:Reject
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:context ;
+                                                                                  owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                                ]
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:inReplyTo ;
+                                                                                  owl:someValuesFrom vultron_as:RecommendActor
+                                                                                ]
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:object ;
+                                                                                  owl:someValuesFrom vultron_as:Actor
+                                                                                ]
+                                                                              ) ;
+                                                           rdf:type owl:Class
+                                                         ] ;
+                                     rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                                     as:Reject .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RejectCaseOwnershipTransfer
+vultron_as:RejectCaseOwnershipTransfer rdf:type owl:Class ;
+                                       owl:equivalentClass [ owl:intersectionOf ( as:Reject
+                                                                                  [ rdf:type owl:Restriction ;
+                                                                                    owl:onProperty as:inReplyTo ;
+                                                                                    owl:someValuesFrom vultron_as:OfferCaseOwnershipTransfer
+                                                                                  ]
+                                                                                  [ rdf:type owl:Restriction ;
+                                                                                    owl:onProperty as:object ;
+                                                                                    owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                                  ]
+                                                                                ) ;
+                                                             rdf:type owl:Class
+                                                           ] ;
+                                       rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                                       as:Reject ;
+                                       rdfs:comment "The actor is rejecting an offer to transfer ownership of the case." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RemoveEmbargoFromCase
+vultron_as:RemoveEmbargoFromCase rdf:type owl:Class ;
+                                 owl:equivalentClass [ owl:intersectionOf ( as:Remove
+                                                                            [ rdf:type owl:Restriction ;
+                                                                              owl:onProperty as:object ;
+                                                                              owl:someValuesFrom vultron_as:EmbargoEvent
+                                                                            ]
+                                                                            [ rdf:type owl:Restriction ;
+                                                                              owl:onProperty as:origin ;
+                                                                              owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                            ]
+                                                                          ) ;
+                                                       rdf:type owl:Class
+                                                     ] ;
+                                 rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                                 as:Remove ;
+                                 rdfs:comment "Remove an EmbargoEvent from the proposedEmbargoes of a VulnerabilityCase. This should only be performed by the case owner." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RemoveParticipantFromCase
+vultron_as:RemoveParticipantFromCase rdf:type owl:Class ;
+                                     owl:equivalentClass [ owl:intersectionOf ( as:Remove
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:object ;
+                                                                                  owl:someValuesFrom vultron_proto:CaseParticipant
+                                                                                ]
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:origin ;
+                                                                                  owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                                ]
+                                                                              ) ;
+                                                           rdf:type owl:Class
+                                                         ] ;
+                                     rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                                     as:Remove ;
+                                     rdfs:comment "Remove a CaseParticipant from a VulnerabilityCase. This should only be performed by the case owner." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmAcceptInviteToCase
+vultron_as:RmAcceptInviteToCase rdf:type owl:Class ;
+                                owl:equivalentClass [ owl:intersectionOf ( as:Accept
+                                                                           [ rdf:type owl:Restriction ;
+                                                                             owl:onProperty as:inReplyTo ;
+                                                                             owl:someValuesFrom vultron_as:RmInviteToCase
+                                                                           ]
+                                                                           [ rdf:type owl:Restriction ;
+                                                                             owl:onProperty as:object ;
+                                                                             owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                           ]
+                                                                         ) ;
+                                                      rdf:type owl:Class
+                                                    ] ;
+                                rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                                vultron_proto:MsgTypeRV ,
+                                                as:Accept ;
+                                rdfs:comment "The actor is accepting an invitation to a case. This corresponds to the Vultron Message Type RV when the case already exists. See also RmValidateReport for the scenario when the case does not exist yet." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmCloseCase
+vultron_as:RmCloseCase rdf:type owl:Class ;
+                       owl:equivalentClass [ owl:intersectionOf ( as:Leave
+                                                                  [ rdf:type owl:Restriction ;
+                                                                    owl:onProperty as:object ;
+                                                                    owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                  ]
+                                                                ) ;
+                                             rdf:type owl:Class
+                                           ] ;
+                       rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                       vultron_proto:MsgTypeRC ,
+                                       as:Leave ;
+                       owl:disjointWith vultron_as:RmDeferCase ;
+                       rdfs:comment "The actor is ending their participation in the case and closing their local copy of the case. This corresponds to the Vultron RC message type. Case closure is considered a permanent Leave from the case. If the case owner (attributedTo) is the actor, then the case is closed for all participants. If the actor is not the case owner, then the actor should be removed from the case participants." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmCloseReport
+vultron_as:RmCloseReport rdf:type owl:Class ;
+                         owl:equivalentClass [ owl:intersectionOf ( as:Leave
+                                                                    [ rdf:type owl:Restriction ;
+                                                                      owl:onProperty as:object ;
+                                                                      owl:someValuesFrom vultron_proto:VulnerabilityReport
+                                                                    ]
+                                                                  ) ;
+                                               rdf:type owl:Class
+                                             ] ;
+                         rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                         vultron_proto:MsgTypeRC ,
+                                         as:Leave ;
+                         rdfs:comment "The actor is closing the report. This corresponds to the Vultron Message Type RC when no case exists. It can only be emitted when the report is in the RM.INVALID state, because anything past that will have an associated VulnerabilityCase object, and closure of the case falls to the RmCloseCase activity." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmCreateReport
+vultron_as:RmCreateReport rdf:type owl:Class ;
+                          owl:equivalentClass [ owl:intersectionOf ( as:Create
+                                                                     [ rdf:type owl:Restriction ;
+                                                                       owl:onProperty as:object ;
+                                                                       owl:someValuesFrom vultron_proto:VulnerabilityReport
+                                                                     ]
+                                                                   ) ;
+                                                rdf:type owl:Class
+                                              ] ;
+                          rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                          as:Create ;
+                          rdfs:comment "The actor is creating a report." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmDeferCase
+vultron_as:RmDeferCase rdf:type owl:Class ;
+                       owl:equivalentClass [ owl:intersectionOf ( as:Ignore
+                                                                  [ rdf:type owl:Restriction ;
+                                                                    owl:onProperty as:object ;
+                                                                    owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                  ]
+                                                                ) ;
+                                             rdf:type owl:Class
+                                           ] ;
+                       rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                       vultron_proto:MsgTypeRD ,
+                                       as:Ignore ;
+                       rdfs:comment "The actor is deferring a case. This implies that the actor is no longer actively working on the case. Deferring a case does not imply that the actor is abandoning the case entirely, it just means that the actor is no longer actively working on it. This represents the Vultron Message Type RD, and indicates that the actor is now in the RM.DEFERRED state. Contrast with RmCloseCase, which indicates that the actor is abandoning the case entirely." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmEngageCase
+vultron_as:RmEngageCase rdf:type owl:Class ;
+                        owl:equivalentClass [ owl:intersectionOf ( as:Join
+                                                                   [ rdf:type owl:Restriction ;
+                                                                     owl:onProperty as:object ;
+                                                                     owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                   ]
+                                                                 ) ;
+                                              rdf:type owl:Class
+                                            ] ;
+                        rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                        vultron_proto:MsgTypeRA ,
+                                        as:Join ;
+                        rdfs:comment "The actor is has joined (i.e., is actively working on) a case. This represents the Vultron Message Type RA, and indicates that the actor is now in the RM.ACCEPTED state." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmError
+vultron_as:RmError rdf:type owl:Class ;
+                   owl:equivalentClass [ owl:intersectionOf ( as:Reject
+                                                              [ rdf:type owl:Restriction ;
+                                                                owl:onProperty as:object ;
+                                                                owl:someValuesFrom vultron_proto:ReportManagementMessageType
+                                                              ]
+                                                            ) ;
+                                         rdf:type owl:Class
+                                       ] ;
+                   rdfs:subClassOf vultron_as:VultronError ,
+                                   vultron_proto:MsgTypeRE .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmInvalidateReport
+vultron_as:RmInvalidateReport rdf:type owl:Class ;
+                              owl:equivalentClass [ owl:intersectionOf ( as:Reject
+                                                                         [ rdf:type owl:Restriction ;
+                                                                           owl:onProperty as:object ;
+                                                                           owl:someValuesFrom vultron_proto:VulnerabilityReport
+                                                                         ]
+                                                                       ) ;
+                                                    rdf:type owl:Class
+                                                  ] ;
+                              rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                              vultron_proto:MsgTypeRI ,
+                                              as:Reject ;
+                              rdfs:comment "The actor has invalidated a report. Corresponds to the Vultron Message Type RI when no case exists. See also RmRejectInviteToCase for the scenario when a case already exists." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmInviteToCase
+vultron_as:RmInviteToCase rdf:type owl:Class ;
+                          owl:equivalentClass [ owl:intersectionOf ( as:Invite
+                                                                     [ rdf:type owl:Restriction ;
+                                                                       owl:onProperty as:object ;
+                                                                       owl:someValuesFrom vultron_as:Actor
+                                                                     ]
+                                                                     [ rdf:type owl:Restriction ;
+                                                                       owl:onProperty as:target ;
+                                                                       owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                     ]
+                                                                   ) ;
+                                                rdf:type owl:Class
+                                              ] ;
+                          rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                          vultron_proto:MsgTypeRS ,
+                                          as:Invite ;
+                          rdfs:comment "The actor is inviting another actor to a case. This corresponds to the Vultron Message Type RS when a case already exists. See also RmSubmitReport for the scenario when a case does not exist yet." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmReEngageCase
+vultron_as:RmReEngageCase rdf:type owl:Class ;
+                          owl:equivalentClass [ owl:intersectionOf ( as:Undo
+                                                                     [ rdf:type owl:Restriction ;
+                                                                       owl:onProperty as:object ;
+                                                                       owl:someValuesFrom vultron_as:RmDeferCase
+                                                                     ]
+                                                                   ) ;
+                                                rdf:type owl:Class
+                                              ] ;
+                          rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                          vultron_proto:MsgTypeRA ,
+                                          as:Undo .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmReadMsg
+vultron_as:RmReadMsg rdf:type owl:Class ;
+                     owl:equivalentClass [ rdf:type owl:Class ;
+                                           owl:unionOf ( [ owl:intersectionOf ( as:Read
+                                                                                [ rdf:type owl:Restriction ;
+                                                                                  owl:onProperty as:object ;
+                                                                                  owl:someValuesFrom vultron_proto:MsgTypeAckableRm
+                                                                                ]
+                                                                              ) ;
+                                                           rdf:type owl:Class
+                                                         ]
+                                                         [ rdf:type owl:Restriction ;
+                                                           owl:onProperty as:inReplyTo ;
+                                                           owl:someValuesFrom vultron_proto:MsgTypeAckableRm
+                                                         ]
+                                                       )
+                                         ] ;
+                     rdfs:subClassOf vultron_proto:MsgTypeRK .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmReadReport
+vultron_as:RmReadReport rdf:type owl:Class ;
+                        owl:equivalentClass [ owl:intersectionOf ( as:Read
+                                                                   [ rdf:type owl:Restriction ;
+                                                                     owl:onProperty as:object ;
+                                                                     owl:someValuesFrom vultron_proto:VulnerabilityReport
+                                                                   ]
+                                                                 ) ;
+                                              rdf:type owl:Class
+                                            ] ;
+                        rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                        vultron_proto:MsgTypeRK ,
+                                        as:Read ;
+                        rdfs:comment "The actor has read a report. This corresponds to the Vultron Message Type RK when no case exists." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmRejectInviteToCase
+vultron_as:RmRejectInviteToCase rdf:type owl:Class ;
+                                owl:equivalentClass [ owl:intersectionOf ( as:Reject
+                                                                           [ rdf:type owl:Restriction ;
+                                                                             owl:onProperty as:inReplyTo ;
+                                                                             owl:someValuesFrom vultron_as:RmInviteToCase
+                                                                           ]
+                                                                           [ rdf:type owl:Restriction ;
+                                                                             owl:onProperty as:object ;
+                                                                             owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                           ]
+                                                                         ) ;
+                                                      rdf:type owl:Class
+                                                    ] ;
+                                rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                                vultron_proto:MsgTypeRI ,
+                                                as:Reject ;
+                                rdfs:comment "The actor is rejecting an invitation to a case. This corresponds to the Vultron Message Type RI when the case already exists. See also RmInvalidateReport for the scenario when the case does not exist yet." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmSubmitReport
+vultron_as:RmSubmitReport rdf:type owl:Class ;
+                          owl:equivalentClass [ owl:intersectionOf ( as:Offer
+                                                                     [ rdf:type owl:Restriction ;
+                                                                       owl:onProperty as:object ;
+                                                                       owl:someValuesFrom vultron_proto:VulnerabilityReport
+                                                                     ]
+                                                                   ) ;
+                                                rdf:type owl:Class
+                                              ] ;
+                          rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                          vultron_proto:MsgTypeRS ;
+                          rdfs:comment "The actor is submitting a report to another actor. This corresponds to the Vultron RS message type when no case exists. See also RmInviteToCase for the scenario when a case already exists." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#RmValidateReport
+vultron_as:RmValidateReport rdf:type owl:Class ;
+                            owl:equivalentClass [ owl:intersectionOf ( as:Accept
+                                                                       [ rdf:type owl:Restriction ;
+                                                                         owl:onProperty as:object ;
+                                                                         owl:someValuesFrom vultron_proto:VulnerabilityReport
+                                                                       ]
+                                                                     ) ;
+                                                  rdf:type owl:Class
+                                                ] ;
+                            rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                            vultron_proto:MsgTypeRV ,
+                                            as:Accept ;
+                            rdfs:comment "The actor has validated a report. Corresponds to the Vultron Message Type RV when no case exists. This should be followed by a Create(VulnerabilityCase) activity." .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#UpdateCase
+vultron_as:UpdateCase rdf:type owl:Class ;
+                      owl:equivalentClass [ owl:intersectionOf ( as:Update
+                                                                 [ rdf:type owl:Restriction ;
+                                                                   owl:onProperty as:object ;
+                                                                   owl:someValuesFrom vultron_proto:VulnerabilityCase
+                                                                 ]
+                                                               ) ;
+                                            rdf:type owl:Class
+                                          ] ;
+                      rdfs:subClassOf vultron_as:CaseOwnerActivity ,
+                                      as:Update ;
+                      rdfs:comment "Update a VulnerabilityCase" .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#VulnerabilityCase
+vultron_as:VulnerabilityCase rdf:type owl:Class ;
+                             rdfs:subClassOf vultron_proto:VulnerabilityCase ,
+                                             as:Object .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#VulnerabilityReport
+vultron_as:VulnerabilityReport rdf:type owl:Class ;
+                               rdfs:subClassOf vultron_proto:VulnerabilityReport ,
+                                               as:Object .
+
+
+###  http://www.cert.org/ns/vultron_activitystreams#VultronError
+vultron_as:VultronError rdf:type owl:Class ;
+                        rdfs:subClassOf vultron_as:CaseParticipantActivity ,
+                                        as:Reject .
+
+
+###  http://www.cert.org/ns/vultron_protocol#Actor
+vultron_proto:Actor rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Activity
+as:Activity rdfs:subClassOf _:genid290 .
+
+_:genid290 rdf:type owl:Restriction ;
+            owl:onProperty as:attributedTo ;
+            owl:someValuesFrom vultron_as:Actor .
+
+[ rdf:type owl:Axiom ;
+   owl:annotatedSource as:Activity ;
+   owl:annotatedProperty rdfs:subClassOf ;
+   owl:annotatedTarget _:genid290 ;
+   rdfs:comment "An activity must be attributed to one and only one actor."
+ ] .
+
+
+###  http://www.w3.org/ns/activitystreams#Offer
+as:Offer rdfs:subClassOf [ rdf:type owl:Restriction ;
+                           owl:onProperty as:to ;
+                           owl:someValuesFrom vultron_as:Actor
+                         ] .
+
+
+[ owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger
+] .
+
+[ owl:maxQualifiedCardinality "0"^^xsd:nonNegativeInteger
+ ] .
+
+[ owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger
+ ] .
+
+[ owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger
+ ] .
+
+###  Generated by the OWL API (version 4.5.26.2023-07-17T20:34:13Z) https://github.com/owlcs/owlapi

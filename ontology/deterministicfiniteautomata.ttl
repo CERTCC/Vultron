@@ -1,0 +1,168 @@
+@prefix : <http://www.cert.org/ns/deterministicfiniteautomata#> .
+@prefix dfa: <http://www.cert.org/ns/deterministicfiniteautomata#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@base <http://www.cert.org/ns/deterministicfiniteautomata> .
+
+<http://www.cert.org/ns/deterministicfiniteautomata> rdf:type owl:Ontology .
+
+#################################################################
+#    Object Properties
+#################################################################
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#fromState
+dfa:fromState rdf:type owl:ObjectProperty ;
+              rdfs:subPropertyOf owl:topObjectProperty ;
+              rdfs:domain dfa:Transition ;
+              rdfs:range dfa:State .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#hasFinalState
+dfa:hasFinalState rdf:type owl:ObjectProperty ;
+                  rdfs:subPropertyOf owl:topObjectProperty ;
+                  rdfs:domain dfa:DeterministicFiniteAutomata ;
+                  rdfs:range dfa:State .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#hasInputSymbol
+dfa:hasInputSymbol rdf:type owl:ObjectProperty ;
+                   rdfs:subPropertyOf owl:topObjectProperty ;
+                   owl:inverseOf dfa:isInputSymbolOf ;
+                   rdfs:domain dfa:DeterministicFiniteAutomata ;
+                   rdfs:range dfa:Symbol .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#hasStartState
+dfa:hasStartState rdf:type owl:ObjectProperty ;
+                  rdfs:subPropertyOf owl:topObjectProperty ;
+                  owl:inverseOf dfa:isStartStateOf ;
+                  rdfs:domain dfa:DeterministicFiniteAutomata ;
+                  rdfs:range dfa:State .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#hasState
+dfa:hasState rdf:type owl:ObjectProperty ;
+             rdfs:subPropertyOf owl:topObjectProperty ;
+             owl:inverseOf dfa:isStateOf ;
+             rdfs:domain dfa:DeterministicFiniteAutomata ;
+             rdfs:range dfa:State .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#hasTransition
+dfa:hasTransition rdf:type owl:ObjectProperty ;
+                  rdfs:subPropertyOf owl:topObjectProperty ;
+                  owl:inverseOf dfa:isTransitionOf ;
+                  rdfs:domain dfa:DeterministicFiniteAutomata ;
+                  rdfs:range dfa:Transition .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#isFinalStateOf
+dfa:isFinalStateOf rdf:type owl:ObjectProperty ;
+                   rdfs:subPropertyOf owl:topObjectProperty ;
+                   rdfs:domain dfa:State ;
+                   rdfs:range dfa:DeterministicFiniteAutomata .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#isInputSymbolOf
+dfa:isInputSymbolOf rdf:type owl:ObjectProperty ;
+                    rdfs:subPropertyOf owl:topObjectProperty ;
+                    rdfs:domain dfa:Symbol ;
+                    rdfs:range dfa:DeterministicFiniteAutomata .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#isStartStateOf
+dfa:isStartStateOf rdf:type owl:ObjectProperty ;
+                   rdfs:subPropertyOf owl:topObjectProperty ;
+                   rdfs:domain dfa:State ;
+                   rdfs:range dfa:DeterministicFiniteAutomata .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#isStateOf
+dfa:isStateOf rdf:type owl:ObjectProperty ;
+              rdfs:subPropertyOf owl:topObjectProperty ;
+              rdfs:domain dfa:State ;
+              rdfs:range dfa:DeterministicFiniteAutomata .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#isTransitionOf
+dfa:isTransitionOf rdf:type owl:ObjectProperty ;
+                   rdfs:subPropertyOf owl:topObjectProperty ;
+                   rdfs:domain dfa:Transition ;
+                   rdfs:range dfa:DeterministicFiniteAutomata .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#onSymbol
+dfa:onSymbol rdf:type owl:ObjectProperty ;
+             owl:equivalentProperty dfa:triggeredBy ;
+             rdfs:subPropertyOf owl:topObjectProperty ;
+             owl:inverseOf dfa:triggerOf ;
+             rdfs:domain dfa:Transition ;
+             rdfs:range dfa:Symbol .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#toState
+dfa:toState rdf:type owl:ObjectProperty ;
+            rdfs:subPropertyOf owl:topObjectProperty ;
+            rdfs:domain dfa:Transition ;
+            rdfs:range dfa:State .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#triggerOf
+dfa:triggerOf rdf:type owl:ObjectProperty ;
+              rdfs:domain dfa:Symbol ;
+              rdfs:range dfa:Transition .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#triggeredBy
+dfa:triggeredBy rdf:type owl:ObjectProperty .
+
+
+#################################################################
+#    Classes
+#################################################################
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#DFA
+dfa:DFA rdf:type owl:Class ;
+        owl:equivalentClass dfa:DeterministicFiniteAutomata .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#DeterministicFiniteAutomata
+dfa:DeterministicFiniteAutomata rdf:type owl:Class ;
+                                owl:equivalentClass [ rdf:type owl:Restriction ;
+                                                      owl:onProperty dfa:hasFinalState ;
+                                                      owl:someValuesFrom dfa:State
+                                                    ] ,
+                                                    [ rdf:type owl:Restriction ;
+                                                      owl:onProperty dfa:hasInputSymbol ;
+                                                      owl:someValuesFrom dfa:Symbol
+                                                    ] ,
+                                                    [ rdf:type owl:Restriction ;
+                                                      owl:onProperty dfa:hasStartState ;
+                                                      owl:someValuesFrom dfa:State
+                                                    ] ,
+                                                    [ rdf:type owl:Restriction ;
+                                                      owl:onProperty dfa:hasState ;
+                                                      owl:someValuesFrom dfa:State
+                                                    ] ,
+                                                    [ rdf:type owl:Restriction ;
+                                                      owl:onProperty dfa:hasTransition ;
+                                                      owl:someValuesFrom dfa:Transition
+                                                    ] .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#State
+dfa:State rdf:type owl:Class .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#Symbol
+dfa:Symbol rdf:type owl:Class .
+
+
+###  http://www.cert.org/ns/deterministicfiniteautomata#Transition
+dfa:Transition rdf:type owl:Class .
+
+
+###  Generated by the OWL API (version 4.5.26.2023-07-17T20:34:13Z) https://github.com/owlcs/owlapi
