@@ -1,4 +1,4 @@
-# Process RM Messages Behavior {#sec:process_rm_messages_bt}
+# Process RM Messages Behavior
 
 The Process RM Messages Behavior Tree is shown below.
 

@@ -1,4 +1,4 @@
-# Deployment Behavior {#sec:deployment_bt}
+# Deployment Behavior
 
 The Deployment Behavior Tree is shown in the figure below.
 The goal of this behavior is either for (A) the case to reach the $q^{cs} \in D$ state or (B) for the Participant to be

@@ -1,4 +1,4 @@
-# Process Other Messages Behavior {#sec:process_gen_messages_bt}
+# Process Other Messages Behavior
 
 The Process Other Messages Behavior Tree is shown below.
 

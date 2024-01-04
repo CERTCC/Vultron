@@ -43,7 +43,7 @@ scheduling a meeting in a calendaring system.
 In [EM and iCalendar](em_icalendar.md), we suggest a potential mapping of many of the concepts from the EM process
 onto [`iCalendar`](https://en.wikipedia.org/wiki/ICalendar) protocol semantics.
 
-### Embargo Management Does Not Deliver Synchronized Publication {#sec:pub_sync}
+### Embargo Management Does Not Deliver Synchronized Publication
 
 In our protocol design, we were careful to focus the EM process on establishing when publication restrictions are
 lifted.

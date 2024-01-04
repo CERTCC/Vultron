@@ -1,4 +1,4 @@
-# Process EM Messages Behavior {#sec:process_em_messages_bt}
+# Process EM Messages Behavior
 
 The Process EM Messages Behavior Tree is shown below.
 

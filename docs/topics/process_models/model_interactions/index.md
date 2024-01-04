@@ -1,4 +1,4 @@
-# Model Interactions {#ch:interactions}
+# Model Interactions
 
 {% include-markdown "../../../includes/normative.md" %}
 

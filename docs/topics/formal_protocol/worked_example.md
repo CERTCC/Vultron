@@ -44,7 +44,7 @@ sequenceDiagram
     Vendor -->> Finder: RK, EK, CV
 ```
 
-## Vendor Evaluates Embargo {#sec:vendor_eval_embargo_seq}
+## Vendor Evaluates Embargo
 
 In this section, we show a variety of responses a Vendor might have to an embargo proposal.
 
@@ -192,7 +192,7 @@ sequenceDiagram
     Reporter -->> Vendor: RK
 ```
 
-## Coordination With a Coordinator {#sec:coordinating_with_coordinator}
+## Coordination With a Coordinator
 
 The next two diagrams show the process of a Reporter engaging a Coordinator, who, in turn, engages a Vendor.
 The process begins in the first diagram with the Reporter sending a report along with an embargo proposal to the Coordinator

@@ -1,4 +1,4 @@
-# Interactions Between the RM and EM Models {#sec:rm_em_interactions}
+# Interactions Between the RM and EM Models
 
 {% include-markdown "../../../includes/normative.md" %}
 
