@@ -8,11 +8,10 @@ In this section, we'll provide some examples of how the Vultron protocol
 message types can be represented as ActivityPub messages using the
 [ActivityStreams vocabulary](https://www.w3.org/TR/activitystreams-vocabulary/).
 
-
 ## ActivityStreams Vocabulary
 
 The [ActivityStreams vocabulary](https://www.w3.org/TR/activitystreams-vocabulary/) can be thought of as defining a
-grammar for describing activities that are performed by actors. The generic structure of a sentence that can be 
+grammar for describing activities that are performed by actors. The generic structure of a sentence that can be
 described using the ActivityStreams vocabulary is:
 
 ```mermaid
@@ -38,10 +37,10 @@ From this perspective, the ActivityStreams vocabulary can be used to compose act
 
 Vultron ActivityStreams (Vultron AS) is an extension of the
 [ActivityStreams vocabulary](https://www.w3.org/TR/activitystreams-vocabulary/)
-to describe the mapping of Vultron to ActivityStreams. 
+to describe the mapping of Vultron to ActivityStreams.
 Vultron AS defines a number of new objects and activities that are used in the
 Vultron protocol. These are described in the following sections:
 
 - [Objects](objects.md) - We begin with a description of a few objects that are used in the
-Vultron AS vocabulary. 
+Vultron AS vocabulary.
 - [Activities](activities/index.md) - Then we describe the activities that are used in the Vultron AS vocabulary.

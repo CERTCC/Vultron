@@ -32,7 +32,7 @@ There are a number of ways you can contribute to the development of Vultron.
 
 ### Submit Pull Requests
 
-- Potential contributors should review 
+- Potential contributors should review
 [ContributionInstructions.md](https://github.com/CERTCC/Vultron/blob/main/ContributionInstructions.md)
 before submitting a PR.
 - Before making any significant changes that you expect to result in a pull request, we encourage you to discuss your plans with
