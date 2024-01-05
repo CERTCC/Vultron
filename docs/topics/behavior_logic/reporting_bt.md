@@ -54,7 +54,7 @@ flowchart LR
     seq --> identify_other
 ```
 
-## Notify Others Behavior {#sec:notify_others}
+## Notify Others Behavior
 
 The Notify Others Behavior Tree is shown in the figure below.
 

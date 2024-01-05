@@ -1,4 +1,4 @@
-# A Formal Protocol Definition for MPCVD {#sec:formal_protocol}
+# A Formal Protocol Definition for MPCVD
 
 {% include-markdown "../../includes/normative.md" %}
 
@@ -10,7 +10,7 @@ models described elsewhere.
 
 {% include-markdown "../../includes/do_not_start_here.md" %}
 
-## Communication Protocol Definitions {#sec:protocol_definition}
+## Communication Protocol Definitions
 
 A communication protocol allows independent processes, represented as finite state machines, to coordinate their state
 transitions through the passing of messages. [Brand and Zafiropulo](https://doi.org/10.1145/322374.322380) defined

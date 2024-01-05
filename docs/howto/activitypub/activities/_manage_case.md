@@ -1,7 +1,7 @@
 # Managing a Case
 
 Case management activities reflect the
-[Report Management](../process_models/rm/index.md) process model.
+[Report Management](../../../topics/process_models/rm/index.md) process model.
 
 ```mermaid
 flowchart LR

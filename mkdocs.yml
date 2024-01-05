@@ -82,7 +82,7 @@ nav:
       - Vultron ActivityPub:
           - ActivityPub Intro: 'howto/activitypub/index.md'
           - Vultron AS Objects: 'howto/activitypub/objects.md'
-          - Vultron AS Activities: 'howto/activitypub/activities.md'
+          - Vultron AS Activities: 'howto/activitypub/activities/index.md'
       - EM and iCalendar: 'howto/em_icalendar.md'
       - General Notes: 'howto/general_implementation.md'
   - Reference:

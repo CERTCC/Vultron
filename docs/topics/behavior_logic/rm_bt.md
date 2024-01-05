@@ -1,4 +1,4 @@
-# Report Management Behavior Tree {#sec:rm_bt}
+# Report Management Behavior Tree
 
 A Behavior Tree for the Report Management model is shown in the figure below.
 The Report Management process is represented by a Fallback node. Note

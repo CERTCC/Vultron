@@ -35,7 +35,7 @@ flowchart LR
 
 !!! info "More Acknowledgements in the Ontology"
 
-    The [Vultron AS ontology](../../reference/ontology/vultron_as.md) defines a
+    The [Vultron AS ontology](../../../reference/ontology/vultron_as.md) defines a
     number of ActivityStreams activities that can serve as the various acknowledgements that are used in the Vultron
     protocol. These include messages that are specifically `as:inReplyTo` a
     message defined as one of the core protocol message types.

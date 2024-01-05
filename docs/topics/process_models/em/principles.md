@@ -96,7 +96,7 @@ Furthermore, we need to establish a few norms related to embargo timing.
 
 {% include-markdown "./_nda_sidebar.md" %}
 
-## Embargo Participants Are Free to Engage or Disengage {#sec:embargo_engagement}
+## Embargo Participants Are Free to Engage or Disengage
 
 As we [just described](#cvd-embargoes-are-not-ndas), an embargo is not the
 same thing as an NDA, even if they have similar effects.

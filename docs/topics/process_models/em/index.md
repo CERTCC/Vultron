@@ -276,7 +276,7 @@ stateDiagram-v2
     eXited --> [*]
 ```
 
-#### A Regular Grammar for EM {#sec:em_grammar}
+#### A Regular Grammar for EM
 
 ???+ note inline end "EM Transition Function ($\delta^{em}$) Defined"
 

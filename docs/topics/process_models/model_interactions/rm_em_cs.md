@@ -117,7 +117,7 @@ stateDiagram-v2
             Revise \\
         \end{cases}$$
 
-## Fix Ready {#sec:cs_f_em}
+## Fix Ready
 
 Fix Readiness (**F**) can occur only when a Vendor is in the
 *Accepted* state. As a reminder, in MPCVD cases, each affected Vendor has their own

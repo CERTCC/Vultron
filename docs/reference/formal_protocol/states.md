@@ -1,4 +1,4 @@
-# States {#sec:protocol_states}
+# States
 
 {% include-markdown "../../includes/normative.md" %}
 

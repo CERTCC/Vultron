@@ -1,4 +1,4 @@
-# Transition Functions {#sec:protocol_transition_functions}
+# Transition Functions
 
 {% include-markdown "../../includes/normative.md" %}
 

@@ -1,4 +1,4 @@
-# Modeling an MPCVD AI Using Behavior Trees {#ch:behavior_trees}
+# Modeling an MPCVD AI Using Behavior Trees
 
 With the formal definition of the Vultron Protocol behind us, we now turn our
 attention to reflect on one of many possible paths toward
