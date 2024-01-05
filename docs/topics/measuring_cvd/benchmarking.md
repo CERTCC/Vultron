@@ -2,7 +2,6 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-
 [Observational analysis](./observing_skill.md) supports an affirmative response to
 **RQ3**: vulnerability disclosure as currently practiced demonstrates
 skill. In both data sets examined, our estimated $\alpha_d$ is positive
@@ -27,6 +26,7 @@ frequencies in [Reasoning over Histories](./reasoning_over_histories.md#event-or
 This analysis baseline
 would provide context on "more skillful than the average for some set of
 teams" rather than more skillful than blind luck.
+
 - [CVD Benchmarks](#cvd-benchmarks) discusses this topic, which should be viewed as an examination of what
 "reasonable" should mean in the context of a "reasonable baseline expectation."
 - [MPCVD](#mpcvd) suggests how the model might be applied to establish benchmarks for

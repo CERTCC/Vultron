@@ -8,7 +8,7 @@ provide a descriptive model of the
 life cycle of vulnerabilities from inception to attacks and remediation, which we refined with those of
 [Frei et al.](https://doi.org/10.1007/978-1-4419-6967-5_6), and [Bilge et al.](https://doi.org/10.1145/2382196.2382284) to form the
 basis of this model as described in
-§[2.1](#sec:events){== TODO fix ref to sec:events ==}. 
+§[2.1](#sec:events){== TODO fix ref to sec:events ==}.
 - We also found
 [Lewis' literature review of vulnerability lifecycle models](http://dspace.lib.cranfield.ac.uk/handle/1826/12665) to
 be useful.
@@ -33,7 +33,7 @@ perspective of a vendor receiving vulnerability reports, while ISO/IEC
 vendor{== TODO replace ref with link ==} [@ISO29147; @ISO30111].
 - The FIRST *PSIRT Services Framework* provides a practical
 description of the capabilities common to vulnerability response within
-vendor organizations [@first2020psirt]{== TODO replace ref with link ==}. 
+vendor organizations [@first2020psirt]{== TODO replace ref with link ==}.
 - The FIRST *Guidelines
 and Practices for Multi-Party Vulnerability Coordination and Disclosure*
 provides a number of scenarios for MPCVD [@first2020mpcvd]{== TODO replace ref with link ==}. Many of these
@@ -80,9 +80,9 @@ Economic analysis of CVD has also been done.
 - Arora et al. explored the CVD process
 from an economic and social welfare
 perspective [@arora2005economics; @arora2006does; @arora2006research; @arora2008optimal; @arora2010competition; @arora2010empirical]{== TODO replace ref with link ==}.
-- More recently, so did Silfversten [@silfversten2018economics]{== TODO replace ref with link ==}. 
+- More recently, so did Silfversten [@silfversten2018economics]{== TODO replace ref with link ==}.
 - Cavusoglu and Cavusoglu model the mechanisms involved in motivating vendors to
-produce and release patches [@cavusoglu2007efficiency]{== TODO replace ref with link ==}. 
+produce and release patches [@cavusoglu2007efficiency]{== TODO replace ref with link ==}.
 - Ellis et al.
 examined the dynamics of labor market for bug bounties both within and
 across CVD programs
@@ -97,11 +97,11 @@ Other work has examined the timing of events in the lifecycle, sometimes
 with implications for forecasting.
 
 - Ozment and Schechter examined the
-rate of vulnerability reports as software ages [@ozment2006milk]{== TODO replace ref with link ==}. 
+rate of vulnerability reports as software ages [@ozment2006milk]{== TODO replace ref with link ==}.
 - Bilge
 and Dumitraş studied 18 vulnerabilities in which
 ${pa} \xrightarrow{\mathbf{A}} {pA} \xrightarrow{\mathbf{P}} {PA}$,
-finding a lag of over 300 days [@bilge2012before]{== TODO replace ref with link ==}. 
+finding a lag of over 300 days [@bilge2012before]{== TODO replace ref with link ==}.
 - Jacobs et al.
 proposed an Exploit Prediction Scoring System [@jacobs2020epss]{== TODO replace ref with link ==}, which
 could provide insight into the relative frequencies of
