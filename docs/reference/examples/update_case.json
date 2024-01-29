@@ -1,0 +1,9 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Update",
+  "id": "https://for.example/a9e4babf-4598-4295-87ff-895eb39818ac",
+  "name": "https://vultron.example/organizations/vendor Update https://vultron.example/cases/VDR-20991514",
+  "content": "We're updating the case to reflect a transfer of ownership.",
+  "actor": "https://vultron.example/organizations/vendor",
+  "object": "https://vultron.example/cases/VDR-20991514"
+}

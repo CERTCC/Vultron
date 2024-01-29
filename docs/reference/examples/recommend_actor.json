@@ -1,0 +1,12 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Offer",
+  "id": "https://for.example/55e567a2-a259-41e9-8f26-67518e21018a",
+  "name": "https://vultron.example/users/finn Offer https://vultron.example/organizations/coordinator to https://vultron.example/cases/VDR-20991514",
+  "context": "https://vultron.example/cases/VDR-20991514",
+  "content": "I'm recommending we add Coordinator LLC to the case.",
+  "to": "https://vultron.example/organizations/vendor",
+  "actor": "https://vultron.example/users/finn",
+  "target": "https://vultron.example/cases/VDR-20991514",
+  "object": "https://vultron.example/organizations/coordinator"
+}

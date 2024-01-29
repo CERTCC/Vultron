@@ -63,7 +63,7 @@ Future work is discussed in [Future Work](../future_work/index.md).
 Reference material includes
 
 - the [Formal Protocol](../../reference/formal_protocol/index.md) description
-- an [ISO Crosswalk](../../reference/iso_crosswalk.md) contains a detailed crosswalk of our
+- an [ISO Crosswalk](../../reference/iso_crosswalks/index.md) contains a detailed crosswalk of our
   protocol with ISO/IEC 29147:2018 *Vulnerability Disclosure*, ISO/IEC
   30111:2019 *Vulnerability Handling Processes*, and ISO/IEC TR 5895:2022
   *Multi-party coordinated vulnerability disclosure and handling*.

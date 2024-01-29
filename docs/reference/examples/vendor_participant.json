@@ -1,0 +1,27 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "CaseParticipant",
+  "id": "https://vultron.example/cases/VDR-20991514/participants/vendor",
+  "name": "VendorCo",
+  "context": "https://vultron.example/cases/VDR-20991514",
+  "actor": "https://vultron.example/organizations/vendor",
+  "caseRoles": [
+    "VENDOR"
+  ],
+  "participantStatus": [
+    {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "ParticipantStatus",
+      "id": "https://for.example/4748b4ea-7423-4202-a575-ece8e69ab305",
+      "name": "REPORT_MANAGEMENT_RECEIVED Vfd",
+      "context": "https://vultron.example/cases/VDR-20991514",
+      "published": "2024-01-22T20:29:47+00:00",
+      "updated": "2024-01-22T20:29:47+00:00",
+      "actor": "https://vultron.example/organizations/vendor",
+      "rmState": "REPORT_MANAGEMENT_RECEIVED",
+      "vfdState": "Vfd",
+      "caseEngagement": true,
+      "embargoAdherence": true
+    }
+  ]
+}

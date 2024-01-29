@@ -1,5 +1,7 @@
 # Activities
 
+{% include-markdown "../../../includes/not_normative.md" %}
+
 Activities are the core of the ActivityPub protocol. They are used to
 represent actions that are performed by actors. The ActivityStreams
 vocabulary defines a number of activities, and we extend these with specific
@@ -11,8 +13,6 @@ are used in the Vultron protocol.
 A full mapping of Vultron to ActivityStreams is available in the
 [Vultron ActivityStreams Ontology](../../../reference/ontology/vultron_as.md).
 
-{== TODO this really needs to be organized by user flow ==}
-
 !!! note "Design Goals"
 
     Our goal in each of these activity definitions is to
@@ -22,22 +22,24 @@ A full mapping of Vultron to ActivityStreams is available in the
     confusion. Each activity type / object / target combination should have a
     single meaning within the protocol.
 
-{% include-markdown "./_report_vulnerability.md" heading-offset=1 %}
+For documentation purposes, we have divided the Vultron AS activities by user flow.
+Each of these user flows shows the activities that are used to perform a specific
+task. The user flows are:
 
-{% include-markdown "./_initialize_case.md" heading-offset=1 %}
-{% include-markdown "./_manage_case.md" heading-offset=1 %}
-{% include-markdown "./_transfer_ownership.md" heading-offset=1 %}
+<div class="grid cards" markdown>
 
-{% include-markdown "./_suggest_actor.md" heading-offset=1 %}
-{% include-markdown "./_invite_actor.md" heading-offset=1 %}
-{% include-markdown "./_initialize_participant.md" heading-offset=1 %}
-{% include-markdown "./_manage_participants.md" heading-offset=1 %}
+- :material-message-alert: [Reporting a Vulnerability](./report_vulnerability.md)
+- :material-text-box-check: [Acknowledging a Report](./acknowledge.md)
+- :material-briefcase-plus: [Initializing a Case](./initialize_case.md)
+- :material-briefcase-edit: [Managing a Case](./manage_case.md)
+- :fontawesome-solid-person-circle-plus: [Suggest Actor for Case](./suggest_actor.md)
+- :fontawesome-solid-people-arrows: [Inviting an Actor to a Case](./invite_actor.md)
+- :fontawesome-solid-person-circle-check: [Initializing a Participant](./initialize_participant.md)
+- :fontawesome-solid-people-group: [Managing Participants](./manage_participants.md)
+- :material-calendar-start: [Establishing an Embargo](./establish_embargo.md)
+- :material-calendar-edit: [Managing an Embargo](./manage_embargo.md)
+- :material-message-plus: [Status Updates](./status_updates.md)
+- :fontawesome-solid-arrow-right-to-city: [Transferring Case Ownership](./transfer_ownership.md)
+- :material-lightning-bolt-circle: [Error Handling](./error.md)
 
-{% include-markdown "./_establish_embargo.md" heading-offset=1 %}
-{% include-markdown "./_manage_embargo.md" heading-offset=1 %}
-
-{% include-markdown "./_status_updates.md" heading-offset=1 %}
-
-{% include-markdown "./_acknowledge.md" heading-offset=1 %}
-
-{% include-markdown "./_error.md" heading-offset=1 %}
+</div>

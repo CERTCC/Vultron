@@ -1,0 +1,10 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Remove",
+  "id": "https://for.example/6872b216-eaf2-48dc-bc83-b1af0a2a0e58",
+  "name": "https://vultron.example/organizations/vendor Remove https://vultron.example/cases/VDR-20991514/participants/coordinator from https://vultron.example/cases/VDR-20991514",
+  "summary": "Vendor is removing the coordinator from the case.",
+  "actor": "https://vultron.example/organizations/vendor",
+  "origin": "https://vultron.example/cases/VDR-20991514",
+  "object": "https://vultron.example/cases/VDR-20991514/participants/coordinator"
+}

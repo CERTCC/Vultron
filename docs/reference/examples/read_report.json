@@ -1,0 +1,9 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Read",
+  "id": "https://for.example/21d4ea22-404a-4ff1-b0b9-cbba62ab5381",
+  "name": "https://vultron.example/organizations/vendor Read https://vultron.example/reports/FDR-8675309",
+  "content": "We've read the report. We'll get back to you soon.",
+  "actor": "https://vultron.example/organizations/vendor",
+  "object": "https://vultron.example/reports/FDR-8675309"
+}

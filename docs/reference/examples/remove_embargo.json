@@ -1,0 +1,20 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Remove",
+  "id": "https://for.example/7b0e014f-b132-4ff6-a57f-026c2c27c77a",
+  "name": "https://vultron.example/organizations/vendor Remove Embargo for https://vultron.example/cases/VDR-20991514 start: 2024-01-22T15:29:00-05:00 end: 2024-04-21T01:00:00-04:00 from https://vultron.example/cases/VDR-20991514",
+  "actor": "https://vultron.example/organizations/vendor",
+  "origin": "https://vultron.example/cases/VDR-20991514",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "EmbargoEvent",
+    "id": "https://vultron.example/cases/VDR-20991514/embargo_events/2024-04-21T01:00:00-04:00",
+    "name": "Embargo for https://vultron.example/cases/VDR-20991514 start: 2024-01-22T15:29:00-05:00 end: 2024-04-21T01:00:00-04:00",
+    "context": "https://vultron.example/cases/VDR-20991514",
+    "startTime": "2024-01-22T15:29:00-05:00",
+    "endTime": "2024-04-21T01:00:00-04:00",
+    "published": "2024-01-22T20:29:47+00:00",
+    "updated": "2024-01-22T20:29:47+00:00",
+    "content": "We propose to embargo VENDOR Case #20991514 for 90 days."
+  }
+}

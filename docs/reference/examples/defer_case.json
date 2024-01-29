@@ -1,0 +1,9 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Ignore",
+  "id": "https://for.example/3069563e-2d2e-47b8-ad78-f4f295ece3b1",
+  "name": "https://vultron.example/organizations/vendor Ignore https://vultron.example/cases/VDR-20991514",
+  "content": "We're deferring this case.",
+  "actor": "https://vultron.example/organizations/vendor",
+  "object": "https://vultron.example/cases/VDR-20991514"
+}

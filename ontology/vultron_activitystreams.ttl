@@ -13,8 +13,7 @@
 @base <http://www.cert.org/ns/vultron_activitystreams#> .
 
 <http://www.cert.org/ns/vultron_activitystreams> rdf:type owl:Ontology ;
-                                                  owl:imports <http://www.cert.org/ns/vultron_protocol> ,
-                                                              as: ;
+                                                  owl:imports <http://www.cert.org/ns/vultron_protocol> ;
                                                   rdfs:comment "An ontology representing version Vultron Message Types and related classes building on the ActivityStreams 2 ontology." .
 
 #################################################################
@@ -31,6 +30,54 @@ owl:minQualifiedCardinality rdf:type owl:AnnotationProperty .
 
 ###  http://www.w3.org/2002/07/owl#qualifiedCardinality
 owl:qualifiedCardinality rdf:type owl:AnnotationProperty .
+
+
+#################################################################
+#    Object Properties
+#################################################################
+
+###  http://www.w3.org/ns/activitystreams#anyOf
+as:anyOf rdf:type owl:ObjectProperty .
+
+
+###  http://www.w3.org/ns/activitystreams#attributedTo
+as:attributedTo rdf:type owl:ObjectProperty .
+
+
+###  http://www.w3.org/ns/activitystreams#context
+as:context rdf:type owl:ObjectProperty .
+
+
+###  http://www.w3.org/ns/activitystreams#inReplyTo
+as:inReplyTo rdf:type owl:ObjectProperty .
+
+
+###  http://www.w3.org/ns/activitystreams#object
+as:object rdf:type owl:ObjectProperty .
+
+
+###  http://www.w3.org/ns/activitystreams#oneOf
+as:oneOf rdf:type owl:ObjectProperty .
+
+
+###  http://www.w3.org/ns/activitystreams#origin
+as:origin rdf:type owl:ObjectProperty .
+
+
+###  http://www.w3.org/ns/activitystreams#target
+as:target rdf:type owl:ObjectProperty .
+
+
+###  http://www.w3.org/ns/activitystreams#to
+as:to rdf:type owl:ObjectProperty .
+
+
+#################################################################
+#    Data properties
+#################################################################
+
+###  http://www.w3.org/ns/activitystreams#endTime
+as:endTime rdf:type owl:DatatypeProperty .
 
 
 #################################################################
@@ -139,7 +186,11 @@ vultron_as:AddEmbargoToCase rdf:type owl:Class ;
                                                 ] ;
                             rdfs:subClassOf vultron_as:CaseOwnerActivity ,
                                             as:Add ;
-                            rdfs:comment "Add an EmbargoEvent to a VulnerabilityCase. This implies that the case owner is setting the embargo for the case, which would usually come after an embargo proposal has been accepted by the case owner as in ActivateEmbargo. For embargo proposals, see EmProposeEmbargo." .
+                            rdfs:comment """Add an EmbargoEvent to a VulnerabilityCase. This implies that the case owner is setting the embargo for the case, which would usually come after an embargo proposal has been accepted by the case owner as in ActivateEmbargo (which is otherwise identical to AddEmbargoToCase except that ActivateEmbargo is InReplyTo some embargo proposal.)
+
+For this reason, in most cases, ActivateEmbargo should be preferred when responding to a proposed embargo. The usefulness AddEmbargoToCase is likely limited to use in situations where a case owner is declaring an embargo by fiat on a case where no previous embargo had existed or been proposed.
+
+For embargo proposals, see EmProposeEmbargo.""" .
 
 
 ###  http://www.cert.org/ns/vultron_activitystreams#AddNoteToCase
@@ -1002,8 +1053,13 @@ vultron_as:VultronError rdf:type owl:Class ;
 vultron_proto:Actor rdf:type owl:Class .
 
 
+###  http://www.w3.org/ns/activitystreams#Accept
+as:Accept rdf:type owl:Class .
+
+
 ###  http://www.w3.org/ns/activitystreams#Activity
-as:Activity rdfs:subClassOf _:genid290 .
+as:Activity rdf:type owl:Class ;
+            rdfs:subClassOf _:genid290 .
 
 _:genid290 rdf:type owl:Restriction ;
             owl:onProperty as:attributedTo ;
@@ -1017,23 +1073,108 @@ _:genid290 rdf:type owl:Restriction ;
  ] .
 
 
+###  http://www.w3.org/ns/activitystreams#Add
+as:Add rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Announce
+as:Announce rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Application
+as:Application rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Create
+as:Create rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Event
+as:Event rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Group
+as:Group rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Ignore
+as:Ignore rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Invite
+as:Invite rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Join
+as:Join rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Leave
+as:Leave rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Note
+as:Note rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Object
+as:Object rdf:type owl:Class .
+
+
 ###  http://www.w3.org/ns/activitystreams#Offer
-as:Offer rdfs:subClassOf [ rdf:type owl:Restriction ;
+as:Offer rdf:type owl:Class ;
+         rdfs:subClassOf [ rdf:type owl:Restriction ;
                            owl:onProperty as:to ;
                            owl:someValuesFrom vultron_as:Actor
                          ] .
 
 
-[ owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger
+###  http://www.w3.org/ns/activitystreams#Organization
+as:Organization rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Person
+as:Person rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Question
+as:Question rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Read
+as:Read rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Reject
+as:Reject rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Remove
+as:Remove rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Service
+as:Service rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Undo
+as:Undo rdf:type owl:Class .
+
+
+###  http://www.w3.org/ns/activitystreams#Update
+as:Update rdf:type owl:Class .
+
+
+[ owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger
 ] .
+
+[ owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger
+ ] .
 
 [ owl:maxQualifiedCardinality "0"^^xsd:nonNegativeInteger
  ] .
 
 [ owl:qualifiedCardinality "1"^^xsd:nonNegativeInteger
- ] .
-
-[ owl:minQualifiedCardinality "1"^^xsd:nonNegativeInteger
  ] .
 
 ###  Generated by the OWL API (version 4.5.26.2023-07-17T20:34:13Z) https://github.com/owlcs/owlapi

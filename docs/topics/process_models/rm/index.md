@@ -17,7 +17,7 @@ completed, should map onto the RM process outlined here.
     [Do Work Behavior](../../behavior_logic/do_work_bt.md).
 
     For further reference, [ISO/IEC 30111:2019(E)](https://www.iso.org/standard/69725.html) provides recommendations for Vendors' *internal* processes
-    that can be mapped into the RM process. We provide such a mapping in our [ISO Crosswalk](../../../reference/iso_crosswalk.md).
+    that can be mapped into the RM process. We provide such a mapping in our [ISO Crosswalk](../../../reference/iso_crosswalks/index.md).
 
 ## RM State Machine
 

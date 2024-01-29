@@ -1,0 +1,38 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Create",
+  "id": "https://for.example/f2152344-cd66-4488-838f-b1daf3b9a11c",
+  "name": "https://vultron.example/organizations/vendor Create Coordinator LLC to https://vultron.example/cases/VDR-20991514",
+  "content": "We're adding Coordinator LLC to the case.",
+  "actor": "https://vultron.example/organizations/vendor",
+  "target": "https://vultron.example/cases/VDR-20991514",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "CaseParticipant",
+    "id": "https://vultron.example/cases/VDR-20991514/participants/https://vultron.example/organizations/coordinator",
+    "name": "Coordinator LLC",
+    "context": "https://vultron.example/cases/VDR-20991514",
+    "published": "2024-01-22T20:29:47+00:00",
+    "updated": "2024-01-22T20:29:47+00:00",
+    "actor": "https://vultron.example/organizations/coordinator",
+    "caseRoles": [
+      "COORDINATOR"
+    ],
+    "participantStatus": [
+      {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "ParticipantStatus",
+        "id": "https://for.example/34f64b46-bc6c-488d-b0c3-817e9c460496",
+        "name": "REPORT_MANAGEMENT_START vfd",
+        "context": "https://vultron.example/cases/VDR-20991514",
+        "published": "2024-01-22T20:29:47+00:00",
+        "updated": "2024-01-22T20:29:47+00:00",
+        "actor": "https://vultron.example/organizations/coordinator",
+        "rmState": "REPORT_MANAGEMENT_START",
+        "vfdState": "vfd",
+        "caseEngagement": true,
+        "embargoAdherence": true
+      }
+    ]
+  }
+}
