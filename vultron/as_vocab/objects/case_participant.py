@@ -15,8 +15,9 @@ Provides various CaseParticipant objects for the Vultron ActivityStreams Vocabul
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Union
 
 from dataclasses_json import LetterCase, config, dataclass_json
 
@@ -26,6 +27,7 @@ from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.utils import exclude_if_none
 from vultron.as_vocab.objects.base import VultronObject
 from vultron.as_vocab.objects.case_status import ParticipantStatus
+from vultron.bt.report_management.states import RM
 from vultron.bt.roles.states import CVDRoles as CVDRole
 
 
@@ -63,7 +65,6 @@ class CaseParticipant(VultronObject):
 
     actor: as_Actor
     name: str
-    # context: Union[as_Object, as_Link]
     case_roles: list[CVDRole] = field(
         default_factory=list,
         metadata=config(
@@ -75,7 +76,7 @@ class CaseParticipant(VultronObject):
     participant_case_name: str = field(
         default=None, metadata=config(exclude=exclude_if_none)
     )
-    context: Union["VulnerabilityCase", as_Link] = field(
+    context: "VulnerabilityCase" | as_Link | str = field(
         default=None, repr=True
     )
 
@@ -85,11 +86,20 @@ class CaseParticipant(VultronObject):
             # if they didn't specify a role, put NO_ROLE here
             self.case_roles.append(CVDRole.NO_ROLE)
 
-        if self.actor is not None:
-            self.name = self.actor.name
+        if self.name is None:
+            if self.actor is not None:
+                if hasattr(self.actor, "name"):
+                    self.name = self.actor.name
+                else:
+                    self.name = self.actor
 
         if len(self.participant_status) == 0:
-            self.participant_status.append(ParticipantStatus())
+            self.participant_status.append(
+                ParticipantStatus(
+                    context=self.context,
+                    actor=self.actor,
+                )
+            )
 
         if len(self.case_roles) == 0:
             self.case_roles.append(CVDRole.NO_ROLE)
@@ -128,6 +138,13 @@ class ReporterParticipant(CaseParticipant):
     def __post_init__(self):
         super().__post_init__()
         self.add_role(CVDRole.REPORTER, reset=True)
+        # by definition, to be a reporter, you must have accepted the report
+        pstatus = ParticipantStatus(
+            context=self.context,
+            actor=self.actor,
+            rm_state=RM.ACCEPTED,
+        )
+        self.participant_status = [pstatus]
 
 
 @activitystreams_object
@@ -145,6 +162,14 @@ class FinderReporterParticipant(CaseParticipant):
         super().__post_init__()
         self.add_role(CVDRole.FINDER, reset=True)
         self.add_role(CVDRole.REPORTER, reset=False)
+
+        # by definition, to be a reporter, you must have accepted the report
+        pstatus = ParticipantStatus(
+            context=self.context,
+            actor=self.actor,
+            rm_state=RM.ACCEPTED,
+        )
+        self.participant_status = [pstatus]
 
 
 @activitystreams_object

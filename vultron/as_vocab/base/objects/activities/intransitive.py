@@ -71,10 +71,10 @@ class as_Question(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-question>
     """
 
-    anyOf: Optional[Union[as_Object, as_Link]] = field(
+    anyOf: Optional[as_Object | as_Link | str] = field(
         metadata=config(exclude=exclude_if_none), default=None
     )
-    oneOf: Optional[Union[as_Object, as_Link]] = field(
+    oneOf: Optional[as_Object | as_Link | str] = field(
         metadata=config(exclude=exclude_if_none), default=None
     )
     closed: Optional[Union[as_Object, as_Link, datetime, bool]] = field(
