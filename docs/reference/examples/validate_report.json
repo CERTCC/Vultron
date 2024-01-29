@@ -1,0 +1,9 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Accept",
+  "id": "https://for.example/b4f0731c-742e-4881-9fd0-c378258e1a3d",
+  "name": "https://vultron.example/organizations/vendor Accept https://vultron.example/reports/FDR-8675309",
+  "content": "We've validated the report. We'll be creating a case shortly.",
+  "actor": "https://vultron.example/organizations/vendor",
+  "object": "https://vultron.example/reports/FDR-8675309"
+}

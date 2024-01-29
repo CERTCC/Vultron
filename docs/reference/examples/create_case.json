@@ -1,0 +1,65 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Create",
+  "id": "https://for.example/79f5ae6c-c0c2-4a95-a3e8-90b10134d88d",
+  "name": "https://vultron.example/organizations/vendor Create VENDOR Case #20991514",
+  "context": "https://vultron.example/reports/FDR-8675309",
+  "content": "We've created a case from this report.",
+  "actor": "https://vultron.example/organizations/vendor",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "VulnerabilityCase",
+    "id": "https://vultron.example/cases/VDR-20991514",
+    "name": "VENDOR Case #20991514",
+    "published": "2024-01-22T20:29:47+00:00",
+    "updated": "2024-01-22T20:29:47+00:00",
+    "caseParticipants": [
+      {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "CaseParticipant",
+        "id": "https://for.example/b40a8168-48db-4314-86c8-b87f1f2ea65c",
+        "name": "VendorCo",
+        "context": null,
+        "published": "2024-01-22T20:29:47+00:00",
+        "updated": "2024-01-22T20:29:47+00:00",
+        "actor": "https://vultron.example/organizations/vendor",
+        "caseRoles": [
+          "VENDOR"
+        ],
+        "participantStatus": [
+          {
+            "@context": "https://www.w3.org/ns/activitystreams",
+            "type": "ParticipantStatus",
+            "id": "https://for.example/e6638fee-5bb2-41ec-a07b-7018c1f10f40",
+            "name": "REPORT_MANAGEMENT_START vfd",
+            "context": null,
+            "published": "2024-01-22T20:29:47+00:00",
+            "updated": "2024-01-22T20:29:47+00:00",
+            "actor": "https://vultron.example/organizations/vendor",
+            "rmState": "REPORT_MANAGEMENT_START",
+            "vfdState": "vfd",
+            "caseEngagement": true,
+            "embargoAdherence": true
+          }
+        ]
+      }
+    ],
+    "vulnerabilityReports": [
+      "https://vultron.example/reports/FDR-8675309"
+    ],
+    "caseStatus": [
+      {
+        "@context": "https://www.w3.org/ns/activitystreams",
+        "type": "CaseStatus",
+        "id": "https://for.example/b977d907-6101-4439-848f-c97a68cd0989",
+        "name": "EMBARGO_MANAGEMENT_NONE pxa",
+        "context": "https://vultron.example/cases/VDR-20991514",
+        "published": "2024-01-22T20:29:47+00:00",
+        "updated": "2024-01-22T20:29:47+00:00",
+        "emState": "EMBARGO_MANAGEMENT_NONE",
+        "pxaState": "pxa"
+      }
+    ],
+    "activeEmbargo": null
+  }
+}

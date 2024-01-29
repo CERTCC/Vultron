@@ -1,5 +1,7 @@
 # Vultron and ActivityPub
 
+{% include-markdown "../../includes/not_normative.md" %}
+
 The Vultron protocol can be mapped onto the [ActivityPub](https://www.w3.org/TR/activitypub/)
 protocol. This mapping is described in the
 [Vultron ActivityStreams Ontology](../../reference/ontology/vultron_as.md).
@@ -41,6 +43,9 @@ to describe the mapping of Vultron to ActivityStreams.
 Vultron AS defines a number of new objects and activities that are used in the
 Vultron protocol. These are described in the following sections:
 
-- [Objects](objects.md) - We begin with a description of a few objects that are used in the
-Vultron AS vocabulary.
-- [Activities](activities/index.md) - Then we describe the activities that are used in the Vultron AS vocabulary.
+<div class="grid cards" markdown>
+
+- :material-bolt: [**Objects**](objects.md) specific to the Vultron AS vocabulary
+- :material-wrench: [**Activities**](activities/index.md) used in the Vultron AS vocabulary
+
+</div>

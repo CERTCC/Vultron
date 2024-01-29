@@ -1,0 +1,12 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Accept",
+  "id": "https://for.example/b74fb695-a998-4bc2-83b3-f5731af51ae7",
+  "name": "https://vultron.example/organizations/vendor Accept https://vultron.example/organizations/coordinator to https://vultron.example/cases/VDR-20991514",
+  "context": "https://vultron.example/cases/VDR-20991514",
+  "content": "We're accepting your recommendation to add Coordinator LLC to the case. We'll reach out to them shortly.",
+  "to": "https://vultron.example/users/finn",
+  "actor": "https://vultron.example/organizations/vendor",
+  "target": "https://vultron.example/cases/VDR-20991514",
+  "object": "https://vultron.example/organizations/coordinator"
+}

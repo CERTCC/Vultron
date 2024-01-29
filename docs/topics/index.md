@@ -14,9 +14,13 @@
 
 This section provides an overview of the Vultron Protocol, including:
 
-- [Background](background/index.md)
-- [Behavior Logic](behavior_logic/index.md)
-- [Formal Protocol overview](formal_protocol/index.md)
-- [Future Work](future_work/index.md)
-- [Process Models](process_models/index.md)
-- [User Stories](user_stories/index.md)
+<div class="grid cards" markdown>
+
+- :material-information-outline: [Background](background/index.md)
+- :material-shape-outline: [Process Models](process_models/index.md)
+- :material-cube-unfolded: [Formal Protocol overview](formal_protocol/index.md)
+- :material-arrow-decision-auto-outline: [Behavior Logic](behavior_logic/index.md)
+- :material-book: [User Stories](user_stories/index.md)
+- :material-progress-clock: [Future Work](future_work/index.md)
+
+</div>

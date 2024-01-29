@@ -7,9 +7,9 @@ nav:
   - Home: 'index.md'
   - Learning Vultron: 'tutorials/index.md'
   - Understanding Vultron:
-    - Introduction:
-        - Introduction: 'topics/index.md'
-        - Background: 'topics/background/index.md'
+    - Introduction: 'topics/index.md'
+    - Background:
+        - Context: 'topics/background/index.md'
         - Interoperability: 'topics/background/interoperability.md'
         - Defining CVD Success: 'topics/background/cvd_success.md'
         - Documentation Overview: 'topics/background/overview.md'
@@ -82,7 +82,21 @@ nav:
       - Vultron ActivityPub:
           - ActivityPub Intro: 'howto/activitypub/index.md'
           - Vultron AS Objects: 'howto/activitypub/objects.md'
-          - Vultron AS Activities: 'howto/activitypub/activities/index.md'
+          - Vultron AS Activities:
+            - Intro: 'howto/activitypub/activities/index.md'
+            - Reporting a Vulnerability: 'howto/activitypub/activities/report_vulnerability.md'
+            - Initializing a Case: 'howto/activitypub/activities/initialize_case.md'
+            - Managing a Case: 'howto/activitypub/activities/manage_case.md'
+            - Transferring a Case: 'howto/activitypub/activities/transfer_ownership.md'
+            - Suggest an Actor for a Case: 'howto/activitypub/activities/suggest_actor.md'
+            - Invite an Actor to a Case: 'howto/activitypub/activities/invite_actor.md'
+            - Initialize a Participant: 'howto/activitypub/activities/initialize_participant.md'
+            - Manage Case Participants: 'howto/activitypub/activities/manage_participants.md'
+            - Establish an Embargo: 'howto/activitypub/activities/establish_embargo.md'
+            - Manage an Embargo: 'howto/activitypub/activities/manage_embargo.md'
+            - Status Updates: 'howto/activitypub/activities/status_updates.md'
+            - Acknowledging a Report: 'howto/activitypub/activities/acknowledge.md'
+            - Error Handling: 'howto/activitypub/activities/error.md'
       - EM and iCalendar: 'howto/em_icalendar.md'
       - General Notes: 'howto/general_implementation.md'
   - Reference:
@@ -155,10 +169,10 @@ nav:
       - DFA: 'reference/ontology/dfa.md'
       - RFC 2119: 'reference/ontology/rfc2119.md'
     - ISO Crosswalk:
-      - Introduction: 'reference/iso_crosswalk.md'
-      - ISO 30111: 'reference/iso_30111_2019.md'
-      - ISO 29147: 'reference/iso_29147_2018.md'
-      - ISO 5895: 'reference/iso_5895_2022.md'
+      - Introduction: 'reference/iso_crosswalks/index.md'
+      - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
+      - ISO 29147: 'reference/iso_crosswalks/iso_29147_2018.md'
+      - ISO 5895: 'reference/iso_crosswalks/iso_5895_2022.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
     - Decision Records:
       - ADR Index: 'adr/index.md'

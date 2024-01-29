@@ -1,0 +1,9 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Leave",
+  "id": "https://for.example/968811e7-17cf-42b3-8128-11979e834ef4",
+  "name": "https://vultron.example/organizations/vendor Leave https://vultron.example/reports/FDR-8675309",
+  "content": "We're closing this report.",
+  "actor": "https://vultron.example/organizations/vendor",
+  "object": "https://vultron.example/reports/FDR-8675309"
+}

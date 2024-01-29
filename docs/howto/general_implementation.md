@@ -23,6 +23,16 @@ serve implementers' needs just as well.
 In fact, to the degree possible, it seems preferable for the container syntax to remain a late-binding decision in implementation.
 As long as the structure and semantics are well defined, most standard data formats should be adaptable to the task.
 
+!!! info "ActivityPub and Vultron"
+
+    While an complete Vultron implementation remains a work in progress, we have made some progress
+    on translating the Vultron Protocol into an ActivityPub-based semantics. 
+    Our initial efforts so far indicate that ActivityPub could be a good fit for the Vultron Protocol.
+    The message formats discussion above
+    and transport protocl below are addressed by ActivityPub directly, and the last two (identity management and 
+    encryption) might be better addressed in the context of ActivityPub rather than reinventing the wheel.
+    See [Vultron ActivityPub](./activitypub/index.md) for more information. 
+
 <!-- hr to force spacing -->
 ----
 
