@@ -17,7 +17,7 @@ created_at: 12/8/22 4:01 PM
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from typing import Optional
 
 from dataclasses_json import LetterCase, config, dataclass_json
 
@@ -39,7 +39,7 @@ class as_TransitiveActivity(Activity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-activity>
     """
 
-    as_object: Optional[Union[as_Object, as_Link]] = field(
+    as_object: Optional[as_Object | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
 

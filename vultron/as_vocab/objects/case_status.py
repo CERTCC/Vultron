@@ -16,7 +16,7 @@ Provides Case Status objects for the Vultron ActivityStreams Vocabulary.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from typing import Optional
 
 from dataclasses_json import LetterCase, config, dataclass_json
 from marshmallow import fields
@@ -82,8 +82,8 @@ class ParticipantStatus(VultronObject):
     Represents the status of a participant with respect to a VulnerabilityCase (participant-specific).
     """
 
-    actor: Optional[Union[as_Actor, as_Link]] = field(default=None)
-    context: Optional[Union[as_Object, as_Link]] = field(default=None)
+    actor: Optional[as_Actor | as_Link | str] = field(default=None)
+    context: Optional[as_Object | as_Link | str] = field(default=None)
     rm_state: RM = field(
         default=RM.START,
         repr=True,
@@ -105,7 +105,7 @@ class ParticipantStatus(VultronObject):
             }
         },
     )
-    case_engagement: bool = False
+    case_engagement: bool = True
     embargo_adherence: bool = True
     tracking_id: Optional[str] = field(
         metadata=config(exclude=exclude_if_none), default=None

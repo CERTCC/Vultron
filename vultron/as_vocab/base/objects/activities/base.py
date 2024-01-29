@@ -17,7 +17,7 @@ created_at: 2/15/23 9:32 AM
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from typing import Optional
 
 from dataclasses_json import config, dataclass_json
 
@@ -39,19 +39,19 @@ class as_Activity(as_Object):
     of the picture, not the person walking down the street.
     """
 
-    actor: Union[as_Object, as_Link] = field(
+    actor: as_Object | as_Link | str = field(
         metadata=config(exclude=exclude_if_none), default=None
     )
-    target: Optional[Union[as_Object, as_Link]] = field(
+    target: Optional[as_Object | as_Link | str] = field(
         metadata=config(exclude=exclude_if_none), default=None
     )
-    origin: Optional[Union[as_Object, as_Link]] = field(
+    origin: Optional[as_Object | as_Link | str] = field(
         metadata=config(exclude=exclude_if_none), default=None
     )
-    instrument: Optional[Union[as_Object, as_Link]] = field(
+    instrument: Optional[as_Object | as_Link | str] = field(
         metadata=config(exclude=exclude_if_none), default=None
     )
-    result: Optional[Union[as_Object, as_Link]] = field(
+    result: Optional[as_Object | as_Link | str] = field(
         metadata=config(exclude=exclude_if_none), default=None
     )
 

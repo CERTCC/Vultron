@@ -10,7 +10,6 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-import json
 import unittest
 from typing import Type
 
@@ -66,8 +65,8 @@ class MyTestCase(unittest.TestCase):
         expect_type: str,
     ):
         for actor_class in ACTOR_CLASSES:
-            _actor = actor_class()
-            _case = VulnerabilityCase()
+            _actor = actor_class(name=actor_class.__name__)
+            _case = VulnerabilityCase(name=f"{actor_class.__name__} Case")
             _object = cls(as_object=_actor, target=_case)
 
             # check activity is correct type
@@ -79,16 +78,23 @@ class MyTestCase(unittest.TestCase):
 
             # check json
             _json = _object.to_json()
-            self.assertIn("object", _json)
-            self.assertIn("type", _json)
-            self.assertIn("target", _json)
+            self.assertIn('"object"', _json)
+            self.assertIn('"type"', _json)
+            self.assertIn('"target"', _json)
 
             # check json loads back in correctly
-            reloaded = json.loads(_json)
-            # the type should be Reject, not RejectActorRecommendation
-            self.assertEqual(reloaded["type"], expect_type)
-            self.assertEqual(reloaded["object"], json.loads(_actor.to_json()))
-            self.assertEqual(reloaded["target"], json.loads(_case.to_json()))
+            reloaded = cls.from_json(_json)
+
+            # the type should be Reject, not RejectActorRecommendation, etc.
+            self.assertEqual(reloaded.as_type, expect_type)
+
+            self.assertEqual(reloaded.as_object.as_id, _actor.as_id)
+            self.assertEqual(reloaded.as_object.as_type, "Actor")
+            self.assertEqual(reloaded.as_object.name, actor_class.__name__)
+
+            self.assertEqual(reloaded.target.as_id, _case.as_id)
+            self.assertEqual(reloaded.target.as_type, _case.as_type)
+            self.assertEqual(reloaded.target.name, _case.name)
 
 
 if __name__ == "__main__":

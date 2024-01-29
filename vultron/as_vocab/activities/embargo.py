@@ -16,7 +16,7 @@ Provides Vultron Activity Streams Vocabulary classes for Embargo activities
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from typing import Optional, Sequence
 
 from dataclasses_json import LetterCase, config, dataclass_json
 
@@ -47,10 +47,10 @@ class EmProposeEmbargo(as_Invite):
 
     as_type: str = field(default="Invite", init=False)
 
-    as_object: Optional[Union[EmbargoEvent, as_Link]] = field(
+    as_object: Optional[EmbargoEvent | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    context: Optional[Union[VulnerabilityCase, as_Link]] = field(
+    context: Optional[VulnerabilityCase | as_Link | str] = field(
         default=None, repr=True
     )
 
@@ -67,13 +67,13 @@ class EmAcceptEmbargo(as_Accept):
 
     as_type: str = field(default="Accept", init=False)
 
-    as_object: Optional[Union[EmbargoEvent, as_Link]] = field(
+    as_object: Optional[EmbargoEvent | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    context: Optional[Union[VulnerabilityCase, as_Link]] = field(
+    context: Optional[VulnerabilityCase | as_Link | str] = field(
         default=None, repr=True
     )
-    in_reply_to: Optional[Union[EmProposeEmbargo, as_Link]] = field(
+    in_reply_to: Optional[EmProposeEmbargo | as_Link | str] = field(
         default=None, repr=True
     )
 
@@ -90,13 +90,13 @@ class EmRejectEmbargo(as_Reject):
 
     as_type: str = field(default="Reject", init=False)
 
-    as_object: Optional[Union[EmbargoEvent, as_Link]] = field(
+    as_object: Optional[EmbargoEvent | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    context: Optional[Union[VulnerabilityCase, as_Link]] = field(
+    context: Optional[VulnerabilityCase | as_Link | str] = field(
         default=None, repr=True
     )
-    in_reply_to: Optional[Union[EmProposeEmbargo, as_Link]] = field(
+    in_reply_to: Optional[EmProposeEmbargo | as_Link | str] = field(
         default=None, repr=True
     )
 
@@ -112,10 +112,11 @@ class ChoosePreferredEmbargo(as_Question):
 
     # note: not specifying as_object here because Questions are intransitive
 
-    any_of: Optional[Union[EmbargoEvent, as_Link]] = field(
+    as_type: str = field(default="Question", init=False)
+    any_of: Optional[Sequence[EmbargoEvent | as_Link | str]] = field(
         metadata=config(exclude=exclude_if_none), default=None
     )
-    one_of: Optional[Union[EmbargoEvent, as_Link]] = field(
+    one_of: Optional[Sequence[EmbargoEvent | as_Link | str]] = field(
         metadata=config(exclude=exclude_if_none), default=None
     )
 
@@ -131,13 +132,31 @@ class ActivateEmbargo(as_Add):
     """
 
     as_type: str = field(default="Add", init=False)
-    as_object: Optional[Union[EmbargoEvent, as_Link]] = field(
+    as_object: Optional[EmbargoEvent | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    target: Optional[Union[VulnerabilityCase, as_Link]] = field(
+    target: Optional[VulnerabilityCase | as_Link | str] = field(
         default=None, repr=True
     )
-    in_reply_to: Optional[Union[EmProposeEmbargo, as_Link]] = field(
+    in_reply_to: Optional[EmProposeEmbargo | as_Link | str] = field(
+        default=None, repr=True
+    )
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(kw_only=True)
+class AddEmbargoToCase(as_Add):
+    """Add an EmbargoEvent to a case. This should only be performed by the case owner.
+    For use when the case owner is activating an embargo on the case without first proposing it to the participants.
+    See ActivateEmbargo for use when the case owner is activating an embargo on the case
+    in response to a previous EmProposeEmbargo activity.
+    """
+
+    as_type: str = field(default="Add", init=False)
+    as_object: Optional[EmbargoEvent | as_Link | str] = field(
+        metadata=config(field_name="object"), default=None, repr=True
+    )
+    target: Optional[VulnerabilityCase | as_Link | str] = field(
         default=None, repr=True
     )
 
@@ -151,10 +170,10 @@ class AnnounceEmbargo(as_Announce):
     """
 
     as_type: str = field(default="Announce", init=False)
-    as_object: Optional[Union[EmbargoEvent, as_Link]] = field(
+    as_object: Optional[EmbargoEvent | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    context: Optional[Union[VulnerabilityCase, as_Link]] = field(
+    context: Optional[VulnerabilityCase | as_Link | str] = field(
         default=None, repr=True
     )
 
@@ -171,7 +190,7 @@ class RemoveEmbargoFromCase(as_Remove):
     """
 
     as_type: str = field(default="Remove", init=False)
-    as_object: Optional[Union[EmbargoEvent, as_Link]] = field(
+    as_object: Optional[EmbargoEvent | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    origin: Optional[Union[VulnerabilityCase, as_Link]] = field(default=None)
+    origin: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
