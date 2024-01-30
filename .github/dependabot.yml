@@ -12,7 +12,7 @@ updates:
     groups:
       mkdocs:
         patterns:
-        - "mkdocs*
+        - "mkdocs*"
         update-types:
         - "minor"
         - "patch"
