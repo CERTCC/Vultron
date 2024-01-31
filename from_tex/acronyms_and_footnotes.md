@@ -39,4 +39,3 @@
     our main topic for us to to them justice here. We direct interested
     readers toward [@sep-utilitarianism-history] as an introduction to
     the general topic.
-
