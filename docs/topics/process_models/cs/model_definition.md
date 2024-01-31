@@ -53,7 +53,7 @@ participant-specific (vendor fix path) and participant-agnostic (public,
 exploit, attacks) aspects of the model, without the additional complexity
 of the interactions between the two.
 
-{% include-markdown "../model_interactions/cs_global_local.md" %}
+{% include-markdown "../model_interactions/_cs_global_local.md" %}
 
 ## CS Model Fully Defined
 

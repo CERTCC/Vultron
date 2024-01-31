@@ -5,8 +5,8 @@
 The Vulnerability Equities Process (VEP) is the United States government's
 process to decide whether to inform vendors
 about vulnerabilities they have discovered. The
-[VEP Charter](<https://trumpwhitehouse.archives.gov/sites/whitehouse>.
-gov/files/images/External%20-%20Unclassified%20VEP%20Charter%20FINAL.PDF) describes the process.
+[VEP Charter](https://trumpwhitehouse.archives.gov/sites/whitehouse.gov/files/images/External%20-%20Unclassified%20VEP%20Charter%20FINAL.PDF)
+describes the process.
 
 !!! quote inline "VEP Charter"
 

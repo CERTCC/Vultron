@@ -9,8 +9,8 @@ situation awareness for coordinating parties and other stakeholders.
 
 {== TODO merge with [SSVC crosswalk](../../reference/ssvc_crosswalk.md) ==}
 
-Vulnerability prioritization schemes such as [SSVC](<https://github>.
-com/CERTCC/SSVC) generally give increased priority to states in higher
+Vulnerability prioritization schemes such as [SSVC](https://github.com/CERTCC/SSVC)
+generally give increased priority to states in higher
 threat levels, corresponding to $q \in \cdot \cdot \cdot \cdot X \cdot \cup \cdot \cdot \cdot \cdot \cdot A$. SSVC also includes decision
 points surrounding other states in our model. A summary of the relevant
 SSVC decision points and their intersection with our model is given in
