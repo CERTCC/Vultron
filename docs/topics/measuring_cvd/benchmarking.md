@@ -126,7 +126,7 @@ potentially the deployment of fixes for vulnerabilities across a number
 of vendors and their respective products. The need for
 MPCVD arises due
 to the inherent nature of the software supply chain
-[@householder2017cert]. A vulnerability that affects a low-level
+[CERT Guide to CVD](https://vuls.cert.org/confluence/display/CVD). A vulnerability that affects a low-level
 component (such as a library or operating system API) can require fixes
 from both the originating vendor and any vendor whose products
 incorporate the affected component. Alternatively, vulnerabilities are

@@ -62,7 +62,7 @@ high-volume reporters earn most of the bounties while a much larger
 group are infrequent low-volume reporters [@ellis2018fixing]{== TODO replace ref with link ==}.
 - Lewis
 modeled the interaction of social and economic factors in the global
-vulnerability discovery and disclosure system [@lewis2017global]{== TODO replace ref with link ==}. The
+vulnerability discovery and disclosure system [The global vulnerability discovery and disclosure system: a thematic system dynamics approach](http://dspace.lib.cranfield.ac.uk/handle/1826/12665) by P. S. Lewis.{== TODO replace ref with link ==}. The
 key systemic themes identified include:
 
 > Perception of Punishment; Vendor Interactions; Disclosure Stance;
@@ -101,7 +101,7 @@ rate of vulnerability reports as software ages [@ozment2006milk]{== TODO replace
 - Bilge
 and Dumitraş studied 18 vulnerabilities in which
 ${pa} \xrightarrow{\mathbf{A}} {pA} \xrightarrow{\mathbf{P}} {PA}$,
-finding a lag of over 300 days [@bilge2012before]{== TODO replace ref with link ==}.
+finding a lag of over 300 days [Bilge et al.](https://doi.org/10.1145/2382196.2382284){== TODO replace ref with link ==}.
 - Jacobs et al.
 proposed an Exploit Prediction Scoring System [@jacobs2020epss]{== TODO replace ref with link ==}, which
 could provide insight into the relative frequencies of
@@ -130,7 +130,7 @@ days [@householder2020historical]{== TODO replace ref with link ==}.
 - Frei et al. describe the timing of many of the events here, including
 $\mathbf{F}$, $\mathbf{D}$, $\mathbf{X}$, $\mathbf{P}$, and the elapsed
 time between them for the period 2000-2007 across a wide swath of
-industry [@frei2010modeling]{== TODO replace ref with link ==}. Their analysis finds that
+industry [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6){== TODO replace ref with link ==}. Their analysis finds that
 ${px} \xrightarrow{\mathbf{X}} {pX} \xrightarrow{\mathbf{P}} {PX}$ in
 15% of the vulnerabilities they analyzed, leaving 85% on the
 ${px} \xrightarrow{\mathbf{P}} {Px} \xrightarrow{\mathbf{X}} {PX}$ path.

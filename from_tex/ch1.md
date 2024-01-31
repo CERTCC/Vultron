@@ -55,7 +55,7 @@ increasing variety of regulatory regimes governing some stakeholders but
 not others. For these reasons and many others, practitioners of
 MPCVD highlight
 *fairness* as a core difficulty in coordinating disclosures across
-vendors [@householder2017cert].
+vendors [CERT Guide to CVD](https://vuls.cert.org/confluence/display/CVD).
 
 With the goal of minimizing the societal harm that results from the
 existence of a vulnerability in multiple products spread across multiple

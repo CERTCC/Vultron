@@ -269,7 +269,7 @@ groups such as the FIRST Ethics SIG[^14].
 ## MPCVD Is Still Hard
 
 CVD is a wicked
-problem, and MPCVD even more so [@householder2017cert]. The
+problem, and MPCVD even more so [CERT Guide to CVD](https://vuls.cert.org/confluence/display/CVD). The
 model provided by this white paper offers structure to describe the
 problem space where there was little of it to speak of previously.
 
