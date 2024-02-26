@@ -9,6 +9,6 @@ mkdocstrings-python==1.8.0
 mkdocstrings==0.24.0
 networkx==3.2.1
 owlready2==0.45
-pandas==2.2.0
+pandas==2.2.1
 rdflib==7.0.0
 scipy==1.12.0
