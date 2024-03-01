@@ -2,7 +2,9 @@ site_name: Vultron CVD Protocol
 site_url: 'https://certcc.github.io/Vultron/'
 site_description: 'A protocol for coordinated vulnerability disclosure'
 site_author: 'CERT Coordination Center'
-copyright: Copyright &copy; 2023 Carnegie Mellon University.
+copyright: >
+  Copyright &copy; 2021-2024 Carnegie Mellon University.
+  <br/><a href="#__consent">Change cookie settings</a>
 nav:
   - Home: 'index.md'
   - Learning Vultron: 'tutorials/index.md'
@@ -259,6 +261,16 @@ markdown_extensions:
   - pymdownx.tilde
   - tables
 extra:
+  analytics:
+    provider: google
+    property: G-87WECW6HCS
+  consent:
+    title: About our use of cookies on this site
+    description: >-
+      We use cookies to measure the effectiveness of our documentation and whether users
+      find what they're searching for. With your consent, you're helping us to
+      make our documentation better. 
+      See our <a href="https://www.sei.cmu.edu/legal/privacy-notice/index.cfm">Privacy Notice</a> for more.
   social:
     - icon: fontawesome/solid/bug
       link: https://github.com/CERTCC/Vultron/issues
