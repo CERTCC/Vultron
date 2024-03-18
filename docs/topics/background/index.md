@@ -36,6 +36,73 @@ Any given CVD case is made up of many individual disclosure events, for example,
 - from Vendors and Coordinators to other Vendors and Coordinators
 - from Finders, Vendors, and Coordinators to Deployers and the Public
 
+The following diagram illustrates the disclosure events between the various roles in the CVD process.
+Looping arrows indicate that an entity in one role might also disclose to another entity in the same role.
+
+```mermaid
+---
+title: Potential Vulnerability Disclosure Events
+---
+flowchart TD
+    finder([Finder])
+    vendor([Vendor])
+    coordinator([Coordinator])
+    public([Public])
+    deployer([Deployer])
+    ovendor([Vendor])
+    ocoordinator([Coordinator])
+    
+    finder -->|discloses to| vendor
+    finder -->|discloses to| coordinator
+    coordinator -->|discloses to| public
+    vendor -->|discloses to| public
+    finder -->|discloses to| public
+    
+    vendor -->|discloses to| vendor
+    vendor -->|discloses to| coordinator
+    vendor -.->|discloses to| deployer
+
+    coordinator -->|discloses to| vendor
+    coordinator -->|discloses to| coordinator
+    coordinator -.->|discloses to| deployer
+    
+    public -->|available to| deployer
+    public -->|available to| ovendor
+    public -->|available to| ocoordinator
+```
+
+However, we can simplify the diagram with the recognition that the _C_ in _CVD_ stands for _Coordinated_.
+The following diagram illustrates the coordination relationships between the various roles in the CVD process.
+
+```mermaid
+---
+title: Coordination Relationships in CVD
+---
+flowchart TB
+    subgraph C[Coordination]
+        direction LR
+        subgraph A[Often<br/>Same<br/>Entity]
+            reporter([Reporter])
+            finder([Finder])
+        end
+        vendor([Vendor])
+        coordinator([Coordinator])
+        subgraph D[Sometimes<br/>Included]
+            deployer([Deployer])
+        end
+    end
+    public([Public])
+    
+    finder <--> reporter
+    reporter <--> vendor
+    vendor <--> coordinator
+    reporter <--> coordinator
+    vendor <-.-> deployer
+    coordinator <-.-> deployer
+    reporter <-.-> deployer
+    C -->|publish| public
+```
+
 In recent years, software supply chains have evolved such that software library and component vulnerabilities have
 become just as much a part of the everyday CVD process as vulnerabilities in Vendors' proprietary code.
 This means that many CVD cases we encounter require coordination across multiple vendors.
