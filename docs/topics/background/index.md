@@ -71,7 +71,7 @@ flowchart TD
     public -->|available to| ocoordinator
 ```
 
-However, we can simplify the diagram with the recognition that the _C_ in _CVD_ stands for _Coordinated_.
+However, we can simplify the diagram with the recognition that the *C* in *CVD* stands for *Coordinated*.
 The following diagram illustrates the coordination relationships between the various roles in the CVD process.
 
 ```mermaid
