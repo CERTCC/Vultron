@@ -47,7 +47,7 @@ jobs:
           python -m pip install -e .
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
 
       - name: Build Site
         run: |
