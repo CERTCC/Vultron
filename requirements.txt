@@ -11,4 +11,4 @@ networkx==3.2.1
 owlready2==0.46
 pandas==2.2.1
 rdflib==7.0.0
-scipy==1.12.0
+scipy==1.13.0
