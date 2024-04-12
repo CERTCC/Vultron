@@ -6,7 +6,8 @@ copyright: >
   Copyright &copy; 2021-2024 Carnegie Mellon University.
   <br/><a href="#__consent">Change cookie settings</a>
 nav:
-  - Home: 'index.md'
+  - Home: 'https://certcc.github.io/'
+  - Vultron: 'index.md'
   - Learning Vultron: 'tutorials/index.md'
   - Understanding Vultron:
     - Introduction: 'topics/index.md'
