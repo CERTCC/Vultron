@@ -1,0 +1,299 @@
+@prefix : <http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@base <http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47/> .
+
+<http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47> rdf:type owl:Ontology .
+
+#################################################################
+#    Classes
+#################################################################
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#accidentalHarm
+:accidentalHarm rdf:type owl:Class ;
+                rdfs:subClassOf :harm .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#allowed
+:allowed rdf:type owl:Class ;
+         owl:equivalentClass :permitted ;
+         rdfs:subClassOf :deonticLogic .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#compliantState
+:compliantState rdf:type owl:Class ;
+                rdfs:subClassOf :permitted ,
+                                :systemState .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#defaultForbiddenPolicyClosure
+:defaultForbiddenPolicyClosure rdf:type owl:Class ;
+                               rdfs:subClassOf :defaultPolicyClosure ,
+                                               :forbidden ;
+                               rdfs:comment """That which is not explicitly permitted is forbidden.
+
+Note that required is a subset of permitted.""" .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#defaultPermittedPolicyClosure
+:defaultPermittedPolicyClosure rdf:type owl:Class ;
+                               rdfs:subClassOf :defaultPolicyClosure ,
+                                               :permitted ;
+                               rdfs:comment "That which is not explicitly forbidden is permitted." .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#defaultPolicyClosure
+:defaultPolicyClosure rdf:type owl:Class ;
+                      rdfs:subClassOf :policy ,
+                                      [ rdf:type owl:Class ;
+                                        owl:unionOf ( :forbidden
+                                                      :permitted
+                                                      :required
+                                                    )
+                                      ] .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#defaultRequiredPolicyClosure
+:defaultRequiredPolicyClosure rdf:type owl:Class ;
+                              rdfs:subClassOf :defaultPermittedPolicyClosure ,
+                                              :required ;
+                              rdfs:comment """That which is not explicitly forbidden or permitted is required.
+
+(Not recommended, but included for completeness.)""" .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#deonticLogic
+:deonticLogic rdf:type owl:Class .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#dynamicSystemInput
+:dynamicSystemInput rdf:type owl:Class ;
+                    rdfs:subClassOf :systemInput ;
+                    owl:disjointWith :staticSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#forbidden
+:forbidden rdf:type owl:Class ;
+           owl:equivalentClass :prohibited ,
+                               [ rdf:type owl:Class ;
+                                 owl:complementOf :permitted
+                               ] ;
+           rdfs:subClassOf :deonticLogic ;
+           owl:disjointWith :permitted .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#harm
+:harm rdf:type owl:Class .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#imageData
+:imageData rdf:type owl:Class ;
+           rdfs:subClassOf :dynamicSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#incidentalHarm
+:incidentalHarm rdf:type owl:Class ;
+                rdfs:subClassOf :harm .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#intentionalHarm
+:intentionalHarm rdf:type owl:Class ;
+                 rdfs:subClassOf :harm .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#invalidDynamicSystemInput
+:invalidDynamicSystemInput rdf:type owl:Class ;
+                           rdfs:subClassOf :dynamicSystemInput ,
+                                           :invalidSystemInput ;
+                           owl:disjointWith :invalidStaticSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#invalidStaticSystemInput
+:invalidStaticSystemInput rdf:type owl:Class ;
+                          rdfs:subClassOf :invalidSystemInput ,
+                                          :staticSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#invalidSystemInput
+:invalidSystemInput rdf:type owl:Class ;
+                    rdfs:subClassOf :systemInput ;
+                    owl:disjointWith :validSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#machineLearningModel
+:machineLearningModel rdf:type owl:Class ;
+                      rdfs:subClassOf :staticSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#networkPacket
+:networkPacket rdf:type owl:Class ;
+               rdfs:subClassOf :dynamicSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#nonCompliantState
+:nonCompliantState rdf:type owl:Class ;
+                   owl:equivalentClass :policyViolation ;
+                   rdfs:subClassOf :forbidden ,
+                                   :systemState .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#nonOptional
+:nonOptional rdf:type owl:Class ;
+             owl:equivalentClass [ rdf:type owl:Class ;
+                                   owl:unionOf ( :forbidden
+                                                 :obligatory
+                                               )
+                                 ] ;
+             rdfs:subClassOf :deonticLogic ;
+             owl:disjointWith :optional .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#obligatory
+:obligatory rdf:type owl:Class ;
+            owl:equivalentClass :required ;
+            rdfs:subClassOf :permitted ;
+            owl:disjointWith :omissible .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#omissible
+:omissible rdf:type owl:Class ;
+           owl:equivalentClass [ rdf:type owl:Class ;
+                                 owl:complementOf :obligatory
+                               ] ;
+           rdfs:subClassOf :deonticLogic .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#optional
+:optional rdf:type owl:Class ;
+          owl:equivalentClass [ owl:intersectionOf ( [ rdf:type owl:Class ;
+                                                       owl:complementOf :forbidden
+                                                     ]
+                                                     [ rdf:type owl:Class ;
+                                                       owl:complementOf :obligatory
+                                                     ]
+                                                   ) ;
+                                rdf:type owl:Class
+                              ] ;
+          rdfs:subClassOf :deonticLogic .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#permitted
+:permitted rdf:type owl:Class ;
+           rdfs:subClassOf :deonticLogic ;
+           owl:disjointWith :prohibited .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#permittedByPolicy
+:permittedByPolicy rdf:type owl:Class ;
+                   rdfs:subClassOf :compliantState ,
+                                   :policy .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#policy
+:policy rdf:type owl:Class ;
+        rdfs:comment "A policy defines whether a systemState is permitted, required, or forbidden in a system."@en .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#policyViolation
+:policyViolation rdf:type owl:Class ;
+                 rdfs:subClassOf :systemState .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#previousSystemState
+:previousSystemState rdf:type owl:Class ;
+                     rdfs:subClassOf :staticSystemInput ,
+                                     :systemState .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#prohibited
+:prohibited rdf:type owl:Class ;
+            rdfs:subClassOf :deonticLogic .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#prohibitedByPolicy
+:prohibitedByPolicy rdf:type owl:Class ;
+                    rdfs:subClassOf :nonCompliantState ,
+                                    :policy .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#required
+:required rdf:type owl:Class ;
+          rdfs:subClassOf :permitted .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#requiredByPolicy
+:requiredByPolicy rdf:type owl:Class ;
+                  rdfs:subClassOf :policy ,
+                                  :requiredState .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#requiredState
+:requiredState rdf:type owl:Class ;
+               rdfs:subClassOf :compliantState ,
+                               :obligatory ,
+                               :required .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#sensorReading
+:sensorReading rdf:type owl:Class ;
+               rdfs:subClassOf :dynamicSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#staticSystemInput
+:staticSystemInput rdf:type owl:Class ;
+                   rdfs:subClassOf :systemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#system
+:system rdf:type owl:Class .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#systemConfiguration
+:systemConfiguration rdf:type owl:Class ;
+                     rdfs:subClassOf :staticSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#systemInput
+:systemInput rdf:type owl:Class .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#systemState
+:systemState rdf:type owl:Class .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#userInput
+:userInput rdf:type owl:Class ;
+           rdfs:subClassOf :dynamicSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#validDynamicSystemInput
+:validDynamicSystemInput rdf:type owl:Class ;
+                         rdfs:subClassOf :dynamicSystemInput ,
+                                         :validSystemInput ;
+                         owl:disjointWith :validStaticSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#validStaticSystemInput
+:validStaticSystemInput rdf:type owl:Class ;
+                        rdfs:subClassOf :staticSystemInput ,
+                                        :validSystemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#validSystemInput
+:validSystemInput rdf:type owl:Class ;
+                  rdfs:subClassOf :systemInput .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#vulnerability
+:vulnerability rdf:type owl:Class ;
+               rdfs:subClassOf :weakness .
+
+
+###  http://www.semanticweb.org/adh/ontologies/2024/2/untitled-ontology-47#weakness
+:weakness rdf:type owl:Class .
+
+
+###  Generated by the OWL API (version 4.5.26.2023-07-17T20:34:13Z) https://github.com/owlcs/owlapi
