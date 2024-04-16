@@ -24,7 +24,7 @@ by P. S. Lewis.
 We are primarily interested in events that are usually observable to the
 stakeholders of a CVD case. Stakeholders include software
 vendors, vulnerability finder/reporters, coordinators, and
-deployers [CERT Guide to CVD](https://vuls.cert.org/confluence/display/CVD). A summary of this model comparison is
+deployers [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD). A summary of this model comparison is
 shown in the Table below.
 
 | [Arbaugh et al.](https://doi.org/10.1109/2.889093) | [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6) | [Bilge et al.](https://doi.org/10.1145/2382196.2382284) | Our Model |

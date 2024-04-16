@@ -43,7 +43,7 @@ $Fdpxa$). However, while may be tempted to expand the requirement and
 narrow the states of interest to $fdpxa$, we must allow for the
 multiparty situation in which some vendors have a fix ready ($Fp$) while
 others do not ($fp$). We discuss MPCVD further in section
-§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==}. Here we
+[Possible Histories](./possible_histories.md). Here we
 note that in MPCVD cases, prudence requires us to allow for
 a (hopefully brief) embargo period to enable more vendors to achieve
 $fp \xrightarrow{\mathbf{F}} Fp$ prior to public disclosure

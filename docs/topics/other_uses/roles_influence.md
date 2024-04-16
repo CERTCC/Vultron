@@ -5,7 +5,7 @@
 CVD stakeholders include vendors, system owners, the security research community,
 coordinators, and governments. Of primary interest here
 are the main roles defined in the
-[CERT Guide to CVD](https://vuls.cert.org/confluence/display/CVD):
+[CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD):
 *finder/reporter*, *vendor*, *deployer*, and *coordinator*.
 Each of the roles corresponds to a set of transitions
 they can cause. For example, a *coordinator* can notify the *vendor*

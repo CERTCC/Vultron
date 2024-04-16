@@ -18,8 +18,7 @@ the resulting state model.
     $|s| \stackrel{\mathsf{def}}{=}n$.
 
     In other words, a sequence $s$ is an
-    input string to the DFA defined in
-    §[2](#sec:model){== TODO fix ref to sec:model ==}.
+    input string to the DFA defined in the [CVD Case State Model](../process_models/cs/cs_model.md).
 
     $$s \stackrel{\mathsf{def}}{=}\left( \sigma_1, \sigma_2, \dots \sigma_n \right)$$
 
@@ -62,18 +61,22 @@ only 70 possible histories $h \in \mathcal{H}p$ remain viable.
 We denote the set of all
 such valid histories as $\mathcal{H}$ and have $|\mathcal{H}| = 70$. The
 set of possible histories $\mathcal{H}$ corresponds to the 70 allowable
-paths through $\mathcal{Q}$ as can be derived from Table
-[2.6](#tab:delta_vfdpxa){== TODO fix ref to tab:delta_vfdpxa ==} and Fig.
-[2.4](#fig:vfdpxa_map){== TODO fix ref to fig:vfdpxa_map ==}.
+paths through $\mathcal{Q}^{CS}$ as can be derived from the CS transition
+function $\delta^{CS}$ in [CS Transitions](../process_models/cs/transitions.md).
+and the diagram in
+[Case State Model Definition](../process_models/cs/model_definition/).
 
-The set of possible histories $\mathcal{H}$ is listed exhaustively in
-the table below.
-The skill ranking function on the histories will be defined in
-§[4.4](#sec:h_poset_skill){== TODO fix ref to sec:h_poset_skill ==}. The desirability of the history
-($\mathbb{D}^h$) will be defined in
-§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==}. The expected frequency of each history
-$f_h$ is explained in
-§[4.1](#sec:history_frequency_analysis){== TODO fix ref to sec:history_frequency_analysis ==}.
+  The set of possible histories $\mathcal{H}$ is listed exhaustively in
+  the table below.
+
+!!! info "Other Definitions Used in the Table Below"
+
+  - The skill ranking function on the histories is defined in
+  [Discriminating Skill from Luck](./discriminating_skill_and_luck.md).
+  - The desirability of the history ($\mathbb{D}^h$) is defined in
+  [On the Desirability of Possible Histories](./desirable_histories.md).
+  - The expected frequency of each history $f_h$ is explained in
+  [Reasoning Over Histories](./reasoning_over_histories.md).
 
 | # |            $h \in \mathcal{H}$             | rank | $\mathbb{D}^h$ count |  $f_h$ |
 | :---: |:------------------------------------------:| :--: |:--------------------:|-------:|
@@ -181,6 +184,4 @@ vulnerability by a public exploit. Therefore, either Public Awareness
 precedes Exploit Public (**X**) or must immediately follow it.
 
 This model is amenable for analysis of CVD, but we need to add a way to express
-preferences before it is complete. Thus we are part way through **RQ1**.
-§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==} will
-address how this model can generalize from CVD to MPCVD.
+preferences before it is complete.

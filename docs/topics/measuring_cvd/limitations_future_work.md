@@ -25,8 +25,8 @@ the opportunities for expanding the model include
 ## State Explosion
 
 Although our discussion of MPCVD in
-§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==} and
-§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} highlights one area in which the number
+[Possible Histories](./possible_histories.md) and
+[Benchmarking](./benchmarking.md) highlights one area in which the number
 of states to track can increase dramatically, an even larger problem
 could arise in the context of VM efforts even within normal
 CVD cases. Our
@@ -166,7 +166,7 @@ they arise.
 
 ## Gather Data About CVD
 
-§[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}
+[Benchmarking](./benchmarking.md)
 discusses how different benchmarks and "reasonable baseline
 expectations" might change the results of a skill assessment. It also
 proposes how to use observations of the actions a certain team or team
@@ -190,7 +190,7 @@ past observations.
 
 While there is a modeling choice about using the uniformity assumption
 versus observations from past CVD (see
-§[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}), the model does not depend on whether the
+[Benchmarking](./benchmarking.md)), the model does not depend on whether the
 uniformity assumption actually holds. We have provided a means to
 calculate from observations a deviation from the desired "reasonable
 baseline," whether this is based on the i.i.d. assumption or not.
@@ -234,7 +234,7 @@ lead, we offer them as a mechanism to generate CVD checklists:
 ## MPCVD Criteria Do Not Account for Equitable Resilience
 
 The proposed criteria for MPCVD in
-§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} fail to account for either user
+[Benchmarking](./benchmarking.md) fail to account for either user
 populations or their relative importance. For example, suppose an
 MPCVD case had a
 total of 15 vendors, with 5 vendors representing 95% of the total
@@ -269,7 +269,7 @@ groups such as the FIRST Ethics SIG[^14].
 ## MPCVD Is Still Hard
 
 CVD is a wicked
-problem, and MPCVD even more so [CERT Guide to CVD](https://vuls.cert.org/confluence/display/CVD). The
+problem, and MPCVD even more so [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD). The
 model provided by this white paper offers structure to describe the
 problem space where there was little of it to speak of previously.
 

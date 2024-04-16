@@ -25,7 +25,7 @@ researchers, vendors, customers, and the security community.
 also prescribed a process for coordinating the disclosure and
 remediation of vulnerabilities.
 
-- The [CERT Guide to Coordinated Vulnerability Disclosure](https://vuls.cert.org/confluence/display/CVD) provides a practical overview of
+- The [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD) provides a practical overview of
 the CVD process.
 - ISO/IEC 29147 describes standard externally-facing processes for vulnerability disclosure from the
 perspective of a vendor receiving vulnerability reports, while ISO/IEC
@@ -34,11 +34,11 @@ vendor{== TODO replace ref with link ==} [@ISO29147; @ISO30111].
 - The FIRST *PSIRT Services Framework* provides a practical
 description of the capabilities common to vulnerability response within
 vendor organizations [@first2020psirt]{== TODO replace ref with link ==}.
-- The FIRST *Guidelines
-and Practices for Multi-Party Vulnerability Coordination and Disclosure*
-provides a number of scenarios for MPCVD [@first2020mpcvd]{== TODO replace ref with link ==}. Many of these
-scenarios can be mapped directly to the histories $h \in H$ described in
-§[6.2](#sec:mpcvd){== TODO fix ref to sec:mpcvd ==}.
+- The FIRST [*Guidelines
+and Practices for Multi-Party Vulnerability Coordination and Disclosure*](https://www.first.org/global/sigs/vulnerability-coordination/multiparty/guidelines-v1.1)
+provides a number of scenarios for MPCVD. Many of these
+scenarios can be mapped directly to the histories $h \in H$ described in [Possible Histories](./possible_histories.md).
+[Possible Histories](../measuring_cvd/possible_histories.md).
 
 - Benchmarking CVD
 capability is the topic of the VCMM from Luta Security [@luta2020]{== TODO replace ref with link ==}. The

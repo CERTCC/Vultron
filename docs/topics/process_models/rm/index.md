@@ -105,8 +105,8 @@ Exiting the *Received* state requires a Participant to assess the
 validity of a report. Note that validation is distinct from
 prioritization, as covered in our description of the [*Valid*](#the-valid-v-state) state.
 In other words, the *Received* state corresponds to the
-[Validation phase](https://vuls.cert.org/confluence/display/CVD/4.3+Validation+and+Triage)
-of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD).
+[Validation phase](https://certcc.github.io/CERT-Guide-to-CVD4.3+Validation+and+Triage)
+of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD).
 
 !!! note ""
 
@@ -203,8 +203,8 @@ Reports in the *Valid* state are ready to be prioritized for possible
 future work. The result of this prioritization process will be to either
 accept the report for follow-up or defer further effort.
 The *Valid* state is equivalent to the [Prioritization
-(Triage)](https://vuls.cert.org/confluence/display/CVD/4.3+Validation+and+Triage) phase
-of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD).
+(Triage)](https://certcc.github.io/topics/phases/prioritization) phase
+of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD).
 As an example, a Vendor might later choose to *defer* further response on a *Valid* report due to other priorities.
 
 ```mermaid

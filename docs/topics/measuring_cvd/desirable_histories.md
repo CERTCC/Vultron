@@ -206,7 +206,7 @@ least desirable histories at the bottom to most desirable at the top.
 This model satisfies **RQ1**; §[4](#sec:reasoning){== TODO fix ref to sec:reasoning ==} and
 §[5](#sec:skill_luck){== TODO fix ref to sec:skill_luck ==}
 will demonstrate that the model is amenable to analysis and
-§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} will lay out the criteria for extending
+[Benchmarking](./benchmarking.md) will lay out the criteria for extending
 it to cover MPCVD.
 
 The poset $(\mathcal{H},\leq_{H})$, has as its upper bound

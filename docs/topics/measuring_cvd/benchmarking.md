@@ -126,17 +126,13 @@ potentially the deployment of fixes for vulnerabilities across a number
 of vendors and their respective products. The need for
 MPCVD arises due
 to the inherent nature of the software supply chain
-[CERT Guide to CVD](https://vuls.cert.org/confluence/display/CVD). A vulnerability that affects a low-level
+[CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD). A vulnerability that affects a low-level
 component (such as a library or operating system API) can require fixes
 from both the originating vendor and any vendor whose products
 incorporate the affected component. Alternatively, vulnerabilities are
 sometimes found in protocol specifications or other design-time issues
 where multiple vendors may have each implemented their own components
 based on a vulnerable design.
-§[6.2.1](#sec:mpcvd_states){== TODO fix ref to sec:mpcvd_states ==} applies the state-based view of our model
-to MPCVD, while
-§[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==} addresses the topic from the possible
-history perspective.
 
 ### State Tracking in MPCVD
 
@@ -317,7 +313,7 @@ Where $m = |\mathcal{M}| \geq 1$. The edge case when $|\mathcal{M}| = 1$
 is simply the regular (non-multiparty) case.
 
 We can then set desired criteria for the set $\mathcal{M}$, as in the
-benchmarks described in §[6.1](#sec:benchmarks){== TODO fix ref to sec:benchmarks ==}. In the MPCVD case, we propose to generalize the
+benchmarks described in [Benchmarking](./benchmarking.md). In the MPCVD case, we propose to generalize the
 benchmark concept such that the median $\Tilde{\alpha_d}$ should be
 greater than some benchmark constant $c_d$:
 

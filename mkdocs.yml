@@ -245,6 +245,7 @@ plugins:
   - include-markdown:
       comments: false
   - mkdocstrings:
+      enabled: !ENV [ENABLE_MKDOCSTRINGS, true]
       handlers:
         python:
           paths: [ 'src' ]
