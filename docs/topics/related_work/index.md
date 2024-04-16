@@ -3,54 +3,44 @@
 Numerous models of the vulnerability life cycle and
 CVD have been proposed.
 
-- [Arbaugh, Fithen, and McHugh](https://doi.org/10.1109/2.889093)
-provide a descriptive model of the
-life cycle of vulnerabilities from inception to attacks and remediation, which we refined with those of
-[Frei et al.](https://doi.org/10.1007/978-1-4419-6967-5_6), and [Bilge et al.](https://doi.org/10.1145/2382196.2382284) to form the
-basis of this model as described in
-§[2.1](#sec:events){== TODO fix ref to sec:events ==}.
-- We also found
-[Lewis' literature review of vulnerability lifecycle models](http://dspace.lib.cranfield.ac.uk/handle/1826/12665) to
-be useful.
+- [Arbaugh, Fithen, and McHugh](https://doi.org/10.1109/2.889093) provide a descriptive model of the
+  life cycle of vulnerabilities from inception to attacks and remediation, which we refined with those of
+  [Frei et al.](https://doi.org/10.1007/978-1-4419-6967-5_6), and [Bilge et al.](https://doi.org/10.1145/2382196.2382284) to form the
+  basis of this model as described in
+  §[2.1](#sec:events){== TODO fix ref to sec:events ==}.
+
+- We also found [Lewis' literature review of vulnerability lifecycle models](http://dspace.lib.cranfield.ac.uk/handle/1826/12665) to
+  be useful.
 
 Prescriptive models of the CVD process have also been proposed.
 
-- [Christey
-and Wysopal's 2002 IETF draft](https://datatracker.ietf.org/doc/html/draft-christey-wysopal-vuln-disclosure-00)
-laid out a process for responsible
-disclosure geared towards prescribing roles, responsibilities for
-researchers, vendors, customers, and the security community.
+- [Christey and Wysopal's 2002 IETF draft](https://datatracker.ietf.org/doc/html/draft-christey-wysopal-vuln-disclosure-00) laid out a process for responsible disclosure geared towards 
+  prescribing roles, responsibilities for researchers, vendors, customers, and the security community.
 
-- The [NIAC Vulnerability Disclosure Framework](https://www.dhs.gov/xlibrary/assets/vdwgreport.pdf)
-also prescribed a process for coordinating the disclosure and
-remediation of vulnerabilities.
+- The [NIAC Vulnerability Disclosure Framework](https://www.dhs.gov/xlibrary/assets/vdwgreport.pdf) also prescribed a process for coordinating the disclosure and
+  remediation of vulnerabilities.
 
 - The [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD) provides a practical overview of
-the CVD process.
-- ISO/IEC 29147 describes standard externally-facing processes for vulnerability disclosure from the
-perspective of a vendor receiving vulnerability reports, while ISO/IEC
-30111 describes internal vulnerability handling processes within a
-vendor{== TODO replace ref with link ==} [@ISO29147; @ISO30111].
-- The FIRST *PSIRT Services Framework* provides a practical
-description of the capabilities common to vulnerability response within
-vendor organizations [@first2020psirt]{== TODO replace ref with link ==}.
-- The FIRST [*Guidelines
-and Practices for Multi-Party Vulnerability Coordination and Disclosure*](https://www.first.org/global/sigs/vulnerability-coordination/multiparty/guidelines-v1.1)
-provides a number of scenarios for MPCVD. Many of these
-scenarios can be mapped directly to the histories $h \in H$ described in [Possible Histories](./possible_histories.md).
-[Possible Histories](../measuring_cvd/possible_histories.md).
+  the CVD process.
 
-- Benchmarking CVD
-capability is the topic of the VCMM from Luta Security [@luta2020]{== TODO replace ref with link ==}. The
-VCMM addresses
-five capability areas: organizational, engineering, communications,
-analytics, and incentives. Of these, our model is perhaps most relevant
-to the analytics capability, and the metrics described in
-§[5](#sec:skill_luck){== TODO fix ref to sec:skill_luck ==}
-could be used to inform an organization's assessment of progress in this
-dimension. Concise description of case states using the model presented
-here could also be used to improve the communications dimension of the
-VCMM.
+- ISO/IEC 29147 describes standard externally-facing processes for vulnerability disclosure from the perspective of a
+  vendor receiving vulnerability reports, while ISO/IEC 30111 describes internal vulnerability handling processes within a
+  vendor{== TODO replace ref with link ==} [@ISO29147; @ISO30111].
+
+- The FIRST *PSIRT Services Framework* provides a practical description of the capabilities common to vulnerability response within
+vendor organizations [@first2020psirt]{== TODO replace ref with link ==}.
+
+- The FIRST [*Guidelines and Practices for Multi-Party Vulnerability Coordination and Disclosure*](https://www.first.org/global/sigs/vulnerability-coordination/multiparty/guidelines-v1.1)
+  provides a number of scenarios for MPCVD. Many of these scenarios can be mapped directly to the histories $h \in H$ 
+  described in [Possible Histories](../measuring_cvd/possible_histories.md).
+
+- Benchmarking CVD capability is the topic of the VCMM from Luta Security [@luta2020]{== TODO replace ref with link ==}.
+  The VCMM addresses five capability areas: organizational, engineering, communications, analytics, and incentives.
+  Of these, our model is perhaps most relevant to the analytics capability, and the metrics described in
+  [Discriminating Skill and Luck](../measuring_cvd/discriminating_skill_and_luck.md) 
+  could be used to inform an organization's assessment of progress in this dimension.
+  Concise description of case states using the model presented here could also be used to improve the communications dimension of the
+  VCMM.
 
 System dynamics and agent based models have been applied to the
 interactions between the vulnerability discovery, disclosure, and
