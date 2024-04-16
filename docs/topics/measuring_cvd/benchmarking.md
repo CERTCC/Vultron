@@ -193,8 +193,8 @@ where $N_{vprod}$ represents the number of vendor-product pairs.
 This is of course undesirable, as it would result in a wide distribution
 of realized histories that more closely resemble the randomness
 assumptions outlined above than a skillful, coordinated effort. Further
-discussion of measuring MPCVD skill can be found in
-[6.2.2](#sec:mpcvd criteria){== TODO fix ref to sec:mpcvd criteria ==}. For now, though, we posit that the goal
+discussion of measuring MPCVD skill can be found below.
+For now, though, we posit that the goal
 of a good MPCVD
 process is to reduce the dimensionality of a given
 MPCVD case as

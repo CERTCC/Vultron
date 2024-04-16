@@ -4,7 +4,7 @@
 
 Our goal in this section is to formulate a way to rank our
 undifferentiated desiderata $\mathbb{D}$ from
-§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==} in order to develop the concept of CVD
+[On the Desirability of Possible Histories](./desirable_histories.md) in order to develop the concept of CVD
 skill and its measurement in §[5](#sec:skill_luck){== TODO fix ref to sec:skill_luck ==}. This will provide a baseline expectation
 about events (**RQ2)**.
 
@@ -73,7 +73,7 @@ $$\label{eq:d_freq}
 Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} displays the results of this calculation.
 Required event orderings have an expected frequency of 1, while
 impossible orderings have an expected frequency of 0. As defined in
-§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==}, each desiderata $d \in \mathbb{D}$ is
+[On the Desirability of Possible Histories](./desirable_histories.md), each desiderata $d \in \mathbb{D}$ is
 specified as an event ordering of the form $\sigma_i \prec \sigma_j$. We
 use $f_d$ to denote the expected frequency of a given desiderata
 $d \in \mathbb{D}$. The values for the relevant $f_d$ appear in the
@@ -157,7 +157,7 @@ values, and these are given the same rank.
 The ranks for $h \in \mathcal{H}$ lead directly to a new poset
 $(\mathcal{H},\leq_{\mathbb{D}})$. It is an extension of and fully
 compatible with $(\mathcal{H},\leq_{H})$ as developed in
-§[3.2](#sec:desirability){== TODO fix ref to sec:desirability ==}.
+[On the Desirability of Possible Histories](./desirable_histories.md).
 
 The resulting Hasse Diagram would be too large to reproduce here.
 Instead, we include the resulting rank for each $h$ as a column in
