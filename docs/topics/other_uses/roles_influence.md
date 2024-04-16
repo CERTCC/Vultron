@@ -152,7 +152,7 @@ indifferent to **X** $\prec$ **A**.
     by encouraging vendors to be responsive to vulnerability reports and
     security researchers to be cooperative with vendors. 
 
-    See also our detailed [crosswalk](../../reference/iso_crosswalk.md) between 
+    See also our detailed [crosswalk](../../reference/iso_crosswalks/index.md) between 
     the ISO/IEC standards and the Vultron CVD model.
 
 Although our model only addresses event ordering, not timing, a few

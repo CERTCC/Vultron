@@ -89,5 +89,5 @@ We define a set of such rules in the table below.
 
 The rules listed in the table above can be built into a rules engine that
 translates each state in the model to a set of suggested CVD actions.
-The detailed [case state listings](../../reference/case_states.md) in the
+The detailed [case state listings](../../reference/case_states/index.md) in the
 references section show these rules applied to each $q^{cs}$ state.

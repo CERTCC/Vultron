@@ -64,7 +64,7 @@ set of possible histories $\mathcal{H}$ corresponds to the 70 allowable
 paths through $\mathcal{Q}^{CS}$ as can be derived from the CS transition
 function $\delta^{CS}$ in [CS Transitions](../process_models/cs/transitions.md).
 and the diagram in
-[Case State Model Definition](../process_models/cs/model_definition/).
+[Case State Model Definition](../process_models/cs/model_definition.md).
 
   The set of possible histories $\mathcal{H}$ is listed exhaustively in
   the table below.
