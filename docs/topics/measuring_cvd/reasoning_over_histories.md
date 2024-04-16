@@ -55,22 +55,19 @@ sum over all histories in which the ordering occurs
 ($f_h$) as shown in Table
 [3.1](#tab:possible_histories){== TODO fix ref to tab:possible_histories ==}.
 
-$$\label{eq:h_ord}
-    H^{\sigma_i \prec \sigma_j} \stackrel{\mathsf{def}}{=}\{h \in H \textrm{ where } \sigma_i \prec \sigma_j \textrm{ is true for } h \textrm{ and } i \neq j\}$$
+$$
+    H^{\sigma_i \prec \sigma_j} \stackrel{\mathsf{def}}{=}\{h \in H \textrm{ where } \sigma_i \prec \sigma_j \textrm{ is true for } h \textrm{ and } i \neq j\}
+$$
 
-$$\label{eq:d_freq}
-    f_{\sigma_i \prec \sigma_j} \stackrel{\mathsf{def}}{=}\sum_{h \in H^{\sigma_i \prec \sigma_j}} {f_h}$$
+$$
+    f_{\sigma_i \prec \sigma_j} \stackrel{\mathsf{def}}{=}\sum_{h \in H^{\sigma_i \prec \sigma_j}} {f_h}
+$$
 
-| $row \prec col$ | $\mathbf{V}$ | $\mathbf{F}$ | $\mathbf{D}$ | $\mathbf{P}$ | $\mathbf{X}$ | $\mathbf{A}$ |
-|:---------------:|------------:|------------:|------------:|------------:|------------:|------------:|
-| $\mathbf{V}$    | 0.000       |1|1|0.333|0.667|0.750|
-| $\mathbf{F}$    | 0.000       |0|1|0.111|0.333|0.375|
-| $\mathbf{D}$    | 0.000       |0|0|0.037|0.167|0.187|
-| $\mathbf{P}$    | 0.667       |0.889|0.963|0|0.500|0.667|
-| $\mathbf{X}$    | 0.333       |0.667|0.833|0.500|0|0.500|
-| $\mathbf{A}$    | 0.250       |0.625|0.812|0.333|0.500|0|
 
-Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} displays the results of this calculation.
+The table below displays the results of this calculation.
+
+{% include-markdown "../../includes/tab_exp_freq.md" %}
+
 Required event orderings have an expected frequency of 1, while
 impossible orderings have an expected frequency of 0. As defined in
 [On the Desirability of Possible Histories](./desirable_histories.md), each desiderata $d \in \mathbb{D}$ is
