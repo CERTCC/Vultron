@@ -224,16 +224,20 @@ theme:
   name: 'material'
   features:
     - content.tabs.link
+    - content.tooltips
     - navigation.footer
     - navigation.instant
-    - navigation.prune
+    - navigation.sections
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.top
     - navigation.tracking
+    - navigation.prune
+    - navigation.indexes
     - search.highlight
     - search.suggest
     - toc.follow
+    - toc.integrate
   palette:
     scheme: 'cmu'
     accent: 'red'
