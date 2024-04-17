@@ -6,25 +6,12 @@ In this section, we elaborate on the input symbols and transition functions for 
 A row-wise reading of the [CVD Case Substates](#cs-model-states-defined) table above
 implies a set of events corresponding to each specific substate change, which we correspond to the symbols in the DFA.
 
-| Symbol | Description |                                      Formalism                                       |
-|:------:| :--- |:------------------------------------------------------------------------------------:|
-| **V**  | A Vendor becomes aware of a vulnerability |           $vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$           |
-| **F**  | A Vendor readies a fix for a vulnerability |           $Vfd\cdot\cdot\cdot \xrightarrow{\mathbf{F}} VFd\cdot\cdot\cdot$           |
-| **D**  | A Deployer deploys a fix for a vulnerability |           $VFd\cdot\cdot\cdot \xrightarrow{\mathbf{D}} VFD\cdot\cdot\cdot$           |
-| **P**  | Information about a vulnerability becomes known to the public | $\cdot\cdot\cdot p \cdot\cdot \xrightarrow{\mathbf{P}} \cdot\cdot\cdot P \cdot\cdot$ |
-| **X**  | An exploit for a vulnerability is made public | $\cdot\cdot\cdot\cdot x \cdot \xrightarrow{\mathbf{X}} \cdot\cdot\cdot\cdot X \cdot$ |
-| **A**  | Attacks exploiting a vulnerability are observed |  $\cdot\cdot\cdot\cdot\cdot a \xrightarrow{\mathbf{A}} \cdot\cdot\cdot\cdot\cdot A$  |
+<!-- for spacing -->
+<br/>
 
-???+ note inline end "CS Model Input Symbols ($\Sigma^{cs}$) Defined"
+{% include-markdown "./_events_table.md" %}
 
-    $$\Sigma^{cs} = \{\mathbf{V},\mathbf{F},\mathbf{D},\mathbf{P},\mathbf{X},\mathbf{A}\}$$
-
-    Here we diverge somewhat from the notation used for the
-    [RM](../rm/index.md) and [EM](../em/index.md) models, which use lowercase letters for transitions and
-    uppercase letters for states. Because CS state names already use both lowercase
-    and uppercase letters, here we use a bold font for the symbols of the
-    CS DFA to differentiate the transition from the corresponding substate it leads
-    to: e.g., $vfd\cdot\cdot\cdot \xrightarrow{\mathbf{V}} Vfd\cdot\cdot\cdot$.
+{% include-markdown "./_events_sigma.md" %}
 
 We define the set of symbols for our CS DFA as $\Sigma^{cs}$ at right.
 

@@ -214,11 +214,12 @@ nav:
     - License: 'about/license.md'
   - Issue Tracker: 'https://github.com/CERTCC/Vultron/issues'
 not_in_nav: |
-    includes/*
-    topics/user_stories/story_*.md
-    *diagram*.md
-    *table*.md
-    _*.md
+  _*.md
+  _*/**/*.md
+  includes/*
+  topics/user_stories/story_*.md
+  *diagram*.md
+  *table*.md
 theme:
   logo: 'assets/cert_seal.svg'
   name: 'material'
@@ -264,6 +265,7 @@ plugins:
 repo_url: 'https://github.com/CERTCC/Vultron'
 repo_name: 'CERTCC/Vultron'
 markdown_extensions:
+  - abbr
   - admonition
   - attr_list
   - def_list
@@ -284,6 +286,9 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.keys
   - pymdownx.mark
+  - pymdownx.snippets:
+      auto_append:
+        - docs/_acronyms/index.md
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:

@@ -41,20 +41,23 @@ reach fix ready before attacks ($\mathbf{F} \prec \mathbf{A}$).
 
 Per the Event Frequency table in [Reasoning Over Possible Histories](./reasoning_over_histories.md),
 (reproduced below for convenience), even in a world without skill we would
-expect $\mathbf{F} \prec \mathbf{A}$ to hold in 73% of cases. 
+expect $\mathbf{F} \prec \mathbf{A}$ to hold in 37.5% of cases. 
 
 {% include-markdown "../../includes/tab_exp_freq.md" %}
 
-This means
-that $\alpha_{\mathbf{F} \prec \mathbf{A}} < 0$ for anything less than a
-0.73 success rate. In fact, we propose to generalize this for any
-$d \in \mathbb{D}$, such that $\alpha_d$ should be greater than some
-benchmark constant $c_d$:
+This means that $\alpha_{\mathbf{F} \prec \mathbf{A}} < 0$ for anything less than a
+0.375 success rate. 
 
-$$\alpha_d \geq c_d \geq 0$$
+!!! tip "Benchmarking CVD"
 
-where $c_d$ is a based on observations of $\alpha_d$ collected across
-some collection of CVD cases.
+    In fact, we propose to generalize this for any
+    $d \in \mathbb{D}$, such that $\alpha_d$ should be greater than some
+    benchmark constant $c_d$:
+
+    $$\alpha_d \geq c_d \geq 0$$
+
+    where $c_d$ is a based on observations of $\alpha_d$ collected across
+    some collection of CVD cases.
 
 We propose as a starting point a naïve benchmark of $c_d = 0$. This is a
 low bar, as it only requires that CVD actually do better than possible events
@@ -64,34 +67,38 @@ $(\mathbf{V}, \mathbf{F}, \mathbf{P})$ have already happened (i.e.,
 state $q \in VFdPxa$), $\mathbf{D}$, $\mathbf{X}$, or $\mathbf{A}$ are
 equally likely to occur next.
 
-The i.i.d. assumption may not be warranted. We anticipate that event
-ordering probabilities might be conditional on history: for example,
-exploit publication may be more likely when the vulnerability is public
-($p(\mathbf{X}|q \in \mathcal{Q}_P) > p(\mathbf{X}|q \in \mathcal{Q}_p)$)
-or attacks may be more likely when an exploit is public
-($p(\mathbf{A}|q \in \mathcal{Q}_{X}) > p(\mathbf{A}|q \in \mathcal{Q}_{x})$).
-If the i.i.d. assumption fails to hold for transition events
-$\sigma \in \Sigma$, observed frequencies of $h \in \mathcal{H}$ could
-differ significantly from the rates predicted by the uniform probability
-assumption behind the Event Frequency table above.
+!!! note "The i.i.d. assumption may not be warranted."
 
-Some example suggestive observations are:
+    We anticipate that event
+    ordering probabilities might be conditional on history: for example,
+    exploit publication may be more likely when the vulnerability is public
+    ($p(\mathbf{X}|q \in \mathcal{Q}_P) > p(\mathbf{X}|q \in \mathcal{Q}_p)$)
+    or attacks may be more likely when an exploit is public
+    ($p(\mathbf{A}|q \in \mathcal{Q}_{X}) > p(\mathbf{A}|q \in \mathcal{Q}_{x})$).
+    If the i.i.d. assumption fails to hold for transition events
+    $\sigma \in \Sigma$, observed frequencies of $h \in \mathcal{H}$ could
+    differ significantly from the rates predicted by the uniform probability
+    assumption behind the Event Frequency table above.
 
-- There is reason to suspect that only a fraction of vulnerabilities
+!!! example "Supporting Observations"
+
+    Some example suggestive observations are:
+
+    - There is reason to suspect that only a fraction of vulnerabilities
     ever reach the *exploit public* event $\mathbf{X}$, and fewer still
-    reach the *attack* event $\mathbf{A}$. Recent work by the Cyentia
-    Institute found that "5% of all CVEs are both observed within
-    organizations AND known to be exploited" [@cyentia2019getting],
+    reach the *attack* event $\mathbf{A}$. Recent work by the [Cyentia
+    Institute](https://library.cyentia.com/report/report_002992.html) found that "5% of all CVEs are both observed within
+    organizations AND known to be exploited",
     which suggests that $f_{\mathbf{D} \prec \mathbf{A}} \approx 0.95$.
 
-- Likewise, $\mathbf{D} \prec \mathbf{X}$ holds in 28 of 70 (0.4) $h$.
-    However Cyentia found that "15.6% of all open vulnerabilities
+    - Likewise, $\mathbf{D} \prec \mathbf{X}$ holds in 28 of 70 (0.4) $h$.
+    However [Cyentia](https://library.cyentia.com/report/report_002992.html) found that "15.6% of all open vulnerabilities
     observed across organizational assets in our sample have known
-    exploits" [@cyentia2019getting], which suggests that
+    exploits", which suggests that
     $f_{\mathbf{D} \prec \mathbf{X}} \approx 0.844$.
 
-We might therefore expect to find many vulnerabilities remaining
-indefinitely in $VFDPxa$.
+    We might therefore expect to find many vulnerabilities remaining
+    indefinitely in $VFDPxa$.
 
 On their own these observations can equally well support the idea that
 we are broadly observing skill in vulnerability response, rather than

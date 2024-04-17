@@ -9,7 +9,11 @@ constructed a state model describing how the occurrence of these events
 can interact with each other. In this section, we look at paths through
 the resulting state model.
 
+
 ## Sequences of Events
+
+Before we can discuss the possible histories of CVD, we need to define
+the concept of a sequence of events.
 
 !!! note "Sequences Formally Defined"
 
@@ -23,6 +27,10 @@ the resulting state model.
     $$s \stackrel{\mathsf{def}}{=}\left( \sigma_1, \sigma_2, \dots \sigma_n \right)$$
 
 ## Case Histories
+
+{% include-markdown "../process_models/cs/_events_sigma.md" %}
+
+Armed with the definition of a sequence, we can now define a history.
 
 !!! note "Vulnerability Disclosure Case History Formally Defined"
 
@@ -66,122 +74,39 @@ function $\delta^{CS}$ in [CS Transitions](../process_models/cs/transitions.md).
 and the diagram in
 [Case State Model Definition](../process_models/cs/model_definition.md).
 
+!!! info "Other Definitions Used in the Table Below"
+
+    - The skill ranking function on the histories is defined in
+    [Discriminating Skill from Luck](./discriminating_skill_and_luck.md).
+    - The desirability of the history ($\mathbb{D}^h$) is defined in
+    [On the Desirability of Possible Histories](./desirable_histories.md).
+    - The expected frequency of each history $f_h$ is explained in
+    [Reasoning Over Histories](./reasoning_over_histories.md).
+
+
+!!! info "Table of Possible Histories"
+
   The set of possible histories $\mathcal{H}$ is listed exhaustively in
   the table below.
 
-!!! info "Other Definitions Used in the Table Below"
+  {% include-markdown "./_table_possible_histories.md" %}
 
-  - The skill ranking function on the histories is defined in
-  [Discriminating Skill from Luck](./discriminating_skill_and_luck.md).
-  - The desirability of the history ($\mathbb{D}^h$) is defined in
-  [On the Desirability of Possible Histories](./desirable_histories.md).
-  - The expected frequency of each history $f_h$ is explained in
-  [Reasoning Over Histories](./reasoning_over_histories.md).
-
-| # |            $h \in \mathcal{H}$             | rank | $\mathbb{D}^h$ count |  $f_h$ |
-| :---: |:------------------------------------------:| :--: |:--------------------:|-------:|
-| 0 | (**A**, **X**, **P**, **V**, **F**, **D**) | 1 |          0           | 0.0833 |
-| 1 | (**A**, **P**, **V**, **X**, **F**, **D**) | 2 |          2           | 0.0417 |
-| 2 | (**A**, **V**, **X**, **P**, **F**, **D**) | 3 |          2           | 0.0278 |
-| 3 | (**X**, **P**, **V**, **A**, **F**, **D**) | 4 |          3           | 0.1250 |
-| 4 | (**V**, **A**, **X**, **P**, **F**, **D**) | 5 |          3           | 0.0208 |
-| 5 | (**P**, **V**, **A**, **X**, **F**, **D**) | 6 |          4           | 0.0417 |
-| 6 | (**A**, **V**, **P**, **X**, **F**, **D**) | 7 |          3           | 0.0139 |
-| 7 | (**A**, **P**, **V**, **F**, **X**, **D**) | 7 |          3           | 0.0208 |
-| 8 | (**X**, **P**, **V**, **F**, **A**, **D**) | 8 |          4           | 0.0625 |
-| 9 | (**V**, **A**, **P**, **X**, **F**, **D**) | 9 |          4           | 0.0104 |
-| 10 | (**P**, **V**, **X**, **A**, **F**, **D**) | 10 |          5           | 0.0417 |
-| 11 | (**V**, **P**, **A**, **X**, **F**, **D**) | 11 |          5           | 0.0104 |
-| 12 | (**P**, **V**, **A**, **F**, **X**, **D**) | 11 |          5           | 0.0208 |
-| 13 | (**V**, **X**, **P**, **A**, **F**, **D**) | 11 |          5           | 0.0312 |
-| 14 | (**A**, **V**, **P**, **F**, **X**, **D**) | 12 |          4           | 0.0069 |
-| 15 | (**A**, **P**, **V**, **F**, **D**, **X**) | 13 |          4           | 0.0208 |
-| 16 | (**V**, **A**, **P**, **F**, **X**, **D**) | 14 |          5           | 0.0052 |
-| 17 | (**X**, **P**, **V**, **F**, **D**, **A**) | 15 |          5           | 0.0625 |
-| 18 | (**P**, **V**, **X**, **F**, **A**, **D**) | 16 |          6           | 0.0208 |
-| 19 | (**A**, **V**, **F**, **X**, **P**, **D**) | 17 |          4           | 0.0093 |
-| 20 | (**V**, **P**, **X**, **A**, **F**, **D**) | 18 |          6           | 0.0104 |
-| 21 | (**P**, **V**, **F**, **A**, **X**, **D**) | 19 |          6           | 0.0139 |
-| 22 | (**V**, **X**, **P**, **F**, **A**, **D**) | 19 |          6           | 0.0156 |
-| 23 | (**V**, **P**, **A**, **F**, **X**, **D**) | 20 |          6           | 0.0052 |
-| 24 | (**V**, **A**, **F**, **X**, **P**, **D**) | 21 |          5           | 0.0069 |
-| 25 | (**P**, **V**, **A**, **F**, **D**, **X**) | 22 |          6           | 0.0208 |
-| 26 | (**A**, **V**, **P**, **F**, **D**, **X**) | 23 |          5           | 0.0069 |
-| 27 | (**A**, **V**, **F**, **P**, **X**, **D**) | 24 |          5           | 0.0046 |
-| 28 | (**P**, **V**, **F**, **X**, **A**, **D**) | 25 |          7           | 0.0139 |
-| 29 | (**V**, **P**, **X**, **F**, **A**, **D**) | 25 |          7           | 0.0052 |
-| 30 | (**V**, **A**, **P**, **F**, **D**, **X**) | 26 |          6           | 0.0052 |
-| 31 | (**V**, **A**, **F**, **P**, **X**, **D**) | 27 |          6           | 0.0035 |
-| 32 | (**P**, **V**, **X**, **F**, **D**, **A**) | 28 |          7           | 0.0208 |
-| 33 | (**V**, **P**, **F**, **A**, **X**, **D**) | 29 |          7           | 0.0035 |
-| 34 | (**V**, **F**, **A**, **X**, **P**, **D**) | 30 |          6           | 0.0052 |
-| 35 | (**V**, **X**, **P**, **F**, **D**, **A**) | 31 |          7           | 0.0156 |
-| 36 | (**P**, **V**, **F**, **A**, **D**, **X**) | 32 |          7           | 0.0139 |
-| 37 | (**V**, **P**, **A**, **F**, **D**, **X**) | 33 |          7           | 0.0052 |
-| 38 | (**V**, **P**, **F**, **X**, **A**, **D**) | 34 |          8           | 0.0035 |
-| 39 | (**A**, **V**, **F**, **P**, **D**, **X**) | 35 |          6           | 0.0046 |
-| 40 | (**V**, **F**, **A**, **P**, **X**, **D**) | 36 |          7           | 0.0026 |
-| 41 | (**V**, **P**, **X**, **F**, **D**, **A**) | 37 |          8           | 0.0052 |
-| 42 | (**P**, **V**, **F**, **X**, **D**, **A**) | 37 |          8           | 0.0139 |
-| 43 | (**V**, **A**, **F**, **P**, **D**, **X**) | 38 |          7           | 0.0035 |
-| 44 | (**V**, **P**, **F**, **A**, **D**, **X**) | 39 |          8           | 0.0035 |
-| 45 | (**V**, **F**, **P**, **A**, **X**, **D**) | 40 |          8           | 0.0026 |
-| 46 | (**V**, **F**, **X**, **P**, **A**, **D**) | 41 |          8           | 0.0078 |
-| 47 | (**A**, **V**, **F**, **D**, **X**, **P**) | 42 |          6           | 0.0046 |
-| 48 | (**P**, **V**, **F**, **D**, **A**, **X**) | 43 |          8           | 0.0139 |
-| 49 | (**V**, **A**, **F**, **D**, **X**, **P**) | 44 |          7           | 0.0035 |
-| 50 | (**V**, **P**, **F**, **X**, **D**, **A**) | 45 |          9           | 0.0035 |
-| 51 | (**V**, **F**, **A**, **P**, **D**, **X**) | 46 |          8           | 0.0026 |
-| 52 | (**V**, **F**, **P**, **X**, **A**, **D**) | 46 |          9           | 0.0026 |
-| 53 | (**A**, **V**, **F**, **D**, **P**, **X**) | 47 |          7           | 0.0046 |
-| 54 | (**P**, **V**, **F**, **D**, **X**, **A**) | 48 |          9           | 0.0139 |
-| 55 | (**V**, **P**, **F**, **D**, **A**, **X**) | 49 |          9           | 0.0035 |
-| 56 | (**V**, **F**, **X**, **P**, **D**, **A**) | 50 |          9           | 0.0078 |
-| 57 | (**V**, **F**, **P**, **A**, **D**, **X**) | 51 |          9           | 0.0026 |
-| 58 | (**V**, **A**, **F**, **D**, **P**, **X**) | 52 |          8           | 0.0035 |
-| 59 | (**V**, **F**, **A**, **D**, **X**, **P**) | 53 |          8           | 0.0026 |
-| 60 | (**V**, **P**, **F**, **D**, **X**, **A**) | 54 |          10          | 0.0035 |
-| 61 | (**V**, **F**, **P**, **X**, **D**, **A**) | 55 |          10          | 0.0026 |
-| 62 | (**V**, **F**, **A**, **D**, **P**, **X**) | 56 |          9           | 0.0026 |
-| 63 | (**V**, **F**, **P**, **D**, **A**, **X**) | 57 |          10          | 0.0026 |
-| 64 | (**V**, **F**, **D**, **A**, **X**, **P**) | 58 |          9           | 0.0026 |
-| 65 | (**V**, **F**, **P**, **D**, **X**, **A**) | 59 |          11          | 0.0026 |
-| 66 | (**V**, **F**, **D**, **A**, **P**, **X**) | 60 |          10          | 0.0026 |
-| 67 | (**V**, **F**, **D**, **X**, **P**, **A**) | 61 |          11          | 0.0052 |
-| 68 | (**V**, **F**, **D**, **P**, **A**, **X**) | 61 |          11          | 0.0026 |
-| 69 | (**V**, **F**, **D**, **P**, **X**, **A**) | 62 |          12          | 0.0026 |
 
 Now that we have defined the set of histories $\mathcal{H}$, we can
 summarize the effects of the transition function $\delta$ developed in
-§[2.4](#sec:transitions){== TODO fix ref to sec:transitions ==} (Table
-[2.6](#tab:delta_vfdpxa){== TODO fix ref to tab:delta_vfdpxa ==}) as a set of patterns it imposes on all
+[CS Transitions](../process_models/cs/transitions.md) as a set of patterns it imposes on all
 histories $h \in \mathcal{H}$:
 
-!!! note inline end "Formalisms"
-
-    _Vendor Fix Path_ causality must hold
-
-    $$\mathbf{V} \prec \mathbf{F} \prec \mathbf{D}$$
-  
-    _Vendor Awareness_ precedes or is caused by _Public Awareness_
-
-    $$\mathbf{V} \prec \mathbf{P} \textrm{ or } \mathbf{P} \rightarrow \mathbf{V}$$
-
-    _Public Awareness_ precedes or is caused by _Exploit Public_
-
-    $$\mathbf{P} \prec \mathbf{X} \textrm{ or } \mathbf{X} \rightarrow \mathbf{P}$$
-
-- First, the causality constraint of the
-vendor fix path must hold.
-
-- Second, the model makes the simplifying assumption that vendors know at
+1. The causality constraint of the vendor fix path must hold.
+2. The model makes the simplifying assumption that vendors know at
 least as much as the public does. In other words, all histories must
 meet one of two criteria: either Vendor Awareness precedes Public
-  Awareness (**P**) or Vendor Awareness must immediately follow it.
-
-- Third, the model assumes that the public can be informed about a
+Awareness (**P**) or Vendor Awareness must immediately follow it.
+3. The model assumes that the public can be informed about a
 vulnerability by a public exploit. Therefore, either Public Awareness
 precedes Exploit Public (**X**) or must immediately follow it.
 
+{% include-markdown "./_history_constraints.md" %}
+
 This model is amenable for analysis of CVD, but we need to add a way to express
-preferences before it is complete.
+preferences before it is complete. That is the subject of the [Desirable Histories](./desirable_histories.md) section.
