@@ -37,9 +37,15 @@ CVD processes involving any number of participants.
 As described above, in an ideal CVD situation, each observed history would
 achieve all 12 desiderata $\mathbb{D}$. Realistically, this is unlikely
 to happen. We can at least state that we would prefer that most cases
-reach fix ready before attacks ($\mathbf{F} \prec \mathbf{A}$). Per
-Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}, even in a world without skill we would
-expect $\mathbf{F} \prec \mathbf{A}$ to hold in 73% of cases. This means
+reach fix ready before attacks ($\mathbf{F} \prec \mathbf{A}$).
+
+Per the Event Frequency table in [Reasoning Over Possible Histories](./reasoning_over_histories.md),
+(reproduced below for convenience), even in a world without skill we would
+expect $\mathbf{F} \prec \mathbf{A}$ to hold in 73% of cases. 
+
+{% include-markdown "../../includes/tab_exp_freq.md" %}
+
+This means
 that $\alpha_{\mathbf{F} \prec \mathbf{A}} < 0$ for anything less than a
 0.73 success rate. In fact, we propose to generalize this for any
 $d \in \mathbb{D}$, such that $\alpha_d$ should be greater than some
@@ -67,7 +73,7 @@ or attacks may be more likely when an exploit is public
 If the i.i.d. assumption fails to hold for transition events
 $\sigma \in \Sigma$, observed frequencies of $h \in \mathcal{H}$ could
 differ significantly from the rates predicted by the uniform probability
-assumption behind Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}.
+assumption behind the Event Frequency table above.
 
 Some example suggestive observations are:
 

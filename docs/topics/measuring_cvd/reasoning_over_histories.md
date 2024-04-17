@@ -74,7 +74,7 @@ impossible orderings have an expected frequency of 0. As defined in
 specified as an event ordering of the form $\sigma_i \prec \sigma_j$. We
 use $f_d$ to denote the expected frequency of a given desiderata
 $d \in \mathbb{D}$. The values for the relevant $f_d$ appear in the
-upper right of Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==}. Some event orderings have higher expected
+upper right of the Event Frequency table above. Some event orderings have higher expected
 frequencies than others. For example, vendor awareness precedes attacks
 in 3 out of 4 histories in a uniform distribution of event transitions
 ($f_{\mathbf{V} \prec \mathbf{A}} = 0.75$), whereas fix deployed prior
@@ -86,8 +86,8 @@ uniform distribution over event transitions.
 
 Skill, on the other hand, accounts for the outcomes once luck has been
 accounted for. So the more likely an outcome is due to luck, the less
-skill we can infer when it is observed. As an example, from
-Table [4.1](#tab:event_freq){== TODO fix ref to tab:event_freq ==} we see that fix deployed before the
+skill we can infer when it is observed. As an example, from the Event Frequency
+Table above we see that fix deployed before the
 vulnerability is public is the rarest of our desiderata with
 $f_{\mathbf{D} \prec \mathbf{P}} = 0.037$, and thus exhibits the most
 skill when observed. On the other hand, vendor awareness before attacks

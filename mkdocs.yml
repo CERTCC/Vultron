@@ -237,7 +237,7 @@ theme:
     - search.highlight
     - search.suggest
     - toc.follow
-    - toc.integrate
+#    - toc.integrate
   palette:
     scheme: 'cmu'
     accent: 'red'
