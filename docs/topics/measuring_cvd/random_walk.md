@@ -7,7 +7,7 @@ need a model of what the CVD world would look like without any skill. We
 cannot derive this model by observation. Even when CVD was first
 practiced in the 1980s, some people may have had social, technical, or
 organizational skills that transferred to better CVD. We follow the
-_principle of indifference_ as stated below.
+*principle of indifference* as stated below.
 
 <!-- for spacing -->
 <br/>
@@ -36,7 +36,7 @@ state transitions according to $\delta$ and the histories
 $h \in \mathcal{H}$ are paths (traces) through the states. This meets
 the definition above because each $\sigma \in \Sigma$ is unique
 (mutually exclusive) and $\delta$ defines an exhaustive set of valid
-$\sigma$ at each state $q \in \mathcal{Q}$. 
+$\sigma$ at each state $q \in \mathcal{Q}$.
 
 !!! example "Initial State Probabilities"
 
@@ -56,8 +56,7 @@ $\sigma$ at each state $q \in \mathcal{Q}$.
     $$
 
 From there, we see that the other rules dictate possible transitions
-from each subsequent state. 
-
+from each subsequent state.
 
 !!! example "More implications for initial state probabilities"
 
@@ -80,7 +79,7 @@ the $p(transition)$ column of the table below. Real world data is unlikely
 to ever reflect such a sad state of affairs (because CVD *is* happening after all).
 
 !!! tip "State Transition Diagram"
-    
+
     For convenience, we've reproduced the [CS model](../process_models/cs/model_definition.md) state transition diagram
     here.
     The diagram below shows the allowed transitions between states in the

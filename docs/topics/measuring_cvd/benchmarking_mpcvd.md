@@ -45,7 +45,7 @@ to MPCVD requires a forking approach to the state tracking.
     only share the lowest state across their products, which in this example
     would be $\{Vfdpxa\}$.
 
-The above example implies a need to expand our notation. 
+The above example implies a need to expand our notation.
 
 !!! note "MPCVD Cases have Participant-Specific States"
 
@@ -64,7 +64,6 @@ The above example implies a need to expand our notation.
     but we'll borrow the diagram from there to illustrate the concept here.
   
     {% include-markdown "../process_models/model_interactions/_cs_global_local.md" %}
-
 
 State transitions across vendors need not be simultaneous. Very often,
 vendor notification occurs as new products and vendors are identified as
@@ -142,7 +141,7 @@ One possible function would be to apply a simple voting heuristic such
 as waiting for a simple majority of vendors to reach a state before
 taking action as that state recommends. In our 4/5 $VFdpxa$ example, the
 coordinating parties would simply behave as if the case were in that
-state for all. 
+state for all.
 
 Another function could be to weight vendors and products by some
 other factor, such as size of the installed user base, or even based on
@@ -185,7 +184,6 @@ use the model presented here to formalize the necessary analysis.
     | ${v\cdot\cdot P\cdot\cdot}$, ${v\cdot\cdot\cdot X\cdot}$, ${v\cdot\cdot\cdot\cdot A}$ | 4                | Public disclosure or exploitation of vulnerability prior to vendor awareness |
     | ${vf\cdot PX\cdot}$, ${vf\cdot P\cdot A}$                                             | 4 Variant 1      | Finder publishes vulnerability details and vulnerability is exploited |
     | ${v\cdot\cdot p\cdot A}$                                                              | 4 Variant 2      | Previously undisclosed vulnerability used in attacks |
-
 
 ## MPCVD Benchmarks
 

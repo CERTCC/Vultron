@@ -63,7 +63,6 @@ CVD process.
     </figure>
     </div>
 
-
 #### Observations of Fix before Public Awareness
 
 In total, Microsoft issued patches for 2,694 vulnerabilities; 2,610 (0.97) of them met the
@@ -73,8 +72,7 @@ $\alpha_{\mathbf{F} \prec \mathbf{P}} = 0.967$, with a range of \[0.878,
 1.0\]. We can also use the cumulative data to estimate an overall skill
 level for the observation period, which gives us a bit more precision on
 $\alpha_{\mathbf{F} \prec \mathbf{P}} = 0.969$ with the 0.95 interval of
-\[0.962, 0.975\]. 
-
+\[0.962, 0.975\].
 
 #### Observations of Fix Ready before Attacks Observed
 
@@ -84,7 +82,7 @@ vulnerabilities met the fix-ready-before-attacks-observed
 $\alpha_{\mathbf{F} \prec \mathbf{A}} = 0.976$ with range \[0.893,
 1.0\]. The cumulative estimate yields
 $\alpha_{\mathbf{F} \prec \mathbf{A}} = 0.986$ with an interval of
-\[0.980, 0.989\]. 
+\[0.980, 0.989\].
 
 !!! tip "Inferring Histories from Observations"
 
@@ -155,7 +153,7 @@ Between these two databases, a number of candidate dates are available to repres
 vulnerability was made public. We use the minimum of these as the date for $P$.
 
 To estimate the exploit availability ($\mathbf{X}$) date, we extracted
-the date a CVE ID appeared in the git logs for 
+the date a CVE ID appeared in the git logs for
 [Metasploit Framework](https://github.com/rapid7/metasploit-framework)
 or the [Exploit Database](https://gitlab.com/exploit-database/exploitdb).
 When multiple dates were available for a CVE
@@ -202,5 +200,3 @@ are negative. The most common sample median history rank in this
 estimate is 33 with a range of \[32,33\], which while lower than the
 median rank of 53 in the Microsoft estimate above, still beats the median rank of 11 assuming
 uniform event probabilities. The results are shown in the right-hand figure above.
-
-

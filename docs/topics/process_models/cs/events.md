@@ -13,12 +13,12 @@ We then use these to construct model states and the transitions between them.
 
 The goal of this section is to establish a model of events that affect
 the outcomes of vulnerability disclosure. Our model builds on previous
-models of the vulnerability lifecycle, specifically those of 
-[Arbaugh et al.](https://doi.org/10.1109/2.889093), 
+models of the vulnerability lifecycle, specifically those of
+[Arbaugh et al.](https://doi.org/10.1109/2.889093),
 [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6), and
 Bilge et al. [Bilge et al.](https://doi.org/10.1145/2382196.2382284).
 A more thorough literature review of
-vulnerability lifecycle models can be found in 
+vulnerability lifecycle models can be found in
 [The global vulnerability discovery and disclosure system: a thematic system dynamics approach](http://dspace.lib.cranfield.ac.uk/handle/1826/12665)
 by P. S. Lewis.
 We are primarily interested in events that are usually observable to the

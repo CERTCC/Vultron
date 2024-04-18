@@ -74,7 +74,6 @@ nav:
         - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
-    - User Stories: 'topics/user_stories/index.md'
     - Measuring CVD:
         - Introduction: 'topics/measuring_cvd/index.md'
         - Possible Histories: 'topics/measuring_cvd/possible_histories.md'
@@ -93,7 +92,7 @@ nav:
         - Situation Awareness: 'topics/other_uses/situation_awareness.md'
         - VEP: 'topics/other_uses/vep.md'
         - CVD Action Rules: 'topics/other_uses/action_rules.md'
-    - Related Work: 'topics/related_work/index.md'
+    - User Stories: 'topics/user_stories/index.md'
     - Future Work:
         - Intro: 'topics/future_work/index.md'
         - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'

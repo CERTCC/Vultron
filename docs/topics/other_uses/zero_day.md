@@ -75,7 +75,6 @@ formally using our model.
     |          2           |      **A** $\prec$ **F**<br/>${\cdot fd \cdot \cdot a} \xrightarrow{\mathbf{A}} {\cdot fd \cdot \cdot A}$      | when attacks against the vulnerability occur before a fix is available for the vulnerability. As with *zero day exploit*, because $\mathcal{Q}_{vf} \subset \mathcal{Q}_{f}$, any scenario matching the previous definition also matches this one. |
     |          3           | **A** $\prec$ **P**<br/>${\cdot \cdot \cdot p \cdot a} \xrightarrow{\mathbf{A}} {\cdot \cdot \cdot p \cdot A}$ | when attacks against the vulnerability occur before the public is aware of the vulnerability. Note that this definition disregards the vendor entirely since it makes no reference to either **V** or **F**.                                       |
 
-
 ## Forever Day
 
 In [common usage](https://arstechnica.com/information-technology/2012/04/rise-of-ics-forever-day-vulnerabiliities-threaten-critical-infrastructure/),

@@ -13,7 +13,7 @@ This will provide a baseline expectation about [CS events](../process_models/cs/
 As described in [Random Walks](./random_walk.md), we apply the principle of indifference to
 the available transition events $\sigma_{i+1}$ at each state $q$ for
 each of the possible histories to compute the expected frequency of each
-history, which we denote as $f_h$. 
+history, which we denote as $f_h$.
 
 !!! note "Frequency of a History"
 
@@ -73,7 +73,6 @@ weighting factor to compute the expected frequency of event orderings
         f_{\sigma_i \prec \sigma_j} \stackrel{\mathsf{def}}{=}\sum_{h \in H^{\sigma_i \prec \sigma_j}} {f_h}
     $$
 
-
 The table below displays the results of this calculation.
 
 {% include-markdown "../../includes/tab_exp_freq.md" %}
@@ -84,7 +83,7 @@ impossible orderings have an expected frequency of 0. As defined in
 specified as an event ordering of the form $\sigma_i \prec \sigma_j$. We
 use $f_d$ to denote the expected frequency of a given desiderata
 $d \in \mathbb{D}$. The values for the relevant $f_d$ appear in the
-upper right of the Event Frequency table above. 
+upper right of the Event Frequency table above.
 
 !!! example "Some event orderings have higher expected frequencies than others"
 
@@ -134,11 +133,11 @@ upper right of the Event Frequency table above.
         pa --- va
     ```
 
-## A Partial Order on Desiderata.
+## A Partial Order on Desiderata
 
 Skill, on the other hand, accounts for the outcomes once luck has been
 accounted for. So the more likely an outcome is due to luck, the less
-skill we can infer when it is observed. 
+skill we can infer when it is observed.
 
 !!! example "Skill is inversely proportional to luck"
 
@@ -181,8 +180,7 @@ common.
 ## Ordering Possible Histories by Skill
 
 Next we develop a new partial order on $\mathcal{H}$ given the partial
-order $(\mathbb{D},\leq_{\mathbb{D}})$ just described. 
-
+order $(\mathbb{D},\leq_{\mathbb{D}})$ just described.
 
 !!! note "Refining a Skill Metric for Histories"
 
@@ -250,7 +248,6 @@ histories having duplicate ranks.
     In other words, would you rather that _Outcome A_ or _Outcome B_ for each of the above?
     Recognizing that readers may have diverse opinions on all three items,
     we leave further consideration of the answers to these as future work.
-
 
 This is just one example of how poset refinements might be used to order
 $\mathcal{H}$. Different posets on $\mathbb{D}$ would lead to different

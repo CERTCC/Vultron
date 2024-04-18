@@ -14,9 +14,7 @@ situation awareness for coordinating parties and other stakeholders.
     SSVC decision points and their intersection with our model is given in
     our [SSVC Crosswalk](../../reference/ssvc_crosswalk.md).
 
-
 ## Addressing Uncertainty in Situation Awareness
-
 
 It is possible to use the case state model to infer what other decisions
 can be made based on incomplete information about a case. For example, imagine

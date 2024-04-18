@@ -2,7 +2,7 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-!!! question "Does CVD as observed _in the wild_ demonstrate skillful behavior?"
+!!! question "Does CVD as observed *in the wild* demonstrate skillful behavior?"
 
     In order to answer this question, we need a way to measure skillful behavior in CVD.
     This section defines a method for measuring skill in CVD.
@@ -41,7 +41,6 @@ with probability $p_{skill} = 1$.
     Adversaries might be rare, or conversely very well equipped. Vendors might be very good at releasing fixes faster 
     than adversaries can discover vulnerabilities and develop exploits for them. System owners might be diligent at applying patches. (We did say *might*, didn't we?)
     Regardless, for now we will lump all of those possible explanations into a single attribute called "skill."
-
 
 Thus, we construct the following model: for each of our preferred
 orderings $d \in \mathbb{D}$, we model their occurrence due to luck
@@ -176,7 +175,6 @@ Rearranging our lucky wins frequency to $S_d^{luck} = {f_d}T$, we can simplify f
     $$
     \alpha_{d} = \frac{{S_d^{obs}}-{f_d}T}{(1-{f_d})T}
     $$
-
 
 Hence for any of our desiderata $\mathbb{D}$ we can compute $\alpha_d$ given $S_d^{obs}$
 observed successes out of $T$ trials in light of $f_d$ taken from the event frequency table.

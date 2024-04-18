@@ -20,7 +20,6 @@ in the lifespan of every vulnerability, shown in the table below.
 | Fix Ready | **F** | Exploit Public | **X** |
 | Fix Deployed | **D** | Attacks Observed | **A** |
 
-
 For now, we simply present the 12 desired criteria in roughly descending order of desirability according to the partial
 order developed in that formalization.
 Items closer to the top of the list are indicators of CVD skill.
@@ -157,4 +156,3 @@ set of outcomes we hope to facilitate with the Vultron protocol.
     [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771).
     Specifically, we revisit this list in
     [Desirable Histories](../measuring_cvd/desirable_histories.md).
-

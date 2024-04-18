@@ -9,7 +9,6 @@ constructed a state model describing how the occurrence of these events
 can interact with each other. In this section, we look at paths through
 the resulting state model.
 
-
 ## Sequences of Events
 
 Before we can discuss the possible histories of CVD, we need to define
@@ -83,14 +82,12 @@ and the diagram in
     - The expected frequency of each history $f_h$ is explained in
     [Reasoning Over Histories](./reasoning_over_histories.md).
 
-
 !!! info "Table of Possible Histories"
 
   The set of possible histories $\mathcal{H}$ is listed exhaustively in
   the table below.
 
   {% include-markdown "./_table_possible_histories.md" %}
-
 
 Now that we have defined the set of histories $\mathcal{H}$, we can
 summarize the effects of the transition function $\delta$ developed in

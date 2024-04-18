@@ -287,7 +287,7 @@ groups such as the [FIRST Ethics SIG](https://www.first.org/global/sigs/ethics/)
 
 [CVD is a wicked problem](https://certcc.github.io/CERT-Guide-to-CVD/topics/principles/wicked_problem),
 and MPCVD even more so.
-The model provided by this white paper offers structure to describe the 
+The model provided by this white paper offers structure to describe the
 problem space where there was little of it to speak of previously.
 
 However, such a model does not significantly alter the complexity of the

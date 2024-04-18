@@ -123,7 +123,6 @@ desired orderings $\mathbb{D}$ as follows:
     $d\left(\sigma_1, \sigma_2, \prec \right)$. 
     $\mathbb{D}$ is a set of such relations.
 
-
 {% include-markdown "./_ordered_pairs_events.md" %}
 
     {% include-markdown "./_history_constraints.md" %}
@@ -246,6 +245,3 @@ This partial order requires a formal definition of which desiderata are met by a
 
     
     {% include-markdown "./_table_possible_histories.md" %}
-
-
-

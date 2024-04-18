@@ -1,6 +1,5 @@
 !!! note "Formalizing the Constraints on Histories"
 
-
     _Vendor Fix Path_ causality must hold
 
     $$\mathbf{V} \prec \mathbf{F} \prec \mathbf{D}$$

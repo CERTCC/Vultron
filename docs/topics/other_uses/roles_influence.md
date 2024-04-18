@@ -32,7 +32,7 @@ shown in [Event Order Frequency](../measuring_cvd/reasoning_over_histories.md/#e
 will be consistent across any such variations in desiderata.
 
 A discussion of some stakeholder preferences is given below, while a
-summary can be found in the following table. 
+summary can be found in the following table.
 
 !!! info "Stakeholder Preferences for Event Ordering"
 
@@ -77,7 +77,7 @@ summary can be found in the following table.
     5. System owners might be indifferent to **F** $\prec$ **P**
     and **D** $\prec$ **X** depending on their risk tolerance.
 
-In [Desirable Histories](../measuring_cvd/desirable_histories.md), 
+In [Desirable Histories](../measuring_cvd/desirable_histories.md),
 we defined a preference ordering between
 every possible pairing of events, therefore $\mathbb{D}$ is the largest
 possible set of desiderata. We thus expect the desiderata of benevolent

@@ -190,7 +190,7 @@ already be public.
 *Limited* means that publication impact might be limited because the information is already widely known.
 
 !!! note "SSVC *Public Value Added Decision Point Mapped to CS States"
-    
+
         $$ SSVC(pva) = 
         \begin{cases}
             Precedence & \iff q^{cs} \in \cdot\cdot\cdot p\cdot\cdot \\

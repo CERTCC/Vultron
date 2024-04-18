@@ -2,7 +2,7 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-Our [Observational analysis](./observing_skill.md) supports the conclusion that 
+Our [Observational analysis](./observing_skill.md) supports the conclusion that
 vulnerability disclosure as currently practiced demonstrates
 skill. In both data sets examined, our estimated $\alpha_d$ is positive
 for most $d \in \mathbb{D}$. However, there is uncertainty in our
@@ -40,12 +40,12 @@ reach fix ready before attacks ($\mathbf{F} \prec \mathbf{A}$).
 
 Per the Event Frequency table in [Reasoning Over Possible Histories](./reasoning_over_histories.md),
 (reproduced below for convenience), even in a world without skill we would
-expect $\mathbf{F} \prec \mathbf{A}$ to hold in 37.5% of cases. 
+expect $\mathbf{F} \prec \mathbf{A}$ to hold in 37.5% of cases.
 
 {% include-markdown "../../includes/tab_exp_freq.md" %}
 
 This means that $\alpha_{\mathbf{F} \prec \mathbf{A}} < 0$ for anything less than a
-0.375 success rate. 
+0.375 success rate.
 
 !!! tip "Benchmarking CVD"
 
@@ -138,4 +138,3 @@ benchmarks rather than change expectations of the role of chance.
     $f_{\mathbf{D} \prec \mathbf{X}} = 0.844$, we can then compute a
     benchmark $\alpha_{\mathbf{D} \prec \mathbf{X}} = 0.81$, which is again
     a significant improvement over the naïve $\alpha_d = 0$ benchmark.
-
