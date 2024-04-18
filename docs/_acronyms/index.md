@@ -144,6 +144,11 @@ stops after the first match is found.
 *[SEI]: Software Engineering Institute
 *[SERA]: Security Engineering Risk Analysis
 *[SIG]: Special Interest Group
+*[SLAs]: Service Level Agreements
+*[SLA]: Service Level Agreement
+*[SLEs]: Service Level Expectations
+*[SLE]: Service Level Expectation
+*[SMEs]: Subject Matter Experts
 *[SME]: Subject Matter Expert
 *[SMTP]: Simple Mail Transfer Protocol
 *[SNMP]: Simple Network Management Protocol

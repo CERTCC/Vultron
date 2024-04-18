@@ -25,8 +25,8 @@ the opportunities for expanding the model include
 ## State Explosion
 
 Although our discussion of MPCVD in
-[Possible Histories](./possible_histories.md) and
-[Benchmarking](./benchmarking.md) highlights one area in which the number
+[Possible Histories](../measuring_cvd/possible_histories.md) and
+[Benchmarking](../measuring_cvd/benchmarking.md) highlights one area in which the number
 of states to track can increase dramatically, an even larger problem
 could arise in the context of VM efforts even within normal
 CVD cases. Our
@@ -86,7 +86,8 @@ MPCVD) practices.
 
 ## The Model Does Not Achieve a Total Order Over Histories
 
-As described in §[4.4](#sec:h_poset_skill){== TODO fix ref to sec:h_poset_skill ==}, some ambiguity remains regarding
+As described in [Reasoning Over Histories](./reasoning_over_histories),
+some ambiguity remains regarding
 preferences for elements of $\mathbb{D}$. These preferences would need
 to be addressed before the model can achieve a total order over
 histories $\mathcal{H}$. Specifically, we need to decide whether it is
@@ -108,7 +109,7 @@ We look forward to the ensuing "would you rather\...?" discussions.
 
 ## The Model Has No Sense of Timing
 
-There is no concept of time in this model, but delays between events can
+There is no concept of time in the CS model, but delays between events can
 make a big difference in history results. Two cases in which
 $\mathbf{F} \prec \mathbf{A}$ would be quite different if the time gap
 between these two events was 1 week versus 3 months, as this gap
@@ -166,7 +167,7 @@ they arise.
 
 ## Gather Data About CVD
 
-[Benchmarking](./benchmarking.md)
+[Benchmarking](../measuring_cvd/benchmarking.md)
 discusses how different benchmarks and "reasonable baseline
 expectations" might change the results of a skill assessment. It also
 proposes how to use observations of the actions a certain team or team
@@ -190,7 +191,7 @@ past observations.
 
 While there is a modeling choice about using the uniformity assumption
 versus observations from past CVD (see
-[Benchmarking](./benchmarking.md)), the model does not depend on whether the
+[Benchmarking](../measuring_cvd/benchmarking.md)), the model does not depend on whether the
 uniformity assumption actually holds. We have provided a means to
 calculate from observations a deviation from the desired "reasonable
 baseline," whether this is based on the i.i.d. assumption or not.
@@ -205,7 +206,7 @@ Not all events $\sigma \in \Sigma$, and therefore not all desiderata
 $d \in \mathbb{D}$, will be observable by all interested parties. But in
 many cases at least some are, which can still help to infer reasonable
 limits on the others, as shown in
-§[\[sec:inferring_history\]](#sec:inferring_history){== TODO fix ref to sec:inferring_history ==}.
+[Observing Skill](../measuring_cvd/observing_skill.md).
 
 Vendors are in a good position to observe most of the events in each
 case. This is even more so if they have good sources of threat
@@ -219,22 +220,23 @@ parties, for the reasons described in the timing discussion above.
 
 ## CVD Action Rules Are Not Algorithms
 
-The rules given in §[6.8](#sec:cvd_action_rules){== TODO fix ref to sec:cvd_action_rules ==} are not algorithms. We do not propose
+The [CVD Action Rules](../other_uses/action_rules.md) are not algorithms. We do not propose
 them as a set of required actions for every CVD case. However, following Atul Gawande's
 lead, we offer them as a mechanism to generate CVD checklists:
 
-> Good checklists, on the other hand are precise. They are efficient, to
-> the point, and easy to use even in the most difficult situations. They
-> do not try to spell out everything--a checklist cannot fly a plane.
-> Instead, they provide reminders of only the most critical and
-> important steps--the ones that even the highly skilled professional
-> using them could miss. Good checklists are, above all, practical
-> [@gawande2011checklist].
+!!! quote "Atul Gawande in [The Checklist Manifesto](https://atulgawande.com/book/the-checklist-manifesto/)"
+
+    Good checklists, on the other hand are precise. They are efficient, to
+    the point, and easy to use even in the most difficult situations. They
+    do not try to spell out everything--a checklist cannot fly a plane.
+    Instead, they provide reminders of only the most critical and
+    important steps--the ones that even the highly skilled professional
+    using them could miss. Good checklists are, above all, practical
 
 ## MPCVD Criteria Do Not Account for Equitable Resilience
 
 The proposed criteria for MPCVD in
-[Benchmarking](./benchmarking.md) fail to account for either user
+[Benchmarking](../measuring_cvd/benchmarking.md) fail to account for either user
 populations or their relative importance. For example, suppose an
 MPCVD case had a
 total of 15 vendors, with 5 vendors representing 95% of the total
@@ -245,11 +247,17 @@ unmet even though most users were protected.
 
 Similarly, a smaller set of vendor/product pairs might represent a
 disproportionate concentration of the total risk posed by a
-vulnerability.[^12] Again, aggregation across all vendor/product pairs
+vulnerability. Again, aggregation across all vendor/product pairs
 could be misleading. In fact, risk concentration within a particular
 user population may lead to a need for strategies that appear
 inequitable at the vendor level while achieving greater outcome equity
 at a larger scale.
+
+!!! ssvc "Thinking about Risk"
+
+    User concentration is one way to think about risk, but it is not the only way. 
+    [Value density](https://certcc.github.io/SSVC/reference/decision_points/value_density/),
+    as defined in [SSVC](https://certcc.github.io/SSVC/) is another.
 
 The core issue is that we lack a utility function to map from observed
 case histories to harm reduction.[^13] Potential features of such a
@@ -262,15 +270,24 @@ the impact to the remaining users. Future work might also consider
 whether criteria other than high median and low variance could be
 applied.
 
+!!! question "Is Utilitarianism the Best Approach?"
+
+    We admit our omission from consideration of whether utilitarianism is even the
+    best way to approach these problems; and if it is, which variety of utilitarianism may be best suited. 
+    Such topics, while both interesting and relevant, lie too far afield from our main topic for us to to
+    them justice here.
+    We direct interested readers toward [The History of Utilitarianism](https://plato.stanford.edu/entries/utilitarianism-history/)
+    as an introduction to the general topic.
+
 Regardless, achieving accurate estimates of such parameters is likely to
 remain challenging. Equity in MPCVD may be a topic of future interest to
-groups such as the FIRST Ethics SIG[^14].
+groups such as the [FIRST Ethics SIG](https://www.first.org/global/sigs/ethics/).
 
 ## MPCVD Is Still Hard
 
-CVD is a wicked
-problem, and MPCVD even more so [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD). The
-model provided by this white paper offers structure to describe the
+[CVD is a wicked problem](https://certcc.github.io/CERT-Guide-to-CVD/topics/principles/wicked_problem),
+and MPCVD even more so.
+The model provided by this white paper offers structure to describe the 
 problem space where there was little of it to speak of previously.
 
 However, such a model does not significantly alter the complexity of the

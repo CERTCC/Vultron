@@ -84,7 +84,7 @@ nav:
         - Discriminating Skill from Luck: 'topics/measuring_cvd/discriminating_skill_and_luck.md'
         - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
         - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
-        - Limitations and Future Work: 'topics/measuring_cvd/limitations_future_work.md'
+        - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
     - Other Uses of Vultron:
         - Introduction: 'topics/other_uses/index.md'
         - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
@@ -96,6 +96,7 @@ nav:
     - Related Work: 'topics/related_work/index.md'
     - Future Work:
         - Intro: 'topics/future_work/index.md'
+        - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'
         - CVD Directory: 'topics/future_work/cvd_directory.md'
         - Reward Functions: 'topics/future_work/reward_functions.md'
         - Ontology: 'topics/future_work/ontology.md'
