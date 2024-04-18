@@ -23,7 +23,6 @@ This section provides an overview of the Vultron Protocol, including:
 - :material-book: [User Stories](user_stories/index.md)
 - :material-altimeter: [Measuring CVD](measuring_cvd/index.md)
 - :material-source-branch: [Other Uses](other_uses/index.md)
-- :material-relation-many-to-many: [Related Work](related_work/index.md)
 - :material-progress-clock: [Future Work](future_work/index.md)
 
 </div>

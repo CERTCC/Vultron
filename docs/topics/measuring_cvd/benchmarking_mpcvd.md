@@ -60,7 +60,7 @@ The above example implies a need to expand our notation.
     and/or product. For example, $\{ {Vfdpxa}_1, {vfdpxa}_2 \}$ would
     represent the state in which vendor 1 has been notified but vendor 2 has
     not. 
-    We have more to say about this in [Model Interactions](../process_models/model_interactions.md),
+    We have more to say about this in [Model Interactions](../process_models/model_interactions/index.md),
     but we'll borrow the diagram from there to illustrate the concept here.
   
     {% include-markdown "../process_models/model_interactions/_cs_global_local.md" %}

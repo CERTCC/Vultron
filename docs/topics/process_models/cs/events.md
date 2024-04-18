@@ -158,5 +158,3 @@ consistently observe independently. Its occurrence is nearly always
 inferred from the observation of either *exploit public* or *attacks
 observed*.
 
-Further discussion of related work can be found in
-[Related Work](../../related_work/index.md).

@@ -86,7 +86,7 @@ MPCVD) practices.
 
 ## The Model Does Not Achieve a Total Order Over Histories
 
-As described in [Reasoning Over Histories](./reasoning_over_histories),
+As described in [Reasoning Over Histories](../measuring_cvd/reasoning_over_histories.md),
 some ambiguity remains regarding
 preferences for elements of $\mathbb{D}$. These preferences would need
 to be addressed before the model can achieve a total order over
