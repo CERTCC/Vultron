@@ -57,6 +57,7 @@ stops after the first match is found.
 *[EFF]: Electronic Frontier Foundation
 *[EM]: Embargo Management
 *[ENISA]: European Union Agency for Cybersecurity
+*[EoL]: End of Life
 *[EOL]: End of Life
 *[EO]: Executive Order
 *[EU]: European Union
@@ -180,6 +181,7 @@ stops after the first match is found.
 *[VDB]: Vulnerability Database
 *[VDPs]: Vulnerability Disclosure Programs
 *[VDP]: Vulnerability Disclosure Program
+*[VEP]: Vulnerability Equities Process
 *[VINCE]: Vulnerability Information and Coordination Environment
 *[VMs]: Virtual Machines
 *[VM]: Vulnerability Management
