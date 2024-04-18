@@ -156,6 +156,7 @@ stops after the first match is found.
 *[StartTLS]: Start Transport Layer Security, a protocol extension for upgrading a plaintext connection to a secure connection
 
 *[TCP]: Transmission Control Protocol
+*[TF-IDF]: Term Frequency-Inverse Document Frequency
 *[TLP]: Traffic Light Protocol
 *[TTPs]: Tactics, Techniques, and Procedures
 *[TTP]: Tactics, Techniques, and Procedures

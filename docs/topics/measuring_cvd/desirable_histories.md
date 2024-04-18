@@ -206,7 +206,7 @@ This partial order requires a formal definition of which desiderata are met by a
     The partial order defined here is a simple one, in that it only requires
     that one history contain all the desiderata of another to be considered
     more desirable.
-    In [Reasoning over Possible Histories](./reasoning.md)
+    In [Reasoning over Possible Histories](./reasoning_over_histories.md)
     we will extend this model to include
     a partial order over the desiderata themselves, which will allow us to
     reason about the relative desirability of any two desiderata.
