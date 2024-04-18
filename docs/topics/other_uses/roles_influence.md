@@ -32,30 +32,36 @@ shown in [Event Order Frequency](../measuring_cvd/reasoning_over_histories.md/#e
 will be consistent across any such variations in desiderata.
 
 A discussion of some stakeholder preferences is given below, while a
-summary can be found in the following table. We notate these variations of the
-set of desiderata $\mathbb{D}$ with subscripts: $\mathbb{D}_v$ for
-vendors, $\mathbb{D}_s$ for system owners, $\mathbb{D}_c$ for
-coordinators, and $\mathbb{D}_g$ for governments. (Government stakeholders
-are omitted from the table because they are expected to have similar preferences to
-coordinators.)
+summary can be found in the following table. 
 
-| Desideratum $d \in \mathbb{D}$ | Vendor ($\mathbb{D}_v$) | System Owner ($\mathbb{D}_s$) | Coordinator ($\mathbb{D}_c$) |
-|:------------------------------:|:-----------------------:|:-----------------------------:|:----------------------------:|
-|        **V** $\prec$ **P**        |           yes           |           maybe^4^            |             yes              |
-|        **V** $\prec$ **X**        |           yes           |           maybe^4^            |             yes              |
-|        **V** $\prec$ **A**        |           yes           |           maybe^4^            |             yes              |
-|        **F** $\prec$ **P**        |           yes           |           maybe^5^            |             yes              |
-|        **F** $\prec$ **X**        |           yes           |              yes              |             yes              |
-|        **F** $\prec$ **A**        |           yes           |              yes              |             yes              |
-|        **D** $\prec$ **P**        |        maybe^1^         |           maybe^1^            |             yes              |
-|        **D** $\prec$ **X**        |        maybe^2^         |           maybe^5^            |             yes              |
-|        **D** $\prec$ **A**        |        maybe^2^         |              yes              |             yes              |
-|        **P** $\prec$ **X**        |           yes           |              yes              |             yes              |
-|        **P** $\prec$ **A**        |           yes           |              yes              |             yes              |
-|        **X** $\prec$ **A**        |        maybe^3^         |           maybe^3^            |           maybe^3^           |
+!!! info "Stakeholder Preferences for Event Ordering"
 
-!!! tip "Table Notes"
+    The table below summarizes the expected preferences of different
+    stakeholders for the order of events in a CVD process.
+    We notate these variations of the
+    set of desiderata $\mathbb{D}$ with subscripts: $\mathbb{D}_v$ for
+    vendors, $\mathbb{D}_s$ for system owners, $\mathbb{D}_c$ for
+    coordinators, and $\mathbb{D}_g$ for governments. (Government stakeholders
+    are omitted from the table because they are expected to have similar preferences to
+    coordinators.)
 
+    | Desideratum<br/>$d \in \mathbb{D}$ | Vendor<br/>($\mathbb{D}_v$) | System Owner<br/>($\mathbb{D}_s$) | Coordinator<br/>($\mathbb{D}_c$) |
+    |:-----------------------------------:|:-----------------------:|:-----------------------------:|:----------------------------:|
+    |         **V** $\prec$ **P**         |           yes           |           maybe^4^            |             yes              |
+    |         **V** $\prec$ **X**         |           yes           |           maybe^4^            |             yes              |
+    |         **V** $\prec$ **A**         |           yes           |           maybe^4^            |             yes              |
+    |         **F** $\prec$ **P**         |           yes           |           maybe^5^            |             yes              |
+    |         **F** $\prec$ **X**         |           yes           |              yes              |             yes              |
+    |         **F** $\prec$ **A**         |           yes           |              yes              |             yes              |
+    |         **D** $\prec$ **P**         |        maybe^1^         |           maybe^1^            |             yes              |
+    |         **D** $\prec$ **X**         |        maybe^2^         |           maybe^5^            |             yes              |
+    |         **D** $\prec$ **A**         |        maybe^2^         |              yes              |             yes              |
+    |         **P** $\prec$ **X**         |           yes           |              yes              |             yes              |
+    |         **P** $\prec$ **A**         |           yes           |              yes              |             yes              |
+    |         **X** $\prec$ **A**         |        maybe^3^         |           maybe^3^            |           maybe^3^           |
+
+    **Table Notes**
+    
     1. When vendors control deployment, both vendors and system owners
     likely prefer **D** $\prec$ **P**. When system owners control
     deployment, **D** $\prec$ **P** is impossible.
@@ -71,8 +77,8 @@ coordinators.)
     5. System owners might be indifferent to **F** $\prec$ **P**
     and **D** $\prec$ **X** depending on their risk tolerance.
 
- In
-Table [3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==} we defined a preference ordering between
+In [Desirable Histories](../measuring_cvd/desirable_histories.md), 
+we defined a preference ordering between
 every possible pairing of events, therefore $\mathbb{D}$ is the largest
 possible set of desiderata. We thus expect the desiderata of benevolent
 stakeholders to be a subset of $\mathbb{D}$ in most cases. That said, we
@@ -251,8 +257,9 @@ have deployed the fix.
 ## Coordinators
 
 Coordinators have been characterized as seeking to balance the social
-good across both vendors and system owners [@arora2008optimal]. This
-implies that they are likely interested in the union of the vendors' and
+good across both vendors and system owners
+(See for example [Optimal Policy for Software Vulnerability Disclosure](https://www.jstor.org/stable/20122417) by Arora, Telang, and Xu).
+Thisimplies that they are likely interested in the union of the vendors' and
 system owners' preferences. In other words, coordinators want the full
 set of desiderata ($\mathbb{D}_c = \mathbb{D}$).
 
@@ -287,8 +294,9 @@ anticipate $\mathbb{D}_g = \mathbb{D}_c = \mathbb{D}$.
 
 However, governments sometimes also have an adversarial role to play for
 national security, law enforcement, or other reasons. The model
-presented in this paper could be adapted to that role by drawing some
-desiderata from the lower left triangle of Table
-[3.3](#tab:ordered_pairs){== TODO fix ref to tab:ordered_pairs ==}. While defining such adversarial
-desiderata ($\mathbb{D}_a$) is out of scope for this paper, we leave the
+presented here could be adapted to that role by drawing some
+desiderata from the lower left triangle of the ordered pairs table (reproduced below for convenience).
+While defining such adversarial desiderata ($\mathbb{D}_a$) is out of scope for our purposes, we leave the
 topic with our expectation that $\mathbb{D}_a \not\subseteq \mathbb{D}$.
+
+{% include-markdown "../measuring_cvd/_ordered_pairs_events.md" %}
