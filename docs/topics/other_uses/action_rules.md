@@ -2,31 +2,35 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-Another application of the [CS model](../process_models/cs/cs_model.md){== TODO fix link ==} is to
+Another application of the [CS model](../process_models/cs/index.md) is to
 recommend actions for coordinating parties in CVD based on the subset of states that
 currently apply to a case. What a coordinating party does depends on
 their role and where they engage, as shown in the list below. As
 described throughout this documentation, the Vultron protocol is intended
 to synchronize state transitions across CVD stakeholders.
 
-## Defining CVD Action Rules
+<!-- for spacing -->
+<br/>
 
-A significant portion of CVD can be formally described as a set of action
-rules based on this model. For our purposes, a CVD action rule consists of:
+!!! info "Defining CVD Action Rules"
 
-| Rule Component | Description                                                                             |
-|----------------|-----------------------------------------------------------------------------------------|
-| State subset   | The subset of states $Q^{cs} \in \mathcal{Q^{cs}}$ from which the action may be taken   |
-| Role(s)        | The role(s) capable of performing the action                                            |
-| Action         | A summary of the action to be taken                                                     |
-| Reason         | The rationale for taking the action                                                     |
-| Transition     | The state transition event $\sigma^{cs} \in \Sigma^{cs}$ induced by the action (if any) |
+    A significant portion of CVD can be formally described as a set of action
+    rules based on this model. For our purposes, a CVD action rule consists of:
+    
+    | Rule Component | Description                                                                             |
+    |----------------|-----------------------------------------------------------------------------------------|
+    | State subset   | The subset of states $Q^{cs} \in \mathcal{Q^{cs}}$ from which the action may be taken   |
+    | Role(s)        | The role(s) capable of performing the action                                            |
+    | Action         | A summary of the action to be taken                                                     |
+    | Reason         | The rationale for taking the action                                                     |
+    | Transition     | The state transition event $\sigma^{cs} \in \Sigma^{cs}$ induced by the action (if any) |
 
 This rule structure follows a common user story pattern:
 
-!!! example "Example CVD Action Rule"
-    *When* a case is in a state $q^{cs} \in \mathcal{Q}^{cs}$, a *Role*
-    can do *Action* for *Reason*, resulting in the transition event
+!!! note "Defining a CVD Action Rule"
+
+    When a case is in a `state` $q^{cs} \in \mathcal{Q}^{cs}$, a `Role`
+    can do `Action` for `Reason`, resulting in the `transition event`
     $\sigma \in \Sigma$
 
 ## CVD Action Suggestion Rules
@@ -85,9 +89,14 @@ We define a set of such rules in the table below.
 |                $VFDPXa$                |       any        | Close case (unless monitoring for A)                   | No action required                           |    -     |
 |                $VFDPxA$                |       any        | Close case (unless monitoring for X)                   | No action required                           |    -     |
 
-## CVD Action Suggestion Rules Engine
+!!! vultron "CVD Action Suggestion Rules Engine"
 
-The rules listed in the table above can be built into a rules engine that
-translates each state in the model to a set of suggested CVD actions.
-The detailed [case state listings](../../reference/case_states/index.md) in the
-references section show these rules applied to each $q^{cs}$ state.
+    The rules listed in the table above can be built into a rules engine that
+    translates each state in the model to a set of suggested CVD actions.
+    The detailed [case state listings](../../reference/case_states/index.md) in the
+    references section show these rules applied to each $q^{cs}$ state.
+
+    Furthermore, much of the logic embodied in the rules above forms the basis of the
+    [Vultron Process Models](../process_models/index.md)
+    and
+    [Behavior Logic](../behavior_logic/index.md).
