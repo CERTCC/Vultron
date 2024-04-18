@@ -157,4 +157,3 @@ interest of observability. The *exploit exists* event is difficult to
 consistently observe independently. Its occurrence is nearly always
 inferred from the observation of either *exploit public* or *attacks
 observed*.
-
