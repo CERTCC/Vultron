@@ -220,6 +220,7 @@ not_in_nav: |
   topics/user_stories/story_*.md
   *diagram*.md
   *table*.md
+  *.ttl
 theme:
   logo: 'assets/cert_seal.svg'
   name: 'material'
