@@ -154,7 +154,7 @@ engagement with the case.
 
 ### Leaving an Embargo May Have Consequences
 
-As we note in the [CVD Guide](https://vuls.cert.org/confluence/display/CVD/5.5+Response+Pacing+and+Synchronization),
+As we note in the [CVD Guide](https://certcc.github.io/CERT-Guide-to-CVD/howto/coordination/response_pacing),
 CVD is an iterated game, and actions have consequences.
 Leaving an embargo early in one case may have repercussions to Participants' willingness to cooperate in later cases.
 

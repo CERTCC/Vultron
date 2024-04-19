@@ -14,6 +14,7 @@ stateDiagram-v2
             VFd --> VFD : D
             VFD --> [*]
         }
+        --
         g: Participant-Agnostic 
         state g {
             [*] --> pxa

@@ -268,7 +268,7 @@ One might reasonably expect `Contacts` to have names, email addresses, phone num
 
 The remainder of the class diagram above consists of classes representing the Role and Message Type flags and various enumerations.
 
-- The `Role` flags are consistent with the roles we defined in [Terms and Definitions](../topics/background/terms.md), as taken from the [CVD Guide](https://vuls.cert.org/confluence/display/CVD).
+- The `Role` flags are consistent with the roles we defined in [Terms and Definitions](../topics/background/terms.md), as taken from the [CVD Guide](https://certcc.github.io/CERT-Guide-to-CVD).
 - `Message Type` flags are consistent with [Message Types](../reference/formal_protocol/messages.md).
 - The other enumeration classes are consistent with the [Report Management](../topics/process_models/rm/index.md), [Embargo Management](../topics/process_models/em/index.md),
 and [Case State](../topics/process_models/cs/index.md) process models and their respective state machines.

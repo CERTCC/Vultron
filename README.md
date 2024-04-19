@@ -16,7 +16,7 @@ Our previous work in this area includes:
 
 - The CERT Guide to Coordinated Vulnerability Disclosure
 ([Version 1.0](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=503330),
-[Version 2.0](https://vuls.cert.org/confluence/display/CVD)
+[Version 2.0](https://certcc.github.io/CERT-Guide-to-CVD)
 )
 - Prioritizing Vulnerability Response: A Stakeholder-Specific Vulnerability Categorization (SSVC)
 ([Version 1.0](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=636379),
@@ -87,7 +87,7 @@ For more about our work in modeling, formalizing, and describing the CVD process
 - [Designing Vultron: A Protocol for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) (2022) is the initial Vultron report.
   - [SEI Blog post on Vultron](https://insights.sei.cmu.edu/blog/vultron-a-protocol-for-coordinated-vulnerability-disclosure/) (2022-09-26)
   - [SEI Podcast on Vultron](https://youtu.be/8WiSmhxJ2OM) (2023-02-24)
-- [CERT Guide to Coordinated Vulnerabilty Disclosure](https://vuls.cert.org/confluence/display/CVD) (2017, 2019)
+- [CERT Guide to Coordinated Vulnerabilty Disclosure](https://certcc.github.io/CERT-Guide-to-CVD) (2017, 2019)
 - [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513) (2021)
   - (abridged as) [Are We Skillful or Just Lucky? Interpreting the Possible Histories of Vulnerability Disclosures](https://dl.acm.org/doi/10.1145/3477431) (2022)
 - [Coordinated Vulnerability Disclosure User Stories](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=886543) (2022)

@@ -7,6 +7,8 @@ In the context of the Vultron Protocol, once a report has been validated
 determine what further effort, if any, is necessary.
 While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://github.com/CERTCC/SSVC) model.
 
+{== TODO merge with SSVC section of [Situation Awareness](../topics/other_uses/situation_awareness.md) ==}
+
 ## SSVC Supplier and Deployer Trees
 
 The default outcomes for both the SSVC [*Supplier*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_supplier.pdf)
@@ -148,12 +150,14 @@ otherwise it should be *No*.
 
 !!! note "SSVC *Supplier Contacted* Decision Point Mapped to RM States"
 
-    $$SSVC(supp.~contacted) = 
+    $$
+    SSVC(supp.~contacted) = 
     \begin{cases}
         Yes & \iff q^{rm}_{Vendor} \not \in S \text{ or } q^{cs}_{Vendor} \in V\cdot\cdot\cdot\cdot\cdot \\
         \\
         No & \iff q^{rm}_{Vendor} \in S \text{ or } q^{cs}_{Vendor} \in vfd \cdot\cdot\cdot \\
-    \end{cases}$$
+    \end{cases}
+    $$
 
 ### Report Credibility
 
@@ -169,11 +173,30 @@ because "Valid-but-not-Credible" is a contradiction.
 
 !!! note "SSVC *Report Credibility* Decision Point Mapped to RM States"
 
-    $$SSVC(report~cred.) = 
+    $$
+    SSVC(report~cred.) = 
     \begin{cases}
         Credible & \text{implies }q^{rm} \xrightarrow{v} V \textrm{ (if validation also passes)}\\
         Not~Credible & \text{implies } q^{rm} \xrightarrow{i} I \\
-    \end{cases}$$
+    \end{cases}
+    $$
+
+### Public Value Added
+
+The SSVC *Public Value Added* decision point can take on the values *Precedence*, *Ampliative*, or *Limited*.
+*Precedence* means that publication adds value by providing information that is not widely known.
+*Ampliative* means that publication might providing additional information or reach to information that may or may not
+already be public.
+*Limited* means that publication impact might be limited because the information is already widely known.
+
+!!! note "SSVC *Public Value Added Decision Point Mapped to CS States"
+
+        $$ SSVC(pva) = 
+        \begin{cases}
+            Precedence & \iff q^{cs} \in \cdot\cdot\cdot p\cdot\cdot \\
+            Ampliative & \iff q^{cs} \in VFdp\cdot\cdot \textrm{ or } q^{cs} \in \cdot\cdot dP\cdot\cdot \\
+            Limited & \iff q^{cs} \in VF\cdot P\cdot \\
+        \end{cases}$$
 
 ### Supplier Engagement
 
@@ -319,3 +342,14 @@ graph LR
     yet to actively engage in the case for whatever reason&mdash;as indicated by their failure to reach the RM 
     _Accepted_ state or demonstrate progress toward it by at least getting to RM _Valid_ 
     ($q^{rm} \in \{A,V\}$)&mdash;then they can be categorized as _Uncooperative/Unresponsive_.
+
+!!! example "SSVC Decision Points and Anticipated Transitions"
+
+    Other SSVC decision points may be informative about which transitions to
+    expect in a case. Two examples apply here:
+    
+    1. *Supplier Engagement*
+    acts to gauge the likelihood of the **F** transitions.
+    Coordination becomes more necessary the lower that likelihood is.
+    2. *Utility* (the usefulness of the exploit to the adversary) acts
+    to gauge the likelihood of the **A** transition.

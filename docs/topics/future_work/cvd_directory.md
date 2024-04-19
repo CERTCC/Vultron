@@ -40,7 +40,7 @@ problems:
     to ensure interoperability between report senders and receivers).
     Some Vendors only want email. Others require Reporters to create an
     account on their bespoke bug-tracking system before reporting.
-    Others ask for submissions via a customized web form. These and [other examples](https://vuls.cert.org/confluence/display/CVD/4.2+Reporting)
+    Others ask for submissions via a customized web form. These and [other examples](https://certcc.github.io/CERT-Guide-to-CVD/topics/phases/reporting/)
     hinder the interoperability of MPCVD processes.
 
 3. It is not always clear which *other* Vendors' products contain the

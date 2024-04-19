@@ -267,7 +267,7 @@ Within the context of a coordinated publication process, (**P**)
 requires at least one Participant to be in the $q^{rm} = Accepted$ state
 because Participants are presumed to publish only on cases they have
 accepted. Ideally, the Vendor is among those Participants, but as
-outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD),
+outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD),
 that is not strictly necessary.
 
 That said, the publishing party might be outside of *any* existing

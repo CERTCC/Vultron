@@ -1,6 +1,6 @@
 # Reporting Behavior
 
-The [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD)
+The [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD)
 describes the reporting phase as the process of identifying parties that need to be informed about the vulnerability
 and then notifying them.
 Reporting only works if the intended recipient has the ability to receive reports, as outlined in

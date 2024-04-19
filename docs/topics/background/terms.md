@@ -1,7 +1,7 @@
 # Terms and Definitions
 
 Throughout this documentation, we refer to CVD Roles from the [*CERT Guide to Coordinated
-Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD):
+Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD):
 
 !!! info "Finder"
 

@@ -33,8 +33,11 @@ nav:
         - Early Termination: 'topics/process_models/em/early_termination.md'
         - Case Splits and Merges: 'topics/process_models/em/split_merge.md'
       - Case State:
+        - Vulnerability Lifecycle Events: 'topics/process_models/cs/events.md'
         - Introduction: 'topics/process_models/cs/index.md'
-        - CVD Case State Model: 'topics/process_models/cs/cs_model.md'
+        - CS States: 'topics/process_models/cs/cs_model.md'
+        - CS Transitions: 'topics/process_models/cs/transitions.md'
+        - CS Process Model: 'topics/process_models/cs/model_definition.md'
       - Model Interactions:
         - Global vs Local Aspects: 'topics/process_models/model_interactions/index.md'
         - RM and EM Interactions: 'topics/process_models/model_interactions/rm_em.md'
@@ -71,9 +74,28 @@ nav:
         - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
+    - Measuring CVD:
+        - Introduction: 'topics/measuring_cvd/index.md'
+        - Possible Histories: 'topics/measuring_cvd/possible_histories.md'
+        - Desirable Histories: 'topics/measuring_cvd/desirable_histories.md'
+        - Random Walks: 'topics/measuring_cvd/random_walk.md'
+        - Reasoning Over Histories: 'topics/measuring_cvd/reasoning_over_histories.md'
+        - Discriminating Skill from Luck: 'topics/measuring_cvd/discriminating_skill_and_luck.md'
+        - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
+        - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
+        - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
+    - Other Uses of Vultron:
+        - Introduction: 'topics/other_uses/index.md'
+        - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
+        - Defining Zero Days: 'topics/other_uses/zero_day.md'
+        - Policy Formalization: 'topics/other_uses/policy_formalization.md'
+        - Situation Awareness: 'topics/other_uses/situation_awareness.md'
+        - VEP: 'topics/other_uses/vep.md'
+        - CVD Action Rules: 'topics/other_uses/action_rules.md'
     - User Stories: 'topics/user_stories/index.md'
     - Future Work:
         - Intro: 'topics/future_work/index.md'
+        - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'
         - CVD Directory: 'topics/future_work/cvd_directory.md'
         - Reward Functions: 'topics/future_work/reward_functions.md'
         - Ontology: 'topics/future_work/ontology.md'
@@ -192,23 +214,28 @@ nav:
     - License: 'about/license.md'
   - Issue Tracker: 'https://github.com/CERTCC/Vultron/issues'
 not_in_nav: |
-    includes/*
-    topics/user_stories/story_*.md
-    *diagram*.md
-    *table*.md
-    _*.md
+  _*.md
+  _*/**/*.md
+  includes/*
+  topics/user_stories/story_*.md
+  *diagram*.md
+  *table*.md
+  *.ttl
 theme:
   logo: 'assets/cert_seal.svg'
   name: 'material'
   features:
     - content.tabs.link
+    - content.tooltips
     - navigation.footer
     - navigation.instant
-    - navigation.prune
+    - navigation.sections
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.top
     - navigation.tracking
+    - navigation.prune
+    - navigation.indexes
     - search.highlight
     - search.suggest
     - toc.follow
@@ -218,9 +245,12 @@ theme:
   icon:
     repo: fontawesome/brands/github
 plugins:
+  - bibtex:
+      bib_file: 'references.bib'
   - include-markdown:
       comments: false
   - mkdocstrings:
+      enabled: !ENV [ENABLE_MKDOCSTRINGS, true]
       handlers:
         python:
           paths: [ 'src' ]
@@ -235,6 +265,7 @@ plugins:
 repo_url: 'https://github.com/CERTCC/Vultron'
 repo_name: 'CERTCC/Vultron'
 markdown_extensions:
+  - abbr
   - admonition
   - attr_list
   - def_list
@@ -255,6 +286,9 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.keys
   - pymdownx.mark
+  - pymdownx.snippets:
+      auto_append:
+        - docs/_acronyms/index.md
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:

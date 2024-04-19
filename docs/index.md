@@ -84,7 +84,7 @@ in detail.
 The Vultron Protocol is a continuation of the CERT/CC's work on improving the coordination of vulnerability disclosure and response.
 Our previous work in this area includes:
 
-- [The CERT Guide to Coordinated Vulnerability Disclosure](https://vuls.cert.org/confluence/display/CVD)
+- [The CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD)
 - Prioritizing Vulnerability Response: A Stakeholder-Specific Vulnerability Categorization (SSVC) ([Version 1.0](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=636379), [Version
 2.0](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=653459), [github](https://github.com/CERTCC/SSVC))
 - The [Vulnerability Information and Coordination Environment](https://kb.cert.org/vince/)
