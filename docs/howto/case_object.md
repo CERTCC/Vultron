@@ -256,7 +256,7 @@ One might reasonably expect `Contacts` to have names, email addresses, phone num
     A separate contact management process and accompanying directory service is a likely candidate for [future integration work](../topics/future_work/cvd_directory.md).
     For now, we observe that similar directories already exist, although there is room for improvement:
 
-    - FIRST maintains a [directory of member teams](https://www.first.org/members/teams/) for incident response purposes
+    - FIRST maintains a [directory of member teams](https://www.first.org/members/teams/){:target="_blank"} for incident response purposes
 
     - Disclose.io offers a searchable list of [bug bounty and vulnerability
     disclosure programs](https://disclose.io/programs/).

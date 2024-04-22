@@ -19,7 +19,7 @@ Thus, we must ask:
 !!! tip inline end "security.txt"
 
     Vendors can improve their discoverability by using a
-    `security.txt` file on their websites. See [securitytxt.org](https://securitytxt.org) and [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116.html)
+    `security.txt` file on their websites. See [securitytxt.org](https://securitytxt.org){:target="_blank"} and [RFC 9116](https://www.rfc-editor.org/rfc/rfc9116.html){:target="_blank"}
     for more information.
 
 In small CVD cases, the answer might be straightforward: The affected product comes from a known Vendor,
@@ -40,7 +40,7 @@ problems:
     to ensure interoperability between report senders and receivers).
     Some Vendors only want email. Others require Reporters to create an
     account on their bespoke bug-tracking system before reporting.
-    Others ask for submissions via a customized web form. These and [other examples](https://certcc.github.io/CERT-Guide-to-CVD/topics/phases/reporting/)
+    Others ask for submissions via a customized web form. These and [other examples](https://certcc.github.io/CERT-Guide-to-CVD/topics/phases/reporting/){:target="_blank"}
     hinder the interoperability of MPCVD processes.
 
 3. It is not always clear which *other* Vendors' products contain the
@@ -63,8 +63,8 @@ problems:
 
 !!! tip inline end "For more information"
 
-    - [FIRST Teams](https://www.first.org/members/teams/)
-    - Disclose.io [website](https://disclose.io/programs/) and on [GitHub](https://github.com/disclose/diodb)
+    - [FIRST Teams](https://www.first.org/members/teams/){:target="_blank"}
+    - Disclose.io [website](https://disclose.io/programs/){:target="_blank"} and on [GitHub](https://github.com/disclose/diodb)
 
 When it comes to larger scale MPCVD, the inefficiency of ad hoc contact
 collection via search engines is evident. Creating a directory of

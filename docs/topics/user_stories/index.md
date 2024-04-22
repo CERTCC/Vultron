@@ -14,7 +14,7 @@ Where appropriate, we intend to provide a reference implementation for each appl
 !!! info "Original User Stories from 2022 CERT/CC Whitepaper"
 
     Stories numbered from `2022_001` through `2022_102` originated in
-    the [Coordinated Vulnerability Disclosure User Stories](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=886543)
+    the [Coordinated Vulnerability Disclosure User Stories](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=886543){:target="_blank"}
     whitepaper.
     
     > These user stories reflect

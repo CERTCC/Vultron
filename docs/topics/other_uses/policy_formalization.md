@@ -47,7 +47,7 @@ in $\mathcal{Q}$.
     the prospect of ${Vfp} \xrightarrow{\mathbf{P}} {VfP}$ is often used to
     motivate vendors to ensure a reasonable SLE to produce fixes
     (${Vf} \xrightarrow{\mathbf{F}} {VF}$) 
-    (See for example [Optimal Policy for Software Vulnerability Disclosure](https://www.jstor.org/stable/20122417) by Arora, Telang, and Xu).
+    (See for example [Optimal Policy for Software Vulnerability Disclosure](https://www.jstor.org/stable/20122417){:target="_blank"} by Arora, Telang, and Xu).
 
 !!! example "SLEs and Fix Readiness Timing"
 
@@ -102,7 +102,7 @@ in $\mathcal{Q}$.
     later than" specifications
 
     - An indication of constraint rigidity (negotiable, fixed, [*MUST*,
-    *SHOULD*, *MAY*](https://datatracker.ietf.org/doc/html/rfc2119), etc.)
+    *SHOULD*, *MAY*](https://datatracker.ietf.org/doc/html/rfc2119){:target="_blank"}, etc.)
 
     - Potential exceptions in the form of other transitions
     ($\sigma \in \Sigma$) that might alter expected behavior, and a

@@ -10,7 +10,7 @@ Thus, for adoption to occur, it will be necessary to map existing systems and pr
 (and eventually, the syntax) of whatever protocol emerges as a descendant of our proposal.
 
 Combined with the abstract [case class model](../../howto/case_object.md), an ontology (e.g., using
-[OWL](https://www.w3.org/OWL/)) could accelerate
+[OWL](https://www.w3.org/OWL/){:target="_blank"}) could accelerate
 the semantic interoperability between independent Participant processes and tools that we set out to improve at the
 beginning of this effort.
 
@@ -20,8 +20,8 @@ that is intended to be a starting point for further discussion and refinement.
 ## Related Ontology and Data Definition Work
 
 It is currently unclear how this work might intersect with the NIST
-[Vulnerability Data Ontology](https://github.com/usnistgov/vulntology) (a.k.a. *Vulntology*), but we anticipate that there may be some
+[Vulnerability Data Ontology](https://github.com/usnistgov/vulntology){:target="_blank"} (a.k.a. *Vulntology*), but we anticipate that there may be some
 opportunity for further collaboration.
-Also, we recognize that the OASIS [Common Security Advisory Framework](https://oasis-open.github.io/csaf-documentation/)
+Also, we recognize that the OASIS [Common Security Advisory Framework](https://oasis-open.github.io/csaf-documentation/){:target="_blank"}
 is addressing a different abstraction of a closely related problem (representing vulnerability reports and advisories),
 so we believe that there may be some opportunity for collaboration there as well.
