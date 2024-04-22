@@ -105,7 +105,7 @@ Exiting the *Received* state requires a Participant to assess the
 validity of a report. Note that validation is distinct from
 prioritization, as covered in our description of the [*Valid*](#the-valid-v-state) state.
 In other words, the *Received* state corresponds to the
-[Validation phase](https://certcc.github.io/CERT-Guide-to-CVD4.3+Validation+and+Triage){:target="_blank"}
+[Validation phase](https://certcc.github.io/CERT-Guide-to-CVD/topics/phases/validation){:target="_blank"}
 of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
 !!! note ""

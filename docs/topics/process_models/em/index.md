@@ -32,7 +32,7 @@ Unlike the [RM](../rm/index.md) model, in which each Participant has their own i
 
 (We define the term *active* below.)
 
-Even in an MPCVD case having a [vertical supply chain](https://certcc.github.io/CERT-Guide-to-CVD5.4+Multiparty+CVD){:target="_blank"}&mdash;in which Vendors must wait on their upstream suppliers to produce fixes before they can take action on
+Even in an MPCVD case having a [vertical supply chain](https://certcc.github.io/CERT-Guide-to-CVD/howto/coordination/mpcvd/){:target="_blank"}&mdash;in which Vendors must wait on their upstream suppliers to produce fixes before they can take action on
 their own, as in the figure below&mdash;our intent is that the embargo
 period terminates when as many Vendors as possible have been given an
 adequate opportunity to produce a fix.
