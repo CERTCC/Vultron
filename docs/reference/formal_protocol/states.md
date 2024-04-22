@@ -274,7 +274,7 @@ Vendors with the ability to deploy fixes themselves have access to three states 
 However, this is not always the case.
 Vendor Participants without a deployment capability can only create fixes, limiting them to the middle two states in
 the fix path: $\{Vfd,~VFd\}$.
-Additional discussion of the distinction between Vendors with and without a deployment capability can be found in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
+Additional discussion of the distinction between Vendors with and without a deployment capability can be found in [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"}.
 
 We apply these caveats to the generic model above to arrive at a Vendor state shown below.
 
@@ -623,7 +623,7 @@ states, as we show next.
 
 Finally, CVD cases often involve Participants who are neither Vendors nor Deployers.
 Specifically, Finder/Reporters fall into this category, as do Coordinators.
-Other roles, as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD),
+Other roles, as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"},
 could be included here as well.
 Because they do not participate directly in the Vendor fix path, these Non-Vendor, Non-Deployer CVD Participants fall
 into the $\varnothing$ case substate we added above.
@@ -889,7 +889,7 @@ With these values in mind, we see that
 - A large, but not atypical, 200-Vendor case handled by the CERT/CC might have
     $40 \times 3 \times 16^{200} \times 7 \approx 10^{244}$ possible configurations.
 
-- In the case of the log4j vulnerability [CVE-2021-44228](https://www.kb.cert.org/vuls/id/930724) in December
+- In the case of the log4j vulnerability [CVE-2021-44228](https://www.kb.cert.org/vuls/id/930724){:target="_blank"} in December
     2021, the CERT/CC notified around 1,600 Vendors after the vulnerability had been made public. Had this been an
     embargoed disclosure, the case would have a total state space around $10^{2000}$.
 

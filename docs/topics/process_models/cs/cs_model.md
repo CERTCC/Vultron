@@ -4,7 +4,7 @@
 
 Here we complete the definition of the CVD Case State (CS) model begun in the [previous page](index.md).
 As a reminder, this model provides a high-level view of the state of a CVD case and is
-derived from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513).
+derived from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"}.
 
 ---
 
@@ -51,7 +51,7 @@ As a result, valid states must begin with one of the following strings: *vfd*, *
 
 !!! tip inline end "See also"
 
-    See §2.4 of [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
+    See §2.4 of [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"}
     for an expanded explanation of the *Vendor fix path*.
 
 ```mermaid
@@ -108,7 +108,7 @@ The lone final state in which all events have occurred is *VFDPXA*.
     vulnerabilities never have exploits published or attacks observed.
     See for example:
     
-    - [Historical Analysis of Exploit Availability Timelines](https://www.usenix.org/conference/cset20/presentation/householder)
+    - [Historical Analysis of Exploit Availability Timelines](https://www.usenix.org/conference/cset20/presentation/householder){:target="_blank"}
     - [Exploit Prediction Scoring System (EPSS)](https://dl.acm.org/doi/pdf/10.1145/3436242)
     
     Therefore, practically speaking, we might expect vulnerabilities to wind up in one of

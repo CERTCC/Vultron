@@ -224,7 +224,7 @@ The [CVD Action Rules](../other_uses/action_rules.md) are not algorithms. We do 
 them as a set of required actions for every CVD case. However, following Atul Gawande's
 lead, we offer them as a mechanism to generate CVD checklists:
 
-!!! quote "Atul Gawande in [The Checklist Manifesto](https://atulgawande.com/book/the-checklist-manifesto/)"
+!!! quote "Atul Gawande in [The Checklist Manifesto](https://atulgawande.com/book/the-checklist-manifesto/){:target="_blank"}"
 
     Good checklists, on the other hand are precise. They are efficient, to
     the point, and easy to use even in the most difficult situations. They
@@ -256,8 +256,8 @@ at a larger scale.
 !!! ssvc "Thinking about Risk"
 
     User concentration is one way to think about risk, but it is not the only way. 
-    [Value density](https://certcc.github.io/SSVC/reference/decision_points/value_density/),
-    as defined in [SSVC](https://certcc.github.io/SSVC/) is another.
+    [Value density](https://certcc.github.io/SSVC/reference/decision_points/value_density/){:target="_blank"},
+    as defined in [SSVC](https://certcc.github.io/SSVC/){:target="_blank"} is another.
 
 The core issue is that we lack a utility function to map from observed
 case histories to harm reduction.[^13] Potential features of such a
@@ -276,16 +276,16 @@ applied.
     best way to approach these problems; and if it is, which variety of utilitarianism may be best suited. 
     Such topics, while both interesting and relevant, lie too far afield from our main topic for us to to
     them justice here.
-    We direct interested readers toward [The History of Utilitarianism](https://plato.stanford.edu/entries/utilitarianism-history/)
+    We direct interested readers toward [The History of Utilitarianism](https://plato.stanford.edu/entries/utilitarianism-history/){:target="_blank"}
     as an introduction to the general topic.
 
 Regardless, achieving accurate estimates of such parameters is likely to
 remain challenging. Equity in MPCVD may be a topic of future interest to
-groups such as the [FIRST Ethics SIG](https://www.first.org/global/sigs/ethics/).
+groups such as the [FIRST Ethics SIG](https://www.first.org/global/sigs/ethics/){:target="_blank"}.
 
 ## MPCVD Is Still Hard
 
-[CVD is a wicked problem](https://certcc.github.io/CERT-Guide-to-CVD/topics/principles/wicked_problem),
+[CVD is a wicked problem](https://certcc.github.io/CERT-Guide-to-CVD/topics/principles/wicked_problem){:target="_blank"},
 and MPCVD even more so.
 The model provided by this white paper offers structure to describe the
 problem space where there was little of it to speak of previously.

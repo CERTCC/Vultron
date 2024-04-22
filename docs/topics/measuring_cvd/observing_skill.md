@@ -11,11 +11,11 @@ As a proof of concept, we apply the model to two data sets:
 
 We are now ready to proceed with our data analysis. First, we examine
 Microsoft's monthly security updates for the period between March 2017
-and May 2020, as curated by the [Zero Day Initiative](https://www.zerodayinitiative.com/blog).
+and May 2020, as curated by the [Zero Day Initiative](https://www.zerodayinitiative.com/blog){:target="_blank"}.
 
 !!! question "Why use ZDI data instead of Microsoft's?"
 
-    The [ZDI blog posts](https://www.zerodayinitiative.com/blog) were more directly useful than the monthly 
+    The [ZDI blog posts](https://www.zerodayinitiative.com/blog){:target="_blank"} were more directly useful than the monthly 
     Microsoft security updates because ZDI had already condensed the counts of how many vulnerabilities were known
     ($\mathbf{P}$) or exploited ($\mathbf{A}$) prior to their fix readiness $\mathbf{F}$. 
     Retrieving this data from Microsoft's published vulnerability information requires collecting it from all the
@@ -147,15 +147,15 @@ $\alpha_{\mathbf{F} \prec \mathbf{A}} = 0.986$ with an interval of
 
 Next, we examine the overall trend in $\mathbf{P} \prec \mathbf{X}$ for
 commodity exploits between 2015 and 2019. The data set is based on the
-[National Vulnerability Database](https://nvd.nist.gov) (NVD), in conjunction with the CERT
-[Vulnerability Data Archive](https://github.com/CERTCC/Vulnerability-Data-Archive).
+[National Vulnerability Database](https://nvd.nist.gov){:target="_blank"} (NVD), in conjunction with the CERT
+[Vulnerability Data Archive](https://github.com/CERTCC/Vulnerability-Data-Archive){:target="_blank"}.
 Between these two databases, a number of candidate dates are available to represent the date a
 vulnerability was made public. We use the minimum of these as the date for $P$.
 
 To estimate the exploit availability ($\mathbf{X}$) date, we extracted
 the date a CVE ID appeared in the git logs for
-[Metasploit Framework](https://github.com/rapid7/metasploit-framework)
-or the [Exploit Database](https://gitlab.com/exploit-database/exploitdb).
+[Metasploit Framework](https://github.com/rapid7/metasploit-framework){:target="_blank"}
+or the [Exploit Database](https://gitlab.com/exploit-database/exploitdb){:target="_blank"}.
 When multiple dates were available for a CVE
 ID, we kept the earliest. Note that commodity exploit tools such as
 Metasploit and Exploitdb represent a non-random sample of the exploits

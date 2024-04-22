@@ -228,7 +228,7 @@ sequenceDiagram
 
     In this scenario, we are showing the Coordinator acting as a proxy between the Reporter and the Vendor.
     While this reflects the way CVD has been practiced in the past, it is not necessarily the most efficient way to
-    operate. CVD Platforms like [VINCE](https://kb.cert.org/vince) have demonstrated that bringing CVD case participants
+    operate. CVD Platforms like [VINCE](https://kb.cert.org/vince){:target="_blank"} have demonstrated that bringing CVD case participants
     into a shared space can make the process more efficient.
 
 In the next diagram, the Coordinator now acts as a proxy for the Reporter, notifying the Vendor and passing along

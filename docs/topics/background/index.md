@@ -135,24 +135,24 @@ foundational documents (thus far):
     provides decision support for prioritizing vulnerability response activities
     closely associated with the CVD process.
 
-- [*A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure*](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
+- [*A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure*](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"}
     describes a model that encompasses all possible CVD case histories into a set of measures and metrics for the
     efficacy of CVD processes. That report is an expanded version of [*Are We Skillful or Just Lucky? Interpreting the Possible
-    Histories of Vulnerability Disclosures*](https://dl.acm.org/doi/10.1145/3477431), an article published in the ACM Journal [Digital Threats: Research and Practice](https://dl.acm.org/journal/dtrap).
+    Histories of Vulnerability Disclosures*](https://dl.acm.org/doi/10.1145/3477431){:target="_blank"}, an article published in the ACM Journal [Digital Threats: Research and Practice](https://dl.acm.org/journal/dtrap){:target="_blank"}.
 
 - *Designing Vultron*, the report on which this documentation was based, proposes an abstract formal protocol for
     MPCVD, ties together various concepts from all three of the above.
 
-Whereas the [*CVD Guide*](https://certcc.github.io/CERT-Guide-to-CVD) offers a narrative description of both the CVD
+Whereas the [*CVD Guide*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"} offers a narrative description of both the CVD
 process and the many scenarios one can expect to encounter as a Participant therein, in this documentation we provide an
 additional layer of formality in the form of a *protocol* for MPCVD.
 
 ## What We Mean by *Protocol*
 
 We first define what we mean by our use of the term *protocol* by
-providing a few common usages from the [Oxford English Dictionary](https://www.oed.com/).
+providing a few common usages from the [Oxford English Dictionary](https://www.oed.com/){:target="_blank"}.
 
-!!! quote "Oxford English Dictionary on [*protocol*](https://www.oed.com/dictionary/protocol_n?tab=meaning_and_use)"
+!!! quote "Oxford English Dictionary on [*protocol*](https://www.oed.com/dictionary/protocol_n?tab=meaning_and_use){:target="_blank"}"
   
     (Computing and Telecommunications) A (usually standardized) set of
     rules governing the exchange of data between given devices, or the
@@ -190,16 +190,16 @@ technical formalities of communicating code but also extend to the
 expected behaviors of the human Participants that rely on it. In this
 second sense, we address the term *protocol* in these ways:
 
-- The [*CVD Guide*](https://certcc.github.io/CERT-Guide-to-CVD)
+- The [*CVD Guide*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}
     offers a *narrative* protocol for practitioners to follow based on
     decades of accumulated experience and observation of the
     CVD process at the CERT/CC.
 
-- The [Case State model](../process_models/cs/index.md) from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513)
+- The [Case State model](../process_models/cs/index.md) from [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"}
     offers a *prescriptive* protocol outlining the high-level goals of the CVD process, as derived from a first-principles approach to possible
     CVD case histories.
 
-- This documentation and the [report](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198) it is based
+- This documentation and the [report](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198){:target="_blank"} it is based
     on describes a *normative* protocol designed to structure and guide practitioners toward those goals.
 
 To that end, we offer this documentation as a proposal for such an MPCVD protocol.

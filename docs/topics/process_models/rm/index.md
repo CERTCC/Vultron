@@ -4,7 +4,7 @@
 
 Here we describe a high-level workflow for the CVD Report Management (RM) process.
 <!-- start_excerpt -->
-The RM process should be reasonably familiar to anyone familiar with [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management) (ITSM) workflows such as problem, change,
+The RM process should be reasonably familiar to anyone familiar with [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management){:target="_blank"} (ITSM) workflows such as problem, change,
 incident or service request management.
 In particular, any workflow in which work items (e.g., incident reports, problem tickets, change requests) are received, validated, prioritized, and work is subsequently
 completed, should map onto the RM process outlined here.
@@ -105,8 +105,8 @@ Exiting the *Received* state requires a Participant to assess the
 validity of a report. Note that validation is distinct from
 prioritization, as covered in our description of the [*Valid*](#the-valid-v-state) state.
 In other words, the *Received* state corresponds to the
-[Validation phase](https://certcc.github.io/CERT-Guide-to-CVD4.3+Validation+and+Triage)
-of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD).
+[Validation phase](https://certcc.github.io/CERT-Guide-to-CVD/topics/phases/validation){:target="_blank"}
+of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
 !!! note ""
 
@@ -204,7 +204,7 @@ future work. The result of this prioritization process will be to either
 accept the report for follow-up or defer further effort.
 The *Valid* state is equivalent to the [Prioritization
 (Triage)](https://certcc.github.io/topics/phases/prioritization) phase
-of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD).
+of the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 As an example, a Vendor might later choose to *defer* further response on a *Valid* report due to other priorities.
 
 ```mermaid
@@ -243,8 +243,8 @@ In other words, prioritization is only necessary if the workload
 represented by active valid reports exceeds the organization's capacity
 to process those reports.
 
-Prioritization schemes, such as [SSVC](https://github.com/CERTCC/SSVC) or the
-[CVSS](https://first.org/cvss), are commonly used to
+Prioritization schemes, such as [SSVC](https://github.com/CERTCC/SSVC){:target="_blank"} or the
+[CVSS](https://first.org/cvss){:target="_blank"}, are commonly used to
 prioritize work within the CVD process; however, specific details are
 left to Participant-specific implementation.
 The SSVC model is illustrative here, although any prioritization scheme could be

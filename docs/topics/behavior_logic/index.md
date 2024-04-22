@@ -10,11 +10,11 @@ our protocol demands.
 
     For more about Behavior Trees, see 
 
-    - [*Behavior Trees in Robotics and AI: An Introduction*](https://arxiv.org/abs/1709.00084)
-    - [A behavior language for story-based believable agents](https://doi.org/10.1109/MIS.2002.1024751)
-    - [GDC 2005 Proceeding: Handling Complexity in the Halo 2 AI](https://www.gamedeveloper.com/programming/gdc-2005-proceeding-handling-complexity-in-the-i-halo-2-i-ai)
-    - [Increasing Modularity of UAV Control Systems using Computer Game Behavior Trees](https://doi.org/10.2514/6.2012-4458)
-    - [An integrated system for autonomous robotics manipulation](https://doi.org/10.1109/IROS.2012.6385888)
+    - [*Behavior Trees in Robotics and AI: An Introduction*](https://arxiv.org/abs/1709.00084){:target="_blank"}
+    - [A behavior language for story-based believable agents](https://doi.org/10.1109/MIS.2002.1024751){:target="_blank"}
+    - [GDC 2005 Proceeding: Handling Complexity in the Halo 2 AI](https://www.gamedeveloper.com/programming/gdc-2005-proceeding-handling-complexity-in-the-i-halo-2-i-ai){:target="_blank"}
+    - [Increasing Modularity of UAV Control Systems using Computer Game Behavior Trees](https://doi.org/10.2514/6.2012-4458){:target="_blank"}
+    - [An integrated system for autonomous robotics manipulation](https://doi.org/10.1109/IROS.2012.6385888){:target="_blank"}
 
 Behavior Trees are a way of designing and programming hierarchical behaviors.
 They originated in the computer gaming industry to develop realistic AIs to control NPCs in games.
@@ -25,7 +25,7 @@ Behavior Trees offer a way to organize and describe agent behaviors in a straigh
 
 In this section, we use Behavior Trees as a method for describing
 MPCVD Participant activities and their interactions with the [formal protocol](../../reference/formal_protocol/index.md).
-These behaviors map approximately to the activities described in the [*CVD Guide*](https://certcc.github.io/CERT-Guide-to-CVD)
+These behaviors map approximately to the activities described in the [*CVD Guide*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}
 (e.g., validate report, prioritize report, create fix, publish report, publish fix, deploy fix).
 
 If Behavior Trees were merely a notational convention, they would
@@ -49,7 +49,7 @@ into the tree. When *ticked*, each node does its job and returns one of
 three statuses: *Success*, *Failure*, or *Running*. A full introduction
 to Behavior Trees can be found in Colledanchise and Ögren's book
 [*Behavior Trees in Robotics and AI: An
-Introduction*](https://arxiv.org/abs/1709.00084).
+Introduction*](https://arxiv.org/abs/1709.00084){:target="_blank"}.
 
 !!! info "Behavior Tree Node Types"
 
