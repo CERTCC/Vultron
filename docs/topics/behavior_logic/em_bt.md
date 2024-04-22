@@ -1,4 +1,4 @@
-# Embargo Management Behavior Tree {#sec:em_bt}
+# Embargo Management Behavior Tree
 
 The Embargo Management Behavior Tree is shown in the figure below.
 It follows the state transition function in the

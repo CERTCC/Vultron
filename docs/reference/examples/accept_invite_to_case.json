@@ -1,0 +1,11 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Accept",
+  "id": "https://for.example/ea081bda-dba6-4ce4-aed3-6baa22d3ce55",
+  "name": "https://vultron.example/organizations/coordinator Accept https://vultron.example/cases/VDR-20991514",
+  "inReplyTo": "https://vultron.example/cases/VDR-20991514/invitation/1",
+  "content": "We're accepting your invitation to participate in VENDOR Case #20991514.",
+  "to": "https://vultron.example/organizations/vendor",
+  "actor": "https://vultron.example/organizations/coordinator",
+  "object": "https://vultron.example/cases/VDR-20991514"
+}

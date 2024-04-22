@@ -17,7 +17,7 @@ VulnerabilityReports.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from typing import Optional
 
 from dataclasses_json import LetterCase, config, dataclass_json
 
@@ -38,8 +38,8 @@ from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 class RmCreateReport(as_Create):
     """The actor is creating a report."""
 
-    as_type: str = "Create"
-    as_object: Optional[Union[VulnerabilityReport, as_Link]] = field(
+    as_type: str = field(default="Create", init=False)
+    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
 
@@ -53,8 +53,8 @@ class RmSubmitReport(as_Offer):
     as_object: VulnerabilityReport
     """
 
-    as_type: str = "Offer"
-    as_object: Optional[Union[VulnerabilityReport, as_Link]] = field(
+    as_type: str = field(default="Offer", init=False)
+    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
 
@@ -67,8 +67,8 @@ class RmReadReport(as_Read):
     as_object: VulnerabilityReport
     """
 
-    as_type: str = "Read"
-    as_object: Optional[Union[VulnerabilityReport, as_Link]] = field(
+    as_type: str = field(default="Read", init=False)
+    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
 
@@ -82,8 +82,8 @@ class RmValidateReport(as_Accept):
     as_object: VulnerabilityReport
     """
 
-    as_type: str = "Accept"
-    as_object: Optional[Union[VulnerabilityReport, as_Link]] = field(
+    as_type: str = field(default="Accept", init=False)
+    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
 
@@ -97,8 +97,8 @@ class RmInvalidateReport(as_Reject):
     as_object: VulnerabilityReport
     """
 
-    as_type: str = "Reject"
-    as_object: Optional[Union[VulnerabilityReport, as_Link]] = field(
+    as_type: str = field(default="Reject", init=False)
+    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
 
@@ -113,6 +113,7 @@ class RmCloseReport(as_Leave):
     as_object: VulnerabilityReport
     """
 
-    as_object: Optional[Union[VulnerabilityReport, as_Link]] = field(
+    as_type: str = field(default="Leave", init=False)
+    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )

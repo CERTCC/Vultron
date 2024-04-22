@@ -47,7 +47,7 @@ Behavior Trees offer a high potential for automating complex tasks through a hie
 actions required to complete those tasks.
 
 The behaviors we are interested in modeling are the various CVD activities described in the
-[*CVD Guide*](https://vuls.cert.org/confluence/display/CVD) (e.g., find contacts, send reports, validate reports,
+[*CVD Guide*](https://certcc.github.io/CERT-Guide-to-CVD) (e.g., find contacts, send reports, validate reports,
 prioritize reports, create fixes, publish reports, publish fixes, deploy fixes).
 We use [Behavior Trees](../behavior_logic/index.md) to describe MPCVD Participant activities and their interactions with
 the [formal protocol](../../reference/formal_protocol/index.md).
@@ -63,7 +63,7 @@ Future work is discussed in [Future Work](../future_work/index.md).
 Reference material includes
 
 - the [Formal Protocol](../../reference/formal_protocol/index.md) description
-- an [ISO Crosswalk](../../reference/iso_crosswalk.md) contains a detailed crosswalk of our
+- an [ISO Crosswalk](../../reference/iso_crosswalks/index.md) contains a detailed crosswalk of our
   protocol with ISO/IEC 29147:2018 *Vulnerability Disclosure*, ISO/IEC
   30111:2019 *Vulnerability Handling Processes*, and ISO/IEC TR 5895:2022
   *Multi-party coordinated vulnerability disclosure and handling*.

@@ -1,4 +1,4 @@
-# Process CS Messages Behavior {#sec:process_cs_messages_bt}
+# Process CS Messages Behavior
 
 The Process CS Messages Behavior Tree is shown below.
 

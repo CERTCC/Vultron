@@ -1,5 +1,17 @@
 # Implementing Vultron
 
+{% include-markdown "../includes/not_normative.md" %}
+
+Here we collect some guidance for potential implementations of Vultron.
+
+While a complete protocol implementation specification remains a work in progress, we do have a few additional
+suggestions for potential implementers.
+
+<!-- hr to force spacing -->
+<br/>
+<br/>
+---
+
 !!! tip inline end "Prerequisites"
 
     The [Implementing Vultron](index.md) section assumes that you have:
@@ -10,19 +22,21 @@
 
     If you are unfamiliar with the Vultron Protocol, we recommend that you start with [Understanding Vultron](../topics/index.md).
     For technical reference, see [Reference](../reference/index.md).
-    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://vuls.cert.org/confluence/display/CVD/).
+    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD).
 
-Here we collect some guidance for potential implementations of Vultron.
-
-While a complete protocol implementation specification remains a work in progress, we do have a few additional
-suggestions for potential implementers.
 In this section, you will find:
 
-- an abstract [case object](case_object.md) for use in tracking MPCVD cases
-- Notes on the [core Vultron Protocol subprocesses](process_implementation.md) (RM, EM, and CS), including how the CS model might integrate with
+<div class="grid cards" markdown>
+
+- :material-database: an abstract [case object](case_object.md) for use in tracking MPCVD cases
+- :fontawesome-solid-gears: Notes on the [core Vultron Protocol subprocesses](process_implementation.md) (RM, EM, and CS), including how the CS model might integrate with
 other processes
-- A few thoughts on the [Embargo Management Process](em_icalendar.md) and how it might be implemented using the `iCalendar` protocol.
-- [General notes](general_implementation.md) on future implementations.
+- :simple-activitypub: An in-depth exploration of applying the [ActivityPub](activitypub/index.md) protocol as an underlying foundation to
+  the Vultron Protocol.
+- :material-calendar-month: A few thoughts on the [Embargo Management Process](em_icalendar.md) and how it might be implemented using the `iCalendar` protocol.
+- :material-format-list-bulleted: [General notes](general_implementation.md) on future implementations.
+
+</div>
 
 Over time, we plan to expand this section of the documentation to include:
 

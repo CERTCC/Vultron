@@ -32,8 +32,9 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "mkdocs","mkdocs-material","mkdocs-material-extensions","mkdocstrings","mkdocstrings-python",
-    "mkdocs-include-markdown-plugin", "pandas","scipy"
+    "dataclasses-json", "markdown-exec", "mkdocs-include-markdown-plugin", "mkdocs-material-extensions",
+    "mkdocs-material", "mkdocs-print-site-plugin", "mkdocs", "mkdocstrings-python", "mkdocstrings", "networkx",
+    "owlready2", "pandas", "rdflib", "scipy",
 ]
 dynamic = ["version",]
 

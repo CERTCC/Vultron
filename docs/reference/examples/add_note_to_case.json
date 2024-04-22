@@ -1,0 +1,18 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Add",
+  "id": "https://for.example/38312da5-f0dd-4a1a-8033-112d5f8aabe9",
+  "name": "https://vultron.example/users/finn Add Note to https://vultron.example/cases/VDR-20991514",
+  "actor": "https://vultron.example/users/finn",
+  "target": "https://vultron.example/cases/VDR-20991514",
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "Note",
+    "id": "https://vultron.example/cases/notes/1",
+    "name": "Note",
+    "context": "https://vultron.example/cases/VDR-20991514",
+    "published": "2024-01-22T20:29:47+00:00",
+    "updated": "2024-01-22T20:29:47+00:00",
+    "content": "This is a note."
+  }
+}

@@ -16,7 +16,7 @@ Provides Vultron ActivityStreams Activities related to Actors
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from typing import Optional
 
 from dataclasses_json import LetterCase, config, dataclass_json
 
@@ -35,11 +35,11 @@ from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 class RecommendActor(as_Offer):
     """The actor is recommending another actor to a case."""
 
-    as_type = "Offer"
-    as_object: Optional[Union[as_Actor, as_Link]] = field(
+    as_type: str = field(default="Offer", init=False)
+    as_object: Optional[as_Actor | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    target: Optional[Union[VulnerabilityCase, as_Link]] = field(
+    target: Optional[VulnerabilityCase | as_Link | str] = field(
         default=None,
         repr=True,
     )
@@ -52,11 +52,11 @@ class AcceptActorRecommendation(as_Accept):
     Should be followed by an RmInviteToCase activity targeted at the recommended actor.
     """
 
-    as_type = "Accept"
-    as_object: Optional[Union[as_Actor, as_Link]] = field(
+    as_type: str = field(default="Accept", init=False)
+    as_object: Optional[as_Actor | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    target: Optional[Union[VulnerabilityCase, as_Link]] = field(
+    target: Optional[VulnerabilityCase | as_Link | str] = field(
         default=None,
         repr=True,
     )
@@ -67,11 +67,11 @@ class AcceptActorRecommendation(as_Accept):
 class RejectActorRecommendation(as_Reject):
     """The case owner is rejecting a recommendation to add an actor to the case."""
 
-    as_type = "Reject"
-    as_object: Optional[Union[as_Actor, as_Link]] = field(
+    as_type: str = field(default="Reject", init=False)
+    as_object: Optional[as_Actor | as_Link | str] = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    target: Optional[Union[VulnerabilityCase, as_Link]] = field(
+    target: Optional[VulnerabilityCase | as_Link | str] = field(
         default=None,
         repr=True,
     )

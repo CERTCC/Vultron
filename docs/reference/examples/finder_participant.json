@@ -1,0 +1,28 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "type": "CaseParticipant",
+  "id": "https://vultron.example/cases/VDR-20991514/participants/finn",
+  "name": "Finn der Vul",
+  "context": "https://vultron.example/cases/VDR-20991514",
+  "actor": "https://vultron.example/users/finn",
+  "caseRoles": [
+    "FINDER",
+    "REPORTER"
+  ],
+  "participantStatus": [
+    {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "ParticipantStatus",
+      "id": "https://for.example/cffebd9b-f9ad-4e33-9d52-392eead68dc6",
+      "name": "REPORT_MANAGEMENT_ACCEPTED vfd",
+      "context": "https://vultron.example/cases/VDR-20991514",
+      "published": "2024-01-22T20:29:47+00:00",
+      "updated": "2024-01-22T20:29:47+00:00",
+      "actor": "https://vultron.example/users/finn",
+      "rmState": "REPORT_MANAGEMENT_ACCEPTED",
+      "vfdState": "vfd",
+      "caseEngagement": true,
+      "embargoAdherence": true
+    }
+  ]
+}

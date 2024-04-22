@@ -1,10 +1,14 @@
 # What Does *Success* Mean in CVD?
 
+!!! info inline end "Formalism development in Measuring CVD"
+
+    In the [Measuring CVD](../measuring_cvd/index.md) section of this documentation (based on
+    our 2021 [report](https://doi.org/10.1184/R1/16416771)), we define a set of 12 ordering preferences over these 6 events.
+
 We take as a base set of criteria the ordering preferences given in the
 2021 report
 [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771)
 by Householder and Spring.
-
 While we incorporate this model fully [later](../process_models/cs/index.md) in this documentation,
 some notation is necessary to proceed here.
 The [Case State model](../process_models/cs/index.md) is built on the idea that there are six events of significance
@@ -16,10 +20,8 @@ in the lifespan of every vulnerability, shown in the table below.
 | Fix Ready | **F** | Exploit Public | **X** |
 | Fix Deployed | **D** | Attacks Observed | **A** |
 
-Our 2021 [report](https://doi.org/10.1184/R1/16416771)
-defines a set of 12 ordering preferences over these 6 events.
-We present them in roughly descending order of desirability according to the partial
-order developed in that report.
+For now, we simply present the 12 desired criteria in roughly descending order of desirability according to the partial
+order developed in that formalization.
 Items closer to the top of the list are indicators of CVD skill.
 
 !!! note inline end "Formalism"
@@ -146,3 +148,11 @@ set of outcomes we hope to facilitate with the Vultron protocol.
 | $\mathbf{V} \prec \mathbf{X}$ | $\mathbf{F} \prec \mathbf{X}$ | $\mathbf{D} \prec \mathbf{X}$ |
 | $\mathbf{V} \prec \mathbf{A}$ | $\mathbf{F} \prec \mathbf{A}$ | $\mathbf{D} \prec \mathbf{A}$ |
 | $\mathbf{P} \prec \mathbf{X}$ | $\mathbf{P} \prec \mathbf{A}$ | $\mathbf{X} \prec \mathbf{A}$ |
+
+!!! info "A Deeper Dive into these Desiderata"
+
+    The [Measuring CVD](../measuring_cvd/index.md) section of this documentation provides a more detailed
+    exploration of these desiderata in the context of CVD based on our 2021 report
+    [A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure (MPCVD)](https://doi.org/10.1184/R1/16416771).
+    Specifically, we revisit this list in
+    [Desirable Histories](../measuring_cvd/desirable_histories.md).

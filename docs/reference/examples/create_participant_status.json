@@ -1,0 +1,33 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Create",
+  "id": "https://for.example/915cc491-5887-4db1-b2ba-88df451478fd",
+  "name": "https://vultron.example/organizations/vendor Create REPORT_MANAGEMENT_RECEIVED Vfd EMBARGO_MANAGEMENT_NONE pxa",
+  "actor": "https://vultron.example/organizations/vendor",
+  "target": null,
+  "object": {
+    "@context": "https://www.w3.org/ns/activitystreams",
+    "type": "ParticipantStatus",
+    "id": "https://vultron.example/cases/1/participants/vendor/status/1",
+    "name": "REPORT_MANAGEMENT_RECEIVED Vfd EMBARGO_MANAGEMENT_NONE pxa",
+    "context": "https://vultron.example/cases/1/participants/vendor",
+    "published": "2024-01-22T20:29:47+00:00",
+    "updated": "2024-01-22T20:29:47+00:00",
+    "actor": "https://vultron.example/organizations/vendor",
+    "rmState": "REPORT_MANAGEMENT_RECEIVED",
+    "vfdState": "Vfd",
+    "caseEngagement": true,
+    "embargoAdherence": true,
+    "caseStatus": {
+      "@context": "https://www.w3.org/ns/activitystreams",
+      "type": "CaseStatus",
+      "id": "https://vultron.example/cases/1/status/1",
+      "name": "EMBARGO_MANAGEMENT_NONE pxa",
+      "context": "https://vultron.example/cases/1",
+      "published": "2024-01-22T20:29:47+00:00",
+      "updated": "2024-01-22T20:29:47+00:00",
+      "emState": "EMBARGO_MANAGEMENT_NONE",
+      "pxaState": "pxa"
+    }
+  }
+}

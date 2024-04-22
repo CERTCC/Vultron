@@ -1,4 +1,4 @@
-# Modeling an MPCVD AI Using Behavior Trees {#ch:behavior_trees}
+# Modeling an MPCVD AI Using Behavior Trees
 
 With the formal definition of the Vultron Protocol behind us, we now turn our
 attention to reflect on one of many possible paths toward
@@ -25,7 +25,7 @@ Behavior Trees offer a way to organize and describe agent behaviors in a straigh
 
 In this section, we use Behavior Trees as a method for describing
 MPCVD Participant activities and their interactions with the [formal protocol](../../reference/formal_protocol/index.md).
-These behaviors map approximately to the activities described in the [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD)
+These behaviors map approximately to the activities described in the [*CVD Guide*](https://certcc.github.io/CERT-Guide-to-CVD)
 (e.g., validate report, prioritize report, create fix, publish report, publish fix, deploy fix).
 
 If Behavior Trees were merely a notational convention, they would

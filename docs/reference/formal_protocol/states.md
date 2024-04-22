@@ -1,4 +1,4 @@
-# States {#sec:protocol_states}
+# States
 
 {% include-markdown "../../includes/normative.md" %}
 
@@ -623,7 +623,7 @@ states, as we show next.
 
 Finally, CVD cases often involve Participants who are neither Vendors nor Deployers.
 Specifically, Finder/Reporters fall into this category, as do Coordinators.
-Other roles, as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD),
+Other roles, as outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD),
 could be included here as well.
 Because they do not participate directly in the Vendor fix path, these Non-Vendor, Non-Deployer CVD Participants fall
 into the $\varnothing$ case substate we added above.

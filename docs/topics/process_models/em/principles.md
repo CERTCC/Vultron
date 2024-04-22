@@ -96,7 +96,7 @@ Furthermore, we need to establish a few norms related to embargo timing.
 
 {% include-markdown "./_nda_sidebar.md" %}
 
-## Embargo Participants Are Free to Engage or Disengage {#sec:embargo_engagement}
+## Embargo Participants Are Free to Engage or Disengage
 
 As we [just described](#cvd-embargoes-are-not-ndas), an embargo is not the
 same thing as an NDA, even if they have similar effects.
@@ -154,7 +154,7 @@ engagement with the case.
 
 ### Leaving an Embargo May Have Consequences
 
-As we note in the [CVD Guide](https://vuls.cert.org/confluence/display/CVD/5.5+Response+Pacing+and+Synchronization),
+As we note in the [CVD Guide](https://certcc.github.io/CERT-Guide-to-CVD/howto/coordination/response_pacing),
 CVD is an iterated game, and actions have consequences.
 Leaving an embargo early in one case may have repercussions to Participants' willingness to cooperate in later cases.
 

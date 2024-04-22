@@ -220,13 +220,13 @@ def main(infile: str = None) -> list[str]:
             ttl2xml(ttlfile, xmlfile)
 
         # load the ontology
-        for k, v in name_map.items():
-            print(k, v)
+        # for k, v in name_map.items():
+        #     print(k, v)
         xmlinfile = name_map[os.path.basename(infile)]
         # remove PosixPaths and convert to str
         xmlinfile = str(xmlinfile)
 
-        print(xmlinfile)
+        # print(xmlinfile)
         onto = owlready2.get_ontology(f"file://{xmlinfile}").load()
 
     dropstr = ""

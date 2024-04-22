@@ -2,14 +2,17 @@ site_name: Vultron CVD Protocol
 site_url: 'https://certcc.github.io/Vultron/'
 site_description: 'A protocol for coordinated vulnerability disclosure'
 site_author: 'CERT Coordination Center'
-copyright: Copyright &copy; 2023 Carnegie Mellon University.
+copyright: >
+  Copyright &copy; 2021-2024 Carnegie Mellon University.
+  <br/><a href="#__consent">Change cookie settings</a>
 nav:
-  - Home: 'index.md'
+  - Home: 'https://certcc.github.io/'
+  - Vultron: 'index.md'
   - Learning Vultron: 'tutorials/index.md'
   - Understanding Vultron:
-    - Introduction:
-        - Introduction: 'topics/index.md'
-        - Background: 'topics/background/index.md'
+    - Introduction: 'topics/index.md'
+    - Background:
+        - Context: 'topics/background/index.md'
         - Interoperability: 'topics/background/interoperability.md'
         - Defining CVD Success: 'topics/background/cvd_success.md'
         - Documentation Overview: 'topics/background/overview.md'
@@ -30,8 +33,11 @@ nav:
         - Early Termination: 'topics/process_models/em/early_termination.md'
         - Case Splits and Merges: 'topics/process_models/em/split_merge.md'
       - Case State:
+        - Vulnerability Lifecycle Events: 'topics/process_models/cs/events.md'
         - Introduction: 'topics/process_models/cs/index.md'
-        - CVD Case State Model: 'topics/process_models/cs/cs_model.md'
+        - CS States: 'topics/process_models/cs/cs_model.md'
+        - CS Transitions: 'topics/process_models/cs/transitions.md'
+        - CS Process Model: 'topics/process_models/cs/model_definition.md'
       - Model Interactions:
         - Global vs Local Aspects: 'topics/process_models/model_interactions/index.md'
         - RM and EM Interactions: 'topics/process_models/model_interactions/rm_em.md'
@@ -68,9 +74,28 @@ nav:
         - Receive EM Messages: 'topics/behavior_logic/msg_em_bt.md'
         - Receive CS Messages: 'topics/behavior_logic/msg_cs_bt.md'
         - Receive Other Messages: 'topics/behavior_logic/msg_other_bt.md'
+    - Measuring CVD:
+        - Introduction: 'topics/measuring_cvd/index.md'
+        - Possible Histories: 'topics/measuring_cvd/possible_histories.md'
+        - Desirable Histories: 'topics/measuring_cvd/desirable_histories.md'
+        - Random Walks: 'topics/measuring_cvd/random_walk.md'
+        - Reasoning Over Histories: 'topics/measuring_cvd/reasoning_over_histories.md'
+        - Discriminating Skill from Luck: 'topics/measuring_cvd/discriminating_skill_and_luck.md'
+        - Observing Skill: 'topics/measuring_cvd/observing_skill.md'
+        - Benchmarking CVD: 'topics/measuring_cvd/benchmarking.md'
+        - Benchmarking MPCVD: 'topics/measuring_cvd/benchmarking_mpcvd.md'
+    - Other Uses of Vultron:
+        - Introduction: 'topics/other_uses/index.md'
+        - Stakeholder Roles: 'topics/other_uses/roles_influence.md'
+        - Defining Zero Days: 'topics/other_uses/zero_day.md'
+        - Policy Formalization: 'topics/other_uses/policy_formalization.md'
+        - Situation Awareness: 'topics/other_uses/situation_awareness.md'
+        - VEP: 'topics/other_uses/vep.md'
+        - CVD Action Rules: 'topics/other_uses/action_rules.md'
     - User Stories: 'topics/user_stories/index.md'
     - Future Work:
         - Intro: 'topics/future_work/index.md'
+        - CS Model Limitations: 'topics/future_work/cs_model_limitations.md'
         - CVD Directory: 'topics/future_work/cvd_directory.md'
         - Reward Functions: 'topics/future_work/reward_functions.md'
         - Ontology: 'topics/future_work/ontology.md'
@@ -82,7 +107,21 @@ nav:
       - Vultron ActivityPub:
           - ActivityPub Intro: 'howto/activitypub/index.md'
           - Vultron AS Objects: 'howto/activitypub/objects.md'
-          - Vultron AS Activities: 'howto/activitypub/activities.md'
+          - Vultron AS Activities:
+            - Intro: 'howto/activitypub/activities/index.md'
+            - Reporting a Vulnerability: 'howto/activitypub/activities/report_vulnerability.md'
+            - Initializing a Case: 'howto/activitypub/activities/initialize_case.md'
+            - Managing a Case: 'howto/activitypub/activities/manage_case.md'
+            - Transferring a Case: 'howto/activitypub/activities/transfer_ownership.md'
+            - Suggest an Actor for a Case: 'howto/activitypub/activities/suggest_actor.md'
+            - Invite an Actor to a Case: 'howto/activitypub/activities/invite_actor.md'
+            - Initialize a Participant: 'howto/activitypub/activities/initialize_participant.md'
+            - Manage Case Participants: 'howto/activitypub/activities/manage_participants.md'
+            - Establish an Embargo: 'howto/activitypub/activities/establish_embargo.md'
+            - Manage an Embargo: 'howto/activitypub/activities/manage_embargo.md'
+            - Status Updates: 'howto/activitypub/activities/status_updates.md'
+            - Acknowledging a Report: 'howto/activitypub/activities/acknowledge.md'
+            - Error Handling: 'howto/activitypub/activities/error.md'
       - EM and iCalendar: 'howto/em_icalendar.md'
       - General Notes: 'howto/general_implementation.md'
   - Reference:
@@ -155,10 +194,10 @@ nav:
       - DFA: 'reference/ontology/dfa.md'
       - RFC 2119: 'reference/ontology/rfc2119.md'
     - ISO Crosswalk:
-      - Introduction: 'reference/iso_crosswalk.md'
-      - ISO 30111: 'reference/iso_30111_2019.md'
-      - ISO 29147: 'reference/iso_29147_2018.md'
-      - ISO 5895: 'reference/iso_5895_2022.md'
+      - Introduction: 'reference/iso_crosswalks/index.md'
+      - ISO 30111: 'reference/iso_crosswalks/iso_30111_2019.md'
+      - ISO 29147: 'reference/iso_crosswalks/iso_29147_2018.md'
+      - ISO 5895: 'reference/iso_crosswalks/iso_5895_2022.md'
     - SSVC Crosswalk: 'reference/ssvc_crosswalk.md'
     - Decision Records:
       - ADR Index: 'adr/index.md'
@@ -175,23 +214,28 @@ nav:
     - License: 'about/license.md'
   - Issue Tracker: 'https://github.com/CERTCC/Vultron/issues'
 not_in_nav: |
-    includes/*
-    topics/user_stories/story_*.md
-    *diagram*.md
-    *table*.md
-    _*.md
+  _*.md
+  _*/**/*.md
+  includes/*
+  topics/user_stories/story_*.md
+  *diagram*.md
+  *table*.md
+  *.ttl
 theme:
   logo: 'assets/cert_seal.svg'
   name: 'material'
   features:
     - content.tabs.link
+    - content.tooltips
     - navigation.footer
     - navigation.instant
-    - navigation.prune
+    - navigation.sections
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.top
     - navigation.tracking
+    - navigation.prune
+    - navigation.indexes
     - search.highlight
     - search.suggest
     - toc.follow
@@ -201,9 +245,12 @@ theme:
   icon:
     repo: fontawesome/brands/github
 plugins:
+  - bibtex:
+      bib_file: 'references.bib'
   - include-markdown:
       comments: false
   - mkdocstrings:
+      enabled: !ENV [ENABLE_MKDOCSTRINGS, true]
       handlers:
         python:
           paths: [ 'src' ]
@@ -218,6 +265,7 @@ plugins:
 repo_url: 'https://github.com/CERTCC/Vultron'
 repo_name: 'CERTCC/Vultron'
 markdown_extensions:
+  - abbr
   - admonition
   - attr_list
   - def_list
@@ -238,6 +286,9 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.keys
   - pymdownx.mark
+  - pymdownx.snippets:
+      auto_append:
+        - docs/_acronyms/index.md
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:
@@ -245,6 +296,16 @@ markdown_extensions:
   - pymdownx.tilde
   - tables
 extra:
+  analytics:
+    provider: google
+    property: G-87WECW6HCS
+  consent:
+    title: About our use of cookies on this site
+    description: >-
+      We use cookies to measure the effectiveness of our documentation and whether users
+      find what they're searching for. With your consent, you're helping us to
+      make our documentation better. 
+      See our <a href="https://www.sei.cmu.edu/legal/privacy-notice/index.cfm">Privacy Notice</a> for more.
   social:
     - icon: fontawesome/solid/bug
       link: https://github.com/CERTCC/Vultron/issues

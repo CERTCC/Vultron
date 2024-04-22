@@ -20,7 +20,7 @@ Revisiting the definitions from the [Formal Protocol Introduction](index.md):
     be sent from process $i$ to process $j$.
 
 The message types in the Vultron Protocol arise primarily from the following principle taken directly from the
-[CVD Guide](https://vuls.cert.org/confluence/display/CVD/2.3.+Avoid+Surprise):
+[CVD Guide](https://certcc.github.io/CERT-Guide-to-CVD/topics/principles/avoid_surprise/):
 
 !!! quote "Avoid Surprise"
 
@@ -149,7 +149,7 @@ A summary of the EM message types is shown below.
 
     $$M^{em} = \{EP,ER,EA,EV,EJ,EC,ET,EK,EE\}$$
 
-## CS Message Types {#sec:cs_message_types}
+## CS Message Types
 
 From the [CS process model](../../topics/process_models/cs/index.md), the following is the list of messages associated with CS state
 changes:
@@ -175,7 +175,7 @@ A summary of the CS message types is shown below.
 
     $$M^{cs} = \{CV,CF,CD,CP,CX,CA,CK,CE \}$$
 
-## Other Message Types {#sec:gen_message_types}
+## Other Message Types
 
 Finally, there are a few additional message types required to tie the coordination process together.
 Most of these message types are *not* associated with a specific state change, although they might trigger activities or

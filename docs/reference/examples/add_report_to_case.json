@@ -1,0 +1,10 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Add",
+  "id": "https://for.example/f1a1d054-9510-4a6b-889f-e92b3875b727",
+  "name": "https://vultron.example/organizations/vendor Add https://vultron.example/reports/FDR-8675309 to https://vultron.example/cases/VDR-20991514",
+  "content": "We're adding this report to this case.",
+  "actor": "https://vultron.example/organizations/vendor",
+  "target": "https://vultron.example/cases/VDR-20991514",
+  "object": "https://vultron.example/reports/FDR-8675309"
+}

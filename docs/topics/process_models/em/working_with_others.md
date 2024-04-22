@@ -291,7 +291,7 @@ However, it falls short in some cases, such as the following:
 
 ## Consequences of Non-Compliance
 
-Considering multiple cases over time, MPCVD can be thought of as an [iterated game](https://vuls.cert.org/confluence/display/CVD/5.5+Response+Pacing+and+Synchronization) analogous to the Prisoner's Dilemma.
+Considering multiple cases over time, MPCVD can be thought of as an [iterated game](https://certcc.github.io/CERT-Guide-to-CVD/howto/coordination/response_pacing) analogous to the Prisoner's Dilemma.
 One notable strategy for the Prisoner's Dilemma is *tit for tat* in which non-cooperation from one party in one round
 can be met with non-cooperation from the opposite party in the next.
 While MPCVD is usually much bigger than a toy two-player game, we feel it is necessary to encode the possibility that

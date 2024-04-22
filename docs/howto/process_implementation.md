@@ -30,7 +30,7 @@ The main modifications needed to adapt an existing workflow are to intercept the
 
 MPCVD case Participants often share pre-publication drafts of their advisories during the embargo period.
 Our protocol proposal is mute on this subject because it is not strictly necessary for the MPCVD process to complete successfully.
-However, as we observe in the [ISO Crosswalk](../reference/iso_crosswalk.md), the *GI* and *GK* message types appear to provide sufficient mechanics for this
+However, as we observe in the [ISO Crosswalk](../reference/iso_crosswalks/index.md), the *GI* and *GK* message types appear to provide sufficient mechanics for this
 process to be fleshed out as necessary.
 This draft-sharing process could be built into the [*prepare publication*](../topics/behavior_logic/publication_bt.md#prepare-publication-behavior) process, where appropriate.
 
@@ -43,7 +43,7 @@ scheduling a meeting in a calendaring system.
 In [EM and iCalendar](em_icalendar.md), we suggest a potential mapping of many of the concepts from the EM process
 onto [`iCalendar`](https://en.wikipedia.org/wiki/ICalendar) protocol semantics.
 
-### Embargo Management Does Not Deliver Synchronized Publication {#sec:pub_sync}
+### Embargo Management Does Not Deliver Synchronized Publication
 
 In our protocol design, we were careful to focus the EM process on establishing when publication restrictions are
 lifted.

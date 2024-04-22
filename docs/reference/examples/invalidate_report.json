@@ -1,0 +1,9 @@
+{
+  "@context": "https://www.w3.org/ns/activitystreams",
+  "asType": "Reject",
+  "id": "https://for.example/d95d133d-e51a-4220-8da2-f5f18412e5e0",
+  "name": "https://vultron.example/organizations/vendor Reject https://vultron.example/reports/FDR-8675309",
+  "content": "We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
+  "actor": "https://vultron.example/organizations/vendor",
+  "object": "https://vultron.example/reports/FDR-8675309"
+}

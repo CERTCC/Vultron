@@ -1,4 +1,4 @@
-# Introduction
+# Vultron Contextualized
 
 !!! tip inline end "Prerequisites"
 
@@ -10,12 +10,12 @@
     If you are already familiar with the Vultron Protocol, and are looking for implementation advice, 
     see [Implementing Vultron](../../howto/index.md).
     For technical reference, see [Reference](../../reference/index.md).
-    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://vuls.cert.org/confluence/display/CVD/).
+    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD).
 
 The CVD process
 addresses a human coordination problem that spans individuals and
 organizations. As we wrote in [*The CERT* *Guide to Coordinated
-Vulnerability Disclosure*](https://vuls.cert.org/confluence/display/CVD):
+Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD):
 
 !!! quote "Excerpt from *The CERT Guide to Coordinated Vulnerability Disclosure*"
 
@@ -35,6 +35,73 @@ Any given CVD case is made up of many individual disclosure events, for example,
 - from a Finder to one or more Vendors and/or Coordinators
 - from Vendors and Coordinators to other Vendors and Coordinators
 - from Finders, Vendors, and Coordinators to Deployers and the Public
+
+The following diagram illustrates the disclosure events between the various roles in the CVD process.
+Looping arrows indicate that an entity in one role might also disclose to another entity in the same role.
+
+```mermaid
+---
+title: Potential Vulnerability Disclosure Events
+---
+flowchart TD
+    finder([Finder])
+    vendor([Vendor])
+    coordinator([Coordinator])
+    public([Public])
+    deployer([Deployer])
+    ovendor([Vendor])
+    ocoordinator([Coordinator])
+    
+    finder -->|discloses to| vendor
+    finder -->|discloses to| coordinator
+    coordinator -->|discloses to| public
+    vendor -->|discloses to| public
+    finder -->|discloses to| public
+    
+    vendor -->|discloses to| vendor
+    vendor -->|discloses to| coordinator
+    vendor -.->|discloses to| deployer
+
+    coordinator -->|discloses to| vendor
+    coordinator -->|discloses to| coordinator
+    coordinator -.->|discloses to| deployer
+    
+    public -->|available to| deployer
+    public -->|available to| ovendor
+    public -->|available to| ocoordinator
+```
+
+However, we can simplify the diagram with the recognition that the *C* in *CVD* stands for *Coordinated*.
+The following diagram illustrates the coordination relationships between the various roles in the CVD process.
+
+```mermaid
+---
+title: Coordination Relationships in CVD
+---
+flowchart TB
+    subgraph C[Coordination]
+        direction LR
+        subgraph A[Often<br/>Same<br/>Entity]
+            reporter([Reporter])
+            finder([Finder])
+        end
+        vendor([Vendor])
+        coordinator([Coordinator])
+        subgraph D[Sometimes<br/>Included]
+            deployer([Deployer])
+        end
+    end
+    public([Public])
+    
+    finder <--> reporter
+    reporter <--> vendor
+    vendor <--> coordinator
+    reporter <--> coordinator
+    vendor <-.-> deployer
+    coordinator <-.-> deployer
+    reporter <-.-> deployer
+    C -->|publish| public
+```
 
 In recent years, software supply chains have evolved such that software library and component vulnerabilities have
 become just as much a part of the everyday CVD process as vulnerabilities in Vendors' proprietary code.
@@ -61,7 +128,7 @@ foundational documents (thus far):
 
 - *The CERT Guide to Coordinated Vulnerability Disclosure* (the
     *CVD Guide*) in both its [original](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=503330)
-    and [updated](https://vuls.cert.org/confluence/display/CVD) forms, provides a "field guide" perspective to the
+    and [updated](https://certcc.github.io/CERT-Guide-to-CVD) forms, provides a "field guide" perspective to the
     CVD process and its natural extension into MPCVD.
 
 - The [*Stakeholder-Specific Vulnerability Categorization*](https://github.com/CERTCC/SSVC)
@@ -76,7 +143,7 @@ foundational documents (thus far):
 - *Designing Vultron*, the report on which this documentation was based, proposes an abstract formal protocol for
     MPCVD, ties together various concepts from all three of the above.
 
-Whereas the [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD) offers a narrative description of both the CVD
+Whereas the [*CVD Guide*](https://certcc.github.io/CERT-Guide-to-CVD) offers a narrative description of both the CVD
 process and the many scenarios one can expect to encounter as a Participant therein, in this documentation we provide an
 additional layer of formality in the form of a *protocol* for MPCVD.
 
@@ -123,7 +190,7 @@ technical formalities of communicating code but also extend to the
 expected behaviors of the human Participants that rely on it. In this
 second sense, we address the term *protocol* in these ways:
 
-- The [*CVD Guide*](https://vuls.cert.org/confluence/display/CVD)
+- The [*CVD Guide*](https://certcc.github.io/CERT-Guide-to-CVD)
     offers a *narrative* protocol for practitioners to follow based on
     decades of accumulated experience and observation of the
     CVD process at the CERT/CC.
