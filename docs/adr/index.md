@@ -29,6 +29,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0003 Build Our Own Behavior Tree Engine](0003-build-custom-python-bt-engine.md)
 - [ADR-0004 Use Factory Pattern to Create Behavior Tree Nodes](0004-use-factory-methods-for-common-bt-node-types.md)
 - [ADR-0005 Use ActivityStreams Vocabulary as Vultron Message Format](0005-activitystreams-vocabulary-as-vultron-message-format.md)
+- [ADR-0006 Use CalVer for Project Versioning](0006-use-calver-for-project-versioning.md)
 
 ## Proposed ADRs
 
