@@ -5,14 +5,14 @@
 In the context of the Vultron Protocol, once a report has been validated
 (i.e., it is in the RM [*Valid*](../topics/process_models/rm/index.md#the-valid-v-state) state, $q^{rm} \in V$), it must be prioritized to
 determine what further effort, if any, is necessary.
-While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://github.com/CERTCC/SSVC) model.
+While any prioritization scheme might be used, here we demonstrate an application of the [SSVC](https://github.com/CERTCC/SSVC){:target="_blank"} model.
 
 {== TODO merge with SSVC section of [Situation Awareness](../topics/other_uses/situation_awareness.md) ==}
 
 ## SSVC Supplier and Deployer Trees
 
-The default outcomes for both the SSVC [*Supplier*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_supplier.pdf)
-and [*Deployer*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_deployer_SeEUMss.pdf) Trees are
+The default outcomes for both the SSVC [*Supplier*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_supplier.pdf){:target="_blank"}
+and [*Deployer*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_deployer_SeEUMss.pdf){:target="_blank"} Trees are
 *Defer*, *Scheduled*, *Out of Cycle*, and *Immediate*.
 The mapping from SSVC outcomes to RM states is straightforward, as shown below for the *Supplier Tree* and
 the *Deployer Tree*.
@@ -68,8 +68,8 @@ the main part of this documentation:
 
 ## SSVC Coordinator Trees
 
-SSVC version 2 offers two decision trees for Coordinators: A [*Coordinator Triage Tree*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-triage.pdf)
-and a [*Coordinator Publish Tree*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-publish.pdf).
+SSVC version 2 offers two decision trees for Coordinators: A [*Coordinator Triage Tree*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-triage.pdf){:target="_blank"}
+and a [*Coordinator Publish Tree*](https://github.com/CERTCC/SSVC/blob/v2.1/doc/graphics/ssvc_2_coord-publish.pdf){:target="_blank"}.
 The outputs for the *Coordinator Triage* Decision Tree are *Decline*, *Track*, and *Coordinate*.
 Similar to the *Supplier Tree* mapping above, the mapping here is simple, as shown below.
 

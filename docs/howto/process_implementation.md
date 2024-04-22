@@ -9,7 +9,7 @@ Here we offer some thoughts on where such integration might begin.
 
 ## RM Implementation Notes
 
-Roughly speaking, the RM process is very close to a normal [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management) (ITSM)
+Roughly speaking, the RM process is very close to a normal [IT Service Management](https://en.wikipedia.org/wiki/IT_service_management){:target="_blank"} (ITSM)
 incident or service request workflow.
 As such, the RM process could be implemented as a JIRA ticket workflow, as part of a Kanban process, etc.
 The main modifications needed to adapt an existing workflow are to intercept the key milestones and emit the appropriate RM messages:
@@ -26,7 +26,7 @@ The main modifications needed to adapt an existing workflow are to intercept the
 
 !!! tip inline end "Pre-Publication Drafts in Related Standards"
 
-    [ISO/IEC 29148:2018](https://www.iso.org/standard/72311.html) includes a pre-publication review step in its process.
+    [ISO/IEC 29148:2018](https://www.iso.org/standard/72311.html){:target="_blank"} includes a pre-publication review step in its process.
 
 MPCVD case Participants often share pre-publication drafts of their advisories during the embargo period.
 Our protocol proposal is mute on this subject because it is not strictly necessary for the MPCVD process to complete successfully.
@@ -41,7 +41,7 @@ This draft-sharing process could be built into the [*prepare publication*](../to
 In terms of the proposal, acceptance, rejection, etc., the EM process is strikingly parallel to the process of
 scheduling a meeting in a calendaring system.
 In [EM and iCalendar](em_icalendar.md), we suggest a potential mapping of many of the concepts from the EM process
-onto [`iCalendar`](https://en.wikipedia.org/wiki/ICalendar) protocol semantics.
+onto [`iCalendar`](https://en.wikipedia.org/wiki/ICalendar){:target="_blank"} protocol semantics.
 
 ### Embargo Management Does Not Deliver Synchronized Publication
 

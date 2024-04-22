@@ -13,8 +13,8 @@ formally define their meaning.
 !!! info inline end "Vultron and the Wassenaar Arrangement"
 
     This section extends prior work by Allen Householder in 
-    [*Like Nailing Jelly to the Wall: Difficulties in Defining "Zero-Day Exploit"*](https://insights.sei.cmu.edu/blog/like-nailing-jelly-to-the-wall-difficulties-in-defining-zero-day-exploit/),
-    written in response to then-proposed changes to the [Wassenaar Arrangement](https://www.wassenaar.org/) regarding export 
+    [*Like Nailing Jelly to the Wall: Difficulties in Defining "Zero-Day Exploit"*](https://insights.sei.cmu.edu/blog/like-nailing-jelly-to-the-wall-difficulties-in-defining-zero-day-exploit/){:target="_blank"},
+    written in response to then-proposed changes to the [Wassenaar Arrangement](https://www.wassenaar.org/){:target="_blank"} regarding export 
     controls for intrusion software.
 
 The information security community uses a variety of common phrases that
@@ -43,7 +43,7 @@ formally using our model.
     
     |  Zero Day Vulnerability Type  |                                                  Definition                                                   | Description                                                                                                                                                                                                                                                                                                                                |
     |:-----------------------------:|:-------------------------------------------------------------------------------------------------------------:|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-    |               1               |                                           $q \in vfdp \cdot \cdot$                                            | The [United States VEP](https://trumpwhitehouse.archives.gov/sites/whitehouse.gov/files/images/External%20-%20Unclassified%20VEP%20Charter%20FINAL.PDF) defines *zero day vulnerability* in a manner consistent with $q \in {vp}$. Further discussion appears in [VEP](vep.md).                                                                                                                               |
+    |               1               |                                           $q \in vfdp \cdot \cdot$                                            | The [United States VEP](https://trumpwhitehouse.archives.gov/sites/whitehouse.gov/files/images/External%20-%20Unclassified%20VEP%20Charter%20FINAL.PDF){:target="_blank"} defines *zero day vulnerability* in a manner consistent with $q \in {vp}$. Further discussion appears in [VEP](vep.md).                                                                                                                               |
     |               2               |  **P** $\prec$ **V**<br/>${v \cdot \cdot p \cdot \cdot} \xrightarrow{\mathbf{P}} {v \cdot \cdot P \cdot \cdot}$  | when the vulnerability becomes public before the vendor is aware of it. Note that our model assumes that states in ${vP}$ are unstable and resolve to ${vP} \xrightarrow{\mathbf{V}} {VP}$ in the next step.                                                                                                                               |
     |               3               |  **P** $\prec$ **F**<br/>${\cdot f \cdot p \cdot \cdot} \xrightarrow{\mathbf{P}} {\cdot f \cdot P \cdot \cdot}$  | when the vulnerability becomes public before a fix is available, regardless of the vendor's awareness. Some states in ${fP}$---specifically, those in ${VfP}$---are closer to ${\mathbf{F}}$ (and therefore ${\mathbf{D}}$) occuring than others (i.e., ${vfP}$), thus this definition could imply less time spent at risk than the first. |
 
@@ -77,7 +77,7 @@ formally using our model.
 
 ## Forever Day
 
-In [common usage](https://arstechnica.com/information-technology/2012/04/rise-of-ics-forever-day-vulnerabiliities-threaten-critical-infrastructure/),
+In [common usage](https://arstechnica.com/information-technology/2012/04/rise-of-ics-forever-day-vulnerabiliities-threaten-critical-infrastructure/){:target="_blank"},
 a *forever day* vulnerability is one that is expected
 to remain unpatched indefinitely. In other words, the
 vulnerability is expected to remain in *..d...* forever.

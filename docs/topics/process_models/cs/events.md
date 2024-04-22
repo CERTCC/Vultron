@@ -4,7 +4,7 @@
 
 We begin with a toy model of the MPCVD process that can shed light on the more
 complicated real thing. We begin by building up a state map of what the
-[FIRST Guidelines and Practices for Multi-Party Vulnerability Coordination and Disclosure](https://www.first.org/global/sigs/vulnerability-coordination/multiparty/guidelines-v1.1)
+[FIRST Guidelines and Practices for Multi-Party Vulnerability Coordination and Disclosure](https://www.first.org/global/sigs/vulnerability-coordination/multiparty/guidelines-v1.1){:target="_blank"}
 refers to as bilateral CVD, which we will later expand into the MPCVD space.
 We start by defining a set of events of interest.
 We then use these to construct model states and the transitions between them.
@@ -14,20 +14,22 @@ We then use these to construct model states and the transitions between them.
 The goal of this section is to establish a model of events that affect
 the outcomes of vulnerability disclosure. Our model builds on previous
 models of the vulnerability lifecycle, specifically those of
-[Arbaugh et al.](https://doi.org/10.1109/2.889093),
-[Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6), and
-Bilge et al. [Bilge et al.](https://doi.org/10.1145/2382196.2382284).
+[Arbaugh et al.](https://doi.org/10.1109/2.889093){:target="_blank"},
+[Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6){:target="_blank"}, and
+Bilge et al. [Bilge et al.](https://doi.org/10.1145/2382196.2382284){:target="_blank"}.
 A more thorough literature review of
 vulnerability lifecycle models can be found in
-[The global vulnerability discovery and disclosure system: a thematic system dynamics approach](http://dspace.lib.cranfield.ac.uk/handle/1826/12665)
+[The global vulnerability discovery and disclosure system: a thematic system dynamics approach](http://dspace.lib.cranfield.ac.uk/handle/1826/12665){:target="_blank"}
 by P. S. Lewis.
 We are primarily interested in events that are usually observable to the
-stakeholders of a CVD case. Stakeholders include software
-vendors, vulnerability finder/reporters, coordinators, and
-deployers [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD). A summary of this model comparison is
+stakeholders of a CVD case. Stakeholders include
+[software vendors](https://certcc.github.io/CERT-Guide-to-CVD/topics/roles/vendor/){:target="_blank"},
+[vulnerability finder/reporters](https://certcc.github.io/CERT-Guide-to-CVD/topics/roles/finder/){:target="_blank"},
+[coordinators](https://certcc.github.io/CERT-Guide-to-CVD/topics/roles/coordinator/){:target="_blank"}, and
+[deployers](https://certcc.github.io/CERT-Guide-to-CVD/topics/roles/deployer/){:target="_blank"}. A summary of this model comparison is
 shown in the Table below.
 
-| [Arbaugh et al.](https://doi.org/10.1109/2.889093) | [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6) | [Bilge et al.](https://doi.org/10.1145/2382196.2382284) | Our Model |
+| [Arbaugh et al.](https://doi.org/10.1109/2.889093){:target="_blank"} | [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6){:target="_blank"} | [Bilge et al.](https://doi.org/10.1145/2382196.2382284){:target="_blank"} | Our Model |
 | ----------------------------------- |--------------------------------------------------------------| ------------------------------- | --------- |
 | Birth                               | creation ($t_{creat}$)                                       | introduced ($t_c$)              | (implied) |
 | Discovery                           | discovery ($t_{disco}$)                                      | n/a                             | (implied) |
@@ -49,15 +51,15 @@ vulnerability both exists and is known to at least someone. Therefore we
 ignore the *birth* (*creation*, *introduced*) and *discovery* states as
 they are implied at the beginning of all possible vulnerability
 disclosure histories. We also omit the *anti-virus signatures released*
-event from [Bilge et al.](https://doi.org/10.1145/2382196.2382284) since we are not attempting to model
+event from [Bilge et al.](https://doi.org/10.1145/2382196.2382284){:target="_blank"} since we are not attempting to model
 vulnerability management operations in detail.
 
 ### Vendor Awareness
 
 The first event we are interested in modeling is *Vendor Awareness*.
-This event corresponds to *Disclosure* in [Arbaugh et al.](https://doi.org/10.1109/2.889093) and
-*vulnerability discovered by vendor* in [Bilge et al.](https://doi.org/10.1145/2382196.2382284) (this event
-is not modeled in [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6)). In the interest of model
+This event corresponds to *Disclosure* in [Arbaugh et al.](https://doi.org/10.1109/2.889093){:target="_blank"} and
+*vulnerability discovered by vendor* in [Bilge et al.](https://doi.org/10.1145/2382196.2382284){:target="_blank"} (this event
+is not modeled in [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6){:target="_blank"}). In the interest of model
 simplicity, we are not concerned with *how* the vendor came to find out
 about the vulnerability's existence---whether it was found via internal
 testing, reported by a security researcher, or noticed as the result of
@@ -66,9 +68,9 @@ incident analysis.
 ### Public Awareness
 
 The second event we include is *Public Awareness* of the vulnerability.
-This event corresponds to *Publication* in [Arbaugh et al.](https://doi.org/10.1109/2.889093), *time
-of public disclosure* in [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6), and *vulnerability
-disclosed publicly* in [Bilge et al.](https://doi.org/10.1145/2382196.2382284). The public might find out
+This event corresponds to *Publication* in [Arbaugh et al.](https://doi.org/10.1109/2.889093){:target="_blank"}, *time
+of public disclosure* in [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6){:target="_blank"}, and *vulnerability
+disclosed publicly* in [Bilge et al.](https://doi.org/10.1145/2382196.2382284){:target="_blank"}. The public might find out
 about a vulnerability through the vendor's announcement of a fix, a news
 report about a security breach, a conference presentation by a
 researcher, by comparing released software versions as
@@ -81,8 +83,8 @@ rather than the details of *how* the public awareness event arises.
 The third event we address is *Fix Readiness*, by which we refer to the
 vendor's creation and possession of a fix that *could* be deployed to a
 vulnerable system, *if* the system owner knew of its existence. Here we
-differ somewhat from [Arbaugh et al.](https://doi.org/10.1109/2.889093),
-[Bilge et al.](https://doi.org/10.1145/2382196.2382284), and [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6)
+differ somewhat from [Arbaugh et al.](https://doi.org/10.1109/2.889093){:target="_blank"},
+[Bilge et al.](https://doi.org/10.1145/2382196.2382284){:target="_blank"}, and [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6){:target="_blank"}
 in that
 their models address the *release* of the fix rather than its *readiness* for release.
 
@@ -117,18 +119,18 @@ occur before *fix deployed* in the *SaaS* case as well.
 
 We diverge
 from
-[Arbaugh et al.](https://doi.org/10.1109/2.889093),
-[Bilge et al.](https://doi.org/10.1145/2382196.2382284), and [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6)
+[Arbaugh et al.](https://doi.org/10.1109/2.889093){:target="_blank"},
+[Bilge et al.](https://doi.org/10.1145/2382196.2382284){:target="_blank"}, and [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6){:target="_blank"}
 again in
 our treatment of exploits and attacks. Because attacks and exploit
 publication are often discretely observable events, the broader concept
-of *exploit automation* in [Arbaugh et al.](https://doi.org/10.1109/2.889093) is insufficiently
+of *exploit automation* in [Arbaugh et al.](https://doi.org/10.1109/2.889093){:target="_blank"} is insufficiently
 precise for our use. Both
-[Bilge et al.](https://doi.org/10.1145/2382196.2382284), and [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6)focus on
+[Bilge et al.](https://doi.org/10.1145/2382196.2382284){:target="_blank"}, and [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6){:target="_blank"}focus on
 the availability of exploits rather than attacks, but the observability
 of their chosen events is hampered by attackers' incentives to maintain
-stealth. [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6) uses *exploit availability*,
-whereas [Bilge et al.](https://doi.org/10.1145/2382196.2382284) calls it *exploit released in
+stealth. [Frei et al.](http://dx.doi.org/10.1007/978-1-4419-6967-5_6){:target="_blank"} uses *exploit availability*,
+whereas [Bilge et al.](https://doi.org/10.1145/2382196.2382284){:target="_blank"} calls it *exploit released in
 wild*. Both refer to the state in which an exploit is known to exist.
 This can arise for at least two distinct reasons, which we wish to
 differentiate:

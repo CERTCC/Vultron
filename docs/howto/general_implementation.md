@@ -42,8 +42,8 @@ As long as the structure and semantics are well defined, most standard data form
 
 !!! tip "Related formats and ontologies"
 
-    We anticipate that emerging formats like the [OASIS CSAF](https://oasis-open.github.io/csaf-documentation/) and ontologies
-    like the [NIST Vulnerability Data Ontology](https://github.com/usnistgov/vulntology) ([Vulntology](https://github.com/usnistgov/vulntology)) will play a part.
+    We anticipate that emerging formats like the [OASIS CSAF](https://oasis-open.github.io/csaf-documentation/){:target="_blank"} and ontologies
+    like the [NIST Vulnerability Data Ontology](https://github.com/usnistgov/vulntology){:target="_blank"} ([Vulntology](https://github.com/usnistgov/vulntology){:target="_blank"}) will play a part.
 
 ## Transport Protocol
 
@@ -66,7 +66,7 @@ an interoperable MPCVD world, the assumption of centralized identity management 
 
 !!! tip "Related Identity Standards"
 
-    Federated identity protocols such as [OAuth](https://oauth.net/), [SAML](https://saml.xml.org/about-saml), and/or [OpenID Connect](https://openid.net/developers/how-connect-works/) may be useful.
+    Federated identity protocols such as [OAuth](https://oauth.net/){:target="_blank"}, [SAML](https://saml.xml.org/about-saml){:target="_blank"}, and/or [OpenID Connect](https://openid.net/developers/how-connect-works/){:target="_blank"} may be useful.
 
 ## Encryption
 

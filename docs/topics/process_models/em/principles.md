@@ -154,7 +154,7 @@ engagement with the case.
 
 ### Leaving an Embargo May Have Consequences
 
-As we note in the [CVD Guide](https://certcc.github.io/CERT-Guide-to-CVD/howto/coordination/response_pacing),
+As we note in the [CVD Guide](https://certcc.github.io/CERT-Guide-to-CVD/howto/coordination/response_pacing){:target="_blank"},
 CVD is an iterated game, and actions have consequences.
 Leaving an embargo early in one case may have repercussions to Participants' willingness to cooperate in later cases.
 
@@ -172,7 +172,7 @@ Finally, embargo termination *removes a constraint* rather than *adding an
 obligation*.
 
 !!! note ""
-    Participants SHOULD not publish information about the vulnerability
+    Participants SHOULD NOT publish information about the vulnerability
     when there is an active embargo.
 
 !!! note ""

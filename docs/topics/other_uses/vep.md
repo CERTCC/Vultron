@@ -2,11 +2,11 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-The [Vulnerability Equities Process](https://en.wikipedia.org/wiki/Vulnerabilities_Equities_Process)
+The [Vulnerability Equities Process](https://en.wikipedia.org/wiki/Vulnerabilities_Equities_Process){:target="_blank"}
 (VEP) is the United States government's
 process to decide whether to inform vendors
 about vulnerabilities they have discovered. The
-[VEP Charter](https://trumpwhitehouse.archives.gov/sites/whitehouse.gov/files/images/External%20-%20Unclassified%20VEP%20Charter%20FINAL.PDF)
+[VEP Charter](https://trumpwhitehouse.archives.gov/sites/whitehouse.gov/files/images/External%20-%20Unclassified%20VEP%20Charter%20FINAL.PDF){:target="_blank"}
 describes the process.
 
 !!! quote "VEP Charter"

@@ -22,7 +22,7 @@ suggestions for potential implementers.
 
     If you are unfamiliar with the Vultron Protocol, we recommend that you start with [Understanding Vultron](../topics/index.md).
     For technical reference, see [Reference](../reference/index.md).
-    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD).
+    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
 In this section, you will find:
 

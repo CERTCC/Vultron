@@ -3,7 +3,7 @@
 {% include-markdown "../../includes/not_normative.md" %}
 
 Vultron ActivityStreams (Vultron AS) is an extension of the
-[ActivityStreams vocabulary](https://www.w3.org/TR/activitystreams-vocabulary/)
+[ActivityStreams vocabulary](https://www.w3.org/TR/activitystreams-vocabulary/){:target="_blank"}
 to describe the mapping of Vultron to ActivityStreams.
 
 ## ActivityStreams native objects
@@ -84,12 +84,12 @@ any sort of vulnerability report format that could be embedded as part of the JS
 
 Examples of what might go into the `content` property of a `VulnerabilityReport` object include:
 
-- Community-developed Structured formats like [CSAF](https://oasis-open.github.io/csaf-documentation/) or
-  [CVE JSON](https://github.com/CVEProject/cve-schema)
+- Community-developed Structured formats like [CSAF](https://oasis-open.github.io/csaf-documentation/){:target="_blank"} or
+  [CVE JSON](https://github.com/CVEProject/cve-schema){:target="_blank"}
 - Quasi-structured text formats based on templates like the
-  [OWASP Vulnerability Template](https://owasp.org/www-community/vulnerabilities/Vulnerability_template)
+  [OWASP Vulnerability Template](https://owasp.org/www-community/vulnerabilities/Vulnerability_template){:target="_blank"}
 - Proprietary formats used by vendors, coordinators, or finders, such as might be found behind a web form like
-  [CERT/CC's Vulnerability Reporting Form](https://www.kb.cert.org/vuls/vulcoordrequest/)
+  [CERT/CC's Vulnerability Reporting Form](https://www.kb.cert.org/vuls/vulcoordrequest/){:target="_blank"}
 - A plain text description of the vulnerability, for example a markdown-formatted text description with section
   headings and links to external resources
 

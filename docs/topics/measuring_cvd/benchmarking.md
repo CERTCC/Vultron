@@ -86,12 +86,12 @@ equally likely to occur next.
     - There is reason to suspect that only a fraction of vulnerabilities
     ever reach the *exploit public* event $\mathbf{X}$, and fewer still
     reach the *attack* event $\mathbf{A}$. Recent work by the [Cyentia
-    Institute](https://library.cyentia.com/report/report_002992.html) found that "5% of all CVEs are both observed within
+    Institute](https://library.cyentia.com/report/report_002992.html){:target="_blank"} found that "5% of all CVEs are both observed within
     organizations AND known to be exploited",
     which suggests that $f_{\mathbf{D} \prec \mathbf{A}} \approx 0.95$.
 
     - Likewise, $\mathbf{D} \prec \mathbf{X}$ holds in 28 of 70 (0.4) $h$.
-    However [Cyentia](https://library.cyentia.com/report/report_002992.html) found that "15.6% of all open vulnerabilities
+    However [Cyentia](https://library.cyentia.com/report/report_002992.html){:target="_blank"} found that "15.6% of all open vulnerabilities
     observed across organizational assets in our sample have known
     exploits", which suggests that
     $f_{\mathbf{D} \prec \mathbf{X}} \approx 0.844$.

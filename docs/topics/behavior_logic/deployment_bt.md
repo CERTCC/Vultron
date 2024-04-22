@@ -77,7 +77,7 @@ It consists of two subprocesses: prioritize deployment and deploy.
 
 The prioritize deployment behavior is shown in (C2) the fallback node in the center of the diagram.
 The subgoal is for the deployment priority to be established, as indicated by the Deployer's RM state $q^{rm} \in \{D,A\}$.
-For example, a Deployer might use the [SSVC Deployer Tree](https://github.com/CERTCC/SSVC) to decide whether (and when)
+For example, a Deployer might use the [SSVC Deployer Tree](https://github.com/CERTCC/SSVC){:target="_blank"} to decide whether (and when)
 to deploy a fix or mitigation.
 If the deployment priority evaluation indicates further action is needed,
 

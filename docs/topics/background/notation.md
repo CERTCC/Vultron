@@ -7,14 +7,14 @@ This page provides a reference for the conventions and notation used throughout 
 
 ## Documentation Conventions
 
-We are using the [*Admonitions*](https://squidfunk.github.io/mkdocs-material/reference/admonitions/) (call-outs) provided by
-[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) to highlight specific types of information in this
+We are using the [*Admonitions*](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"} (call-outs) provided by
+[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/){:target="_blank"} to highlight specific types of information in this
 documentation.
 
 !!! note ""
 
     Statements in boxes like this are normative requirements. 
-    Use of SHOULD, MUST, MAY, etc. follow the [RFC 2119](https://tools.ietf.org/html/rfc2119) conventions.
+    Use of SHOULD, MUST, MAY, etc. follow the [RFC 2119](https://tools.ietf.org/html/rfc2119){:target="_blank"} conventions.
 
 !!! note "Formalisms"
 
@@ -58,12 +58,12 @@ documentation.
 
     This is a warning.
 
-Material for MkDocs supports a number of other [admonitions](https://squidfunk.github.io/mkdocs-material/reference/admonitions/).
+Material for MkDocs supports a number of other [admonitions](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"}.
 We're generally trying to keep our usage consistent with the admonition names used in the Material for MkDocs
-[documentation](https://squidfunk.github.io/mkdocs-material/reference/admonitions/), but we'd also like to list the
+[documentation](https://squidfunk.github.io/mkdocs-material/reference/admonitions/){:target="_blank"}, but we'd also like to list the
 ones we use here for completeness and clarity.
 If you spot us using one that is not listed here, or being inconsistent with the above in our usage, please let us
-know by [opening an issue](https://github.com/CERTCC/Vultron/issues).
+know by [opening an issue](https://github.com/CERTCC/Vultron/issues){:target="_blank"}.
 
 ### Normative and Non-Normative Pages
 
@@ -87,7 +87,7 @@ We use the following conventions to indicate whether a page contains normative r
 
 ## Mathematical Notation
 
-In all of these definitions, we take the standard [Zermelo-Fraenkel set theory](https://en.wikipedia.org/wiki/Zermelo%E2%80%93Fraenkel_set_theory).
+In all of these definitions, we take the standard [Zermelo-Fraenkel set theory](https://en.wikipedia.org/wiki/Zermelo%E2%80%93Fraenkel_set_theory){:target="_blank"}.
 We adopt the following notation:
 
 !!! info "Set Theory Symbols"
@@ -100,7 +100,7 @@ We adopt the following notation:
     | $\in$ | the membership (is-in) relation between an element and the set it belongs to |
     | $\prec$ | the precedes relation on members of an ordered set: $\sigma_i \prec \sigma_j \textrm{ if and only if } \sigma_i,\sigma_j \in s \textrm{ and } i < j$  where $s$ is an ordered set |
     | \|$X$\| | the size of (the number of elements in) a set $X$ |
-    | $\langle X_i \rangle^N_{i=1}$ | a set of $N$ sets $X_i$, indexed by $i$; used in the [Formal Protocol](../../reference/formal_protocol/index.md) in the context of Communicating Finite State Machines, taken from the article [On Communicating Finite State Machines](https://doi.org/10.1145/322374.322380) by Brand and Zafiropulo |
+    | $\langle X_i \rangle^N_{i=1}$ | a set of $N$ sets $X_i$, indexed by $i$; used in the [Formal Protocol](../../reference/formal_protocol/index.md) in the context of Communicating Finite State Machines, taken from the article [On Communicating Finite State Machines](https://doi.org/10.1145/322374.322380){:target="_blank"} by Brand and Zafiropulo |
 
 !!! info "Logic Symbols"
 

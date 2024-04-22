@@ -9,7 +9,7 @@ overall Vultron process.
 
 !!! tip inline end "This sounds like SSVC"
 
-    In [SSVC](https://github.com/CERTCC/SSVC), we distinguish between stakeholder-specific and
+    In [SSVC](https://github.com/CERTCC/SSVC){:target="_blank"}, we distinguish between stakeholder-specific and
     stakeholder-agnostic decision points when describing vulnerability response decisions.
     Here, we carry a similar distinction into the CVD process.
     Some facts about a case are participant-specific, while others are global to the case, or participant-agnostic.

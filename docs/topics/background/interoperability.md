@@ -1,7 +1,7 @@
 # The Need for Interoperability in Coordinated Vulnerability Disclosure
 
 The overall goal of our Vultron Protocol effort is to achieve *interoperability* among CVD process implementations according to the
-broad definition of that term found in the 2004 report, [*Current Perspectives on Interoperability*](https://doi.org/10.1184/R1/6572852.v1) by Brownsword et al.:
+broad definition of that term found in the 2004 report, [*Current Perspectives on Interoperability*](https://doi.org/10.1184/R1/6572852.v1){:target="_blank"} by Brownsword et al.:
 
 !!! note inline "Brownsword et al. on *Interoperability*"
 
@@ -20,7 +20,7 @@ If we were to go in the reverse order, we might wind up with systems that
 exchange data quickly and accurately yet still fail to accomplish the
 mutually beneficial outcomes that MPCVD sets out to achieve.
 Carney et al. illustrate the importance of semantic interoperability in their 2005 report
-[*Some Current Approaches to Interoperability*](https://doi.org/10.1184/R1/6584258.v1):
+[*Some Current Approaches to Interoperability*](https://doi.org/10.1184/R1/6584258.v1){:target="_blank"}:
 
 !!! quote "Carney et al. on semantic interoperability"
 
@@ -49,7 +49,7 @@ achieving coordination in MPCVD becomes clear:
     other CVD Case Participants, and those other Participants must be able to share data
     and meaning from an unfamiliar newcomer.
 
-Elsewhere in the same [report](https://doi.org/10.1184/R1/6584258.v1), Carney et al.
+Elsewhere in the same [report](https://doi.org/10.1184/R1/6584258.v1){:target="_blank"}, Carney et al.
 write,
 
 !!! quote "Carney et al. on the necessity of trust in interoperability"

@@ -5,7 +5,7 @@
 CVD stakeholders include vendors, system owners, the security research community,
 coordinators, and governments. Of primary interest here
 are the main roles defined in the
-[CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD):
+[CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}:
 *finder/reporter*, *vendor*, *deployer*, and *coordinator*.
 Each of the roles corresponds to a set of transitions
 they can cause. For example, a *coordinator* can notify the *vendor*
@@ -147,8 +147,8 @@ indifferent to **X** $\prec$ **A**.
 
 !!! tip inline end "Related ISO/IEC Standards"
 
-    The ISO/IEC [30111](https://www.iso.org/standard/69725.html) and
-    [29147](https://www.iso.org/standard/72311.html) standards provide
+    The ISO/IEC [30111](https://www.iso.org/standard/69725.html){:target="_blank"} and
+    [29147](https://www.iso.org/standard/72311.html){:target="_blank"} standards provide
     guidance to vendors on how to handle vulnerability reports and
     coordinate with security researchers. These standards are intended to
     improve the efficiency and effectiveness of the CVD process by
@@ -258,7 +258,7 @@ have deployed the fix.
 
 Coordinators have been characterized as seeking to balance the social
 good across both vendors and system owners
-(See for example [Optimal Policy for Software Vulnerability Disclosure](https://www.jstor.org/stable/20122417) by Arora, Telang, and Xu).
+(See for example [Optimal Policy for Software Vulnerability Disclosure](https://www.jstor.org/stable/20122417){:target="_blank"} by Arora, Telang, and Xu).
 Thisimplies that they are likely interested in the union of the vendors' and
 system owners' preferences. In other words, coordinators want the full
 set of desiderata ($\mathbb{D}_c = \mathbb{D}$).

@@ -65,7 +65,7 @@ information has been made available to a report in either
 $q^{rm} \in \{ D, A \}$ to trigger a reevaluation.
 
 Assuming the preconditions are met, the report priority is evaluated.
-For example, a Participant using [SSVC](https://github.com/CERTCC/SSVC) could insert
+For example, a Participant using [SSVC](https://github.com/CERTCC/SSVC){:target="_blank"} could insert
 that process here. The evaluation task is expected to always set the
 report priority. The subsequent check returns *Failure* on a defer
 priority or *Success* on any non-deferral priority. On *Success*, an

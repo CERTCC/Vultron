@@ -65,7 +65,7 @@ Reporter and Coordinator might have already agreed to a disclosure
 timeline. Or, in an MPCVD case, other Vendors may have already been
 coordinating the case under an embargo and only recently realized the
 need to engage with a new Vendor on the case. The latter example is
-consistent with [public narratives](https://www.techtarget.com/searchsecurity/news/252446638/Meltdown-and-Spectre-disclosure-suffered-extraordinary-miscommunication) about the Meltdown/Spectre
+consistent with [public narratives](https://www.techtarget.com/searchsecurity/news/252446638/Meltdown-and-Spectre-disclosure-suffered-extraordinary-miscommunication){:target="_blank"} about the Meltdown/Spectre
 vulnerabilities.
 
 !!! note ""
@@ -267,7 +267,7 @@ Within the context of a coordinated publication process, (**P**)
 requires at least one Participant to be in the $q^{rm} = Accepted$ state
 because Participants are presumed to publish only on cases they have
 accepted. Ideally, the Vendor is among those Participants, but as
-outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD),
+outlined in the [*CERT Guide to Coordinated Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"},
 that is not strictly necessary.
 
 That said, the publishing party might be outside of *any* existing
@@ -336,7 +336,7 @@ That said,
     (e.g., Finder, Reporter, Coordinator, Vendor) in the process.
 
 For example, as described in
-[A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513),
+[A State-Based Model for Multi-Party Coordinated Vulnerability Disclosure](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=735513){:target="_blank"},
 the preference for $\mathbf{P} \prec \mathbf{X}$ dictates that
 
 !!! note ""
