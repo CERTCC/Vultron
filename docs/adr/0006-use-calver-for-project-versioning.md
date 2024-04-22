@@ -9,7 +9,7 @@ deciders: Allen
 
 ## Context and Problem Statement
 
-We need to delineate a versioning strategy for the Vultron project to ensure that we can manage changes to the 
+We need to delineate a versioning strategy for the Vultron project to ensure that we can manage changes to the
 protocol and its implementations effectively.
 
 ## Decision Drivers
@@ -22,7 +22,7 @@ protocol and its implementations effectively.
 
 - Semantic Versioning with Major.Minor.Patch
 - Calendar Versioning with YYYY.M.Patch
- 
+
 ## Decision Outcome
 
 Chosen option: "Calendar Versioning", because
@@ -30,6 +30,7 @@ we are still in the early stages of the project and are not yet ready to commit 
 Most of the project consists of documentation and prototypes, so we can use the date to indicate the version.
 
 We will use the format YYYY.MM.Patch, where:
+
 - YYYY is the year of the most recent non-patch release (four digits)
 - MM is the month of the most recent non-patch release (no zero padding, e.g., 1, 2, 3, ..., 12)
 - Patch is the patch number for that release (default to 0 for the first release in a month, omit for non-patch releases)
@@ -44,7 +45,6 @@ Examples:
 - The first significant release in April 2024 will be 2024.4.0 (shortened 2024.4)
 - The third small update to v2024.4 will be 2024.4.3, even if it is released in May 2024 or later.
 - A subsequent significant release in September 2024 would be 2024.9.0 (shortened 2024.9)
-
 
 ### Consequences
 
