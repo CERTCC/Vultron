@@ -172,7 +172,7 @@ Finally, embargo termination *removes a constraint* rather than *adding an
 obligation*.
 
 !!! note ""
-    Participants SHOULD not publish information about the vulnerability
+    Participants SHOULD NOT publish information about the vulnerability
     when there is an active embargo.
 
 !!! note ""
