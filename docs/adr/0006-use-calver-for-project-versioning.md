@@ -67,5 +67,5 @@ Examples:
 
 ## More Information
 
-- Semantic Versioning https://semver.org/
-- Calendar Versioning https://calver.org/
+- [Semantic Versioning](https://semver.org/)
+- [Calendar Versioning](https://calver.org/)
