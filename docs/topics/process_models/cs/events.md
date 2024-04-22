@@ -22,9 +22,9 @@ vulnerability lifecycle models can be found in
 [The global vulnerability discovery and disclosure system: a thematic system dynamics approach](http://dspace.lib.cranfield.ac.uk/handle/1826/12665){:target="_blank"}
 by P. S. Lewis.
 We are primarily interested in events that are usually observable to the
-stakeholders of a CVD case. Stakeholders include 
-[software vendors](https://certcc.github.io/CERT-Guide-to-CVD/topics/roles/vendor/){:target="_blank"}, 
-[vulnerability finder/reporters](https://certcc.github.io/CERT-Guide-to-CVD/topics/roles/finder/){:target="_blank"}, 
+stakeholders of a CVD case. Stakeholders include
+[software vendors](https://certcc.github.io/CERT-Guide-to-CVD/topics/roles/vendor/){:target="_blank"},
+[vulnerability finder/reporters](https://certcc.github.io/CERT-Guide-to-CVD/topics/roles/finder/){:target="_blank"},
 [coordinators](https://certcc.github.io/CERT-Guide-to-CVD/topics/roles/coordinator/){:target="_blank"}, and
 [deployers](https://certcc.github.io/CERT-Guide-to-CVD/topics/roles/deployer/){:target="_blank"}. A summary of this model comparison is
 shown in the Table below.
