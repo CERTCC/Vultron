@@ -7,10 +7,10 @@ We are including this page because the ideas outlined here were instrumental to 
 
 The embargo negotiation process&mdash;in terms of the proposal, acceptance, rejection, etc.&mdash;is strikingly
 parallel to the process of scheduling a meeting in a calendaring system.
-To that end, we note the potential application of the [`iCalendar`](https://en.wikipedia.org/wiki/ICalendar) protocol specified in [RFC 5545](https://datatracker.ietf.org/doc/html/rfc5545) to the
+To that end, we note the potential application of the [`iCalendar`](https://en.wikipedia.org/wiki/ICalendar){:target="_blank"} protocol specified in [RFC 5545](https://datatracker.ietf.org/doc/html/rfc5545){:target="_blank"} to the
 [EM process](../topics/process_models/em/index.md) with the semantics described in this section.
-While we anticipate that future CVD APIs could adopt an `iCalendar`-compatible syntax like `jCal` ([RFC 7265](https://datatracker.ietf.org/doc/html/rfc7265)), for
-this conceptual mapping, we use the basic `iCalendar` syntax from [RFC 5545](https://datatracker.ietf.org/doc/html/rfc5545).
+While we anticipate that future CVD APIs could adopt an `iCalendar`-compatible syntax like `jCal` ([RFC 7265](https://datatracker.ietf.org/doc/html/rfc7265){:target="_blank"}), for
+this conceptual mapping, we use the basic `iCalendar` syntax from [RFC 5545](https://datatracker.ietf.org/doc/html/rfc5545){:target="_blank"}.
 
 A CVD Case might have an associated `iCalendar` object.
 Embargo schedules can be represented as a single `VEVENT` object.

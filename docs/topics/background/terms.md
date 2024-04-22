@@ -1,7 +1,7 @@
 # Terms and Definitions
 
 Throughout this documentation, we refer to CVD Roles from the [*CERT Guide to Coordinated
-Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD):
+Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}:
 
 !!! info "Finder"
 
@@ -18,7 +18,7 @@ Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD):
     vulnerable product
 
 The *Vendor* role is synonymous with the *Supplier* role as it appears
-in [SSVC](https://github.com/CERTCC/SSVC) Version 2 and above.
+in [SSVC](https://github.com/CERTCC/SSVC){:target="_blank"} Version 2 and above.
 
 !!! info "Deployer (User)"
 
@@ -26,9 +26,9 @@ in [SSVC](https://github.com/CERTCC/SSVC) Version 2 and above.
     other remediation action
 
 The *Deployer* role is synonymous with the *User* role in
-[ISO/IEC 29147:2018](https://www.iso.org/standard/72311.html)
+[ISO/IEC 29147:2018](https://www.iso.org/standard/72311.html){:target="_blank"}
 and
-[ISO/IEC 30111:2019](https://www.iso.org/standard/69725.html),
+[ISO/IEC 30111:2019](https://www.iso.org/standard/69725.html){:target="_blank"},
 while the other roles are named consistent with those standards.
 
 !!! info "Coordinator"

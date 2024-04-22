@@ -22,11 +22,11 @@ widespread adoption, so we're keeping an eye on the topic.
 Some relevant links include:
 
 - A November 2022 blog
-  post [Towards End-to-End Encryption for Direct Messages in the Fediverse](https://soatok.blog/2022/11/22/towards-end-to-end-encryption-for-direct-messages-in-the-fediverse/)
-- [Issue #225](https://github.com/w3c/activitypub/issues/225) on the W3C ActivityPub Github repo talks about the
+  post [Towards End-to-End Encryption for Direct Messages in the Fediverse](https://soatok.blog/2022/11/22/towards-end-to-end-encryption-for-direct-messages-in-the-fediverse/){:target="_blank"}
+- [Issue #225](https://github.com/w3c/activitypub/issues/225){:target="_blank"} on the W3C ActivityPub Github repo talks about the
   need for encrypted content, but it seems to have been closed without a solution in 2017.
   - However, a much more
-      recent [April 2023 comment](https://github.com/w3c/activitypub/issues/225#issuecomment-1493887382)
+      recent [April 2023 comment](https://github.com/w3c/activitypub/issues/225#issuecomment-1493887382){:target="_blank"}
       mentions:
       > If we restrict to direct message (with a single recipient) one may just encrypt the message (Note) payload using
       the
@@ -35,8 +35,8 @@ Some relevant links include:
       main obstacle I see is the common practice to use HTTP signature, so that private kays must resides on server and
       not
       on clients.
-- There have been numerous [Discussions](https://socialhub.activitypub.rocks/search?q=end+to+end+encryption) on the
-  [ActivityPub SocialHub](https://socialhub.activitypub.rocks/) that mention end-to-end encryption.
+- There have been numerous [Discussions](https://socialhub.activitypub.rocks/search?q=end+to+end+encryption){:target="_blank"} on the
+  [ActivityPub SocialHub](https://socialhub.activitypub.rocks/){:target="_blank"} that mention end-to-end encryption.
 
 We are interested in any developments in this space, please let us know if you are aware of more recent developments.
 We'd be interested to know how we could help with efforts to bring encrypted messaging to ActivityPub.

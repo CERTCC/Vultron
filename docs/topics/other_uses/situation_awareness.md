@@ -7,7 +7,7 @@ situation awareness for coordinating parties and other stakeholders.
 
 !!! ssvc "Situation Awareness and Vulnerability Response Decisions"
 
-    Vulnerability prioritization schemes such as [SSVC](https://certcc.github.io/SSVC)
+    Vulnerability prioritization schemes such as [SSVC](https://certcc.github.io/SSVC){:target="_blank"}
     generally give increased priority to states in higher
     threat levels, corresponding to $q \in \cdot \cdot \cdot \cdot X \cdot \cup \cdot \cdot \cdot \cdot \cdot A$. SSVC also includes decision
     points surrounding other states in our model. A summary of the relevant

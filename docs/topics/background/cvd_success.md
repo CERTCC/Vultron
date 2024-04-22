@@ -3,7 +3,7 @@
 !!! info inline end "Formalism development in Measuring CVD"
 
     In the [Measuring CVD](../measuring_cvd/index.md) section of this documentation (based on
-    our 2021 [report](https://doi.org/10.1184/R1/16416771)), we define a set of 12 ordering preferences over these 6 events.
+    our 2021 [report](https://doi.org/10.1184/R1/16416771){:target="_blank"}), we define a set of 12 ordering preferences over these 6 events.
 
 We take as a base set of criteria the ordering preferences given in the
 2021 report

@@ -10,12 +10,12 @@
     If you are already familiar with the Vultron Protocol, and are looking for implementation advice, 
     see [Implementing Vultron](../../howto/index.md).
     For technical reference, see [Reference](../../reference/index.md).
-    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD).
+    If you're just trying to understand the CVD process, we recommend that you start with the [CERT Guide to Coordinated Vulnerability Disclosure](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}.
 
 The CVD process
 addresses a human coordination problem that spans individuals and
 organizations. As we wrote in [*The CERT* *Guide to Coordinated
-Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD):
+Vulnerability Disclosure*](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}:
 
 !!! quote "Excerpt from *The CERT Guide to Coordinated Vulnerability Disclosure*"
 
@@ -121,17 +121,17 @@ $N_{vendors} = 1$.
 ## Context of Our Recent Work
 
 This documentation, in the context of recent CVD work at the
-[CERT/CC](https://www.sei.cmu.edu/about/divisions/cert/index.cfm),
+[CERT/CC](https://www.sei.cmu.edu/about/divisions/cert/index.cfm){:target="_blank"},
 is one of four foundational documents aimed at increasing the
 professionalization of the CVD process. The following is the full set of
 foundational documents (thus far):
 
 - *The CERT Guide to Coordinated Vulnerability Disclosure* (the
-    *CVD Guide*) in both its [original](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=503330)
-    and [updated](https://certcc.github.io/CERT-Guide-to-CVD) forms, provides a "field guide" perspective to the
+    *CVD Guide*) in both its [original](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=503330){:target="_blank"}
+    and [updated](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"} forms, provides a "field guide" perspective to the
     CVD process and its natural extension into MPCVD.
 
-- The [*Stakeholder-Specific Vulnerability Categorization*](https://github.com/CERTCC/SSVC)
+- The [*Stakeholder-Specific Vulnerability Categorization*](https://github.com/CERTCC/SSVC){:target="_blank"}
     provides decision support for prioritizing vulnerability response activities
     closely associated with the CVD process.
 

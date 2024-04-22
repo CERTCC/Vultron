@@ -5,7 +5,7 @@
 CVD stakeholders include vendors, system owners, the security research community,
 coordinators, and governments. Of primary interest here
 are the main roles defined in the
-[CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD):
+[CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}:
 *finder/reporter*, *vendor*, *deployer*, and *coordinator*.
 Each of the roles corresponds to a set of transitions
 they can cause. For example, a *coordinator* can notify the *vendor*
@@ -147,7 +147,7 @@ indifferent to **X** $\prec$ **A**.
 
 !!! tip inline end "Related ISO/IEC Standards"
 
-    The ISO/IEC [30111](https://www.iso.org/standard/69725.html) and
+    The ISO/IEC [30111](https://www.iso.org/standard/69725.html){:target="_blank"} and
     [29147](https://www.iso.org/standard/72311.html) standards provide
     guidance to vendors on how to handle vulnerability reports and
     coordinate with security researchers. These standards are intended to
