@@ -198,7 +198,7 @@ order $(\mathbb{D},\leq_{\mathbb{D}})$ just described.
     values for each $d \in \mathbb{D}$ represented as a vector, we arrive at
     a single value representing the skill exhibited for each history $h$.
     Careful readers may note that this value is equivalent to the
-     [TF-IDF](https://en.wikipedia.org/wiki/Tf%E2%80%93idf) score for
+     [TF-IDF](https://en.wikipedia.org/wiki/Tf%E2%80%93idf){:target="_blank"} score for
     a search for the "skill terms" represented by $\mathbb{D}$ across the
     corpus of possible histories $\mathcal{H}$.
 

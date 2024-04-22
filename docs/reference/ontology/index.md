@@ -2,7 +2,7 @@
 
 {% include-markdown "../../includes/not_normative.md" %}
 
-We have provided a few [OWL](https://www.w3.org/TR/owl2-overview/) ontology files to describe the
+We have provided a few [OWL](https://www.w3.org/TR/owl2-overview/){:target="_blank"} ontology files to describe the
 Vultron protocol.
 These files are available in the `ontology` directory.
 

@@ -12,7 +12,7 @@ organizational skills that transferred to better CVD. We follow the
 <!-- for spacing -->
 <br/>
 
-!!! quote "Benjamin Eva in [*Principles of Indifference*](https://doi.org/10.5840/jphil2019116724)"
+!!! quote "Benjamin Eva in [*Principles of Indifference*](https://doi.org/10.5840/jphil2019116724){:target="_blank"}"
 
     Let $X = \{x_1,x_2,...,x_n\}$ be a
     partition of the set $W$ of possible worlds into $n$ mutually
@@ -137,7 +137,7 @@ to ever reflect such a sad state of affairs (because CVD *is* happening after al
 
 ## Using PageRank to Estimate Baseline State Probabilities
 
-We use the [PageRank algorithm](https://en.wikipedia.org/wiki/PageRank)
+We use the [PageRank algorithm](https://en.wikipedia.org/wiki/PageRank){:target="_blank"}
 to provide state probability estimates.
 The PageRank algorithm provides a probability estimate for each state
 based on a Markov random walk of the directed graph of states.

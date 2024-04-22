@@ -64,7 +64,7 @@ problems:
 !!! tip inline end "For more information"
 
     - [FIRST Teams](https://www.first.org/members/teams/){:target="_blank"}
-    - Disclose.io [website](https://disclose.io/programs/){:target="_blank"} and on [GitHub](https://github.com/disclose/diodb)
+    - Disclose.io [website](https://disclose.io/programs/){:target="_blank"} and on [GitHub](https://github.com/disclose/diodb){:target="_blank"}
 
 When it comes to larger scale MPCVD, the inefficiency of ad hoc contact
 collection via search engines is evident. Creating a directory of
@@ -72,7 +72,7 @@ software Vendors and Coordinators and their vulnerability disclosure
 programs would be a step in the right direction. Community-operated
 directories such as the FIRST member list or Disclose.io serve as
 proof-of-concept of the value such systems can provide. We
-especially like the open source model that [Disclose.io](https://disclose.io/) uses, which
+especially like the open source model that [Disclose.io](https://disclose.io/){:target="_blank"} uses, which
 solicits contributions from the community.
 
 But further improvements to MPCVD contact management could be made by

@@ -20,7 +20,7 @@ Revisiting the definitions from the [Formal Protocol Introduction](index.md):
     be sent from process $i$ to process $j$.
 
 The message types in the Vultron Protocol arise primarily from the following principle taken directly from the
-[CVD Guide](https://certcc.github.io/CERT-Guide-to-CVD/topics/principles/avoid_surprise/):
+[CVD Guide](https://certcc.github.io/CERT-Guide-to-CVD/topics/principles/avoid_surprise/){:target="_blank"}:
 
 !!! quote "Avoid Surprise"
 

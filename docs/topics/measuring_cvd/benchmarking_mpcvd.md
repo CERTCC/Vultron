@@ -6,7 +6,7 @@ potentially the deployment of fixes for vulnerabilities across a number
 of vendors and their respective products. The need for
 MPCVD arises due
 to the inherent nature of the software supply chain
-[CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD). A vulnerability that affects a low-level
+[CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD){:target="_blank"}. A vulnerability that affects a low-level
 component (such as a library or operating system API) can require fixes
 from both the originating vendor and any vendor whose products
 incorporate the affected component. Alternatively, vulnerabilities are
@@ -30,7 +30,7 @@ to MPCVD requires a forking approach to the state tracking.
     the state of each individual vendor as a separate instance of the model.
     For example, if 3 vendors are known to be affected, but only 1 has been
     notified, the case might be considered to be in a
-    [superposition](https://en.wikipedia.org/wiki/Superposition_principle) of
+    [superposition](https://en.wikipedia.org/wiki/Superposition_principle){:target="_blank"} of
     states $\{Vfdpxa,vfdpxa,vfdpxa\}$.
     
     Each vendor, in turn, might then ascertain whether they are able to
@@ -113,14 +113,14 @@ discussion of measuring MPCVD skill can be found below.
     development processes. Within an individual vendor organization,
     PSIRTs are a common organizational structure to address this internal coordination process.
 
-    - The [FIRST PSIRT Services Framework](https://www.first.org/standards/frameworks/psirts/psirt_services_framework_v1.1) provides guidance regarding vendors' internal
+    - The [FIRST PSIRT Services Framework](https://www.first.org/standards/frameworks/psirts/psirt_services_framework_v1.1){:target="_blank"} provides guidance regarding vendors' internal
     processes for coordinating vulnerability response.
-    - Additional guidance can be found in [ISO/IEC 30111:2019](https://www.iso.org/standard/69725.html).
+    - Additional guidance can be found in [ISO/IEC 30111:2019](https://www.iso.org/standard/69725.html){:target="_blank"}.
 
 Regardless, the cross-vendor dimension is largely the result of
 component reuse across vendors, for example through the inclusion of
 third party libraries or OEM SDKs. Visibility of cross-vendor component reuse
-remains an unsolved problem, although efforts such as the [Software Bill of Materials](https://www.cisa.gov/sbom)
+remains an unsolved problem, although efforts such as the [Software Bill of Materials](https://www.cisa.gov/sbom){:target="_blank"}
 are promising in this regard. Thus, dimensionality reduction can
 be achieved through both improved transparency of the software supply
 chain and the process of coordination toward synchronized state
@@ -159,7 +159,7 @@ use the model presented here to formalize the necessary analysis.
 
 !!! tip "Integrating FIRST MPCVD Guidance"
 
-    FIRST has published [Guidelines and Practices for Multi-Party Vulnerability Coordination and Disclosure](https://www.first.org/global/sigs/vulnerability-coordination/multiparty/guidelines-v1.1).
+    FIRST has published [Guidelines and Practices for Multi-Party Vulnerability Coordination and Disclosure](https://www.first.org/global/sigs/vulnerability-coordination/multiparty/guidelines-v1.1){:target="_blank"}.
     Their guidance describes four use cases,
     along some with variations. Each use case variant includes a list of
     potential causes along with recommendations for prevention and responses
