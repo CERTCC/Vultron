@@ -52,6 +52,17 @@ Our experience at the CERT/CC shows that this distinction is rarely a significan
 simply publish at their own pace shortly after the embargo ends.
 However, at times, case Participants may find it necessary to coordinate even more closely on publication scheduling.
 
+!!! example "TLP and Embargoes"
+
+    The [Traffic Light Protocol (TLP)](https://www.first.org/tlp){:target="_blank"} is a useful tool for managing the
+    dissemination of sensitive information.
+    TLP can be used to indicate how widely information can be shared and what restrictions apply during an embargo.
+    For example, an embargoed case might be marked <span style="color:#FFC000;background-color:#000000">**TLP:AMBER**</span>
+    to indicate that the information is sensitive and should be shared only with those who need to know.
+    Thus, an embargo declaration might take the form of "This case is <span style="color:#FFC000;background-color:#000000">**TLP:AMBER**</span>
+    until 2024-03-31 23:59:59 UTC, at which time it becomes <span style="color:#FFFFFF;background-color:#000000">**TLP:CLEAR**</span>." 
+    We have more to say about the use of TLP in CVD in the [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD/howto/operation/opsec/){:target="_blank"}.
+
 ## CS Implementation Notes
 
 Because part of the CS model is Participant specific and the other is global to the case, we address each part below.
