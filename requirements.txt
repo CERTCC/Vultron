@@ -1,4 +1,4 @@
-dataclasses-json==0.6.5
+dataclasses-json==0.6.6
 markdown-exec==1.8.1
 mkdocs==1.6.0
 mkdocs-autorefs==1.0.1
