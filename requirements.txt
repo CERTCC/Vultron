@@ -1,5 +1,5 @@
 dataclasses-json==0.6.6
-markdown-exec==1.8.2
+markdown-exec==1.8.3
 mkdocs==1.6.0
 mkdocs-autorefs==1.0.1
 mkdocs-bibtex==2.15.0
