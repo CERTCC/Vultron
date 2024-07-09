@@ -4,6 +4,7 @@ on:
     paths:
       - '**/*.md'
       - .github/workflows/linkchecker.yml
+      - requirements.txt
   workflow_dispatch:
 
 jobs:
