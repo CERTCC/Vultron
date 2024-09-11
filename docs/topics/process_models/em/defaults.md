@@ -305,10 +305,7 @@ to lengthen it.
     
     For example, if one party prefers an embargo of length $n=4$ days while
     another prefers one of length $m=7$ days, we can apply
-    [\[eq:x_i\]](#eq:x_i){== TODO fix ref to eq:x_i ==},
-    [\[eq:y_i\]](#eq:y_i){== TODO fix ref to eq:y_i ==}, and
-    [\[eq:z_i\]](#eq:z_i){== TODO fix ref to eq:z_i ==} as
-    follows:
+    $\mathbf{x}$, $\mathbf{y}$, and $\mathbf{z}$ as follows:
     
     $$\begin{split}
         \mathbf{x} &= [1,1,1,1,0,0,0] \\
