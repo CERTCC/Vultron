@@ -9,7 +9,7 @@ mkdocs-material==9.5.39
 mkdocs-print-site-plugin==2.6.0
 mkdocstrings-python==1.11.1
 mkdocstrings==0.26.1
-networkx==3.3
+networkx==3.4.1
 owlready2==0.47
 pandas==2.2.3
 rdflib==7.0.0
