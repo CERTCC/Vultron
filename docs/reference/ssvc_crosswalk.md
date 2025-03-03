@@ -189,14 +189,16 @@ The SSVC *Public Value Added* decision point can take on the values *Precedence*
 already be public.
 *Limited* means that publication impact might be limited because the information is already widely known.
 
-!!! note "SSVC *Public Value Added Decision Point Mapped to CS States"
+!!! note "SSVC *Public Value Added* Decision Point Mapped to CS States"
 
-        $$ SSVC(pva) = 
-        \begin{cases}
-            Precedence & \iff q^{cs} \in \cdot\cdot\cdot p\cdot\cdot \\
-            Ampliative & \iff q^{cs} \in VFdp\cdot\cdot \textrm{ or } q^{cs} \in \cdot\cdot dP\cdot\cdot \\
-            Limited & \iff q^{cs} \in VF\cdot P\cdot \\
-        \end{cases}$$
+    $$
+    SSVC(pva) = 
+    \begin{cases}
+        Precedence & \iff q^{cs} \in \cdot\cdot\cdot p\cdot\cdot \\
+        Ampliative & \iff q^{cs} \in VFdp\cdot\cdot \textrm{ or } q^{cs} \in \cdot\cdot dP\cdot\cdot \\
+        Limited & \iff q^{cs} \in VF\cdot P\cdot \\
+    \end{cases}
+    $$
 
 ### Supplier Engagement
 
