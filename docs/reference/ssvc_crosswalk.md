@@ -191,14 +191,12 @@ already be public.
 
 !!! note "SSVC *Public Value Added* Decision Point Mapped to CS States"
 
-    $$
-    SSVC(pva) = 
-    \begin{cases}
-        Precedence & \iff q^{cs} \in \cdot\cdot\cdot p\cdot\cdot \\
-        Ampliative & \iff q^{cs} \in VFdp\cdot\cdot \textrm{ or } q^{cs} \in \cdot\cdot dP\cdot\cdot \\
-        Limited & \iff q^{cs} \in VF\cdot P\cdot \\
-    \end{cases}
-    $$
+        $$ SSVC(pva) = 
+        \begin{cases}
+            Precedence & \iff q^{cs} \in \cdot\cdot\cdot p\cdot\cdot \\
+            Ampliative & \iff q^{cs} \in VFdp\cdot\cdot \textrm{ or } q^{cs} \in \cdot\cdot dP\cdot\cdot \\
+            Limited & \iff q^{cs} \in VF\cdot P\cdot \\
+        \end{cases}$$
 
 ### Supplier Engagement
 
