@@ -2,10 +2,10 @@ dataclasses-json==0.6.7
 markdown-exec==1.10.0
 mkdocs==1.6.1
 mkdocs-autorefs==1.4.0
-mkdocs-bibtex==4.2.1
+mkdocs-bibtex==4.2.2
 mkdocs-include-markdown-plugin==7.1.4
 mkdocs-material-extensions==1.3.1
-mkdocs-material==9.6.5
+mkdocs-material==9.6.7
 mkdocs-print-site-plugin==2.6.0
 mkdocstrings-python==1.16.2
 mkdocstrings==0.28.2
