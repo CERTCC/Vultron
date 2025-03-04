@@ -3,7 +3,7 @@
 author: adh
 created_at: 2/17/23 3:59 PM
 """
-#  Copyright (c) 2023-2024 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
