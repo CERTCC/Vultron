@@ -12,7 +12,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """
-Provides state management for the Vultron Behavior Tree 
+Provides state management for the Vultron Behavior Tree
 """
 
 from collections import deque
