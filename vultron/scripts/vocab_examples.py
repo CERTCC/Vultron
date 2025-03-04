@@ -7,7 +7,7 @@ Used within the Vultron documentation to provide examples of Vultron ActivityStr
 When run as a script, this module will generate a set of example objects and write them to the docs/reference/examples
 directory.
 """
-#  Copyright (c) 2024 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2024-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
