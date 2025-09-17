@@ -1,9 +1,6 @@
 #!/usr/bin/env python
-"""file: em_states
-author: adh
-created_at: 4/7/22 11:22 AM
-"""
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+"""This module defines the Embargo Management states for the Vultron protocol."""
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is

@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: errors
-author: adh
-created_at: 4/26/22 2:07 PM
+"""This module provides
+# TODO replace me
 """
 
 

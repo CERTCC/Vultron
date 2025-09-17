@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: info
-author: adh
-created_at: 1/21/21 11:11 AM
+"""This module provides
+# TODO replace me
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: fuzzer
-author: adh
-created_at: 4/26/22 11:53 AM
+"""This module provides
+# TODO replace me
 """
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

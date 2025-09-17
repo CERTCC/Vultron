@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: cvd_role_conditions
-author: adh
-created_at: 4/26/22 10:23 AM
+"""This module provides
+# TODO replace me
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

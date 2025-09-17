@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: em_transitions
-author: adh
-created_at: 4/7/22 11:28 AM
+"""
+This module provides state transition definitions for the Embargo Management behavior tree.
 """
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -17,15 +16,15 @@ created_at: 4/7/22 11:28 AM
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from dataclasses import dataclass
 from typing import List
+
+from pydantic import BaseModel
 
 from vultron.bt.common import EnumStateTransition, show_graph, state_change
 from vultron.bt.embargo_management.states import EM
 
 
-@dataclass
-class EmTransition(EnumStateTransition):
+class EmTransition(EnumStateTransition, BaseModel):
     """Represents a transition between two states in the q_em state machine"""
 
     start_states: List[EM]

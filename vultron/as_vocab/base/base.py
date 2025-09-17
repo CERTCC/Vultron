@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-"""file: base
-author: adh
-created_at: 2/17/23 3:59 PM
-"""
+"""This module provides a base class for Vultron Activity Stream classes."""
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -16,38 +13,42 @@ created_at: 2/17/23 3:59 PM
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import dataclass, field
+
 from typing import Optional
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from pydantic import BaseModel, Field
 
 from vultron.as_vocab.base.utils import exclude_if_none, generate_new_id
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
-class as_Base(object):
-    as_context: str = field(
-        metadata=config(field_name="@context"),
+class as_Base(BaseModel):
+    as_context: str = Field(
         default="https://www.w3.org/ns/activitystreams",
-        init=False,
+        alias="@context",
+        exclude=True,
     )
-    as_type: str = field(
-        metadata=config(field_name="type"), default=None, init=False
-    )
-    as_id: str = field(
-        metadata=config(field_name="id"), default_factory=generate_new_id
-    )
-    name: Optional[str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    preview: Optional[str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    mediaType: Optional[str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    as_type: str = Field(default=None, alias="type", exclude=True)
+    as_id: str = Field(default_factory=generate_new_id, alias="id")
+    name: Optional[str] = Field(default=None, exclude=exclude_if_none)
+    preview: Optional[str] = Field(default=None, exclude=exclude_if_none)
+    mediaType: Optional[str] = Field(default=None, exclude=exclude_if_none)
 
-    def __post_init__(self):
+    def __init__(self, **data):
+        super().__init__(**data)
         if self.as_type is None:
             self.as_type = self.__class__.__name__.lstrip("as_")
+
+    class Config:
+        validate_by_name = True
+        alias_generator = None
+        json_encoders = {}
+
+
+if __name__ == "__main__":
+    obj = as_Base(
+        name="example",
+        preview="example preview",
+        mediaType="text/plain",
+        as_type="Test",
+    )
+    print(obj.model_dump_json(indent=2))

@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: errors
-author: adh
-created_at: 2/17/23 1:49 PM
+"""This module provides
+# TODO replace me
 """
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

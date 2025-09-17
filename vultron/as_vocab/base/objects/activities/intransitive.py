@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: intransitive
-author: adh
-created_at: 12/8/22 4:04 PM
+"""This module provides
+# TODO replace me
 """
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
