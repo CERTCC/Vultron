@@ -13,42 +13,38 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
+from dataclasses import dataclass, field
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from dataclasses_json import LetterCase, config, dataclass_json
 
 from vultron.as_vocab.base.utils import exclude_if_none, generate_new_id
 
 
-class as_Base(BaseModel):
-    as_context: str = Field(
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass(kw_only=True)
+class as_Base(object):
+    as_context: str = field(
+        metadata=config(field_name="@context"),
         default="https://www.w3.org/ns/activitystreams",
-        alias="@context",
-        exclude=True,
+        init=False,
     )
-    as_type: str = Field(default=None, alias="type", exclude=True)
-    as_id: str = Field(default_factory=generate_new_id, alias="id")
-    name: Optional[str] = Field(default=None, exclude=exclude_if_none)
-    preview: Optional[str] = Field(default=None, exclude=exclude_if_none)
-    mediaType: Optional[str] = Field(default=None, exclude=exclude_if_none)
+    as_type: str = field(
+        metadata=config(field_name="type"), default=None, init=False
+    )
+    as_id: str = field(
+        metadata=config(field_name="id"), default_factory=generate_new_id
+    )
+    name: Optional[str] = field(
+        metadata=config(exclude=exclude_if_none), default=None
+    )
+    preview: Optional[str] = field(
+        metadata=config(exclude=exclude_if_none), default=None
+    )
+    mediaType: Optional[str] = field(
+        metadata=config(exclude=exclude_if_none), default=None
+    )
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    def __post_init__(self):
         if self.as_type is None:
             self.as_type = self.__class__.__name__.lstrip("as_")
-
-    class Config:
-        validate_by_name = True
-        alias_generator = None
-        json_encoders = {}
-
-
-if __name__ == "__main__":
-    obj = as_Base(
-        name="example",
-        preview="example preview",
-        mediaType="text/plain",
-        as_type="Test",
-    )
-    print(obj.model_dump_json(indent=2))

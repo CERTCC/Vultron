@@ -32,9 +32,21 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "dataclasses-json", "markdown-exec", "mkdocs-include-markdown-plugin", "mkdocs-material-extensions",
-    "mkdocs-material", "mkdocs-print-site-plugin", "mkdocs", "mkdocstrings-python", "mkdocstrings", "networkx",
-    "owlready2", "pandas", "rdflib", "scipy",
+    "dataclasses-json",
+    "markdown-exec",
+    "mkdocs-include-markdown-plugin",
+    "mkdocs-material-extensions",
+    "mkdocs-material",
+    "mkdocs-print-site-plugin",
+    "mkdocs",
+    "mkdocstrings-python",
+    "mkdocstrings",
+    "networkx",
+    "owlready2",
+    "pandas",
+    "rdflib",
+    "scipy",
+    "pydantic>=2.10.6",
 ]
 dynamic = ["version",]
 
@@ -70,4 +82,14 @@ minversion = "6.0"
 addopts = "-ra -q"
 testpaths = [
     "test",
+]
+
+[tool.uv.workspace]
+members = [
+    "help",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
 ]
