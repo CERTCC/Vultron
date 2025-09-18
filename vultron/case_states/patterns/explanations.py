@@ -1,10 +1,7 @@
 #!/usr/bin/env python
-"""file: explanations
-author: adh
-created_at: 1/21/21 11:09 AM
-"""
+"""This module provides case state patterns mapped to explanation enums"""
 
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is

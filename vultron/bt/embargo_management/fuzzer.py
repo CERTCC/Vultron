@@ -1,17 +1,5 @@
 #!/usr/bin/env python
-"""file: fuzzer
-author: adh
-created_at: 4/26/22 1:20 PM
-
-Each of the following classes is a fuzzable bt tree node.
-The fuzzing is done by the bt.fuzzer module.
-These classes are the most likely places where one of the following is likely to apply:
-1. a human might need to intervene to make a decision
-2. a human might need to intervene to provide input to an automated decision process
-3. an automated decision process might need to be implemented based on some site-specific logic
-
-But for now they are just stubs that return a random result so we can exercise the tree.
-"""
+"""This module provides behavior tree fuzzers"""
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project

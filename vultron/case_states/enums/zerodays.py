@@ -1,9 +1,6 @@
 #!/usr/bin/env python
-"""file: zerodays
-author: adh
-created_at: 3/16/23 1:37 PM
-"""
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+"""This module provides zero day type enums"""
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is

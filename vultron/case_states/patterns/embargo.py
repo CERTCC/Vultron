@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-"""file: embargo
-author: adh
-created_at: 2/23/21 12:52 PM
-"""
+"""This module provides case state patterns mapped to embargo viability enums"""
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project

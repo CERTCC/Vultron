@@ -1,9 +1,6 @@
 #!/usr/bin/env python
-"""file: errors
-author: adh
-created_at: 2/17/23 1:49 PM
-"""
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+"""This module provides custom errors"""
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -17,11 +14,6 @@ created_at: 2/17/23 1:49 PM
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.errors import VultronError
-
-
-# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-#  Copyright (c) 2023. Carnegie Mellon University. See LICENSE.md for details.
-# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
 class ActivityVocabularyError(VultronError):
