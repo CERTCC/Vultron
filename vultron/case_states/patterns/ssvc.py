@@ -1,9 +1,6 @@
 #!/usr/bin/env python
-"""file: ssvc
-author: adh
-created_at: 3/13/23 3:53 PM
-"""
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+"""This module provides patterns that map Vultron case states to SSVC values"""
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is

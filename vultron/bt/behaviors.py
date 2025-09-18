@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-"""file: behaviors
-author: adh
-created_at: 4/26/22 1:49 PM
-"""
+"""This module provides the main Behavior Tree for the Vultron Protocol."""
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -124,11 +121,3 @@ class CvdProtocolBt(bt.BehaviorTree):
     @property
     def closed(self):
         return self.bb.q_rm == RM.CLOSED
-
-
-def main():
-    pass
-
-
-if __name__ == "__main__":
-    main()

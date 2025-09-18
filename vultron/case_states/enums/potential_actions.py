@@ -1,9 +1,6 @@
 #!/usr/bin/env python
-"""file: potential_actions
-author: adh
-created_at: 3/16/23 3:12 PM
-"""
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+"""This module provides potential actions enum classes"""
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is

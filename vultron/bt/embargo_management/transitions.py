@@ -1,7 +1,6 @@
 #!/usr/bin/env python
-"""file: em_transitions
-author: adh
-created_at: 4/7/22 11:28 AM
+"""
+This module provides state transition definitions for the Embargo Management behavior tree.
 """
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors

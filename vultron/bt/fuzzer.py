@@ -1,8 +1,5 @@
 #!/usr/bin/env python
-"""file: cvd_proto_fuzzer
-author: adh
-created_at: 4/26/22 10:59 AM
-"""
+"""This module provides behavior tree fuzzers"""
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project

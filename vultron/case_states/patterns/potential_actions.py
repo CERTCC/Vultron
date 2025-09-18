@@ -1,23 +1,6 @@
 #!/usr/bin/env python
-"""file: potential_actions.py
-author: adh
-created_at: 5/13/21 1:24 PM
-
-This module contains the logic for determining the potential actions that can be taken
-based on the current state of the CVD case.
-
-The logic is based on the CVD state model, which is a 6-character string that represents
-the current state of the CVD case. The characters in the string represent the following
-states:
-v,V - Vendor Awareness
-f,F - Fix Availability
-d,D - Fix Deployment
-p,P - Public Awareness
-x,X - Exploit Public
-a,A - Attacks Observed
-
-"""
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+"""This module provides case state patterns mapped to potential actions"""
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
