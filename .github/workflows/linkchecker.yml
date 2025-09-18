@@ -23,6 +23,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip uv
           uv sync --dev 
+          python -m pip install linkchecker
 
       - name: Build Site
         run: |
