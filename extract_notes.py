@@ -17,6 +17,7 @@ Extract notes from content
 
 import os
 
+
 def extract_notes(content):
     # A note block looks like this:
     # !!! note ""
@@ -31,35 +32,35 @@ def extract_notes(content):
     note_content = []
     for line in lines:
         stripped_line = line.strip()
-        if stripped_line.startswith('!!! note \"\"'):
+        if stripped_line.startswith('!!! note ""'):
             in_note = True
             note_content = []
         elif in_note:
-            if stripped_line == '':
+            if stripped_line == "":
                 continue  # skip blank lines within the note
-            if not line.startswith(' '):  # non-indented line ends the note
+            if not line.startswith(" "):  # non-indented line ends the note
                 in_note = False
-                notes.append('\n'.join(note_content))
+                notes.append("\n".join(note_content))
                 note_content = []
             else:
                 note_content.append(stripped_line)
 
     if in_note:  # if we end with an open note
-        notes.append('\n'.join(note_content))
+        notes.append("\n".join(note_content))
     # Here you can process the notes as needed, e.g., print or save them
     return notes
 
 
 def main():
-    docs_dir = 'docs'
+    docs_dir = "docs"
 
     notes = []
     # walk through the docs directory and process each .md file
     for root, dirs, files in os.walk(docs_dir):
         for file in files:
-            if file.endswith('.md'):
+            if file.endswith(".md"):
                 file_path = os.path.join(root, file)
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
                     # Process the content to extract notes
                     # This is a placeholder for the actual extraction logic
@@ -68,12 +69,12 @@ def main():
     # Print or save the extracted notes
     outfile = "extracted_notes.txt"
 
-    with open(outfile, 'w', encoding='utf-8') as f:
+    with open(outfile, "w", encoding="utf-8") as f:
         for note in notes:
             print(note)
-            print('---')  # Separator for clarity
-            f.write(note + '\n---\n')
+            print("---")  # Separator for clarity
+            f.write(note + "\n---\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
