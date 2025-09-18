@@ -20,7 +20,7 @@ authors = [
 ]
 description = "A prototype implementation of the Vultron protocol."
 readme = {file="README.md", content-type="text/markdown"}
-requires-python = ">=3.10"
+requires-python = "==3.12.*"
 keywords =["vultron","cvd","vulnerability disclosure"]
 license = {file="LICENSE.md"}
 classifiers = [
