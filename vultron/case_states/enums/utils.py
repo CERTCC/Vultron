@@ -21,6 +21,10 @@ from enum import Enum
 from typing import Iterable
 
 
+def _item_tuple(item: Enum) -> tuple:
+    return (type(item), item.value)
+
+
 def enum_list_to_string_list(enum_iter: Iterable) -> list:
     """Converts an iterator of enums to a list of strings
 
@@ -30,7 +34,7 @@ def enum_list_to_string_list(enum_iter: Iterable) -> list:
     Returns:
         a list of strings
     """
-    return [str(x) for x in enum_iter]
+    return [f"{type(x).__name__}.{x.name}" for x in enum_iter]
 
 
 def enum_item_in_list(item: Enum, enum_iter: Iterable) -> bool:
@@ -45,14 +49,15 @@ def enum_item_in_list(item: Enum, enum_iter: Iterable) -> bool:
 
     """
     # the lists may contain the same integer value from different enums
-    # so we can't use the in operator
+    # so we can't use the in operator directly
 
     # the lists may also contain the same string value from different enums
     # so we cant compare the name attributes either
 
-    # instead we can convert them to strings and compare the strings
-    # this is a helper function to do that
-    return str(item) in enum_list_to_string_list(enum_iter)
+    # both the item value and item type must match
+    types = [_item_tuple(x) for x in enum_iter]
+    item_tup = _item_tuple(item)
+    return item_tup in types
 
 
 def uniq_enum_iter(enum_iter: Iterable) -> Iterable:
@@ -66,10 +71,10 @@ def uniq_enum_iter(enum_iter: Iterable) -> Iterable:
     """
     seen = set()
     for item in enum_iter:
-        item_str = str(item)
-        if item_str not in seen:
+        item_tup = _item_tuple(item)
+        if item_tup not in seen:
             yield item
-            seen.add(item_str)
+            seen.add(item_tup)
 
 
 def unique_enum_list(enum_iter: Iterable) -> list:
