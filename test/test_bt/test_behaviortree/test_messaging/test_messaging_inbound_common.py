@@ -1,4 +1,4 @@
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -15,7 +15,6 @@
 
 import unittest
 from collections import deque
-from dataclasses import dataclass
 
 from vultron.bt.base.bt_node import ActionNode
 from vultron.bt.base.node_status import NodeStatus
@@ -33,7 +32,6 @@ class MockState:
     msgs_received_this_tick = []
 
 
-@dataclass(kw_only=True)
 class MockMsg:
     msg_type: str = "gloop"
 

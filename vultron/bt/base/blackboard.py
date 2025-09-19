@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -35,10 +35,8 @@ to provide a python dict-like interface.
 For example, mongodict and redis-dict provide such an interface for MongoDb and Redis,
 respectively.
 """
-from dataclasses import dataclass
 
 
-@dataclass(kw_only=True)
 class Blackboard:
     """
     Provides a blackboard object for sharing data between nodes in the tree.

@@ -19,7 +19,7 @@ This is a demo of the bt tree library. It is a stub implementation of a bot that
 import logging
 import random
 import sys
-from dataclasses import dataclass, field
+from dataclasses import field
 
 import vultron.bt.base.composites as bt
 import vultron.bt.base.fuzzer as btz
@@ -45,7 +45,6 @@ GHOST_INC = 2
 GHOST_NAMES = ["Blinky", "Pinky", "Inky", "Clyde"]
 
 
-@dataclass(kw_only=True)
 class PacmanBlackboard(Blackboard):
     dots: int = 240
     score: int = 0

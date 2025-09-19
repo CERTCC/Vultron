@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime
 from typing import Optional, Union
 
@@ -29,7 +29,6 @@ from vultron.as_vocab.base.utils import exclude_if_none
 
 
 @activitystreams_activity
-@dataclass(kw_only=True)
 class as_IntransitiveActivity(Activity):
     """Base class for all ActivityPub intransitive activities.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#intransitiveactivity>
@@ -42,7 +41,6 @@ class as_IntransitiveActivity(Activity):
 
 
 @activitystreams_activity
-@dataclass(kw_only=True)
 class as_Travel(as_IntransitiveActivity):
     """The actor travels from the origin to the target.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-travel>
@@ -50,7 +48,6 @@ class as_Travel(as_IntransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass(kw_only=True)
 class as_Arrive(as_IntransitiveActivity):
     """The actor arrives at the target. The origin can be used to specify the previous location from which the actor arrived.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-arrive>
@@ -58,7 +55,6 @@ class as_Arrive(as_IntransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass(kw_only=True)
 class as_Question(as_IntransitiveActivity):
     """The actor poses a question to the target. The origin can be used to specify the context from which the question was posed.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-question>

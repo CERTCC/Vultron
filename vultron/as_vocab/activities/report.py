@@ -16,7 +16,7 @@ This module contains extensions to the ActivityStreams Vocabulary for Vultron ac
 VulnerabilityReports.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import field
 from typing import Optional
 
 from dataclasses_json import config
@@ -33,7 +33,6 @@ from vultron.as_vocab.base.objects.activities.transitive import (
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 
-@dataclass(kw_only=True)
 class RmCreateReport(as_Create):
     """The actor is creating a report."""
 
@@ -43,7 +42,6 @@ class RmCreateReport(as_Create):
     )
 
 
-@dataclass(kw_only=True)
 class RmSubmitReport(as_Offer):
     """The actor is submitting a report to another actor
     This corresponds to the Vultron RS message type when no case exists.
@@ -57,7 +55,6 @@ class RmSubmitReport(as_Offer):
     )
 
 
-@dataclass(kw_only=True)
 class RmReadReport(as_Read):
     """The actor has read a report.
     This corresponds to the Vultron Message Type RK when no case exists.
@@ -70,7 +67,6 @@ class RmReadReport(as_Read):
     )
 
 
-@dataclass(kw_only=True)
 class RmValidateReport(as_Accept):
     """The actor has validated a report.
     Corresponds to the Vultron Message Type RV when no case exists.
@@ -84,7 +80,6 @@ class RmValidateReport(as_Accept):
     )
 
 
-@dataclass(kw_only=True)
 class RmInvalidateReport(as_Reject):
     """The actor has invalidated a report.
     Corresponds to the Vultron Message Type RI when no case exists.
@@ -98,7 +93,6 @@ class RmInvalidateReport(as_Reject):
     )
 
 
-@dataclass(kw_only=True)
 class RmCloseReport(as_Leave):
     """The actor is closing the report.
     This corresponds to the Vultron Message Type RC when no case exists.

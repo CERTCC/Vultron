@@ -15,7 +15,6 @@ import json
 import os
 import tempfile
 import unittest
-from dataclasses import dataclass
 from typing import Sequence
 
 import vultron.scripts.vocab_examples as examples
@@ -50,7 +49,6 @@ from vultron.bt.report_management.states import RM
 from vultron.case_states.states import CS_pxa, CS_vfd
 
 
-@dataclass(kw_only=True)
 class Foo(as_Base_old):
     bar: str = "baz"
 

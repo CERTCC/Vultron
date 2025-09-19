@@ -15,7 +15,7 @@ Provides Case Status objects for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import dataclass, field
+from dataclasses import field
 from typing import Optional
 
 from dataclasses_json import config
@@ -33,7 +33,6 @@ from vultron.case_states.states import CS_pxa, CS_vfd
 
 
 @activitystreams_object
-@dataclass(kw_only=True)
 class CaseStatus(VultronObject):
     """
     Represents the case-level (global, participant-agnostic) status of a VulnerabilityCase.
@@ -74,7 +73,6 @@ class CaseStatus(VultronObject):
 
 
 @activitystreams_object
-@dataclass(kw_only=True)
 class ParticipantStatus(VultronObject):
     """
     Represents the status of a participant with respect to a VulnerabilityCase (participant-specific).

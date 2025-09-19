@@ -15,15 +15,12 @@ Provides a base class for all Vultron ActivityStreams Objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import dataclass
-
 from dataclasses_json import dataclass_json
 
 from vultron.as_vocab.base.objects.base import as_Object
 
 
 @dataclass_json
-@dataclass(kw_only=True)
 class VultronObject(as_Object):
     """
     Base class for all Vultron ActivityStreams Objects

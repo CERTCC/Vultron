@@ -15,7 +15,7 @@
 Provides Vultron Activity Streams Vocabulary classes for Embargo activities
 """
 
-from dataclasses import dataclass, field
+from dataclasses import field
 from typing import Optional, Sequence
 
 from dataclasses_json import config
@@ -37,7 +37,6 @@ from vultron.as_vocab.objects.embargo_event import EmbargoEvent
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 
 
-@dataclass(kw_only=True)
 class EmProposeEmbargo(as_Invite):
     """The actor is proposing an embargo on the case.
     This corresponds to the Vultron Message Types EP and EV
@@ -54,7 +53,6 @@ class EmProposeEmbargo(as_Invite):
     )
 
 
-@dataclass(kw_only=True)
 class EmAcceptEmbargo(as_Accept):
     """The actor is accepting an embargo on the case.
     This corresponds to the Vultron Message Types EA and EC
@@ -76,7 +74,6 @@ class EmAcceptEmbargo(as_Accept):
     )
 
 
-@dataclass(kw_only=True)
 class EmRejectEmbargo(as_Reject):
     """The actor is rejecting an embargo on the case.
     This corresponds to the Vultron Message Types ER and EJ
@@ -98,7 +95,6 @@ class EmRejectEmbargo(as_Reject):
     )
 
 
-@dataclass(kw_only=True)
 class ChoosePreferredEmbargo(as_Question):
     """The case owner is asking the participants to indicate their embargo preferences from among the proposed embargoes.
     Case participants should respond with an EmAcceptEmbargo or EmRejectEmbargo activity for each proposed embargo.
@@ -117,7 +113,6 @@ class ChoosePreferredEmbargo(as_Question):
     )
 
 
-@dataclass(kw_only=True)
 class ActivateEmbargo(as_Add):
     """The case owner is activating an embargo on the case.
     This corresponds to the Vultron Message Types EA and EC at the case level
@@ -138,7 +133,6 @@ class ActivateEmbargo(as_Add):
     )
 
 
-@dataclass(kw_only=True)
 class AddEmbargoToCase(as_Add):
     """Add an EmbargoEvent to a case. This should only be performed by the case owner.
     For use when the case owner is activating an embargo on the case without first proposing it to the participants.
@@ -155,7 +149,6 @@ class AddEmbargoToCase(as_Add):
     )
 
 
-@dataclass(kw_only=True)
 class AnnounceEmbargo(as_Announce):
     """The case owner is announcing an embargo on the case.
     as_object: the EmbargoEvent being announced
@@ -173,7 +166,6 @@ class AnnounceEmbargo(as_Announce):
 
 # remove EmbargoEvent from proposedEmbargoes of VulnerabilityCase
 # todo: should proposedEmbargoes be its own collection object that can then be used as the origin here?
-@dataclass(kw_only=True)
 class RemoveEmbargoFromCase(as_Remove):
     """Remove an EmbargoEvent from the proposedEmbargoes of a VulnerabilityCase.
     This should only be performed by the case owner.

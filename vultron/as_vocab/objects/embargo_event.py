@@ -15,7 +15,7 @@ Provides an EmbargoEvent object for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import dataclass, field
+from dataclasses import field
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -38,7 +38,6 @@ def _45_days_hence():
 
 
 @activitystreams_object
-@dataclass(kw_only=True)
 class EmbargoEvent(as_Event):
     """
     An EmbargoEvent is an Event that represents an embargo on a VulnerabilityCase.

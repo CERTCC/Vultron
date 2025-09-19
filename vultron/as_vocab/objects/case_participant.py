@@ -17,7 +17,7 @@ Provides various CaseParticipant objects for the Vultron ActivityStreams Vocabul
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import field
 
 from dataclasses_json import config
 
@@ -32,7 +32,6 @@ from vultron.bt.roles.states import CVDRoles as CVDRole
 
 
 @activitystreams_object
-@dataclass(kw_only=True)
 class CaseParticipant(VultronObject):
     """
     A CaseParticipant is a wrapper around an Actor in a VulnerabilityCase.
@@ -110,7 +109,6 @@ class CaseParticipant(VultronObject):
 
 
 @activitystreams_object
-@dataclass(kw_only=True)
 class FinderParticipant(CaseParticipant):
     """
     A FinderParticipant is a CaseParticipant that has the FINDER role in a VulnerabilityCase.
@@ -124,7 +122,6 @@ class FinderParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass(kw_only=True)
 class ReporterParticipant(CaseParticipant):
     """
     A ReporterParticipant is a CaseParticipant that has the REPORTER role in a VulnerabilityCase.
@@ -145,7 +142,6 @@ class ReporterParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass(kw_only=True)
 class FinderReporterParticipant(CaseParticipant):
     """
     A FinderReporterParticipant is a CaseParticipant that has both the FINDER and REPORTER roles in a
@@ -169,7 +165,6 @@ class FinderReporterParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass(kw_only=True)
 class VendorParticipant(CaseParticipant):
     """
     A VendorParticipant is a CaseParticipant that has the VENDOR role in a VulnerabilityCase.
@@ -183,7 +178,6 @@ class VendorParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass(kw_only=True)
 class DeployerParticipant(CaseParticipant):
     """
     A DeployerParticipant is a CaseParticipant that has the DEPLOYER role in a VulnerabilityCase.
@@ -197,7 +191,6 @@ class DeployerParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass(kw_only=True)
 class CoordinatorParticipant(CaseParticipant):
     """
     A CoordinatorParticipant is a CaseParticipant that has the COORDINATOR role in a VulnerabilityCase.
@@ -211,7 +204,6 @@ class CoordinatorParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass(kw_only=True)
 class OtherParticipant(CaseParticipant):
     """
     An OtherParticipant is a CaseParticipant that has the OTHER role in a VulnerabilityCase.

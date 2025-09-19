@@ -27,7 +27,6 @@ The implementation also shows how to use the included bt tree fuzzer to exercise
 
 import logging
 import sys
-from dataclasses import dataclass
 
 import vultron.bt.base.fuzzer as btz
 from vultron.bt.base.blackboard import Blackboard
@@ -44,7 +43,6 @@ from vultron.bt.common import show_graph
 logger = logging.getLogger(__name__)
 
 
-@dataclass(kw_only=True)
 class RobotBlackboard(Blackboard):
     ball_found: bool = False
     ball_close: bool = False
