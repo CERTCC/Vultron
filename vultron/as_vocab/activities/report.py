@@ -16,9 +16,9 @@ This module contains extensions to the ActivityStreams Vocabulary for Vultron ac
 VulnerabilityReports.
 """
 
-from dataclasses import field
+from typing import Literal
 
-from dataclasses_json import config
+from pydantic import Field
 
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -35,9 +35,9 @@ from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 class RmCreateReport(as_Create):
     """The actor is creating a report."""
 
-    as_type: str = field(default="Create", init=False)
-    as_object: VulnerabilityReport | as_Link | str | None = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Create"] = "Create"
+    as_object: VulnerabilityReport | as_Link | str | None = Field(
+        default=None, alias="object"
     )
 
 
@@ -48,9 +48,9 @@ class RmSubmitReport(as_Offer):
     as_object: VulnerabilityReport
     """
 
-    as_type: str = field(default="Offer", init=False)
-    as_object: VulnerabilityReport | as_Link | str | None = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Offer"] = "Offer"
+    as_object: VulnerabilityReport | as_Link | str | None = Field(
+        default=None, alias="object"
     )
 
 
@@ -60,9 +60,9 @@ class RmReadReport(as_Read):
     as_object: VulnerabilityReport
     """
 
-    as_type: str = field(default="Read", init=False)
-    as_object: VulnerabilityReport | as_Link | str | None = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Read"] = "Read"
+    as_object: VulnerabilityReport | as_Link | str | None = Field(
+        default=None, alias="object"
     )
 
 
@@ -73,9 +73,9 @@ class RmValidateReport(as_Accept):
     as_object: VulnerabilityReport
     """
 
-    as_type: str = field(default="Accept", init=False)
-    as_object: VulnerabilityReport | as_Link | str | None = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Accept"] = "Accept"
+    as_object: VulnerabilityReport | as_Link | str | None = Field(
+        default=None, alias="object"
     )
 
 
@@ -86,9 +86,9 @@ class RmInvalidateReport(as_Reject):
     as_object: VulnerabilityReport
     """
 
-    as_type: str = field(default="Reject", init=False)
-    as_object: VulnerabilityReport | as_Link | str | None = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Reject"] = "Reject"
+    as_object: VulnerabilityReport | as_Link | str | None = Field(
+        default=None, alias="object"
     )
 
 
@@ -100,7 +100,7 @@ class RmCloseReport(as_Leave):
     as_object: VulnerabilityReport
     """
 
-    as_type: str = field(default="Leave", init=False)
-    as_object: VulnerabilityReport | as_Link | str | None = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Leave"] = "Leave"
+    as_object: VulnerabilityReport | as_Link | str | None = Field(
+        default=None, alias="object"
     )
