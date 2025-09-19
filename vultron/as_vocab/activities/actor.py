@@ -18,7 +18,7 @@ Provides Vultron ActivityStreams Activities related to Actors
 from dataclasses import dataclass, field
 from typing import Optional
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from dataclasses_json import config
 
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -30,7 +30,6 @@ from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RecommendActor(as_Offer):
     """The actor is recommending another actor to a case."""
@@ -45,7 +44,6 @@ class RecommendActor(as_Offer):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class AcceptActorRecommendation(as_Accept):
     """The case owner is accepting a recommendation to add an actor to the case.
@@ -62,7 +60,6 @@ class AcceptActorRecommendation(as_Accept):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RejectActorRecommendation(as_Reject):
     """The case owner is rejecting a recommendation to add an actor to the case."""

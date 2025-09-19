@@ -19,7 +19,7 @@ VulnerabilityReports.
 from dataclasses import dataclass, field
 from typing import Optional
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from dataclasses_json import config
 
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -33,7 +33,6 @@ from vultron.as_vocab.base.objects.activities.transitive import (
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmCreateReport(as_Create):
     """The actor is creating a report."""
@@ -44,7 +43,6 @@ class RmCreateReport(as_Create):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmSubmitReport(as_Offer):
     """The actor is submitting a report to another actor
@@ -59,7 +57,6 @@ class RmSubmitReport(as_Offer):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmReadReport(as_Read):
     """The actor has read a report.
@@ -73,7 +70,6 @@ class RmReadReport(as_Read):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmValidateReport(as_Accept):
     """The actor has validated a report.
@@ -88,7 +84,6 @@ class RmValidateReport(as_Accept):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmInvalidateReport(as_Reject):
     """The actor has invalidated a report.
@@ -103,7 +98,6 @@ class RmInvalidateReport(as_Reject):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmCloseReport(as_Leave):
     """The actor is closing the report.

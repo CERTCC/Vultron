@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, Union
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from dataclasses_json import config
 
 from vultron.as_vocab.base import activitystreams_activity
 from vultron.as_vocab.base.links import as_Link
@@ -29,7 +29,6 @@ from vultron.as_vocab.base.utils import exclude_if_none
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_IntransitiveActivity(Activity):
     """Base class for all ActivityPub intransitive activities.
@@ -43,7 +42,6 @@ class as_IntransitiveActivity(Activity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Travel(as_IntransitiveActivity):
     """The actor travels from the origin to the target.
@@ -52,7 +50,6 @@ class as_Travel(as_IntransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Arrive(as_IntransitiveActivity):
     """The actor arrives at the target. The origin can be used to specify the previous location from which the actor arrived.
@@ -61,7 +58,6 @@ class as_Arrive(as_IntransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Question(as_IntransitiveActivity):
     """The actor poses a question to the target. The origin can be used to specify the context from which the question was posed.

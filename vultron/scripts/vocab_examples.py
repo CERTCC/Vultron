@@ -69,7 +69,7 @@ from vultron.as_vocab.activities.report import (
     RmSubmitReport,
     RmValidateReport,
 )
-from vultron.as_vocab.base.base import as_Base
+from vultron.as_vocab.base.base import as_Base_old
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Create,
     as_Undo,
@@ -110,7 +110,7 @@ organization_base_url = f"{base_url}/organizations"
 report_base_url = f"{base_url}/reports"
 
 
-def json2md(obj: as_Base) -> str:
+def json2md(obj: as_Base_old) -> str:
     """
     Given an object with a to_json method, return a markdown-formatted string of the object's JSON.
     Args:
@@ -131,7 +131,7 @@ def json2md(obj: as_Base) -> str:
     return s
 
 
-def obj_to_file(obj: as_Base, filename: str) -> None:
+def obj_to_file(obj: as_Base_old, filename: str) -> None:
     """
     Given an object with a to_json method, write it to a file.
     Args:
@@ -149,7 +149,7 @@ def obj_to_file(obj: as_Base, filename: str) -> None:
         fp.write(obj.to_json(indent=2))
 
 
-def print_obj(obj: as_Base) -> None:
+def print_obj(obj: as_Base_old) -> None:
     """
     Given an object with a to_json method, print it to stdout.
     Args:

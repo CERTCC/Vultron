@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from dataclasses_json import config
 
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.links import as_Link
@@ -32,7 +32,6 @@ from vultron.bt.roles.states import CVDRoles as CVDRole
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class CaseParticipant(VultronObject):
     """
@@ -111,7 +110,6 @@ class CaseParticipant(VultronObject):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class FinderParticipant(CaseParticipant):
     """
@@ -126,7 +124,6 @@ class FinderParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class ReporterParticipant(CaseParticipant):
     """
@@ -148,7 +145,6 @@ class ReporterParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class FinderReporterParticipant(CaseParticipant):
     """
@@ -173,7 +169,6 @@ class FinderReporterParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class VendorParticipant(CaseParticipant):
     """
@@ -188,7 +183,6 @@ class VendorParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class DeployerParticipant(CaseParticipant):
     """
@@ -203,7 +197,6 @@ class DeployerParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class CoordinatorParticipant(CaseParticipant):
     """
@@ -218,7 +211,6 @@ class CoordinatorParticipant(CaseParticipant):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class OtherParticipant(CaseParticipant):
     """

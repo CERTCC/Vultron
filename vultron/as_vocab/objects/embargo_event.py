@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from dataclasses_json import config
 from marshmallow import fields
 
 from vultron.as_vocab.base import activitystreams_object
@@ -38,7 +38,6 @@ def _45_days_hence():
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class EmbargoEvent(as_Event):
     """

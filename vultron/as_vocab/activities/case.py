@@ -19,7 +19,7 @@ Each activity should have a VulnerabilityCase object as either its target or obj
 from dataclasses import dataclass, field
 from typing import Optional
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from dataclasses_json import config
 
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -47,7 +47,6 @@ from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 ########################################################################################
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class AddReportToCase(as_Add):
     """Add a VulnerabilityReport to a VulnerabilityCase
@@ -67,7 +66,6 @@ class AddReportToCase(as_Add):
 
 
 # add CaseStatus to VulnerabilityCase
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class AddStatusToCase(as_Add):
     """Add a CaseStatus to a VulnerabilityCase.
@@ -91,7 +89,6 @@ class AddStatusToCase(as_Add):
 
 
 # create a VulnerabilityCase
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class CreateCase(as_Create):
     """Create a VulnerabilityCase.
@@ -104,7 +101,6 @@ class CreateCase(as_Create):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class CreateCaseStatus(as_Create):
     """Create a CaseStatus.
@@ -118,7 +114,6 @@ class CreateCaseStatus(as_Create):
 
 
 # Add a Note to a VulnerabilityCase
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class AddNoteToCase(as_Add):
     """Add a Note to a VulnerabilityCase.
@@ -134,7 +129,6 @@ class AddNoteToCase(as_Add):
 
 
 # update a VulnerabilityCase
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class UpdateCase(as_Update):
     """Update a VulnerabilityCase.
@@ -153,7 +147,6 @@ class UpdateCase(as_Update):
 
 
 # join a case
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmEngageCase(as_Join):
     """The actor is has joined (i.e., is actively working on) a case.
@@ -167,7 +160,6 @@ class RmEngageCase(as_Join):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmDeferCase(as_Ignore):
     """The actor is deferring a case.
@@ -185,7 +177,6 @@ class RmDeferCase(as_Ignore):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmCloseCase(as_Leave):
     """The actor is ending their participation in the case and closing their local copy of the case.
@@ -202,7 +193,6 @@ class RmCloseCase(as_Leave):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class OfferCaseOwnershipTransfer(as_Offer):
     """The actor is offering to transfer ownership of the case to another actor.
@@ -219,7 +209,6 @@ class OfferCaseOwnershipTransfer(as_Offer):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class AcceptCaseOwnershipTransfer(as_Accept):
     """The actor is accepting an offer to transfer ownership of the case.
@@ -237,7 +226,6 @@ class AcceptCaseOwnershipTransfer(as_Accept):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RejectCaseOwnershipTransfer(as_Reject):
     """The actor is rejecting an offer to transfer ownership of the case.
@@ -254,7 +242,6 @@ class RejectCaseOwnershipTransfer(as_Reject):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmInviteToCase(as_Invite):
     """The actor is inviting another actor to a case.
@@ -269,7 +256,6 @@ class RmInviteToCase(as_Invite):
     )
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmAcceptInviteToCase(as_Accept):
     """The actor is accepting an invitation to a case.
@@ -286,7 +272,6 @@ class RmAcceptInviteToCase(as_Accept):
     in_reply_to: RmInviteToCase = field(default=None)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RmRejectInviteToCase(as_Reject):
     """The actor is rejecting an invitation to a case.

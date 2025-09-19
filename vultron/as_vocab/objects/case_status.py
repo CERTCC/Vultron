@@ -18,7 +18,7 @@ Provides Case Status objects for the Vultron ActivityStreams Vocabulary.
 from dataclasses import dataclass, field
 from typing import Optional
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from dataclasses_json import config
 from marshmallow import fields
 
 from vultron.as_vocab.base import activitystreams_object
@@ -33,7 +33,6 @@ from vultron.case_states.states import CS_pxa, CS_vfd
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class CaseStatus(VultronObject):
     """
@@ -75,7 +74,6 @@ class CaseStatus(VultronObject):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class ParticipantStatus(VultronObject):
     """

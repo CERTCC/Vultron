@@ -16,7 +16,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from dataclasses_json import config
 
 from vultron.as_vocab.base import activitystreams_activity
 from vultron.as_vocab.base.links import as_Link
@@ -28,7 +28,6 @@ from vultron.as_vocab.base.utils import name_of
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_TransitiveActivity(Activity):
     """A transitive activity is an activity that has an object.
@@ -59,7 +58,6 @@ class as_TransitiveActivity(Activity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Like(as_TransitiveActivity):
     """The actor likes, recommends or endorses the object. The target and origin typically have no defined meaning.
@@ -68,7 +66,6 @@ class as_Like(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Ignore(as_TransitiveActivity):
     """The actor is ignoring the object. The target and origin typically have no defined meaning.
@@ -77,7 +74,6 @@ class as_Ignore(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Block(as_Ignore):
     """The actor is blocking the object. The target and origin typically have no defined meaning.
@@ -86,7 +82,6 @@ class as_Block(as_Ignore):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Offer(as_TransitiveActivity):
     """The actor is offering the object. If specified, the origin indicates the context from which the object originated.
@@ -96,7 +91,6 @@ class as_Offer(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Invite(as_Offer):
     """The actor is requesting that the target accept the object. The origin indicates the context from which the object originated.
@@ -105,7 +99,6 @@ class as_Invite(as_Offer):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Flag(as_TransitiveActivity):
     """The actor is flagging the object. The target and origin typically have no defined meaning.
@@ -114,7 +107,6 @@ class as_Flag(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Remove(as_TransitiveActivity):
     """The actor removes the object from the target. If specified, the origin indicates the context from which the object originated.
@@ -123,7 +115,6 @@ class as_Remove(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Undo(as_TransitiveActivity):
     """The actor is undoing the object. The target and origin typically have no defined meaning.
@@ -132,7 +123,6 @@ class as_Undo(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Create(as_TransitiveActivity):
     """The actor is creating the object. If specified, the origin indicates the context from which the object originated.
@@ -143,7 +133,6 @@ class as_Create(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Delete(as_TransitiveActivity):
     """The actor is deleting the object. If specified, the origin indicates the context from which the object was deleted.
@@ -152,7 +141,6 @@ class as_Delete(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Move(as_TransitiveActivity):
     """The actor is moving the object from the origin to the target.
@@ -162,7 +150,6 @@ class as_Move(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Add(as_TransitiveActivity):
     """The actor is adding the object to the target. If the target is not specified, it must be determined by context.
@@ -172,7 +159,6 @@ class as_Add(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Join(as_TransitiveActivity):
     """The actor has joined the object. The target and origin typically have no defined meaning.
@@ -181,7 +167,6 @@ class as_Join(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Update(as_TransitiveActivity):
     """The actor has updated the object. The target and origin typically have no defined meaning.
@@ -190,7 +175,6 @@ class as_Update(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Listen(as_TransitiveActivity):
     """The actor has listened to the object.
@@ -199,7 +183,6 @@ class as_Listen(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Leave(as_TransitiveActivity):
     """The actor has left the object. The target and origin typically have no defined meaning.
@@ -208,7 +191,6 @@ class as_Leave(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Announce(as_TransitiveActivity):
     """The actor is calling the target's attention to the object. The origin typically has no defined meaning.
@@ -217,7 +199,6 @@ class as_Announce(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Follow(as_TransitiveActivity):
     """The actor is "following" the object.
@@ -229,7 +210,6 @@ class as_Follow(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Accept(as_TransitiveActivity):
     """The actor accepts the object. The target property can be used in certain circumstances to indicate the context into
@@ -238,7 +218,6 @@ class as_Accept(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_TentativeAccept(as_Accept):
     """The actor tentatively accepts the object.
@@ -247,7 +226,6 @@ class as_TentativeAccept(as_Accept):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_View(as_TransitiveActivity):
     """The actor has viewed the object.
@@ -256,7 +234,6 @@ class as_View(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Dislike(as_TransitiveActivity):
     """The actor dislikes the object.
@@ -265,7 +242,6 @@ class as_Dislike(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Reject(as_TransitiveActivity):
     """The actor rejects the object.
@@ -275,7 +251,6 @@ class as_Reject(as_TransitiveActivity):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_TentativeReject(as_Reject):
     """A specialization of Reject indicating that the rejection is tentative.
@@ -284,7 +259,6 @@ class as_TentativeReject(as_Reject):
 
 
 @activitystreams_activity
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Read(as_TransitiveActivity):
     """The actor has read the object.

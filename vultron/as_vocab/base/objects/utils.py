@@ -16,7 +16,7 @@
 import logging
 
 from vultron.as_vocab.base import VOCABULARY
-from vultron.as_vocab.base.base import as_Base
+from vultron.as_vocab.base.base import as_Base_old
 from vultron.as_vocab.base.errors import (
     MissingTypeError,
     UnrecognizedTypeError,
@@ -25,7 +25,7 @@ from vultron.as_vocab.base.errors import (
 logger = logging.getLogger(__name__)
 
 
-def simple_object_from_dict(data: dict) -> as_Base:
+def simple_object_from_dict(data: dict) -> as_Base_old:
     """
     Get the object from the given json data
 
@@ -67,7 +67,7 @@ def simple_object_from_dict(data: dict) -> as_Base:
     return obj
 
 
-def object_from_dict(data: dict) -> as_Base:
+def object_from_dict(data: dict) -> as_Base_old:
     """Create an object from the given json data.
     Figures out the type and creates the appropriate object.
 
@@ -95,7 +95,7 @@ def object_from_dict(data: dict) -> as_Base:
     return obj
 
 
-def parse_sub_object(data) -> as_Base | str:
+def parse_sub_object(data) -> as_Base_old | str:
     if isinstance(data, dict):
         # we need to convert this to an object
         return simple_object_from_dict(data)

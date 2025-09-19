@@ -16,14 +16,11 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from dataclasses_json import LetterCase, dataclass_json
-
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.objects.base import as_Object
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_Collection(as_Object):
     """A collection is a list of objects. The items in the list MAY be ordered.
@@ -56,7 +53,6 @@ class as_Collection(as_Object):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_OrderedCollection(as_Collection):
     """A collection that has its items explicitly ordered. The items in the list are assumed to always be in the same order.
@@ -65,7 +61,6 @@ class as_OrderedCollection(as_Collection):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_CollectionPage(as_Collection):
     """A subset of items from a Collection.
@@ -79,7 +74,6 @@ class as_CollectionPage(as_Collection):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class as_OrderedCollectionPage(as_OrderedCollection, as_CollectionPage):
     """A subset of items from an OrderedCollection.

@@ -18,7 +18,7 @@ Provides Vultron ActivityStreams Activities related to CaseParticipants
 from dataclasses import dataclass, field
 from typing import Optional
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from dataclasses_json import config
 
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -31,7 +31,6 @@ from vultron.as_vocab.objects.case_status import ParticipantStatus
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class CreateParticipant(as_Create):
     """Create a new CaseParticipant"""
@@ -43,7 +42,6 @@ class CreateParticipant(as_Create):
     target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class CreateStatusForParticipant(as_Create):
     """Create a new CaseStatus for a CaseParticipant"""
@@ -56,7 +54,6 @@ class CreateStatusForParticipant(as_Create):
 
 
 # add CaseStatus to CaseParticipant
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class AddStatusToParticipant(as_Add):
     """Add a CaseStatus to a CaseParticipant
@@ -71,7 +68,6 @@ class AddStatusToParticipant(as_Add):
     target: Optional[CaseParticipant | as_Link | str] = field(default=None)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class AddParticipantToCase(as_Add):
     """Add a CaseParticipant to a VulnerabilityCase
@@ -86,7 +82,6 @@ class AddParticipantToCase(as_Add):
     target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
 class RemoveParticipantFromCase(as_Remove):
     """Remove a CaseParticipant from a VulnerabilityCase.

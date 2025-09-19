@@ -1,4 +1,4 @@
-#  Copyright (c) 2024 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2024-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -18,10 +18,8 @@ import unittest
 from dataclasses import dataclass
 from typing import Sequence
 
-from dataclasses_json import LetterCase, dataclass_json
-
 import vultron.scripts.vocab_examples as examples
-from vultron.as_vocab.base.base import as_Base
+from vultron.as_vocab.base.base import as_Base_old
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.activities.intransitive import as_Question
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -52,9 +50,8 @@ from vultron.bt.report_management.states import RM
 from vultron.case_states.states import CS_pxa, CS_vfd
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(kw_only=True)
-class Foo(as_Base):
+class Foo(as_Base_old):
     bar: str = "baz"
 
 

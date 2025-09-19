@@ -16,8 +16,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from dataclasses_json import LetterCase, dataclass_json
-
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.objects.collections import (
@@ -27,7 +25,6 @@ from vultron.as_vocab.base.objects.collections import (
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class as_Actor(as_Object):
     """Base class for all ActivityPub actors.
@@ -51,7 +48,6 @@ class as_Actor(as_Object):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class as_Group(as_Actor):
     """A special kind of actor representing a logical group of persons or other actors.
@@ -60,7 +56,6 @@ class as_Group(as_Actor):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class as_Organization(as_Actor):
     """A special kind of actor representing a logical group of persons or other actors.
@@ -69,7 +64,6 @@ class as_Organization(as_Actor):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class as_Application(as_Actor):
     """A special kind of actor representing a software application.
@@ -78,7 +72,6 @@ class as_Application(as_Actor):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class as_Service(as_Actor):
     """A special kind of actor representing a service.
@@ -88,7 +81,6 @@ class as_Service(as_Actor):
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class as_Person(as_Actor):
     """A special kind of actor representing an individual person.
