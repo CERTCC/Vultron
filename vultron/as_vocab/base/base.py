@@ -13,38 +13,40 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Literal
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic.alias_generators import to_camel
 
-from vultron.as_vocab.base.utils import exclude_if_none, generate_new_id
+from vultron.as_vocab.base.utils import generate_new_id
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
-class as_Base(object):
-    as_context: str = field(
-        metadata=config(field_name="@context"),
-        default="https://www.w3.org/ns/activitystreams",
-        init=False,
-    )
-    as_type: str = field(
-        metadata=config(field_name="type"), default=None, init=False
-    )
-    as_id: str = field(
-        metadata=config(field_name="id"), default_factory=generate_new_id
-    )
-    name: Optional[str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    preview: Optional[str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    mediaType: Optional[str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
+class as_Base(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
     )
 
-    def __post_init__(self):
+
+    as_context: Literal[str] = Field(
+        "https://www.w3.org/ns/activitystreams", alias="@context"
+    )
+    as_type: str = Field(None, alias="type")
+    as_id: str = Field(default_factory=generate_new_id, alias="id")
+    name: Optional[str] = None
+    preview: Optional[str] = None
+    media_type: Optional[str] = None
+
+    @model_validator(mode="after")
+    def set_type_from_class_name(self):
         if self.as_type is None:
             self.as_type = self.__class__.__name__.lstrip("as_")
+        return self
+
+    def to_json(self, **kwargs):
+        """Serialize the model to a JSON string, excluding None values and using aliases."""
+        return self.model_dump_json(exclude_none=True, by_alias=True, **kwargs)
+
+    def to_dict(self,**kwargs):
+        """Serialize the model to a dictionary, excluding None values and using aliases."""
+        return self.model_dump(exclude_none=True,**kwargs)

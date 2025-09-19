@@ -15,18 +15,13 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import dataclass
 from typing import Optional
-
-from dataclasses_json import LetterCase, dataclass_json
 
 from vultron.as_vocab.base import activitystreams_link
 from vultron.as_vocab.base.base import as_Base
 
 
 @activitystreams_link
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class as_Link(as_Base):
     """A Link is an indirect, qualified reference to a resource identified by a URL.
     The fundamental model for links is established by [RFC5988].
@@ -45,8 +40,6 @@ class as_Link(as_Base):
 
 
 @activitystreams_link
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class as_Mention(as_Link):
     """A Link that represents an @mention."""
 
