@@ -13,18 +13,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import dataclass, field
-from typing import Optional
-
-from dataclasses_json import config, dataclass_json
-
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.base import as_Object
-from vultron.as_vocab.base.utils import exclude_if_none
 
 
-@dataclass_json
-@dataclass
 class as_Activity(as_Object):
     """https://www.w3.org/TR/activitystreams-vocabulary/#dfn-activity
     An Activity is a subtype of Object that describes some form of action that may happen, is
@@ -36,21 +28,11 @@ class as_Activity(as_Object):
     of the picture, not the person walking down the street.
     """
 
-    actor: as_Object | as_Link | str = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    target: Optional[as_Object | as_Link | str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    origin: Optional[as_Object | as_Link | str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    instrument: Optional[as_Object | as_Link | str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    result: Optional[as_Object | as_Link | str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    actor: as_Object | as_Link | str = None
+    target: as_Object | as_Link | str | None = None
+    origin: as_Object | as_Link | str | None = None
+    instrument: as_Object | as_Link | str | None = None
+    result: as_Object | as_Link | str | None = None
 
     def description(self):
         raise NotImplementedError

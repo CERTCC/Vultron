@@ -30,27 +30,38 @@ class as_Object(as_Base):
     """Base class for all ActivityPub objects.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#object>
     """
-    replies: Optional[Any] = None
-    url: Optional[Any] = None
-    generator: Optional[Any] = None
-    context: Optional[Any] = None
-    tag: Optional[Any] = None
-    in_reply_to: Optional[Any] = None
+
+    replies: Any | None = None
+    url: Any | None = None
+    generator: Any | None = None
+    context: Any | None = None
+    tag: Any | None = None
+    in_reply_to: Any | None = None
 
     # time (aka Wibbly-Wobbly Time-Wimey Stuff)
     # in python we want datetime or timedelta objects
     # but in json we want iso8601 strings
     # see also serializers and validators below
-    duration: Optional[timedelta] = Field(default=None,serialization_alias=None,json_schema_extra={"format":"duration"})
-    start_time: Optional[datetime] = Field(default=None,serialization_alias=None,json_schema_extra={"format":"date-time"})
-    end_time: Optional[datetime] = Field(default=None,serialization_alias=None,json_schema_extra={"format":"date-time"})
-    published: Optional[datetime] = Field(default_factory=now_utc,serialization_alias=None,json_schema_extra={"format":"date-time"})
-    updated: Optional[datetime] = Field(default_factory=now_utc,serialization_alias=None,json_schema_extra={"format":"date-time"})
+    duration: timedelta | None = Field(
+        default=None, json_schema_extra={"format": "duration"}
+    )
+    start_time: datetime | None = Field(
+        default=None, json_schema_extra={"format": "date-time"}
+    )
+    end_time: datetime | None = Field(
+        default=None, json_schema_extra={"format": "date-time"}
+    )
+    published: datetime | None = Field(
+        default_factory=now_utc, json_schema_extra={"format": "date-time"}
+    )
+    updated: datetime | None = Field(
+        default_factory=now_utc, json_schema_extra={"format": "date-time"}
+    )
 
     # content
-    content: Optional[Any] = None
-    summary: Optional[Any] = None
-    icon: Optional[Any] = None
+    content: Any | None = None
+    summary: Any | None = None
+    icon: Any | None = None
     image: Optional[Any] = None
     attachment: Optional[Any] = None
     location: Optional[Any] = None
@@ -61,36 +72,41 @@ class as_Object(as_Base):
     audience: Optional[Any] = None
     attributed_to: Optional[Any] = None
 
-    @field_serializer('duration',when_used='json')
-    def serialize_duration(self, value: Optional[timedelta]) -> Optional[str]:
+    @field_serializer("duration", when_used="json")
+    def serialize_duration(self, value: timedelta | None) -> str | None:
         if value is None:
             return None
         return to_isofmt(value)
 
-    @field_validator('duration',mode='before')
+    @field_validator("duration", mode="before")
     @classmethod
-    def validate_duration(cls, value: Any) -> Optional[timedelta]:
-        if value is None or isinstance(value, timedelta):
+    def validate_duration(cls, value: Any) -> timedelta | None:
+        if value is None:
             return value
-        if isinstance(value,str):
-            return from_isofmt(value)
-        return value
-
-    @field_serializer('start_time', 'end_time', 'published', 'updated', when_used='json')
-    def serialize_datetime(self, value: Optional[datetime]) -> Optional[str]:
-        if value is None:
-            return None
-        return to_isofmt(value)
-
-    @field_validator('start_time', 'end_time', 'published', 'updated', mode='before')
-    @classmethod
-    def validate_datetime(cls, value: Any) -> Optional[datetime]:
-        if value is None or isinstance(value, datetime):
+        if isinstance(value, timedelta):
             return value
         if isinstance(value, str):
             return from_isofmt(value)
         return value
 
+    @field_serializer(
+        "start_time", "end_time", "published", "updated", when_used="json"
+    )
+    def serialize_datetime(self, value: datetime | None) -> str | None:
+        if value is None:
+            return None
+        return to_isofmt(value)
+
+    @field_validator(
+        "start_time", "end_time", "published", "updated", mode="before"
+    )
+    @classmethod
+    def validate_datetime(cls, value: Any) -> datetime | None:
+        if value is None or isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return from_isofmt(value)
+        return value
 
 
 def main():

@@ -1,4 +1,4 @@
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -12,7 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 #
 #  See LICENSE for details
-
+import enum
 import logging
 import unittest
 from itertools import product
@@ -86,12 +86,21 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(NodeStatus.SUCCESS, x.tick())
 
     def test_make_state_change(self):
-        bb = MockState()
-        start_states = list(range(5))
+        class TestEnum(enum.IntEnum):
+            A = 1
+            B = 2
+            C = 3
+            D = 4
+            E = 5
 
-        for key, end_state in product("abcdefghij", range(10)):
+        bb = MockState()
+        start_states = TestEnum
+
+        for key, end_state in product("abcdefghij", TestEnum):
             with self.subTest(key=key, end_state=end_state):
-                transition = c.EnumStateTransition(start_states, end_state)
+                transition = c.EnumStateTransition(
+                    start_states=start_states, end_state=end_state
+                )
                 xclass = c.state_change(key, transition)
                 self.assertTrue(callable(xclass))
                 self.assertNotEqual("Node", xclass.__name__)

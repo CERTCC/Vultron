@@ -17,7 +17,6 @@ VulnerabilityReports.
 """
 
 from dataclasses import field
-from typing import Optional
 
 from dataclasses_json import config
 
@@ -37,7 +36,7 @@ class RmCreateReport(as_Create):
     """The actor is creating a report."""
 
     as_type: str = field(default="Create", init=False)
-    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
+    as_object: VulnerabilityReport | as_Link | str | None = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
 
@@ -50,7 +49,7 @@ class RmSubmitReport(as_Offer):
     """
 
     as_type: str = field(default="Offer", init=False)
-    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
+    as_object: VulnerabilityReport | as_Link | str | None = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
 
@@ -62,7 +61,7 @@ class RmReadReport(as_Read):
     """
 
     as_type: str = field(default="Read", init=False)
-    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
+    as_object: VulnerabilityReport | as_Link | str | None = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
 
@@ -75,7 +74,7 @@ class RmValidateReport(as_Accept):
     """
 
     as_type: str = field(default="Accept", init=False)
-    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
+    as_object: VulnerabilityReport | as_Link | str | None = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
 
@@ -88,7 +87,7 @@ class RmInvalidateReport(as_Reject):
     """
 
     as_type: str = field(default="Reject", init=False)
-    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
+    as_object: VulnerabilityReport | as_Link | str | None = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
 
@@ -102,6 +101,6 @@ class RmCloseReport(as_Leave):
     """
 
     as_type: str = field(default="Leave", init=False)
-    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
+    as_object: VulnerabilityReport | as_Link | str | None = field(
         metadata=config(field_name="object"), default=None, repr=True
     )

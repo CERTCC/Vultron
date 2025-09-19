@@ -16,6 +16,8 @@
 import unittest
 from collections import deque
 
+from pydantic import BaseModel
+
 from vultron.bt.base.bt_node import ActionNode
 from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.messaging.inbound._behaviors.common import (
@@ -32,7 +34,7 @@ class MockState:
     msgs_received_this_tick = []
 
 
-class MockMsg:
+class MockMsg(BaseModel):
     msg_type: str = "gloop"
 
 

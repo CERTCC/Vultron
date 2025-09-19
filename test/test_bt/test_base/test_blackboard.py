@@ -21,7 +21,7 @@ class TestBlackBoard(unittest.TestCase):
         # there really isn't anything to test since Blackboard doesn't have any
         # defined fields.  But we can test that it has dataclass semantics
 
-                class BB(Blackboard):
+        class BB(Blackboard):
             foo: str = "bar"
 
         bb = BB()

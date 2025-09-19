@@ -13,11 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import field
 from datetime import datetime
-from typing import Optional, Union
-
-from dataclasses_json import config
 
 from vultron.as_vocab.base import activitystreams_activity
 from vultron.as_vocab.base.links import as_Link
@@ -25,7 +21,6 @@ from vultron.as_vocab.base.objects.activities.base import (
     as_Activity as Activity,
 )
 from vultron.as_vocab.base.objects.base import as_Object
-from vultron.as_vocab.base.utils import exclude_if_none
 
 
 @activitystreams_activity
@@ -60,15 +55,9 @@ class as_Question(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-question>
     """
 
-    anyOf: Optional[as_Object | as_Link | str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    oneOf: Optional[as_Object | as_Link | str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    closed: Optional[Union[as_Object, as_Link, datetime, bool]] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    anyOf: as_Object | as_Link | str | None = None
+    oneOf: as_Object | as_Link | str | None = None
+    closed: as_Object | as_Link | str | datetime | bool | None = None
 
 
 def main():

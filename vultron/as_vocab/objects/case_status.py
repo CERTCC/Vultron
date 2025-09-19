@@ -15,17 +15,12 @@ Provides Case Status objects for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import field
-from typing import Optional
-
-from dataclasses_json import config
-from marshmallow import fields
+from pydantic import field_serializer, field_validator, model_validator
 
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.base import as_Object
-from vultron.as_vocab.base.utils import exclude_if_none
 from vultron.as_vocab.objects.base import VultronObject
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
@@ -38,39 +33,35 @@ class CaseStatus(VultronObject):
     Represents the case-level (global, participant-agnostic) status of a VulnerabilityCase.
     """
 
-    context: Optional[str] = None  # Case ID goes here
-    em_state: EM = field(
-        default=EM.NO_EMBARGO,
-        metadata={
-            "dataclasses_json": {
-                "encoder": lambda value: EM(value).name,
-                "decoder": lambda name: EM[name],
-                "mm_field": fields.Enum,
-            }
-        },
-    )
-    pxa_state: CS_pxa = field(
-        default=CS_pxa.pxa,
-        metadata={
-            "dataclasses_json": {
-                "encoder": lambda value: CS_pxa(value).name,
-                "decoder": lambda name: CS_pxa[name],
-                "mm_field": fields.Enum,
-            },
-        },
-    )
+    context: str | None = None  # Case ID goes here
+    em_state: EM = EM.NO_EMBARGO
+    pxa_state: CS_pxa = CS_pxa.pxa
 
-    def __post_init__(self) -> None:
-        """
-        Sets the name of the CaseStatus to the name of the EM state and the name of the PXA state.
+    @field_serializer("em_state")
+    def serialize_em_state(self, em_state: EM) -> str:
+        return em_state.name
 
-        Returns:
-            None
-        """
-        super().__post_init__()
+    @field_serializer("pxa_state")
+    def serialize_pxa_state(self, pxa_state: CS_pxa) -> str:
+        return pxa_state.name
+
+    @field_validator("em_state", mode="before")
+    def validate_em_state(cls, v):
+        if isinstance(v, str):
+            return EM[v]
+        return v
+
+    @field_validator("pxa_state", mode="before")
+    def validate_pxa_state(cls, v):
+        if isinstance(v, str):
+            return CS_pxa[v]
+        return v
+
+    @model_validator(mode="after")
+    def set_name(cls, self):
         if self.name is None:
             self.name = " ".join([self.em_state.name, self.pxa_state.name])
-
+        return self
 
 @activitystreams_object
 class ParticipantStatus(VultronObject):
@@ -78,52 +69,44 @@ class ParticipantStatus(VultronObject):
     Represents the status of a participant with respect to a VulnerabilityCase (participant-specific).
     """
 
-    actor: Optional[as_Actor | as_Link | str] = field(default=None)
-    context: Optional[as_Object | as_Link | str] = field(default=None)
-    rm_state: RM = field(
-        default=RM.START,
-        repr=True,
-        metadata={
-            "dataclasses_json": {
-                "encoder": lambda value: RM(value).name,
-                "decoder": lambda name: RM[name],
-                "mm_field": fields.Enum,
-            }
-        },
-    )
-    vfd_state: CS_vfd = field(
-        default=CS_vfd.vfd,
-        metadata={
-            "dataclasses_json": {
-                "encoder": lambda value: CS_vfd(value).name,
-                "decoder": lambda name: CS_vfd[name],
-                "mm_field": fields.Enum,
-            }
-        },
-    )
+    actor: as_Actor | as_Link | str = None
+    context: as_Object | as_Link | str = None
+    rm_state: RM = RM.START
+    vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True
     embargo_adherence: bool = True
-    tracking_id: Optional[str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    case_status: Optional[CaseStatus] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    tracking_id: str | None = None
+    case_status: CaseStatus | None = None
 
-    def __post_init__(self) -> None:
-        """
-        Sets the name of the ParticipantStatus to the name of the RM state, the name of the VFD state, and the name of
-        the CaseStatus (if present).
+    @field_serializer("rm_state")
+    def serialize_rm_state(self, rm_state: RM) -> str:
+        return rm_state.name
 
-        Returns:
-            None
-        """
-        super().__post_init__()
+    @field_serializer("vfd_state")
+    def serialize_vfd_state(self, vfd_state: CS_vfd) -> str:
+        return vfd_state.name
+
+    @field_validator("rm_state", mode="before")
+    def validate_rm_state(cls, v):
+        if isinstance(v, str):
+            return RM[v]
+        return v
+
+    @field_validator("vfd_state", mode="before")
+    def validate_vfd_state(cls, v):
+        if isinstance(v, str):
+            return CS_vfd[v]
+        return v
+
+    @model_validator(mode="after")
+    def set_name(cls, self):
         if self.name is None:
             parts = [self.rm_state.name, self.vfd_state.name]
             if self.case_status is not None:
                 parts.append(self.case_status.name)
             self.name = " ".join(parts)
+        return self
+
 
 
 def main():

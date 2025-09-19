@@ -17,7 +17,6 @@ Provides an EmbargoEvent object for the Vultron ActivityStreams Vocabulary.
 
 from dataclasses import field
 from datetime import datetime, timedelta
-from typing import Optional
 
 from dataclasses_json import config
 from marshmallow import fields
@@ -43,7 +42,7 @@ class EmbargoEvent(as_Event):
     An EmbargoEvent is an Event that represents an embargo on a VulnerabilityCase.
     """
 
-    start_time: Optional[datetime] = field(
+    start_time: datetime | None = field(
         metadata=config(
             exclude=exclude_if_none,
             encoder=to_isofmt,
@@ -52,7 +51,7 @@ class EmbargoEvent(as_Event):
         ),
         default_factory=now_utc,
     )
-    end_time: Optional[datetime] = field(
+    end_time: datetime | None = field(
         metadata=config(
             exclude=exclude_if_none,
             encoder=to_isofmt,

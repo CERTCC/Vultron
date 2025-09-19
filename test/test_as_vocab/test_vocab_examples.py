@@ -18,7 +18,7 @@ import unittest
 from typing import Sequence
 
 import vultron.scripts.vocab_examples as examples
-from vultron.as_vocab.base.base import as_Base_old
+from vultron.as_vocab.base.base import as_Base
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.activities.intransitive import as_Question
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -49,7 +49,7 @@ from vultron.bt.report_management.states import RM
 from vultron.case_states.states import CS_pxa, CS_vfd
 
 
-class Foo(as_Base_old):
+class Foo(as_Base):
     bar: str = "baz"
 
 

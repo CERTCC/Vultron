@@ -45,10 +45,10 @@ class EmProposeEmbargo(as_Invite):
 
     as_type: str = field(default="Invite", init=False)
 
-    as_object: Optional[EmbargoEvent | as_Link | str] = field(
+    as_object: EmbargoEvent | as_Link | str | None = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    context: Optional[VulnerabilityCase | as_Link | str] = field(
+    context: VulnerabilityCase | as_Link | str | None = field(
         default=None, repr=True
     )
 
@@ -63,13 +63,13 @@ class EmAcceptEmbargo(as_Accept):
 
     as_type: str = field(default="Accept", init=False)
 
-    as_object: Optional[EmbargoEvent | as_Link | str] = field(
+    as_object: EmbargoEvent | as_Link | str | None = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    context: Optional[VulnerabilityCase | as_Link | str] = field(
+    context: VulnerabilityCase | as_Link | str | None = field(
         default=None, repr=True
     )
-    in_reply_to: Optional[EmProposeEmbargo | as_Link | str] = field(
+    in_reply_to: EmProposeEmbargo | as_Link | str | None = field(
         default=None, repr=True
     )
 
@@ -84,13 +84,13 @@ class EmRejectEmbargo(as_Reject):
 
     as_type: str = field(default="Reject", init=False)
 
-    as_object: Optional[EmbargoEvent | as_Link | str] = field(
+    as_object: EmbargoEvent | as_Link | str | None = field(
         metadata=config(field_name="object"), default=None, repr=True
     )
-    context: Optional[VulnerabilityCase | as_Link | str] = field(
+    context: VulnerabilityCase | as_Link | str | None = field(
         default=None, repr=True
     )
-    in_reply_to: Optional[EmProposeEmbargo | as_Link | str] = field(
+    in_reply_to: EmProposeEmbargo | as_Link | str | None = field(
         default=None, repr=True
     )
 
@@ -105,10 +105,10 @@ class ChoosePreferredEmbargo(as_Question):
     # note: not specifying as_object here because Questions are intransitive
 
     as_type: str = field(default="Question", init=False)
-    any_of: Optional[Sequence[EmbargoEvent | as_Link | str]] = field(
+    any_of: Sequence[EmbargoEvent | as_Link | str | None] = field(
         metadata=config(exclude=exclude_if_none), default=None
     )
-    one_of: Optional[Sequence[EmbargoEvent | as_Link | str]] = field(
+    one_of: Sequence[EmbargoEvent | as_Link | str | None] = field(
         metadata=config(exclude=exclude_if_none), default=None
     )
 

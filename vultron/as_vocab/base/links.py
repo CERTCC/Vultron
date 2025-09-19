@@ -15,8 +15,6 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Optional
-
 from vultron.as_vocab.base import activitystreams_link
 from vultron.as_vocab.base.base import as_Base
 
@@ -32,11 +30,11 @@ class as_Link(as_Base):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-link>
     """
 
-    width: Optional[int] = None
-    height: Optional[int] = None
-    rel: Optional[str] = None
-    href: Optional[str] = None
-    hreflang: Optional[str] = None
+    width: int | None = None
+    height: int | None = None
+    rel: str | None = None
+    href: str | None = None
+    hreflang: str | None = None
 
 
 @activitystreams_link

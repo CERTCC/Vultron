@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from dataclasses import field
-from typing import List, Optional
+from typing import List
 
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.objects.base import as_Object
@@ -26,8 +26,8 @@ class as_Collection(as_Object):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-collection>
     """
 
-    items: Optional[List[as_Object]] = field(default_factory=list, repr=True)
-    current: Optional[int] = field(default=0, repr=True)
+    items: List[as_Object | None] = field(default_factory=list, repr=True)
+    current: int | None = field(default=0, repr=True)
 
     # # implement a way to ignore duplicates
     # _ids: Set[as_Object] = field(default_factory=set, repr=False)
@@ -64,10 +64,9 @@ class as_CollectionPage(as_Collection):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-collectionpage>
     """
 
-    prev: Optional[as_Collection] = None
-    next: Optional[as_Collection] = None
-    partOf: Optional[as_Collection] = None
-    startIndex = None
+    prev: as_Collection | None = None
+    next: as_Collection | None = None
+    part_of: as_Collection | None = None
 
 
 @activitystreams_object
@@ -75,6 +74,7 @@ class as_OrderedCollectionPage(as_OrderedCollection, as_CollectionPage):
     """A subset of items from an OrderedCollection.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-orderedcollectionpage>
     """
+    start_index: as_CollectionPage | None = None
 
 
 def main():

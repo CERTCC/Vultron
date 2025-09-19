@@ -16,11 +16,12 @@ Provides state management for the Vultron Behavior Tree
 """
 
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import field
 from enum import Flag, auto
 from typing import Any, Callable, Deque, Dict, List
 
-from vultron.bt.base.bt import Blackboard as Blackboard
+from pydantic import BaseModel
+
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.messaging.states import MessageTypes as MT
 from vultron.bt.report_management.report_priority_states import (
@@ -39,8 +40,7 @@ class CapabilityFlag(Flag):
     DeployFix = auto()
 
 
-@dataclass
-class ActorState(Blackboard):
+class ActorState(BaseModel):
     CVD_role: CVDRoles = CVDRoles.NO_ROLE
     others: Dict = field(default_factory=dict)
 
@@ -62,7 +62,7 @@ class ActorState(Blackboard):
     current_message: MT = None
 
     priority: ReportPriority = ReportPriority.DEFER
-    prioritization_count = 0
+    prioritization_count: int = 0
 
     capabilities: CapabilityFlag = 0
 

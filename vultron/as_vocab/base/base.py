@@ -13,12 +13,14 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Optional, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 from pydantic.alias_generators import to_camel
 
 from vultron.as_vocab.base.utils import generate_new_id
+
+ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
 
 
 class as_Base(BaseModel):
@@ -27,15 +29,14 @@ class as_Base(BaseModel):
         populate_by_name=True,
     )
 
-
-    as_context: Literal[str] = Field(
-        "https://www.w3.org/ns/activitystreams", alias="@context"
+    as_context: Literal[ACTIVITY_STREAMS_NS] = Field(
+        ACTIVITY_STREAMS_NS, alias="@context"
     )
-    as_type: str = Field(None, alias="type")
+    as_type: str = Field(default=None, alias="type")
     as_id: str = Field(default_factory=generate_new_id, alias="id")
-    name: Optional[str] = None
-    preview: Optional[str] = None
-    media_type: Optional[str] = None
+    name: str | None = None
+    preview: str | None = None
+    media_type: str | None = None
 
     @model_validator(mode="after")
     def set_type_from_class_name(self):
@@ -47,6 +48,11 @@ class as_Base(BaseModel):
         """Serialize the model to a JSON string, excluding None values and using aliases."""
         return self.model_dump_json(exclude_none=True, by_alias=True, **kwargs)
 
-    def to_dict(self,**kwargs):
+    def to_dict(self, **kwargs):
         """Serialize the model to a dictionary, excluding None values and using aliases."""
-        return self.model_dump(exclude_none=True,**kwargs)
+        return self.model_dump(exclude_none=True, **kwargs)
+
+    @classmethod
+    def from_json(cls, data: str):
+        """Deserialize a JSON string to an instance of the model."""
+        return cls.model_validate_json(data)

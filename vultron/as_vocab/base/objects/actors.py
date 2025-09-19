@@ -13,8 +13,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import dataclass, field
-from typing import Any, Optional
+from dataclasses import field
+from typing import Any
 
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.objects.base import as_Object
@@ -25,7 +25,6 @@ from vultron.as_vocab.base.objects.collections import (
 
 
 @activitystreams_object
-@dataclass
 class as_Actor(as_Object):
     """Base class for all ActivityPub actors.
     Describes one or more entities that performed or are expected to perform an activity.
@@ -37,18 +36,17 @@ class as_Actor(as_Object):
     # todo: collections should be internally represented as lists but dumped as collections
     inbox: as_OrderedCollection = field(default_factory=as_OrderedCollection)
     outbox: as_OrderedCollection = field(default_factory=as_OrderedCollection)
-    following: Optional[as_Collection] = None
-    followers: Optional[as_Collection] = None
-    liked: Optional[as_Collection] = None
-    streams: Optional[as_Collection] = None
-    preferred_username: Optional[str] = None
-    endpoints: Optional[Any] = None
+    following: as_Collection | None = None
+    followers: as_Collection | None = None
+    liked: as_Collection | None = None
+    streams: as_Collection | None = None
+    preferred_username: str | None = None
+    endpoints: Any | None = None
     # todo endpoints should be its own object
     # see https://www.w3.org/TR/activitypub/#actors
 
 
 @activitystreams_object
-@dataclass
 class as_Group(as_Actor):
     """A special kind of actor representing a logical group of persons or other actors.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-group>
@@ -56,7 +54,6 @@ class as_Group(as_Actor):
 
 
 @activitystreams_object
-@dataclass
 class as_Organization(as_Actor):
     """A special kind of actor representing a logical group of persons or other actors.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-organization>
@@ -64,7 +61,6 @@ class as_Organization(as_Actor):
 
 
 @activitystreams_object
-@dataclass
 class as_Application(as_Actor):
     """A special kind of actor representing a software application.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-application>
@@ -72,7 +68,6 @@ class as_Application(as_Actor):
 
 
 @activitystreams_object
-@dataclass
 class as_Service(as_Actor):
     """A special kind of actor representing a service.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-service>
@@ -81,7 +76,6 @@ class as_Service(as_Actor):
 
 
 @activitystreams_object
-@dataclass
 class as_Person(as_Actor):
     """A special kind of actor representing an individual person.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-person>

@@ -1,5 +1,29 @@
 #!/usr/bin/env python
 """This module provides transitive activity classes"""
+#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from pydantic import model_validator
+
+from vultron.as_vocab.base import activitystreams_activity
+from vultron.as_vocab.base.links import as_Link
+from vultron.as_vocab.base.objects.activities.base import (
+    as_Activity as Activity,
+)
+from vultron.as_vocab.base.objects.base import as_Object
+from vultron.as_vocab.base.utils import name_of
+
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -13,19 +37,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import field
-from typing import Optional
-
-from dataclasses_json import config
-
-from vultron.as_vocab.base import activitystreams_activity
-from vultron.as_vocab.base.links import as_Link
-from vultron.as_vocab.base.objects.activities.base import (
-    as_Activity as Activity,
-)
-from vultron.as_vocab.base.objects.base import as_Object
-from vultron.as_vocab.base.utils import name_of
-
 
 @activitystreams_activity
 class as_TransitiveActivity(Activity):
@@ -34,26 +45,32 @@ class as_TransitiveActivity(Activity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-activity>
     """
 
-    as_object: Optional[as_Object | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
+    as_object: as_Object | as_Link | str | None = None
 
-    def __post_init__(self):
-        super().__post_init__()
-        if self.name is None:
-            parts = [
-                name_of(self.actor),
-                self.as_type,
-            ]
-            if self.as_object is not None:
-                parts.append(name_of(self.as_object))
-            if self.origin is not None:
-                parts.extend(("from", self.origin))
-            if self.target is not None:
-                parts.extend(("to", self.target))
-            if self.instrument is not None:
-                parts.extend(("using", self.instrument))
+    @model_validator(mode="after")
+    def set_name(self):
+        """Set a default name if none is provided"""
+        if self.name is not None:
+            return self
+
+        parts = []
+        if self.actor is not None:
+            parts.append(name_of(self.actor))
+        if self.as_type is not None:
+            parts.append(self.as_type)
+        if self.as_object is not None:
+            parts.append(name_of(self.as_object))
+        if self.origin is not None:
+            parts.extend(("from", self.origin))
+        if self.target is not None:
+            parts.extend(("to", self.target))
+        if self.instrument is not None:
+            parts.extend(("using", self.instrument))
+
+        if parts:
             self.name = " ".join([str(part) for part in parts])
+
+        return self
 
 
 @activitystreams_activity

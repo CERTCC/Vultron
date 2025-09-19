@@ -37,7 +37,7 @@ respectively.
 """
 
 
-class Blackboard:
+class Blackboard(dict):
     """
     Provides a blackboard object for sharing data between nodes in the tree.
     To use a custom blackboard object, subclass this class and set

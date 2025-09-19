@@ -15,10 +15,9 @@
 Provides Vultron ActivityStreams Activities related to CaseParticipants
 """
 
-from dataclasses import field
-from typing import Optional
+from typing import Literal
 
-from dataclasses_json import config
+from pydantic import Field
 
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -34,21 +33,21 @@ from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 class CreateParticipant(as_Create):
     """Create a new CaseParticipant"""
 
-    as_type: str = field(default="Create", init=False)
-    as_object: Optional[CaseParticipant | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Create"] = "Create"
+    as_object: CaseParticipant | as_Link | str | None = Field(
+        None, alias="object"
     )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    target: VulnerabilityCase | as_Link | str | None = None
 
 
 class CreateStatusForParticipant(as_Create):
     """Create a new CaseStatus for a CaseParticipant"""
 
-    as_type: str = field(default="Create", init=False)
-    as_object: Optional[ParticipantStatus | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Create"] = "Create"
+    as_object: ParticipantStatus | as_Link | str | None = Field(
+        None, alias="object"
     )
-    target: Optional[CaseParticipant | as_Link | str] = field(default=None)
+    target: CaseParticipant | as_Link | str | None = None
 
 
 # add CaseStatus to CaseParticipant
@@ -58,11 +57,11 @@ class AddStatusToParticipant(as_Add):
     target: CaseParticipant
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[ParticipantStatus | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Add"] = "Add"
+    as_object: ParticipantStatus | as_Link | str | None = Field(
+        None, alias="object"
     )
-    target: Optional[CaseParticipant | as_Link | str] = field(default=None)
+    target: CaseParticipant | as_Link | str | None = None
 
 
 class AddParticipantToCase(as_Add):
@@ -71,11 +70,11 @@ class AddParticipantToCase(as_Add):
     target: VulnerabilityCase
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[CaseParticipant | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Add"] = "Add"
+    as_object: CaseParticipant | as_Link | str | None = Field(
+        None, alias="object"
     )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    as_target: VulnerabilityCase | as_Link | str | None = None
 
 
 class RemoveParticipantFromCase(as_Remove):
@@ -85,8 +84,8 @@ class RemoveParticipantFromCase(as_Remove):
     origin: VulnerabilityCase
     """
 
-    as_type: str = field(default="Remove", init=False)
-    as_object: Optional[CaseParticipant | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Remove"] = "Remove"
+    as_object: CaseParticipant | as_Link | str | None = Field(
+        None, alias="object"
     )
-    origin: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    origin: VulnerabilityCase | as_Link | str | None = None

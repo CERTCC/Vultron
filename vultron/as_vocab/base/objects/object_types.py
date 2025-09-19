@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.objects.base import as_Object
@@ -64,36 +64,36 @@ class as_Event(as_Object):
 class as_Profile(as_Object):
     """Base class for all ActivityPub profiles. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-profile>"""
 
-    describes: Optional[Any] = None
+    describes: Any | None = None
 
 
 @activitystreams_object
 class as_Tombstone(as_Object):
     """Base class for all ActivityPub tombstones. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-tombstone>"""
 
-    former_type: Optional[Any] = None
-    deleted: Optional[datetime] = None
+    former_type: Any | None = None
+    deleted: datetime | None = None
 
 
 @activitystreams_object
 class as_Relationship(as_Object):
     """Base class for all ActivityPub relationships. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-relationship>"""
 
-    subject: Optional[Any] = None
-    object: Optional[Any] = None
-    relationship: Optional[Any] = None
+    subject: Any | None = None
+    object: Any | None = None
+    relationship: Any | None = None
 
 
 @activitystreams_object
 class as_Place(as_Object):
     """Base class for all ActivityPub places. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-place>"""
 
-    longitude: Optional[float] = None
-    latitude: Optional[float] = None
-    altitude: Optional[float] = None
-    radius: Optional[float] = None
-    accuracy: Optional[float] = None
-    units: Optional[str] = None
+    longitude: float | None = None
+    latitude: float | None = None
+    altitude: float | None = None
+    radius: float | None = None
+    accuracy: float | None = None
+    units: str | None = None
 
 
 def main():

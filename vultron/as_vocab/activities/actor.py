@@ -15,10 +15,9 @@
 Provides Vultron ActivityStreams Activities related to Actors
 """
 
-from dataclasses import field
-from typing import Optional
+from typing import Literal
 
-from dataclasses_json import config
+from pydantic import Field
 
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -33,14 +32,11 @@ from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 class RecommendActor(as_Offer):
     """The actor is recommending another actor to a case."""
 
-    as_type: str = field(default="Offer", init=False)
-    as_object: Optional[as_Actor | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Offer"] = "Offer"
+    as_object: as_Actor | as_Link | str | None = Field(
+        default=None, alias="object"
     )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None,
-        repr=True,
-    )
+    target: VulnerabilityCase | as_Link | str | None = None
 
 
 class AcceptActorRecommendation(as_Accept):
@@ -48,24 +44,18 @@ class AcceptActorRecommendation(as_Accept):
     Should be followed by an RmInviteToCase activity targeted at the recommended actor.
     """
 
-    as_type: str = field(default="Accept", init=False)
-    as_object: Optional[as_Actor | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Accept"] = "Accept"
+    as_object: as_Actor | as_Link | str | None = Field(
+        default=None, alias="object"
     )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None,
-        repr=True,
-    )
+    target: VulnerabilityCase | as_Link | str | None = None
 
 
 class RejectActorRecommendation(as_Reject):
     """The case owner is rejecting a recommendation to add an actor to the case."""
 
-    as_type: str = field(default="Reject", init=False)
-    as_object: Optional[as_Actor | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Reject"] = "Reject"
+    as_object: as_Actor | as_Link | str | None = Field(
+        default=None, alias="object"
     )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None,
-        repr=True,
-    )
+    target: VulnerabilityCase | as_Link | str | None = None

@@ -16,10 +16,9 @@ Custom Activity Streams Activities for VulnerabilityCase objects.
 Each activity should have a VulnerabilityCase object as either its target or object.
 """
 
-from dataclasses import field
-from typing import Optional
+from typing import Literal
 
-from dataclasses_json import config
+from pydantic import Field
 
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -36,7 +35,6 @@ from vultron.as_vocab.base.objects.activities.transitive import (
 )
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.object_types import as_Note
-from vultron.as_vocab.base.utils import exclude_if_none
 from vultron.as_vocab.objects.case_status import CaseStatus
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
@@ -53,11 +51,11 @@ class AddReportToCase(as_Add):
     target: VulnerabilityCase
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Add"] = "Add"
+    as_object: VulnerabilityReport | as_Link | str | None = Field(
+        None, alias="object"
     )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    target: VulnerabilityCase | as_Link | str | None = None
 
 
 # add CaseParticipant to VulnerabilityCase
@@ -74,11 +72,9 @@ class AddStatusToCase(as_Add):
     target: VulnerabilityCase
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[CaseStatus | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    as_type: Literal["Add"] = "Add"
+    as_object: CaseStatus | as_Link | str | None = Field(None, alias="object")
+    target: VulnerabilityCase | as_Link | str | None = None
 
 
 ########################################################################################
@@ -92,9 +88,9 @@ class CreateCase(as_Create):
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Create", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Create"] = "Create"
+    as_object: VulnerabilityCase | as_Link | str | None = Field(
+        None, alias="object"
     )
 
 
@@ -103,10 +99,8 @@ class CreateCaseStatus(as_Create):
     as_object: CaseStatus
     """
 
-    as_type: str = field(default="Create", init=False)
-    as_object: Optional[CaseStatus | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
+    as_type: Literal["Create"] = "Create"
+    as_object: CaseStatus | as_Link | str | None = Field(None, alias="object")
 
 
 # Add a Note to a VulnerabilityCase
@@ -116,11 +110,9 @@ class AddNoteToCase(as_Add):
     target: VulnerabilityCase
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[as_Note | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    as_type: Literal["Add"] = "Add"
+    as_object: as_Note | as_Link | str | None = Field(None, alias="object")
+    target: VulnerabilityCase | as_Link | str | None = None
 
 
 # update a VulnerabilityCase
@@ -129,9 +121,9 @@ class UpdateCase(as_Update):
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Update", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Update"] = "Update"
+    as_object: VulnerabilityCase | as_Link | str | None = Field(
+        None, alias="object"
     )
 
 
@@ -147,9 +139,9 @@ class RmEngageCase(as_Join):
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Join", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Join"] = "Join"
+    as_object: VulnerabilityCase | as_Link | str | None = Field(
+        None, alias="object"
     )
 
 
@@ -163,9 +155,9 @@ class RmDeferCase(as_Ignore):
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Ignore", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Ignore"] = "Ignore"
+    as_object: VulnerabilityCase | as_Link | str | None = Field(
+        None, alias="object"
     )
 
 
@@ -178,9 +170,9 @@ class RmCloseCase(as_Leave):
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Leave", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Leave"] = "Leave"
+    as_object: VulnerabilityCase | as_Link | str | None = Field(
+        None, alias="object"
     )
 
 
@@ -190,13 +182,11 @@ class OfferCaseOwnershipTransfer(as_Offer):
     target: as_Actor
     """
 
-    as_type: str = field(default="Offer", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Offer"] = "Offer"
+    as_object: VulnerabilityCase | as_Link | str | None = Field(
+        None, alias="object"
     )
-    target: Optional[as_Actor | as_Link | str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    target: as_Actor | as_Link | str | None = None
 
 
 class AcceptCaseOwnershipTransfer(as_Accept):
@@ -206,13 +196,11 @@ class AcceptCaseOwnershipTransfer(as_Accept):
     - in_reply_to: the original offer
     """
 
-    as_type: str = field(default="Accept", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Accept"] = "Accept"
+    as_object: VulnerabilityCase | as_Link | str | None = Field(
+        None, alias="object"
     )
-    in_reply_to: OfferCaseOwnershipTransfer = field(
-        default=None,
-    )
+    in_reply_to: OfferCaseOwnershipTransfer | str | None = None
 
 
 class RejectCaseOwnershipTransfer(as_Reject):
@@ -221,13 +209,11 @@ class RejectCaseOwnershipTransfer(as_Reject):
     context: the original offer
     """
 
-    as_type: str = field(default="Reject", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Reject"] = "Reject"
+    as_object: VulnerabilityCase | as_Link | str | None = Field(
+        None, alias="object"
     )
-    in_reply_to: OfferCaseOwnershipTransfer = field(
-        default=None,
-    )
+    in_reply_to: OfferCaseOwnershipTransfer | str | None = None
 
 
 class RmInviteToCase(as_Invite):
@@ -237,9 +223,9 @@ class RmInviteToCase(as_Invite):
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Invite", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Invite"] = "Invite"
+    as_object: VulnerabilityCase | as_Link | str | None = Field(
+        None, alias="object"
     )
 
 
@@ -251,11 +237,11 @@ class RmAcceptInviteToCase(as_Accept):
     in_reply_to: RmInviteToCase
     """
 
-    as_type: str = field(default="Accept", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Accept"] = "Accept"
+    as_object: VulnerabilityCase | as_Link | str | None = Field(
+        None, alias="object"
     )
-    in_reply_to: RmInviteToCase = field(default=None)
+    in_reply_to: RmInviteToCase | str | None = None
 
 
 class RmRejectInviteToCase(as_Reject):
@@ -267,8 +253,8 @@ class RmRejectInviteToCase(as_Reject):
     `in_reply_to`: `RmInviteToCase`
     """
 
-    as_type: str = field(default="Reject", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
+    as_type: Literal["Reject"] = "Reject"
+    as_object: VulnerabilityCase | as_Link | str | None = Field(
+        None, alias="object"
     )
-    in_reply_to: RmInviteToCase = field(default=None)
+    in_reply_to: RmInviteToCase | str | None = None

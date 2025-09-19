@@ -16,14 +16,12 @@ This module provides state transition definitions for the Embargo Management beh
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from dataclasses import dataclass
 from typing import List
 
 from vultron.bt.common import EnumStateTransition, show_graph, state_change
 from vultron.bt.embargo_management.states import EM
 
 
-@dataclass
 class EmTransition(EnumStateTransition):
     """Represents a transition between two states in the q_em state machine"""
 
