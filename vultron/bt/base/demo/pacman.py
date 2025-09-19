@@ -36,6 +36,8 @@ from vultron.bt.base.factory import (
 )
 from vultron.bt.common import show_graph
 
+# TODO: convert to pydantic idioms
+
 logger = logging.getLogger(__name__)
 
 SCORE = 0

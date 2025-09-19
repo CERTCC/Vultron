@@ -28,6 +28,8 @@ class as_Activity(as_Object):
     of the picture, not the person walking down the street.
     """
 
+    as_type: str = "Activity"
+
     actor: as_Object | as_Link | str = None
     target: as_Object | as_Link | str | None = None
     origin: as_Object | as_Link | str | None = None

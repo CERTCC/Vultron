@@ -14,6 +14,7 @@
 """
 Provides state management for the Vultron Behavior Tree
 """
+# TODO: convert to pydantic idioms
 
 from collections import deque
 from dataclasses import field

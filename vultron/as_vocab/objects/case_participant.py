@@ -81,25 +81,46 @@ class CaseParticipant(VultronObject):
         return value
 
     @model_validator(mode="after")
-    def post_init_setup(self):
-        if len(self.case_roles) == 0:
-            self.case_roles.append(CVDRole.NO_ROLE)
+    def set_no_role_if_empty(self):
+        """If case_roles is empty, set it to [CVDRole.NO_ROLE]"""
+        if self.case_roles:
+            return self
 
-        if self.name is None:
-            if self.actor is not None:
-                if hasattr(self.actor, "name"):
-                    self.name = self.actor.name
-                else:
-                    self.name = str(self.actor)
+        self.case_roles = [CVDRole.NO_ROLE]
 
-        if len(self.participant_status) == 0:
-            self.participant_status.append(
-                ParticipantStatus(
-                    context=self.context,
-                    actor=self.actor,
-                )
-            )
+        return self
 
+    @model_validator(mode="after")
+    def set_name_if_empty(self):
+        """If name is empty, set it to the actor's name if available, otherwise set it to the string representation of the actor."""
+        if self.name is not None:
+            # name is already set, do nothing
+            return self
+
+        if self.actor is None:
+            # actor is not set, cannot set name
+            return self
+
+        if hasattr(self.actor, "name"):
+            self.name = self.actor.name
+        else:
+            self.name = str(self.actor)
+
+        return self
+
+    @model_validator(mode="after")
+    def init_participant_status_if_empty(self):
+        if self.participant_status:
+            # participant status is already set, do nothing
+            return self
+
+        # participant status is empty, so initialize it with a default status
+        self.participant_status = [
+            ParticipantStatus(
+                context=self.context,
+                actor=self.actor,
+            ),
+        ]
         return self
 
     def add_role(self, role: CVDRole, reset=False):
@@ -115,9 +136,9 @@ class FinderParticipant(CaseParticipant):
     """
 
     @model_validator(mode="after")
-    def post_init_setup(self):
-        super().post_init_setup()
-        self.add_role(CVDRole.FINDER, reset=True)
+    def set_role(self):
+        """Set the FINDER role."""
+        self.case_roles = [CVDRole.FINDER]
         return self
 
 
@@ -128,9 +149,13 @@ class ReporterParticipant(CaseParticipant):
     """
 
     @model_validator(mode="after")
-    def post_init_setup(self):
-        super().post_init_setup()
-        self.add_role(CVDRole.REPORTER, reset=True)
+    def set_role(self):
+        """Set the REPORTER role."""
+        self.case_roles = [CVDRole.REPORTER]
+        return self
+
+    @model_validator(mode="after")
+    def set_accepted_status(self):
         # by definition, to be a reporter, you must have accepted the report
         pstatus = ParticipantStatus(
             context=self.context,
@@ -138,6 +163,7 @@ class ReporterParticipant(CaseParticipant):
             rm_state=RM.ACCEPTED,
         )
         self.participant_status = [pstatus]
+
         return self
 
 
@@ -149,18 +175,24 @@ class FinderReporterParticipant(CaseParticipant):
     """
 
     @model_validator(mode="after")
-    def post_init_setup(self):
-        super().post_init_setup()
-        self.add_role(CVDRole.FINDER, reset=True)
-        self.add_role(CVDRole.REPORTER, reset=False)
+    def set_roles(self) -> FinderReporterParticipant:
+        """Set both FINDER and REPORTER roles."""
+        self.case_roles = [CVDRole.FINDER, CVDRole.REPORTER]
+        return self
 
-        # by definition, to be a reporter, you must have accepted the report
+    @model_validator(mode="after")
+    def set_accepted_status(self) -> FinderReporterParticipant:
+        """
+        Set the participant status to ACCEPTED, since by definition,
+        to be a reporter, you must have accepted the report
+        """
         pstatus = ParticipantStatus(
             context=self.context,
             actor=self.actor,
             rm_state=RM.ACCEPTED,
         )
         self.participant_status = [pstatus]
+
         return self
 
 
@@ -171,9 +203,9 @@ class VendorParticipant(CaseParticipant):
     """
 
     @model_validator(mode="after")
-    def post_init_setup(self):
-        super().post_init_setup()
-        self.add_role(CVDRole.VENDOR, reset=True)
+    def set_role(self):
+        """Set the VENDOR role."""
+        self.case_roles = [CVDRole.VENDOR]
         return self
 
 
@@ -184,10 +216,11 @@ class DeployerParticipant(CaseParticipant):
     """
 
     @model_validator(mode="after")
-    def post_init_setup(self):
-        super().post_init_setup()
-        self.add_role(CVDRole.DEPLOYER, reset=True)
+    def set_role(self) -> DeployerParticipant:
+        """Set the DEPLOYER role."""
+        self.case_roles = [CVDRole.DEPLOYER]
         return self
+
 
 
 @activitystreams_object
@@ -197,9 +230,9 @@ class CoordinatorParticipant(CaseParticipant):
     """
 
     @model_validator(mode="after")
-    def post_init_setup(self):
-        super().post_init_setup()
-        self.add_role(CVDRole.COORDINATOR, reset=True)
+    def set_role(self):
+        """Set the COORDINATOR role."""
+        self.case_roles = [CVDRole.COORDINATOR]
         return self
 
 
@@ -210,9 +243,9 @@ class OtherParticipant(CaseParticipant):
     """
 
     @model_validator(mode="after")
-    def post_init_setup(self):
-        super().post_init_setup()
-        self.add_role(CVDRole.OTHER, reset=True)
+    def set_role(self):
+        """Set the OTHER role."""
+        self.case_roles = [CVDRole.OTHER]
         return self
 
 

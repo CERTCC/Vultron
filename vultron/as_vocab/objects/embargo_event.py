@@ -15,6 +15,7 @@ Provides an EmbargoEvent object for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+# TODO: convert to pydantic idioms
 from dataclasses import field
 from datetime import datetime, timedelta
 

@@ -14,6 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import datetime
+from typing import Literal
 
 from vultron.as_vocab.base import activitystreams_activity
 from vultron.as_vocab.base.links import as_Link
@@ -41,6 +42,8 @@ class as_Travel(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-travel>
     """
 
+    as_type: Literal["Travel"] = "Travel"
+
 
 @activitystreams_activity
 class as_Arrive(as_IntransitiveActivity):
@@ -48,12 +51,16 @@ class as_Arrive(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-arrive>
     """
 
+    as_type: Literal["Arrive"] = "Arrive"
+
 
 @activitystreams_activity
 class as_Question(as_IntransitiveActivity):
     """The actor poses a question to the target. The origin can be used to specify the context from which the question was posed.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-question>
     """
+
+    as_type: Literal["Question"] = "Question"
 
     anyOf: as_Object | as_Link | str | None = None
     oneOf: as_Object | as_Link | str | None = None

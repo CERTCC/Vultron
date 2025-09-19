@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from dataclasses import field
-from typing import Any
+from typing import Any, Literal
 
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.objects.base import as_Object
@@ -52,6 +52,8 @@ class as_Group(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-group>
     """
 
+    as_type: Literal["Group"] = "Group"
+
 
 @activitystreams_object
 class as_Organization(as_Actor):
@@ -59,12 +61,16 @@ class as_Organization(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-organization>
     """
 
+    as_type: Literal["Organization"] = "Organization"
+
 
 @activitystreams_object
 class as_Application(as_Actor):
     """A special kind of actor representing a software application.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-application>
     """
+
+    as_type: Literal["Application"] = "Application"
 
 
 @activitystreams_object
@@ -74,12 +80,16 @@ class as_Service(as_Actor):
     A service is a kind of actor that represents a non-human actor.
     """
 
+    as_type: Literal["Service"] = "Service"
+
 
 @activitystreams_object
 class as_Person(as_Actor):
     """A special kind of actor representing an individual person.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-person>
     """
+
+    as_type: Literal["Person"] = "Person"
 
 
 def main():
