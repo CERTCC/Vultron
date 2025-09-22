@@ -95,10 +95,7 @@ def _run_simulation():
                 break
     logger.info(f"Closed in {tick} ticks")
 
-    tree_bb_dict = tree.bb.model_dump()
-    print(tree_bb_dict)
-
-    for k, v in tree_bb_dict.items():
+    for k, v in tree.bb.model_dump().items():
         if "history" in k:
             logger.info(f"### {k} ###")
             for i, row in enumerate(v, start=1):
