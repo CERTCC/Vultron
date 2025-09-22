@@ -14,80 +14,56 @@
 """
 Provides Vultron ActivityStreams Activities related to CaseParticipants
 """
+# TODO: remove Literals because parent classes already define them
+# TODO: use pydantic's typing more effectively
 
-from dataclasses import dataclass, field
-from typing import Optional
+from pydantic import Field
 
-from dataclasses_json import LetterCase, config, dataclass_json
-
-from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
     as_Remove,
 )
-from vultron.as_vocab.objects.case_participant import CaseParticipant
-from vultron.as_vocab.objects.case_status import ParticipantStatus
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.as_vocab.objects.case_participant import CaseParticipantRef
+from vultron.as_vocab.objects.case_status import ParticipantStatusRef
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCaseRef
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class CreateParticipant(as_Create):
     """Create a new CaseParticipant"""
 
-    as_type: str = field(default="Create", init=False)
-    as_object: Optional[CaseParticipant | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    as_object: CaseParticipantRef = Field(None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class CreateStatusForParticipant(as_Create):
     """Create a new CaseStatus for a CaseParticipant"""
 
-    as_type: str = field(default="Create", init=False)
-    as_object: Optional[ParticipantStatus | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[CaseParticipant | as_Link | str] = field(default=None)
+    as_object: ParticipantStatusRef = Field(None, alias="object")
+    target: CaseParticipantRef = None
 
 
 # add CaseStatus to CaseParticipant
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class AddStatusToParticipant(as_Add):
     """Add a CaseStatus to a CaseParticipant
     as_object: CaseStatus
     target: CaseParticipant
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[ParticipantStatus | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[CaseParticipant | as_Link | str] = field(default=None)
+    as_object: ParticipantStatusRef = Field(None, alias="object")
+    target: CaseParticipantRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class AddParticipantToCase(as_Add):
     """Add a CaseParticipant to a VulnerabilityCase
     as_object: CaseParticipant
     target: VulnerabilityCase
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[CaseParticipant | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    as_object: CaseParticipantRef = Field(None, alias="object")
+    as_target: VulnerabilityCaseRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class RemoveParticipantFromCase(as_Remove):
     """Remove a CaseParticipant from a VulnerabilityCase.
     This should only be performed by the case owner.
@@ -95,8 +71,5 @@ class RemoveParticipantFromCase(as_Remove):
     origin: VulnerabilityCase
     """
 
-    as_type: str = field(default="Remove", init=False)
-    as_object: Optional[CaseParticipant | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    origin: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    as_object: CaseParticipantRef = Field(None, alias="object")
+    origin: VulnerabilityCaseRef = None

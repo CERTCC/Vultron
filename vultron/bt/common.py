@@ -16,11 +16,11 @@ This module provides common Behavior Tree nodes for the Vultron package.
 """
 
 import logging
-from dataclasses import dataclass
 from enum import Enum
 from typing import List, Type
 
 import networkx as nx
+from pydantic import BaseModel
 
 from vultron.bt.base.bt_node import ActionNode, BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode
@@ -34,8 +34,7 @@ from vultron.bt.base.factory import (
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class EnumStateTransition:
+class EnumStateTransition(BaseModel):
     """
     Represents a transition between two states in an enum-based state machine
     """

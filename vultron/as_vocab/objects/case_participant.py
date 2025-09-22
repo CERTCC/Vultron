@@ -17,14 +17,13 @@ Provides various CaseParticipant objects for the Vultron ActivityStreams Vocabul
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from typing import Literal, TypeAlias
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from pydantic import Field, field_validator, field_serializer, model_validator
 
-from vultron.as_vocab.base import activitystreams_object
-from vultron.as_vocab.base.links import as_Link
+from vultron.as_vocab.base.links import as_Link, ActivityStreamRef
 from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.base.utils import exclude_if_none
+from vultron.as_vocab.base.registry import activitystreams_object
 from vultron.as_vocab.objects.base import VultronObject
 from vultron.as_vocab.objects.case_status import ParticipantStatus
 from vultron.bt.report_management.states import RM
@@ -32,8 +31,6 @@ from vultron.bt.roles.states import CVDRoles as CVDRole
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class CaseParticipant(VultronObject):
     """
     A CaseParticipant is a wrapper around an Actor in a VulnerabilityCase.
@@ -63,81 +60,102 @@ class CaseParticipant(VultronObject):
         ```
     """
 
-    actor: as_Actor
-    name: str
-    case_roles: list[CVDRole] = field(
-        default_factory=list,
-        metadata=config(
-            encoder=lambda x: [CVDRole(value).name for value in x],
-            decoder=lambda x: [CVDRole[name] for name in x],
-        ),
-    )
-    participant_status: list[ParticipantStatus] = field(default_factory=list)
-    participant_case_name: str = field(
-        default=None, metadata=config(exclude=exclude_if_none)
-    )
-    context: "VulnerabilityCase" | as_Link | str = field(
-        default=None, repr=True
-    )
+    as_type: Literal["CaseParticipant"] = "CaseParticipant"
 
-    def __post_init__(self):
-        super().__post_init__()
-        if len(self.case_roles) == 0:
-            # if they didn't specify a role, put NO_ROLE here
-            self.case_roles.append(CVDRole.NO_ROLE)
+    actor: as_Actor | as_Link | str
+    name: str | None = None
+    case_roles: list[CVDRole] = Field(default_factory=list)
+    participant_status: list[ParticipantStatus] = Field(default_factory=list)
+    participant_case_name: str | None = Field(default=None, exclude=True)
+    context: as_Link | str | None = Field(default=None, repr=True)
 
-        if self.name is None:
-            if self.actor is not None:
-                if hasattr(self.actor, "name"):
-                    self.name = self.actor.name
-                else:
-                    self.name = self.actor
+    @field_serializer("case_roles")
+    def serialize_case_roles(self, value: list[CVDRole]) -> list[str]:
+        return [role.name for role in value]
 
-        if len(self.participant_status) == 0:
-            self.participant_status.append(
-                ParticipantStatus(
-                    context=self.context,
-                    actor=self.actor,
-                )
-            )
+    @field_validator("case_roles", mode="before")
+    @classmethod
+    def validate_case_roles(cls, value):
+        if isinstance(value, list) and value and isinstance(value[0], str):
+            return [CVDRole[name] for name in value]
+        return value
 
-        if len(self.case_roles) == 0:
-            self.case_roles.append(CVDRole.NO_ROLE)
+    @model_validator(mode="after")
+    def set_no_role_if_empty(self):
+        """If case_roles is empty, set it to [CVDRole.NO_ROLE]"""
+        if self.case_roles:
+            return self
 
-    def add_role(self, role, reset=False):
+        self.case_roles = [CVDRole.NO_ROLE]
+
+        return self
+
+    @model_validator(mode="after")
+    def set_name_if_empty(self):
+        """If name is empty, set it to the actor's name if available, otherwise set it to the string representation of the actor."""
+        if self.name is not None:
+            # name is already set, do nothing
+            return self
+
+        if self.actor is None:
+            # actor is not set, cannot set name
+            return self
+
+        if hasattr(self.actor, "name"):
+            self.name = self.actor.name
+        else:
+            self.name = str(self.actor)
+
+        return self
+
+    @model_validator(mode="after")
+    def init_participant_status_if_empty(self):
+        if self.participant_status:
+            # participant status is already set, do nothing
+            return self
+
+        # participant status is empty, so initialize it with a default status
+        self.participant_status = [
+            ParticipantStatus(
+                context=self.context,
+                actor=self.actor,
+            ),
+        ]
+        return self
+
+    def add_role(self, role: CVDRole, reset=False):
         if reset:
             self.case_roles = []
         self.case_roles.append(role)
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class FinderParticipant(CaseParticipant):
     """
     A FinderParticipant is a CaseParticipant that has the FINDER role in a VulnerabilityCase.
     """
 
-    as_type = "CaseParticipant"
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.add_role(CVDRole.FINDER, reset=True)
+    @model_validator(mode="after")
+    def set_role(self):
+        """Set the FINDER role."""
+        self.case_roles = [CVDRole.FINDER]
+        return self
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class ReporterParticipant(CaseParticipant):
     """
     A ReporterParticipant is a CaseParticipant that has the REPORTER role in a VulnerabilityCase.
     """
 
-    as_type = "CaseParticipant"
+    @model_validator(mode="after")
+    def set_role(self):
+        """Set the REPORTER role."""
+        self.case_roles = [CVDRole.REPORTER]
+        return self
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.add_role(CVDRole.REPORTER, reset=True)
+    @model_validator(mode="after")
+    def set_accepted_status(self):
         # by definition, to be a reporter, you must have accepted the report
         pstatus = ParticipantStatus(
             context=self.context,
@@ -146,24 +164,28 @@ class ReporterParticipant(CaseParticipant):
         )
         self.participant_status = [pstatus]
 
+        return self
+
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class FinderReporterParticipant(CaseParticipant):
     """
     A FinderReporterParticipant is a CaseParticipant that has both the FINDER and REPORTER roles in a
     VulnerabilityCase.
     """
 
-    as_type = "CaseParticipant"
+    @model_validator(mode="after")
+    def set_roles(self) -> FinderReporterParticipant:
+        """Set both FINDER and REPORTER roles."""
+        self.case_roles = [CVDRole.FINDER, CVDRole.REPORTER]
+        return self
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.add_role(CVDRole.FINDER, reset=True)
-        self.add_role(CVDRole.REPORTER, reset=False)
-
-        # by definition, to be a reporter, you must have accepted the report
+    @model_validator(mode="after")
+    def set_accepted_status(self) -> FinderReporterParticipant:
+        """
+        Set the participant status to ACCEPTED, since by definition,
+        to be a reporter, you must have accepted the report
+        """
         pstatus = ParticipantStatus(
             context=self.context,
             actor=self.actor,
@@ -171,63 +193,70 @@ class FinderReporterParticipant(CaseParticipant):
         )
         self.participant_status = [pstatus]
 
+        return self
+
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class VendorParticipant(CaseParticipant):
     """
     A VendorParticipant is a CaseParticipant that has the VENDOR role in a VulnerabilityCase.
     """
 
-    as_type = "CaseParticipant"
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.add_role(CVDRole.VENDOR, reset=True)
+    @model_validator(mode="after")
+    def set_role(self):
+        """Set the VENDOR role."""
+        self.case_roles = [CVDRole.VENDOR]
+        return self
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class DeployerParticipant(CaseParticipant):
     """
     A DeployerParticipant is a CaseParticipant that has the DEPLOYER role in a VulnerabilityCase.
     """
 
-    as_type = "CaseParticipant"
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.add_role(CVDRole.DEPLOYER, reset=True)
+    @model_validator(mode="after")
+    def set_role(self) -> DeployerParticipant:
+        """Set the DEPLOYER role."""
+        self.case_roles = [CVDRole.DEPLOYER]
+        return self
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class CoordinatorParticipant(CaseParticipant):
     """
     A CoordinatorParticipant is a CaseParticipant that has the COORDINATOR role in a VulnerabilityCase.
     """
 
-    as_type = "CaseParticipant"
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.add_role(CVDRole.COORDINATOR, reset=True)
+    @model_validator(mode="after")
+    def set_role(self):
+        """Set the COORDINATOR role."""
+        self.case_roles = [CVDRole.COORDINATOR]
+        return self
 
 
 @activitystreams_object
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class OtherParticipant(CaseParticipant):
     """
     An OtherParticipant is a CaseParticipant that has the OTHER role in a VulnerabilityCase.
     """
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.add_role(CVDRole.OTHER, reset=True)
+    @model_validator(mode="after")
+    def set_role(self):
+        """Set the OTHER role."""
+        self.case_roles = [CVDRole.OTHER]
+        return self
+
+
+CaseParticipantRef: TypeAlias = ActivityStreamRef[
+    CaseParticipant
+    | FinderParticipant
+    | ReporterParticipant
+    | VendorParticipant
+    | DeployerParticipant
+    | CoordinatorParticipant
+    | OtherParticipant
+]
 
 
 def main():

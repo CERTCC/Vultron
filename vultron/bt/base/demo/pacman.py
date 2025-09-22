@@ -19,7 +19,6 @@ This is a demo of the bt tree library. It is a stub implementation of a bot that
 import logging
 import random
 import sys
-from dataclasses import dataclass, field
 
 import vultron.bt.base.composites as bt
 import vultron.bt.base.fuzzer as btz
@@ -36,6 +35,8 @@ from vultron.bt.base.factory import (
 )
 from vultron.bt.common import show_graph
 
+# TODO: convert to pydantic idioms
+
 logger = logging.getLogger(__name__)
 
 SCORE = 0
@@ -45,13 +46,12 @@ GHOST_INC = 2
 GHOST_NAMES = ["Blinky", "Pinky", "Inky", "Clyde"]
 
 
-@dataclass(kw_only=True)
 class PacmanBlackboard(Blackboard):
     dots: int = 240
     score: int = 0
     per_ghost: int = 200
     ghosts_scared: bool = False
-    ghosts_remaining: list = field(default_factory=lambda: GHOST_NAMES.copy())
+    ghosts_remaining: list = GHOST_NAMES.copy()
     ticks: int = 0
 
 
@@ -256,6 +256,18 @@ def main(args):
     else:
         ghosts = ""
     logger.info(f"Ghosts Remaining: {nghosts} {ghosts}")
+
+
+def _parse_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Pacman Bot Demo")
+    parser.add_argument(
+        "--print-tree",
+        action="store_true",
+        help="Print the behavior tree and exit",
+    )
+    return parser.parse_args()
 
 
 if __name__ == "__main__":

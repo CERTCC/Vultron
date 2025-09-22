@@ -2,7 +2,7 @@
 """
 Provides classes representing ActivityStreams Vocabulary Link objects.
 """
-#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -15,18 +15,13 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import dataclass
-from typing import Optional
+from typing import TypeVar, TypeAlias
 
-from dataclasses_json import LetterCase, dataclass_json
-
-from vultron.as_vocab.base import activitystreams_link
 from vultron.as_vocab.base.base import as_Base
+from vultron.as_vocab.base.registry import activitystreams_link
 
 
 @activitystreams_link
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class as_Link(as_Base):
     """A Link is an indirect, qualified reference to a resource identified by a URL.
     The fundamental model for links is established by [RFC5988].
@@ -37,18 +32,25 @@ class as_Link(as_Base):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-link>
     """
 
-    width: Optional[int] = None
-    height: Optional[int] = None
-    rel: Optional[str] = None
-    href: Optional[str] = None
-    hreflang: Optional[str] = None
+    width: int | None = None
+    height: int | None = None
+    rel: str | None = None
+    href: str | None = None
+    hreflang: str | None = None
 
 
 @activitystreams_link
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class as_Mention(as_Link):
     """A Link that represents an @mention."""
+
+
+T = TypeVar("T", covariant=True)
+
+# an ActivityStreamRequiredRef is an object of type T, a Link, or a string (IRI)
+ActivityStreamRequiredRef: TypeAlias = T | as_Link | str
+
+# an ActivityStreamRef can be an object of type T, a Link, a string (IRI), or None (for optional fields)
+ActivityStreamRef: TypeAlias = T | as_Link | str | None
 
 
 def main():

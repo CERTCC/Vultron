@@ -15,12 +15,11 @@
 Provides Vultron Activity Streams Vocabulary classes for Embargo activities
 """
 
-from dataclasses import dataclass, field
-from typing import Optional, Sequence
+from typing import Sequence, TypeAlias
 
-from dataclasses_json import LetterCase, config, dataclass_json
+from pydantic import Field
 
-from vultron.as_vocab.base.links import as_Link
+from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.activities.intransitive import (
     as_Question,
 )
@@ -32,31 +31,25 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Remove,
 )
-from vultron.as_vocab.base.utils import exclude_if_none
-from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.as_vocab.objects.embargo_event import (
+    EmbargoEventRef,
+)
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCaseRef
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class EmProposeEmbargo(as_Invite):
     """The actor is proposing an embargo on the case.
     This corresponds to the Vultron Message Types EP and EV
     as_object: EmbargoEvent
     """
 
-    as_type: str = field(default="Invite", init=False)
-
-    as_object: Optional[EmbargoEvent | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    context: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None, repr=True
-    )
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    context: VulnerabilityCaseRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
+EmProposeEmbargoRef: TypeAlias = ActivityStreamRef[EmProposeEmbargo]
+
+
 class EmAcceptEmbargo(as_Accept):
     """The actor is accepting an embargo on the case.
     This corresponds to the Vultron Message Types EA and EC
@@ -65,21 +58,11 @@ class EmAcceptEmbargo(as_Accept):
     origin: the EmProposeEmbargo activity that proposed the EmbargoEvent
     """
 
-    as_type: str = field(default="Accept", init=False)
-
-    as_object: Optional[EmbargoEvent | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    context: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None, repr=True
-    )
-    in_reply_to: Optional[EmProposeEmbargo | as_Link | str] = field(
-        default=None, repr=True
-    )
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    context: VulnerabilityCaseRef = None
+    in_reply_to: EmProposeEmbargoRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class EmRejectEmbargo(as_Reject):
     """The actor is rejecting an embargo on the case.
     This corresponds to the Vultron Message Types ER and EJ
@@ -88,21 +71,11 @@ class EmRejectEmbargo(as_Reject):
     in_reply_to: the EmProposeEmbargo activity that proposed the EmbargoEvent
     """
 
-    as_type: str = field(default="Reject", init=False)
-
-    as_object: Optional[EmbargoEvent | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    context: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None, repr=True
-    )
-    in_reply_to: Optional[EmProposeEmbargo | as_Link | str] = field(
-        default=None, repr=True
-    )
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    context: VulnerabilityCaseRef = None
+    in_reply_to: EmProposeEmbargoRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class ChoosePreferredEmbargo(as_Question):
     """The case owner is asking the participants to indicate their embargo preferences from among the proposed embargoes.
     Case participants should respond with an EmAcceptEmbargo or EmRejectEmbargo activity for each proposed embargo.
@@ -112,17 +85,10 @@ class ChoosePreferredEmbargo(as_Question):
 
     # note: not specifying as_object here because Questions are intransitive
 
-    as_type: str = field(default="Question", init=False)
-    any_of: Optional[Sequence[EmbargoEvent | as_Link | str]] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    one_of: Optional[Sequence[EmbargoEvent | as_Link | str]] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    any_of: Sequence[EmbargoEventRef] | None = None
+    one_of: Sequence[EmbargoEventRef] | None = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class ActivateEmbargo(as_Add):
     """The case owner is activating an embargo on the case.
     This corresponds to the Vultron Message Types EA and EC at the case level
@@ -131,20 +97,11 @@ class ActivateEmbargo(as_Add):
     in_reply_to: the EmProposeEmbargo activity that proposed the EmbargoEvent
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[EmbargoEvent | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None, repr=True
-    )
-    in_reply_to: Optional[EmProposeEmbargo | as_Link | str] = field(
-        default=None, repr=True
-    )
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    target: VulnerabilityCaseRef = None
+    in_reply_to: EmProposeEmbargoRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class AddEmbargoToCase(as_Add):
     """Add an EmbargoEvent to a case. This should only be performed by the case owner.
     For use when the case owner is activating an embargo on the case without first proposing it to the participants.
@@ -152,36 +109,22 @@ class AddEmbargoToCase(as_Add):
     in response to a previous EmProposeEmbargo activity.
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[EmbargoEvent | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None, repr=True
-    )
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class AnnounceEmbargo(as_Announce):
     """The case owner is announcing an embargo on the case.
     as_object: the EmbargoEvent being announced
     context: the VulnerabilityCase for which the EmbargoEvent is active
     """
 
-    as_type: str = field(default="Announce", init=False)
-    as_object: Optional[EmbargoEvent | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    context: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None, repr=True
-    )
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    context: VulnerabilityCaseRef = None
 
 
 # remove EmbargoEvent from proposedEmbargoes of VulnerabilityCase
 # todo: should proposedEmbargoes be its own collection object that can then be used as the origin here?
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class RemoveEmbargoFromCase(as_Remove):
     """Remove an EmbargoEvent from the proposedEmbargoes of a VulnerabilityCase.
     This should only be performed by the case owner.
@@ -189,8 +132,5 @@ class RemoveEmbargoFromCase(as_Remove):
     origin: VulnerabilityCase
     """
 
-    as_type: str = field(default="Remove", init=False)
-    as_object: Optional[EmbargoEvent | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    origin: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    origin: VulnerabilityCaseRef = None

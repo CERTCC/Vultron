@@ -13,12 +13,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, List, Optional
+from typing import Any, TypeAlias
 
-from dataclasses_json import LetterCase, config, dataclass_json
-from marshmallow import fields
+from pydantic import field_serializer, field_validator, Field
 
 from vultron.as_vocab.base.base import as_Base
 from vultron.as_vocab.base.dt_utils import (
@@ -26,134 +24,99 @@ from vultron.as_vocab.base.dt_utils import (
     now_utc,
     to_isofmt,
 )
-from vultron.as_vocab.base.utils import exclude_if_none
+from vultron.as_vocab.base.links import ActivityStreamRef
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class as_Object(as_Base):
     """Base class for all ActivityPub objects.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#object>
     """
 
-    replies: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    url: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    generator: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    context: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    tag: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    in_reply_to: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    replies: Any | None = None
+    url: Any | None = None
+    generator: Any | None = None
+    context: Any | None = None
+    tag: Any | None = None
+    in_reply_to: Any | None = None
 
     # time (aka Wibbly-Wobbly Time-Wimey Stuff)
-    duration: Optional[timedelta] = field(
-        metadata=config(
-            exclude=exclude_if_none,
-            encoder=to_isofmt,
-            decoder=from_isofmt,
-            mm_field=fields.TimeDelta(
-                precision="seconds", serialization_type=int, allow_none=True
-            ),
-        ),
-        default=None,
+    # in python we want datetime or timedelta objects
+    # but in json we want iso8601 strings
+    # see also serializers and validators below
+    duration: timedelta | None = Field(
+        default=None, json_schema_extra={"format": "duration"}
     )
-    start_time: Optional[datetime] = field(
-        metadata=config(
-            exclude=exclude_if_none,
-            encoder=to_isofmt,
-            decoder=from_isofmt,
-            mm_field=fields.DateTime(format="iso", allow_none=True),
-        ),
-        default=None,
+    start_time: datetime | None = Field(
+        default=None, json_schema_extra={"format": "date-time"}
     )
-    end_time: Optional[datetime] = field(
-        metadata=config(
-            exclude=exclude_if_none,
-            encoder=to_isofmt,
-            decoder=from_isofmt,
-            mm_field=fields.DateTime(format="iso", allow_none=True),
-        ),
-        default=None,
+    end_time: datetime | None = Field(
+        default=None, json_schema_extra={"format": "date-time"}
     )
-    published: Optional[datetime] = field(
-        metadata=config(
-            exclude=exclude_if_none,
-            encoder=to_isofmt,
-            decoder=from_isofmt,
-            mm_field=fields.DateTime(format="iso", allow_none=True),
-        ),
-        default_factory=now_utc,
+    published: datetime | None = Field(
+        default_factory=now_utc, json_schema_extra={"format": "date-time"}
     )
-    updated: Optional[datetime] = field(
-        metadata=config(
-            exclude=exclude_if_none,
-            encoder=to_isofmt,
-            decoder=from_isofmt,
-            mm_field=fields.DateTime(format="iso", allow_none=True),
-        ),
-        default_factory=now_utc,
+    updated: datetime | None = Field(
+        default_factory=now_utc, json_schema_extra={"format": "date-time"}
     )
 
     # content
-    content: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    summary: Optional[str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    icon: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    image: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    attachment: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    content: Any | None = None
+    summary: Any | None = None
+    icon: Any | None = None
+    image: Any | None = None
+    attachment: Any | None = None
+    location: Any | None = None
+    to: Any | None = None
+    cc: Any | None = None
+    bto: Any | None = None
+    bcc: Any | None = None
+    audience: Any | None = None
+    attributed_to: Any | None = None
 
-    # location
-    location: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    @field_serializer("duration", when_used="json")
+    def serialize_duration(self, value: timedelta | None) -> str | None:
+        if value is None:
+            return None
+        return to_isofmt(value)
 
-    # addressing
-    to: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
-    cc: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    @field_validator("duration", mode="before")
+    @classmethod
+    def validate_duration(cls, value: Any) -> timedelta | None:
+        if value is None:
+            return value
+        if isinstance(value, timedelta):
+            return value
+        if isinstance(value, str):
+            return from_isofmt(value)
+        return value
 
-    bto: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
+    @field_serializer(
+        "start_time", "end_time", "published", "updated", when_used="json"
     )
-    bcc: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    def serialize_datetime(self, value: datetime | None) -> str | None:
+        if value is None:
+            return None
+        return to_isofmt(value)
 
-    audience: Optional[Any] = field(
-        metadata=config(exclude=exclude_if_none), default=None
+    @field_validator(
+        "start_time", "end_time", "published", "updated", mode="before"
     )
+    @classmethod
+    def validate_datetime(cls, value: Any) -> datetime | None:
+        if value is None or isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return from_isofmt(value)
+        return value
 
-    # Todo: replace camelCase with snake_case
-    attributed_to: Optional[List[Any]] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+
+as_ObjectRef: TypeAlias = ActivityStreamRef[as_Object]
 
 
 def main():
     o = as_Object()
     print(o.to_json(indent=2))
+    print(o.model_dump(exclude_none=True))
 
 
 if __name__ == "__main__":

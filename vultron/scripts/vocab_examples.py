@@ -110,6 +110,15 @@ organization_base_url = f"{base_url}/organizations"
 report_base_url = f"{base_url}/reports"
 
 
+def _strip_published_udpated(obj: as_Base) -> as_Base:
+    # strip out published and updated timestamps if they are present
+    if hasattr(obj, "published"):
+        obj.published = None
+    if hasattr(obj, "updated"):
+        obj.updated = None
+    return obj
+
+
 def json2md(obj: as_Base) -> str:
     """
     Given an object with a to_json method, return a markdown-formatted string of the object's JSON.
@@ -120,9 +129,8 @@ def json2md(obj: as_Base) -> str:
         a markdown-formatted string of the object's JSON
     """
 
-    # strip out published and updated timestamps
-    obj.published = None
-    obj.updated = None
+    # strip out published and updated timestamps if they are present
+    obj = _strip_published_udpated(obj)
 
     if not hasattr(obj, "to_json"):
         raise TypeError(f"obj must have a to_json method: {obj}")
@@ -142,8 +150,10 @@ def obj_to_file(obj: as_Base, filename: str) -> None:
         None
     """
     # strip out published and updated timestamps
-    obj.published = None
-    obj.updated = None
+    obj = _strip_published_udpated(obj)
+
+    if not hasattr(obj, "to_json"):
+        raise TypeError(f"obj must have a to_json method: {obj}")
 
     with open(filename, "w") as fp:
         fp.write(obj.to_json(indent=2))
@@ -282,7 +292,9 @@ def create_case() -> CreateCase:
     _vendor = vendor()
     _report = report()
     _case.add_report(_report.as_id)
-    participant = VendorParticipant(actor=_vendor.as_id, name=_vendor.name)
+    participant = VendorParticipant(
+        actor=_vendor.as_id, name=_vendor.name, context=_case.as_id
+    )
     _case.add_participant(participant)
 
     activity = CreateCase(

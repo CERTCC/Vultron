@@ -1,4 +1,4 @@
-#  Copyright (c) 2023-2024 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -89,7 +89,7 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(reloaded.as_type, expect_type)
 
             self.assertEqual(reloaded.as_object.as_id, _actor.as_id)
-            self.assertEqual(reloaded.as_object.as_type, "Actor")
+            self.assertIn(reloaded.as_object.as_type, _actor.as_type)
             self.assertEqual(reloaded.as_object.name, actor_class.__name__)
 
             self.assertEqual(reloaded.target.as_id, _case.as_id)

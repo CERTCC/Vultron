@@ -15,13 +15,12 @@
 Provides a basic message class for use in a Vultron simulation.
 """
 
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 from vultron.bt.messaging.states import MessageTypes
 
 
-@dataclass(kw_only=True)
-class Message:
+class Message(BaseModel):
     """
     Represents a message with a sender and body and optional message type.
     """

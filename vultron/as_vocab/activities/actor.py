@@ -15,63 +15,37 @@
 Provides Vultron ActivityStreams Activities related to Actors
 """
 
-from dataclasses import dataclass, field
-from typing import Optional
+from pydantic import Field
 
-from dataclasses_json import LetterCase, config, dataclass_json
-
-from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
     as_Reject,
 )
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.as_vocab.base.objects.actors import as_ActorRef
+from vultron.as_vocab.objects.vulnerability_case import (
+    VulnerabilityCaseRef,
+)
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class RecommendActor(as_Offer):
     """The actor is recommending another actor to a case."""
 
-    as_type: str = field(default="Offer", init=False)
-    as_object: Optional[as_Actor | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None,
-        repr=True,
-    )
+    as_object: as_ActorRef = Field(default=None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class AcceptActorRecommendation(as_Accept):
     """The case owner is accepting a recommendation to add an actor to the case.
     Should be followed by an RmInviteToCase activity targeted at the recommended actor.
     """
 
-    as_type: str = field(default="Accept", init=False)
-    as_object: Optional[as_Actor | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None,
-        repr=True,
-    )
+    as_object: as_ActorRef = Field(default=None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class RejectActorRecommendation(as_Reject):
     """The case owner is rejecting a recommendation to add an actor to the case."""
 
-    as_type: str = field(default="Reject", init=False)
-    as_object: Optional[as_Actor | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(
-        default=None,
-        repr=True,
-    )
+    as_object: as_ActorRef = Field(default=None, alias="object")
+    target: VulnerabilityCaseRef = None

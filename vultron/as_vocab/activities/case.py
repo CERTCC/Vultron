@@ -15,13 +15,11 @@
 Custom Activity Streams Activities for VulnerabilityCase objects.
 Each activity should have a VulnerabilityCase object as either its target or object.
 """
+from typing import TypeAlias
 
-from dataclasses import dataclass, field
-from typing import Optional
+from pydantic import Field
 
-from dataclasses_json import LetterCase, config, dataclass_json
-
-from vultron.as_vocab.base.links import as_Link
+from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
@@ -34,12 +32,13 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Update,
 )
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.base.objects.object_types import as_Note
-from vultron.as_vocab.base.utils import exclude_if_none
-from vultron.as_vocab.objects.case_status import CaseStatus
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.as_vocab.base.objects.actors import as_ActorRef
+from vultron.as_vocab.base.objects.object_types import as_NoteRef
+from vultron.as_vocab.objects.case_status import CaseStatusRef
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCaseRef
+from vultron.as_vocab.objects.vulnerability_report import (
+    VulnerabilityReportRef,
+)
 
 
 ########################################################################################
@@ -47,19 +46,14 @@ from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 ########################################################################################
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class AddReportToCase(as_Add):
     """Add a VulnerabilityReport to a VulnerabilityCase
     as_object: VulnerabilityReport
     target: VulnerabilityCase
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[VulnerabilityReport | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    as_object: VulnerabilityReportRef = Field(None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
 # add CaseParticipant to VulnerabilityCase
@@ -67,8 +61,6 @@ class AddReportToCase(as_Add):
 
 
 # add CaseStatus to VulnerabilityCase
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class AddStatusToCase(as_Add):
     """Add a CaseStatus to a VulnerabilityCase.
     This should only be performed by the case owner.
@@ -78,11 +70,8 @@ class AddStatusToCase(as_Add):
     target: VulnerabilityCase
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[CaseStatus | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    as_object: CaseStatusRef = Field(None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
 ########################################################################################
@@ -91,60 +80,40 @@ class AddStatusToCase(as_Add):
 
 
 # create a VulnerabilityCase
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class CreateCase(as_Create):
     """Create a VulnerabilityCase.
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Create", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
+    as_object: VulnerabilityCaseRef = Field(None, alias="object")
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class CreateCaseStatus(as_Create):
     """Create a CaseStatus.
     as_object: CaseStatus
     """
 
-    as_type: str = field(default="Create", init=False)
-    as_object: Optional[CaseStatus | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
+    as_object: CaseStatusRef = Field(None, alias="object")
 
 
 # Add a Note to a VulnerabilityCase
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class AddNoteToCase(as_Add):
     """Add a Note to a VulnerabilityCase.
     as_object: Note
     target: VulnerabilityCase
     """
 
-    as_type: str = field(default="Add", init=False)
-    as_object: Optional[as_Note | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[VulnerabilityCase | as_Link | str] = field(default=None)
+    as_object: as_NoteRef = Field(None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
 # update a VulnerabilityCase
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class UpdateCase(as_Update):
     """Update a VulnerabilityCase.
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Update", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
+    as_object: VulnerabilityCaseRef = Field(None, alias="object")
 
 
 #####
@@ -153,22 +122,15 @@ class UpdateCase(as_Update):
 
 
 # join a case
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class RmEngageCase(as_Join):
     """The actor is has joined (i.e., is actively working on) a case.
     This represents the Vultron Message Type RA, and indicates that the actor is now in the RM.ACCEPTED state.
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Join", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
+    as_object: VulnerabilityCaseRef = Field(None, alias="object")
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class RmDeferCase(as_Ignore):
     """The actor is deferring a case.
     This implies that the actor is no longer actively working on the case.
@@ -179,14 +141,9 @@ class RmDeferCase(as_Ignore):
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Ignore", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
+    as_object: VulnerabilityCaseRef = Field(None, alias="object")
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class RmCloseCase(as_Leave):
     """The actor is ending their participation in the case and closing their local copy of the case.
     This corresponds to the Vultron RC message type.
@@ -196,31 +153,19 @@ class RmCloseCase(as_Leave):
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Leave", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
+    as_object: VulnerabilityCaseRef = Field(None, alias="object")
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class OfferCaseOwnershipTransfer(as_Offer):
     """The actor is offering to transfer ownership of the case to another actor.
     as_object: VulnerabilityCase
     target: as_Actor
     """
 
-    as_type: str = field(default="Offer", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    target: Optional[as_Actor | as_Link | str] = field(
-        metadata=config(exclude=exclude_if_none), default=None
-    )
+    as_object: VulnerabilityCaseRef = Field(None, alias="object")
+    target: as_ActorRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class AcceptCaseOwnershipTransfer(as_Accept):
     """The actor is accepting an offer to transfer ownership of the case.
 
@@ -228,34 +173,20 @@ class AcceptCaseOwnershipTransfer(as_Accept):
     - in_reply_to: the original offer
     """
 
-    as_type: str = field(default="Accept", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    in_reply_to: OfferCaseOwnershipTransfer = field(
-        default=None,
-    )
+    as_object: VulnerabilityCaseRef = Field(None, alias="object")
+    in_reply_to: OfferCaseOwnershipTransfer | str | None = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class RejectCaseOwnershipTransfer(as_Reject):
     """The actor is rejecting an offer to transfer ownership of the case.
     as_object: VulnerabilityCase
     context: the original offer
     """
 
-    as_type: str = field(default="Reject", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    in_reply_to: OfferCaseOwnershipTransfer = field(
-        default=None,
-    )
+    as_object: VulnerabilityCaseRef = Field(None, alias="object")
+    in_reply_to: OfferCaseOwnershipTransfer | str | None = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class RmInviteToCase(as_Invite):
     """The actor is inviting another actor to a case.
     This corresponds to the Vultron Message Type RS when a case already exists.
@@ -263,14 +194,12 @@ class RmInviteToCase(as_Invite):
     as_object: VulnerabilityCase
     """
 
-    as_type: str = field(default="Invite", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
+    as_object: VulnerabilityCaseRef = Field(None, alias="object")
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
+RmInviteToCaseRef: TypeAlias = ActivityStreamRef[RmInviteToCase]
+
+
 class RmAcceptInviteToCase(as_Accept):
     """The actor is accepting an invitation to a case.
     This corresponds to the Vultron Message Type RV when the case already exists.
@@ -279,15 +208,9 @@ class RmAcceptInviteToCase(as_Accept):
     in_reply_to: RmInviteToCase
     """
 
-    as_type: str = field(default="Accept", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    in_reply_to: RmInviteToCase = field(default=None)
+    in_reply_to: RmInviteToCaseRef = None
 
 
-@dataclass_json(letter_case=LetterCase.CAMEL)
-@dataclass(kw_only=True)
 class RmRejectInviteToCase(as_Reject):
     """The actor is rejecting an invitation to a case.
     This corresponds to the Vultron Message Type RI when the case already exists.
@@ -297,8 +220,4 @@ class RmRejectInviteToCase(as_Reject):
     `in_reply_to`: `RmInviteToCase`
     """
 
-    as_type: str = field(default="Reject", init=False)
-    as_object: Optional[VulnerabilityCase | as_Link | str] = field(
-        metadata=config(field_name="object"), default=None, repr=True
-    )
-    in_reply_to: RmInviteToCase = field(default=None)
+    in_reply_to: RmInviteToCaseRef = None

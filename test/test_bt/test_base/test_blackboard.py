@@ -1,4 +1,4 @@
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -12,7 +12,6 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
-from dataclasses import dataclass
 
 from vultron.bt.base.blackboard import Blackboard
 
@@ -22,7 +21,6 @@ class TestBlackBoard(unittest.TestCase):
         # there really isn't anything to test since Blackboard doesn't have any
         # defined fields.  But we can test that it has dataclass semantics
 
-        @dataclass(kw_only=True)
         class BB(Blackboard):
             foo: str = "bar"
 

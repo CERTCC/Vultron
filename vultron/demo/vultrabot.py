@@ -15,7 +15,6 @@
 Provides a simulated Vultron behavior tree simulator bot.
 """
 import argparse
-import dataclasses
 import logging
 import sys
 
@@ -95,7 +94,8 @@ def _run_simulation():
                 tree.root.children[0].tick()
                 break
     logger.info(f"Closed in {tick} ticks")
-    for k, v in dataclasses.asdict(tree.bb).items():
+
+    for k, v in tree.bb.model_dump().items():
         if "history" in k:
             logger.info(f"### {k} ###")
             for i, row in enumerate(v, start=1):
