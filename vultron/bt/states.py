@@ -22,13 +22,14 @@ from typing import Any, Callable, Deque, Dict, List
 from pydantic import BaseModel, Field
 
 from vultron.bt.embargo_management.states import EM
-from vultron.bt.messaging.states import MessageTypes as MT
+from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.report_priority_states import (
     ReportPriority,
 )
 from vultron.bt.report_management.states import RM
 from vultron.bt.roles.states import CVDRoles
 from vultron.case_states.states import CS
+from vultron.sim.messages import Message
 
 
 class CapabilityFlag(Flag):
@@ -55,22 +56,22 @@ class ActorState(BaseModel):
 
     emit_func: Callable = None
 
-    msgs_emitted_this_tick: List[MT] = Field(default_factory=list)
-    msgs_received_this_tick: List[MT] = Field(default_factory=list)
-    msg_history: List[MT] = Field(default_factory=list)
-    current_message: MT = None
+    msgs_emitted_this_tick: List[Message | MessageTypes] = Field(default_factory=list)
+    msgs_received_this_tick: List[Message | MessageTypes] = Field(default_factory=list)
+    msg_history: List[Message | MessageTypes] = Field(default_factory=list)
+    current_message: Message |MessageTypes | None = None
 
     priority: ReportPriority = ReportPriority.DEFER
     prioritization_count: int = 0
 
-    capabilities: CapabilityFlag = 0
+    capabilities: CapabilityFlag = CapabilityFlag.NoCapability
 
     reporting_effort_budget: int = 200
 
-    add_participant_func: Callable = None
-    currently_notifying: Any = None
+    add_participant_func: Callable | None = None
+    currently_notifying: Any | None = None
 
-    case: Any = None
+    case: Any | None = None
 
     name: str = "ActorName"
 
@@ -79,7 +80,7 @@ def main():
     from pprint import pprint
 
     a = ActorState()
-    pprint(a.__dict__)
+    pprint(a.model_dump())
 
 
 if __name__ == "__main__":
