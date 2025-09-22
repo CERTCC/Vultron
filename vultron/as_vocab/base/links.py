@@ -17,8 +17,8 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 
 from typing import TypeVar, TypeAlias
 
-from vultron.as_vocab.base import activitystreams_link
 from vultron.as_vocab.base.base import as_Base
+from vultron.as_vocab.base.registry import activitystreams_link
 
 
 @activitystreams_link

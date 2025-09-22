@@ -21,12 +21,12 @@ from typing import TypeAlias, Any
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
-from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.dt_utils import (
     now_utc,
 )
 from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.object_types import as_Event
+from vultron.as_vocab.base.registry import activitystreams_object
 from vultron.as_vocab.base.utils import name_of
 
 

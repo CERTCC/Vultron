@@ -17,9 +17,9 @@ from typing import List, TypeAlias
 
 from pydantic import Field
 
-from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.base import as_Object, as_ObjectRef
+from vultron.as_vocab.base.registry import activitystreams_object
 
 
 @activitystreams_object

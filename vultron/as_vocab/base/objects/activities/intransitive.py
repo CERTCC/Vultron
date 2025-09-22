@@ -16,12 +16,12 @@
 from datetime import datetime
 from typing import Literal
 
-from vultron.as_vocab.base import activitystreams_activity
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.base import (
     as_Activity as Activity,
 )
 from vultron.as_vocab.base.objects.base import as_Object
+from vultron.as_vocab.base.registry import activitystreams_activity
 
 
 @activitystreams_activity

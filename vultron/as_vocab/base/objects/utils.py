@@ -15,7 +15,7 @@
 
 import logging
 
-from vultron.as_vocab.base import VOCABULARY
+from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.base import as_Base
 from vultron.as_vocab.base.errors import (
     MissingTypeError,
@@ -48,7 +48,9 @@ def simple_object_from_dict(data: dict) -> as_Base:
     # find the class that matches the type
     obj_cls = None
 
-    for kind, classes in VOCABULARY.items():
+    vocab_dict = VOCABULARY.model_dump()
+
+    for kind, classes in vocab_dict.items():
         # ensure classes is not empty
         assert classes, f"Empty {kind} in vocabulary"
 

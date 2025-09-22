@@ -2,7 +2,7 @@
 """
 Provides utilities for the ActivityStreams Vocabulary.
 """
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -85,23 +85,23 @@ def _print_examples(d) -> None:
 
 def print_object_examples() -> None:
     """Print out empty examples of the classes in the given module"""
-    from vultron.as_vocab.base import VOCABULARY
+    from vultron.as_vocab import VOCABULARY
 
-    object_types = VOCABULARY["objects"]
+    object_types = VOCABULARY.objects
     _print_examples(object_types)
 
 
 def print_activity_examples():
     """Print out empty examples of the classes in the given module"""
-    from vultron.as_vocab.base import VOCABULARY
+    from vultron.as_vocab import VOCABULARY
 
-    activity_types = VOCABULARY["activities"]
+    activity_types = VOCABULARY.activities
     _print_examples(activity_types)
 
 
 def print_link_examples():
     """Print out empty examples of the classes in the given module"""
-    from vultron.as_vocab.base import VOCABULARY
+    from vultron.as_vocab import VOCABULARY
 
-    link_types = VOCABULARY["links"]
+    link_types = VOCABULARY.links
     _print_examples(link_types)

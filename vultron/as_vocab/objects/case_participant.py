@@ -21,9 +21,9 @@ from typing import Literal, TypeAlias
 
 from pydantic import Field, field_validator, field_serializer, model_validator
 
-from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.links import as_Link, ActivityStreamRef
 from vultron.as_vocab.base.objects.actors import as_Actor
+from vultron.as_vocab.base.registry import activitystreams_object
 from vultron.as_vocab.objects.base import VultronObject
 from vultron.as_vocab.objects.case_status import ParticipantStatus
 from vultron.bt.report_management.states import RM

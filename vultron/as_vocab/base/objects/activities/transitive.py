@@ -16,12 +16,12 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from vultron.as_vocab.base import activitystreams_activity
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.base import (
     as_Activity as Activity,
 )
 from vultron.as_vocab.base.objects.base import as_Object
+from vultron.as_vocab.base.registry import activitystreams_activity
 from vultron.as_vocab.base.utils import name_of
 
 

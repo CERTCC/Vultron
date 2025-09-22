@@ -17,13 +17,13 @@ from typing import Any, Literal, TypeAlias
 
 from pydantic import Field
 
-from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.objects.collections import (
     as_Collection,
     as_OrderedCollection,
 )
+from vultron.as_vocab.base.registry import activitystreams_object
 
 
 @activitystreams_object
