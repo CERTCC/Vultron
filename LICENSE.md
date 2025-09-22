@@ -2,7 +2,7 @@
 
 ## MIT (SEI)
 
-Copyright &copy; 2023 Carnegie Mellon University and Contributors.
+Copyright &copy; 2025 Carnegie Mellon University and Contributors.
 
 - See Contributors.txt for a full list of Contributors;
 - See ContributionInstructions.txt for information on how you can Contribute to this project.
