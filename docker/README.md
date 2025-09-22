@@ -28,6 +28,3 @@ or export the variable in your shell session
 export PROJECT_NAME=vultron
 docker-compose up
 ```
-
-
-
