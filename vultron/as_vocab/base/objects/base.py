@@ -109,7 +109,9 @@ class as_Object(as_Base):
             return from_isofmt(value)
         return value
 
+
 as_ObjectRef: TypeAlias = ActivityStreamRef[as_Object]
+
 
 def main():
     o = as_Object()

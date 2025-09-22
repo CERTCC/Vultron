@@ -17,12 +17,15 @@ Provides a registry for the Vultron ActivityStreams Vocabulary.
 
 from pydantic import BaseModel, Field
 
+
 class Vocabulary(BaseModel):
     objects: dict[str, type] = Field(default_factory=dict)
     activities: dict[str, type] = Field(default_factory=dict)
     links: dict[str, type] = Field(default_factory=dict)
 
+
 VOCABULARY = Vocabulary()
+
 
 def activitystreams_object(cls: type) -> type:
     """Register an object for a given object type.
@@ -65,9 +68,10 @@ def activitystreams_link(cls: type) -> type:
     VOCABULARY.links[key] = cls
     return cls
 
+
 def main():
     pass
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

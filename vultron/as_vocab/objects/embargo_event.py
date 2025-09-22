@@ -45,20 +45,17 @@ class EmbargoEvent(as_Event):
         default_factory=now_utc, json_schema_extra={"format": "date-time"}
     )
     end_time: datetime | None = Field(
-        default_factory=_45_days_hence, json_schema_extra={"format": "date-time"}
+        default_factory=_45_days_hence,
+        json_schema_extra={"format": "date-time"},
     )
 
-    @field_serializer(
-        "start_time", "end_time", when_used="json"
-    )
+    @field_serializer("start_time", "end_time", when_used="json")
     def serialize_datetime(self, value: datetime | None) -> str | None:
         if value is None:
             return None
         return to_isofmt(value)
 
-    @field_validator(
-        "start_time", "end_time", mode="before"
-    )
+    @field_validator("start_time", "end_time", mode="before")
     @classmethod
     def validate_datetime(cls, value: Any) -> datetime | None:
         if value is None or isinstance(value, datetime):
@@ -82,7 +79,6 @@ class EmbargoEvent(as_Event):
             parts.append(f"end: {end_iso}")
         self.name = " ".join([str(part) for part in parts])
         return self
-
 
 
 EmbargoEventRef: TypeAlias = ActivityStreamRef[EmbargoEvent]

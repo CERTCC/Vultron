@@ -53,8 +53,6 @@ ActivityStreamRequiredRef: TypeAlias = T | as_Link | str
 ActivityStreamRef: TypeAlias = T | as_Link | str | None
 
 
-
-
 def main():
     x = as_Link()
     print(x.to_dict())

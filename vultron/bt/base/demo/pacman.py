@@ -257,6 +257,7 @@ def main(args):
         ghosts = ""
     logger.info(f"Ghosts Remaining: {nghosts} {ghosts}")
 
+
 def _parse_args():
     import argparse
 
@@ -267,6 +268,7 @@ def _parse_args():
         help="Print the behavior tree and exit",
     )
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = _parse_args()
