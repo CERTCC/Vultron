@@ -56,10 +56,14 @@ class ActorState(BaseModel):
 
     emit_func: Callable = None
 
-    msgs_emitted_this_tick: List[Message | MessageTypes] = Field(default_factory=list)
-    msgs_received_this_tick: List[Message | MessageTypes] = Field(default_factory=list)
+    msgs_emitted_this_tick: List[Message | MessageTypes] = Field(
+        default_factory=list
+    )
+    msgs_received_this_tick: List[Message | MessageTypes] = Field(
+        default_factory=list
+    )
     msg_history: List[Message | MessageTypes] = Field(default_factory=list)
-    current_message: Message |MessageTypes | None = None
+    current_message: Message | MessageTypes | None = None
 
     priority: ReportPriority = ReportPriority.DEFER
     prioritization_count: int = 0

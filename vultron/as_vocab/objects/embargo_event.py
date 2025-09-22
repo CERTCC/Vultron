@@ -22,7 +22,8 @@ from typing import TypeAlias
 from pydantic import Field, model_validator
 
 from vultron.as_vocab.base.dt_utils import (
-    now_utc, )
+    now_utc,
+)
 from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.object_types import as_Event
 from vultron.as_vocab.base.registry import activitystreams_object
@@ -43,7 +44,7 @@ class EmbargoEvent(as_Event):
     start_time: datetime = Field(
         default_factory=now_utc, json_schema_extra={"format": "date-time"}
     )
-    end_time: datetime  = Field(
+    end_time: datetime = Field(
         default_factory=_45_days_hence,
         json_schema_extra={"format": "date-time"},
     )
