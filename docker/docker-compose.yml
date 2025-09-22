@@ -4,14 +4,14 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       target: base
-    image: base:latest
+    image: ${PROJECT_NAME}-base:latest
 
   dependencies:
     build:
       context: ..
       dockerfile: docker/Dockerfile
       target: dependencies
-    image: dependencies:latest
+    image: ${PROJECT_NAME}-dependencies:latest
     depends_on:
       - base
 
@@ -20,7 +20,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       target: test
-    image: test:latest
+    image: ${PROJECT_NAME}-test:latest
     depends_on:
       - dependencies
 
@@ -29,7 +29,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       target: docs
-    image: docs:latest
+    image: ${PROJECT_NAME}-docs:latest
     depends_on:
       - dependencies
     ports:
