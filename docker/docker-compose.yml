@@ -1,0 +1,45 @@
+services:
+  base:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: base
+    image: ${PROJECT_NAME}-base:latest
+
+  dependencies:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: dependencies
+    image: ${PROJECT_NAME}-dependencies:latest
+    depends_on:
+      - base
+
+  test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: test
+    image: ${PROJECT_NAME}-test:latest
+    depends_on:
+      - dependencies
+
+  docs:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: docs
+    image: ${PROJECT_NAME}-docs:latest
+    depends_on:
+      - dependencies
+    ports:
+      - "8000:8000"
+
+  vultrabot-demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: vultrabot_demo
+    image: ${PROJECT_NAME}-vultrabot-demo:latest
+    depends_on:
+      - dependencies

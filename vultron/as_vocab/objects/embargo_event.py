@@ -17,9 +17,9 @@ Provides an EmbargoEvent object for the Vultron ActivityStreams Vocabulary.
 
 # TODO: convert to pydantic idioms
 from datetime import datetime, timedelta
-from typing import TypeAlias, Any
+from typing import TypeAlias
 
-from pydantic import Field, field_serializer, field_validator, model_validator
+from pydantic import Field, model_validator
 
 from vultron.as_vocab.base.dt_utils import (
     now_utc,
@@ -41,28 +41,16 @@ class EmbargoEvent(as_Event):
     An EmbargoEvent is an Event that represents an embargo on a VulnerabilityCase.
     """
 
-    start_time: datetime | None = Field(
+    start_time: datetime = Field(
         default_factory=now_utc, json_schema_extra={"format": "date-time"}
     )
-    end_time: datetime | None = Field(
+    end_time: datetime = Field(
         default_factory=_45_days_hence,
         json_schema_extra={"format": "date-time"},
     )
 
-    @field_serializer("start_time", "end_time", when_used="json")
-    def serialize_datetime(self, value: datetime | None) -> str | None:
-        if value is None:
-            return None
-        return to_isofmt(value)
-
-    @field_validator("start_time", "end_time", mode="before")
-    @classmethod
-    def validate_datetime(cls, value: Any) -> datetime | None:
-        if value is None or isinstance(value, datetime):
-            return value
-        if isinstance(value, str):
-            return from_isofmt(value)
-        return value
+    # we don't need separate validators for start_time and end_time
+    # because the base class validator will be called for both fields
 
     @model_validator(mode="after")
     def set_name(self):
