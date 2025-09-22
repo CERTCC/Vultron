@@ -16,22 +16,18 @@ Provides an EmbargoEvent object for the Vultron ActivityStreams Vocabulary.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 # TODO: convert to pydantic idioms
-from dataclasses import field
 from datetime import datetime, timedelta
-from typing import TypeAlias
+from typing import TypeAlias, Any
 
-from dataclasses_json import config
-from marshmallow import fields
+from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.dt_utils import (
-    from_isofmt,
     now_utc,
-    to_isofmt,
 )
 from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.object_types import as_Event
-from vultron.as_vocab.base.utils import exclude_if_none, name_of
+from vultron.as_vocab.base.utils import name_of
 
 
 def _45_days_hence():
@@ -45,31 +41,36 @@ class EmbargoEvent(as_Event):
     An EmbargoEvent is an Event that represents an embargo on a VulnerabilityCase.
     """
 
-    start_time: datetime | None = field(
-        metadata=config(
-            exclude=exclude_if_none,
-            encoder=to_isofmt,
-            decoder=from_isofmt,
-            mm_field=fields.DateTime(format="iso"),
-        ),
-        default_factory=now_utc,
+    start_time: datetime | None = Field(
+        default_factory=now_utc, json_schema_extra={"format": "date-time"}
     )
-    end_time: datetime | None = field(
-        metadata=config(
-            exclude=exclude_if_none,
-            encoder=to_isofmt,
-            decoder=from_isofmt,
-            mm_field=fields.DateTime(format="iso"),
-        ),
-        default_factory=_45_days_hence,
+    end_time: datetime | None = Field(
+        default_factory=_45_days_hence, json_schema_extra={"format": "date-time"}
     )
 
-    def __post_init__(self):
-        super().__post_init__()
+    @field_serializer(
+        "start_time", "end_time", when_used="json"
+    )
+    def serialize_datetime(self, value: datetime | None) -> str | None:
+        if value is None:
+            return None
+        return to_isofmt(value)
+
+    @field_validator(
+        "start_time", "end_time", mode="before"
+    )
+    @classmethod
+    def validate_datetime(cls, value: Any) -> datetime | None:
+        if value is None or isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return from_isofmt(value)
+        return value
+
+    @model_validator(mode="after")
+    def set_name(self):
         start_iso = self.start_time.isoformat()
         end_iso = self.end_time.isoformat()
-
-        # self.as_id = "_".join([start_iso, end_iso])
 
         parts = [
             "Embargo for",
@@ -80,6 +81,8 @@ class EmbargoEvent(as_Event):
         if self.end_time:
             parts.append(f"end: {end_iso}")
         self.name = " ".join([str(part) for part in parts])
+        return self
+
 
 
 EmbargoEventRef: TypeAlias = ActivityStreamRef[EmbargoEvent]

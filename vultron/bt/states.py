@@ -14,14 +14,12 @@
 """
 Provides state management for the Vultron Behavior Tree
 """
-# TODO: convert to pydantic idioms
 
 from collections import deque
-from dataclasses import field
 from enum import Flag, auto
 from typing import Any, Callable, Deque, Dict, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.messaging.states import MessageTypes as MT
@@ -43,23 +41,23 @@ class CapabilityFlag(Flag):
 
 class ActorState(BaseModel):
     CVD_role: CVDRoles = CVDRoles.NO_ROLE
-    others: Dict = field(default_factory=dict)
+    others: Dict = Field(default_factory=dict)
 
     q_rm: RM = RM.START
     q_em: EM = EM.NO_EMBARGO
     q_cs: CS = CS.vfdpxa
 
-    q_rm_history: List[RM] = field(default_factory=list)
-    q_em_history: List[EM] = field(default_factory=list)
-    q_cs_history: List[CS] = field(default_factory=list)
+    q_rm_history: List[RM] = Field(default_factory=list)
+    q_em_history: List[EM] = Field(default_factory=list)
+    q_cs_history: List[CS] = Field(default_factory=list)
 
-    incoming_messages: Deque = field(default_factory=deque)
+    incoming_messages: Deque = Field(default_factory=deque)
 
     emit_func: Callable = None
 
-    msgs_emitted_this_tick: List[MT] = field(default_factory=list)
-    msgs_received_this_tick: List[MT] = field(default_factory=list)
-    msg_history: List[MT] = field(default_factory=list)
+    msgs_emitted_this_tick: List[MT] = Field(default_factory=list)
+    msgs_received_this_tick: List[MT] = Field(default_factory=list)
+    msg_history: List[MT] = Field(default_factory=list)
     current_message: MT = None
 
     priority: ReportPriority = ReportPriority.DEFER

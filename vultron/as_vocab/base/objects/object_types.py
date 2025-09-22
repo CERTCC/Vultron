@@ -14,11 +14,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import datetime
-from typing import TypeAlias, Any
+from typing import TypeAlias
 
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.links import ActivityStreamRef
-from vultron.as_vocab.base.objects.base import as_Object
+from vultron.as_vocab.base.objects.base import as_Object, as_ObjectRef
 
 
 @activitystreams_object
@@ -52,9 +52,7 @@ class as_Article(as_Document):
 
 
 # A Document can be any of its subclasses
-as_DocumentRef: TypeAlias = ActivityStreamRef[
-    as_Document | as_Image | as_Video | as_Audio | as_Page | as_Article
-]
+as_DocumentRef: TypeAlias = ActivityStreamRef[as_Document]
 
 
 @activitystreams_object
@@ -77,7 +75,7 @@ as_EventRef: TypeAlias = ActivityStreamRef[as_Event]
 class as_Profile(as_Object):
     """Base class for all ActivityPub profiles. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-profile>"""
 
-    describes: Any | None = None
+    describes: as_ObjectRef | None = None
 
 
 as_ProfileRef: TypeAlias = ActivityStreamRef[as_Profile]
@@ -87,7 +85,7 @@ as_ProfileRef: TypeAlias = ActivityStreamRef[as_Profile]
 class as_Tombstone(as_Object):
     """Base class for all ActivityPub tombstones. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-tombstone>"""
 
-    former_type: Any = None
+    former_type: str | None = None
     deleted: datetime | None = None
 
 
@@ -98,8 +96,8 @@ as_TombstoneRef: TypeAlias = ActivityStreamRef[as_Tombstone]
 class as_Relationship(as_Object):
     """Base class for all ActivityPub relationships. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-relationship>"""
 
-    subject: Any | None = None
-    object: Any | None = None
+    subject: as_ObjectRef | None = None
+    object: as_ObjectRef | None = None
     # TODO: should relationship be a str or uri? Usually it'd be a term from https://vocab.org/relationship/ http://xmlns.com/foaf/spec/
     relationship: str | None = None
 

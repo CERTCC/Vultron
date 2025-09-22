@@ -13,8 +13,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import field
 from typing import Any, Literal, TypeAlias
+
+from pydantic import Field
 
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.links import ActivityStreamRef
@@ -35,8 +36,8 @@ class as_Actor(as_Object):
     """
 
     # todo: collections should be internally represented as lists but dumped as collections
-    inbox: as_OrderedCollection = field(default_factory=as_OrderedCollection)
-    outbox: as_OrderedCollection = field(default_factory=as_OrderedCollection)
+    inbox: as_OrderedCollection = Field(default_factory=as_OrderedCollection)
+    outbox: as_OrderedCollection = Field(default_factory=as_OrderedCollection)
     following: as_Collection | None = None
     followers: as_Collection | None = None
     liked: as_Collection | None = None

@@ -2,8 +2,7 @@
 """
 Provides classes representing ActivityStreams Vocabulary Link objects.
 """
-
-#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -16,7 +15,7 @@ Provides classes representing ActivityStreams Vocabulary Link objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeAlias, TypeVar
+from typing import TypeVar, TypeAlias
 
 from vultron.as_vocab.base import activitystreams_link
 from vultron.as_vocab.base.base import as_Base
@@ -45,9 +44,15 @@ class as_Mention(as_Link):
     """A Link that represents an @mention."""
 
 
-# Define a generic type alias for Activity Stream references
-T = TypeVar("T")
+T = TypeVar("T", covariant=True)
+
+# an ActivityStreamRequiredRef is an object of type T, a Link, or a string (IRI)
+ActivityStreamRequiredRef: TypeAlias = T | as_Link | str
+
+# an ActivityStreamRef can be an object of type T, a Link, a string (IRI), or None (for optional fields)
 ActivityStreamRef: TypeAlias = T | as_Link | str | None
+
+
 
 
 def main():

@@ -13,12 +13,13 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from dataclasses import field
 from typing import List, TypeAlias
+
+from pydantic import Field
 
 from vultron.as_vocab.base import activitystreams_object
 from vultron.as_vocab.base.links import ActivityStreamRef
-from vultron.as_vocab.base.objects.base import as_Object
+from vultron.as_vocab.base.objects.base import as_Object, as_ObjectRef
 
 
 @activitystreams_object
@@ -27,8 +28,8 @@ class as_Collection(as_Object):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-collection>
     """
 
-    items: List[as_Object | None] = field(default_factory=list, repr=True)
-    current: int | None = field(default=0, repr=True)
+    items: List[as_ObjectRef | None] = Field(default_factory=list)
+    current: int | None = 0
 
     # # implement a way to ignore duplicates
     # _ids: Set[as_Object] = field(default_factory=set, repr=False)
@@ -46,7 +47,7 @@ class as_Collection(as_Object):
     def totalItems(self):
         return len(self.items)
 
-    def append(self, item: as_Object):
+    def append(self, item: as_ObjectRef):
         if not self._duplicates and not item.as_id in self._ids:
             self.items.append(item)
             self._ids.add(item.as_id)

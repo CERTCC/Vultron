@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any, TypeAlias
 
 from pydantic import field_serializer, field_validator, Field
 
@@ -24,6 +24,7 @@ from vultron.as_vocab.base.dt_utils import (
     now_utc,
     to_isofmt,
 )
+from vultron.as_vocab.base.links import ActivityStreamRef
 
 
 class as_Object(as_Base):
@@ -62,15 +63,15 @@ class as_Object(as_Base):
     content: Any | None = None
     summary: Any | None = None
     icon: Any | None = None
-    image: Optional[Any] = None
-    attachment: Optional[Any] = None
-    location: Optional[Any] = None
-    to: Optional[Any] = None
-    cc: Optional[Any] = None
-    bto: Optional[Any] = None
-    bcc: Optional[Any] = None
-    audience: Optional[Any] = None
-    attributed_to: Optional[Any] = None
+    image: Any | None = None
+    attachment: Any | None = None
+    location: Any | None = None
+    to: Any | None = None
+    cc: Any | None = None
+    bto: Any | None = None
+    bcc: Any | None = None
+    audience: Any | None = None
+    attributed_to: Any | None = None
 
     @field_serializer("duration", when_used="json")
     def serialize_duration(self, value: timedelta | None) -> str | None:
@@ -108,6 +109,7 @@ class as_Object(as_Base):
             return from_isofmt(value)
         return value
 
+as_ObjectRef: TypeAlias = ActivityStreamRef[as_Object]
 
 def main():
     o = as_Object()
