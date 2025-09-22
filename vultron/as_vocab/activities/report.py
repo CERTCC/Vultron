@@ -16,11 +16,8 @@ This module contains extensions to the ActivityStreams Vocabulary for Vultron ac
 VulnerabilityReports.
 """
 
-from typing import Literal
-
 from pydantic import Field
 
-from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Create,
@@ -29,16 +26,15 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Read,
     as_Reject,
 )
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.as_vocab.objects.vulnerability_report import (
+    VulnerabilityReportRef,
+)
 
 
 class RmCreateReport(as_Create):
     """The actor is creating a report."""
 
-    as_type: Literal["Create"] = "Create"
-    as_object: VulnerabilityReport | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
+    as_object: VulnerabilityReportRef = Field(default=None, alias="object")
 
 
 class RmSubmitReport(as_Offer):
@@ -48,10 +44,7 @@ class RmSubmitReport(as_Offer):
     as_object: VulnerabilityReport
     """
 
-    as_type: Literal["Offer"] = "Offer"
-    as_object: VulnerabilityReport | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
+    as_object: VulnerabilityReportRef = Field(default=None, alias="object")
 
 
 class RmReadReport(as_Read):
@@ -60,10 +53,7 @@ class RmReadReport(as_Read):
     as_object: VulnerabilityReport
     """
 
-    as_type: Literal["Read"] = "Read"
-    as_object: VulnerabilityReport | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
+    as_object: VulnerabilityReportRef = Field(default=None, alias="object")
 
 
 class RmValidateReport(as_Accept):
@@ -73,10 +63,7 @@ class RmValidateReport(as_Accept):
     as_object: VulnerabilityReport
     """
 
-    as_type: Literal["Accept"] = "Accept"
-    as_object: VulnerabilityReport | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
+    as_object: VulnerabilityReportRef = Field(default=None, alias="object")
 
 
 class RmInvalidateReport(as_Reject):
@@ -86,10 +73,7 @@ class RmInvalidateReport(as_Reject):
     as_object: VulnerabilityReport
     """
 
-    as_type: Literal["Reject"] = "Reject"
-    as_object: VulnerabilityReport | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
+    as_object: VulnerabilityReportRef = Field(default=None, alias="object")
 
 
 class RmCloseReport(as_Leave):
@@ -100,7 +84,4 @@ class RmCloseReport(as_Leave):
     as_object: VulnerabilityReport
     """
 
-    as_type: Literal["Leave"] = "Leave"
-    as_object: VulnerabilityReport | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
+    as_object: VulnerabilityReportRef = Field(default=None, alias="object")

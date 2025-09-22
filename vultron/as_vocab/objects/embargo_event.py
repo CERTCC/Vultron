@@ -18,6 +18,7 @@ Provides an EmbargoEvent object for the Vultron ActivityStreams Vocabulary.
 # TODO: convert to pydantic idioms
 from dataclasses import field
 from datetime import datetime, timedelta
+from typing import TypeAlias
 
 from dataclasses_json import config
 from marshmallow import fields
@@ -28,6 +29,7 @@ from vultron.as_vocab.base.dt_utils import (
     now_utc,
     to_isofmt,
 )
+from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.object_types import as_Event
 from vultron.as_vocab.base.utils import exclude_if_none, name_of
 
@@ -78,6 +80,9 @@ class EmbargoEvent(as_Event):
         if self.end_time:
             parts.append(f"end: {end_iso}")
         self.name = " ".join([str(part) for part in parts])
+
+
+EmbargoEventRef: TypeAlias = ActivityStreamRef[EmbargoEvent]
 
 
 def main():

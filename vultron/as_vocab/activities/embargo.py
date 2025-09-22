@@ -15,11 +15,11 @@
 Provides Vultron Activity Streams Vocabulary classes for Embargo activities
 """
 
-from typing import Sequence, Literal
+from typing import Sequence, TypeAlias
 
 from pydantic import Field
 
-from vultron.as_vocab.base.links import as_Link
+from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.activities.intransitive import (
     as_Question,
 )
@@ -31,8 +31,10 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Remove,
 )
-from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.as_vocab.objects.embargo_event import (
+    EmbargoEventRef,
+)
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCaseRef
 
 
 class EmProposeEmbargo(as_Invite):
@@ -41,12 +43,11 @@ class EmProposeEmbargo(as_Invite):
     as_object: EmbargoEvent
     """
 
-    as_type: Literal["Invite"] = "Invite"
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    context: VulnerabilityCaseRef = None
 
-    as_object: EmbargoEvent | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
-    context: VulnerabilityCase | as_Link | str | None = None
+
+EmProposeEmbargoRef: TypeAlias = ActivityStreamRef[EmProposeEmbargo]
 
 
 class EmAcceptEmbargo(as_Accept):
@@ -57,13 +58,9 @@ class EmAcceptEmbargo(as_Accept):
     origin: the EmProposeEmbargo activity that proposed the EmbargoEvent
     """
 
-    as_type: Literal["Accept"] = "Accept"
-
-    as_object: EmbargoEvent | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
-    context: VulnerabilityCase | as_Link | str | None = None
-    in_reply_to: EmProposeEmbargo | as_Link | str | None = None
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    context: VulnerabilityCaseRef = None
+    in_reply_to: EmProposeEmbargoRef = None
 
 
 class EmRejectEmbargo(as_Reject):
@@ -74,13 +71,9 @@ class EmRejectEmbargo(as_Reject):
     in_reply_to: the EmProposeEmbargo activity that proposed the EmbargoEvent
     """
 
-    as_type: Literal["Reject"] = "Reject"
-
-    as_object: EmbargoEvent | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
-    context: VulnerabilityCase | as_Link | str | None = None
-    in_reply_to: EmProposeEmbargo | as_Link | str | None = None
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    context: VulnerabilityCaseRef = None
+    in_reply_to: EmProposeEmbargoRef = None
 
 
 class ChoosePreferredEmbargo(as_Question):
@@ -92,9 +85,8 @@ class ChoosePreferredEmbargo(as_Question):
 
     # note: not specifying as_object here because Questions are intransitive
 
-    as_type: Literal["Question"] = "Question"
-    any_of: Sequence[EmbargoEvent | as_Link | str | None] | None = None
-    one_of: Sequence[EmbargoEvent | as_Link | str | None] | None = None
+    any_of: Sequence[EmbargoEventRef] | None = None
+    one_of: Sequence[EmbargoEventRef] | None = None
 
 
 class ActivateEmbargo(as_Add):
@@ -105,12 +97,9 @@ class ActivateEmbargo(as_Add):
     in_reply_to: the EmProposeEmbargo activity that proposed the EmbargoEvent
     """
 
-    as_type: Literal["Add"] = "Add"
-    as_object: EmbargoEvent | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
-    target: VulnerabilityCase | as_Link | str | None = None
-    in_reply_to: EmProposeEmbargo | as_Link | str | None = None
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    target: VulnerabilityCaseRef = None
+    in_reply_to: EmProposeEmbargoRef = None
 
 
 class AddEmbargoToCase(as_Add):
@@ -120,11 +109,8 @@ class AddEmbargoToCase(as_Add):
     in response to a previous EmProposeEmbargo activity.
     """
 
-    as_type: Literal["Add"] = "Add"
-    as_object: EmbargoEvent | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
-    target: VulnerabilityCase | as_Link | str | None = None
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
 class AnnounceEmbargo(as_Announce):
@@ -133,11 +119,8 @@ class AnnounceEmbargo(as_Announce):
     context: the VulnerabilityCase for which the EmbargoEvent is active
     """
 
-    as_type: Literal["Announce"] = "Announce"
-    as_object: EmbargoEvent | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
-    context: VulnerabilityCase | as_Link | str | None = None
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    context: VulnerabilityCaseRef = None
 
 
 # remove EmbargoEvent from proposedEmbargoes of VulnerabilityCase
@@ -149,8 +132,5 @@ class RemoveEmbargoFromCase(as_Remove):
     origin: VulnerabilityCase
     """
 
-    as_type: Literal["Remove"] = "Remove"
-    as_object: EmbargoEvent | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
-    origin: VulnerabilityCase | as_Link | str | None = None
+    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    origin: VulnerabilityCaseRef = None

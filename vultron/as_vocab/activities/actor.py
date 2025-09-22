@@ -15,28 +15,24 @@
 Provides Vultron ActivityStreams Activities related to Actors
 """
 
-from typing import Literal
-
 from pydantic import Field
 
-from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
     as_Reject,
 )
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.as_vocab.base.objects.actors import as_ActorRef
+from vultron.as_vocab.objects.vulnerability_case import (
+    VulnerabilityCaseRef,
+)
 
 
 class RecommendActor(as_Offer):
     """The actor is recommending another actor to a case."""
 
-    as_type: Literal["Offer"] = "Offer"
-    as_object: as_Actor | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
-    target: VulnerabilityCase | as_Link | str | None = None
+    as_object: as_ActorRef = Field(default=None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
 class AcceptActorRecommendation(as_Accept):
@@ -44,18 +40,12 @@ class AcceptActorRecommendation(as_Accept):
     Should be followed by an RmInviteToCase activity targeted at the recommended actor.
     """
 
-    as_type: Literal["Accept"] = "Accept"
-    as_object: as_Actor | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
-    target: VulnerabilityCase | as_Link | str | None = None
+    as_object: as_ActorRef = Field(default=None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
 class RejectActorRecommendation(as_Reject):
     """The case owner is rejecting a recommendation to add an actor to the case."""
 
-    as_type: Literal["Reject"] = "Reject"
-    as_object: as_Actor | as_Link | str | None = Field(
-        default=None, alias="object"
-    )
-    target: VulnerabilityCase | as_Link | str | None = None
+    as_object: as_ActorRef = Field(default=None, alias="object")
+    target: VulnerabilityCaseRef = None

@@ -14,9 +14,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from dataclasses import field
-from typing import List
+from typing import List, TypeAlias
 
 from vultron.as_vocab.base import activitystreams_object
+from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.base import as_Object
 
 
@@ -51,11 +52,17 @@ class as_Collection(as_Object):
             self._ids.add(item.as_id)
 
 
+as_CollectionRef: TypeAlias = ActivityStreamRef[as_Collection]
+
+
 @activitystreams_object
 class as_OrderedCollection(as_Collection):
     """A collection that has its items explicitly ordered. The items in the list are assumed to always be in the same order.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-orderedcollection>
     """
+
+
+as_OrderedCollectionRef: TypeAlias = ActivityStreamRef[as_OrderedCollection]
 
 
 @activitystreams_object
@@ -69,12 +76,21 @@ class as_CollectionPage(as_Collection):
     part_of: as_Collection | None = None
 
 
+as_CollectionPageRef: TypeAlias = ActivityStreamRef[as_CollectionPage]
+
+
 @activitystreams_object
 class as_OrderedCollectionPage(as_OrderedCollection, as_CollectionPage):
     """A subset of items from an OrderedCollection.
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-orderedcollectionpage>
     """
+
     start_index: as_CollectionPage | None = None
+
+
+asOrderedCollectionPageRef: TypeAlias = ActivityStreamRef[
+    as_OrderedCollectionPage
+]
 
 
 def main():

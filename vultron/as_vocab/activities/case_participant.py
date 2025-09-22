@@ -14,40 +14,33 @@
 """
 Provides Vultron ActivityStreams Activities related to CaseParticipants
 """
-
-from typing import Literal
+# TODO: remove Literals because parent classes already define them
+# TODO: use pydantic's typing more effectively
 
 from pydantic import Field
 
-from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Add,
     as_Create,
     as_Remove,
 )
-from vultron.as_vocab.objects.case_participant import CaseParticipant
-from vultron.as_vocab.objects.case_status import ParticipantStatus
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.as_vocab.objects.case_participant import CaseParticipantRef
+from vultron.as_vocab.objects.case_status import ParticipantStatusRef
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCaseRef
 
 
 class CreateParticipant(as_Create):
     """Create a new CaseParticipant"""
 
-    as_type: Literal["Create"] = "Create"
-    as_object: CaseParticipant | as_Link | str | None = Field(
-        None, alias="object"
-    )
-    target: VulnerabilityCase | as_Link | str | None = None
+    as_object: CaseParticipantRef = Field(None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
 class CreateStatusForParticipant(as_Create):
     """Create a new CaseStatus for a CaseParticipant"""
 
-    as_type: Literal["Create"] = "Create"
-    as_object: ParticipantStatus | as_Link | str | None = Field(
-        None, alias="object"
-    )
-    target: CaseParticipant | as_Link | str | None = None
+    as_object: ParticipantStatusRef = Field(None, alias="object")
+    target: CaseParticipantRef = None
 
 
 # add CaseStatus to CaseParticipant
@@ -57,11 +50,8 @@ class AddStatusToParticipant(as_Add):
     target: CaseParticipant
     """
 
-    as_type: Literal["Add"] = "Add"
-    as_object: ParticipantStatus | as_Link | str | None = Field(
-        None, alias="object"
-    )
-    target: CaseParticipant | as_Link | str | None = None
+    as_object: ParticipantStatusRef = Field(None, alias="object")
+    target: CaseParticipantRef = None
 
 
 class AddParticipantToCase(as_Add):
@@ -70,11 +60,8 @@ class AddParticipantToCase(as_Add):
     target: VulnerabilityCase
     """
 
-    as_type: Literal["Add"] = "Add"
-    as_object: CaseParticipant | as_Link | str | None = Field(
-        None, alias="object"
-    )
-    as_target: VulnerabilityCase | as_Link | str | None = None
+    as_object: CaseParticipantRef = Field(None, alias="object")
+    as_target: VulnerabilityCaseRef = None
 
 
 class RemoveParticipantFromCase(as_Remove):
@@ -84,8 +71,5 @@ class RemoveParticipantFromCase(as_Remove):
     origin: VulnerabilityCase
     """
 
-    as_type: Literal["Remove"] = "Remove"
-    as_object: CaseParticipant | as_Link | str | None = Field(
-        None, alias="object"
-    )
-    origin: VulnerabilityCase | as_Link | str | None = None
+    as_object: CaseParticipantRef = Field(None, alias="object")
+    origin: VulnerabilityCaseRef = None

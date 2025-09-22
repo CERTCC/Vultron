@@ -14,9 +14,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from dataclasses import field
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 from vultron.as_vocab.base import activitystreams_object
+from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.objects.collections import (
     as_Collection,
@@ -46,6 +47,9 @@ class as_Actor(as_Object):
     # see https://www.w3.org/TR/activitypub/#actors
 
 
+as_ActorRef: TypeAlias = ActivityStreamRef[as_Actor]
+
+
 @activitystreams_object
 class as_Group(as_Actor):
     """A special kind of actor representing a logical group of persons or other actors.
@@ -53,6 +57,9 @@ class as_Group(as_Actor):
     """
 
     as_type: Literal["Group"] = "Group"
+
+
+as_GroupRef: TypeAlias = ActivityStreamRef[as_Group]
 
 
 @activitystreams_object
@@ -64,6 +71,9 @@ class as_Organization(as_Actor):
     as_type: Literal["Organization"] = "Organization"
 
 
+as_OrganizationRef: TypeAlias = ActivityStreamRef[as_Organization]
+
+
 @activitystreams_object
 class as_Application(as_Actor):
     """A special kind of actor representing a software application.
@@ -71,6 +81,9 @@ class as_Application(as_Actor):
     """
 
     as_type: Literal["Application"] = "Application"
+
+
+as_ApplicationRef: TypeAlias = ActivityStreamRef[as_Application]
 
 
 @activitystreams_object
@@ -83,6 +96,9 @@ class as_Service(as_Actor):
     as_type: Literal["Service"] = "Service"
 
 
+as_ServiceRef: TypeAlias = ActivityStreamRef[as_Service]
+
+
 @activitystreams_object
 class as_Person(as_Actor):
     """A special kind of actor representing an individual person.
@@ -90,6 +106,9 @@ class as_Person(as_Actor):
     """
 
     as_type: Literal["Person"] = "Person"
+
+
+as_PersonRef: TypeAlias = ActivityStreamRef[as_Person]
 
 
 def main():

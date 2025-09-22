@@ -17,12 +17,12 @@ Provides various CaseParticipant objects for the Vultron ActivityStreams Vocabul
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from pydantic import Field, field_validator, field_serializer, model_validator
 
 from vultron.as_vocab.base import activitystreams_object
-from vultron.as_vocab.base.links import as_Link
+from vultron.as_vocab.base.links import as_Link, ActivityStreamRef
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.base import VultronObject
 from vultron.as_vocab.objects.case_status import ParticipantStatus
@@ -222,7 +222,6 @@ class DeployerParticipant(CaseParticipant):
         return self
 
 
-
 @activitystreams_object
 class CoordinatorParticipant(CaseParticipant):
     """
@@ -247,6 +246,17 @@ class OtherParticipant(CaseParticipant):
         """Set the OTHER role."""
         self.case_roles = [CVDRole.OTHER]
         return self
+
+
+CaseParticipantRef: TypeAlias = ActivityStreamRef[
+    CaseParticipant
+    | FinderParticipant
+    | ReporterParticipant
+    | VendorParticipant
+    | DeployerParticipant
+    | CoordinatorParticipant
+    | OtherParticipant
+]
 
 
 def main():

@@ -15,10 +15,12 @@ Provides Case Status objects for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from typing import TypeAlias
+
 from pydantic import field_serializer, field_validator, model_validator
 
 from vultron.as_vocab.base import activitystreams_object
-from vultron.as_vocab.base.links import as_Link
+from vultron.as_vocab.base.links import as_Link, ActivityStreamRef
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.objects.base import VultronObject
@@ -62,6 +64,10 @@ class CaseStatus(VultronObject):
         if self.name is None:
             self.name = " ".join([self.em_state.name, self.pxa_state.name])
         return self
+
+
+CaseStatusRef: TypeAlias = ActivityStreamRef[CaseStatus]
+
 
 @activitystreams_object
 class ParticipantStatus(VultronObject):
@@ -107,6 +113,8 @@ class ParticipantStatus(VultronObject):
             self.name = " ".join(parts)
         return self
 
+
+ParticipantStatusRef: TypeAlias = ActivityStreamRef[ParticipantStatus]
 
 
 def main():
