@@ -27,7 +27,10 @@ ENV PYTHONPATH=/app
 # Install pytest and dev dependencies
 RUN uv sync --frozen --dev
 # Run the unit tests
-CMD ["uv", "run", "--project=/app/src", "pytest"]
+CMD ["uv", "run", "pytest"]
 
 FROM dependencies AS docs
-CMD ["uv", "run", "--project=/app/src", "mkdocs", "serve", "--dev-addr", "0.0.0.0:8000"]
+CMD ["uv", "run", "mkdocs", "serve", "--dev-addr", "0.0.0.0:8000"]
+
+FROM dependencies AS vultrabot_demo
+cmd ["uv", "run", "vultrabot"]

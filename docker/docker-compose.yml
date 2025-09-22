@@ -35,3 +35,11 @@ services:
     ports:
       - "8000:8000"
 
+  vultrabot-demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: vultrabot_demo
+    image: ${PROJECT_NAME}-vultrabot-demo:latest
+    depends_on:
+      - dependencies
