@@ -26,7 +26,8 @@ ACTIVITY_STREAMS_NS = "https://www.w3.org/ns/activitystreams"
 class as_Base(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
-        populate_by_name=True,
+        validate_by_name=True,
+        validate_by_alias=True,
     )
 
     as_context: Literal[ACTIVITY_STREAMS_NS] = Field(
