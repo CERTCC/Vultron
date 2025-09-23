@@ -48,6 +48,7 @@ dependencies = [
     "pydantic>=2.11",
     "mkdocs-autorefs>=1.4",
     "mkdocs-bibtex>=4.4",
+    "isodate>=0.7.2",
 ]
 dynamic = ["version",]
 

@@ -16,14 +16,7 @@ This module contains utilities for working with datetime objects.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from datetime import datetime, timedelta
-
-import pytz
-
-from vultron.as_vocab.base.errors import (
-    IsoDecodingError,
-    IsoEncodingError,
-)
+from datetime import datetime, timedelta, timezone
 
 
 def days_from_now_utc(days: int = 45) -> datetime:
@@ -45,41 +38,4 @@ def now_utc() -> datetime:
     Returns:
         A timezone-aware datetime object representing the current time in UTC
     """
-    return datetime.now(pytz.UTC).replace(microsecond=0)
-
-
-def to_isofmt(dt: datetime | str | None) -> str:
-    """Encodes a datetime object into a string.
-    If dt isn't actually a datetime, but it is a string, or None, just return it.
-
-    Args:
-        dt: a datetime object, or a string, or None
-
-    Returns:
-        an iso-formatted date time string if dt is a datetime, otherwise dt
-    """
-    if isinstance(dt, datetime):
-        return datetime.isoformat(dt)
-    if dt is None or isinstance(dt, str):
-        return dt
-    raise IsoEncodingError(f"Can't convert {dt} to string (or None.)")
-
-
-def from_isofmt(datestring: str | datetime | None) -> datetime:
-    """Decodes a string into a datetime object.
-    If datestring isn't actually a string, but it is a datetime, or None, just return it.
-
-    Args:
-        datestring: an iso-formatted date time string
-
-    Returns:
-        a datetime object
-    """
-    if isinstance(datestring, str):
-        return datetime.fromisoformat(datestring)
-    if datestring is None or isinstance(datestring, datetime):
-        return datestring
-
-    raise IsoDecodingError(
-        f"Can't convert {datestring} to datetime (or None.)"
-    )
+    return datetime.now(timezone.utc).replace(microsecond=0)
