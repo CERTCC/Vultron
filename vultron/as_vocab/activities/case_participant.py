@@ -61,7 +61,7 @@ class AddParticipantToCase(as_Add):
     """
 
     as_object: CaseParticipantRef = Field(None, alias="object")
-    as_target: VulnerabilityCaseRef = None
+    target: VulnerabilityCaseRef = None
 
 
 class RemoveParticipantFromCase(as_Remove):

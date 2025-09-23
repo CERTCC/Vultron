@@ -30,7 +30,7 @@ class as_Base(BaseModel):
     )
 
     as_context: Literal[ACTIVITY_STREAMS_NS] = Field(
-        ACTIVITY_STREAMS_NS, alias="@context"
+        default=ACTIVITY_STREAMS_NS, alias="@context"
     )
     as_type: str = Field(default=None, alias="type")
     as_id: str = Field(default_factory=generate_new_id, alias="id")
