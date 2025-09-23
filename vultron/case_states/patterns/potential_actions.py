@@ -111,7 +111,7 @@ def main():
     model = CVDmodel()
     for state in model.states:
         print(f"# State: {state}")
-        print(f"## Potential Actions")
+        print("## Potential Actions")
         for a in action(state):
             print(f"- {enum2title(a)}")
 

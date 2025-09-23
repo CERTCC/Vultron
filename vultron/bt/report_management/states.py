@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -53,7 +53,7 @@ class RM(Enum):
 
     S = REPORT_MANAGEMENT_START
     R = REPORT_MANAGEMENT_RECEIVED
-    I = REPORT_MANAGEMENT_INVALID
+    I = REPORT_MANAGEMENT_INVALID  # noqa: E741
     V = REPORT_MANAGEMENT_VALID
     D = REPORT_MANAGEMENT_DEFERRED
     A = REPORT_MANAGEMENT_ACCEPTED

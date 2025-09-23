@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -87,7 +87,7 @@ class RemediationLevel(Enum):
     NOT_DEFINED = CVSS_31_REMEDIATION_LEVEL_NOT_DEFINED
 
     X = CVSS_31_REMEDIATION_LEVEL_NOT_DEFINED
-    O = CVSS_31_REMEDIATION_LEVEL_OFFICIAL_FIX
+    O = CVSS_31_REMEDIATION_LEVEL_OFFICIAL_FIX  # noqa: E741
     T = CVSS_31_REMEDIATION_LEVEL_TEMPORARY_FIX
     W = CVSS_31_REMEDIATION_LEVEL_WORKAROUND
     U = CVSS_31_REMEDIATION_LEVEL_UNAVAILABLE

@@ -15,7 +15,7 @@ This module defines a Behavior Tree object.
 """
 
 import logging
-from typing import Type
+from typing import Type, Literal
 
 from vultron.bt.base.blackboard import Blackboard
 from vultron.bt.base.bt_node import BtNode
@@ -39,7 +39,11 @@ class BehaviorTree:
 
     bbclass = Blackboard
 
-    def __init__(self, root: BtNode = None, bbclass: Type[Blackboard] = None):
+    def __init__(
+        self,
+        root: BtNode | None = None,
+        bbclass: Type[Blackboard] | None = None,
+    ):
         """
         Initialize the BehaviorTree object.
 
@@ -47,12 +51,12 @@ class BehaviorTree:
             root: the root node of the tree
             bbclass: the blackboard class to use
         """
-        self.root: BtNode = root
+        self.root: BtNode | None = root
         if bbclass is not None:
             self.bbclass = bbclass
 
         self.bb: Blackboard = self.bbclass()
-        self.status: NodeStatus = None
+        self.status: NodeStatus | None = None
 
         # track whether we've done the pre-tick setup stuff
         self._setup: bool = False
@@ -70,7 +74,7 @@ class BehaviorTree:
 
     def __exit__(
         self, exc_type: Exception, exc_val: str, exc_tb: list
-    ) -> bool:
+    ) -> Literal[False]:
         """
         Runtime context for the BehaviorTree object.
 
@@ -97,7 +101,8 @@ class BehaviorTree:
                 logger.debug(f"parent: {obj.name}")
 
             # print(self.root.graph())
-            return False
+
+        return False
 
     def add_root(self, node: BtNode) -> None:
         """Adds a root node to the tree.
@@ -150,9 +155,12 @@ class BehaviorTree:
 
         Returns:
             NodeStatus: the status of the root node after the tick
-
         """
         self._pre_tick()
+
+        if self.root is None:
+            raise BehaviorTreeError("BehaviorTree has no root node")
+
         status = self.root.tick(depth=0)
         self._post_tick()
         self.status = status
@@ -173,7 +181,13 @@ class BehaviorTree:
 
         Returns:
             None
+        Raises:
+            BehaviorTreeError: if the tree has no root node
         """
+        # ensure that root is set before setting up
+        if self.root is None:
+            raise BehaviorTreeError("BehaviorTree has no root node")
+
         self.root.bb = self.bb
         self.root.setup()
         self._setup = True

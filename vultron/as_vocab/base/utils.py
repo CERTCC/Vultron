@@ -16,9 +16,10 @@ Provides utilities for the ActivityStreams Vocabulary.
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import uuid
+from typing import Any
 
 
-def name_of(obj: any) -> str:
+def name_of(obj: Any) -> str:
     """Get the name of an object if it has one, otherwise return the object itself
 
     Args:
@@ -29,12 +30,12 @@ def name_of(obj: any) -> str:
     """
 
     try:
-        return obj.name
+        return str(obj.name)
     except AttributeError:
-        return obj
+        return str(obj)
 
 
-def exclude_if_none(value: any) -> bool:
+def exclude_if_none(value: Any) -> bool:
     """Exclude a field if it is None
 
     Args:
@@ -46,7 +47,7 @@ def exclude_if_none(value: any) -> bool:
     return value is None
 
 
-def exclude_if_empty(value: any) -> bool:
+def exclude_if_empty(value: Any) -> bool:
     """Exclude a field if it is empty
 
     Args:

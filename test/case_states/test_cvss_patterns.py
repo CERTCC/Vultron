@@ -1,4 +1,4 @@
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -26,21 +26,14 @@ class MyTestCase(unittest.TestCase):
     def tearDown(self):
         pass
 
-    def test_cvss_31_e(self):
-        for state in self.model.states:
-            result = cvss.cvss_31_e(state)
-            # result should always be a list of non-zero length of strings of non-zero length
-            self.assertIsInstance(result, list)
-            for item in result:
-                self.assertIsInstance(item, Enum)
-
-    def test_cvss_31_rl(self):
-        for state in self.model.states:
-            result = cvss.cvss_31_rl(state)
-            # result should always be a list of non-zero length of strings of non-zero length
-            self.assertIsInstance(result, list)
-            for item in result:
-                self.assertIsInstance(item, Enum)
+    def test_find_matches(self):
+        for patterndict in [cvss.CVSS_31_E_, cvss.CVSS_31_RL_]:
+            for state in self.model.states:
+                result = cvss.find_matches(state, patterndict)
+                # result should always be a list of non-zero length of strings of non-zero length
+                self.assertIsInstance(result, list)
+                for item in result:
+                    self.assertIsInstance(item, Enum)
 
     def test_cvss_31(self):
         for state in self.model.states:
@@ -52,7 +45,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_cvss_exploitation_state(self):
         for state in self.model.states:
-            result = cvss.cvss_31_e(state)
+            result = cvss.find_matches(state, cvss.CVSS_31_E_)
             # if A in state, then Exploitation: Active should be in result
             if "A" in state:
                 self.assertIn(cvss.CVSS_31_E.HIGH, result)

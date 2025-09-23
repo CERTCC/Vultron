@@ -50,7 +50,7 @@ from vultron.bt.report_management.transitions import (
 
 
 def priority_not_defer(obj: BtNode) -> bool:
-    return obj.bb.priority != ReportPriority.DEFER
+    return bool(obj.bb.priority != ReportPriority.DEFER)
 
 
 _PriorityNotDefer = condition_check("PriorityNotDefer", priority_not_defer)

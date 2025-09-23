@@ -54,7 +54,7 @@ class ActorState(BaseModel):
 
     incoming_messages: Deque = Field(default_factory=deque)
 
-    emit_func: Callable = None
+    emit_func: Callable | None = None
 
     msgs_emitted_this_tick: List[Message | MessageTypes] = Field(
         default_factory=list
