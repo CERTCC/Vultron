@@ -1,3 +1,7 @@
+PROJECT_HOME := .
+VULTRON_DIR := $(PROJECT_HOME)/vultron
+TEST_DIR := $(PROJECT_HOME)/test
+
 # Display help information about available targets
 .PHONY: help
 help:  ## Show this help message
@@ -33,9 +37,27 @@ black:  ## Format code with black
 mdlint:  ## Lint markdown files
 	./mdlint.sh
 
+# flake8
+.PHONY: flake8
+flake8:  ## Check code with flake8
+	# edit $(PROJECT_HOME)/.flake8 to configure flake8 options
+	uv run flake8 ${VULTRON_DIR} ${TEST_DIR}
+
+# flake8 code linting
+.PHONY: flake8-lint
+flake8-lint:  ## Lint code with flake8
+	# edit $(PROJECT_HOME)/.flake8 to configure flake8 options
+	uv run flake8 --exit-zero ${VULTRON_DIR} ${TEST_DIR}
+
+# mypy type checking
+.PHONY: mypy
+mypy:  ## Run mypy for type checking
+	# edit $(PROJECT_HOME)/.mypy.ini to configure mypy options
+	uv run mypy
+
 # run all linters
 .PHONY: lint
-lint: black mdlint  ## Run all linters (black, markdownlint)
+lint: black mdlint flake8-lint mypy ## Run all linters (black, markdownlint)
 
 # serve docs locally
 .PHONY: docs
