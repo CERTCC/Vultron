@@ -76,7 +76,6 @@ class as_Object(as_Base):
     def serialize_duration(self, value: timedelta | None) -> str | None:
         if value is None:
             return None
-
         isostr: str = isodate.duration_isoformat(value)
         return isostr
 
@@ -92,7 +91,6 @@ class as_Object(as_Base):
         if isinstance(value, str):
             td: timedelta = isodate.parse_duration(value)
             return td
-
         return value
 
     @field_serializer(
@@ -101,7 +99,7 @@ class as_Object(as_Base):
     def serialize_datetime(self, value: datetime | None) -> str | None:
         if value is None:
             return value
-        return datetime.isoformat(value)
+        return value.isoformat()
 
     @field_validator(
         "start_time", "end_time", "published", "updated", mode="before"
