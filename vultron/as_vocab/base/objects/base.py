@@ -16,13 +16,12 @@
 from datetime import datetime, timedelta
 from typing import Any, TypeAlias
 
+import isodate
 from pydantic import field_serializer, field_validator, Field
 
 from vultron.as_vocab.base.base import as_Base
 from vultron.as_vocab.base.dt_utils import (
-    from_isofmt,
     now_utc,
-    to_isofmt,
 )
 from vultron.as_vocab.base.links import ActivityStreamRef
 
@@ -77,7 +76,7 @@ class as_Object(as_Base):
     def serialize_duration(self, value: timedelta | None) -> str | None:
         if value is None:
             return None
-        return to_isofmt(value)
+        return isodate.duration_isoformat(value)
 
     @field_validator("duration", mode="before")
     @classmethod
@@ -87,7 +86,7 @@ class as_Object(as_Base):
         if isinstance(value, timedelta):
             return value
         if isinstance(value, str):
-            return from_isofmt(value)
+            return isodate.parse_duration(value)
         return value
 
     @field_serializer(
@@ -96,18 +95,21 @@ class as_Object(as_Base):
     def serialize_datetime(self, value: datetime | None) -> str | None:
         if value is None:
             return None
-        return to_isofmt(value)
+        return value.isoformat()
 
     @field_validator(
         "start_time", "end_time", "published", "updated", mode="before"
     )
     @classmethod
-    def validate_datetime(cls, value: Any) -> datetime | None:
-        if value is None or isinstance(value, datetime):
+    def validate_datetime(
+        cls, value: datetime | str | None
+    ) -> datetime | None:
+        if value is None:
+            return value
+        if isinstance(value, datetime):
             return value
         if isinstance(value, str):
-            return from_isofmt(value)
-        return value
+            return datetime.fromisoformat(value)
 
 
 as_ObjectRef: TypeAlias = ActivityStreamRef[as_Object]

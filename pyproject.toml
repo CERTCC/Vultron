@@ -32,22 +32,23 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "markdown-exec==1.11.0",
-    "mkdocs-include-markdown-plugin==7.1.7",
-    "mkdocs-material-extensions==1.3.1",
-    "mkdocs-material==9.6.20",
-    "mkdocs-print-site-plugin==2.8",
-    "mkdocs==1.6.1",
-    "mkdocstrings-python==1.18.2",
-    "mkdocstrings==0.30.0",
-    "networkx==3.4.2",
-    "owlready2==0.48",
-    "pandas==2.3.2",
-    "rdflib==7.1.4",
-    "scipy==1.15.2",
-    "pydantic==2.10.6",
-    "mkdocs-autorefs==1.4.3",
-    "mkdocs-bibtex==4.4.0",
+    "isodate>=0.7.2",
+    "markdown-exec>=1.11.0",
+    "mkdocs-autorefs>=1.4.3",
+    "mkdocs-bibtex>=4.4.0",
+    "mkdocs-include-markdown-plugin>=7.1.7",
+    "mkdocs-material-extensions>=1.3.1",
+    "mkdocs-material>=9.6.20",
+    "mkdocs-print-site-plugin>=2.8",
+    "mkdocs>=1.6.1",
+    "mkdocstrings-python>=1.18.2",
+    "mkdocstrings>=0.30.1",
+    "networkx>=3.5",
+    "owlready2>=0.48",
+    "pandas>=2.3.2",
+    "pydantic>=2.11.9",
+    "rdflib>=7.2.1",
+    "scipy>=1.16.2",
 ]
 dynamic = ["version",]
 
@@ -76,7 +77,7 @@ version_file = "vultron/_version.py"
 
 [tool.black]
 line-length = 79
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313']
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312' ]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -92,7 +93,12 @@ members = [
 
 [dependency-groups]
 dev = [
-    "black>=25.1.0",
+    "black>=25.9.0",
+    "flake8>=7.3.0",
     "linkchecker>=10.6.0",
-    "pytest==8.4.2",
+    "mypy>=1.18.2",
+    "pandas-stubs>=2.3.2.250827",
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
+    "types-networkx>=3.5.0.20250918",
 ]
