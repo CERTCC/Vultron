@@ -1,4 +1,4 @@
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -13,6 +13,7 @@
 
 import unittest
 from itertools import product
+from typing import Callable, Any
 
 # noinspection PyProtectedMember
 import vultron.bt.messaging.inbound._behaviors.cs_messages as vmc
@@ -22,14 +23,18 @@ from vultron.case_states.states import CS
 
 
 class MockMsg:
-    msg_type: Mt = None
+    msg_type: Mt | None = None
+
+
+def mock_emit(*args):
+    pass
 
 
 class MockState:
-    current_message: MockMsg = None
-    q_cs: CS = None
+    current_message: MockMsg | None = None
+    q_cs: CS | None = None
     name: str = "Foo"
-    emit_func: callable = lambda *x: None
+    emit_func: Callable[[Any], Any] = mock_emit
     msg_history: list = []
     msgs_emitted_this_tick: list = []
     incoming_messages: list = []

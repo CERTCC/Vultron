@@ -22,13 +22,29 @@ from vultron.bt.base.composites import FallbackNode, ParallelNode, SequenceNode
 from vultron.bt.base.decorators import Invert, RepeatUntilFail
 from vultron.bt.base.fuzzer import FuzzerNode
 
-NodeType = TypeVar("NodeType", bound=Type[BtNode])
+NodeType = TypeVar("NodeType", bound=BtNode)
+
+
+def _set_func(node_cls: Type[BtNode], func: Callable[[BtNode], bool]) -> None:
+    """
+    Sets the func attribute of a node_cls to the given function.
+
+    Args:
+        node_cls: a BtNode class
+        func: the function to set as the node_cls's func attribute. Expects a BtNode as an argument and returns a bool
+
+    Returns:
+
+    """
+    if hasattr(node_cls, "func"):
+        # settattr instead of direct assignment to avoid mypy error
+        setattr(node_cls, "func", func)
 
 
 def node_factory(
     node_type: Type[NodeType],
     name: str,
-    docstr: str,
+    docstr: str | None,
     *child_classes: Type[BtNode],
 ) -> Type[NodeType]:
     """
@@ -118,7 +134,9 @@ def invert(
 
 
 def fuzzer(
-    cls: Type[FuzzerNode], name: str, description: str
+    cls: Type[FuzzerNode],
+    name: str,
+    description: str | None,
 ) -> Type[FuzzerNode]:
     """
     Convenience function to create a WeightedSuccess fuzzer with a docstring.
@@ -157,7 +175,7 @@ def condition_check(
 
     """
     node_cls = node_factory(ConditionCheck, name, func.__doc__)
-    node_cls.func = func
+    _set_func(node_cls, func)
     return node_cls
 
 
@@ -182,7 +200,7 @@ def action_node(
         An ActionNode class with the given docstring and action function
     """
     node_cls = node_factory(ActionNode, name, func.__doc__)
-    node_cls.func = func
+    _set_func(node_cls, func)
     return node_cls
 
 
@@ -207,8 +225,8 @@ def repeat_until_fail(
 
 
 def parallel_node(
-    name: str, description: str, min_success: int, *child_classes: Type[BtNode]
-) -> Type[ParallelNode]:
+    name: str, description: str, min_success: int, *child_classes: type[BtNode]
+) -> type[ParallelNode]:
     # make sure min_success is a positive integer
     if (
         not isinstance(min_success, int)
@@ -224,5 +242,7 @@ def parallel_node(
         raise ValueError("ParallelNode should have at least two children")
 
     node_cls = node_factory(ParallelNode, name, description, *child_classes)
-    node_cls.min_success = min_success
+    if hasattr(node_cls, "min_success"):
+        node_cls.min_success = min_success
+
     return node_cls

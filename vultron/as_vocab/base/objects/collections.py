@@ -31,7 +31,7 @@ class as_Collection(as_Object):
     items: List[as_ObjectRef | None] = Field(default_factory=list)
     current: int | None = 0
 
-    # # implement a way to ignore duplicates
+    # TODO implement a way to ignore duplicates
     # _ids: Set[as_Object] = field(default_factory=set, repr=False)
     # _duplicates: bool = field(default=False, repr=False)
 
@@ -48,9 +48,9 @@ class as_Collection(as_Object):
         return len(self.items)
 
     def append(self, item: as_ObjectRef):
-        if not self._duplicates and not item.as_id in self._ids:
-            self.items.append(item)
-            self._ids.add(item.as_id)
+        # if not self._duplicates and item.as_id not in self._ids:
+        self.items.append(item)
+        # self._ids.add(item.as_id)
 
 
 as_CollectionRef: TypeAlias = ActivityStreamRef[as_Collection]
