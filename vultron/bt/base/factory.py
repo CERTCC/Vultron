@@ -63,7 +63,7 @@ def node_factory(
     node_cls = type(name, (node_type,), {})
     node_cls.__doc__ = docstr
 
-    if len(child_classes) > 0 and hasattr(node_cls, "_children"):
+    if len(child_classes) > 0:
         node_cls._children = child_classes
 
     return node_cls
