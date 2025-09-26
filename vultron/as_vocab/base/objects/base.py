@@ -76,7 +76,7 @@ class as_Object(as_Base):
     def serialize_duration(self, value: timedelta | None) -> str | None:
         if value is None:
             return None
-        return isodate.duation_isoformat(value)
+        return isodate.duration_isoformat(value)
 
     @field_validator("duration", mode="before")
     @classmethod
