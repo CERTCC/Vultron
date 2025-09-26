@@ -94,7 +94,7 @@ class as_Object(as_Base):
     )
     def serialize_datetime(self, value: datetime | None) -> str | None:
         if value is None:
-            return value
+            return None
         return datetime.isoformat(value)
 
     @field_validator(
