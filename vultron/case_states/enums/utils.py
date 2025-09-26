@@ -18,7 +18,13 @@ from enum import Enum
 from typing import Iterable
 
 
-def _item_tuple(item: Enum) -> tuple:
+def _item_tuple(item: Enum) -> tuple[type, str | int]:
+    """Returns a tuple of the enum type and value
+    Args:
+        item: an enum item
+    Returns:
+        a tuple of the enum type and value
+    """
     return (type(item), item.value)
 
 

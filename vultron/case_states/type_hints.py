@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+"""
+Provides type hints for case state functions
+"""
+#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -11,6 +14,9 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""
-This package describes the CVD Report Management State Machine as a Behavior Tree.
-"""
+
+from enum import Enum
+from typing import TypeAlias, TypeVar
+
+EnumType = TypeVar("EnumType", bound=Enum)
+EnumTuple: TypeAlias = tuple[EnumType, ...]

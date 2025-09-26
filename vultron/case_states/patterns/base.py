@@ -14,10 +14,21 @@
 
 import re
 
+from vultron.case_states.type_hints import EnumTuple
 from vultron.case_states.validations import is_valid_pattern
 
 
-def compile_patterns(dict_of_patterns):
+def compile_patterns(
+    dict_of_patterns: dict[str, EnumTuple],
+) -> dict[re.Pattern, EnumTuple]:
+    """Compile the patterns in the dictionary keys to regex patterns
+    Args:
+        dict_of_patterns: A dictionary with string patterns as keys and
+            associated information as values
+    Returns:
+        A dictionary with compiled regex patterns as keys and associated
+        information as values
+    """
     # check that all the patterns are valid
     for pattern in dict_of_patterns.keys():
         is_valid_pattern(pattern)

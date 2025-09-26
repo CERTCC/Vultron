@@ -16,7 +16,8 @@ This module contains functions to validate the various strings and patterns used
 """
 
 import re
-from typing import Callable
+from functools import wraps
+from typing import Callable, TypeVar, Any
 
 from vultron.case_states.errors import (
     HistoryValidationError,
@@ -24,6 +25,8 @@ from vultron.case_states.errors import (
     StateValidationError,
     TransitionValidationError,
 )
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 TRANSITION_RULES = [
     # if a matches src, then b must match on dst
@@ -78,7 +81,7 @@ def is_valid_pattern(pat: str) -> None:
         raise PatternValidationError(f"Invalid Pattern [{pat}]")
 
 
-def ensure_valid_pattern(func: Callable) -> Callable:
+def ensure_valid_pattern(func: F) -> F:
     """Function decorator to ensure a valid pattern is passed to a function
 
     Example:
@@ -94,6 +97,7 @@ def ensure_valid_pattern(func: Callable) -> Callable:
         the decorated function
     """
 
+    @wraps(func)  # type: ignore[misc]
     def wrapper(*args, **kwargs):
         # get the pattern from the first arg
         pat = args[0]
@@ -103,7 +107,7 @@ def ensure_valid_pattern(func: Callable) -> Callable:
             raise e
         return func(*args, **kwargs)
 
-    return wrapper
+    return wrapper  # type: ignore[return-value]
 
 
 def is_valid_state(state: str) -> None:
@@ -137,7 +141,7 @@ def is_valid_state(state: str) -> None:
         raise StateValidationError(f"Invalid state [{state}]")
 
 
-def ensure_valid_state(func: Callable) -> Callable:
+def ensure_valid_state(func: F) -> F:
     """Function Decorator to ensure a valid state is passed to a function
 
     Example:
@@ -154,6 +158,7 @@ def ensure_valid_state(func: Callable) -> Callable:
         the decorated function
     """
 
+    @wraps(func)  # type: ignore[misc]
     def wrapper(*args, **kwargs):
         # get the state from the first arg
         state = args[0]
@@ -163,10 +168,10 @@ def ensure_valid_state(func: Callable) -> Callable:
             raise e
         return func(*args, **kwargs)
 
-    return wrapper
+    return wrapper  # type: ignore[return-value]
 
 
-def ensure_valid_state_method_wrapper(func: Callable) -> Callable:
+def ensure_valid_state_method_wrapper(func: F) -> F:
     """Method Decorator to ensure a valid state is passed to a method.
     Equivalent to ensure_valid_state, but for methods.
 
@@ -185,6 +190,7 @@ def ensure_valid_state_method_wrapper(func: Callable) -> Callable:
         the decorated method
     """
 
+    @wraps(func)  # type: ignore[misc]
     def wrapper(self, *args, **kwargs):
         # todo: this part would be cool to use, but it slows things down (doubled the time to run tests)
         # # get method default arguments and add them to the dict we are going to check
@@ -220,7 +226,7 @@ def ensure_valid_state_method_wrapper(func: Callable) -> Callable:
 
         return func(self, *args, **kwargs)
 
-    return wrapper
+    return wrapper  # type: ignore[return-value]
 
 
 def is_valid_transition(src: str, dst: str, allow_null: bool = False) -> None:
@@ -340,7 +346,7 @@ def is_valid_history(h: str) -> None:
         )
 
 
-def ensure_valid_history(func: Callable) -> Callable:
+def ensure_valid_history(func: F) -> F:
     """Decorator to ensure a valid history is passed to a function
 
     Example:
@@ -359,6 +365,7 @@ def ensure_valid_history(func: Callable) -> Callable:
         HistoryValidationError: if the history is invalid
     """
 
+    @wraps(func)  # type: ignore[misc]
     def wrapper(*args, **kwargs):
         # get the history from the first arg
         history = args[0]
@@ -368,4 +375,4 @@ def ensure_valid_history(func: Callable) -> Callable:
             raise e
         return func(*args, **kwargs)
 
-    return wrapper
+    return wrapper  # type: ignore[return-value]

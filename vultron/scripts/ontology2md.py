@@ -17,9 +17,9 @@ Provides helpers to generate a markdown summary of an OWL ontology
 
 import os
 
-import owlready2
+import owlready2  # type: ignore[import]
 
-seen_things = set()
+seen_things: set[owlready2.ThingClass] = set()
 
 
 def _listify(x):
@@ -97,7 +97,8 @@ def thing2md(thing: owlready2.ThingClass, hdrlevel: int = 2) -> list[str]:
         data["Subclasses"] = "<br/>".join(_listify(subclasses))
 
     # we have to be careful about pipe characters in the values
-    mkrow = lambda k, v: f"| {k} | {v.replace('|',' or ')} |"
+    def mkrow(k, v):
+        return f"| {k} | {v.replace('|', ' or ')} |"
 
     # turn data into rows
     for k, v in data.items():
@@ -164,10 +165,8 @@ def ttl2xml(infile: str, outfile: str) -> None:
     # serialize to xml and write to outfile
     g.serialize(destination=outfile, format="xml")
 
-    return outfile
 
-
-def main(infile: str = None) -> list[str]:
+def main(infile: str) -> list[str]:
     """
     Reads an OWL RDF/XML file and returns a list of strings that can be joined
     with newlines to create a markdown blob summarizing the ontology.
@@ -213,16 +212,16 @@ def main(infile: str = None) -> list[str]:
 
         # convert the files to xml
         # remember the name mapping
-        name_map = {}
+        name_map: dict[str, str] = {}
         for ttlfile in Path(tmpdir).glob("*.ttl"):
-            xmlfile = ttlfile.with_suffix("")
-            name_map[os.path.basename(ttlfile)] = xmlfile
-            ttl2xml(ttlfile, xmlfile)
+            xmlfile = str(ttlfile.with_suffix(""))
+            name_map[str(os.path.basename(ttlfile))] = xmlfile
+            ttl2xml(str(ttlfile), str(xmlfile))
 
         # load the ontology
         # for k, v in name_map.items():
         #     print(k, v)
-        xmlinfile = name_map[os.path.basename(infile)]
+        xmlinfile = name_map[str(os.path.basename(infile))]
         # remove PosixPaths and convert to str
         xmlinfile = str(xmlinfile)
 

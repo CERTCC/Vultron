@@ -26,7 +26,7 @@ from vultron.case_states.states import CS
 
 def cs_state_change(
     name: str,
-    target_state: str = None,
+    target_state: str,
 ) -> Type[ActionNode]:
     """
     Factory function to create a class for transitioning to a new CS state.

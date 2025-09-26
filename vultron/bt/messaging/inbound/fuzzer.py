@@ -17,11 +17,10 @@ Provides fuzzer classes for inbound message handling
 
 
 import random
-from typing import Union
 
-from vultron.bt.base.blackboard import Blackboard
 from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.states import RM
+from vultron.bt.states import ActorState
 from vultron.sim.messages import Message
 
 
@@ -43,7 +42,7 @@ def random_external_event_message() -> Message:
     return _message_gen(MessageTypes.CX)
 
 
-def generate_inbound_message(state: Blackboard) -> Union[Message, None]:
+def generate_inbound_message(state: ActorState) -> Message | None:
     # if no report yet, receive a report
     if state.q_rm == RM.START:
         if random.random() < 0.4:

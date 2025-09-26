@@ -49,7 +49,7 @@ def check_msg_type(msg_t: MessageTypes) -> Type[ConditionCheck]:
 
     def func(obj: BtNode) -> bool:
         """True if the current message type is {msg_t}""" ""
-        return obj.bb.current_message.msg_type == msg_t
+        return bool(obj.bb.current_message.msg_type == msg_t)
 
     node_cls = condition_check(f"IsMsgType_{msg_t}", func)
 

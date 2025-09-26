@@ -42,8 +42,6 @@ class Snapshot(ActionNode):
     name = "Snapshot"
 
     def _tick(self, depth=0):
-        global STATELOG
-
         attributes = [
             "msgs_received_this_tick",
             "q_rm",

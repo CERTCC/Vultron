@@ -13,7 +13,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-
 from vultron.case_states.enums.utils import enum2title, unique_enum_list
 from vultron.case_states.enums.zerodays import ZeroDayType
 from vultron.case_states.patterns.base import compile_patterns
@@ -68,7 +67,7 @@ def type_from_history(history: str):
 
     v = history.find("V")
     f = history.find("F")
-    d = history.find("D")
+    # d = history.find("D")
     p = history.find("P")
     x = history.find("X")
     a = history.find("A")
@@ -96,8 +95,7 @@ def type_from_history(history: str):
     return unique_enum_list(ztypes)
 
 
-def main():
-    info: object
+def main() -> None:
     for pat, info in ZERODAYS.items():
         for i in info:
             print(f"* {pat.pattern} => {enum2title(i)}")

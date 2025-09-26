@@ -75,8 +75,8 @@ class ParticipantStatus(VultronObject):
     Represents the status of a participant with respect to a VulnerabilityCase (participant-specific).
     """
 
-    actor: as_Actor | as_Link | str = None
-    context: as_Object | as_Link | str = None
+    actor: as_Actor | as_Link | str
+    context: as_Object | as_Link | str
     rm_state: RM = RM.START
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True

@@ -47,6 +47,7 @@ from vultron.bt.report_management.fuzzer.report_to_others import (
     RecipientEffortExceeded,
 )
 from vultron.case_states.states import CS
+from vultron.errors import VultronError
 from vultron.sim.messages import Message
 
 # from vultron.sim.communications import Message
@@ -56,7 +57,7 @@ logger = logging.getLogger(__name__)
 
 def reporting_effort_available(obj: BtNode) -> bool:
     """True if reporting effort budget remains"""
-    return obj.bb.reporting_effort_budget > 0
+    return bool(obj.bb.reporting_effort_budget > 0)
 
 
 _ReportingEffortAvailable = condition_check(
@@ -167,7 +168,7 @@ def report_to_new_participant(obj: BtNode) -> bool:
         dm = obj.bb.dm_func
         dm(message=report, recipient=obj.bb.currently_notifying)
     except AttributeError:
-        logger.warning(f"Node blackboard dm_func is not set. No message sent.")
+        logger.warning("Node blackboard dm_func is not set. No message sent.")
         return False
 
     return True
@@ -183,7 +184,7 @@ def connect_new_participant_to_case(obj: BtNode) -> bool:
     # wire up their inbox to the case
     add_func = obj.bb.add_participant_func
     if add_func is None:
-        logger.warning(f"Node blackboard add_participant_func is not set.")
+        logger.warning("Node blackboard add_participant_func is not set.")
         return False
 
     add_func(obj.bb.currently_notifying)
@@ -200,15 +201,32 @@ def bring_new_participant_up_to_speed(obj: BtNode) -> bool:
     # EM state is global to the case
     obj.bb.currently_notifying.bt.bb.q_em = obj.bb.q_em
 
-    # FIXME this doesn't work with the new CS enumerations
-    # CS.PXA is 000111, so only the P, X, and A states carry over
-    obj.bb.currently_notifying.bt.bb.q_cs = CS.PXA & obj.bb.q_cs
+    # vfd it per participant
+    # but pxa is per case
+    our_q_cs = obj.bb.q_cs
+    their_q_cs = obj.bb.currently_notifying.bt.bb.q_cs
 
+    # they can keep whatever vfd state they had
+    their_vfd = their_q_cs.value.vfd_state.name
+    # but we need to set their pxa state to match ours
+    our_pxa = our_q_cs.value.pxa_state.name
+
+    # construct the new CS name
+    new_cs_name = their_vfd + our_pxa
+    # look up the new CS enum
+    # and set their state to it
+    try:
+        new_val = CS[new_cs_name]
+    except KeyError:
+        logger.error(f"Invalid new case state name {new_cs_name}")
+        raise VultronError(f"Invalid new case state name {new_cs_name}")
+
+    obj.bb.currently_notifying.bt.bb.q_cs = new_val
     return True
 
 
 _BringNewParticipantUpToSpeed = action_node(
-    "BringNewParticipantUpToSpeed", bring_new_participant_up_to_speed
+    name="BringNewParticipantUpToSpeed", func=bring_new_participant_up_to_speed
 )
 
 
