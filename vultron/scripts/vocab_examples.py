@@ -216,7 +216,7 @@ def create_report() -> RmCreateReport:
     In this example, a finder creates a vulnerability report.
 
     Example:
-          >>> RmCreateReport(actor=finder.as_id, id=report)
+          >>> RmCreateReport(actor=finder.as_id, object=report)
     """
     _finder = finder()
     _report = report()
