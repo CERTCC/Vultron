@@ -16,7 +16,7 @@
 from datetime import datetime, timedelta
 from typing import Any, TypeAlias
 
-import isodate  # type: ignore[import]
+import isodate
 from pydantic import field_serializer, field_validator, Field
 
 from vultron.as_vocab.base.base import as_Base
@@ -76,23 +76,17 @@ class as_Object(as_Base):
     def serialize_duration(self, value: timedelta | None) -> str | None:
         if value is None:
             return None
-
-        isostr: str = isodate.duration_isoformat(value)
-        return isostr
+        return isodate.duration_isoformat(value)
 
     @field_validator("duration", mode="before")
     @classmethod
-    def validate_duration(
-        cls, value: timedelta | str | None
-    ) -> timedelta | None:
+    def validate_duration(cls, value: Any) -> timedelta | None:
         if value is None:
             return value
         if isinstance(value, timedelta):
             return value
         if isinstance(value, str):
-            td: timedelta = isodate.parse_duration(value)
-            return td
-
+            return isodate.parse_duration(value)
         return value
 
     @field_serializer(
@@ -100,8 +94,8 @@ class as_Object(as_Base):
     )
     def serialize_datetime(self, value: datetime | None) -> str | None:
         if value is None:
-            return value
-        return datetime.isoformat(value)
+            return None
+        return value.isoformat()
 
     @field_validator(
         "start_time", "end_time", "published", "updated", mode="before"

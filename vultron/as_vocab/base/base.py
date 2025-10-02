@@ -15,12 +15,7 @@
 
 from typing import Literal
 
-from pydantic import (
-    BaseModel,
-    Field,
-    model_validator,
-    ConfigDict,
-)
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 from pydantic.alias_generators import to_camel
 
 from vultron.as_vocab.base.utils import generate_new_id
@@ -35,10 +30,10 @@ class as_Base(BaseModel):
         validate_by_alias=True,
     )
 
-    as_context: Literal["https://www.w3.org/ns/activitystreams"] = Field(
-        default="https://www.w3.org/ns/activitystreams", alias="@context"
+    as_context: Literal[ACTIVITY_STREAMS_NS] = Field(
+        default=ACTIVITY_STREAMS_NS, alias="@context"
     )
-    as_type: str | None = Field(default=None, alias="type")
+    as_type: str = Field(default=None, alias="type")
     as_id: str = Field(default_factory=generate_new_id, alias="id")
     name: str | None = None
     preview: str | None = None
