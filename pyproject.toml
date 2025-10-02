@@ -50,6 +50,7 @@ dependencies = [
     "pydantic>=2.11.9",
     "rdflib>=7.2.1",
     "scipy>=1.16.2",
+    "uvicorn>=0.37.0",
 ]
 dynamic = ["version",]
 
