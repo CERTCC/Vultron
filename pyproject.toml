@@ -32,6 +32,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
+    "fastapi>=0.118.0",
     "isodate>=0.7.2",
     "markdown-exec>=1.11.0",
     "mkdocs-autorefs>=1.4.3",
