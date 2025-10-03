@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 """
-Vultron API v1 package
+Vultron API Routers
 """
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
@@ -14,4 +15,24 @@ Vultron API v1 package
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-from vultron.api.v1.routers.v1_router import router
+
+from fastapi import APIRouter
+
+from vultron.as_vocab.base.objects.actors import as_Actor
+from vultron.scripts import vocab_examples
+
+router = APIRouter(prefix="/actors", tags=["actors"])
+
+
+@router.get(
+    "/v1/actors/examples",
+    response_model=list[as_Actor],
+    response_model_exclude_none=True,
+    description="Returns a list of Actor examples.",
+)
+def get_actors() -> as_Actor:
+    finder = vocab_examples.finder()
+    vendor = vocab_examples.vendor()
+    coordinator = vocab_examples.coordinator()
+    actors = [finder, vendor, coordinator]
+    return actors

@@ -16,23 +16,20 @@ Vultron API Application
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.api.v1 import router as v1_router
 
 app = FastAPI()
 
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+app.include_router(v1_router)
 
 
-@app.get("/cases")
-async def read_cases() -> list[VulnerabilityCase]:
-    from vultron.scripts.vocab_examples import case
-
-    case_list = [case for _ in range(5)]
-    return case_list
+# root should redirect to docs
+# at least until we have something better to show
+@app.get("/", include_in_schema=False)
+async def redirect_root_to_docs():
+    return RedirectResponse(url="/docs")
 
 
 def main():

@@ -1,5 +1,8 @@
+#!/usr/bin/env python
 """
-Vultron API v1 package
+file: v1_router
+author: adh
+created_at: 10/3/25 9:20 AM
 """
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
@@ -14,4 +17,14 @@ Vultron API v1 package
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-from vultron.api.v1.routers.v1_router import router
+
+from fastapi import APIRouter
+
+from vultron.api.v1.routers import actors, cases, reports
+
+router = APIRouter(prefix="/v1", tags=["v1"])
+
+
+router.include_router(actors.router)
+router.include_router(cases.router)
+router.include_router(reports.router)

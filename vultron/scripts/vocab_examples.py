@@ -7,7 +7,7 @@ Used within the Vultron documentation to provide examples of Vultron ActivityStr
 When run as a script, this module will generate a set of example objects and write them to the docs/reference/examples
 directory.
 """
-#  Copyright (c) 2024-2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -20,6 +20,7 @@ directory.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import random
 from datetime import datetime, timedelta
 
 from vultron.as_vocab.activities.actor import (
@@ -90,24 +91,15 @@ from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
 from vultron.case_states.states import CS_pxa, CS_vfd
 
-#  Copyright (c) 2024 Carnegie Mellon University and Contributors.
-#  - see Contributors.md for a full list of Contributors
-#  - see ContributionInstructions.md for information on how you can Contribute to this project
-#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
-#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
-#  with this Software or contact permission@sei.cmu.edu for full terms.
-#  Created, in part, with funding and support from the United States Government
-#  (see Acknowledgments file). This program may include and/or can make use of
-#  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
-#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
-#  U.S. Patent and Trademark Office by Carnegie Mellon University
-
 base_url = "https://vultron.example"
 user_base_url = f"{base_url}/users"
 case_base_url = f"{base_url}/cases"
 organization_base_url = f"{base_url}/organizations"
 report_base_url = f"{base_url}/reports"
+
+# we're going to generate this once per run
+# so that all the examples in a single run use the same case number
+case_number = random.randint(10000000, 99999999)
 
 
 def _strip_published_udpated(obj: as_Base) -> as_Base:
@@ -191,6 +183,9 @@ def vendor() -> as_Organization:
         name="VendorCo", id=f"{organization_base_url}/vendor"
     )
     return _vendor
+
+
+## REPORT
 
 
 def report() -> VulnerabilityReport:
@@ -278,11 +273,20 @@ def close_report() -> RmCloseReport:
     return activity
 
 
-def case() -> VulnerabilityCase:
+# CASE
+
+
+def case(random_id=False) -> VulnerabilityCase:
     # create a vulnerability case
+
+    if random_id:
+        # generate a random case ID
+        _case_number = random.randint(10000000, 99999999)
+    else:
+        _case_number = case_number
     _case = VulnerabilityCase(
-        name="VENDOR Case #20991514",
-        id=f"{case_base_url}/VDR-20991514",
+        name=f"VENDOR Case #{_case_number}",
+        id=f"{case_base_url}/VDR-{_case_number}",
     )
     return _case
 

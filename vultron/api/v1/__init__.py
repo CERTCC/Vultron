@@ -1,5 +1,5 @@
 """
-Vultron API v1 package
+Vultron API v1 router package
 """
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
