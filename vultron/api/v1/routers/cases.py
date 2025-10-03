@@ -19,8 +19,16 @@ import random
 
 from fastapi import APIRouter
 
-from vultron.as_vocab.activities.case import CreateCase, AddReportToCase
+from vultron.as_vocab.activities.case import (
+    CreateCase,
+    AddReportToCase,
+    RmEngageCase,
+    RmCloseCase,
+    RmDeferCase,
+    AddNoteToCase,
+)
 from vultron.as_vocab.activities.case_participant import AddParticipantToCase
+from vultron.as_vocab.base.objects.activities.transitive import as_Undo
 from vultron.as_vocab.objects.case_participant import CaseParticipant
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
@@ -96,12 +104,12 @@ async def create_case(case: VulnerabilityCase) -> CreateCase:
 
 
 @router.post(
-    "/{id}/add_report",
+    "/{id}/reports",
     response_model=AddReportToCase,
     response_model_exclude_none=True,
     description="Add a new report to an existing Vulnerability Case. (This is a stub implementation.)",
 )
-async def add_new_report_to_case(
+async def post_report_to_case(
     id: str, report: VulnerabilityReport
 ) -> AddReportToCase:
     """Adds a new report to an existing VulnerabilityCase object."""
@@ -109,7 +117,7 @@ async def add_new_report_to_case(
 
 
 @router.put(
-    "/{id}/add_report/{report_id}",
+    "/{id}/reports/{report_id}",
     response_model=AddReportToCase,
     response_model_exclude_none=True,
     description="Associate an existing report to an existing Vulnerability Case. (This is a stub implementation.)",
@@ -120,7 +128,7 @@ async def add_report_to_case(id: str, report_id: str) -> AddReportToCase:
 
 
 @router.post(
-    "/{id}/add_participant",
+    "/{id}/participants",
     response_model=AddParticipantToCase,
     response_model_exclude_none=True,
     description="Add a new participant to an existing Vulnerability Case. (This is a stub implementation.)",
@@ -139,7 +147,7 @@ async def add_participant_to_case(
 
 
 @router.put(
-    "/{id}/add_participant/{participant_id}",
+    "/{id}/participants/{participant_id}",
     response_model=AddParticipantToCase,
     response_model_exclude_none=True,
     description="Associate an existing participant to an existing Vulnerability Case. (This is a stub implementation.)",
@@ -155,3 +163,73 @@ async def add_existing_participant_to_case(
     ]
     func = random.choice(options)
     return func()
+
+
+@router.put(
+    "/{id}/engage",
+    response_model=RmEngageCase,
+    response_model_exclude_none=True,
+    description="Engage a Vulnerability Case by ID. (This is a stub implementation.)",
+)
+async def engage_case_by_id(id: str) -> RmEngageCase:
+    """Engage a VulnerabilityCase by ID. (This is a stub implementation.)"""
+    # In a real implementation, you would retrieve and engage the case from a database.
+    return vocab_examples.engage_case()
+
+
+@router.put(
+    "/{id}/close",
+    response_model=RmCloseCase,
+    response_model_exclude_none=True,
+    description="Close a Vulnerability Case by ID. (This is a stub implementation.)",
+)
+async def close_case_by_id(id: str) -> RmCloseCase:
+    """Close a VulnerabilityCase by ID. (This is a stub implementation.)"""
+    # In a real implementation, you would retrieve and close the case from a database.
+    return vocab_examples.close_case()
+
+
+@router.put(
+    "/{id}/defer",
+    response_model=RmDeferCase,
+    response_model_exclude_none=True,
+    description="Defer a Vulnerability Case by ID. (This is a stub implementation.)",
+)
+async def defer_case_by_id(id: str) -> RmDeferCase:
+    """Defer a VulnerabilityCase by ID. (This is a stub implementation.)"""
+    # In a real implementation, you would retrieve and defer the case from a database.
+    return vocab_examples.defer_case()
+
+
+@router.put(
+    "/{id}/reengage",
+    response_model=as_Undo,
+    response_model_exclude_none=True,
+    description="Re-engage a Vulnerability Case by ID. (This is a stub implementation.)",
+)
+async def reengage_case_by_id(id: str) -> as_Undo:
+    """Re-engage a VulnerabilityCase by ID. (This is a stub implementation.)"""
+    # In a real implementation, you would retrieve and re-engage the case from a database.
+    return vocab_examples.reengage_case()
+
+
+@router.post(
+    "/{id}/notes",
+    response_model=AddNoteToCase,
+    response_model_exclude_none=True,
+    description="Add a note to a case. (This is a stub implementation.)",
+)
+async def add_note_to_case(id: str):
+    """Stub for adding a note to a case."""
+    return vocab_examples.add_note_to_case()
+
+
+@router.put(
+    "/{id}/notes/{note_id}",
+    response_model=AddNoteToCase,
+    response_model_exclude_none=True,
+    description="Associate an existing note to a case. (This is a stub implementation.)",
+)
+async def add_existing_note_to_case(id: str, note_id: str) -> AddNoteToCase:
+    """Stub for associating an existing note to a case."""
+    return vocab_examples.add_note_to_case()

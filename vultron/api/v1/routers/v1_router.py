@@ -20,7 +20,7 @@ created_at: 10/3/25 9:20 AM
 
 from fastapi import APIRouter
 
-from vultron.api.v1.routers import actors, cases, reports
+from vultron.api.v1.routers import actors, cases, reports, notes
 
 router = APIRouter(prefix="/v1", tags=["v1"])
 
@@ -28,3 +28,4 @@ router = APIRouter(prefix="/v1", tags=["v1"])
 router.include_router(actors.router)
 router.include_router(cases.router)
 router.include_router(reports.router)
+router.include_router(notes.router)

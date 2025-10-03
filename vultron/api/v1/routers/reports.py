@@ -130,7 +130,7 @@ async def close_case_by_id(id: str) -> RmCloseReport:
 
 
 @router.put(
-    "/{id}/add_to_case/{case_id}",
+    "/{id}/cases/{case_id}",
     response_model=AddReportToCase,
     response_model_exclude_none=True,
     description="Add a report to an existing Vulnerability Case. (This is a stub implementation.)",
