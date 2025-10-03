@@ -20,12 +20,21 @@ created_at: 10/3/25 9:20 AM
 
 from fastapi import APIRouter
 
-from vultron.api.v1.routers import actors, cases, reports, notes
+from vultron.api.v1.routers import (
+    actors,
+    cases,
+    reports,
+    notes,
+    participants,
+    statuses,
+)
 
-router = APIRouter(prefix="/v1", tags=["v1"])
+router = APIRouter()
 
+router.include_router(reports.router, prefix="/reports")
+router.include_router(cases.router, prefix="/cases")
 
-router.include_router(actors.router)
-router.include_router(cases.router)
-router.include_router(reports.router)
-router.include_router(notes.router)
+router.include_router(actors.router, prefix="/actors")
+router.include_router(notes.router, prefix="/notes")
+router.include_router(participants.router, prefix="/participants")
+router.include_router(statuses.router, prefix="/statuses")

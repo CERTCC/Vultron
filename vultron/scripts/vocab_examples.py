@@ -903,6 +903,9 @@ def create_note():
     return activity
 
 
+ACTOR_FUNCS = [finder, vendor, coordinator]
+
+
 def main():
     outdir = "../../docs/reference/examples"
     print(f"Generating examples to: {outdir}")

@@ -22,7 +22,7 @@ from vultron.api.v1 import router as v1_router
 
 app = FastAPI()
 
-app.include_router(v1_router)
+app.include_router(v1_router, prefix="/api/v1")
 
 
 # root should redirect to docs

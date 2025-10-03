@@ -21,7 +21,7 @@ from vultron.as_vocab.activities.case import AddNoteToCase
 from vultron.as_vocab.base.objects.object_types import as_Note
 from vultron.scripts import vocab_examples
 
-router = APIRouter(prefix="/notes", tags=["notes"])
+router = APIRouter()
 
 
 @router.get(
@@ -29,7 +29,6 @@ router = APIRouter(prefix="/notes", tags=["notes"])
     response_model=as_Note,
     response_model_exclude_none=True,
     description="Get an example Note object.",
-    tags=["examples"],
 )
 def get_example_note() -> as_Note:
     """

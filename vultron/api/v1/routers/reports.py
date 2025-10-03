@@ -2,7 +2,6 @@
 """
 Vultron API Report Routers
 """
-
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -30,7 +29,11 @@ from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.scripts import vocab_examples
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+router = APIRouter()
+
+report_router = APIRouter(prefix="/{id}")
+
+router.include_router(report_router)
 
 
 @router.get(
@@ -38,7 +41,6 @@ router = APIRouter(prefix="/reports", tags=["reports"])
     response_model=VulnerabilityReport,
     response_model_exclude_none=True,
     description="Get an example Vulnerability Report object.",
-    tags=["examples"],
 )
 async def get_report() -> VulnerabilityReport:
     """Returns an example report object."""
@@ -59,12 +61,12 @@ async def validate_report(report: VulnerabilityReport) -> VulnerabilityReport:
 
 
 @router.post(
-    "/create",
+    "/",
     response_model=RmCreateReport,
     response_model_exclude_none=True,
     description="Create a new Vulnerability Report object. (This is a stub implementation.)",
 )
-async def create_case(case: VulnerabilityCase) -> RmCreateReport:
+async def create_report(case: VulnerabilityCase) -> RmCreateReport:
     """Creates a VulnerabilityCase object."""
     return vocab_examples.create_report()
 
@@ -81,8 +83,8 @@ async def submit_case(case: VulnerabilityCase) -> RmSubmitReport:
     return vocab_examples.submit_report()
 
 
-@router.put(
-    "/{id}/read",
+@report_router.put(
+    "/read",
     response_model=RmReadReport,
     response_model_exclude_none=True,
     description="Acknowledge a report has been read. (This is a stub implementation.)",
@@ -93,8 +95,8 @@ async def read_case(id: str) -> RmReadReport:
     return vocab_examples.read_report()
 
 
-@router.put(
-    "/{id}/validate",
+@report_router.put(
+    "/validate",
     response_model=RmValidateReport,
     response_model_exclude_none=True,
     description="Validate a Vulnerability Case by ID. (This is a stub implementation.)",
@@ -105,8 +107,8 @@ async def validate_case_by_id(id: str) -> RmValidateReport:
     return vocab_examples.validate_report()
 
 
-@router.put(
-    "/{id}/invalidate",
+@report_router.put(
+    "/invalidate",
     response_model=RmInvalidateReport,
     response_model_exclude_none=True,
     description="Invalidate a Vulnerability Case by ID. (This is a stub implementation.)",
@@ -117,8 +119,8 @@ async def invalidate_case_by_id(id: str) -> RmInvalidateReport:
     return vocab_examples.invalidate_report()
 
 
-@router.put(
-    "/{id}/close",
+@report_router.put(
+    "/close",
     response_model=RmCloseReport,
     response_model_exclude_none=True,
     description="Close a Vulnerability Case by ID. (This is a stub implementation.)",
@@ -129,8 +131,8 @@ async def close_case_by_id(id: str) -> RmCloseReport:
     return vocab_examples.close_report()
 
 
-@router.put(
-    "/{id}/cases/{case_id}",
+@report_router.put(
+    "/cases/{case_id}",
     response_model=AddReportToCase,
     response_model_exclude_none=True,
     description="Add a report to an existing Vulnerability Case. (This is a stub implementation.)",
