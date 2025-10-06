@@ -16,7 +16,6 @@ Vultron API Report Routers
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 from fastapi import APIRouter
 
-from vultron.as_vocab.activities.case import AddReportToCase
 from vultron.as_vocab.activities.report import (
     RmCloseReport,
     RmInvalidateReport,
@@ -29,18 +28,15 @@ from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.scripts import vocab_examples
 
-router = APIRouter()
-
-report_router = APIRouter(prefix="/{id}")
-
-router.include_router(report_router)
+router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
 @router.get(
-    "/example",
+    "/examples",
     response_model=VulnerabilityReport,
     response_model_exclude_none=True,
     description="Get an example Vulnerability Report object.",
+    tags=["Examples"],
 )
 async def get_report() -> VulnerabilityReport:
     """Returns an example report object."""
@@ -54,10 +50,22 @@ async def get_report() -> VulnerabilityReport:
     response_model_exclude_none=True,
     summary="Validate Report object format",
     description="Validates a Vulnerability Report object.",
+    tags=["Validation"],
 )
 async def validate_report(report: VulnerabilityReport) -> VulnerabilityReport:
     """Validates a VulnerabilityReport object."""
     return report
+
+
+@router.get(
+    "/",
+    response_model=list[VulnerabilityReport],
+    response_model_exclude_none=True,
+    description="Get all Vulnerability Report objects. (scoped to the actor) (This is a stub implementation.)",
+)
+async def get_reports() -> list[VulnerabilityReport]:
+    """Returns a list of all report objects."""
+    return [vocab_examples.report()]
 
 
 @router.post(
@@ -71,6 +79,7 @@ async def create_report(case: VulnerabilityCase) -> RmCreateReport:
     return vocab_examples.create_report()
 
 
+# TODO is this redundant to create_report?
 @router.post(
     "/submit",
     response_model=RmSubmitReport,
@@ -83,8 +92,8 @@ async def submit_case(case: VulnerabilityCase) -> RmSubmitReport:
     return vocab_examples.submit_report()
 
 
-@report_router.put(
-    "/read",
+@router.put(
+    "/{report_id}/read",
     response_model=RmReadReport,
     response_model_exclude_none=True,
     description="Acknowledge a report has been read. (This is a stub implementation.)",
@@ -95,8 +104,8 @@ async def read_case(id: str) -> RmReadReport:
     return vocab_examples.read_report()
 
 
-@report_router.put(
-    "/validate",
+@router.put(
+    "/{report_id}/valid",
     response_model=RmValidateReport,
     response_model_exclude_none=True,
     description="Validate a Vulnerability Case by ID. (This is a stub implementation.)",
@@ -107,8 +116,8 @@ async def validate_case_by_id(id: str) -> RmValidateReport:
     return vocab_examples.validate_report()
 
 
-@report_router.put(
-    "/invalidate",
+@router.put(
+    "/{report_id}/invalid",
     response_model=RmInvalidateReport,
     response_model_exclude_none=True,
     description="Invalidate a Vulnerability Case by ID. (This is a stub implementation.)",
@@ -119,8 +128,8 @@ async def invalidate_case_by_id(id: str) -> RmInvalidateReport:
     return vocab_examples.invalidate_report()
 
 
-@report_router.put(
-    "/close",
+@router.put(
+    "/{report_id}/close",
     response_model=RmCloseReport,
     response_model_exclude_none=True,
     description="Close a Vulnerability Case by ID. (This is a stub implementation.)",
@@ -129,14 +138,3 @@ async def close_case_by_id(id: str) -> RmCloseReport:
     """Close a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and close the case from a database.
     return vocab_examples.close_report()
-
-
-@report_router.put(
-    "/cases/{case_id}",
-    response_model=AddReportToCase,
-    response_model_exclude_none=True,
-    description="Add a report to an existing Vulnerability Case. (This is a stub implementation.)",
-)
-async def add_report_to_case(id: str, case_id: str) -> AddReportToCase:
-    """Adds a report to an existing VulnerabilityCase object."""
-    return vocab_examples.add_report_to_case()

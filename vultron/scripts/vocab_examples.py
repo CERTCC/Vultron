@@ -788,6 +788,7 @@ def propose_embargo() -> EmProposeEmbargo:
     return activity
 
 
+# TODO this seems less like an API call and more like a poll
 def choose_preferred_embargo() -> ChoosePreferredEmbargo:
     embargo_list = [
         embargo_event(90),

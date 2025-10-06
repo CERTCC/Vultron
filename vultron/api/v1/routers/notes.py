@@ -17,18 +17,18 @@ Vultron API Routers
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 from fastapi import APIRouter
 
-from vultron.as_vocab.activities.case import AddNoteToCase
 from vultron.as_vocab.base.objects.object_types import as_Note
 from vultron.scripts import vocab_examples
 
-router = APIRouter()
+router = APIRouter(prefix="/notes", tags=["Notes"])
 
 
 @router.get(
-    "/example",
+    "/examples",
     response_model=as_Note,
     response_model_exclude_none=True,
     description="Get an example Note object.",
+    tags=["Examples"],
 )
 def get_example_note() -> as_Note:
     """
@@ -43,19 +43,8 @@ def get_example_note() -> as_Note:
     response_model_exclude_none=True,
     summary="Validate Note object format",
     description="Validates a Note object.",
+    tags=["Validation"],
 )
 def validate_note(note: as_Note) -> as_Note:
     """Validates a Note object."""
     return note
-
-
-@router.put(
-    "/{id}/cases/{case_id}",
-    response_model=AddNoteToCase,
-    response_model_exclude_none=True,
-    summary="Add Note to Case",
-    description="Adds a Note to an existing Vulnerability Case.",
-)
-def add_note_to_case(id: str, case_id: str) -> AddNoteToCase:
-    """Adds a Note to an existing Vulnerability Case."""
-    return vocab_examples.add_note_to_case()

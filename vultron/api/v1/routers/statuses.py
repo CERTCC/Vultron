@@ -21,42 +21,39 @@ from fastapi import APIRouter
 from vultron.as_vocab.objects.case_status import CaseStatus, ParticipantStatus
 from vultron.scripts import vocab_examples
 
-router = APIRouter()
-
-case_status_router = APIRouter(prefix="/case")
-participant_status_router = APIRouter(prefix="/participant")
-
-router.include_router(case_status_router)
-router.include_router(participant_status_router)
+router = APIRouter(prefix="/statuses", tags=["Statuses"])
 
 
-@case_status_router.get(
-    "/validate",
+@router.post(
+    "/cases/validate",
     response_model=CaseStatus,
     response_model_exclude_none=True,
     description="Validates a CaseStatus object.",
+    tags=["Validation"],
 )
 def validate_case_status(case_status: CaseStatus) -> CaseStatus:
     """Validates a CaseStatus object."""
     return case_status
 
 
-@case_status_router.get(
-    "/example",
+@router.get(
+    "/cases/examples",
     response_model=CaseStatus,
     response_model_exclude_none=True,
     description="Returns an example CaseStatus object.",
+    tags=["Examples"],
 )
 def example_case_status() -> CaseStatus:
     """Returns an example CaseStatus object."""
     return vocab_examples.case_status()
 
 
-@participant_status_router.get(
-    "/validate",
+@router.post(
+    "/participants/validate",
     response_model=ParticipantStatus,
     response_model_exclude_none=True,
     description="Validates a ParticipantStatus object.",
+    tags=["Validation"],
 )
 def validate_participant_status(
     status: ParticipantStatus,
@@ -65,11 +62,12 @@ def validate_participant_status(
     return status
 
 
-@participant_status_router.get(
-    "/example",
+@router.get(
+    "/participants/examples",
     response_model=ParticipantStatus,
     response_model_exclude_none=True,
     description="Returns an example ParticipantStatus object.",
+    tags=["Examples"],
 )
 def example_participant_status() -> ParticipantStatus:
     """Returns an example ParticipantStatus object."""

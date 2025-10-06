@@ -21,15 +21,13 @@ from fastapi import APIRouter
 
 from vultron.as_vocab.activities.case import (
     OfferCaseOwnershipTransfer,
-    AcceptCaseOwnershipTransfer,
-    RejectCaseOwnershipTransfer,
     RmInviteToCase,
 )
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.scripts import vocab_examples
 
-router = APIRouter()
+router = APIRouter(prefix="/actors", tags=["Actors"])
 
 
 @router.get(
@@ -47,10 +45,11 @@ def get_actors() -> as_Actor:
 
 
 @router.get(
-    "/example",
+    "/examples",
     response_model=as_Actor,
     response_model_exclude_none=True,
     description="Get an example Actor object.",
+    tags=["Examples"],
 )
 def get_example_actor() -> as_Actor:
     """
@@ -67,11 +66,23 @@ def get_example_actor() -> as_Actor:
 
 
 @router.post(
-    "/{id}/cases/offer",
+    "/validate",
+    response_model=as_Actor,
+    tags=["Validation"],
+    description="Validate an Actor object.",
+)
+def validate_actor(actor: as_Actor) -> as_Actor:
+    """Validates an Actor object."""
+    return actor
+
+
+@router.post(
+    "/{actor_id}/cases/offers",
     response_model=OfferCaseOwnershipTransfer,
     response_model_exclude_none=True,
     summary="Offer Case to Actor",
     description="Offers a Vulnerability Case to an Actor.",
+    tags=["Case Ownership Transfers", "Cases"],
 )
 def offer_case_to_actor(
     id: str, case: VulnerabilityCase
@@ -80,37 +91,13 @@ def offer_case_to_actor(
     return vocab_examples.offer_case_ownership_transfer()
 
 
-@router.put(
-    "/{id}/offers/{offer_id}/accept",
-    response_model=AcceptCaseOwnershipTransfer,
-    response_model_exclude_none=True,
-    summary="Accept Case Offer",
-    description="Accepts a case offer by an actor.",
-)
-def accept_case_offer(id: str, offer_id: str) -> AcceptCaseOwnershipTransfer:
-    """Accepts a case offer by an actor."""
-    return vocab_examples.accept_case_ownership_transfer()
-
-
-# reject a case offer by an actor
-@router.put(
-    "/{id}/offers/{offer_id}/reject",
-    response_model=RejectCaseOwnershipTransfer,
-    response_model_exclude_none=True,
-    summary="Reject Case Offer",
-    description="Rejects a case offer by an actor.",
-)
-def reject_case_offer(id: str, offer_id: str) -> RejectCaseOwnershipTransfer:
-    """Rejects a case offer by an actor."""
-    return vocab_examples.reject_case_ownership_transfer()
-
-
 @router.post(
-    "/{id}/invitations",
+    "/{actor_id}/cases/invitations",
     response_model=RmInviteToCase,
     response_model_exclude_none=True,
     summary="Invite Actor to Case",
     description="Invites an Actor to a Vulnerability Case.",
+    tags=["Invite Actor to Case", "Cases"],
 )
 def invite_actor_to_case(id: str, case: VulnerabilityCase) -> RmInviteToCase:
     """Invites an Actor to a Vulnerability Case."""
