@@ -15,8 +15,6 @@ Vultron API Routers
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import random
-
 from fastapi import APIRouter
 
 from vultron.as_vocab.activities.case import (
@@ -42,38 +40,6 @@ def get_actors() -> as_Actor:
     coordinator = vocab_examples.coordinator()
     actors = [finder, vendor, coordinator]
     return actors
-
-
-@router.get(
-    "/examples",
-    response_model=as_Actor,
-    response_model_exclude_none=True,
-    description="Get an example Actor object.",
-    tags=["Examples"],
-)
-def get_example_actor() -> as_Actor:
-    """
-    Get an example Actor object
-    """
-    options = [
-        vocab_examples.finder,
-        vocab_examples.vendor,
-        vocab_examples.coordinator,
-    ]
-    func = random.choice(options)
-
-    return func()
-
-
-@router.post(
-    "/validate",
-    response_model=as_Actor,
-    tags=["Validation"],
-    description="Validate an Actor object.",
-)
-def validate_actor(actor: as_Actor) -> as_Actor:
-    """Validates an Actor object."""
-    return actor
 
 
 @router.post(

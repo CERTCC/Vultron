@@ -20,23 +20,57 @@ from fastapi.responses import RedirectResponse
 
 from vultron.api.v1 import router as v1_router
 
-app = FastAPI()
+tags_metadata = [
+    {
+        "name": "Examples",
+        "description": """Actors create Reports and Cases.
+Cases manage the lifecycle of of response to a Report. Cases have Participants,
+which are wrappers around Actors. Participants are scoped to the context of a
+specific case, and have specific role(s) in the Case. Actors
+can post Notes and Embargo Events to Cases. Cases have Statuses, 
+as do individual Participants within the case.
+     
+- `GET` to see a sample object.
+- `POST` an object to run it through the pydantic model validation.
+""",
+    },
+]
+app = FastAPI(openapi_tags=tags_metadata)
 
 app.include_router(v1_router, prefix="/api/v1")
 
 
 # root should redirect to docs
 # at least until we have something better to show
-@app.get("/", include_in_schema=False)
+@app.get("/", include_in_schema=False, description="Redirect to API docs")
 async def redirect_root_to_docs():
     return RedirectResponse(url="/docs")
 
 
 def main():
-    # run the app with uvicorn
-    import uvicorn
+    from fastapi.routing import APIRoute
 
-    uvicorn.run(app, host="localhost", port=7998)
+    # run the app with uvicorn
+    # import uvicorn
+    #
+    # uvicorn.run(app, host="localhost", port=7998)
+    routes_by_tag = dict()
+
+    for route in app.routes:
+        if isinstance(route, APIRoute):
+            if not route.tags:
+                route.tags = ["default"]
+
+            for tag in route.tags:
+                if tag not in routes_by_tag:
+                    routes_by_tag[tag] = []
+                routes_by_tag[tag].append(route)
+    for tag, routes in routes_by_tag.items():
+        print(f"## Tag: {tag}")
+        for route in routes:
+            for method in route.methods:
+                print(f"- `{method} {route.path}` -> {route.description}")
+        print()
 
 
 if __name__ == "__main__":

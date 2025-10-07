@@ -24,10 +24,9 @@ from vultron.api.v1.routers import (
     actors,
     cases,
     reports,
-    notes,
     participants,
-    statuses,
     embargoes,
+    examples,
 )
 
 router = APIRouter()
@@ -38,6 +37,6 @@ router.include_router(cases.router)
 router.include_router(cases.case_router)
 router.include_router(participants.router)
 router.include_router(participants.cp_router)
-router.include_router(statuses.router)
-router.include_router(notes.router)
 router.include_router(embargoes.router)
+
+router.include_router(examples.router)

@@ -26,11 +26,6 @@ from vultron.as_vocab.activities.case_participant import (
     AddParticipantToCase,
 )
 from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.case_participant import (
-    CaseParticipant,
-    FinderParticipant,
-    VendorParticipant,
-)
 from vultron.as_vocab.objects.case_status import ParticipantStatus
 from vultron.bt.roles.states import CVDRoles
 from vultron.scripts import vocab_examples
@@ -44,66 +39,6 @@ router = APIRouter(prefix="/participants", tags=["Participants"])
 cp_router = APIRouter(
     prefix="/cases/{case_id}/participants", tags=["Participants"]
 )
-
-
-def _participant_examples() -> list[CaseParticipant]:
-    finder = vocab_examples.finder()
-    vendor = vocab_examples.vendor()
-    coordinator = vocab_examples.coordinator()
-
-    participants = []
-    _finder = FinderParticipant(
-        id=f"example/participants/{finder.as_id}",
-        name=finder.name,
-        actor=finder.as_id,
-        context="example",
-    )
-    participants.append(_finder)
-    _vendor = VendorParticipant(
-        id=f"example/participants/{vendor.as_id}",
-        name=vendor.name,
-        actor=vendor.as_id,
-        context="example",
-    )
-    participants.append(_vendor)
-    _coordinator = CaseParticipant(
-        id=f"example/participants/{coordinator.as_id}",
-        name=coordinator.name,
-        actor=coordinator.as_id,
-        context="example",
-    )
-    participants.append(_coordinator)
-    return participants
-
-
-@router.get(
-    "/examples",
-    response_model=CaseParticipant,
-    response_model_exclude_none=True,
-    description="Get an example Case Participant object.",
-    tags=["Examples"],
-)
-def get_example_participant() -> CaseParticipant:
-    """
-    Get an example Case Participant object
-    """
-    options = _participant_examples()
-    import random
-
-    return random.choice(options)
-
-
-@router.post(
-    "/validate",
-    response_model=CaseParticipant,
-    response_model_exclude_none=True,
-    summary="Validate Case Participant object format",
-    description="Validates a Case Participant object.",
-    tags=["Validation"],
-)
-def validate_participant(participant: CaseParticipant) -> CaseParticipant:
-    """Validates a Case Participant object."""
-    return participant
 
 
 @cp_router.post(
@@ -121,7 +56,7 @@ async def add_actor_to_case_as_participant(
 
 
 @cp_router.post(
-    "/{actor_id}",
+    "/{participant_id}",
     response_model=AddParticipantToCase,
     response_model_exclude_none=True,
     description="Associate an actor to an existing Vulnerability Case as a participant. (This is a stub implementation.)",
@@ -138,6 +73,20 @@ async def add_existing_participant_to_case(
     ]
     func = random.choice(options)
     return func()
+
+
+@cp_router.delete(
+    "/{participant_id}",
+    response_model=RemoveParticipantFromCase,
+    response_model_exclude_none=True,
+    description="Remove a participant from a Vulnerability Case. (This is a stub implementation.)",
+    tags=["Cases", "Participants"],
+)
+async def remove_participant_from_case(
+    case_id: str, participant_id: str
+) -> RemoveParticipantFromCase:
+    """Removes a participant from a VulnerabilityCase. (This is a stub implementation.)"""
+    return vocab_examples.remove_participant_from_case()
 
 
 @cp_router.get(
@@ -168,17 +117,3 @@ async def add_status_to_participant(
 ) -> AddStatusToParticipant:
     """Adds a new status to a participant in a VulnerabilityCase."""
     return vocab_examples.add_status_to_participant()
-
-
-@cp_router.delete(
-    "/{participant_id}",
-    response_model=RemoveParticipantFromCase,
-    response_model_exclude_none=True,
-    description="Remove a participant from a Vulnerability Case. (This is a stub implementation.)",
-    tags=["Cases", "Participants"],
-)
-async def remove_participant_from_case(
-    case_id: str, participant_id: str
-) -> RemoveParticipantFromCase:
-    """Removes a participant from a VulnerabilityCase. (This is a stub implementation.)"""
-    return vocab_examples.remove_participant_from_case()

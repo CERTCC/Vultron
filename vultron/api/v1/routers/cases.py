@@ -41,9 +41,7 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Undo,
     as_Create,
 )
-from vultron.as_vocab.objects.case_participant import CaseParticipant
-from vultron.as_vocab.objects.case_status import CaseStatus, ParticipantStatus
-from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+from vultron.as_vocab.objects.case_status import CaseStatus
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.scripts import vocab_examples
@@ -53,29 +51,6 @@ case_router = APIRouter(prefix="/cases/{case_id}", tags=["Cases"])
 
 
 # Generic case methods
-@router.get(
-    "/examples",
-    response_model=VulnerabilityCase,
-    response_model_exclude_none=True,
-    description="Get an example Vulnerability Case object.",
-    tags=["Examples"],
-)
-async def get_case() -> VulnerabilityCase:
-    """Returns an example VulnerabilityCase object."""
-    return vocab_examples.case()
-
-
-@router.post(
-    "/validate",
-    response_model=VulnerabilityCase,
-    response_model_exclude_none=True,
-    description="Validates a Vulnerability Case object.",
-    summary="Validate Case object format",
-    tags=["Cases"],
-)
-async def validate_case(case: VulnerabilityCase) -> VulnerabilityCase:
-    """Validates a VulnerabilityCase object."""
-    return case
 
 
 @router.get(
@@ -117,6 +92,7 @@ async def update_case(case_id: str, case: VulnerabilityCase) -> UpdateCase:
     return vocab_examples.update_case()
 
 
+# TODO move to reports router?
 @case_router.post(
     "/reports",
     response_model=AddReportToCase,
@@ -131,7 +107,7 @@ async def post_report_to_case(
     return vocab_examples.add_report_to_case()
 
 
-@case_router.put(
+@case_router.post(
     "/engage",
     response_model=RmEngageCase,
     response_model_exclude_none=True,
@@ -144,7 +120,7 @@ async def engage_case_by_id(case_id: str) -> RmEngageCase:
     return vocab_examples.engage_case()
 
 
-@case_router.put(
+@case_router.post(
     "/close",
     response_model=RmCloseCase,
     response_model_exclude_none=True,
@@ -157,7 +133,7 @@ async def close_case_by_id(case_id: str) -> RmCloseCase:
     return vocab_examples.close_case()
 
 
-@case_router.put(
+@case_router.post(
     "/defer",
     response_model=RmDeferCase,
     response_model_exclude_none=True,
@@ -170,7 +146,7 @@ async def defer_case_by_id(case_id: str) -> RmDeferCase:
     return vocab_examples.defer_case()
 
 
-@case_router.put(
+@case_router.post(
     "/reengage",
     response_model=as_Undo,
     response_model_exclude_none=True,
@@ -183,7 +159,7 @@ async def reengage_case_by_id(case_id: str) -> as_Undo:
     return vocab_examples.reengage_case()
 
 
-@case_router.put(
+@case_router.post(
     "/reports/{report_id}",
     response_model=AddReportToCase,
     response_model_exclude_none=True,
@@ -207,7 +183,7 @@ async def add_note_to_case(case_id: str):
     return vocab_examples.create_note()
 
 
-@router.put(
+@router.post(
     "/{case_id}/notes/{note_id}",
     response_model=AddNoteToCase,
     response_model_exclude_none=True,
@@ -348,18 +324,6 @@ async def get_case_statuses(case_id: str) -> list[CaseStatus]:
     return statuses
 
 
-@router.get(
-    "/statuses/examples",
-    response_model=CaseStatus,
-    response_model_exclude_none=True,
-    description="Get an example Case Status object.",
-    tags=["Examples"],
-)
-async def get_example_case_status() -> CaseStatus:
-    """Returns an example CaseStatus object."""
-    return vocab_examples.case_status()
-
-
 @router.post(
     "/{case_id}/statuses",
     response_model=CreateCaseStatus,
@@ -384,41 +348,3 @@ async def create_case_status(
 async def add_status_to_case(case_id: str, status_id: str) -> AddStatusToCase:
     """Adds an existing status to a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.add_status_to_case()
-
-
-@router.get(
-    "/participants/examples",
-    response_model=CaseParticipant,
-    response_model_exclude_none=True,
-    description="Get an example Case Participant object.",
-    tags=["Examples"],
-)
-async def get_example_participant() -> CaseParticipant:
-    """Returns an example CaseParticipant object."""
-    return vocab_examples.case_participant()
-
-
-@router.get(
-    "/participants/statuses/examples",
-    response_model=ParticipantStatus,
-    response_model_exclude_none=True,
-    description="Get an example Participant Status object.",
-    tags=["Examples"],
-)
-async def get_example_participant_status() -> ParticipantStatus:
-    """Returns an example ParticipantStatus object."""
-    return vocab_examples.participant_status()
-
-
-# this just provides an example EmbargoEvent object
-# without having to know a case ID
-@router.get(
-    "/embargoes/examples",
-    response_model=EmbargoEvent,
-    response_model_exclude_none=True,
-    description="Get an example Embargo Event object.",
-    tags=["Examples", "Embargoes"],
-)
-async def get_example_embargo() -> EmbargoEvent:
-    """Returns an example EmbargoEvent object."""
-    return vocab_examples.embargo_event()

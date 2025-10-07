@@ -32,32 +32,6 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
 
 
 @router.get(
-    "/examples",
-    response_model=VulnerabilityReport,
-    response_model_exclude_none=True,
-    description="Get an example Vulnerability Report object.",
-    tags=["Examples"],
-)
-async def get_report() -> VulnerabilityReport:
-    """Returns an example report object."""
-    report = VulnerabilityReport(content="This is an example report.")
-    return report
-
-
-@router.post(
-    "/validate",
-    response_model=VulnerabilityReport,
-    response_model_exclude_none=True,
-    summary="Validate Report object format",
-    description="Validates a Vulnerability Report object.",
-    tags=["Validation"],
-)
-async def validate_report(report: VulnerabilityReport) -> VulnerabilityReport:
-    """Validates a VulnerabilityReport object."""
-    return report
-
-
-@router.get(
     "/",
     response_model=list[VulnerabilityReport],
     response_model_exclude_none=True,
