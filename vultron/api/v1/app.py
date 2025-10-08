@@ -17,7 +17,7 @@ Vultron API v1 Application
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 from fastapi import FastAPI
 
-from .routers.v1_router import router
+from .routers import router
 
 tags_metadata = [
     {

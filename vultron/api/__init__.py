@@ -1,5 +1,5 @@
 """
-Vultron API v1 package
+Vultron API package
 """
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
@@ -14,4 +14,3 @@ Vultron API v1 package
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-from vultron.api.v1.routers.v1_router import router

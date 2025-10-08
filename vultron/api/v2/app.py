@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 """
-Vultron API v1 router package
+Vultron API v2 Application
 """
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
@@ -14,6 +15,31 @@ Vultron API v1 router package
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+from fastapi import FastAPI
 
-from .app import app_v1  # noqa: F401
-from .routers import router  # noqa: F401
+from .routers import router
+
+tags_metadata = [
+    {
+        "name": "Examples",
+        "description": """Actors create Reports and Cases.
+Cases manage the lifecycle of of response to a Report. Cases have Participants,
+which are wrappers around Actors. Participants are scoped to the context of a
+specific case, and have specific role(s) in the Case. Actors
+can post Notes and Embargo Events to Cases. Cases have Statuses, 
+as do individual Participants within the case.
+
+- `GET` to see a sample object.
+- `POST` an object to run it through the pydantic model validation.
+""",
+    },
+]
+
+app_v2 = FastAPI(
+    title="Vultron API v2",
+    version="0.2.0",
+    docs_url="/docs",
+    openapi_url="/openapi/v2.json",
+    openapi_tags=tags_metadata,
+)
+app_v2.include_router(router)
