@@ -22,7 +22,7 @@ from vultron.bt.base.composites import FallbackNode, ParallelNode, SequenceNode
 from vultron.bt.base.decorators import Invert, RepeatUntilFail
 from vultron.bt.base.fuzzer import FuzzerNode
 
-NodeType = TypeVar("NodeType", bound=BtNode)
+NodeType = TypeVar("NodeType", bound=Type[BtNode])
 
 
 def _set_func(node_cls: Type[BtNode], func: Callable[[BtNode], bool]) -> None:
