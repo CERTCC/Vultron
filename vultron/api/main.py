@@ -19,8 +19,10 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.responses import RedirectResponse
 
-from vultron.api.v1.app import app_v1
+from vultron.api.v1 import app_v1
+from vultron.api.v2 import app_v2
 
+#
 # from api.v2.app import app_v2
 
 app = FastAPI(
@@ -32,7 +34,7 @@ app = FastAPI(
 # Mount each version
 app.mount("/api/v1", app_v1)
 
-# app.mount("/v2", app_v2)
+app.mount("/api/v2", app_v2)
 
 
 # Simple HTML landing page
@@ -45,7 +47,7 @@ async def custom_docs_home():
         <h1>API Documentation</h1>
         <ul>
           <li><a href="/api/v1/docs">v1 Docs</a></li>
-          <!-- <li><a href="/api/v2/docs">v2 Docs</a></li> -->
+          <li><a href="/api/v2/docs">v2 Docs</a></li>
         </ul>
       </body>
     </html>

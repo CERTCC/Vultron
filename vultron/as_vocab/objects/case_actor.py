@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 """
-Vultron API v1 router package
+Defines a CaseActor class for the Vultron ActivityStreams Vocabulary.
 """
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
@@ -15,5 +16,22 @@ Vultron API v1 router package
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from .app import app_v1  # noqa: F401
-from .routers import router  # noqa: F401
+from vultron.as_vocab.base.objects.actors import as_Service
+
+
+class CaseActor(as_Service):
+    """
+    A CaseActor is a software service wrapper around a VulnerabilityCase object.
+    It provides an inbox/outbox for the case to manage communications related to the case.
+    """
+
+    # attributed_to: (Actor) Case Owner
+    # context: (VulnerabilityCase) The case this actor is associated with
+
+    pass
+
+
+if __name__ == "__main__":
+    print("This module is intended to be imported, not run directly.")
+
+    print(CaseActor().model_dump_json(indent=2))

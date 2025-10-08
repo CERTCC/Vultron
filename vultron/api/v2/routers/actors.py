@@ -1,0 +1,166 @@
+#!/usr/bin/env python
+"""
+Vultron API Routers
+"""
+#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from fastapi import APIRouter, HTTPException
+
+from vultron.api.v2.backend.actors import ACTOR_REGISTRY
+from vultron.api.v2.backend.helpers import obj_from_item
+from vultron.as_vocab.activities.case import (
+    OfferCaseOwnershipTransfer,
+    RmInviteToCase,
+)
+from vultron.as_vocab.base.objects.activities.transitive import as_Create
+from vultron.as_vocab.base.objects.actors import as_Actor
+from vultron.as_vocab.base.objects.collections import as_OrderedCollection
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.scripts import vocab_examples
+
+# Register example actors in the ACTOR_REGISTRY
+for _actor in [
+    vocab_examples.finder(),
+    vocab_examples.vendor(),
+    vocab_examples.coordinator(),
+]:
+    ACTOR_REGISTRY.register_actor(_actor)
+
+router = APIRouter(prefix="/actors", tags=["Actors"])
+
+
+@router.get(
+    "/",
+    response_model=list[as_Actor],
+    response_model_exclude_none=True,
+    description="Returns a list of Actor examples.",
+)
+def get_actors() -> list[as_Actor]:
+    return ACTOR_REGISTRY.list_actors()
+
+
+@router.get(
+    "/{actor_id}",
+    response_model=as_Actor,
+    response_model_exclude_none=True,
+    description="Returns an Actor. (stub implementation).",
+)
+def get_actor(actor_id: str) -> as_Actor:
+    """Returns an Actor example based on the provided actor_id."""
+    actor = ACTOR_REGISTRY.get_actor(actor_id)
+    if actor is None:
+        raise HTTPException(status_code=404, detail="Actor not found.")
+    return actor
+
+
+@router.get(
+    "/{actor_id}/inbox",
+    response_model=as_OrderedCollection,
+    response_model_exclude_none=True,
+    summary="Get Actor Inbox",
+    description="Returns the Actor's Inbox. (stub implementation).",
+)
+def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
+    """Returns the Actor's Inbox."""
+    actor: as_Actor = get_actor(actor_id)
+
+    return actor.inbox
+
+
+@router.post(
+    "/{actor_id}/inbox",
+    response_model=as_Create,
+    response_model_exclude_none=True,
+    summary="Add an item to the Actor's Inbox.",
+    description="Adds an item to the Actor's Inbox. (stub implementation).",
+)
+def post_actor_inbox(actor_id: str, item: dict) -> as_Create:
+    """Adds an item to the Actor's Inbox."""
+    # find the item class based on the "type" field
+    # is item["type"] set?
+    obj = obj_from_item(item)
+
+    actor: as_Actor = get_actor(actor_id)
+    actor.inbox.items.append(obj)
+
+    return as_Create(
+        object=obj,
+        target=actor_id,
+        actor=actor_id,
+    )
+
+
+@router.get(
+    "/{actor_id}/outbox",
+    response_model=as_OrderedCollection,
+    response_model_exclude_none=True,
+    summary="Get Actor Outbox",
+    description="Returns the Actor's Outbox. (stub implementation).",
+)
+def get_actor_outbox(actor_id: str) -> as_OrderedCollection:
+    """Returns the Actor's Outbox."""
+    actor: as_Actor = get_actor(actor_id)
+
+    return actor.outbox
+
+
+@router.post(
+    "/{actor_id}/outbox",
+    response_model=as_Create,
+    response_model_exclude_none=True,
+    summary="Add an item to the Actor's Outbox.",
+    description="Adds an item to the Actor's Outbox. (stub implementation).",
+)
+def post_actor_outbox(actor_id: str, item: dict) -> as_Create:
+    """Adds an item to the Actor's Outbox."""
+    # find the item class based on the "type" field
+    obj = obj_from_item(item)
+
+    actor: as_Actor = get_actor(actor_id)
+
+    actor.outbox.items.append(obj)
+
+    return as_Create(
+        object=obj,
+        target=actor_id,
+        actor=actor_id,
+    )
+
+
+@router.post(
+    "/{actor_id}/cases/offers",
+    response_model=OfferCaseOwnershipTransfer,
+    response_model_exclude_none=True,
+    summary="Offer Case to Actor",
+    description="Offers a Vulnerability Case to an Actor.",
+    tags=["Case Ownership Transfers", "Cases"],
+)
+def offer_case_to_actor(
+    id: str, case: VulnerabilityCase
+) -> OfferCaseOwnershipTransfer:
+    """Offers a Vulnerability Case to an Actor."""
+    return vocab_examples.offer_case_ownership_transfer()
+
+
+@router.post(
+    "/{actor_id}/cases/invitations",
+    response_model=RmInviteToCase,
+    response_model_exclude_none=True,
+    summary="Invite Actor to Case",
+    description="Invites an Actor to a Vulnerability Case.",
+    tags=["Invite Actor to Case", "Cases"],
+)
+def invite_actor_to_case(id: str, case: VulnerabilityCase) -> RmInviteToCase:
+    """Invites an Actor to a Vulnerability Case."""
+    return vocab_examples.invite_to_case()
