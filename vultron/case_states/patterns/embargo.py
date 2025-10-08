@@ -67,7 +67,7 @@ def embargo_viability(state: str) -> list[EmbargoViability]:
     Returns:
         the viability of an embargo
     """
-    results: list[EnumTuple] = []
+    results: list[EmbargoViability] = []
     for pattern, viability in EMBARGO_VIABILITY.items():
         if re.match(pattern, state):
             results.extend(viability)
