@@ -218,8 +218,8 @@ def bring_new_participant_up_to_speed(obj: BtNode) -> bool:
     try:
         new_val = CS[new_cs_name]
     except KeyError:
-        logger.error(f"Invalid new case state name {new_cs_name}")
-        raise VultronError(f"Invalid new case state name {new_cs_name}")
+        logger.error("Invalid new case state name: %s", new_cs_name, exc_info=True)
+        raise VultronError("Invalid new case state name")
 
     obj.bb.currently_notifying.bt.bb.q_cs = new_val
     return True
