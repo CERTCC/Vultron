@@ -35,8 +35,8 @@ class as_Base(BaseModel):
         validate_by_alias=True,
     )
 
-    as_context: Literal["https://www.w3.org/ns/activitystreams"] = Field(
-        default="https://www.w3.org/ns/activitystreams", alias="@context"
+    as_context: Literal[ACTIVITY_STREAMS_NS] = Field(
+        default=ACTIVITY_STREAMS_NS, alias="@context"
     )
     as_type: str | None = Field(default=None, alias="type")
     as_id: str = Field(default_factory=generate_new_id, alias="id")
