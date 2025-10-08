@@ -75,7 +75,7 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Undo,
 )
 from vultron.as_vocab.base.objects.actors import as_Organization, as_Person
-from vultron.as_vocab.base.objects.object_types import as_Note
+from vultron.as_vocab.base.objects.object_types import as_Note, as_Event
 from vultron.as_vocab.objects.case_participant import (
     CaseParticipant,
     CoordinatorParticipant,
