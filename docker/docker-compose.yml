@@ -23,6 +23,12 @@ services:
     image: ${PROJECT_NAME}-test:latest
     depends_on:
       - dependencies
+    volumes:
+      # Bind mount the vultron and test directories to allow for live code changes during development
+      - "../vultron:/app/vultron"
+      - "../test:/app/test"
+      # create a volume for the virtual environment to persist between restarts that is not bind-mounted to the host
+      - "/app/.venv"
 
   docs:
     build:
@@ -56,5 +62,7 @@ services:
       - "7999:7999"
     volumes:
       - "../vultron:/app/vultron"
+      # create a volume for the virtual environment to persist between restarts that is not bind-mounted to the host
+      - "/app/.venv"
     environment:
       - PYTHONPATH=/app
