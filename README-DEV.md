@@ -16,9 +16,9 @@ cd docker
 docker-compose up test
 ```
 
-## Run a _Vultrabot_ demo
+## Run a *Vultrabot* demo
 
-_Vultrabot_ was an early demo for a Vultron protocol demonstration script.
+*Vultrabot* was an early demo for a Vultron protocol demonstration script.
 You can run it in a Docker container as follows:
 
 ```shell
@@ -34,7 +34,6 @@ the protocol behaviors in response to changing conditions as a case evolves.
 Each run of the demo will be different, as the behavior tree has
 some randomness in its decision-making.
 
-
 ## Run the Vultron API in a Docker Container with Hot Reloading
 
 We're actively working on the Vultron API, and you can run it in a Docker container
@@ -44,7 +43,8 @@ with hot reloading as follows:
 cd docker
 docker-compose up api-dev
 ```
-Then browse to http://localhost:7999
+
+Then browse to <http://localhost:7999>
 
 If you make changes to the code, the server will automatically reload.
 You can stop the server with Ctrl-C.
@@ -61,9 +61,6 @@ cd docker
 docker-compose up docs
 ```
 
-Then browse to http://localhost:8000
+Then browse to <http://localhost:8000>
 
-The "real" site lives at https://certcc.github.io/Vultron/
-
-
-
+The "real" site lives at <https://certcc.github.io/Vultron/>
