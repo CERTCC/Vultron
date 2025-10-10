@@ -78,3 +78,12 @@ docker_up:  ## Start docker containers
 .PHONY: docker_rebuild
 docker_rebuild:  ## Rebuild and restart docker containers
 	cd docker && docker-compose up -d --build --force-recreate
+
+
+.PHONY: api_dev
+api_dev:  ## Start API server in development mode
+	uv run uvicorn vultron.api:app --reload --port 7999
+
+.PHONY: docker_api_dev
+docker_api_dev: docker_up  ## Start API server in Docker in development mode
+	cd docker && docker-compose up api-dev
