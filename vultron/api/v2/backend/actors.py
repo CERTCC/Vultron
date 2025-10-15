@@ -17,10 +17,14 @@ Vultron API Actors Backend
 
 import base64
 import binascii
+import logging
+import urllib
 
 from pydantic import BaseModel, Field
 
 from vultron.as_vocab.base.objects.actors import as_Actor
+
+logger = logging.getLogger(__name__)
 
 
 class ActorRegistry(BaseModel):
@@ -34,13 +38,27 @@ class ActorRegistry(BaseModel):
     def register_actor(self, actor: as_Actor) -> None:
         actor_id = actor.as_id
 
-        # url encode the actor_id if necessary
         if actor_id is None:
             raise ValueError("Actor must have an id")
 
-        key = base64.urlsafe_b64encode(actor_id.encode("utf-8")).decode(
-            "ascii"
-        )
+        # actor_id should be a url
+        if not actor_id.startswith("http://") and not actor_id.startswith(
+            "https://"
+        ):
+            raise ValueError("Actor id must be a valid URL")
+
+        # split the url into parts
+        parsed = urllib.parse.urlparse(actor_id)
+
+        path = parsed.path.rstrip("/")
+        path_parts = path.split("/")
+
+        # get the last segment of the path
+        last_part = path_parts[-1]
+        logger.info(f"Registering actor {actor_id}")
+
+        key = last_part
+
         self.actors[key] = actor
 
     def get_actor(self, actor_id: str) -> as_Actor | None:
@@ -59,16 +77,7 @@ class ActorRegistry(BaseModel):
             return self.actors.get(actor_id)
 
     def list_actors(self) -> list[as_Actor] | None:
-        # replace id with base64 encoded id
-        encoded_actors = []
-        for actor in self.actors.values():
-            actor_copy = as_Actor.model_validate(actor.model_dump())
-            if actor_copy.as_id:
-                actor_copy.as_id = base64.urlsafe_b64encode(
-                    actor_copy.as_id.encode("utf-8")
-                ).decode("ascii")
-            encoded_actors.append(actor_copy)
-        return list(encoded_actors) if encoded_actors else None
+        return list(self.actors.values()) if self.actors else None
 
 
 ACTOR_REGISTRY = ActorRegistry()
