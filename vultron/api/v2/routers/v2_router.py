@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 """
-file: v1_router
-author: adh
-created_at: 10/3/25 9:20 AM
+Vultron API v2 Routers
 """
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
@@ -20,23 +18,13 @@ created_at: 10/3/25 9:20 AM
 
 from fastapi import APIRouter
 
-from vultron.api.v1.routers import (
+from vultron.api.v2.routers import (
     actors,
-    cases,
-    reports,
-    participants,
-    embargoes,
     examples,
 )
 
 router = APIRouter()
 
 router.include_router(actors.router)
-router.include_router(reports.router)
-router.include_router(cases.router)
-router.include_router(cases.case_router)
-router.include_router(participants.router)
-router.include_router(participants.cp_router)
-router.include_router(embargoes.router)
 
 router.include_router(examples.router)
