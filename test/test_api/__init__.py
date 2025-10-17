@@ -12,5 +12,5 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Tests for Vulcan API endpoints.
+Tests for Vultron API endpoints.
 """
