@@ -85,7 +85,9 @@ async def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def post_actor_inbox(
-    actor_id: str, activity: as_Activity, background_tasks: BackgroundTasks
+    actor_id: str,
+    activity: as_Activity,
+    background_tasks: BackgroundTasks,
 ) -> None:
     """Adds an item to the Actor's Inbox.
     The 202 Accepted status code indicates that the request has been accepted for

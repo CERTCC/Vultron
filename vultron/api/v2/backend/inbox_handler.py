@@ -19,57 +19,77 @@ Vultron Actor Inbox Handler
 import asyncio
 import logging
 
+from pydantic import ValidationError
+
 from vultron.api.v2.backend.actors import ACTOR_REGISTRY
-from vultron.as_vocab.base.base import as_Base
+from vultron.as_vocab import VOCABULARY
+from vultron.as_vocab.base.objects.activities.base import as_Activity
+from vultron.as_vocab.base.objects.activities.transitive import (
+    as_Create,
+    as_Offer,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
 
-def handle_inbox_item(actor_id: str, obj: as_Base):
+def rehydrate(activity: as_Activity) -> as_Activity:
+    """Rehydrate an activity object if needed.
+
+    Args:
+        activity: The activity object to rehydrate.
+    Returns:
+        The rehydrated activity object of the correct subclass.
+    Raises:
+        ValidationError: If the activity type is unknown.
+    """
+    try:
+        cls = VOCABULARY.activities.get(activity.as_type, as_Activity)
+    except ValidationError:
+        logger.error(f"{cls.__name__} validation failed on {activity}")
+        raise
+
+    return cls.model_validate(activity.model_dump())
+
+
+def handle_create(actor_id: str, obj: as_Create):
+    logger.info(f"Actor {actor_id} received Create activity: {obj.name}")
+
+
+def handle_offer(actor_id: str, obj: as_Offer):
+    logger.info(f"Actor {actor_id} received Offer activity: {obj.name}")
+
+
+def handle_unknown(actor_id: str, obj: as_Activity):
+    logger.warning(
+        f"Actor {actor_id} received unknown Activity type {obj.as_type}: {obj.name}"
+    )
+
+
+def handle_inbox_item(actor_id: str, obj: as_Activity):
     logger.info(f"Processing item {obj.name} for actor {actor_id}")
 
     logger.info(
         f"Validated object:\n{obj.model_dump_json(indent=2,exclude_none=True)}"
     )
-    match obj.as_type:
-        # we should only be receiving Activities in the inbox.
+    # we should only be receiving Activities in the inbox.
+    if obj.as_type not in VOCABULARY.activities:
+        raise ValueError(
+            f"Invalid object type {obj.as_type} in inbox for actor {actor_id}"
+        )
 
-        # bare objects are an error.
+    # noinspection PyTypeChecker
+    obj = rehydrate(obj)
 
-        case "Note":
-            logger.info(f"Actor {actor_id} received Note: {obj.name}")
-        case "Create":
-            logger.info(
-                f"Actor {actor_id} received Create activity: {obj.name}"
-            )
-        case "Offer":
-            logger.info(
-                f"Actor {actor_id} received Offer activity: {obj.name}"
-            )
-        case "Accept":
-            logger.info(
-                f"Actor {actor_id} received Accept activity: {obj.name}"
-            )
-        case "Reject":
-            logger.info(
-                f"Actor {actor_id} received Reject activity: {obj.name}"
-            )
-        case "Announce":
-            logger.info(
-                f"Actor {actor_id} received Announce activity: {obj.name}"
-            )
-        case "Follow":
-            logger.info(
-                f"Actor {actor_id} received Follow activity: {obj.name}"
-            )
-        case "Invite":
-            logger.info(
-                f"Actor {actor_id} received Invite activity: {obj.name}"
-            )
+    match obj.__class__.__name__:
+        # add hints for each Activity type we want to handle
+        case as_Create.__name__:
+            obj: as_Create
+            handle_create(actor_id, obj)
+        case as_Offer.__name__:
+            obj: as_Offer
+            handle_offer(actor_id, obj)
         case _:
-            logger.warning(
-                f"Actor {actor_id} received unknown object type {obj.as_type}: {obj.name}"
-            )
+            handle_unknown(actor_id, obj)
 
 
 async def inbox_handler(actor_id: str):
@@ -83,6 +103,10 @@ async def inbox_handler(actor_id: str):
     err_count = 0
     while actor.inbox.items:
         item = actor.inbox.items.pop(0)
+
+        # in principle because of the POST {actor_id}/inbox method validation,
+        # the only items in the inbox should be Activities
+        # but we'll let handle_inbox_item deal with verifying that
         try:
             handle_inbox_item(actor_id, item)
         except Exception as e:
