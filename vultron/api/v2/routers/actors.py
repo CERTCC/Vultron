@@ -17,12 +17,11 @@ Vultron API Routers
 
 import logging
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, status
 
 from vultron.api.v2.backend.actors import ACTOR_REGISTRY
-from vultron.api.v2.backend.helpers import obj_from_item
 from vultron.api.v2.backend.inbox_handler import inbox_handler
-from vultron.as_vocab.base.objects.activities.transitive import as_Create
+from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.collections import as_OrderedCollection
 from vultron.scripts import vocab_examples
@@ -81,31 +80,34 @@ async def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
 
 @router.post(
     "/{actor_id}/inbox",
-    response_model=as_Create,
-    response_model_exclude_none=True,
-    summary="Add an item to the Actor's Inbox.",
-    description="Adds an item to the Actor's Inbox. (stub implementation).",
+    summary="Add an Activity to the Actor's Inbox.",
+    description="Adds an Activity to the Actor's Inbox. (stub implementation).",
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def post_actor_inbox(
-    actor_id: str, item: dict, background_tasks: BackgroundTasks
-) -> as_Create:
-    """Adds an item to the Actor's Inbox."""
-    # find the item class based on the "type" field
-    # is item["type"] set?
-    obj = obj_from_item(item)
-
+    actor_id: str, activity: as_Activity, background_tasks: BackgroundTasks
+) -> None:
+    """Adds an item to the Actor's Inbox.
+    The 202 Accepted status code indicates that the request has been accepted for
+    processing, but the processing has not been completed. This is appropriate here
+    because the inbox processing is handled asynchronously in the background.
+    Args:
+        actor_id: The ID of the Actor whose Inbox to add the item to.
+        activity: The Activity item to add to the Inbox.
+        background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
+    Returns:
+        None
+    Raises:
+        HTTPException: If the Actor is not found.
+    """
     actor: as_Actor = await get_actor(actor_id)
     # append to inbox
-    actor.inbox.items.append(obj)
+    actor.inbox.items.append(activity)
 
     # Trigger inbox processing (in the background)
     background_tasks.add_task(inbox_handler, actor_id)
 
-    return as_Create(
-        object=obj,
-        target=actor_id,
-        actor=actor_id,
-    )
+    return None
 
 
 #
