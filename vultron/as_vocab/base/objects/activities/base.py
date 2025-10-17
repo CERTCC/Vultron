@@ -14,6 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.as_vocab.base.links import as_Link
+from vultron.as_vocab.base.objects.actors import as_ActorRef
 from vultron.as_vocab.base.objects.base import as_Object
 
 
@@ -30,7 +31,7 @@ class as_Activity(as_Object):
 
     as_type: str = "Activity"
 
-    actor: as_Object | as_Link | str = None
+    actor: as_ActorRef
     target: as_Object | as_Link | str | None = None
     origin: as_Object | as_Link | str | None = None
     instrument: as_Object | as_Link | str | None = None

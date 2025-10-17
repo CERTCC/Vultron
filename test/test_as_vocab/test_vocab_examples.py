@@ -341,7 +341,6 @@ class MyTestCase(unittest.TestCase):
     def test_add_note_to_case(self):
         activity = examples.add_note_to_case()
         self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
         finder = examples.finder()
         case = examples.case()
         note = examples.note()
@@ -494,7 +493,6 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
         case = examples.case()
-        finder = examples.finder()
         coordinator = examples.coordinator()
 
         self.assertIsInstance(activity, as_Invite)
@@ -624,7 +622,6 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
         case = examples.case()
-        finder = examples.finder()
         coordinator = examples.coordinator()
 
         self.assertIsInstance(activity, as_Invite)
@@ -639,8 +636,6 @@ class MyTestCase(unittest.TestCase):
         activity = examples.create_participant_status()
         self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
-        case = examples.case()
-        coordinator = examples.coordinator()
 
         self.assertIsInstance(activity, as_Create)
         self.assertEqual(activity.as_type, "Create")
@@ -652,18 +647,16 @@ class MyTestCase(unittest.TestCase):
         activity = examples.add_status_to_participant()
         self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
-        case = examples.case()
-        coordinator = examples.coordinator()
         status = examples.participant_status()
 
         self.assertIsInstance(activity, as_Add)
         self.assertEqual(activity.as_type, "Add")
 
         self.assertEqual(activity.actor, vendor.as_id)
-        self.assertEqual(activity.target, coordinator.as_id)
-        self.assertEqual(activity.as_object, status.as_id)
+        self.assertEqual(activity.target, status.context)
+        self.assertEqual(activity.as_object, status)
 
-    def test_add_status_to_participant(self):
+    def test_add_status_to_participant2(self):
         activity = examples.add_status_to_participant()
         self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
@@ -708,7 +701,7 @@ class MyTestCase(unittest.TestCase):
         activity = examples.choose_preferred_embargo()
         self.assertIsInstance(activity, as_Activity)
         case = examples.case()
-        embargo = examples.embargo_event()
+        examples.embargo_event()
         coordinator = examples.coordinator()
 
         # is it a question?

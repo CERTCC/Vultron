@@ -24,65 +24,6 @@ from typing import NamedTuple, Tuple
 from vultron.case_states.validations import ensure_valid_state
 
 
-@ensure_valid_state
-def state_string_to_enums(s: str) -> Tuple[Enum]:
-    """
-    Convert a state string to a tuple of enums that define the state `(CS_vfd, CS_pxa)`
-
-    Args:
-        s: the state string
-
-    Returns:
-        a tuple of enums
-
-    """
-    (s1, s2) = (s[:3], s[3:])
-    vfd = CS_vfd[s1]
-    pxa = CS_pxa[s2]
-    return (vfd, pxa)
-
-
-@ensure_valid_state
-def state_string_to_enum2(s: str) -> Tuple[Enum]:
-    """
-    Convert a state string to a list of enums that define the state
-
-    Example:
-        ```python
-        state_string_to_enum2('vfdpxa')
-        ```
-        returns
-        ```python
-        ( VendorAwareness.VENDOR_UNAWARE,
-          FixReadiness.FIX_NOT_READY,
-          FixDeployment.FIX_NOT_DEPLOYED,
-          PublicAwareness.PUBLIC_UNAWARE,
-          ExploitPublication.NO_PUBLIC_EXPLOIT,
-          AttackObservation.NO_ATTACKS_OBSERVED)
-        ```
-
-    Args:
-        s: the state string
-
-    Returns:
-        a list of Enums
-    """
-    enums = [
-        VendorAwareness,
-        FixReadiness,
-        FixDeployment,
-        PublicAwareness,
-        ExploitPublication,
-        AttackObservation,
-    ]
-
-    resolved_enums = []
-    for value, enum in zip(s, enums):
-        resolved_enums.append(enum[value])
-
-    return tuple(resolved_enums)
-
-
 class VendorAwareness(IntEnum):
     """
     Represents the vendor awareness state of a case.
@@ -301,6 +242,8 @@ class CompoundState(NamedTuple):
     pxa_state: CS_pxa
 
 
+# TODO consider replacing this with a combination of VfdState and PxaState
+# either directly or just creating CaseState(BaseModel) class
 class CS(Enum):
     # vfd pxa
     vfdpxa = CompoundState(CS_vfd.vfd, CS_pxa.pxa)
@@ -391,6 +334,70 @@ def pxa(state):
     (vfd, pxa) = state_string_to_enums(state)
     value = pxa.value
     return value
+
+
+@ensure_valid_state
+def state_string_to_enums(s: str) -> Tuple[CS_vfd, CS_pxa]:
+    """
+    Convert a state string to a tuple of enums that define the state `(CS_vfd, CS_pxa)`
+
+    Args:
+        s: the state string
+
+    Returns:
+        a tuple of enums
+
+    """
+    (s1, s2) = (s[:3], s[3:])
+    vfd = CS_vfd[s1]
+    pxa = CS_pxa[s2]
+    return (vfd, pxa)
+
+
+@ensure_valid_state
+def state_string_to_enum2(
+    s: str,
+) -> Tuple[IntEnum, ...]:
+    """
+    Convert a state string to a list of enums that define the state
+
+    Example:
+        ```python
+        state_string_to_enum2('vfdpxa')
+        ```
+        returns
+        ```python
+        ( VendorAwareness.VENDOR_UNAWARE,
+          FixReadiness.FIX_NOT_READY,
+          FixDeployment.FIX_NOT_DEPLOYED,
+          PublicAwareness.PUBLIC_UNAWARE,
+          ExploitPublication.NO_PUBLIC_EXPLOIT,
+          AttackObservation.NO_ATTACKS_OBSERVED)
+        ```
+
+    Args:
+        s: the state string
+
+    Returns:
+        a list of Enums
+    """
+    enums = [
+        VendorAwareness,
+        FixReadiness,
+        FixDeployment,
+        PublicAwareness,
+        ExploitPublication,
+        AttackObservation,
+    ]
+
+    resolved_enums = []
+    for value, enum in zip(s, enums):
+        resolved_enums.append(enum[value])
+
+    return tuple(resolved_enums)
+
+
+all_states = list(CS)
 
 
 def main():

@@ -17,10 +17,9 @@ This module provides the base class for all nodes in the Behavior Tree.
 It also provides a number of core node types that can be used to build a Behavior Tree.
 """
 
-
 import logging
 from copy import deepcopy
-from typing import Union
+from typing import Iterable
 
 import networkx as nx
 
@@ -42,11 +41,11 @@ def _indent(depth=0):
 class BtNode:
     """BtNode is the base class for all nodes in the Behavior Tree."""
 
-    indent_level = 0
-    name_pfx = None
-    _node_shape = "box"
-    _children = None
-    _objcount = 0
+    indent_level: int = 0
+    name_pfx: str | None = None
+    _node_shape: str = "box"
+    _children: Iterable | None = None
+    _objcount: int = 0
 
     def __init__(self):
         BtNode._objcount += 1
@@ -188,12 +187,18 @@ class BtNode:
         if self.name_pfx is not None:
             return f"{self.name_pfx} {self.name}"
 
-        return self.name
+        return str(self.name)
 
     @property
     def _is_leaf_node(self) -> bool:
         """Returns True if the node is a leaf node, False otherwise."""
-        return self._children is None or len(self._children) == 0
+        if not hasattr(self, "_children"):
+            return True
+        if self._children is None:
+            return True
+        if len(list(self._children)) == 0:
+            return True
+        return False
 
     def _namestr(self, depth=0) -> str:
         """Returns a string representation of the node's name."""
@@ -300,7 +305,7 @@ class LeafNode(BtNode):
             raise self.Exc("Behavior Tree Leaf Nodes cannot have children")
         super().__init__()
 
-    def func(self) -> Union[bool, None]:
+    def func(self) -> bool | None:
         """
         Override this method in your subclass.
         Return True for success, False for failure, and None for running.
@@ -375,7 +380,6 @@ class SnapshotState(BtNode):
     name = "Snapshot_state"
 
     def _tick(self, depth: int = 0) -> NodeStatus:
-        global STATELOG
         snapshot = deepcopy(self.bb)
         STATELOG.append(snapshot)
         return NodeStatus.SUCCESS

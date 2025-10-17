@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -44,7 +44,7 @@ from vultron.bt.report_management.conditions import (
 )
 
 _CloseOrValidate = fallback_node(
-    "CloseOrValidate"
+    "CloseOrValidate",
     "Try to close the report, and if that fails, validate the report. Report closure will fail if there is still work "
     "to be done on the report.",
     RMCloseBt,

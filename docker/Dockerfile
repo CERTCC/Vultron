@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm AS base
+FROM python:3.13-slim-bookworm AS base
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 RUN pip install --upgrade pip uv
 WORKDIR /app
@@ -33,4 +33,7 @@ FROM dependencies AS docs
 CMD ["uv", "run", "mkdocs", "serve", "--dev-addr", "0.0.0.0:8000"]
 
 FROM dependencies AS vultrabot_demo
-cmd ["uv", "run", "vultrabot"]
+CMD ["uv", "run", "vultrabot"]
+
+FROM dependencies AS api-dev
+CMD ["uv","run","uvicorn","vultron.api.main:app","--host","0.0.0.0","--port","7999","--reload"]

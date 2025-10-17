@@ -55,7 +55,7 @@ class PacmanBlackboard(Blackboard):
     ticks: int = 0
 
 
-### Action Nodes
+# Action Nodes
 
 
 def eat_pill(obj: BtNode) -> bool:
@@ -105,12 +105,12 @@ DecrGhostCount = action_node(
 )
 
 
-### Condition Check Nodes
+# Condition Check Nodes
 
 
 def ghosts_remain(obj: BtNode) -> bool:
     """checks if there are any ghosts remaining."""
-    return len(obj.bb.ghosts_remaining) > 0
+    return bool(len(obj.bb.ghosts_remaining) > 0)
 
 
 GhostsRemain = condition_check(
@@ -121,7 +121,7 @@ GhostsRemain = condition_check(
 
 def ghosts_scared(obj: BtNode) -> bool:
     """checks if a ghost is scared."""
-    return obj.bb.ghosts_scared
+    return bool(obj.bb.ghosts_scared)
 
 
 GhostsScared = condition_check(
@@ -130,7 +130,7 @@ GhostsScared = condition_check(
 )
 
 
-### Fuzzer Nodes
+# Fuzzer Nodes
 
 
 GhostClose = fuzzer(
@@ -140,7 +140,7 @@ ChaseGhost = fuzzer(btz.OftenSucceed, "ChaseGhost", "chases a ghost.")
 AvoidGhost = fuzzer(btz.OftenSucceed, "AvoidGhost", "avoids a ghost.")
 
 
-### Composite Nodes
+# Composite Nodes
 
 NoMoreGhosts = invert(
     "NoMoreGhosts", "inverts the result of GhostsRemain.", GhostsRemain
