@@ -23,11 +23,17 @@ from pydantic import ValidationError
 
 from vultron.api.v2.backend.actors import ACTOR_REGISTRY
 from vultron.as_vocab import VOCABULARY
+from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Create,
     as_Offer,
 )
+from vultron.as_vocab.base.objects.object_types import as_Note
+from vultron.as_vocab.objects.case_participant import CaseParticipant
+from vultron.as_vocab.objects.case_status import CaseStatus, ParticipantStatus
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -53,6 +59,39 @@ def rehydrate(activity: as_Activity) -> as_Activity:
 
 def handle_create(actor_id: str, obj: as_Create):
     logger.info(f"Actor {actor_id} received Create activity: {obj.name}")
+
+    # what are we creating?
+    created_obj = obj.object
+    match created_obj.__class__.__name__:
+        case as_Note.__name__:
+            logger.info(f"Actor {actor_id} received Note object: {obj.name}")
+        case as_Link.__name__:
+            logger.info(f"Actor {actor_id} received Link object: {obj.name}")
+            # TODO this will need further processing to determine what the link points to
+        case VulnerabilityReport.__name__:
+            logger.info(
+                f"Actor {actor_id} received VulnerabilityReport object: {obj.name}"
+            )
+        case VulnerabilityCase.__name__:
+            logger.info(
+                f"Actor {actor_id} received VulnerabilityCase object: {obj.name}"
+            )
+        case CaseParticipant.__name__:
+            logger.info(
+                f"Actor {actor_id} received CaseParticipant object: {obj.name}"
+            )
+        case CaseStatus.__name__:
+            logger.info(
+                f"Actor {actor_id} received CaseStatus object: {obj.name}"
+            )
+        case ParticipantStatus.__name__:
+            logger.info(
+                f"Actor {actor_id} received ParticipantStatus object: {obj.name}"
+            )
+        case _:
+            logger.info(
+                f"Actor {actor_id} received Create activity with unknown object type {created_obj.as_type}: {obj.name}"
+            )
 
 
 def handle_offer(actor_id: str, obj: as_Offer):
