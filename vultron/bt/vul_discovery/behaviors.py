@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -37,7 +37,7 @@ from vultron.bt.vul_discovery.fuzzer import (
 
 def have_discovery_capability(obj: BtNode) -> bool:
     """True if the participant has the ability to discover vulnerabilities."""
-    return obj.bb.CVD_role & CVDRoles.FINDER
+    return bool(obj.bb.CVD_role & CVDRoles.FINDER)
 
 
 HaveDiscoveryCapability = condition_check(

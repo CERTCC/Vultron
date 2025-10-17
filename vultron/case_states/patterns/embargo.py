@@ -19,6 +19,7 @@ import re
 from vultron.case_states.enums.embargo import EmbargoViability
 from vultron.case_states.enums.utils import unique_enum_list
 from vultron.case_states.patterns.base import compile_patterns
+from vultron.case_states.type_hints import EnumTuple
 from vultron.case_states.validations import ensure_valid_state
 
 _EMBARGO_VIABILITY = {
@@ -57,7 +58,7 @@ EMBARGO_VIABILITY = compile_patterns(_EMBARGO_VIABILITY)
 
 
 @ensure_valid_state
-def embargo_viability(state: str) -> EmbargoViability:
+def embargo_viability(state: str) -> list[EmbargoViability]:
     """What is the viability of an embargo?
 
     Args:
@@ -66,7 +67,7 @@ def embargo_viability(state: str) -> EmbargoViability:
     Returns:
         the viability of an embargo
     """
-    results = []
+    results: list[EmbargoViability] = []
     for pattern, viability in EMBARGO_VIABILITY.items():
         if re.match(pattern, state):
             results.extend(viability)

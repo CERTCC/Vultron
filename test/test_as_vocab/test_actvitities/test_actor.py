@@ -67,7 +67,7 @@ class MyTestCase(unittest.TestCase):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
             _case = VulnerabilityCase(name=f"{actor_class.__name__} Case")
-            _object = cls(as_object=_actor, target=_case)
+            _object = cls(actor=_actor, object=_actor, target=_case)
 
             # check activity is correct type
             self.assertIsInstance(_object, as_Activity)
@@ -75,6 +75,10 @@ class MyTestCase(unittest.TestCase):
             self.assertIsInstance(_object, cls)
             # check the _object of the activity is correct instance
             self.assertEqual(_object.as_object, _actor)
+            # check the target of the activity is correct instance
+            self.assertEqual(_object.target, _case)
+            # check the actor of the activity is correct instance
+            self.assertEqual(_object.actor, _actor)
 
             # check json
             _json = _object.to_json()
@@ -83,18 +87,26 @@ class MyTestCase(unittest.TestCase):
             self.assertIn('"target"', _json)
 
             # check json loads back in correctly
-            reloaded = cls.from_json(_json)
+            reloaded = cls.model_validate_json(_json)
 
             # the type should be Reject, not RejectActorRecommendation, etc.
             self.assertEqual(reloaded.as_type, expect_type)
 
-            self.assertEqual(reloaded.as_object.as_id, _actor.as_id)
-            self.assertIn(reloaded.as_object.as_type, _actor.as_type)
-            self.assertEqual(reloaded.as_object.name, actor_class.__name__)
+            self.assertEqual(
+                getattr(reloaded.as_object, "as_id"), _actor.as_id
+            )
+            self.assertIn(
+                getattr(reloaded.as_object, "as_type"), _actor.as_type
+            )
+            self.assertEqual(
+                getattr(reloaded.as_object, "name"), actor_class.__name__
+            )
 
-            self.assertEqual(reloaded.target.as_id, _case.as_id)
-            self.assertEqual(reloaded.target.as_type, _case.as_type)
-            self.assertEqual(reloaded.target.name, _case.name)
+            self.assertEqual(getattr(reloaded.target, "as_id"), _case.as_id)
+            self.assertEqual(
+                getattr(reloaded.target, "as_type"), _case.as_type
+            )
+            self.assertEqual(getattr(reloaded.target, "name"), _case.name)
 
 
 if __name__ == "__main__":

@@ -67,15 +67,15 @@ def main():
     for state in model.states:
         print(f"# {state} #")
 
-        print(f"### description ###")
+        print("### description ###")
 
         for explanation in explain(state):
             print(f"* {enum2title(explanation)}")
 
-        print(f"### info ###")
+        print("### info ###")
         for _info in info(state):
             print(f"* {enum2title(_info)}")
-        print(f"### actions ###")
+        print("### actions ###")
         for act in action(state):
             print(f"* {enum2title(act)}")
         print()

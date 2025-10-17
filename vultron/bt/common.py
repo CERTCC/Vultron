@@ -60,13 +60,10 @@ def state_in(
 
     def func(obj: BtNode) -> bool:
         f"""True if the node's blackboard[{key}] == {state}"""
-        return getattr(obj.bb, key) == state
+        return bool(getattr(obj.bb, key) == state)
 
     node_cls = condition_check(f"{key}_in_{state}", func)
 
-    # add some attributes to the node_cls so we can test it later
-    node_cls.key = key
-    node_cls.state = state
     return node_cls
 
 
