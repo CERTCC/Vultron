@@ -116,7 +116,7 @@ class ActorsRouterTest(unittest.TestCase):
 
         resp = self.client.post(f"/actors/{actor_id}/inbox", json=payload)
         self.assertEqual(
-            resp.status_code, status.HTTP_422_UNPROCESSABLE_ENTITY
+            resp.status_code, status.HTTP_422_UNPROCESSABLE_CONTENT
         )
 
 
