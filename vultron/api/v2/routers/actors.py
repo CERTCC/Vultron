@@ -22,9 +22,8 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, status, Depends
 from vultron.api.v2.backend.actors import ACTOR_REGISTRY
 from vultron.api.v2.backend.inbox_handler import (
     inbox_handler,
-    ACTIVITY_HANDLERS,
-    AsActivityType,
 )
+from vultron.api.v2.backend.registry import AsActivityType, ACTIVITY_HANDLERS
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.actors import as_Actor
@@ -105,22 +104,19 @@ def parse_activity(body: dict) -> AsActivityType:
     cls = VOCABULARY.activities.get(as_type)
     if cls is None:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Unrecognized activity type.",
         )
 
     if cls not in ACTIVITY_HANDLERS:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="No handler registered for this activity type.",
         )
 
     try:
         return cls.model_validate(body)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
-        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
         )
