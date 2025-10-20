@@ -100,7 +100,7 @@ class ActorsRouterTest(unittest.TestCase):
         payload = jsonable_encoder(activity, exclude_none=True)
 
         resp = self.client.post(f"/actors/{actor_id}/inbox", json=payload)
-        self.assertEqual(resp.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(status.HTTP_202_ACCEPTED, resp.status_code)
 
     def test_post_actor_inbox_reject_unknown_object(self):
         # When posting an object that is not an Activity, we should expect a 422 Unprocessable Entity

@@ -18,32 +18,23 @@ Vultron Actor Inbox Handler
 
 import logging
 from functools import wraps
-from typing import Callable, TypeVar, cast
+from typing import Callable, cast
 
 from pydantic import ValidationError
 
 from vultron.api.v2.backend.actors import ACTOR_REGISTRY
+from vultron.api.v2.backend.handlers import create  # noqa: F401
+from vultron.api.v2.backend.registry import (
+    AsActivityType,
+    ACTIVITY_HANDLERS,
+)
 from vultron.as_vocab import VOCABULARY
-from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.activities.transitive import (
-    as_Create,
     as_Offer,
 )
-from vultron.as_vocab.base.objects.object_types import as_Note
-from vultron.as_vocab.objects.case_participant import CaseParticipant
-from vultron.as_vocab.objects.case_status import CaseStatus, ParticipantStatus
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 logger = logging.getLogger("uvicorn.error")
-
-
-AsActivityType = TypeVar("AsActivityType", bound=as_Activity)
-
-ACTIVITY_HANDLERS: dict[
-    type[as_Activity], Callable[[str, as_Activity], None]
-] = {}
 
 
 def rehydrate(activity: as_Activity) -> AsActivityType:
@@ -93,44 +84,6 @@ def activity_handler(
     return decorator
 
 
-@activity_handler(as_Create)
-def handle_create(actor_id: str, obj: as_Create):
-    logger.info(f"Actor {actor_id} received Create activity: {obj.name}")
-
-    # what are we creating?
-    created_obj = obj.as_object
-    match created_obj.__class__.__name__:
-        case as_Note.__name__:
-            logger.info(f"Actor {actor_id} received Note object: {obj.name}")
-        case as_Link.__name__:
-            logger.info(f"Actor {actor_id} received Link object: {obj.name}")
-            # TODO this will need further processing to determine what the link points to
-        case VulnerabilityReport.__name__:
-            logger.info(
-                f"Actor {actor_id} received VulnerabilityReport object: {obj.name}"
-            )
-        case VulnerabilityCase.__name__:
-            logger.info(
-                f"Actor {actor_id} received VulnerabilityCase object: {obj.name}"
-            )
-        case CaseParticipant.__name__:
-            logger.info(
-                f"Actor {actor_id} received CaseParticipant object: {obj.name}"
-            )
-        case CaseStatus.__name__:
-            logger.info(
-                f"Actor {actor_id} received CaseStatus object: {obj.name}"
-            )
-        case ParticipantStatus.__name__:
-            logger.info(
-                f"Actor {actor_id} received ParticipantStatus object: {obj.name}"
-            )
-        case _:
-            logger.info(
-                f"Actor {actor_id} received Create activity with unknown object type {created_obj.as_type}: {obj.name}"
-            )
-
-
 @activity_handler(as_Offer)
 def handle_offer(actor_id: str, obj: as_Offer):
     logger.info(f"Actor {actor_id} received Offer activity: {obj.name}")
@@ -162,13 +115,19 @@ def handle_inbox_item(actor_id: str, obj: as_Activity):
     logger.info(
         f"Validated object:\n{obj.model_dump_json(indent=2,exclude_none=True)}"
     )
+
     # we should only be receiving Activities in the inbox.
     if obj.as_type not in VOCABULARY.activities:
         raise ValueError(
             f"Invalid object type {obj.as_type} in inbox for actor {actor_id}"
         )
 
-    rehydrated = rehydrate(obj)
+    # if it's already rehydrated, no need to rehydrate again
+    if type(obj) == VOCABULARY.activities[obj.as_type]:
+        rehydrated = obj
+    else:
+        rehydrated = rehydrate(obj)
+
     activity_cls = type(rehydrated)
     handler = ACTIVITY_HANDLERS.get(activity_cls, handle_unknown)
     handler(actor_id, rehydrated)
