@@ -16,8 +16,9 @@ Vultron Actor Inbox Handler
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import asyncio
 import logging
+from functools import wraps
+from typing import Callable, TypeVar, cast
 
 from pydantic import ValidationError
 
@@ -38,7 +39,14 @@ from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 logger = logging.getLogger("uvicorn.error")
 
 
-def rehydrate(activity: as_Activity) -> as_Activity:
+AsActivityType = TypeVar("AsActivityType", bound=as_Activity)
+
+ACTIVITY_HANDLERS: dict[
+    type[as_Activity], Callable[[str, as_Activity], None]
+] = {}
+
+
+def rehydrate(activity: as_Activity) -> AsActivityType:
     """Rehydrate an activity object if needed.
 
     Args:
@@ -46,22 +54,51 @@ def rehydrate(activity: as_Activity) -> as_Activity:
     Returns:
         The rehydrated activity object of the correct subclass.
     Raises:
-        ValidationError: If the activity type is unknown.
+        KeyError: If the activity type is unknown.
+        ValidationError: If the activity validation fails.
     """
     try:
-        cls = VOCABULARY.activities.get(activity.as_type, as_Activity)
+        cls = VOCABULARY.activities[activity.as_type]
+    except KeyError:
+        logger.error(f"Unknown activity type: {activity.as_type}")
+        raise
+
+    # we have the correct class, now re-validate to get the correct subclass
+    try:
+        return cls.model_validate(activity.model_dump())
     except ValidationError:
         logger.error(f"{cls.__name__} validation failed on {activity}")
         raise
 
-    return cls.model_validate(activity.model_dump())
+
+def activity_handler(
+    activity_type: type[AsActivityType],
+) -> Callable[
+    [Callable[[str, AsActivityType], None]], Callable[[str, as_Activity], None]
+]:
+    def decorator(
+        func: Callable[[str, AsActivityType], None],
+    ) -> Callable[[str, as_Activity], None]:
+        @wraps(func)
+        def wrapper(actor_id: str, obj: AsActivityType):
+            if not isinstance(obj, activity_type):
+                raise TypeError(
+                    f"Handler for {activity_type.__name__} received wrong type: {obj.__class__.__name__}"
+                )
+            return func(actor_id, cast(AsActivityType, obj))
+
+        ACTIVITY_HANDLERS[activity_type] = wrapper
+        return wrapper
+
+    return decorator
 
 
+@activity_handler(as_Create)
 def handle_create(actor_id: str, obj: as_Create):
     logger.info(f"Actor {actor_id} received Create activity: {obj.name}")
 
     # what are we creating?
-    created_obj = obj.object
+    created_obj = obj.as_object
     match created_obj.__class__.__name__:
         case as_Note.__name__:
             logger.info(f"Actor {actor_id} received Note object: {obj.name}")
@@ -94,6 +131,7 @@ def handle_create(actor_id: str, obj: as_Create):
             )
 
 
+@activity_handler(as_Offer)
 def handle_offer(actor_id: str, obj: as_Offer):
     logger.info(f"Actor {actor_id} received Offer activity: {obj.name}")
 
@@ -105,6 +143,20 @@ def handle_unknown(actor_id: str, obj: as_Activity):
 
 
 def handle_inbox_item(actor_id: str, obj: as_Activity):
+    """
+    Handle a single item in the Actor's inbox.
+
+    Args:
+        actor_id: The ID of the Actor whose inbox is being processed.
+        obj: The Activity item to process. This should be an instance of as_Activity,
+             and will be rehydrated to its specific subclass.
+
+    Returns:
+        None
+    Raises:
+        ValueError: If the object type is invalid for the inbox.
+
+    """
     logger.info(f"Processing item {obj.name} for actor {actor_id}")
 
     logger.info(
@@ -116,23 +168,13 @@ def handle_inbox_item(actor_id: str, obj: as_Activity):
             f"Invalid object type {obj.as_type} in inbox for actor {actor_id}"
         )
 
-    # noinspection PyTypeChecker
-    obj = rehydrate(obj)
-
-    match obj.__class__.__name__:
-        # add hints for each Activity type we want to handle
-        case as_Create.__name__:
-            obj: as_Create
-            handle_create(actor_id, obj)
-        case as_Offer.__name__:
-            obj: as_Offer
-            handle_offer(actor_id, obj)
-        case _:
-            handle_unknown(actor_id, obj)
+    rehydrated = rehydrate(obj)
+    activity_cls = type(rehydrated)
+    handler = ACTIVITY_HANDLERS.get(activity_cls, handle_unknown)
+    handler(actor_id, rehydrated)
 
 
 async def inbox_handler(actor_id: str):
-    await asyncio.sleep(1)
     actor = ACTOR_REGISTRY.get_actor(actor_id)
     if actor is None:
         logger.warning(f"Actor {actor_id} not found in inbox_handler.")
@@ -144,7 +186,7 @@ async def inbox_handler(actor_id: str):
         item = actor.inbox.items.pop(0)
 
         # in principle because of the POST {actor_id}/inbox method validation,
-        # the only items in the inbox should be Activities
+        # the only items in the inbox should be Activities with registered handlers,
         # but we'll let handle_inbox_item deal with verifying that
         try:
             handle_inbox_item(actor_id, item)
@@ -160,7 +202,5 @@ async def inbox_handler(actor_id: str):
                     f"Too many errors processing inbox for actor {actor_id}, aborting."
                 )
                 break
-
-        await asyncio.sleep(0.1)  # Simulate some processing time
 
     return True

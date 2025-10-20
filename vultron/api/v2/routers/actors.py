@@ -17,10 +17,15 @@ Vultron API Routers
 
 import logging
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, status
+from fastapi import APIRouter, HTTPException, BackgroundTasks, status, Depends
 
 from vultron.api.v2.backend.actors import ACTOR_REGISTRY
-from vultron.api.v2.backend.inbox_handler import inbox_handler
+from vultron.api.v2.backend.inbox_handler import (
+    inbox_handler,
+    ACTIVITY_HANDLERS,
+    AsActivityType,
+)
+from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.collections import as_OrderedCollection
@@ -78,6 +83,49 @@ async def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
     return actor.inbox
 
 
+def parse_activity(body: dict) -> AsActivityType:
+    """Parses the incoming request body into an as_Activity object.
+    Args:
+        body: The request body as a dictionary.
+    Returns:
+        An as_Activity object.
+    Raises:
+        HTTPException: If the activity type is unknown or validation fails.
+    """
+    as_type = body.get("type")
+    if as_type is None:
+        as_type = body.get("asType")
+
+    if as_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing 'type' field in activity.",
+        )
+
+    cls = VOCABULARY.activities.get(as_type)
+    if cls is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unrecognized activity type.",
+        )
+
+    if cls not in ACTIVITY_HANDLERS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No handler registered for this activity type.",
+        )
+
+    try:
+        return cls.model_validate(body)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
+        )
+
+
 @router.post(
     "/{actor_id}/inbox",
     summary="Add an Activity to the Actor's Inbox.",
@@ -86,8 +134,10 @@ async def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
 )
 async def post_actor_inbox(
     actor_id: str,
-    activity: as_Activity,
+    # as_Activity is a problem, because its subclasses have different required fields,
+    # so we really want to accept any subclass that we have a registered handler for here.
     background_tasks: BackgroundTasks,
+    activity: as_Activity = Depends(parse_activity),
 ) -> None:
     """Adds an item to the Actor's Inbox.
     The 202 Accepted status code indicates that the request has been accepted for
