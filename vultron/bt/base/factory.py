@@ -37,7 +37,7 @@ def _set_func(node_cls: Type[BtNode], func: Callable[[BtNode], bool]) -> None:
 
     """
     if hasattr(node_cls, "func"):
-        # settattr instead of direct assignment to avoid mypy error
+        # setattr instead of direct assignment to avoid mypy error
         setattr(node_cls, "func", func)
 
 
