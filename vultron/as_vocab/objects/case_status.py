@@ -60,7 +60,7 @@ class CaseStatus(VultronObject):
         return v
 
     @model_validator(mode="after")
-    def set_name(cls, self):
+    def set_name(self):
         if self.name is None:
             self.name = " ".join([self.em_state.name, self.pxa_state.name])
         return self
@@ -75,8 +75,8 @@ class ParticipantStatus(VultronObject):
     Represents the status of a participant with respect to a VulnerabilityCase (participant-specific).
     """
 
-    actor: as_Actor | as_Link | str = None
-    context: as_Object | as_Link | str = None
+    actor: as_Actor | as_Link | str
+    context: as_Object | as_Link | str
     rm_state: RM = RM.START
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True
@@ -105,7 +105,7 @@ class ParticipantStatus(VultronObject):
         return v
 
     @model_validator(mode="after")
-    def set_name(cls, self):
+    def set_name(self):
         if self.name is None:
             parts = [self.rm_state.name, self.vfd_state.name]
             if self.case_status is not None:

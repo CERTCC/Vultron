@@ -32,6 +32,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
+    "fastapi>=0.118.0",
     "isodate>=0.7.2",
     "markdown-exec>=1.11.0",
     "mkdocs-autorefs>=1.4.3",
@@ -49,6 +50,7 @@ dependencies = [
     "pydantic>=2.11.9",
     "rdflib>=7.2.1",
     "scipy>=1.16.2",
+    "uvicorn>=0.37.0",
 ]
 dynamic = ["version",]
 
@@ -77,7 +79,7 @@ version_file = "vultron/_version.py"
 
 [tool.black]
 line-length = 79
-target-version = ['py38', 'py39', 'py310', 'py311', 'py312' ]
+target-version = ['py38', 'py39', 'py310', 'py311', 'py312', 'py313' ]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

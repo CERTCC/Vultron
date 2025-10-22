@@ -21,10 +21,11 @@ Householder, A. D., and Jonathan Spring.
 Tech. Rep. CMU/SEI-2021-SR-021, Software Engineering Institute, Carnegie-Mellon University, Pittsburgh, PA, 2021.
 """
 
+import logging
 import random
 import re
 from itertools import product
-from typing import List, Tuple
+from typing import Any, Generator
 
 import networkx as nx
 import numpy as np
@@ -56,6 +57,9 @@ from vultron.case_states.validations import (
     is_valid_state,
     is_valid_transition,
 )
+
+logger = logging.getLogger(__name__)
+
 
 EVENTS = tuple("VFDPXA")
 
@@ -129,8 +133,8 @@ DESIDERATA = (
     ("X", "A"),
 )
 """
-Taken directly from the [paper](https://doi.org/10.1184/R1/16416771): 
-Given (A,B), you prefer histories in which A precedes B over ones in which B precedes A.
+Taken directly from the [paper](https://doi.org/10.1184/R1/16416771):
+ Given (A,B), you prefer histories in which A precedes B over ones in which B precedes A.
 """
 
 
@@ -218,11 +222,12 @@ class CVDmodel:
         self.S_df = self._init_sdf()
 
     @property
-    def states(self) -> list:
+    def states(self) -> list[str]:
         """
         Returns the states in the model
         """
-        return self.G.nodes
+        states: list[str] = list(self.G.nodes)
+        return states
 
     @ensure_valid_state
     def state_info(self, state: str) -> dict:
@@ -251,7 +256,7 @@ class CVDmodel:
         return data
 
     @ensure_valid_state
-    def previous_state(self, state: str) -> list:
+    def previous_state(self, state: str) -> list[str]:
         """
         For a given state, return the previous state(s)
 
@@ -261,7 +266,8 @@ class CVDmodel:
         Returns:
             a list of previous states
         """
-        return self.G.predecessors(state)
+        states: list[str] = list(self.G.predecessors(state))
+        return states
 
     @ensure_valid_state
     def next_state(self, state: str, transition=None):
@@ -270,7 +276,6 @@ class CVDmodel:
             return next_states
 
         # if you got here transition is not None
-        _next = None
         for successor in self.G.successors(state):
             try:
                 is_valid_transition(state, successor)
@@ -286,7 +291,7 @@ class CVDmodel:
     @ensure_valid_state
     def paths_between(
         self, start: str = "vfdpxa", end: str = "VFDPXA"
-    ) -> List[tuple]:
+    ) -> Generator[list[Any] | list[tuple[Any, Any]], None, list[Any] | None]:
         """
         Return all paths of transitions between two states
 
@@ -298,10 +303,13 @@ class CVDmodel:
             a list of paths
         """
         G = self.G
+
         return nx.all_simple_edge_paths(G, start, end)
 
     @ensure_valid_state
-    def paths_from(self, state: str = "vfdpxa") -> List[tuple]:
+    def paths_from(
+        self, state: str = "vfdpxa"
+    ) -> Generator[list[Any] | list[tuple[Any, Any]], None, list[Any] | None]:
         """
         Return all paths of transitions that lead from a given state
 
@@ -314,7 +322,9 @@ class CVDmodel:
         return self.paths_between(start=state, end="VFDPXA")
 
     @ensure_valid_state
-    def paths_to(self, state: str = "VFDPXA") -> List[tuple]:
+    def paths_to(
+        self, state: str = "VFDPXA"
+    ) -> Generator[list[Any] | list[tuple[Any, Any]], None, list[Any] | None]:
         """
         Return all paths of transitions that lead to a given state
 
@@ -337,7 +347,7 @@ class CVDmodel:
 
     # sequences are a list of the labels along edges from the graph
     # ["VPXFDA","XPVAFD"...], ["VAF", "XPV", ], etc.
-    def sequences_from(self, state: str = "vfdpxa") -> List[str]:
+    def sequences_from(self, state: str = "vfdpxa") -> list[tuple[str]]:
         """
         Return all sequences of transitions that lead from a given state
 
@@ -350,7 +360,7 @@ class CVDmodel:
         return self.sequences_between(start=state)
 
     @ensure_valid_state
-    def sequences_to(self, state: str) -> List[str]:
+    def sequences_to(self, state: str) -> list[tuple[str]]:
         """
         Return all sequences of transitions that lead to a given state
 
@@ -366,7 +376,7 @@ class CVDmodel:
     @ensure_valid_state
     def sequences_between(
         self, start: str = "vfdpxa", end: str = "VFDPXA"
-    ) -> List[str]:
+    ) -> list[tuple[str]]:
         """
         Return all sequences of transitions between two states
 
@@ -383,7 +393,7 @@ class CVDmodel:
             sequences.append(seq)
         return sequences
 
-    def transitions_in_path(self, path: list) -> Tuple[str]:
+    def transitions_in_path(self, path: list) -> tuple[str]:
         """
         Return the transitions in a path
 
@@ -401,7 +411,9 @@ class CVDmodel:
         return seq
 
     @ensure_valid_state
-    def walk_from(self, start: str = None, end: str = "VFDPXA") -> tuple:
+    def walk_from(
+        self, start: str | None = None, end: str = "VFDPXA"
+    ) -> tuple:
         """
         Randomly walk from a given state to a given state
 
@@ -418,7 +430,7 @@ class CVDmodel:
         while current != end:
             neighbors = list(self.next_state(current))
 
-            p = 0
+            p = 0.0
             n = len(neighbors)
             if n:
                 p = 1 / n
@@ -830,7 +842,10 @@ class CVDmodel:
         try:
             is_valid_transition(from_state, to_state)
         except TransitionValidationError as e:
-            return None
+            logger.error(
+                f"Invalid transition from {from_state} to {to_state}: {e}"
+            )
+            raise e
 
         curr_score = self.score_state(from_state)
         next_score = self.score_state(to_state)

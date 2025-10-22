@@ -26,10 +26,6 @@
     options:
         heading_level: 3
 
-::: vultron.as_vocab.base.objects.utils
-    options:
-        heading_level: 3
-
 ## Errors
 
 ::: vultron.as_vocab.base.errors

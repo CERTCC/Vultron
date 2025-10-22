@@ -1,4 +1,4 @@
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -128,8 +128,10 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(node_cls(), node_cls)
 
     def test_condition_check(self):
-        func = lambda: True
-        func.__doc__ = "bar"
+        def func() -> bool:
+            """bar"""
+            return True
+
         node_cls = condition_check("foo", func)
 
         self.assertTrue(issubclass(node_cls, ConditionCheck))
@@ -140,8 +142,10 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(node_cls(), node_cls)
 
     def test_action_node(self):
-        func = lambda: True
-        func.__doc__ = "bar"
+        def func() -> bool:
+            """bar"""
+            return True
+
         node_cls = action_node("foo", func)
 
         self.assertTrue(issubclass(node_cls, ActionNode))

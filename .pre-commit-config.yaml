@@ -1,7 +1,7 @@
 repos:
   - repo: https://github.com/psf/black
-    rev: 24.1.1  # Use the latest stable version
+    rev: 25.9.0  # Use the latest stable version
     hooks:
       - id: black
-        language_version: py312
+        language_version: py313
         args: ["."]

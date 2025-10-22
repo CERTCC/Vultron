@@ -43,7 +43,7 @@ class CVDRoles(Flag):
     V = VENDOR
     D = DEPLOYER
     C = COORDINATOR
-    O = OTHER
+    O = OTHER  # noqa: E741
 
     # frequent combinations
     FINDER_REPORTER = FINDER | REPORTER
