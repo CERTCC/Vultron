@@ -21,10 +21,10 @@ from pydantic import Field
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Create,
-    as_Leave,
     as_Offer,
     as_Read,
     as_Reject,
+    as_TentativeReject,
 )
 from vultron.as_vocab.objects.vulnerability_report import (
     VulnerabilityReportRef,
@@ -66,7 +66,7 @@ class RmValidateReport(as_Accept):
     as_object: VulnerabilityReportRef = Field(default=None, alias="object")
 
 
-class RmInvalidateReport(as_Reject):
+class RmInvalidateReport(as_TentativeReject):
     """The actor has invalidated a report.
     Corresponds to the Vultron Message Type RI when no case exists.
     See also RmRejectInviteToCase for the scenario when a case already exists.
@@ -76,7 +76,7 @@ class RmInvalidateReport(as_Reject):
     as_object: VulnerabilityReportRef = Field(default=None, alias="object")
 
 
-class RmCloseReport(as_Leave):
+class RmCloseReport(as_Reject):
     """The actor is closing the report.
     This corresponds to the Vultron Message Type RC when no case exists.
     It can only be emitted when the report is in the RM.INVALID state, because anything past that will
