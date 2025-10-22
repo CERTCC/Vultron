@@ -16,12 +16,12 @@ Handlers for Create Activities
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from functools import wraps
-from typing import TypeVar, Callable
+from functools import partial
 
-from vultron.api.v2.backend.registry import activity_handler
+from vultron.api.v2.backend.handlers.activity import (
+    ActivityHandler,
+)
 from vultron.as_vocab.base.objects.activities.transitive import as_Create
-from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.objects.object_types import as_Note
 from vultron.as_vocab.objects.case_participant import CaseParticipant
 from vultron.as_vocab.objects.case_status import CaseStatus, ParticipantStatus
@@ -30,44 +30,10 @@ from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 logger = logging.getLogger("uvicorn.error")
 
-
-# The global registry of CREATE handlers
-CREATE_HANDLERS: dict[type[as_Object], Callable[[str, as_Object], None]] = {}
+create_handler = partial(ActivityHandler, activity_type=as_Create)
 
 
-# Type variable for the model type
-T = TypeVar("T", bound=as_Object)
-
-
-def create_handler(model_cls: type[T]):
-    """
-    Decorator to register a handler for a given model class in CREATE_HANDLERS.
-
-    Example:
-        @create_handler(ParticipantStatus)
-        def create_participant_status(actor_id: str, obj: ParticipantStatus):
-            ...
-    """
-
-    def decorator(
-        func: Callable[[str, T], None],
-    ) -> Callable[[str, T], None]:
-
-        CREATE_HANDLERS[model_cls] = func
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        logger.debug(
-            f"Registered create handler for {model_cls.__name__}: {func.__name__}"
-        )
-        return wrapper
-
-    return decorator
-
-
-@create_handler(as_Note)
+@create_handler(object_type=as_Note)
 def create_note(actor_id: str, obj: as_Create) -> None:
     """
     Process a Create(Note) activity.
@@ -85,8 +51,8 @@ def create_note(actor_id: str, obj: as_Create) -> None:
     )
 
 
-@create_handler(VulnerabilityReport)
-def create_vulnerability_report(actor_id: str, obj: as_Create) -> None:
+@create_handler(object_type=VulnerabilityReport)
+def rm_create_report(actor_id: str, obj: as_Create) -> None:
     """
     Process a Create(VulnerabilityReport) activity.
 
@@ -105,8 +71,8 @@ def create_vulnerability_report(actor_id: str, obj: as_Create) -> None:
     )
 
 
-@create_handler(VulnerabilityCase)
-def create_vulnerability_case(actor_id: str, obj: as_Create) -> None:
+@create_handler(object_type=VulnerabilityCase)
+def create_case(actor_id: str, obj: as_Create) -> None:
     """
     Process a Create(VulnerabilityCase) activity.
     Args:
@@ -123,8 +89,8 @@ def create_vulnerability_case(actor_id: str, obj: as_Create) -> None:
     )
 
 
-@create_handler(CaseParticipant)
-def create_case_participant(actor_id: str, obj: CaseParticipant) -> None:
+@create_handler(object_type=CaseParticipant)
+def create_participant(actor_id: str, obj: CaseParticipant) -> None:
     """
     Process a Create(CaseParticipant) activity.
 
@@ -142,7 +108,7 @@ def create_case_participant(actor_id: str, obj: CaseParticipant) -> None:
     )
 
 
-@create_handler(CaseStatus)
+@create_handler(object_type=CaseStatus)
 def create_case_status(actor_id: str, obj: CaseStatus) -> None:
     """
     Process a Create(CaseStatus) activity.
@@ -161,7 +127,7 @@ def create_case_status(actor_id: str, obj: CaseStatus) -> None:
     )
 
 
-@create_handler(ParticipantStatus)
+@create_handler(object_type=ParticipantStatus)
 def create_participant_status(actor_id: str, obj: ParticipantStatus) -> None:
     """
     Process a Create(ParticipantStatus) activity.
@@ -179,25 +145,18 @@ def create_participant_status(actor_id: str, obj: ParticipantStatus) -> None:
     )
 
 
-def create_unknown(actor_id: str, obj: as_Create) -> None:
-    created_obj = obj.as_object
-    logger.warning(
-        f"Actor {actor_id} received Create activity for unknown object type {created_obj.as_type}: {created_obj.name}"
+def main():
+    from vultron.api.v2.backend.handlers.registry import (
+        ACTIVITY_HANDLER_REGISTRY,
     )
 
-
-@activity_handler(as_Create)
-def handle_create(actor_id: str, obj: as_Create):
-    logger.info(f"Actor {actor_id} received Create activity: {obj.name}")
-
-    # what are we creating?
-    created_obj = obj.as_object
-
-    handler = CREATE_HANDLERS.get(created_obj.__class__, create_unknown)
-
-    handler(actor_id, obj)
+    for k, v in ACTIVITY_HANDLER_REGISTRY.handlers.items():
+        for ok, ov in v.items():
+            if ok is None:
+                print(f"{k.__name__}: None -> {ov.__name__}")
+            else:
+                print(f"{k.__name__}: {ok.__name__} -> {ov.__name__}")
 
 
 if __name__ == "__main__":
-    for cls, handler in CREATE_HANDLERS.items():
-        print(f"Registered handler for {cls.__name__}: {handler.__name__}")
+    main()

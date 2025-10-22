@@ -20,10 +20,13 @@ import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks, status, Depends
 
 from vultron.api.v2.backend.actors import ACTOR_REGISTRY
+from vultron.api.v2.backend.handlers.registry import (
+    AsActivityType,
+    ACTIVITY_HANDLER_REGISTRY,
+)
 from vultron.api.v2.backend.inbox_handler import (
     inbox_handler,
 )
-from vultron.api.v2.backend.registry import AsActivityType, ACTIVITY_HANDLERS
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.actors import as_Actor
@@ -108,7 +111,7 @@ def parse_activity(body: dict) -> AsActivityType:
             detail="Unrecognized activity type.",
         )
 
-    if cls not in ACTIVITY_HANDLERS:
+    if cls not in ACTIVITY_HANDLER_REGISTRY.handlers:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="No handler registered for this activity type.",
@@ -156,41 +159,3 @@ async def post_actor_inbox(
     background_tasks.add_task(inbox_handler, actor_id)
 
     return None
-
-
-#
-# @router.get(
-#     "/{actor_id}/outbox",
-#     response_model=as_OrderedCollection,
-#     response_model_exclude_none=True,
-#     summary="Get Actor Outbox",
-#     description="Returns the Actor's Outbox. (stub implementation).",
-# )
-# def get_actor_outbox(actor_id: str) -> as_OrderedCollection:
-#     """Returns the Actor's Outbox."""
-#     actor: as_Actor = get_actor(actor_id)
-#
-#     return actor.outbox
-#
-#
-# @router.post(
-#     "/{actor_id}/outbox",
-#     response_model=as_Create,
-#     response_model_exclude_none=True,
-#     summary="Add an item to the Actor's Outbox.",
-#     description="Adds an item to the Actor's Outbox. (stub implementation).",
-# )
-# def post_actor_outbox(actor_id: str, item: dict) -> as_Create:
-#     """Adds an item to the Actor's Outbox."""
-#     # find the item class based on the "type" field
-#     obj = obj_from_item(item)
-#
-#     actor: as_Actor = get_actor(actor_id)
-#
-#     actor.outbox.items.append(obj)
-#
-#     return as_Create(
-#         object=obj,
-#         target=actor_id,
-#         actor=actor_id,
-#     )

@@ -16,8 +16,10 @@
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.actors import as_ActorRef
 from vultron.as_vocab.base.objects.base import as_Object
+from vultron.as_vocab.base.registry import activitystreams_activity
 
 
+@activitystreams_activity
 class as_Activity(as_Object):
     """https://www.w3.org/TR/activitystreams-vocabulary/#dfn-activity
     An Activity is a subtype of Object that describes some form of action that may happen, is

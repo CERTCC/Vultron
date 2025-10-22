@@ -17,22 +17,17 @@ Vultron Actor Inbox Handler
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from functools import wraps
-from typing import Callable, cast
 
 from pydantic import ValidationError
 
 from vultron.api.v2.backend.actors import ACTOR_REGISTRY
 from vultron.api.v2.backend.handlers import create  # noqa: F401
-from vultron.api.v2.backend.registry import (
+from vultron.api.v2.backend.handlers.registry import (
     AsActivityType,
-    ACTIVITY_HANDLERS,
+    ACTIVITY_HANDLER_REGISTRY,
 )
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.as_vocab.base.objects.activities.transitive import (
-    as_Offer,
-)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -60,39 +55,6 @@ def rehydrate(activity: as_Activity) -> AsActivityType:
     except ValidationError:
         logger.error(f"{cls.__name__} validation failed on {activity}")
         raise
-
-
-def activity_handler(
-    activity_type: type[AsActivityType],
-) -> Callable[
-    [Callable[[str, AsActivityType], None]], Callable[[str, as_Activity], None]
-]:
-    def decorator(
-        func: Callable[[str, AsActivityType], None],
-    ) -> Callable[[str, as_Activity], None]:
-        @wraps(func)
-        def wrapper(actor_id: str, obj: AsActivityType):
-            if not isinstance(obj, activity_type):
-                raise TypeError(
-                    f"Handler for {activity_type.__name__} received wrong type: {obj.__class__.__name__}"
-                )
-            return func(actor_id, cast(AsActivityType, obj))
-
-        ACTIVITY_HANDLERS[activity_type] = wrapper
-        return wrapper
-
-    return decorator
-
-
-@activity_handler(as_Offer)
-def handle_offer(actor_id: str, obj: as_Offer):
-    logger.info(f"Actor {actor_id} received Offer activity: {obj.name}")
-
-
-def handle_unknown(actor_id: str, obj: as_Activity):
-    logger.warning(
-        f"Actor {actor_id} received unknown Activity type {obj.as_type}: {obj.name}"
-    )
 
 
 def handle_inbox_item(actor_id: str, obj: as_Activity):
@@ -128,8 +90,7 @@ def handle_inbox_item(actor_id: str, obj: as_Activity):
     else:
         rehydrated = rehydrate(obj)
 
-    activity_cls = type(rehydrated)
-    handler = ACTIVITY_HANDLERS.get(activity_cls, handle_unknown)
+    handler = ACTIVITY_HANDLER_REGISTRY.get_handler(rehydrated)
     handler(actor_id, rehydrated)
 
 
