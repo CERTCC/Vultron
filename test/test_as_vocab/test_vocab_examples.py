@@ -36,6 +36,7 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Remove,
     as_Undo,
     as_Update,
+    as_TentativeReject,
 )
 from vultron.as_vocab.base.objects.actors import as_Actor, as_Organization
 from vultron.as_vocab.base.objects.base import as_Object
@@ -156,8 +157,8 @@ class MyTestCase(unittest.TestCase):
         report = examples.report()
 
         # does it have the right fields?
-        self.assertIsInstance(invalidate_report, as_Reject)
-        self.assertEqual(invalidate_report.as_type, "Reject")
+        self.assertIsInstance(invalidate_report, as_TentativeReject)
+        self.assertEqual(invalidate_report.as_type, "TentativeReject")
         self.assertEqual(invalidate_report.actor, vendor.as_id)
         self.assertEqual(invalidate_report.as_object, report.as_id)
 
@@ -169,8 +170,8 @@ class MyTestCase(unittest.TestCase):
         report = examples.report()
 
         # does it have the right fields?
-        self.assertIsInstance(close_report, as_Leave)
-        self.assertEqual(close_report.as_type, "Leave")
+        self.assertIsInstance(close_report, as_Reject)
+        self.assertEqual(close_report.as_type, "Reject")
         self.assertEqual(close_report.actor, vendor.as_id)
         self.assertEqual(close_report.as_object, report.as_id)
 
