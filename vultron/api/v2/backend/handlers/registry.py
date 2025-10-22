@@ -50,7 +50,7 @@ class ActivityHandlerRegistry(BaseModel):
 
         key = activity_type.__name__.lstrip("as_")
 
-        # ensure that activity_type is in the VOCABULARY
+        # ensure that activity_type is an Activity in the VOCABULARY
         if key not in VOCABULARY.activities:
             raise ValueError(
                 f"Unknown activity type: {activity_type.__name__}"
@@ -58,8 +58,9 @@ class ActivityHandlerRegistry(BaseModel):
 
         if object_type is not None:
             key = object_type.__name__.lstrip("as_")
-            # ensure that object_type is in the VOCABULARY
-            if key not in VOCABULARY.objects:
+            # ensure that object_type is in the VOCABULARY (could be any object)
+
+            if key not in VOCABULARY:
                 raise ValueError(
                     f"Unknown object type: {object_type.__name__}"
                 )

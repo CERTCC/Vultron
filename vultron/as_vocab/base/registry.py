@@ -23,6 +23,13 @@ class Vocabulary(BaseModel):
     activities: dict[str, type] = Field(default_factory=dict)
     links: dict[str, type] = Field(default_factory=dict)
 
+    def __contains__(self, item: str) -> bool:
+        return (
+            item in self.objects
+            or item in self.activities
+            or item in self.links
+        )
+
 
 VOCABULARY = Vocabulary()
 

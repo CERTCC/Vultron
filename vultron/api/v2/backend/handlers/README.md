@@ -4,8 +4,8 @@
 
 ## Accept
 
-- AcceptActorRecommendation
-- AcceptCaseOwnershipTransfer
+- AcceptActorRecommendation (stubbed)
+- AcceptCaseOwnershipTransfer (stubbed)
 - EmAcceptEmbargo
 - RmAccceptInviteToCase
 - RmValidateReport

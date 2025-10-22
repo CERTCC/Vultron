@@ -29,17 +29,17 @@ read_handler = partial(ActivityHandler, activity_type=as_Read)
 
 
 @read_handler(VulnerabilityReport)
-def rm_read_report(actor_id: str, obj: as_Read) -> None:
+def rm_read_report(actor_id: str, activity: as_Read) -> None:
     """
     Process a Read(VulnerabilityReport) activity.
 
     Args:
         actor_id: The ID of the actor performing the Read activity.
-        obj: The Read object containing the VulnerabilityReport being read.
+        activity: The Read object containing the VulnerabilityReport being read.
     Returns:
         None
     """
-    read_obj = obj.as_object
+    read_obj = activity.as_object
 
     logger.info(
         f"Actor {actor_id} has read VulnerabilityReport: {read_obj.name}"
