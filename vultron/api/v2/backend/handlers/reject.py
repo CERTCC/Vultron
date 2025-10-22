@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+"""
+Handler for Reject Activities
+"""
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -11,55 +15,47 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""
-Read Activity Handlers
-"""
 import logging
 from functools import partial
 
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
 from vultron.as_vocab.base.objects.activities.transitive import (
-    as_Read,
+    as_Reject,
+    as_TentativeReject,
 )
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 logger = logging.getLogger("uvicorn.error")
 
-read_handler = partial(ActivityHandler, activity_type=as_Read)
+reject_handler = partial(ActivityHandler, activity_type=as_Reject)
+tentative_reject_handler = partial(
+    ActivityHandler, activity_type=as_TentativeReject
+)
 
 
-@read_handler(object_type=VulnerabilityReport)
-def rm_read_report(actor_id: str, activity: as_Read) -> None:
+@tentative_reject_handler(object_type=VulnerabilityReport)
+def rm_invalidate_report(
+    actor_id: str,
+    activity: as_TentativeReject,
+) -> None:
     """
-    Process a Read(VulnerabilityReport) activity.
-
-    Args:
-        actor_id: The ID of the actor performing the Read activity.
-        activity: The Read object containing the VulnerabilityReport being read.
-    Returns:
-        None
+    Handle TentativeReject activity for VulnerabilityReport
     """
-    read_obj = activity.as_object
+    obj = activity.as_object
 
     logger.info(
-        f"Actor {actor_id} has read {read_obj.as_type}: {read_obj.name}"
+        f"Actor {actor_id} is invalidating (tentatively rejecting) a {obj.as_type}: {obj.name}"
     )
 
-    # TODO if the actor is a vendor on a case, ParticipantStatus -> V
 
+@reject_handler(object_type=VulnerabilityReport)
+def rm_close_report(
+    actor_id: str,
+    activity: as_Reject,
+) -> None:
+    """
+    Handle Reject activity for VulnerabilityReport
+    """
+    obj = activity.as_object
 
-def main():
-    from vultron.api.v2.backend.handlers.registry import (
-        ACTIVITY_HANDLER_REGISTRY,
-    )
-
-    for k, v in ACTIVITY_HANDLER_REGISTRY.handlers.items():
-        for ok, ov in v.items():
-            if ok is None:
-                print(f"{k.__name__}: None -> {ov.__name__}")
-            else:
-                print(f"{k.__name__}: {ok.__name__} -> {ov.__name__}")
-
-
-if __name__ == "__main__":
-    main()
+    logger.info(f"Actor {actor_id} is offering a {obj.as_type}: {obj.name}")

@@ -45,12 +45,12 @@ class ActivityHandler:
         )
 
         @wraps(func)
-        def wrapper(actor_id: str, obj: AsActivityType):
+        def wrapper(actor_id: str, activity: AsActivityType):
 
             # if the object_type is specified, verify it matches
             if self.object_type is not None:
                 act_obj = getattr(
-                    obj, "as_object"
+                    activity, "as_object"
                 )  # ensure obj has as_object attribute
 
                 if act_obj is None:
@@ -63,7 +63,7 @@ class ActivityHandler:
                         f"Activity object type mismatch: expected {self.object_type.__name__}, got {type(act_obj).__name__}"
                     )
 
-            return func(actor_id, obj)
+            return func(actor_id, activity)
 
         return wrapper
 
