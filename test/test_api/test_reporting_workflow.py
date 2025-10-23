@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Test the reporting worfklow
+Test the reporting workflow
 """
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
