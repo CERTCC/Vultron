@@ -58,4 +58,4 @@ def rm_close_report(
     """
     obj = activity.as_object
 
-    logger.info(f"Actor {actor_id} is offering a {obj.as_type}: {obj.name}")
+    logger.info(f"Actor {actor_id} is rejecting a {obj.as_type}: {obj.name}")
