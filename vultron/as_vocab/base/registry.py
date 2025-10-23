@@ -23,8 +23,41 @@ class Vocabulary(BaseModel):
     activities: dict[str, type] = Field(default_factory=dict)
     links: dict[str, type] = Field(default_factory=dict)
 
+    def __contains__(self, item: str) -> bool:
+        return (
+            item in self.objects
+            or item in self.activities
+            or item in self.links
+        )
+
 
 VOCABULARY = Vocabulary()
+
+
+def find_in_vocabulary(
+    item_name: str, item_type: str | None = None
+) -> type | None:
+    """Find a class in the vocabulary by type and name.
+
+    Args:
+        item_name: The name of the item to find.
+        item_type: (optional) The type of the item to find ('object', 'activity', or 'link').
+    Returns:
+        The class if found, otherwise None.
+    """
+    match item_type:
+        case None:
+            return (
+                VOCABULARY.objects.get(item_name)
+                or VOCABULARY.activities.get(item_name)
+                or VOCABULARY.links.get(item_name)
+            )
+        case "object":
+            return VOCABULARY.objects.get(item_name)
+        case "activity":
+            return VOCABULARY.activities.get(item_name)
+        case "link":
+            return VOCABULARY.links.get(item_name)
 
 
 def activitystreams_object(cls: type) -> type:

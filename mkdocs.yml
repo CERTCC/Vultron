@@ -166,6 +166,8 @@ nav:
     - Code:
         - vultron: 'reference/code/index.md'
         - case_states: 'reference/code/case_states.md'
+        - API:
+            - Actor Inbox Handler: 'reference/code/api/actor_inbox_handler.md'
         - Behavior Trees:
           - BT: 'reference/code/bt/behavior_trees.md'
           - Base: 'reference/code/bt//bt_base.md'

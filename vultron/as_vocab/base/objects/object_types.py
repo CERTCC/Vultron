@@ -59,6 +59,9 @@ as_DocumentRef: TypeAlias = ActivityStreamRef[as_Document]
 class as_Note(as_Object):
     """Base class for all ActivityPub notes. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-note>"""
 
+    # notes must have content
+    content: str
+
 
 as_NoteRef: TypeAlias = ActivityStreamRef[as_Note]
 

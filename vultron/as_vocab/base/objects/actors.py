@@ -15,7 +15,7 @@
 
 from typing import Any, TypeAlias
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.base import as_Object
@@ -46,6 +46,19 @@ class as_Actor(as_Object):
     endpoints: Any | None = None
     # todo endpoints should be its own object
     # see https://www.w3.org/TR/activitypub/#actors
+
+    @model_validator(mode="after")
+    def set_collections(self):
+        actor_id = self.as_id
+
+        self.inbox = as_OrderedCollection(
+            id=f"{actor_id}/inbox", type="OrderedCollection"
+        )
+        self.outbox = as_OrderedCollection(
+            id=f"{actor_id}/outbox", type="OrderedCollection"
+        )
+
+        return self
 
 
 as_ActorRef: TypeAlias = ActivityStreamRef[as_Actor]

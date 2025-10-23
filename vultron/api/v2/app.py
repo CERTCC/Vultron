@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Vultron API v1 Application
+Vultron API v2 Application
 """
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
@@ -22,24 +22,31 @@ from .routers import router
 tags_metadata = [
     {
         "name": "Examples",
-        "description": """Actors create Reports and Cases.
-Cases manage the lifecycle of of response to a Report. Cases have Participants,
-which are wrappers around Actors. Participants are scoped to the context of a
-specific case, and have specific role(s) in the Case. Actors
-can post Notes and Embargo Events to Cases. Cases have Statuses, 
-as do individual Participants within the case.
-
+        "description": """Actors have inboxes. You can get an example Actor object or validate one.
+For convenience, we also provide an example Note object and validation endpoint.
+        
 - `GET` to see a sample object.
 - `POST` an object to run it through the pydantic model validation.
 """,
     },
+    {
+        "name": "Actors",
+        "description": """Actors are the entities that participate in Vultron activities.
+They can be individuals, organizations, or software agents.
+Each Actor has an inbox where they receive activities and messages.
+
+In a full implementation, Actors would also have outboxes for sending activities, but
+for this prototype, we focus on inboxes since most Vultron interactions are done via direct
+messages to an Actor's inbox.
+""",
+    },
 ]
 
-app_v1 = FastAPI(
-    title="Vultron API v1",
-    version="0.1.0",
+app_v2 = FastAPI(
+    title="Vultron API v2",
+    version="0.2.0",
     docs_url="/docs",
-    openapi_url="/openapi/v1.json",
+    openapi_url="/openapi/v2.json",
     openapi_tags=tags_metadata,
 )
-app_v1.include_router(router)
+app_v2.include_router(router)
