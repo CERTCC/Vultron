@@ -1,7 +1,5 @@
 # Handlers we need to implement
 
-
-
 ## Accept
 
 - AcceptActorRecommendation (stubbed)
