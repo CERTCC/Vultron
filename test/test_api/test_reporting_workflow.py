@@ -18,6 +18,7 @@ Test the reporting workflow
 
 import unittest
 
+from vultron.api.data import THINGS
 from vultron.api.v2.backend.handlers.accept import rm_validate_report
 from vultron.api.v2.backend.handlers.create import (
     rm_create_report,
@@ -63,9 +64,22 @@ class TestReportingWorkflow(unittest.TestCase):
             name="Test Vulnerability Case",
             vulnerability_reports=[self.report],
         )
+        self.things = THINGS
+        self.things.clear()
 
     def tearDown(self):
-        pass
+        self.things.clear()
+
+    def test_StoredThings_initialization(self):
+        for attr in ["sent", "received"]:
+            self.assertTrue(hasattr(THINGS, attr))
+            obj = getattr(self.things, attr)
+
+            for subattr in ["offers", "invites", "reports", "cases"]:
+                self.assertTrue(hasattr(obj, subattr))
+                items = getattr(obj, subattr)
+                self.assertIsInstance(items, list)
+                self.assertFalse(items)
 
     def _test_activity(self, activity, handler):
         # capture logging output if needed
@@ -92,6 +106,10 @@ class TestReportingWorkflow(unittest.TestCase):
         )
         self._test_activity(activity, rm_submit_report)
 
+        # check side effects
+        self.assertIn(activity, self.things.received.offers)
+        self.assertIn(self.report, self.things.received.reports)
+
     def test_read_report(self):
         activity = as_Read(
             id="urn:uuid:read-151617",
@@ -106,9 +124,7 @@ class TestReportingWorkflow(unittest.TestCase):
             actor=self.reporter,
             object=self.report,
         )
-        self._test_activity(
-            activity, rm_validate_report
-        )  # No validate handler yet
+        self._test_activity(activity, rm_validate_report)
 
     def test_invalidate_report(self):
         activity = as_TentativeReject(
@@ -116,9 +132,7 @@ class TestReportingWorkflow(unittest.TestCase):
             actor=self.reporter,
             object=self.report,
         )
-        self._test_activity(
-            activity, rm_invalidate_report
-        )  # No invalidate handler yet
+        self._test_activity(activity, rm_invalidate_report)
 
     def test_create_case(self):
         activity = as_Create(
