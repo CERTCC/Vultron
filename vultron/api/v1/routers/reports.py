@@ -16,15 +16,14 @@ Vultron API Report Routers
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 from fastapi import APIRouter
 
+from vultron.api.data import _THINGS
 from vultron.as_vocab.activities.report import (
     RmCloseReport,
     RmInvalidateReport,
     RmValidateReport,
     RmReadReport,
     RmSubmitReport,
-    RmCreateReport,
 )
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.scripts import vocab_examples
 
@@ -37,20 +36,19 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
     response_model_exclude_none=True,
     description="Get all Vulnerability Report objects. (scoped to the actor) (This is a stub implementation.)",
 )
-async def get_reports() -> list[VulnerabilityReport]:
+def get_reports() -> list[VulnerabilityReport]:
     """Returns a list of all report objects."""
     return [vocab_examples.report()]
 
 
 @router.post(
     "/",
-    response_model=RmCreateReport,
-    response_model_exclude_none=True,
     description="Create a new Vulnerability Report object. (This is a stub implementation.)",
 )
-async def create_report(case: VulnerabilityCase) -> RmCreateReport:
-    """Creates a VulnerabilityCase object."""
-    return vocab_examples.create_report()
+def create_report(report: VulnerabilityReport) -> None:
+    """Creates a VulnerabilityReport object."""
+    _THINGS.received.reports.append(report)
+    return None
 
 
 # TODO is this redundant to create_report?
@@ -60,7 +58,7 @@ async def create_report(case: VulnerabilityCase) -> RmCreateReport:
     response_model_exclude_none=True,
     description="Submit a Vulnerability Report. (This is a stub implementation.)",
 )
-async def submit_case(case: VulnerabilityCase) -> RmSubmitReport:
+async def submit_report(report: VulnerabilityReport) -> RmSubmitReport:
     """Submit a new VulnerabilityCase object."""
     # In a real implementation, you would save the case to a database or perform other actions.
     return vocab_examples.submit_report()

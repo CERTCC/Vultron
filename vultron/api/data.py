@@ -15,7 +15,7 @@ Basic Data Module for Vultron API
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import TypeVar, TypeAlias
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -26,54 +26,84 @@ from vultron.as_vocab.base.objects.activities.transitive import (
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
-StorableThing: TypeAlias = TypeVar(
-    "StorableThing",
-    as_Offer,
-    as_Invite,
-    VulnerabilityReport,
-    VulnerabilityCase,
-)
+
+@runtime_checkable
+class DataLayer(Protocol):
+    """Protocol for a Vultron Data Layer."""
+
+    def receive_offer(self, offer: as_Offer) -> None:
+        """Receive an offer into the data layer."""
+        ...
+
+    def receive_report(self, report: VulnerabilityReport) -> None:
+        """Receive a report into the data layer."""
+        ...
+
+    def receive_case(self, case: VulnerabilityCase) -> None:
+        """Receive a case into the data layer."""
+        ...
+
+    def get_all_offers(self) -> list[as_Offer]:
+        """Get all offers from the data layer."""
+        ...
+
+    def get_all_reports(self) -> list[VulnerabilityReport]:
+        """Get all reports from the data layer."""
+        ...
 
 
-class _Things(BaseModel):
+class Collection(BaseModel):
+    """In-Memory Collection for objects."""
+
     offers: list[as_Offer] = Field(default_factory=list)
     invites: list[as_Invite] = Field(default_factory=list)
     reports: list[VulnerabilityReport] = Field(default_factory=list)
     cases: list[VulnerabilityCase] = Field(default_factory=list)
 
-    def _do(self, thing: StorableThing, action: str):
-        match thing.as_type:
-            case "Offer":
-                getattr(self.offers, action)(thing)  # type: ignore
-            case "Invite":
-                getattr(self.invites, action)(thing)  # type: ignore
-            case "VulnerabilityReport":
-                getattr(self.reports, action)(thing)  # type: ignore
-            case "VulnerabilityCase":
-                getattr(self.cases, action)(thing)  # type: ignore
-            case _:
-                raise ValueError(f"Unknown thing type: {thing.as_type}")
 
-    def append(self, thing: StorableThing):
-        self._do(thing, "append")
+class MemoryStore(BaseModel):
+    """In-Memory Store for received objects."""
 
-    def clear(self):
-        self.offers.clear()
-        self.invites.clear()
-        self.reports.clear()
-        self.cases.clear()
+    received: Collection = Field(default_factory=Collection)
 
-    def remove(self, thing: StorableThing):
-        self._do(thing, "remove")
+    def clear(self) -> None:
+        """Clear all stored objects."""
+        self.received = Collection()
 
 
-class StoredThings(BaseModel):
-    sent: _Things = Field(default_factory=_Things)
-    received: _Things = Field(default_factory=_Things)
-
-    def clear(self):
-        self.sent.clear()
-        self.received.clear()
+_THINGS = MemoryStore()
+"""Global In-Memory Store Instance."""
 
 
-THINGS = StoredThings()
+class InMemoryDataLayer(DataLayer):
+    """In-Memory Implementation of the Data Layer."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._things = _THINGS
+
+    def receive_offer(self, offer: as_Offer) -> None:
+        self._things.received.offers.append(offer)
+
+    def receive_report(self, report: VulnerabilityReport) -> None:
+        self._things.received.reports.append(report)
+
+    def receive_case(self, case: VulnerabilityCase) -> None:
+        self._things.received.cases.append(case)
+
+    def get_all_offers(self) -> list[as_Offer]:
+        return self._things.received.offers
+
+    def get_all_reports(self) -> list[VulnerabilityReport]:
+        return self._things.received.reports
+
+    def get_all_cases(self) -> list[VulnerabilityCase]:
+        return self._things.received.cases
+
+
+def get_datalayer() -> DataLayer:
+    """Get the data layer instance."""
+    # For now, we just return an in-memory backend.
+    # in the future, this could be extended to return different backends
+    # based on configuration or environment variables.
+    return InMemoryDataLayer()

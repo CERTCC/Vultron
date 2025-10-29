@@ -17,7 +17,10 @@ Offer Activity Handlers
 import logging
 from functools import partial
 
-from vultron.api.data import THINGS
+from vultron.api.data import (
+    get_datalayer,
+    DataLayer,
+)
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
@@ -33,6 +36,7 @@ offer_handler = partial(ActivityHandler, activity_type=as_Offer)
 def offer_case_ownership_transfer(
     actor_id: str,
     activity: as_Offer,
+    datalayer: DataLayer = get_datalayer(),
 ) -> None:
     """
     Process an Offer(CaseOwnershipTransfer) activity.
@@ -40,6 +44,7 @@ def offer_case_ownership_transfer(
     Args:
         actor_id: The ID of the actor performing the Offer activity.
         activity: The Offer object containing the VulnerabilityCase being offered.
+        datalayer: The data layer to use for storing the case. (injected dependency)
     Returns:
         None
     """
@@ -51,18 +56,23 @@ def offer_case_ownership_transfer(
     logger.info(
         f"Actor {actor_id} is offering a {offered_obj.as_type}: {offered_obj.name}"
     )
-
-    THINGS.received.append(activity)
+    datalayer.receive_offer(activity)
+    datalayer.receive_case(offered_obj)
 
 
 @offer_handler(object_type=as_Actor)
-def recommend_actor_to_case(actor_id: str, activity: as_Offer) -> None:
+def recommend_actor_to_case(
+    actor_id: str,
+    activity: as_Offer,
+    datalayer: DataLayer = get_datalayer(),
+) -> None:
     """
     Process an Offer(Actor) activity.
 
     Args:
         actor_id: The ID of the actor performing the Offer activity.
         activity: The Offer object containing the Actor being recommended.
+        datalayer: The data layer to use for storing the recommendation. (injected dependency)
     Returns:
         None
     """
@@ -74,28 +84,38 @@ def recommend_actor_to_case(actor_id: str, activity: as_Offer) -> None:
         f"Actor {actor_id} is recommending {offered_obj.as_type} {offered_obj.name}"
     )
 
-    THINGS.received.append(activity)
+    datalayer.receive_offer(activity)
 
 
 @offer_handler(object_type=VulnerabilityReport)
-def rm_submit_report(actor_id: str, activity: as_Offer) -> None:
+def rm_submit_report(
+    actor_id: str,
+    activity: as_Offer,
+    datalayer: DataLayer = get_datalayer(),
+) -> None:
     """
     Process an Offer(VulnerabilityReport) activity.
 
     Args:
         actor_id: The ID of the actor performing the Offer activity.
         activity: The Offer object containing the VulnerabilityReport being offered.
+        datalayer: The data layer to use for storing the report. (injected dependency)
     Returns:
         None
     """
     offered_obj = activity.as_object
 
+    if not isinstance(offered_obj, VulnerabilityReport):
+        raise TypeError(
+            f"Expected VulnerabilityReport, got {type(offered_obj).__name__}"
+        )
+
     logger.info(
         f"Actor {actor_id} is offering a {offered_obj.as_type}: {offered_obj.name}"
     )
 
-    THINGS.received.append(activity)
-    THINGS.received.append(offered_obj)
+    datalayer.receive_offer(activity)
+    datalayer.receive_report(offered_obj)
 
 
 def main():

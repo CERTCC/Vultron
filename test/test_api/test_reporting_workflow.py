@@ -18,7 +18,7 @@ Test the reporting workflow
 
 import unittest
 
-from vultron.api.data import THINGS
+from vultron.api.data import _THINGS
 from vultron.api.v2.backend.handlers.accept import rm_validate_report
 from vultron.api.v2.backend.handlers.create import (
     rm_create_report,
@@ -64,15 +64,15 @@ class TestReportingWorkflow(unittest.TestCase):
             name="Test Vulnerability Case",
             vulnerability_reports=[self.report],
         )
-        self.things = THINGS
+        self.things = _THINGS
         self.things.clear()
 
     def tearDown(self):
         self.things.clear()
 
     def test_StoredThings_initialization(self):
-        for attr in ["sent", "received"]:
-            self.assertTrue(hasattr(THINGS, attr))
+        for attr in ["received"]:
+            self.assertTrue(hasattr(_THINGS, attr))
             obj = getattr(self.things, attr)
 
             for subattr in ["offers", "invites", "reports", "cases"]:
