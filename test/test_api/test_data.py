@@ -14,7 +14,8 @@
 import unittest
 
 from vultron.api import data
-from vultron.api.data import InMemoryDataLayer
+from vultron.api.data import InMemoryDataLayer, wrap_offer
+from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 
 
 class MyTestCase(unittest.TestCase):
@@ -70,20 +71,38 @@ class MyTestCase(unittest.TestCase):
         self.assertIn(report2, reports)
 
     def test_data_layer_receive_offer(self):
-        offer = "test_offer"
+        offer = as_Offer(actor="urn:uuid:test-actor", as_object="test_object")
 
         self.assertEqual(0, len(self.things.received.offers))
         self.dl.receive_offer(offer)
-        self.assertIn(offer, self.things.received.offers)
+
+        offers = [wrapped.object for wrapped in self.things.received.offers]
+
+        self.assertIn(offer, offers)
 
     def test_data_layer_get_all_offers(self):
-        offer1 = "test_offer_1"
-        offer2 = "test_offer_2"
+        offer1 = as_Offer(
+            actor="urn:uuid:test-actor-1", as_object="test_object_1"
+        )
+        offer2 = as_Offer(
+            actor="urn:uuid:test-actor-2", as_object="test_object_2"
+        )
 
-        self.things.received.offers.extend([offer1, offer2])
+        wrapped1 = wrap_offer(offer1)
+        wrapped2 = wrap_offer(offer2)
+
+        self.things.received.offers.extend([wrapped1, wrapped2])
         offers = self.dl.get_all_offers()
         self.assertIn(offer1, offers)
         self.assertIn(offer2, offers)
+
+    def test_wrap_offer(self):
+        offer = as_Offer(actor="urn:uuid:test-actor", as_object="test_object")
+        wrapped = wrap_offer(offer)
+
+        self.assertEqual(wrapped.object_id, offer.as_id)
+        self.assertEqual(wrapped.object, offer)
+        self.assertEqual(wrapped.object_status, data.OfferStatus.RECEIVED)
 
     def test_data_layer_receive_case(self):
         case = "test_case"

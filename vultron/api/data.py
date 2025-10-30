@@ -15,6 +15,7 @@ Basic Data Module for Vultron API
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from enum import auto, StrEnum
 from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
@@ -25,6 +26,51 @@ from vultron.as_vocab.base.objects.activities.transitive import (
 )
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+
+
+#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+
+class OfferStatus(StrEnum):
+    """Enumeration of possible Offer statuses."""
+
+    RECEIVED = auto()
+    ACCEPTED = auto()
+    TENTATIVE_REJECTED = auto()
+    REJECTED = auto()
+
+
+class OfferWrapper(BaseModel):
+    """Wrapper for objects stored in the data layer."""
+
+    object_id: str = Field(..., description="The ID of the Offer object.")
+    object: as_Offer = Field(..., description="The Offer object.")
+    object_status: OfferStatus = Field(
+        default=OfferStatus.RECEIVED,
+        description="The status of the Offer object.",
+    )
+
+
+class InviteWrapper(BaseModel):
+    """Wrapper for Invite objects stored in the data layer."""
+
+    object_id: str = Field(..., description="The ID of the Invite object.")
+    object: as_Invite = Field(..., description="The Invite object.")
+    object_status: OfferStatus = Field(
+        default=OfferStatus.RECEIVED,
+        description="The status of the Invite object.",
+    )
 
 
 @runtime_checkable
@@ -55,8 +101,8 @@ class DataLayer(Protocol):
 class Collection(BaseModel):
     """In-Memory Collection for objects."""
 
-    offers: list[as_Offer] = Field(default_factory=list)
-    invites: list[as_Invite] = Field(default_factory=list)
+    offers: list[OfferWrapper] = Field(default_factory=list)
+    invites: list[InviteWrapper] = Field(default_factory=list)
     reports: list[VulnerabilityReport] = Field(default_factory=list)
     cases: list[VulnerabilityCase] = Field(default_factory=list)
 
@@ -75,6 +121,15 @@ _THINGS = MemoryStore()
 """Global In-Memory Store Instance."""
 
 
+def wrap_offer(offer: as_Offer) -> OfferWrapper:
+    """Wrap an Offer object for storage."""
+    return OfferWrapper(
+        object_id=offer.as_id,
+        object=offer,
+        object_status=OfferStatus.RECEIVED,
+    )
+
+
 class InMemoryDataLayer(DataLayer):
     """In-Memory Implementation of the Data Layer."""
 
@@ -83,7 +138,8 @@ class InMemoryDataLayer(DataLayer):
         self._things = _THINGS
 
     def receive_offer(self, offer: as_Offer) -> None:
-        self._things.received.offers.append(offer)
+        wrapped = wrap_offer(offer)
+        self._things.received.offers.append(wrapped)
 
     def receive_report(self, report: VulnerabilityReport) -> None:
         self._things.received.reports.append(report)
@@ -92,7 +148,8 @@ class InMemoryDataLayer(DataLayer):
         self._things.received.cases.append(case)
 
     def get_all_offers(self) -> list[as_Offer]:
-        return self._things.received.offers
+        offers = [wrapped.object for wrapped in self._things.received.offers]
+        return offers
 
     def get_all_reports(self) -> list[VulnerabilityReport]:
         return self._things.received.reports

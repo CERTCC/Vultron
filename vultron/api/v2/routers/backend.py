@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """
-Provides TODO writeme
+Provides a backend API router for basic Vultron data layer operations.
 """
 from fastapi import APIRouter, status, Response, Depends
 

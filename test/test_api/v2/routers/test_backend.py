@@ -17,7 +17,7 @@ from fastapi import FastAPI, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 
-from vultron.api.data import _THINGS
+from vultron.api.data import _THINGS, wrap_offer
 from vultron.api.v2.routers import backend
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
@@ -44,7 +44,8 @@ class MyTestCase(unittest.TestCase):
             0, len(response.json())
         )  # Assuming no offers initially
 
-        _THINGS.received.offers.append(self.offer)
+        wrapped = wrap_offer(self.offer)
+        _THINGS.received.offers.append(wrapped)
 
         response = self.client.get("/datalayer/offers")
         self.assertEqual(status.HTTP_200_OK, response.status_code)

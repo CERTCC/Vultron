@@ -107,7 +107,8 @@ class TestReportingWorkflow(unittest.TestCase):
         self._test_activity(activity, rm_submit_report)
 
         # check side effects
-        self.assertIn(activity, self.things.received.offers)
+        offers = [wrapped.object for wrapped in self.things.received.offers]
+        self.assertIn(activity, offers)
         self.assertIn(self.report, self.things.received.reports)
 
     def test_read_report(self):
