@@ -16,13 +16,13 @@ Vultron API Report Routers
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 from fastapi import APIRouter
 
-from vultron.api.data import _THINGS
 from vultron.as_vocab.activities.report import (
     RmCloseReport,
     RmInvalidateReport,
     RmValidateReport,
     RmReadReport,
     RmSubmitReport,
+    RmCreateReport,
 )
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.scripts import vocab_examples
@@ -45,13 +45,13 @@ def get_reports() -> list[VulnerabilityReport]:
     "/",
     description="Create a new Vulnerability Report object. (This is a stub implementation.)",
 )
-def create_report(report: VulnerabilityReport) -> None:
+def create_report(report: VulnerabilityReport) -> RmCreateReport:
     """Creates a VulnerabilityReport object."""
-    _THINGS.received.reports.append(report)
-    return None
+    return vocab_examples.create_report()
 
 
-# TODO is this redundant to create_report?
+# Question: Is this redundant to create_report?
+# Answer: No, because this represents an Offer(Report) activity vs a Create(Report) activity
 @router.post(
     "/submit",
     response_model=RmSubmitReport,
@@ -61,7 +61,7 @@ def create_report(report: VulnerabilityReport) -> None:
 async def submit_report(report: VulnerabilityReport) -> RmSubmitReport:
     """Submit a new VulnerabilityCase object."""
     # In a real implementation, you would save the case to a database or perform other actions.
-    return vocab_examples.submit_report()
+    return vocab_examples.submit_report(report=report)
 
 
 @router.put(

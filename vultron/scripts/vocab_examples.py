@@ -219,10 +219,14 @@ def create_report() -> RmCreateReport:
     return activity
 
 
-def submit_report() -> RmSubmitReport:
+def submit_report(report: VulnerabilityReport | None = None) -> RmSubmitReport:
     _finder = finder()
     _vendor = vendor()
-    _report = report()
+    if report is not None:
+        _report = report
+    else:
+        _report = report()
+
     activity = RmSubmitReport(
         actor=_finder.as_id, object=_report, to=_vendor.as_id
     )

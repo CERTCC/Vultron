@@ -13,6 +13,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from typing import Literal
+
 from pydantic import Field, model_validator
 
 from vultron.as_vocab.base.links import as_Link
@@ -22,6 +24,20 @@ from vultron.as_vocab.base.objects.activities.base import (
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.registry import activitystreams_activity
 from vultron.as_vocab.base.utils import name_of
+
+
+#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  (“Third Party Software”). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
 @activitystreams_activity
@@ -65,7 +81,7 @@ class as_Like(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-like>
     """
 
-    as_type: str = "Like"
+    as_type: Literal["Like"] = Field(default="Like", alias="type")
 
 
 @activitystreams_activity
@@ -74,7 +90,7 @@ class as_Ignore(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-ignore>
     """
 
-    as_type: str = "Ignore"
+    as_type: Literal["Ignore"] = Field(default="Ignore", alias="type")
 
 
 @activitystreams_activity
@@ -83,7 +99,7 @@ class as_Block(as_Ignore):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-block>
     """
 
-    as_type: str = "Block"
+    as_type: Literal["Block"] = Field(default="Block", alias="type")
 
 
 @activitystreams_activity
@@ -93,7 +109,7 @@ class as_Offer(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-offer>
     """
 
-    as_type: str = "Offer"
+    as_type: Literal["Offer"] = Field(default="Offer", alias="type")
 
 
 @activitystreams_activity
@@ -102,7 +118,7 @@ class as_Invite(as_Offer):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-invite>
     """
 
-    as_type: str = "Invite"
+    as_type: Literal["Invite"] = Field(default="Invite", alias="type")
 
 
 @activitystreams_activity
@@ -111,7 +127,7 @@ class as_Flag(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-flag>
     """
 
-    as_type: str = "Flag"
+    as_type: Literal["Flag"] = Field(default="Flag", alias="type")
 
 
 @activitystreams_activity
@@ -120,7 +136,7 @@ class as_Remove(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-remove>
     """
 
-    as_type: str = "Remove"
+    as_type: Literal["Remove"] = Field(default="Remove", alias="type")
 
 
 @activitystreams_activity
@@ -129,7 +145,7 @@ class as_Undo(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-undo>
     """
 
-    as_type: str = "Undo"
+    as_type: Literal["Undo"] = Field(default="Undo", alias="type")
 
 
 @activitystreams_activity
@@ -138,7 +154,7 @@ class as_Create(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-create>
     """
 
-    as_type: str = "Create"
+    as_type: Literal["Create"] = Field(default="Create", alias="type")
 
 
 @activitystreams_activity
@@ -147,7 +163,7 @@ class as_Delete(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-delete>
     """
 
-    as_type: str = "Delete"
+    as_type: Literal["Delete"] = Field(default="Delete", alias="type")
 
 
 @activitystreams_activity
@@ -157,7 +173,7 @@ class as_Move(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-move>
     """
 
-    as_type: str = "Move"
+    as_type: Literal["Move"] = Field(default="Move", alias="type")
 
 
 @activitystreams_activity
@@ -167,7 +183,7 @@ class as_Add(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-add>
     """
 
-    as_type: str = "Add"
+    as_type: Literal["Add"] = Field(default="Add", alias="type")
 
 
 @activitystreams_activity
@@ -176,7 +192,7 @@ class as_Join(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-join>
     """
 
-    as_type: str = "Join"
+    as_type: Literal["Join"] = Field(default="Join", alias="type")
 
 
 @activitystreams_activity
@@ -185,7 +201,7 @@ class as_Update(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-update>
     """
 
-    as_type: str = "Update"
+    as_type: Literal["Update"] = Field(default="Update", alias="type")
 
 
 @activitystreams_activity
@@ -194,7 +210,7 @@ class as_Listen(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-listen>
     """
 
-    as_type: str = "Listen"
+    as_type: Literal["Listen"] = Field(default="Listen", alias="type")
 
 
 @activitystreams_activity
@@ -203,7 +219,7 @@ class as_Leave(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-leave>
     """
 
-    as_type: str = "Leave"
+    as_type: Literal["Leave"] = Field(default="Leave", alias="type")
 
 
 @activitystreams_activity
@@ -212,7 +228,7 @@ class as_Announce(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-announce>
     """
 
-    as_type: str = "Announce"
+    as_type: Literal["Announce"] = Field(default="Announce", alias="type")
 
 
 @activitystreams_activity
@@ -224,7 +240,7 @@ class as_Follow(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-follow>
     """
 
-    as_type: str = "Follow"
+    as_type: Literal["Follow"] = Field(default="Follow", alias="type")
 
 
 @activitystreams_activity
@@ -233,7 +249,7 @@ class as_Accept(as_TransitiveActivity):
     which the object has been accepted.
     """
 
-    as_type: str = "Accept"
+    as_type: Literal["Accept"] = Field(default="Accept", alias="type")
 
 
 @activitystreams_activity
@@ -242,7 +258,9 @@ class as_TentativeAccept(as_Accept):
     A specialization of Accept indicating that the acceptance is tentative.
     """
 
-    as_type: str = "TentativeAccept"
+    as_type: Literal["TentativeAccept"] = Field(
+        default="TentativeAccept", alias="type"
+    )
 
 
 @activitystreams_activity
@@ -251,7 +269,7 @@ class as_View(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-view>
     """
 
-    as_type: str = "View"
+    as_type: Literal["View"] = Field(default="View", alias="type")
 
 
 @activitystreams_activity
@@ -260,7 +278,7 @@ class as_Dislike(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-dislike>
     """
 
-    as_type: str = "Dislike"
+    as_type: Literal["Dislike"] = Field(default="Dislike", alias="type")
 
 
 @activitystreams_activity
@@ -270,7 +288,7 @@ class as_Reject(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-reject>
     """
 
-    as_type: str = "Reject"
+    as_type: Literal["Reject"] = Field(default="Reject", alias="type")
 
 
 @activitystreams_activity
@@ -279,7 +297,9 @@ class as_TentativeReject(as_Reject):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-tentativereject>
     """
 
-    as_type: str = "TentativeReject"
+    as_type: Literal["TentativeReject"] = Field(
+        default="TentativeReject", alias="type"
+    )
 
 
 @activitystreams_activity
@@ -288,7 +308,7 @@ class as_Read(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-read>
     """
 
-    as_type: str = "Read"
+    as_type: Literal["Read"] = Field(default="Read", alias="type")
 
 
 def main():

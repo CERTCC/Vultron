@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, Literal
 
 from pydantic import Field, model_validator
 
@@ -70,7 +70,7 @@ class as_Group(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-group>
     """
 
-    as_type: str = "Group"
+    as_type: Literal["Group"] = Field(default="Group", alias="type")
 
 
 as_GroupRef: TypeAlias = ActivityStreamRef[as_Group]
@@ -82,7 +82,9 @@ class as_Organization(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-organization>
     """
 
-    as_type: str = "Organization"
+    as_type: Literal["Organization"] = Field(
+        default="Organization", alias="type"
+    )
 
 
 as_OrganizationRef: TypeAlias = ActivityStreamRef[as_Organization]
@@ -94,7 +96,9 @@ class as_Application(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-application>
     """
 
-    as_type: str = "Application"
+    as_type: Literal["Application"] = Field(
+        default="Application", alias="type"
+    )
 
 
 as_ApplicationRef: TypeAlias = ActivityStreamRef[as_Application]
@@ -107,7 +111,7 @@ class as_Service(as_Actor):
     A service is a kind of actor that represents a non-human actor.
     """
 
-    as_type: str = "Service"
+    as_type: Literal["Service"] = Field(default="Service", alias="type")
 
 
 as_ServiceRef: TypeAlias = ActivityStreamRef[as_Service]
@@ -119,7 +123,7 @@ class as_Person(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-person>
     """
 
-    as_type: str = "Person"
+    as_type: Literal["Person"] = Field(default="Person", alias="type")
 
 
 as_PersonRef: TypeAlias = ActivityStreamRef[as_Person]

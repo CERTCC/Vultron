@@ -96,9 +96,6 @@ def parse_activity(body: dict) -> AsActivityType:
     """
     as_type = body.get("type")
     if as_type is None:
-        as_type = body.get("asType")
-
-    if as_type is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Missing 'type' field in activity.",
@@ -114,7 +111,7 @@ def parse_activity(body: dict) -> AsActivityType:
     if cls not in ACTIVITY_HANDLER_REGISTRY.handlers:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="No handler registered for this activity type.",
+            detail=f"No handler registered for activity type: '{as_type}'",
         )
 
     try:
