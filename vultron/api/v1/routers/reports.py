@@ -38,7 +38,7 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
 )
 def get_reports() -> list[VulnerabilityReport]:
     """Returns a list of all report objects."""
-    return [vocab_examples.report()]
+    return [vocab_examples.gen_report()]
 
 
 @router.post(

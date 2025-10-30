@@ -105,9 +105,9 @@ file or an embedded encoding of the binary file. However, we recommend that bina
 possible, since they can be more difficult to process automatically.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import report, json2md
+from vultron.scripts.vocab_examples import gen_report, json2md
 
-print(json2md(report()))
+print(json2md(gen_report()))
 ```
 
 !!! tip "Articles and Documents"
@@ -132,10 +132,10 @@ The `VulnerabilityCase` object is intended to be consistent with the [Case Objec
     data model internally.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import case, json2md, report
+from vultron.scripts.vocab_examples import case, json2md, gen_report
 
 _case = case()
-_case.add_report(report())
+_case.add_report(gen_report())
 _case.add_participant("https://vultron.example/cases/1/participants/vendor")
 _case.add_participant("https://vultron.example/cases/1/participants/finder")
 

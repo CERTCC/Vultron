@@ -188,7 +188,7 @@ def vendor() -> as_Organization:
 ## REPORT
 
 
-def report() -> VulnerabilityReport:
+def gen_report() -> VulnerabilityReport:
     """
     Create a vulnerability report
     Returns:
@@ -211,10 +211,10 @@ def create_report() -> RmCreateReport:
     In this example, a finder creates a vulnerability report.
 
     Example:
-          >>> RmCreateReport(actor=finder.as_id, id=report)
+          >>> RmCreateReport(actor=finder.as_id, id=gen_report)
     """
     _finder = finder()
-    _report = report()
+    _report = gen_report()
     activity = RmCreateReport(actor=_finder.as_id, object=_report)
     return activity
 
@@ -225,7 +225,7 @@ def submit_report(report: VulnerabilityReport | None = None) -> RmSubmitReport:
     if report is not None:
         _report = report
     else:
-        _report = report()
+        _report = gen_report()
 
     activity = RmSubmitReport(
         actor=_finder.as_id, object=_report, to=_vendor.as_id
@@ -234,7 +234,7 @@ def submit_report(report: VulnerabilityReport | None = None) -> RmSubmitReport:
 
 
 def read_report() -> RmReadReport:
-    _report = report()
+    _report = gen_report()
     _vendor = vendor()
     activity = RmReadReport(
         actor=_vendor.as_id,
@@ -245,7 +245,7 @@ def read_report() -> RmReadReport:
 
 
 def validate_report() -> RmValidateReport:
-    _report = report()
+    _report = gen_report()
     _vendor = vendor()
     activity = RmValidateReport(
         actor=_vendor.as_id,
@@ -256,7 +256,7 @@ def validate_report() -> RmValidateReport:
 
 
 def invalidate_report() -> RmInvalidateReport:
-    _report = report()
+    _report = gen_report()
     _vendor = vendor()
     activity = RmInvalidateReport(
         actor=_vendor.as_id,
@@ -267,7 +267,7 @@ def invalidate_report() -> RmInvalidateReport:
 
 
 def close_report() -> RmCloseReport:
-    _report = report()
+    _report = gen_report()
     _vendor = vendor()
     activity = RmCloseReport(
         actor=_vendor.as_id,
@@ -298,7 +298,7 @@ def case(random_id=False) -> VulnerabilityCase:
 def create_case() -> CreateCase:
     _case = case()
     _vendor = vendor()
-    _report = report()
+    _report = gen_report()
     _case.add_report(_report.as_id)
     participant = VendorParticipant(
         actor=_vendor.as_id, name=_vendor.name, context=_case.as_id
@@ -316,7 +316,7 @@ def create_case() -> CreateCase:
 
 def add_report_to_case() -> AddReportToCase:
     _vendor = vendor()
-    _report = report()
+    _report = gen_report()
     _case = case()
 
     activity = AddReportToCase(
@@ -929,7 +929,7 @@ def main():
     obj_to_file(_vendor, f"{outdir}/vendor.json")
 
     # create a vulnerability _report
-    _report = report()
+    _report = gen_report()
     obj_to_file(_report, f"{outdir}/vulnerability_report.json")
 
     # activity: finder creates _report

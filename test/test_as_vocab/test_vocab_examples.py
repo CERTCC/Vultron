@@ -89,7 +89,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(vendor, as_Actor)
 
     def test_report(self):
-        report = examples.report()
+        report = examples.gen_report()
         self.assertIsInstance(report, as_Object)
         self.assertIsInstance(report, VulnerabilityReport)
 
@@ -102,7 +102,7 @@ class MyTestCase(unittest.TestCase):
         create_report = examples.create_report()
         self.assertIsInstance(create_report, as_Activity)
         finder = examples.finder()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(create_report, as_Create)
@@ -115,7 +115,7 @@ class MyTestCase(unittest.TestCase):
         submit_report = examples.submit_report()
         self.assertIsInstance(submit_report, as_Activity)
         finder = examples.finder()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(submit_report, as_Offer)
@@ -128,7 +128,7 @@ class MyTestCase(unittest.TestCase):
         read_report = examples.read_report()
         self.assertIsInstance(read_report, as_Activity)
         vendor = examples.vendor()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(read_report, as_Read)
@@ -141,7 +141,7 @@ class MyTestCase(unittest.TestCase):
         validate_report = examples.validate_report()
         self.assertIsInstance(validate_report, as_Activity)
         vendor = examples.vendor()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(validate_report, as_Accept)
@@ -154,7 +154,7 @@ class MyTestCase(unittest.TestCase):
         invalidate_report = examples.invalidate_report()
         self.assertIsInstance(invalidate_report, as_Activity)
         vendor = examples.vendor()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(invalidate_report, as_TentativeReject)
@@ -167,7 +167,7 @@ class MyTestCase(unittest.TestCase):
         close_report = examples.close_report()
         self.assertIsInstance(close_report, as_Activity)
         vendor = examples.vendor()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(close_report, as_Reject)
@@ -190,7 +190,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(create_case, as_Activity)
         vendor = examples.vendor()
         case = examples.case()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(create_case, as_Create)
@@ -215,7 +215,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(add_report_to_case, as_Activity)
         vendor = examples.vendor()
         case = examples.case()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(add_report_to_case, as_Add)
