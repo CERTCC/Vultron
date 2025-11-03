@@ -14,13 +14,16 @@
 import unittest
 
 from vultron.api import data
-from vultron.api.data import InMemoryDataLayer, wrap_offer
+from vultron.api.data import InMemoryDataLayer, wrap_offer, NoOverwriteDict
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 
 class MyTestCase(unittest.TestCase):
     def setUp(self):
         self.things = data._THINGS
+        self.report = VulnerabilityReport(content="test report")
         self.dl = InMemoryDataLayer()
 
     def tearDown(self):
@@ -28,9 +31,10 @@ class MyTestCase(unittest.TestCase):
 
     def test_collection_initialization(self):
         c = data.Collection()
-        for attr in ["offers", "invites", "reports", "cases"]:
+
+        for attr in ["offers", "reports"]:
             self.assertTrue(hasattr(c, attr))
-            self.assertIsInstance(getattr(c, attr), list)
+            self.assertIsInstance(getattr(c, attr), NoOverwriteDict)
             self.assertEqual(0, len(getattr(c, attr)))
 
     def test_memorystore_initialization(self):
@@ -49,34 +53,40 @@ class MyTestCase(unittest.TestCase):
             self.assertTrue(hasattr(dl, attribute))
 
     def test_clear_things(self):
-        self.things.received.reports.append("test_report")
+        self.things.received.reports[self.report.as_id] = self.report
         self.assertEqual(len(self.things.received.reports), 1)
         self.things.clear()
         self.assertEqual(len(self.things.received.reports), 0)
 
     def test_data_layer_receive_report(self):
-        report = "test_report"
+        report = VulnerabilityReport(content="test report")
 
         self.assertEqual(0, len(self.things.received.reports))
         self.dl.receive_report(report)
-        self.assertIn(report, self.things.received.reports)
+        self.assertIn(report, self.things.received.reports.values())
 
     def test_data_layer_get_all_reports(self):
-        report1 = "test_report_1"
-        report2 = "test_report_2"
 
-        self.things.received.reports.extend([report1, report2])
+        report1 = VulnerabilityReport(content="test report")
+        report2 = VulnerabilityReport(content="test report 2")
+
+        for obj in [report1, report2]:
+            self.things.received.reports[obj.as_id] = obj
+
         reports = self.dl.get_all_reports()
         self.assertIn(report1, reports)
         self.assertIn(report2, reports)
 
     def test_data_layer_receive_offer(self):
-        offer = as_Offer(actor="urn:uuid:test-actor", as_object="test_object")
+        report = VulnerabilityReport(content="test report")
+        offer = as_Offer(actor="urn:uuid:test-actor", object=report)
 
         self.assertEqual(0, len(self.things.received.offers))
         self.dl.receive_offer(offer)
 
-        offers = [wrapped.object for wrapped in self.things.received.offers]
+        offers = [
+            wrapped.object_ for wrapped in self.things.received.offers.values()
+        ]
 
         self.assertIn(offer, offers)
 
@@ -84,14 +94,13 @@ class MyTestCase(unittest.TestCase):
         offer1 = as_Offer(
             actor="urn:uuid:test-actor-1", as_object="test_object_1"
         )
-        offer2 = as_Offer(
-            actor="urn:uuid:test-actor-2", as_object="test_object_2"
-        )
+        offer2 = as_Offer(actor="urn:uuid:test-actor-2")
 
         wrapped1 = wrap_offer(offer1)
         wrapped2 = wrap_offer(offer2)
 
-        self.things.received.offers.extend([wrapped1, wrapped2])
+        for obj in [wrapped1, wrapped2]:
+            self.things.received.offers[obj.object_id] = obj
         offers = self.dl.get_all_offers()
         self.assertIn(offer1, offers)
         self.assertIn(offer2, offers)
@@ -101,11 +110,11 @@ class MyTestCase(unittest.TestCase):
         wrapped = wrap_offer(offer)
 
         self.assertEqual(wrapped.object_id, offer.as_id)
-        self.assertEqual(wrapped.object, offer)
+        self.assertEqual(wrapped.object_, offer)
         self.assertEqual(wrapped.object_status, data.OfferStatus.RECEIVED)
 
     def test_data_layer_receive_case(self):
-        case = "test_case"
+        case = VulnerabilityCase(description="test case")
 
         self.assertEqual(0, len(self.things.received.cases))
         self.dl.receive_case(case)

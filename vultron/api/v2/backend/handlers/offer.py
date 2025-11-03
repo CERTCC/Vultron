@@ -111,11 +111,18 @@ def rm_submit_report(
         )
 
     logger.info(
-        f"Actor {actor_id} is offering a {offered_obj.as_type}: {offered_obj.name}"
+        f"Actor '{activity.actor}' Offers '{actor_id}' a '{offered_obj.as_type}: {offered_obj.name}'"
     )
 
-    datalayer.receive_offer(activity)
-    datalayer.receive_report(offered_obj)
+    _offer_ok = False
+    try:
+        datalayer.receive_offer(activity)
+        _offer_ok = True
+    except ValueError as e:
+        logger.error(f"Failed to receive offer: {e}")
+
+    if _offer_ok:
+        datalayer.receive_report(offered_obj)
 
 
 def main():

@@ -37,6 +37,24 @@ def get_offers(
     return datalayer.get_all_offers()
 
 
+@router.get(
+    "/offers/",
+    response_model=as_Offer,
+    response_model_exclude_none=True,
+    description="Get an Offer object by ID. (This is a stub implementation.)",
+)
+def get_offer(
+    offer_id: str, datalayer: DataLayer = Depends(get_datalayer)
+) -> as_Offer:
+    """Returns an Offer object by ID."""
+    offer = datalayer.get_offer_by_id(offer_id)
+    if offer is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Offer not found.")
+    return offer
+
+
 @router.post(
     "/offers",
     description="Create a new Offer object. (This is a stub implementation.)",
@@ -68,6 +86,25 @@ def get_reports(
 ) -> list[VulnerabilityReport]:
     """Returns a list of all Report objects."""
     return datalayer.get_all_reports()
+
+
+@router.get(
+    "/reports/",
+    response_model=VulnerabilityReport,
+    response_model_exclude_none=True,
+    description="Get a Report object by ID. (This is a stub implementation.)",
+)
+def get_report(
+    id: str,
+    datalayer: DataLayer = Depends(get_datalayer),
+) -> VulnerabilityReport:
+    """Returns a Report object by ID."""
+    report = datalayer.get_report_by_id(id)
+    if report is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=404, detail="Report not found.")
+    return report
 
 
 @router.post(

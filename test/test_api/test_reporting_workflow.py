@@ -70,17 +70,6 @@ class TestReportingWorkflow(unittest.TestCase):
     def tearDown(self):
         self.things.clear()
 
-    def test_StoredThings_initialization(self):
-        for attr in ["received"]:
-            self.assertTrue(hasattr(_THINGS, attr))
-            obj = getattr(self.things, attr)
-
-            for subattr in ["offers", "invites", "reports", "cases"]:
-                self.assertTrue(hasattr(obj, subattr))
-                items = getattr(obj, subattr)
-                self.assertIsInstance(items, list)
-                self.assertFalse(items)
-
     def _test_activity(self, activity, handler):
         # capture logging output if needed
         try:
@@ -107,9 +96,11 @@ class TestReportingWorkflow(unittest.TestCase):
         self._test_activity(activity, rm_submit_report)
 
         # check side effects
-        offers = [wrapped.object for wrapped in self.things.received.offers]
+        offers = [
+            wrapped.object_ for wrapped in self.things.received.offers.values()
+        ]
         self.assertIn(activity, offers)
-        self.assertIn(self.report, self.things.received.reports)
+        self.assertIn(self.report, self.things.received.reports.values())
 
     def test_read_report(self):
         activity = as_Read(

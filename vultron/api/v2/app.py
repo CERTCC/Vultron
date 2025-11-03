@@ -15,9 +15,25 @@ Vultron API v2 Application
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+import logging
+
 from fastapi import FastAPI
 
 from .routers import router
+
+# Get Uvicorn's root logger and configure handlers
+uvicorn_logger = logging.getLogger("uvicorn")
+logging.getLogger().handlers = uvicorn_logger.handlers
+logging.getLogger().setLevel(logging.DEBUG)
+
+# Optionally, unify FastAPI’s access and error logs as well
+logging.getLogger("uvicorn.access").propagate = True
+logging.getLogger("uvicorn.error").propagate = True
+
+# Create your logger for your app
+logger = logging.getLogger(__name__)
+
 
 tags_metadata = [
     {

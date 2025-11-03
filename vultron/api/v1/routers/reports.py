@@ -61,7 +61,7 @@ def create_report(report: VulnerabilityReport) -> RmCreateReport:
 async def submit_report(report: VulnerabilityReport) -> RmSubmitReport:
     """Submit a new VulnerabilityCase object."""
     # In a real implementation, you would save the case to a database or perform other actions.
-    return vocab_examples.submit_report(report=report)
+    return vocab_examples.submit_report()
 
 
 @router.put(

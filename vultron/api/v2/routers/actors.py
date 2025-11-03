@@ -108,7 +108,7 @@ def parse_activity(body: dict) -> AsActivityType:
             detail="Unrecognized activity type.",
         )
 
-    if cls not in ACTIVITY_HANDLER_REGISTRY.handlers:
+    if as_type not in ACTIVITY_HANDLER_REGISTRY.handlers:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"No handler registered for activity type: '{as_type}'",

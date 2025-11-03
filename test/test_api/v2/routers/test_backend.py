@@ -34,7 +34,7 @@ class MyTestCase(unittest.TestCase):
         )
 
     def tearDown(self):
-        pass
+        _THINGS.clear()
 
     def test_get_offers(self):
         response = self.client.get("/datalayer/offers")
@@ -45,7 +45,7 @@ class MyTestCase(unittest.TestCase):
         )  # Assuming no offers initially
 
         wrapped = wrap_offer(self.offer)
-        _THINGS.received.offers.append(wrapped)
+        _THINGS.received.offers[wrapped.object_id] = wrapped
 
         response = self.client.get("/datalayer/offers")
         self.assertEqual(status.HTTP_200_OK, response.status_code)
@@ -54,6 +54,17 @@ class MyTestCase(unittest.TestCase):
         offer_id = self.offer.as_id
 
         self.assertIn(offer_id, response.json()[0]["id"])
+
+    def test_get_offer_by_id(self):
+        wrapped = wrap_offer(self.offer)
+        _THINGS.received.offers[wrapped.object_id] = wrapped
+
+        response = self.client.get(
+            f"/datalayer/offers/", params={"offer_id": self.offer.as_id}
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(self.offer.as_id, response.json()["id"])
+        self.assertEqual(self.offer.actor, response.json()["actor"])
 
     def test_post_offer(self):
 
@@ -75,7 +86,7 @@ class MyTestCase(unittest.TestCase):
             0, len(response.json())
         )  # Assuming no reports initially
 
-        _THINGS.received.reports.append(self.report)
+        _THINGS.received.reports[self.report.as_id] = self.report
 
         response = self.client.get("/datalayer/reports")
         self.assertEqual(status.HTTP_200_OK, response.status_code)
@@ -95,6 +106,19 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(status.HTTP_201_CREATED, response.status_code)
         self.assertIn("Location", response.headers)
         self.assertIn(self.report.as_id, response.headers["Location"])
+
+        received = _THINGS.received.reports.pop(self.report.as_id, None)
+        self.assertIsNotNone(received)
+        self.assertEqual(self.report.as_id, received.as_id)
+
+    def test_get_report_by_id(self):
+        _THINGS.received.reports[self.report.as_id] = self.report
+
+        response = self.client.get(
+            f"/datalayer/reports/", params={"id": self.report.as_id}
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(self.report.as_id, response.json()["id"])
 
 
 if __name__ == "__main__":
