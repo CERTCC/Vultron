@@ -18,7 +18,6 @@ Test the reporting workflow
 
 import unittest
 
-from vultron.api.data import _THINGS
 from vultron.api.v2.backend.handlers.accept import rm_validate_report
 from vultron.api.v2.backend.handlers.create import (
     rm_create_report,
@@ -30,6 +29,7 @@ from vultron.api.v2.backend.handlers.reject import (
     rm_close_report,
     rm_invalidate_report,
 )
+from vultron.api.v2.data import get_datalayer
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Create,
     as_Offer,
@@ -46,29 +46,25 @@ from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 class TestReportingWorkflow(unittest.TestCase):
     def setUp(self):
         self.reporter = as_Actor(
-            id="urn:uuid:reporter-1234",
             name="Test Reporter",
         )
         self.report = VulnerabilityReport(
-            id="urn:uuid:report-5678",
             name="Test Vulnerability Report",
             summary="This is a test vulnerability report.",
             attributed_to=self.reporter,
         )
         self.coordinator = as_Actor(
-            id="urn:uuid:coordinator-91011",
             name="Test Coordinator",
         )
         self.case = VulnerabilityCase(
-            id="urn:uuid:case-121314",
             name="Test Vulnerability Case",
             vulnerability_reports=[self.report],
         )
-        self.things = _THINGS
-        self.things.clear()
+        self.dl = get_datalayer()
+        self.assertFalse(self.dl.all())
 
     def tearDown(self):
-        self.things.clear()
+        self.dl.clear()
 
     def _test_activity(self, activity, handler):
         # capture logging output if needed
@@ -81,7 +77,6 @@ class TestReportingWorkflow(unittest.TestCase):
 
     def test_create_report(self):
         activity = as_Create(
-            id="urn:uuid:create-91011",
             actor=self.reporter,
             object=self.report,
         )
@@ -89,22 +84,17 @@ class TestReportingWorkflow(unittest.TestCase):
 
     def test_offer_report(self):
         activity = as_Offer(
-            id="urn:uuid:offer-121314",
             actor=self.reporter,
             object=self.report,
         )
         self._test_activity(activity, rm_submit_report)
 
         # check side effects
-        offers = [
-            wrapped.object_ for wrapped in self.things.received.offers.values()
-        ]
-        self.assertIn(activity, offers)
-        self.assertIn(self.report, self.things.received.reports.values())
+        self.assertIn(activity.as_id, self.dl)
+        self.assertIn(self.report.as_id, self.dl)
 
     def test_read_report(self):
         activity = as_Read(
-            id="urn:uuid:read-151617",
             actor=self.reporter,
             object=self.report,
         )
@@ -112,7 +102,6 @@ class TestReportingWorkflow(unittest.TestCase):
 
     def test_validate_report(self):
         activity = as_Accept(
-            id="urn:uuid:accept-181920",
             actor=self.reporter,
             object=self.report,
         )
@@ -120,7 +109,6 @@ class TestReportingWorkflow(unittest.TestCase):
 
     def test_invalidate_report(self):
         activity = as_TentativeReject(
-            id="urn:uuid:accept-212223",
             actor=self.reporter,
             object=self.report,
         )
@@ -128,7 +116,6 @@ class TestReportingWorkflow(unittest.TestCase):
 
     def test_create_case(self):
         activity = as_Create(
-            id="urn:uuid:create-case-242526",
             actor=self.coordinator,
             object=self.case,
         )
@@ -136,7 +123,6 @@ class TestReportingWorkflow(unittest.TestCase):
 
     def test_close_report(self):
         activity = as_Reject(
-            id="urn:uuid:reject-272829",
             actor=self.coordinator,
             object=self.report,
         )

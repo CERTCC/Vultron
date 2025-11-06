@@ -20,14 +20,14 @@ from fastapi import APIRouter
 
 from vultron.api.v2.routers import (
     actors,
-    backend,
     examples,
+    datalayer,
 )
 
 router = APIRouter()
 
 router.include_router(actors.router)
 
-router.include_router(backend.router)
+router.include_router(datalayer.router)
 
 router.include_router(examples.router)

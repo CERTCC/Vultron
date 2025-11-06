@@ -107,6 +107,15 @@ class DataStore(KeyValueStore):
     def all(self) -> dict[str, dict]:
         return _STORE.copy()
 
+    def by_type(self, as_type: str) -> dict[str, as_Base]:
+        results = {
+            k: v
+            for k, v in _STORE.items()
+            if getattr(v, "as_type", None) == as_type
+        }
+
+        return results
+
     def clear(self):
         _STORE.clear()
 

@@ -16,13 +16,7 @@
 # Copyright
 
 """
-Provides TODO writeme
+Provides the Data Layer for Vultron API v2.
 """
 
-
-def main():
-    pass
-
-
-if __name__ == "__main__":
-    main()
+from .store import get_datalayer
