@@ -16,7 +16,8 @@
 # Copyright
 
 """
-Provides TODO writeme
+Initialization file for test_api.v2.data package.
+Contains test scaffolding and entry point for test execution.
 """
 
 
