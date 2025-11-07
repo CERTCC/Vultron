@@ -83,7 +83,7 @@ def rehydrate(obj: as_Object, depth: int = 0) -> as_Object | str:
         raise KeyError(f"Unknown object type: {obj.as_type}")
 
     # short-circuit if already rehydrated
-    if type(obj) == cls:
+    if isinstance(obj, cls):
         logger.debug(
             f"Object already rehydrated as '{obj.__class__.__name__}', skipping rehydration step."
         )
