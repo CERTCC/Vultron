@@ -313,7 +313,7 @@ def close_report(verbose: bool = False) -> RmCloseReport:
         activity = RmCloseReport(
             actor=_VENDOR,
             object=_offer,
-            content="We're closing this report,",
+            content="We're closing this report.",
         )
     else:
         activity = RmCloseReport(
