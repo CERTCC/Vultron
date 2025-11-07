@@ -23,8 +23,6 @@ from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.registry import activitystreams_activity
 
 
-
-
 @activitystreams_activity
 class as_Activity(as_Object):
     """https://www.w3.org/TR/activitystreams-vocabulary/#dfn-activity
