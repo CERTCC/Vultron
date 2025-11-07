@@ -21,7 +21,6 @@ import logging
 from pydantic import ValidationError
 
 from vultron.api.v2.backend import handlers  # noqa: F401
-from vultron.api.v2.backend.actors import ACTOR_REGISTRY
 from vultron.api.v2.backend.handlers.registry import (
     get_activity_handler,
 )
