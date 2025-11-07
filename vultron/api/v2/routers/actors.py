@@ -59,7 +59,7 @@ def get_actors() -> list[as_Actor]:
     response_model_exclude_none=True,
     description="Returns an Actor. (stub implementation).",
 )
-async def get_actor(actor_id: str) -> as_Actor:
+def get_actor(actor_id: str) -> as_Actor:
     """Returns an Actor example based on the provided actor_id."""
     datalayer = get_datalayer()
     actor = datalayer.read(actor_id)
@@ -79,9 +79,9 @@ async def get_actor(actor_id: str) -> as_Actor:
     summary="Get Actor Inbox",
     description="Returns the Actor's Inbox. (stub implementation).",
 )
-async def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
+def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
     """Returns the Actor's Inbox."""
-    actor: as_Actor = await get_actor(actor_id)
+    actor: as_Actor = get_actor(actor_id)
 
     return actor.inbox
 
@@ -131,7 +131,7 @@ def parse_activity(body: dict) -> AsActivityType:
     description="Adds an Activity to the Actor's Inbox. (stub implementation).",
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def post_actor_inbox(
+def post_actor_inbox(
     actor_id: str,
     # as_Activity is a problem, because its subclasses have different required fields,
     # so we really want to accept any subclass that we have a registered handler for here.
