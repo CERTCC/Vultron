@@ -17,7 +17,7 @@ Provides various CaseParticipant objects for the Vultron ActivityStreams Vocabul
 
 from __future__ import annotations
 
-from typing import TypeAlias
+from typing import TypeAlias, Literal
 
 from pydantic import Field, field_validator, field_serializer, model_validator
 
@@ -60,7 +60,9 @@ class CaseParticipant(VultronObject):
         ```
     """
 
-    as_type: str = "CaseParticipant"
+    as_type: Literal["CaseParticipant"] = Field(
+        default="CaseParticipant", alias="type"
+    )
 
     actor: as_Actor | as_Link | str
     name: str | None = None

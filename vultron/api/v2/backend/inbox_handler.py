@@ -20,41 +20,84 @@ import logging
 
 from pydantic import ValidationError
 
+from vultron.api.v2.backend import handlers  # noqa: F401
 from vultron.api.v2.backend.actors import ACTOR_REGISTRY
-from vultron.api.v2.backend.handlers import create  # noqa: F401
 from vultron.api.v2.backend.handlers.registry import (
-    AsActivityType,
-    ACTIVITY_HANDLER_REGISTRY,
+    get_activity_handler,
 )
+from vultron.api.v2.data import get_datalayer
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
+from vultron.as_vocab.base.objects.base import as_Object
+from vultron.as_vocab.base.registry import find_in_vocabulary
 
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger(__name__)
+
+_MAX_REHYDRATION_DEPTH = 5
 
 
-def rehydrate(activity: as_Activity) -> AsActivityType:
-    """Rehydrate an activity object if needed.
+def rehydrate(obj: as_Object, depth: int = 0) -> as_Object | str:
+    """Recursively rehydrate an object if needed. Performs depth-first rehydration to a maximum depth.
 
     Args:
-        activity: The activity object to rehydrate.
+        obj: The object to rehydrate.
+        depth: The current recursion depth (default: 0).
     Returns:
-        The rehydrated activity object of the correct subclass.
+        The rehydrated object of the correct subclass.
     Raises:
-        KeyError: If the activity type is unknown.
-        ValidationError: If the activity validation fails.
+        KeyError: If the object type is unrecognized.
+        RecursionError: If the maximum rehydration depth is exceeded.
+        ValidationError: If the rehydrated object validation fails.
     """
+    if depth > _MAX_REHYDRATION_DEPTH:
+        raise RecursionError(
+            f"Maximum rehydration depth of {_MAX_REHYDRATION_DEPTH} exceeded."
+        )
+
+    # short-circuit for strings
+    if isinstance(obj, str):
+        logger.debug("Object is a string, no rehydration needed.")
+        return obj  # type: ignore
+
+    # if object has an `as_object`, rehydrate that first
+    # this is the depth-first part
+    if hasattr(obj, "as_object"):
+        if obj.as_object is not None:
+            logger.debug(
+                f"Rehydrating nested object in 'as_object' field of {obj.as_type}"
+            )
+            obj.as_object = rehydrate(obj=obj.as_object, depth=depth + 1)
+        else:
+            logger.error(f"'as_object' field is None in {obj.as_type}")
+            raise ValueError(f"'as_object' field is None in {obj.as_type}")
+
+    # make sure the object has an as_type
+    if not hasattr(obj, "as_type"):
+        logger.error(f"Object {obj} has no 'as_type' attribute.")
+        raise ValueError(f"Object {obj} has no 'as_type' attribute.")
+
+    # now rehydrate the outer object if needed
+    cls = find_in_vocabulary(obj.as_type)
+    if cls is None:
+        logger.error(f"Unknown object type: {obj.as_type}")
+        raise KeyError(f"Unknown object type: {obj.as_type}")
+
+    # short-circuit if already rehydrated
+    if isinstance(obj, cls):
+        logger.debug(
+            f"Object already rehydrated as '{obj.__class__.__name__}', skipping rehydration step."
+        )
+        return obj
+
+    # it's not the right class, re-validate to get the correct subclass
+    logger.debug(f"Rehydrating to class {cls.__name__} for type {obj.as_type}")
     try:
-        cls = VOCABULARY.activities[activity.as_type]
-    except KeyError:
-        logger.error(f"Unknown activity type: {activity.as_type}")
+        rehydrated = cls.model_validate(obj.model_dump())
+    except ValidationError:
+        logger.error(f"{cls.__name__} validation failed on {obj}")
         raise
 
-    # we have the correct class, now re-validate to get the correct subclass
-    try:
-        return cls.model_validate(activity.model_dump())
-    except ValidationError:
-        logger.error(f"{cls.__name__} validation failed on {activity}")
-        raise
+    return rehydrated
 
 
 def handle_inbox_item(actor_id: str, obj: as_Activity):
@@ -72,7 +115,7 @@ def handle_inbox_item(actor_id: str, obj: as_Activity):
         ValueError: If the object type is invalid for the inbox.
 
     """
-    logger.info(f"Processing item {obj.name} for actor {actor_id}")
+    logger.info(f"Processing item '{obj.name}' for actor '{actor_id}'")
 
     logger.info(
         f"Validated object:\n{obj.model_dump_json(indent=2,exclude_none=True)}"
@@ -84,18 +127,29 @@ def handle_inbox_item(actor_id: str, obj: as_Activity):
             f"Invalid object type {obj.as_type} in inbox for actor {actor_id}"
         )
 
-    # if it's already rehydrated, no need to rehydrate again
-    if type(obj) == VOCABULARY.activities[obj.as_type]:
-        rehydrated = obj
-    else:
-        rehydrated = rehydrate(obj)
+    rehydrated = rehydrate(obj=obj)
 
-    handler = ACTIVITY_HANDLER_REGISTRY.get_handler(rehydrated)
+    logger.debug(
+        f"Looking up handler for activity type '{rehydrated.as_type}'"
+    )
+    handler = get_activity_handler(rehydrated)
+    logger.debug(f"Handler found: {handler}")
+
+    if handler is None:
+        raise ValueError(
+            f"No handler registered for activity type '{rehydrated.as_type}'"
+        )
+
+    logger.debug(
+        f"Found handler '{handler}' for activity type '{rehydrated.as_type}'"
+    )
     handler(actor_id, rehydrated)
 
 
 async def inbox_handler(actor_id: str):
-    actor = ACTOR_REGISTRY.get_actor(actor_id)
+    dl = get_datalayer()
+
+    actor = dl.read(actor_id)
     if actor is None:
         logger.warning(f"Actor {actor_id} not found in inbox_handler.")
 

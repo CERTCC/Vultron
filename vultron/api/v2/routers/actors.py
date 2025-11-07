@@ -19,7 +19,6 @@ import logging
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, status, Depends
 
-from vultron.api.v2.backend.actors import ACTOR_REGISTRY
 from vultron.api.v2.backend.handlers.registry import (
     AsActivityType,
     ACTIVITY_HANDLER_REGISTRY,
@@ -27,21 +26,14 @@ from vultron.api.v2.backend.handlers.registry import (
 from vultron.api.v2.backend.inbox_handler import (
     inbox_handler,
 )
+from vultron.api.v2.data import get_datalayer
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.collections import as_OrderedCollection
-from vultron.scripts import vocab_examples
 
 logger = logging.getLogger("uvicorn.error")
 
-# Register example actors in the ACTOR_REGISTRY
-for _actor in [
-    vocab_examples.finder(),
-    vocab_examples.vendor(),
-    vocab_examples.coordinator(),
-]:
-    ACTOR_REGISTRY.register_actor(_actor)
 
 router = APIRouter(prefix="/actors", tags=["Actors"])
 
@@ -52,9 +44,13 @@ router = APIRouter(prefix="/actors", tags=["Actors"])
     response_model_exclude_none=True,
     description="Returns a list of Actor examples.",
 )
-async def get_actors() -> list[as_Actor]:
+def get_actors() -> list[as_Actor]:
     """Returns a list of Actor examples."""
-    return ACTOR_REGISTRY.list_actors()
+
+    datalayer = get_datalayer()
+    results = datalayer.by_type("Actor")
+
+    return [as_Actor.model_validate(actor) for actor in results.values()]
 
 
 @router.get(
@@ -63,12 +59,17 @@ async def get_actors() -> list[as_Actor]:
     response_model_exclude_none=True,
     description="Returns an Actor. (stub implementation).",
 )
-async def get_actor(actor_id: str) -> as_Actor:
+def get_actor(actor_id: str) -> as_Actor:
     """Returns an Actor example based on the provided actor_id."""
-    actor = ACTOR_REGISTRY.get_actor(actor_id)
-    if actor is None:
-        raise HTTPException(status_code=404, detail="Actor not found.")
-    return actor
+    datalayer = get_datalayer()
+    actor = datalayer.read(actor_id)
+
+    if not actor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
+        )
+
+    return as_Actor.model_validate(actor)
 
 
 @router.get(
@@ -78,9 +79,9 @@ async def get_actor(actor_id: str) -> as_Actor:
     summary="Get Actor Inbox",
     description="Returns the Actor's Inbox. (stub implementation).",
 )
-async def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
+def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
     """Returns the Actor's Inbox."""
-    actor: as_Actor = await get_actor(actor_id)
+    actor: as_Actor = get_actor(actor_id)
 
     return actor.inbox
 
@@ -94,10 +95,9 @@ def parse_activity(body: dict) -> AsActivityType:
     Raises:
         HTTPException: If the activity type is unknown or validation fails.
     """
-    as_type = body.get("type")
-    if as_type is None:
-        as_type = body.get("asType")
+    logger.info(f"Parsing activity from request body. {body}")
 
+    as_type = body.get("type")
     if as_type is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -111,10 +111,10 @@ def parse_activity(body: dict) -> AsActivityType:
             detail="Unrecognized activity type.",
         )
 
-    if cls not in ACTIVITY_HANDLER_REGISTRY.handlers:
+    if as_type not in ACTIVITY_HANDLER_REGISTRY.handlers:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="No handler registered for this activity type.",
+            detail=f"No handler registered for activity type: '{as_type}'",
         )
 
     try:
@@ -126,12 +126,12 @@ def parse_activity(body: dict) -> AsActivityType:
 
 
 @router.post(
-    "/{actor_id}/inbox",
+    "/{actor_id}/inbox/",
     summary="Add an Activity to the Actor's Inbox.",
     description="Adds an Activity to the Actor's Inbox. (stub implementation).",
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def post_actor_inbox(
+def post_actor_inbox(
     actor_id: str,
     # as_Activity is a problem, because its subclasses have different required fields,
     # so we really want to accept any subclass that we have a registered handler for here.
@@ -151,7 +151,9 @@ async def post_actor_inbox(
     Raises:
         HTTPException: If the Actor is not found.
     """
-    actor: as_Actor = await get_actor(actor_id)
+    dl = get_datalayer()
+    actor = dl.read(actor_id)
+    logger.debug(f"Posting activity to actor {actor_id} inbox: {activity}")
     # append to inbox
     actor.inbox.items.append(activity)
 

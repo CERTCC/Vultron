@@ -25,9 +25,10 @@ from vultron.as_vocab.base.objects.activities.transitive import (
 )
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger(__name__)
 
 reject_handler = partial(ActivityHandler, activity_type=as_Reject)
+
 tentative_reject_handler = partial(
     ActivityHandler, activity_type=as_TentativeReject
 )
@@ -41,11 +42,7 @@ def rm_invalidate_report(
     """
     Handle TentativeReject activity for VulnerabilityReport
     """
-    obj = activity.as_object
-
-    logger.info(
-        f"Actor {actor_id} is invalidating (tentatively rejecting) a {obj.as_type}: {obj.name}"
-    )
+    logger.debug(f"Invalidate report activity: {activity}")
 
 
 @reject_handler(object_type=VulnerabilityReport)
@@ -56,6 +53,4 @@ def rm_close_report(
     """
     Handle Reject activity for VulnerabilityReport
     """
-    obj = activity.as_object
-
-    logger.info(f"Actor {actor_id} is rejecting a {obj.as_type}: {obj.name}")
+    logger.debug(f"Close report activity: {activity}")

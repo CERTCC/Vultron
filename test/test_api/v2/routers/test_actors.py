@@ -18,106 +18,115 @@ from fastapi import FastAPI, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 
+from vultron.api.v2.data import get_datalayer
 from vultron.api.v2.routers import actors as actors_module
 from vultron.as_vocab.base.objects.activities.transitive import as_Create
+from vultron.as_vocab.base.objects.actors import (
+    as_Actor,
+    as_Organization,
+    as_Person,
+    as_Service,
+    as_Application,
+    as_Group,
+)
 from vultron.as_vocab.base.objects.object_types import as_Note
+
+_actor_classes = [
+    as_Actor,
+    as_Organization,
+    as_Person,
+    as_Service,
+    as_Application,
+    as_Group,
+]
 
 
 class ActorsRouterTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
+    def setUp(self):
         # Create a small FastAPI app that includes the router under test
         app = FastAPI()
         app.include_router(actors_module.router)
-        cls.client = TestClient(app)
+        self.client = TestClient(app)
 
-    def _get_id_from_url(self, url: str) -> str:
-        # an actor id is typically the last segment of the URL
-        return url.rstrip("/").split("/")[-1]
+        self.dl = get_datalayer()
 
-    def _get_first_actor_id(self) -> str:
-        resp = self.client.get("/actors/")
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        data = resp.json()
-        self.assertIsInstance(data, list)
-        self.assertGreater(len(data), 0)
-        first = data[0]
-        # common ActivityStreams actor id key is "id"
-        actor_id = (
-            first.get("id")
-            or first.get("url")
-            or first.get("actor")
-            or first.get("actor_id")
-        )
-        self.assertIsNotNone(actor_id)
+        self.actors = []
+        for actor_cls in _actor_classes:
+            actor = actor_cls(name="Test Actor for List")
+            self.dl.create(actor)
+            self.actors.append(actor)
 
-        return self._get_id_from_url(actor_id)
+    def tearDown(self):
+        self.dl.clear()
+
+    def test_actors(self):
+        self.assertEqual(len(self.actors), len(_actor_classes))
 
     def test_get_actors_list(self):
         resp = self.client.get("/actors/")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         data = resp.json()
         self.assertIsInstance(data, list)
-        # registry registers example actors at import time
-        self.assertGreaterEqual(len(data), 1)
+        self.assertEqual(len(data), len(_actor_classes))
 
     def test_get_actor_by_id(self):
-        actor_id = self._get_first_actor_id()
-        resp = self.client.get(f"/actors/{actor_id}")
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        data = resp.json()
-        self.assertIsInstance(data, dict)
-        self.assertIn("id", data)
-        # if the id is a URL, ensure it ends with the actor_id
-        self.assertTrue(data["id"].endswith(actor_id))
+        for actor in self.actors:
+            resp = self.client.get(f"/actors/{actor.as_id}")
+            self.assertEqual(resp.status_code, status.HTTP_200_OK)
+            data = resp.json()
+            self.assertIsInstance(data, dict)
+            self.assertIn("id", data)
+            # if the id is a URL, ensure it ends with the actor_id
+            self.assertTrue(data["id"].endswith(actor.as_id))
 
     def test_get_actor_not_found(self):
         resp = self.client.get("/actors/nonexistent-actor-id")
         self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_get_actor_inbox(self):
-        actor_id = self._get_first_actor_id()
-        resp = self.client.get(f"/actors/{actor_id}/inbox")
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        data = resp.json()
-        self.assertIsInstance(data, dict)
-        self.assertIn("items", data)
-        self.assertIsInstance(data["items"], list)
+        for actor in self.actors:
+            resp = self.client.get(f"/actors/{actor.as_id}/inbox")
+            self.assertEqual(resp.status_code, status.HTTP_200_OK)
+            data = resp.json()
+            self.assertIsInstance(data, dict)
+            self.assertIn("items", data)
+            self.assertIsInstance(data["items"], list)
 
     def test_post_actor_inbox_accepted(self):
-        actor_id = self._get_first_actor_id()
+        for actor in self.actors:
+            note = as_Note(
+                content="This is a test note.",
+            )
+            activity = as_Create(
+                object=note,
+                actor=actor.as_id,
+            )
 
-        note = as_Note(
-            id="urn:uuid:test-note",
-            content="This is a test note.",
-        )
-        activity = as_Create(
-            id="urn:uuid:test-create",
-            object=note,
-            actor=actor_id,
-        )
+            payload = jsonable_encoder(activity, exclude_none=True)
 
-        payload = jsonable_encoder(activity, exclude_none=True)
+            # actor_id = parse_id(actor.as_id)["object_id"]
+            actor_id = actor.as_id
 
-        resp = self.client.post(f"/actors/{actor_id}/inbox", json=payload)
-        self.assertEqual(status.HTTP_202_ACCEPTED, resp.status_code)
+            resp = self.client.post(f"/actors/{actor_id}/inbox/", json=payload)
+            self.assertEqual(status.HTTP_202_ACCEPTED, resp.status_code)
 
     def test_post_actor_inbox_reject_unknown_object(self):
         # When posting an object that is not an Activity, we should expect a 422 Unprocessable Entity
         # even if it is a valid AS object.
-        actor_id = self._get_first_actor_id()
+        for actor in self.actors:
+            note = as_Note(
+                id="urn:uuid:test-note",
+                content="This is a test note.",
+            )
 
-        note = as_Note(
-            id="urn:uuid:test-note",
-            content="This is a test note.",
-        )
+            payload = jsonable_encoder(note, exclude_none=True)
 
-        payload = jsonable_encoder(note, exclude_none=True)
-
-        resp = self.client.post(f"/actors/{actor_id}/inbox", json=payload)
-        self.assertEqual(
-            resp.status_code, status.HTTP_422_UNPROCESSABLE_CONTENT
-        )
+            resp = self.client.post(
+                f"/actors/{actor.as_id}/inbox/", json=payload
+            )
+            self.assertEqual(
+                resp.status_code, status.HTTP_422_UNPROCESSABLE_CONTENT
+            )
 
 
 if __name__ == "__main__":

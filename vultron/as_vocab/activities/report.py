@@ -15,9 +15,11 @@
 This module contains extensions to the ActivityStreams Vocabulary for Vultron activities related to
 VulnerabilityReports.
 """
+from typing import TypeAlias
 
 from pydantic import Field
 
+from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Create,
@@ -29,6 +31,8 @@ from vultron.as_vocab.base.objects.activities.transitive import (
 from vultron.as_vocab.objects.vulnerability_report import (
     VulnerabilityReportRef,
 )
+
+OfferRef: TypeAlias = ActivityStreamRef[as_Offer]
 
 
 class RmCreateReport(as_Create):
@@ -60,20 +64,20 @@ class RmValidateReport(as_Accept):
     """The actor has validated a report.
     Corresponds to the Vultron Message Type RV when no case exists.
     This should be followed by a Create(VulnerabilityCase) activity.
-    as_object: VulnerabilityReport
+    as_object: an as_Offer wrapping a VulnerabilityReport
     """
 
-    as_object: VulnerabilityReportRef = Field(default=None, alias="object")
+    as_object: OfferRef = Field(default=None, alias="object")
 
 
 class RmInvalidateReport(as_TentativeReject):
     """The actor has invalidated a report.
     Corresponds to the Vultron Message Type RI when no case exists.
     See also RmRejectInviteToCase for the scenario when a case already exists.
-    as_object: VulnerabilityReport
+    as_object: an as_Offer wrapping a VulnerabilityReport
     """
 
-    as_object: VulnerabilityReportRef = Field(default=None, alias="object")
+    as_object: OfferRef = Field(default=None, alias="object")
 
 
 class RmCloseReport(as_Reject):
@@ -81,7 +85,7 @@ class RmCloseReport(as_Reject):
     This corresponds to the Vultron Message Type RC when no case exists.
     It can only be emitted when the report is in the RM.INVALID state, because anything past that will
     have an associated VulnerabilityCase object, and closure of the case falls to the RmCloseCase activity.
-    as_object: VulnerabilityReport
+    as_object: an as_Offer wrapping a VulnerabilityReport
     """
 
-    as_object: VulnerabilityReportRef = Field(default=None, alias="object")
+    as_object: OfferRef = Field(default=None, alias="object")

@@ -59,17 +59,15 @@ def exclude_if_empty(value: Any) -> bool:
     return len(value) == 0
 
 
-def generate_new_id() -> str:
+def generate_new_id(prefix: str | None = None) -> str:
     """Generate a new ID for an object
 
     Returns:
         the new ID
     """
-    # The .example TLD is reserved for use in documentation and examples.
-    # https://en.wikipedia.org/wiki/.example
-    prefix = "https://for.example"
-    random = str(uuid.uuid4())
-    _id = f"{prefix}/{random}"
+    _id = str(uuid.uuid4())
+    if prefix is not None:
+        _id = f"{prefix}/{_id}"
 
     return _id
 

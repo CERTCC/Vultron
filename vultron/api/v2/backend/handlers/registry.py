@@ -10,6 +10,7 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+import logging
 from typing import TypeVar, Callable, TypeAlias, Optional
 
 from pydantic import BaseModel, Field
@@ -18,18 +19,20 @@ from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.base import as_Object
 
+logger = logging.getLogger(__name__)
+
 AsActivityType = TypeVar("AsActivityType", bound=as_Activity)
 AsObjectType = TypeVar("AsObjectType", bound=as_Object)
 
 # a dict of object type to handler function
 ObjectHandlerMap: TypeAlias = dict[
-    Optional[type[as_Object]], Callable[[str, as_Activity], None]
+    Optional[str], Callable[[str, as_Activity], None]
 ]
 
 # a dict of activity type to ObjectHandlerMap
 # which basically makes it a two-dimensional dict where
 # the first key is the activity type and the second key is the object type
-HandlerRegistry: TypeAlias = dict[type[as_Activity], ObjectHandlerMap]
+HandlerRegistry: TypeAlias = dict[str, ObjectHandlerMap]
 
 
 # we actually need a two-dimensional registry: (activity type, object type) -> handler
@@ -48,83 +51,94 @@ class ActivityHandlerRegistry(BaseModel):
         handler: Callable[[str, AsActivityType], None],
     ) -> None:
 
-        key = activity_type.__name__.lstrip("as_")
+        activity_key = activity_type.__name__.lstrip("as_")
 
         # ensure that activity_type is an Activity in the VOCABULARY
-        if key not in VOCABULARY.activities:
+        if activity_key not in VOCABULARY.activities:
             raise ValueError(
                 f"Unknown activity type: {activity_type.__name__}"
             )
 
+        object_key = None
+
         if object_type is not None:
-            key = object_type.__name__.lstrip("as_")
+            object_key = object_type.__name__.lstrip("as_")
             # ensure that object_type is in the VOCABULARY (could be any object)
 
-            if key not in VOCABULARY:
+            if object_key not in VOCABULARY:
                 raise ValueError(
                     f"Unknown object type: {object_type.__name__}"
                 )
 
-        if activity_type not in self.handlers:
-            self.handlers[activity_type] = {}
+        if activity_key not in self.handlers:
+            self.handlers[activity_key] = {}
 
         # throw an error if there is already a handler for this activity_type and object_type
-        if object_type in self.handlers[activity_type]:
+        if object_type in self.handlers[activity_key]:
             raise ValueError(
                 f"Handler already registered for activity type {activity_type.__name__} and object type {object_type.__name__ if object_type else 'None'}"
             )
 
-        self.handlers[activity_type][object_type] = handler
-
-    def get_handler(
-        self, activity: as_Activity
-    ) -> Callable[[str, AsActivityType], None] | None:
-        """
-        Get the handler for a given activity type and object type.
-        Args:
-            activity: The activity object to get the handler for.
-
-        Returns:
-            The handler function if found, otherwise None.
-
-        """
-        activity_type = type(activity)
-        obj_handlers = self.handlers.get(activity_type)
-
-        if obj_handlers is None:
-            # short-circuit if no handlers for this activity type
-            default = self.handlers.get(as_Activity, None)
-            return default
-
-        object_type = getattr(activity, "as_object", None)
-
-        if object_type is None:
-            # intransitive activity, look for None object type handler
-            # return it if found, otherwise None
-            handler = obj_handlers.get(None, None)
-
-            if handler is not None:
-                return handler
-
-            # return the default handler for unknown activities
-            default = self.handlers.get(as_Activity, None)
-            return default
-
-        # if you get here, activity_type is transitive
-        # and object_type is the type of the as_object
-        object_type = type(object_type)
-
-        if object_type is not None:
-            # look for the specific object type handler
-            # return it if found
-            # otherwise try the generic handler for this activity type
-            handler = obj_handlers.get(object_type, None)
-            if handler is not None:
-                return handler
-            # handler is None, try generic
-            # if no generic, will return None
-            return obj_handlers.get(None, None)
+        self.handlers[activity_key][object_key] = handler
 
 
 # instantiate the global registry
 ACTIVITY_HANDLER_REGISTRY = ActivityHandlerRegistry()
+
+
+def get_activity_handler(
+    activity: as_Activity,
+) -> Callable[[str, AsActivityType], None]:
+    """Get the handler for a given activity.
+    Args:
+        activity: The activity object to get the handler for.
+    Returns:
+        The handler function.
+    Raises:
+        ValueError: If no handler is found for the activity.
+    """
+    # get keys
+    a_key = activity.as_type
+
+    if a_key in ACTIVITY_HANDLER_REGISTRY.handlers:
+        logger.debug(f"Found specific handlers for activity type {a_key}")
+        hdlrs = ACTIVITY_HANDLER_REGISTRY.handlers[a_key]
+    elif None in ACTIVITY_HANDLER_REGISTRY.handlers:
+        logger.info(f"Using generic handler for {a_key}")
+        hdlrs = ACTIVITY_HANDLER_REGISTRY.handlers[None]
+    else:
+        logger.error(
+            f"No handlers (specific or generic) for activity type {a_key}"
+        )
+        raise ValueError(
+            f"No handlers (including generic) registered for activity type {a_key}"
+        )
+
+    # short-circuit for intransitive activities
+    if not hasattr(activity, "as_object"):
+        try:
+            handler = hdlrs[None]
+        except KeyError:
+            raise ValueError(
+                f"No handlers (including generic) registered for activity type {a_key} and intransitive object"
+            )
+        return handler
+
+    # transitive activity
+    # as_object might be a string though
+    if isinstance(activity.as_object, str):
+        o_key = None
+    else:
+        o_key = activity.as_object.as_type
+
+    try:
+        handler = hdlrs[o_key]
+    except KeyError:
+        try:
+            handler = hdlrs[None]
+        except KeyError:
+            raise ValueError(
+                f"No handlers (including generic) registered for activity type {a_key} and object type {o_key}"
+            )
+
+    return handler

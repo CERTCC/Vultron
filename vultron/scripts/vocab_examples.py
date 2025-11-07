@@ -23,6 +23,8 @@ directory.
 import random
 from datetime import datetime, timedelta
 
+from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.data.utils import make_id
 from vultron.as_vocab.activities.actor import (
     AcceptActorRecommendation,
     RecommendActor,
@@ -102,6 +104,27 @@ report_base_url = f"{base_url}/reports"
 case_number = random.randint(10000000, 99999999)
 
 
+_FINDER = as_Person(name="Finn der Vul", id=make_id("Person"))
+_VENDOR = as_Organization(name="VendorCo", id=make_id("Organization"))
+_REPORT = VulnerabilityReport(
+    name="FDR-8675309",
+    id=make_id("VulnerabilityReport"),
+    content="I found a vulnerability!",
+    attributed_to=[
+        _FINDER.as_id,
+    ],
+)
+_CASE = VulnerabilityCase(
+    name=f"{_VENDOR.name} Case #{case_number}",
+)
+
+
+def initialize_examples() -> None:
+    for obj in [_FINDER, _VENDOR, _REPORT]:
+        dl = get_datalayer()
+        dl.create(obj)
+
+
 def _strip_published_udpated(obj: as_Base) -> as_Base:
     # strip out published and updated timestamps if they are present
     if hasattr(obj, "published"):
@@ -169,8 +192,7 @@ def finder() -> as_Person:
     Returns:
         an as_Person object
     """
-    _finder = as_Person(name="Finn der Vul", id=f"{user_base_url}/finn")
-    return _finder
+    return _FINDER
 
 
 def vendor() -> as_Organization:
@@ -179,31 +201,34 @@ def vendor() -> as_Organization:
     Returns:
         an as_Organization object
     """
-    _vendor = as_Organization(
-        name="VendorCo", id=f"{organization_base_url}/vendor"
-    )
-    return _vendor
+    return _VENDOR
+
+
+def case(random_id=False) -> VulnerabilityCase:
+    # create a vulnerability case
+    if random_id:
+        # generate a random case ID
+        _case_number = random.randint(10000000, 99999999)
+        _case = VulnerabilityCase(
+            name=f"{_VENDOR.name} Case #{_case_number}",
+            id=make_id("VulnerabilityCase"),
+        )
+    else:
+        return _CASE
+
+    return _case
 
 
 ## REPORT
 
 
-def report() -> VulnerabilityReport:
+def gen_report() -> VulnerabilityReport:
     """
     Create a vulnerability report
     Returns:
         a VulnerabilityReport object
     """
-    _finder = finder()
-    report = VulnerabilityReport(
-        name="FDR-8675309",
-        id=f"{report_base_url}/FDR-8675309",
-        content="I found a vulnerability!",
-        attributed_to=[
-            _finder.as_id,
-        ],
-    )
-    return report
+    return _REPORT
 
 
 def create_report() -> RmCreateReport:
@@ -211,108 +236,117 @@ def create_report() -> RmCreateReport:
     In this example, a finder creates a vulnerability report.
 
     Example:
-          >>> RmCreateReport(actor=finder.as_id, id=report)
+          >>> RmCreateReport(actor=finder.as_id, id=gen_report)
     """
-    _finder = finder()
-    _report = report()
-    activity = RmCreateReport(actor=_finder.as_id, object=_report)
+    activity = RmCreateReport(actor=_FINDER.as_id, object=_REPORT)
     return activity
 
 
-def submit_report() -> RmSubmitReport:
-    _finder = finder()
-    _vendor = vendor()
-    _report = report()
-    activity = RmSubmitReport(
-        actor=_finder.as_id, object=_report, to=_vendor.as_id
-    )
+def submit_report(verbose=False) -> RmSubmitReport:
+    if verbose:
+        activity = RmSubmitReport(
+            actor=_FINDER,
+            object=_REPORT,
+            to=_VENDOR,
+        )
+    else:
+        activity = RmSubmitReport(
+            actor=_FINDER.as_id, object=_REPORT, to=_VENDOR.as_id
+        )
+
     return activity
 
 
 def read_report() -> RmReadReport:
-    _report = report()
-    _vendor = vendor()
+    # TODO this should probably change to Read(Offer(Report)) to match the other activities
     activity = RmReadReport(
-        actor=_vendor.as_id,
-        object=_report.as_id,
+        actor=_VENDOR.as_id,
+        object=_REPORT.as_id,
         content="We've read the report. We'll get back to you soon.",
     )
     return activity
 
 
-def validate_report() -> RmValidateReport:
-    _report = report()
-    _vendor = vendor()
-    activity = RmValidateReport(
-        actor=_vendor.as_id,
-        object=_report.as_id,
-        content="We've validated the report. We'll be creating a case shortly.",
-    )
+def validate_report(verbose: bool = False) -> RmValidateReport:
+    _offer = submit_report(verbose=verbose)
+    # Note: you accept the Offer activity that contains the Report, not the Report itself
+
+    if verbose:
+        activity = RmValidateReport(
+            actor=_VENDOR,
+            object=_offer,
+            content="We've validated the report. We'll be creating a case shortly.",
+        )
+    else:
+        activity = RmValidateReport(
+            actor=_VENDOR.as_id,
+            object=_offer.as_id,
+            content="We've validated the report. We'll be creating a case shortly.",
+        )
     return activity
 
 
-def invalidate_report() -> RmInvalidateReport:
-    _report = report()
-    _vendor = vendor()
-    activity = RmInvalidateReport(
-        actor=_vendor.as_id,
-        object=_report.as_id,
-        content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
-    )
+def invalidate_report(verbose: bool = False) -> RmInvalidateReport:
+    _offer = submit_report(verbose=verbose)
+    # Note: you tentative reject the Offer activity that contains the Report, not the Report itself
+
+    if verbose:
+        activity = RmInvalidateReport(
+            actor=_VENDOR,
+            object=_offer,
+            content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
+        )
+    else:
+        activity = RmInvalidateReport(
+            actor=_VENDOR.as_id,
+            object=_offer.as_id,
+            content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
+        )
     return activity
 
 
-def close_report() -> RmCloseReport:
-    _report = report()
-    _vendor = vendor()
-    activity = RmCloseReport(
-        actor=_vendor.as_id,
-        object=_report.as_id,
-        content="We're closing this report.",
-    )
+def close_report(verbose: bool = False) -> RmCloseReport:
+
+    # Note: you reject the Offer activity that contains the Report, not the Report itself
+    _offer = submit_report(verbose=verbose)
+    if verbose:
+        activity = RmCloseReport(
+            actor=_VENDOR,
+            object=_offer,
+            content="We're closing this report.",
+        )
+    else:
+        activity = RmCloseReport(
+            actor=_VENDOR.as_id,
+            object=_offer.as_id,
+            content="We're closing this report.",
+        )
     return activity
 
 
 # CASE
 
 
-def case(random_id=False) -> VulnerabilityCase:
-    # create a vulnerability case
-
-    if random_id:
-        # generate a random case ID
-        _case_number = random.randint(10000000, 99999999)
-    else:
-        _case_number = case_number
-    _case = VulnerabilityCase(
-        name=f"VENDOR Case #{_case_number}",
-        id=f"{case_base_url}/VDR-{_case_number}",
-    )
-    return _case
-
-
 def create_case() -> CreateCase:
     _case = case()
-    _vendor = vendor()
-    _report = report()
-    _case.add_report(_report.as_id)
+    _case.add_report(_REPORT.as_id)
     participant = VendorParticipant(
-        actor=_vendor.as_id, name=_vendor.name, context=_case.as_id
+        actor=_VENDOR.as_id, name=_VENDOR.name, context=_case.as_id
     )
     _case.add_participant(participant)
 
     activity = CreateCase(
-        actor=_vendor.as_id,
+        actor=_VENDOR.as_id,
         object=_case,
         content="We've created a case from this report.",
-        context=_report.as_id,
+        context=_REPORT.as_id,
     )
     return activity
 
 
 def add_report_to_case() -> AddReportToCase:
     _vendor = vendor()
-    _report = report()
+    _report = gen_report()
     _case = case()
 
     activity = AddReportToCase(
@@ -744,19 +778,21 @@ def embargo_event(days: int = 90) -> EmbargoEvent:
 
 def create_participant_status() -> ParticipantStatus:
     pstatus = participant_status()
+    _vendor = vendor()
 
     activity = CreateStatusForParticipant(
-        actor="https://vultron.example/organizations/vendor",
+        actor=_vendor.as_id,
         object=pstatus,
     )
     return activity
 
 
 def add_status_to_participant() -> AddStatusToParticipant:
+    _vendor = vendor()
     pstatus = participant_status()
 
     activity = AddStatusToParticipant(
-        actor="https://vultron.example/organizations/vendor",
+        actor=_vendor.as_id,
         object=pstatus,
         target="https://vultron.example/cases/1/participants/vendor",
     )
@@ -778,9 +814,10 @@ def remove_participant_from_case():
 
 def propose_embargo() -> EmProposeEmbargo:
     embargo = embargo_event()
+    _vendor = vendor()
 
     activity = EmProposeEmbargo(
-        actor="https://vultron.example/organizations/vendor",
+        actor=_vendor.as_id,
         object=embargo,
         target=embargo.context,
         summary="We propose to embargo case 1 for 90 days.",
@@ -794,11 +831,12 @@ def choose_preferred_embargo() -> ChoosePreferredEmbargo:
         embargo_event(90),
         embargo_event(45),
     ]
+    _coordinator = coordinator()
 
     _case = case()
     activity = ChoosePreferredEmbargo(
         id="https://vultron.example/cases/1/polls/1",
-        actor="https://vultron.example/organizations/coordinator",
+        actor=_coordinator.as_id,
         one_of=embargo_list,
         summary="Please accept or reject each of the proposed embargoes.",
         to=f"{_case.as_id}/participants",
@@ -822,10 +860,12 @@ def accept_embargo() -> EmAcceptEmbargo:
 
 def reject_embargo() -> EmRejectEmbargo:
     question = choose_preferred_embargo()
+    _vendor = vendor()
+    _case = case()
     activity = EmRejectEmbargo(
-        actor="https://vultron.example/organizations/vendor",
+        actor=_vendor.as_id,
         object=embargo_event(45),
-        context="https://vultron.example/cases/1",
+        context=_case.as_id,
         in_reply_to=question.as_id,
         to="https://vultron.example/cases/1/participants",
     )
@@ -896,8 +936,9 @@ def add_status_to_case() -> AddStatusToCase:
 def create_note():
     _case = case()
     _note = note()
+    _vendor = vendor()
     activity = as_Create(
-        actor="https://vultron.example/organizations/vendor",
+        actor=_vendor.as_id,
         object=_note,
         target=_case.as_id,
     )
@@ -925,7 +966,7 @@ def main():
     obj_to_file(_vendor, f"{outdir}/vendor.json")
 
     # create a vulnerability _report
-    _report = report()
+    _report = gen_report()
     obj_to_file(_report, f"{outdir}/vulnerability_report.json")
 
     # activity: finder creates _report

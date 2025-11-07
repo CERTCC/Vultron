@@ -24,7 +24,6 @@ from vultron.as_vocab.activities.report import (
     RmSubmitReport,
     RmCreateReport,
 )
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.scripts import vocab_examples
 
@@ -37,30 +36,29 @@ router = APIRouter(prefix="/reports", tags=["Reports"])
     response_model_exclude_none=True,
     description="Get all Vulnerability Report objects. (scoped to the actor) (This is a stub implementation.)",
 )
-async def get_reports() -> list[VulnerabilityReport]:
+def get_reports() -> list[VulnerabilityReport]:
     """Returns a list of all report objects."""
-    return [vocab_examples.report()]
+    return [vocab_examples.gen_report()]
 
 
 @router.post(
     "/",
-    response_model=RmCreateReport,
-    response_model_exclude_none=True,
     description="Create a new Vulnerability Report object. (This is a stub implementation.)",
 )
-async def create_report(case: VulnerabilityCase) -> RmCreateReport:
-    """Creates a VulnerabilityCase object."""
+def create_report(report: VulnerabilityReport) -> RmCreateReport:
+    """Creates a VulnerabilityReport object."""
     return vocab_examples.create_report()
 
 
-# TODO is this redundant to create_report?
+# Question: Is this redundant to create_report?
+# Answer: No, because this represents an Offer(Report) activity vs a Create(Report) activity
 @router.post(
     "/submit",
     response_model=RmSubmitReport,
     response_model_exclude_none=True,
     description="Submit a Vulnerability Report. (This is a stub implementation.)",
 )
-async def submit_case(case: VulnerabilityCase) -> RmSubmitReport:
+async def submit_report(report: VulnerabilityReport) -> RmSubmitReport:
     """Submit a new VulnerabilityCase object."""
     # In a real implementation, you would save the case to a database or perform other actions.
     return vocab_examples.submit_report()
@@ -87,7 +85,7 @@ async def read_case(id: str) -> RmReadReport:
 async def validate_case_by_id(id: str) -> RmValidateReport:
     """Validate a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and validate the case from a database.
-    return vocab_examples.validate_report()
+    return vocab_examples.validate_report(verbose=True)
 
 
 @router.put(
@@ -99,7 +97,7 @@ async def validate_case_by_id(id: str) -> RmValidateReport:
 async def invalidate_case_by_id(id: str) -> RmInvalidateReport:
     """Invalidate a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and invalidate the case from a database.
-    return vocab_examples.invalidate_report()
+    return vocab_examples.invalidate_report(verbose=True)
 
 
 @router.put(
@@ -111,4 +109,4 @@ async def invalidate_case_by_id(id: str) -> RmInvalidateReport:
 async def close_case_by_id(id: str) -> RmCloseReport:
     """Close a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and close the case from a database.
-    return vocab_examples.close_report()
+    return vocab_examples.close_report(verbose=True)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """This module provides base activity classes"""
-#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -12,6 +12,10 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from typing import Literal
+
+from pydantic import Field
 
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.actors import as_ActorRef
@@ -31,7 +35,7 @@ class as_Activity(as_Object):
     of the picture, not the person walking down the street.
     """
 
-    as_type: str = "Activity"
+    as_type: Literal["Activity"] = Field(default="Activity", alias="type")
 
     actor: as_ActorRef
     target: as_Object | as_Link | str | None = None

@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-"""
-Vultron API v2 Routers
-"""
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -16,18 +13,9 @@ Vultron API v2 Routers
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from fastapi import APIRouter
 
-from vultron.api.v2.routers import (
-    actors,
-    examples,
-    datalayer,
-)
+"""
+Provides the Data Layer for Vultron API v2.
+"""
 
-router = APIRouter()
-
-router.include_router(actors.router)
-
-router.include_router(datalayer.router)
-
-router.include_router(examples.router)
+from .store import get_datalayer

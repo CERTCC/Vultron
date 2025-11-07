@@ -54,7 +54,7 @@ class Foo(as_Base):
     bar: str = "baz"
 
 
-class MyTestCase(unittest.TestCase):
+class TestVocabExamples(unittest.TestCase):
     def test_json2md(self):
         # an object with a to_json method
 
@@ -89,7 +89,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(vendor, as_Actor)
 
     def test_report(self):
-        report = examples.report()
+        report = examples.gen_report()
         self.assertIsInstance(report, as_Object)
         self.assertIsInstance(report, VulnerabilityReport)
 
@@ -102,7 +102,7 @@ class MyTestCase(unittest.TestCase):
         create_report = examples.create_report()
         self.assertIsInstance(create_report, as_Activity)
         finder = examples.finder()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(create_report, as_Create)
@@ -115,7 +115,7 @@ class MyTestCase(unittest.TestCase):
         submit_report = examples.submit_report()
         self.assertIsInstance(submit_report, as_Activity)
         finder = examples.finder()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(submit_report, as_Offer)
@@ -128,7 +128,7 @@ class MyTestCase(unittest.TestCase):
         read_report = examples.read_report()
         self.assertIsInstance(read_report, as_Activity)
         vendor = examples.vendor()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(read_report, as_Read)
@@ -138,42 +138,74 @@ class MyTestCase(unittest.TestCase):
 
     def test_validate_report(self):
         # is it an activity?
-        validate_report = examples.validate_report()
-        self.assertIsInstance(validate_report, as_Activity)
+        activity = examples.validate_report(verbose=True)
+        self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
-        report = examples.report()
+        report = examples.gen_report()
+        finder = examples.finder()
 
         # does it have the right fields?
-        self.assertIsInstance(validate_report, as_Accept)
-        self.assertEqual(validate_report.as_type, "Accept")
-        self.assertEqual(validate_report.actor, vendor.as_id)
-        self.assertEqual(validate_report.as_object, report.as_id)
+        self.assertIsInstance(activity, as_Accept)
+        self.assertEqual(activity.as_type, "Accept")
+        self.assertEqual(activity.actor, vendor)
+
+        # the object should be an offer
+        offer = activity.as_object
+        # and the offer should contain the report
+        self.assertIsInstance(offer, as_Offer)
+        self.assertEqual(offer.as_type, "Offer")
+        self.assertEqual(offer.actor, finder)
+
+        report_ = offer.as_object
+        self.assertIsInstance(report_, VulnerabilityReport)
+        self.assertEqual(report, report_)
 
     def test_invalidate_report(self):
         # is it an activity?
-        invalidate_report = examples.invalidate_report()
-        self.assertIsInstance(invalidate_report, as_Activity)
+        activity = examples.invalidate_report(verbose=True)
+        self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
-        report = examples.report()
+        report = examples.gen_report()
+        finder = examples.finder()
 
         # does it have the right fields?
-        self.assertIsInstance(invalidate_report, as_TentativeReject)
-        self.assertEqual(invalidate_report.as_type, "TentativeReject")
-        self.assertEqual(invalidate_report.actor, vendor.as_id)
-        self.assertEqual(invalidate_report.as_object, report.as_id)
+        self.assertIsInstance(activity, as_TentativeReject)
+        self.assertEqual(activity.as_type, "TentativeReject")
+        self.assertEqual(activity.actor, vendor)
+
+        # the object should be an offer
+        offer = activity.as_object
+        # and the offer should contain the report
+        self.assertIsInstance(offer, as_Offer)
+        self.assertEqual(offer.as_type, "Offer")
+        self.assertEqual(offer.actor, finder)
+
+        report_ = offer.as_object
+        self.assertIsInstance(report_, VulnerabilityReport)
+        self.assertEqual(report, report_)
 
     def test_close_report(self):
         # is it an activity?
-        close_report = examples.close_report()
-        self.assertIsInstance(close_report, as_Activity)
+        activity = examples.close_report(verbose=True)
+        self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
-        report = examples.report()
+        report = examples.gen_report()
+        finder = examples.finder()
 
         # does it have the right fields?
-        self.assertIsInstance(close_report, as_Reject)
-        self.assertEqual(close_report.as_type, "Reject")
-        self.assertEqual(close_report.actor, vendor.as_id)
-        self.assertEqual(close_report.as_object, report.as_id)
+        self.assertIsInstance(activity, as_Reject)
+        self.assertEqual(activity.as_type, "Reject")
+        self.assertEqual(vendor, activity.actor)
+        # the object should be an offer
+        offer = activity.as_object
+        # and the offer should contain the report
+        self.assertIsInstance(offer, as_Offer)
+        self.assertEqual(offer.as_type, "Offer")
+        self.assertEqual(offer.actor, finder)
+
+        report_ = offer.as_object
+        self.assertIsInstance(report_, VulnerabilityReport)
+        self.assertEqual(report, report_)
 
     def test_case(self):
         case = examples.case()
@@ -190,7 +222,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(create_case, as_Activity)
         vendor = examples.vendor()
         case = examples.case()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(create_case, as_Create)
@@ -215,7 +247,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(add_report_to_case, as_Activity)
         vendor = examples.vendor()
         case = examples.case()
-        report = examples.report()
+        report = examples.gen_report()
 
         # does it have the right fields?
         self.assertIsInstance(add_report_to_case, as_Add)
