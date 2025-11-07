@@ -13,7 +13,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-# Copyright
 
 """
 Provides the Data Layer for Vultron API v2.
