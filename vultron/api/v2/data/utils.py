@@ -38,3 +38,23 @@ def make_id(object_type: str) -> str:
         pfx += "/"
 
     return urljoin(pfx, f"{uuid4()}")
+
+
+def parse_id(object_id: str) -> dict[str, str]:
+    """Parses an object ID into its prefix, type, and UUID components."""
+    if not object_id.startswith(BASE_URL):
+        raise ValueError("Invalid object ID format")
+
+    relative_id = object_id[len(BASE_URL) :]
+    parts = relative_id.split("/")
+
+    if len(parts) != 2:
+        raise ValueError("Invalid object ID format")
+
+    parsed = {
+        "base_url": BASE_URL,
+        "object_type": parts[0],
+        "object_id": parts[1],
+    }
+
+    return parsed
