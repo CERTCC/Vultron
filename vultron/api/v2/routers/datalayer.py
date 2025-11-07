@@ -28,6 +28,18 @@ from vultron.scripts import vocab_examples
 router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 
 
+@router.get("/{key}", description="Returns a specific object by key.")
+def get_object_by_key(key: str) -> as_Base:
+    datalayer = get_datalayer()
+
+    obj = datalayer.read(key)
+
+    if not obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    return obj
+
+
 @router.get(
     "/{object_type}/{object_id}",
     description="Returns a specific object by type and ID.",

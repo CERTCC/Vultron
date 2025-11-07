@@ -95,6 +95,8 @@ def parse_activity(body: dict) -> AsActivityType:
     Raises:
         HTTPException: If the activity type is unknown or validation fails.
     """
+    logger.info(f"Parsing activity from request body. {body}")
+
     as_type = body.get("type")
     if as_type is None:
         raise HTTPException(
@@ -124,7 +126,7 @@ def parse_activity(body: dict) -> AsActivityType:
 
 
 @router.post(
-    "/{actor_id}/inbox",
+    "/{actor_id}/inbox/",
     summary="Add an Activity to the Actor's Inbox.",
     description="Adds an Activity to the Actor's Inbox. (stub implementation).",
     status_code=status.HTTP_202_ACCEPTED,
@@ -149,7 +151,9 @@ async def post_actor_inbox(
     Raises:
         HTTPException: If the Actor is not found.
     """
-    actor: as_Actor = await get_actor(actor_id)
+    dl = get_datalayer()
+    actor = dl.read(actor_id)
+    logger.debug(f"Posting activity to actor {actor_id} inbox: {activity}")
     # append to inbox
     actor.inbox.items.append(activity)
 
