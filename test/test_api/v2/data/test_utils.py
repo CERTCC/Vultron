@@ -28,7 +28,8 @@ class TestUtils(unittest.TestCase):
         utils.BASE_URL = self.base_url
 
     def tearDown(self):
-        pass
+        # restore the original base url
+        utils.BASE_URL = self.base_url_orig
 
     def test_id_prefix(self):
         for object_type in ["Actor", "Activity", "Collection"]:

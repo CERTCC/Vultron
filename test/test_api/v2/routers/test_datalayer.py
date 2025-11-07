@@ -38,7 +38,7 @@ class MyTestCase(unittest.TestCase):
         self.dl.clear()
 
     def test_empty_get_offers(self):
-        response = self.client.get("/datalayer/Offers")
+        response = self.client.get("/datalayer/Offers/")
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertIsInstance(response.json(), dict)
         self.assertEqual(0, len(response.json()))
@@ -46,7 +46,7 @@ class MyTestCase(unittest.TestCase):
     def test_get_offers(self):
         self.dl.create(self.offer)
 
-        response = self.client.get("/datalayer/Offers")
+        response = self.client.get("/datalayer/Offers/")
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(1, len(response.json()))
 
@@ -65,7 +65,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(self.offer.actor, response.json()["actor"])
 
     def test_get_empty_reports(self):
-        response = self.client.get("/datalayer/VulnerabilityReports")
+        response = self.client.get("/datalayer/VulnerabilityReports/")
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertIsInstance(response.json(), dict)
         self.assertEqual(0, len(response.json()))
@@ -73,7 +73,7 @@ class MyTestCase(unittest.TestCase):
     def test_get_reports(self):
         self.dl.create(self.report)
 
-        response = self.client.get("/datalayer/VulnerabilityReports")
+        response = self.client.get("/datalayer/VulnerabilityReports/")
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(1, len(response.json()))
 
@@ -83,7 +83,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_get_reports_shortcut(self):
         self.dl.create(self.report)
-        response = self.client.get("/datalayer/Reports")
+        response = self.client.get("/datalayer/Reports/")
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(1, len(response.json()))
 

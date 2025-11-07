@@ -94,22 +94,20 @@ class ActorsRouterTest(unittest.TestCase):
 
     def test_post_actor_inbox_accepted(self):
         for actor in self.actors:
-
             note = as_Note(
-                id="urn:uuid:test-note",
                 content="This is a test note.",
             )
             activity = as_Create(
-                id="urn:uuid:test-create",
                 object=note,
                 actor=actor.as_id,
             )
 
             payload = jsonable_encoder(activity, exclude_none=True)
 
-            resp = self.client.post(
-                f"/actors/{actor.as_id}/inbox", json=payload
-            )
+            # actor_id = parse_id(actor.as_id)["object_id"]
+            actor_id = actor.as_id
+
+            resp = self.client.post(f"/actors/{actor_id}/inbox/", json=payload)
             self.assertEqual(status.HTTP_202_ACCEPTED, resp.status_code)
 
     def test_post_actor_inbox_reject_unknown_object(self):
@@ -124,7 +122,7 @@ class ActorsRouterTest(unittest.TestCase):
             payload = jsonable_encoder(note, exclude_none=True)
 
             resp = self.client.post(
-                f"/actors/{actor.as_id}/inbox", json=payload
+                f"/actors/{actor.as_id}/inbox/", json=payload
             )
             self.assertEqual(
                 resp.status_code, status.HTTP_422_UNPROCESSABLE_CONTENT
