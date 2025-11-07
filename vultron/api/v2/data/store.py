@@ -20,6 +20,7 @@ from typing import Protocol
 
 from vultron.api.v2.data.types import UniqueKeyDict
 from vultron.as_vocab.base.base import as_Base
+from vultron.as_vocab.base.registry import find_in_vocabulary
 
 logger = logging.getLogger(__name__)
 
@@ -108,11 +109,13 @@ class DataStore(KeyValueStore):
         return _STORE.copy()
 
     def by_type(self, as_type: str) -> dict[str, as_Base]:
-        results = {
-            k: v
-            for k, v in _STORE.items()
-            if getattr(v, "as_type", None) == as_type
-        }
+
+        # find class in vocabulary
+        cls = find_in_vocabulary(as_type)
+        if cls is None:
+            raise ValueError(f"Unknown type: {as_type}")
+
+        results = {k: v for k, v in _STORE.items() if isinstance(v, cls)}
 
         return results
 

@@ -125,7 +125,11 @@ def get_activity_handler(
         return handler
 
     # transitive activity
-    o_key = activity.as_object.as_type
+    # as_object might be a string though
+    if isinstance(activity.as_object, str):
+        o_key = None
+    else:
+        o_key = activity.as_object.as_type
 
     try:
         handler = hdlrs[o_key]

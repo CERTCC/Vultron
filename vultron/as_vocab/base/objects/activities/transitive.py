@@ -17,11 +17,10 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.base import (
     as_Activity as Activity,
 )
-from vultron.as_vocab.base.objects.base import as_Object
+from vultron.as_vocab.base.objects.base import as_ObjectRef
 from vultron.as_vocab.base.registry import activitystreams_activity
 from vultron.as_vocab.base.utils import name_of
 
@@ -47,7 +46,7 @@ class as_TransitiveActivity(Activity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-activity>
     """
 
-    as_object: as_Object | as_Link | str | None = Field(None, alias="object")
+    as_object: as_ObjectRef = Field(None, alias="object")
 
     @model_validator(mode="after")
     def set_name(self):

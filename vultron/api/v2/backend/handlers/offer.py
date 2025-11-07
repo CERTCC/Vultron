@@ -17,11 +17,9 @@ Offer Activity Handlers
 import logging
 from functools import partial
 
-from vultron.api.data import (
-    get_datalayer,
-    DataLayer,
-)
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
+from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.data.store import DataStore
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
@@ -36,7 +34,7 @@ offer_handler = partial(ActivityHandler, activity_type=as_Offer)
 def offer_case_ownership_transfer(
     actor_id: str,
     activity: as_Offer,
-    datalayer: DataLayer = get_datalayer(),
+    datalayer: DataStore = get_datalayer(),
 ) -> None:
     """
     Process an Offer(CaseOwnershipTransfer) activity.
@@ -64,7 +62,7 @@ def offer_case_ownership_transfer(
 def recommend_actor_to_case(
     actor_id: str,
     activity: as_Offer,
-    datalayer: DataLayer = get_datalayer(),
+    datalayer: DataStore = get_datalayer(),
 ) -> None:
     """
     Process an Offer(Actor) activity.
@@ -91,7 +89,7 @@ def recommend_actor_to_case(
 def rm_submit_report(
     actor_id: str,
     activity: as_Offer,
-    datalayer: DataLayer = get_datalayer(),
+    datalayer: DataStore = get_datalayer(),
 ) -> None:
     """
     Process an Offer(VulnerabilityReport) activity.
@@ -116,13 +114,13 @@ def rm_submit_report(
 
     _offer_ok = False
     try:
-        datalayer.receive_offer(activity)
+        datalayer.create(activity)
         _offer_ok = True
     except ValueError as e:
         logger.error(f"Failed to receive offer: {e}")
 
     if _offer_ok:
-        datalayer.receive_report(offered_obj)
+        datalayer.create(offered_obj)
 
 
 def main():

@@ -25,6 +25,7 @@ from vultron.api.v2.backend.actors import ACTOR_REGISTRY
 from vultron.api.v2.backend.handlers.registry import (
     get_activity_handler,
 )
+from vultron.api.v2.data import get_datalayer
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.base import as_Object
@@ -53,20 +54,27 @@ def rehydrate(obj: as_Object, depth: int = 0) -> as_Object | str:
             f"Maximum rehydration depth of {_MAX_REHYDRATION_DEPTH} exceeded."
         )
 
-    # if object has an `as_object`, rehydrate that first
-    # this is the depth-first part
-    if hasattr(obj, "as_object") and obj.as_object is not None:
-        logger.debug(
-            f"Rehydrating nested object in 'as_object' field of {obj.as_type}"
-        )
-        obj.as_object = rehydrate(obj=obj.as_object, depth=depth + 1)
-
-    # if you got here, we're either at the bottom of the recursion or we
-    # already rehydrated the inner object(s)
-
-    if not hasattr(obj, "as_type") and isinstance(obj, str):
+    # short-circuit for strings
+    if isinstance(obj, str):
         logger.debug("Object is a string, no rehydration needed.")
         return obj  # type: ignore
+
+    # if object has an `as_object`, rehydrate that first
+    # this is the depth-first part
+    if hasattr(obj, "as_object"):
+        if obj.as_object is not None:
+            logger.debug(
+                f"Rehydrating nested object in 'as_object' field of {obj.as_type}"
+            )
+            obj.as_object = rehydrate(obj=obj.as_object, depth=depth + 1)
+        else:
+            logger.error(f"'as_object' field is None in {obj.as_type}")
+            raise ValueError(f"'as_object' field is None in {obj.as_type}")
+
+    # make sure the object has an as_type
+    if not hasattr(obj, "as_type"):
+        logger.error(f"Object {obj} has no 'as_type' attribute.")
+        raise ValueError(f"Object {obj} has no 'as_type' attribute.")
 
     # now rehydrate the outer object if needed
     cls = find_in_vocabulary(obj.as_type)
@@ -125,6 +133,7 @@ def handle_inbox_item(actor_id: str, obj: as_Activity):
         f"Looking up handler for activity type '{rehydrated.as_type}'"
     )
     handler = get_activity_handler(rehydrated)
+    logger.debug(f"Handler found: {handler}")
 
     if handler is None:
         raise ValueError(
@@ -138,7 +147,9 @@ def handle_inbox_item(actor_id: str, obj: as_Activity):
 
 
 async def inbox_handler(actor_id: str):
-    actor = ACTOR_REGISTRY.get_actor(actor_id)
+    dl = get_datalayer()
+
+    actor = dl.read(actor_id)
     if actor is None:
         logger.warning(f"Actor {actor_id} not found in inbox_handler.")
 

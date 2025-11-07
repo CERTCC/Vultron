@@ -54,7 +54,7 @@ class Foo(as_Base):
     bar: str = "baz"
 
 
-class MyTestCase(unittest.TestCase):
+class TestVocabExamples(unittest.TestCase):
     def test_json2md(self):
         # an object with a to_json method
 
@@ -138,42 +138,74 @@ class MyTestCase(unittest.TestCase):
 
     def test_validate_report(self):
         # is it an activity?
-        validate_report = examples.validate_report()
-        self.assertIsInstance(validate_report, as_Activity)
+        activity = examples.validate_report(verbose=True)
+        self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
         report = examples.gen_report()
+        finder = examples.finder()
 
         # does it have the right fields?
-        self.assertIsInstance(validate_report, as_Accept)
-        self.assertEqual(validate_report.as_type, "Accept")
-        self.assertEqual(validate_report.actor, vendor.as_id)
-        self.assertEqual(validate_report.as_object, report.as_id)
+        self.assertIsInstance(activity, as_Accept)
+        self.assertEqual(activity.as_type, "Accept")
+        self.assertEqual(activity.actor, vendor)
+
+        # the object should be an offer
+        offer = activity.as_object
+        # and the offer should contain the report
+        self.assertIsInstance(offer, as_Offer)
+        self.assertEqual(offer.as_type, "Offer")
+        self.assertEqual(offer.actor, finder)
+
+        report_ = offer.as_object
+        self.assertIsInstance(report_, VulnerabilityReport)
+        self.assertEqual(report, report_)
 
     def test_invalidate_report(self):
         # is it an activity?
-        invalidate_report = examples.invalidate_report()
-        self.assertIsInstance(invalidate_report, as_Activity)
+        activity = examples.invalidate_report(verbose=True)
+        self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
         report = examples.gen_report()
+        finder = examples.finder()
 
         # does it have the right fields?
-        self.assertIsInstance(invalidate_report, as_TentativeReject)
-        self.assertEqual(invalidate_report.as_type, "TentativeReject")
-        self.assertEqual(invalidate_report.actor, vendor.as_id)
-        self.assertEqual(invalidate_report.as_object, report.as_id)
+        self.assertIsInstance(activity, as_TentativeReject)
+        self.assertEqual(activity.as_type, "TentativeReject")
+        self.assertEqual(activity.actor, vendor)
+
+        # the object should be an offer
+        offer = activity.as_object
+        # and the offer should contain the report
+        self.assertIsInstance(offer, as_Offer)
+        self.assertEqual(offer.as_type, "Offer")
+        self.assertEqual(offer.actor, finder)
+
+        report_ = offer.as_object
+        self.assertIsInstance(report_, VulnerabilityReport)
+        self.assertEqual(report, report_)
 
     def test_close_report(self):
         # is it an activity?
-        close_report = examples.close_report()
-        self.assertIsInstance(close_report, as_Activity)
+        activity = examples.close_report(verbose=True)
+        self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
         report = examples.gen_report()
+        finder = examples.finder()
 
         # does it have the right fields?
-        self.assertIsInstance(close_report, as_Reject)
-        self.assertEqual(close_report.as_type, "Reject")
-        self.assertEqual(close_report.actor, vendor.as_id)
-        self.assertEqual(close_report.as_object, report.as_id)
+        self.assertIsInstance(activity, as_Reject)
+        self.assertEqual(activity.as_type, "Reject")
+        self.assertEqual(vendor, activity.actor)
+        # the object should be an offer
+        offer = activity.as_object
+        # and the offer should contain the report
+        self.assertIsInstance(offer, as_Offer)
+        self.assertEqual(offer.as_type, "Offer")
+        self.assertEqual(offer.actor, finder)
+
+        report_ = offer.as_object
+        self.assertIsInstance(report_, VulnerabilityReport)
+        self.assertEqual(report, report_)
 
     def test_case(self):
         case = examples.case()

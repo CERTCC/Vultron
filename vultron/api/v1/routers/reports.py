@@ -85,7 +85,7 @@ async def read_case(id: str) -> RmReadReport:
 async def validate_case_by_id(id: str) -> RmValidateReport:
     """Validate a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and validate the case from a database.
-    return vocab_examples.validate_report()
+    return vocab_examples.validate_report(verbose=True)
 
 
 @router.put(
@@ -97,7 +97,7 @@ async def validate_case_by_id(id: str) -> RmValidateReport:
 async def invalidate_case_by_id(id: str) -> RmInvalidateReport:
     """Invalidate a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and invalidate the case from a database.
-    return vocab_examples.invalidate_report()
+    return vocab_examples.invalidate_report(verbose=True)
 
 
 @router.put(
@@ -109,4 +109,4 @@ async def invalidate_case_by_id(id: str) -> RmInvalidateReport:
 async def close_case_by_id(id: str) -> RmCloseReport:
     """Close a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and close the case from a database.
-    return vocab_examples.close_report()
+    return vocab_examples.close_report(verbose=True)
