@@ -26,8 +26,8 @@ from vultron.api.v2.backend.handlers.create import (
 from vultron.api.v2.backend.handlers.offer import rm_submit_report
 from vultron.api.v2.backend.handlers.read import rm_read_report
 from vultron.api.v2.backend.handlers.reject import (
-    rm_close_report,
     rm_invalidate_report,
+    reject_offer,
 )
 from vultron.api.v2.data import get_datalayer
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -121,12 +121,16 @@ class TestReportingWorkflow(unittest.TestCase):
         )
         self._test_activity(activity, create_case)
 
-    def test_close_report(self):
-        activity = as_Reject(
-            actor=self.coordinator,
+    def test_reject_offer(self):
+        offer = as_Offer(
+            actor=self.reporter,
             object=self.report,
         )
-        self._test_activity(activity, rm_close_report)
+        activity = as_Reject(
+            actor=self.coordinator,
+            object=offer,
+        )
+        self._test_activity(activity, reject_offer)
 
 
 if __name__ == "__main__":

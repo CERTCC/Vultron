@@ -82,6 +82,33 @@ def get_datalayer_contents() -> dict[str, dict]:
     return data
 
 
+@router.get(
+    "/Actors/{actor_id}/Offers/{offer_id}",
+    description="Returns a specific object by actor id and offer id.",
+)
+def get_actor_offer(actor_id: str, offer_id: str) -> as_Offer:
+    datalayer = get_datalayer()
+
+    obj = datalayer.read(offer_id)
+
+    if not obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    offer = as_Offer.model_validate(obj)
+
+    # Verify that the offer was targeted to the given actor
+    found = False
+    for _id in offer.to or []:
+        if _id.endswith(actor_id):
+            found = True
+            break
+
+    if not found:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    return offer
+
+
 @router.get("/Offers/", description="Returns all Offer objects.")
 def get_offers() -> dict[str, as_Offer]:
     datalayer = get_datalayer()
