@@ -14,7 +14,18 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Provides TODO writeme
+Demonstrates the workflow for receiving and processing vulnerability reports via the Vultron API.
+
+This demo script showcases the end-to-end process of submitting a vulnerability report through
+the API, including actor discovery, report creation, submission via the inbox endpoint, and
+verification of side effects in the data layer.
+
+When run as a script, this module will:
+1. Reset the data layer to a clean state
+2. Discover actors (finder, vendor, coordinator) via the API
+3. Create a vulnerability report attributed to the finder
+4. Submit the report to the vendor's inbox
+5. Verify that both the offer and report are stored in the data layer
 """
 
 import json
