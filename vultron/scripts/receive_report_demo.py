@@ -154,7 +154,7 @@ def main():
     close_offer = RmCloseReport(
         actor=vendor.as_id,
         object=offer.as_id,
-        conteint="Closing the report as invalid.",
+        content="Closing the report as invalid.",
     )
 
     logger.info(f"Closing offer: {logfmt(close_offer)}")
