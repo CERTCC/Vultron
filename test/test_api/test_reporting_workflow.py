@@ -34,9 +34,9 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Create,
     as_Offer,
     as_Read,
-    as_Accept,
     as_TentativeReject,
     as_Reject,
+    as_Accept,
 )
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
@@ -101,16 +101,24 @@ class TestReportingWorkflow(unittest.TestCase):
         self._test_activity(activity, rm_read_report)  # No read handler yet
 
     def test_validate_report(self):
-        activity = as_Accept(
+        offer = as_Offer(
             actor=self.reporter,
             object=self.report,
+        )
+        activity = as_Accept(
+            actor=self.reporter,
+            object=offer,
         )
         self._test_activity(activity, rm_validate_report)
 
     def test_invalidate_report(self):
-        activity = as_TentativeReject(
+        offer = as_Offer(
             actor=self.reporter,
             object=self.report,
+        )
+        activity = as_TentativeReject(
+            actor=self.reporter,
+            object=offer,
         )
         self._test_activity(activity, rm_invalidate_report)
 

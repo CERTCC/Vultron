@@ -93,6 +93,7 @@ def tentative_reject_offer(
 
 
 def rm_invalidate_report(
+    actor_id: str,
     activity: as_TentativeReject,
 ) -> None:
     """
