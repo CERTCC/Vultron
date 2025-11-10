@@ -63,6 +63,9 @@ def rehydrate(obj: as_Object, depth: int = 0) -> as_Object | str:
 
         obj = datalayer.read(obj)
 
+        if obj is None:
+            raise ValueError("Object not found in data layer")
+
         # logger.debug("Object is a string, no rehydration needed.")
         return obj  # type: ignore
 
