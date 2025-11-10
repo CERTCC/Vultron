@@ -18,86 +18,16 @@ Vultron Actor Inbox Handler
 
 import logging
 
-from pydantic import ValidationError
-
 from vultron.api.v2.backend import handlers  # noqa: F401
-from vultron.api.v2.backend.actors import ACTOR_REGISTRY
 from vultron.api.v2.backend.handlers.registry import (
     get_activity_handler,
 )
 from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.data.rehydration import rehydrate
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.as_vocab.base.objects.base import as_Object
-from vultron.as_vocab.base.registry import find_in_vocabulary
 
 logger = logging.getLogger(__name__)
-
-_MAX_REHYDRATION_DEPTH = 5
-
-
-def rehydrate(obj: as_Object, depth: int = 0) -> as_Object | str:
-    """Recursively rehydrate an object if needed. Performs depth-first rehydration to a maximum depth.
-
-    Args:
-        obj: The object to rehydrate.
-        depth: The current recursion depth (default: 0).
-    Returns:
-        The rehydrated object of the correct subclass.
-    Raises:
-        KeyError: If the object type is unrecognized.
-        RecursionError: If the maximum rehydration depth is exceeded.
-        ValidationError: If the rehydrated object validation fails.
-    """
-    if depth > _MAX_REHYDRATION_DEPTH:
-        raise RecursionError(
-            f"Maximum rehydration depth of {_MAX_REHYDRATION_DEPTH} exceeded."
-        )
-
-    # short-circuit for strings
-    if isinstance(obj, str):
-        logger.debug("Object is a string, no rehydration needed.")
-        return obj  # type: ignore
-
-    # if object has an `as_object`, rehydrate that first
-    # this is the depth-first part
-    if hasattr(obj, "as_object"):
-        if obj.as_object is not None:
-            logger.debug(
-                f"Rehydrating nested object in 'as_object' field of {obj.as_type}"
-            )
-            obj.as_object = rehydrate(obj=obj.as_object, depth=depth + 1)
-        else:
-            logger.error(f"'as_object' field is None in {obj.as_type}")
-            raise ValueError(f"'as_object' field is None in {obj.as_type}")
-
-    # make sure the object has an as_type
-    if not hasattr(obj, "as_type"):
-        logger.error(f"Object {obj} has no 'as_type' attribute.")
-        raise ValueError(f"Object {obj} has no 'as_type' attribute.")
-
-    # now rehydrate the outer object if needed
-    cls = find_in_vocabulary(obj.as_type)
-    if cls is None:
-        logger.error(f"Unknown object type: {obj.as_type}")
-        raise KeyError(f"Unknown object type: {obj.as_type}")
-
-    # short-circuit if already rehydrated
-    if isinstance(obj, cls):
-        logger.debug(
-            f"Object already rehydrated as '{obj.__class__.__name__}', skipping rehydration step."
-        )
-        return obj
-
-    # it's not the right class, re-validate to get the correct subclass
-    logger.debug(f"Rehydrating to class {cls.__name__} for type {obj.as_type}")
-    try:
-        rehydrated = cls.model_validate(obj.model_dump())
-    except ValidationError:
-        logger.error(f"{cls.__name__} validation failed on {obj}")
-        raise
-
-    return rehydrated
 
 
 def handle_inbox_item(actor_id: str, obj: as_Activity):
@@ -165,8 +95,9 @@ async def inbox_handler(actor_id: str):
         try:
             handle_inbox_item(actor_id, item)
         except Exception as e:
-            logger.error(
-                f"Error processing item {item} for actor {actor_id}: {e}"
+            logger.error(f"Error processing item for actor {actor_id}: {e}")
+            logger.debug(
+                f"Item causing error: {item.model_dump_json(indent=2, exclude_none=True)}"
             )
             # put the item back in the inbox for retry
             actor.inbox.items.insert(0, item)

@@ -36,7 +36,13 @@ import requests
 from fastapi.encoders import jsonable_encoder
 
 from vultron.api.v2.data.utils import parse_id
-from vultron.as_vocab.activities.report import RmSubmitReport
+from vultron.as_vocab.activities.report import (
+    RmSubmitReport,
+    RmCloseReport,
+    RmInvalidateReport,
+    RmValidateReport,
+)
+from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
@@ -138,6 +144,47 @@ def main():
     # the report should be in the datalayer
     _obj = call("GET", f"/datalayer/{report.as_id}")
     logger.info(f"Datalayer Stored: {_obj["type"]} {_obj["id"]}")
+
+    offer = call(
+        "GET", f"/datalayer/Actors/{vendor_id}/Offers/{report_offer.as_id}"
+    )
+    offer = as_Offer(**offer)
+    logger.info(f"Retrieved Offer via Actor: {logfmt(offer)}")
+
+    close_offer = RmCloseReport(
+        actor=vendor.as_id,
+        object=offer.as_id,
+        content="Closing the report as invalid.",
+    )
+
+    logger.info(f"Closing offer: {logfmt(close_offer)}")
+    call("POST", f"/actors/{vendor_id}/inbox/", json=postfmt(close_offer))
+
+    invalidate_offer = RmInvalidateReport(
+        actor=vendor.as_id,
+        object=offer.as_id,
+        content="Invalidating the report due to false positive.",
+    )
+    logger.info(f"Invalidating offer: {logfmt(invalidate_offer)}")
+
+    call(
+        "POST",
+        f"/actors/{vendor_id}/inbox/",
+        json=postfmt(invalidate_offer),
+    )
+
+    accept_offer = RmValidateReport(
+        actor=vendor.as_id,
+        object=offer.as_id,
+        content="Validating the report as legitimate.",
+    )
+    logger.info(f"Validating offer: {logfmt(accept_offer)}")
+
+    call(
+        "POST",
+        f"/actors/{vendor_id}/inbox/",
+        json=postfmt(accept_offer),
+    )
 
 
 def _setup_logging():

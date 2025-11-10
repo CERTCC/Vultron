@@ -17,8 +17,11 @@ Test the reporting workflow
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
+from unittest.mock import patch
 
-from vultron.api.v2.backend.handlers.accept import rm_validate_report
+from vultron.api.v2.backend.handlers.accept import (
+    accept_offer_handler,
+)
 from vultron.api.v2.backend.handlers.create import (
     rm_create_report,
     create_case,
@@ -26,17 +29,17 @@ from vultron.api.v2.backend.handlers.create import (
 from vultron.api.v2.backend.handlers.offer import rm_submit_report
 from vultron.api.v2.backend.handlers.read import rm_read_report
 from vultron.api.v2.backend.handlers.reject import (
-    rm_close_report,
-    rm_invalidate_report,
+    reject_offer,
+    tentative_reject_offer,
 )
 from vultron.api.v2.data import get_datalayer
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Create,
     as_Offer,
     as_Read,
-    as_Accept,
     as_TentativeReject,
     as_Reject,
+    as_Accept,
 )
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
@@ -100,19 +103,31 @@ class TestReportingWorkflow(unittest.TestCase):
         )
         self._test_activity(activity, rm_read_report)  # No read handler yet
 
-    def test_validate_report(self):
+    @patch("vultron.api.v2.backend.handlers.accept.rm_validate_report")
+    def test_validate_report(self, mock_validate_report):
+        offer = as_Offer(
+            actor=self.reporter,
+            object=self.report,
+        )
         activity = as_Accept(
             actor=self.reporter,
-            object=self.report,
+            object=offer,
         )
-        self._test_activity(activity, rm_validate_report)
+        self._test_activity(activity, accept_offer_handler)
+        mock_validate_report.assert_called_once_with(activity)
 
-    def test_invalidate_report(self):
-        activity = as_TentativeReject(
+    @patch("vultron.api.v2.backend.handlers.reject.rm_invalidate_report")
+    def test_invalidate_report(self, mock_invalidate):
+        offer = as_Offer(
             actor=self.reporter,
             object=self.report,
         )
-        self._test_activity(activity, rm_invalidate_report)
+        activity = as_TentativeReject(
+            actor=self.reporter,
+            object=offer,
+        )
+        self._test_activity(activity, tentative_reject_offer)
+        mock_invalidate.assert_called_once_with(activity)
 
     def test_create_case(self):
         activity = as_Create(
@@ -121,12 +136,18 @@ class TestReportingWorkflow(unittest.TestCase):
         )
         self._test_activity(activity, create_case)
 
-    def test_close_report(self):
-        activity = as_Reject(
-            actor=self.coordinator,
+    @patch("vultron.api.v2.backend.handlers.reject.rm_close_report")
+    def test_reject_offer(self, mock_rm_close):
+        offer = as_Offer(
+            actor=self.reporter,
             object=self.report,
         )
-        self._test_activity(activity, rm_close_report)
+        activity = as_Reject(
+            actor=self.coordinator,
+            object=offer,
+        )
+        self._test_activity(activity, reject_offer)
+        mock_rm_close.assert_called_once_with(activity)
 
 
 if __name__ == "__main__":

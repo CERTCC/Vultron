@@ -19,11 +19,12 @@ import logging
 from functools import partial
 
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
+from vultron.api.v2.data.rehydration import rehydrate
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Reject,
     as_TentativeReject,
+    as_Offer,
 )
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 logger = logging.getLogger(__name__)
 
@@ -34,23 +35,73 @@ tentative_reject_handler = partial(
 )
 
 
-@tentative_reject_handler(object_type=VulnerabilityReport)
-def rm_invalidate_report(
+@reject_handler(object_type=as_Offer)
+def reject_offer(
     actor_id: str,
-    activity: as_TentativeReject,
+    activity: as_Reject,
 ) -> None:
     """
-    Handle TentativeReject activity for VulnerabilityReport
+    Handle Reject activity for Offer
     """
-    logger.debug(f"Invalidate report activity: {activity}")
+    logger.debug(f"Reject offer activity: {activity}")
+    rejected_offer = activity.as_object
+    subject_of_offer = rejected_offer.as_object
+    match subject_of_offer.as_type:
+        case "VulnerabilityReport":
+            rm_close_report(activity)
+        case _:
+            logger.warning(
+                f"Actor {actor_id} rejected offer {rejected_offer.as_id} of an unsupported type {subject_of_offer.as_type}."
+            )
+    logger.debug(f"Subject of rejected offer: {subject_of_offer}")
 
 
-@reject_handler(object_type=VulnerabilityReport)
 def rm_close_report(
-    actor_id: str,
     activity: as_Reject,
 ) -> None:
     """
     Handle Reject activity for VulnerabilityReport
     """
-    logger.debug(f"Close report activity: {activity}")
+    actor = rehydrate(obj=activity.actor)
+    actor_id = actor.as_id
+    rejected_offer = rehydrate(activity.as_object)
+    subject_of_offer = rehydrate(rejected_offer.as_object)
+    logger.info(
+        f"Actor {actor_id} rejected offer {rejected_offer.as_id} of a VulnerabilityReport {subject_of_offer.as_id}."
+    )
+
+
+@tentative_reject_handler(object_type=as_Offer)
+def tentative_reject_offer(
+    actor_id: str,
+    activity: as_TentativeReject,
+) -> None:
+    """
+    Handle TentativeReject activity for Offer
+    """
+    logger.debug(f"TentativeReject offer activity: {activity}")
+    rejected_offer = activity.as_object
+    subject_of_offer = rejected_offer.as_object
+    match subject_of_offer.as_type:
+        case "VulnerabilityReport":
+            rm_invalidate_report(activity)
+        case _:
+            logger.warning(
+                f"Actor {actor_id} Tentatively Rejected offer {rejected_offer.as_id} of an unsupported type {subject_of_offer.as_type}."
+            )
+    logger.debug(f"Subject of tentatively rejected offer: {subject_of_offer}")
+
+
+def rm_invalidate_report(
+    activity: as_TentativeReject,
+) -> None:
+    """
+    Handle TentativeReject activity for VulnerabilityReport
+    """
+    actor = rehydrate(obj=activity.actor)
+    actor_id = actor.as_id
+    rejected_offer = activity.as_object
+    subject_of_offer = rejected_offer.as_object
+    logger.info(
+        f"Actor {actor_id} Tentatively Rejected offer {rejected_offer.as_id} of a VulnerabilityReport {subject_of_offer.as_id}."
+    )
