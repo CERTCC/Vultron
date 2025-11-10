@@ -18,6 +18,7 @@ import logging
 from functools import partial
 
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
+from vultron.api.v2.data.rehydration import rehydrate
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
@@ -54,7 +55,7 @@ def accept_offer_handler(actor_id: str, activity: as_Accept):
     elif isinstance(offer_referent, VulnerabilityCase):
         accept_case_ownership_transfer(actor_id, activity)
     elif isinstance(offer_referent, VulnerabilityReport):
-        rm_validate_report(actor_id, activity)
+        rm_validate_report(activity)
     else:
         logger.warning(
             f"Offer referent type {offer_referent.__class__.__name__} not handled"
@@ -145,11 +146,14 @@ def rm_accept_invite_to_case(actor_id: str, activity: as_Accept):
 
 
 # - RmValidateReport
-def rm_validate_report(actor_id: str, activity: as_Accept):
+def rm_validate_report(activity: as_Accept):
     """
     Handle Accept Vulnerability Report Activity
     """
     accepted_obj = activity.as_object
+
+    actor = rehydrate(activity.actor)
+    actor_id = actor.as_id
 
     logger.info(
         f"Actor {actor_id} accepts VulnerabilityReport: {accepted_obj.name}"
