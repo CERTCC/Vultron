@@ -84,7 +84,7 @@ def tentative_reject_offer(
     subject_of_offer = rejected_offer.as_object
     match subject_of_offer.as_type:
         case "VulnerabilityReport":
-            rm_invalidate_report(activity)
+            rm_invalidate_report(actor_id, activity)
         case _:
             logger.warning(
                 f"Actor {actor_id} Tentatively Rejected offer {rejected_offer.as_id} of an unsupported type {subject_of_offer.as_type}."
