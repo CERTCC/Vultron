@@ -20,7 +20,7 @@ from functools import partial
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.api.v2.data.rehydration import rehydrate
-from vultron.api.v2.data.status import OfferStatus, set_status
+from vultron.api.v2.data.status import OfferStatus, set_status, ReportStatus
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
@@ -30,6 +30,7 @@ from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.embargo_event import EmbargoEvent
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.bt.report_management.states import RM
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -152,22 +153,30 @@ def rm_validate_report(activity: as_Accept):
     """
     Handle Accept Vulnerability Report Activity
     """
-    accepted_obj = activity.as_object
-
+    accepted_offer = rehydrate(activity.as_object)
+    accepted_report = rehydrate(accepted_offer.as_object)
     actor = rehydrate(activity.actor)
     actor_id = actor.as_id
 
     logger.info(
-        f"Actor {actor_id} accepts VulnerabilityReport: {accepted_obj.name}"
+        f"Actor {actor_id} accepts VulnerabilityReport: {accepted_offer.name}"
     )
 
-    status_record = OfferStatus(
-        object_type=accepted_obj.as_type,
-        object_id=accepted_obj.as_id,
-        status=OfferStatusEnum.TENTATIVELY_REJECTED,
+    offer_status = OfferStatus(
+        object_type=accepted_offer.as_type,
+        object_id=accepted_offer.as_id,
+        status=OfferStatusEnum.ACCEPTED,
         actor_id=actor_id,
     )
-    set_status(status_record=status_record)
+    set_status(offer_status)
+
+    report_status = ReportStatus(
+        object_type=accepted_report.as_type,
+        object_id=accepted_report.as_id,
+        status=RM.VALID,
+        actor_id=actor_id,
+    )
+    set_status(report_status)
 
 
 def main():

@@ -15,16 +15,16 @@ Provides Enumerations for Vultron API v2 Data Layer
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from enum import StrEnum, auto
+from enum import StrEnum
 
 
 class OfferStatusEnum(StrEnum):
     """Enumeration of Offer Statuses"""
 
-    RECEIVED = auto()
-    ACCEPTED = auto()
-    TENTATIVELY_REJECTED = auto()
-    REJECTED = auto()
+    RECEIVED = "RECEIVED"
+    ACCEPTED = "ACCEPTED"
+    TENTATIVELY_REJECTED = "TENTATIVELY_REJECTED"
+    REJECTED = "REJECTED"
 
 
 def main():
