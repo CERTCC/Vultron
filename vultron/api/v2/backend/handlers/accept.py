@@ -18,7 +18,9 @@ import logging
 from functools import partial
 
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
+from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.api.v2.data.rehydration import rehydrate
+from vultron.api.v2.data.status import OfferStatus, set_status
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
@@ -159,7 +161,13 @@ def rm_validate_report(activity: as_Accept):
         f"Actor {actor_id} accepts VulnerabilityReport: {accepted_obj.name}"
     )
 
-    # TODO implement business logic
+    status_record = OfferStatus(
+        object_type=accepted_obj.as_type,
+        object_id=accepted_obj.as_id,
+        status=OfferStatusEnum.TENTATIVELY_REJECTED,
+        actor_id=actor_id,
+    )
+    set_status(status_record=status_record)
 
 
 def main():

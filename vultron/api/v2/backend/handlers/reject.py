@@ -19,12 +19,16 @@ import logging
 from functools import partial
 
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
+from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.api.v2.data.rehydration import rehydrate
+from vultron.api.v2.data.status import OfferStatus, set_status, ReportStatus
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Reject,
     as_TentativeReject,
     as_Offer,
 )
+from vultron.bt.report_management.states import RM
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +48,9 @@ def reject_offer(
     Handle Reject activity for Offer
     """
     logger.debug(f"Reject offer activity: {activity}")
+    datalayer = get_datalayer()
+    datalayer.create(activity)
+
     rejected_offer = activity.as_object
     subject_of_offer = rejected_offer.as_object
     match subject_of_offer.as_type:
@@ -62,6 +69,7 @@ def rm_close_report(
     """
     Handle Reject activity for VulnerabilityReport
     """
+
     actor = rehydrate(obj=activity.actor)
     actor_id = actor.as_id
     rejected_offer = rehydrate(activity.as_object)
@@ -69,6 +77,22 @@ def rm_close_report(
     logger.info(
         f"Actor {actor_id} rejected offer {rejected_offer.as_id} of a VulnerabilityReport {subject_of_offer.as_id}."
     )
+
+    offer_status = OfferStatus(
+        object_type=rejected_offer.as_type,
+        object_id=rejected_offer.as_id,
+        status=OfferStatusEnum.REJECTED,
+        actor_id=actor_id,
+    )
+    set_status(offer_status)
+
+    report_status = ReportStatus(
+        object_type=subject_of_offer.as_type,
+        object_id=subject_of_offer.as_id,
+        status=RM.CLOSED,
+        actor_id=actor_id,
+    )
+    set_status(report_status)
 
 
 @tentative_reject_handler(object_type=as_Offer)
@@ -105,3 +129,10 @@ def rm_invalidate_report(
     logger.info(
         f"Actor {actor_id} Tentatively Rejected offer {rejected_offer.as_id} of a VulnerabilityReport {subject_of_offer.as_id}."
     )
+    status_record = OfferStatus(
+        object_type=rejected_offer.as_type,
+        object_id=rejected_offer.as_id,
+        status=OfferStatusEnum.TENTATIVELY_REJECTED,
+        actor_id=actor_id,
+    )
+    set_status(status_record=status_record)
