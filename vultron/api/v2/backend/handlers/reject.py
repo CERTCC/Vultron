@@ -104,6 +104,10 @@ def tentative_reject_offer(
     Handle TentativeReject activity for Offer
     """
     logger.debug(f"TentativeReject offer activity: {activity}")
+
+    dl = get_datalayer()
+    dl.create(activity)
+
     rejected_offer = activity.as_object
     subject_of_offer = rejected_offer.as_object
     match subject_of_offer.as_type:
@@ -135,4 +139,12 @@ def rm_invalidate_report(
         status=OfferStatusEnum.TENTATIVELY_REJECTED,
         actor_id=actor_id,
     )
-    set_status(status_record=status_record)
+    set_status(status_record)
+
+    report_status = ReportStatus(
+        object_type=subject_of_offer.as_type,
+        object_id=subject_of_offer.as_id,
+        status=RM.INVALID,
+        actor_id=actor_id,
+    )
+    set_status(report_status)

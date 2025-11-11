@@ -17,12 +17,15 @@ from unittest.mock import patch
 from vultron.api.v2.backend.handlers.reject import (
     reject_offer,
     rm_close_report,
+    tentative_reject_offer,
+    rm_invalidate_report,
 )
 from vultron.api.v2.data import get_datalayer
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Offer,
     as_Reject,
+    as_TentativeReject,
 )
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
@@ -46,6 +49,10 @@ class RejectHandlerTestCase(unittest.TestCase):
             object=self.report,
         )
         self.reject = as_Reject(
+            actor=self.vendor.as_id,
+            object=self.offer,
+        )
+        self.tentative_reject = as_TentativeReject(
             actor=self.vendor.as_id,
             object=self.offer,
         )
@@ -108,14 +115,50 @@ class RejectHandlerTestCase(unittest.TestCase):
         self.assertIn("Offer", matches)
         self.assertIn("VulnerabilityReport", matches)
 
-    def test_tentative_reject_offer(self):
-        self.assertEqual(True, False)  # add assertion here
+    @patch("vultron.api.v2.data.store.DataStore.create")
+    @patch("vultron.api.v2.backend.handlers.reject.rm_invalidate_report")
+    def test_tentative_reject_offer(
+        self, mock_rm_invalidate_report, mock_datalayer_create
+    ):
+        activity = self.tentative_reject
 
-    def test_rm_invalidate_report(self):
-        self.assertEqual(True, False)  # add assertion here
+        self.assertNotIn(activity.as_id, self.dl)
 
-    def test_something(self):
-        self.assertEqual(True, False)  # add assertion here
+        tentative_reject_offer(actor_id=self.vendor.as_id, activity=activity)
+        mock_datalayer_create.assert_called_once_with(activity)
+
+        # because we mock datalayer.create, the activity won't actually be stored
+        self.assertNotIn(activity.as_id, self.dl)
+
+        mock_rm_invalidate_report.assert_called_once_with(activity)
+
+    @patch("vultron.api.v2.backend.handlers.reject.set_status")
+    def test_rm_invalidate_report(self, mock_set_status):
+        self.dl.create(self.tentative_reject)
+        activity = self.tentative_reject
+
+        rm_invalidate_report(activity)
+
+        mock_set_status.assert_called()
+
+        matches = []
+        for args in mock_set_status.call_args_list:
+            # the first argument is the status object
+            obj = args[0][0]
+
+            match obj.object_type:
+                # we should see both the Offer and the VulnerabilityReport being updated
+                case "Offer":
+                    self.assertEqual(
+                        OfferStatusEnum.TENTATIVELY_REJECTED, obj.status
+                    )
+                    matches.append("Offer")
+                case "VulnerabilityReport":
+                    self.assertEqual(RM.INVALID, obj.status)
+                    matches.append("VulnerabilityReport")
+
+        self.assertIn("Offer", matches)
+        self.assertIn("VulnerabilityReport", matches)
 
 
 if __name__ == "__main__":
