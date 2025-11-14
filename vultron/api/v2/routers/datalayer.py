@@ -15,13 +15,16 @@
 """
 Provides a backend API router for basic Vultron data layer operations.
 """
+from copy import deepcopy
 
 from fastapi import APIRouter, status, HTTPException
 
+from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.data.store import get_datalayer
 from vultron.as_vocab.base.base import as_Base
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
+from vultron.as_vocab.base.objects.collections import as_OrderedCollection
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 router = APIRouter(prefix="/datalayer", tags=["datalayer"])
@@ -144,6 +147,7 @@ def get_actors() -> dict[str, as_Actor]:
 @router.get(
     "/Actors/{actor_id}/outbox/",
     description="Returns the outbox of a specific Actor.",
+    response_model=as_OrderedCollection,
 )
 def get_actor_outbox(actor_id: str) -> dict:
     datalayer = get_datalayer()
@@ -153,14 +157,17 @@ def get_actor_outbox(actor_id: str) -> dict:
     if not actor_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    actor = as_Actor.model_validate(actor_obj)
+    actor: as_Actor = actor_obj  # type: ignore
 
-    outbox = actor.outbox
-
-    if not outbox:
+    if not actor.outbox:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    return outbox.model_dump(exclude_none=True, by_alias=True)
+    # make a copy
+    outbox = deepcopy(actor.outbox)
+
+    outbox.items = [rehydrate(item) for item in outbox.items]
+
+    return outbox
 
 
 @router.get(

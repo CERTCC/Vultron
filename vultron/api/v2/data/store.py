@@ -66,7 +66,7 @@ class DataStore(KeyValueStore):
         # This will raise a KeyError if the key already exists
         _STORE[obj_id] = obj
 
-    def read(self, object_id: str) -> dict | None:
+    def read(self, object_id: str) -> as_Base | None:
         return _STORE.get(object_id)
 
     def update(self, object_id: str, obj: dict) -> None:

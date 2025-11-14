@@ -35,7 +35,6 @@ import sys
 import requests
 from fastapi.encoders import jsonable_encoder
 
-from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.data.utils import parse_id
 from vultron.as_vocab.activities.report import (
     RmSubmitReport,
@@ -45,6 +44,7 @@ from vultron.as_vocab.activities.report import (
 )
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
+from vultron.as_vocab.base.objects.collections import as_OrderedCollection
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 logger = logging.getLogger(__name__)
@@ -190,18 +190,17 @@ def main():
     # verify side effects again
     # this time,
     # the actor's outbox should have a Create activity for the case
-    vendor_actor = call("GET", f"/datalayer/{vendor_id}")
-    logger.info(f"Vendor actor data: {json.dumps(vendor_actor, indent=2)}")
-    vendor_actor = as_Actor(**vendor_actor)
-    vendor_actor = rehydrate(obj=vendor_actor)
-    logger.info(f"Vendor actor post-rehydration: {logfmt(vendor_actor)}")
+    outbox = call("GET", f"/datalayer/Actors/{vendor_id}/outbox/")
+    outbox = as_OrderedCollection(**outbox)
 
-    if vendor_actor.outbox is None or len(vendor_actor.outbox.items) == 0:
-        logger.error("Vendor actor outbox is empty, expected Create activity.")
+    logger.info(f"Vendor outbox has {len(outbox.items)} items.")
+    if not outbox.items:
+        logger.error("Vendor outbox is empty, expected items.")
         return
-    else:
-        for item in vendor_actor.outbox.items:
-            logger.info(f"Vendor outbox item: {logfmt(item)}")
+
+    for item in outbox.items:
+        logger.info(f"Vendor outbox item: {logfmt(item)}")
+
     # and a case should exist
 
 
@@ -214,7 +213,7 @@ def _setup_logging():
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
     hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
 
 if __name__ == "__main__":

@@ -61,12 +61,13 @@ def rehydrate(obj: as_Object, depth: int = 0) -> as_Object | str:
             # it was not a url, just use the string as-is
             pass
 
+        logger.debug(f"Reading object with ID '{obj}' from data layer.")
         obj = datalayer.read(obj)
 
         if obj is None:
             raise ValueError("Object not found in data layer")
 
-        # logger.debug("Object is a string, no rehydration needed.")
+        logger.debug(f"Object rehydrated from data layer: {obj}")
         return obj  # type: ignore
 
     # if object has an `as_object`, rehydrate that first

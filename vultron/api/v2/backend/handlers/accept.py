@@ -22,11 +22,12 @@ from vultron.api.v2.data import get_datalayer
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.data.status import OfferStatus, set_status, ReportStatus
+from vultron.api.v2.data.utils import parse_id
+from vultron.as_vocab.activities.case import CreateCase
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
     as_Invite,
-    as_Create,
 )
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.embargo_event import EmbargoEvent
@@ -219,13 +220,28 @@ def rm_validate_report(activity: as_Accept):
 
     logger.info(f"Notifying addressees: {addressees}")
 
-    create_case_activity = as_Create(
+    assert actor.as_id is not None
+    assert case.as_id is not None
+    assert len(addressees) > 0
+
+    create_case_activity = CreateCase(
         actor=actor.as_id,
         object=case.as_id,
         to=addressees,
     )
+    dl.create(create_case_activity)
+    logger.info(
+        f"Created Create activity: {create_case_activity.model_dump_json(indent=2, exclude_none=True)}"
+    )
 
-    actor.outbox.items.append(create_case_activity)
+    actor = dl.read(parse_id(actor.as_id)["object_id"])
+    logger.debug(
+        f"Actor read from datalayer for outbox update: {actor.model_dump_json(indent=2, exclude_none=True)}"
+    )
+    actor.outbox.items.append(create_case_activity.as_id)
     logger.info(
         f"Added Create activity to outbox: {create_case_activity.as_id}"
+    )
+    logger.debug(
+        f"Actor read from datalayer for outbox update: {actor.model_dump_json(indent=2, exclude_none=True)}"
     )
