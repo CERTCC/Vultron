@@ -229,4 +229,3 @@ def rm_validate_report(activity: as_Accept):
     logger.info(
         f"Added Create activity to outbox: {create_case_activity.as_id}"
     )
-    dl.update(object_id=actor.as_id, obj=actor.model_dump(exclude_none=True))

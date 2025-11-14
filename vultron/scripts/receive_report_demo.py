@@ -35,6 +35,7 @@ import sys
 import requests
 from fastapi.encoders import jsonable_encoder
 
+from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.data.utils import parse_id
 from vultron.as_vocab.activities.report import (
     RmSubmitReport,
@@ -189,8 +190,12 @@ def main():
     # verify side effects again
     # this time,
     # the actor's outbox should have a Create activity for the case
-    vendor_actor = call("GET", f"/datalayer/Actors/{vendor_id}/outbox/")
+    vendor_actor = call("GET", f"/datalayer/{vendor_id}")
+    logger.info(f"Vendor actor data: {json.dumps(vendor_actor, indent=2)}")
     vendor_actor = as_Actor(**vendor_actor)
+    vendor_actor = rehydrate(obj=vendor_actor)
+    logger.info(f"Vendor actor post-rehydration: {logfmt(vendor_actor)}")
+
     if vendor_actor.outbox is None or len(vendor_actor.outbox.items) == 0:
         logger.error("Vendor actor outbox is empty, expected Create activity.")
         return
