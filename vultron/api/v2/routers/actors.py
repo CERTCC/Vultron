@@ -26,6 +26,7 @@ from vultron.api.v2.backend.handlers.registry import (
 from vultron.api.v2.backend.inbox_handler import (
     inbox_handler,
 )
+from vultron.api.v2.backend.outbox_handler import outbox_handler
 from vultron.api.v2.data import get_datalayer
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
@@ -159,5 +160,57 @@ def post_actor_inbox(
 
     # Trigger inbox processing (in the background)
     background_tasks.add_task(inbox_handler, actor_id)
+
+    return None
+
+
+@router.post(
+    "/{actor_id}/outbox/",
+    summary="Add an Activity to the Actor's Outbox.",
+    description="Adds an Activity to the Actor's Outbox. (stub implementation).",
+    status_code=status.HTTP_200_OK,
+)
+def post_actor_outbox(
+    actor_id: str, activity: as_Activity, background_tasks: BackgroundTasks
+) -> None:
+    """Adds an item to the Actor's Outbox.
+    Args:
+        actor_id: The ID of the Actor whose Outbox to add the item to.
+        activity: The Activity item to add to the Outbox.
+        background_tasks: FastAPI BackgroundTasks instance to schedule background tasks.
+    Returns:
+        None
+    Raises:
+        HTTPException: If the Actor is not found.
+    """
+    dl = get_datalayer()
+    actor = dl.read(actor_id)
+    actor = as_Actor.model_validate(actor)
+
+    if not actor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
+        )
+
+    # actor.as_id must match activity.actor or activity.actor.as_id
+    if isinstance(activity.actor, str):
+        activity_actor_id = activity.actor
+    elif hasattr(activity.actor, "as_id"):
+        activity_actor_id = activity.actor.as_id
+    else:
+        activity_actor_id = None
+
+    if activity_actor_id != actor_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Activity actor does not match actor_id.",
+        )
+
+    logger.debug(f"Posting activity to actor {actor_id} outbox: {activity}")
+    # append to outbox
+    actor.outbox.items.append(activity)
+
+    # Trigger inbox processing (in the background)
+    background_tasks.add_task(outbox_handler, actor_id)
 
     return None

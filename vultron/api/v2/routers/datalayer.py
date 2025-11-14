@@ -142,6 +142,28 @@ def get_actors() -> dict[str, as_Actor]:
 
 
 @router.get(
+    "/Actors/{actor_id}/outbox/",
+    description="Returns the outbox of a specific Actor.",
+)
+def get_actor_outbox(actor_id: str) -> dict:
+    datalayer = get_datalayer()
+
+    actor_obj = datalayer.read(actor_id)
+
+    if not actor_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    actor = as_Actor.model_validate(actor_obj)
+
+    outbox = actor.outbox
+
+    if not outbox:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    return outbox.model_dump(exclude_none=True, by_alias=True)
+
+
+@router.get(
     "/{object_type}s/", description="Returns all objects of a given type."
 )
 def get_objects(object_type: str) -> dict[str, as_Base]:
@@ -152,16 +174,19 @@ def get_objects(object_type: str) -> dict[str, as_Base]:
     return results
 
 
-@router.delete("/reset")
+@router.delete(
+    "/reset/",
+    description="Resets the datalayer by clearing all stored objects.",
+)
 def reset_datalayer(init: bool = False) -> dict:
     """Resets the datalayer by clearing all stored objects."""
 
     datalayer = get_datalayer()
     datalayer.clear()
     if init:
-        from vultron.api.v2.data import vocab_examples
+        from vultron.scripts.vocab_examples import initialize_examples
 
-        vocab_examples.initialize_examples()
+        initialize_examples()
 
     return {
         "status": "datalayer reset successfully",

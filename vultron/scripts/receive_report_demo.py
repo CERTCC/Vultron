@@ -87,7 +87,7 @@ def postfmt(obj):
 
 def main():
     # Reset the data layer to a clean state
-    reset = call("DELETE", "/datalayer/reset/")
+    reset = call("DELETE", "/datalayer/reset/", params={"init": True})
     logger.info(f"Reset status: {reset}")
 
     # find the finder
@@ -186,9 +186,24 @@ def main():
         json=postfmt(accept_offer),
     )
 
+    # verify side effects again
+    # this time,
+    # the actor's outbox should have a Create activity for the case
+    vendor_actor = call("GET", f"/datalayer/Actors/{vendor_id}/outbox/")
+    vendor_actor = as_Actor(**vendor_actor)
+    if vendor_actor.outbox is None or len(vendor_actor.outbox.items) == 0:
+        logger.error("Vendor actor outbox is empty, expected Create activity.")
+        return
+    else:
+        for item in vendor_actor.outbox.items:
+            logger.info(f"Vendor outbox item: {logfmt(item)}")
+    # and a case should exist
+
 
 def _setup_logging():
+    # turn down requests logging
     logging.getLogger("requests").setLevel(logging.WARNING)
+
     logger = logging.getLogger()
     hdlr = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")

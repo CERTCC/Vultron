@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-"""
-Vultron Actor Inbox Handler
-"""
 
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
@@ -15,76 +12,49 @@ Vultron Actor Inbox Handler
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
+"""
+Provides an outbox handler for Vultron Actors.
+"""
 import logging
 
-from vultron.api.v2.backend import handlers  # noqa: F401
-from vultron.api.v2.backend.handlers.registry import (
-    get_activity_handler,
-)
 from vultron.api.v2.data import get_datalayer
-from vultron.api.v2.data.rehydration import rehydrate
-from vultron.as_vocab import VOCABULARY
-from vultron.as_vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
 
 
-def handle_inbox_item(actor_id: str, obj: as_Activity):
+def handle_outbox_item(actor_id: str, obj):
     """
-    Handle a single item in the Actor's inbox.
+    Handle a single item in the Actor's outbox.
 
     Args:
-        actor_id: The ID of the Actor whose inbox is being processed.
-        obj: The Activity item to process. This should be an instance of as_Activity,
-             and will be rehydrated to its specific subclass.
-
+        actor_id: The ID of the Actor whose outbox is being processed.
+        obj: The Activity item to process.
     Returns:
         None
     Raises:
-        ValueError: If the object type is invalid for the inbox.
+        ValueError: If the object type is invalid for the outbox.
 
     """
-    logger.info(f"Processing item '{obj.name}' for actor '{actor_id}'")
+    logger.info(f"Processing outbox item for actor '{actor_id}'")
 
-    logger.info(
-        f"Validated object:\n{obj.model_dump_json(indent=2,exclude_none=True)}"
-    )
-
-    # we should only be receiving Activities in the inbox.
-    if obj.as_type not in VOCABULARY.activities:
-        raise ValueError(
-            f"Invalid object type {obj.as_type} in inbox for actor {actor_id}"
-        )
-
-    rehydrated = rehydrate(obj=obj)
-
-    logger.debug(
-        f"Looking up handler for activity type '{rehydrated.as_type}'"
-    )
-    handler = get_activity_handler(rehydrated)
-    logger.debug(f"Handler found: {handler}")
-
-    if handler is None:
-        raise ValueError(
-            f"No handler registered for activity type '{rehydrated.as_type}'"
-        )
-
-    logger.debug(
-        f"Found handler '{handler}' for activity type '{rehydrated.as_type}'"
-    )
-    handler(actor_id, rehydrated)
+    # Here you would implement the logic to handle the outbox item,
+    # such as sending it to another actor or processing it further.
+    logger.info(f"Outbox item:\n{obj}")
 
 
-async def inbox_handler(actor_id: str) -> None:
+async def outbox_handler(actor_id: str) -> None:
     """
-    Process the inbox for the given actor.
+    Process the outbox for the given actor.
+
     Args:
-        actor_id: The ID of the Actor whose inbox is being processed.
+        actor_id: The ID of the Actor whose outbox is being processed.
+
     Returns:
         None
+
     Raises:
         None
+
     """
     dl = get_datalayer()
 
@@ -95,21 +65,21 @@ async def inbox_handler(actor_id: str) -> None:
     logger.info(f"Processing inbox for actor {actor_id}")
     # Simulate processing each item in the inbox
     err_count = 0
-    while actor.inbox.items:
-        item = actor.inbox.items.pop(0)
+    while actor.outbox.items:
+        item = actor.outbox.items.pop(0)
 
         # in principle because of the POST {actor_id}/inbox method validation,
         # the only items in the inbox should be Activities with registered handlers,
         # but we'll let handle_inbox_item deal with verifying that
         try:
-            handle_inbox_item(actor_id, item)
+            handle_outbox_item(actor_id, item)
         except Exception as e:
             logger.error(f"Error processing item for actor {actor_id}: {e}")
             logger.debug(
                 f"Item causing error: {item.model_dump_json(indent=2, exclude_none=True)}"
             )
             # put the item back in the inbox for retry
-            actor.inbox.items.insert(0, item)
+            actor.outbox.items.insert(0, item)
             err_count += 1
             if err_count > 3:
                 logger.error(

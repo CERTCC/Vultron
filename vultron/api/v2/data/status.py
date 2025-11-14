@@ -17,7 +17,6 @@ Provides TODO writeme
 
 from pydantic import BaseModel, Field
 
-from vultron.api.v2.data import get_datalayer
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.bt.report_management.states import RM
 
@@ -90,9 +89,8 @@ def set_status(status_record: ObjectStatus) -> None:
     Args:
         status_record: An ObjectStatus instance representing the status to set.
     """
-    dl = get_datalayer()
-    status_dict = dl.status
-    status_dict.update(status_to_record_dict(status_record))
+    sl = get_status_layer()
+    sl.update(status_to_record_dict(status_record))
 
 
 def get_status_layer() -> dict[str, dict]:

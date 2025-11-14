@@ -34,7 +34,7 @@ from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.bt.report_management.states import RM
 
-logger = logging.getLogger("uvicorn.error")
+logger = logging.getLogger(__name__)
 
 accept_handler = partial(ActivityHandler, activity_type=as_Accept)
 
@@ -150,6 +150,27 @@ def rm_accept_invite_to_case(actor_id: str, activity: as_Accept):
     # TODO implement business logic
 
 
+def get_ids_from_actor(
+    actor: as_Actor | str | list[as_Actor] | list[str],
+) -> list[str]:
+    """
+    Get the ID from an Actor or string or list of Actors/strings
+    """
+    ids = []
+    if isinstance(actor, str):
+        ids.append(actor)
+    elif hasattr(actor, "as_id"):
+        ids.append(actor.as_id)
+    elif isinstance(actor, list):
+        ids = []
+        for a in actor:
+            if isinstance(a, str):
+                ids.append(a)
+            elif hasattr(a, "as_id"):
+                ids.append(a.as_id)
+    return ids
+
+
 # - RmValidateReport
 def rm_validate_report(activity: as_Accept):
     """
@@ -188,25 +209,24 @@ def rm_validate_report(activity: as_Accept):
     )
     dl = get_datalayer()
     dl.create(case)
+    logger.info(f"Created VulnerabilityCase: {case.as_id}: {case.name}")
 
-    create_case = as_Create(
+    addressees = []
+    for x in [actor, accepted_report.attributed_to, accepted_offer.to]:
+        addressees.extend(get_ids_from_actor(x))
+    # unique addressees
+    addressees = list(set(addressees))
+
+    logger.info(f"Notifying addressees: {addressees}")
+
+    create_case_activity = as_Create(
         actor=actor.as_id,
-        object=case,
+        object=case.as_id,
+        to=addressees,
     )
 
-
-def main():
-    from vultron.api.v2.backend.handlers.registry import (
-        ACTIVITY_HANDLER_REGISTRY,
+    actor.outbox.items.append(create_case_activity)
+    logger.info(
+        f"Added Create activity to outbox: {create_case_activity.as_id}"
     )
-
-    for k, v in ACTIVITY_HANDLER_REGISTRY.handlers.items():
-        for ok, ov in v.items():
-            if ok is None:
-                print(f"{k.__name__}: None -> {ov.__name__}")
-            else:
-                print(f"{k.__name__}: {ok.__name__} -> {ov.__name__}")
-
-
-if __name__ == "__main__":
-    main()
+    dl.update(object_id=actor.as_id, obj=actor.model_dump(exclude_none=True))

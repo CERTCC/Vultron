@@ -108,7 +108,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIsNotNone(self.dl.by_type("Offer"))
         self.assertIsNotNone(self.dl.by_type("VulnerabilityReport"))
 
-        response = self.client.delete("/datalayer/reset")
+        response = self.client.delete("/datalayer/reset/")
         self.assertEqual(status.HTTP_200_OK, response.status_code)
 
         response = self.client.get("/datalayer/Offers/")
