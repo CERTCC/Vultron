@@ -23,7 +23,6 @@ from vultron.as_vocab.base.base import as_Base
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.scripts import vocab_examples
 
 router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 
@@ -119,7 +118,9 @@ def get_offers() -> dict[str, as_Offer]:
 
 
 @router.get(
-    "/Reports/", description="Returns all VulnerabilityReport objects."
+    "/Reports/",
+    description="Returns all VulnerabilityReport objects.",
+    response_model=dict[str, VulnerabilityReport],
 )
 def get_reports() -> dict[str, VulnerabilityReport]:
     datalayer = get_datalayer()
@@ -140,19 +141,6 @@ def get_actors() -> dict[str, as_Actor]:
     return {k: as_Actor.model_validate(v) for k, v in results.items()}
 
 
-@router.post("/reset")
-def reset_datalayer() -> dict:
-    """Resets the datalayer by clearing all stored objects."""
-
-    datalayer = get_datalayer()
-    datalayer.clear()
-    vocab_examples.initialize_examples()
-    return {
-        "status": "datalayer reset successfully",
-        "n_items": len(datalayer.all()),
-    }
-
-
 @router.get(
     "/{object_type}s/", description="Returns all objects of a given type."
 )
@@ -162,3 +150,20 @@ def get_objects(object_type: str) -> dict[str, as_Base]:
     results = datalayer.by_type(object_type)
 
     return results
+
+
+@router.delete("/reset")
+def reset_datalayer(init: bool = False) -> dict:
+    """Resets the datalayer by clearing all stored objects."""
+
+    datalayer = get_datalayer()
+    datalayer.clear()
+    if init:
+        from vultron.api.v2.data import vocab_examples
+
+        vocab_examples.initialize_examples()
+
+    return {
+        "status": "datalayer reset successfully",
+        "n_items": len(datalayer.all()),
+    }

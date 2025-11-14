@@ -87,7 +87,7 @@ def postfmt(obj):
 
 def main():
     # Reset the data layer to a clean state
-    reset = call("POST", "/datalayer/reset/")
+    reset = call("DELETE", "/datalayer/reset/")
     logger.info(f"Reset status: {reset}")
 
     # find the finder

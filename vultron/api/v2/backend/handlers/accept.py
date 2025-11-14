@@ -18,6 +18,7 @@ import logging
 from functools import partial
 
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
+from vultron.api.v2.data import get_datalayer
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.data.status import OfferStatus, set_status, ReportStatus
@@ -25,6 +26,7 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
     as_Invite,
+    as_Create,
 )
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.embargo_event import EmbargoEvent
@@ -177,6 +179,20 @@ def rm_validate_report(activity: as_Accept):
         actor_id=actor_id,
     )
     set_status(report_status)
+
+    # create a case
+    case = VulnerabilityCase(
+        name=f"Case for Report {accepted_report.as_id}",
+        vulnerability_reports=[accepted_report],
+        attributed_to=actor.as_id,
+    )
+    dl = get_datalayer()
+    dl.create(case)
+
+    create_case = as_Create(
+        actor=actor.as_id,
+        object=case,
+    )
 
 
 def main():

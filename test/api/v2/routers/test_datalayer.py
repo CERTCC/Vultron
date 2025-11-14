@@ -100,6 +100,25 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(self.report.as_id, response.json()["id"])
 
+    def test_reset(self):
+        self.dl.create(self.offer)
+        self.dl.create(self.report)
+
+        # confirm that they exist
+        self.assertIsNotNone(self.dl.by_type("Offer"))
+        self.assertIsNotNone(self.dl.by_type("VulnerabilityReport"))
+
+        response = self.client.delete("/datalayer/reset")
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+
+        response = self.client.get("/datalayer/Offers/")
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(0, len(response.json()))
+
+        response = self.client.get("/datalayer/Reports/")
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(0, len(response.json()))
+
 
 if __name__ == "__main__":
     unittest.main()
