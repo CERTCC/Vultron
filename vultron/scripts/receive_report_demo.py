@@ -44,7 +44,9 @@ from vultron.as_vocab.activities.report import (
 )
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
+from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.objects.collections import as_OrderedCollection
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 logger = logging.getLogger(__name__)
@@ -110,11 +112,11 @@ def main():
 
     if finder is None:
         logger.error("Finder actor not found.")
-        return
+        raise ValueError("Finder actor not found.")
 
     if vendor is None:
         logger.error("Vendor actor not found.")
-        return
+        raise ValueError("Vendor actor not found.")
 
     report = VulnerabilityReport(
         attributed_to=finder.as_id,
@@ -196,12 +198,37 @@ def main():
     logger.info(f"Vendor outbox has {len(outbox.items)} items.")
     if not outbox.items:
         logger.error("Vendor outbox is empty, expected items.")
-        return
+        raise ValueError("Vendor outbox is empty, expected items.")
 
+    found = None
     for item in outbox.items:
         logger.info(f"Vendor outbox item: {logfmt(item)}")
+        if item.as_type == "Create":
+            logger.info(f"Found Create activity in outbox: {logfmt(item)}")
+            found = item
+            break
 
-    # and a case should exist
+    if not found:
+        logger.error("Create activity not found in vendor outbox.")
+        raise ValueError("Create activity not found in vendor outbox.")
+
+    # the object of the Create activity should be the case
+    create_id = found["id"]
+    logger.info(f"Create activity object ID: {create_id}")
+    case_id = found["object"]
+    logger.info(f"Create activity case ID: {case_id}")
+
+    create_obj = as_Object(**found)
+    logger.info(
+        f"Create activity found in vendor outbox: {logfmt(create_obj)}"
+    )
+
+    # and a case should exist in the datalayer
+    case_id = create_obj.as_object
+
+    case = call("GET", f"/datalayer/{found.object}")
+    case = VulnerabilityCase(**case)
+    logger.info(f"Retrieved VulnerabilityCase: {logfmt(case)}")
 
 
 def _setup_logging():

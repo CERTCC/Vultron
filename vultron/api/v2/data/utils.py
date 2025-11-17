@@ -56,3 +56,12 @@ def parse_id(object_id: str) -> dict[str, str]:
     }
 
     return parsed
+
+
+def strip_id_prefix(object_id: str) -> str:
+    """Strips the prefix from an object ID, returning only the UUID part."""
+    try:
+        parsed = parse_id(object_id)
+        return parsed["object_id"]
+    except ValueError:
+        return object_id

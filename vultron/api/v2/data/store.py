@@ -66,8 +66,22 @@ class DataStore(KeyValueStore):
         # This will raise a KeyError if the key already exists
         _STORE[obj_id] = obj
 
-    def read(self, object_id: str) -> as_Base | None:
-        return _STORE.get(object_id)
+    def read(self, object_id: str, raise_on_missing=False) -> as_Base | None:
+        """
+        Reads an object from the store.
+        Args:
+            object_id: The ID of the object to read.
+            raise_on_missing: If True, raises a KeyError if the object is not found.
+
+        Returns:
+            The object, or None if not found and raise_on_missing is False.
+        """
+        obj = _STORE.get(object_id)
+
+        if obj is None and raise_on_missing:
+            raise KeyError(f"Object with ID '{object_id}' not found in store.")
+
+        return obj
 
     def update(self, object_id: str, obj: dict) -> None:
         """

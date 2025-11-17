@@ -22,7 +22,6 @@ from vultron.api.v2.data import get_datalayer
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.data.status import OfferStatus, set_status, ReportStatus
-from vultron.api.v2.data.utils import parse_id
 from vultron.as_vocab.activities.case import CreateCase
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -234,7 +233,8 @@ def rm_validate_report(activity: as_Accept):
         f"Created Create activity: {create_case_activity.model_dump_json(indent=2, exclude_none=True)}"
     )
 
-    actor = dl.read(parse_id(actor.as_id)["object_id"])
+    actor = dl.read(actor.as_id, raise_on_missing=True)
+
     logger.debug(
         f"Actor read from datalayer for outbox update: {actor.model_dump_json(indent=2, exclude_none=True)}"
     )

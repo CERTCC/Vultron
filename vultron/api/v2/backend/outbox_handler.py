@@ -74,7 +74,9 @@ async def outbox_handler(actor_id: str) -> None:
         try:
             handle_outbox_item(actor_id, item)
         except Exception as e:
-            logger.error(f"Error processing item for actor {actor_id}: {e}")
+            logger.error(
+                f"Error processing outbox item for actor {actor_id}: {e}"
+            )
             logger.debug(
                 f"Item causing error: {item.model_dump_json(indent=2, exclude_none=True)}"
             )
