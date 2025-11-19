@@ -14,6 +14,7 @@
 import unittest
 
 from vultron.api.v2.data import actor_io
+from vultron.api.v2.data.utils import parse_id
 
 
 class TestActorIO(unittest.TestCase):
@@ -30,8 +31,11 @@ class TestActorIO(unittest.TestCase):
         actor_id = "https://demo.vultron.local/actors/test-actor"
         actor_io_instance = actor_io.init_actor_io(actor_id)
 
-        self.assertIn(actor_id, actor_io.ACTOR_IO_STORE)
-        self.assertEqual(actor_io_instance.actor_id, actor_id)
+        self.assertIn(actor_io_instance.actor_id, actor_io.ACTOR_IO_STORE)
+        self.assertIn(actor_io_instance.actor_id, actor_id)
+        # we don't expect the key to be the full actor_id, but rather the object_id part
+        parsed = parse_id(actor_id)
+        self.assertIn(parsed["object_id"], actor_io.ACTOR_IO_STORE)
         self.assertIsInstance(actor_io_instance.inbox, actor_io.Mailbox)
         self.assertIsInstance(actor_io_instance.outbox, actor_io.Mailbox)
 
@@ -45,14 +49,25 @@ class TestActorIO(unittest.TestCase):
     def test_init_actor_io_force_overwrites(self):
         actor_id = "https://demo.vultron.local/actors/test-actor"
         actor_io_instance1 = actor_io.init_actor_io(actor_id)
-        self.assertIn(actor_id, actor_io.ACTOR_IO_STORE)
-        self.assertIs(actor_io_instance1, actor_io.ACTOR_IO_STORE[actor_id])
+
+        self.assertIn(actor_io_instance1.actor_id, actor_io.ACTOR_IO_STORE)
+
+        self.assertIs(
+            actor_io_instance1,
+            actor_io.ACTOR_IO_STORE[actor_io_instance1.actor_id],
+        )
 
         actor_io_instance2 = actor_io.init_actor_io(actor_id, force=True)
 
+        self.assertEqual(
+            actor_io_instance1.actor_id, actor_io_instance2.actor_id
+        )
         # Verify that the instance has been overwritten
-        self.assertIn(actor_id, actor_io.ACTOR_IO_STORE)
-        self.assertIs(actor_io_instance2, actor_io.ACTOR_IO_STORE[actor_id])
+        self.assertIn(actor_io_instance2.actor_id, actor_io.ACTOR_IO_STORE)
+        self.assertIs(
+            actor_io_instance2,
+            actor_io.ACTOR_IO_STORE[actor_io_instance2.actor_id],
+        )
         # note we have to use assertIsNot to confirm they are different instances
         # because assertEqual would compare their content which is the same
         self.assertIsNot(actor_io_instance1, actor_io_instance2)
@@ -84,6 +99,8 @@ class TestActorIO(unittest.TestCase):
     def test_get_actor_io_initializes_when_requested(self):
         actor_id = "https://demo.vultron.local/actors/new-actor"
 
+        actor_key = parse_id(actor_id)["object_id"]
+
         self.assertNotIn(actor_id, actor_io.ACTOR_IO_STORE)
 
         actor_io_instance = actor_io.get_actor_io(
@@ -91,17 +108,18 @@ class TestActorIO(unittest.TestCase):
         )
 
         self.assertIsNotNone(actor_io_instance)
-        self.assertIn(actor_id, actor_io.ACTOR_IO_STORE)
-        self.assertIs(actor_io_instance, actor_io.ACTOR_IO_STORE[actor_id])
+        self.assertIn(actor_key, actor_io.ACTOR_IO_STORE)
+        self.assertIs(actor_io_instance, actor_io.ACTOR_IO_STORE[actor_key])
 
     def test_get_actor_inbox_returns_mailbox(self):
         actor_id = "https://demo.vultron.local/actors/test-actor"
-        actor_io.init_actor_io(actor_id)
+        io = actor_io.init_actor_io(actor_id)
 
-        inbox = actor_io.get_actor_inbox(actor_id)
+        inbox = io.inbox
+        returned = actor_io.get_actor_inbox(actor_id)
 
-        self.assertIsInstance(inbox, actor_io.Mailbox)
-        self.assertIs(inbox, actor_io.ACTOR_IO_STORE[actor_id].inbox)
+        self.assertIsInstance(returned, actor_io.Mailbox)
+        self.assertIs(returned, inbox)
 
     def test_get_actor_inbox_raises_on_nonexistent_actor(self):
         actor_id = "https://demo.vultron.local/actors/nonexistent-actor"
@@ -113,12 +131,12 @@ class TestActorIO(unittest.TestCase):
 
     def test_get_actor_outbox_returns_mailbox(self):
         actor_id = "https://demo.vultron.local/actors/test-actor"
-        actor_io.init_actor_io(actor_id)
+        io = actor_io.init_actor_io(actor_id)
 
         outbox = actor_io.get_actor_outbox(actor_id)
 
         self.assertIsInstance(outbox, actor_io.Mailbox)
-        self.assertIs(outbox, actor_io.ACTOR_IO_STORE[actor_id].outbox)
+        self.assertIs(outbox, io.outbox)
 
     def test_get_actor_outbox_raises_on_nonexistent_actor(self):
         actor_id = "https://demo.vultron.local/actors/nonexistent-actor"

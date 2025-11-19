@@ -28,6 +28,7 @@ from vultron.api.v2.backend.inbox_handler import (
 )
 from vultron.api.v2.backend.outbox_handler import outbox_handler
 from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.actors import as_Actor
@@ -82,9 +83,15 @@ def get_actor(actor_id: str) -> as_Actor:
 )
 def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
     """Returns the Actor's Inbox."""
-    actor: as_Actor = get_actor(actor_id)
 
-    return actor.inbox
+    actor_io = get_actor_io(actor_id, init=False, raise_on_missing=False)
+    if actor_io is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Actor Inbox not found.",
+        )
+
+    return as_OrderedCollection(items=actor_io.inbox.items)
 
 
 def parse_activity(body: dict) -> AsActivityType:
@@ -154,9 +161,18 @@ def post_actor_inbox(
     """
     dl = get_datalayer()
     actor = dl.read(actor_id)
+
+    if actor is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
+        )
+
+    dl.create(activity)
+
     logger.debug(f"Posting activity to actor {actor_id} inbox: {activity}")
-    # append to inbox
-    actor.inbox.items.append(activity)
+    actor_io = get_actor_io(actor_id, init=True, raise_on_missing=False)
+    # append activity ID to inbox
+    actor_io.inbox.items.append(activity.as_id)
 
     # Trigger inbox processing (in the background)
     background_tasks.add_task(inbox_handler, actor_id)
@@ -207,8 +223,13 @@ def post_actor_outbox(
         )
 
     logger.debug(f"Posting activity to actor {actor_id} outbox: {activity}")
-    # append to outbox
-    actor.outbox.items.append(activity)
+
+    actor_io = get_actor_io(actor_id, init=False, raise_on_missing=True)
+
+    dl.create(activity)
+
+    # append object ID to outbox
+    actor_io.outbox.items.append(activity.as_id)
 
     # Trigger inbox processing (in the background)
     background_tasks.add_task(outbox_handler, actor_id)

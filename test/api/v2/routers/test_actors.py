@@ -19,6 +19,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 
 from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.api.v2.routers import actors as actors_module
 from vultron.as_vocab.base.objects.activities.transitive import as_Create
 from vultron.as_vocab.base.objects.actors import (
@@ -54,6 +55,7 @@ class ActorsRouterTest(unittest.TestCase):
         for actor_cls in _actor_classes:
             actor = actor_cls(name="Test Actor for List")
             self.dl.create(actor)
+            init_actor_io(actor.as_id)
             self.actors.append(actor)
 
     def tearDown(self):

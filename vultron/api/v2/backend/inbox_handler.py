@@ -23,6 +23,7 @@ from vultron.api.v2.backend.handlers.registry import (
     get_activity_handler,
 )
 from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
@@ -95,8 +96,13 @@ async def inbox_handler(actor_id: str) -> None:
     logger.info(f"Processing inbox for actor {actor_id}")
     # Simulate processing each item in the inbox
     err_count = 0
-    while actor.inbox.items:
-        item = actor.inbox.items.pop(0)
+
+    actor_io = get_actor_io(actor_id, raise_on_missing=True)
+
+    while actor_io.inbox.items:
+        item = actor_io.inbox.items.pop(0)
+
+        item = rehydrate(item)
 
         # in principle because of the POST {actor_id}/inbox method validation,
         # the only items in the inbox should be Activities with registered handlers,
@@ -111,7 +117,7 @@ async def inbox_handler(actor_id: str) -> None:
                 f"Item causing error: {item.model_dump_json(indent=2, exclude_none=True)}"
             )
             # put the item back in the inbox for retry
-            actor.inbox.items.insert(0, item)
+            actor_io.inbox.items.insert(0, item)
             err_count += 1
             if err_count > 3:
                 logger.error(

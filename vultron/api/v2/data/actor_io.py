@@ -23,6 +23,8 @@ import sys
 
 from pydantic import BaseModel, Field
 
+from vultron.api.v2.data.utils import parse_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,6 +52,22 @@ class ActorIO(BaseModel):
 ACTOR_IO_STORE: dict[str, ActorIO] = dict()
 
 
+# method decorator that tries to resolve actor_id from parse_id, uses string if that fails
+def resolve_actor_id(func):
+    def wrapper(actor_id: str, *args, **kwargs):
+        resolved_actor_id = actor_id
+        try:
+            parsed = parse_id(actor_id)
+            resolved_actor_id = parsed["object_id"]
+        except Exception:
+            logger.debug(f"Could not parse actor_id {actor_id}, using as-is.")
+
+        return func(resolved_actor_id, *args, **kwargs)
+
+    return wrapper
+
+
+@resolve_actor_id
 def init_actor_io(actor_id: str, force=False) -> ActorIO:
     """
     Initialize the ActorIO for a given actor.
@@ -73,6 +91,7 @@ def init_actor_io(actor_id: str, force=False) -> ActorIO:
     return actor_io
 
 
+@resolve_actor_id
 def get_actor_io(
     actor_id: str, init=False, raise_on_missing=False
 ) -> ActorIO | None:
@@ -100,6 +119,7 @@ def get_actor_io(
     return ACTOR_IO_STORE.get(actor_id)
 
 
+@resolve_actor_id
 def get_actor_inbox(actor_id: str) -> Mailbox:
     """
     Get the inbox for a given actor.
@@ -117,6 +137,7 @@ def get_actor_inbox(actor_id: str) -> Mailbox:
     return actor_io.inbox
 
 
+@resolve_actor_id
 def get_actor_outbox(actor_id: str) -> Mailbox:
     """
     Get the outbox for a given actor.
@@ -134,6 +155,7 @@ def get_actor_outbox(actor_id: str) -> Mailbox:
     return actor_io.outbox
 
 
+@resolve_actor_id
 def reset_actor_inbox(actor_id: str) -> Mailbox:
     """
     Reset the inbox for a given actor.
@@ -151,6 +173,7 @@ def reset_actor_inbox(actor_id: str) -> Mailbox:
     return actor_io.inbox
 
 
+@resolve_actor_id
 def reset_actor_outbox(actor_id: str) -> Mailbox:
     """
     Reset the outbox for a given actor.

@@ -35,6 +35,7 @@ import sys
 import requests
 from fastapi.encoders import jsonable_encoder
 
+from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.api.v2.data.utils import parse_id
 from vultron.as_vocab.activities.report import (
     RmSubmitReport,
@@ -117,6 +118,12 @@ def main():
     if vendor is None:
         logger.error("Vendor actor not found.")
         raise ValueError("Vendor actor not found.")
+
+    for actor in [finder, vendor, coordinator]:
+        if actor is None:
+            continue
+
+        init_actor_io(actor.as_id)
 
     report = VulnerabilityReport(
         attributed_to=finder.as_id,
