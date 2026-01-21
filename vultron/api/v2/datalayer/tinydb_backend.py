@@ -20,6 +20,7 @@ Provides TODO writeme
 """
 from tinydb import TinyDB, Query
 from tinydb.queries import QueryInstance
+from tinydb.storages import MemoryStorage
 from tinydb.table import Table
 
 from vultron.api.v2.datalayer.abc import DataLayer
@@ -28,11 +29,16 @@ from vultron.api.v2.datalayer.db_record import Record
 
 class TinyDbDataLayer(DataLayer):
     def __init__(self, db_path: str | None = "mydb.json") -> None:
-        self._db_path = db_path
-        self._db = TinyDB(self._db_path)
+        if db_path:
+            open(db_path, "a").close()  # Ensure the file exists
+            self._db_path = db_path
+            self._db = TinyDB(db_path)
+        else:
+            self._db_path = None
+            self._db = TinyDB(storage=MemoryStorage)
 
-    def _table(self, table: str) -> Table:
-        return self._db.table(table)
+    def _table(self, name: str) -> Table:
+        return self._db.table(name)
 
     def _id_query(self, id_: str) -> QueryInstance:
         """Returns a TinyDB Query object for matching the given id.
@@ -40,7 +46,7 @@ class TinyDbDataLayer(DataLayer):
         Args:
             id_ (str): The id to match.
         """
-        return Query()._id == id_
+        return Query()["id_"] == id_
 
     def create(self, record: Record) -> None:
         """
@@ -82,7 +88,7 @@ class TinyDbDataLayer(DataLayer):
         result = tbl.get(self._id_query(id_))
         return result
 
-    def update(self, table: str, id_: str, record: dict) -> bool:
+    def update(self, id_: str, record: Record) -> bool:
         """
         Updates a record by id in the specified table.
 
@@ -93,7 +99,7 @@ class TinyDbDataLayer(DataLayer):
         Returns:
             bool: True if a record was updated, False if not found.
         """
-        tbl = self._table(table)
+        tbl = self._table(record.type_)
         updated = tbl.update(record, self._id_query(id_))
         return len(updated) > 0
 
