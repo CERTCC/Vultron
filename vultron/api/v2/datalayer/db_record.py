@@ -20,6 +20,8 @@ Provides a Record model for document database storage.
 """
 from pydantic import BaseModel
 
+from vultron.as_vocab.base.registry import Vocabulary, find_in_vocabulary
+
 
 class Record(BaseModel):
     """Record wrapper stored in TinyDB.
@@ -57,12 +59,38 @@ def object_to_record(obj: BaseModel) -> Record:
             "Object must have an 'as_type' attribute for Record conversion"
         )
 
+    if obj.as_type.startswith("as_"):
+        raise ValueError(
+            "Object 'as_type' attribute cannot start with 'as_' for Record conversion"
+        )
+
     record = Record(
         id_=obj.as_id,
         type_=obj.as_type,
         data_=obj.model_dump(),
     )
     return record
+
+
+def record_to_object(record: Record):
+    """Converts a Record back to a Pydantic BaseModel object.
+
+    Args:
+        record (Record): The Record to convert.
+        registry (Vocabulary): The vocabulary registry to use for class lookup.
+    Returns:
+        BaseModel: The converted object.
+    """
+    if not isinstance(record, Record):
+        raise ValueError("Input must be a Record for conversion")
+
+    cls = find_in_vocabulary(record.type_)
+    if cls is None:
+        raise ValueError(
+            f"Type '{record.type_}' not found in vocabulary for Record conversion"
+        )
+    obj = cls.model_validate(record.data_)
+    return obj
 
 
 def main():

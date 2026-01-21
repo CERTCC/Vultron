@@ -44,6 +44,26 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(record.type_, obj.as_type)
         self.assertEqual(record.data_, obj.model_dump())
 
+    def test_record_to_object(self):
+        from vultron.as_vocab.base.objects.object_types import as_Note
+
+        obj = as_Note(content="Test Content")
+
+        from vultron.api.v2.datalayer.db_record import (
+            object_to_record,
+            record_to_object,
+        )
+
+        record = object_to_record(obj)
+        self.assertIsInstance(record, Record)
+
+        reconstructed_obj = record_to_object(record)
+        self.assertIsInstance(reconstructed_obj, as_Note)
+
+        self.assertEqual(reconstructed_obj.as_id, obj.as_id)
+        self.assertEqual(reconstructed_obj.as_type, obj.as_type)
+        self.assertEqual(reconstructed_obj.model_dump(), obj.model_dump())
+
 
 if __name__ == "__main__":
     unittest.main()
