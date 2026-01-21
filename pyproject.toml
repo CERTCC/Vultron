@@ -51,6 +51,7 @@ dependencies = [
     "rdflib>=7.2.1",
     "scipy>=1.16.2",
     "uvicorn>=0.37.0",
+    "tinydb>=4.7.0",
 ]
 dynamic = ["version",]
 
