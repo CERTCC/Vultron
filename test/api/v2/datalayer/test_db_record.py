@@ -25,7 +25,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_record_attributes(self):
         # record should have an id_, type_, and data_ attributes
-        record = Record(id_="123", type_="TestType", data={"key": "value"})
+        record = Record(id_="123", type_="TestType", data_={"key": "value"})
         self.assertEqual(record.id_, "123")
         self.assertEqual(record.type_, "TestType")
         self.assertEqual(record.data_, {"key": "value"})

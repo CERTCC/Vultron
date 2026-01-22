@@ -129,19 +129,98 @@ class MyTestCase(unittest.TestCase):
         self.assertFalse(updated2)
 
     def test_delete(self):
-        self.fail("not implemented yet")
+        record = Record(
+            id_="12345", type_="test_table", data_={"field": "value"}
+        )
+        self.dl.create(record)
+        # confirm record exists
+        got = self.dl.get(record.type_, record.id_)
+        self.assertIsNotNone(got)
+
+        deleted = self.dl.delete(record.type_, record.id_)
+        self.assertTrue(deleted)
+        got_after_delete = self.dl.get(record.type_, record.id_)
+        self.assertIsNone(got_after_delete)
 
     def test_all(self):
-        self.fail("not implemented yet")
+        # create two records
+        record1 = Record(
+            id_="id1", type_="test_table", data_={"field": "value1"}
+        )
+        record2 = Record(
+            id_="id2", type_="test_table", data_={"field": "value2"}
+        )
+        self.dl.create(record1)
+        self.dl.create(record2)
+
+        # all() should return both
+        all_records = self.dl.all("test_table")
+        self.assertEqual(len(all_records), 2)
+        ids = {rec.id_ for rec in all_records}
+        self.assertIn("id1", ids)
+        self.assertIn("id2", ids)
+
+        # confirm that each is a valid record
+        for rec in all_records:
+            self.assertIsInstance(rec, Record)
 
     def test_clear_table(self):
-        self.fail("not implemented yet")
+        # create a record
+        record = Record(
+            id_="12345", type_="test_table", data_={"field": "value"}
+        )
+        self.dl.create(record)
+        # confirm record exists
+        got = self.dl.get(record.type_, record.id_)
+        self.assertIsNotNone(got)
+        # clear the table
+        self.dl.clear_table(record.type_)
+        # confirm record is gone
+        got_after_clear = self.dl.get(record.type_, record.id_)
+        self.assertIsNone(got_after_clear)
+        # confirm table is empty
+        all_records = self.dl.all(record.type_)
+        self.assertEqual(len(all_records), 0)
 
     def test_clear_all(self):
-        self.fail("not implemented yet")
+        # create records in two tables
+        record1 = Record(id_="id1", type_="table1", data_={"field": "value1"})
+        record2 = Record(id_="id2", type_="table2", data_={"field": "value2"})
+        self.dl.create(record1)
+        self.dl.create(record2)
+        # confirm records exist
+        got1 = self.dl.get(record1.type_, record1.id_)
+        got2 = self.dl.get(record2.type_, record2.id_)
+        self.assertIsNotNone(got1)
+        self.assertIsNotNone(got2)
+        # confirm both tables exist
+        self.assertIn(record1.type_, self.dl._db.tables())
+        self.assertIn(record2.type_, self.dl._db.tables())
+
+        # clear all
+        self.dl.clear_all()
+        # confirm both records are gone
+        got1_after = self.dl.get(record1.type_, record1.id_)
+        got2_after = self.dl.get(record2.type_, record2.id_)
+        self.assertIsNone(got1_after)
+        self.assertIsNone(got2_after)
+        # confirm no tables exist
+        self.assertEqual(len(self.dl._db.tables()), 0)
 
     def test_exists(self):
-        self.fail("not implemented yet")
+        # test non-existing
+        self.assertFalse(self.dl.exists("nonexistent_table", "no_id"))
+        record = Record(
+            id_="12345", type_="test_table", data_={"field": "value"}
+        )
+        self.dl.create(record)
+        # test existing
+        self.assertTrue(self.dl.exists(record.type_, record.id_))
+        # test existing table, non-existing id
+        self.assertFalse(self.dl.exists(record.type_, "no_such_id"))
+        # remove record and test again
+        self.dl.delete(record.type_, record.id_)
+        self.assertFalse(self.dl.exists(record.type_, record.id_))
 
 
 if __name__ == "__main__":
