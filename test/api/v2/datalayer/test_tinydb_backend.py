@@ -11,10 +11,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import os.path
-import unittest
-from tempfile import TemporaryDirectory, TemporaryFile
+import os
 
+import pytest
 from tinydb.queries import QueryInstance
 from tinydb.table import Table
 
@@ -22,206 +21,218 @@ from vultron.api.v2.datalayer.db_record import Record
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
 
 
-class MyTestCase(unittest.TestCase):
-    def setUp(self) -> None:
-        # temp dir for db file
-        self.tmpdir = TemporaryDirectory()
-        self.dbfile = TemporaryFile(dir=self.tmpdir.name)
-        self.dbfile.close()
-        self.dl = TinyDbDataLayer(db_path=str(self.dbfile.name))
-
-    def tearDown(self) -> None:
-        self.dl.clear_all()
-        self.dl._db.close()
-        self.tmpdir.cleanup()
-        self.assertFalse(os.path.exists(self.tmpdir.name))
-
-    def test_init(self):
-        self.assertIsInstance(self.dl, TinyDbDataLayer)
-        self.assertTrue(hasattr(self.dl, "_db_path"))
-
-        # ensure db file is created on initialization
-        self.assertTrue(os.path.exists(self.dl._db_path))
-        # ensure tables are empty
-        self.assertEqual(len(self.dl._db.tables()), 0)
-
-    def test_table(self):
-        table_name = "test_table"
-        table = self.dl._table(table_name)
-        self.assertIsNotNone(table)
-        self.assertIsInstance(table, Table)
-        self.assertEqual(table.name, table_name)
-
-    def test_id_query(self):
-        test_id = "12345"
-        query = self.dl._id_query(test_id)
-        self.assertIsNotNone(query)
-        self.assertIsInstance(query, QueryInstance)
-
-    def test_create(self):
-        record = Record(
-            id_="12345", type_="test_table", data_={"field": "value"}
-        )
-        # table is not in db yet
-        self.assertNotIn(record.type_, self.dl._db.tables())
-
-        # record is not in db yet
-        table = self.dl._table(record.type_)
-        self.assertFalse(table.contains(self.dl._id_query(record.id_)))
-        # create record
-        self.dl.create(record)
-
-        # table should now exist
-        self.assertIn(record.type_, self.dl._db.tables())
-        # record should now exist
-        got_record = table.get(self.dl._id_query(record.id_))
-        self.assertIsNotNone(got_record)
-        self.assertEqual(got_record["id_"], record.id_)
-        self.assertEqual(got_record["type_"], record.type_)
-        self.assertEqual(got_record["data_"], record.data_)
-
-    def test_get(self):
-        # test get non-existing
-        self.assertNotIn("nonexistent_table", self.dl._db.tables())
-        got_none = self.dl.get("nonexistent_table", "no_id")
-        self.assertIsNone(got_none)
-
-        record = Record(
-            id_="12345", type_="test_table", data_={"field": "value"}
-        )
-        self.dl.create(record)
-
-        got = self.dl.get(record.type_, record.id_)
-        self.assertIsNotNone(got)
-        self.assertEqual(got["id_"], record.id_)
-        self.assertEqual(got["type_"], record.type_)
-        self.assertEqual(got["data_"], record.data_)
-
-        # test get existing table, non-existing id
-        self.assertIn(record.type_, self.dl._db.tables())
-        got_none2 = self.dl.get(record.type_, "no_such_id")
-        self.assertIsNone(got_none2)
-
-    def test_update(self):
-        record = Record(
-            id_="12345", type_="test_table", data_={"field": "value"}
-        )
-        self.dl.create(record)
-        # update existing record
-        new_data = record.data_.copy()
-        new_data["field"] = "new_value"
-
-        updated_record = Record(
-            id_=record.id_, type_=record.type_, data_=new_data
-        )
-        updated = self.dl.update(id_=updated_record.id_, record=updated_record)
-        self.assertTrue(updated)
-        got = self.dl.get(updated_record.type_, updated_record.id_)
-        self.assertIsNotNone(got)
-        self.assertEqual(got["data_"]["field"], "new_value")
-        # update non-existing record
-        non_existing_record = Record(
-            id_="no_such_id", type_="test_table", data_={"field": "value"}
-        )
-        updated2 = self.dl.update(
-            id_=non_existing_record.id_, record=non_existing_record
-        )
-        self.assertFalse(updated2)
-
-    def test_delete(self):
-        record = Record(
-            id_="12345", type_="test_table", data_={"field": "value"}
-        )
-        self.dl.create(record)
-        # confirm record exists
-        got = self.dl.get(record.type_, record.id_)
-        self.assertIsNotNone(got)
-
-        deleted = self.dl.delete(record.type_, record.id_)
-        self.assertTrue(deleted)
-        got_after_delete = self.dl.get(record.type_, record.id_)
-        self.assertIsNone(got_after_delete)
-
-    def test_all(self):
-        # create two records
-        record1 = Record(
-            id_="id1", type_="test_table", data_={"field": "value1"}
-        )
-        record2 = Record(
-            id_="id2", type_="test_table", data_={"field": "value2"}
-        )
-        self.dl.create(record1)
-        self.dl.create(record2)
-
-        # all() should return both
-        all_records = self.dl.all("test_table")
-        self.assertEqual(len(all_records), 2)
-        ids = {rec.id_ for rec in all_records}
-        self.assertIn("id1", ids)
-        self.assertIn("id2", ids)
-
-        # confirm that each is a valid record
-        for rec in all_records:
-            self.assertIsInstance(rec, Record)
-
-    def test_clear_table(self):
-        # create a record
-        record = Record(
-            id_="12345", type_="test_table", data_={"field": "value"}
-        )
-        self.dl.create(record)
-        # confirm record exists
-        got = self.dl.get(record.type_, record.id_)
-        self.assertIsNotNone(got)
-        # clear the table
-        self.dl.clear_table(record.type_)
-        # confirm record is gone
-        got_after_clear = self.dl.get(record.type_, record.id_)
-        self.assertIsNone(got_after_clear)
-        # confirm table is empty
-        all_records = self.dl.all(record.type_)
-        self.assertEqual(len(all_records), 0)
-
-    def test_clear_all(self):
-        # create records in two tables
-        record1 = Record(id_="id1", type_="table1", data_={"field": "value1"})
-        record2 = Record(id_="id2", type_="table2", data_={"field": "value2"})
-        self.dl.create(record1)
-        self.dl.create(record2)
-        # confirm records exist
-        got1 = self.dl.get(record1.type_, record1.id_)
-        got2 = self.dl.get(record2.type_, record2.id_)
-        self.assertIsNotNone(got1)
-        self.assertIsNotNone(got2)
-        # confirm both tables exist
-        self.assertIn(record1.type_, self.dl._db.tables())
-        self.assertIn(record2.type_, self.dl._db.tables())
-
-        # clear all
-        self.dl.clear_all()
-        # confirm both records are gone
-        got1_after = self.dl.get(record1.type_, record1.id_)
-        got2_after = self.dl.get(record2.type_, record2.id_)
-        self.assertIsNone(got1_after)
-        self.assertIsNone(got2_after)
-        # confirm no tables exist
-        self.assertEqual(len(self.dl._db.tables()), 0)
-
-    def test_exists(self):
-        # test non-existing
-        self.assertFalse(self.dl.exists("nonexistent_table", "no_id"))
-        record = Record(
-            id_="12345", type_="test_table", data_={"field": "value"}
-        )
-        self.dl.create(record)
-        # test existing
-        self.assertTrue(self.dl.exists(record.type_, record.id_))
-        # test existing table, non-existing id
-        self.assertFalse(self.dl.exists(record.type_, "no_such_id"))
-        # remove record and test again
-        self.dl.delete(record.type_, record.id_)
-        self.assertFalse(self.dl.exists(record.type_, record.id_))
+# Fixtures
+@pytest.fixture
+def tmp_db_file(tmp_path):
+    db_path = tmp_path / "test_tinydb.json"
+    # don't need to create the file; TinyDB will create it when opened
+    return db_path
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.fixture
+def dl(tmp_db_file):
+    # setup
+    dl = TinyDbDataLayer(db_path=str(tmp_db_file))
+    yield dl
+    # teardown
+    dl.clear_all()
+    try:
+        dl._db.close()
+    except Exception:
+        pass
+    # remove db file if present
+    if tmp_db_file.exists():
+        tmp_db_file.unlink()
+    assert not tmp_db_file.exists()
+
+
+# New: record factory to DRY Record creation across tests
+@pytest.fixture
+def record_factory():
+    def _make(id_="12345", type_="test_table", data_=None):
+        data = {"field": "value"} if data_ is None else data_
+        return Record(id_=id_, type_=type_, data_=data)
+
+    return _make
+
+
+# Tests
+def test_init(dl):
+    assert isinstance(dl, TinyDbDataLayer)
+    assert hasattr(dl, "_db_path")
+
+    # ensure db file is created on initialization
+    assert os.path.exists(dl._db_path)
+    # ensure tables are empty
+    assert len(dl._db.tables()) == 0
+
+
+def test_table(dl):
+    table_name = "test_table"
+    table = dl._table(table_name)
+    assert table is not None
+    assert isinstance(table, Table)
+    assert table.name == table_name
+
+
+def test_id_query(dl):
+    test_id = "12345"
+    query = dl._id_query(test_id)
+    assert query is not None
+    assert isinstance(query, QueryInstance)
+
+
+def test_create(dl, record_factory):
+    record = record_factory()
+    # table is not in db yet
+    assert record.type_ not in dl._db.tables()
+
+    # record is not in db yet
+    table = dl._table(record.type_)
+    assert not table.contains(dl._id_query(record.id_))
+    # create record
+    dl.create(record)
+
+    # table should now exist
+    assert record.type_ in dl._db.tables()
+    # record should now exist
+    got_record = table.get(dl._id_query(record.id_))
+    assert got_record is not None
+    assert got_record["id_"] == record.id_
+    assert got_record["type_"] == record.type_
+    assert got_record["data_"] == record.data_
+
+
+def test_get(dl, record_factory):
+    # test get non-existing
+    assert "nonexistent_table" not in dl._db.tables()
+    got_none = dl.get("nonexistent_table", "no_id")
+    assert got_none is None
+
+    record = record_factory()
+    dl.create(record)
+
+    got = dl.get(record.type_, record.id_)
+    assert got is not None
+    assert got["id_"] == record.id_
+    assert got["type_"] == record.type_
+    assert got["data_"] == record.data_
+
+    # test get existing table, non-existing id
+    assert record.type_ in dl._db.tables()
+    got_none2 = dl.get(record.type_, "no_such_id")
+    assert got_none2 is None
+
+
+def test_update(dl, record_factory):
+    record = record_factory()
+    dl.create(record)
+    # update existing record
+    new_data = record.data_.copy()
+    new_data["field"] = "new_value"
+
+    updated_record = Record(id_=record.id_, type_=record.type_, data_=new_data)
+    updated = dl.update(id_=updated_record.id_, record=updated_record)
+    assert updated
+    got = dl.get(updated_record.type_, updated_record.id_)
+    assert got is not None
+    assert got["data_"]["field"] == "new_value"
+    # update non-existing record
+    non_existing_record = record_factory(id_="no_such_id")
+    updated2 = dl.update(
+        id_=non_existing_record.id_, record=non_existing_record
+    )
+    assert not updated2
+
+
+def test_delete(dl, record_factory):
+    record = record_factory()
+    dl.create(record)
+    # confirm record exists
+    got = dl.get(record.type_, record.id_)
+    assert got is not None
+
+    deleted = dl.delete(record.type_, record.id_)
+    assert deleted
+    got_after_delete = dl.get(record.type_, record.id_)
+    assert got_after_delete is None
+
+
+def test_all(dl, record_factory):
+    # create two records
+    record1 = record_factory(id_="id1", data_={"field": "value1"})
+    record2 = record_factory(id_="id2", data_={"field": "value2"})
+    dl.create(record1)
+    dl.create(record2)
+
+    # all() should return both
+    all_records = dl.all("test_table")
+    assert len(all_records) == 2
+    ids = {rec.id_ for rec in all_records}
+    assert "id1" in ids
+    assert "id2" in ids
+
+    # confirm that each is a valid record
+    for rec in all_records:
+        assert isinstance(rec, Record)
+
+
+def test_clear_table(dl, record_factory):
+    # create a record
+    record = record_factory()
+    dl.create(record)
+    # confirm record exists
+    got = dl.get(record.type_, record.id_)
+    assert got is not None
+    # clear the table
+    dl.clear_table(record.type_)
+    # confirm record is gone
+    got_after_clear = dl.get(record.type_, record.id_)
+    assert got_after_clear is None
+    # confirm table is empty
+    all_records = dl.all(record.type_)
+    assert len(all_records) == 0
+
+
+def test_clear_all(dl, record_factory):
+    # create records in two tables
+    record1 = record_factory(
+        id_="id1", type_="table1", data_={"field": "value1"}
+    )
+    record2 = record_factory(
+        id_="id2", type_="table2", data_={"field": "value2"}
+    )
+    dl.create(record1)
+    dl.create(record2)
+    # confirm records exist
+    got1 = dl.get(record1.type_, record1.id_)
+    got2 = dl.get(record2.type_, record2.id_)
+    assert got1 is not None
+    assert got2 is not None
+    # confirm both tables exist
+    assert record1.type_ in dl._db.tables()
+    assert record2.type_ in dl._db.tables()
+
+    # clear all
+    dl.clear_all()
+    # confirm both records are gone
+    got1_after = dl.get(record1.type_, record1.id_)
+    got2_after = dl.get(record2.type_, record2.id_)
+    assert got1_after is None
+    assert got2_after is None
+    # confirm no tables exist
+    assert len(dl._db.tables()) == 0
+
+
+def test_exists(dl, record_factory):
+    # test non-existing
+    assert not dl.exists("nonexistent_table", "no_id")
+    record = record_factory()
+    dl.create(record)
+    # test existing
+    assert dl.exists(record.type_, record.id_)
+    # test existing table, non-existing id
+    assert not dl.exists(record.type_, "no_such_id")
+    # remove record and test again
+    dl.delete(record.type_, record.id_)
+    assert not dl.exists(record.type_, record.id_)
