@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -31,9 +31,12 @@ When run as a script, this module will:
 import json
 import logging
 import sys
+from http import HTTPMethod
+from typing import Tuple, Sequence
 
 import requests
 from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
 
 from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.api.v2.data.utils import parse_id
@@ -43,6 +46,7 @@ from vultron.as_vocab.activities.report import (
     RmInvalidateReport,
     RmValidateReport,
 )
+from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.base import as_Object
@@ -55,32 +59,6 @@ logger = logging.getLogger(__name__)
 BASE_URL = "http://localhost:7999/api/v2"
 
 
-def call(method, path, **kwargs):
-    url = f"{BASE_URL}{path}"
-    logger.info(f"Calling {method.upper()} {url}")
-
-    response = requests.request(method, url, **kwargs)
-
-    logger.info(f"Response status: {response.status_code}")
-
-    try:
-        data = response.json()
-        logger.debug(f"Response JSON: {json.dumps(data, indent=2)}")
-    except requests.exceptions.HTTPError as e:
-        print(f"HTTP error: {e}", file=sys.stderr)
-        print(f"Response content: {response.text}", file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"Exception: {e}")
-        logger.error(f"Response text: {response.text}")
-
-    if not response.ok:
-        logger.error(f"Error response: {response.text}")
-        response.raise_for_status()
-
-    return data
-
-
 def logfmt(obj):
     return obj.model_dump_json(indent=2, exclude_none=True, by_alias=True)
 
@@ -89,27 +67,100 @@ def postfmt(obj):
     return jsonable_encoder(obj, by_alias=True, exclude_none=True)
 
 
-def main():
-    # Reset the data layer to a clean state
-    reset = call("DELETE", "/datalayer/reset/", params={"init": True})
-    logger.info(f"Reset status: {reset}")
+class DataLayerClient(BaseModel):
+    base_url: str = BASE_URL
 
-    # find the finder
-    finder = None
-    vendor = None
-    coordinator = None
-    for actor in call("GET", "/actors/"):
-        if actor["name"].startswith("Finn"):
-            finder = as_Actor(**actor)
+    def call(self, method: HTTPMethod, path: str, **kwargs) -> dict:
+        """
+        Calls the API.
+
+        Args:
+            method (HTTP_METHODS): The HTTP method to use.
+            path (str): The API path.
+            **kwargs (dict): Additional arguments to pass to requests.
+
+        Returns:
+            dict: The JSON response.
+
+        Raises:
+            ValueError: If an unsupported HTTP method is provided.
+
+
+        """
+        if method.upper() not in HTTPMethod.__members__:
+            raise ValueError(f"Unsupported HTTP method: {method}")
+
+        url = f"{self.base_url}{path}"
+        logger.info(f"Calling {method.upper()} {url}")
+        response = requests.request(method, url, **kwargs)
+        logger.info(f"Response status: {response.status_code}")
+
+        data = {}
+
+        try:
+            data = response.json()
+            logger.debug(f"Response JSON: {json.dumps(data, indent=2)}")
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error: {e}")
+            logger.error(f"Error response: {response.text}")
+        except Exception as e:
+            logger.error(f"Exception: {e}")
+            logger.error(f"Response text: {response.text}")
+
+        if not response.ok:
+            logger.error(f"Error response: {response.text}")
+            response.raise_for_status()
+
+        return data
+
+    def get(self, path: str, **kwargs) -> dict:
+        return self.call(HTTPMethod.GET, path, **kwargs)
+
+    def put(self, path: str, **kwargs) -> dict:
+        return self.call(HTTPMethod.PUT, path, **kwargs)
+
+    def post(self, path: str, **kwargs) -> dict:
+        return self.call(HTTPMethod.POST, path, **kwargs)
+
+    def delete(self, path: str, **kwargs) -> dict:
+        return self.call(HTTPMethod.DELETE, path, **kwargs)
+
+
+def reset_datalayer(client: DataLayerClient, init: bool = True):
+    """
+    Reset the data layer via the API.
+
+    Args:
+        client (DataLayerClient): The data layer client.
+        init (bool): Whether to initialize after reset.
+
+    Returns:
+        dict: The response from the reset operation.
+    """
+    logger.info("Resetting data layer...")
+    return client.delete("/datalayer/reset/", params={"init": init})
+
+
+def discover_actors(
+    client: DataLayerClient,
+) -> Tuple[as_Actor, as_Actor, as_Actor]:
+    finder = vendor = coordinator = None
+    logger.info("Discovering actors in the data layer...")
+    actors = client.get("/actors/")
+
+    for actor_json in actors:
+        actor = as_Actor(**actor_json)
+        if actor.name.startswith("Finn"):
+            finder = actor
             logger.info(f"Found finder actor: {logfmt(finder)}")
-        elif actor["name"].startswith("Vendor"):
-            vendor = as_Actor(**actor)
-            logger.info(f"Found vendor actor: {logfmt(vendor)}" "")
-        elif actor["name"].startswith("Coordinator"):
-            coordinator = as_Actor(**actor)
+        elif actor.name.startswith("Vendor"):
+            vendor = actor
+            logger.info(f"Found vendor actor: {logfmt(vendor)}")
+        elif actor.name.startswith("Coordinator"):
+            coordinator = actor
             logger.info(f"Found coordinator actor: {logfmt(coordinator)}")
         else:
-            logger.info(f"Unrecognized actor: {logfmt(as_Actor(**actor))}")
+            logger.info(f"Unrecognized actor: {logfmt(actor)}")
 
     if finder is None:
         logger.error("Finder actor not found.")
@@ -119,44 +170,78 @@ def main():
         logger.error("Vendor actor not found.")
         raise ValueError("Vendor actor not found.")
 
-    for actor in [finder, vendor, coordinator]:
+    if coordinator is None:
+        logger.error("Coordinator actor not found.")
+        raise ValueError("Coordinator actor not found.")
+
+    return finder, vendor, coordinator
+
+
+def init_actor_ios(actors: Sequence[as_Actor]) -> None:
+    logger.info("Initializing inboxes and outboxes for actors...")
+    for actor in actors:
         if actor is None:
             continue
-
         init_actor_io(actor.as_id)
 
-    report = VulnerabilityReport(
-        attributed_to=finder.as_id,
-        content="This is a demo vulnerability report.",
-        name="Demo Vulnerability Report",
-    )
 
-    # create an offer
-    report_offer = RmSubmitReport(
+def make_submit_offer(finder, vendor, report) -> RmSubmitReport:
+    offer = RmSubmitReport(
         actor=finder.as_id,
         as_object=report,
         to=[vendor.as_id],
     )
-    logger.info(f"Created report offer: {logfmt(report_offer)}")
+    logger.info(f"Created SubmitReport activity: {logfmt(offer)}")
+    return offer
 
-    vendor_id = parse_id(vendor.as_id)["object_id"]
 
-    call(
-        "POST",
-        f"/actors/{vendor_id}/inbox/",
-        json=postfmt(report_offer),
+def submit_to_inbox(
+    client: DataLayerClient, vendor_id: str, activity: as_Activity
+) -> dict:
+    vendor_id = parse_id(vendor_id)["object_id"]
+
+    logger.info(
+        f"Submitting activity to {vendor_id}'s inbox: {logfmt(activity)}"
+    )
+
+    return client.post(f"/actors/{vendor_id}/inbox/", json=postfmt(activity))
+
+
+def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
+    obj = client.get(f"/datalayer/{obj_id}")
+    reconstructed_obj = as_Object(**obj)
+    logger.info(f"Verified object stored {logfmt(reconstructed_obj)}")
+    return reconstructed_obj
+
+
+def main():
+
+    client = DataLayerClient()
+
+    # Reset the data layer to a clean state
+    reset = reset_datalayer(client=client, init=True)
+    logger.info(f"Reset status: {reset}")
+
+    (finder, vendor, coordinator) = discover_actors(client=client)
+
+    init_actor_ios([finder, vendor, coordinator])
+
+    report = build_report(finder)
+
+    report_offer = make_submit_offer(finder, vendor, report)
+
+    submit_to_inbox(
+        client=client, vendor_id=vendor.as_id, activity=report_offer
     )
 
     # check side effects:
     # the offer should be in the datalayer
-    _obj = call("GET", f"/datalayer/{report_offer.as_id}")
-    logger.info(f"Datalayer Stored: {_obj["type"]} {_obj["id"]}")
+    verify_object_stored(client=client, obj_id=report_offer.as_id)
     # the report should be in the datalayer
-    _obj = call("GET", f"/datalayer/{report.as_id}")
-    logger.info(f"Datalayer Stored: {_obj["type"]} {_obj["id"]}")
+    verify_object_stored(client=client, obj_id=report.as_id)
 
-    offer = call(
-        "GET", f"/datalayer/Actors/{vendor_id}/Offers/{report_offer.as_id}"
+    offer = client.get(
+        f"/datalayer/Actors/{vendor.as_id}/Offers/{report_offer.as_id}"
     )
     offer = as_Offer(**offer)
     logger.info(f"Retrieved Offer via Actor: {logfmt(offer)}")
@@ -168,7 +253,7 @@ def main():
     )
 
     logger.info(f"Closing offer: {logfmt(close_offer)}")
-    call("POST", f"/actors/{vendor_id}/inbox/", json=postfmt(close_offer))
+    client.post(f"/actors/{vendor.as_id}/inbox/", json=postfmt(close_offer))
 
     invalidate_offer = RmInvalidateReport(
         actor=vendor.as_id,
@@ -177,10 +262,8 @@ def main():
     )
     logger.info(f"Invalidating offer: {logfmt(invalidate_offer)}")
 
-    call(
-        "POST",
-        f"/actors/{vendor_id}/inbox/",
-        json=postfmt(invalidate_offer),
+    client.post(
+        f"/actors/{vendor.as_id}/inbox/", json=postfmt(invalidate_offer)
     )
 
     accept_offer = RmValidateReport(
@@ -190,16 +273,12 @@ def main():
     )
     logger.info(f"Validating offer: {logfmt(accept_offer)}")
 
-    call(
-        "POST",
-        f"/actors/{vendor_id}/inbox/",
-        json=postfmt(accept_offer),
-    )
+    client.post(f"/actors/{vendor.as_id}/inbox/", json=postfmt(accept_offer))
 
     # verify side effects again
     # this time,
     # the actor's outbox should have a Create activity for the case
-    outbox = call("GET", f"/datalayer/Actors/{vendor_id}/outbox/")
+    outbox = client.get(f"/datalayer/Actors/{vendor.as_id}/outbox/")
     outbox = as_OrderedCollection(**outbox)
 
     logger.info(f"Vendor outbox has {len(outbox.items)} items.")
@@ -233,9 +312,18 @@ def main():
     # and a case should exist in the datalayer
     case_id = create_obj.as_object
 
-    case = call("GET", f"/datalayer/{found.object}")
+    case = client.get(f"/datalayer/{found.object}")
     case = VulnerabilityCase(**case)
     logger.info(f"Retrieved VulnerabilityCase: {logfmt(case)}")
+
+
+def build_report(finder: as_Actor) -> VulnerabilityReport:
+    report = VulnerabilityReport(
+        attributed_to=finder.as_id,
+        content="This is a demo vulnerability report.",
+        name="Demo Vulnerability Report",
+    )
+    return report
 
 
 def _setup_logging():

@@ -3,7 +3,7 @@
 Vultron Actor Inbox Handler
 """
 
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -88,7 +88,6 @@ async def inbox_handler(actor_id: str) -> None:
         None
     """
     dl = get_datalayer()
-
     actor = dl.read(actor_id)
     if actor is None:
         logger.warning(f"Actor {actor_id} not found in inbox_handler.")
@@ -103,6 +102,12 @@ async def inbox_handler(actor_id: str) -> None:
         item = actor_io.inbox.items.pop(0)
 
         item = rehydrate(item)
+
+        logger.debug(f"Rehydrated item from inbox: {item.as_type}")
+        if hasattr(item, "as_object"):
+            logger.debug(
+                f"Item has transitive object of type: {item.as_object.as_type}"
+            )
 
         # in principle because of the POST {actor_id}/inbox method validation,
         # the only items in the inbox should be Activities with registered handlers,

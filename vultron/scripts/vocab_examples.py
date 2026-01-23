@@ -7,7 +7,7 @@ Used within the Vultron documentation to provide examples of Vultron ActivityStr
 When run as a script, this module will generate a set of example objects and write them to the docs/reference/examples
 directory.
 """
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -104,8 +104,29 @@ report_base_url = f"{base_url}/reports"
 case_number = random.randint(10000000, 99999999)
 
 
-_FINDER = as_Person(name="Finn der Vul", id=make_id("Person"))
-_VENDOR = as_Organization(name="VendorCo", id=make_id("Organization"))
+def finder() -> as_Person:
+    _finder = as_Person(name="Finn der Vul", id=f"{user_base_url}/finndervul")
+    return _finder
+
+
+def vendor() -> as_Organization:
+    _vendor = as_Organization(
+        name="VendorCo", id=f"{organization_base_url}/vendorco"
+    )
+    return _vendor
+
+
+def coordinator() -> as_Organization:
+    _coordinator = as_Organization(
+        name="Coordinator LLC", id=f"{organization_base_url}/coordinator"
+    )
+    return _coordinator
+
+
+_VENDOR = vendor()
+_COORDINATOR = coordinator()
+_FINDER = finder()
+
 _REPORT = VulnerabilityReport(
     name="FDR-8675309",
     id=make_id("VulnerabilityReport"),
@@ -120,7 +141,7 @@ _CASE = VulnerabilityCase(
 
 
 def initialize_examples() -> None:
-    for obj in [_FINDER, _VENDOR, _REPORT]:
+    for obj in [_FINDER, _VENDOR, _COORDINATOR, _REPORT]:
         dl = get_datalayer()
         dl.create(obj)
 
@@ -413,7 +434,7 @@ def add_coordinator_participant_to_case() -> AddParticipantToCase:
     _vendor = vendor()
     _case = case()
 
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     shortname = _coordinator.as_id.split("/")[-1]
     _coordinator_participant = CoordinatorParticipant(
         id=f"{_case.as_id}/participants/{shortname}",
@@ -507,16 +528,9 @@ def add_note_to_case() -> AddNoteToCase:
     return activity
 
 
-def coordinator() -> as_Organization:
-    _coordinator = as_Organization(
-        name="Coordinator LLC", id=f"{organization_base_url}/coordinator"
-    )
-    return _coordinator
-
-
 def accept_case_ownership_transfer() -> AcceptCaseOwnershipTransfer:
     _case = case()
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     _vendor = vendor()
     _activity = AcceptCaseOwnershipTransfer(
         actor=_coordinator.as_id,
@@ -530,7 +544,7 @@ def accept_case_ownership_transfer() -> AcceptCaseOwnershipTransfer:
 def offer_case_ownership_transfer() -> OfferCaseOwnershipTransfer:
     _vendor = vendor()
     _case = case()
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     _activity = OfferCaseOwnershipTransfer(
         actor=_vendor.as_id,
         object=_case,
@@ -542,7 +556,7 @@ def offer_case_ownership_transfer() -> OfferCaseOwnershipTransfer:
 
 def reject_case_ownership_transfer() -> RejectCaseOwnershipTransfer:
     _case = case()
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     _vendor = vendor()
     _activity = RejectCaseOwnershipTransfer(
         actor=_coordinator.as_id,
@@ -569,7 +583,7 @@ def recommend_actor() -> RecommendActor:
     _case = case()
     _finder = finder()
     _vendor = vendor()
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     _activity = RecommendActor(
         actor=_finder.as_id,
         object=_coordinator.as_id,
@@ -583,7 +597,7 @@ def recommend_actor() -> RecommendActor:
 
 def accept_actor_recommendation() -> AcceptActorRecommendation:
     _vendor = vendor()
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     _finder = finder()
     _case = case()
     _activity = AcceptActorRecommendation(
@@ -600,7 +614,7 @@ def accept_actor_recommendation() -> AcceptActorRecommendation:
 
 def reject_actor_recommendation() -> RejectActorRecommendation:
     _vendor = vendor()
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     _finder = finder()
     _case = case()
     _activity = RejectActorRecommendation(
@@ -616,7 +630,7 @@ def reject_actor_recommendation() -> RejectActorRecommendation:
 
 def rm_invite_to_case() -> RmInviteToCase:
     _vendor = vendor()
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     _case = case()
     _activity = RmInviteToCase(
         id=f"{_case.as_id}/invitation/1",
@@ -631,7 +645,7 @@ def rm_invite_to_case() -> RmInviteToCase:
 
 def accept_invite_to_case() -> RmAcceptInviteToCase:
     _vendor = vendor()
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     _case = case()
     _activity = RmAcceptInviteToCase(
         actor=_coordinator.as_id,
@@ -645,7 +659,7 @@ def accept_invite_to_case() -> RmAcceptInviteToCase:
 
 def reject_invite_to_case() -> RmRejectInviteToCase:
     _vendor = vendor()
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     _case = case()
     _activity = RmRejectInviteToCase(
         actor=_coordinator.as_id,
@@ -660,7 +674,7 @@ def reject_invite_to_case() -> RmRejectInviteToCase:
 def create_participant():
     _vendor = vendor()
     _case = case()
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     _coord_participant = CoordinatorParticipant(
         id=f"{_case.as_id}/participants/{_coordinator.as_id}",
         name=_coordinator.name,
@@ -711,7 +725,7 @@ def case_participant() -> CaseParticipant:
 
 
 def coordinator_participant() -> CaseParticipant:
-    _actor = coordinator()
+    _actor = _COORDINATOR
     _case = case()
 
     participant = CoordinatorParticipant(
@@ -737,7 +751,7 @@ def participant_status() -> ParticipantStatus:
 
 def invite_to_case():
     _case = case()
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     _vendor = vendor()
 
     activity = RmInviteToCase(
@@ -831,7 +845,7 @@ def choose_preferred_embargo() -> ChoosePreferredEmbargo:
         embargo_event(90),
         embargo_event(45),
     ]
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
 
     _case = case()
     activity = ChoosePreferredEmbargo(
@@ -1038,7 +1052,7 @@ def main():
     activity = add_note_to_case()
     obj_to_file(activity, f"{outdir}/add_note_to_case.json")
 
-    _coordinator = coordinator()
+    _coordinator = _COORDINATOR
     obj_to_file(_coordinator, f"{outdir}/coordinator.json")
 
     # activity: offer case ownership transfer

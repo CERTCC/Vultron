@@ -1,4 +1,4 @@
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -102,7 +102,6 @@ def rm_submit_report(
         None
     """
     offered_obj = activity.as_object
-
     if not isinstance(offered_obj, VulnerabilityReport):
         raise TypeError(
             f"Expected VulnerabilityReport, got {type(offered_obj).__name__}"
@@ -113,14 +112,18 @@ def rm_submit_report(
     )
 
     _offer_ok = False
+
+    try:
+        datalayer.create(offered_obj)
+    except ValueError as e:
+        logger.error(f"Failed to create nested VulnerabilityReport: {e}")
+        return
+
     try:
         datalayer.create(activity)
-        _offer_ok = True
     except ValueError as e:
         logger.error(f"Failed to receive offer: {e}")
-
-    if _offer_ok:
-        datalayer.create(offered_obj)
+        return
 
 
 def main():
