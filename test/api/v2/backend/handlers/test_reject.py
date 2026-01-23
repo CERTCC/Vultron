@@ -1,4 +1,4 @@
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -11,8 +11,9 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import unittest
-from unittest.mock import patch
+from unittest.mock import Mock
+
+import pytest
 
 from vultron.api.v2.backend.handlers.reject import (
     reject_offer,
@@ -32,134 +33,200 @@ from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.bt.report_management.states import RM
 
 
-class RejectHandlerTestCase(unittest.TestCase):
-    def setUp(self):
-        self.finder = as_Actor(
-            name="Test Finder",
-        )
-        self.vendor = as_Actor(
-            name="Test Vendor",
-        )
-        self.report = VulnerabilityReport(
-            attributed_to=self.finder.as_id,
-            content="This is a test vulnerability report.",
-        )
-        self.offer = as_Offer(
-            actor=self.finder.as_id,
-            object=self.report,
-        )
-        self.reject = as_Reject(
-            actor=self.vendor.as_id,
-            object=self.offer,
-        )
-        self.tentative_reject = as_TentativeReject(
-            actor=self.vendor.as_id,
-            object=self.offer,
-        )
-
-        self.dl = get_datalayer()
-
-        self.dl.create(self.finder)
-        self.dl.create(self.vendor)
-        self.dl.create(self.report)
-        self.dl.create(self.offer)
-
-    def tearDown(self):
-        self.dl.clear()
-
-    def test_setup(self):
-        self.assertEqual(self.reject.as_type, "Reject")
-        self.assertEqual(self.reject.as_object.as_type, "Offer")
-        self.assertEqual(
-            self.reject.as_object.as_object.as_type, "VulnerabilityReport"
-        )
-
-    @patch("vultron.api.v2.data.store.DataStore.create")
-    @patch("vultron.api.v2.backend.handlers.reject.rm_close_report")
-    def test_reject_offer(self, mock_rm_close_report, mock_datalayer_create):
-        activity = self.reject
-
-        self.assertNotIn(activity.as_id, self.dl)
-
-        reject_offer(actor_id=self.vendor.as_id, activity=activity)
-        mock_datalayer_create.assert_called_once_with(activity)
-
-        # because we mock datalayer.create, the activity won't actually be stored
-        self.assertNotIn(activity.as_id, self.dl)
-
-        mock_rm_close_report.assert_called_once_with(activity)
-
-    @patch("vultron.api.v2.backend.handlers.reject.set_status")
-    def test_rm_close_report(self, mock_set_status):
-        self.dl.create(self.reject)
-        activity = self.reject
-
-        rm_close_report(activity)
-
-        mock_set_status.assert_called()
-
-        matches = []
-        for args in mock_set_status.call_args_list:
-            # the first argument is the status object
-            obj = args[0][0]
-
-            match obj.object_type:
-                # we should see both the Offer and the VulnerabilityReport being updated
-                case "Offer":
-                    self.assertEqual(obj.status, OfferStatusEnum.REJECTED)
-                    matches.append("Offer")
-                case "VulnerabilityReport":
-                    self.assertEqual(obj.status, RM.CLOSED)
-                    matches.append("VulnerabilityReport")
-
-        self.assertIn("Offer", matches)
-        self.assertIn("VulnerabilityReport", matches)
-
-    @patch("vultron.api.v2.data.store.DataStore.create")
-    @patch("vultron.api.v2.backend.handlers.reject.rm_invalidate_report")
-    def test_tentative_reject_offer(
-        self, mock_rm_invalidate_report, mock_datalayer_create
-    ):
-        activity = self.tentative_reject
-
-        self.assertNotIn(activity.as_id, self.dl)
-
-        tentative_reject_offer(actor_id=self.vendor.as_id, activity=activity)
-        mock_datalayer_create.assert_called_once_with(activity)
-
-        # because we mock datalayer.create, the activity won't actually be stored
-        self.assertNotIn(activity.as_id, self.dl)
-
-        mock_rm_invalidate_report.assert_called_once_with(activity)
-
-    @patch("vultron.api.v2.backend.handlers.reject.set_status")
-    def test_rm_invalidate_report(self, mock_set_status):
-        self.dl.create(self.tentative_reject)
-        activity = self.tentative_reject
-
-        rm_invalidate_report(activity)
-
-        mock_set_status.assert_called()
-
-        matches = []
-        for args in mock_set_status.call_args_list:
-            # the first argument is the status object
-            obj = args[0][0]
-
-            match obj.object_type:
-                # we should see both the Offer and the VulnerabilityReport being updated
-                case "Offer":
-                    self.assertEqual(
-                        OfferStatusEnum.TENTATIVELY_REJECTED, obj.status
-                    )
-                    matches.append("Offer")
-                case "VulnerabilityReport":
-                    self.assertEqual(RM.INVALID, obj.status)
-                    matches.append("VulnerabilityReport")
-
-        self.assertIn("Offer", matches)
-        self.assertIn("VulnerabilityReport", matches)
+# Fixtures
+@pytest.fixture
+def finder():
+    return as_Actor(name="Test Finder")
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.fixture
+def vendor():
+    return as_Actor(name="Test Vendor")
+
+
+@pytest.fixture
+def report(finder):
+    return VulnerabilityReport(
+        attributed_to=finder.as_id,
+        content="This is a test vulnerability report.",
+    )
+
+
+@pytest.fixture
+def offer(finder, report):
+    return as_Offer(actor=finder.as_id, object=report)
+
+
+@pytest.fixture
+def reject(vendor, offer):
+    return as_Reject(actor=vendor.as_id, object=offer)
+
+
+@pytest.fixture
+def tentative_reject(vendor, offer):
+    return as_TentativeReject(actor=vendor.as_id, object=offer)
+
+
+@pytest.fixture
+def dl(finder, vendor, report, offer):
+    dl = get_datalayer()
+    # seed datalayer like original tests
+    dl.create(finder)
+    dl.create(vendor)
+    dl.create(report)
+    dl.create(offer)
+    yield dl
+    dl.clear()
+
+
+# Tests
+def test_activity_structure_is_nested_correctly(reject):
+    assert reject.as_type == "Reject"
+    assert reject.as_object.as_type == "Offer"
+    assert reject.as_object.as_object.as_type == "VulnerabilityReport"
+
+
+def test_reject_offer_calls_datalayer_create(monkeypatch, dl, vendor, reject):
+    mock_create = Mock()
+    monkeypatch.setattr(
+        "vultron.api.v2.data.store.DataStore.create", mock_create
+    )
+
+    activity = reject
+    assert activity.as_id not in dl
+
+    reject_offer(actor_id=vendor.as_id, activity=activity)
+
+    mock_create.assert_called_once_with(activity)
+    # because create was mocked, activity still not persisted
+    assert activity.as_id not in dl
+
+
+def test_reject_offer_calls_rm_close_report(monkeypatch, dl, vendor, reject):
+    mock_rm_close = Mock()
+    monkeypatch.setattr(
+        "vultron.api.v2.backend.handlers.reject.rm_close_report", mock_rm_close
+    )
+
+    activity = reject
+    reject_offer(actor_id=vendor.as_id, activity=activity)
+
+    mock_rm_close.assert_called_once_with(activity)
+
+
+def test_rm_close_report_calls_set_status(monkeypatch, dl, reject):
+    mock_set_status = Mock()
+    monkeypatch.setattr(
+        "vultron.api.v2.backend.handlers.reject.set_status", mock_set_status
+    )
+
+    dl.create(reject)
+    activity = reject
+
+    rm_close_report(activity)
+
+    mock_set_status.assert_called()
+
+
+def test_rm_close_report_updates_offer_and_report_statuses(
+    monkeypatch, dl, reject
+):
+    mock_set_status = Mock()
+    monkeypatch.setattr(
+        "vultron.api.v2.backend.handlers.reject.set_status", mock_set_status
+    )
+
+    dl.create(reject)
+    activity = reject
+
+    rm_close_report(activity)
+
+    matches = []
+    for args in mock_set_status.call_args_list:
+        obj = args[0][0]
+        match obj.object_type:
+            case "Offer":
+                assert obj.status == OfferStatusEnum.REJECTED
+                matches.append("Offer")
+            case "VulnerabilityReport":
+                assert obj.status == RM.CLOSED
+                matches.append("VulnerabilityReport")
+
+    assert "Offer" in matches
+    assert "VulnerabilityReport" in matches
+
+
+def test_tentative_reject_offer_calls_datalayer_create(
+    monkeypatch, dl, vendor, tentative_reject
+):
+    mock_create = Mock()
+    monkeypatch.setattr(
+        "vultron.api.v2.data.store.DataStore.create", mock_create
+    )
+
+    activity = tentative_reject
+    assert activity.as_id not in dl
+
+    tentative_reject_offer(actor_id=vendor.as_id, activity=activity)
+
+    mock_create.assert_called_once_with(activity)
+    assert activity.as_id not in dl
+
+
+def test_tentative_reject_offer_calls_rm_invalidate_report(
+    monkeypatch, dl, vendor, tentative_reject
+):
+    mock_rm_invalidate = Mock()
+    monkeypatch.setattr(
+        "vultron.api.v2.backend.handlers.reject.rm_invalidate_report",
+        mock_rm_invalidate,
+    )
+
+    activity = tentative_reject
+    tentative_reject_offer(actor_id=vendor.as_id, activity=activity)
+
+    mock_rm_invalidate.assert_called_once_with(activity)
+
+
+def test_rm_invalidate_report_calls_set_status(
+    monkeypatch, dl, tentative_reject
+):
+    mock_set_status = Mock()
+    monkeypatch.setattr(
+        "vultron.api.v2.backend.handlers.reject.set_status", mock_set_status
+    )
+
+    dl.create(tentative_reject)
+    activity = tentative_reject
+
+    rm_invalidate_report(activity)
+
+    mock_set_status.assert_called()
+
+
+def test_rm_invalidate_report_updates_offer_and_report_statuses(
+    monkeypatch, dl, tentative_reject
+):
+    mock_set_status = Mock()
+    monkeypatch.setattr(
+        "vultron.api.v2.backend.handlers.reject.set_status", mock_set_status
+    )
+
+    dl.create(tentative_reject)
+    activity = tentative_reject
+
+    rm_invalidate_report(activity)
+
+    matches = []
+    for args in mock_set_status.call_args_list:
+        obj = args[0][0]
+        match obj.object_type:
+            case "Offer":
+                assert obj.status == OfferStatusEnum.TENTATIVELY_REJECTED
+                matches.append("Offer")
+            case "VulnerabilityReport":
+                assert obj.status == RM.INVALID
+                matches.append("VulnerabilityReport")
+
+    assert "Offer" in matches
+    assert "VulnerabilityReport" in matches

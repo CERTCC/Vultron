@@ -11,59 +11,63 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-import unittest
+import pytest
 
-from vultron.api.v2.datalayer.db_record import Record
-
-
-class MyTestCase(unittest.TestCase):
-    def setUp(self) -> None:
-        pass
-
-    def tearDown(self) -> None:
-        pass
-
-    def test_record_attributes(self):
-        # record should have an id_, type_, and data_ attributes
-        record = Record(id_="123", type_="TestType", data_={"key": "value"})
-        self.assertEqual(record.id_, "123")
-        self.assertEqual(record.type_, "TestType")
-        self.assertEqual(record.data_, {"key": "value"})
-
-    def test_object_to_record(self):
-        from vultron.as_vocab.base.base import as_Base
-
-        obj = as_Base(
-            as_id="test-id", as_type="BaseObject", name="Test Object"
-        )
-
-        from vultron.api.v2.datalayer.db_record import object_to_record
-
-        record = object_to_record(obj)
-        self.assertEqual(record.id_, obj.as_id)
-        self.assertEqual(record.type_, obj.as_type)
-        self.assertEqual(record.data_, obj.model_dump())
-
-    def test_record_to_object(self):
-        from vultron.as_vocab.base.objects.object_types import as_Note
-
-        obj = as_Note(content="Test Content")
-
-        from vultron.api.v2.datalayer.db_record import (
-            object_to_record,
-            record_to_object,
-        )
-
-        record = object_to_record(obj)
-        self.assertIsInstance(record, Record)
-
-        reconstructed_obj = record_to_object(record)
-        self.assertIsInstance(reconstructed_obj, as_Note)
-
-        self.assertEqual(reconstructed_obj.as_id, obj.as_id)
-        self.assertEqual(reconstructed_obj.as_type, obj.as_type)
-        self.assertEqual(reconstructed_obj.model_dump(), obj.model_dump())
+from vultron.api.v2.datalayer.db_record import (
+    Record,
+    object_to_record,
+    record_to_object,
+)
 
 
-if __name__ == "__main__":
-    unittest.main()
+# Fixtures for reused test objects
+@pytest.fixture
+def sample_record():
+    return Record(id_="123", type_="TestType", data_={"key": "value"})
+
+
+@pytest.fixture
+def base_object():
+    from vultron.as_vocab.base.base import as_Base
+
+    return as_Base(as_id="test-id", as_type="BaseObject", name="Test Object")
+
+
+@pytest.fixture
+def note_object():
+    from vultron.as_vocab.base.objects.object_types import as_Note
+
+    return as_Note(content="Test Content")
+
+
+# Tests (atomic and with descriptive names)
+def test_record_has_id_type_and_data_attributes(sample_record):
+    assert sample_record.id_ == "123"
+    assert sample_record.type_ == "TestType"
+    assert sample_record.data_ == {"key": "value"}
+
+
+def test_object_to_record_preserves_id_type_and_data_for_base_object(
+    base_object,
+):
+    record = object_to_record(base_object)
+    assert record.id_ == base_object.as_id
+    assert record.type_ == base_object.as_type
+    assert record.data_ == base_object.model_dump()
+
+
+def test_object_to_record_returns_Record_for_note_object(note_object):
+    record = object_to_record(note_object)
+    assert isinstance(record, Record)
+
+
+def test_record_to_object_reconstructs_note_and_preserves_id_type_and_data(
+    note_object,
+):
+    record = object_to_record(note_object)
+    reconstructed = record_to_object(record)
+    # ensure type and class are preserved
+    assert reconstructed.as_id == note_object.as_id
+    assert reconstructed.as_type == note_object.as_type
+    # ensure content/fields are preserved via model dump
+    assert reconstructed.model_dump() == note_object.model_dump()
