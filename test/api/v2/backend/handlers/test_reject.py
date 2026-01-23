@@ -21,42 +21,15 @@ from vultron.api.v2.backend.handlers.reject import (
     tentative_reject_offer,
     rm_invalidate_report,
 )
-from vultron.api.v2.data import get_datalayer
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.as_vocab.base.objects.activities.transitive import (
-    as_Offer,
     as_Reject,
     as_TentativeReject,
 )
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.bt.report_management.states import RM
 
 
-# Fixtures
-@pytest.fixture
-def finder():
-    return as_Actor(name="Test Finder")
-
-
-@pytest.fixture
-def vendor():
-    return as_Actor(name="Test Vendor")
-
-
-@pytest.fixture
-def report(finder):
-    return VulnerabilityReport(
-        attributed_to=finder.as_id,
-        content="This is a test vulnerability report.",
-    )
-
-
-@pytest.fixture
-def offer(finder, report):
-    return as_Offer(actor=finder.as_id, object=report)
-
-
+# Activity-specific fixtures (use finder, vendor, offer, report, dl from conftest.py)
 @pytest.fixture
 def reject(vendor, offer):
     return as_Reject(actor=vendor.as_id, object=offer)
@@ -65,18 +38,6 @@ def reject(vendor, offer):
 @pytest.fixture
 def tentative_reject(vendor, offer):
     return as_TentativeReject(actor=vendor.as_id, object=offer)
-
-
-@pytest.fixture
-def dl(finder, vendor, report, offer):
-    dl = get_datalayer()
-    # seed datalayer like original tests
-    dl.create(finder)
-    dl.create(vendor)
-    dl.create(report)
-    dl.create(offer)
-    yield dl
-    dl.clear()
 
 
 # Tests

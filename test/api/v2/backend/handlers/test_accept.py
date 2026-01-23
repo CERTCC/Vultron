@@ -19,55 +19,17 @@ from vultron.api.v2.backend.handlers.accept import (
     accept_offer_handler,
     rm_validate_report,
 )
-from vultron.api.v2.data import get_datalayer
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.as_vocab.base.objects.activities.transitive import (
-    as_Offer,
     as_Accept,
 )
-from vultron.as_vocab.base.objects.actors import as_Person, as_Organization
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.bt.report_management.states import RM
 
 
-# Fixtures
-@pytest.fixture
-def finder():
-    return as_Person(name="Test Finder")
-
-
-@pytest.fixture
-def vendor():
-    return as_Organization(name="Test Vendor")
-
-
-@pytest.fixture
-def report(finder):
-    return VulnerabilityReport(
-        content="Test vulnerability report content",
-        attributed_to=finder,
-    )
-
-
-@pytest.fixture
-def offer(finder, vendor, report):
-    return as_Offer(to=vendor, actor=finder, object=report)
-
-
+# Activity-specific fixture (use finder, vendor, offer, report, dl from conftest.py)
 @pytest.fixture
 def accept(finder, vendor, offer):
     return as_Accept(to=finder.as_id, actor=vendor.as_id, object=offer)
-
-
-@pytest.fixture
-def dl(finder, vendor, report, offer):
-    dl = get_datalayer()
-    dl.create(finder)
-    dl.create(vendor)
-    dl.create(report)
-    dl.create(offer)
-    yield dl
-    dl.clear()
 
 
 # Tests
