@@ -64,8 +64,8 @@ def created_record(dl, record_factory):
     return rec
 
 
-# Tests (split into focused test functions)
-def test_init(dl):
+# Tests (renamed to be more descriptive)
+def test_database_initialization_creates_db_file_and_no_tables(dl):
     assert isinstance(dl, TinyDbDataLayer)
     assert hasattr(dl, "_db_path")
 
@@ -75,7 +75,7 @@ def test_init(dl):
     assert len(dl._db.tables()) == 0
 
 
-def test_table(dl):
+def test_table_lookup_returns_table_with_name(dl):
     table_name = "test_table"
     table = dl._table(table_name)
     assert table is not None
@@ -83,14 +83,14 @@ def test_table(dl):
     assert table.name == table_name
 
 
-def test_id_query(dl):
+def test_id_query_returns_query_instance(dl):
     test_id = "12345"
     query = dl._id_query(test_id)
     assert query is not None
     assert isinstance(query, QueryInstance)
 
 
-def test_create(dl, record_factory):
+def test_create_inserts_record_and_creates_table(dl, record_factory):
     record = record_factory()
     # table is not in db yet
     assert record.type_ not in dl._db.tables()
@@ -111,13 +111,13 @@ def test_create(dl, record_factory):
     assert got_record["data_"] == record.data_
 
 
-# GET tests split
-def test_get_nonexistent_table(dl):
+# GET tests split and renamed
+def test_get_returns_none_for_nonexistent_table(dl):
     assert "nonexistent_table" not in dl._db.tables()
     assert dl.get("nonexistent_table", "no_id") is None
 
 
-def test_get_existing_record(dl, record_factory):
+def test_get_returns_record_for_existing_id(dl, record_factory):
     record = record_factory()
     dl.create(record)
     got = dl.get(record.type_, record.id_)
@@ -127,15 +127,14 @@ def test_get_existing_record(dl, record_factory):
     assert got["data_"] == record.data_
 
 
-def test_get_missing_id(dl, record_factory):
+def test_get_returns_none_for_missing_id_in_existing_table(dl, record_factory):
     record = record_factory()
     dl.create(record)
     assert dl.get(record.type_, "no_such_id") is None
 
 
-# UPDATE tests split
-def test_update_existing(dl, record_factory, created_record):
-    # created_record already inserted
+# UPDATE tests renamed
+def test_update_updates_existing_record_data(dl, created_record):
     rec = created_record
     new_data = rec.data_.copy()
     new_data["field"] = "new_value"
@@ -148,13 +147,13 @@ def test_update_existing(dl, record_factory, created_record):
     assert got["data_"]["field"] == "new_value"
 
 
-def test_update_non_existing(dl, record_factory):
+def test_update_returns_false_for_non_existing_id(dl, record_factory):
     non_existing = record_factory(id_="no_such_id")
     updated2 = dl.update(id_=non_existing.id_, record=non_existing)
     assert not updated2
 
 
-def test_delete(dl, record_factory):
+def test_delete_removes_record_and_returns_true(dl, record_factory):
     record = record_factory()
     dl.create(record)
     # confirm record exists
@@ -167,7 +166,7 @@ def test_delete(dl, record_factory):
     assert got_after_delete is None
 
 
-def test_all(dl, record_factory):
+def test_all_returns_all_records_for_table(dl, record_factory):
     # create two records
     record1 = record_factory(id_="id1", data_={"field": "value1"})
     record2 = record_factory(id_="id2", data_={"field": "value2"})
@@ -186,8 +185,7 @@ def test_all(dl, record_factory):
         assert isinstance(rec, Record)
 
 
-def test_clear_table(dl, record_factory):
-    # create a record
+def test_clear_table_removes_all_records(dl, record_factory):
     record = record_factory()
     dl.create(record)
     # confirm record exists
@@ -203,7 +201,7 @@ def test_clear_table(dl, record_factory):
     assert len(all_records) == 0
 
 
-def test_clear_all(dl, record_factory):
+def test_clear_all_removes_all_tables_and_records(dl, record_factory):
     # create records in two tables
     record1 = record_factory(
         id_="id1", type_="table1", data_={"field": "value1"}
@@ -233,24 +231,24 @@ def test_clear_all(dl, record_factory):
     assert len(dl._db.tables()) == 0
 
 
-# EXISTS tests split
-def test_exists_nonexistent_table(dl):
+# EXISTS tests renamed
+def test_exists_returns_false_for_nonexistent_table(dl):
     assert not dl.exists("nonexistent_table", "no_id")
 
 
-def test_exists_after_create(dl, record_factory):
+def test_exists_returns_true_after_create(dl, record_factory):
     record = record_factory()
     dl.create(record)
     assert dl.exists(record.type_, record.id_)
 
 
-def test_exists_missing_id(dl, record_factory):
+def test_exists_returns_false_for_missing_id(dl, record_factory):
     record = record_factory()
     dl.create(record)
     assert not dl.exists(record.type_, "no_such_id")
 
 
-def test_exists_after_delete(dl, record_factory):
+def test_exists_returns_false_after_delete(dl, record_factory):
     record = record_factory()
     dl.create(record)
     dl.delete(record.type_, record.id_)
