@@ -2,6 +2,14 @@ PROJECT_HOME := .
 VULTRON_DIR := $(PROJECT_HOME)/vultron
 TEST_DIR := $(PROJECT_HOME)/test
 
+# Load environment variables from .env file if it exists
+ifneq (,$(wildcard .env))
+  include .env
+  export
+endif
+
+PROJECT_NAME ?= vultron
+
 # Display help information about available targets
 .PHONY: help
 help:  ## Show this help message
