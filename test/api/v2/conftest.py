@@ -1,9 +1,4 @@
-#!/usr/bin/env python
-"""
-Vultron API v2 Routers
-"""
-
-#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -16,25 +11,31 @@ Vultron API v2 Routers
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from fastapi import APIRouter, Request
+"""
+Provides pytest fixtures for testing the FastAPI v2 application.
+"""
 
-from vultron.api.v2.routers import (
-    actors,
-    examples,
-    datalayer,
-)
+import pytest
+from fastapi.testclient import TestClient
 
-router = APIRouter()
-
-
-@router.get("/version", tags=["Version"])
-def get_version(request: Request):
-    """Returns the current version of the Vultron API."""
-    return {"version": request.app.version}
+from vultron.api.v2.app import app_v2 as app
 
 
-router.include_router(actors.router)
+@pytest.fixture
+def client():
+    app.dependency_overrides = {}
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides = {}
 
-router.include_router(datalayer.router)
 
-router.include_router(examples.router)
+@pytest.fixture
+def datalayer():
+    from vultron.api.v2.data.store import get_datalayer
+
+    datalayer = get_datalayer()
+    # Clear the datalayer before each test
+    datalayer.clear()
+    yield datalayer
+    # Clear the datalayer after each test
+    datalayer.clear()
