@@ -93,12 +93,12 @@ def _call_handler(activity, handler, actor):
 
 
 # Tests
-def test_create_report(reporter, report):
+def test_create_report_handler_returns_none(reporter, report):
     activity = as_Create(actor=reporter, object=report)
     _call_handler(activity, rm_create_report, reporter)
 
 
-def test_offer_report(reporter, report, dl):
+def test_submit_report_persists_activity_and_report(reporter, report, dl):
     activity = as_Offer(actor=reporter, object=report)
     _call_handler(activity, rm_submit_report, reporter)
 
@@ -107,12 +107,12 @@ def test_offer_report(reporter, report, dl):
     assert report.as_id in dl
 
 
-def test_read_report(reporter, report):
+def test_read_activity_handler_noop_returns_none(reporter, report):
     activity = as_Read(actor=reporter, object=report)
     _call_handler(activity, rm_read_report, reporter)  # No read handler yet
 
 
-def test_validate_report(monkeypatch, reporter, report):
+def test_accept_offer_triggers_validation(monkeypatch, reporter, report):
     mock_validate = Mock()
     monkeypatch.setattr(
         "vultron.api.v2.backend.handlers.accept.rm_validate_report",
@@ -126,7 +126,7 @@ def test_validate_report(monkeypatch, reporter, report):
     mock_validate.assert_called_once_with(activity)
 
 
-def test_invalidate_report(monkeypatch, reporter, report):
+def test_tentative_reject_triggers_invalidation(monkeypatch, reporter, report):
     mock_invalidate = Mock()
     monkeypatch.setattr(
         "vultron.api.v2.backend.handlers.reject.rm_invalidate_report",
@@ -140,12 +140,12 @@ def test_invalidate_report(monkeypatch, reporter, report):
     mock_invalidate.assert_called_once_with(activity)
 
 
-def test_create_case(coordinator, case):
+def test_create_case_handler_returns_none(coordinator, case):
     activity = as_Create(actor=coordinator, object=case)
     _call_handler(activity, create_case, coordinator)
 
 
-def test_reject_offer(monkeypatch, reporter, report):
+def test_reject_offer_triggers_close_report(monkeypatch, reporter, report):
     mock_rm_close = Mock()
     monkeypatch.setattr(
         "vultron.api.v2.backend.handlers.reject.rm_close_report", mock_rm_close
