@@ -56,7 +56,15 @@ def record_factory():
     return _make
 
 
-# Tests
+# New fixture: create and persist a default record in the datastore
+@pytest.fixture
+def created_record(dl, record_factory):
+    rec = record_factory()
+    dl.create(rec)
+    return rec
+
+
+# Tests (split into focused test functions)
 def test_init(dl):
     assert isinstance(dl, TinyDbDataLayer)
     assert hasattr(dl, "_db_path")
@@ -103,45 +111,46 @@ def test_create(dl, record_factory):
     assert got_record["data_"] == record.data_
 
 
-def test_get(dl, record_factory):
-    # test get non-existing
+# GET tests split
+def test_get_nonexistent_table(dl):
     assert "nonexistent_table" not in dl._db.tables()
-    got_none = dl.get("nonexistent_table", "no_id")
-    assert got_none is None
+    assert dl.get("nonexistent_table", "no_id") is None
 
+
+def test_get_existing_record(dl, record_factory):
     record = record_factory()
     dl.create(record)
-
     got = dl.get(record.type_, record.id_)
     assert got is not None
     assert got["id_"] == record.id_
     assert got["type_"] == record.type_
     assert got["data_"] == record.data_
 
-    # test get existing table, non-existing id
-    assert record.type_ in dl._db.tables()
-    got_none2 = dl.get(record.type_, "no_such_id")
-    assert got_none2 is None
 
-
-def test_update(dl, record_factory):
+def test_get_missing_id(dl, record_factory):
     record = record_factory()
     dl.create(record)
-    # update existing record
-    new_data = record.data_.copy()
-    new_data["field"] = "new_value"
+    assert dl.get(record.type_, "no_such_id") is None
 
-    updated_record = Record(id_=record.id_, type_=record.type_, data_=new_data)
+
+# UPDATE tests split
+def test_update_existing(dl, record_factory, created_record):
+    # created_record already inserted
+    rec = created_record
+    new_data = rec.data_.copy()
+    new_data["field"] = "new_value"
+    updated_record = Record(id_=rec.id_, type_=rec.type_, data_=new_data)
+
     updated = dl.update(id_=updated_record.id_, record=updated_record)
     assert updated
     got = dl.get(updated_record.type_, updated_record.id_)
     assert got is not None
     assert got["data_"]["field"] == "new_value"
-    # update non-existing record
-    non_existing_record = record_factory(id_="no_such_id")
-    updated2 = dl.update(
-        id_=non_existing_record.id_, record=non_existing_record
-    )
+
+
+def test_update_non_existing(dl, record_factory):
+    non_existing = record_factory(id_="no_such_id")
+    updated2 = dl.update(id_=non_existing.id_, record=non_existing)
     assert not updated2
 
 
@@ -224,15 +233,25 @@ def test_clear_all(dl, record_factory):
     assert len(dl._db.tables()) == 0
 
 
-def test_exists(dl, record_factory):
-    # test non-existing
+# EXISTS tests split
+def test_exists_nonexistent_table(dl):
     assert not dl.exists("nonexistent_table", "no_id")
+
+
+def test_exists_after_create(dl, record_factory):
     record = record_factory()
     dl.create(record)
-    # test existing
     assert dl.exists(record.type_, record.id_)
-    # test existing table, non-existing id
+
+
+def test_exists_missing_id(dl, record_factory):
+    record = record_factory()
+    dl.create(record)
     assert not dl.exists(record.type_, "no_such_id")
-    # remove record and test again
+
+
+def test_exists_after_delete(dl, record_factory):
+    record = record_factory()
+    dl.create(record)
     dl.delete(record.type_, record.id_)
     assert not dl.exists(record.type_, record.id_)
