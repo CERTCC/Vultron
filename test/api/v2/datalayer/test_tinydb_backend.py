@@ -13,6 +13,7 @@
 
 import os
 
+import pytest
 from tinydb.queries import QueryInstance
 from tinydb.table import Table
 
