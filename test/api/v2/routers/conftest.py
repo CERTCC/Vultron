@@ -15,7 +15,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from vultron.api.v2.data import get_datalayer
 from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.api.v2.routers import actors as actors_router
 from vultron.api.v2.routers import datalayer as datalayer_router
@@ -31,12 +30,10 @@ from vultron.as_vocab.base.objects.actors import (
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 
-# datalayer fixture shared by router tests
+# adapter: reuse top-level datalayer fixture for tests that ask for `dl`
 @pytest.fixture
-def dl():
-    dl_inst = get_datalayer()
-    yield dl_inst
-    dl_inst.clear()
+def dl(datalayer):
+    return datalayer
 
 
 # TestClient for datalayer router

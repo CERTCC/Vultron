@@ -13,7 +13,6 @@
 
 import pytest
 
-from vultron.api.v2.data import get_datalayer
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
@@ -68,9 +67,8 @@ def offer(offer_factory):
 
 
 @pytest.fixture
-def dl(finder, vendor, report):
-    dl = get_datalayer()
+def dl(datalayer, finder, vendor, report):
     for obj in (finder, vendor, report):
-        dl.create(obj)
-    yield dl
-    dl.clear()
+        datalayer.create(obj)
+    yield datalayer
+    datalayer.clear()
