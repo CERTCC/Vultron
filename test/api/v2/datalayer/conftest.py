@@ -11,14 +11,50 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.api.v2.datalayer.db_record import (
-    Record,
-    object_to_record,
-    record_to_object,
-)
+import pytest
+
+from vultron.api.v2.datalayer.db_record import Record
+from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
 
 
-# Fixtures for reused test objects
+@pytest.fixture
+def tmp_db_file(tmp_path):
+    db_path = tmp_path / "test_tinydb.json"
+    # TinyDB will create the file when opened
+    return db_path
+
+
+@pytest.fixture
+def dl(tmp_db_file):
+    dl = TinyDbDataLayer(db_path=str(tmp_db_file))
+    yield dl
+    # teardown
+    dl.clear_all()
+    try:
+        dl._db.close()
+    except Exception:
+        pass
+    if tmp_db_file.exists():
+        tmp_db_file.unlink()
+    assert not tmp_db_file.exists()
+
+
+@pytest.fixture
+def record_factory():
+    def _make(id_="12345", type_="test_table", data_=None):
+        data = {"field": "value"} if data_ is None else data_
+        return Record(id_=id_, type_=type_, data_=data)
+
+    return _make
+
+
+@pytest.fixture
+def created_record(dl, record_factory):
+    rec = record_factory()
+    dl.create(rec)
+    return rec
+
+
 @pytest.fixture
 def sample_record():
     return Record(id_="123", type_="TestType", data_={"key": "value"})
@@ -36,36 +72,3 @@ def note_object():
     from vultron.as_vocab.base.objects.object_types import as_Note
 
     return as_Note(content="Test Content")
-
-
-# Tests (atomic and with descriptive names)
-def test_record_has_id_type_and_data_attributes(sample_record):
-    assert sample_record.id_ == "123"
-    assert sample_record.type_ == "TestType"
-    assert sample_record.data_ == {"key": "value"}
-
-
-def test_object_to_record_preserves_id_type_and_data_for_base_object(
-    base_object,
-):
-    record = object_to_record(base_object)
-    assert record.id_ == base_object.as_id
-    assert record.type_ == base_object.as_type
-    assert record.data_ == base_object.model_dump()
-
-
-def test_object_to_record_returns_Record_for_note_object(note_object):
-    record = object_to_record(note_object)
-    assert isinstance(record, Record)
-
-
-def test_record_to_object_reconstructs_note_and_preserves_id_type_and_data(
-    note_object,
-):
-    record = object_to_record(note_object)
-    reconstructed = record_to_object(record)
-    # ensure type and class are preserved
-    assert reconstructed.as_id == note_object.as_id
-    assert reconstructed.as_type == note_object.as_type
-    # ensure content/fields are preserved via model dump
-    assert reconstructed.model_dump() == note_object.model_dump()
