@@ -13,6 +13,7 @@
 import importlib
 
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from vultron.api.main import app as api_app
@@ -25,45 +26,51 @@ def client():
     return TestClient(api_app)
 
 
+# python
+# File: `test/scripts/test_receive_report_demo.py`
 @pytest.fixture(scope="module")
-def demo_env(client, monkeypatch):
+def demo_env(client):
     """Sets up the demo environment for testing, including BASE_URL and the testclient_call function."""
-    # Keep the same /api/v2 prefix the module expects
-    base = str(client.base_url).rstrip("/") + "/api/v2"
-    monkeypatch.setattr(demo, "BASE_URL", base)
+    mp = MonkeyPatch()
+    try:
+        # Keep the same /api/v2 prefix the module expects
+        base = str(client.base_url).rstrip("/") + "/api/v2"
+        mp.setattr(demo, "BASE_URL", base)
 
-    def testclient_call(method, path, **kwargs):
-        # Accept either a path ("/...") or a full URL starting with demo.BASE_URL
-        url = str(path)
-        if url.startswith(demo.BASE_URL):
-            url = url[len(demo.BASE_URL) :]
-        if not url.startswith("/"):
-            url = "/" + url
-        if not url.startswith("/api/v2"):
-            url = "/api/v2" + url
+        def testclient_call(self, method, path, **kwargs):
+            # Accept either a path ("/...") or a full URL starting with demo.BASE_URL
+            url = str(path)
+            if url.startswith(demo.BASE_URL):
+                url = url[len(demo.BASE_URL) :]
+            if not url.startswith("/"):
+                url = "/" + url
+            if not url.startswith("/api/v2"):
+                url = "/api/v2" + url
 
-        resp = client.request(method.upper(), url, **kwargs)
-        if resp.status_code >= 400:
-            raise AssertionError(
-                f"API call failed: {method.upper()} {url} --> {resp.status_code} {resp.text}"
-            )
-        # return parsed JSON (or raw text if not JSON)
-        try:
-            return resp.json()
-        except Exception:
-            return resp.text
+            resp = client.request(method.upper(), url, **kwargs)
+            if resp.status_code >= 400:
+                raise AssertionError(
+                    f"API call failed: {method.upper()} {url} --> {resp.status_code} {resp.text}"
+                )
+            # return parsed JSON (or raw text if not JSON)
+            try:
+                return resp.json()
+            except Exception:
+                return resp.text
 
-    monkeypatch.setattr(demo, "call", testclient_call)
+        # Patch the instance method on the DataLayerClient class
+        mp.setattr(demo.DataLayerClient, "call", testclient_call)
 
-    yield
+        yield
 
-    # Reload the module to reset any state changes
-    importlib.reload(demo)
+    finally:
+        mp.undo()
+        importlib.reload(demo)
 
 
-@pytest.mark.xfail(
-    reason="Demo may rely on external state not present in test environment"
-)
+# @pytest.mark.xfail(
+#     reason="Demo may rely on external state not present in test environment"
+# )
 def test_main_executes_without_raising(demo_env):
     """Tests that demo.main() can be executed without raising exceptions."""
     demo.main()
