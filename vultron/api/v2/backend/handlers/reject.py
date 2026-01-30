@@ -2,7 +2,7 @@
 """
 Handler for Reject Activities
 """
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -19,7 +19,8 @@ import logging
 from functools import partial
 
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
-from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.data.status import OfferStatus, set_status, ReportStatus
@@ -49,7 +50,7 @@ def reject_offer(
     """
     logger.debug(f"Reject offer activity: {activity}")
     datalayer = get_datalayer()
-    datalayer.create(activity)
+    datalayer.create(object_to_record(activity))
 
     rejected_offer = activity.as_object
     subject_of_offer = rejected_offer.as_object
@@ -106,7 +107,7 @@ def tentative_reject_offer(
     logger.debug(f"TentativeReject offer activity: {activity}")
 
     dl = get_datalayer()
-    dl.create(activity)
+    dl.create(object_to_record(activity))
 
     rejected_offer = activity.as_object
     subject_of_offer = rejected_offer.as_object

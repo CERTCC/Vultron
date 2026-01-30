@@ -20,6 +20,7 @@ from vultron.api.v2.backend.handlers.accept import (
     rm_validate_report,
 )
 from vultron.api.v2.data.enums import OfferStatusEnum
+from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
 )
@@ -53,13 +54,15 @@ def test_accept_offer_handler_other_routing_cases_placeholder():
     pass
 
 
-def test_rm_validate_report_calls_set_status(monkeypatch, dl, accept):
+def test_rm_validate_report_calls_set_status(
+    monkeypatch, dl, accept: as_Accept
+):
     mock_set_status = Mock()
     monkeypatch.setattr(
         "vultron.api.v2.backend.handlers.accept.set_status", mock_set_status
     )
 
-    dl.create(accept)
+    dl.create(object_to_record(accept))
     activity = accept
 
     rm_validate_report(activity)
@@ -75,7 +78,7 @@ def test_rm_validate_report_updates_offer_and_report_statuses(
         "vultron.api.v2.backend.handlers.accept.set_status", mock_set_status
     )
 
-    dl.create(accept)
+    dl.create(object_to_record(accept))
     activity = accept
 
     rm_validate_report(activity)

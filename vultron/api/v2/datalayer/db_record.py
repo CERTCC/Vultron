@@ -20,6 +20,7 @@ Provides a Record model for document database storage.
 """
 from pydantic import BaseModel
 
+from vultron.as_vocab.base.base import as_Base
 from vultron.as_vocab.base.registry import Vocabulary, find_in_vocabulary
 
 
@@ -35,6 +36,56 @@ class Record(BaseModel):
     type_: str
     data_: dict
 
+    @classmethod
+    def from_obj(cls, obj: BaseModel) -> "Record":
+        """Creates a Record from a Pydantic BaseModel object.
+
+        Args:
+            obj (BaseModel): The object to convert.
+        Returns:
+            Record: The created Record.
+        """
+        if not isinstance(obj, BaseModel):
+            raise ValueError(
+                "Object must be a Pydantic BaseModel for Record conversion"
+            )
+
+        if not hasattr(obj, "as_id"):
+            raise ValueError(
+                "Object must have an 'as_id' attribute for Record conversion"
+            )
+
+        if not hasattr(obj, "as_type"):
+            raise ValueError(
+                "Object must have an 'as_type' attribute for Record conversion"
+            )
+
+        if obj.as_type.startswith("as_"):
+            raise ValueError(
+                "Object 'as_type' attribute cannot start with 'as_' for Record conversion"
+            )
+
+        record = Record(
+            id_=obj.as_id,
+            type_=obj.as_type,
+            data_=obj.model_dump(mode="json"),
+        )
+        return record
+
+    def to_obj(self) -> BaseModel:
+        """Converts the Record back to a Pydantic BaseModel object.
+
+        Returns:
+            BaseModel: The converted object.
+        """
+        cls = find_in_vocabulary(self.type_)
+        if cls is None:
+            raise ValueError(
+                f"Type '{self.type_}' not found in vocabulary for Record conversion"
+            )
+        obj = cls.model_validate(self.data_)
+        return obj
+
 
 def object_to_record(obj: BaseModel) -> Record:
     """Converts a Pydantic BaseModel object to a Record for storage.
@@ -44,32 +95,7 @@ def object_to_record(obj: BaseModel) -> Record:
     Returns:
         Record: The converted Record.
     """
-    if not isinstance(obj, BaseModel):
-        raise ValueError(
-            "Object must be a Pydantic BaseModel for Record conversion"
-        )
-
-    if not hasattr(obj, "as_id"):
-        raise ValueError(
-            "Object must have an 'as_id' attribute for Record conversion"
-        )
-
-    if not hasattr(obj, "as_type"):
-        raise ValueError(
-            "Object must have an 'as_type' attribute for Record conversion"
-        )
-
-    if obj.as_type.startswith("as_"):
-        raise ValueError(
-            "Object 'as_type' attribute cannot start with 'as_' for Record conversion"
-        )
-
-    record = Record(
-        id_=obj.as_id,
-        type_=obj.as_type,
-        data_=obj.model_dump(),
-    )
-    return record
+    return Record.from_obj(obj)
 
 
 def record_to_object(record: Record):
@@ -81,16 +107,7 @@ def record_to_object(record: Record):
     Returns:
         BaseModel: The converted object.
     """
-    if not isinstance(record, Record):
-        raise ValueError("Input must be a Record for conversion")
-
-    cls = find_in_vocabulary(record.type_)
-    if cls is None:
-        raise ValueError(
-            f"Type '{record.type_}' not found in vocabulary for Record conversion"
-        )
-    obj = cls.model_validate(record.data_)
-    return obj
+    return record.to_obj()
 
 
 def main():

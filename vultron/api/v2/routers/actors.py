@@ -2,7 +2,7 @@
 """
 Vultron API Routers
 """
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -27,12 +27,13 @@ from vultron.api.v2.backend.inbox_handler import (
     inbox_handler,
 )
 from vultron.api.v2.backend.outbox_handler import outbox_handler
-from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.collections import as_OrderedCollection
+from vultron.as_vocab.base.registry import find_in_vocabulary
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -50,9 +51,28 @@ def get_actors() -> list[as_Actor]:
     """Returns a list of Actor examples."""
 
     datalayer = get_datalayer()
-    results = datalayer.by_type("Actor")
+    types = [
+        "Actor",
+        "Application",
+        "Group",
+        "Organization",
+        "Person",
+        "Service",
+    ]
+    results = []
+    for t in types:
+        results.extend(datalayer.get_all(t))
 
-    return [as_Actor.model_validate(actor) for actor in results.values()]
+    logger.info(f"results: {results}")
+
+    objects = []
+    for rec in results:
+        logger.info(f"rec: {rec}")
+        cls = find_in_vocabulary(rec["type_"])
+        obj = cls.model_validate(rec)
+        objects.append(obj)
+
+    return objects
 
 
 @router.get(
@@ -167,7 +187,7 @@ def post_actor_inbox(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
 
-    dl.create(activity)
+    dl.create(object_to_record(activity))
 
     logger.debug(f"Posting activity to actor {actor_id} inbox: {activity}")
     actor_io = get_actor_io(actor_id, init=True, raise_on_missing=False)
@@ -226,7 +246,7 @@ def post_actor_outbox(
 
     actor_io = get_actor_io(actor_id, init=False, raise_on_missing=True)
 
-    dl.create(activity)
+    dl.create(object_to_record(activity))
 
     # append object ID to outbox
     actor_io.outbox.items.append(activity.as_id)

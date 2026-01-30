@@ -19,6 +19,7 @@
 Provides API v2 tests
 """
 from vultron.as_vocab.base.objects.actors import as_Person
+from vultron.api.v2.datalayer.db_record import object_to_record
 
 
 def test_version(client):
@@ -50,7 +51,7 @@ def test_datalayer_get_existing_actor(client, datalayer):
     actor = as_Person(
         name="Test Person",
     )
-    datalayer.create(actor)
+    datalayer.create(object_to_record(actor))
 
     response = client.get(f"/datalayer/Actors/{actor.as_id}")
     assert response.status_code == 200
@@ -66,7 +67,7 @@ def test_datalayer_get_existing_actor(client, datalayer):
     actor = as_Person(
         name="Test Person",
     )
-    datalayer.create(actor)
+    datalayer.create(object_to_record(actor))
 
     response = client.get(f"/datalayer/{actor.as_id}")
     assert response.status_code == 200

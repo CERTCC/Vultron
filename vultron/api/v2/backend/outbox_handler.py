@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -17,7 +17,7 @@ Provides an outbox handler for Vultron Actors.
 """
 import logging
 
-from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
 logger = logging.getLogger(__name__)
 

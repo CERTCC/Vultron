@@ -76,7 +76,7 @@ def created_actors(dl, actor_classes):
     actors = []
     for actor_cls in actor_classes:
         actor = actor_cls(name="Test Actor for List")
-        dl.create(actor)
+        dl.create(object_to_record(actor))
         init_actor_io(actor.as_id)
         actors.append(actor)
     return actors

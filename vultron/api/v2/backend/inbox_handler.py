@@ -22,7 +22,7 @@ from vultron.api.v2.backend import handlers  # noqa: F401
 from vultron.api.v2.backend.handlers.registry import (
     get_activity_handler,
 )
-from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.as_vocab import VOCABULARY

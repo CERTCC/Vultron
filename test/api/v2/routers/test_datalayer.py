@@ -22,7 +22,7 @@ def test_get_offers_returns_empty_dict_when_no_offers(client_datalayer):
 
 
 def test_get_offers_includes_created_offer(client_datalayer, dl, offer):
-    dl.create(offer)
+    dl.create(object_to_record(offer))
     response = client_datalayer.get("/datalayer/Offers/")
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
@@ -31,7 +31,7 @@ def test_get_offers_includes_created_offer(client_datalayer, dl, offer):
 
 
 def test_get_offer_by_id_returns_offer_fields(client_datalayer, dl, offer):
-    dl.create(offer)
+    dl.create(object_to_record(offer))
     response = client_datalayer.get(
         "/datalayer/Offer/", params={"object_id": offer.as_id}
     )
@@ -83,7 +83,7 @@ def test_get_report_by_id_returns_report(client_datalayer, dl, report):
 
 
 def test_reset_endpoint_clears_all_data(client_datalayer, dl, report, offer):
-    dl.create(offer)
+    dl.create(object_to_record(offer))
     dl.create(report)
 
     # sanity: ensure they exist before reset

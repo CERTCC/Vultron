@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -20,8 +20,8 @@ import logging
 
 from pydantic import ValidationError
 
-from vultron.api.v2.data import get_datalayer
 from vultron.api.v2.data.utils import parse_id
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.registry import find_in_vocabulary
 
@@ -62,7 +62,7 @@ def rehydrate(obj: as_Object, depth: int = 0) -> as_Object | str:
             pass
 
         logger.debug(f"Reading object with ID '{obj}' from data layer.")
-        obj = datalayer.read(obj)
+        obj = datalayer.get(id_=obj)
 
         if obj is None:
             raise ValueError("Object not found in data layer")

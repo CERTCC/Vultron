@@ -157,7 +157,7 @@ def test_rm_invalidate_report_calls_set_status(
         "vultron.api.v2.backend.handlers.reject.set_status", mock_set_status
     )
 
-    dl.create(tentative_reject)
+    dl.create(object_to_record(tentative_reject))
     activity = tentative_reject
 
     rm_invalidate_report(activity)
@@ -173,7 +173,7 @@ def test_rm_invalidate_report_updates_offer_and_report_statuses(
         "vultron.api.v2.backend.handlers.reject.set_status", mock_set_status
     )
 
-    dl.create(tentative_reject)
+    dl.create(object_to_record(tentative_reject))
     activity = tentative_reject
 
     rm_invalidate_report(activity)

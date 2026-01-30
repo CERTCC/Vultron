@@ -18,6 +18,9 @@
 """
 Provides TODO writeme
 """
+from typing import TypeVar
+
+from pydantic import BaseModel
 from tinydb import TinyDB, Query
 from tinydb.queries import QueryInstance
 from tinydb.storages import MemoryStorage
@@ -25,6 +28,8 @@ from tinydb.table import Table
 
 from vultron.api.v2.datalayer.abc import DataLayer
 from vultron.api.v2.datalayer.db_record import Record
+
+BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
 
 
 class TinyDbDataLayer(DataLayer):
@@ -88,6 +93,11 @@ class TinyDbDataLayer(DataLayer):
         result = tbl.get(self._id_query(id_))
         return result
 
+    def get_all(self, table: str) -> list[dict]:
+        tbl = self._table(table)
+        records = tbl.all()
+        return records
+
     def update(self, id_: str, record: Record) -> bool:
         """
         Updates a record by id in the specified table.
@@ -130,6 +140,13 @@ class TinyDbDataLayer(DataLayer):
         records = tbl.all()
         return [Record.model_validate(rec) for rec in records]
 
+    def count_all(self) -> dict[str, int]:
+        db = self._db
+        counts = {"_default": len(db)}
+        for name in db.tables():
+            counts[name] = len(db.table(name))
+        return counts
+
     def clear_table(self, table: str) -> None:
         """
         Removes all records from the specified table.
@@ -159,6 +176,18 @@ class TinyDbDataLayer(DataLayer):
         """
         tbl = self._table(table)
         return tbl.contains(self._id_query(id_))
+
+
+def get_datalayer(db_path: str | None = "mydb.json") -> TinyDbDataLayer:
+    """Factory function to create a TinyDbDataLayer instance.
+
+    Args:
+        db_path (str | None): The path to the database file. If None, uses in-memory storage.
+
+    Returns:
+        TinyDbDataLayer: An instance of TinyDbDataLayer.
+    """
+    return TinyDbDataLayer(db_path=db_path)
 
 
 def main():

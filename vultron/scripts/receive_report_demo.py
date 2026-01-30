@@ -240,8 +240,12 @@ def main():
     # the report should be in the datalayer
     verify_object_stored(client=client, obj_id=report.as_id)
 
+    # strip vendor.as_id to get the object ID
+    vendor_obj_id = parse_id(vendor.as_id)["object_id"]
+    report_offer_obj_id = parse_id(report_offer.as_id)["object_id"]
+
     offer = client.get(
-        f"/datalayer/Actors/{vendor.as_id}/Offers/{report_offer.as_id}"
+        f"/datalayer/Actors/{vendor_obj_id}/Offers/{report_offer_obj_id}"
     )
     offer = as_Offer(**offer)
     logger.info(f"Retrieved Offer via Actor: {logfmt(offer)}")
@@ -253,7 +257,7 @@ def main():
     )
 
     logger.info(f"Closing offer: {logfmt(close_offer)}")
-    client.post(f"/actors/{vendor.as_id}/inbox/", json=postfmt(close_offer))
+    client.post(f"/actors/{vendor_obj_id}/inbox/", json=postfmt(close_offer))
 
     invalidate_offer = RmInvalidateReport(
         actor=vendor.as_id,
@@ -263,7 +267,7 @@ def main():
     logger.info(f"Invalidating offer: {logfmt(invalidate_offer)}")
 
     client.post(
-        f"/actors/{vendor.as_id}/inbox/", json=postfmt(invalidate_offer)
+        f"/actors/{vendor_obj_id}/inbox/", json=postfmt(invalidate_offer)
     )
 
     accept_offer = RmValidateReport(
@@ -273,12 +277,18 @@ def main():
     )
     logger.info(f"Validating offer: {logfmt(accept_offer)}")
 
-    client.post(f"/actors/{vendor.as_id}/inbox/", json=postfmt(accept_offer))
+    client.post(f"/actors/{vendor_obj_id}/inbox/", json=postfmt(accept_offer))
+
+    # verify that the accept_offer got processed correctly
+    response = client.get(f"/datalayer/{accept_offer.as_id}")
+    logger.info(f"ValidateReport response: {json.dumps(response, indent=2)}")
+
+    # FIXME everything works up to here.
 
     # verify side effects again
     # this time,
     # the actor's outbox should have a Create activity for the case
-    outbox = client.get(f"/datalayer/Actors/{vendor.as_id}/outbox/")
+    outbox = client.get(f"/datalayer/Actors/{vendor_obj_id}/outbox/")
     outbox = as_OrderedCollection(**outbox)
 
     logger.info(f"Vendor outbox has {len(outbox.items)} items.")

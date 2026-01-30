@@ -18,8 +18,14 @@ import logging
 from functools import partial
 
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
-from vultron.api.v2.data import get_datalayer
-from vultron.api.v2.data.store import DataStore
+from vultron.api.v2.datalayer.tinydb_backend import (
+    get_datalayer,
+    TinyDbDataLayer as DataStore,
+)
+from vultron.api.v2.datalayer.db_record import object_to_record
+
+# from vultron.api.v2.data.store import DataStore
+
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
@@ -114,13 +120,13 @@ def rm_submit_report(
     _offer_ok = False
 
     try:
-        datalayer.create(offered_obj)
+        datalayer.create(object_to_record(offered_obj))
     except ValueError as e:
         logger.error(f"Failed to create nested VulnerabilityReport: {e}")
         return
 
     try:
-        datalayer.create(activity)
+        datalayer.create(object_to_record(activity))
     except ValueError as e:
         logger.error(f"Failed to receive offer: {e}")
         return

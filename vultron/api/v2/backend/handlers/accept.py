@@ -1,4 +1,4 @@
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -18,10 +18,10 @@ import logging
 from functools import partial
 
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
-from vultron.api.v2.data import get_datalayer
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.data.status import OfferStatus, set_status, ReportStatus
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab.activities.case import CreateCase
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,
@@ -208,7 +208,7 @@ def rm_validate_report(activity: as_Accept):
         attributed_to=actor.as_id,
     )
     dl = get_datalayer()
-    dl.create(case)
+    dl.create(object_to_record(case))
     logger.info(f"Created VulnerabilityCase: {case.as_id}: {case.name}")
 
     addressees = []
@@ -228,7 +228,7 @@ def rm_validate_report(activity: as_Accept):
         object=case.as_id,
         to=addressees,
     )
-    dl.create(create_case_activity)
+    dl.create(object_to_record(create_case_activity))
     logger.info(
         f"Created Create activity: {create_case_activity.model_dump_json(indent=2, exclude_none=True)}"
     )

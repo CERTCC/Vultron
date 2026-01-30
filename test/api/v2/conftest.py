@@ -31,11 +31,11 @@ def client():
 
 @pytest.fixture
 def datalayer():
-    from vultron.api.v2.data.store import get_datalayer
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     datalayer = get_datalayer()
     # Clear the datalayer before each test
-    datalayer.clear()
+    datalayer.clear_all()
     yield datalayer
     # Clear the datalayer after each test
-    datalayer.clear()
+    datalayer.clear_all()

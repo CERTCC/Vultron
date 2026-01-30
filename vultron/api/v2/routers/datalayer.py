@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -20,7 +20,7 @@ from copy import deepcopy
 from fastapi import APIRouter, status, HTTPException
 
 from vultron.api.v2.data.rehydration import rehydrate
-from vultron.api.v2.data.store import get_datalayer
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab.base.base import as_Base
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
@@ -189,7 +189,7 @@ def reset_datalayer(init: bool = False) -> dict:
     """Resets the datalayer by clearing all stored objects."""
 
     datalayer = get_datalayer()
-    datalayer.clear()
+    datalayer.clear_all()
     if init:
         from vultron.scripts.vocab_examples import initialize_examples
 
@@ -197,5 +197,5 @@ def reset_datalayer(init: bool = False) -> dict:
 
     return {
         "status": "datalayer reset successfully",
-        "n_items": len(datalayer.all()),
+        "n_items": datalayer.count_all(),
     }

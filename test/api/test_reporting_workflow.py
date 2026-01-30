@@ -33,7 +33,7 @@ from vultron.api.v2.backend.handlers.reject import (
     reject_offer,
     tentative_reject_offer,
 )
-from vultron.api.v2.data import get_datalayer
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Create,
     as_Offer,
