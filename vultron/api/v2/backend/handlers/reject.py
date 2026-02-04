@@ -19,11 +19,11 @@ import logging
 from functools import partial
 
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
-from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.data.status import OfferStatus, set_status, ReportStatus
+from vultron.api.v2.datalayer.db_record import object_to_record
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Reject,
     as_TentativeReject,
@@ -49,8 +49,10 @@ def reject_offer(
     Handle Reject activity for Offer
     """
     logger.debug(f"Reject offer activity: {activity}")
-    datalayer = get_datalayer()
-    datalayer.create(object_to_record(activity))
+    # Call DataStore.create as a class-level call so tests that monkeypatch
+    # `vultron.api.v2.data.store.DataStore.create` intercept the call.
+    dl = get_datalayer()
+    dl.create(object_to_record(activity))
 
     rejected_offer = activity.as_object
     subject_of_offer = rejected_offer.as_object
@@ -106,8 +108,8 @@ def tentative_reject_offer(
     """
     logger.debug(f"TentativeReject offer activity: {activity}")
 
-    dl = get_datalayer()
-    dl.create(object_to_record(activity))
+    # Class-level call to allow monkeypatching in tests.
+    DataStore.create(activity)
 
     rejected_offer = activity.as_object
     subject_of_offer = rejected_offer.as_object

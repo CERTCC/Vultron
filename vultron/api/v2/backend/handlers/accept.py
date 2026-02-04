@@ -21,6 +21,7 @@ from vultron.api.v2.backend.handlers.activity import ActivityHandler
 from vultron.api.v2.data.enums import OfferStatusEnum
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.data.status import OfferStatus, set_status, ReportStatus
+from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab.activities.case import CreateCase
 from vultron.as_vocab.base.objects.activities.transitive import (

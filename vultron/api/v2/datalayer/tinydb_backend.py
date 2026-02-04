@@ -93,10 +93,13 @@ class TinyDbDataLayer(DataLayer):
 
         tbl.insert(rec.model_dump())
 
-    def read(self, object_id: str) -> BaseModel | None:
+    def read(
+        self, object_id: str, raise_on_missing: bool = False
+    ) -> BaseModel | None:
         """
         Reads an object by id across all tables and returns the reconstituted
-        Pydantic object (as_Base subclass) or None if not found.
+        Pydantic object (as_Base subclass) or None if not found. If
+        `raise_on_missing` is True, raises a KeyError when the object is not found.
         """
         for name in self._db.tables():
             tbl = self._table(name)
@@ -109,19 +112,44 @@ class TinyDbDataLayer(DataLayer):
                 except Exception:
                     # fallback: if stored data is already the object dict, return it
                     return rec
+        if raise_on_missing:
+            raise KeyError(
+                f"Object with id '{object_id}' not found in datalayer"
+            )
         return None
 
-    def get(self, table: str, id_: str) -> dict | None:
+    def get(
+        self, table: str | None = None, id_: str | None = None
+    ) -> dict | None:
         """
-        Retrieves a record by id from the specified table.
+        Retrieves a record by id from the specified table, or if called with
+        only `id_` (keyword) will search across all tables and return a
+        reconstituted Pydantic object when possible.
 
-        Args:
-            table (str): The name of the table.
-            id_ (str): The id of the record to retrieve.
-
-        Returns:
-            dict | None: The retrieved record, or None if not found.
+        Usage:
+            get(table, id_)
+            get(id_=id_)
         """
+        # If caller passed as get(id_=...)
+        if table is None and id_ is not None:
+            # search across all tables for this id and return the rehydrated object
+            for name in self._db.tables():
+                tbl = self._table(name)
+                rec = tbl.get(self._id_query(id_))
+                if rec:
+                    try:
+                        record = Record.model_validate(rec)
+                        return record_to_object(record)
+                    except Exception:
+                        return rec
+            return None
+
+        # otherwise expect both table and id_ to be provided
+        if table is None or id_ is None:
+            raise ValueError(
+                "get requires either table and id_ or id_ as keyword"
+            )
+
         tbl = self._table(table)
         result = tbl.get(self._id_query(id_))
         return result

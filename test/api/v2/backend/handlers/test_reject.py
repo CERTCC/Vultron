@@ -50,7 +50,8 @@ def test_activity_structure_is_nested_correctly(reject):
 def test_reject_offer_calls_datalayer_create(monkeypatch, dl, vendor, reject):
     mock_create = Mock()
     monkeypatch.setattr(
-        "vultron.api.v2.data.store.DataStore.create", mock_create
+        "vultron.api.v2.datalayer.tinydb_backend.TinyDbDataLayer.create",
+        mock_create,
     )
 
     activity = reject
@@ -122,7 +123,8 @@ def test_tentative_reject_offer_calls_datalayer_create(
 ):
     mock_create = Mock()
     monkeypatch.setattr(
-        "vultron.api.v2.data.store.DataStore.create", mock_create
+        "vultron.api.v2.datalayer.tinydb_backend.TinyDbDataLayer.create",
+        mock_create,
     )
 
     activity = tentative_reject
