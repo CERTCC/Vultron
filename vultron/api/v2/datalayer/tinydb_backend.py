@@ -27,7 +27,11 @@ from tinydb.storages import MemoryStorage
 from tinydb.table import Table
 
 from vultron.api.v2.datalayer.abc import DataLayer
-from vultron.api.v2.datalayer.db_record import Record
+from vultron.api.v2.datalayer.db_record import (
+    Record,
+    object_to_record,
+    record_to_object,
+)
 
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
 
@@ -53,18 +57,29 @@ class TinyDbDataLayer(DataLayer):
         """
         return Query()["id_"] == id_
 
-    def create(self, record: Record) -> None:
+    def create(self, record: Record | BaseModel) -> None:
         """
         Inserts a record into the specified table.
 
+        Accepts either a pre-built `Record` or a Pydantic `BaseModel` which will
+        be converted to a `Record` using `object_to_record`.
+
         Args:
-            record (Record): The record to insert.
+            record (Record | BaseModel): The record or model to insert.
         Raises:
             ValueError: If a record with the same `_id` already exists.
         """
 
-        table = record.type_
-        id_ = record.id_
+        # allow callers to pass either a Record wrapper or a BaseModel
+        if isinstance(record, Record):
+            rec = record
+        elif isinstance(record, BaseModel):
+            rec = object_to_record(record)
+        else:
+            raise ValueError("record must be a Record or Pydantic BaseModel")
+
+        table = rec.type_
+        id_ = rec.id_
 
         if id_ is None:
             raise ValueError("record must include id_")
@@ -76,7 +91,25 @@ class TinyDbDataLayer(DataLayer):
                 f"record with id_={id_} already exists in {table}"
             )
 
-        tbl.insert(record.model_dump())
+        tbl.insert(rec.model_dump())
+
+    def read(self, object_id: str) -> BaseModel | None:
+        """
+        Reads an object by id across all tables and returns the reconstituted
+        Pydantic object (as_Base subclass) or None if not found.
+        """
+        for name in self._db.tables():
+            tbl = self._table(name)
+            rec = tbl.get(self._id_query(object_id))
+            if rec:
+                # rec is a dict representing Record
+                try:
+                    record = Record.model_validate(rec)
+                    return record_to_object(record)
+                except Exception:
+                    # fallback: if stored data is already the object dict, return it
+                    return rec
+        return None
 
     def get(self, table: str, id_: str) -> dict | None:
         """
@@ -110,7 +143,7 @@ class TinyDbDataLayer(DataLayer):
             bool: True if a record was updated, False if not found.
         """
         tbl = self._table(record.type_)
-        updated = tbl.update(record, self._id_query(id_))
+        updated = tbl.update(record.model_dump(), self._id_query(id_))
         return len(updated) > 0
 
     def delete(self, table: str, id_: str) -> bool:
@@ -127,18 +160,32 @@ class TinyDbDataLayer(DataLayer):
         removed = tbl.remove(self._id_query(id_))
         return len(removed) > 0
 
-    def all(self, table: str) -> list[Record]:
+    def all(
+        self, table: str | None = None
+    ) -> list[Record] | dict[str, BaseModel]:
         """
-        Retrieves all records from the specified table.
+        If `table` is provided: returns a list of `Record` objects for that table.
+        If `table` is None: returns a dict mapping object id -> reconstituted
+        Pydantic object for all objects across all tables.
+        """
+        if table is not None:
+            tbl = self._table(table)
+            records = tbl.all()
+            return [Record.model_validate(rec) for rec in records]
 
-        Args:
-            table (str): The name of the table.
-        Returns:
-            list[Record]: A list of all records in the table.
-        """
-        tbl = self._table(table)
-        records = tbl.all()
-        return [Record.model_validate(rec) for rec in records]
+        # no table provided: return a dictionary of all objects across tables
+        results: dict[str, BaseModel] = {}
+        for name in self._db.tables():
+            tbl = self._table(name)
+            for rec in tbl.all():
+                try:
+                    record = Record.model_validate(rec)
+                    obj = record_to_object(record)
+                    results[record.id_] = obj
+                except Exception:
+                    # store raw dict if validation fails
+                    results[rec.get("id_")] = rec
+        return results
 
     def count_all(self) -> dict[str, int]:
         db = self._db
@@ -146,6 +193,26 @@ class TinyDbDataLayer(DataLayer):
         for name in db.tables():
             counts[name] = len(db.table(name))
         return counts
+
+    def by_type(self, as_type: str) -> dict[str, dict]:
+        """
+        Returns a dict mapping object id -> object's data dict for all records of
+        the given type (table name).
+        """
+        if as_type not in self._db.tables():
+            return {}
+
+        tbl = self._table(as_type)
+        results: dict[str, dict] = {}
+        for rec in tbl.all():
+            try:
+                record = Record.model_validate(rec)
+                results[record.id_] = record.data_
+            except Exception:
+                # fallback: try to return stored dict directly
+                if isinstance(rec, dict) and "id_" in rec:
+                    results[rec["id_"]] = rec.get("data_") or rec
+        return results
 
     def clear_table(self, table: str) -> None:
         """
