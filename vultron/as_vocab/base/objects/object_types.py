@@ -16,6 +16,9 @@
 from datetime import datetime
 from typing import TypeAlias
 
+from pydantic import Field
+
+from vultron.as_vocab.base.enums import as_ObjectType as O_type
 from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.base import as_Object, as_ObjectRef
 from vultron.as_vocab.base.registry import activitystreams_object
@@ -25,30 +28,42 @@ from vultron.as_vocab.base.registry import activitystreams_object
 class as_Document(as_Object):
     """Base class for all ActivityPub documents. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-document>"""
 
+    as_type: O_type = Field(default=O_type.DOCUMENT, alias="type")
+
 
 @activitystreams_object
 class as_Image(as_Document):
     """Base class for all ActivityPub images. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-image>"""
+
+    as_type: O_type = Field(default=O_type.IMAGE, alias="type")
 
 
 @activitystreams_object
 class as_Video(as_Document):
     """Base class for all ActivityPub videos. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-video>"""
 
+    as_type: O_type = Field(default=O_type.VIDEO, alias="type")
+
 
 @activitystreams_object
 class as_Audio(as_Document):
     """Base class for all ActivityPub audio. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-audio>"""
+
+    as_type: O_type = Field(default=O_type.AUDIO, alias="type")
 
 
 @activitystreams_object
 class as_Page(as_Document):
     """Base class for all ActivityPub pages. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-page>"""
 
+    as_type: O_type = Field(default=O_type.PAGE, alias="type")
+
 
 @activitystreams_object
 class as_Article(as_Document):
     """Base class for all ActivityPub articles. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-article>"""
+
+    as_type: O_type = Field(default=O_type.ARTICLE, alias="type")
 
 
 # A Document can be any of its subclasses
@@ -58,6 +73,8 @@ as_DocumentRef: TypeAlias = ActivityStreamRef[as_Document]
 @activitystreams_object
 class as_Note(as_Object):
     """Base class for all ActivityPub notes. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-note>"""
+
+    as_type: O_type = Field(default=O_type.NOTE, alias="type")
 
     # notes must have content
     content: str
@@ -70,6 +87,8 @@ as_NoteRef: TypeAlias = ActivityStreamRef[as_Note]
 class as_Event(as_Object):
     """Base class for all ActivityPub events. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-event>"""
 
+    as_type: O_type = Field(default=O_type.EVENT, alias="type")
+
 
 as_EventRef: TypeAlias = ActivityStreamRef[as_Event]
 
@@ -77,6 +96,8 @@ as_EventRef: TypeAlias = ActivityStreamRef[as_Event]
 @activitystreams_object
 class as_Profile(as_Object):
     """Base class for all ActivityPub profiles. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-profile>"""
+
+    as_type: O_type = Field(default=O_type.PROFILE, alias="type")
 
     describes: as_ObjectRef | None = None
 
@@ -88,6 +109,8 @@ as_ProfileRef: TypeAlias = ActivityStreamRef[as_Profile]
 class as_Tombstone(as_Object):
     """Base class for all ActivityPub tombstones. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-tombstone>"""
 
+    as_type: O_type = Field(default=O_type.TOMBSTONE, alias="type")
+
     former_type: str | None = None
     deleted: datetime | None = None
 
@@ -98,6 +121,8 @@ as_TombstoneRef: TypeAlias = ActivityStreamRef[as_Tombstone]
 @activitystreams_object
 class as_Relationship(as_Object):
     """Base class for all ActivityPub relationships. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-relationship>"""
+
+    as_type: O_type = Field(default=O_type.RELATIONSHIP, alias="type")
 
     subject: as_ObjectRef | None = None
     object: as_ObjectRef | None = None
@@ -111,6 +136,8 @@ as_RelationshipRef: TypeAlias = ActivityStreamRef[as_Relationship]
 @activitystreams_object
 class as_Place(as_Object):
     """Base class for all ActivityPub places. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-place>"""
+
+    as_type: O_type = Field(default=O_type.PLACE, alias="type")
 
     longitude: float | None = None
     latitude: float | None = None

@@ -15,10 +15,10 @@
 
 
 from datetime import datetime
-from typing import Literal
 
 from pydantic import Field
 
+from vultron.as_vocab.base.enums import as_IntransitiveActivityType as IA_type
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.base import (
     as_Activity as Activity,
@@ -45,7 +45,7 @@ class as_Travel(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-travel>
     """
 
-    as_type: Literal["Travel"] = Field(default="Travel", alias="type")
+    as_type: IA_type = Field(default=IA_type.TRAVEL, alias="type")
 
 
 @activitystreams_activity
@@ -54,7 +54,7 @@ class as_Arrive(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-arrive>
     """
 
-    as_type: Literal["Arrive"] = Field(default="Arrive", alias="type")
+    as_type: IA_type = Field(default=IA_type.ARRIVE, alias="type")
 
 
 @activitystreams_activity
@@ -63,7 +63,7 @@ class as_Question(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-question>
     """
 
-    as_type: Literal["Question"] = Field(default="Question", alias="type")
+    as_type: IA_type = Field(default=IA_type.QUESTION, alias="type")
 
     anyOf: as_Object | as_Link | str | None = None
     oneOf: as_Object | as_Link | str | None = None

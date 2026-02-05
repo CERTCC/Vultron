@@ -28,6 +28,7 @@ from vultron.as_vocab.objects.base import VultronObject
 from vultron.as_vocab.objects.case_status import ParticipantStatus
 from vultron.bt.report_management.states import RM
 from vultron.bt.roles.states import CVDRoles as CVDRole
+from vultron.as_vocab.enums import VultronObjectType as VO_type
 
 
 @activitystreams_object
@@ -60,9 +61,7 @@ class CaseParticipant(VultronObject):
         ```
     """
 
-    as_type: Literal["CaseParticipant"] = Field(
-        default="CaseParticipant", alias="type"
-    )
+    as_type: VO_type = Field(default=VO_type.CASE_PARTICIPANT, alias="type")
 
     actor: as_Actor | as_Link | str
     name: str | None = None
