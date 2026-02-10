@@ -14,10 +14,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from enum import Enum
+from enum import StrEnum
 
 
-class EM(Enum):
+class EM(StrEnum):
     """Embargo Management States
 
     NO_EMBARGO: No embargo is in effect
