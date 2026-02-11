@@ -11,18 +11,15 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 import logging
-from typing import TypeVar, Callable, TypeAlias, Optional
+from typing import Callable, TypeAlias, Optional
 
 from pydantic import BaseModel, Field
 
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.as_vocab.base.objects.base import as_Object
+from vultron.as_vocab.type_helpers import AsActivityType, AsObjectType
 
 logger = logging.getLogger(__name__)
-
-AsActivityType = TypeVar("AsActivityType", bound=as_Activity)
-AsObjectType = TypeVar("AsObjectType", bound=as_Object)
 
 # a dict of object type to handler function
 ObjectHandlerMap: TypeAlias = dict[
@@ -38,7 +35,7 @@ HandlerRegistry: TypeAlias = dict[str, ObjectHandlerMap]
 # we actually need a two-dimensional registry: (activity type, object type) -> handler
 class ActivityHandlerRegistry(BaseModel):
     """
-    Registry for activity handlers based on activity type and object type.
+    Registry for activity _old_handlers based on activity type and object type.
     Intransitive activities can use None as the object type.
     """
 
@@ -101,17 +98,17 @@ def get_activity_handler(
     a_key = activity.as_type
 
     if a_key in ACTIVITY_HANDLER_REGISTRY.handlers:
-        logger.debug(f"Found specific handlers for activity type {a_key}")
+        logger.debug(f"Found specific _old_handlers for activity type {a_key}")
         hdlrs = ACTIVITY_HANDLER_REGISTRY.handlers[a_key]
     elif None in ACTIVITY_HANDLER_REGISTRY.handlers:
         logger.info(f"Using generic handler for {a_key}")
         hdlrs = ACTIVITY_HANDLER_REGISTRY.handlers[None]
     else:
         logger.error(
-            f"No handlers (specific or generic) for activity type {a_key}"
+            f"No _old_handlers (specific or generic) for activity type {a_key}"
         )
         raise ValueError(
-            f"No handlers (including generic) registered for activity type {a_key}"
+            f"No _old_handlers (including generic) registered for activity type {a_key}"
         )
 
     # short-circuit for intransitive activities
@@ -120,7 +117,7 @@ def get_activity_handler(
             handler = hdlrs[None]
         except KeyError:
             raise ValueError(
-                f"No handlers (including generic) registered for activity type {a_key} and intransitive object"
+                f"No _old_handlers (including generic) registered for activity type {a_key} and intransitive object"
             )
         return handler
 
@@ -138,7 +135,7 @@ def get_activity_handler(
             handler = hdlrs[None]
         except KeyError:
             raise ValueError(
-                f"No handlers (including generic) registered for activity type {a_key} and object type {o_key}"
+                f"No _old_handlers (including generic) registered for activity type {a_key} and object type {o_key}"
             )
 
     return handler

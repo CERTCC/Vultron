@@ -20,19 +20,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from vultron.api.v2.backend.handlers.accept import (
-    accept_offer_handler,
-)
-from vultron.api.v2.backend.handlers.create import (
-    rm_create_report,
-    create_case,
-)
-from vultron.api.v2.backend.handlers.offer import rm_submit_report
-from vultron.api.v2.backend.handlers.read import rm_read_report
-from vultron.api.v2.backend.handlers.reject import (
-    reject_offer,
-    tentative_reject_offer,
-)
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Create,
@@ -83,7 +70,7 @@ def dl():
     dl.clear()
 
 
-# Helper to call handlers and assert no exceptions and expected return
+# Helper to call _old_handlers and assert no exceptions and expected return
 def _call_handler(activity, handler, actor):
     try:
         result = handler(actor_id=actor.as_id, activity=activity)
@@ -115,7 +102,7 @@ def test_read_activity_handler_noop_returns_none(reporter, report):
 def test_accept_offer_triggers_validation(monkeypatch, reporter, report):
     mock_validate = Mock()
     monkeypatch.setattr(
-        "vultron.api.v2.backend.handlers.accept.rm_validate_report",
+        "vultron.api.v2.backend._old_handlers.accept.rm_validate_report",
         mock_validate,
     )
 
@@ -129,7 +116,7 @@ def test_accept_offer_triggers_validation(monkeypatch, reporter, report):
 def test_tentative_reject_triggers_invalidation(monkeypatch, reporter, report):
     mock_invalidate = Mock()
     monkeypatch.setattr(
-        "vultron.api.v2.backend.handlers.reject.rm_invalidate_report",
+        "vultron.api.v2.backend._old_handlers.reject.rm_invalidate_report",
         mock_invalidate,
     )
 
@@ -148,7 +135,8 @@ def test_create_case_handler_returns_none(coordinator, case):
 def test_reject_offer_triggers_close_report(monkeypatch, reporter, report):
     mock_rm_close = Mock()
     monkeypatch.setattr(
-        "vultron.api.v2.backend.handlers.reject.rm_close_report", mock_rm_close
+        "vultron.api.v2.backend._old_handlers.reject.rm_close_report",
+        mock_rm_close,
     )
 
     offer = as_Offer(actor=reporter, object=report)

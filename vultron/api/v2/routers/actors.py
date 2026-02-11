@@ -19,9 +19,6 @@ import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
-from vultron.api.v2.backend.handlers.registry import (
-    AsActivityType,
-)
 from vultron.api.v2.backend.inbox_handler import (
     inbox_handler,
 )
@@ -34,6 +31,7 @@ from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.collections import as_OrderedCollection
 from vultron.as_vocab.base.registry import find_in_vocabulary
+from vultron.as_vocab.type_helpers import AsActivityType
 
 logger = logging.getLogger("uvicorn.error")
 

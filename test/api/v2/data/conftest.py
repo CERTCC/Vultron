@@ -13,7 +13,7 @@
 
 import pytest
 
-from vultron.api.v2.data import utils, store, actor_io
+from vultron.api.v2.data import utils, actor_io
 
 
 @pytest.fixture(autouse=True)
@@ -27,14 +27,15 @@ def test_base_url(monkeypatch):
     return base_url
 
 
-@pytest.fixture
-def ds():
-    """
-    DataStore fixture shared by tests in this directory.
-    """
-    ds_inst = store.DataStore()
-    yield ds_inst
-    ds_inst.clear()
+# @pytest.fixture
+# def ds():
+#     """
+#     DataStore fixture shared by tests in this directory.
+#     """
+#     ds_inst = tinydb
+#     yield ds_inst
+#     ds_inst.clear()
+#
 
 
 @pytest.fixture(autouse=True)
