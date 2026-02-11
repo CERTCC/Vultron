@@ -17,5 +17,3 @@
 """
 Provides the Data Layer for Vultron API v2.
 """
-
-# from .store import get_datalayer

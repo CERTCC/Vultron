@@ -19,19 +19,54 @@ Vultron Actor Inbox Handler
 import logging
 
 from vultron.api.v2.backend import handlers  # noqa: F401
-from vultron.api.v2.backend.handlers.registry import (
-    get_activity_handler,
-)
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.data.rehydration import rehydrate
+from vultron.api.v2.errors import VultronApiValidationError
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
+from vultron.behavior_dispatcher import DispatchActivity, prepare_for_dispatch
+from vultron.behavior_dispatcher import get_dispatcher
+
 
 logger = logging.getLogger(__name__)
 
+DISPATCHER = get_dispatcher()
+logger.info("Using dispatcher: %s", type(DISPATCHER).__name__)
 
-def handle_inbox_item(actor_id: str, obj: as_Activity):
+
+def raise_if_not_valid_activity(obj: as_Activity) -> None:
+    """
+    Raises a VultronApiValidationError if the given object is not a valid Activity.
+
+    Args:
+        obj: The object to validate.
+    Returns:
+        None
+    Raises:
+        VultronApiValidationError: If the object is not a valid Activity.
+    """
+    if obj.as_type not in VOCABULARY.activities:
+        raise VultronApiValidationError(
+            f"Invalid object type {obj.as_type} in inbox item, expected an Activity."
+        )
+
+
+def dispatch(dispatchable: DispatchActivity) -> None:
+    """
+    Dispatches the given activity using the global dispatcher.
+    Args:
+        dispatchable: The DispatchActivity to dispatch.
+    Returns:
+        None
+    """
+    logger.debug(
+        f"Dispatching activity '{dispatchable.activity_id}' with semantics '{dispatchable.semantic_type}'"
+    )
+    DISPATCHER.dispatch(dispatchable)
+
+
+def handle_inbox_item(actor_id: str, obj: as_Activity) -> None:
     """
     Handle a single item in the Actor's inbox.
 
@@ -48,33 +83,14 @@ def handle_inbox_item(actor_id: str, obj: as_Activity):
     """
     logger.info(f"Processing item '{obj.name}' for actor '{actor_id}'")
 
-    logger.info(
+    logger.debug(
         f"Validated object:\n{obj.model_dump_json(indent=2,exclude_none=True)}"
     )
 
-    # we should only be receiving Activities in the inbox.
-    if obj.as_type not in VOCABULARY.activities:
-        raise ValueError(
-            f"Invalid object type {obj.as_type} in inbox for actor {actor_id}"
-        )
+    raise_if_not_valid_activity(obj)
 
-    rehydrated = rehydrate(obj=obj)
-
-    logger.debug(
-        f"Looking up handler for activity type '{rehydrated.as_type}'"
-    )
-    handler = get_activity_handler(rehydrated)
-    logger.debug(f"Handler found: {handler}")
-
-    if handler is None:
-        raise ValueError(
-            f"No handler registered for activity type '{rehydrated.as_type}'"
-        )
-
-    logger.debug(
-        f"Found handler '{handler}' for activity type '{rehydrated.as_type}'"
-    )
-    handler(actor_id, rehydrated)
+    dispatchable = prepare_for_dispatch(activity=obj)
+    dispatch(dispatchable=dispatchable)
 
 
 async def inbox_handler(actor_id: str) -> None:
@@ -113,7 +129,7 @@ async def inbox_handler(actor_id: str) -> None:
         # the only items in the inbox should be Activities with registered handlers,
         # but we'll let handle_inbox_item deal with verifying that
         try:
-            handle_inbox_item(actor_id, item)
+            handle_inbox_item(actor_id=actor_id, obj=item)
         except Exception as e:
             logger.error(
                 f"Error processing inbox item for actor {actor_id}: {e}"

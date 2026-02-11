@@ -17,18 +17,18 @@ Vultron API Routers
 
 import logging
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, status, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
 from vultron.api.v2.backend.handlers.registry import (
     AsActivityType,
-    ACTIVITY_HANDLER_REGISTRY,
 )
 from vultron.api.v2.backend.inbox_handler import (
     inbox_handler,
 )
 from vultron.api.v2.backend.outbox_handler import outbox_handler
-from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.api.v2.data.actor_io import get_actor_io
+from vultron.api.v2.datalayer.db_record import object_to_record
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.actors import as_Actor
@@ -36,7 +36,6 @@ from vultron.as_vocab.base.objects.collections import as_OrderedCollection
 from vultron.as_vocab.base.registry import find_in_vocabulary
 
 logger = logging.getLogger("uvicorn.error")
-
 
 router = APIRouter(prefix="/actors", tags=["Actors"])
 
@@ -137,12 +136,6 @@ def parse_activity(body: dict) -> AsActivityType:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Unrecognized activity type.",
-        )
-
-    if as_type not in ACTIVITY_HANDLER_REGISTRY.handlers:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"No handler registered for activity type: '{as_type}'",
         )
 
     try:

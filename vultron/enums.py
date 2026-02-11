@@ -51,6 +51,9 @@ class MessageSemantics(StrEnum):
     CREATE_PARTICIPANT_STATUS = auto()
     ADD_PARTICIPANT_STATUS_TO_PARTICIPANT = auto()
 
+    # reserved for activities that don't fit any of the above semantics, but we want to be able to dispatch on them anyway
+    UNKNOWN = auto()
+
 
 class OfferStatusEnum(StrEnum):
     """Enumeration of Offer Statuses"""

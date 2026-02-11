@@ -77,7 +77,7 @@ class as_Note(as_Object):
     as_type: O_type = Field(default=O_type.NOTE, alias="type")
 
     # notes must have content
-    content: str
+    content: str = Field(default="")
 
 
 as_NoteRef: TypeAlias = ActivityStreamRef[as_Note]
