@@ -109,7 +109,7 @@ async def inbox_handler(actor_id: str) -> None:
         logger.warning(f"Actor {actor_id} not found in inbox_handler.")
 
     logger.info(f"Processing inbox for actor {actor_id}")
-    # Simulate processing each item in the inbox
+
     err_count = 0
 
     actor_io = get_actor_io(actor_id, raise_on_missing=True)
@@ -125,9 +125,6 @@ async def inbox_handler(actor_id: str) -> None:
                 f"Item has transitive object of type: {item.as_object.as_type}"
             )
 
-        # in principle because of the POST {actor_id}/inbox method validation,
-        # the only items in the inbox should be Activities with registered handlers,
-        # but we'll let handle_inbox_item deal with verifying that
         try:
             handle_inbox_item(actor_id=actor_id, obj=item)
         except Exception as e:

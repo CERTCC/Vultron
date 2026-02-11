@@ -68,9 +68,6 @@ async def outbox_handler(actor_id: str) -> None:
     while actor.outbox.items:
         item = actor.outbox.items.pop(0)
 
-        # in principle because of the POST {actor_id}/inbox method validation,
-        # the only items in the inbox should be Activities with registered handlers,
-        # but we'll let handle_inbox_item deal with verifying that
         try:
             handle_outbox_item(actor_id, item)
         except Exception as e:

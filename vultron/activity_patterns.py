@@ -116,6 +116,7 @@ ReportSubmission = ActivityPattern(
     activity_=TAtype.OFFER,
     object_=VOtype.VULNERABILITY_REPORT,
 )
+AckReport = ActivityPattern(activity_=TAtype.READ, object_=ReportSubmission)
 ValidateReport = ActivityPattern(
     activity_=TAtype.ACCEPT, object_=ReportSubmission
 )

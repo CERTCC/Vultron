@@ -15,6 +15,7 @@ from vultron.enums import MessageSemantics
 SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
     MessageSemantics.CREATE_REPORT: ap.CreateReport,
     MessageSemantics.SUBMIT_REPORT: ap.ReportSubmission,
+    MessageSemantics.ACK_REPORT: ap.AckReport,
     MessageSemantics.VALIDATE_REPORT: ap.ValidateReport,
     MessageSemantics.INVALIDATE_REPORT: ap.InvalidateReport,
     MessageSemantics.CLOSE_REPORT: ap.CloseReport,
