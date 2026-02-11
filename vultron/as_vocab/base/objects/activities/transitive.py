@@ -16,7 +16,7 @@
 
 from pydantic import Field, model_validator
 
-from vultron.as_vocab.base.enums import as_TransitiveActivityType as TA_type
+from vultron.enums import as_TransitiveActivityType as TA_type
 from vultron.as_vocab.base.objects.activities.base import (
     as_Activity as Activity,
 )

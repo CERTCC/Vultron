@@ -19,7 +19,7 @@ from vultron.api.v2.backend.handlers.accept import (
     accept_offer_handler,
     rm_validate_report,
 )
-from vultron.api.v2.data.enums import OfferStatusEnum
+from vultron.enums import OfferStatusEnum
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Accept,

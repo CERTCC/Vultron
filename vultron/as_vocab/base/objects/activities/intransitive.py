@@ -18,7 +18,7 @@ from datetime import datetime
 
 from pydantic import Field
 
-from vultron.as_vocab.base.enums import as_IntransitiveActivityType as IA_type
+from vultron.enums import as_IntransitiveActivityType as IA_type
 from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.activities.base import (
     as_Activity as Activity,

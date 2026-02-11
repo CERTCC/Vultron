@@ -17,7 +17,7 @@ Provides TODO writeme
 
 from pydantic import BaseModel, Field
 
-from vultron.api.v2.data.enums import OfferStatusEnum
+from vultron.enums import OfferStatusEnum
 from vultron.bt.report_management.states import RM
 
 STATUS: dict[str, dict] = dict()

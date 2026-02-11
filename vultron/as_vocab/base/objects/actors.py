@@ -17,7 +17,7 @@ from typing import Any, TypeAlias
 
 from pydantic import Field, model_validator
 
-from vultron.as_vocab.base.enums import as_ActorType as A_type
+from vultron.enums import as_ActorType as A_type
 from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.objects.collections import (

@@ -21,7 +21,7 @@ from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.actors import as_ActorRef
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.registry import activitystreams_activity
-from vultron.as_vocab.base.enums import as_ObjectType as O_type
+from vultron.enums import as_ObjectType as O_type
 
 
 @activitystreams_activity

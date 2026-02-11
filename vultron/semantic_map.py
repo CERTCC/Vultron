@@ -1,64 +1,15 @@
-from enum import StrEnum, auto
 from typing import Optional, Union
 
 from pydantic import BaseModel
 
-from vultron.as_vocab.base.enums import (
+from vultron.as_vocab.base.objects.activities.base import as_Activity
+from vultron.enums import (
+    MessageSemantics,
+    VultronObjectType as VOtype,
     as_IntransitiveActivityType as IAtype,
     as_ObjectType as AOtype,
     as_TransitiveActivityType as TAtype,
 )
-from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.as_vocab.enums import VultronObjectType as VOtype
-
-
-class MessageSemantics(StrEnum):
-    """Defines high-level semantics for certain activity patterns that may be relevant for behavior dispatching."""
-
-    CREATE_REPORT = auto()
-    SUBMIT_REPORT = auto()
-    VALIDATE_REPORT = auto()
-    INVALIDATE_REPORT = auto()
-    ACK_REPORT = auto()
-    CLOSE_REPORT = auto()
-
-    CREATE_CASE = auto()
-    ADD_REPORT_TO_CASE = auto()
-
-    SUGGEST_ACTOR_TO_CASE = auto()
-    ACCEPT_SUGGEST_ACTOR_TO_CASE = auto()
-    REJECT_SUGGEST_ACTOR_TO_CASE = auto()
-    OFFER_CASE_OWNERSHIP_TRANSFER = auto()
-    ACCEPT_CASE_OWNERSHIP_TRANSFER = auto()
-    REJECT_CASE_OWNERSHIP_TRANSFER = auto()
-
-    INVITE_ACTOR_TO_CASE = auto()
-    ACCEPT_INVITE_ACTOR_TO_CASE = auto()
-    REJECT_INVITE_ACTOR_TO_CASE = auto()
-
-    CREATE_EMBARGO_EVENT = auto()
-    ADD_EMBARGO_EVENT_TO_CASE = auto()
-    REMOVE_EMBARGO_EVENT_FROM_CASE = auto()
-    ANNOUNCE_EMBARGO_EVENT_TO_CASE = auto()
-    INVITE_TO_EMBARGO_ON_CASE = auto()
-    ACCEPT_INVITE_TO_EMBARGO_ON_CASE = auto()
-    REJECT_INVITE_TO_EMBARGO_ON_CASE = auto()
-
-    CLOSE_CASE = auto()
-
-    CREATE_CASE_PARTICIPANT = auto()
-    ADD_CASE_PARTICIPANT_TO_CASE = auto()
-    REMOVE_CASE_PARTICIPANT_FROM_CASE = auto()
-
-    CREATE_NOTE = auto()
-    ADD_NOTE_TO_CASE = auto()
-    REMOVE_NOTE_FROM_CASE = auto()
-
-    CREATE_CASE_STATUS = auto()
-    ADD_CASE_STATUS_TO_CASE = auto()
-
-    CREATE_PARTICIPANT_STATUS = auto()
-    ADD_PARTICIPANT_STATUS_TO_PARTICIPANT = auto()
 
 
 class ActivityPattern(BaseModel):

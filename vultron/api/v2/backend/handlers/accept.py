@@ -18,7 +18,7 @@ import logging
 from functools import partial
 
 from vultron.api.v2.backend.handlers.activity import ActivityHandler
-from vultron.api.v2.data.enums import OfferStatusEnum
+from vultron.enums import OfferStatusEnum
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.data.status import OfferStatus, set_status, ReportStatus
 from vultron.api.v2.datalayer.db_record import object_to_record

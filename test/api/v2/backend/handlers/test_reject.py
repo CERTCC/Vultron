@@ -21,7 +21,7 @@ from vultron.api.v2.backend.handlers.reject import (
     tentative_reject_offer,
     rm_invalidate_report,
 )
-from vultron.api.v2.data.enums import OfferStatusEnum
+from vultron.enums import OfferStatusEnum
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Reject,
     as_TentativeReject,
