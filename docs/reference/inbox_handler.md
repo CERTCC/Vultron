@@ -51,7 +51,7 @@ to an appropriate handler based on the activity's semantics.
     a vulnerability report submission.
 
 We are deferring authentication, authorization, and server-to-server federation for
-future implementation. 
+future implementation.
 
 The inbox handler process consists of the following steps:
 
@@ -109,13 +109,13 @@ semantics that drive application logic.
     }
     ```
 
-Activity semantics are determined by the `type` field of the 
-activity message, along with fields such as `object`, `to`, 
-and `inReplyTo`. The dispatch function uses this information to determine 
+Activity semantics are determined by the `type` field of the
+activity message, along with fields such as `object`, `to`,
+and `inReplyTo`. The dispatch function uses this information to determine
 which handler function should process the activity.
 
 !!! example "DispatchActivity Object"
-    
+
     A `DispatchActivity` object encapsulates the routing information needed by the
     dispatch function. At the time of writing, the `DispatchActivity` object is defined as:
 
@@ -130,8 +130,8 @@ which handler function should process the activity.
 ## Dispatch Function
 
 The dispatch function uses the `semantic_type` field of the `DispatchActivity`
-to look up the appropriate handler function from a mapping of `MessageSemantics` 
-to handler functions. The handler function is then invoked with the `DispatchActivity` 
+to look up the appropriate handler function from a mapping of `MessageSemantics`
+to handler functions. The handler function is then invoked with the `DispatchActivity`
 object as an argument.
 
 !!! note "On the Modularity of Dispatchers"
@@ -154,11 +154,11 @@ object as an argument.
 Our first dispatch function implementation uses a simple direct dispatch approach
 with a dictionary mapping from `MessageSemantics` to handler functions.
 The dispatch function looks up the `semantic_type` from the `DispatchActivity`
-object in the mapping and invokes the corresponding handler function with the 
+object in the mapping and invokes the corresponding handler function with the
 `DispatchActivity` as an argument.
 
 This direct dispatch implementation is straightforward and allows us to quickly
-begin handling activities based on their semantics. 
+begin handling activities based on their semantics.
 
 ## Development Goals
 
@@ -180,10 +180,10 @@ begin handling activities based on their semantics.
 ### Phase 3: Handler Stubs
 
 - [ ] Create handler function stubs for vulnerability report submission semantics:
-    - [ ] `SUBMIT_REPORT` handler (processes `Offer` of `VulnerabilityReport`)
-    - [ ] `ACK_REPORT` handler (processes `Read` acknowledgment)
-    - [ ] `VALIDATE_REPORT` handler (processes `Accept` response)
-    - [ ] `INVALIDATE_REPORT` handler (processes `TentativeReject` response)
-    - [ ] `CLOSE_REPORT` handler (processes `Reject` response)
+  - [ ] `SUBMIT_REPORT` handler (processes `Offer` of `VulnerabilityReport`)
+  - [ ] `ACK_REPORT` handler (processes `Read` acknowledgment)
+  - [ ] `VALIDATE_REPORT` handler (processes `Accept` response)
+  - [ ] `INVALIDATE_REPORT` handler (processes `TentativeReject` response)
+  - [ ] `CLOSE_REPORT` handler (processes `Reject` response)
 - [ ] Add basic logging to each handler stub for debugging and demonstration purposes
 - [ ] Create unit tests for inbox handler pipeline from POST request through dispatch to handler invocation
