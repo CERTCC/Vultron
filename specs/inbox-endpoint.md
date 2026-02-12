@@ -20,10 +20,6 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 
 ## Request Validation (MUST)
 
-- `IE-03-001` The endpoint MUST validate Content-Type header
-  - Accept `application/activity+json`
-  - Accept `application/ld+json; profile="https://www.w3.org/ns/activitystreams"`
-  - Reject other content types with HTTP 415
 - `IE-03-002` The endpoint MUST enforce 1 MB size limit
   - Reject oversized payloads with HTTP 413
 

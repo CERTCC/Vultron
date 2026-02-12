@@ -32,30 +32,6 @@ The Vultron API v2 inbox handler system is built on several key architectural co
    - Returns HTTP 200 immediately, processes in background
    - Needs: Content-Type validation, size limits, idempotency checking
 
-## Critical Issues
-
-### Bug in `verify_semantics` Decorator
-
-**Location**: `vultron/api/v2/backend/handlers.py:53`
-
-**Problem**: The decorator function is missing a `return wrapper` statement, causing it to return `None` instead of the decorated function. This breaks all handler semantic validation.
-
-**Current Code**:
-```python
-def verify_semantics(expected: MessageSemantics):
-    def decorator(func: Callable):
-        @wraps(func)
-        def wrapper(activity: dict, *args, **kwargs):
-            # ... validation logic ...
-            return func(activity, *args, **kwargs)
-        # MISSING: return wrapper
-    return decorator
-```
-
-**Fix Required**: Add `return wrapper` as the last line of the `decorator` function.
-
-**Impact**: Without this fix, all decorated handler functions will fail silently. This blocks semantic validation testing and proper handler dispatch.
-
 ## Technical Insights
 
 ### Semantic Matching System
@@ -69,44 +45,6 @@ The semantic extraction uses a two-level matching strategy:
 
 **Edge Case**: Activities with nested objects (e.g., `Announce` with embedded `Create` activity) need special handling. The current implementation extracts the inner activity's semantics, which may not always be correct for all CVD scenarios.
 
-### Handler Implementation Strategy
-
-When implementing the 47 handler stubs, consider this dependency order:
-
-**Priority 1 - Foundation**:
-- `create_report` - Creates initial vulnerability report
-- `validate_report` - Marks report as valid (RM state transition)
-- `create_case` - Creates CVD case from validated report
-
-**Priority 2 - Core Workflow**:
-- `activate_case` - Begins active case management
-- `add_participant` / `invite_participant` - Participant management
-- `join_case` / `accept_invitation` - Participant acceptance
-
-**Priority 3 - State Management**:
-- `deploy_fix` / `propose_fix` - Fix lifecycle
-- `read_embargo` / `propose_embargo` - Embargo management
-- `close_report` / `close_case` - Termination
-
-**Priority 4 - Communication**:
-- All `REJECT`, `TENTATIVE_REJECT`, `UNDO`, and informational handlers
-
-### Integration with Case State Machines
-
-The Vultron protocol uses three interacting state machines (see ADR-0002):
-
-1. **Report Management (RM)**: `vultron/case_states/states.py`
-2. **Embargo Management (EM)**: `vultron/case_states/states.py`
-3. **Case State (CS)**: `vultron/case_states/patterns.py`
-
-**Key Consideration**: Handlers must update the appropriate state machine(s) and ensure state transitions are valid. Invalid transitions should be rejected with `TentativeReject` per spec `RF-02-001`.
-
-**Testing Challenge**: Integration tests must verify that handler actions properly transition state machines. This requires:
-- Setting up initial states
-- Calling handlers with appropriate activities
-- Verifying final states match expected transitions
-- Checking that response activities are generated correctly
-
 ### Behavior Tree Integration
 
 The Vultron protocol models processes as Behavior Trees (ADR-0002, ADR-0003):
@@ -115,7 +53,9 @@ The Vultron protocol models processes as Behavior Trees (ADR-0002, ADR-0003):
 - Factory methods (`vultron/bt/base/factory.py`) create common node types
 - Handler actions may need to trigger BT execution for complex workflows
 
-**Note**: The current inbox handler implementation doesn't directly integrate with BTs. This may be needed for complex multi-step processes like case creation workflows that involve multiple checks and state transitions.
+**Note**: The current handler stubs are not integrated with BTs. Future work will need to connect handler logic to BT nodes to manage state transitions and multi-step processes but 
+this is out of scope at this stage.
+
 
 ## Testing Strategy
 
@@ -135,28 +75,35 @@ The Vultron protocol models processes as Behavior Trees (ADR-0002, ADR-0003):
 
 ### Test Organization Recommendation
 
-**Option 1: Directory-based** (per spec `TB-04-003`):
-```
-test/
-  unit/
-    test_dispatcher.py
-    test_semantic_extraction.py
-    test_handlers.py
-  integration/
-    test_inbox_endpoint.py
-    test_full_workflow.py
-  performance/
-    test_response_time.py
-```
-
-**Option 2: Marker-based** (current approach):
+**Marker-based** (current approach):
 ```python
 @pytest.mark.unit
 @pytest.mark.integration
 @pytest.mark.performance
 ```
 
-**Recommendation**: Use directory-based organization for clearer test discovery and faster selective test execution. This aligns with the project's modular structure.
+**Directory-based** (alternative):
+```tests/
+├── unit/
+│   ├── test_behavior_dispatcher.py
+│   ├── test_semantic_activity_patterns.py
+│   └── test_semantic_handler_map.py
+├── integration/
+│   └── test_inbox_flow.py
+├── performance/
+│   └── test_semantic_extraction_latency.py
+```
+
+Pros of marker-based:
+- Flexible, can run subsets easily
+- Less boilerplate
+- Easier to maintain as test suite grows
+Cons: Requires discipline to use markers correctly
+
+Pros of directory-based:
+- Clear separation of test types
+- Easier to enforce test organization 
+Cons: More boilerplate, harder to run mixed test types  
 
 ## Dependencies and Data Flow
 
@@ -241,8 +188,6 @@ Per spec `OB-02-001` through `OB-07-001`:
 
 ## Potential Gotchas and Edge Cases
 
-1. **ActivityStreams Profiles**: Spec `IE-03-001` requires support for both `application/activity+json` and `application/ld+json` with proper profile parameters. Content-Type parsing must be robust.
-
 2. **Nested Activities**: Some activities contain other activities as objects (e.g., `Announce{Create{VulnerabilityReport}}`). Semantic extraction must handle these correctly.
 
 3. **Idempotency vs. State Changes**: An activity that's idempotent at the handler level might still cause state transitions. Need to distinguish between "duplicate submission" (return 202) and "valid retry" (process again).
@@ -254,6 +199,8 @@ Per spec `OB-02-001` through `OB-07-001`:
 6. **State Machine Validation**: Not all activity sequences are valid. Handlers must validate current state before attempting transitions. Example: Can't `close_case` if case is already closed.
 
 7. **Actor vs. Case Scope**: Some activities operate on actors (e.g., `invite_participant`), others on cases (e.g., `activate_case`). Handler implementation must maintain this distinction.
+
+**Note:** Cases are intended to be long-lived "service" Actors themselves. This means that some activities may be sent to the case Actor's inbox rather than the human actor's inbox. This is an important design consideration for handler implementation and state management.
 
 ## Questions for Future Consideration
 
