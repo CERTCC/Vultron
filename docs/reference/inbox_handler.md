@@ -1,13 +1,13 @@
 # Inbox Handler Design
 
-Vultron is designed with the ActivityPub protocol in mind. Most of the activity
-done in Vultron is between actors exchanging activity messages containing objects.
+Vultron is designed with the ActivityPub protocol in mind. Most activity
+in Vultron involves actors exchanging activity messages containing objects.
 
 !!! example "Submitting a Vulnerability Report"
 
-    For example, an actor might _create_ a `VulnerabilityReport` object, and then
-    _offer_ it to another actor, who can then *accept*, *tenatively reject*, or 
-    *reject* the offer.
+    For example, an actor might _create_ a `VulnerabilityReport` object and then
+    _offer_ it to another actor, who can then _accept_, _tentatively reject_, or 
+    _reject_ the offer.
 
 Actors in ActivityPub can be of various types, such as `Person`, `Organization`,
 `Group`, `Application`, `Service`, etc. Each actor has an _inbox_ and an _outbox_.
@@ -24,57 +24,56 @@ sends activities.
     with the `to` field set to Bob's actor ID (e.g., `https://example.com/users/bob`)
     and places it in her outbox. The ActivityPub server then delivers the activity to Bob's inbox.
     Bob can then process the activity and respond by sending an activity to his outbox,
-    with the `to` field set to Alice's actor ID. He can also set the `in-reply-to` field
+    with the `to` field set to Alice's actor ID. He can also set the `inReplyTo` field
     to reference the original activity from Alice to indicate that it is a response.
-    Again, the ActivityPub server handles the delivery of the activity to Alice's inbox, 
+    The ActivityPub server handles the delivery of the activity to Alice's inbox, 
     and the cycle continues.
 
 !!! note "Scope of Vultron's ActivityPub Implementation"
 
-    However, in our Vultron prototype, we are not attempting to implement a full
+    However, in our Vultron prototype, we are not implementing a full
     ActivityPub server. Instead, we're initially focusing on the core functionality
     of actors sending activities directly to each other's inboxes. This simplifies
     the implementation while still allowing us to demonstrate the core concepts of
     ActivityPub interactions.
 
-## Inbox Handler
+## Inbox Handler Architecture
 
-Our initial architecture is as follows: An actor has an inbox. That inbox is a
+Our initial architecture is as follows: An actor has an inbox implemented as a
 FastAPI endpoint that accepts POST requests containing activity messages. When a
-message is received, the inbox handler processes the activity and passes it
-to an appropriate handler based on the semantics of the received activity.
+message is received, the inbox handler processes the activity and routes it
+to an appropriate handler based on the activity's semantics.
 
 !!! example "Activity Handling"
 
     For example, if the activity is an `Offer` of a `VulnerabilityReport`, it would be
-    passed to the `submit_report` function, which would contain the logic for how to
-    handle the submission of a vulnerability report.
+    routed to a `submit_report` handler function, which contains the logic for processing
+    a vulnerability report submission.
 
-We are skipping authentication and authorization for now, as well as any kind of 
-federation or server-to-server communication. 
+We are deferring authentication, authorization, and server-to-server federation for
+future implementation. 
 
-Nevertheless, there are a few important steps to the inbox handler process.
+The inbox handler process consists of the following steps:
 
 1. **Receive Activity**: The inbox handler receives a POST request containing an activity message in JSON format.
-2. **Validate Activity**: The inbox handler validates the structure of the activity message to ensure it conforms to the ActivityPub specification.
-3. **Extract Semantic Routing Info**: The inbox handler extracts key fields from the activity message, such as `type`, `object`, `to`, and `in-reply-to`, to determine how to route the activity.
-   It does this by creating a `DispatchActivity` header object that contains the relevant information for routing, and appends the original activity message as the payload of the `DispatchActivity` object.
-4. **Dispatch Activity**: The inbox handler then invokes a dispatch function that takes the `DispatchActivity` object and routes it to the appropriate handler function based on the `type` of the activity and other relevant fields.
+2. **Validate Activity**: The inbox handler validates the activity message structure to ensure it conforms to the ActivityPub specification.
+3. **Extract Routing Information**: The inbox handler extracts key fields from the activity message (e.g., `type`, `object`, `to`, `inReplyTo`) to determine routing.
+   It creates a `DispatchActivity` header object containing the routing information and attaches the original activity message as the payload.
+4. **Dispatch Activity**: The inbox handler invokes a dispatch function that routes the `DispatchActivity` object to the appropriate handler function based on the activity's semantic type.
 
-### Introducing Activity Semantics
+## Activity Patterns and Semantics
 
 Routing semantics are identified by `ActivityPattern` objects, which define patterns
-for matching activity messages to a specific enumerated semantic meaning. This
-helps to decouple the raw activity message structure from the higher-level semantics
-of the Vultron protocol, thereby allowing us to transition from raw messages
-to more meaningful semantics that can be used to drive the logic of our application.
+for matching activity messages to specific enumerated semantic meanings. This
+decouples the raw activity message structure from the higher-level semantics
+of the Vultron protocol, allowing us to translate raw messages into meaningful
+semantics that drive application logic.
 
 !!! example "Defining Activity Patterns"
 
-    Extending the previous example, we might define an activity pattern for 
-    submitting a vulnerability report as an `Offer` activity with an object of 
-    type `VulnerabilityReport`. Responses to that offer would then follow patterns
-    of their own.
+    We might define an activity pattern for submitting a vulnerability report
+    as an `Offer` activity with an object of type `VulnerabilityReport`. 
+    Responses to that offer follow their own patterns:
     
     ```python
     ReportSubmission = ActivityPattern(
@@ -93,13 +92,11 @@ to more meaningful semantics that can be used to drive the logic of our applicat
     )
     ```
 
-    Where the various `*type`s are string enumerations defined elsewhere.
-
+    The various `*type`s are string enumerations defined elsewhere.
 
 !!! example "Mapping Activity Patterns to Semantics"
 
-    Next is an example of how we might define the mapping from raw activity message
-    patterns to higher-level semantics:
+    We define the mapping from raw activity message patterns to higher-level semantics:
     
     ```python
     SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
@@ -112,17 +109,15 @@ to more meaningful semantics that can be used to drive the logic of our applicat
     }
     ```
 
-As shown above, activity semantics are determined by the `type` field of the 
-activity message, as well as other fields such as `object`, `to`, 
-and `in-reply-to`. The dispatch function uses this information to determine 
+Activity semantics are determined by the `type` field of the 
+activity message, along with fields such as `object`, `to`, 
+and `inReplyTo`. The dispatch function uses this information to determine 
 which handler function should process the activity.
 
-!!! example "Dispatch Activity"
+!!! example "DispatchActivity Object"
     
-    A `DispatchActivity` object is created by the inbox handler to encapsulate the
-    relevant information for routing the activity. It contains just enough information
-    for a dispatch function to quickly route the activity to the appropriate handler.
-    At the time of writing, the `DispatchActivity` object is defined as follows:
+    A `DispatchActivity` object encapsulates the routing information needed by the
+    dispatch function. At the time of writing, the `DispatchActivity` object is defined as:
 
     ```python
     @dataclass
@@ -134,49 +129,61 @@ which handler function should process the activity.
 
 ## Dispatch Function
 
-The dispatch function then uses the `semantic_type` field of the `DispatchActivity`
-to find the appropriate handler function from a mapping of `MessageSemantics` 
+The dispatch function uses the `semantic_type` field of the `DispatchActivity`
+to look up the appropriate handler function from a mapping of `MessageSemantics` 
 to handler functions. The handler function is then invoked with the `DispatchActivity` 
-object as an argument, allowing it to process the activity according to its semantics.
+object as an argument.
 
 !!! note "On the Modularity of Dispatchers"
 
-    The dispatch function is designed as a Python `Protocol`, to allow for different
-    implementations of dispatchers. This provides flexibility in how we implement
-    the connection between the inbox handler and the specific handler functions for each
-    semantic type. A simple implementation might just use a dictionary mapping from
-    semantic types to handler functions, while a more complex implementation could involve
-    message queues or other message routing mechanisms.
+    The dispatch function is designed as a Python `Protocol` to allow for different
+    dispatcher implementations. This provides flexibility in connecting the inbox 
+    handler to specific handler functions for each semantic type. A simple 
+    implementation might use a dictionary mapping from semantic types to handler 
+    functions, while a more complex implementation could involve message queues 
+    or other routing mechanisms.
 
-    This modularity also allows us to easily extend the dispatching logic in the future,
-    by defining new `ActivityPattern`s and corresponding `MessageSemantics`, and
-    then adding new handler functions to the dispatch mapping. 
-    By decoupling the routing logic from the specific handling logic, we can maintain a
-    clean separation of concerns and facilitate future extensions to the protocol.
+    This modularity allows us to easily extend dispatching logic by defining new 
+    `ActivityPattern`s with corresponding `MessageSemantics`, then adding new 
+    handler functions to the dispatch mapping. By decoupling routing logic from 
+    handling logic, we maintain clean separation of concerns and facilitate 
+    future protocol extensions.
 
 ## Direct Dispatch Implementation
 
-Our first implementation of the dispatch function will be a simple direct dispatch
-where we have a dictionary mapping from `MessageSemantics` to handler functions.
-The dispatch function will look up the `semantic_type` from the `DispatchActivity`
-object in the mapping and invoke the corresponding handler function with the 
+Our first dispatch function implementation uses a simple direct dispatch approach
+with a dictionary mapping from `MessageSemantics` to handler functions.
+The dispatch function looks up the `semantic_type` from the `DispatchActivity`
+object in the mapping and invokes the corresponding handler function with the 
 `DispatchActivity` as an argument.
 
 This direct dispatch implementation is straightforward and allows us to quickly
-get up and running with handling activities based on their semantics. 
+begin handling activities based on their semantics. 
 
-### Initial development goals
+## Development Goals
 
-- [ ] Implement an actor-specific inbox handler as a FastAPI endpoint that receives 
-  activity messages.
-- [ ] Define `ActivityPattern`s to identify routing semantics based on activity
-  message structure.
-- [ ] Create a mapping from `MessageSemantics` to `ActivityPattern`s to determine 
-  the semantics of incoming activities.
-- [ ] Implement a `DispatchActivity` object to encapsulate routing information for 
-  dispatching activities.
-- [ ] Develop a direct dispatch function that routes activities to handler functions 
-  based on their semantics using a simple dictionary mapping.
-- [ ] Stub out handler functions for key semantics such as `SUBMIT_REPORT`, 
-  `ACK_REPORT`, `VALIDATE_REPORT`, etc., to demonstrate the routing of 
-  activities to handlers.
+### Phase 1: Core Infrastructure
+
+- [ ] Implement actor-specific inbox handler as a FastAPI POST endpoint (`/inbox`) that receives activity messages in JSON format
+- [ ] Create activity validation logic to ensure conformance with ActivityPub specification
+- [ ] Define core `ActivityPattern` class and implement pattern matching logic for routing semantics
+- [ ] Create `MessageSemantics` enumeration for Vultron protocol semantics
+- [ ] Build `SEMANTICS_ACTIVITY_PATTERNS` mapping dictionary from `MessageSemantics` to `ActivityPattern`s
+
+### Phase 2: Dispatching
+
+- [ ] Implement `DispatchActivity` dataclass to encapsulate routing information (`semantic_type`, `activity_id`, `payload`)
+- [ ] Create routing logic to extract semantic information from incoming activities and construct `DispatchActivity` objects
+- [ ] Define `Dispatcher` Protocol interface for pluggable dispatch implementations
+- [ ] Implement direct dispatch function using dictionary mapping from `MessageSemantics` to handler functions
+
+### Phase 3: Handler Stubs
+
+- [ ] Create handler function stubs for vulnerability report submission semantics:
+    - [ ] `SUBMIT_REPORT` handler (processes `Offer` of `VulnerabilityReport`)
+    - [ ] `ACK_REPORT` handler (processes `Read` acknowledgment)
+    - [ ] `VALIDATE_REPORT` handler (processes `Accept` response)
+    - [ ] `INVALIDATE_REPORT` handler (processes `TentativeReject` response)
+    - [ ] `CLOSE_REPORT` handler (processes `Reject` response)
+- [ ] Add basic logging to each handler stub for debugging and demonstration purposes
+- [ ] Create unit tests for inbox handler pipeline from POST request through dispatch to handler invocation
