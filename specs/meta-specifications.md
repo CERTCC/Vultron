@@ -9,13 +9,16 @@ They must be concise, scannable, traceable, and suitable for automated or agent-
 
 ## File Structure
 
+Files should be largely independent, each focusing on a specific topic of concern.
+Requirements should be grouped by **category** and **priority** within each file.
+Avoid extraneous maintenance overhead by avoiding boilerplate like counts or sources per requirement.
+
 ```
 # Specification Title
 
 ## Overview
 Brief scope summary.
 
-**Total**: X requirements  
 **Source**: Docs / ADRs  
 **Note**: Optional scope clarifications
 
@@ -57,9 +60,8 @@ Format:
 * One requirement per bullet
 * Single-sentence, imperative style
 * IDs required
-
 ```
-- `IMPL-001` Use Python 3.13+
+- `IMPL-01-001` Use Python 3.13+
 ```
 
 Details:
@@ -71,7 +73,7 @@ Details:
 
 ## Requirement IDs
 
-**Format**: `PREFIX-###`
+**Format**: `FILE_PREFIX-SECTION_#-###`
 
 Rules:
 
@@ -79,6 +81,13 @@ Rules:
 * Stable (do not renumber; deprecate instead)
 * Globally unique
 * Always prefixed
+* Requirement IDs should be stable and globally unique, but do not need to be sequential across files.
+* Use prefixes at the file level and at the category level within files to aid traceability, uniqueness, and
+  support future expansion without significant renumbering.
+  E.g., EH-01-001, EH-01-002, EH-02-001, etc. where EH = error handling spec file,
+  01 = category 1 (e.g., exception hierarchy), 02 = category 2 (e.g., error response format), etc.
+
+
 
 Common prefixes:
 
