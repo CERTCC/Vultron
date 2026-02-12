@@ -65,15 +65,6 @@ Observability enables operators to understand system behavior, diagnose issues, 
 - `OB-06-003` The system MUST log data access operations at DEBUG level
   - Include accessed resource, operation type
 
-## Metrics (MAY)
-
-- `OB-07-001` The system MAY expose metrics endpoint at `/metrics`
-  - Request count by endpoint
-  - Request duration percentiles
-  - Error count by type
-  - Queue depth
-  - Handler execution time
-
 ## Verification
 
 ### OB-01-001, OB-02-001 Verification
@@ -95,10 +86,6 @@ Observability enables operators to understand system behavior, diagnose issues, 
 - Integration test: State transitions logged with before/after states
 - Integration test: Authorization decisions logged
 - Integration test: Data access logged at DEBUG level
-
-### OB-07-001 Verification
-- Integration test: Metrics endpoint returns valid Prometheus format
-- Integration test: Metrics updated after requests
 
 ## Related
 
