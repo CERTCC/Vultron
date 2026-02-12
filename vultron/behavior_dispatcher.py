@@ -2,34 +2,17 @@
 Provides a behavior dispatcher for Vultron
 """
 
+import logging
 from typing import Protocol
 
-from pydantic import BaseModel
-
-from vultron.api.v2.backend.handlers import BehaviorHandler
 from vultron.api.v2.errors import VultronApiHandlerNotFoundError
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.enums import MessageSemantics
 from vultron.semantic_handler_map import SEMANTICS_HANDLERS
 from vultron.semantic_map import find_matching_semantics
-import logging
+from vultron.types import BehaviorHandler, DispatchActivity
 
 logger = logging.getLogger(__name__)
-
-
-class DispatchActivity(BaseModel):
-    """
-    Data model to represent a dispatchable activity with its associated message semantics as a header.
-    """
-
-    semantic_type: MessageSemantics
-    activity_id: str
-    payload: as_Activity
-    # We are deliberately not including case_id or report_id here because
-    # where they are located in the payload can vary depending on message semantics.
-    # Therefore it is better to leave it to downstream semantic-specific _old_handlers to
-    # extract those values for logging or other purposes rather than having to build
-    # a parallel extraction logic here in the dispatcher that may not be universally applicable.
 
 
 def prepare_for_dispatch(activity: as_Activity) -> DispatchActivity:

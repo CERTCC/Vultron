@@ -1,12 +1,10 @@
 """
-Maps Message Semantics to their appropriate _old_handlers
+Maps Message Semantics to their appropriate handlers
 """
 
-from typing import Callable
-
-from vultron.api.v2.backend.handlers import BehaviorHandler
-from vultron.enums import MessageSemantics
 from vultron.api.v2.backend import handlers as h
+from vultron.enums import MessageSemantics
+from vultron.types import BehaviorHandler
 
 
 SEMANTICS_HANDLERS: dict[MessageSemantics, BehaviorHandler] = {

@@ -23,7 +23,7 @@ The Vultron API v2 inbox handler system is built on several key architectural co
 3. **Handler System** (`vultron/api/v2/backend/handlers.py`)
    - 47 handler functions corresponding to each `MessageSemantics` value
    - All currently stubs returning None (needs implementation)
-   - Uses `verify_semantics` decorator for validation ⚠️ **CRITICAL BUG**: Missing `return wrapper` on line 53
+   - Uses `verify_semantics` decorator for validation (bug fixed 2026-02-12: added missing `return wrapper` statement)
    - Designed for idempotency per spec `HP-07-001`
 
 4. **Inbox Endpoint** (`vultron/api/v2/routers/actors.py`)
@@ -187,6 +187,10 @@ Per spec `OB-02-001` through `OB-07-001`:
 **Recommendation**: Implement required observability features first. Add metrics endpoint when monitoring strategy is defined.
 
 ## Potential Gotchas and Edge Cases
+
+1. **Decorator Implementation**: The `verify_semantics` decorator initially had a missing `return wrapper` statement (fixed 2026-02-12), which caused all decorated handlers to be `None` instead of callable. This is a common Python decorator gotcha - always ensure decorators return their wrapper function. Added unit test in `test/api/v2/backend/test_handlers.py` to prevent regression.
+
+2. **Circular Import Resolution**: Fixed circular import between `vultron/behavior_dispatcher.py` and `vultron/api/v2/backend/handlers.py` (fixed 2026-02-12). Created `vultron/types.py` to hold shared type definitions (`DispatchActivity` and `BehaviorHandler`), breaking the dependency cycle. All imports updated accordingly.
 
 2. **Nested Activities**: Some activities contain other activities as objects (e.g., `Announce{Create{VulnerabilityReport}}`). Semantic extraction must handle these correctly.
 

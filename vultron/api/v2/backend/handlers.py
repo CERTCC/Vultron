@@ -2,28 +2,18 @@
 Provides handler functions for specific activities in the Vultron API v2 backend.
 """
 
+import logging
 from functools import wraps
-from typing import Protocol
 
 from vultron.api.v2.errors import (
     VultronApiHandlerMissingSemanticError,
     VultronApiHandlerSemanticMismatchError,
 )
-from vultron.behavior_dispatcher import DispatchActivity
-import logging
-
 from vultron.enums import MessageSemantics
 from vultron.semantic_map import find_matching_semantics
+from vultron.types import DispatchActivity
 
 logger = logging.getLogger(__name__)
-
-
-class BehaviorHandler(Protocol):
-    """
-    Protocol for behavior handler functions.
-    """
-
-    def __call__(self, dispatchable: DispatchActivity) -> None: ...
 
 
 def verify_semantics(expected_semantic_type: MessageSemantics):
@@ -51,6 +41,10 @@ def verify_semantics(expected_semantic_type: MessageSemantics):
                 )
 
             return func(dispatchable)
+
+        return wrapper
+
+    return decorator
 
 
 @verify_semantics(MessageSemantics.CREATE_REPORT)

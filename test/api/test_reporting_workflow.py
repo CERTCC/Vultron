@@ -20,8 +20,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from test.test_behavior_dispatcher import MessageSemantics
-from vultron.api.v2.backend.handlers import BehaviorHandler
 from vultron.api.v2.backend import handlers as h
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab.base.objects.activities.transitive import (
@@ -36,8 +34,9 @@ from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.as_vocab.type_helpers import AsActivityType
-from vultron.behavior_dispatcher import DispatchActivity
+from vultron.enums import MessageSemantics
 from vultron.semantic_map import find_matching_semantics
+from vultron.types import BehaviorHandler, DispatchActivity
 
 
 # Fixtures
