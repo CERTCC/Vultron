@@ -40,8 +40,8 @@ sends activities.
 ## Inbox Handler Architecture
 
 Our initial architecture is as follows: An actor has an inbox implemented as a
-FastAPI endpoint that accepts POST requests containing activity messages. When a
-message is received, the inbox handler processes the activity and routes it
+FastAPI endpoint that accepts POST requests containing activity messages.
+When a message is received, the inbox handler processes the activity and routes it
 to an appropriate handler based on the activity's semantics.
 
 !!! example "Activity Handling"
@@ -50,16 +50,31 @@ to an appropriate handler based on the activity's semantics.
     routed to a `submit_report` handler function, which contains the logic for processing
     a vulnerability report submission.
 
+
+### Out of scope
+
 We are deferring authentication, authorization, and server-to-server federation for
-future implementation.
+future implementation. 
+
+This design also does not describe what happens inside each handler function; that is
+left to the specific handler implementations to come later.
+The focus of this design is on the inbox handler and dispatching logic that routes
+activities to the appropriate handler functions.
+
+### Inbox Handler Process
 
 The inbox handler process consists of the following steps:
 
-1. **Receive Activity**: The inbox handler receives a POST request containing an activity message in JSON format.
-2. **Validate Activity**: The inbox handler validates the activity message structure to ensure it conforms to the ActivityPub specification.
-3. **Extract Routing Information**: The inbox handler extracts key fields from the activity message (e.g., `type`, `object`, `to`, `inReplyTo`) to determine routing.
+1. **Receive Activity**: The inbox endpoint receives a POST request containing an activity message in JSON format.
+2. **Validate Activity**: The inbox endpoint validates the activity message structure to ensure it conforms to the ActivityPub specification.
+3. **Log Activity**: The inbox endpoint logs the received activity message for debugging and auditing purposes.
+4. **Queue Activity**: (only if **Validate Activity** succeeds) The inbox endpoint places the activity message into an asynchronous processing call to the inbox handler function, allowing the endpoint to respond immediately while the activity is processed in the background.
+5. **Acknowledge Receipt**: The inbox endpoint responds to the POST request with a 200 OK status to acknowledge receipt of the activity message. If the validation failed, it can respond with an appropriate error status (e.g., 400 Bad Request) and log the error.
+6. **Extract Routing Information**: The inbox handler extracts key fields from the activity message (e.g., `type`, `object`, `to`, `inReplyTo`) to determine routing.
    It creates a `DispatchActivity` header object containing the routing information and attaches the original activity message as the payload.
-4. **Dispatch Activity**: The inbox handler invokes a dispatch function that routes the `DispatchActivity` object to the appropriate handler function based on the activity's semantic type.
+7. **Dispatch Activity**: The inbox handler invokes a dispatch function that routes the `DispatchActivity` object to the appropriate handler function based on the activity's semantic type.
+
+
 
 ## Activity Patterns and Semantics
 
@@ -134,6 +149,22 @@ to look up the appropriate handler function from a mapping of `MessageSemantics`
 to handler functions. The handler function is then invoked with the `DispatchActivity`
 object as an argument.
 
+!!! example 
+
+  The following is an example of the `ActivityDispatcher` Protocol that defines 
+  the interface for dispatching activities:
+
+  ```python
+  class ActivityDispatcher(Protocol):
+      """
+      Protocol for dispatching activities to their corresponding handlers based on message semantics.
+      """
+  
+      def dispatch(self, dispatchable: DispatchActivity) -> None:
+          """Dispatches an activity to the appropriate handler based on its semantic type."""
+          ...
+  ```
+
 !!! note "On the Modularity of Dispatchers"
 
     The dispatch function is designed as a Python `Protocol` to allow for different
@@ -149,6 +180,7 @@ object as an argument.
     handling logic, we maintain clean separation of concerns and facilitate 
     future protocol extensions.
 
+
 ## Direct Dispatch Implementation
 
 Our first dispatch function implementation uses a simple direct dispatch approach
@@ -159,6 +191,49 @@ object in the mapping and invokes the corresponding handler function with the
 
 This direct dispatch implementation is straightforward and allows us to quickly
 begin handling activities based on their semantics.
+
+!!! question "Into the Unknown?"
+
+  What happens if an activity is received that does not match any known `ActivityPattern`?
+  In this case, the semantic match function can return a special 
+  `MessageSemantics.UNKNOWN` value, which the dispatch function can handle by 
+  logging an error or ignoring the activity. This allows us to gracefully handle
+  unexpected or malformed activities without crashing the system. In fact, if we
+  implement this early, we will be able to detect and log any activities that 
+  don't match our defined patterns, which will be useful to identify any issues
+  with our pattern definitions, omitted patterns, or unexpected activity messages
+  during testing and development.
+
+
+## Handler Functions
+
+Handler functions contain the logic for processing specific types of activities
+based on their semantics. Each handler function is responsible for implementing the
+application logic for a particular semantic type, such as processing a vulnerability
+report submission, acknowledging receipt of a report, validating a report, etc.
+
+!!! example "Defining Handler Functions"
+
+    Following is an example of how handler functions can be defined for each 
+    semantic type. Each handler function takes a `DispatchActivity` object as
+    an argument and contains the logic for processing that specific type of
+    activity.
+  
+    ```python
+    class BehaviorHandler(Protocol):
+        """
+        Protocol for behavior handler functions.
+        """
+    
+        def __call__(self, dispatchable: DispatchActivity) -> None: ...
+    ```
+    So a potential handler function for the `SUBMIT_REPORT` semantic type might look like this:
+    
+    ```python
+    def handle_submit_report(dispatchable: DispatchActivity) -> None:
+        # logic for processing a vulnerability report submission goes here
+        ...
+    ```
 
 ## Development Goals
 
