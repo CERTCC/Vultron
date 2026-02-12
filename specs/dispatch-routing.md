@@ -1,44 +1,60 @@
 # Dispatch Routing Specification
 
-## Context
+## Overview
 
-After semantic extraction, the dispatcher routes DispatchActivity objects to appropriate handler functions. The dispatcher may execute handlers synchronously (DirectActivityDispatcher) or asynchronously (queue-based). Handler selection uses the SEMANTIC_HANDLER_MAP registry.
+After semantic extraction, the dispatcher routes DispatchActivity objects to appropriate handler functions. The dispatcher may execute handlers synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
 
-## Requirements
+**Total**: 7 requirements  
+**Source**: Design documents, handler protocol requirements
 
-### DR-1: Handler Lookup
-The system MUST look up handler functions by semantic type using `SEMANTIC_HANDLER_MAP`.
+---
 
-### DR-2: Direct Dispatch Execution
-The DirectActivityDispatcher MUST execute handlers synchronously and capture exceptions.
+## Dispatcher Protocol (MUST)
 
-### DR-3: Async Dispatch Execution
-An async dispatcher (future implementation) MUST queue activities and process in FIFO order.
+- `DR-001` All dispatcher implementations MUST implement ActivityDispatcher protocol
+- `DR-002` Dispatchers MUST pass complete DispatchActivity objects when invoking handlers
+- `DR-003` Dispatchers MUST invoke `verify_semantics` decorator checks during handler execution
 
-### DR-4: Handler Registry Completeness
-SEMANTIC_HANDLER_MAP MUST contain entries for all MessageSemantics values.
+## Handler Lookup (MUST)
 
-### DR-5: Dispatcher Protocol
-All dispatcher implementations MUST implement ActivityDispatcher protocol.
+- `DR-004` The system MUST look up handler functions by semantic type using `SEMANTIC_HANDLER_MAP`
+- `DR-005` SEMANTIC_HANDLER_MAP MUST contain entries for all MessageSemantics values
 
-### DR-6: Error Propagation
-Dispatchers MUST catch and log handler exceptions appropriately.
+## Direct Dispatch Implementation (MUST)
 
-### DR-7: Handler Invocation Contract
-When invoking handlers, dispatchers MUST pass complete DispatchActivity and invoke `verify_semantics` decorator checks.
+- `DR-006` The DirectActivityDispatcher MUST execute handlers synchronously
+- `DR-007` The DirectActivityDispatcher MUST catch and log handler exceptions
+
+## Async Dispatch Implementation (SHOULD)
+
+- `DR-008` An async dispatcher SHOULD queue activities for processing
+- `DR-009` An async dispatcher SHOULD process activities in FIFO order
 
 ## Verification
 
-See individual requirement verifications in full specification document.
+### DR-001, DR-002, DR-003 Verification
+- Unit test: Verify DirectActivityDispatcher implements ActivityDispatcher protocol
+- Unit test: Verify dispatcher passes complete DispatchActivity to handlers
+- Unit test: Verify decorator validation occurs during dispatch
+
+### DR-004, DR-005 Verification
+- Unit test: Verify dispatcher uses SEMANTIC_HANDLER_MAP for lookups
+- Unit test: Verify all MessageSemantics enum values have handler entries
+- Unit test: Verify KeyError raised for missing semantic types
+
+### DR-006, DR-007 Verification
+- Unit test: Verify DirectActivityDispatcher executes handlers synchronously
+- Unit test: Verify exceptions from handlers are caught and logged
+- Integration test: Verify error logging contains exception details
+
+### DR-008, DR-009 Verification
+- Integration test: Verify async dispatcher queues multiple activities
+- Integration test: Verify activities processed in submission order
 
 ## Related
 
-- Implementation: `vultron/behavior_dispatcher.py`
-- Implementation: `vultron/semantic_handler_map.py`
-- Implementation: `vultron/api/v2/backend/handlers.py`
-- Tests: `test/test_behavior_dispatcher.py`
-- Tests: `test/test_semantic_handler_map.py`
+- Implementation: `vultron/api/v2/backend/behavior_dispatcher.py`
+- Implementation: `vultron/api/v2/backend/semantic_handler_map.py`
+- Tests: `test/api/v2/backend/test_dispatch_routing.py`
 - Related Spec: [semantic-extraction.md](semantic-extraction.md)
 - Related Spec: [handler-protocol.md](handler-protocol.md)
-- Related Spec: [queue-management.md](queue-management.md)
-

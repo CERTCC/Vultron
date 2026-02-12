@@ -1,35 +1,110 @@
 # Observability Specification
 
-## Context
+## Overview
 
-Observability enables operators to understand system behavior, diagnose issues, and monitor health. The Vultron inbox handler must provide logging, metrics, tracing, and monitoring capabilities.
+Observability enables operators to understand system behavior, diagnose issues, and monitor health. The Vultron inbox handler provides logging, health checks, and audit capabilities.
 
-## Requirements
+**Total**: 8 requirements  
+**Source**: Operational requirements, monitoring best practices
 
-### OB-1: Structured Logging - Use JSON format with standard and context fields
-### OB-2: Log Levels - Use DEBUG, INFO, WARNING, ERROR, CRITICAL appropriately
-### OB-3: Activity Lifecycle Logging - Log received, validated, queued, handler invoked, state transitions, completion
-### OB-4: Performance Metrics - Expose request rate, latency (p50, p95, p99), handler execution time, queue depth
-### OB-5: Business Metrics - Expose active cases, reports by state, embargoes by state, activities by type
-### OB-6: Health Checks - Provide /health/live and /health/ready endpoints
-### OB-7: Distributed Tracing - Generate trace ID, propagate through async processing
-### OB-8: Alerting - Define rules for error rate, DLQ depth, latency, connection failures
-### OB-9: Audit Trail - Log all state transitions, authorization decisions, data access
-### OB-10: Metrics Export - Export in Prometheus, StatsD, or OpenTelemetry format
-### OB-11: Debug Endpoints - Provide debug endpoints for non-production
-### OB-12: Log Retention and Rotation - Rotate logs, compress archives, retain per policy
+**Note**: Metrics and distributed tracing are deferred to future implementation.
+
+---
+
+## Log Levels (MUST)
+
+- `OB-001` The system MUST use appropriate log levels
+  - DEBUG: Detailed diagnostic information for development
+  - INFO: General informational messages about system operation
+  - WARNING: Recoverable errors or unexpected conditions
+  - ERROR: Unrecoverable errors requiring attention
+  - CRITICAL: System-level failures requiring immediate action
+
+## Activity Lifecycle Logging (MUST)
+
+- `OB-002` The system MUST log activity lifecycle events at INFO level
+  - Activity received
+  - Activity validated
+  - Activity queued for processing
+  - Handler invoked
+  - State transitions
+  - Processing completed
+
+## Log Format (MUST)
+
+- `OB-003` Log entries MUST include structured information
+  - Timestamp (ISO 8601 format)
+  - Log level
+  - Component/module name
+  - Activity ID (when available)
+  - Actor ID (when available)
+  - Message
+
+## Log Correlation (SHOULD)
+
+- `OB-004` Log entries for a single activity SHOULD share common correlation ID
+  - Use activity ID as correlation key
+  - Include in all log entries related to the activity
+
+## Health Checks (MUST)
+
+- `OB-005` The system MUST provide liveness endpoint at `/health/live`
+  - Return HTTP 200 if process is running
+  - Return HTTP 503 if process is unhealthy
+- `OB-006` The system MUST provide readiness endpoint at `/health/ready`
+  - Return HTTP 200 if ready to accept requests
+  - Return HTTP 503 if dependencies unavailable
+
+## Audit Trail (MUST)
+
+- `OB-007` The system MUST log all state transitions at INFO level
+  - Include before and after states
+  - Include triggering activity
+  - Include timestamp
+- `OB-008` The system MUST log authorization decisions at INFO level
+  - Include actor, action, resource, decision
+- `OB-009` The system MUST log data access operations at DEBUG level
+  - Include accessed resource, operation type
+
+## Metrics (MAY)
+
+- `OB-010` The system MAY expose metrics endpoint at `/metrics`
+  - Request count by endpoint
+  - Request duration percentiles
+  - Error count by type
+  - Queue depth
+  - Handler execution time
 
 ## Verification
 
-See full specification for detailed verification criteria.
+### OB-001, OB-002 Verification
+- Integration test: Verify log entries at each lifecycle stage
+- Integration test: Verify appropriate log levels used
+- Code review: No print statements or console logging
+
+### OB-003, OB-004 Verification
+- Unit test: Log entries contain required fields
+- Integration test: All logs for an activity share activity_id
+- Integration test: Logs parseable as JSON or structured format
+
+### OB-005, OB-006 Verification
+- Integration test: GET /health/live returns 200
+- Integration test: GET /health/ready returns 200 when ready
+- Integration test: GET /health/ready returns 503 when not ready
+
+### OB-007, OB-008, OB-009 Verification
+- Integration test: State transitions logged with before/after states
+- Integration test: Authorization decisions logged
+- Integration test: Data access logged at DEBUG level
+
+### OB-010 Verification
+- Integration test: Metrics endpoint returns valid Prometheus format
+- Integration test: Metrics updated after requests
 
 ## Related
 
-- Implementation: `vultron/api/v2/backend/handlers.py`
-- Implementation: `vultron/api/v2/routers/actors.py`
-- Implementation: (Future) `vultron/observability/` module
-- Tests: (Future) `test/observability/`
+- Implementation: `vultron/api/v2/routers/health.py`
+- Implementation: Python logging configuration
+- Tests: `test/api/v2/routers/test_health.py`
 - Related Spec: [error-handling.md](error-handling.md)
-- Related Spec: [inbox-endpoint.md](inbox-endpoint.md)
 - Related Spec: [testability.md](testability.md)
-

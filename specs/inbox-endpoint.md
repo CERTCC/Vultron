@@ -1,34 +1,117 @@
 # Inbox Endpoint Specification
 
-## Context
+## Overview
 
 The inbox endpoint is the primary entry point for actor-to-actor communication in Vultron. It receives ActivityStreams activities via HTTP POST, validates them, and queues them for asynchronous processing.
 
-## Requirements
+**Total**: 10 requirements  
+**Source**: ActivityPub specification, API design requirements
 
-### IE-1: Endpoint URL Pattern - POST /actors/{actor_id}/inbox/
-### IE-2: Request Validation - Accept POST only, validate Content-Type and size
-### IE-3: Activity Validation - Use Pydantic models, return HTTP 422 on failure
-### IE-4: Synchronous Response - Return HTTP 202 within 100ms
-### IE-5: Asynchronous Processing - Queue activities for background processing
-### IE-6: Error Responses - Return appropriate HTTP status codes (400, 404, 405, 413, 415, 422, 429, 500)
-### IE-7: Response Format - JSON with status, activity_id, message
-### IE-8: Logging - Log all requests at INFO level, errors at ERROR level
-### IE-9: Idempotency - Detect duplicate activity IDs
-### IE-10: Authentication and Authorization - Support HTTP Signature (future)
-### IE-11: Rate Limiting - Limit requests per actor per time window
+---
+
+## Implementation Framework (MUST)
+
+- `IE-001` The inbox endpoint MUST be implemented using FastAPI
+
+## Endpoint Configuration (MUST)
+
+- `IE-002` The endpoint URL pattern MUST be `POST /actors/{actor_id}/inbox/`
+- `IE-003` The endpoint MUST accept POST requests only
+- `IE-004` The endpoint MUST reject non-POST requests with HTTP 405
+
+## Request Validation (MUST)
+
+- `IE-005` The endpoint MUST validate Content-Type header
+  - Accept `application/activity+json`
+  - Accept `application/ld+json; profile="https://www.w3.org/ns/activitystreams"`
+  - Reject other content types with HTTP 415
+- `IE-006` The endpoint MUST enforce 1 MB size limit
+  - Reject oversized payloads with HTTP 413
+
+## Activity Validation (MUST)
+
+- `IE-007` The endpoint MUST validate activities using Pydantic models
+- `IE-008` The endpoint MUST return HTTP 422 for validation failures
+  - Include detailed validation errors in response
+
+## Response Timing (MUST)
+
+- `IE-009` The endpoint MUST return HTTP 202 within 100ms
+- `IE-010` The endpoint MUST NOT block on handler execution
+
+## Asynchronous Processing (MUST)
+
+- `IE-011` The endpoint MUST queue activities for background processing
+- `IE-012` The endpoint MUST use FastAPI BackgroundTasks for async processing
+
+## Error Responses (MUST)
+
+- `IE-013` The endpoint MUST return appropriate HTTP status codes
+  - 202: Accepted
+  - 400: Bad request
+  - 404: Actor not found
+  - 405: Method not allowed
+  - 413: Payload too large
+  - 415: Unsupported media type
+  - 422: Validation error
+  - 429: Rate limit exceeded
+  - 500: Internal server error
+
+## Response Format (MUST)
+
+- `IE-014` Response body MUST be JSON with fields: `status`, `activity_id`, `message`
+
+## Logging (MUST)
+
+- `IE-015` The endpoint MUST log all requests at INFO level
+- `IE-016` The endpoint MUST log errors at ERROR level
+  - Include activity ID, actor ID, error details
+
+## Idempotency (SHOULD)
+
+- `IE-017` The endpoint SHOULD detect duplicate activity IDs
+- `IE-018` The endpoint SHOULD return HTTP 202 for duplicates without reprocessing
 
 ## Verification
 
-See full specification for detailed verification criteria.
+### IE-001, IE-002, IE-003, IE-004 Verification
+- Integration test: POST to correct endpoint → HTTP 202
+- Integration test: GET to endpoint → HTTP 405
+- Integration test: Invalid actor_id → HTTP 404
+
+### IE-005, IE-006 Verification
+- Integration test: Valid Content-Type → HTTP 202
+- Integration test: Invalid Content-Type → HTTP 415
+- Integration test: 1.1 MB payload → HTTP 413
+
+### IE-007, IE-008 Verification
+- Integration test: Valid activity → HTTP 202
+- Integration test: Invalid activity → HTTP 422 with error details
+
+### IE-009, IE-010 Verification
+- Performance test: Response time < 100ms for valid request
+- Integration test: Verify response returned before handler completes
+
+### IE-011, IE-012 Verification
+- Integration test: Verify activity queued to BackgroundTasks
+- Integration test: Verify handler executes after response sent
+
+### IE-013, IE-014 Verification
+- Integration test: Each error condition → correct HTTP status
+- Integration test: Response body contains required fields
+
+### IE-015, IE-016 Verification
+- Integration test: Verify INFO log entry for successful request
+- Integration test: Verify ERROR log entry for failures
+
+### IE-017, IE-018 Verification
+- Integration test: Submit same activity twice → both return 202
+- Integration test: Verify second submission not processed
 
 ## Related
 
 - Implementation: `vultron/api/v2/routers/actors.py`
-- Implementation: `vultron/api/v2/backend/inbox_handler.py`
 - Tests: `test/api/v2/routers/test_actors.py`
-- Tests: `test/api/v2/backend/test_inbox_handler.py`
 - Related Spec: [message-validation.md](message-validation.md)
-- Related Spec: [queue-management.md](queue-management.md)
-- Standard: ActivityPub specification
-
+- Related Spec: [error-handling.md](error-handling.md)
+- Related Spec: [observability.md](observability.md)
