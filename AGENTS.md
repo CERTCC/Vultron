@@ -29,10 +29,11 @@ Note: Small implementation tweaks (non-architectural) do not require an ADR; arc
 ## Technology Stack (Authoritative)
 - Python **3.12+** (project `pyproject.toml` specifies `requires-python = ">=3.12"`); CI currently runs tests on Python 3.13
 - **FastAPI** for HTTP APIs
+  - Route functions that trigger long-running events should use BackgroundTasks for async processing
+  - Other internal components can be sync by default, but async is allowed where it makes sense (e.g., external API calls, I/O-bound operations)
 - **Pydantic v2** for models and validation (project pins a specific Pydantic version)
 - **pytest** for testing
 - **mkdocs** with **Material** theme for documentation
-- Async-first design where applicable
 - **streamlit** for UI prototyping (if needed)
 
 ### Development support tools (approved):
@@ -58,35 +59,314 @@ When an agent proposes a non-trivial architectural change (new persistence parad
 
 ---
 
+# Agent Guidance for Vultron Implementation
+
+This document provides guidance to AI agents working on the Vultron codebase. It supplements the Copilot instructions with implementation-specific advice.
+
+**Last Updated:** 2026-02-12
+
+## Vultron-Specific Architecture
+
+### Semantic Message Processing Pipeline
+
+Vultron processes inbound ActivityStreams activities through a three-stage pipeline:
+
+1. **Inbox Endpoint** (`vultron/api/v2/routers/actors.py`): FastAPI POST endpoint accepting activities
+2. **Semantic Extraction** (`vultron/semantic_map.py`): Pattern matching on (Activity Type, Object Type) to determine MessageSemantics
+3. **Behavior Dispatch** (`vultron/behavior_dispatcher.py`): Routes to semantic-specific handler functions
+
+**Key constraint:** Semantic extraction uses **ordered pattern matching**. When adding patterns to `SEMANTICS_ACTIVITY_PATTERNS`, place more specific patterns before general ones.
+
+See `specs/dispatch-routing.md`, `specs/semantic-extraction.md`, and ADR-0007 for complete architecture details.
+
+### Handler Protocol (MANDATORY)
+
+All handler functions MUST:
+- Accept single `DispatchActivity` parameter
+- Use `@verify_semantics(MessageSemantics.X)` decorator
+- Be registered in `SEMANTIC_HANDLER_MAP` 
+- Access activity data via `dispatchable.payload`
+- Use Pydantic models for type-safe access
+- Follow idempotency best practices
+
+Example:
+```python
+@verify_semantics(MessageSemantics.CREATE_REPORT)
+def create_report(dispatchable: DispatchActivity) -> None:
+    payload = dispatchable.payload
+    # Access validated activity data from payload
+    # Implement business logic
+    # Log state transitions
+```
+
+Reference: `specs/handler-protocol.md` for complete requirements and verification criteria.
+
+### Registry Pattern
+
+The system uses two key registries that MUST stay synchronized:
+- `SEMANTIC_HANDLER_MAP` (in `vultron/semantic_handler_map.py`): Maps MessageSemantics → handler functions
+- `SEMANTICS_ACTIVITY_PATTERNS` (in `vultron/semantic_map.py`): Maps MessageSemantics → ActivityPattern objects
+
+When adding new message types:
+1. Add enum value to `MessageSemantics` in `vultron/enums.py`
+2. Define ActivityPattern in `vultron/activity_patterns.py`
+3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in correct order (specific before general)
+4. Implement handler in `vultron/api/v2/backend/handlers.py`
+5. Register handler in `SEMANTIC_HANDLER_MAP`
+6. Add tests verifying pattern matching and handler invocation
+
+### Layer Separation (MUST)
+
+- **Routers** (`vultron/api/v2/routers/`): FastAPI endpoints only; delegate immediately to backend
+- **Backend** (`vultron/api/v2/backend/`): Business logic; no direct HTTP concerns
+- **Data Layer** (`vultron/api/v2/datalayer/`): Persistence abstraction; use Protocol interface
+
+Never bypass layer boundaries. Routers should never directly access data layer; always go through backend.
+
+### Protocol-Based Design (SHOULD)
+
+Use Protocol classes (not ABC) for defining interfaces:
+- `ActivityDispatcher`: Dispatcher implementations
+- `BehaviorHandler`: Handler function signature
+- `DataLayer`: Persistence operations
+
+This allows duck typing and flexible testing without inheritance requirements.
+
+### Background Processing (MUST)
+
+Inbox handlers MUST:
+- Return HTTP 202 within 100ms (per `specs/inbox-endpoint.md`)
+- Queue activities via FastAPI BackgroundTasks
+- Never block endpoint on handler execution
+
+Example:
+```python
+@router.post("/{actor_id}/inbox")
+async def inbox(actor_id: str, activity: dict, background_tasks: BackgroundTasks):
+    background_tasks.add_task(inbox_handler, actor_id, activity)
+    return Response(status_code=202)
+```
+
+### Error Hierarchy (MUST)
+
+All custom exceptions:
+- Inherit from `VultronError` (in `vultron/errors.py`)
+- Submodule-specific errors in submodule `errors.py` (e.g., `vultron/api/v2/errors.py`)
+- Include contextual information (activity_id, actor_id, message)
+
+HTTP error responses use structured format:
+```json
+{
+    "status": 400,
+    "error": "ValidationError",
+    "message": "Activity missing required field: object",
+    "activity_id": "urn:uuid:..."
+}
+```
+
+See `specs/error-handling.md` for complete error hierarchy and response format.
+
+---
+
 ## Coding Rules (Non-Negotiable)
+
+### Naming Conventions
+- **ActivityStreams types**: Use `as_` prefix (e.g., `as_Activity`, `as_Actor`, `as_type`)
+- **Vulnerability**: Abbreviated as `vul` (not `vuln`)
+- **Handler functions**: Named after semantic action (e.g., `create_report`, `accept_invite_actor_to_case`)
+- **Pattern objects**: Descriptive CamelCase (e.g., `CreateReport`, `AcceptInviteToEmbargoOnCase`)
+
+### Validation and Type Safety
 - Prefer explicit types over inference
-- Use `pydantic.BaseModel` (v2 style) for structured data
-- Do not bypass validation for convenience
+- Use `pydantic.BaseModel` (v2 style) for all structured data
+- Never bypass validation for convenience
+- Use Protocol for interface definitions
 - Avoid global mutable state
+
+### Decorator Usage
+- Handler functions MUST use `@verify_semantics(MessageSemantics.X)`
+- Decorator verifies semantic type matches actual activity structure
+- Raises `VultronApiHandlerSemanticMismatchError` on mismatch
+
+### Code Organization
 - Prefer small, composable functions
 - Raise domain-specific exceptions; do not swallow errors
+- Keep formatting and linting aligned with tooling; do not reformat unnecessarily
 
-Formatting and linting are enforced by tooling; do not reformat unnecessarily.
+### Logging Requirements
+- Use appropriate levels: 
+  - **DEBUG**: Diagnostic details (payload contents, detailed flow)
+  - **INFO**: Lifecycle events (activity received, state transitions)
+  - **WARNING**: Recoverable issues (missing optional fields)
+  - **ERROR**: Unrecoverable failures (validation errors, handler exceptions)
+  - **CRITICAL**: System-level failures
+- Include `activity_id` and `actor_id` in log entries when available
+- Log state transitions at INFO level
+- Log errors at ERROR level with full context
+
+See `specs/observability.md` for complete logging and monitoring requirements.
+
+---
+
+## Specification-Driven Development
+
+This project uses formal specifications in `specs/` directory defining testable requirements.
+
+### Working with Specifications
+- Each spec file defines requirements with unique IDs (e.g., `HP-01-001`)
+- Requirements use RFC 2119 keywords in section headers (MUST, SHOULD, MAY)
+- Each requirement has verification criteria
+- Implementation changes SHOULD reference relevant requirement IDs
+
+### Key Specifications
+- `specs/meta-specifications.md`: How to read and write specs
+- `specs/handler-protocol.md`: Handler function requirements
+- `specs/semantic-extraction.md`: Pattern matching rules
+- `specs/dispatch-routing.md`: Dispatcher requirements
+- `specs/inbox-endpoint.md`: Endpoint behavior
+- `specs/message-validation.md`: Validation requirements
+- `specs/error-handling.md`: Error hierarchy and responses
+- `specs/response-format.md`: Response activity generation
+- `specs/observability.md`: Logging and monitoring
+- `specs/testability.md`: Testing requirements
+
+When implementing features, consult relevant specs for complete requirements and verification criteria.
+
+### Test Coverage Requirements
+- **80%+ line coverage overall** (per `specs/testability.md`)
+- **100% coverage for critical paths**: message validation, semantic extraction, dispatch routing, error handling
+- Test structure mirrors source structure
+- Tests named `test_*.py` in parallel directories
+
+---
+
+## Current Implementation Status
+
+### ✅ Completed Infrastructure
+- Semantic extraction and pattern matching
+- Behavior dispatcher with Protocol-based design
+- Handler protocol with `@verify_semantics` decorator
+- Error hierarchy (`VultronError` → `VultronApiError` → specific errors)
+- TinyDB data layer implementation
+- Inbox endpoint with BackgroundTasks
+- All 47 `MessageSemantics` enum values defined
+- Registry infrastructure (`SEMANTIC_HANDLER_MAP`, `SEMANTICS_ACTIVITY_PATTERNS`)
+
+### ⚠️ Stub Implementations Requiring Business Logic
+Handler functions in `vultron/api/v2/backend/handlers.py` are currently stubs that:
+- Log at DEBUG level
+- Return None
+- Do not persist state or generate responses
+
+When implementing handler business logic:
+1. Extract relevant data from `dispatchable.payload`
+2. Validate business rules
+3. Persist state changes via data layer
+4. Generate response activities (when `specs/response-format.md` is implemented)
+5. Log state transitions at INFO level
+6. Handle errors gracefully with appropriate exceptions
+
+### 🔨 Future Work
+- Response activity generation (`specs/response-format.md`)
+- Outbox processing implementation
+- Health endpoint implementation (`specs/observability.md`)
+- Duplicate detection/idempotency (`specs/inbox-endpoint.md` IE-10-001)
+- Async dispatcher implementation
+- Integration tests for full message flows
+- Behavior tree integration (per ADR-0002, ADR-0007)
+
+### Note on _old_handlers Directory
+The `vultron/api/v2/backend/_old_handlers/` directory contains an earlier implementation approach
+that is being migrated to the current handler protocol. Do not add new code to this directory.
 
 ---
 
 ## Testing Expectations
+
+### Test Organization (MUST)
+- Test structure mirrors source: `test/api/v2/backend/` mirrors `vultron/api/v2/backend/`
+- Test files named `test_*.py`
+- Fixtures in `conftest.py` at appropriate directory levels
+- Use pytest markers to distinguish unit vs integration tests
+
+### Coverage Requirements (MUST)
+Per `specs/testability.md`:
+- 80%+ line coverage overall
+- 100% coverage for critical paths:
+  - Message validation
+  - Semantic extraction  
+  - Dispatch routing
+  - Error handling
+
+### Testing Patterns (SHOULD)
+- Use `monkeypatch` fixture for dependency injection
+- Mock external dependencies in unit tests
+- Use real TinyDB backend with test data in integration tests
+- Verify logs using `caplog` fixture
+- Test both success and error paths
 - New behavior MUST include tests
 - Tests SHOULD validate observable behavior, not implementation details
 - Avoid brittle mocks when real components are cheap to instantiate
 - One test per workflow is preferred over fragmented stateful tests
 
+### Handler Testing (MUST)
+When implementing handler business logic, tests MUST verify:
+- Correct semantic type validation via decorator
+- Payload access via `dispatchable.payload`
+- State transitions persisted correctly
+- Response activities generated (when implemented)
+- Error conditions handled appropriately
+- Idempotency (same input → same result)
+
+See `specs/handler-protocol.md` verification section for complete requirements.
+
 If a change touches the datalayer, include repository-level tests that verify behavior across backends (in-memory / tinydb) where reasonable.
 
 ---
 
+## Quick Reference
+
+### Adding a New Message Type
+1. Add `MessageSemantics` enum value in `vultron/enums.py`
+2. Define `ActivityPattern` in `vultron/activity_patterns.py`
+3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in `vultron/semantic_map.py` (order matters!)
+4. Implement handler function in `vultron/api/v2/backend/handlers.py`:
+   - Use `@verify_semantics(MessageSemantics.NEW_TYPE)` decorator
+   - Accept `dispatchable: DispatchActivity` parameter
+   - Access data via `dispatchable.payload`
+5. Register in `SEMANTIC_HANDLER_MAP` in `vultron/semantic_handler_map.py`
+6. Add tests:
+   - Pattern matching in `test/test_semantic_activity_patterns.py`
+   - Handler registration in `test/test_semantic_handler_map.py`
+   - Handler behavior in `test/api/v2/backend/test_handlers.py`
+
+### Key Files Map
+- **Enums**: `vultron/enums.py` - All enum types including MessageSemantics
+- **Patterns**: `vultron/activity_patterns.py` - Pattern definitions
+- **Pattern Map**: `vultron/semantic_map.py` - Semantics → Pattern mapping
+- **Handlers**: `vultron/api/v2/backend/handlers.py` - Handler implementations
+- **Handler Map**: `vultron/semantic_handler_map.py` - Semantics → Handler mapping
+- **Dispatcher**: `vultron/behavior_dispatcher.py` - Dispatch logic
+- **Inbox**: `vultron/api/v2/routers/actors.py` - Endpoint implementation
+- **Errors**: `vultron/errors.py`, `vultron/api/v2/errors.py` - Exception hierarchy
+- **Data Layer**: `vultron/api/v2/datalayer/abc.py` - Persistence abstraction
+- **TinyDB Backend**: `vultron/api/v2/datalayer/tinydb.py` - TinyDB implementation
+
+### Specification Quick Links
+See `specs/` directory for detailed requirements with testable verification criteria.
+
+---
+
 ## Change Protocol
+
 When making non-trivial changes, agents SHOULD:
 1. Briefly state assumptions
-2. Describe the intended change
-3. Apply the minimal diff required
-4. Update or add tests
-5. Call out risks or follow-ups
+2. Consult relevant specifications in `specs/` for requirements
+3. Review Current Implementation Status above for context
+4. Describe the intended change
+5. Apply the minimal diff required
+6. Update or add tests per Testing Expectations
+7. Call out risks or follow-ups
 
 Do not produce speculative or exploratory code unless requested. For proposed architectural changes, draft an ADR (use `docs/adr/_adr-template.md`) and link to relevant tests and design notes.
 
@@ -111,6 +391,13 @@ If instructions are ambiguous:
 - Choose correctness over convenience
 - Choose explicitness over brevity
 - Ask for clarification rather than assuming intent
+
+---
+
+## Parallelism and Single-Agent Testing
+
+- Agents may use parallel subagents for complex tasks, but the testing step must only
+  ever use a single agent instance to ensure consistency.
 
 ---
 
