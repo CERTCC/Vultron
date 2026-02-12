@@ -43,11 +43,11 @@ def test_get_dispatcher_returns_local_dispatcher():
 
 def test_local_dispatcher_dispatch_logs_payload(caplog):
     """
-    LocalDispatcher.dispatch should log an info message about dispatching and a debug
+    DirectActivityDispatcher.dispatch should log an info message about dispatching and a debug
     message containing the activity dump (ensure the activity id appears in the debug output).
     """
     caplog.set_level(logging.DEBUG)
-    dispatcher = bd.LocalDispatcher()
+    dispatcher = bd.DirectActivityDispatcher()
 
     # construct a real as_Activity instance (no full validation)
     activity = as_Create(as_id="act-xyz", actor="actor-1", object="obj-1")

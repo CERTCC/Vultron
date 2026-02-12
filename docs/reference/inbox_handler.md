@@ -239,26 +239,26 @@ report submission, acknowledging receipt of a report, validating a report, etc.
 
 ### Phase 1: Core Infrastructure
 
-- [ ] Implement actor-specific inbox handler as a FastAPI POST endpoint (`/inbox`) that receives activity messages in JSON format
-- [ ] Create activity validation logic to ensure conformance with ActivityPub specification
-- [ ] Define core `ActivityPattern` class and implement pattern matching logic for routing semantics
-- [ ] Create `MessageSemantics` enumeration for Vultron protocol semantics
-- [ ] Build `SEMANTICS_ACTIVITY_PATTERNS` mapping dictionary from `MessageSemantics` to `ActivityPattern`s
+- [x] Implement actor-specific inbox handler as a FastAPI POST endpoint (`/inbox`) that receives activity messages in JSON format (`vultron.api.v2.routers.actors.post_actor_inbox`)
+- [x] Create activity validation logic to ensure conformance with ActivityPub specification (`vultron.api.v2.routers.actors.parse_activity`)
+- [x] Define core `ActivityPattern` class and implement pattern matching logic for routing semantics (`vultron.activity_patterns.ActivityPattern`)
+- [x] Create `MessageSemantics` enumeration for Vultron protocol semantics (`vultron.enums.MessageSemantics`)
+- [x] Build `SEMANTICS_ACTIVITY_PATTERNS` mapping dictionary from `MessageSemantics` to `ActivityPattern`s (`vultron.semantic_map.SEMANTICS_ACTIVITY_PATTERNS`)
 
 ### Phase 2: Dispatching
 
-- [ ] Implement `DispatchActivity` dataclass to encapsulate routing information (`semantic_type`, `activity_id`, `payload`)
-- [ ] Create routing logic to extract semantic information from incoming activities and construct `DispatchActivity` objects
-- [ ] Define `Dispatcher` Protocol interface for pluggable dispatch implementations
-- [ ] Implement direct dispatch function using dictionary mapping from `MessageSemantics` to handler functions
+- [x] Implement `DispatchActivity` dataclass to encapsulate routing information (`semantic_type`, `activity_id`, `payload`) (`vultron.behavior_dispatcher.DispatchActivity`)
+- [x] Create routing logic to extract semantic information from incoming activities and construct `DispatchActivity` objects (`vultron.behavior_dispatcher.prepare_dispatch_activity`)
+- [x] Define `ActivityDispatcher` Protocol interface for pluggable dispatch implementations (`vultron.behavior_dispatcher.ActivityDispatcher`)
+- [x] Implement direct dispatch function using dictionary mapping from `MessageSemantics` to handler functions (`vultron.behavior_dispatcher.DirectActivityDispatcher`)
 
 ### Phase 3: Handler Stubs
 
-- [ ] Create handler function stubs for vulnerability report submission semantics:
-  - [ ] `SUBMIT_REPORT` handler (processes `Offer` of `VulnerabilityReport`)
-  - [ ] `ACK_REPORT` handler (processes `Read` acknowledgment)
-  - [ ] `VALIDATE_REPORT` handler (processes `Accept` response)
-  - [ ] `INVALIDATE_REPORT` handler (processes `TentativeReject` response)
-  - [ ] `CLOSE_REPORT` handler (processes `Reject` response)
-- [ ] Add basic logging to each handler stub for debugging and demonstration purposes
+- [x] Create handler function stubs for vulnerability report submission semantics: (`vultron.api.v2.backend.handlers`)
+  - [x] `SUBMIT_REPORT` handler (processes `Offer` of `VulnerabilityReport`)
+  - [x] `ACK_REPORT` handler (processes `Read` acknowledgment)
+  - [x] `VALIDATE_REPORT` handler (processes `Accept` response)
+  - [x] `INVALIDATE_REPORT` handler (processes `TentativeReject` response)
+  - [x] `CLOSE_REPORT` handler (processes `Reject` response)
+- [x] Add basic logging to each handler stub for debugging and demonstration purposes (`vultron.api.v2.backend.handlers`)
 - [ ] Create unit tests for inbox handler pipeline from POST request through dispatch to handler invocation
