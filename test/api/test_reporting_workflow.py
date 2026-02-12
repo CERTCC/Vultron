@@ -20,6 +20,9 @@ from unittest.mock import Mock
 
 import pytest
 
+from test.test_behavior_dispatcher import MessageSemantics
+from vultron.api.v2.backend.handlers import BehaviorHandler
+from vultron.api.v2.backend import handlers as h
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab.base.objects.activities.transitive import (
     as_Create,
@@ -32,6 +35,9 @@ from vultron.as_vocab.base.objects.activities.transitive import (
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.as_vocab.type_helpers import AsActivityType
+from vultron.behavior_dispatcher import DispatchActivity
+from vultron.semantic_map import find_matching_semantics
 
 
 # Fixtures
@@ -70,24 +76,38 @@ def dl():
     dl.clear()
 
 
-# Helper to call _old_handlers and assert no exceptions and expected return
-def _call_handler(activity, handler, actor):
+def _call_handler(
+    activity: AsActivityType, handler: BehaviorHandler, actor=None
+):
+
+    semantics = find_matching_semantics(activity)
+
+    assert semantics != MessageSemantics.UNKNOWN
+    assert semantics in MessageSemantics
+
+    dispatchable = DispatchActivity(
+        semantic_type=semantics, activity_id=activity.as_id, payload=activity
+    )
+
     try:
-        result = handler(actor_id=actor.as_id, activity=activity)
+        result = handler(dispatchable=dispatchable)
     except Exception as e:
         pytest.fail(f"Handler raised an exception: {e}")
     assert result is None
 
 
+# TODO shouldn't we be testing the dispatcher routing to the right handler?
+
+
 # Tests
 def test_create_report_handler_returns_none(reporter, report):
     activity = as_Create(actor=reporter, object=report)
-    _call_handler(activity, rm_create_report, reporter)
+    _call_handler(activity, h.create_report)
 
 
 def test_submit_report_persists_activity_and_report(reporter, report, dl):
     activity = as_Offer(actor=reporter, object=report)
-    _call_handler(activity, rm_submit_report, reporter)
+    _call_handler(activity, h.submit_report)
 
     # check side effects
     assert activity.as_id in dl
@@ -95,22 +115,16 @@ def test_submit_report_persists_activity_and_report(reporter, report, dl):
 
 
 def test_read_activity_handler_noop_returns_none(reporter, report):
-    activity = as_Read(actor=reporter, object=report)
-    _call_handler(activity, rm_read_report, reporter)  # No read handler yet
-
-
-def test_accept_offer_triggers_validation(monkeypatch, reporter, report):
-    mock_validate = Mock()
-    monkeypatch.setattr(
-        "vultron.api.v2.backend._old_handlers.accept.rm_validate_report",
-        mock_validate,
+    activity = as_Read(
+        actor=reporter, object=as_Offer(actor=reporter, object=report)
     )
+    _call_handler(activity, h.ack_report)  # No read handler yet
 
+
+def test_accept_offer(reporter, report):
     offer = as_Offer(actor=reporter, object=report)
     activity = as_Accept(actor=reporter, object=offer)
-    _call_handler(activity, accept_offer_handler, reporter)
-
-    mock_validate.assert_called_once_with(activity)
+    _call_handler(activity, h.validate_report)
 
 
 def test_tentative_reject_triggers_invalidation(monkeypatch, reporter, report):
