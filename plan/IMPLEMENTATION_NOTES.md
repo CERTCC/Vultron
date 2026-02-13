@@ -1,3 +1,175 @@
+## Gap Analysis Summary (2026-02-13 Evening)
+
+### Current Implementation State
+
+**What Works Well** ✅:
+1. **Core Architecture**: Semantic extraction, dispatch routing, handler protocol fully implemented
+2. **Handler Framework**: All 36 handlers registered with @verify_semantics decorator
+3. **Data Layer**: TinyDB backend with Protocol abstraction complete
+4. **Phase 0 Handlers**: 6 report handlers fully implemented (create, submit, validate, invalidate, ack, close)
+5. **Rehydration System**: Properly handles nested objects and full URI lookups
+6. **Status Tracking**: OfferStatus and ReportStatus working
+7. **Actor Resolution**: Short IDs resolve to full URIs
+8. **Test Infrastructure**: 367 tests collected, 68 test files
+
+**Critical Gaps** ⚠️:
+1. **Request Validation** (Phase 1.1):
+   - No Content-Type validation (HP-01-001/002/003)
+   - No 1MB payload size limit (HP-02-001)
+   - No URI validation (MV-05-001)
+   - Impact: Non-conforming requests accepted without validation
+
+2. **Standardized Error Responses** (Phase 1.2):
+   - Error hierarchy exists but no custom exception handler
+   - No JSON error response format (EH-05-001)
+   - No context attributes (activity_id, actor_id) on exceptions
+   - Impact: Inconsistent error responses, poor debugging experience
+
+3. **Health Check Endpoints** (Phase 1.3):
+   - No `/health/live` endpoint (OB-05-001)
+   - No `/health/ready` endpoint (OB-05-002)
+   - Impact: Cannot monitor system health or readiness
+
+4. **Structured Logging** (Phase 2.1):
+   - Basic logging exists but not structured (OB-03-001)
+   - No correlation IDs (OB-04-001)
+   - Inconsistent log levels
+   - Impact: Difficult to debug, no request tracing
+
+5. **Idempotency** (Phase 2.2):
+   - No duplicate detection (IE-10-001)
+   - Activities can be processed multiple times
+   - Impact: Non-idempotent behavior, potential data corruption
+
+6. **Test Coverage Enforcement** (Phase 3.1):
+   - No pytest-cov configuration (TB-02-001)
+   - No coverage thresholds enforced
+   - Unknown current coverage percentage
+   - Impact: Cannot verify specification compliance
+
+**Handler Business Logic Status**:
+- ✅ 6 handlers complete: create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
+- ⏸️ 30 handlers stub-only: All case, embargo, actor, and metadata handlers
+- Status: Phase 4 (deferred until infrastructure complete)
+
+**Specification Compliance**:
+- ✅ semantic-extraction.md: Complete
+- ✅ dispatch-routing.md: Complete  
+- ⚠️ handler-protocol.md: Protocol complete, 30 handlers need business logic
+- ⚠️ inbox-endpoint.md: Endpoint works, validation incomplete
+- ⚠️ message-validation.md: Basic validation, missing checks
+- ⚠️ error-handling.md: Hierarchy exists, responses not standardized
+- ⚠️ observability.md: Basic logging, not structured
+- ⚠️ testability.md: Tests exist, coverage unknown
+- ❌ response-format.md: Not implemented (Phase 5)
+- ✅ code-style.md: Black formatting applied
+
+### Recommended Next Steps (Priority Order)
+
+**Immediate Priority** (Phase 1 - Infrastructure):
+1. Request validation middleware (1-2 days)
+   - Content-Type validation
+   - Payload size limits
+   - URI validation
+2. Standardized error responses (1-2 days)
+   - Custom exception handler
+   - JSON error format
+   - Context attributes
+3. Health check endpoints (0.5 days)
+   - Liveness probe
+   - Readiness probe
+
+**Short Term** (Phase 2-3 - Observability & Testing):
+1. Structured logging (2-3 days)
+   - JSON log format
+   - Correlation IDs
+   - Consistent levels
+2. Idempotency (1-2 days)
+   - Duplicate detection
+   - Activity ID tracking
+3. Test coverage enforcement (0.5 days)
+   - pytest-cov config
+   - Coverage thresholds
+4. Integration test suite (3-4 days)
+   - End-to-end flows
+   - Error scenarios
+   - Async behavior
+
+**Medium Term** (Phase 4 - Handler Business Logic):
+- Implement remaining 30 handler stubs
+- Estimated: 10-15 days for all handlers
+- Can be done incrementally after Phases 1-3
+
+**Long Term** (Phase 5+ - Advanced Features):
+- Response generation system (5-7 days)
+- Outbox delivery mechanism
+- Performance optimization
+
+### Blockers & Dependencies
+
+**No Critical Blockers**: All dependencies resolved, can proceed with Phase 1
+
+**Dependencies**:
+- Phase 2 depends on Phase 1 (need error responses for logging)
+- Phase 3 depends on Phases 1-2 (need complete system to test)
+- Phase 4 can proceed independently after Phase 1 (handlers need validation)
+- Phase 5 depends on Phase 4 (response generation needs handler outcomes)
+
+### Test Coverage Analysis
+
+**Current Status**:
+- Total tests: 367 collected
+- Test files: 68 files
+- Handler tests: Present for Phase 0 handlers (9/9 passing)
+- Integration tests: Minimal (mostly unit tests)
+- Coverage: Unknown (no pytest-cov configured)
+
+**Gaps**:
+- No coverage enforcement (TB-02-001)
+- No integration tests for validation flows (TB-03-002)
+- No async processing tests (TB-03-003)
+- Test data uses proper domain objects (good per TB-05-004)
+
+**Target**:
+- 80%+ overall line coverage (TB-02-001)
+- 100% coverage on critical paths: validation, semantic extraction, dispatch, error handling (TB-02-002)
+
+### Code Quality Assessment
+
+**Strengths**:
+- ✅ Clear separation of concerns (routers, backend, data layer)
+- ✅ Protocol-based interfaces (dispatcher, data layer)
+- ✅ Pydantic models for validation
+- ✅ Type hints throughout
+- ✅ Decorator pattern for semantic verification
+- ✅ Factory pattern for activity creation
+
+**Improvement Areas**:
+- ⚠️ Inconsistent error handling (some handlers return None, others might raise)
+- ⚠️ No docstrings on many functions
+- ⚠️ Some TODOs/FIXMEs in codebase (20+ occurrences)
+- ⚠️ Old handler code still present in `_old_handlers/` (should archive or remove)
+
+### Specification Verification Matrix
+
+| Spec Requirement | Status | Files | Tests | Notes |
+|-----------------|--------|-------|-------|-------|
+| SE-01-001 (Pattern matching) | ✅ | semantic_map.py | test_semantic_activity_patterns.py | Working |
+| DR-01-001 (Dispatcher protocol) | ✅ | behavior_dispatcher.py | test_behavior_dispatcher.py | Working |
+| HP-01-001 (Handler signature) | ✅ | handlers.py | test_handlers.py | 36 handlers comply |
+| HP-02-001 (Semantic verification) | ✅ | handlers.py | test_handlers.py | Decorator works |
+| IE-03-001 (Content-Type validation) | ❌ | - | - | **Not implemented** |
+| IE-05-001 (202 within 100ms) | ✅ | actors.py | - | Background tasks used |
+| MV-05-001 (URI validation) | ❌ | - | - | **Not implemented** |
+| EH-05-001 (Error response format) | ❌ | - | - | **Not implemented** |
+| OB-03-001 (Structured logging) | ❌ | - | - | **Not implemented** |
+| OB-05-001 (Health endpoints) | ❌ | - | - | **Not implemented** |
+| TB-02-001 (80% coverage) | ❌ | - | - | **Not measured** |
+
+**Legend**: ✅ Complete | ⚠️ Partial | ❌ Not Started
+
+---
+
 ## Recent Changes (2026-02-13 Late Evening Session 3)
 
 ### Rehydration ID Lookup Fix
