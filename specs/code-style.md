@@ -32,6 +32,20 @@ Defines code formatting and import organization standards for Python code.
 - `CS-03-004` In test modules, avoid multiple imports from the module under test; consider importing the module and using attribute access for clarity.
   - Shorthand aliases are acceptable in test modules where the context is clear (e.g., `import my_module as mm` in `test_my_module.py`)
 
+## Circular Import Prevention (MUST)
+
+- `CS-05-001` Core modules SHALL NOT import from application layer modules
+  - Core modules: `behavior_dispatcher.py`, `semantic_map.py`, `semantic_handler_map.py`, `activity_patterns.py`
+  - Application layer: `api/v2/*`
+- `CS-05-002` When unavoidable dependencies exist, use lazy initialization patterns
+  - Import inside functions rather than at module level
+  - Use caching to avoid repeated initialization overhead
+- `CS-05-003` Shared types and errors SHALL be placed in neutral modules
+  - Example: `types.py` for shared type definitions, `dispatcher_errors.py` for dispatcher errors
+- `CS-05-004` Before adding imports between modules, trace the import chain to prevent cycles
+
+**Verification**: Run `python -c "import vultron.MODULE_NAME"` to detect circular imports early
+
 ## Import Practices (MAY)
 
 - `CS-04-001` Relative imports MAY be used for local application imports when appropriate

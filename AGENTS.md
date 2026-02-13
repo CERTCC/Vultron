@@ -52,6 +52,10 @@ Agents MUST NOT introduce alternative frameworks or package managers without exp
 - Persistence access MUST be abstracted behind repository or data-layer interfaces
 - Pydantic models are the canonical schema for data exchange
 - Side effects (I/O, persistence, network) MUST be isolated from pure logic
+- **Core modules MUST NOT import from application layer modules** (see `specs/code-style.md` CS-05-001)
+  - Core: `behavior_dispatcher.py`, `semantic_map.py`, `semantic_handler_map.py`, `activity_patterns.py`
+  - Application layer: `api/v2/*`
+  - Use lazy imports or shared neutral modules (e.g., `types.py`, `dispatcher_errors.py`) when dependencies exist
 
 Avoid tight coupling between layers.
 
@@ -63,7 +67,7 @@ When an agent proposes a non-trivial architectural change (new persistence parad
 
 This document provides guidance to AI agents working on the Vultron codebase. It supplements the Copilot instructions with implementation-specific advice.
 
-**Last Updated:** 2026-02-12
+**Last Updated:** 2026-02-13
 
 ## Vultron-Specific Architecture
 
@@ -152,6 +156,7 @@ async def inbox(actor_id: str, activity: dict, background_tasks: BackgroundTasks
 All custom exceptions:
 - Inherit from `VultronError` (in `vultron/errors.py`)
 - Submodule-specific errors in submodule `errors.py` (e.g., `vultron/api/v2/errors.py`)
+- **Core dispatcher errors** in `vultron/dispatcher_errors.py` (not `api.v2.errors`) to avoid circular imports
 - Include contextual information (activity_id, actor_id, message)
 
 HTTP error responses use structured format:
@@ -308,6 +313,10 @@ Per `specs/testability.md`:
 - Tests SHOULD validate observable behavior, not implementation details
 - Avoid brittle mocks when real components are cheap to instantiate
 - One test per workflow is preferred over fragmented stateful tests
+- **Use proper domain objects** (e.g., `VulnerabilityReport`, not string IDs) in test data
+- **Match semantic types to activity structure** (don't use `UNKNOWN` unless testing unknown handling)
+
+See `specs/testability.md` TB-05-004 and TB-05-005 for test data requirements.
 
 ### Handler Testing (MUST)
 When implementing handler business logic, tests MUST verify:
@@ -391,6 +400,68 @@ If instructions are ambiguous:
 - Choose correctness over convenience
 - Choose explicitness over brevity
 - Ask for clarification rather than assuming intent
+
+---
+
+## Common Pitfalls (Lessons Learned)
+
+### Circular Imports
+**Symptom**: `ImportError: cannot import name 'X' from partially initialized module`
+
+**Causes**:
+- Core module importing from `api.v2.*` triggers full app initialization
+- Module-level registry initialization that imports handlers
+- Deep import chains through `__init__.py` files
+
+**Solutions**:
+1. Move shared code to neutral modules (`types.py`, `dispatcher_errors.py`)
+2. Use lazy imports (import inside functions, not at module level)
+3. Add caching to avoid repeated initialization overhead
+4. **Before adding imports, trace the chain**: `python -c "import vultron.MODULE"`
+
+See `specs/code-style.md` CS-05-* for requirements.
+
+### Pattern Matching with ActivityStreams
+**Symptom**: `AttributeError: 'str' object has no attribute 'as_type'`
+
+**Cause**: ActivityStreams allows both inline objects and URI string references
+
+**Primary Solution**: Use rehydration before pattern matching:
+```python
+from vultron.api.v2.data.rehydration import rehydrate
+
+# Rehydrate converts string URIs to full objects from data layer
+activity = rehydrate(activity)
+# Now semantic extraction can safely match on object types
+semantic = find_matching_semantics(activity)
+```
+
+**Defensive Fallback**: Pattern matching should handle strings gracefully:
+```python
+if isinstance(field, str):
+    return True  # Can't type-check URI references
+return pattern == getattr(field, "as_type", None)
+```
+
+**Architecture**: The `inbox_handler.py` rehydrates activities before dispatching, so handlers receive fully expanded objects.
+
+See `specs/semantic-extraction.md` SE-01-002 and `vultron/api/v2/data/rehydration.py` for details.
+
+### Test Data Quality
+**Anti-pattern**:
+```python
+activity = as_Create(actor="alice", object="report-1")  # Bad: strings
+dispatchable = DispatchActivity(semantic_type=MessageSemantics.UNKNOWN, ...)  # Bad: wrong semantic
+```
+
+**Best practice**:
+```python
+report = VulnerabilityReport(name="TEST-001", content="...")  # Good: proper object
+activity = as_Create(actor="https://example.org/alice", object=report)  # Good: full structure
+dispatchable = DispatchActivity(semantic_type=MessageSemantics.CREATE_REPORT, ...)  # Good: matches structure
+```
+
+See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
 
 ---
 

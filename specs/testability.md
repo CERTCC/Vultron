@@ -41,6 +41,13 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 - `TB-05-001` The system MUST provide reusable test fixtures
 - `TB-05-002` Test data MUST be generated via factories, not hardcoded
 - `TB-05-003` Test fixtures MUST be defined in `conftest.py` files
+- `TB-05-004` Tests MUST use proper domain objects, not simplified mock data
+  - Use `VulnerabilityReport`, `VulnerabilityCase` objects instead of strings
+  - Use full ActivityStreams object structures with proper types
+  - Ensures validation and pattern matching are tested realistically
+- `TB-05-005` Test semantic types MUST match the activity structure being tested
+  - Don't use `MessageSemantics.UNKNOWN` unless testing unknown activity handling
+  - Handler decorators verify semantic type matches, so tests must be accurate
 
 ## Test Isolation (MUST)
 

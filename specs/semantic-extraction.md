@@ -13,6 +13,11 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 - `SE-01-001` The system MUST match activities using activity type and object type patterns
   - Support nested object type matching (e.g., Accept of Offer of VulnerabilityReport)
   - Evaluate patterns in order of specificity (most specific first)
+- `SE-01-002` Activities SHOULD be rehydrated before semantic extraction
+  - Use `rehydrate()` from `vultron/api/v2/data/rehydration.py` to expand URI references to full objects
+  - Rehydration converts string URIs to their corresponding objects from the data layer
+  - Pattern matching code MUST handle both inline objects and URI strings defensively as fallback
+  - Use: `isinstance(field, str)` check or `getattr(field, "as_type", None)` for safe attribute access
 
 ## Semantic Type Assignment (MUST)
 
@@ -38,10 +43,12 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 
 ## Verification
 
-### SE-01-001, SE-02-001, SE-02-002 Verification
+### SE-01-001, SE-01-002, SE-02-001, SE-02-002 Verification
 - Unit test: Simple pattern (Create VulnerabilityCase) → MessageSemantics.CREATE_CASE
 - Unit test: Nested pattern (Accept Offer VulnerabilityReport) → MessageSemantics.VALIDATE_REPORT
 - Unit test: Most specific pattern matches first (multiple possible matches)
+- Integration test: Verify rehydration occurs before semantic extraction in inbox handler flow
+- Unit test: Pattern matching handles string URIs defensively when rehydration incomplete
 
 ### SE-03-001, SE-03-002 Verification
 - Unit test: Verify all MessageSemantics values except UNKNOWN have pattern
@@ -59,11 +66,13 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 
 ## Related
 
-- Implementation: `vultron/api/v2/backend/semantic_map.py`
-- Implementation: `vultron/api/v2/backend/activity_patterns.py`
-- Implementation: `vultron/api/v2/backend/behavior_dispatcher.py`
+- Implementation: `vultron/semantic_map.py`
+- Implementation: `vultron/activity_patterns.py`
+- Implementation: `vultron/behavior_dispatcher.py`
+- Implementation: `vultron/api/v2/data/rehydration.py` (object rehydration)
+- Implementation: `vultron/api/v2/backend/inbox_handler.py` (rehydration before dispatch)
 - Implementation: `vultron/enums.py`
-- Tests: `test/api/v2/backend/test_semantic_activity_patterns.py`
-- Tests: `test/api/v2/backend/test_semantic_handler_map.py`
+- Tests: `test/test_semantic_activity_patterns.py`
+- Tests: `test/test_semantic_handler_map.py`
 - Related Spec: [dispatch-routing.md](dispatch-routing.md)
 - Related Spec: [handler-protocol.md](handler-protocol.md)
