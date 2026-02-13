@@ -266,7 +266,7 @@ When implementing features, consult relevant specs for complete requirements and
 - All 47 `MessageSemantics` enum values defined
 - Registry infrastructure (`SEMANTIC_HANDLER_MAP`, `SEMANTICS_ACTIVITY_PATTERNS`)
 
-### ✅ Report Handlers Complete (6/28 handlers - 21%)
+### ✅ Report Handlers Complete (6/47 handlers - 13%)
 The following report workflow handlers have full business logic:
 - `create_report`: Stores VulnerabilityReport + Create activity, handles duplicates
 - `submit_report`: Stores VulnerabilityReport + Offer activity (mirrors create_report)
@@ -277,18 +277,20 @@ The following report workflow handlers have full business logic:
 
 **Implementation Pattern**: Rehydrate → validate types → update status → persist → log at INFO level
 
-### ⚠️ Stub Implementations Requiring Business Logic (22 handlers)
+**Note**: 6 of 47 handlers complete (13%). All handler stubs exist with proper protocol compliance (decorator, signature, registration). Business logic implementation is the primary remaining work.
+
+### ⚠️ Stub Implementations Requiring Business Logic (41 handlers)
 Remaining handlers in `vultron/api/v2/backend/handlers.py` are stubs that:
 - Log at DEBUG level only
 - Return None without side effects
 - Do not persist state or generate responses
 
 **Categories needing implementation**:
-- Case management (8): `create_case`, `add_report_to_case`, `suggest_actor_to_case`, ownership transfer, etc.
-- Actor invitations (3): `invite/accept/reject_invite_actor_to_case`
-- Embargo management (7): `create_embargo_event`, embargo invitations, etc.
-- Participants & metadata (6): case participants, notes, status tracking
-- Case lifecycle (1): `close_case`
+- Case management (11): `create_case`, `read_case`, `update_case`, `add_report_to_case`, `suggest_actor_to_case`, ownership transfer, etc.
+- Actor invitations (6): `invite/accept/reject_invite_actor_to_case`, `invite/accept/reject_invite_actor_to_embargo`
+- Embargo management (12): `create_embargo_event`, `read/update/close_embargo_event`, embargo invitations, participant management, etc.
+- Participants & metadata (7): case participants, notes, status tracking, remove operations
+- Case lifecycle (5): `close_case`, `reopen_case`, case status tracking
 
 When implementing handler business logic:
 1. Extract relevant data from `dispatchable.payload`
@@ -312,6 +314,42 @@ When implementing handler business logic:
 ### Note on _old_handlers Directory
 The `vultron/api/v2/backend/_old_handlers/` directory contains an earlier implementation approach
 that is being migrated to the current handler protocol. Do not add new code to this directory.
+
+### Key Architectural Lessons Learned
+
+From recent implementation work (2026-02-13), critical patterns to follow:
+
+**1. Pydantic Model Validators and Database Round-Tripping**
+- Pydantic validators with `mode="after"` run EVERY TIME `model_validate()` is called, including when reconstructing objects from the database
+- Validators that create default values (e.g., empty collections) MUST check if the field is already populated to avoid overwriting database values
+- **Anti-pattern**: `inbox = OrderedCollection()` (unconditionally creates empty collection)
+- **Correct pattern**: `if self.inbox is None: self.inbox = OrderedCollection()` (preserves existing data)
+- **Impact**: This bug caused actor inbox/outbox items to disappear after being saved
+
+**2. Data Layer Update Signature**
+- `DataLayer.update()` requires TWO arguments: `id` (str) and `record` (dict)
+- **Anti-pattern**: `dl.update(actor_obj)` (only one argument)
+- **Correct pattern**: `dl.update(actor_obj.as_id, object_to_record(actor_obj))` (both ID and record)
+- Always use `object_to_record()` helper to convert Pydantic models to database dictionaries
+
+**3. Actor Inbox Persistence Flow**
+- When adding activities to actor inbox/outbox collections, changes must be explicitly persisted
+- Pattern: Read actor → Modify inbox/outbox → Call `dl.update()` → Verify persistence
+- The TinyDB backend persists to disk immediately; in-memory changes are not automatically saved
+
+**4. Async Background Processing Timing**
+- FastAPI BackgroundTasks execute asynchronously after HTTP 202 response
+- When testing or verifying side effects, account for async completion time
+- Demo scripts may need delays (e.g., 3 seconds) or explicit polling to verify handler completion
+- TestClient in pytest may bypass timing issues seen with real HTTP server
+
+**5. Rehydration Before Semantic Extraction**
+- ActivityStreams allows both inline objects and URI string references
+- The inbox handler MUST call `rehydrate()` before semantic extraction to expand URI references to full objects
+- Pattern matching code should still handle strings defensively (`getattr(field, "as_type", None)`)
+- See `specs/semantic-extraction.md` SE-01-002 for requirements
+
+These lessons are documented in `plan/IMPLEMENTATION_NOTES.md` with full context and debugging details.
 
 ---
 
