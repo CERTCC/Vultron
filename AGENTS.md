@@ -379,6 +379,30 @@ When making non-trivial changes, agents SHOULD:
 
 Do not produce speculative or exploratory code unless requested. For proposed architectural changes, draft an ADR (use `docs/adr/_adr-template.md`) and link to relevant tests and design notes.
 
+### Commit Workflow
+
+**BEFORE committing**, agents SHOULD run Black to format code:
+```bash
+black vultron/ test/
+```
+
+This avoids the inefficient cycle of:
+1. `git commit` → pre-commit hook runs Black → reformats files → commit fails
+2. `git add` → re-stage reformatted files
+3. `git commit` → try again
+
+**Why this matters**: Pre-commit hooks are configured to enforce Black formatting. Running Black before committing ensures a clean single-commit workflow.
+
+**When to run Black**:
+- After editing any Python files
+- Before staging files for commit
+- As part of your validation process
+
+**Alternative**: If you forget and the pre-commit hook reformats files, simply:
+```bash
+git add -A && git commit -m "Same message"
+```
+
 ---
 
 ## Safety & Guardrails
