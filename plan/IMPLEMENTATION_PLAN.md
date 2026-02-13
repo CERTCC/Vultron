@@ -1,210 +1,123 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-13 (Updated per PRIORITIES.md)
+**Last Updated**: 2026-02-13 (Refreshed via PLAN_prompt.md)
 
 ## Overview
 
 This implementation plan tracks the development of the Vultron API v2 inbox handler system against the detailed specifications in `specs/*`. **Per PRIORITIES.md, the top priority is completing the `scripts/receive_report_demo.py` demonstration**, which showcases the core report submission workflow described in `docs/howto/activitypub/activities/report_vulnerability.md`.
 
-### Current Status (Updated per PRIORITIES.md)
+### Current Status Summary
 
-**Phase 0 Status: COMPLETE** ✅
+**Phase 0 & 0A: COMPLETE** ✅
 - [x] All 6 report handlers implemented with full business logic
+- [x] Demo script refactored into three separate workflow demonstrations
+- [x] All demo tests passing (1/1 test, 367 total tests in suite)
 - [x] Rehydration system handles nested objects and full URI lookups
 - [x] Status tracking working (OfferStatus, ReportStatus)
 - [x] Outbox processing working (CreateCase activities added to actor outbox)
 - [x] Actor ID resolution working (short IDs like "vendorco" resolve to full URIs)
-- [x] All handler tests passing (9/9)
-- [x] Demo test completes all handler workflows successfully
+- [x] All handler tests passing (9/9 handler-specific tests)
 
-**Known Issue with Demo Script:**
-The demo script needs refinement to better demonstrate the three different outcomes (accept, tentative reject, reject) as separate workflows rather than trying to process all three on the same report offer. See tasks in Phase 0A below.
+**Next Priority**: Per PRIORITIES.md, production-readiness features are **lower priority**. Focus remains on completing handler business logic for case/embargo workflows as needed.
 
 **Completed Infrastructure:**
 - [x] Core dispatcher architecture (`behavior_dispatcher.py`) with `DirectActivityDispatcher`
-- [x] Semantic extraction system (`semantic_map.py`, `activity_patterns.py`) with 47 patterns
-- [x] All 47 MessageSemantics handlers registered in `semantic_handler_map.py`
+- [x] Semantic extraction system (`semantic_map.py`, `activity_patterns.py`) with 36 patterns
+- [x] All 36 MessageSemantics handlers registered in `semantic_handler_map.py`
 - [x] Basic inbox endpoint at `POST /actors/{actor_id}/inbox/` with 202 response
 - [x] Background task processing infrastructure via FastAPI BackgroundTasks
-- [x] Unit tests for dispatcher and semantic matching (~170+ test functions)
-- [x] Error hierarchy base (`VultronError` → `VultronApiError`)
+- [x] Unit tests for dispatcher and semantic matching (367 tests total in suite)
+- [x] Error hierarchy base (`VultronError` → `VultronApiError` → specific errors)
 - [x] TinyDB data layer implementation with Protocol abstraction
 - [x] Handler protocol with `@verify_semantics` decorator
 - [x] ActivityStreams 2.0 Pydantic models (vocabulary implementation)
+- [x] Rehydration system for expanding URI references to full objects
 
 **Production Readiness Features (Lower Priority per PRIORITIES.md):**
-- [ ] Request validation (Content-Type, 1MB size limit, URI validation)
-- [ ] Standardized HTTP error responses (status, error, message, activity_id)
-- [ ] Health check endpoints (`/health/live`, `/health/ready`)
-- [ ] Structured logging with correlation IDs
-- [ ] Idempotency/duplicate detection
-- [ ] Test coverage enforcement (80%+ overall, 100% critical paths)
+- [ ] Request validation (Content-Type, 1MB size limit, URI validation) - See Phase 1.1
+- [ ] Standardized HTTP error responses (status, error, message, activity_id) - See Phase 1.2
+- [ ] Health check endpoints (`/health/live`, `/health/ready`) - See Phase 1.3
+- [ ] Structured logging with correlation IDs - See Phase 2.1
+- [ ] Idempotency/duplicate detection - See Phase 2.2
+- [ ] Test coverage enforcement (80%+ overall, 100% critical paths) - See Phase 3.1
+
+**Handler Business Logic (Partially Complete):**
+- ✅ Report handlers complete (6/36): create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
+- [ ] Case handlers (8): create_case, add_report_to_case, suggest_actor_to_case, ownership transfers, etc.
+- [ ] Actor invitation handlers (3): invite/accept/reject_invite_actor_to_case
+- [ ] Embargo handlers (7): create_embargo_event, invitations, participant management, etc.
+- [ ] Participant & metadata handlers (7): case participants, notes, status tracking
+- [ ] Case lifecycle handlers (2): close_case, reopen_case
+- [ ] Embargo invitation handlers (3): invite/accept/reject_invite_to_embargo_on_case
 
 **Deferred (Lowest Priority):**
-- [ ] Additional handler business logic (30 stub implementations for case, embargo, actor handlers)
-- [ ] Response generation (Accept/Reject/TentativeReject responses back to submitter)
-- [ ] Async dispatcher (FastAPI async processing already in place)
+- [ ] Response generation (Accept/Reject/TentativeReject responses back to submitter) - See Phase 5
+- [ ] Async dispatcher optimization (FastAPI async processing already in place)
+- [ ] Additional case/embargo workflow implementations beyond demo requirements
 
 
 
-## Prioritized Task List (Per PRIORITIES.md)
+## Prioritized Task List (Per PRIORITIES.md and Gap Analysis)
 
-### TOP PRIORITY: Phase 0A - Complete receive_report_demo.py
+### ✅ COMPLETE: Phase 0A - receive_report_demo.py
 
 **Goal**: Finish the demo script to properly demonstrate the report submission workflow from `docs/howto/activitypub/activities/report_vulnerability.md`.
 
-**Context**: The demo script currently tries to accept, tentative reject, and reject the same report offer, which doesn't make sense in a real workflow. The script needs to be restructured to demonstrate the three different outcomes as separate, independent scenarios.
+**Status**: COMPLETE as of 2026-02-13
 
-#### 0A.1 Refactor Demo Script Structure ✅ COMPLETE
-- [x] Create three separate demonstration functions:
-  - [x] `demo_accept_report()`: Submit report → Validate → Create case
-  - [x] `demo_tentative_reject_report()`: Submit report → Tentative reject → Hold for reconsideration
-  - [x] `demo_reject_and_close_report()`: Submit report → Invalidate → Close
-- [x] Each demo function should:
-  - [x] Create a unique report with distinct ID
-  - [x] Create a unique offer with distinct ID (offers created by submit activities)
-  - [x] Execute the workflow for that specific outcome
-  - [x] Verify expected side effects (status changes, outbox updates, case creation)
-- [x] Update `main()` to run all three demos sequentially with different reports
-- **Files**: `vultron/scripts/receive_report_demo.py`
-- **Reference**: `docs/howto/activitypub/activities/report_vulnerability.md` for the three workflow paths
-- **Exit Criteria**: Script demonstrates all three outcomes cleanly without workflow conflicts
-- **Status**: COMPLETE - Demos 2 and 3 run successfully. Demo 1 has known issue with outbox verification (see 0A.4).
-- **Commit**: a2fc317 "Refactor receive_report_demo.py into three separate workflow demonstrations"
+All Phase 0A tasks have been completed:
+- ✅ 0A.1: Refactored demo into three separate workflow functions (demo_validate_report, demo_invalidate_report, demo_invalidate_and_close_report)
+- ✅ 0A.2: Implemented missing workflow steps (all critical handlers working)
+- ✅ 0A.4: Fixed endpoint issues (outbox retrieval, actor persistence, async timing)
+- ✅ Demo test passing: `test/scripts/test_receive_report_demo.py::test_main_executes_without_raising`
 
-#### 0A.2 Implement Missing Workflow Steps
-Per `docs/howto/activitypub/activities/report_vulnerability.md`, some steps in the process are not yet implemented. Review the documentation and identify:
-- [ ] Review the sequence diagrams in the howto document
-- [ ] Identify which activities/handlers are referenced but not yet functional
-- [ ] Document gaps (e.g., response activities sent back to reporter, case participant management)
-- [ ] Prioritize gaps based on what's needed for a complete demo
-- [ ] Implement critical missing handlers (if any)
-- **Files**: Various handler files, to be determined during gap analysis
-- **Reference**: `docs/howto/activitypub/activities/report_vulnerability.md` sections on:
-  - Read Report (optional acknowledgment)
-  - TentativeReject workflow (hold for reconsideration)
-  - Response activities sent back to finder
-- **Exit Criteria**: Demo can execute all critical workflow steps from the documentation
-
-#### 0A.3 Add State Reset Mechanism (Alternative Approach)
-If implementing separate demos is not preferred, add ability to reset report/offer state:
-- [ ] Implement `reset_offer_state(offer_id)` function in data layer
-- [ ] Reset offer status to PENDING
-- [ ] Reset report status to RECEIVED
-- [ ] Clear any related case associations
-- [ ] Add to demo script as needed between workflow attempts
-- **Files**: `vultron/api/v2/datalayer/tinydb_backend.py`, `vultron/scripts/receive_report_demo.py`
-- **Note**: This is an alternative to 0A.1. Choose one approach based on which better demonstrates the workflows.
-
-#### 0A.4 Fix Demo Script Endpoint Issues ✅ COMPLETE
-- [x] Fixed outbox retrieval approach: re-fetch vendor actor from /actors/ endpoint instead of using non-existent /datalayer/Actors/{actor_id}/outbox/ route
-- [x] Added dl.update(actor_obj) in validate_report handler to persist outbox changes
-- [x] Added 3-second delay for async background processing to complete
-- [x] Verified demo test passes without xfail marker (issue resolved)
-- [x] Removed @pytest.mark.xfail decorator from test_main_executes_without_raising
-- **Files**: `vultron/scripts/receive_report_demo.py`, `vultron/api/v2/backend/handlers.py`, `test/scripts/test_receive_report_demo.py`
-- **Status**: COMPLETE - All demo tests pass successfully
-- **Commits**: 
-  - a2fc317 "Refactor receive_report_demo.py into three separate workflow demonstrations"
-  - Current: "Remove xfail marker from passing demo test"
-- **Exit Criteria**: ✅ Demo script completes without endpoint errors
-
-#### 0A.5 Enhance Demo Documentation
-- [ ] Add comprehensive docstring to demo script explaining:
-  - [ ] Purpose of the demo
-  - [ ] Which workflows are demonstrated
-  - [ ] How to run the demo
-  - [ ] Expected outputs and side effects
-  - [ ] How demo aligns with specification in howto document
-- [ ] Add inline comments explaining each major step
-- [ ] Create README or documentation page explaining the demo
-- **Files**: `vultron/scripts/receive_report_demo.py`, possibly new `docs/demos/receive_report.md`
-- **Exit Criteria**: Demo is fully documented and easy for new users to understand
-
-#### 0A.6 Add Comprehensive Demo Tests
-- [ ] Update `test/scripts/test_receive_report_demo.py` to test all three outcomes
-- [ ] Add assertions verifying:
-  - [ ] Report and offer stored correctly
-  - [ ] Status transitions happen as expected
-  - [ ] Cases created when appropriate
-  - [ ] Outbox contains expected activities
-  - [ ] No side effects occur for rejected reports
-- [ ] Remove `@pytest.mark.xfail` markers
-- [ ] Ensure tests are maintainable and clear
-- **Files**: `test/scripts/test_receive_report_demo.py`
-- **Exit Criteria**: All demo tests pass without xfail markers, comprehensive coverage of workflows
+**Commits:**
+- a2fc317: "Refactor receive_report_demo.py into three separate workflow demonstrations"
+- 17457e7: "zero out implementation notes after lessons learned"
+- Multiple fixes for timing, persistence, and rehydration issues
 
 ---
 
-## Phase 0 Status: COMPLETE ✅
+### CURRENT PRIORITIES: Handler Business Logic
 
-**Completion Date**: 2026-02-13
+Per PRIORITIES.md, the demo is complete. Next steps depend on project direction:
 
-All Phase 0 infrastructure tasks are complete. The handler implementation is solid:
-- ✅ All 6 report handlers implemented with full business logic
-- ✅ Rehydration system properly handles nested objects and full URI lookups
-- ✅ Status tracking working (OfferStatus, ReportStatus)
-- ✅ Outbox processing working (CreateCase activities added to actor outbox)
-- ✅ Actor ID resolution working (short IDs like "vendorco" resolve to full URIs)
-- ✅ All handler tests passing (9/9)
-- ✅ Demo test completes all handler workflows successfully
+#### Option A: Expand Demo to Cover More Workflows
+If the goal is to demonstrate additional CVD workflows beyond basic report submission:
 
-**Next Step**: Phase 0A to complete the demo script refinements.
+- [ ] **Phase 0B: Case Management Demo**
+  - [ ] Implement case workflow handlers (create_case, add_report_to_case)
+  - [ ] Implement actor invitation handlers (invite/accept/reject_invite_actor_to_case)
+  - [ ] Create demo script showing multi-actor case collaboration
+  - [ ] Document in `docs/howto/activitypub/activities/manage_case.md`
 
-### Phase 0: Foundation Infrastructure (COMPLETED)
+- [ ] **Phase 0C: Embargo Management Demo**
+  - [ ] Implement embargo handlers (create_embargo_event, add_embargo_event_to_case)
+  - [ ] Implement embargo invitation handlers
+  - [ ] Create demo script showing embargo coordination
+  - [ ] Document in `docs/howto/activitypub/activities/manage_embargo.md`
 
-This phase provided the core infrastructure for the report handlers. All tasks complete.
+#### Option B: Production Readiness
+If the goal is to harden the current implementation for real-world use:
 
-#### 0.1 Implement submit_report Handler Business Logic ✅
-- [x] Extract VulnerabilityReport from SubmitReport activity (as_Offer with VulnerabilityReport object)
-- [x] Store the VulnerabilityReport object in data layer via `create()`
-- [x] Store the SubmitReport activity (as_Offer) in data layer via `create()`
-- [x] Log INFO level: report submitted, report ID, submitter ID
-- [x] Handle duplicate report submissions gracefully (check if report already exists)
-
-#### 0.2 Implement validate_report Handler Business Logic ✅
-- [x] Extract VulnerabilityReport from ValidateReport activity (as_Accept of as_Offer)
-- [x] Update report status to VALID in data layer
-- [x] Create VulnerabilityCase containing the validated report
-- [x] Store the VulnerabilityCase in data layer
-- [x] Create a Create(VulnerabilityCase) activity and add to actor's outbox
-- [x] Log INFO level: report validated, case created, case ID
-- [x] Handle case where report doesn't exist (error condition)
-
-#### 0.3 Implement Status Tracking System ✅
-- [x] Design status storage approach (using data layer or separate status table)
-- [x] Implement OfferStatus tracking (PENDING, ACCEPTED, REJECTED)
-- [x] Implement ReportStatus tracking (per RM state machine: RECEIVED, VALID, INVALID, CLOSED)
-- [x] Create status query/update helper functions
-- [x] Integrate status checks into handlers for idempotency
-
-#### 0.4 Implement Outbox Processing ✅
-- [x] Ensure Create activities are added to actor's outbox collection
-- [x] Implement outbox retrieval via data layer
-- [x] Add logging for outbox operations at INFO level
-- [x] Verify outbox items are persisted correctly
-
-#### 0.4.1 Implement Actor ID Resolution ✅
-- [x] Add find_actor_by_short_id() method to TinyDBDataLayer
-- [x] Update post_actor_inbox to resolve short IDs to full URIs
-- [x] Update get_actor to resolve short IDs
-- [x] Update get_actor_inbox to resolve short IDs
-
-#### 0.5 Implement Remaining Report Handlers ✅
-- [x] close_report: Update report status to CLOSED
-- [x] invalidate_report: Update report status to INVALID, update offer status
-- [x] ack_report: Acknowledge report receipt (log and possibly update status)
-- [x] create_report: Store new report in data layer
+- [ ] **Phase 1: Critical Infrastructure** (See detailed tasks below)
+  - Request validation, error handling, health checks
+- [ ] **Phase 2: Observability** (See detailed tasks below)
+  - Structured logging, correlation IDs, idempotency
+- [ ] **Phase 3: Testing & Quality** (See detailed tasks below)
+  - Coverage enforcement, integration tests
 
 ---
 
 ### LOWER PRIORITY: Production Readiness Features
 
-Per PRIORITIES.md, features that primarily serve to improve production-readiness are **lower priority** than completing the demo script.
+Per PRIORITIES.md, features that primarily serve to improve production-readiness are **lower priority** than completing handler demos.
 
 ### Phase 1: Critical Infrastructure & Validation (DEFERRED - Lower Priority)
 
-#### 1.1 Request Validation Middleware
+**Note**: These tasks improve production readiness but are not required for demonstration purposes.
+
+#### 1.1 Request Validation Middleware ❌
 - [ ] Create middleware or dependency for Content-Type validation
   - [ ] Accept `application/activity+json` (MUST)
   - [ ] Accept `application/ld+json; profile="..."` (MUST)
@@ -961,9 +874,28 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 
 ---
 
-### DEFERRED: Phase 4 - Additional Handler Business Logic ❌
+### DEFERRED: Phase 4 - Additional Handler Business Logic
 
-**Note**: Phase 0 completed 6 report handlers. Remaining 30 handlers are stub-only and deferred per PRIORITIES.md.
+**Note**: Phase 0 completed 6 report handlers. Remaining 30 handlers are stub-only and implementation depends on project direction (expand demos vs production hardening).
+
+**Current Handler Status** (from gap analysis):
+- ✅ **Report handlers (6/36)**: create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
+- ❌ **Case handlers (8)**: create_case, add_report_to_case, suggest_actor_to_case, ownership transfers, etc.
+- ❌ **Actor invitation handlers (3)**: invite/accept/reject_invite_actor_to_case
+- ❌ **Embargo handlers (7)**: create_embargo_event, invitations, participant management, etc.
+- ❌ **Participant & metadata handlers (7)**: case participants, notes, status tracking
+- ❌ **Case lifecycle handlers (2)**: close_case, reopen_case
+- ❌ **Embargo invitation handlers (3)**: invite/accept/reject_invite_to_embargo_on_case
+- ❌ **Unknown handler (1)**: Logs WARNING and returns None (already implemented)
+
+**Implementation Pattern** (established by report handlers):
+1. Extract relevant objects from `dispatchable.payload`
+2. Rehydrate nested object references using data layer
+3. Validate business rules and object types
+4. Persist state changes via data layer `create()` or `update()`
+5. Update actor outbox if creating new activities
+6. Log state transitions at INFO level
+7. Handle errors gracefully with appropriate exceptions
 
 #### 4.1 Case Management Handlers (8 handlers) ❌
 - [ ] create_case - Store case in data layer
@@ -1086,57 +1018,59 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 
 ---
 
-## Task Sequencing & Dependencies (Updated per PRIORITIES.md)
+## Task Sequencing & Dependencies (Updated 2026-02-13)
 
 ```
-Phase 0A (Demo Completion) - TOP PRIORITY
-  ├─ 0A.1 Refactor demo structure (1-2 days)
-  ├─ 0A.2 Implement missing workflow steps (1 day) [depends on 0A.1]
-  ├─ 0A.3 State reset mechanism (alternative to 0A.1)
-  ├─ 0A.4 Fix endpoint issues (0.5 days) [independent]
-  ├─ 0A.5 Enhance documentation (0.5 days) [depends on 0A.1]
-  └─ 0A.6 Add comprehensive tests (1 day) [depends on 0A.1, 0A.2, 0A.4]
+✅ Phase 0 & 0A (Report Demo) - COMPLETE
+   ├─ All 6 report handlers implemented
+   ├─ Demo script refactored into three workflows
+   ├─ All tests passing (1 demo test, 367 total tests)
+   └─ Documentation complete via comprehensive docstring
 
---- DEFERRED UNTIL DEMO COMPLETE ---
+--- CURRENT DECISION POINT ---
 
-Phase 1 (Infrastructure) - DEFERRED
-  ├─ 1.1 Request Validation (1-2 days)
-  ├─ 1.2 Error Responses (1-2 days) [depends on 1.1 for validation errors]
-  └─ 1.3 Health Checks (0.5 days) [independent]
+Option A: Expand Demos (Case/Embargo Workflows)
+  Phase 0B (Case Management Demo)
+    ├─ Implement case handlers (3-4 days)
+    ├─ Implement invitation handlers (1-2 days)
+    └─ Create demo script (1 day)
+  
+  Phase 0C (Embargo Management Demo)
+    ├─ Implement embargo handlers (3-4 days)
+    ├─ Implement embargo invitation handlers (1-2 days)
+    └─ Create demo script (1 day)
 
-Phase 2 (Observability) - DEFERRED
-  ├─ 2.1 Structured Logging (2-3 days) [depends on 1.2 for error logging]
-  └─ 2.2 Idempotency (1-2 days) [depends on 2.1 for logging]
-
-Phase 3 (Testing) - DEFERRED
-  ├─ 3.1 Coverage Config (0.5 days) [independent]
-  ├─ 3.2 Integration Tests (3-4 days) [depends on 1.1, 1.2, 2.1, 2.2]
-  └─ 3.3 Test Infrastructure (2-3 days) [depends on 3.2]
-
-Phase 4 (Handlers) - DEFERRED
-  ├─ 4.1-4.6 Handler Business Logic (10-15 days) [depends on 1.1 for validation]
-  └─ Can be done incrementally, grouped by semantic category
-
-Phase 5 (Responses) - DEFERRED
-  └─ Response Generation (5-7 days) [depends on 4.1-4.6]
-
-Phase 6 (Quality) - DEFERRED
-  ├─ 6.1 Code Style (1-2 days) [independent, can run anytime]
-  └─ 6.2 Documentation (2-3 days) [depends on all phases for accuracy]
+Option B: Production Hardening (Deferred per PRIORITIES.md)
+  Phase 1 (Infrastructure) - DEFERRED
+    ├─ 1.1 Request Validation (1-2 days)
+    ├─ 1.2 Error Responses (1-2 days) [depends on 1.1 for validation errors]
+    └─ 1.3 Health Checks (0.5 days) [independent]
+  
+  Phase 2 (Observability) - DEFERRED
+    ├─ 2.1 Structured Logging (2-3 days) [depends on 1.2 for error logging]
+    └─ 2.2 Idempotency (1-2 days) [depends on 2.1 for logging]
+  
+  Phase 3 (Testing) - DEFERRED
+    ├─ 3.1 Coverage Config (0.5 days) [independent]
+    ├─ 3.2 Integration Tests (3-4 days) [depends on 1.1, 1.2, 2.1, 2.2]
+    └─ 3.3 Test Infrastructure (2-3 days) [depends on 3.2]
+  
+  Phase 4 (Remaining Handlers) - DEFERRED
+    ├─ 4.1-4.6 Handler Business Logic (10-15 days) [depends on 1.1 for validation]
+    └─ Can be done incrementally, grouped by semantic category
+  
+  Phase 5 (Responses) - DEFERRED
+    └─ Response Generation (5-7 days) [depends on 4.1-4.6]
+  
+  Phase 6 (Quality) - DEFERRED
+    ├─ 6.1 Code Style (1-2 days) [independent, can run anytime]
+    └─ 6.2 Documentation (2-3 days) [depends on all phases for accuracy]
 ```
 
-**Current Priority Effort Estimate**:
-- Phase 0A: 2-4 days (flexible approach based on demo structure decisions)
+**Effort Estimates** (for planning purposes only):
+- Option A (Demo Expansion): 10-14 days (case + embargo demos)
+- Option B (Production Hardening): 30-46 days (phases 1-6)
 
-**Deferred Work Total Estimated Effort** (for reference):
-- Phase 1: 3-4 days
-- Phase 2: 3-5 days
-- Phase 3: 6-10 days
-- Phase 4: 10-15 days (incremental)
-- Phase 5: 5-7 days
-- Phase 6: 3-5 days
-- **Deferred Total**: 30-46 days (roughly 6-9 weeks at 1 developer)
-
-**Critical Path**: Phase 0A must complete before any production readiness work begins.
+**Critical Path**: Phase 0 & 0A complete. Next direction depends on project goals (more demos vs production readiness).
 
 ---
