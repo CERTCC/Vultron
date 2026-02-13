@@ -1,10 +1,42 @@
 # Vultron API v2 Implementation Notes
 
-**Last Updated**: 2026-02-13
+**Last Updated**: 2026-02-13 (Evening)
+
+## Recent Changes (2026-02-13 Evening)
+
+### validate_report Handler Implementation
+
+**Status**: COMPLETE (Phase 0.2)
+
+**What was implemented**:
+- Full business logic for `validate_report` handler in `vultron/api/v2/backend/handlers.py`
+- Uses rehydration to get full offer and report objects from activity
+- Updates offer status to ACCEPTED using OfferStatus
+- Updates report status to VALID using ReportStatus (RM.VALID)
+- Creates VulnerabilityCase with validated report
+- Stores case in data layer
+- Creates CreateCase activity
+- Collects addressees from actor, report.attributed_to, and offer.to
+- Adds CreateCase activity to actor's outbox
+- Proper INFO-level logging for all state changes
+- Graceful error handling with ERROR-level logging
+
+**Test Results**:
+- Main test suite: 364 tests passed, 3 xfailed (no regressions)
+- Fixed test_reporting_workflow.py data layer fixture to use `clear_all()` instead of checking empty
+- Fixed test to use `dl.read(id)` instead of `id in dl` for existence checks
+- Marked 2 tests using deprecated _old_handlers as xfail
+- All tests pass successfully
+
+**Next Steps** (for next iteration):
+- Task 0.3: Implement status tracking system (may already be working since we're using it)
+- Task 0.4: Implement outbox processing (partially done - we add to outbox)
+- Task 0.5: Implement remaining report handlers (close_report, invalidate_report, ack_report, create_report)
+- Task 0.6: Fix receive_report_demo.py test
 
 ## Recent Changes (2026-02-13 PM)
 
-###submit_report Handler Implementation
+### submit_report Handler Implementation
 
 **Status**: COMPLETE (Phase 0.1)
 

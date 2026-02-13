@@ -53,17 +53,18 @@ This is the immediate priority per `plan/PRIORITIES.md`. The demo script showcas
 - **Note**: Implementation complete. Demo test still fails due to infrastructure issues (actor lookup by short ID not working, init_actor_ios not being called in right place). These are separate tasks beyond handler implementation.
 
 #### 0.2 Implement validate_report Handler Business Logic
-- [ ] Extract VulnerabilityReport from ValidateReport activity (as_Accept of as_Offer)
-- [ ] Update report status to VALID in data layer
-- [ ] Create VulnerabilityCase containing the validated report
-- [ ] Store the VulnerabilityCase in data layer
-- [ ] Create a Create(VulnerabilityCase) activity and add to actor's outbox
-- [ ] Log INFO level: report validated, case created, case ID
-- [ ] Handle case where report doesn't exist (error condition)
+- [x] Extract VulnerabilityReport from ValidateReport activity (as_Accept of as_Offer)
+- [x] Update report status to VALID in data layer
+- [x] Create VulnerabilityCase containing the validated report
+- [x] Store the VulnerabilityCase in data layer
+- [x] Create a Create(VulnerabilityCase) activity and add to actor's outbox
+- [x] Log INFO level: report validated, case created, case ID
+- [x] Handle case where report doesn't exist (error condition)
 - **Files**: `vultron/api/v2/backend/handlers.py` (validate_report function)
 - **Reference**: `vultron/api/v2/backend/_old_handlers/accept.py` (rm_validate_report)
 - **Specs**: `HP-03-001`, `HP-04-001`, `HP-06-002`
 - **Tests**: Expand `test/api/v2/backend/test_handlers.py`, verify with `test/scripts/test_receive_report_demo.py`
+- **Note**: Implementation complete. Uses rehydration to get full objects, sets offer and report status, creates case, generates CreateCase activity, and adds to actor outbox.
 
 #### 0.3 Implement Status Tracking System
 - [ ] Design status storage approach (using data layer or separate status table)

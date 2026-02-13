@@ -116,7 +116,161 @@ def submit_report(dispatchable: DispatchActivity) -> None:
 
 @verify_semantics(MessageSemantics.VALIDATE_REPORT)
 def validate_report(dispatchable: DispatchActivity) -> None:
-    logger.debug("validate_report handler called: %s", dispatchable)
+    """
+    Process a ValidateReport activity (Accept(Offer(VulnerabilityReport))).
+
+    Updates report status to VALID, creates a VulnerabilityCase containing the
+    validated report, and generates a CreateCase activity in the actor's outbox.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Accept with Offer object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.data.status import (
+        OfferStatus,
+        ReportStatus,
+        set_status,
+    )
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.as_vocab.activities.case import CreateCase
+    from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+    from vultron.as_vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+    from vultron.bt.report_management.states import RM
+    from vultron.enums import OfferStatusEnum
+
+    activity = dispatchable.payload
+
+    # Rehydrate the accepted offer and report
+    try:
+        accepted_offer = rehydrate(activity.as_object)
+        accepted_report = rehydrate(accepted_offer.as_object)
+    except (ValueError, KeyError) as e:
+        logger.error(
+            "Failed to rehydrate offer or report in validate_report: %s", e
+        )
+        return None
+
+    # Verify we have a VulnerabilityReport
+    if not isinstance(accepted_report, VulnerabilityReport):
+        logger.error(
+            "Expected VulnerabilityReport in validate_report, got %s",
+            type(accepted_report).__name__,
+        )
+        return None
+
+    # Rehydrate actor
+    try:
+        actor = rehydrate(activity.actor)
+        actor_id = actor.as_id
+    except (ValueError, KeyError) as e:
+        logger.error("Failed to rehydrate actor in validate_report: %s", e)
+        return None
+
+    logger.info(
+        "Actor '%s' validates VulnerabilityReport '%s'",
+        actor_id,
+        accepted_report.as_id,
+    )
+
+    # Update offer status to ACCEPTED
+    offer_status = OfferStatus(
+        object_type=accepted_offer.as_type,
+        object_id=accepted_offer.as_id,
+        status=OfferStatusEnum.ACCEPTED,
+        actor_id=actor_id,
+    )
+    set_status(offer_status)
+    logger.info(
+        "Set offer status to ACCEPTED for offer %s", accepted_offer.as_id
+    )
+
+    # Update report status to VALID
+    report_status = ReportStatus(
+        object_type=accepted_report.as_type,
+        object_id=accepted_report.as_id,
+        status=RM.VALID,
+        actor_id=actor_id,
+    )
+    set_status(report_status)
+    logger.info(
+        "Set report status to VALID for report %s", accepted_report.as_id
+    )
+
+    # Create a VulnerabilityCase
+    case = VulnerabilityCase(
+        name=f"Case for Report {accepted_report.as_id}",
+        vulnerability_reports=[accepted_report],
+        attributed_to=actor_id,
+    )
+
+    # Store the case in data layer
+    dl = get_datalayer()
+    try:
+        dl.create(case)
+        logger.info("Created VulnerabilityCase: %s: %s", case.as_id, case.name)
+    except ValueError as e:
+        logger.warning(
+            "VulnerabilityCase %s already exists: %s", case.as_id, e
+        )
+
+    # Collect addressees
+    addressees = []
+    for x in [actor, accepted_report.attributed_to, accepted_offer.to]:
+        if x is None:
+            continue
+        if isinstance(x, str):
+            addressees.append(x)
+        elif isinstance(x, list):
+            for item in x:
+                if isinstance(item, str):
+                    addressees.append(item)
+                elif hasattr(item, "as_id"):
+                    addressees.append(item.as_id)
+        elif hasattr(x, "as_id"):
+            addressees.append(x.as_id)
+
+    # Unique addressees
+    addressees = list(set(addressees))
+    logger.info("Notifying addressees: %s", addressees)
+
+    # Create a CreateCase activity
+    create_case_activity = CreateCase(
+        actor=actor_id, object=case.as_id, to=addressees
+    )
+
+    # Store the CreateCase activity
+    try:
+        dl.create(create_case_activity)
+        logger.info(
+            "Created CreateCase activity: %s", create_case_activity.as_id
+        )
+    except ValueError as e:
+        logger.warning(
+            "CreateCase activity %s already exists: %s",
+            create_case_activity.as_id,
+            e,
+        )
+
+    # Add to actor's outbox
+    try:
+        actor_obj = dl.read(actor_id, raise_on_missing=True)
+        if hasattr(actor_obj, "outbox") and hasattr(actor_obj.outbox, "items"):
+            actor_obj.outbox.items.append(create_case_activity.as_id)
+            logger.info(
+                "Added CreateCase activity to actor outbox: %s",
+                create_case_activity.as_id,
+            )
+        else:
+            logger.error(
+                "Actor %s has no outbox or outbox.items attribute", actor_id
+            )
+    except Exception as e:
+        logger.error(
+            "Failed to add CreateCase activity to actor outbox: %s", e
+        )
+
     return None
 
 
