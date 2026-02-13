@@ -319,10 +319,19 @@ def verify_activity_in_inbox(
         f"Actor {parse_id(actor_id)['object_id']} inbox has {len(actor.inbox.items)} items"
     )
 
+    # Log all inbox items for debugging
+    logger.debug(f"Looking for activity ID: {activity_id}")
     for item in actor.inbox.items:
+        logger.debug(f"Inbox item ID: {item.as_id}")
         if item.as_id == activity_id:
             logger.info(f"✓ Found activity in inbox: {logfmt(item)}")
             return True
+
+    # If not found, log what we have for debugging
+    logger.warning(f"Activity {activity_id} not found in inbox")
+    logger.warning(f"Inbox contains {len(actor.inbox.items)} items:")
+    for item in actor.inbox.items:
+        logger.warning(f"  - {item.as_id} (type: {item.as_type})")
 
     return False
 
@@ -587,7 +596,9 @@ def demo_invalidate_and_close_report(
         to=[finder.as_id],
         content="This report has been invalidated as a false positive.",
     )
-    post_to_inbox_and_wait(client, finder.as_id, invalidate_response_to_finder)
+    post_to_inbox_and_wait(
+        client, finder.as_id, invalidate_response_to_finder, wait_seconds=2.0
+    )
 
     # Vendor posts Reject response to finder's inbox
     close_response_to_finder = RmCloseReport(
@@ -596,7 +607,9 @@ def demo_invalidate_and_close_report(
         to=[finder.as_id],
         content="This report has been closed.",
     )
-    post_to_inbox_and_wait(client, finder.as_id, close_response_to_finder)
+    post_to_inbox_and_wait(
+        client, finder.as_id, close_response_to_finder, wait_seconds=2.0
+    )
 
     # Verify both responses appear in finder's inbox
     if not verify_activity_in_inbox(
