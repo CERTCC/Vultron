@@ -59,6 +59,21 @@ Handler functions process DispatchActivity objects and implement protocol busine
 - **Handler level**: State-aware mutations (this section)
 - **Response level**: Avoid generating duplicate responses (see `response-format.md` RF-09-001)
 
+## Data Model Persistence (MUST)
+
+- `HP-08-001` Handlers MUST use `object_to_record()` helper when persisting Pydantic models
+  - **Rationale**: Converts Pydantic models to dictionaries suitable for data layer storage
+- `HP-08-002` Handlers MUST call `DataLayer.update(id, record)` with both ID and record parameters
+  - **Anti-pattern**: `dl.update(object)` (single argument)
+  - **Correct pattern**: `dl.update(object.as_id, object_to_record(object))`
+- `HP-08-003` Pydantic validators with `mode="after"` MUST check if fields are already populated before setting defaults
+  - **Rationale**: Validators run on every `model_validate()` call, including when reconstructing from database
+  - **Anti-pattern**: `self.field = DefaultValue()` (unconditionally overwrites database values)
+  - **Correct pattern**: `if self.field is None: self.field = DefaultValue()` (preserves existing data)
+  - **Impact**: Prevents data loss when round-tripping objects through the database
+
+**Critical Architecture Note**: Pydantic validators execute during both object creation AND database deserialization. Validators that initialize default values must be defensive to avoid overwriting persisted data. This particularly affects collection fields (lists, OrderedCollections) that may be populated by handler logic and then lost when the object is re-read from the database.
+
 ## Verification
 
 ### HP-01-001, HP-01-002 Verification
@@ -95,6 +110,18 @@ Handler functions process DispatchActivity objects and implement protocol busine
 - Unit test: Handler called twice with same input produces same result
 - Unit test: Handler checks existing state before mutation
 - Integration test: Retry of failed handler succeeds
+
+### HP-08-001, HP-08-002 Verification
+- Code review: All `DataLayer.update()` calls include both ID and record parameters
+- Code review: All Pydantic model persistence uses `object_to_record()` helper
+- Unit test: Update with single argument raises TypeError
+- Unit test: Update with ID and record succeeds
+
+### HP-08-003 Verification
+- Unit test: Pydantic model with after validator round-trips through database without data loss
+- Unit test: Validator checks field is None before initializing default value
+- Integration test: Actor inbox/outbox collections persist correctly after handler updates
+- Regression test: Objects with populated collections retain data after `model_validate()`
 
 ## Related
 
