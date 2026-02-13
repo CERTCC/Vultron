@@ -354,7 +354,19 @@ def find_case_by_report(
         return None
 
     for case_data in cases:
-        case_obj = VulnerabilityCase(**case_data)
+        # Handle case where API returns list of IDs instead of full objects
+        if isinstance(case_data, str):
+            # Fetch the full case object
+            try:
+                case_obj_data = client.get(f"/datalayer/{case_data}")
+                case_obj = VulnerabilityCase(**case_obj_data)
+            except Exception as e:
+                logger.warning(f"Failed to fetch case {case_data}: {e}")
+                continue
+        else:
+            # API returned full object
+            case_obj = VulnerabilityCase(**case_data)
+
         # Check if this case references our report
         if case_obj.content and report_id in [
             str(r) for r in case_obj.content
