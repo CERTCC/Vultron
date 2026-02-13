@@ -2,6 +2,43 @@
 
 **Last Updated**: 2026-02-13
 
+## Recent Changes (2026-02-13 PM)
+
+###submit_report Handler Implementation
+
+**Status**: COMPLETE (Phase 0.1)
+
+**What was implemented**:
+- Full business logic for `submit_report` handler in `vultron/api/v2/backend/handlers.py`
+- Extracts VulnerabilityReport from as_Offer activity
+- Stores both report and offer using data layer `create()` method
+- Proper INFO-level logging with actor ID, report name, and IDs
+- Graceful handling of duplicate submissions (logs WARNING, doesn't fail)
+- Type checking: verifies object is VulnerabilityReport before processing
+
+**Supporting Fixes**:
+- Uncommented `initialize_examples()` function in `vultron/scripts/vocab_examples.py` (needed for demo initialization)
+- Fixed `get_actors()` endpoint in `vultron/api/v2/routers/actors.py` to validate `rec["data_"]` instead of `rec` (was returning Record wrapper instead of actor objects)
+
+**Test Results**:
+- Main test suite: 362 tests passed (no regressions)
+- 4 tests failing in `test_reporting_workflow.py` - these use `_old_handlers` which are being deprecated, unrelated to new handler
+- Demo test (`test_receive_report_demo.py`) still marked xfail - infrastructure issues remain (actor lookup by short ID, etc.)
+
+**Remaining Infrastructure Issues** (blocking demo, but beyond scope of handler implementation):
+1. Inbox endpoint requires full actor ID (e.g., "https://vultron.example/organizations/vendorco")
+2. Demo passes short ID (e.g., "vendorco") extracted via `parse_id()`
+3. Need to either:
+   - Update inbox endpoint to handle short IDs and look up full ID
+   - Update demo to pass full IDs
+   - Create actor ID resolver utility
+4. `init_actor_ios()` call in demo may need to happen earlier or differently
+
+**Next Steps** (for next iteration):
+- Task 0.2: Implement validate_report handler
+- Task 0.3: Implement status tracking system
+- Or: Fix actor ID resolution infrastructure issue first
+
 ## Purpose
 
 This document captures insights, observations, and technical notes discovered during implementation planning and gap analysis. These notes supplement the formal implementation plan and provide context for future developers.

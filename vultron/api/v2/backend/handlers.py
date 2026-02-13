@@ -56,7 +56,61 @@ def create_report(dispatchable: DispatchActivity) -> None:
 
 @verify_semantics(MessageSemantics.SUBMIT_REPORT)
 def submit_report(dispatchable: DispatchActivity) -> None:
-    logger.debug("submit_report handler called: %s", dispatchable)
+    """
+    Process a SubmitReport activity (Offer(VulnerabilityReport)).
+
+    Stores both the VulnerabilityReport object and the Offer activity in the data layer.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Offer with VulnerabilityReport object
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.as_vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    activity = dispatchable.payload
+
+    # Extract the offered report
+    offered_obj = activity.as_object
+    if not isinstance(offered_obj, VulnerabilityReport):
+        logger.error(
+            "Expected VulnerabilityReport in submit_report, got %s",
+            type(offered_obj).__name__,
+        )
+        return None
+
+    actor_id = activity.actor
+    logger.info(
+        "Actor '%s' submits VulnerabilityReport '%s' (ID: %s)",
+        actor_id,
+        offered_obj.name,
+        offered_obj.as_id,
+    )
+
+    # Get data layer
+    dl = get_datalayer()
+
+    # Store the report object
+    try:
+        dl.create(offered_obj)
+        logger.info(
+            "Stored VulnerabilityReport with ID: %s", offered_obj.as_id
+        )
+    except ValueError as e:
+        logger.warning(
+            "VulnerabilityReport %s already exists: %s", offered_obj.as_id, e
+        )
+
+    # Store the offer activity
+    try:
+        dl.create(activity)
+        logger.info("Stored SubmitReport activity with ID: %s", activity.as_id)
+    except ValueError as e:
+        logger.warning(
+            "SubmitReport activity %s already exists: %s", activity.as_id, e
+        )
+
     return None
 
 

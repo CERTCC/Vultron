@@ -66,7 +66,7 @@ def get_actors() -> list[as_Actor]:
     for rec in results:
         logger.info(f"rec: {rec}")
         cls = find_in_vocabulary(rec["type_"])
-        obj = cls.model_validate(rec)
+        obj = cls.model_validate(rec["data_"])
         objects.append(obj)
 
     return objects

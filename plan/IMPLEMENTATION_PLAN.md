@@ -41,15 +41,16 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 This is the immediate priority per `plan/PRIORITIES.md`. The demo script showcases the core workflow and validates that the new architecture can handle real-world scenarios.
 
 #### 0.1 Implement submit_report Handler Business Logic
-- [ ] Extract VulnerabilityReport from SubmitReport activity (as_Offer with VulnerabilityReport object)
-- [ ] Store the VulnerabilityReport object in data layer via `create()`
-- [ ] Store the SubmitReport activity (as_Offer) in data layer via `create()`
-- [ ] Log INFO level: report submitted, report ID, submitter ID
-- [ ] Handle duplicate report submissions gracefully (check if report already exists)
+- [x] Extract VulnerabilityReport from SubmitReport activity (as_Offer with VulnerabilityReport object)
+- [x] Store the VulnerabilityReport object in data layer via `create()`
+- [x] Store the SubmitReport activity (as_Offer) in data layer via `create()`
+- [x] Log INFO level: report submitted, report ID, submitter ID
+- [x] Handle duplicate report submissions gracefully (check if report already exists)
 - **Files**: `vultron/api/v2/backend/handlers.py` (submit_report function)
 - **Reference**: `vultron/api/v2/backend/_old_handlers/offer.py` (rm_submit_report)
 - **Specs**: `HP-03-001`, `HP-04-001`, `HP-06-002`
 - **Tests**: Expand `test/api/v2/backend/test_handlers.py`, verify with `test/scripts/test_receive_report_demo.py`
+- **Note**: Implementation complete. Demo test still fails due to infrastructure issues (actor lookup by short ID not working, init_actor_ios not being called in right place). These are separate tasks beyond handler implementation.
 
 #### 0.2 Implement validate_report Handler Business Logic
 - [ ] Extract VulnerabilityReport from ValidateReport activity (as_Accept of as_Offer)

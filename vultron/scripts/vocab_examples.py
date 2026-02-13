@@ -139,14 +139,14 @@ _CASE = VulnerabilityCase(
 )
 
 
-# def initialize_examples() -> None:
-#     from vultron.api.v2.datalayer.db_record import Record
-#     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-#
-#     dl = get_datalayer()
-#     for obj in [_FINDER, _VENDOR, _COORDINATOR, _REPORT]:
-#         record = Record.from_obj(obj)
-#         dl.create(record)
+def initialize_examples() -> None:
+    from vultron.api.v2.datalayer.db_record import Record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    dl = get_datalayer()
+    for obj in [_FINDER, _VENDOR, _COORDINATOR, _REPORT]:
+        record = Record.from_obj(obj)
+        dl.create(record)
 
 
 def _strip_published_udpated(obj: as_Base) -> as_Base:
