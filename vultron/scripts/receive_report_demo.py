@@ -21,15 +21,19 @@ This demo script showcases three different outcomes when processing vulnerabilit
 2. Invalidate Report: RmInvalidateReport (TentativeReject) - holds for reconsideration
 3. Invalidate and Close Report: RmInvalidateReport + RmCloseReport - rejects and closes
 
+This demo uses direct inbox-to-inbox communication between actors, per the Vultron prototype
+design (see docs/reference/inbox_handler.md). Actors post activities directly to each other's
+inboxes rather than relying on outbox processing.
+
 When run as a script, this module will:
 1. Check if the API server is available
 2. Reset the data layer to a clean state
 3. Discover actors (finder, vendor, coordinator) via the API
 4. Run three separate demo workflows, each with a unique report:
-   - demo_validate_report: Submit → Validate → Create Case
-   - demo_invalidate_report: Submit → Invalidate (hold for review)
-   - demo_invalidate_and_close_report: Submit → Invalidate → Close
-5. Verify side effects in the data layer for each workflow
+   - demo_validate_report: Submit → Validate → Create Case → Notify finder via inbox
+   - demo_invalidate_report: Submit → Invalidate → Notify finder via inbox
+   - demo_invalidate_and_close_report: Submit → Invalidate → Close → Notify finder via inbox
+5. Verify side effects in the data layer and finder's inbox for each workflow
 """
 
 import json
@@ -44,6 +48,7 @@ from pydantic import BaseModel
 
 from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.api.v2.data.utils import parse_id
+from vultron.as_vocab.activities.case import CreateCase
 from vultron.as_vocab.activities.report import (
     RmSubmitReport,
     RmCloseReport,
@@ -224,10 +229,15 @@ def demo_validate_report(
     """
     Demonstrates the workflow where a vendor validates a report and creates a case.
 
-    Uses RmValidateReport (Accept) activity.
+    Uses RmValidateReport (Accept) activity, followed by vendor posting
+    a CreateCase activity to the finder's inbox.
 
     This follows the "Receiver Accepts Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
+
+    Note: This demo uses direct inbox-to-inbox communication. The vendor posts
+    the CreateCase activity directly to the finder's inbox rather than using outbox
+    processing, per the Vultron prototype design (see docs/reference/inbox_handler.md).
     """
     logger.info("=" * 80)
     logger.info("DEMO 1: Validate Report and Create Case")
@@ -266,7 +276,9 @@ def demo_validate_report(
         object=offer.as_id,
         content="Validating the report as legitimate. Creating case.",
     )
-    logger.info(f"Validating offer: {logfmt(validate_activity)}")
+    logger.info(
+        f"Vendor posting validation to own inbox: {logfmt(validate_activity)}"
+    )
     client.post(
         f"/actors/{vendor_obj_id}/inbox/", json=postfmt(validate_activity)
     )
@@ -274,61 +286,83 @@ def demo_validate_report(
     # Give the background handler time to process the activity
     import time
 
-    time.sleep(3)  # Increased delay to ensure async processing completes
+    time.sleep(1)  # Brief delay for async processing
 
     # Verify the validation was processed
     response = client.get(f"/datalayer/{validate_activity.as_id}")
     logger.info(f"ValidateReport stored: {json.dumps(response, indent=2)}")
 
-    # Verify case creation in outbox
-    # Re-fetch the vendor actor to get updated outbox
-    actors_data = client.get("/actors/")
-    vendor_refreshed = None
-    for actor_data in actors_data:
+    # Now vendor creates a case and posts CreateCase activity to finder's inbox
+    # First, find the case that was created
+    cases = client.get("/datalayer/VulnerabilityCases/")
+    if not cases:
+        logger.error("No cases found after validation.")
+        raise ValueError("No cases found after validation.")
+
+    # Find the case related to this report
+    case_data = None
+    for c in cases:
+        case_obj = VulnerabilityCase(**c)
+        # Check if this case references our report
+        if report.as_id in [str(r) for r in (case_obj.content or [])]:
+            case_data = case_obj
+            break
+
+    if not case_data:
+        logger.error("Could not find case related to this report.")
+        raise ValueError("Could not find case related to this report.")
+
+    logger.info(f"Found created case: {logfmt(case_data)}")
+
+    # Vendor posts CreateCase activity to finder's inbox
+    create_case_activity = CreateCase(
+        actor=vendor.as_id,
+        as_object=case_data.as_id,
+        to=[finder.as_id],
+        content="Case created for your vulnerability report.",
+    )
+    logger.info(
+        f"Vendor posting CreateCase to finder's inbox: {logfmt(create_case_activity)}"
+    )
+
+    finder_obj_id = parse_id(finder.as_id)["object_id"]
+    client.post(
+        f"/actors/{finder_obj_id}/inbox/", json=postfmt(create_case_activity)
+    )
+
+    time.sleep(1)  # Brief delay for async processing
+
+    # Verify the CreateCase activity appears in finder's inbox
+    finder_refreshed_data = client.get("/actors/")
+    finder_refreshed = None
+    for actor_data in finder_refreshed_data:
         actor = as_Actor(**actor_data)
-        if actor.as_id == vendor.as_id:
-            vendor_refreshed = actor
+        if actor.as_id == finder.as_id:
+            finder_refreshed = actor
             break
 
-    if not vendor_refreshed:
-        logger.error("Could not re-fetch vendor actor.")
-        raise ValueError("Could not re-fetch vendor actor.")
+    if not finder_refreshed or not finder_refreshed.inbox:
+        logger.error("Could not verify finder's inbox.")
+        raise ValueError("Could not verify finder's inbox.")
 
-    outbox = vendor_refreshed.outbox
-    if not outbox:
-        logger.error("Vendor has no outbox.")
-        raise ValueError("Vendor has no outbox.")
+    logger.info(f"Finder inbox has {len(finder_refreshed.inbox.items)} items.")
 
-    logger.info(f"Vendor outbox has {len(outbox.items)} items.")
-
-    if not outbox.items:
-        logger.error("Vendor outbox is empty, expected Create(Case) activity.")
-        raise ValueError(
-            "Vendor outbox is empty, expected Create(Case) activity."
-        )
-
-    # Find the Create activity in the outbox
-    create_activity = None
-    for item in outbox.items:
-        logger.info(f"Vendor outbox item: {logfmt(item)}")
-        if item.as_type == "Create":
-            create_activity = item
-            logger.info(f"Found Create activity in outbox: {logfmt(item)}")
+    # Look for the CreateCase activity in finder's inbox
+    create_case_found = False
+    for item in finder_refreshed.inbox.items:
+        if item.as_id == create_case_activity.as_id:
+            create_case_found = True
+            logger.info(
+                f"✓ Found CreateCase activity in finder's inbox: {logfmt(item)}"
+            )
             break
 
-    if not create_activity:
-        logger.error("Create activity not found in vendor outbox.")
-        raise ValueError("Create activity not found in vendor outbox.")
-
-    # Verify the case exists
-    case_id = create_activity["object"]
-    logger.info(f"Case ID from Create activity: {case_id}")
-    case = client.get(f"/datalayer/{case_id}")
-    case = VulnerabilityCase(**case)
-    logger.info(f"Retrieved VulnerabilityCase: {logfmt(case)}")
+    if not create_case_found:
+        logger.error("CreateCase activity not found in finder's inbox.")
+        raise ValueError("CreateCase activity not found in finder's inbox.")
 
     logger.info(
-        "✅ DEMO 1 COMPLETE: Report validated and case created successfully."
+        "✅ DEMO 1 COMPLETE: Report validated, case created, and finder notified via inbox."
     )
 
 
@@ -338,10 +372,15 @@ def demo_invalidate_report(
     """
     Demonstrates the workflow where a vendor invalidates a report.
 
-    Uses RmInvalidateReport (TentativeReject) activity.
+    Uses RmInvalidateReport (TentativeReject) activity, followed by vendor posting
+    the response directly to the finder's inbox.
 
     This follows the "Receiver Invalidates and Holds Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
+
+    Note: This demo uses direct inbox-to-inbox communication. The vendor posts
+    the invalidation response directly to the finder's inbox, per the Vultron
+    prototype design (see docs/reference/inbox_handler.md).
     """
     logger.info("=" * 80)
     logger.info("DEMO 2: Invalidate Report (Hold for Reconsideration)")
@@ -375,15 +414,22 @@ def demo_invalidate_report(
     logger.info(f"Retrieved Offer: {logfmt(offer)}")
 
     # Vendor invalidates the report (TentativeReject workflow)
+    # This is posted to vendor's own inbox for internal processing
     invalidate_activity = RmInvalidateReport(
         actor=vendor.as_id,
         object=offer.as_id,
         content="Invalidating the report - needs more investigation before accepting.",
     )
-    logger.info(f"Invalidating offer: {logfmt(invalidate_activity)}")
+    logger.info(
+        f"Vendor posting invalidation to own inbox: {logfmt(invalidate_activity)}"
+    )
     client.post(
         f"/actors/{vendor_obj_id}/inbox/", json=postfmt(invalidate_activity)
     )
+
+    import time
+
+    time.sleep(1)  # Brief delay for async processing
 
     # Verify the invalidation was processed
     invalidate_response = client.get(f"/datalayer/{invalidate_activity.as_id}")
@@ -391,8 +437,58 @@ def demo_invalidate_report(
         f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
     )
 
+    # Now vendor posts the invalidation response to finder's inbox
+    invalidate_response_to_finder = RmInvalidateReport(
+        actor=vendor.as_id,
+        object=offer.as_id,
+        to=[finder.as_id],
+        content="We are holding this report for further investigation.",
+    )
     logger.info(
-        "✅ DEMO 2 COMPLETE: Report invalidated (held for reconsideration)."
+        f"Vendor posting TentativeReject response to finder's inbox: {logfmt(invalidate_response_to_finder)}"
+    )
+
+    finder_obj_id = parse_id(finder.as_id)["object_id"]
+    client.post(
+        f"/actors/{finder_obj_id}/inbox/",
+        json=postfmt(invalidate_response_to_finder),
+    )
+
+    time.sleep(1)  # Brief delay for async processing
+
+    # Verify the response appears in finder's inbox
+    finder_refreshed_data = client.get("/actors/")
+    finder_refreshed = None
+    for actor_data in finder_refreshed_data:
+        actor = as_Actor(**actor_data)
+        if actor.as_id == finder.as_id:
+            finder_refreshed = actor
+            break
+
+    if not finder_refreshed or not finder_refreshed.inbox:
+        logger.error("Could not verify finder's inbox.")
+        raise ValueError("Could not verify finder's inbox.")
+
+    logger.info(f"Finder inbox has {len(finder_refreshed.inbox.items)} items.")
+
+    # Look for the TentativeReject activity in finder's inbox
+    response_found = False
+    for item in finder_refreshed.inbox.items:
+        if item.as_id == invalidate_response_to_finder.as_id:
+            response_found = True
+            logger.info(
+                f"✓ Found TentativeReject activity in finder's inbox: {logfmt(item)}"
+            )
+            break
+
+    if not response_found:
+        logger.error("TentativeReject activity not found in finder's inbox.")
+        raise ValueError(
+            "TentativeReject activity not found in finder's inbox."
+        )
+
+    logger.info(
+        "✅ DEMO 2 COMPLETE: Report invalidated and finder notified via inbox."
     )
 
 
@@ -402,10 +498,15 @@ def demo_invalidate_and_close_report(
     """
     Demonstrates the workflow where a vendor invalidates a report and closes it.
 
-    Uses RmInvalidateReport (TentativeReject) followed by RmCloseReport (Reject) activities.
+    Uses RmInvalidateReport (TentativeReject) followed by RmCloseReport (Reject) activities,
+    with responses posted directly to the finder's inbox.
 
     This follows the "Receiver Invalidates and Closes Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
+
+    Note: This demo uses direct inbox-to-inbox communication. The vendor posts
+    response activities directly to the finder's inbox, per the Vultron
+    prototype design (see docs/reference/inbox_handler.md).
     """
     logger.info("=" * 80)
     logger.info("DEMO 3: Invalidate and Close Report")
@@ -438,27 +539,35 @@ def demo_invalidate_and_close_report(
     offer = as_Offer(**offer)
     logger.info(f"Retrieved Offer: {logfmt(offer)}")
 
-    # Vendor invalidates the report
+    import time
+
+    # Vendor invalidates the report (posts to own inbox for processing)
     invalidate_activity = RmInvalidateReport(
         actor=vendor.as_id,
         object=offer.as_id,
         content="Invalidating the report - this is a false positive.",
     )
-    logger.info(f"Invalidating offer: {logfmt(invalidate_activity)}")
+    logger.info(
+        f"Vendor posting invalidation to own inbox: {logfmt(invalidate_activity)}"
+    )
     client.post(
         f"/actors/{vendor_obj_id}/inbox/", json=postfmt(invalidate_activity)
     )
 
-    # Vendor closes the report
+    time.sleep(1)  # Brief delay for async processing
+
+    # Vendor closes the report (posts to own inbox for processing)
     close_activity = RmCloseReport(
         actor=vendor.as_id,
         object=offer.as_id,
         content="Closing the report as invalid.",
     )
-    logger.info(f"Closing offer: {logfmt(close_activity)}")
+    logger.info(f"Vendor posting close to own inbox: {logfmt(close_activity)}")
     client.post(
         f"/actors/{vendor_obj_id}/inbox/", json=postfmt(close_activity)
     )
+
+    time.sleep(1)  # Brief delay for async processing
 
     # Verify both activities were processed
     invalidate_response = client.get(f"/datalayer/{invalidate_activity.as_id}")
@@ -469,8 +578,85 @@ def demo_invalidate_and_close_report(
     close_response = client.get(f"/datalayer/{close_activity.as_id}")
     logger.info(f"CloseReport stored: {json.dumps(close_response, indent=2)}")
 
+    # Now vendor posts responses to finder's inbox
+    finder_obj_id = parse_id(finder.as_id)["object_id"]
+
+    # Post TentativeReject response to finder
+    invalidate_response_to_finder = RmInvalidateReport(
+        actor=vendor.as_id,
+        object=offer.as_id,
+        to=[finder.as_id],
+        content="This report has been invalidated as a false positive.",
+    )
     logger.info(
-        "✅ DEMO 3 COMPLETE: Report invalidated and closed successfully."
+        f"Vendor posting TentativeReject response to finder's inbox: {logfmt(invalidate_response_to_finder)}"
+    )
+    client.post(
+        f"/actors/{finder_obj_id}/inbox/",
+        json=postfmt(invalidate_response_to_finder),
+    )
+
+    time.sleep(1)  # Brief delay for async processing
+
+    # Post Reject response to finder
+    close_response_to_finder = RmCloseReport(
+        actor=vendor.as_id,
+        object=offer.as_id,
+        to=[finder.as_id],
+        content="This report has been closed.",
+    )
+    logger.info(
+        f"Vendor posting Reject response to finder's inbox: {logfmt(close_response_to_finder)}"
+    )
+    client.post(
+        f"/actors/{finder_obj_id}/inbox/",
+        json=postfmt(close_response_to_finder),
+    )
+
+    time.sleep(1)  # Brief delay for async processing
+
+    # Verify both responses appear in finder's inbox
+    finder_refreshed_data = client.get("/actors/")
+    finder_refreshed = None
+    for actor_data in finder_refreshed_data:
+        actor = as_Actor(**actor_data)
+        if actor.as_id == finder.as_id:
+            finder_refreshed = actor
+            break
+
+    if not finder_refreshed or not finder_refreshed.inbox:
+        logger.error("Could not verify finder's inbox.")
+        raise ValueError("Could not verify finder's inbox.")
+
+    logger.info(f"Finder inbox has {len(finder_refreshed.inbox.items)} items.")
+
+    # Look for both response activities in finder's inbox
+    invalidate_found = False
+    close_found = False
+    for item in finder_refreshed.inbox.items:
+        if item.as_id == invalidate_response_to_finder.as_id:
+            invalidate_found = True
+            logger.info(
+                f"✓ Found TentativeReject activity in finder's inbox: {logfmt(item)}"
+            )
+        if item.as_id == close_response_to_finder.as_id:
+            close_found = True
+            logger.info(
+                f"✓ Found Reject activity in finder's inbox: {logfmt(item)}"
+            )
+
+    if not invalidate_found:
+        logger.error("TentativeReject activity not found in finder's inbox.")
+        raise ValueError(
+            "TentativeReject activity not found in finder's inbox."
+        )
+
+    if not close_found:
+        logger.error("Reject activity not found in finder's inbox.")
+        raise ValueError("Reject activity not found in finder's inbox.")
+
+    logger.info(
+        "✅ DEMO 3 COMPLETE: Report invalidated, closed, and finder notified via inbox."
     )
 
 

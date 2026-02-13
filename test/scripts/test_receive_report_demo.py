@@ -67,5 +67,12 @@ def demo_env(client):
 
 
 def test_main_executes_without_raising(demo_env):
-    """Tests that demo.main() can be executed without raising exceptions."""
+    """
+    Tests that demo.main() can be executed without raising exceptions.
+
+    This test verifies the complete inbox-to-inbox communication flow:
+    1. Finder submits reports to vendor's inbox
+    2. Vendor processes reports and posts responses to finder's inbox
+    3. All three demo workflows complete successfully with direct inbox communication
+    """
     demo.main(skip_health_check=True)
