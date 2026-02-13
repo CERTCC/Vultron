@@ -49,7 +49,60 @@ def verify_semantics(expected_semantic_type: MessageSemantics):
 
 @verify_semantics(MessageSemantics.CREATE_REPORT)
 def create_report(dispatchable: DispatchActivity) -> None:
-    logger.debug("create_report handler called: %s", dispatchable)
+    """
+    Process a CreateReport activity (Create(VulnerabilityReport)).
+
+    Stores the VulnerabilityReport object in the data layer and the Create activity.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Create with VulnerabilityReport object
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.as_vocab.objects.vulnerability_report import (
+        VulnerabilityReport,
+    )
+
+    activity = dispatchable.payload
+
+    # Extract the created report
+    created_obj = activity.as_object
+    if not isinstance(created_obj, VulnerabilityReport):
+        logger.error(
+            "Expected VulnerabilityReport in create_report, got %s",
+            type(created_obj).__name__,
+        )
+        return None
+
+    actor_id = activity.actor
+    logger.info(
+        "Actor '%s' creates VulnerabilityReport '%s' (ID: %s)",
+        actor_id,
+        created_obj.name,
+        created_obj.as_id,
+    )
+
+    # Get data layer
+    dl = get_datalayer()
+
+    # Store the report object
+    try:
+        dl.create(created_obj)
+        logger.info(
+            "Stored VulnerabilityReport with ID: %s", created_obj.as_id
+        )
+    except ValueError as e:
+        logger.warning(
+            "VulnerabilityReport %s already exists: %s", created_obj.as_id, e
+        )
+
+    # Store the create activity
+    try:
+        dl.create(activity)
+        logger.info("Stored CreateReport activity with ID: %s", activity.as_id)
+    except ValueError as e:
+        logger.warning(
+            "CreateReport activity %s already exists: %s", activity.as_id, e
+        )
 
     return None
 
@@ -276,19 +329,230 @@ def validate_report(dispatchable: DispatchActivity) -> None:
 
 @verify_semantics(MessageSemantics.INVALIDATE_REPORT)
 def invalidate_report(dispatchable: DispatchActivity) -> None:
-    logger.debug("invalidate_report handler called: %s", dispatchable)
+    """
+    Process an InvalidateReport activity (TentativeReject(Offer(VulnerabilityReport))).
+
+    Updates the offer status to TENTATIVELY_REJECTED and report status to INVALID.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_TentativeReject with Offer object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.data.status import (
+        OfferStatus,
+        ReportStatus,
+        set_status,
+    )
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.bt.report_management.states import RM
+    from vultron.enums import OfferStatusEnum
+
+    activity = dispatchable.payload
+
+    try:
+        # Rehydrate actor, offer, and report
+        actor = rehydrate(obj=activity.actor)
+        actor_id = actor.as_id
+
+        # Rehydrate the rejected offer (may be embedded or reference)
+        rejected_offer = rehydrate(activity.as_object)
+
+        # Rehydrate the report that's the subject of the offer
+        subject_of_offer = rehydrate(rejected_offer.as_object)
+
+        logger.info(
+            "Actor '%s' tentatively rejects offer '%s' of VulnerabilityReport '%s'",
+            actor_id,
+            rejected_offer.as_id,
+            subject_of_offer.as_id,
+        )
+
+        # Update offer status
+        offer_status = OfferStatus(
+            object_type=rejected_offer.as_type,
+            object_id=rejected_offer.as_id,
+            status=OfferStatusEnum.TENTATIVELY_REJECTED,
+            actor_id=actor_id,
+        )
+        set_status(offer_status)
+        logger.info(
+            "Set offer '%s' status to TENTATIVELY_REJECTED",
+            rejected_offer.as_id,
+        )
+
+        # Update report status
+        report_status = ReportStatus(
+            object_type=subject_of_offer.as_type,
+            object_id=subject_of_offer.as_id,
+            status=RM.INVALID,
+            actor_id=actor_id,
+        )
+        set_status(report_status)
+        logger.info(
+            "Set report '%s' status to INVALID", subject_of_offer.as_id
+        )
+
+        # Store the activity
+        dl = get_datalayer()
+        try:
+            dl.create(activity)
+            logger.info(
+                "Stored InvalidateReport activity with ID: %s", activity.as_id
+            )
+        except ValueError as e:
+            logger.warning(
+                "InvalidateReport activity %s already exists: %s",
+                activity.as_id,
+                e,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error invalidating report in activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
+
     return None
 
 
 @verify_semantics(MessageSemantics.ACK_REPORT)
 def ack_report(dispatchable: DispatchActivity) -> None:
-    logger.debug("ack_report handler called: %s", dispatchable)
+    """
+    Process an AckReport activity (Read(Offer(VulnerabilityReport))).
+
+    Acknowledges receipt of a vulnerability report submission.
+    Stores the activity and logs the acknowledgement.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Read with Offer object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        # Rehydrate actor and offer
+        actor = rehydrate(obj=activity.actor)
+        actor_id = actor.as_id
+
+        # Rehydrate the offer being acknowledged
+        offer = rehydrate(activity.as_object)
+
+        # Rehydrate the report that's the subject of the offer
+        subject_of_offer = rehydrate(offer.as_object)
+
+        logger.info(
+            "Actor '%s' acknowledges receipt of offer '%s' of VulnerabilityReport '%s'",
+            actor_id,
+            offer.as_id,
+            subject_of_offer.as_id,
+        )
+
+        # Store the activity
+        dl = get_datalayer()
+        try:
+            dl.create(activity)
+            logger.info(
+                "Stored AckReport activity with ID: %s", activity.as_id
+            )
+        except ValueError as e:
+            logger.warning(
+                "AckReport activity %s already exists: %s", activity.as_id, e
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error acknowledging report in activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
+
     return None
 
 
 @verify_semantics(MessageSemantics.CLOSE_REPORT)
 def close_report(dispatchable: DispatchActivity) -> None:
-    logger.debug("close_report handler called: %s", dispatchable)
+    """
+    Process a CloseReport activity (Reject(Offer(VulnerabilityReport))).
+
+    Updates the offer status to REJECTED and report status to CLOSED.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Reject with Offer object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.data.status import (
+        OfferStatus,
+        ReportStatus,
+        set_status,
+    )
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.bt.report_management.states import RM
+    from vultron.enums import OfferStatusEnum
+
+    activity = dispatchable.payload
+
+    try:
+        # Rehydrate actor, offer, and report
+        actor = rehydrate(obj=activity.actor)
+        actor_id = actor.as_id
+
+        # Rehydrate the rejected offer (may be embedded or reference)
+        rejected_offer = rehydrate(activity.as_object)
+
+        # Rehydrate the report that's the subject of the offer
+        subject_of_offer = rehydrate(rejected_offer.as_object)
+
+        logger.info(
+            "Actor '%s' rejects offer '%s' of VulnerabilityReport '%s'",
+            actor_id,
+            rejected_offer.as_id,
+            subject_of_offer.as_id,
+        )
+
+        # Update offer status
+        offer_status = OfferStatus(
+            object_type=rejected_offer.as_type,
+            object_id=rejected_offer.as_id,
+            status=OfferStatusEnum.REJECTED,
+            actor_id=actor_id,
+        )
+        set_status(offer_status)
+        logger.info("Set offer '%s' status to REJECTED", rejected_offer.as_id)
+
+        # Update report status
+        report_status = ReportStatus(
+            object_type=subject_of_offer.as_type,
+            object_id=subject_of_offer.as_id,
+            status=RM.CLOSED,
+            actor_id=actor_id,
+        )
+        set_status(report_status)
+        logger.info("Set report '%s' status to CLOSED", subject_of_offer.as_id)
+
+        # Store the activity
+        dl = get_datalayer()
+        try:
+            dl.create(activity)
+            logger.info(
+                "Stored CloseReport activity with ID: %s", activity.as_id
+            )
+        except ValueError as e:
+            logger.warning(
+                "CloseReport activity %s already exists: %s",
+                activity.as_id,
+                e,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error closing report in activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
+
     return None
 
 

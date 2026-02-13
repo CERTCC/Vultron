@@ -1,3 +1,67 @@
+## Recent Changes (2026-02-13 Late Evening)
+
+### Remaining Report Handlers Implementation
+
+**Status**: COMPLETE (Phase 0.5)
+
+**What was implemented**:
+1. **create_report** handler:
+   - Processes Create(VulnerabilityReport) activities
+   - Stores both the report object and the Create activity
+   - Proper INFO-level logging for creation and storage
+   - Graceful handling of duplicates
+
+2. **invalidate_report** handler:
+   - Processes TentativeReject(Offer(VulnerabilityReport)) activities
+   - Uses rehydration to get full actor, offer, and report objects
+   - Updates offer status to TENTATIVELY_REJECTED
+   - Updates report status to INVALID (RM.INVALID)
+   - Stores the activity
+   - Proper error handling with ERROR-level logging
+
+3. **ack_report** handler:
+   - Processes Read(Offer(VulnerabilityReport)) activities
+   - Uses rehydration to get full actor, offer, and report objects
+   - Logs acknowledgement at INFO level
+   - Stores the activity
+   - Proper error handling
+
+4. **close_report** handler:
+   - Processes Reject(Offer(VulnerabilityReport)) activities
+   - Uses rehydration to get full actor, offer, and report objects
+   - Updates offer status to REJECTED
+   - Updates report status to CLOSED (RM.CLOSED)
+   - Stores the activity
+   - Proper error handling with ERROR-level logging
+
+**Supporting Fixes**:
+- Fixed `test/api/test_reporting_workflow.py` fixture to use file-based storage
+- The dl fixture was using in-memory storage (`db_path=None`) while handlers use default file-based storage
+- This caused test failures because handlers and tests were using different backends
+- Changed fixture back to `get_datalayer()` (no arguments) to match handler behavior
+- This aligns with how the tests worked in commit d592e46
+
+**Test Results**:
+- All handler tests pass: 9 tests in test_handlers.py
+- All workflow tests pass: 14 passed, 2 xfailed (pre-existing issues with _old_handlers)
+- The xfailed tests use deprecated _old_handlers with import issues (not related to new implementations)
+
+**Technical Notes**:
+- All handlers follow the same pattern established by submit_report and validate_report
+- Use rehydration for handlers that need full objects (not just IDs)
+- Use status tracking system (OfferStatus, ReportStatus) for state management
+- All handlers store activities in data layer for audit trail
+- Proper logging at INFO level for state changes, ERROR for failures
+- Graceful error handling with try/except blocks
+
+**Files Changed**:
+- `vultron/api/v2/backend/handlers.py`: Implemented 4 handler functions
+- `test/api/test_reporting_workflow.py`: Fixed dl fixture to use file-based storage
+
+**Next Steps** (for next iteration):
+- Task 0.6: Fix receive_report_demo.py test (may need additional infrastructure work)
+- Or move to Phase 1 tasks (request validation, error responses, health checks)
+
 ## Recent Changes (2026-02-13 Late Afternoon)
 
 ### Test Database Cleanup Fix

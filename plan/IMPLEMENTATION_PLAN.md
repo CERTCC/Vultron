@@ -94,14 +94,15 @@ This is the immediate priority per `plan/PRIORITIES.md`. The demo script showcas
 - **Tests**: `test/api/v2/data/test_actor_io.py`
 
 #### 0.5 Implement Remaining Report Handlers
-- [ ] close_report: Update report status to CLOSED
-- [ ] invalidate_report: Update report status to INVALID, update offer status
-- [ ] ack_report: Acknowledge report receipt (log and possibly update status)
-- [ ] create_report: Store new report in data layer
+- [x] close_report: Update report status to CLOSED
+- [x] invalidate_report: Update report status to INVALID, update offer status
+- [x] ack_report: Acknowledge report receipt (log and possibly update status)
+- [x] create_report: Store new report in data layer
 - **Files**: `vultron/api/v2/backend/handlers.py`
 - **Reference**: `_old_handlers/reject.py` (rm_invalidate_report), `_old_handlers/create.py`
 - **Specs**: `HP-03-001`, `HP-04-001`
 - **Tests**: `test/api/v2/backend/test_handlers.py`
+- **Status**: COMPLETE. All four handlers implemented with full business logic including rehydration, status updates, activity storage, and proper error handling.
 
 #### 0.6 Fix receive_report_demo.py Test
 - [ ] Remove `@pytest.mark.xfail` from test once handlers implemented
