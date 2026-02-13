@@ -214,126 +214,280 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
     return reconstructed_obj
 
 
-def main():
+def demo_accept_report(
+    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+):
+    """
+    Demonstrates the workflow where a vendor accepts a report and creates a case.
 
+    This follows the "Receiver Accepts Offered Report" sequence diagram from
+    docs/howto/activitypub/activities/report_vulnerability.md.
+    """
+    logger.info("=" * 80)
+    logger.info("DEMO 1: Accept Report and Create Case")
+    logger.info("=" * 80)
+
+    # Create a unique report for this demo
+    report = VulnerabilityReport(
+        attributed_to=finder.as_id,
+        content="This is a legitimate vulnerability in the authentication module.",
+        name="Authentication Bypass Vulnerability",
+    )
+    logger.info(f"Created report: {logfmt(report)}")
+
+    # Submit the report offer
+    report_offer = make_submit_offer(finder, vendor, report)
+    submit_to_inbox(
+        client=client, vendor_id=vendor.as_id, activity=report_offer
+    )
+
+    # Verify initial side effects
+    verify_object_stored(client=client, obj_id=report_offer.as_id)
+    verify_object_stored(client=client, obj_id=report.as_id)
+
+    # Get the offer back from the data layer
+    vendor_obj_id = parse_id(vendor.as_id)["object_id"]
+    report_offer_obj_id = parse_id(report_offer.as_id)["object_id"]
+    offer = client.get(
+        f"/datalayer/Actors/{vendor_obj_id}/Offers/{report_offer_obj_id}"
+    )
+    offer = as_Offer(**offer)
+    logger.info(f"Retrieved Offer: {logfmt(offer)}")
+
+    # Vendor validates the report (Accept workflow)
+    validate_activity = RmValidateReport(
+        actor=vendor.as_id,
+        object=offer.as_id,
+        content="Validating the report as legitimate. Creating case.",
+    )
+    logger.info(f"Validating offer: {logfmt(validate_activity)}")
+    client.post(
+        f"/actors/{vendor_obj_id}/inbox/", json=postfmt(validate_activity)
+    )
+
+    # Give the background handler time to process the activity
+    import time
+
+    time.sleep(3)  # Increased delay to ensure async processing completes
+
+    # Verify the validation was processed
+    response = client.get(f"/datalayer/{validate_activity.as_id}")
+    logger.info(f"ValidateReport stored: {json.dumps(response, indent=2)}")
+
+    # Verify case creation in outbox
+    # Re-fetch the vendor actor to get updated outbox
+    actors_data = client.get("/actors/")
+    vendor_refreshed = None
+    for actor_data in actors_data:
+        actor = as_Actor(**actor_data)
+        if actor.as_id == vendor.as_id:
+            vendor_refreshed = actor
+            break
+
+    if not vendor_refreshed:
+        logger.error("Could not re-fetch vendor actor.")
+        raise ValueError("Could not re-fetch vendor actor.")
+
+    outbox = vendor_refreshed.outbox
+    if not outbox:
+        logger.error("Vendor has no outbox.")
+        raise ValueError("Vendor has no outbox.")
+
+    logger.info(f"Vendor outbox has {len(outbox.items)} items.")
+
+    if not outbox.items:
+        logger.error("Vendor outbox is empty, expected Create(Case) activity.")
+        raise ValueError(
+            "Vendor outbox is empty, expected Create(Case) activity."
+        )
+
+    # Find the Create activity in the outbox
+    create_activity = None
+    for item in outbox.items:
+        logger.info(f"Vendor outbox item: {logfmt(item)}")
+        if item.as_type == "Create":
+            create_activity = item
+            logger.info(f"Found Create activity in outbox: {logfmt(item)}")
+            break
+
+    if not create_activity:
+        logger.error("Create activity not found in vendor outbox.")
+        raise ValueError("Create activity not found in vendor outbox.")
+
+    # Verify the case exists
+    case_id = create_activity["object"]
+    logger.info(f"Case ID from Create activity: {case_id}")
+    case = client.get(f"/datalayer/{case_id}")
+    case = VulnerabilityCase(**case)
+    logger.info(f"Retrieved VulnerabilityCase: {logfmt(case)}")
+
+    logger.info(
+        "✅ DEMO 1 COMPLETE: Report accepted and case created successfully."
+    )
+
+
+def demo_tentative_reject_report(
+    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+):
+    """
+    Demonstrates the workflow where a vendor tentatively rejects a report.
+
+    This follows the "Receiver Invalidates and Holds Offered Report" sequence diagram from
+    docs/howto/activitypub/activities/report_vulnerability.md.
+    """
+    logger.info("=" * 80)
+    logger.info("DEMO 2: Tentative Reject Report (Hold for Reconsideration)")
+    logger.info("=" * 80)
+
+    # Create a unique report for this demo
+    report = VulnerabilityReport(
+        attributed_to=finder.as_id,
+        content="Possible vulnerability in payment processing, needs more investigation.",
+        name="Potential Payment Processing Issue",
+    )
+    logger.info(f"Created report: {logfmt(report)}")
+
+    # Submit the report offer
+    report_offer = make_submit_offer(finder, vendor, report)
+    submit_to_inbox(
+        client=client, vendor_id=vendor.as_id, activity=report_offer
+    )
+
+    # Verify initial side effects
+    verify_object_stored(client=client, obj_id=report_offer.as_id)
+    verify_object_stored(client=client, obj_id=report.as_id)
+
+    # Get the offer back from the data layer
+    vendor_obj_id = parse_id(vendor.as_id)["object_id"]
+    report_offer_obj_id = parse_id(report_offer.as_id)["object_id"]
+    offer = client.get(
+        f"/datalayer/Actors/{vendor_obj_id}/Offers/{report_offer_obj_id}"
+    )
+    offer = as_Offer(**offer)
+    logger.info(f"Retrieved Offer: {logfmt(offer)}")
+
+    # Vendor tentatively rejects the report
+    # Note: TentativeReject activity is not yet implemented, so this is a placeholder
+    logger.info("⚠️  TentativeReject workflow not yet fully implemented.")
+    logger.info(
+        "This would mark the report as INVALID but keep it open for reconsideration."
+    )
+
+    logger.info(
+        "✅ DEMO 2 COMPLETE: Tentative reject demonstration (partial implementation)."
+    )
+
+
+def demo_reject_and_close_report(
+    client: DataLayerClient, finder: as_Actor, vendor: as_Actor
+):
+    """
+    Demonstrates the workflow where a vendor rejects a report and closes it.
+
+    This follows the "Receiver Invalidates and Closes Offered Report" sequence diagram from
+    docs/howto/activitypub/activities/report_vulnerability.md.
+    """
+    logger.info("=" * 80)
+    logger.info("DEMO 3: Reject and Close Report")
+    logger.info("=" * 80)
+
+    # Create a unique report for this demo
+    report = VulnerabilityReport(
+        attributed_to=finder.as_id,
+        content="This is a false positive - not a real vulnerability.",
+        name="False Positive Report",
+    )
+    logger.info(f"Created report: {logfmt(report)}")
+
+    # Submit the report offer
+    report_offer = make_submit_offer(finder, vendor, report)
+    submit_to_inbox(
+        client=client, vendor_id=vendor.as_id, activity=report_offer
+    )
+
+    # Verify initial side effects
+    verify_object_stored(client=client, obj_id=report_offer.as_id)
+    verify_object_stored(client=client, obj_id=report.as_id)
+
+    # Get the offer back from the data layer
+    vendor_obj_id = parse_id(vendor.as_id)["object_id"]
+    report_offer_obj_id = parse_id(report_offer.as_id)["object_id"]
+    offer = client.get(
+        f"/datalayer/Actors/{vendor_obj_id}/Offers/{report_offer_obj_id}"
+    )
+    offer = as_Offer(**offer)
+    logger.info(f"Retrieved Offer: {logfmt(offer)}")
+
+    # Vendor invalidates the report
+    invalidate_activity = RmInvalidateReport(
+        actor=vendor.as_id,
+        object=offer.as_id,
+        content="Invalidating the report - this is a false positive.",
+    )
+    logger.info(f"Invalidating offer: {logfmt(invalidate_activity)}")
+    client.post(
+        f"/actors/{vendor_obj_id}/inbox/", json=postfmt(invalidate_activity)
+    )
+
+    # Vendor closes the report
+    close_activity = RmCloseReport(
+        actor=vendor.as_id,
+        object=offer.as_id,
+        content="Closing the report as invalid.",
+    )
+    logger.info(f"Closing offer: {logfmt(close_activity)}")
+    client.post(
+        f"/actors/{vendor_obj_id}/inbox/", json=postfmt(close_activity)
+    )
+
+    # Verify both activities were processed
+    invalidate_response = client.get(f"/datalayer/{invalidate_activity.as_id}")
+    logger.info(
+        f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
+    )
+
+    close_response = client.get(f"/datalayer/{close_activity.as_id}")
+    logger.info(f"CloseReport stored: {json.dumps(close_response, indent=2)}")
+
+    logger.info("✅ DEMO 3 COMPLETE: Report rejected and closed successfully.")
+
+
+def main():
+    """
+    Main entry point for the demo script.
+
+    Runs all three demonstration workflows to showcase the different outcomes
+    when processing vulnerability reports.
+    """
     client = DataLayerClient()
 
     # Reset the data layer to a clean state
     reset = reset_datalayer(client=client, init=True)
     logger.info(f"Reset status: {reset}")
 
+    # Discover actors once at the beginning
     (finder, vendor, coordinator) = discover_actors(client=client)
-
     init_actor_ios([finder, vendor, coordinator])
 
-    report = build_report(finder)
+    # Run all three demos with different reports
+    try:
+        demo_accept_report(client, finder, vendor)
+    except Exception as e:
+        logger.error(f"Demo 1 failed: {e}", exc_info=True)
 
-    report_offer = make_submit_offer(finder, vendor, report)
+    try:
+        demo_tentative_reject_report(client, finder, vendor)
+    except Exception as e:
+        logger.error(f"Demo 2 failed: {e}", exc_info=True)
 
-    submit_to_inbox(
-        client=client, vendor_id=vendor.as_id, activity=report_offer
-    )
+    try:
+        demo_reject_and_close_report(client, finder, vendor)
+    except Exception as e:
+        logger.error(f"Demo 3 failed: {e}", exc_info=True)
 
-    # check side effects:
-    # the offer should be in the datalayer
-    verify_object_stored(client=client, obj_id=report_offer.as_id)
-    # the report should be in the datalayer
-    verify_object_stored(client=client, obj_id=report.as_id)
-
-    # strip vendor.as_id to get the object ID
-    vendor_obj_id = parse_id(vendor.as_id)["object_id"]
-    report_offer_obj_id = parse_id(report_offer.as_id)["object_id"]
-
-    offer = client.get(
-        f"/datalayer/Actors/{vendor_obj_id}/Offers/{report_offer_obj_id}"
-    )
-    offer = as_Offer(**offer)
-    logger.info(f"Retrieved Offer via Actor: {logfmt(offer)}")
-
-    close_offer = RmCloseReport(
-        actor=vendor.as_id,
-        object=offer.as_id,
-        content="Closing the report as invalid.",
-    )
-
-    logger.info(f"Closing offer: {logfmt(close_offer)}")
-    client.post(f"/actors/{vendor_obj_id}/inbox/", json=postfmt(close_offer))
-
-    invalidate_offer = RmInvalidateReport(
-        actor=vendor.as_id,
-        object=offer.as_id,
-        content="Invalidating the report due to false positive.",
-    )
-    logger.info(f"Invalidating offer: {logfmt(invalidate_offer)}")
-
-    client.post(
-        f"/actors/{vendor_obj_id}/inbox/", json=postfmt(invalidate_offer)
-    )
-
-    accept_offer = RmValidateReport(
-        actor=vendor.as_id,
-        object=offer.as_id,
-        content="Validating the report as legitimate.",
-    )
-    logger.info(f"Validating offer: {logfmt(accept_offer)}")
-
-    client.post(f"/actors/{vendor_obj_id}/inbox/", json=postfmt(accept_offer))
-
-    # verify that the accept_offer got processed correctly
-    response = client.get(f"/datalayer/{accept_offer.as_id}")
-    logger.info(f"ValidateReport response: {json.dumps(response, indent=2)}")
-
-    # FIXME everything works up to here.
-
-    # verify side effects again
-    # this time,
-    # the actor's outbox should have a Create activity for the case
-    outbox = client.get(f"/actors/{vendor_obj_id}/outbox/")
-    outbox = as_OrderedCollection(**outbox)
-
-    logger.info(f"Vendor outbox has {len(outbox.items)} items.")
-    if not outbox.items:
-        logger.error("Vendor outbox is empty, expected items.")
-        raise ValueError("Vendor outbox is empty, expected items.")
-
-    found = None
-    for item in outbox.items:
-        logger.info(f"Vendor outbox item: {logfmt(item)}")
-        if item.as_type == "Create":
-            logger.info(f"Found Create activity in outbox: {logfmt(item)}")
-            found = item
-            break
-
-    if not found:
-        logger.error("Create activity not found in vendor outbox.")
-        raise ValueError("Create activity not found in vendor outbox.")
-
-    # the object of the Create activity should be the case
-    create_id = found["id"]
-    logger.info(f"Create activity object ID: {create_id}")
-    case_id = found["object"]
-    logger.info(f"Create activity case ID: {case_id}")
-
-    create_obj = as_Object(**found)
-    logger.info(
-        f"Create activity found in vendor outbox: {logfmt(create_obj)}"
-    )
-
-    # and a case should exist in the datalayer
-    case_id = create_obj.as_object
-
-    case = client.get(f"/datalayer/{found.object}")
-    case = VulnerabilityCase(**case)
-    logger.info(f"Retrieved VulnerabilityCase: {logfmt(case)}")
-
-
-def build_report(finder: as_Actor) -> VulnerabilityReport:
-    report = VulnerabilityReport(
-        attributed_to=finder.as_id,
-        content="This is a demo vulnerability report.",
-        name="Demo Vulnerability Report",
-    )
-    return report
+    logger.info("=" * 80)
+    logger.info("ALL DEMOS COMPLETE")
+    logger.info("=" * 80)
 
 
 def _setup_logging():

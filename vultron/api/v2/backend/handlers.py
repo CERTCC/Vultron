@@ -315,6 +315,11 @@ def validate_report(dispatchable: DispatchActivity) -> None:
                 "Added CreateCase activity to actor outbox: %s",
                 create_case_activity.as_id,
             )
+            # Save the updated actor back to the data layer
+            dl.update(actor_obj)
+            logger.info(
+                "Updated actor %s in data layer with new outbox item", actor_id
+            )
         else:
             logger.error(
                 "Actor %s has no outbox or outbox.items attribute", actor_id
