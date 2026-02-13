@@ -13,11 +13,12 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 - `SE-01-001` The system MUST match activities using activity type and object type patterns
   - Support nested object type matching (e.g., Accept of Offer of VulnerabilityReport)
   - Evaluate patterns in order of specificity (most specific first)
-- `SE-01-002` Activities SHOULD be rehydrated before semantic extraction
-  - Use `rehydrate()` from `vultron/api/v2/data/rehydration.py` to expand URI references to full objects
-  - Rehydration converts string URIs to their corresponding objects from the data layer
-  - Pattern matching code MUST handle both inline objects and URI strings defensively as fallback
-  - Use: `isinstance(field, str)` check or `getattr(field, "as_type", None)` for safe attribute access
+- `SE-01-002` The semantic extraction algorithm MUST handle both rehydrated objects and URI strings defensively
+  - **Rehydration timing**: Rehydration occurs *before* semantic extraction in the inbox handler flow (see `inbox_handler.py`)
+  - **Defensive pattern matching**: Pattern matching code uses safe attribute access (`getattr(field, "as_type", None)`) to handle edge cases where rehydration is incomplete
+  - **Rationale**: Rehydration is a separate concern from semantic extraction; extraction must be robust to partial rehydration
+
+**Implementation Note**: The `rehydrate()` function from `vultron/api/v2/data/rehydration.py` expands URI references to full objects. The inbox handler calls this before semantic extraction to ensure nested objects are properly typed.
 
 ## Semantic Type Assignment (MUST)
 

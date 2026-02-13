@@ -15,18 +15,23 @@ Handler functions process DispatchActivity objects and implement protocol busine
 
 ## Semantic Verification (MUST)
 
-- `HP-02-001` All handlers MUST use the `@verify_semantics` decorator
-- `HP-02-002` The decorator MUST specify the expected MessageSemantics value
+- `HP-02-001` All handlers MUST have semantic type verification before execution
+  - **Implementation**: Uses `@verify_semantics` decorator with MessageSemantics enum value
+- `HP-02-002` The verification mechanism MUST check that the activity's semantic type matches the handler's expected type
+  - **Rationale**: Prevents routing errors where wrong handler processes an activity
 
 ## Handler Registration (MUST)
 
-- `HP-03-001` All handlers MUST be registered in SEMANTIC_HANDLER_MAP
-- `HP-03-002` Registry keys MUST match decorator MessageSemantics values
+- `HP-03-001` All handlers MUST be discoverable via a handler registry mechanism
+  - **Implementation**: Registry map (e.g., `SEMANTIC_HANDLER_MAP`) maps MessageSemantics → handler functions
+- `HP-03-002` Registry keys MUST match handler semantic verification types
 
 ## Payload Access (MUST)
 
 - `HP-04-001` Handlers MUST access activity data via `dispatchable.payload`
-- `HP-04-002` Handlers MUST use Pydantic models for type-safe payload access
+  - **Rationale**: Encapsulation; payload may be validated/transformed by dispatcher
+- `HP-04-002` Handlers MUST use schema validation for type-safe payload access
+  - **Implementation**: Pydantic models provide validation and type safety
 
 ## Error Handling (MUST)
 
@@ -35,14 +40,19 @@ Handler functions process DispatchActivity objects and implement protocol busine
 
 ## Logging (MUST)
 
-- `HP-06-001` Handlers MUST log entry at DEBUG level
-- `HP-06-002` Handlers MUST log state transitions at INFO level
-- `HP-06-003` Handlers MUST log errors at ERROR level
+- `HP-06-001` Handlers MUST log entry at DEBUG level with handler name
+- `HP-06-002` Handlers MUST log state transitions at INFO level with before/after states
+- `HP-06-003` Handlers MUST log errors at ERROR level with full context
+  - **Cross-reference**: `structured-logging.md` SL-03-001 for log level semantics
+  - **Cross-reference**: `structured-logging.md` SL-04-001 for state transition format
 
 ## Idempotency (SHOULD)
 
 - `HP-07-001` Handlers SHOULD be idempotent to support retries
+  - **Idempotency**: Same input produces same result/state without unintended side effects
 - `HP-07-002` Handlers SHOULD check for existing state before mutating
+  - **Implementation**: Query data layer for existing records; update rather than create if present
+  - **Example**: Before creating a report, check if report ID already exists in data layer
 
 ## Verification
 

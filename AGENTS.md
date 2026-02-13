@@ -405,6 +405,64 @@ git add -A && git commit -m "Same message"
 
 ---
 
+## Specification Usage Guidance
+
+### Key Specifications
+
+The `specs/` directory contains testable requirements. Key specifications:
+
+1. **Cross-cutting concerns** (reference these first):
+   - `http-protocol.md`: HTTP status codes, Content-Type, size limits
+   - `structured-logging.md`: Log format, correlation IDs, log levels
+   - `meta-specifications.md`: How to read and write specs
+
+2. **Message processing pipeline**:
+   - `inbox-endpoint.md`: FastAPI endpoint behavior
+   - `message-validation.md`: Activity validation rules
+   - `semantic-extraction.md`: Pattern matching rules
+   - `dispatch-routing.md`: Handler routing
+   - `handler-protocol.md`: Handler function requirements
+
+3. **Quality and observability**:
+   - `error-handling.md`: Exception hierarchy
+   - `response-format.md`: Response activity generation
+   - `observability.md`: Health checks and monitoring
+   - `testability.md`: Test coverage requirements
+   - `code-style.md`: Code formatting and organization
+
+### Reading Specifications
+
+- Requirements use RFC 2119 keywords: **MUST**, **SHOULD**, **MAY**
+- Each requirement has a unique ID (e.g., `HP-01-001`)
+- **Cross-references** link related requirements across specs
+- **Verification** sections show how to test requirements
+- **Implementation** notes suggest approaches (not mandatory)
+
+### When Specifications Conflict
+
+If requirements appear to conflict:
+1. Check **cross-references** for clarification
+2. Consolidated specs (http-protocol.md, structured-logging.md) take precedence over older inline requirements
+3. MUST requirements override SHOULD/MAY
+4. Ask for clarification rather than guessing
+
+### Updating Specifications
+
+When updating specs per LEARN_prompt instructions:
+- **Avoid over-specifying implementation details**: Specify *what*, not *how*
+- **Keep requirements atomic**: One testable requirement per ID
+- **Remove redundancy**: Use cross-references instead of duplicating requirements
+- **Maintain verification criteria**: Every requirement needs a test
+- **Follow existing conventions**: Match style and structure of other specs
+
+**Recent Consolidation (2026-02-13)**:
+- Created `http-protocol.md` to consolidate HTTP status codes and Content-Type validation
+- Created `structured-logging.md` to consolidate logging format and correlation ID requirements
+- Updated `inbox-endpoint.md` to reference consolidated specs via cross-references
+- This reduces duplication and creates single source of truth for common requirements
+
+---
+
 ## Safety & Guardrails
 - Treat anything under `/security`, `/auth`, or equivalent paths as sensitive
 - Do not generate secrets, credentials, or real tokens
