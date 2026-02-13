@@ -68,16 +68,20 @@ def rehydrate(obj: as_Object, depth: int = 0) -> as_Object | str:
             raise ValueError("Object not found in data layer")
 
         logger.debug(f"Object rehydrated from data layer: {obj}")
-        return obj  # type: ignore
+        # Don't return early - continue to rehydrate nested objects
 
     # if object has an `as_object`, rehydrate that first
     # this is the depth-first part
+    rehydrated_nested_object = None
     if hasattr(obj, "as_object"):
         if obj.as_object is not None:
             logger.debug(
                 f"Rehydrating nested object in 'as_object' field of {obj.as_type}"
             )
-            obj.as_object = rehydrate(obj=obj.as_object, depth=depth + 1)
+            rehydrated_nested_object = rehydrate(
+                obj=obj.as_object, depth=depth + 1
+            )
+            obj.as_object = rehydrated_nested_object
         else:
             logger.error(f"'as_object' field is None in {obj.as_type}")
             raise ValueError(f"'as_object' field is None in {obj.as_type}")
@@ -107,5 +111,14 @@ def rehydrate(obj: as_Object, depth: int = 0) -> as_Object | str:
     except ValidationError:
         logger.error(f"{cls.__name__} validation failed on {obj}")
         raise
+
+    # Preserve the rehydrated nested object after validation
+    if rehydrated_nested_object is not None and hasattr(
+        rehydrated, "as_object"
+    ):
+        rehydrated.as_object = rehydrated_nested_object
+        logger.debug(
+            f"Preserved rehydrated nested object of type {rehydrated_nested_object.__class__.__name__}"
+        )
 
     return rehydrated
