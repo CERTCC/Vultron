@@ -131,8 +131,11 @@ Example patterns:
 
 * Put sources **only in the header**, not per requirement
 * Use inline links for cross-spec references
+* **Consolidation notes**: Some specs consolidate requirements from multiple sources
+  * `http-protocol.md` consolidates HTTP-related requirements from `inbox-endpoint.md`, `message-validation.md`, `error-handling.md`
+  * `structured-logging.md` consolidates logging requirements from `observability.md`, `error-handling.md`, `inbox-endpoint.md`
+  * Check file headers for "Consolidates:" notes indicating superseded requirements
 * Record architectural decisions as ADRs when they affect:
-
   * Component boundaries
   * Persistence or protocol formats
   * Cross-cutting semantics (e.g., BT engines)

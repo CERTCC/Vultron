@@ -54,6 +54,11 @@ Handler functions process DispatchActivity objects and implement protocol busine
   - **Implementation**: Query data layer for existing records; update rather than create if present
   - **Example**: Before creating a report, check if report ID already exists in data layer
 
+**Note**: Idempotency is a multi-layer concern:
+- **Inbox level**: Duplicate activity ID detection (see `inbox-endpoint.md` IE-10-001)
+- **Handler level**: State-aware mutations (this section)
+- **Response level**: Avoid generating duplicate responses (see `response-format.md` RF-09-001)
+
 ## Verification
 
 ### HP-01-001, HP-01-002 Verification

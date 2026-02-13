@@ -2,9 +2,13 @@
 
 ## Overview
 
-The Vultron inbox handler must handle various error conditions gracefully, providing clear error messages, maintaining system stability, and enabling debugging.
+The Vultron inbox handler must handle various error conditions gracefully, providing clear error messages, maintaining system stability, and enabling debugging. This specification focuses on **exception hierarchy and error categories**.
 
 **Source**: API design requirements, operational requirements
+
+**Note**:
+- **Error logging** requirements consolidated in `specs/structured-logging.md` (SL-03-001)
+- **HTTP status codes** consolidated in `specs/http-protocol.md` (HP-03-001)
 
 ---
 
@@ -37,8 +41,8 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
 ## Error Response Format (MUST)
 
 - `EH-05-001` HTTP error responses MUST include JSON body with fields
-  - `status`: HTTP status code
-  - `error`: Error type/category
+  - `status`: HTTP status code (see `http-protocol.md` HP-03-001)
+  - `error`: Error type/category (from exception class name)
   - `message`: Human-readable error description
   - `activity_id`: Activity ID (if available)
 
@@ -48,6 +52,7 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
   - Client errors (4xx) → WARNING
   - Server errors (5xx) → ERROR
   - Include full context and stack trace for server errors
+  - **Cross-reference**: `structured-logging.md` SL-03-001 for complete log level semantics
 
 ## Verification
 

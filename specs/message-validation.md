@@ -6,6 +6,10 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 
 **Source**: ActivityStreams 2.0 specification, API design requirements
 
+**Note**: 
+- **HTTP-level validation** (Content-Type, size limits) consolidated in `specs/http-protocol.md` (HP-01, HP-02)
+- This spec focuses on **ActivityStreams structure and semantic validation**
+
 ---
 
 ## Activity Structure Validation (MUST)
@@ -47,25 +51,14 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - SHOULD reject obviously malformed URIs
   - MAY validate URI reachability for external references
 
-## Content-Type Validation (MUST)
-
-- `MV-06-001` The system MUST validate request Content-Type headers
-  - MUST accept `application/activity+json`
-  - MUST accept `application/ld+json; profile="https://www.w3.org/ns/activitystreams"`
-  - SHOULD accept `application/json` with a warning
-  - MUST reject other content types with HTTP 415
-
-## Size Limits (MUST)
-
-- `MV-07-001` Activity payload MUST NOT exceed 1 MB
-- `MV-07-002` The system MUST reject oversized payloads with HTTP 413
-
 ## Duplicate Detection (SHOULD)
 
 - `MV-08-001` The system SHOULD detect and handle duplicate activity submissions
   - SHOULD track recently processed activity IDs
   - SHOULD return HTTP 202 for duplicate submissions without reprocessing
   - MAY implement idempotency based on activity ID
+  - **Cross-reference**: `specs/inbox-endpoint.md` IE-10-001 for inbox-level duplicate detection
+  - **Cross-reference**: `specs/handler-protocol.md` HP-07-001 for handler-level idempotency
 
 ## Verification
 
@@ -91,23 +84,18 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 - Unit test: Malformed URIs → ValidationError
 - Unit test: Valid URI schemes → passes
 
-### MV-06-001 Verification
-- Integration test: Each acceptable Content-Type → HTTP 202
-- Integration test: Unacceptable Content-Type → HTTP 415
-
-### MV-07-001, MV-07-002 Verification
-- Integration test: 1.1 MB payload → HTTP 413
-- Integration test: 0.9 MB payload → HTTP 202
-
 ### MV-08-001 Verification
 - Integration test: Submit same activity twice → both return HTTP 202
 - Verification: Second submission does not invoke handler
+- **See also**: `specs/inbox-endpoint.md` IE-10-001 verification for complete duplicate detection tests
 
 ## Related
 
-- Implementation: `vultron/api/v2/routers/actors.py` (`parse_activity()`)
-- Implementation: `vultron/as_vocab/activities/` (Pydantic models)
-- Tests: `test/api/v2/routers/test_actors.py`
-- Related Spec: [inbox-endpoint.md](inbox-endpoint.md)
-- Related Spec: [error-handling.md](error-handling.md)
+- **HTTP Protocol**: `specs/http-protocol.md` (Content-Type validation MV-06-001, size limits MV-07-001 consolidated as HP-01, HP-02)
+- **Idempotency**: `specs/inbox-endpoint.md` IE-10-001, `specs/handler-protocol.md` HP-07-001
+- **Implementation**: `vultron/api/v2/routers/actors.py` (`parse_activity()`)
+- **Implementation**: `vultron/as_vocab/activities/` (Pydantic models)
+- **Tests**: `test/api/v2/routers/test_actors.py`
+- **Related Spec**: [inbox-endpoint.md](inbox-endpoint.md)
+- **Related Spec**: [error-handling.md](error-handling.md)
 

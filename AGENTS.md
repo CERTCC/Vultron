@@ -209,7 +209,7 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - Log state transitions at INFO level
 - Log errors at ERROR level with full context
 
-See `specs/observability.md` for complete logging and monitoring requirements.
+See `specs/structured-logging.md` for complete logging requirements (consolidates `specs/observability.md` logging sections).
 
 ---
 
@@ -222,6 +222,10 @@ This project uses formal specifications in `specs/` directory defining testable 
 - Requirements use RFC 2119 keywords in section headers (MUST, SHOULD, MAY)
 - Each requirement has verification criteria
 - Implementation changes SHOULD reference relevant requirement IDs
+- **Some specifications consolidate requirements from multiple sources**:
+  - `http-protocol.md` consolidates HTTP-related requirements from inbox-endpoint, message-validation, error-handling
+  - `structured-logging.md` consolidates logging requirements from observability, error-handling, inbox-endpoint
+  - Check spec file headers for "Consolidates:" notes indicating superseded requirements
 
 ### Key Specifications
 - `specs/meta-specifications.md`: How to read and write specs
@@ -229,11 +233,16 @@ This project uses formal specifications in `specs/` directory defining testable 
 - `specs/semantic-extraction.md`: Pattern matching rules
 - `specs/dispatch-routing.md`: Dispatcher requirements
 - `specs/inbox-endpoint.md`: Endpoint behavior
-- `specs/message-validation.md`: Validation requirements
-- `specs/error-handling.md`: Error hierarchy and responses
+- `specs/http-protocol.md`: HTTP status codes, Content-Type, headers (consolidates parts of inbox-endpoint, message-validation, error-handling)
+- `specs/structured-logging.md`: Log format, levels, correlation IDs, audit trail (consolidates parts of observability, error-handling)
+- `specs/message-validation.md`: ActivityStreams schema validation
+- `specs/error-handling.md`: Error hierarchy and exception types
 - `specs/response-format.md`: Response activity generation
-- `specs/observability.md`: Logging and monitoring
-- `specs/testability.md`: Testing requirements
+- `specs/observability.md`: High-level observability overview (health checks)
+- `specs/testability.md`: Testing requirements and patterns
+- `specs/code-style.md`: Code formatting and import organization
+
+**Note**: Some specs consolidate requirements from multiple sources; check file headers for cross-references.
 
 When implementing features, consult relevant specs for complete requirements and verification criteria.
 
@@ -257,19 +266,39 @@ When implementing features, consult relevant specs for complete requirements and
 - All 47 `MessageSemantics` enum values defined
 - Registry infrastructure (`SEMANTIC_HANDLER_MAP`, `SEMANTICS_ACTIVITY_PATTERNS`)
 
-### ⚠️ Stub Implementations Requiring Business Logic
-Handler functions in `vultron/api/v2/backend/handlers.py` are currently stubs that:
-- Log at DEBUG level
-- Return None
+### ✅ Report Handlers Complete (6/28 handlers - 21%)
+The following report workflow handlers have full business logic:
+- `create_report`: Stores VulnerabilityReport + Create activity, handles duplicates
+- `submit_report`: Stores VulnerabilityReport + Offer activity (mirrors create_report)
+- `validate_report`: Rehydrates objects, updates statuses (ACCEPTED/VALID), creates VulnerabilityCase, adds CreateCase to actor outbox
+- `invalidate_report`: Updates offer (TENTATIVELY_REJECTED) and report (INVALID) statuses
+- `ack_report`: Logs acknowledgement, stores Read activity
+- `close_report`: Updates offer (REJECTED) and report (CLOSED) statuses
+
+**Implementation Pattern**: Rehydrate → validate types → update status → persist → log at INFO level
+
+### ⚠️ Stub Implementations Requiring Business Logic (22 handlers)
+Remaining handlers in `vultron/api/v2/backend/handlers.py` are stubs that:
+- Log at DEBUG level only
+- Return None without side effects
 - Do not persist state or generate responses
+
+**Categories needing implementation**:
+- Case management (8): `create_case`, `add_report_to_case`, `suggest_actor_to_case`, ownership transfer, etc.
+- Actor invitations (3): `invite/accept/reject_invite_actor_to_case`
+- Embargo management (7): `create_embargo_event`, embargo invitations, etc.
+- Participants & metadata (6): case participants, notes, status tracking
+- Case lifecycle (1): `close_case`
 
 When implementing handler business logic:
 1. Extract relevant data from `dispatchable.payload`
-2. Validate business rules
-3. Persist state changes via data layer
-4. Generate response activities (when `specs/response-format.md` is implemented)
-5. Log state transitions at INFO level
-6. Handle errors gracefully with appropriate exceptions
+2. Rehydrate nested object references using data layer
+3. Validate business rules and object types
+4. Persist state changes via data layer
+5. Update actor outbox if creating new activities
+6. Generate response activities (when `specs/response-format.md` is implemented)
+7. Log state transitions at INFO level (not DEBUG)
+8. Handle errors gracefully with appropriate exceptions
 
 ### 🔨 Future Work
 - Response activity generation (`specs/response-format.md`)
