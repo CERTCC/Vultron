@@ -19,15 +19,14 @@ Vultron Actor Inbox Handler
 import logging
 
 from vultron.api.v2.backend import handlers  # noqa: F401
-from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.data.rehydration import rehydrate
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.api.v2.errors import VultronApiValidationError
 from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.behavior_dispatcher import get_dispatcher, prepare_for_dispatch
 from vultron.types import DispatchActivity
-
 
 logger = logging.getLogger(__name__)
 

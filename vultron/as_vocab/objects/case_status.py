@@ -53,7 +53,10 @@ class CaseStatus(VultronObject):
     @field_validator("em_state", mode="before")
     def validate_em_state(cls, v):
         if isinstance(v, str):
-            return EM[v]
+            #
+            if v in EM.__members__:
+                return EM[v]
+            return EM(v)
         return v
 
     @field_validator("pxa_state", mode="before")
