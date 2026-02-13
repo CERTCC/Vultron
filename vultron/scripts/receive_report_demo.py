@@ -452,14 +452,65 @@ def demo_reject_and_close_report(
     logger.info("✅ DEMO 3 COMPLETE: Report rejected and closed successfully.")
 
 
-def main():
+def check_server_availability(client: DataLayerClient) -> bool:
+    """
+    Checks if the API server is available.
+
+    Args:
+        client: DataLayerClient instance
+
+    Returns:
+        bool: True if server is available, False otherwise
+    """
+    try:
+        # Try to access the actors endpoint as a simple health check
+        # Use the client's base_url but make a direct request to avoid
+        # the client's error handling
+        url = f"{client.base_url}/actors/"
+        logger.debug(f"Checking server availability at: {url}")
+        response = requests.get(url, timeout=2)
+        available = response.status_code < 500
+        logger.debug(
+            f"Server availability check: {available} (status: {response.status_code})"
+        )
+        return available
+    except requests.exceptions.ConnectionError as e:
+        logger.debug(f"Connection error during availability check: {e}")
+        return False
+    except requests.exceptions.Timeout as e:
+        logger.debug(f"Timeout during availability check: {e}")
+        return False
+    except Exception as e:
+        logger.debug(f"Unexpected error checking server: {e}")
+        return False
+
+
+def main(skip_health_check: bool = False):
     """
     Main entry point for the demo script.
+
+    Args:
+        skip_health_check: Skip the server availability check (useful for testing)
 
     Runs all three demonstration workflows to showcase the different outcomes
     when processing vulnerability reports.
     """
     client = DataLayerClient()
+
+    # Check if server is available before proceeding
+    if not skip_health_check and not check_server_availability(client):
+        logger.error("=" * 80)
+        logger.error("ERROR: API server is not available")
+        logger.error("=" * 80)
+        logger.error(f"Cannot connect to: {client.base_url}")
+        logger.error("")
+        logger.error("Please ensure the Vultron API server is running.")
+        logger.error("You can start it with:")
+        logger.error(
+            "  uvicorn vultron.api.main:app --host localhost --port 7999"
+        )
+        logger.error("=" * 80)
+        sys.exit(1)
 
     # Reset the data layer to a clean state
     reset = reset_datalayer(client=client, init=True)

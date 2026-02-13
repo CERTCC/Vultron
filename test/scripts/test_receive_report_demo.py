@@ -68,4 +68,4 @@ def demo_env(client):
 
 def test_main_executes_without_raising(demo_env):
     """Tests that demo.main() can be executed without raising exceptions."""
-    demo.main()
+    demo.main(skip_health_check=True)
