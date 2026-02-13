@@ -1,3 +1,13 @@
+## Session 2026-02-13 Evening - Task: Fix TentativeReject Not Found in Inbox
+
+### Development Environment Note
+**Important**: Use `uv run uvicorn` to start the server with proper virtualenv activation:
+```bash
+uv run uvicorn vultron.api.main:app --host localhost --port 7999
+```
+
+---
+
 ## Session 2026-02-13 Evening - Task 0A.4 Complete
 
 ### Task Completed: Remove xfail marker from passing demo test
@@ -116,3 +126,67 @@ The outbox verification issue requires deeper debugging of the async background 
 - Only remaining issue is outbox verification in Demo 1
 
 
+
+---
+
+## Session 2026-02-13 Evening - Bugfix: Actor Inbox/Outbox Not Persisting
+
+### Task Completed: Fix activities not being added to actor inboxes
+
+**Status**: ✅ COMPLETE
+
+**Problem**:
+All three demos in `receive_report_demo.py` were failing with errors indicating that activities posted to actors' inboxes were not appearing:
+- Demo 1: "Could not find case related to this report" (CreateCase activity not in finder's inbox)
+- Demo 2: "TentativeReject activity not found in finder's inbox"
+- Demo 3: "TentativeReject activity not found in finder's inbox"
+
+**Root Cause Analysis**:
+Through systematic debugging, discovered that:
+1. Activities WERE being stored in the datalayer ✅
+2. Activities WERE being added to the in-memory ActorIO inbox ✅
+3. Activities WERE NOT being persisted to the database actor's inbox collection ❌
+
+The bug was traced to a `@model_validator(mode="after")` in `vultron/as_vocab/base/objects/actors.py` (line 51-62) that unconditionally created NEW empty `OrderedCollection` objects for inbox and outbox, overwriting any existing values during Pydantic's `model_validate()` call.
+
+This caused a cascade of issues:
+- When `post_actor_inbox` appended an activity ID to the actor's inbox and saved it, the next `model_validate()` call would reset it to empty
+- When `dl.read()` reconstructed objects from the database, the validator would wipe out the stored inbox items
+- The `validate_report` handler had a similar issue with outbox updates
+
+**Fix Implemented**:
+
+1. **`vultron/as_vocab/base/objects/actors.py`** (lines 51-65):
+   - Modified `set_collections` validator to check if inbox/outbox are `None` before creating new collections
+   - This preserves existing collections loaded from the database
+
+2. **`vultron/api/v2/backend/handlers.py`** (line 312):
+   - Fixed `dl.update(actor_obj)` → `dl.update(actor_obj.as_id, object_to_record(actor_obj))`
+   - The single-argument call was incorrect; update requires both ID and Record
+
+3. **`vultron/api/v2/routers/actors.py`** (lines 218-226):
+   - Removed debug logging, kept clean implementation
+   - Added info-level logging for successful inbox updates
+
+**Test Results**:
+- ✅ All 3 demos in `receive_report_demo.py` now pass
+- ✅ Demo test (`test/scripts/test_receive_report_demo.py`) passes (1 passed in 11.86s)
+- ✅ All handler tests pass (test/api/v2/backend/test_handlers.py: 9 passed in 0.06s)
+- ✅ Inbox items persist correctly after POST
+- ✅ Outbox items persist correctly in validate_report handler
+
+**Key Insight**:
+Pydantic validators with `mode="after"` run EVERY TIME `model_validate()` is called, including when reconstructing objects from the database. Validators that set default values must check if the field is already populated to avoid overwriting database values.
+
+**Files Modified**:
+- `vultron/as_vocab/base/objects/actors.py`
+- `vultron/api/v2/backend/handlers.py`
+- `vultron/api/v2/routers/actors.py`
+- `plan/BUGS.md` (documented and closed bug)
+- `plan/IMPLEMENTATION_NOTES.md` (this entry)
+
+**Next Steps**:
+Per IMPLEMENTATION_PLAN.md, Phase 0A is now complete. All demos execute successfully. Future work includes:
+- 0A.2: Implement missing workflow steps (if needed)
+- 0A.5: Enhance demo documentation
+- 0A.6: Add comprehensive demo tests

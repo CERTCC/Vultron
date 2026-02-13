@@ -215,7 +215,19 @@ def post_actor_inbox(
     # append activity ID to inbox
     actor_io.inbox.items.append(activity.as_id)
 
-    # Trigger inbox processing (in the background) using the full actor ID
+    # Update the database actor's inbox collection to persist the activity
+    actor = as_Actor.model_validate(actor)
+
+    if actor.inbox:
+        actor.inbox.items.append(activity.as_id)
+        dl.update(actor.as_id, object_to_record(actor))
+        logger.info(
+            f"Added activity {activity.as_id} to actor {actor.as_id} inbox"
+        )
+    else:
+        logger.error(f"Actor {actor.as_id} has no inbox - cannot add activity")
+
+    # Trigger inbox processing (in the background) using the full_actor_id
     background_tasks.add_task(inbox_handler, full_actor_id)
 
     return None
@@ -269,10 +281,15 @@ def post_actor_outbox(
 
     dl.create(object_to_record(activity))
 
-    # append object ID to outbox
+    # append activity ID to outbox
     actor_io.outbox.items.append(activity.as_id)
 
-    # Trigger inbox processing (in the background)
+    # Update the database actor's outbox collection to persist the activity
+    if actor.outbox:
+        actor.outbox.items.append(activity.as_id)
+        dl.update(actor.as_id, object_to_record(actor))
+
+    # Trigger outbox processing (in the background)
     background_tasks.add_task(outbox_handler, actor_id)
 
     return None

@@ -316,7 +316,9 @@ def validate_report(dispatchable: DispatchActivity) -> None:
                 create_case_activity.as_id,
             )
             # Save the updated actor back to the data layer
-            dl.update(actor_obj)
+            from vultron.api.v2.datalayer.db_record import object_to_record
+
+            dl.update(actor_obj.as_id, object_to_record(actor_obj))
             logger.info(
                 "Updated actor %s in data layer with new outbox item", actor_id
             )

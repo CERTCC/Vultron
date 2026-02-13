@@ -52,12 +52,15 @@ class as_Actor(as_Object):
     def set_collections(self):
         actor_id = self.as_id
 
-        self.inbox = as_OrderedCollection(
-            id=f"{actor_id}/inbox", type="OrderedCollection"
-        )
-        self.outbox = as_OrderedCollection(
-            id=f"{actor_id}/outbox", type="OrderedCollection"
-        )
+        # Only create inbox/outbox if they don't already exist
+        if self.inbox is None:
+            self.inbox = as_OrderedCollection(
+                id=f"{actor_id}/inbox", type="OrderedCollection"
+            )
+        if self.outbox is None:
+            self.outbox = as_OrderedCollection(
+                id=f"{actor_id}/outbox", type="OrderedCollection"
+            )
 
         return self
 
