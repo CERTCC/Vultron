@@ -5,10 +5,9 @@ Provides a behavior dispatcher for Vultron
 import logging
 from typing import Protocol
 
-from vultron.api.v2.errors import VultronApiHandlerNotFoundError
+from vultron.dispatcher_errors import VultronApiHandlerNotFoundError
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.enums import MessageSemantics
-from vultron.semantic_handler_map import SEMANTICS_HANDLERS
 from vultron.semantic_map import find_matching_semantics
 from vultron.types import BehaviorHandler, DispatchActivity
 
@@ -61,6 +60,7 @@ class DispatcherBase(ActivityDispatcher):
         logger.info(
             f"Dispatching activity of type '{activity.as_type}' with semantics '{semantic_type}'"
         )
+        logger.debug(f"Activity payload: {activity.model_dump_json(indent=2)}")
         self._handle(dispatchable)
 
     def _handle(self, dispatchable: DispatchActivity) -> None:
@@ -80,7 +80,11 @@ class DispatcherBase(ActivityDispatcher):
         Override this method if you want to implement a different way of mapping semantics to handlers
         (e.g. using a database or external service).
         """
-        handler_func = SEMANTICS_HANDLERS.get(semantics, None)
+        # Import lazily to avoid circular import
+        from vultron.semantic_handler_map import get_semantics_handlers
+
+        handler_map = get_semantics_handlers()
+        handler_func = handler_map.get(semantics, None)
 
         if handler_func is None:
             logger.error(f"No handler found for semantics '{semantics}'")

@@ -1,5 +1,12 @@
 from vultron.errors import VultronError
 
+# Re-export from dispatcher_errors to maintain backward compatibility
+# This error is used by the core behavior_dispatcher and needs to be
+# available without triggering api.v2 module initialization
+from vultron.dispatcher_errors import (  # noqa: F401
+    VultronApiHandlerNotFoundError,
+)
+
 
 class VultronApiError(VultronError):
     """Base class for all Vultron API v2 errors."""
@@ -7,10 +14,6 @@ class VultronApiError(VultronError):
 
 class VultronApiValidationError(VultronApiError, ValueError):
     """Raised when there is a validation error in the API request."""
-
-
-class VultronApiHandlerNotFoundError(VultronApiError, KeyError):
-    """Raised when no handler is found for a given activity type."""
 
 
 class VultronApiDispatchError(VultronApiError, RuntimeError):

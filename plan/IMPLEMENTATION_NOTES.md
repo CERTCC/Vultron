@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Notes
 
-**Last Updated**: 2026-02-12
+**Last Updated**: 2026-02-13
 
 ## Architecture Overview
 
@@ -19,6 +19,7 @@ The Vultron API v2 inbox handler system is built on several key architectural co
    - Alternative considered: Async queue-based dispatcher (see specs `DR-04-001`, `DR-04-002`)
    - Uses handler registry pattern with semantic-to-handler mapping
    - Background task processing via FastAPI's `BackgroundTasks`
+   - **Logging**: Dispatchers log at INFO level for lifecycle events and DEBUG level for full activity payloads (added 2026-02-13)
 
 3. **Handler System** (`vultron/api/v2/backend/handlers.py`)
    - 47 handler functions corresponding to each `MessageSemantics` value
@@ -103,7 +104,30 @@ Cons: Requires discipline to use markers correctly
 Pros of directory-based:
 - Clear separation of test types
 - Easier to enforce test organization 
-Cons: More boilerplate, harder to run mixed test types  
+Cons: More boilerplate, harder to run mixed test types
+
+### Test Data Best Practices (learned 2026-02-13)
+
+**Use Proper Domain Objects**: Tests should use realistic domain objects, not simplified mock data. 
+
+**Bad Example**:
+```python
+activity = as_Create(as_id="act-1", actor="actor-1", object="obj-1")
+```
+
+**Good Example**:
+```python
+report = VulnerabilityReport(name="TEST-001", content="Test report")
+activity = as_Create(
+    as_id="act-1",
+    actor="https://example.org/users/tester",
+    object=report
+)
+```
+
+**Why**: Using proper objects ensures tests validate the full flow including semantic extraction, pattern matching, and handler verification. String-based mock data can hide bugs in type checking and pattern matching code.
+
+**Testing Semantic Types**: Always use the correct `MessageSemantics` value that matches the activity structure. Don't use `MessageSemantics.UNKNOWN` unless specifically testing unknown activity handling. The `@verify_semantics` decorator validates that claimed semantics match actual activity structure.  
 
 ## Dependencies and Data Flow
 
@@ -192,7 +216,31 @@ Per spec `OB-02-001` through `OB-07-001`:
 
 2. **Circular Import Resolution**: Fixed circular import between `vultron/behavior_dispatcher.py` and `vultron/api/v2/backend/handlers.py` (fixed 2026-02-12). Created `vultron/types.py` to hold shared type definitions (`DispatchActivity` and `BehaviorHandler`), breaking the dependency cycle. All imports updated accordingly.
 
-2. **Nested Activities**: Some activities contain other activities as objects (e.g., `Announce{Create{VulnerabilityReport}}`). Semantic extraction must handle these correctly.
+3. **Multiple Circular Import Issues** (fixed 2026-02-13): Discovered and resolved a more complex circular import chain:
+   
+   **Problem**: `behavior_dispatcher.py` → `api.v2.errors` → `api.v2.__init__` → `app` → `routers` → `inbox_handler` → `behavior_dispatcher` (circular)
+   
+   **Solution (Multi-Part)**:
+   - **Created `vultron/dispatcher_errors.py`**: Moved `VultronApiHandlerNotFoundError` from `api.v2.errors` to new core module, breaking the circular dependency. Core components should never depend on application layer modules.
+   - **Lazy Initialization in `semantic_handler_map.py`**: Converted module-level `SEMANTICS_HANDLERS` dict to lazy initialization via `get_semantics_handlers()` function. Handler imports now happen inside the function, not at module load time. Added caching to avoid repeated initialization.
+   - **Backward Compatibility**: `api.v2.errors` now re-exports `VultronApiHandlerNotFoundError` for existing imports. Module-level `SEMANTICS_HANDLERS` still works for backward compatibility.
+   
+   **Key Lesson**: Core modules (`behavior_dispatcher`, `semantic_handler_map`) should NEVER import from application layer modules (`api.v2`). Use lazy initialization patterns when unavoidable dependencies exist. Always check import chains when adding new imports between modules.
+
+4. **Pattern Matching for String References** (fixed 2026-02-13): The `ActivityPattern.match_field()` method assumed all activity fields were objects with `as_type` attributes, causing `AttributeError` when fields contained string URIs/IDs.
+   
+   **Problem**: ActivityStreams spec allows both object references (`{"type": "Person", ...}`) and string references (`"https://example.org/users/alice"`). The pattern matching code only handled objects.
+   
+   **Solution**: Updated `match_field()` in `vultron/activity_patterns.py` to defensively handle strings:
+   ```python
+   if isinstance(activity_field, str):
+       return True  # Can't match on type for URI references
+   return pattern_field == getattr(activity_field, "as_type", None)
+   ```
+   
+   This allows pattern matching to work with both inline objects and string references, matching the ActivityStreams 2.0 specification behavior.
+
+5. **Nested Activities**: Some activities contain other activities as objects (e.g., `Announce{Create{VulnerabilityReport}}`). Semantic extraction must handle these correctly.
 
 3. **Idempotency vs. State Changes**: An activity that's idempotent at the handler level might still cause state transitions. Need to distinguish between "duplicate submission" (return 202) and "valid retry" (process again).
 
@@ -234,4 +282,52 @@ Per spec `OB-02-001` through `OB-07-001`:
 
 ---
 
-**Note**: These notes reflect the state of the codebase as of 2026-02-12 and should be updated as implementation progresses.
+## Troubleshooting Guide
+
+### Circular Import Debugging
+
+When encountering circular import errors:
+
+1. **Trace the Import Chain**: Run the failing test/module and note the full import traceback
+2. **Identify the Cycle**: Map out which modules are importing from each other
+3. **Check Layer Violations**: Look for core modules importing from application layers
+4. **Solutions (in order of preference)**:
+   - **Refactor**: Move shared code to a neutral location (e.g., `types.py`, `dispatcher_errors.py`)
+   - **Lazy Import**: Move imports inside functions where they're used
+   - **Dependency Inversion**: Use Protocol interfaces instead of concrete imports
+
+**Common Anti-Patterns**:
+- Core module importing from `api.v2.*` (violates layering)
+- Module-level initialization of registries that import handlers
+- Deeply nested import chains through `__init__.py` files
+
+**Tools**:
+```bash
+# Visualize import chain
+python -c "import sys; sys.path.insert(0, '.'); import vultron.behavior_dispatcher"
+
+# Check for circular imports in a module
+python -m pytest --collect-only test/test_module.py
+```
+
+### Pattern Matching Failures
+
+When pattern matching raises `AttributeError` on field access:
+
+1. **Check Field Types**: ActivityStreams allows both objects and string URIs
+2. **Defensive Coding**: Always use `getattr()` with defaults or type checks
+3. **Test with Both Types**: Create test cases with both inline objects and URI references
+
+Example defensive pattern:
+```python
+if isinstance(field_value, str):
+    # Handle URI reference
+    return True  # or appropriate fallback
+else:
+    # Handle inline object
+    return field_value.as_type == expected_type
+```
+
+---
+
+**Note**: These notes reflect the state of the codebase as of 2026-02-13 and should be updated as implementation progresses.

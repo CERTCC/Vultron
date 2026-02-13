@@ -1,6 +1,7 @@
 import logging
 from vultron import behavior_dispatcher as bd
 from vultron.as_vocab.base.objects.activities.transitive import as_Create
+from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.enums import as_TransitiveActivityType
 
 MessageSemantics = bd.MessageSemantics
@@ -49,11 +50,20 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
     caplog.set_level(logging.DEBUG)
     dispatcher = bd.DirectActivityDispatcher()
 
-    # construct a real as_Activity instance (no full validation)
-    activity = as_Create(as_id="act-xyz", actor="actor-1", object="obj-1")
+    # Create a proper VulnerabilityReport and Create activity
+    report = VulnerabilityReport(
+        name="TEST-REPORT-001", content="Test vulnerability report"
+    )
+    activity = as_Create(
+        as_id="act-xyz",
+        actor="https://example.org/users/tester",
+        object=report,
+    )
+
     # Construct a DispatchActivity using a real as_Activity payload
+    # Use CREATE_REPORT semantics to match the activity structure
     dispatchable = bd.DispatchActivity(
-        semantic_type=MessageSemantics.UNKNOWN,
+        semantic_type=MessageSemantics.CREATE_REPORT,
         activity_id=activity.as_id,
         payload=activity,
     )
