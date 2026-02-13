@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-12
+**Last Updated**: 2026-02-13
 
 ## Overview
 
@@ -8,217 +8,500 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 
 ### Current Status
 
-**Completed:**
+**Completed Infrastructure:**
 - [x] Core dispatcher architecture (`behavior_dispatcher.py`) with `DirectActivityDispatcher`
-- [x] Semantic extraction system (`semantic_map.py`, `activity_patterns.py`)
+- [x] Semantic extraction system (`semantic_map.py`, `activity_patterns.py`) with 47 patterns
 - [x] All 47 MessageSemantics handlers registered in `semantic_handler_map.py`
-- [x] Basic inbox endpoint at `POST /actors/{actor_id}/inbox/`
-- [x] Background task processing infrastructure
-- [x] Unit tests for dispatcher and semantic matching
+- [x] Basic inbox endpoint at `POST /actors/{actor_id}/inbox/` with 202 response
+- [x] Background task processing infrastructure via FastAPI BackgroundTasks
+- [x] Unit tests for dispatcher and semantic matching (~170+ test functions)
+- [x] Error hierarchy base (`VultronError` → `VultronApiError`)
+- [x] TinyDB data layer implementation with Protocol abstraction
+- [x] Handler protocol with `@verify_semantics` decorator
+- [x] ActivityStreams 2.0 Pydantic models (vocabulary implementation)
 
-**In Progress / Incomplete:**
-- [ ] Handler implementations are stubs (return None)
-- [ ] Limited request validation
-- [ ] Missing health check endpoints
-- [ ] No idempotency/duplicate detection
-- [ ] No response generation logic
-- [ ] Limited integration tests
+**Critical Gaps (High Priority):**
+- [ ] Request validation (Content-Type, 1MB size limit, URI validation)
+- [ ] Standardized HTTP error responses (status, error, message, activity_id)
+- [ ] Health check endpoints (`/health/live`, `/health/ready`)
+- [ ] Structured logging with correlation IDs
+- [ ] Idempotency/duplicate detection
+- [ ] Test coverage enforcement (80%+ overall, 100% critical paths)
 
-**Critical Issues:**
-- [ ] **Bug in `verify_semantics` decorator** - Missing `return wrapper` statement in `handlers.py:53`
+**Deferred (Lower Priority):**
+- [ ] Handler business logic (47 stub implementations)
+- [ ] Response generation (Accept/Reject/TentativeReject)
+- [ ] Outbox processing
+- [ ] Async dispatcher (FastAPI async processing already in place)
 
 ## Prioritized Task List
 
-### Phase 1: Critical Fixes and Core Infrastructure
+### Phase 1: Critical Infrastructure & Validation (HIGHEST PRIORITY)
 
-#### 1. FIX CRITICAL BUG: Repair `verify_semantics` decorator
-- [x] Fix missing `return wrapper` statement in `handlers.py:53`
-- [x] Verify decorator properly validates semantic types
-- [x] Add unit test to catch this regression
-- **File**: `vultron/api/v2/backend/handlers.py:53`
-- **Priority**: CRITICAL - blocks all semantic validation
-- **Spec**: `HP-02-001`
+#### 1.1 Request Validation Middleware
+- [ ] Create middleware or dependency for Content-Type validation
+  - [ ] Accept `application/activity+json` (MUST)
+  - [ ] Accept `application/ld+json; profile="..."` (MUST)
+  - [ ] Return HTTP 415 for non-conforming types
+- [ ] Implement 1MB payload size limit check
+  - [ ] Return HTTP 413 for oversized payloads
+  - [ ] Log oversized requests at WARNING level
+- [ ] Add URI validation using Pydantic validators
+  - [ ] Validate `as_id` field format
+  - [ ] Validate URI schemes (http, https, urn)
+  - [ ] Syntax-only check (no reachability)
+- **Files**: `vultron/api/v2/routers/actors.py`, new middleware
+- **Specs**: `IE-03-001/002`, `MV-05-001`, `MV-06-001`, `MV-07-001/002`
+- **Tests**: `test/api/v2/routers/test_actors_validation.py`
 
-#### 2. Implement Request Validation
-- [ ] Add Content-Type validation (application/activity+json, application/ld+json)
-- [ ] Implement 1MB payload size limit
-- [ ] Add HTTP 413 response for oversized payloads
-- [ ] Add HTTP 415 response for unsupported Content-Type
-- [ ] Ensure HTTP 422 includes detailed validation errors
-- **File**: `vultron/api/v2/routers/actors.py`
-- **Specs**: `IE-03-001`, `IE-03-002`, `MV-06-001`, `MV-07-001`
+#### 1.2 Standardized HTTP Error Responses
+- [ ] Create custom exception handler for `VultronError` hierarchy
+- [ ] Implement JSON error response format:
+  ```json
+  {
+    "status": <HTTP_CODE>,
+    "error": "<ERROR_TYPE>",
+    "message": "<HUMAN_READABLE>",
+    "activity_id": "<ID_IF_AVAILABLE>"
+  }
+  ```
+- [ ] Update all exception classes to include context attributes
+  - [ ] Add `activity_id: str | None` field
+  - [ ] Add `actor_id: str | None` field
+  - [ ] Add `original_exception: Exception | None` for wrapping
+- [ ] Map error types to HTTP status codes:
+  - [ ] Validation errors → 400/422 (WARNING log)
+  - [ ] Protocol errors → 400-499 (WARNING log)
+  - [ ] System errors → 500-599 (ERROR log with stack trace)
+- [ ] Register exception handlers in FastAPI app
+- **Files**: `vultron/api/v2/errors.py`, `vultron/api/v2/app.py`
+- **Specs**: `EH-04-001`, `EH-05-001`, `EH-06-001`
+- **Tests**: `test/api/v2/test_error_responses.py`
 
-#### 3. Create Health Check Endpoints
+#### 1.3 Health Check Endpoints
 - [ ] Create `vultron/api/v2/routers/health.py`
-- [ ] Implement `/health/live` endpoint (returns 200 if process running)
-- [ ] Implement `/health/ready` endpoint (checks dependencies)
-- [ ] Register health router in `vultron/api/v2/app.py`
-- [ ] Add integration tests for health endpoints
+- [ ] Implement `/health/live` (liveness probe)
+  - [ ] Return 200 if process running
+  - [ ] Minimal logic (just proves process alive)
+- [ ] Implement `/health/ready` (readiness probe)
+  - [ ] Check data layer connectivity
+  - [ ] Return 200 if ready, 503 if not
+  - [ ] Include status details in response body
+- [ ] Register health router in main app
+- [ ] Add integration tests
+- **Files**: New router file, update `app.py`
 - **Specs**: `OB-05-001`, `OB-05-002`
+- **Tests**: `test/api/v2/routers/test_health.py`
 
-#### 4. Enhance Error Handling
-- [ ] Add validation-specific exception classes to `vultron/api/v2/errors.py`
-- [ ] Ensure all exceptions include activity_id context
-- [ ] Ensure all exceptions include actor_id context
-- [ ] Implement standardized error response format (status, error, message, activity_id)
-- [ ] Add unit tests for each exception type
-- **File**: `vultron/api/v2/errors.py`
-- **Specs**: `EH-01-001` through `EH-06-001`
+### Phase 2: Observability & Reliability (HIGH PRIORITY)
 
-### Phase 2: Observability and Reliability
+#### 2.1 Structured Logging Implementation
+- [ ] Create logging configuration module
+  - [ ] Define structured log format (JSON or key-value)
+  - [ ] Include fields: timestamp (ISO 8601), level, component, activity_id, actor_id, message
+  - [ ] Configure formatters for console and file output
+- [ ] Implement correlation ID context manager
+  - [ ] Use activity `as_id` as correlation ID
+  - [ ] Propagate through all processing stages
+  - [ ] Include in all log entries
+- [ ] Add lifecycle logging at INFO level:
+  - [ ] Activity received (with activity_id, actor_id)
+  - [ ] Activity validated (with semantic type)
+  - [ ] Activity queued for processing
+  - [ ] Handler invoked (with handler name)
+  - [ ] State transitions (before → after)
+  - [ ] Processing completed (with result)
+- [ ] Implement proper log level usage:
+  - [ ] DEBUG: Diagnostic details, payload contents
+  - [ ] INFO: Lifecycle events, state changes
+  - [ ] WARNING: Recoverable issues, validation warnings, 4xx errors
+  - [ ] ERROR: Unrecoverable failures, handler exceptions, 5xx errors
+  - [ ] CRITICAL: System-level failures (not currently used)
+- [ ] Add audit trail logging:
+  - [ ] State transition logs (case states, embargo states)
+  - [ ] Authorization decisions (when auth implemented)
+  - [ ] Data access operations
+- **Files**: New `vultron/api/v2/logging_config.py`, update handlers
+- **Specs**: `OB-01-001`, `OB-02-001`, `OB-03-001`, `OB-04-001`, `OB-06-001/002/003`
+- **Tests**: `test/api/v2/test_logging.py` (use caplog fixture)
 
-#### 5. Implement Structured Logging
-- [ ] Add correlation ID tracking using activity ID
-- [ ] Log activity received at INFO level
-- [ ] Log activity validated at INFO level
-- [ ] Log activity queued at INFO level
-- [ ] Log handler invoked at INFO level
-- [ ] Log state transitions at INFO level
-- [ ] Log processing completed at INFO level
-- [ ] Use ISO 8601 timestamps in all log entries
-- [ ] Include activity_id in all relevant log entries
-- [ ] Include actor_id in all relevant log entries
-- **Files**: `vultron/api/v2/backend/behavior_dispatcher.py`, `vultron/api/v2/routers/actors.py`
-- **Specs**: `OB-02-001`, `OB-03-001`, `OB-04-001`, `OB-06-001`
-
-#### 6. Add Idempotency and Duplicate Detection
-- [ ] Implement activity ID tracking mechanism (TinyDB or in-memory cache)
-- [ ] Check for duplicate activity IDs before processing
-- [ ] Return HTTP 202 for duplicate submissions without reprocessing
-- [ ] Add TTL-based cleanup for old activity IDs
-- [ ] Log duplicate detection at INFO level
-- [ ] Add integration tests for duplicate detection
-- **File**: `vultron/api/v2/routers/actors.py`
+#### 2.2 Idempotency and Duplicate Detection
+- [ ] Design activity ID tracking mechanism
+  - [ ] Option A: In-memory cache with TTL (simple, testing)
+  - [ ] Option B: TinyDB table with timestamp (persistent)
+  - [ ] Decide based on requirements (start with Option A)
+- [ ] Implement duplicate detection logic
+  - [ ] Check activity ID before processing
+  - [ ] Return HTTP 202 immediately for duplicates (no reprocessing)
+  - [ ] Log duplicate detection at INFO level
+- [ ] Add TTL-based cleanup
+  - [ ] Background task to expire old activity IDs
+  - [ ] Configurable retention period (e.g., 24 hours)
+- [ ] Handle edge cases
+  - [ ] Different activities with same ID (error scenario)
+  - [ ] Concurrent submissions of same activity
+- [ ] Add integration tests
+  - [ ] Submit same activity twice, verify second returns 202 without reprocessing
+  - [ ] Verify logs show duplicate detection
+  - [ ] Test cleanup after TTL expiration
+- **Files**: `vultron/api/v2/routers/actors.py`, new `deduplication.py` module
 - **Specs**: `IE-10-001`, `IE-10-002`, `MV-08-001`
+- **Tests**: `test/api/v2/test_idempotency.py`
 
-### Phase 3: Handler Business Logic
+### Phase 3: Testing Infrastructure & Coverage (HIGH PRIORITY)
 
-**Note**: Handler business logic implementation is deferred to future work. For now, it is sufficient to have stubs in place as long as we can confirm that an activity arriving at the API endpoint is correctly validated, dispatched, and routed to the correct handler function.
+#### 3.1 Configure Test Coverage Enforcement
+- [ ] Add pytest-cov configuration to `pyproject.toml`
+  - [ ] Set minimum coverage threshold: 80% overall
+  - [ ] Set critical path coverage: 100% for validation, semantic extraction, dispatch, error handling
+  - [ ] Configure coverage report formats (terminal, HTML, XML)
+- [ ] Run baseline coverage measurement
+  - [ ] Execute `pytest --cov=vultron --cov-report=term-missing`
+  - [ ] Document current coverage percentages
+  - [ ] Identify coverage gaps
+- [ ] Add coverage checks to CI pipeline
+  - [ ] Fail build if coverage drops below thresholds
+  - [ ] Generate and publish coverage reports
+- **Files**: `pyproject.toml`, CI configuration
+- **Specs**: `TB-02-001`, `TB-02-002`
+- **Tests**: Configuration only
 
-- [ ] Design handler business logic for vulnerability report submission
-- [ ] Design handler business logic for report acknowledgment
-- [ ] Design handler business logic for report validation/invalidation
-- [ ] Design handler business logic for case creation and management
-- [ ] Design handler business logic for participant management
-- [ ] Design handler business logic for embargo management
-- [ ] Design handler business logic for case status updates
-- [ ] Implement handler business logic (47 handlers total)
-- [ ] Add unit tests for each handler's business logic
+#### 3.2 Create Integration Test Suite
+- [ ] Create `test/api/v2/integration/` directory structure
+- [ ] Add pytest markers for test categorization
+  - [ ] `@pytest.mark.unit` for isolated tests
+  - [ ] `@pytest.mark.integration` for full-stack tests
+  - [ ] Update `pyproject.toml` with marker definitions
+- [ ] Implement end-to-end inbox flow tests
+  - [ ] Test: Valid activity → 202 → handler invoked
+  - [ ] Test: Invalid Content-Type → 415
+  - [ ] Test: Oversized payload → 413
+  - [ ] Test: Malformed activity → 422
+  - [ ] Test: Unknown actor → 404
+  - [ ] Test: Duplicate activity → 202 (no reprocessing)
+  - [ ] Test: Async processing with BackgroundTasks
+- [ ] Implement semantic extraction integration tests
+  - [ ] Test all 47 semantic patterns with real activities
+  - [ ] Verify correct handler invocation for each
+  - [ ] Test pattern ordering (specific before general)
+- [ ] Implement error handling integration tests
+  - [ ] Test all HTTP error codes (400, 404, 405, 413, 415, 422, 500)
+  - [ ] Verify error response format
+  - [ ] Verify error logging
+- **Files**: New `test/api/v2/integration/` directory
+- **Specs**: `TB-03-001`, `TB-03-002`, `TB-03-003`, `TB-04-003`
+- **Tests**: Multiple new integration test files
 
-### Phase 4: Response Generation
+#### 3.3 Enhance Test Infrastructure
+- [ ] Create test data factories
+  - [ ] Factory for `VulnerabilityReport` objects
+  - [ ] Factory for `VulnerabilityCase` objects
+  - [ ] Factory for ActivityStreams activities (Create, Accept, Reject, etc.)
+  - [ ] Factory for Actor objects
+  - [ ] Use realistic domain data in tests
+- [ ] Centralize fixtures in root `conftest.py`
+  - [ ] Shared `client` fixture (FastAPI TestClient)
+  - [ ] Shared `datalayer` fixture with automatic cleanup
+  - [ ] Shared `test_actor` fixture
+  - [ ] Activity factory fixtures
+- [ ] Improve test isolation
+  - [ ] Ensure database cleared between tests
+  - [ ] Ensure no global state leakage
+  - [ ] Add markers for parallel-safe tests
+- [ ] Document test patterns and conventions
+  - [ ] Add testing guide to documentation
+  - [ ] Include examples of good test structure
+- **Files**: `test/conftest.py`, `test/factories.py`, new documentation
+- **Specs**: `TB-05-001`, `TB-05-002`, `TB-05-004`, `TB-06-001`
+- **Tests**: Infrastructure and fixtures
 
-**Note**: Response generation is deferred to future work. Focus first on ensuring correct routing and validation.
+### Phase 4: Handler Business Logic (DEFERRED)
 
-- [ ] Design response activity structure per ActivityStreams 2.0
-- [ ] Implement Accept response generation
-- [ ] Implement Reject response generation
-- [ ] Implement TentativeReject response generation
-- [ ] Implement Update response generation
-- [ ] Implement error response generation
-- [ ] Add `inReplyTo` correlation to all responses
-- [ ] Implement response delivery to actor inboxes
-- [ ] Add duplicate response prevention
-- [ ] Add unit tests for response generation
-- [ ] Add integration tests for response delivery
+**Status**: LOWER PRIORITY - Focus on infrastructure first
 
-### Phase 5: Testing and Validation
+**Rationale**: Handler business logic implementation is deferred until after Phase 1-3 are complete. Current stubs are sufficient to validate that:
+1. Activities are correctly validated at the API layer
+2. Semantic extraction correctly identifies message types
+3. Dispatch routing invokes the correct handler function
+4. Error handling works correctly at each stage
 
-#### 13. Create Integration Tests
-- [ ] Create `test/api/v2/routers/test_actors_inbox.py`
-- [ ] Test full request → validation → dispatch → handler flow
-- [ ] Test HTTP 202 for valid requests
-- [ ] Test HTTP 400 for bad requests
-- [ ] Test HTTP 404 for invalid actor_id
-- [ ] Test HTTP 405 for non-POST methods
-- [ ] Test HTTP 413 for oversized payloads
-- [ ] Test HTTP 415 for unsupported Content-Type
-- [ ] Test HTTP 422 for validation failures
-- [ ] Test HTTP 500 for internal errors
-- [ ] Test idempotency behavior
-- [ ] Test duplicate detection
-- [ ] Test async background processing
-- [ ] Verify logging at each stage
-- **Specs**: `IE-01-001` through `IE-10-002`
+Once the core infrastructure is solid and well-tested, we can systematically implement business logic for each of the 47 handlers.
 
-#### 14. Expand Unit Test Coverage
-- [ ] Add tests for all dispatcher protocol requirements (`DR-01-*`)
-- [ ] Add tests for all handler lookup requirements (`DR-02-*`)
-- [ ] Add tests for all message validation requirements (`MV-*`)
-- [ ] Add tests for all semantic extraction requirements (`SE-*`)
-- [ ] Add tests for all handler protocol requirements (`HP-*`)
-- [ ] Add tests for all error handling requirements (`EH-*`)
-- [ ] Verify all tests use descriptive names (`TB-08-001`)
-- [ ] Add docstrings to complex tests (`TB-08-002`)
+**Future Work**:
+- [ ] Design handler business logic patterns
+  - [ ] State persistence patterns
+  - [ ] State transition validation
+  - [ ] Response generation triggers
+- [ ] Implement report management handlers (8 handlers)
+  - [ ] create_report, submit_report, validate_report, invalidate_report
+  - [ ] ack_report, close_report, read_report, update_report
+- [ ] Implement case management handlers (10 handlers)
+  - [ ] create_case, add_report_to_case, remove_report_from_case
+  - [ ] update_case_status, close_case, reopen_case
+  - [ ] add_case_participant, remove_case_participant
+  - [ ] transfer_case_ownership, merge_cases
+- [ ] Implement embargo management handlers (12 handlers)
+  - [ ] create_embargo, update_embargo_status, terminate_embargo
+  - [ ] add_embargo_event, remove_embargo_event, announce_embargo_event
+  - [ ] invite_to_embargo, accept_embargo_invitation, reject_embargo_invitation
+  - [ ] notify_embargo_status, request_embargo_extension, handle_embargo_violation
+- [ ] Implement actor management handlers (9 handlers)
+  - [ ] suggest_actor_to_case, accept_actor_suggestion, reject_actor_suggestion
+  - [ ] invite_actor_to_case, accept_case_invitation, reject_case_invitation
+  - [ ] offer_case_ownership, accept_ownership_offer, reject_ownership_offer
+- [ ] Implement metadata handlers (8 handlers)
+  - [ ] add_case_note, update_case_note, remove_case_note
+  - [ ] add_case_participant_status, get_case_participants
+  - [ ] add_status_object, update_status_object, remove_status_object
+- [ ] Add comprehensive unit tests for each handler
+- **Files**: `vultron/api/v2/backend/handlers.py` and supporting modules
+- **Specs**: `HP-03-001`, `HP-04-001`, `HP-06-001`
+- **Tests**: Expand `test/api/v2/backend/test_handlers.py`
 
-#### 15. Enhance Test Infrastructure
-- [ ] Create reusable test fixtures in `conftest.py` (`TB-05-001`)
-- [ ] Implement test data factories (`TB-05-002`)
-- [ ] Configure pytest markers for unit/integration separation (`TB-04-003`)
-- [ ] Set up test database or database mocking (`TB-06-002`)
-- [ ] Ensure test isolation and independence (`TB-06-001`)
-- [ ] Configure randomized test execution in CI (`TB-06-001`)
+### Phase 5: Response Generation (DEFERRED)
 
-#### 16. Achieve Test Coverage Targets
-- [ ] Measure current code coverage
-- [ ] Achieve 80%+ overall line coverage (`TB-02-001`)
-- [ ] Achieve 100% coverage on message validation (`TB-02-002`)
-- [ ] Achieve 100% coverage on semantic extraction (`TB-02-002`)
-- [ ] Achieve 100% coverage on dispatch routing (`TB-02-002`)
-- [ ] Achieve 100% coverage on error handling (`TB-02-002`)
-- [ ] Configure CI to fail on coverage regression
-- [ ] Generate coverage reports in CI pipeline
+**Status**: LOWER PRIORITY - Requires Phase 4 completion
 
-## Open Questions and Considerations
+**Rationale**: Response generation requires understanding handler business logic outcomes. Once handlers can make decisions about accepting/rejecting activities, we can implement the response generation system.
 
-### 1. Async Dispatcher Priority
-**Question**: Specs `DR-04-001` and `DR-04-002` recommend async queue-based dispatcher for production. Should this be prioritized now or deferred until scaling requirements are clearer?
+**Dependencies**:
+- Requires handler business logic (Phase 4)
+- Requires outbox processing implementation
+- Requires response delivery mechanism
 
-**Answer**: Async processing at the FastAPI endpoint where a background task summons the inbox handler is already implemented. Everything downstream of that can be synchronous for now until we have a clearer idea of performance requirements.
+**Future Work**:
+- [ ] Design response activity patterns
+  - [ ] Map handler outcomes to response types
+  - [ ] Define `inReplyTo` correlation rules
+  - [ ] Design error extension format
+- [ ] Implement response generation
+  - [ ] Accept response builder
+  - [ ] Reject response builder
+  - [ ] TentativeReject response builder
+  - [ ] Update response builder
+  - [ ] Error response builder with extensions
+- [ ] Implement response correlation
+  - [ ] Add `inReplyTo` field to all responses
+  - [ ] Track original activity ID
+  - [ ] Prevent duplicate responses
+- [ ] Implement response delivery
+  - [ ] Queue responses to actor outbox
+  - [ ] Process outbox for delivery
+  - [ ] Handle delivery failures
+  - [ ] Retry logic with backoff
+- [ ] Add tests
+  - [ ] Unit tests for response builders
+  - [ ] Integration tests for response delivery
+  - [ ] Test duplicate response prevention
+- **Files**: New `vultron/api/v2/backend/response_builder.py`, update handlers
+- **Specs**: `RF-02-001`, `RF-03-001`, `RF-04-001`, `RF-05-001`, `RF-06-001`, `RF-08-001`
+- **Tests**: `test/api/v2/backend/test_response_generation.py`
 
-### 2. Test Organization
+### Phase 6: Code Quality & Documentation (MEDIUM PRIORITY)
+
+#### 6.1 Code Style Compliance
+- [ ] Verify Black formatting compliance
+  - [ ] Run `black --check vultron/`
+  - [ ] Fix any formatting issues
+- [ ] Verify import organization per spec
+  - [ ] Standard library first
+  - [ ] Third-party packages second
+  - [ ] Local modules third
+  - [ ] No wildcard imports
+- [ ] Check for circular imports
+  - [ ] Core modules should not import from API layer
+  - [ ] Document module dependency graph
+- [ ] Run static type checking
+  - [ ] Execute `mypy vultron/`
+  - [ ] Fix type errors
+  - [ ] Add missing type hints
+- **Files**: Entire codebase
+- **Specs**: `CS-01-001` through `CS-05-001`
+- **Tests**: Linting in CI
+
+#### 6.2 Documentation Updates
+- [ ] Update API documentation
+  - [ ] Document inbox endpoint behavior
+  - [ ] Document health check endpoints
+  - [ ] Document error response formats
+  - [ ] Add request/response examples
+- [ ] Update specification compliance matrix
+  - [ ] Document which specs are implemented
+  - [ ] List known gaps and limitations
+  - [ ] Update as implementation progresses
+- [ ] Add inline documentation
+  - [ ] Docstrings for all public functions
+  - [ ] Docstrings for all classes
+  - [ ] Complex logic explanations where needed
+- [ ] Create troubleshooting guide
+  - [ ] Common error scenarios
+  - [ ] Debugging tips
+  - [ ] Log analysis examples
+- **Files**: `docs/` directory, inline docstrings
+- **Specs**: General documentation requirements
+- **Tests**: Documentation builds successfully
+
+### Phase 7: Performance & Scalability (FUTURE)
+
+**Status**: DEFERRED - Post-research phase
+
+**Rationale**: This is a research prototype. Performance optimization is not a priority until the protocol design is validated and we have real-world usage data.
+
+**Future Considerations**:
+- [ ] Evaluate async dispatcher implementation
+  - [ ] Queue-based processing (Redis, RabbitMQ)
+  - [ ] Worker pool architecture
+  - [ ] Horizontal scaling support
+- [ ] Database optimization
+  - [ ] Replace TinyDB with production database
+  - [ ] Add indexes for common queries
+  - [ ] Implement connection pooling
+- [ ] Caching strategies
+  - [ ] Actor metadata caching
+  - [ ] Activity deduplication cache
+  - [ ] Response template caching
+- [ ] Rate limiting
+  - [ ] Per-actor rate limits
+  - [ ] Global rate limits
+  - [ ] Backpressure mechanisms
+- [ ] Monitoring and metrics
+  - [ ] Prometheus metrics export
+  - [ ] Request latency tracking
+  - [ ] Queue depth monitoring
+  - [ ] Error rate alerting
+- **Files**: TBD based on performance requirements
+- **Specs**: Not yet specified
+- **Tests**: Performance test suite
+
+## Implementation Priorities & Sequencing
+
+### Immediate Focus (Current Sprint)
+**Goal**: Achieve specification compliance for inbox endpoint and request handling
+
+1. **Phase 1.1**: Request validation middleware (1-2 days)
+2. **Phase 1.2**: Standardized error responses (1-2 days)
+3. **Phase 1.3**: Health check endpoints (0.5 days)
+4. **Phase 3.1**: Configure test coverage enforcement (0.5 days)
+
+**Exit Criteria**: Inbox endpoint meets all IE-* and MV-* spec requirements with proper error handling
+
+### Short Term (Next 2-3 Sprints)
+**Goal**: Complete observability and reliability features; achieve test coverage targets
+
+1. **Phase 2.1**: Structured logging with correlation IDs (2-3 days)
+2. **Phase 2.2**: Idempotency and duplicate detection (1-2 days)
+3. **Phase 3.2**: Integration test suite (3-4 days)
+4. **Phase 3.3**: Enhanced test infrastructure and factories (2-3 days)
+
+**Exit Criteria**: 
+- All OB-* spec requirements met
+- 80%+ test coverage overall
+- 100% coverage on critical paths (validation, semantic extraction, dispatch, error handling)
+
+### Medium Term (Following Sprints)
+**Goal**: Code quality and documentation
+
+1. **Phase 6.1**: Code style compliance and type checking (1-2 days)
+2. **Phase 6.2**: Documentation updates (2-3 days)
+
+**Exit Criteria**:
+- All CS-* spec requirements met
+- Comprehensive documentation for API consumers
+- Specification compliance matrix complete
+
+### Long Term (Post-Research Phase)
+**Goal**: Production readiness (if/when needed)
+
+1. **Phase 4**: Handler business logic implementation (10-15 days)
+2. **Phase 5**: Response generation system (5-7 days)
+3. **Phase 7**: Performance optimization (TBD based on requirements)
+
+**Exit Criteria**: System ready for production deployment with full CVD workflow support
+
+## Open Questions & Design Decisions
+
+### Resolved Questions
+
+#### Q1: Async Dispatcher Priority
+**Question**: Specs `DR-04-001` and `DR-04-002` recommend async queue-based dispatcher for production. Should this be prioritized now or deferred?
+
+**Decision**: DEFERRED. FastAPI BackgroundTasks already provides async processing at the endpoint level. Downstream processing can remain synchronous until we have performance data indicating need for queue-based architecture.
+
+#### Q2: Test Organization
 **Question**: Should we separate unit and integration tests into `test/unit/` and `test/integration/` directories per `TB-04-003`, or use pytest markers?
 
-**Answer**: pytest markers are sufficient for now.
+**Decision**: Use pytest markers (`@pytest.mark.unit`, `@pytest.mark.integration`). Simpler to implement and maintain. Can reorganize directory structure later if needed.
 
-### 3. URI Validation Scope
+#### Q3: URI Validation Scope
 **Question**: Spec `MV-05-001` requires URI validation. Should this be syntax-only or include reachability checks?
 
-**Answer**: This is a format check, not a liveness check. We just want to ensure that the URI is well-formed and uses an acceptable scheme (http, https, urn, etc.). We do not need to perform reachability checks at this time.
+**Decision**: Syntax-only validation using Pydantic validators. Check for well-formed URIs with acceptable schemes (http, https, urn). No reachability/liveness checks required at this stage.
 
-### 4. Handler Implementation Order
+#### Q4: Handler Implementation Order
 **Question**: With 47 handlers to implement, should we prioritize by CVD workflow criticality or by semantic grouping?
 
-**Answer**: Do not implement any handler business logic at this time. Focus on ensuring that the correct handler is invoked for each semantic type and that the overall request validation and dispatch flow works correctly. We can implement handler logic in a later phase once the core infrastructure is solid.
+**Decision**: DEFER all handler business logic to Phase 4. Focus first on infrastructure: request validation, semantic extraction, dispatch routing, error handling. Verify correct handler invocation without implementing business logic.
 
-### 5. Authorization System
-**Question**: Multiple specs reference authorization (e.g., `HP-05-001`), but no auth system exists yet. Should this be specified and implemented as part of this phase?
+#### Q5: Authorization System
+**Question**: Multiple specs reference authorization (e.g., `HP-05-001`), but no auth system exists. Should this be specified and implemented?
 
-**Answer**: Authorization is out of scope for the initial implementation. We can design the system to allow for easy integration of an auth layer in the future, but for now we will assume that all requests are authorized and focus on the core message handling functionality.
+**Decision**: OUT OF SCOPE for initial implementation. Design system to allow easy auth layer integration later. For now, assume all requests are authorized. Focus on message handling functionality.
 
-## Next Steps
+### Open Questions
 
-### Immediate Actions (This Week)
-- [ ] Fix the critical bug in `verify_semantics` decorator
-- [ ] Implement request validation (Phase 1, items 2-4)
-- [ ] Add health check endpoints
+#### Q6: Duplicate Detection Storage
+**Question**: Should duplicate detection use in-memory cache (simple, fast, non-persistent) or TinyDB (persistent, survives restarts)?
 
-### Short Term (Current Sprint)
-- [ ] Complete all Phase 1 tasks
-- [ ] Complete all Phase 2 tasks
-- [ ] Begin integration test development
+**Options**:
+- Option A: In-memory cache with TTL (e.g., Python dict with timestamps or `cachetools`)
+  - Pros: Fast, simple implementation
+  - Cons: Lost on restart, not shared across processes
+- Option B: TinyDB table with activity IDs and timestamps
+  - Pros: Persistent, consistent across restarts
+  - Cons: Slower, requires cleanup logic
 
-### Medium Term (Next 2-3 Sprints)
-- [ ] Complete integration test suite
-- [ ] Achieve test coverage targets
-- [ ] Document any remaining open questions
+**Recommendation**: Start with Option A for simplicity. Upgrade to Option B if persistence proves necessary.
 
-### Long Term
-- [ ] Evaluate async dispatcher implementation needs
-- [ ] Design and implement handler business logic
-- [ ] Build response generation system
-- [ ] Consider metrics and advanced observability features
-- [ ] Plan for production deployment requirements
+#### Q7: Structured Logging Format
+**Question**: Should structured logs use JSON format (machine-parseable) or enhanced key-value format (human-readable)?
+
+**Options**:
+- JSON format: `{"timestamp": "...", "level": "INFO", "component": "...", "message": "..."}`
+- Key-value format: `2026-02-13T16:00:00Z [INFO] component=inbox_handler activity_id=... message=...`
+
+**Recommendation**: JSON format for production parsability. Can add console-friendly formatter for development.
+
+#### Q8: Health Check Ready Conditions
+**Question**: What should `/health/ready` check beyond data layer connectivity?
+
+**Considerations**:
+- Data layer read/write access
+- Disk space availability
+- Memory usage thresholds
+- Queue depth (if async queue implemented)
+
+**Recommendation**: Start with data layer connectivity check only. Add more checks as system complexity grows.
+
+#### Q9: Test Coverage Enforcement
+**Question**: Should coverage enforcement be strict (fail build on any decrease) or threshold-based (fail only below 80%)?
+
+**Recommendation**: Threshold-based initially (80% overall, 100% critical paths). Can tighten to strict enforcement once stable.
+
+#### Q10: Response Generation Timing
+**Question**: When Phase 5 is implemented, should response generation be synchronous (blocking handler) or async (queued after handler returns)?
+
+**Consideration**: Affects handler protocol design and testing approach.
+
+**Recommendation**: Defer decision until Phase 4 handler logic is better understood. Likely async to maintain fast handler execution.
 
 ---
 
-**Note**: This is a research prototype. Focus is on demonstrating protocol feasibility and correctness rather than production-scale performance optimization.
+## Notes
+
+**Research Prototype Context**: This is a research project exploring federated CVD protocol design. The focus is on:
+- Demonstrating protocol feasibility
+- Validating behavior tree modeling approach
+- Establishing ActivityStreams vocabulary for CVD
+- Building foundation for future interoperability
+
+Performance optimization and production hardening are explicitly **not priorities** at this stage. The goal is correctness and specification compliance, not scale.
