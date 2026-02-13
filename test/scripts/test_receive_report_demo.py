@@ -17,6 +17,11 @@ from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from vultron.api.main import app as api_app
+from vultron.as_vocab.activities.report import RmValidateReport
+from vultron.as_vocab.base.objects.activities.transitive import as_Offer
+from vultron.as_vocab.base.objects.actors import as_Actor
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.scripts import receive_report_demo as demo
 
 
@@ -74,5 +79,12 @@ def test_main_executes_without_raising(demo_env):
     1. Finder submits reports to vendor's inbox
     2. Vendor processes reports and posts responses to finder's inbox
     3. All three demo workflows complete successfully with direct inbox communication
+
+    This integration test also indirectly verifies the helper functions:
+    - get_offer_from_datalayer
+    - post_to_inbox_and_wait
+    - get_actor_by_id
+    - verify_activity_in_inbox
+    - find_case_by_report
     """
     demo.main(skip_health_check=True)
