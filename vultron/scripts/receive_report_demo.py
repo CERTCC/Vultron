@@ -16,16 +16,20 @@
 """
 Demonstrates the workflow for receiving and processing vulnerability reports via the Vultron API.
 
-This demo script showcases the end-to-end process of submitting a vulnerability report through
-the API, including actor discovery, report creation, submission via the inbox endpoint, and
-verification of side effects in the data layer.
+This demo script showcases three different outcomes when processing vulnerability reports:
+1. Validate Report: RmValidateReport (Accept) - creates a case
+2. Invalidate Report: RmInvalidateReport (TentativeReject) - holds for reconsideration
+3. Invalidate and Close Report: RmInvalidateReport + RmCloseReport - rejects and closes
 
 When run as a script, this module will:
-1. Reset the data layer to a clean state
-2. Discover actors (finder, vendor, coordinator) via the API
-3. Create a vulnerability report attributed to the finder
-4. Submit the report to the vendor's inbox
-5. Verify that both the offer and report are stored in the data layer
+1. Check if the API server is available
+2. Reset the data layer to a clean state
+3. Discover actors (finder, vendor, coordinator) via the API
+4. Run three separate demo workflows, each with a unique report:
+   - demo_validate_report: Submit → Validate → Create Case
+   - demo_invalidate_report: Submit → Invalidate (hold for review)
+   - demo_invalidate_and_close_report: Submit → Invalidate → Close
+5. Verify side effects in the data layer for each workflow
 """
 
 import json
@@ -214,17 +218,19 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
     return reconstructed_obj
 
 
-def demo_accept_report(
+def demo_validate_report(
     client: DataLayerClient, finder: as_Actor, vendor: as_Actor
 ):
     """
-    Demonstrates the workflow where a vendor accepts a report and creates a case.
+    Demonstrates the workflow where a vendor validates a report and creates a case.
+
+    Uses RmValidateReport (Accept) activity.
 
     This follows the "Receiver Accepts Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
     """
     logger.info("=" * 80)
-    logger.info("DEMO 1: Accept Report and Create Case")
+    logger.info("DEMO 1: Validate Report and Create Case")
     logger.info("=" * 80)
 
     # Create a unique report for this demo
@@ -322,21 +328,23 @@ def demo_accept_report(
     logger.info(f"Retrieved VulnerabilityCase: {logfmt(case)}")
 
     logger.info(
-        "✅ DEMO 1 COMPLETE: Report accepted and case created successfully."
+        "✅ DEMO 1 COMPLETE: Report validated and case created successfully."
     )
 
 
-def demo_tentative_reject_report(
+def demo_invalidate_report(
     client: DataLayerClient, finder: as_Actor, vendor: as_Actor
 ):
     """
-    Demonstrates the workflow where a vendor tentatively rejects a report.
+    Demonstrates the workflow where a vendor invalidates a report.
+
+    Uses RmInvalidateReport (TentativeReject) activity.
 
     This follows the "Receiver Invalidates and Holds Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
     """
     logger.info("=" * 80)
-    logger.info("DEMO 2: Tentative Reject Report (Hold for Reconsideration)")
+    logger.info("DEMO 2: Invalidate Report (Hold for Reconsideration)")
     logger.info("=" * 80)
 
     # Create a unique report for this demo
@@ -366,29 +374,41 @@ def demo_tentative_reject_report(
     offer = as_Offer(**offer)
     logger.info(f"Retrieved Offer: {logfmt(offer)}")
 
-    # Vendor tentatively rejects the report
-    # Note: TentativeReject activity is not yet implemented, so this is a placeholder
-    logger.info("⚠️  TentativeReject workflow not yet fully implemented.")
+    # Vendor invalidates the report (TentativeReject workflow)
+    invalidate_activity = RmInvalidateReport(
+        actor=vendor.as_id,
+        object=offer.as_id,
+        content="Invalidating the report - needs more investigation before accepting.",
+    )
+    logger.info(f"Invalidating offer: {logfmt(invalidate_activity)}")
+    client.post(
+        f"/actors/{vendor_obj_id}/inbox/", json=postfmt(invalidate_activity)
+    )
+
+    # Verify the invalidation was processed
+    invalidate_response = client.get(f"/datalayer/{invalidate_activity.as_id}")
     logger.info(
-        "This would mark the report as INVALID but keep it open for reconsideration."
+        f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
     )
 
     logger.info(
-        "✅ DEMO 2 COMPLETE: Tentative reject demonstration (partial implementation)."
+        "✅ DEMO 2 COMPLETE: Report invalidated (held for reconsideration)."
     )
 
 
-def demo_reject_and_close_report(
+def demo_invalidate_and_close_report(
     client: DataLayerClient, finder: as_Actor, vendor: as_Actor
 ):
     """
-    Demonstrates the workflow where a vendor rejects a report and closes it.
+    Demonstrates the workflow where a vendor invalidates a report and closes it.
+
+    Uses RmInvalidateReport (TentativeReject) followed by RmCloseReport (Reject) activities.
 
     This follows the "Receiver Invalidates and Closes Offered Report" sequence diagram from
     docs/howto/activitypub/activities/report_vulnerability.md.
     """
     logger.info("=" * 80)
-    logger.info("DEMO 3: Reject and Close Report")
+    logger.info("DEMO 3: Invalidate and Close Report")
     logger.info("=" * 80)
 
     # Create a unique report for this demo
@@ -449,7 +469,9 @@ def demo_reject_and_close_report(
     close_response = client.get(f"/datalayer/{close_activity.as_id}")
     logger.info(f"CloseReport stored: {json.dumps(close_response, indent=2)}")
 
-    logger.info("✅ DEMO 3 COMPLETE: Report rejected and closed successfully.")
+    logger.info(
+        "✅ DEMO 3 COMPLETE: Report invalidated and closed successfully."
+    )
 
 
 def check_server_availability(client: DataLayerClient) -> bool:
@@ -522,17 +544,17 @@ def main(skip_health_check: bool = False):
 
     # Run all three demos with different reports
     try:
-        demo_accept_report(client, finder, vendor)
+        demo_validate_report(client, finder, vendor)
     except Exception as e:
         logger.error(f"Demo 1 failed: {e}", exc_info=True)
 
     try:
-        demo_tentative_reject_report(client, finder, vendor)
+        demo_invalidate_report(client, finder, vendor)
     except Exception as e:
         logger.error(f"Demo 2 failed: {e}", exc_info=True)
 
     try:
-        demo_reject_and_close_report(client, finder, vendor)
+        demo_invalidate_and_close_report(client, finder, vendor)
     except Exception as e:
         logger.error(f"Demo 3 failed: {e}", exc_info=True)
 
