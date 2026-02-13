@@ -34,7 +34,13 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [ ] Outbox processing
 - [ ] Async dispatcher (FastAPI async processing already in place)
 
+
+
 ## Prioritized Task List
+
+### BUGFIXES & IMMEDIATE NEEDS
+
+- [x] Test runs are leaving behind a `mydb.json` file that should never be committed. Ensure that any TinyDB files created during testing are automatically deleted after tests complete, and add `mydb.json` to `.gitignore` to prevent accidental commits.
 
 ### Phase 0: Get receive_report_demo.py Working (TOP PRIORITY)
 

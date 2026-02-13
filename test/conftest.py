@@ -7,36 +7,40 @@
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Provides pytest fixtures for testing the FastAPI v2 application.
+Root pytest configuration file.
+
+This file provides test session hooks for cleanup of test artifacts.
 """
 
+import os
+from pathlib import Path
+
 import pytest
-from fastapi.testclient import TestClient
-
-from vultron.api.v2.app import app_v2 as app
 
 
-@pytest.fixture
-def client():
-    app.dependency_overrides = {}
-    with TestClient(app) as c:
-        yield c
-    app.dependency_overrides = {}
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_test_db_files():
+    """
+    Automatically clean up any TinyDB files created during tests.
 
+    This fixture runs once per test session and removes mydb.json
+    both before and after the test run to prevent test pollution.
+    """
+    # Get repository root
+    repo_root = Path(__file__).parent.parent
+    test_db_file = repo_root / "mydb.json"
 
-@pytest.fixture
-def datalayer():
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    # Clean up before tests
+    if test_db_file.exists():
+        test_db_file.unlink()
 
-    # Use in-memory storage for tests (db_path=None)
-    datalayer = get_datalayer(db_path=None)
-    # Clear the datalayer before each test
-    datalayer.clear_all()
-    yield datalayer
-    # Clear the datalayer after each test
-    datalayer.clear_all()
+    yield
+
+    # Clean up after tests
+    if test_db_file.exists():
+        test_db_file.unlink()

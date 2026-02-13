@@ -1,3 +1,50 @@
+## Recent Changes (2026-02-13 Late Afternoon)
+
+### Test Database Cleanup Fix
+
+**Status**: COMPLETE (BUGFIXES)
+
+**Problem**:
+- Tests were leaving behind a `mydb.json` file in the repository root
+- This file was being created by TinyDB during tests when routers called `get_datalayer()` with default parameters
+- File could potentially be committed accidentally
+
+**Solution Implemented**:
+1. **Test Fixtures Updated**: Modified two test fixtures to use in-memory storage:
+   - `test/api/v2/conftest.py`: Changed `datalayer` fixture to call `get_datalayer(db_path=None)`
+   - `test/api/test_reporting_workflow.py`: Changed `dl` fixture to call `get_datalayer(db_path=None)`
+
+2. **Root Conftest Created**: Added `test/conftest.py` with session-scoped autouse fixture:
+   - `cleanup_test_db_files()` fixture automatically removes `mydb.json` before and after test sessions
+   - Prevents test pollution even if some code path creates the file
+
+3. **Gitignore Updated**: Added patterns to `.gitignore`:
+   - `mydb.json` - the default TinyDB filename
+   - `*.db.json` - catch any similar test database files
+
+**Test Results**:
+- Ran multiple test suites to verify fix
+- No `mydb.json` file left behind after test runs
+- All datalayer and routing tests pass (except 1 pre-existing failure in test_reporting_workflow.py)
+- Cleanup fixture works consistently across test sessions
+
+**Technical Notes**:
+- The file was being created because FastAPI routers call `get_datalayer()` without parameters inside route handlers
+- The TestClient runs the actual FastAPI app, which triggers these calls
+- Future improvement: Use FastAPI dependency injection to provide test datalayer to routers
+- Current solution is minimal and non-invasive - doesn't require refactoring router code
+
+**Files Changed**:
+- `test/conftest.py` (created): Session-scoped cleanup fixture
+- `test/api/v2/conftest.py` (modified): Use in-memory storage
+- `test/api/test_reporting_workflow.py` (modified): Use in-memory storage
+- `.gitignore` (modified): Added `mydb.json` and `*.db.json` patterns
+
+**Next Steps** (for next iteration):
+- Continue with Phase 0 tasks (implement remaining report handlers)
+- Or consider refactoring routers to use dependency injection for cleaner testing
+
+
 # Vultron API v2 Implementation Notes
 
 **Last Updated**: 2026-02-13 (Evening)

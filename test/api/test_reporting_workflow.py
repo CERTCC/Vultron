@@ -69,7 +69,8 @@ def case(report):
 
 @pytest.fixture
 def dl():
-    dl = get_datalayer()
+    # Use in-memory storage for tests (db_path=None)
+    dl = get_datalayer(db_path=None)
     dl.clear_all()  # Clear before use to ensure clean state
     yield dl
     dl.clear_all()
