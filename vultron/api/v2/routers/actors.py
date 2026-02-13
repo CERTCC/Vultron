@@ -83,6 +83,10 @@ def get_actor(actor_id: str) -> as_Actor:
     datalayer = get_datalayer()
     actor = datalayer.read(actor_id)
 
+    # If not found by full ID, try to resolve as short ID
+    if not actor:
+        actor = datalayer.find_actor_by_short_id(actor_id)
+
     if not actor:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
@@ -101,7 +105,23 @@ def get_actor(actor_id: str) -> as_Actor:
 def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
     """Returns the Actor's Inbox."""
 
-    actor_io = get_actor_io(actor_id, init=False, raise_on_missing=False)
+    # Try to resolve actor ID (handles both full URIs and short IDs)
+    datalayer = get_datalayer()
+    actor = datalayer.read(actor_id)
+
+    if not actor:
+        actor = datalayer.find_actor_by_short_id(actor_id)
+
+    if not actor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Actor not found.",
+        )
+
+    # Use the full actor ID for actor_io lookup
+    full_actor_id = actor.as_id if hasattr(actor, "as_id") else actor_id
+
+    actor_io = get_actor_io(full_actor_id, init=False, raise_on_missing=False)
     if actor_io is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -171,22 +191,32 @@ def post_actor_inbox(
         HTTPException: If the Actor is not found.
     """
     dl = get_datalayer()
+    # Try to read actor by full ID first
     actor = dl.read(actor_id)
+
+    # If not found, try to resolve as short ID (e.g., "vendorco" -> "https://.../vendorco")
+    if actor is None:
+        actor = dl.find_actor_by_short_id(actor_id)
 
     if actor is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
 
+    # Extract the full actor ID for subsequent operations
+    full_actor_id = actor.as_id if hasattr(actor, "as_id") else actor_id
+
     dl.create(object_to_record(activity))
 
-    logger.debug(f"Posting activity to actor {actor_id} inbox: {activity}")
-    actor_io = get_actor_io(actor_id, init=True, raise_on_missing=False)
+    logger.debug(
+        f"Posting activity to actor {full_actor_id} inbox: {activity}"
+    )
+    actor_io = get_actor_io(full_actor_id, init=True, raise_on_missing=False)
     # append activity ID to inbox
     actor_io.inbox.items.append(activity.as_id)
 
-    # Trigger inbox processing (in the background)
-    background_tasks.add_task(inbox_handler, actor_id)
+    # Trigger inbox processing (in the background) using the full actor ID
+    background_tasks.add_task(inbox_handler, full_actor_id)
 
     return None
 

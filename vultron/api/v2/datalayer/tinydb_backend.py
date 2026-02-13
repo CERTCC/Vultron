@@ -272,6 +272,47 @@ class TinyDbDataLayer(DataLayer):
         tbl = self._table(table)
         return tbl.contains(self._id_query(id_))
 
+    def find_actor_by_short_id(self, short_id: str) -> BaseModel | None:
+        """
+        Find an actor by matching the short ID (last part of URI) against stored actor IDs.
+
+        Searches across Actor, Person, Organization, Service, Application, and Group tables.
+        Returns the first actor whose id_ ends with the given short_id.
+
+        Args:
+            short_id: The short identifier to search for (e.g., "vendorco")
+
+        Returns:
+            BaseModel | None: The reconstituted Actor object if found, None otherwise
+        """
+        actor_types = [
+            "Actor",
+            "Person",
+            "Organization",
+            "Service",
+            "Application",
+            "Group",
+        ]
+
+        for actor_type in actor_types:
+            if actor_type not in self._db.tables():
+                continue
+
+            tbl = self._table(actor_type)
+            for rec in tbl.all():
+                try:
+                    record = Record.model_validate(rec)
+                    # Check if the id_ ends with /short_id or is exactly short_id
+                    if (
+                        record.id_.endswith(f"/{short_id}")
+                        or record.id_ == short_id
+                    ):
+                        return record_to_object(record)
+                except Exception:
+                    continue
+
+        return None
+
 
 def get_datalayer(db_path: str | None = "mydb.json") -> TinyDbDataLayer:
     """Factory function to create a TinyDbDataLayer instance.

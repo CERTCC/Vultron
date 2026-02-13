@@ -1,3 +1,51 @@
+## Recent Changes (2026-02-13 Late Evening Session 2)
+
+### Actor ID Resolution Implementation
+
+**Status**: COMPLETE (Phase 0.4.1)
+
+**Problem**:
+The receive_report_demo.py test was failing with HTTP 404 when posting to `/actors/vendorco/inbox/` because the inbox endpoint was trying to look up actors by the short ID ("vendorco") but actors were stored with full URIs ("https://vultron.example/organizations/vendorco").
+
+**Solution Implemented**:
+1. **Added `find_actor_by_short_id()` method** to `TinyDBDataLayer`:
+   - Searches across Actor, Person, Organization, Service, Application, and Group tables
+   - Matches actors whose `id_` ends with `/{short_id}` or equals `short_id`
+   - Returns the first matching actor as a reconstituted Pydantic object
+
+2. **Updated inbox endpoint** (`post_actor_inbox`):
+   - First tries to read actor by full ID
+   - If not found, calls `find_actor_by_short_id()` to resolve short ID
+   - Extracts full actor ID for subsequent operations (actor_io, inbox_handler)
+   - Uses full ID consistently throughout processing
+
+3. **Updated related endpoints**:
+   - `get_actor`: Now resolves short IDs
+   - `get_actor_inbox`: Now resolves short IDs
+
+**Test Results**:
+- Actor resolution now works: POST to `/actors/vendorco/inbox/` successfully finds the actor
+- HTTP 404 on actor lookup is fixed
+- Demo progresses further but still has an issue with VulnerabilityReport type checking in submit_report handler
+
+**Remaining Issue**:
+The submit_report handler is receiving activities where `activity.as_object` is of type `as_Object` instead of `VulnerabilityReport`. This suggests that either:
+1. Rehydration isn't properly typing nested objects, OR
+2. The activity is being stored/retrieved in a way that loses nested type information
+
+The rehydration function SHOULD handle this (tested in isolation it works), so there may be an issue with how activities flow through the system. This needs further investigation but is beyond the scope of the actor ID resolution task.
+
+**Files Changed**:
+- `vultron/api/v2/datalayer/tinydb_backend.py`: Added `find_actor_by_short_id()` method
+- `vultron/api/v2/routers/actors.py`: Updated `post_actor_inbox`, `get_actor`, `get_actor_inbox` to resolve short IDs
+
+**Next Steps** (for next iteration):
+- Investigate why nested objects lose type information after rehydration
+- Possible solutions:
+  - Verify rehydration is being called at the right time
+  - Check if model_validate properly handles nested objects with discriminators
+  - Consider adding explicit type hints or discriminators to activity models
+
 ## Recent Changes (2026-02-13 Late Evening)
 
 ### Remaining Report Handlers Implementation

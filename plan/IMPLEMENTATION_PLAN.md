@@ -73,25 +73,35 @@ This is the immediate priority per `plan/PRIORITIES.md`. The demo script showcas
 - **Note**: Implementation complete. Uses rehydration to get full objects, sets offer and report status, creates case, generates CreateCase activity, and adds to actor outbox.
 
 #### 0.3 Implement Status Tracking System
-- [ ] Design status storage approach (using data layer or separate status table)
-- [ ] Implement OfferStatus tracking (PENDING, ACCEPTED, REJECTED)
-- [ ] Implement ReportStatus tracking (per RM state machine: RECEIVED, VALID, INVALID, CLOSED)
-- [ ] Create status query/update helper functions
-- [ ] Integrate status checks into handlers for idempotency
-- **Files**: New `vultron/api/v2/data/status.py` or extend existing
+- [x] Design status storage approach (using data layer or separate status table)
+- [x] Implement OfferStatus tracking (PENDING, ACCEPTED, REJECTED)
+- [x] Implement ReportStatus tracking (per RM state machine: RECEIVED, VALID, INVALID, CLOSED)
+- [x] Create status query/update helper functions
+- [x] Integrate status checks into handlers for idempotency
+- **Files**: `vultron/api/v2/data/status.py`
 - **Reference**: `vultron/api/v2/backend/_old_handlers/accept.py` (OfferStatus, ReportStatus, set_status)
 - **Specs**: `HP-07-001`, `HP-07-002` (idempotency requirements)
 - **Tests**: `test/api/v2/data/test_status.py`
+- **Status**: COMPLETE. Status tracking system already implemented with OfferStatus and ReportStatus classes using in-memory storage.
 
 #### 0.4 Implement Outbox Processing
-- [ ] Ensure Create activities are added to actor's outbox collection
-- [ ] Implement outbox retrieval via data layer
-- [ ] Add logging for outbox operations at INFO level
-- [ ] Verify outbox items are persisted correctly
+- [x] Ensure Create activities are added to actor's outbox collection
+- [x] Implement outbox retrieval via data layer
+- [x] Add logging for outbox operations at INFO level
+- [x] Verify outbox items are persisted correctly
 - **Files**: `vultron/api/v2/data/actor_io.py`, `vultron/api/v2/backend/handlers.py`
 - **Reference**: Existing `actor_io.py` structure
 - **Specs**: Related to response generation (deferred details)
 - **Tests**: `test/api/v2/data/test_actor_io.py`
+- **Status**: COMPLETE. Outbox processing implemented in validate_report handler, activities added to actor outbox collection.
+
+#### 0.4.1 Implement Actor ID Resolution
+- [x] Add find_actor_by_short_id() method to TinyDBDataLayer
+- [x] Update post_actor_inbox to resolve short IDs to full URIs
+- [x] Update get_actor to resolve short IDs
+- [x] Update get_actor_inbox to resolve short IDs
+- **Files**: `vultron/api/v2/datalayer/tinydb_backend.py`, `vultron/api/v2/routers/actors.py`
+- **Status**: COMPLETE. Actors can now be looked up by short ID (e.g., "vendorco") or full URI.
 
 #### 0.5 Implement Remaining Report Handlers
 - [x] close_report: Update report status to CLOSED
