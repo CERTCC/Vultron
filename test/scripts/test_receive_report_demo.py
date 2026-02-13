@@ -66,9 +66,6 @@ def demo_env(client):
         importlib.reload(demo)
 
 
-@pytest.mark.xfail(
-    reason="Demo may rely on external state not present in test environment"
-)
 def test_main_executes_without_raising(demo_env):
     """Tests that demo.main() can be executed without raising exceptions."""
     demo.main()
