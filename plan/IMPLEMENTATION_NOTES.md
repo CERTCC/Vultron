@@ -1,3 +1,45 @@
+## Recent Changes (2026-02-13 Late Evening Session 3)
+
+### Rehydration Fix for Nested Objects
+
+**Status**: COMPLETE (Critical bugfix)
+
+**Problem**:
+The `submit_report` handler was receiving activities where the nested `as_object` field was a generic `as_Object` instance instead of the properly typed `VulnerabilityReport` instance. The `isinstance(offered_obj, VulnerabilityReport)` check was failing even though the object had the correct `as_type` field set to "VulnerabilityReport".
+
+**Root Cause**:
+The `rehydrate()` function in `vultron/api/v2/data/rehydration.py` had an early return at line 71 after reading an object from the database. This prevented the function from continuing to the nested object rehydration logic (lines 75-83), so nested objects were never rehydrated to their specific types.
+
+**Solution Implemented**:
+1. **Removed early return**: Changed line 71 from `return obj` to a comment explaining we don't return early
+2. **Preserved rehydrated nested objects**: After `model_validate` creates a new instance (line 106), the rehydrated nested object needs to be re-assigned because `model_validate` recreates the object from a dict, losing the properly-typed nested object
+3. Added logic to preserve the rehydrated nested object after validation (lines 113-118)
+
+**Technical Details**:
+The rehydration flow now works as follows:
+1. If input is a string ID, read from database (lines 52-71)
+2. If object has `as_object`, recursively rehydrate it (lines 75-83)
+3. Check if object is already correct type (lines 96-101)
+4. If not, re-validate to get correct class (lines 104-109)
+5. **NEW**: Preserve the rehydrated nested object after validation (lines 113-118)
+
+Step 5 is critical because `cls.model_validate(obj.model_dump())` at line 106 serializes and deserializes the object, which loses the properly-typed nested object from step 2. We must re-assign it after validation.
+
+**Test Results**:
+- `submit_report` handler now correctly receives `VulnerabilityReport` instances
+- Handler tests pass: 9/9 in `test/api/v2/backend/test_handlers.py`
+- Demo test progresses further (still fails on outbox endpoint issue, see below)
+
+**Files Changed**:
+- `vultron/api/v2/data/rehydration.py`: Fixed early return and preserved nested objects
+
+**Next Issues** (for future iterations):
+The demo test now fails at a different point:
+1. `validate_report` handler fails to rehydrate actor: "Object not found in data layer" when looking up "vendorco" (needs full URI)
+2. Demo script tries to GET `/datalayer/Actors/vendorco/outbox/` which returns 404 (endpoint doesn't exist)
+
+These are separate issues beyond the scope of the rehydration fix.
+
 ## Recent Changes (2026-02-13 Late Evening Session 2)
 
 ### Actor ID Resolution Implementation

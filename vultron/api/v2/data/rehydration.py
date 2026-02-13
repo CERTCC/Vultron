@@ -54,12 +54,6 @@ def rehydrate(obj: as_Object, depth: int = 0) -> as_Object | str:
         logger.debug(
             f"Attempting to rehydrate string object ID '{obj}' from data layer."
         )
-        try:
-            # see if it's a url id, and extract the object id if so
-            obj = parse_id(obj)["object_id"]
-        except ValueError:
-            # it was not a url, just use the string as-is
-            pass
 
         logger.debug(f"Reading object with ID '{obj}' from data layer.")
         obj = datalayer.get(id_=obj)
