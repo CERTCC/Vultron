@@ -288,7 +288,7 @@ def main():
     # verify side effects again
     # this time,
     # the actor's outbox should have a Create activity for the case
-    outbox = client.get(f"/datalayer/Actors/{vendor_obj_id}/outbox/")
+    outbox = client.get(f"/actors/{vendor_obj_id}/outbox/")
     outbox = as_OrderedCollection(**outbox)
 
     logger.info(f"Vendor outbox has {len(outbox.items)} items.")
