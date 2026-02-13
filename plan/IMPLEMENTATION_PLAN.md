@@ -55,22 +55,22 @@ The demo script needs refinement to better demonstrate the three different outco
 
 **Context**: The demo script currently tries to accept, tentative reject, and reject the same report offer, which doesn't make sense in a real workflow. The script needs to be restructured to demonstrate the three different outcomes as separate, independent scenarios.
 
-#### 0A.1 Refactor Demo Script Structure
-- [ ] Create three separate demonstration functions:
-  - [ ] `demo_accept_report()`: Submit report → Validate → Create case
-  - [ ] `demo_tentative_reject_report()`: Submit report → Tentative reject → Hold for reconsideration
-  - [ ] `demo_reject_and_close_report()`: Submit report → Invalidate → Close
-- [ ] Each demo function should:
-  - [ ] Create a unique report with distinct ID
-  - [ ] Create a unique offer with distinct ID
-  - [ ] Execute the workflow for that specific outcome
-  - [ ] Verify expected side effects (status changes, outbox updates, case creation)
-- [ ] Update `main()` to either:
-  - [ ] Run all three demos sequentially with different reports, OR
-  - [ ] Accept command-line argument to select which demo to run
+#### 0A.1 Refactor Demo Script Structure ✅ COMPLETE
+- [x] Create three separate demonstration functions:
+  - [x] `demo_accept_report()`: Submit report → Validate → Create case
+  - [x] `demo_tentative_reject_report()`: Submit report → Tentative reject → Hold for reconsideration
+  - [x] `demo_reject_and_close_report()`: Submit report → Invalidate → Close
+- [x] Each demo function should:
+  - [x] Create a unique report with distinct ID
+  - [x] Create a unique offer with distinct ID (offers created by submit activities)
+  - [x] Execute the workflow for that specific outcome
+  - [x] Verify expected side effects (status changes, outbox updates, case creation)
+- [x] Update `main()` to run all three demos sequentially with different reports
 - **Files**: `vultron/scripts/receive_report_demo.py`
 - **Reference**: `docs/howto/activitypub/activities/report_vulnerability.md` for the three workflow paths
 - **Exit Criteria**: Script demonstrates all three outcomes cleanly without workflow conflicts
+- **Status**: COMPLETE - Demos 2 and 3 run successfully. Demo 1 has known issue with outbox verification (see 0A.4).
+- **Commit**: a2fc317 "Refactor receive_report_demo.py into three separate workflow demonstrations"
 
 #### 0A.2 Implement Missing Workflow Steps
 Per `docs/howto/activitypub/activities/report_vulnerability.md`, some steps in the process are not yet implemented. Review the documentation and identify:
@@ -96,8 +96,17 @@ If implementing separate demos is not preferred, add ability to reset report/off
 - **Files**: `vultron/api/v2/datalayer/tinydb_backend.py`, `vultron/scripts/receive_report_demo.py`
 - **Note**: This is an alternative to 0A.1. Choose one approach based on which better demonstrates the workflows.
 
-#### 0A.4 Fix Demo Script Endpoint Issues
-- [ ] Fix incorrect endpoint path for outbox retrieval (currently fails at end of demo)
+#### 0A.4 Fix Demo Script Endpoint Issues ⚠️ PARTIAL
+- [x] Fixed outbox retrieval approach: re-fetch vendor actor from /actors/ endpoint instead of using non-existent /datalayer/Actors/{actor_id}/outbox/ route
+- [x] Added dl.update(actor_obj) in validate_report handler to persist outbox changes
+- [x] Added 3-second delay for async background processing to complete
+- [ ] Debug persistent issue: vendor outbox remains empty after validate_report despite correct handler code
+  - Handler tests pass (9/9)
+  - Workflow tests pass (5 passed, 2 xfailed)
+  - Likely async timing or persistence bug requiring deeper investigation
+- **Files**: `vultron/scripts/receive_report_demo.py`, `vultron/api/v2/backend/handlers.py`
+- **Status**: PARTIAL - Demo 1 still fails on outbox verification, requires further investigation
+- **Commit**: a2fc317 "Refactor receive_report_demo.py into three separate workflow demonstrations"
 - [ ] Verify correct API endpoint is `/actors/{actor_id}/outbox/` not `/datalayer/Actors/{actor_id}/outbox/`
 - [ ] Update all endpoint paths in demo script to use correct API routes
 - [ ] Add better error handling and validation for HTTP responses
