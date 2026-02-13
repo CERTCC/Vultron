@@ -10,6 +10,19 @@ This document captures insights, observations, and technical notes discovered du
 
 ## Gap Analysis Summary (2026-02-13)
 
+**Updated after comprehensive code review on 2026-02-13**
+
+### Key Finding: Infrastructure is Solid, Business Logic Needed
+
+The architecture review reveals that the core infrastructure (semantic extraction, dispatch routing, data layer abstraction, handler protocol) is **well-implemented and functional**. The primary gap is **handler business logic** - the stub implementations need to be filled in with actual state persistence and workflow logic.
+
+**Priority Adjustment**: While the original plan deferred all handler logic to Phase 4, `plan/PRIORITIES.md` identifies getting `scripts/receive_report_demo.py` working as the **top priority**. This requires implementing business logic for a small subset of handlers:
+- `submit_report` (store offer and report)
+- `validate_report` (update status, create case, populate outbox)
+- `close_report`, `invalidate_report` (status updates)
+
+Once these core handlers are implemented, the demo will work and validate the entire pipeline end-to-end.
+
 ### Critical Gaps Identified
 
 #### 1. Request Validation (HIGH PRIORITY)
@@ -104,7 +117,42 @@ This document captures insights, observations, and technical notes discovered du
 
 **Reference**: specs/inbox-endpoint.md (IE-10-001/002), specs/message-validation.md (MV-08-001)
 
-#### 6. Test Coverage Enforcement (HIGH PRIORITY)
+### Handler Business Logic Gap (HIGH PRIORITY - Updated)
+
+**Status**: Stub implementations exist, need business logic
+
+**Current State**:
+- All 47 handler functions defined in `vultron/api/v2/backend/handlers.py`
+- All handlers use `@verify_semantics` decorator correctly
+- All handlers registered in `SEMANTIC_HANDLER_MAP`
+- All handlers accept `DispatchActivity` parameter
+- All handlers currently just log at DEBUG level and return None
+
+**What's Missing**:
+1. **State Persistence**: Handlers don't persist objects to data layer
+2. **Status Tracking**: No OfferStatus, ReportStatus, or other state tracking
+3. **Outbox Population**: Handlers don't create response activities or populate outboxes
+4. **Business Logic**: No validation of state transitions or workflow rules
+5. **Error Handling**: No domain-specific error conditions handled
+
+**Priority Update**: Originally planned for Phase 4 (deferred), now **Phase 0 (top priority)** for core handlers needed by receive_report_demo.py:
+- `submit_report`: Store VulnerabilityReport and SubmitReport (as_Offer) in data layer
+- `validate_report`: Update status, create VulnerabilityCase, populate outbox
+- `close_report`: Update report status to CLOSED
+- `invalidate_report`: Update report status to INVALID
+- `ack_report`: Acknowledge receipt
+
+**Impact**: Demo script `receive_report_demo.py` fails because handlers don't persist state or create expected side effects (cases, outbox items)
+
+**Reference Implementation**: Old handlers in `vultron/api/v2/backend/_old_handlers/` show expected logic:
+- `offer.py::rm_submit_report`: Store report and offer using `datalayer.create(object_to_record(obj))`
+- `accept.py::rm_validate_report`: Update statuses, create case, populate outbox
+
+**Implementation Notes**:
+- Data layer API has changed from `receive_offer()`, `receive_case()` to unified `create(record)`
+- Use `object_to_record()` helper from `db_record.py` to convert Pydantic models to Record format
+- Status tracking needs reimplementation (old code used separate status storage)
+- Outbox handling exists in `actor_io.py` but needs integration with handlers
 **Status**: Tests exist but no coverage thresholds
 
 **What exists**:
@@ -178,21 +226,30 @@ This document captures insights, observations, and technical notes discovered du
 
 ## Technical Decisions & Rationale
 
-### Why Defer Handler Business Logic?
+### Why Implement Core Handler Logic First?
 
-**Decision**: Implement infrastructure first, handler logic later
+**Updated Decision**: Implement core handler business logic to get receive_report_demo.py working, then complete remaining handlers
 
-**Rationale**:
+**Original Rationale** (to defer all handlers):
 - 47 handlers represent significant implementation effort (10-15 days)
 - Core infrastructure (validation, dispatch, logging) provides more value immediately
 - Can verify correct handler invocation without implementing business logic
-- Handler logic requires design decisions about state persistence and workflows
-- Infrastructure bugs block all handler development; fix infrastructure first
 
-**Approach**:
-- Keep stub handlers that log and return None
-- Add test that verifies correct handler invoked for each semantic type
-- Implement business logic systematically once infrastructure solid
+**Why This Changed**:
+- Per `plan/PRIORITIES.md`, getting the demo working is the **top priority**
+- The demo provides end-to-end validation of the architecture
+- Only a small subset of handlers (~5-6) are needed for the demo
+- Infrastructure is already solid; blocked on business logic, not architecture
+- The old handler implementations in `_old_handlers/` provide clear reference implementation
+
+**New Approach** (Phase 0):
+1. Implement submit_report handler (store offer and report)
+2. Implement validate_report handler (create case, populate outbox)
+3. Implement status tracking system for state management
+4. Implement close_report and invalidate_report for workflow completeness
+5. Verify receive_report_demo.py test passes
+6. **Then** proceed with infrastructure hardening (validation, logging, etc.) in Phase 1-3
+7. Complete remaining 42 handlers systematically in Phase 4
 
 ### Why In-Memory Duplicate Detection Initially?
 
@@ -633,3 +690,108 @@ grep -r "MessageSemantics\." vultron/
 # Find TODO comments
 grep -r "TODO\|FIXME\|XXX" vultron/
 ```
+---
+
+## Architecture Migration Analysis (2026-02-13)
+
+### What Changed from Old to New Architecture
+
+The codebase underwent a significant refactor to move from the old handler system to the new dispatcher-based architecture. Understanding this migration is key to implementing Phase 0.
+
+#### Old Architecture (`_old_handlers/`)
+- **Handler Registration**: Decorator-based registry using `ActivityHandler` partial functions
+- **Routing**: Activity type + Object type pattern matching
+- **Handler Signature**: `handler(actor_id: str, activity: ActivityType, datalayer: DataStore)`
+- **Data Layer Methods**: Specialized methods like `receive_offer()`, `receive_case()`, `receive_report()`
+- **Status Tracking**: Separate status objects (OfferStatus, ReportStatus) with `set_status()` function
+
+Example old handler:
+```python
+@offer_handler(object_type=VulnerabilityReport)
+def rm_submit_report(actor_id: str, activity: as_Offer, datalayer: DataStore):
+    datalayer.create(object_to_record(activity.as_object))  # report
+    datalayer.create(object_to_record(activity))  # offer
+```
+
+#### New Architecture (Current)
+- **Handler Registration**: Explicit mapping in `semantic_handler_map.py`
+- **Routing**: MessageSemantics-based (47 semantic types extracted via pattern matching)
+- **Handler Signature**: `handler(dispatchable: DispatchActivity) -> None`
+- **Data Layer Methods**: Unified CRUD interface (`create()`, `read()`, `update()`, `delete()`)
+- **Status Tracking**: **Needs reimplementation** (not migrated from old system)
+
+Example new handler stub:
+```python
+@verify_semantics(MessageSemantics.SUBMIT_REPORT)
+def submit_report(dispatchable: DispatchActivity) -> None:
+    logger.debug("submit_report handler called: %s", dispatchable)
+    # TODO: Implement business logic
+    return None
+```
+
+### Migration Path for Handlers
+
+To implement Phase 0 handlers, adapt the old handler logic to the new architecture:
+
+1. **Extract Data from DispatchActivity**:
+   ```python
+   activity = dispatchable.payload  # The as_Activity object
+   actor_id = activity.actor  # Extract actor from activity
+   offered_object = activity.as_object  # For transitive activities
+   ```
+
+2. **Get Data Layer Instance**:
+   ```python
+   from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+   dl = get_datalayer()
+   ```
+
+3. **Store Objects Using Unified API**:
+   ```python
+   from vultron.api.v2.datalayer.db_record import object_to_record
+   dl.create(object_to_record(offered_object))  # Still use object_to_record
+   dl.create(object_to_record(activity))
+   ```
+
+4. **Access Actor IO**:
+   ```python
+   from vultron.api.v2.data.actor_io import get_actor_io
+   actor_io = get_actor_io(actor_id, raise_on_missing=True)
+   # Add to outbox
+   actor_io.outbox.items.append(create_activity)
+   ```
+
+5. **Implement Status Tracking** (design decision needed):
+   - Option A: Store status as separate objects in data layer
+   - Option B: Add status fields to existing objects (reports, offers, cases)
+   - Option C: Use data layer tables for status tracking
+   
+   Recommendation: Start with Option A (separate status objects) to match old behavior
+
+### Key Differences to Handle
+
+1. **No Direct actor_id Parameter**: Extract from `dispatchable.payload.actor`
+2. **No Injected datalayer**: Call `get_datalayer()` within handler
+3. **Status System Missing**: Need to reimplement status tracking (OfferStatus, ReportStatus)
+4. **Outbox Handling**: Use `actor_io.outbox.items.append()` instead of specialized methods
+
+### Status Tracking Reimplementation
+
+The old system used these status types:
+- `OfferStatus`: Tracks offer lifecycle (PENDING, ACCEPTED, REJECTED)
+- `ReportStatus`: Tracks report state per RM state machine (RECEIVED, VALID, INVALID, CLOSED)
+- `set_status(status_obj)`: Persisted status to storage
+- `get_status(object_id, actor_id)`: Retrieved current status
+
+**Migration Approach**:
+1. Create new status models in `vultron/api/v2/data/status.py` (file exists, needs expansion)
+2. Store status objects in data layer using `create()` or `update()`
+3. Query status using `dl.read()` or specialized status query functions
+4. Ensure status updates are atomic and support concurrent access
+
+### Testing Strategy for Migration
+
+1. **Unit Tests**: Test each handler in isolation with mock data layer
+2. **Integration Tests**: Test handler within full inbox processing flow
+3. **Demo Validation**: Use `receive_report_demo.py` as end-to-end test
+4. **Comparison Testing**: Compare old vs new handler behavior with same inputs

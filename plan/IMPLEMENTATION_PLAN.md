@@ -36,7 +36,74 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 
 ## Prioritized Task List
 
-### Phase 1: Critical Infrastructure & Validation (HIGHEST PRIORITY)
+### Phase 0: Get receive_report_demo.py Working (TOP PRIORITY)
+
+This is the immediate priority per `plan/PRIORITIES.md`. The demo script showcases the core workflow and validates that the new architecture can handle real-world scenarios.
+
+#### 0.1 Implement submit_report Handler Business Logic
+- [ ] Extract VulnerabilityReport from SubmitReport activity (as_Offer with VulnerabilityReport object)
+- [ ] Store the VulnerabilityReport object in data layer via `create()`
+- [ ] Store the SubmitReport activity (as_Offer) in data layer via `create()`
+- [ ] Log INFO level: report submitted, report ID, submitter ID
+- [ ] Handle duplicate report submissions gracefully (check if report already exists)
+- **Files**: `vultron/api/v2/backend/handlers.py` (submit_report function)
+- **Reference**: `vultron/api/v2/backend/_old_handlers/offer.py` (rm_submit_report)
+- **Specs**: `HP-03-001`, `HP-04-001`, `HP-06-002`
+- **Tests**: Expand `test/api/v2/backend/test_handlers.py`, verify with `test/scripts/test_receive_report_demo.py`
+
+#### 0.2 Implement validate_report Handler Business Logic
+- [ ] Extract VulnerabilityReport from ValidateReport activity (as_Accept of as_Offer)
+- [ ] Update report status to VALID in data layer
+- [ ] Create VulnerabilityCase containing the validated report
+- [ ] Store the VulnerabilityCase in data layer
+- [ ] Create a Create(VulnerabilityCase) activity and add to actor's outbox
+- [ ] Log INFO level: report validated, case created, case ID
+- [ ] Handle case where report doesn't exist (error condition)
+- **Files**: `vultron/api/v2/backend/handlers.py` (validate_report function)
+- **Reference**: `vultron/api/v2/backend/_old_handlers/accept.py` (rm_validate_report)
+- **Specs**: `HP-03-001`, `HP-04-001`, `HP-06-002`
+- **Tests**: Expand `test/api/v2/backend/test_handlers.py`, verify with `test/scripts/test_receive_report_demo.py`
+
+#### 0.3 Implement Status Tracking System
+- [ ] Design status storage approach (using data layer or separate status table)
+- [ ] Implement OfferStatus tracking (PENDING, ACCEPTED, REJECTED)
+- [ ] Implement ReportStatus tracking (per RM state machine: RECEIVED, VALID, INVALID, CLOSED)
+- [ ] Create status query/update helper functions
+- [ ] Integrate status checks into handlers for idempotency
+- **Files**: New `vultron/api/v2/data/status.py` or extend existing
+- **Reference**: `vultron/api/v2/backend/_old_handlers/accept.py` (OfferStatus, ReportStatus, set_status)
+- **Specs**: `HP-07-001`, `HP-07-002` (idempotency requirements)
+- **Tests**: `test/api/v2/data/test_status.py`
+
+#### 0.4 Implement Outbox Processing
+- [ ] Ensure Create activities are added to actor's outbox collection
+- [ ] Implement outbox retrieval via data layer
+- [ ] Add logging for outbox operations at INFO level
+- [ ] Verify outbox items are persisted correctly
+- **Files**: `vultron/api/v2/data/actor_io.py`, `vultron/api/v2/backend/handlers.py`
+- **Reference**: Existing `actor_io.py` structure
+- **Specs**: Related to response generation (deferred details)
+- **Tests**: `test/api/v2/data/test_actor_io.py`
+
+#### 0.5 Implement Remaining Report Handlers
+- [ ] close_report: Update report status to CLOSED
+- [ ] invalidate_report: Update report status to INVALID, update offer status
+- [ ] ack_report: Acknowledge report receipt (log and possibly update status)
+- [ ] create_report: Store new report in data layer
+- **Files**: `vultron/api/v2/backend/handlers.py`
+- **Reference**: `_old_handlers/reject.py` (rm_invalidate_report), `_old_handlers/create.py`
+- **Specs**: `HP-03-001`, `HP-04-001`
+- **Tests**: `test/api/v2/backend/test_handlers.py`
+
+#### 0.6 Fix receive_report_demo.py Test
+- [ ] Remove `@pytest.mark.xfail` from test once handlers implemented
+- [ ] Verify all demo workflow steps execute correctly
+- [ ] Add assertions for expected side effects (reports stored, cases created, outbox populated)
+- [ ] Document any remaining limitations or known issues
+- **Files**: `test/scripts/test_receive_report_demo.py`
+- **Exit Criteria**: Test passes without xfail marker
+
+### Phase 1: Critical Infrastructure & Validation (HIGH PRIORITY)
 
 #### 1.1 Request Validation Middleware
 - [ ] Create middleware or dependency for Content-Type validation
