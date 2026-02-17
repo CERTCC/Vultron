@@ -623,3 +623,12 @@ See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
 
 ## Governance note for agents
 - Agents MAY update `AGENTS.md` to correct or clarify agent rules, but substantive changes to this file SHOULD be discussed with a human maintainer via Issue or PR. If an agent edits `AGENTS.md`, it must include a short rationale in the commit message and open a PR for human review.
+
+---
+
+## Running demo server
+
+To run the demo server:
+```bash
+uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
+```

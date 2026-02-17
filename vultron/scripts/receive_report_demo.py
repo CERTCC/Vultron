@@ -401,11 +401,21 @@ def find_case_by_report(
             case_obj = VulnerabilityCase(**case_data)
 
         # Check if this case references our report
-        if case_obj.vulnerability_reports and report_id in [
-            str(r) for r in case_obj.vulnerability_reports
-        ]:
-            logger.info(f"Found case for report: {logfmt(case_obj)}")
-            return case_obj
+        if case_obj.vulnerability_reports:
+            # Extract IDs from reports (handle both string IDs and full objects)
+            report_ids = []
+            for r in case_obj.vulnerability_reports:
+                if isinstance(r, str):
+                    report_ids.append(r)
+                elif hasattr(r, "as_id"):
+                    report_ids.append(r.as_id)
+                else:
+                    # Fallback: try str() conversion
+                    report_ids.append(str(r))
+
+            if report_id in report_ids:
+                logger.info(f"Found case for report: {logfmt(case_obj)}")
+                return case_obj
 
     return None
 

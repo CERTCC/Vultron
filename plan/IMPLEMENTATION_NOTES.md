@@ -5,6 +5,41 @@
 
 ---
 
+## Bug Fix: FastAPI response_model filtering subclass fields (2026-02-17)
+
+**Issue**: Demo 1 (Validate Report) was failing with "Could not find case related to this report" even though cases were being created successfully in the database with the correct `vulnerability_reports` field populated.
+
+**Root Cause**: The FastAPI data layer GET endpoints (`get_object_by_key` and `get_objects`) had return type annotations `-> as_Base` and `-> dict[str, as_Base]`. FastAPI uses these annotations as the `response_model`, which restricts JSON serialization to only fields defined in that class. Since `as_Base` only defines 6 fields (as_context, as_type, as_id, name, preview, media_type), all subclass-specific fields were being excluded from API responses.
+
+**Investigation Process**:
+1. Confirmed case objects were correctly stored in database with `vulnerability_reports` field
+2. Tested direct API calls and found responses only contained base fields
+3. Created Pydantic model test showing `model_dump_json()` includes all fields
+4. Identified FastAPI's response_model filtering as the culprit
+
+**Fix Applied**:
+1. Removed `-> as_Base` return type from `get_object_by_key()` (line 34 in datalayer.py)
+2. Removed `-> dict[str, as_Base]` return type from `get_objects()` (line 176 in datalayer.py)
+3. Updated `find_case_by_report()` to handle both string IDs and full VulnerabilityReport objects
+4. Created comprehensive test suite in `test/api/v2/routers/test_datalayer_serialization.py`
+
+**Secondary Issue**: The comparison logic in `find_case_by_report()` used `str(r)` which converts the entire VulnerabilityReport object to its string representation instead of extracting just the ID. Updated to handle both string IDs and objects with `.as_id` attribute.
+
+**Test Coverage**:
+- `test_get_vulnerability_case_includes_vulnerability_reports_field`: Verifies field presence
+- `test_get_vulnerability_case_includes_all_fields`: Checks all VulnerabilityCase fields
+- `test_get_vulnerability_report_includes_all_fields`: Verifies fix works for other subclasses
+
+**Lesson Learned**: 
+- FastAPI's return type annotations serve dual purpose: type hints AND response_model
+- Return base class types will restrict serialization to base class fields only
+- Remove return type annotations when endpoints need to return multiple types with full serialization
+- Always test API serialization completeness, not just database storage
+
+**Verification**: All 3 demos in `receive_report_demo.py` now pass successfully.
+
+---
+
 ## Bug Fix: find_case_by_report using wrong field (2026-02-17)
 
 **Issue**: The `receive_report_demo.py` script was failing at Demo 1 (Validate Report) because `find_case_by_report()` was checking the wrong field name.

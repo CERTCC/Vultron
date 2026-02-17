@@ -31,7 +31,7 @@ router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 
 
 @router.get("/{key}", description="Returns a specific object by key.")
-def get_object_by_key(key: str) -> as_Base:
+def get_object_by_key(key: str):
     datalayer = get_datalayer()
 
     obj = datalayer.read(key)
@@ -46,7 +46,7 @@ def get_object_by_key(key: str) -> as_Base:
     "/{object_type}/{object_id}",
     description="Returns a specific object by type and ID.",
 )
-def get_object(object_type: str, object_id: str) -> as_Base:
+def get_object(object_type: str, object_id: str):
     datalayer = get_datalayer()
 
     obj = datalayer.read(object_id)
@@ -173,7 +173,7 @@ def get_actor_outbox(actor_id: str) -> dict:
 @router.get(
     "/{object_type}s/", description="Returns all objects of a given type."
 )
-def get_objects(object_type: str) -> dict[str, as_Base]:
+def get_objects(object_type: str):
     datalayer = get_datalayer()
 
     results = datalayer.by_type(object_type)
