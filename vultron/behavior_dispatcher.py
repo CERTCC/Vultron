@@ -99,6 +99,7 @@ class DirectActivityDispatcher(DispatcherBase):
     """
     A local implementation of the ActivityDispatcher protocol.
     """
+    pass
 
 
 def get_dispatcher() -> ActivityDispatcher:
