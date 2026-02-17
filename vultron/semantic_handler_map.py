@@ -64,8 +64,3 @@ def get_semantics_handlers() -> dict[MessageSemantics, BehaviorHandler]:
     }
 
     return _SEMANTICS_HANDLERS_CACHE
-
-
-# For backward compatibility, provide SEMANTICS_HANDLERS as a property-like accessor
-# This will work for most use cases but won't work during module initialization
-SEMANTICS_HANDLERS = get_semantics_handlers()
