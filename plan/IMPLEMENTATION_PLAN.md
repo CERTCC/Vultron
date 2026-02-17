@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-13 (Refreshed via PLAN_prompt.md)
+**Last Updated**: 2026-02-17 (Gap analysis via PLAN_prompt.md)
 
 ## Overview
 
@@ -59,6 +59,13 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 
 ## Prioritized Task List (Per PRIORITIES.md and Gap Analysis)
 
+**Gap Analysis Summary (2026-02-17)**:
+- ✅ **Report handlers complete (6/36)**: create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
+- ✅ **Demo script complete**: All three workflows working (validate, invalidate, invalidate+close)
+- ❌ **11 router tests failing**: Fixture isolation issue - client fixtures use different data layer instances than test fixtures
+- ❌ **24 handler stubs remaining**: Case management (8), ownership transfer (3), participants (6), embargos (6), notes/statuses (5)
+- ❌ **Production readiness incomplete**: Request validation, error responses, health checks, structured logging, idempotency
+
 ### ✅ COMPLETE: Phase 0A - receive_report_demo.py
 
 **Goal**: Finish the demo script to properly demonstrate the report submission workflow from `docs/howto/activitypub/activities/report_vulnerability.md`.
@@ -75,6 +82,32 @@ All Phase 0A tasks have been completed:
 - a2fc317: "Refactor receive_report_demo.py into three separate workflow demonstrations"
 - 17457e7: "zero out implementation notes after lessons learned"
 - Multiple fixes for timing, persistence, and rehydration issues
+
+---
+
+### 🔴 CRITICAL: Phase 0.5 - Fix Test Infrastructure (NEW)
+
+**Priority**: CRITICAL - Blocking all router tests
+
+**Issue**: Router tests (`test/api/v2/routers/test_*.py`) are failing because test fixtures use separate data layer instances. The `client_actors` and `client_datalayer` fixtures create fresh FastAPI apps that call `get_datalayer()` with default settings, creating new empty databases. Meanwhile, test fixtures like `created_actors` use the `datalayer` fixture from `test/api/v2/conftest.py`, which is a separate instance.
+
+**Impact**: 11 tests failing in test_actors.py and test_datalayer.py
+
+**Tasks**:
+- [ ] **0.5.1**: Fix `client_actors` fixture in `test/api/v2/routers/conftest.py`
+  - Accept `datalayer` fixture parameter
+  - Override `get_datalayer` dependency in FastAPI app
+  - Use `app.dependency_overrides[get_datalayer] = lambda: datalayer`
+- [ ] **0.5.2**: Fix `client_datalayer` fixture similarly
+  - Same pattern: override `get_datalayer` dependency
+- [ ] **0.5.3**: Verify all 11 failing router tests now pass
+  - `test/api/v2/routers/test_actors.py`: 4 tests
+  - `test/api/v2/routers/test_datalayer.py`: 6 tests
+  - `test/api/v2/test_v2_api.py`: 1 test
+
+**Reference**: Gap analysis identified this as the root cause of all router test failures.
+
+**Estimated Effort**: 0.5 days
 
 ---
 
@@ -898,57 +931,95 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 7. Handle errors gracefully with appropriate exceptions
 
 #### 4.1 Case Management Handlers (8 handlers) ❌
-- [ ] create_case - Store case in data layer
-- [ ] add_report_to_case - Add report to case.vulnerability_reports list
-- [ ] suggest_actor_to_case - Store suggestion, notify target actor
-- [ ] accept_suggest_actor_to_case - Add actor to case participants
-- [ ] reject_suggest_actor_to_case - Log rejection, notify suggester
-- [ ] offer_case_ownership_transfer - Store offer, notify target
-- [ ] accept_case_ownership_transfer - Update case.attributed_to, notify
-- [ ] reject_case_ownership_transfer - Log rejection, notify offerer
-- **Estimated Effort**: 3-4 days
+
+**Missing business logic for:**
+- [ ] `create_case` (line 566) - Store case in data layer, link initial reports, set attributes
+- [ ] `add_report_to_case` (line 572) - Rehydrate case/report, update case.vulnerability_reports list, persist
+- [ ] `suggest_actor_to_case` (line 578) - Store suggestion activity, create notification
+- [ ] `accept_suggest_actor_to_case` (line 584) - Rehydrate suggestion, add actor to case participants
+- [ ] `reject_suggest_actor_to_case` (line 592) - Log rejection, create response activity
+- [ ] `offer_case_ownership_transfer` (line 600) - Store ownership transfer offer, notify target
+- [ ] `accept_case_ownership_transfer` (line 608) - Update case.attributed_to, store activity
+- [ ] `reject_case_ownership_transfer` (line 616) - Log rejection, notify offerer
+
+**Implementation Pattern** (from completed report handlers):
+1. Rehydrate nested objects from payload
+2. Validate business rules and object types
+3. Update relevant objects (case, participants, etc)
+4. Persist changes via `dl.update(obj_id, object_to_record(obj))`
+5. Log state transitions at INFO level
+6. Create response activities where appropriate
+
+**Estimated Effort**: 3-4 days
 
 #### 4.2 Actor Invitation Handlers (3 handlers) ❌
-- [ ] invite_actor_to_case - Send invitation, store in data layer
-- [ ] accept_invite_actor_to_case - Add actor to case, update status
-- [ ] reject_invite_actor_to_case - Log rejection, notify inviter
-- **Estimated Effort**: 1-2 days
 
-#### 4.3 Embargo Management Handlers (7 handlers) ❌
-- [ ] create_embargo_event - Store embargo event
-- [ ] add_embargo_event_to_case - Link event to case
-- [ ] remove_embargo_event_from_case - Unlink event from case
-- [ ] announce_embargo_event_to_case - Broadcast event to participants
-- [ ] invite_to_embargo_on_case - Send embargo invitation
-- [ ] accept_invite_to_embargo_on_case - Accept embargo terms
-- [ ] reject_invite_to_embargo_on_case - Reject embargo
-- **Estimated Effort**: 3-4 days
+**Missing business logic for:**
+- [ ] `invite_actor_to_case` (line 624) - Create invitation activity, store in data layer
+- [ ] `accept_invite_actor_to_case` (line 630) - Rehydrate invitation, add actor to case participants, update status
+- [ ] `reject_invite_actor_to_case` (line 638) - Log rejection, create response activity, notify inviter
+
+**Implementation Notes**: Should follow Offer/Accept/Reject pattern similar to report submission workflow.
+
+**Estimated Effort**: 1-2 days
+
+#### 4.3 Embargo Management Handlers (6 handlers) ❌
+
+**Missing business logic for:**
+- [ ] `create_embargo_event` (line 646) - Store embargo event with timeline, restrictions
+- [ ] `add_embargo_event_to_case` (line 652) - Link embargo to case, update case.embargo_events
+- [ ] `remove_embargo_event_from_case` (line 658) - Unlink embargo, update case
+- [ ] `announce_embargo_event_to_case` (line 666) - Broadcast embargo details to case participants
+- [ ] `invite_to_embargo_on_case` (line 674) - Send embargo invitation with terms
+- [ ] `accept_invite_to_embargo_on_case` (line 680) - Accept embargo terms, add to participants
+- [ ] `reject_invite_to_embargo_on_case` (line 688) - Reject embargo invitation
+
+**Implementation Notes**: Embargo events are time-sensitive and require participant coordination. Consider embargo timeline validation and expiry handling.
+
+**Estimated Effort**: 3-4 days
 
 #### 4.4 Case Participant Handlers (3 handlers) ❌
-- [ ] create_case_participant - Store participant object
-- [ ] add_case_participant_to_case - Link participant to case
-- [ ] remove_case_participant_from_case - Unlink participant
-- **Estimated Effort**: 1 day
 
-#### 4.5 Metadata Handlers (6 handlers) ❌
-- [ ] create_note - Store note object
-- [ ] add_note_to_case - Attach note to case
-- [ ] remove_note_from_case - Detach note
-- [ ] create_case_status - Create status object
-- [ ] add_case_status_to_case - Attach status to case
-- [ ] create_participant_status - Create participant status
-- [ ] add_participant_status_to_participant - Attach status
-- **Estimated Effort**: 2-3 days
+**Missing business logic for:**
+- [ ] `create_case_participant` (line 702) - Store participant object with role, permissions
+- [ ] `add_case_participant_to_case` (line 708) - Link participant to case, update case.participants
+- [ ] `remove_case_participant_from_case` (line 716) - Unlink participant, notify removal
+
+**Implementation Notes**: Participant management is prerequisite for multi-party coordination features.
+
+**Estimated Effort**: 1 day
+
+#### 4.5 Metadata Handlers (5 handlers) ❌
+
+**Missing business logic for:**
+- [ ] `create_note` (line 724) - Store note object with content, author
+- [ ] `add_note_to_case` (line 730) - Attach note to case, update case notes
+- [ ] `remove_note_from_case` (line 736) - Detach note from case
+- [ ] `create_case_status` (line 742) - Create case status object
+- [ ] `add_case_status_to_case` (line 748) - Attach status to case, track history
+- [ ] `create_participant_status` (line 754) - Create participant status
+- [ ] `add_participant_status_to_participant` (line 760) - Attach status to participant
+
+**Implementation Notes**: Metadata handlers support audit trail and collaboration features.
+
+**Estimated Effort**: 2-3 days
 
 #### 4.6 Case Lifecycle Handlers (1 handler) ❌
-- [ ] close_case - Update case status to CLOSED, notify participants
-- **Estimated Effort**: 0.5 days
 
-#### 4.7 Special Handlers (2 handlers) ✅
-- [x] unknown - Already implemented (logs and returns)
-- **Note**: `unknown` handler already complete
+**Missing business logic for:**
+- [ ] `close_case` (line 696) - Update case status to CLOSED, notify all participants, finalize records
+
+**Implementation Notes**: Should create closure activity and broadcast to all case participants.
+
+**Estimated Effort**: 0.5 days
+
+#### 4.7 Special Handlers (1 handler) ✅
+
+- [x] `unknown` (line 772) - Already implemented (logs WARNING and returns None)
 
 **Total Phase 4 Estimated Effort**: 10-15 days (can be done incrementally)
+
+**Gap Analysis Note (2026-02-17)**: All handlers after `close_report` (line 563) are stubs with only DEBUG logging and no business logic. Total stub count: 24 handlers across 6 categories.
 
 ---
 
