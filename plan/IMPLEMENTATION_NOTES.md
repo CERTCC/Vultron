@@ -1,7 +1,21 @@
 # Implementation Notes
 
-**Last Updated**: 2026-02-13
+**Last Updated**: 2026-02-17
 **Purpose**: Capture insights, observations, and lessons learned during implementation that may help future agents.
+
+---
+
+## Bug Fix: find_case_by_report using wrong field (2026-02-17)
+
+**Issue**: The `receive_report_demo.py` script was failing at Demo 1 (Validate Report) because `find_case_by_report()` was checking the wrong field name.
+
+**Root Cause**: The function was checking `case_obj.content` but `VulnerabilityCase` stores reports in the `vulnerability_reports` field. This is consistent with the data model in `vultron/as_vocab/objects/vulnerability_case.py`.
+
+**Fix**: Changed line 404 in `vultron/scripts/receive_report_demo.py` from checking `case_obj.content` to `case_obj.vulnerability_reports`.
+
+**Test**: Created `test/scripts/test_find_case_by_report.py` to verify the fix and prevent regression.
+
+**Lesson Learned**: Always verify field names match the Pydantic model definition. When debugging "not found" issues, check that the query is using the correct field names.
 
 ---
 

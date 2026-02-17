@@ -401,8 +401,8 @@ def find_case_by_report(
             case_obj = VulnerabilityCase(**case_data)
 
         # Check if this case references our report
-        if case_obj.content and report_id in [
-            str(r) for r in case_obj.content
+        if case_obj.vulnerability_reports and report_id in [
+            str(r) for r in case_obj.vulnerability_reports
         ]:
             logger.info(f"Found case for report: {logfmt(case_obj)}")
             return case_obj
