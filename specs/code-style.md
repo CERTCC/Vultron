@@ -15,6 +15,13 @@ Defines code formatting and import organization standards for Python code.
 - `CS-01-002` Formatting checks SHALL be included in CI/CD pipeline
 - `CS-01-003` Pre-commit hooks SHALL enforce code formatting standards
 
+- Methods SHOULD have docstrings following PEP 257 conventions
+  - Docstrings SHOULD follow Google style consistently (Args, Returns, Raises sections) when informative
+    - Empty Google docstrings sections (Args, Returns, Raises) SHOULD be omitted for clarity
+  - Small methods where the purpose is clear from the name MAY omit or use one-line docstrings for brevity
+- Use type hints for function signatures and variable annotations where appropriate
+- Use descriptive variable and function names for readability
+
 ## Import Organization (SHOULD)
 
 - `CS-02-001` Imports SHOULD be organized in three groups: standard library, third-party libraries, local application
