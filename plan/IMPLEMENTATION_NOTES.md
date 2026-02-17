@@ -1,6 +1,41 @@
 # Implementation Notes
 
-**Last Updated**: 2026-02-17 (Docker demo container added)
+**Last Updated**: 2026-02-17 (Docker health check retry logic added)
+
+---
+
+## ✅ RESOLVED: Docker Health Check with Retry Logic - 2026-02-17
+
+**Goal**: Fix race condition where `receive-report-demo` container fails to connect to `api-dev` because the API server is still starting up.
+
+**Problem**: Docker Compose `depends_on: service_started` only waits for container to start, not for application to be ready. The demo script's single health check with 2-second timeout was failing before the API server completed startup.
+
+**Implementation**:
+
+1. **Enhanced `check_server_availability()` function**:
+   - Added `max_retries` parameter (default: 30)
+   - Added `retry_delay` parameter (default: 1.0 seconds)
+   - Implements retry loop with logging
+   - Returns immediately on success, waits and retries on failure
+
+2. **Docker Compose health check**:
+   - Added `healthcheck` to `api-dev` service using `curl`
+   - Checks endpoint every 2 seconds, 15 retries, 5-second start period
+   - Changed `receive-report-demo` dependency to `condition: service_healthy`
+
+3. **Docker base image update**:
+   - Added `curl` package for health check support
+
+**Key Lessons**:
+
+- **Health checks with retry**: Always implement retry logic when coordinating service startup, even with Docker health checks
+- **Defense in depth**: Combined Docker-level health check with application-level retry logic provides robust startup coordination
+- **Sensible defaults**: 30 retries × 1 second = 30 seconds max wait is reasonable for development environments
+- **Test-driven**: Writing tests first clarified the interface and edge cases (immediate success, permanent failure, eventual success)
+
+**Testing**: Added comprehensive test suite (`test/scripts/test_health_check_retry.py`) covering all retry scenarios. All 91 tests passing.
+
+**Usage**: The fix is transparent - both local development and Docker deployments work without configuration changes. The retry logic handles startup delays automatically.
 
 ---
 

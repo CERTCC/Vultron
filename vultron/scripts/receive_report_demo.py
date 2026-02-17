@@ -690,37 +690,53 @@ def demo_invalidate_and_close_report(
     )
 
 
-def check_server_availability(client: DataLayerClient) -> bool:
+def check_server_availability(
+    client: DataLayerClient, max_retries: int = 30, retry_delay: float = 1.0
+) -> bool:
     """
-    Checks if the API server is available.
+    Checks if the API server is available, with retry logic for startup delays.
 
     Args:
         client: DataLayerClient instance
+        max_retries: Maximum number of retry attempts (default: 30)
+        retry_delay: Delay in seconds between retries (default: 1.0)
 
     Returns:
         bool: True if server is available, False otherwise
     """
-    try:
-        # Try to access the actors endpoint as a simple health check
-        # Use the client's base_url but make a direct request to avoid
-        # the client's error handling
-        url = f"{client.base_url}/actors/"
-        logger.debug(f"Checking server availability at: {url}")
-        response = requests.get(url, timeout=2)
-        available = response.status_code < 500
-        logger.debug(
-            f"Server availability check: {available} (status: {response.status_code})"
-        )
-        return available
-    except requests.exceptions.ConnectionError as e:
-        logger.debug(f"Connection error during availability check: {e}")
-        return False
-    except requests.exceptions.Timeout as e:
-        logger.debug(f"Timeout during availability check: {e}")
-        return False
-    except Exception as e:
-        logger.debug(f"Unexpected error checking server: {e}")
-        return False
+    url = f"{client.base_url}/actors/"
+
+    for attempt in range(max_retries):
+        try:
+            logger.debug(
+                f"Checking server availability at: {url} (attempt {attempt + 1}/{max_retries})"
+            )
+            response = requests.get(url, timeout=2)
+            available = response.status_code < 500
+            if available:
+                logger.debug(
+                    f"Server availability check: SUCCESS (status: {response.status_code})"
+                )
+                return True
+            logger.debug(
+                f"Server returned error status: {response.status_code}"
+            )
+        except requests.exceptions.ConnectionError as e:
+            logger.debug(f"Connection error during availability check: {e}")
+        except requests.exceptions.Timeout as e:
+            logger.debug(f"Timeout during availability check: {e}")
+        except Exception as e:
+            logger.debug(f"Unexpected error checking server: {e}")
+
+        # If not the last attempt, wait before retrying
+        if attempt < max_retries - 1:
+            logger.debug(f"Retrying in {retry_delay} seconds...")
+            time.sleep(retry_delay)
+
+    logger.debug(
+        f"Server availability check: FAILED after {max_retries} attempts"
+    )
+    return False
 
 
 def main(skip_health_check: bool = False):

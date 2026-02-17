@@ -68,6 +68,12 @@ services:
       - PYTHONPATH=/app
     networks:
       - vultron-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7999/api/v2/actors/"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 5s
 
   receive-report-demo:
     build:
@@ -77,7 +83,7 @@ services:
     image: ${PROJECT_NAME}-receive-report-demo:latest
     depends_on:
       api-dev:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - "../vultron:/app/vultron"
       - "/app/.venv"
