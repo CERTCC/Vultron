@@ -27,15 +27,16 @@ Defines code formatting and import organization standards for Python code.
 - `CS-02-001` Imports SHOULD be organized in three groups: standard library, third-party libraries, local application
   - Each group separated by a single blank line
   - Within each group, imports sorted alphabetically
-- `CS-02-002` Import statements SHALL be placed at the top of the file after module comments or docstrings
-- `CS-02-003` Multi-line import statements SHALL use parentheses for readability
+- `CS-02-002` Import statements SHOULD be placed at the top of the file after module comments or docstrings
+- `CS-02-003` Multi-line import statements SHOULD use parentheses for readability
 
 ## Import Practices (MUST)
 
-- `CS-03-001` Wildcard imports (e.g., `from module import *`) SHALL NOT be used
-- `CS-03-002` Unused imports SHALL be removed
-- `CS-03-003` When importing more than 5-10 items from a module, prefer importing the module itself
+- `CS-03-001` Wildcard imports (e.g., `from module import *`) MUST NOT be used
+- `CS-03-002` Unused imports MUST be removed
+- `CS-03-003` When importing more than 10 items from a module, import the module itself instead
   - Access attributes as `module.attribute` for maintainability
+  - **Rationale**: Reduces line noise and makes module boundaries clearer
 - `CS-03-004` In test modules, avoid multiple imports from the module under test; consider importing the module and using attribute access for clarity.
   - Shorthand aliases are acceptable in test modules where the context is clear (e.g., `import my_module as mm` in `test_my_module.py`)
 

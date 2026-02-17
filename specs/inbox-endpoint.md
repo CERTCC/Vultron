@@ -66,8 +66,11 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 
 ## Idempotency (SHOULD)
 
-- `IE-10-001` The endpoint SHOULD detect duplicate activity IDs
-- `IE-10-002` The endpoint SHOULD return HTTP 202 for duplicates without reprocessing
+- `IE-10-001` The endpoint SHOULD detect duplicate activity IDs at the HTTP layer (optimization)
+  - **Note**: This is an optional performance optimization; primary duplicate detection occurs at validation and handler layers
+  - **Cross-reference**: See `message-validation.md` MV-08-001 for validation-layer detection and `handler-protocol.md` HP-07-001 for handler-layer idempotency
+- `IE-10-002` The endpoint SHOULD return HTTP 202 for duplicates without queuing for reprocessing
+  - **Behavior**: Early return avoids unnecessary background task creation
 
 ## Verification
 

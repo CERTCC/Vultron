@@ -107,6 +107,33 @@ response = client.post("/actors/test/inbox/", json=activity,
 # Verify BackgroundTasks usage for long-running processing
 ```
 
+## FastAPI Response Serialization (SHOULD)
+
+- `HP-07-001` Endpoints returning polymorphic types SHOULD omit return type annotations or use Union types
+  - **Context**: FastAPI uses return type annotations as implicit `response_model`, restricting JSON serialization to fields defined in the annotated class
+  - **Issue**: Base class type annotations (e.g., `-> as_Base`) cause subclass fields to be excluded from JSON responses
+  - **Verification**: API responses include all expected fields, not just base class fields
+
+### Implementation Notes
+
+**Problem**: When an endpoint has return type `-> as_Base` but returns a subclass like `VulnerabilityCase`, FastAPI's response_model filtering excludes subclass-specific fields from the JSON response.
+
+```python
+# Anti-pattern: Returns only as_Base fields (6 fields)
+def get_object_by_key() -> as_Base:
+    return VulnerabilityCase(...)  # Case-specific fields excluded!
+
+# Correct: No type annotation allows full serialization
+def get_object_by_key():
+    return VulnerabilityCase(...)  # All fields included
+
+# Alternative: Explicit union for known types
+def get_object_by_key() -> Union[VulnerabilityCase, VulnerabilityReport, as_Actor]:
+    ...
+```
+
+**Verification**: Test that API endpoints return complete object serialization, not just base class fields. Check database content AND API response content.
+
 ## Related
 
 - Implementation: `vultron/api/v2/routers/actors.py`

@@ -6,9 +6,11 @@ Observability enables operators to understand system behavior, diagnose issues, 
 
 **Source**: Operational requirements, monitoring best practices
 
-**Note**: 
-- **Logging requirements** are consolidated in `specs/structured-logging.md` (supersedes OB-01 through OB-04, OB-06)
-- **Metrics and distributed tracing** are deferred to future implementation
+**Status**: 
+- **Minimal scope**: Only 2 active requirements (health checks); most observability concerns consolidated elsewhere
+- **Logging requirements**: Consolidated in `specs/structured-logging.md` (supersedes OB-01 through OB-04, OB-06)
+- **Metrics and distributed tracing**: Deferred to future implementation
+- **Consider**: Merge remaining health check requirements into `http-protocol.md` or `structured-logging.md` for consolidation
 
 ---
 

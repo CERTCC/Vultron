@@ -256,6 +256,8 @@ When implementing features, consult relevant specs for complete requirements and
 
 ## Current Implementation Status
 
+**Last Updated**: 2026-02-17 (via LEARN_prompt.md design review)
+
 ### ✅ Completed Infrastructure
 - Semantic extraction and pattern matching
 - Behavior dispatcher with Protocol-based design
@@ -263,10 +265,13 @@ When implementing features, consult relevant specs for complete requirements and
 - Error hierarchy (`VultronError` → `VultronApiError` → specific errors)
 - TinyDB data layer implementation
 - Inbox endpoint with BackgroundTasks
-- All 47 `MessageSemantics` enum values defined
+- All 47 `MessageSemantics` enum values defined (36 patterns, 11 UNKNOWN/reserved)
 - Registry infrastructure (`SEMANTIC_HANDLER_MAP`, `SEMANTICS_ACTIVITY_PATTERNS`)
+- Rehydration system for expanding URI references to full objects
+- **Test Suite**: 367 tests passing (per IMPLEMENTATION_NOTES.md 2026-02-17)
+- **Demo**: `scripts/receive_report_demo.py` demonstrates 3 complete workflows
 
-### ✅ Report Handlers Complete (6/47 handlers - 13%)
+### ✅ Report Handlers Complete (6/36 handlers - 17%)
 The following report workflow handlers have full business logic:
 - `create_report`: Stores VulnerabilityReport + Create activity, handles duplicates
 - `submit_report`: Stores VulnerabilityReport + Offer activity (mirrors create_report)
@@ -277,7 +282,13 @@ The following report workflow handlers have full business logic:
 
 **Implementation Pattern**: Rehydrate → validate types → update status → persist → log at INFO level
 
-**Note**: 6 of 47 handlers complete (13%). All handler stubs exist with proper protocol compliance (decorator, signature, registration). Business logic implementation is the primary remaining work.
+**Note**: 6 of 36 active handlers complete (17%). All handler stubs exist with proper protocol compliance (decorator, signature, registration). Business logic implementation is the primary remaining work.
+
+**Handler Count Clarification**: 
+- 47 `MessageSemantics` enum values total
+- 36 have handler stubs/implementations (11 are UNKNOWN/reserved for future use)
+- 6 handlers have complete business logic (report workflow)
+- 30 handlers remain as stubs (case management, embargo, participants, metadata)
 
 ### ⚠️ Stub Implementations Requiring Business Logic (41 handlers)
 Remaining handlers in `vultron/api/v2/backend/handlers.py` are stubs that:
@@ -380,10 +391,25 @@ Per `specs/testability.md`:
 - Tests SHOULD validate observable behavior, not implementation details
 - Avoid brittle mocks when real components are cheap to instantiate
 - One test per workflow is preferred over fragmented stateful tests
-- **Use proper domain objects** (e.g., `VulnerabilityReport`, not string IDs) in test data
-- **Match semantic types to activity structure** (don't use `UNKNOWN` unless testing unknown handling)
 
-See `specs/testability.md` TB-05-004 and TB-05-005 for test data requirements.
+### Test Data Quality (MUST)
+Per `specs/testability.md` TB-05-004 and TB-05-005:
+
+**Domain Objects Over Primitives**:
+- ✅ Use full Pydantic models: `VulnerabilityReport(name="TEST-001", content="...")`
+- ❌ Avoid string IDs or primitives: `object="report-1"`
+
+**Semantic Type Accuracy**:
+- ✅ Match semantic to structure: `MessageSemantics.CREATE_REPORT` for `Create(VulnerabilityReport)`
+- ❌ Avoid generic types in specific tests: `MessageSemantics.UNKNOWN` (unless testing unknown handling)
+
+**Complete Activity Structure**:
+- ✅ Full URIs: `actor="https://example.org/alice"`
+- ❌ Incomplete references: `actor="alice"`
+
+**Rationale**: Poor test data quality masks real bugs. Tests with string IDs can pass even when handlers expect full objects. Tests with mismatched semantics don't exercise the actual code paths.
+
+See also "Common Pitfalls > Test Data Quality" section below for examples.
 
 ### Handler Testing (MUST)
 When implementing handler business logic, tests MUST verify:
@@ -611,6 +637,45 @@ dispatchable = DispatchActivity(semantic_type=MessageSemantics.CREATE_REPORT, ..
 ```
 
 See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
+
+### FastAPI response_model Filtering
+**Symptom**: API endpoints return objects missing subclass-specific fields
+
+**Cause**: FastAPI uses return type annotations as implicit `response_model`, restricting JSON serialization to fields defined in the annotated class only.
+
+**Example**:
+```python
+# Anti-pattern: Returns only as_Base fields (6 fields)
+def get_object_by_key() -> as_Base:
+    return VulnerabilityCase(...)  # Case-specific fields excluded from response
+
+# Correct: No return type annotation allows full serialization
+def get_object_by_key():  # or use Union types for specific subclasses
+    return VulnerabilityCase(...)  # All fields included in response
+```
+
+**Root Cause**: `as_Base` defines 6 fields; subclasses like `VulnerabilityCase` add more. FastAPI's `response_model` filtering excludes fields not in the base class model.
+
+**Solution**: Remove return type annotations from endpoints that return multiple types, or use explicit `Union[Type1, Type2, ...]` if types are known.
+
+**Verification**: Test API serialization completeness, not just database storage. Check that all expected fields appear in JSON responses.
+
+See `specs/http-protocol.md` HP-07-001 for guidance.
+
+### Idempotency Responsibility Chain
+**Question**: Who is responsible for duplicate detection and idempotency?
+
+**Answer**: Layered responsibility:
+1. **Inbox Endpoint** (`inbox-endpoint.md` IE-10): MAY detect duplicate activities at HTTP layer (future optimization)
+2. **Message Validation** (`message-validation.md` MV-08): SHOULD detect duplicate submissions during validation
+3. **Handler Functions** (`handler-protocol.md` HP-07): SHOULD implement idempotent logic (same input → same result)
+4. **Data Layer**: Provides unique ID constraints to prevent duplicate persistence
+
+**Best Practice**: Handlers should check for existing records before creating new ones. Use data layer queries to detect duplicates based on business keys (e.g., report ID, case ID).
+
+**Current Implementation**: Report handlers (create_report, submit_report) check for existing offers/reports before creating duplicates. Other handlers should follow this pattern.
+
+See cross-references: `handler-protocol.md` HP-07-001, `message-validation.md` MV-08-001, `inbox-endpoint.md` IE-10-001.
 
 ---
 

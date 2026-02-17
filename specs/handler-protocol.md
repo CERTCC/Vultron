@@ -54,25 +54,56 @@ Handler functions process DispatchActivity objects and implement protocol busine
   - **Implementation**: Query data layer for existing records; update rather than create if present
   - **Example**: Before creating a report, check if report ID already exists in data layer
 
-**Note**: Idempotency is a multi-layer concern:
-- **Inbox level**: Duplicate activity ID detection (see `inbox-endpoint.md` IE-10-001)
-- **Handler level**: State-aware mutations (this section)
-- **Response level**: Avoid generating duplicate responses (see `response-format.md` RF-09-001)
+**Layered Idempotency Approach**:
+1. **HTTP Layer** (IE-10-001): Optional fast-path duplicate detection before queueing
+2. **Validation Layer** (MV-08-001): Primary duplicate detection during message validation
+3. **Handler Layer** (HP-07-001, HP-07-002): Defense-in-depth via state-aware mutations
+4. **Response Layer** (RF-09-001): Avoid generating duplicate response activities
+
+**Responsibility**: Handlers are the final defense against duplicate processing. Even if upstream duplicate detection fails, handlers should check existing state and avoid creating duplicate records.
+
+**Cross-references**: See `message-validation.md` MV-08-001 (primary duplicate detection), `inbox-endpoint.md` IE-10-001 (HTTP-layer optimization), and `response-format.md` RF-09-001 (response deduplication).
 
 ## Data Model Persistence (MUST)
 
-- `HP-08-001` Handlers MUST use `object_to_record()` helper when persisting Pydantic models
-  - **Rationale**: Converts Pydantic models to dictionaries suitable for data layer storage
-- `HP-08-002` Handlers MUST call `DataLayer.update(id, record)` with both ID and record parameters
-  - **Anti-pattern**: `dl.update(object)` (single argument)
-  - **Correct pattern**: `dl.update(object.as_id, object_to_record(object))`
-- `HP-08-003` Pydantic validators with `mode="after"` MUST check if fields are already populated before setting defaults
-  - **Rationale**: Validators run on every `model_validate()` call, including when reconstructing from database
-  - **Anti-pattern**: `self.field = DefaultValue()` (unconditionally overwrites database values)
-  - **Correct pattern**: `if self.field is None: self.field = DefaultValue()` (preserves existing data)
-  - **Impact**: Prevents data loss when round-tripping objects through the database
+- `HP-08-001` Handlers MUST use helper functions when persisting Pydantic models to the data layer
+  - **Verification**: Pydantic models round-trip through database without data loss
+- `HP-08-002` Handlers MUST call `DataLayer.update()` with all required parameters
+  - **Verification**: Updates succeed with correct signature; TypeError raised for incorrect signatures
+- `HP-08-003` Pydantic validators MUST NOT overwrite existing field values during deserialization
+  - **Verification**: Objects with populated fields retain data after `model_validate()` from database records
+  - **Impact**: Prevents data loss when round-tripping through persistence layer
 
-**Critical Architecture Note**: Pydantic validators execute during both object creation AND database deserialization. Validators that initialize default values must be defensive to avoid overwriting persisted data. This particularly affects collection fields (lists, OrderedCollections) that may be populated by handler logic and then lost when the object is re-read from the database.
+### Implementation Notes
+
+**HP-08-001 - Helper Function Pattern**:
+```python
+# Use object_to_record() to convert Pydantic models for storage
+record = object_to_record(pydantic_model)
+dl.create("collection", record)
+```
+
+**HP-08-002 - Data Layer Update Signature**:
+```python
+# Anti-pattern: dl.update(object)  # Missing record parameter
+# Correct: Two-argument signature
+dl.update(object.as_id, object_to_record(object))
+```
+
+**HP-08-003 - Defensive Pydantic Validators**:
+```python
+@model_validator(mode="after")
+def initialize_collections(self) -> Self:
+    # Anti-pattern: Unconditional assignment
+    # self.inbox = OrderedCollection()  # Overwrites database values!
+    
+    # Correct: Check before initializing
+    if self.inbox is None:
+        self.inbox = OrderedCollection()
+    return self
+```
+
+**Rationale**: Pydantic validators with `mode="after"` execute during both object creation AND database reconstruction (`model_validate()`). Validators that create default values must check if the field is already populated to avoid overwriting data loaded from persistence. This particularly affects collection fields (lists, OrderedCollections) that handlers populate and persist.
 
 ## Verification
 

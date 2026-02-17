@@ -42,12 +42,43 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 - `TB-05-002` Test data MUST be generated via factories, not hardcoded
 - `TB-05-003` Test fixtures MUST be defined in `conftest.py` files
 - `TB-05-004` Tests MUST use proper domain objects, not simplified mock data
-  - Use `VulnerabilityReport`, `VulnerabilityCase` objects instead of strings
-  - Use full ActivityStreams object structures with proper types
-  - Ensures validation and pattern matching are tested realistically
+  - Use full Pydantic models: `VulnerabilityReport(as_id="...", name="...", content="...")`
+  - Avoid string IDs or primitives: `object="report-1"` (anti-pattern)
+  - Use complete ActivityStreams structures with proper nesting
+  - **Rationale**: Tests with string IDs can pass while production code fails; proper objects exercise actual validation and serialization
+  - **Verification**: Test data construction uses Pydantic model constructors
 - `TB-05-005` Test semantic types MUST match the activity structure being tested
+  - Match semantic to structure: `MessageSemantics.CREATE_REPORT` for `Create(VulnerabilityReport)`
   - Don't use `MessageSemantics.UNKNOWN` unless testing unknown activity handling
-  - Handler decorators verify semantic type matches, so tests must be accurate
+  - **Rationale**: Handler `@verify_semantics` decorators validate type; mismatched tests bypass actual code paths
+  - **Verification**: Each test uses the semantic type that would be extracted from the activity
+
+### Test Data Quality Examples
+
+**Anti-pattern**:
+```python
+# Bad: String IDs bypass object validation
+activity = as_Create(actor="alice", object="report-1")
+dispatchable = DispatchActivity(semantic_type=MessageSemantics.UNKNOWN, ...)
+```
+
+**Best practice**:
+```python
+# Good: Complete object graph
+report = VulnerabilityReport(
+    as_id="https://example.org/reports/test-001",
+    name="TEST-001",
+    content="Test vulnerability"
+)
+activity = as_Create(
+    actor="https://example.org/actors/alice",
+    object=report
+)
+dispatchable = DispatchActivity(
+    semantic_type=MessageSemantics.CREATE_REPORT,
+    payload=activity
+)
+```
 
 ## Test Isolation (MUST)
 

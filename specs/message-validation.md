@@ -53,12 +53,11 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 
 ## Duplicate Detection (SHOULD)
 
-- `MV-08-001` The system SHOULD detect and handle duplicate activity submissions
-  - SHOULD track recently processed activity IDs
-  - SHOULD return HTTP 202 for duplicate submissions without reprocessing
-  - MAY implement idempotency based on activity ID
-  - **Cross-reference**: `specs/inbox-endpoint.md` IE-10-001 for inbox-level duplicate detection
-  - **Cross-reference**: `specs/handler-protocol.md` HP-07-001 for handler-level idempotency
+- `MV-08-001` The system SHOULD detect and handle duplicate activity submissions during validation
+  - **Responsibility**: Validation layer checks if activity ID has been processed recently
+  - **Behavior**: Returns HTTP 202 for duplicates without invoking handlers
+  - **Layering**: This is the primary duplicate detection mechanism; inbox-layer detection (IE-10-001) is optional optimization
+  - **Cross-reference**: See `inbox-endpoint.md` IE-10-001 for HTTP-layer optimization and `handler-protocol.md` HP-07-001 for handler-layer idempotency as defense-in-depth
 
 ## Verification
 
