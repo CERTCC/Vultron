@@ -18,6 +18,7 @@
 """
 Provides API v2 tests
 """
+
 from vultron.as_vocab.base.objects.actors import as_Person
 from vultron.api.v2.datalayer.db_record import object_to_record
 
@@ -62,7 +63,7 @@ def test_datalayer_get_existing_actor(client, datalayer):
     assert as_Person.model_validate(data) == actor
 
 
-def test_datalayer_get_existing_actor(client, datalayer):
+def test_datalayer_get_existing_actor_by_id(client, datalayer):
     """Test retrieving an existing actor directly by ID"""
     actor = as_Person(
         name="Test Person",
