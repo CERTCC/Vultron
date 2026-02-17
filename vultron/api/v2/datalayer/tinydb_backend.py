@@ -314,8 +314,14 @@ class TinyDbDataLayer(DataLayer):
         return None
 
 
+_datalayer_instance: TinyDbDataLayer | None = None
+
+
 def get_datalayer(db_path: str | None = "mydb.json") -> TinyDbDataLayer:
-    """Factory function to create a TinyDbDataLayer instance.
+    """Factory function to get or create a TinyDbDataLayer instance.
+
+    Uses a singleton pattern to ensure the same instance is reused.
+    In tests, dependency injection should be used to override this.
 
     Args:
         db_path (str | None): The path to the database file. If None, uses in-memory storage.
@@ -323,7 +329,16 @@ def get_datalayer(db_path: str | None = "mydb.json") -> TinyDbDataLayer:
     Returns:
         TinyDbDataLayer: An instance of TinyDbDataLayer.
     """
-    return TinyDbDataLayer(db_path=db_path)
+    global _datalayer_instance
+    if _datalayer_instance is None:
+        _datalayer_instance = TinyDbDataLayer(db_path=db_path)
+    return _datalayer_instance
+
+
+def reset_datalayer() -> None:
+    """Reset the singleton datalayer instance. Used primarily for testing."""
+    global _datalayer_instance
+    _datalayer_instance = None
 
 
 def main():

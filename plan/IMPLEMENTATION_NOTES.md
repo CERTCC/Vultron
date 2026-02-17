@@ -1,22 +1,28 @@
 # Implementation Notes
 
-**Last Updated**: 2026-02-17 (Gap analysis via PLAN_prompt.md)
+**Last Updated**: 2026-02-17 (Fixture isolation bug fixed)
 
 ---
 
-## Critical Findings from Gap Analysis
-
-### 1. Test Infrastructure Issue (CRITICAL - Phase 0.5)
+## ✅ RESOLVED: Test Infrastructure Issue (Phase 0.5) - 2026-02-17
 
 **Problem**: 11 router tests failing due to fixture isolation bug.
 
-**Root Cause**: `client_actors` and `client_datalayer` fixtures in `test/api/v2/routers/conftest.py` create fresh FastAPI apps that instantiate their own data layer via `get_datalayer()` with default path `"mydb.json"`. Meanwhile, test data created by the `created_actors` fixture uses a separate `datalayer` fixture (from `test/api/v2/conftest.py`) with `db_path=None` for in-memory storage.
+**Status**: ✅ FIXED - All 372 tests now passing (2 xfail expected)
 
-**Result**: Tests write to data layer instance A, routers read from data layer instance B (fresh, empty).
+**Solution Summary**:
+1. Converted routers to use FastAPI dependency injection via `Depends(get_datalayer)`
+2. Implemented singleton pattern in `get_datalayer()` to prevent multiple instances
+3. Updated test fixtures to properly override the dependency with test's in-memory datalayer
 
-**Solution**: Override `get_datalayer` dependency in test client fixtures.
+**Key Changes**:
+- All router endpoints now use `datalayer: DataLayer = Depends(get_datalayer)` parameter
+- `get_datalayer()` uses module-level singleton with `reset_datalayer()` helper for tests
+- Test fixtures (`client`, `client_actors`, `client_datalayer`) override dependency via `app.dependency_overrides[get_datalayer] = lambda: datalayer`
 
-**Impact**: Blocks all router testing. Must fix before proceeding with other test work.
+**Test Results**: 372 passing, 0 failing, 2 xfailed (100% pass rate)
+
+See `plan/BUGS.md` for detailed fix documentation.
 
 ---
 

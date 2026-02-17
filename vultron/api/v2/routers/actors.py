@@ -24,6 +24,7 @@ from vultron.api.v2.backend.inbox_handler import (
 )
 from vultron.api.v2.backend.outbox_handler import outbox_handler
 from vultron.api.v2.data.actor_io import get_actor_io
+from vultron.api.v2.datalayer.abc import DataLayer
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab import VOCABULARY
@@ -44,10 +45,10 @@ router = APIRouter(prefix="/actors", tags=["Actors"])
     response_model_exclude_none=True,
     description="Returns a list of Actor examples.",
 )
-def get_actors() -> list[as_Actor]:
+def get_actors(
+    datalayer: DataLayer = Depends(get_datalayer),
+) -> list[as_Actor]:
     """Returns a list of Actor examples."""
-
-    datalayer = get_datalayer()
     types = [
         "Actor",
         "Application",
@@ -78,9 +79,10 @@ def get_actors() -> list[as_Actor]:
     response_model_exclude_none=True,
     description="Returns an Actor. (stub implementation).",
 )
-def get_actor(actor_id: str) -> as_Actor:
+def get_actor(
+    actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
+) -> as_Actor:
     """Returns an Actor example based on the provided actor_id."""
-    datalayer = get_datalayer()
     actor = datalayer.read(actor_id)
 
     # If not found by full ID, try to resolve as short ID
@@ -102,11 +104,12 @@ def get_actor(actor_id: str) -> as_Actor:
     summary="Get Actor Inbox",
     description="Returns the Actor's Inbox. (stub implementation).",
 )
-def get_actor_inbox(actor_id: str) -> as_OrderedCollection:
+def get_actor_inbox(
+    actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
+) -> as_OrderedCollection:
     """Returns the Actor's Inbox."""
 
     # Try to resolve actor ID (handles both full URIs and short IDs)
-    datalayer = get_datalayer()
     actor = datalayer.read(actor_id)
 
     if not actor:
@@ -176,6 +179,7 @@ def post_actor_inbox(
     # so we really want to accept any subclass that we have a registered handler for here.
     background_tasks: BackgroundTasks,
     activity: as_Activity = Depends(parse_activity),
+    dl: DataLayer = Depends(get_datalayer),
 ) -> None:
     """Adds an item to the Actor's Inbox.
     The 202 Accepted status code indicates that the request has been accepted for
@@ -190,7 +194,6 @@ def post_actor_inbox(
     Raises:
         HTTPException: If the Actor is not found.
     """
-    dl = get_datalayer()
     # Try to read actor by full ID first
     actor = dl.read(actor_id)
 
@@ -240,7 +243,10 @@ def post_actor_inbox(
     status_code=status.HTTP_200_OK,
 )
 def post_actor_outbox(
-    actor_id: str, activity: as_Activity, background_tasks: BackgroundTasks
+    actor_id: str,
+    activity: as_Activity,
+    background_tasks: BackgroundTasks,
+    dl: DataLayer = Depends(get_datalayer),
 ) -> None:
     """Adds an item to the Actor's Outbox.
     Args:
@@ -252,7 +258,6 @@ def post_actor_outbox(
     Raises:
         HTTPException: If the Actor is not found.
     """
-    dl = get_datalayer()
     actor = dl.read(actor_id)
     actor = as_Actor.model_validate(actor)
 

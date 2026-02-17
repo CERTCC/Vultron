@@ -2,11 +2,40 @@
 
 Items in this file supersede IMPLEMENTATION_PLAN.md.
 
-Resolve the following test failures.
+---
+
+## ✅ FIXED: Test Fixture Isolation (2026-02-17)
+
+**Status**: All 11 router tests now passing (372 total tests pass, 2 xfail)
+
+**Problem**: Test fixture isolation - routers created separate data layer instances from test data.
+
+**Root Causes**:
+1. Routers called `get_datalayer()` directly without using FastAPI dependency injection
+2. `get_datalayer()` created new instances instead of using singleton pattern
+3. Test fixtures didn't override the dependency
+
+**Solution Implemented**:
+1. Converted all router endpoints to use `Depends(get_datalayer)` for dependency injection
+2. Implemented singleton pattern in `get_datalayer()` with `reset_datalayer()` helper
+3. Updated test fixtures to override `get_datalayer` dependency with test's in-memory instance
+
+**Files Modified**:
+- `vultron/api/v2/routers/datalayer.py`: Added `Depends(get_datalayer)` to all endpoints
+- `vultron/api/v2/routers/actors.py`: Added `Depends(get_datalayer)` to all endpoints
+- `vultron/api/v2/datalayer/tinydb_backend.py`: Implemented singleton pattern
+- `test/api/v2/conftest.py`: Updated `client` fixture to override dependency
+- `test/api/v2/routers/conftest.py`: Updated `client_actors` and `client_datalayer` fixtures
+
+**Test Results**:
+- Before: 361 passing, 11 failing, 2 xfailed
+- After: 372 passing, 0 failing, 2 xfailed (100% pass rate)
 
 ---
 
-Problems with test.api.v2.routers.test_datalayer
+## No open bugs at this time
+
+All previously failing tests are now resolved.
 
 PASSED [ 18%]Using selector: KqueueSelector
 HTTP Request: GET http://testserver/datalayer/Offers/ "HTTP/1.1 200 OK"

@@ -39,20 +39,30 @@ def dl(datalayer):
 
 # TestClient for datalayer router
 @pytest.fixture
-def client_datalayer():
+def client_datalayer(dl):
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
     app = FastAPI()
     app.include_router(datalayer_router.router)
+    # Override get_datalayer dependency to use test's datalayer instance
+    app.dependency_overrides[get_datalayer] = lambda: dl
     client = TestClient(app)
     yield client
+    app.dependency_overrides = {}
 
 
 # TestClient for actors router
 @pytest.fixture
-def client_actors():
+def client_actors(dl):
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
     app = FastAPI()
     app.include_router(actors_router.router)
+    # Override get_datalayer dependency to use test's datalayer instance
+    app.dependency_overrides[get_datalayer] = lambda: dl
     client = TestClient(app)
     yield client
+    app.dependency_overrides = {}
 
 
 # Provide list of actor classes used in actor router tests

@@ -22,8 +22,11 @@ from vultron.api.v2.app import app_v2 as app
 
 
 @pytest.fixture
-def client():
+def client(datalayer):
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
     app.dependency_overrides = {}
+    app.dependency_overrides[get_datalayer] = lambda: datalayer
     with TestClient(app) as c:
         yield c
     app.dependency_overrides = {}
@@ -31,8 +34,13 @@ def client():
 
 @pytest.fixture
 def datalayer():
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.api.v2.datalayer.tinydb_backend import (
+        get_datalayer,
+        reset_datalayer,
+    )
 
+    # Reset the singleton to avoid stale instances
+    reset_datalayer()
     # Use in-memory storage for tests (db_path=None)
     datalayer = get_datalayer(db_path=None)
     # Clear the datalayer before each test
@@ -40,3 +48,5 @@ def datalayer():
     yield datalayer
     # Clear the datalayer after each test
     datalayer.clear_all()
+    # Reset singleton for next test
+    reset_datalayer()
