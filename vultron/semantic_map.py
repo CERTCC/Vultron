@@ -65,7 +65,7 @@ def find_matching_semantics(
     the results if there are overlapping patterns.
 
     Args:
-        activity: ap.The activity to find semantics for.
+        activity: The activity to find semantics for.
     Returns:
         The matching MessageSemantics StrEnum value,
         or MessageSemantics.UNKNOWN if no match is found.
