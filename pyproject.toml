@@ -99,7 +99,7 @@ profile = "black"
 
 [dependency-groups]
 dev = [
-    "black>=25.9.0",
+    "black>=26.1.0",
     "flake8>=7.3.0",
     "httpx>=0.28.1",
     "isort>=7.0.0",
