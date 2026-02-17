@@ -19,6 +19,7 @@
 Provides an abstract base class for a data layer. This is intended to define
 the interface that concrete data layer implementations must follow.
 """
+
 from typing import Protocol
 
 from vultron.api.v2.datalayer.db_record import Record

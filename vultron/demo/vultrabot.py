@@ -14,6 +14,7 @@
 """
 Provides a simulated Vultron behavior tree simulator bot.
 """
+
 import argparse
 import logging
 import sys

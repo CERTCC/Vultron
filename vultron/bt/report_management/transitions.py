@@ -14,6 +14,7 @@
 """
 Provides the transitions between states in the q_rm state machine
 """
+
 from typing import Sequence
 
 from vultron.bt.common import EnumStateTransition, state_change

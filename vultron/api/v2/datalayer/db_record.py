@@ -18,6 +18,7 @@
 """
 Provides a Record model for document database storage.
 """
+
 from pydantic import BaseModel
 
 from vultron.as_vocab.base.base import as_Base

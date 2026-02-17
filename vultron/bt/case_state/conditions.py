@@ -15,7 +15,6 @@
 This module defines CVD Case State conditions as Behavior Tree nodes.
 """
 
-
 from vultron.bt.base.bt_node import BtNode
 from vultron.bt.base.factory import condition_check, invert, sequence_node
 from vultron.case_states.states import (

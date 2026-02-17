@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """This module provides helpers to generate documentation"""
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -144,7 +145,7 @@ def print_model(model_dir="../../docs/reference/case_states"):
                     transitions = sg.transitions_in_path(path)
                     links = []
                     for transition, step in zip(transitions, path):
-                        (start, end) = step
+                        start, end = step
                         link = f"[**{transition}**]({_fname(end)})"
                         links.append(link)
                     fp.write(_bullet(" &rarr; ".join(links)))
@@ -159,7 +160,7 @@ def print_model(model_dir="../../docs/reference/case_states"):
                     transitions = sg.transitions_in_path(path)
                     links = []
                     for transition, step in zip(transitions, path):
-                        (start, end) = step
+                        start, end = step
                         link = f"[**{transition}**]({_fname(end)})"
                         links.append(link)
                     fp.write(_bullet(" &rarr; ".join(links)))

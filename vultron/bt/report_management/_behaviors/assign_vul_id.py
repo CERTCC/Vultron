@@ -2,6 +2,7 @@
 """
 Provides Vulnerability ID assignment behaviors.
 """
+
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -24,7 +25,6 @@ from vultron.bt.report_management.fuzzer.assign_vul_id import (
     IsIDAssignmentAuthority,
     RequestId,
 )
-
 
 _AssignIdIfPossible = sequence_node(
     "_AssignIdIfPossible",

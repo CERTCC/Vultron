@@ -2,6 +2,7 @@
 """
 Provides behaviors to handle inbound RM messages.
 """
+
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -32,7 +33,6 @@ from vultron.bt.messaging.outbound.behaviors import EmitCV, EmitRE, EmitRK
 from vultron.bt.report_management.conditions import RMnotInStateStart
 from vultron.bt.report_management.transitions import q_rm_to_R
 from vultron.bt.roles.conditions import RoleIsNotVendor
-
 
 _HandleRe = sequence_node(
     "_HandleRe",

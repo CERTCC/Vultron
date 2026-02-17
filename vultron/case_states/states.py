@@ -324,14 +324,14 @@ def _first3(s):
 
 @ensure_valid_state
 def vfd(state):
-    (vfd, pxa) = state_string_to_enums(state)
+    vfd, pxa = state_string_to_enums(state)
     value = vfd.value
     return value
 
 
 @ensure_valid_state
 def pxa(state):
-    (vfd, pxa) = state_string_to_enums(state)
+    vfd, pxa = state_string_to_enums(state)
     value = pxa.value
     return value
 
@@ -348,7 +348,7 @@ def state_string_to_enums(s: str) -> Tuple[CS_vfd, CS_pxa]:
         a tuple of enums
 
     """
-    (s1, s2) = (s[:3], s[3:])
+    s1, s2 = (s[:3], s[3:])
     vfd = CS_vfd[s1]
     pxa = CS_pxa[s2]
     return (vfd, pxa)

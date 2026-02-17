@@ -15,6 +15,7 @@
 """
 Provides an outbox handler for Vultron Actors.
 """
+
 import logging
 
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer

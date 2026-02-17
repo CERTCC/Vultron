@@ -15,7 +15,6 @@
 This is a demo of the bt tree library. It is a stub implementation of a bot that plays Pacman.
 """
 
-
 import logging
 import random
 import sys

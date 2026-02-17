@@ -29,7 +29,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_state_string_to_enums(self):
         for state_string in self.states:
-            (vfd, pxa) = s.state_string_to_enums(state_string)
+            vfd, pxa = s.state_string_to_enums(state_string)
             self.assertEqual(state_string[:3], vfd.name)
             self.assertEqual(state_string[3:], pxa.name)
 

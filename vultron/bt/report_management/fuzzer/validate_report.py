@@ -15,6 +15,7 @@
 This is a fuzzer for the validation process.
 It provides stub implementations of the validation conditions and actions.
 """
+
 from vultron.bt.base.factory import fuzzer
 from vultron.bt.base.fuzzer import (
     AlmostAlwaysSucceed,

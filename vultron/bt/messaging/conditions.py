@@ -2,6 +2,7 @@
 """
 Provides messaging conditions for use in Vultron BTs.
 """
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project

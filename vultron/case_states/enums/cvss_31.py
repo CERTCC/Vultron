@@ -15,7 +15,6 @@
 
 from enum import IntEnum as Enum, auto
 
-
 # todo: add enums for other CVSS classes
 # AttackVector (AV)
 # AttackComplexity (AC)

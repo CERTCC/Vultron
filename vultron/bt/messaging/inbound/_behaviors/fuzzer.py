@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Provides fuzzer behaviors for inbound messaging"""
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -17,7 +18,6 @@
 from vultron.bt.base import fuzzer as btz
 from vultron.bt.base.factory import fallback_node
 from vultron.bt.messaging.outbound.behaviors import EmitGI
-
 
 FollowUpOnErrorMessage = fallback_node(
     "FollowUpOnErrorMessage",

@@ -751,7 +751,7 @@ def main(skip_health_check: bool = False):
     logger.info(f"Reset status: {reset}")
 
     # Discover actors once at the beginning
-    (finder, vendor, coordinator) = discover_actors(client=client)
+    finder, vendor, coordinator = discover_actors(client=client)
     init_actor_ios([finder, vendor, coordinator])
 
     # Track errors for summary

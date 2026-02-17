@@ -14,6 +14,7 @@
 """
 This module provides fuzzer leaf nodes in support of the process of notifying other parties of the report/case
 """
+
 from vultron.bt.base.factory import fuzzer
 
 
@@ -28,7 +29,6 @@ from vultron.bt.base.fuzzer import (
     UsuallyFail,
     UsuallySucceed,
 )
-
 
 AllPartiesKnown = fuzzer(
     UniformSucceedFail,

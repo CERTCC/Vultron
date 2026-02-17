@@ -16,9 +16,9 @@
 """
 Provides TODO writeme
 """
+
 from urllib.parse import urljoin, urlparse
 from uuid import uuid4
-
 
 BASE_URL = "https://demo.vultron.local/"
 

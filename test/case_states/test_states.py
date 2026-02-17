@@ -35,8 +35,8 @@ class MyTestCase(unittest.TestCase):
             attrib = getattr(states.CS_pxa, pxa)
             self.assertEqual(pxa, attrib.name)
 
-            (s1, s2, s3) = s
-            (p, x, a) = attrib.value
+            s1, s2, s3 = s
+            p, x, a = attrib.value
 
             # check that the values are correct
             self.assertEqual(getattr(states.PublicAwareness, s1), p)
@@ -48,8 +48,8 @@ class MyTestCase(unittest.TestCase):
             attrib = getattr(states.CS_vfd, vfd)
             self.assertEqual(vfd, attrib.name)
 
-            (s1, s2, s3) = vfd
-            (v, f, d) = attrib.value
+            s1, s2, s3 = vfd
+            v, f, d = attrib.value
 
             # check that the values are correct
             self.assertEqual(getattr(states.VendorAwareness, s1), v)

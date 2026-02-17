@@ -721,7 +721,7 @@ class CVDmodel:
         for d in self._D:
             # a desiderata is a preference that one event precedes another
             # a and b are an ordered pair of transitions
-            (a, b) = d
+            a, b = d
 
             # start with a wildcard pattern
             pat = list("......")

@@ -16,6 +16,7 @@
 """
 Provides Object Rehydration Utilities for Vultron.
 """
+
 import logging
 
 from pydantic import ValidationError

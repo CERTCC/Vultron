@@ -14,6 +14,7 @@
 """
 Provides condition nodes for report management states.
 """
+
 from typing import Type
 
 from vultron.bt.base.bt_node import ConditionCheck
