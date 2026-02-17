@@ -20,7 +20,6 @@ import logging
 
 from pydantic import ValidationError
 
-from vultron.api.v2.data.utils import parse_id
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.registry import find_in_vocabulary
