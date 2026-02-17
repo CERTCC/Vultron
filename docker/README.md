@@ -43,12 +43,21 @@ To avoid naming conflicts, you can customize the project name in one of the foll
 
 ### Create a `.env` file
 
+Copy the `.env.example` file to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+The file contains:
+
 ```dotenv
 # Environment Variables for Docker Setup
-# Copy this file to .env and modify the values as needed
-# before using it with Docker Compose.
 PROJECT_NAME=vultron
+COMPOSE_PROJECT_NAME=vultron
 ```
+
+Both variables are set for compatibility with different docker-compose versions.
 
 ### Set a different project name at runtime
 

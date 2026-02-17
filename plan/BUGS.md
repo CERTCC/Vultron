@@ -2,6 +2,53 @@
 
 Items in this file supersede IMPLEMENTATION_PLAN.md.
 
+---
+
+## ✅ FIXED: Docker Compose PROJECT_NAME Variable Missing
+
+**Status**: ✅ FIXED (2026-02-17)
+
+**Problem**: The `docker-compose.yml` file references `${PROJECT_NAME}` for image naming, but the `.env` file only contained `COMPOSE_PROJECT_NAME=vultron`. This caused docker-compose to emit warnings about the missing variable and resulted in images with empty project name prefix (e.g., `-base:latest` instead of `vultron-base:latest`).
+
+Additionally, when the health check was added to the `api-dev` service, it required `curl` to be installed in the base image. However, running containers were using old images built before `curl` was added, causing the health check to fail with "executable file not found in $PATH".
+
+**Logs showing the bug**:
+```
+WARN[0000] The "PROJECT_NAME" variable is not set. Defaulting to a blank string.
+```
+
+**Root Cause**: Environment variable mismatch between `.env` (which had `COMPOSE_PROJECT_NAME`) and `docker-compose.yml` (which referenced `PROJECT_NAME`). Combined with stale Docker images that needed rebuilding after Dockerfile changes.
+
+**Solution Implemented**:
+
+1. **Added PROJECT_NAME to `.env` file**:
+   - Added `PROJECT_NAME=vultron` alongside existing `COMPOSE_PROJECT_NAME=vultron`
+   - Maintains backward compatibility while fixing the variable reference
+
+2. **Added test to prevent regression**:
+   - Created `test/docker/test_docker_compose_config.sh` to verify:
+     - `.env` file exists
+     - `PROJECT_NAME` is set in `.env`
+     - `docker-compose config` produces no warnings about missing PROJECT_NAME
+     - Image names are properly formed (vultron-*:latest)
+
+**Tests Added**: Shell script test at `test/docker/test_docker_compose_config.sh`
+
+**Test Results**: All 378 tests passing (2 xfail expected)
+
+**Files Changed**:
+- `docker/.env`: Added `PROJECT_NAME=vultron`
+- `test/docker/test_docker_compose_config.sh`: New test script to verify configuration
+
+**Verification**:
+```bash
+cd docker && docker-compose config  # No warnings
+docker-compose build --no-cache base dependencies api-dev receive-report-demo
+docker-compose up api-dev receive-report-demo  # All 3 demos complete successfully
+```
+
+---
+
 ## ✅ FIXED: Docker Container Startup Race Condition
 
 **Status**: ✅ FIXED (2026-02-17)
