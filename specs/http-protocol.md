@@ -65,6 +65,7 @@ Consolidated HTTP protocol requirements for Vultron API v2: status codes, header
 ## Verification
 
 ### HP-01-001, HP-01-002, HP-01-003
+
 ```python
 # Accept valid Content-Type
 response = client.post("/actors/test/inbox/", json=activity,
@@ -78,6 +79,7 @@ assert response.status_code == 415
 ```
 
 ### HP-02-001
+
 ```python
 large_activity = {"type": "Create", "object": {"data": "x" * (1024 * 1024 + 1)}}
 response = client.post("/actors/test/inbox/", json=large_activity)
@@ -85,16 +87,19 @@ assert response.status_code == 413
 ```
 
 ### HP-03-001
+
 - Integration test: Verify each error condition → correct HTTP status code
 - Unit test: 4xx errors log at WARNING level, 5xx at ERROR level
 
 ### HP-04-001
+
 ```python
 response = client.post("/actors/test/inbox/", json=activity)
 assert "application/json" in response.headers["content-type"]
 ```
 
 ### HP-05-001, HP-05-002
+
 ```python
 response = client.post("/actors/test/inbox/", json=activity,
     headers={"X-Correlation-ID": "test-123"})
@@ -102,6 +107,7 @@ response = client.post("/actors/test/inbox/", json=activity,
 ```
 
 ### HP-06-001, HP-06-002, HP-06-003
+
 ```python
 # Measure response time with timeit
 # Verify BackgroundTasks usage for long-running processing
@@ -138,4 +144,3 @@ def get_object_by_key() -> Union[VulnerabilityCase, VulnerabilityReport, as_Acto
 
 - Implementation: `vultron/api/v2/routers/actors.py`
 - Tests: `test/api/v2/routers/test_actors.py`
-

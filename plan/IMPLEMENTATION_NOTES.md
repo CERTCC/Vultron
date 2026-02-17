@@ -11,11 +11,13 @@
 **Status**: ✅ FIXED - All 372 tests now passing (2 xfail expected)
 
 **Solution Summary**:
+
 1. Converted routers to use FastAPI dependency injection via `Depends(get_datalayer)`
 2. Implemented singleton pattern in `get_datalayer()` to prevent multiple instances
 3. Updated test fixtures to properly override the dependency with test's in-memory datalayer
 
 **Key Changes**:
+
 - All router endpoints now use `datalayer: DataLayer = Depends(get_datalayer)` parameter
 - `get_datalayer()` uses module-level singleton with `reset_datalayer()` helper for tests
 - Test fixtures (`client`, `client_actors`, `client_datalayer`) override dependency via `app.dependency_overrides[get_datalayer] = lambda: datalayer`
@@ -29,10 +31,12 @@ See `plan/BUGS.md` for detailed fix documentation.
 ### 2. Handler Implementation Status
 
 **Completed**: 7 of 36 handlers (19%)
+
 - Report handlers: 6 complete (create, submit, validate, invalidate, ack, close)
 - Special handlers: 1 complete (unknown)
 
 **Remaining Stubs**: 24 handlers (67%) across 6 categories
+
 - Case management: 8 handlers
 - Participant management: 6 handlers  
 - Embargo management: 6 handlers

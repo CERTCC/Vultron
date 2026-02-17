@@ -34,21 +34,25 @@ After semantic extraction, the dispatcher routes DispatchActivity objects to app
 ## Verification
 
 ### DR-01-001, DR-01-002, DR-01-003 Verification
+
 - Unit test: Verify DirectActivityDispatcher implements ActivityDispatcher protocol
 - Unit test: Verify dispatcher passes complete DispatchActivity to handlers
 - Unit test: Verify decorator validation occurs during dispatch
 
 ### DR-02-001, DR-02-002 Verification
+
 - Unit test: Verify dispatcher uses SEMANTIC_HANDLER_MAP for lookups
 - Unit test: Verify all MessageSemantics enum values have handler entries
 - Unit test: Verify KeyError raised for missing semantic types
 
 ### DR-03-001, DR-03-002 Verification
+
 - Unit test: Verify DirectActivityDispatcher executes handlers synchronously
 - Unit test: Verify exceptions from handlers are caught and logged
 - Integration test: Verify error logging contains exception details
 
 ### DR-04-001, DR-04-002 Verification
+
 - Integration test: Verify async dispatcher queues multiple activities
 - Integration test: Verify activities processed in submission order
 

@@ -45,6 +45,7 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 ## Verification
 
 ### SE-01-001, SE-01-002, SE-02-001, SE-02-002 Verification
+
 - Unit test: Simple pattern (Create VulnerabilityCase) → MessageSemantics.CREATE_CASE
 - Unit test: Nested pattern (Accept Offer VulnerabilityReport) → MessageSemantics.VALIDATE_REPORT
 - Unit test: Most specific pattern matches first (multiple possible matches)
@@ -52,15 +53,18 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 - Unit test: Pattern matching handles string URIs defensively when rehydration incomplete
 
 ### SE-03-001, SE-03-002 Verification
+
 - Unit test: Verify all MessageSemantics values except UNKNOWN have pattern
 - Unit test: Verify pattern ordering (specific before general)
 
 ### SE-04-001, SE-04-002 Verification
+
 - Unit test: Unrecognized activity → VultronApiHandlerMissingSemanticError raised
 - Unit test: Verify WARNING log entry for unrecognized activity
 - Unit test: Error message includes activity type and object type
 
 ### SE-05-001, SE-05-002, SE-05-003 Verification
+
 - Unit test: All patterns in SEMANTIC_ACTIVITY_PATTERNS have enum entry
 - Unit test: All patterns have corresponding handler in SEMANTIC_HANDLER_MAP
 - Code coverage: All patterns exercised by tests

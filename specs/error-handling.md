@@ -7,6 +7,7 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
 **Source**: API design requirements, operational requirements
 
 **Note**:
+
 - **Error logging** requirements consolidated in `specs/structured-logging.md` (SL-03-001)
 - **HTTP status codes** consolidated in `specs/http-protocol.md` (HP-03-001)
 
@@ -57,27 +58,33 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
 ## Verification
 
 ### EH-01-001, EH-01-002, EH-01-003 Verification
+
 - Unit test: Verify VultronError base exception exists
 - Unit test: All custom exceptions inherit from VultronError
 - Code review: All exceptions defined in `vultron/errors.py`
 
 ### EH-02-001, EH-02-002 Verification
+
 - Unit test: Submodule errors inherit from base exceptions
 - Code review: Submodule errors in appropriate `errors.py` files
 
 ### EH-03-001 Verification
+
 - Unit test: Each error category has representative exception
 - Code review: Exception hierarchy covers all error categories
 
 ### EH-04-001 Verification
+
 - Unit test: Exceptions include contextual attributes
 - Unit test: Exception message includes context information
 
 ### EH-05-001 Verification
+
 - Integration test: Error responses include required JSON fields
 - Integration test: Each error type produces correct response format
 
 ### EH-06-001 Verification
+
 - Integration test: Client errors logged at WARNING level
 - Integration test: Server errors logged at ERROR level
 - Integration test: Stack traces included for server errors

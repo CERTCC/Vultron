@@ -60,38 +60,46 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 ## Verification
 
 ### RF-01-001, RF-02-001, RF-02-002 Verification
+
 - Unit test: Accept response has required fields
 - Unit test: Response conforms to ActivityStreams 2.0 schema
 - Integration test: Accept response delivered to originating actor
 
 ### RF-03-001, RF-03-002 Verification
+
 - Unit test: Reject response has required fields
 - Unit test: Reject response includes reason
 - Integration test: Reject response delivered with reason
 
 ### RF-04-001, RF-04-002 Verification
+
 - Unit test: TentativeReject response has required fields
 - Unit test: TentativeReject response includes reason
 - Integration test: TentativeReject response delivered with reason
 
 ### RF-05-001 Verification
+
 - Unit test: Error response includes error type and message
 - Integration test: Error response follows ActivityStreams format
 
 ### RF-06-001 Verification
+
 - Integration test: Response queued to outbox
 - Integration test: Response delivered to recipient inbox
 
 ### RF-07-001 Verification
+
 - Unit test: Handler generates response during execution
 - Integration test: Inbox returns 202 before response sent
 
 ### RF-08-001 Verification
+
 - Unit test: Response includes `inReplyTo` field
 - Unit test: `inReplyTo` matches original activity ID
 - Integration test: Correlation maintained in logs
 
 ### RF-09-001 Verification
+
 - Unit test: Duplicate response check works
 - Integration test: Reprocessing same activity doesn't duplicate response
 

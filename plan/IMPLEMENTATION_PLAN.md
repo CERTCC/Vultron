@@ -9,6 +9,7 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 ### Current Status Summary
 
 **Phase 0 & 0A: COMPLETE** ✅
+
 - [x] All 6 report handlers implemented with full business logic
 - [x] Demo script refactored into three separate workflow demonstrations
 - [x] All demo tests passing (1/1 test, 367 total tests in suite)
@@ -21,6 +22,7 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 **Next Priority**: Per PRIORITIES.md, production-readiness features are **lower priority**. Focus remains on completing handler business logic for case/embargo workflows as needed.
 
 **Completed Infrastructure:**
+
 - [x] Core dispatcher architecture (`behavior_dispatcher.py`) with `DirectActivityDispatcher`
 - [x] Semantic extraction system (`semantic_map.py`, `activity_patterns.py`) with 36 patterns
 - [x] All 36 MessageSemantics handlers registered in `semantic_handler_map.py`
@@ -34,6 +36,7 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [x] Rehydration system for expanding URI references to full objects
 
 **Production Readiness Features (Lower Priority per PRIORITIES.md):**
+
 - [ ] Request validation (Content-Type, 1MB size limit, URI validation) - See Phase 1.1
 - [ ] Standardized HTTP error responses (status, error, message, activity_id) - See Phase 1.2
 - [ ] Health check endpoints (`/health/live`, `/health/ready`) - See Phase 1.3
@@ -42,6 +45,7 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [ ] Test coverage enforcement (80%+ overall, 100% critical paths) - See Phase 3.1
 
 **Handler Business Logic (Partially Complete):**
+
 - ✅ Report handlers complete (6/36): create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
 - [ ] Case handlers (8): create_case, add_report_to_case, suggest_actor_to_case, ownership transfers, etc.
 - [ ] Actor invitation handlers (3): invite/accept/reject_invite_actor_to_case
@@ -51,15 +55,15 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [ ] Embargo invitation handlers (3): invite/accept/reject_invite_to_embargo_on_case
 
 **Deferred (Lowest Priority):**
+
 - [ ] Response generation (Accept/Reject/TentativeReject responses back to submitter) - See Phase 5
 - [ ] Async dispatcher optimization (FastAPI async processing already in place)
 - [ ] Additional case/embargo workflow implementations beyond demo requirements
 
-
-
 ## Prioritized Task List (Per PRIORITIES.md and Gap Analysis)
 
 **Gap Analysis Summary (2026-02-17)**:
+
 - ✅ **Report handlers complete (6/36)**: create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
 - ✅ **Demo script complete**: All three workflows working (validate, invalidate, invalidate+close)
 - ❌ **11 router tests failing**: Fixture isolation issue - client fixtures use different data layer instances than test fixtures
@@ -73,12 +77,14 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 **Status**: COMPLETE as of 2026-02-13
 
 All Phase 0A tasks have been completed:
+
 - ✅ 0A.1: Refactored demo into three separate workflow functions (demo_validate_report, demo_invalidate_report, demo_invalidate_and_close_report)
 - ✅ 0A.2: Implemented missing workflow steps (all critical handlers working)
 - ✅ 0A.4: Fixed endpoint issues (outbox retrieval, actor persistence, async timing)
 - ✅ Demo test passing: `test/scripts/test_receive_report_demo.py::test_main_executes_without_raising`
 
 **Commits:**
+
 - a2fc317: "Refactor receive_report_demo.py into three separate workflow demonstrations"
 - 17457e7: "zero out implementation notes after lessons learned"
 - Multiple fixes for timing, persistence, and rehydration issues
@@ -94,6 +100,7 @@ All Phase 0A tasks have been completed:
 **Impact**: 11 tests failing in test_actors.py and test_datalayer.py
 
 **Tasks**:
+
 - [ ] **0.5.1**: Fix `client_actors` fixture in `test/api/v2/routers/conftest.py`
   - Accept `datalayer` fixture parameter
   - Override `get_datalayer` dependency in FastAPI app
@@ -116,6 +123,7 @@ All Phase 0A tasks have been completed:
 Per PRIORITIES.md, the demo is complete. Next steps depend on project direction:
 
 #### Option A: Expand Demo to Cover More Workflows
+
 If the goal is to demonstrate additional CVD workflows beyond basic report submission:
 
 - [ ] **Phase 0B: Case Management Demo**
@@ -131,6 +139,7 @@ If the goal is to demonstrate additional CVD workflows beyond basic report submi
   - [ ] Document in `docs/howto/activitypub/activities/manage_embargo.md`
 
 #### Option B: Production Readiness
+
 If the goal is to harden the current implementation for real-world use:
 
 - [ ] **Phase 1: Critical Infrastructure** (See detailed tasks below)
@@ -151,6 +160,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 **Note**: These tasks improve production readiness but are not required for demonstration purposes.
 
 #### 1.1 Request Validation Middleware ❌
+
 - [ ] Create middleware or dependency for Content-Type validation
   - [ ] Accept `application/activity+json` (MUST)
   - [ ] Accept `application/ld+json; profile="..."` (MUST)
@@ -167,8 +177,10 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 - **Tests**: `test/api/v2/routers/test_actors_validation.py`
 
 #### 1.2 Standardized HTTP Error Responses
+
 - [ ] Create custom exception handler for `VultronError` hierarchy
 - [ ] Implement JSON error response format:
+
   ```json
   {
     "status": <HTTP_CODE>,
@@ -177,6 +189,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
     "activity_id": "<ID_IF_AVAILABLE>"
   }
   ```
+
 - [ ] Update all exception classes to include context attributes
   - [ ] Add `activity_id: str | None` field
   - [ ] Add `actor_id: str | None` field
@@ -191,6 +204,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 - **Tests**: `test/api/v2/test_error_responses.py`
 
 #### 1.3 Health Check Endpoints
+
 - [ ] Create `vultron/api/v2/routers/health.py`
 - [ ] Implement `/health/live` (liveness probe)
   - [ ] Return 200 if process running
@@ -208,6 +222,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 ### Phase 2: Observability & Reliability (DEFERRED - Lower Priority)
 
 #### 2.1 Structured Logging Implementation
+
 - [ ] Create logging configuration module
   - [ ] Define structured log format (JSON or key-value)
   - [ ] Include fields: timestamp (ISO 8601), level, component, activity_id, actor_id, message
@@ -238,6 +253,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 - **Tests**: `test/api/v2/test_logging.py` (use caplog fixture)
 
 #### 2.2 Idempotency and Duplicate Detection
+
 - [ ] Design activity ID tracking mechanism
   - [ ] Option A: In-memory cache with TTL (simple, testing)
   - [ ] Option B: TinyDB table with timestamp (persistent)
@@ -263,6 +279,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 ### Phase 3: Testing Infrastructure & Coverage (DEFERRED - Lower Priority)
 
 #### 3.1 Configure Test Coverage Enforcement
+
 - [ ] Add pytest-cov configuration to `pyproject.toml`
   - [ ] Set minimum coverage threshold: 80% overall
   - [ ] Set critical path coverage: 100% for validation, semantic extraction, dispatch, error handling
@@ -279,6 +296,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 - **Tests**: Configuration only
 
 #### 3.2 Create Integration Test Suite
+
 - [ ] Create `test/api/v2/integration/` directory structure
 - [ ] Add pytest markers for test categorization
   - [ ] `@pytest.mark.unit` for isolated tests
@@ -305,6 +323,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 - **Tests**: Multiple new integration test files
 
 #### 3.3 Enhance Test Infrastructure
+
 - [ ] Create test data factories
   - [ ] Factory for `VulnerabilityReport` objects
   - [ ] Factory for `VulnerabilityCase` objects
@@ -334,6 +353,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 **Rationale**: The 6 report handlers needed for the demo are complete. The remaining 30 handlers (case management, embargo management, actor management, metadata) are deferred until the demo is polished and infrastructure is mature.
 
 **Handler Status Summary**:
+
 - ✅ Report Handlers (6/6 complete): create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
 - ⏸️ Case Handlers (0/10 complete): Stub implementations only
 - ⏸️ Embargo Handlers (0/8 complete): Stub implementations only
@@ -341,6 +361,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 - ⏸️ Metadata Handlers (0/4 complete): Stub implementations only
 
 **Future Work**:
+
 - [ ] Implement case management handlers (10 handlers)
   - [ ] create_case, add_report_to_case, remove_report_from_case
   - [ ] update_case_status, close_case, reopen_case
@@ -371,10 +392,12 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 **Rationale**: Response generation (sending Accept/Reject/TentativeReject activities back to the report submitter) is important for a complete implementation but not required for the demo script. The demo focuses on the receiving side processing.
 
 **Dependencies**:
+
 - Phase 0A complete (demo script working)
 - Understanding of response patterns from real-world usage
 
 **Future Work**:
+
 - [ ] Design response activity patterns
   - [ ] Map handler outcomes to response types
   - [ ] Define `inReplyTo` correlation rules
@@ -405,6 +428,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 ### Phase 6: Code Quality & Documentation (DEFERRED - Lower Priority)
 
 #### 6.1 Code Style Compliance
+
 - [ ] Verify Black formatting compliance
   - [ ] Run `black --check vultron/`
   - [ ] Fix any formatting issues
@@ -425,6 +449,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 - **Tests**: Linting in CI
 
 #### 6.2 Documentation Updates
+
 - [ ] Update API documentation
   - [ ] Document inbox endpoint behavior
   - [ ] Document health check endpoints
@@ -453,6 +478,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 **Rationale**: This is a research prototype. Performance optimization is not a priority until the protocol design is validated and we have real-world usage data.
 
 **Future Considerations**:
+
 - [ ] Evaluate async dispatcher implementation
   - [ ] Queue-based processing (Redis, RabbitMQ)
   - [ ] Worker pool architecture
@@ -481,9 +507,11 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 ## Implementation Priorities & Sequencing (Updated per PRIORITIES.md)
 
 ### TOP PRIORITY: Complete Demo Script (Phase 0A)
+
 **Goal**: Finish `scripts/receive_report_demo.py` to demonstrate the report submission workflow
 
 **Tasks** (See Phase 0A above for details):
+
 1. Refactor demo structure to show three separate outcomes (accept/tentative reject/reject)
 2. Implement any missing workflow steps from the howto document
 3. Fix endpoint path issues
@@ -499,6 +527,7 @@ Per PRIORITIES.md, features that primarily serve to improve production-readiness
 All remaining phases (1-7) are lower priority per PRIORITIES.md. These features improve production-readiness but are not needed for the demonstration.
 
 **Deferred Work** (in rough priority order when demo is complete):
+
 - Phase 1: Request validation, error responses, health checks
 - Phase 2: Structured logging, idempotency
 - Phase 3: Test coverage enforcement, integration tests
@@ -512,6 +541,7 @@ All remaining phases (1-7) are lower priority per PRIORITIES.md. These features 
 ## Original Priority Structure (For Reference)
 
 ### Original Immediate Focus (Pre-PRIORITIES.md)
+
 **Goal**: Achieve specification compliance for inbox endpoint and request handling
 
 1. **Phase 1.1**: Request validation middleware (1-2 days)
@@ -519,9 +549,10 @@ All remaining phases (1-7) are lower priority per PRIORITIES.md. These features 
 3. **Phase 1.3**: Health check endpoints (0.5 days)
 4. **Phase 3.1**: Configure test coverage enforcement (0.5 days)
 
-**Exit Criteria**: Inbox endpoint meets all IE-* and MV-* spec requirements with proper error handling
+**Exit Criteria**: Inbox endpoint meets all IE-*and MV-* spec requirements with proper error handling
 
 ### Short Term (Next 2-3 Sprints)
+
 **Goal**: Complete observability and reliability features; achieve test coverage targets
 
 1. **Phase 2.1**: Structured logging with correlation IDs (2-3 days)
@@ -529,23 +560,27 @@ All remaining phases (1-7) are lower priority per PRIORITIES.md. These features 
 3. **Phase 3.2**: Integration test suite (3-4 days)
 4. **Phase 3.3**: Enhanced test infrastructure and factories (2-3 days)
 
-**Exit Criteria**: 
+**Exit Criteria**:
+
 - All OB-* spec requirements met
 - 80%+ test coverage overall
 - 100% coverage on critical paths (validation, semantic extraction, dispatch, error handling)
 
 ### Medium Term (Following Sprints)
+
 **Goal**: Code quality and documentation
 
 1. **Phase 6.1**: Code style compliance and type checking (1-2 days)
 2. **Phase 6.2**: Documentation updates (2-3 days)
 
 **Exit Criteria**:
+
 - All CS-* spec requirements met
 - Comprehensive documentation for API consumers
 - Specification compliance matrix complete
 
 ### Long Term (Post-Research Phase)
+
 **Goal**: Production readiness (if/when needed)
 
 1. **Phase 4**: Handler business logic implementation (10-15 days)
@@ -559,26 +594,31 @@ All remaining phases (1-7) are lower priority per PRIORITIES.md. These features 
 ### Resolved Questions
 
 #### Q1: Async Dispatcher Priority
+
 **Question**: Specs `DR-04-001` and `DR-04-002` recommend async queue-based dispatcher for production. Should this be prioritized now or deferred?
 
 **Decision**: DEFERRED. FastAPI BackgroundTasks already provides async processing at the endpoint level. Downstream processing can remain synchronous until we have performance data indicating need for queue-based architecture.
 
 #### Q2: Test Organization
+
 **Question**: Should we separate unit and integration tests into `test/unit/` and `test/integration/` directories per `TB-04-003`, or use pytest markers?
 
 **Decision**: Use pytest markers (`@pytest.mark.unit`, `@pytest.mark.integration`). Simpler to implement and maintain. Can reorganize directory structure later if needed.
 
 #### Q3: URI Validation Scope
+
 **Question**: Spec `MV-05-001` requires URI validation. Should this be syntax-only or include reachability checks?
 
 **Decision**: Syntax-only validation using Pydantic validators. Check for well-formed URIs with acceptable schemes (http, https, urn). No reachability/liveness checks required at this stage.
 
 #### Q4: Handler Implementation Order
+
 **Question**: With 47 handlers to implement, should we prioritize by CVD workflow criticality or by semantic grouping?
 
 **Decision**: DEFER all handler business logic to Phase 4. Focus first on infrastructure: request validation, semantic extraction, dispatch routing, error handling. Verify correct handler invocation without implementing business logic.
 
 #### Q5: Authorization System
+
 **Question**: Multiple specs reference authorization (e.g., `HP-05-001`), but no auth system exists. Should this be specified and implemented?
 
 **Decision**: OUT OF SCOPE for initial implementation. Design system to allow easy auth layer integration later. For now, assume all requests are authorized. Focus on message handling functionality.
@@ -586,9 +626,11 @@ All remaining phases (1-7) are lower priority per PRIORITIES.md. These features 
 ### Open Questions
 
 #### Q6: Duplicate Detection Storage
+
 **Question**: Should duplicate detection use in-memory cache (simple, fast, non-persistent) or TinyDB (persistent, survives restarts)?
 
 **Options**:
+
 - Option A: In-memory cache with TTL (e.g., Python dict with timestamps or `cachetools`)
   - Pros: Fast, simple implementation
   - Cons: Lost on restart, not shared across processes
@@ -599,18 +641,22 @@ All remaining phases (1-7) are lower priority per PRIORITIES.md. These features 
 **Recommendation**: Start with Option A for simplicity. Upgrade to Option B if persistence proves necessary.
 
 #### Q7: Structured Logging Format
+
 **Question**: Should structured logs use JSON format (machine-parseable) or enhanced key-value format (human-readable)?
 
 **Options**:
+
 - JSON format: `{"timestamp": "...", "level": "INFO", "component": "...", "message": "..."}`
 - Key-value format: `2026-02-13T16:00:00Z [INFO] component=inbox_handler activity_id=... message=...`
 
 **Recommendation**: JSON format for production parsability. Can add console-friendly formatter for development.
 
 #### Q8: Health Check Ready Conditions
+
 **Question**: What should `/health/ready` check beyond data layer connectivity?
 
 **Considerations**:
+
 - Data layer read/write access
 - Disk space availability
 - Memory usage thresholds
@@ -619,11 +665,13 @@ All remaining phases (1-7) are lower priority per PRIORITIES.md. These features 
 **Recommendation**: Start with data layer connectivity check only. Add more checks as system complexity grows.
 
 #### Q9: Test Coverage Enforcement
+
 **Question**: Should coverage enforcement be strict (fail build on any decrease) or threshold-based (fail only below 80%)?
 
 **Recommendation**: Threshold-based initially (80% overall, 100% critical paths). Can tighten to strict enforcement once stable.
 
 #### Q10: Response Generation Timing
+
 **Question**: When Phase 5 is implemented, should response generation be synchronous (blocking handler) or async (queued after handler returns)?
 
 **Consideration**: Affects handler protocol design and testing approach.
@@ -635,6 +683,7 @@ All remaining phases (1-7) are lower priority per PRIORITIES.md. These features 
 ## Notes
 
 **Research Prototype Context**: This is a research project exploring federated CVD protocol design. The focus is on:
+
 - Demonstrating protocol feasibility
 - Validating behavior tree modeling approach
 - Establishing ActivityStreams vocabulary for CVD
@@ -647,6 +696,7 @@ Performance optimization and production hardening are explicitly **not prioritie
 ## Comprehensive Prioritized Task List (Updated per PRIORITIES.md)
 
 ### Status Legend
+
 - ✅ Complete
 - 🔄 In Progress
 - ⏸️ Blocked/Waiting
@@ -661,6 +711,7 @@ See detailed tasks in Phase 0A section above.
 **Current Status**: Handler implementation complete (Phase 0). Demo script needs refinement to properly demonstrate the three workflow outcomes.
 
 **Next Steps**:
+
 1. Refactor demo script structure (0A.1)
 2. Identify and implement missing workflow steps (0A.2)
 3. Fix endpoint issues (0A.4)
@@ -678,6 +729,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 ### DEFERRED: Phase 1 - Critical Infrastructure ❌
 
 #### 1.1 Request Validation Middleware ❌
+
 - [ ] Create `vultron/api/v2/middleware/validation.py` module
 - [ ] Implement Content-Type validation middleware
   - [ ] Accept `application/activity+json` (HP-01-001)
@@ -704,6 +756,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 - **Estimated Effort**: 1-2 days
 
 #### 1.2 Standardized HTTP Error Responses ❌
+
 - [ ] Create `vultron/api/v2/exception_handlers.py` module
 - [ ] Define custom exception handler function
   - [ ] Match on `VultronError` base class
@@ -736,6 +789,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 - **Estimated Effort**: 1-2 days
 
 #### 1.3 Health Check Endpoints ❌
+
 - [ ] Create `vultron/api/v2/routers/health.py` module
 - [ ] Implement `/health/live` endpoint
   - [ ] Return 200 if process running
@@ -759,6 +813,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 ### DEFERRED: Phase 2 - Observability & Reliability ❌
 
 #### 2.1 Structured Logging Implementation ❌
+
 - [ ] Create `vultron/api/v2/logging_config.py` module
 - [ ] Define structured log format
   - [ ] Choose format: JSON (recommended) or key-value
@@ -797,6 +852,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 - **Estimated Effort**: 2-3 days
 
 #### 2.2 Idempotency and Duplicate Detection ❌
+
 - [ ] Design activity ID tracking mechanism
   - [ ] Choose storage: In-memory cache (Option A) or TinyDB (Option B)
   - [ ] Recommendation: Start with Option A (Python dict with timestamps)
@@ -832,13 +888,14 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 ### DEFERRED: Phase 3 - Testing Infrastructure & Coverage ❌
 
 #### 3.1 Configure Test Coverage Enforcement ❌
+
 - [ ] Add pytest-cov to dependencies (if not present)
 - [ ] Configure pytest-cov in `pyproject.toml`
   - [ ] Set `--cov=vultron` flag
   - [ ] Set minimum coverage threshold: 80% overall
   - [ ] Configure fail_under for critical modules: 100%
   - [ ] Set report formats: term-missing, html, xml
-  - [ ] Add coverage omit patterns (tests, __init__.py files)
+  - [ ] Add coverage omit patterns (tests, **init**.py files)
 - [ ] Run baseline coverage measurement
   - [ ] Execute: `pytest --cov=vultron --cov-report=term-missing --cov-report=html`
   - [ ] Document current coverage percentages in IMPLEMENTATION_NOTES.md
@@ -852,6 +909,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 - **Estimated Effort**: 0.5 days
 
 #### 3.2 Create Integration Test Suite ❌
+
 - [ ] Create `test/api/v2/integration/` directory structure
 - [ ] Add pytest markers to `pyproject.toml`
   - [ ] Define `unit` marker for isolated tests
@@ -880,6 +938,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 - **Estimated Effort**: 3-4 days
 
 #### 3.3 Enhance Test Infrastructure ❌
+
 - [ ] Create `test/factories.py` module
 - [ ] Implement test data factories
   - [ ] Factory for VulnerabilityReport objects
@@ -912,6 +971,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 **Note**: Phase 0 completed 6 report handlers. Remaining 30 handlers are stub-only and implementation depends on project direction (expand demos vs production hardening).
 
 **Current Handler Status** (from gap analysis):
+
 - ✅ **Report handlers (6/36)**: create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
 - ❌ **Case handlers (8)**: create_case, add_report_to_case, suggest_actor_to_case, ownership transfers, etc.
 - ❌ **Actor invitation handlers (3)**: invite/accept/reject_invite_actor_to_case
@@ -922,6 +982,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 - ❌ **Unknown handler (1)**: Logs WARNING and returns None (already implemented)
 
 **Implementation Pattern** (established by report handlers):
+
 1. Extract relevant objects from `dispatchable.payload`
 2. Rehydrate nested object references using data layer
 3. Validate business rules and object types
@@ -933,6 +994,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 #### 4.1 Case Management Handlers (8 handlers) ❌
 
 **Missing business logic for:**
+
 - [ ] `create_case` (line 566) - Store case in data layer, link initial reports, set attributes
 - [ ] `add_report_to_case` (line 572) - Rehydrate case/report, update case.vulnerability_reports list, persist
 - [ ] `suggest_actor_to_case` (line 578) - Store suggestion activity, create notification
@@ -943,6 +1005,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 - [ ] `reject_case_ownership_transfer` (line 616) - Log rejection, notify offerer
 
 **Implementation Pattern** (from completed report handlers):
+
 1. Rehydrate nested objects from payload
 2. Validate business rules and object types
 3. Update relevant objects (case, participants, etc)
@@ -955,6 +1018,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 #### 4.2 Actor Invitation Handlers (3 handlers) ❌
 
 **Missing business logic for:**
+
 - [ ] `invite_actor_to_case` (line 624) - Create invitation activity, store in data layer
 - [ ] `accept_invite_actor_to_case` (line 630) - Rehydrate invitation, add actor to case participants, update status
 - [ ] `reject_invite_actor_to_case` (line 638) - Log rejection, create response activity, notify inviter
@@ -966,6 +1030,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 #### 4.3 Embargo Management Handlers (6 handlers) ❌
 
 **Missing business logic for:**
+
 - [ ] `create_embargo_event` (line 646) - Store embargo event with timeline, restrictions
 - [ ] `add_embargo_event_to_case` (line 652) - Link embargo to case, update case.embargo_events
 - [ ] `remove_embargo_event_from_case` (line 658) - Unlink embargo, update case
@@ -981,6 +1046,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 #### 4.4 Case Participant Handlers (3 handlers) ❌
 
 **Missing business logic for:**
+
 - [ ] `create_case_participant` (line 702) - Store participant object with role, permissions
 - [ ] `add_case_participant_to_case` (line 708) - Link participant to case, update case.participants
 - [ ] `remove_case_participant_from_case` (line 716) - Unlink participant, notify removal
@@ -992,6 +1058,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 #### 4.5 Metadata Handlers (5 handlers) ❌
 
 **Missing business logic for:**
+
 - [ ] `create_note` (line 724) - Store note object with content, author
 - [ ] `add_note_to_case` (line 730) - Attach note to case, update case notes
 - [ ] `remove_note_from_case` (line 736) - Detach note from case
@@ -1007,6 +1074,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 #### 4.6 Case Lifecycle Handlers (1 handler) ❌
 
 **Missing business logic for:**
+
 - [ ] `close_case` (line 696) - Update case status to CLOSED, notify all participants, finalize records
 
 **Implementation Notes**: Should create closure activity and broadcast to all case participants.
@@ -1044,6 +1112,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 ### DEFERRED: Phase 6 - Code Quality & Documentation
 
 #### 6.1 Code Style Compliance ❌
+
 - [ ] Run `black --check vultron/`
 - [ ] Fix any formatting issues
 - [ ] Verify import organization (stdlib, third-party, local)
@@ -1057,6 +1126,7 @@ All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed
 - **Estimated Effort**: 1-2 days
 
 #### 6.2 Documentation Updates ❌
+
 - [ ] Update API documentation
   - [ ] Document inbox endpoint behavior
   - [ ] Document health check endpoints
@@ -1139,6 +1209,7 @@ Option B: Production Hardening (Deferred per PRIORITIES.md)
 ```
 
 **Effort Estimates** (for planning purposes only):
+
 - Option A (Demo Expansion): 10-14 days (case + embargo demos)
 - Option B (Production Hardening): 30-46 days (phases 1-6)
 

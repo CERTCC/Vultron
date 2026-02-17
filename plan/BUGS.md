@@ -11,16 +11,19 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 **Problem**: Test fixture isolation - routers created separate data layer instances from test data.
 
 **Root Causes**:
+
 1. Routers called `get_datalayer()` directly without using FastAPI dependency injection
 2. `get_datalayer()` created new instances instead of using singleton pattern
 3. Test fixtures didn't override the dependency
 
 **Solution Implemented**:
+
 1. Converted all router endpoints to use `Depends(get_datalayer)` for dependency injection
 2. Implemented singleton pattern in `get_datalayer()` with `reset_datalayer()` helper
 3. Updated test fixtures to override `get_datalayer` dependency with test's in-memory instance
 
 **Files Modified**:
+
 - `vultron/api/v2/routers/datalayer.py`: Added `Depends(get_datalayer)` to all endpoints
 - `vultron/api/v2/routers/actors.py`: Added `Depends(get_datalayer)` to all endpoints
 - `vultron/api/v2/datalayer/tinydb_backend.py`: Implemented singleton pattern
@@ -28,6 +31,7 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 - `test/api/v2/routers/conftest.py`: Updated `client_actors` and `client_datalayer` fixtures
 
 **Test Results**:
+
 - Before: 361 passing, 11 failing, 2 xfailed
 - After: 372 passing, 0 failing, 2 xfailed (100% pass rate)
 
@@ -38,9 +42,9 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 All previously failing tests are now resolved.
 
 PASSED [ 18%]Using selector: KqueueSelector
-HTTP Request: GET http://testserver/datalayer/Offers/ "HTTP/1.1 200 OK"
+HTTP Request: GET <http://testserver/datalayer/Offers/> "HTTP/1.1 200 OK"
 FAILED [ 18%]Using selector: KqueueSelector
-HTTP Request: GET http://testserver/datalayer/Offers/ "HTTP/1.1 200 OK"
+HTTP Request: GET <http://testserver/datalayer/Offers/> "HTTP/1.1 200 OK"
 
 test/api/v2/routers/test_datalayer.py:26 (test_get_offers_includes_created_offer)
 0 != 1
@@ -51,7 +55,7 @@ Actual   :0
 
 client_datalayer = <starlette.testclient.TestClient object at 0x10c969f20>
 dl = <vultron.api.v2.datalayer.tinydb_backend.TinyDbDataLayer object at 0x10c7f3590>
-offer = as_Offer(as_context='https://www.w3.org/ns/activitystreams', as_type=<as_TransitiveActivityType.OFFER: 'Offer'>, as_id..., image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None))
+offer = as_Offer(as_context='<https://www.w3.org/ns/activitystreams>', as_type=<as_TransitiveActivityType.OFFER: 'Offer'>, as_id..., image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None))
 
     def test_get_offers_includes_created_offer(client_datalayer, dl, offer):
         dl.create(object_to_record(offer))
@@ -64,7 +68,7 @@ E        +  where 0 = len({})
 
 api/v2/routers/test_datalayer.py:31: AssertionError
 FAILED [ 18%]Using selector: KqueueSelector
-HTTP Request: GET http://testserver/datalayer/Offer/?object_id=3086dfca-2bc8-47db-90ac-9b67097bcd27 "HTTP/1.1 404 Not Found"
+HTTP Request: GET <http://testserver/datalayer/Offer/?object_id=3086dfca-2bc8-47db-90ac-9b67097bcd27> "HTTP/1.1 404 Not Found"
 
 test/api/v2/routers/test_datalayer.py:35 (test_get_offer_by_id_returns_offer_fields)
 404 != 200
@@ -75,7 +79,7 @@ Actual   :404
 
 client_datalayer = <starlette.testclient.TestClient object at 0x10c98d950>
 dl = <vultron.api.v2.datalayer.tinydb_backend.TinyDbDataLayer object at 0x10c814950>
-offer = as_Offer(as_context='https://www.w3.org/ns/activitystreams', as_type=<as_TransitiveActivityType.OFFER: 'Offer'>, as_id..., image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None))
+offer = as_Offer(as_context='<https://www.w3.org/ns/activitystreams>', as_type=<as_TransitiveActivityType.OFFER: 'Offer'>, as_id..., image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None))
 
     def test_get_offer_by_id_returns_offer_fields(client_datalayer, dl, offer):
         dl.create(object_to_record(offer))
@@ -89,7 +93,7 @@ E        +  and   200 = status.HTTP_200_OK
 
 api/v2/routers/test_datalayer.py:40: AssertionError
 FAILED [ 18%]Using selector: KqueueSelector
-HTTP Request: GET http://testserver/datalayer/VulnerabilityReports/ "HTTP/1.1 200 OK"
+HTTP Request: GET <http://testserver/datalayer/VulnerabilityReports/> "HTTP/1.1 200 OK"
 
 test/api/v2/routers/test_datalayer.py:47 (test_get_vulnerability_reports_returns_empty_dict_when_no_reports)
 1 != 0
@@ -108,16 +112,16 @@ client_datalayer = <starlette.testclient.TestClient object at 0x10c828950>
         assert isinstance(response.json(), dict)
 >       assert len(response.json()) == 0
 E       AssertionError: assert 1 == 0
-E        +  where 1 = len({'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'VulnerabilityReport', 'as_id': '11bcb760-5b25-4a0a-b658-1005e62f77cd', 'name': 'TEST-002', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'Test vulnerability report', 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None}})
-E        +    where {'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'VulnerabilityReport', 'as_id': '11bcb760-5b25-4a0a-b658-1005e62f77cd', 'name': 'TEST-002', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'Test vulnerability report', 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None}} = json()
+E        +  where 1 = len({'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'as_context': '<https://www.w3.org/ns/activitystreams>', 'as_type': 'VulnerabilityReport', 'as_id': '11bcb760-5b25-4a0a-b658-1005e62f77cd', 'name': 'TEST-002', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'Test vulnerability report', 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None}})
+E        +    where {'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'as_context': '<https://www.w3.org/ns/activitystreams>', 'as_type': 'VulnerabilityReport', 'as_id': '11bcb760-5b25-4a0a-b658-1005e62f77cd', 'name': 'TEST-002', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'Test vulnerability report', 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None}} = json()
 E        +      where json = <Response [200 OK]>.json
 
 api/v2/routers/test_datalayer.py:53: AssertionError
 FAILED [ 19%]Using selector: KqueueSelector
-HTTP Request: GET http://testserver/datalayer/VulnerabilityReports/ "HTTP/1.1 200 OK"
+HTTP Request: GET <http://testserver/datalayer/VulnerabilityReports/> "HTTP/1.1 200 OK"
 
 test/api/v2/routers/test_datalayer.py:56 (test_get_vulnerability_reports_includes_created_report)
-'9a1ab83f-1599-46c5-917c-099ad90cdd1e' != {'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'as_context': 'https://www.w3.org/ns/activitystreams',
+'9a1ab83f-1599-46c5-917c-099ad90cdd1e' != {'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'as_context': '<https://www.w3.org/ns/activitystreams>',
                                           'as_id': '11bcb760-5b25-4a0a-b658-1005e62f77cd',
                                           'as_type': 'VulnerabilityReport',
                                           'attachment': None,
@@ -152,7 +156,7 @@ test/api/v2/routers/test_datalayer.py:56 (test_get_vulnerability_reports_include
 
 client_datalayer = <starlette.testclient.TestClient object at 0x10c96e990>
 dl = <vultron.api.v2.datalayer.tinydb_backend.TinyDbDataLayer object at 0x10c815190>
-report = VulnerabilityReport(as_context='https://www.w3.org/ns/activitystreams', as_type=<VultronObjectType.VULNERABILITY_REPOR...e, image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None)
+report = VulnerabilityReport(as_context='<https://www.w3.org/ns/activitystreams>', as_type=<VultronObjectType.VULNERABILITY_REPOR...e, image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None)
 
     def test_get_vulnerability_reports_includes_created_report(
         client_datalayer, dl, report
@@ -163,15 +167,15 @@ report = VulnerabilityReport(as_context='https://www.w3.org/ns/activitystreams',
         data = response.json()
         assert len(data) == 1
 >       assert report.as_id in data
-E       AssertionError: assert '9a1ab83f-1599-46c5-917c-099ad90cdd1e' in {'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'VulnerabilityReport', 'as_id': '11bcb760-5b25-4a0a-b658-1005e62f77cd', 'name': 'TEST-002', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'Test vulnerability report', 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None}}
-E        +  where '9a1ab83f-1599-46c5-917c-099ad90cdd1e' = VulnerabilityReport(as_context='https://www.w3.org/ns/activitystreams', as_type=<VultronObjectType.VULNERABILITY_REPORT: 'VulnerabilityReport'>, as_id='9a1ab83f-1599-46c5-917c-099ad90cdd1e', name=None, preview=None, media_type=None, replies=None, url=None, generator=None, context=None, tag=None, in_reply_to=None, duration=None, start_time=None, end_time=None, published=datetime.datetime(2026, 2, 17, 19, 30, 58, tzinfo=datetime.timezone.utc), updated=datetime.datetime(2026, 2, 17, 19, 30, 58, tzinfo=datetime.timezone.utc), content=None, summary=None, icon=None, image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None).as_id
+E       AssertionError: assert '9a1ab83f-1599-46c5-917c-099ad90cdd1e' in {'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'as_context': '<https://www.w3.org/ns/activitystreams>', 'as_type': 'VulnerabilityReport', 'as_id': '11bcb760-5b25-4a0a-b658-1005e62f77cd', 'name': 'TEST-002', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'Test vulnerability report', 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None}}
+E        +  where '9a1ab83f-1599-46c5-917c-099ad90cdd1e' = VulnerabilityReport(as_context='<https://www.w3.org/ns/activitystreams>', as_type=<VultronObjectType.VULNERABILITY_REPORT: 'VulnerabilityReport'>, as_id='9a1ab83f-1599-46c5-917c-099ad90cdd1e', name=None, preview=None, media_type=None, replies=None, url=None, generator=None, context=None, tag=None, in_reply_to=None, duration=None, start_time=None, end_time=None, published=datetime.datetime(2026, 2, 17, 19, 30, 58, tzinfo=datetime.timezone.utc), updated=datetime.datetime(2026, 2, 17, 19, 30, 58, tzinfo=datetime.timezone.utc), content=None, summary=None, icon=None, image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None).as_id
 
 api/v2/routers/test_datalayer.py:64: AssertionError
 FAILED [ 19%]Using selector: KqueueSelector
-HTTP Request: GET http://testserver/datalayer/Reports/ "HTTP/1.1 200 OK"
+HTTP Request: GET <http://testserver/datalayer/Reports/> "HTTP/1.1 200 OK"
 
 test/api/v2/routers/test_datalayer.py:67 (test_reports_shortcut_endpoint_returns_same_results)
-'8db4e045-d2de-4865-9a21-a32896dad3c5' != {'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'@context': 'https://www.w3.org/ns/activitystreams',
+'8db4e045-d2de-4865-9a21-a32896dad3c5' != {'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'@context': '<https://www.w3.org/ns/activitystreams>',
                                           'attachment': None,
                                           'attributedTo': None,
                                           'audience': None,
@@ -206,7 +210,7 @@ test/api/v2/routers/test_datalayer.py:67 (test_reports_shortcut_endpoint_returns
 
 client_datalayer = <starlette.testclient.TestClient object at 0x10c893d40>
 dl = <vultron.api.v2.datalayer.tinydb_backend.TinyDbDataLayer object at 0x10c8160f0>
-report = VulnerabilityReport(as_context='https://www.w3.org/ns/activitystreams', as_type=<VultronObjectType.VULNERABILITY_REPOR...e, image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None)
+report = VulnerabilityReport(as_context='<https://www.w3.org/ns/activitystreams>', as_type=<VultronObjectType.VULNERABILITY_REPOR...e, image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None)
 
     def test_reports_shortcut_endpoint_returns_same_results(
         client_datalayer, dl, report
@@ -217,12 +221,12 @@ report = VulnerabilityReport(as_context='https://www.w3.org/ns/activitystreams',
         data = response.json()
         assert len(data) == 1
 >       assert report.as_id in data
-E       AssertionError: assert '8db4e045-d2de-4865-9a21-a32896dad3c5' in {'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'VulnerabilityReport', 'id': '11bcb760-5b25-4a0a-b658-1005e62f77cd', 'name': 'TEST-002', 'preview': None, 'mediaType': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'inReplyTo': None, 'duration': None, 'startTime': None, 'endTime': None, 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'Test vulnerability report', 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributedTo': None}}
-E        +  where '8db4e045-d2de-4865-9a21-a32896dad3c5' = VulnerabilityReport(as_context='https://www.w3.org/ns/activitystreams', as_type=<VultronObjectType.VULNERABILITY_REPORT: 'VulnerabilityReport'>, as_id='8db4e045-d2de-4865-9a21-a32896dad3c5', name=None, preview=None, media_type=None, replies=None, url=None, generator=None, context=None, tag=None, in_reply_to=None, duration=None, start_time=None, end_time=None, published=datetime.datetime(2026, 2, 17, 19, 30, 58, tzinfo=datetime.timezone.utc), updated=datetime.datetime(2026, 2, 17, 19, 30, 58, tzinfo=datetime.timezone.utc), content=None, summary=None, icon=None, image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None).as_id
+E       AssertionError: assert '8db4e045-d2de-4865-9a21-a32896dad3c5' in {'11bcb760-5b25-4a0a-b658-1005e62f77cd': {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'VulnerabilityReport', 'id': '11bcb760-5b25-4a0a-b658-1005e62f77cd', 'name': 'TEST-002', 'preview': None, 'mediaType': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'inReplyTo': None, 'duration': None, 'startTime': None, 'endTime': None, 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'Test vulnerability report', 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributedTo': None}}
+E        +  where '8db4e045-d2de-4865-9a21-a32896dad3c5' = VulnerabilityReport(as_context='<https://www.w3.org/ns/activitystreams>', as_type=<VultronObjectType.VULNERABILITY_REPORT: 'VulnerabilityReport'>, as_id='8db4e045-d2de-4865-9a21-a32896dad3c5', name=None, preview=None, media_type=None, replies=None, url=None, generator=None, context=None, tag=None, in_reply_to=None, duration=None, start_time=None, end_time=None, published=datetime.datetime(2026, 2, 17, 19, 30, 58, tzinfo=datetime.timezone.utc), updated=datetime.datetime(2026, 2, 17, 19, 30, 58, tzinfo=datetime.timezone.utc), content=None, summary=None, icon=None, image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None).as_id
 
 api/v2/routers/test_datalayer.py:75: AssertionError
 FAILED [ 19%]Using selector: KqueueSelector
-HTTP Request: GET http://testserver/datalayer/Report/?id=486cb4a8-b4d6-449c-a771-e8efd0c12dc9 "HTTP/1.1 404 Not Found"
+HTTP Request: GET <http://testserver/datalayer/Report/?id=486cb4a8-b4d6-449c-a771-e8efd0c12dc9> "HTTP/1.1 404 Not Found"
 
 test/api/v2/routers/test_datalayer.py:78 (test_get_report_by_id_returns_report)
 404 != 200
@@ -233,7 +237,7 @@ Actual   :404
 
 client_datalayer = <starlette.testclient.TestClient object at 0x10c8e6270>
 dl = <vultron.api.v2.datalayer.tinydb_backend.TinyDbDataLayer object at 0x10c8169f0>
-report = VulnerabilityReport(as_context='https://www.w3.org/ns/activitystreams', as_type=<VultronObjectType.VULNERABILITY_REPOR...e, image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None)
+report = VulnerabilityReport(as_context='<https://www.w3.org/ns/activitystreams>', as_type=<VultronObjectType.VULNERABILITY_REPOR...e, image=None, attachment=None, location=None, to=None, cc=None, bto=None, bcc=None, audience=None, attributed_to=None)
 
     def test_get_report_by_id_returns_report(client_datalayer, dl, report):
         dl.create(report)
@@ -247,11 +251,11 @@ E        +  and   200 = status.HTTP_200_OK
 
 api/v2/routers/test_datalayer.py:83: AssertionError
 PASSED [ 20%]Using selector: KqueueSelector
-HTTP Request: DELETE http://testserver/datalayer/reset/ "HTTP/1.1 200 OK"
+HTTP Request: DELETE <http://testserver/datalayer/reset/> "HTTP/1.1 200 OK"
 Using selector: KqueueSelector
-HTTP Request: GET http://testserver/datalayer/Offers/ "HTTP/1.1 200 OK"
+HTTP Request: GET <http://testserver/datalayer/Offers/> "HTTP/1.1 200 OK"
 Using selector: KqueueSelector
-HTTP Request: GET http://testserver/datalayer/Reports/ "HTTP/1.1 200 OK"
+HTTP Request: GET <http://testserver/datalayer/Reports/> "HTTP/1.1 200 OK"
 
 ---
 
@@ -260,7 +264,7 @@ problems with test.api.v2.routers.test_actors
 PASSED [ 16%]FAILED [ 16%]Using selector: KqueueSelector
 results: []
 results: []
-HTTP Request: GET http://testserver/actors/ "HTTP/1.1 200 OK"
+HTTP Request: GET <http://testserver/actors/> "HTTP/1.1 200 OK"
 
 test/api/v2/routers/test_actors.py:26 (test_get_actors_list_returns_all_actors)
 0 != 6
@@ -284,7 +288,7 @@ E        +  and   6 = len([as_Actor(as_context='https://www.w3.org/ns/activityst
 
 api/v2/routers/test_actors.py:31: AssertionError
 FAILED [ 16%]Using selector: KqueueSelector
-HTTP Request: GET http://testserver/actors/bb7146bd-0a84-4cba-8d2e-c1d5bc0f0dcf "HTTP/1.1 404 Not Found"
+HTTP Request: GET <http://testserver/actors/bb7146bd-0a84-4cba-8d2e-c1d5bc0f0dcf> "HTTP/1.1 404 Not Found"
 
 test/api/v2/routers/test_actors.py:34 (test_get_actor_by_id_returns_actor_object)
 404 != 200
@@ -306,9 +310,9 @@ E            +  and   200 = status.HTTP_200_OK
 
 api/v2/routers/test_actors.py:37: AssertionError
 PASSED [ 17%]Using selector: KqueueSelector
-HTTP Request: GET http://testserver/actors/nonexistent-actor-id "HTTP/1.1 404 Not Found"
+HTTP Request: GET <http://testserver/actors/nonexistent-actor-id> "HTTP/1.1 404 Not Found"
 FAILED [ 17%]Using selector: KqueueSelector
-HTTP Request: GET http://testserver/actors/d143ba83-8fa1-4ace-ae93-022d54517062/inbox "HTTP/1.1 404 Not Found"
+HTTP Request: GET <http://testserver/actors/d143ba83-8fa1-4ace-ae93-022d54517062/inbox> "HTTP/1.1 404 Not Found"
 
 test/api/v2/routers/test_actors.py:49 (test_get_actor_inbox_returns_mailbox_structure)
 404 != 200
@@ -332,9 +336,9 @@ E            +  and   200 = status.HTTP_200_OK
 
 api/v2/routers/test_actors.py:54: AssertionError
 FAILED [ 17%]Using selector: KqueueSelector
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Create', 'id': '78304d4a-07af-4946-8b1e-4d75f3052f5c', 'name': '9c6c5fb7-6e28-4e9b-a46f-e5ab22e4c53b Create None', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'actor': '9c6c5fb7-6e28-4e9b-a46f-e5ab22e4c53b', 'object': {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': '45e6f972-2a0d-497e-8ecc-068dc24f9f41', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}}
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Create', 'id': '78304d4a-07af-4946-8b1e-4d75f3052f5c', 'name': '9c6c5fb7-6e28-4e9b-a46f-e5ab22e4c53b Create None', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'actor': '9c6c5fb7-6e28-4e9b-a46f-e5ab22e4c53b', 'object': {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': '45e6f972-2a0d-497e-8ecc-068dc24f9f41', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}}
-HTTP Request: POST http://testserver/actors/9c6c5fb7-6e28-4e9b-a46f-e5ab22e4c53b/inbox/ "HTTP/1.1 404 Not Found"
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Create', 'id': '78304d4a-07af-4946-8b1e-4d75f3052f5c', 'name': '9c6c5fb7-6e28-4e9b-a46f-e5ab22e4c53b Create None', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'actor': '9c6c5fb7-6e28-4e9b-a46f-e5ab22e4c53b', 'object': {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': '45e6f972-2a0d-497e-8ecc-068dc24f9f41', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}}
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Create', 'id': '78304d4a-07af-4946-8b1e-4d75f3052f5c', 'name': '9c6c5fb7-6e28-4e9b-a46f-e5ab22e4c53b Create None', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'actor': '9c6c5fb7-6e28-4e9b-a46f-e5ab22e4c53b', 'object': {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': '45e6f972-2a0d-497e-8ecc-068dc24f9f41', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}}
+HTTP Request: POST <http://testserver/actors/9c6c5fb7-6e28-4e9b-a46f-e5ab22e4c53b/inbox/> "HTTP/1.1 404 Not Found"
 
 test/api/v2/routers/test_actors.py:61 (test_post_activity_to_actor_inbox_accepted)
 404 != 202
@@ -361,36 +365,36 @@ E            +  and   202 = status.HTTP_202_ACCEPTED
 
 api/v2/routers/test_actors.py:69: AssertionError
 PASSED [ 17%]Using selector: KqueueSelector
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-HTTP Request: POST http://testserver/actors/3866cb8e-e298-4f46-ad1b-1a9acfeaf265/inbox/ "HTTP/1.1 422 Unprocessable Entity"
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+HTTP Request: POST <http://testserver/actors/3866cb8e-e298-4f46-ad1b-1a9acfeaf265/inbox/> "HTTP/1.1 422 Unprocessable Entity"
 Using selector: KqueueSelector
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-HTTP Request: POST http://testserver/actors/eecb3d1d-d4f0-42f5-a8b3-319431c0049f/inbox/ "HTTP/1.1 422 Unprocessable Entity"
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+HTTP Request: POST <http://testserver/actors/eecb3d1d-d4f0-42f5-a8b3-319431c0049f/inbox/> "HTTP/1.1 422 Unprocessable Entity"
 Using selector: KqueueSelector
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-HTTP Request: POST http://testserver/actors/38dd7295-2553-4912-a272-aecfced53a42/inbox/ "HTTP/1.1 422 Unprocessable Entity"
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+HTTP Request: POST <http://testserver/actors/38dd7295-2553-4912-a272-aecfced53a42/inbox/> "HTTP/1.1 422 Unprocessable Entity"
 Using selector: KqueueSelector
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-HTTP Request: POST http://testserver/actors/e5e76487-0f6c-405f-8ef8-156174e6a477/inbox/ "HTTP/1.1 422 Unprocessable Entity"
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+HTTP Request: POST <http://testserver/actors/e5e76487-0f6c-405f-8ef8-156174e6a477/inbox/> "HTTP/1.1 422 Unprocessable Entity"
 Using selector: KqueueSelector
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-HTTP Request: POST http://testserver/actors/425019ef-4fcf-4bc2-86d4-2b8083206347/inbox/ "HTTP/1.1 422 Unprocessable Entity"
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+HTTP Request: POST <http://testserver/actors/425019ef-4fcf-4bc2-86d4-2b8083206347/inbox/> "HTTP/1.1 422 Unprocessable Entity"
 Using selector: KqueueSelector
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-Parsing activity from request body. {'@context': 'https://www.w3.org/ns/activitystreams', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
-HTTP Request: POST http://testserver/actors/aabea776-f7b9-4c45-9942-7c2266981b67/inbox/ "HTTP/1.1 422 Unprocessable Entity"
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+Parsing activity from request body. {'@context': '<https://www.w3.org/ns/activitystreams>', 'type': 'Note', 'id': 'urn:uuid:test-note', 'published': '2026-02-17T19:30:58+00:00', 'updated': '2026-02-17T19:30:58+00:00', 'content': 'This is a test note.'}
+HTTP Request: POST <http://testserver/actors/aabea776-f7b9-4c45-9942-7c2266981b67/inbox/> "HTTP/1.1 422 Unprocessable Entity"
 
 ---
 
 Problems with test.api.v2.test_v2_api.test_datalayer_get_existing_actor
 
 Using selector: KqueueSelector
-FAILED          [ 21%]HTTP Request: GET http://testserver/datalayer/95b774df-26dd-4ce7-a6c1-2336bf5d0807 "HTTP/1.1 404 Not Found"
+FAILED          [ 21%]HTTP Request: GET <http://testserver/datalayer/95b774df-26dd-4ce7-a6c1-2336bf5d0807> "HTTP/1.1 404 Not Found"
 
 test/api/v2/test_v2_api.py:65 (test_datalayer_get_existing_actor)
 404 != 200

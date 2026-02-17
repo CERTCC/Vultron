@@ -10,7 +10,7 @@ in Vultron involves actors exchanging activity messages containing objects.
     _reject_ the offer.
 
 Actors in ActivityPub can be of various types, such as `Person`, `Organization`,
-`Group`, `Application`, `Service`, etc. Each actor has an _inbox_ and an _outbox_.
+`Group`, `Application`, `Service`, etc. Each actor has an *inbox* and an *outbox*.
 The inbox is where the actor receives activities, and the outbox is where the actor
 sends activities.
 
@@ -50,11 +50,10 @@ to an appropriate handler based on the activity's semantics.
     routed to a `submit_report` handler function, which contains the logic for processing
     a vulnerability report submission.
 
-
 ### Out of scope
 
 We are deferring authentication, authorization, and server-to-server federation for
-future implementation. 
+future implementation.
 
 This design also does not describe what happens inside each handler function; that is
 left to the specific handler implementations to come later.
@@ -73,8 +72,6 @@ The inbox handler process consists of the following steps:
 6. **Extract Routing Information**: The inbox handler extracts key fields from the activity message (e.g., `type`, `object`, `to`, `inReplyTo`) to determine routing.
    It creates a `DispatchActivity` header object containing the routing information and attaches the original activity message as the payload.
 7. **Dispatch Activity**: The inbox handler invokes a dispatch function that routes the `DispatchActivity` object to the appropriate handler function based on the activity's semantic type.
-
-
 
 ## Activity Patterns and Semantics
 
@@ -149,9 +146,9 @@ to look up the appropriate handler function from a mapping of `MessageSemantics`
 to handler functions. The handler function is then invoked with the `DispatchActivity`
 object as an argument.
 
-!!! example 
+!!! example
 
-  The following is an example of the `ActivityDispatcher` Protocol that defines 
+  The following is an example of the `ActivityDispatcher` Protocol that defines
   the interface for dispatching activities:
 
   ```python
@@ -180,7 +177,6 @@ object as an argument.
     handling logic, we maintain clean separation of concerns and facilitate 
     future protocol extensions.
 
-
 ## Direct Dispatch Implementation
 
 Our first dispatch function implementation uses a simple direct dispatch approach
@@ -195,15 +191,14 @@ begin handling activities based on their semantics.
 !!! question "Into the Unknown?"
 
   What happens if an activity is received that does not match any known `ActivityPattern`?
-  In this case, the semantic match function can return a special 
-  `MessageSemantics.UNKNOWN` value, which the dispatch function can handle by 
+  In this case, the semantic match function can return a special
+  `MessageSemantics.UNKNOWN` value, which the dispatch function can handle by
   logging an error or ignoring the activity. This allows us to gracefully handle
   unexpected or malformed activities without crashing the system. In fact, if we
-  implement this early, we will be able to detect and log any activities that 
+  implement this early, we will be able to detect and log any activities that
   don't match our defined patterns, which will be useful to identify any issues
   with our pattern definitions, omitted patterns, or unexpected activity messages
   during testing and development.
-
 
 ## Handler Functions
 

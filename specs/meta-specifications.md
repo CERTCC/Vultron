@@ -60,6 +60,7 @@ Format:
 * One requirement per bullet
 * Single-sentence, imperative style
 * IDs required
+
 ```
 - `IMPL-01-001` Use Python 3.13+
 ```
@@ -86,8 +87,6 @@ Rules:
   support future expansion without significant renumbering.
   E.g., EH-01-001, EH-01-002, EH-02-001, etc. where EH = error handling spec file,
   01 = category 1 (e.g., exception hierarchy), 02 = category 2 (e.g., error response format), etc.
-
-
 
 Common prefixes:
 

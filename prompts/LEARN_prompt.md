@@ -3,12 +3,14 @@
 3. Study plan/IMPLEMENTATION_NOTES.md to understand any additional insights or observations that may be helpful for implementation.
 4. Update AGENTS.md with any new insights or recommendations based on your design review.
 5. Update specs/* to refine any requirements that may be unclear, redundant, or missing based on your review of the specifications, lessons learned, and implementation plan.
-  - Avoid over-specifying implementation details in the specifications; focus on what needs to be achieved rather than how it should be achieved.
-  - Follow existing formatting and style conventions in the specs/ directory.
-  - Ensure that each requirement is atomic, verifiable, and succinct.
-  - Remove any redundant requirements that appear in multiple files.
+
+- Avoid over-specifying implementation details in the specifications; focus on what needs to be achieved rather than how it should be achieved.
+- Follow existing formatting and style conventions in the specs/ directory.
+- Ensure that each requirement is atomic, verifiable, and succinct.
+- Remove any redundant requirements that appear in multiple files.
+
 6. git commit changes with a clear commit message.
 
-IMPORTANT: Write markdown files only. 
-Do NOT implement any code. 
+IMPORTANT: Write markdown files only.
+Do NOT implement any code.
 Do NOT assume functionality is missing; confirm with code search first.

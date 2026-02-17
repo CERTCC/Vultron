@@ -1,6 +1,7 @@
 # AGENTS.md — Vultron Project
 
 ## Purpose
+
 This file defines mandatory constraints and working rules for AI coding agents operating in this repository.
 
 Agents MUST follow these rules when generating, modifying, or reviewing code.
@@ -8,7 +9,9 @@ Agents MUST follow these rules when generating, modifying, or reviewing code.
 ---
 
 ## Scope of Allowed Work
+
 Agents MAY:
+
 - Implement small to medium features that do not change public APIs or persistence schemas
 - Refactor existing code without changing external behavior
 - Add or update tests and test fixtures
@@ -17,6 +20,7 @@ Agents MAY:
 - Propose architectural changes (but not apply them without approval)
 
 Agents MUST NOT:
+
 - Introduce breaking API changes without explicit instruction
 - Modify authentication, authorization, or cryptographic logic
 - Change persistence schemas or perform data migrations without explicit instruction
@@ -27,6 +31,7 @@ Note: Small implementation tweaks (non-architectural) do not require an ADR; arc
 ---
 
 ## Technology Stack (Authoritative)
+
 - Python **3.12+** (project `pyproject.toml` specifies `requires-python = ">=3.12"`); CI currently runs tests on Python 3.13
 - **FastAPI** for HTTP APIs
   - Route functions that trigger long-running events should use BackgroundTasks for async processing
@@ -36,7 +41,8 @@ Note: Small implementation tweaks (non-architectural) do not require an ADR; arc
 - **mkdocs** with **Material** theme for documentation
 - **streamlit** for UI prototyping (if needed)
 
-### Development support tools (approved):
+### Development support tools (approved)
+
 - **uv** for package and environment management (used in CI)
 - **black** for code formatting (enforced via pre-commit)
 - **mypy** for static type checking (recommended)
@@ -47,6 +53,7 @@ Agents MUST NOT introduce alternative frameworks or package managers without exp
 ---
 
 ## Architectural Constraints
+
 - FastAPI routers define the external API surface only
 - Business logic MUST live outside route handlers
 - Persistence access MUST be abstracted behind repository or data-layer interfaces
@@ -86,14 +93,16 @@ See `specs/dispatch-routing.md`, `specs/semantic-extraction.md`, and ADR-0007 fo
 ### Handler Protocol (MANDATORY)
 
 All handler functions MUST:
+
 - Accept single `DispatchActivity` parameter
 - Use `@verify_semantics(MessageSemantics.X)` decorator
-- Be registered in `SEMANTIC_HANDLER_MAP` 
+- Be registered in `SEMANTIC_HANDLER_MAP`
 - Access activity data via `dispatchable.payload`
 - Use Pydantic models for type-safe access
 - Follow idempotency best practices
 
 Example:
+
 ```python
 @verify_semantics(MessageSemantics.CREATE_REPORT)
 def create_report(dispatchable: DispatchActivity) -> None:
@@ -108,10 +117,12 @@ Reference: `specs/handler-protocol.md` for complete requirements and verificatio
 ### Registry Pattern
 
 The system uses two key registries that MUST stay synchronized:
+
 - `SEMANTIC_HANDLER_MAP` (in `vultron/semantic_handler_map.py`): Maps MessageSemantics → handler functions
 - `SEMANTICS_ACTIVITY_PATTERNS` (in `vultron/semantic_map.py`): Maps MessageSemantics → ActivityPattern objects
 
 When adding new message types:
+
 1. Add enum value to `MessageSemantics` in `vultron/enums.py`
 2. Define ActivityPattern in `vultron/activity_patterns.py`
 3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in correct order (specific before general)
@@ -130,6 +141,7 @@ Never bypass layer boundaries. Routers should never directly access data layer; 
 ### Protocol-Based Design (SHOULD)
 
 Use Protocol classes (not ABC) for defining interfaces:
+
 - `ActivityDispatcher`: Dispatcher implementations
 - `BehaviorHandler`: Handler function signature
 - `DataLayer`: Persistence operations
@@ -139,11 +151,13 @@ This allows duck typing and flexible testing without inheritance requirements.
 ### Background Processing (MUST)
 
 Inbox handlers MUST:
+
 - Return HTTP 202 within 100ms (per `specs/inbox-endpoint.md`)
 - Queue activities via FastAPI BackgroundTasks
 - Never block endpoint on handler execution
 
 Example:
+
 ```python
 @router.post("/{actor_id}/inbox")
 async def inbox(actor_id: str, activity: dict, background_tasks: BackgroundTasks):
@@ -154,12 +168,14 @@ async def inbox(actor_id: str, activity: dict, background_tasks: BackgroundTasks
 ### Error Hierarchy (MUST)
 
 All custom exceptions:
+
 - Inherit from `VultronError` (in `vultron/errors.py`)
 - Submodule-specific errors in submodule `errors.py` (e.g., `vultron/api/v2/errors.py`)
 - **Core dispatcher errors** in `vultron/dispatcher_errors.py` (not `api.v2.errors`) to avoid circular imports
 - Include contextual information (activity_id, actor_id, message)
 
 HTTP error responses use structured format:
+
 ```json
 {
     "status": 400,
@@ -176,12 +192,14 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 ## Coding Rules (Non-Negotiable)
 
 ### Naming Conventions
+
 - **ActivityStreams types**: Use `as_` prefix (e.g., `as_Activity`, `as_Actor`, `as_type`)
 - **Vulnerability**: Abbreviated as `vul` (not `vuln`)
 - **Handler functions**: Named after semantic action (e.g., `create_report`, `accept_invite_actor_to_case`)
 - **Pattern objects**: Descriptive CamelCase (e.g., `CreateReport`, `AcceptInviteToEmbargoOnCase`)
 
 ### Validation and Type Safety
+
 - Prefer explicit types over inference
 - Use `pydantic.BaseModel` (v2 style) for all structured data
 - Never bypass validation for convenience
@@ -189,17 +207,20 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - Avoid global mutable state
 
 ### Decorator Usage
+
 - Handler functions MUST use `@verify_semantics(MessageSemantics.X)`
 - Decorator verifies semantic type matches actual activity structure
 - Raises `VultronApiHandlerSemanticMismatchError` on mismatch
 
 ### Code Organization
+
 - Prefer small, composable functions
 - Raise domain-specific exceptions; do not swallow errors
 - Keep formatting and linting aligned with tooling; do not reformat unnecessarily
 
 ### Logging Requirements
-- Use appropriate levels: 
+
+- Use appropriate levels:
   - **DEBUG**: Diagnostic details (payload contents, detailed flow)
   - **INFO**: Lifecycle events (activity received, state transitions)
   - **WARNING**: Recoverable issues (missing optional fields)
@@ -218,6 +239,7 @@ See `specs/structured-logging.md` for complete logging requirements (consolidate
 This project uses formal specifications in `specs/` directory defining testable requirements.
 
 ### Working with Specifications
+
 - Each spec file defines requirements with unique IDs (e.g., `HP-01-001`)
 - Requirements use RFC 2119 keywords in section headers (MUST, SHOULD, MAY)
 - Each requirement has verification criteria
@@ -228,6 +250,7 @@ This project uses formal specifications in `specs/` directory defining testable 
   - Check spec file headers for "Consolidates:" notes indicating superseded requirements
 
 ### Key Specifications
+
 - `specs/meta-specifications.md`: How to read and write specs
 - `specs/handler-protocol.md`: Handler function requirements
 - `specs/semantic-extraction.md`: Pattern matching rules
@@ -247,6 +270,7 @@ This project uses formal specifications in `specs/` directory defining testable 
 When implementing features, consult relevant specs for complete requirements and verification criteria.
 
 ### Test Coverage Requirements
+
 - **80%+ line coverage overall** (per `specs/testability.md`)
 - **100% coverage for critical paths**: message validation, semantic extraction, dispatch routing, error handling
 - Test structure mirrors source structure
@@ -259,6 +283,7 @@ When implementing features, consult relevant specs for complete requirements and
 **Last Updated**: 2026-02-17 (via LEARN_prompt.md design review)
 
 ### ✅ Completed Infrastructure
+
 - Semantic extraction and pattern matching
 - Behavior dispatcher with Protocol-based design
 - Handler protocol with `@verify_semantics` decorator
@@ -272,7 +297,9 @@ When implementing features, consult relevant specs for complete requirements and
 - **Demo**: `scripts/receive_report_demo.py` demonstrates 3 complete workflows
 
 ### ✅ Report Handlers Complete (6/36 handlers - 17%)
+
 The following report workflow handlers have full business logic:
+
 - `create_report`: Stores VulnerabilityReport + Create activity, handles duplicates
 - `submit_report`: Stores VulnerabilityReport + Offer activity (mirrors create_report)
 - `validate_report`: Rehydrates objects, updates statuses (ACCEPTED/VALID), creates VulnerabilityCase, adds CreateCase to actor outbox
@@ -284,19 +311,23 @@ The following report workflow handlers have full business logic:
 
 **Note**: 6 of 36 active handlers complete (17%). All handler stubs exist with proper protocol compliance (decorator, signature, registration). Business logic implementation is the primary remaining work.
 
-**Handler Count Clarification**: 
+**Handler Count Clarification**:
+
 - 47 `MessageSemantics` enum values total
 - 36 have handler stubs/implementations (11 are UNKNOWN/reserved for future use)
 - 6 handlers have complete business logic (report workflow)
 - 30 handlers remain as stubs (case management, embargo, participants, metadata)
 
 ### ⚠️ Stub Implementations Requiring Business Logic (41 handlers)
+
 Remaining handlers in `vultron/api/v2/backend/handlers.py` are stubs that:
+
 - Log at DEBUG level only
 - Return None without side effects
 - Do not persist state or generate responses
 
 **Categories needing implementation**:
+
 - Case management (11): `create_case`, `read_case`, `update_case`, `add_report_to_case`, `suggest_actor_to_case`, ownership transfer, etc.
 - Actor invitations (6): `invite/accept/reject_invite_actor_to_case`, `invite/accept/reject_invite_actor_to_embargo`
 - Embargo management (12): `create_embargo_event`, `read/update/close_embargo_event`, embargo invitations, participant management, etc.
@@ -304,6 +335,7 @@ Remaining handlers in `vultron/api/v2/backend/handlers.py` are stubs that:
 - Case lifecycle (5): `close_case`, `reopen_case`, case status tracking
 
 When implementing handler business logic:
+
 1. Extract relevant data from `dispatchable.payload`
 2. Rehydrate nested object references using data layer
 3. Validate business rules and object types
@@ -314,6 +346,7 @@ When implementing handler business logic:
 8. Handle errors gracefully with appropriate exceptions
 
 ### 🔨 Future Work
+
 - Response activity generation (`specs/response-format.md`)
 - Outbox processing implementation
 - Health endpoint implementation (`specs/observability.md`)
@@ -323,6 +356,7 @@ When implementing handler business logic:
 - Behavior tree integration (per ADR-0002, ADR-0007)
 
 ### Note on _old_handlers Directory
+
 The `vultron/api/v2/backend/_old_handlers/` directory contains an earlier implementation approach
 that is being migrated to the current handler protocol. Do not add new code to this directory.
 
@@ -331,6 +365,7 @@ that is being migrated to the current handler protocol. Do not add new code to t
 From recent implementation work (2026-02-13), critical patterns to follow:
 
 **1. Pydantic Model Validators and Database Round-Tripping**
+
 - Pydantic validators with `mode="after"` run EVERY TIME `model_validate()` is called, including when reconstructing objects from the database
 - Validators that create default values (e.g., empty collections) MUST check if the field is already populated to avoid overwriting database values
 - **Anti-pattern**: `inbox = OrderedCollection()` (unconditionally creates empty collection)
@@ -338,23 +373,27 @@ From recent implementation work (2026-02-13), critical patterns to follow:
 - **Impact**: This bug caused actor inbox/outbox items to disappear after being saved
 
 **2. Data Layer Update Signature**
+
 - `DataLayer.update()` requires TWO arguments: `id` (str) and `record` (dict)
 - **Anti-pattern**: `dl.update(actor_obj)` (only one argument)
 - **Correct pattern**: `dl.update(actor_obj.as_id, object_to_record(actor_obj))` (both ID and record)
 - Always use `object_to_record()` helper to convert Pydantic models to database dictionaries
 
 **3. Actor Inbox Persistence Flow**
+
 - When adding activities to actor inbox/outbox collections, changes must be explicitly persisted
 - Pattern: Read actor → Modify inbox/outbox → Call `dl.update()` → Verify persistence
 - The TinyDB backend persists to disk immediately; in-memory changes are not automatically saved
 
 **4. Async Background Processing Timing**
+
 - FastAPI BackgroundTasks execute asynchronously after HTTP 202 response
 - When testing or verifying side effects, account for async completion time
 - Demo scripts may need delays (e.g., 3 seconds) or explicit polling to verify handler completion
 - TestClient in pytest may bypass timing issues seen with real HTTP server
 
 **5. Rehydration Before Semantic Extraction**
+
 - ActivityStreams allows both inline objects and URI string references
 - The inbox handler MUST call `rehydrate()` before semantic extraction to expand URI references to full objects
 - Pattern matching code should still handle strings defensively (`getattr(field, "as_type", None)`)
@@ -367,13 +406,16 @@ These lessons are documented in `plan/IMPLEMENTATION_NOTES.md` with full context
 ## Testing Expectations
 
 ### Test Organization (MUST)
+
 - Test structure mirrors source: `test/api/v2/backend/` mirrors `vultron/api/v2/backend/`
 - Test files named `test_*.py`
 - Fixtures in `conftest.py` at appropriate directory levels
 - Use pytest markers to distinguish unit vs integration tests
 
 ### Coverage Requirements (MUST)
+
 Per `specs/testability.md`:
+
 - 80%+ line coverage overall
 - 100% coverage for critical paths:
   - Message validation
@@ -382,6 +424,7 @@ Per `specs/testability.md`:
   - Error handling
 
 ### Testing Patterns (SHOULD)
+
 - Use `monkeypatch` fixture for dependency injection
 - Mock external dependencies in unit tests
 - Use real TinyDB backend with test data in integration tests
@@ -393,17 +436,21 @@ Per `specs/testability.md`:
 - One test per workflow is preferred over fragmented stateful tests
 
 ### Test Data Quality (MUST)
+
 Per `specs/testability.md` TB-05-004 and TB-05-005:
 
 **Domain Objects Over Primitives**:
+
 - ✅ Use full Pydantic models: `VulnerabilityReport(name="TEST-001", content="...")`
 - ❌ Avoid string IDs or primitives: `object="report-1"`
 
 **Semantic Type Accuracy**:
+
 - ✅ Match semantic to structure: `MessageSemantics.CREATE_REPORT` for `Create(VulnerabilityReport)`
 - ❌ Avoid generic types in specific tests: `MessageSemantics.UNKNOWN` (unless testing unknown handling)
 
 **Complete Activity Structure**:
+
 - ✅ Full URIs: `actor="https://example.org/alice"`
 - ❌ Incomplete references: `actor="alice"`
 
@@ -412,7 +459,9 @@ Per `specs/testability.md` TB-05-004 and TB-05-005:
 See also "Common Pitfalls > Test Data Quality" section below for examples.
 
 ### Handler Testing (MUST)
+
 When implementing handler business logic, tests MUST verify:
+
 - Correct semantic type validation via decorator
 - Payload access via `dispatchable.payload`
 - State transitions persisted correctly
@@ -429,6 +478,7 @@ If a change touches the datalayer, include repository-level tests that verify be
 ## Quick Reference
 
 ### Adding a New Message Type
+
 1. Add `MessageSemantics` enum value in `vultron/enums.py`
 2. Define `ActivityPattern` in `vultron/activity_patterns.py`
 3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in `vultron/semantic_map.py` (order matters!)
@@ -443,6 +493,7 @@ If a change touches the datalayer, include repository-level tests that verify be
    - Handler behavior in `test/api/v2/backend/test_handlers.py`
 
 ### Key Files Map
+
 - **Enums**: `vultron/enums.py` - All enum types including MessageSemantics
 - **Patterns**: `vultron/activity_patterns.py` - Pattern definitions
 - **Pattern Map**: `vultron/semantic_map.py` - Semantics → Pattern mapping
@@ -455,6 +506,7 @@ If a change touches the datalayer, include repository-level tests that verify be
 - **TinyDB Backend**: `vultron/api/v2/datalayer/tinydb.py` - TinyDB implementation
 
 ### Specification Quick Links
+
 See `specs/` directory for detailed requirements with testable verification criteria.
 
 ---
@@ -462,6 +514,7 @@ See `specs/` directory for detailed requirements with testable verification crit
 ## Change Protocol
 
 When making non-trivial changes, agents SHOULD:
+
 1. Briefly state assumptions
 2. Consult relevant specifications in `specs/` for requirements
 3. Review Current Implementation Status above for context
@@ -475,11 +528,13 @@ Do not produce speculative or exploratory code unless requested. For proposed ar
 ### Commit Workflow
 
 **BEFORE committing**, agents SHOULD run Black to format code:
+
 ```bash
 black vultron/ test/
 ```
 
 This avoids the inefficient cycle of:
+
 1. `git commit` → pre-commit hook runs Black → reformats files → commit fails
 2. `git add` → re-stage reformatted files
 3. `git commit` → try again
@@ -487,11 +542,13 @@ This avoids the inefficient cycle of:
 **Why this matters**: Pre-commit hooks are configured to enforce Black formatting. Running Black before committing ensures a clean single-commit workflow.
 
 **When to run Black**:
+
 - After editing any Python files
 - Before staging files for commit
 - As part of your validation process
 
 **Alternative**: If you forget and the pre-commit hook reformats files, simply:
+
 ```bash
 git add -A && git commit -m "Same message"
 ```
@@ -534,6 +591,7 @@ The `specs/` directory contains testable requirements. Key specifications:
 ### When Specifications Conflict
 
 If requirements appear to conflict:
+
 1. Check **cross-references** for clarification
 2. Consolidated specs (http-protocol.md, structured-logging.md) take precedence over older inline requirements
 3. MUST requirements override SHOULD/MAY
@@ -542,6 +600,7 @@ If requirements appear to conflict:
 ### Updating Specifications
 
 When updating specs per LEARN_prompt instructions:
+
 - **Avoid over-specifying implementation details**: Specify *what*, not *how*
 - **Keep requirements atomic**: One testable requirement per ID
 - **Remove redundancy**: Use cross-references instead of duplicating requirements
@@ -549,6 +608,7 @@ When updating specs per LEARN_prompt instructions:
 - **Follow existing conventions**: Match style and structure of other specs
 
 **Recent Consolidation (2026-02-13)**:
+
 - Created `http-protocol.md` to consolidate HTTP status codes and Content-Type validation
 - Created `structured-logging.md` to consolidate logging format and correlation ID requirements
 - Updated `inbox-endpoint.md` to reference consolidated specs via cross-references
@@ -557,6 +617,7 @@ When updating specs per LEARN_prompt instructions:
 ---
 
 ## Safety & Guardrails
+
 - Treat anything under `/security`, `/auth`, or equivalent paths as sensitive
 - Do not generate secrets, credentials, or real tokens
 - Flag ambiguous requirements instead of guessing
@@ -564,6 +625,7 @@ When updating specs per LEARN_prompt instructions:
 ---
 
 ## Project Vocabulary
+
 - Use **`vul`** (not `vuln`) as the abbreviation for vulnerability
 - Prefer domain terms already present in the codebase
 - Do not invent new terminology without justification
@@ -571,7 +633,9 @@ When updating specs per LEARN_prompt instructions:
 ---
 
 ## Default Behavior
+
 If instructions are ambiguous:
+
 - Choose correctness over convenience
 - Choose explicitness over brevity
 - Ask for clarification rather than assuming intent
@@ -581,14 +645,17 @@ If instructions are ambiguous:
 ## Common Pitfalls (Lessons Learned)
 
 ### Circular Imports
+
 **Symptom**: `ImportError: cannot import name 'X' from partially initialized module`
 
 **Causes**:
+
 - Core module importing from `api.v2.*` triggers full app initialization
 - Module-level registry initialization that imports handlers
 - Deep import chains through `__init__.py` files
 
 **Solutions**:
+
 1. Move shared code to neutral modules (`types.py`, `dispatcher_errors.py`)
 2. Use lazy imports (import inside functions, not at module level)
 3. Add caching to avoid repeated initialization overhead
@@ -597,11 +664,13 @@ If instructions are ambiguous:
 See `specs/code-style.md` CS-05-* for requirements.
 
 ### Pattern Matching with ActivityStreams
+
 **Symptom**: `AttributeError: 'str' object has no attribute 'as_type'`
 
 **Cause**: ActivityStreams allows both inline objects and URI string references
 
 **Primary Solution**: Use rehydration before pattern matching:
+
 ```python
 from vultron.api.v2.data.rehydration import rehydrate
 
@@ -612,6 +681,7 @@ semantic = find_matching_semantics(activity)
 ```
 
 **Defensive Fallback**: Pattern matching should handle strings gracefully:
+
 ```python
 if isinstance(field, str):
     return True  # Can't type-check URI references
@@ -623,13 +693,16 @@ return pattern == getattr(field, "as_type", None)
 See `specs/semantic-extraction.md` SE-01-002 and `vultron/api/v2/data/rehydration.py` for details.
 
 ### Test Data Quality
+
 **Anti-pattern**:
+
 ```python
 activity = as_Create(actor="alice", object="report-1")  # Bad: strings
 dispatchable = DispatchActivity(semantic_type=MessageSemantics.UNKNOWN, ...)  # Bad: wrong semantic
 ```
 
 **Best practice**:
+
 ```python
 report = VulnerabilityReport(name="TEST-001", content="...")  # Good: proper object
 activity = as_Create(actor="https://example.org/alice", object=report)  # Good: full structure
@@ -639,11 +712,13 @@ dispatchable = DispatchActivity(semantic_type=MessageSemantics.CREATE_REPORT, ..
 See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
 
 ### FastAPI response_model Filtering
+
 **Symptom**: API endpoints return objects missing subclass-specific fields
 
 **Cause**: FastAPI uses return type annotations as implicit `response_model`, restricting JSON serialization to fields defined in the annotated class only.
 
 **Example**:
+
 ```python
 # Anti-pattern: Returns only as_Base fields (6 fields)
 def get_object_by_key() -> as_Base:
@@ -663,9 +738,11 @@ def get_object_by_key():  # or use Union types for specific subclasses
 See `specs/http-protocol.md` HP-07-001 for guidance.
 
 ### Idempotency Responsibility Chain
+
 **Question**: Who is responsible for duplicate detection and idempotency?
 
 **Answer**: Layered responsibility:
+
 1. **Inbox Endpoint** (`inbox-endpoint.md` IE-10): MAY detect duplicate activities at HTTP layer (future optimization)
 2. **Message Validation** (`message-validation.md` MV-08): SHOULD detect duplicate submissions during validation
 3. **Handler Functions** (`handler-protocol.md` HP-07): SHOULD implement idempotent logic (same input → same result)
@@ -687,6 +764,7 @@ See cross-references: `handler-protocol.md` HP-07-001, `message-validation.md` M
 ---
 
 ## Governance note for agents
+
 - Agents MAY update `AGENTS.md` to correct or clarify agent rules, but substantive changes to this file SHOULD be discussed with a human maintainer via Issue or PR. If an agent edits `AGENTS.md`, it must include a short rationale in the commit message and open a PR for human review.
 
 ---
@@ -694,6 +772,7 @@ See cross-references: `handler-protocol.md` HP-07-001, `message-validation.md` M
 ## Running demo server
 
 To run the demo server:
+
 ```bash
 uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
 ```

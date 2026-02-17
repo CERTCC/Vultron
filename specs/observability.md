@@ -6,7 +6,8 @@ Observability enables operators to understand system behavior, diagnose issues, 
 
 **Source**: Operational requirements, monitoring best practices
 
-**Status**: 
+**Status**:
+
 - **Minimal scope**: Only 2 active requirements (health checks); most observability concerns consolidated elsewhere
 - **Logging requirements**: Consolidated in `specs/structured-logging.md` (supersedes OB-01 through OB-04, OB-06)
 - **Metrics and distributed tracing**: Deferred to future implementation
@@ -26,6 +27,7 @@ Observability enables operators to understand system behavior, diagnose issues, 
 ## Verification
 
 ### OB-05-001, OB-05-002 Verification
+
 - Integration test: GET /health/live returns 200
 - Integration test: GET /health/ready returns 200 when ready
 - Integration test: GET /health/ready returns 503 when not ready (mock data layer failure)

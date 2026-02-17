@@ -7,17 +7,17 @@ Observations about the message states.
 - If a report is valid, you wind up creating a case from it.
 - Which semantics to use for cases: ACCEPT/REJECT or FOLLOW/IGNORE?
 
-## Future considerations:
+## Future considerations
 
 ### Polling pattern for embargo selections
 
 Going to skip the polling pattern for embargo selections for now
 as it's a bit more complex and I want to get the basic patterns implemented first,
 but we can add it later if we have time. I suspect that we'd want to adopt
-how Mastodon does polls: https://docs.joinmastodon.org/spec/activitypub/#Question
+how Mastodon does polls: <https://docs.joinmastodon.org/spec/activitypub/#Question>
 
 ### Public Key Distribution
 
 Mastodon already has public key distribution
-https://docs.joinmastodon.org/spec/activitypub/#publicKey 
-and https://docs.joinmastodon.org/spec/security/
+<https://docs.joinmastodon.org/spec/activitypub/#publicKey>
+and <https://docs.joinmastodon.org/spec/security/>

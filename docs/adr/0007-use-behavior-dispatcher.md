@@ -16,12 +16,14 @@ informed:
 Vultron actors are implemented as ActivityPub actors with inboxes and outboxes. Inbound messages are ActivityStreams objects, typically Activities that include domain-specific objects (e.g., Vulnerability Reports).
 
 Early prototypes implemented inbound message handling using a layered routing model:
+
 - Inbox handler
 - Activity-type handler
 - Object-type handler
 - Downstream “work” execution
 
 This approach introduced several problems:
+
 - Loss of semantic cohesion: separating activity handling from object handling discarded context required to determine correct behavior; downstream workers had to reconstruct state already known at receipt time.
 - Poor alignment with existing behavior logic: Vultron already defines message types as (Activity Type, Object Type) tuples, with corresponding behavior trees defined in the protocol simulator. The routing model obscured this mapping.
 - Tight coupling of protocol handling and execution: the inbox handler effectively controlled execution flow, making asynchronous or distributed execution difficult.
@@ -47,6 +49,7 @@ These issues indicated a missing architectural boundary between protocol handlin
 Chosen option: "Introduce a Behavior Dispatcher abstraction between inbox handling and behavior execution."
 
 Justification:
+
 - Restores a clear execution boundary that preserves semantics determined at receipt time.
 - Keeps behavior trees message-type-specific and implementation-agnostic with respect to invocation mechanics.
 - Enables multiple implementations (in-process direct invocation or queued/asynchronous invocation), supporting both local development and distributed deployments.
@@ -75,14 +78,17 @@ Justification:
 ## Pros and Cons of the Options
 
 ### Keep layered routing inside inbox handler
+
 - Good: minimal initial change; behavior executes immediately
 - Bad: loses semantic context, couples protocol handling and execution, reduces deployment flexibility and testability
 
 ### Introduce Behavior Dispatcher (chosen)
+
 - Good: separates concerns, preserves context, supports multiple execution models, improves testability
 - Bad: adds an interface and implementation work; requires decisions on persistence semantics for some flows
 
 ### Mandate a specific queue/pubsub system
+
 - Good: can simplify an asynchronous reference implementation
 - Bad: violates non-goals by specifying infrastructure; reduces portability and increases coupling
 

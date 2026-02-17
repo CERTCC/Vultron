@@ -56,6 +56,7 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 ### Test Data Quality Examples
 
 **Anti-pattern**:
+
 ```python
 # Bad: String IDs bypass object validation
 activity = as_Create(actor="alice", object="report-1")
@@ -63,6 +64,7 @@ dispatchable = DispatchActivity(semantic_type=MessageSemantics.UNKNOWN, ...)
 ```
 
 **Best practice**:
+
 ```python
 # Good: Complete object graph
 report = VulnerabilityReport(
@@ -107,45 +109,54 @@ dispatchable = DispatchActivity(
 ## Verification
 
 ### TB-01-001, TB-01-002 Verification
+
 - Code review: pytest used for all tests
 - Code review: pytest configuration in `pyproject.toml`
 
 ### TB-02-001, TB-02-002 Verification
+
 - CI pipeline: Coverage report shows 80%+ overall
 - CI pipeline: Coverage report shows 100% for critical modules
 - CI pipeline: Build fails if coverage drops below threshold
 
 ### TB-03-001, TB-03-002, TB-03-003 Verification
+
 - Test review: Integration tests exist for each requirement
 - Test review: End-to-end flows covered
 - Test review: Async behavior verified
 
 ### TB-04-001, TB-04-002, TB-04-003 Verification
+
 - Code review: Test structure mirrors source structure
 - Code review: All test files named `test_*.py`
 - Code review: Unit/integration tests separated
 
 ### TB-05-001, TB-05-002, TB-05-003 Verification
+
 - Code review: Fixtures defined in `conftest.py`
 - Code review: Test data generated via factories
 - Unit test: Fixtures provide expected test data
 
 ### TB-06-001, TB-06-002, TB-06-003 Verification
+
 - CI pipeline: Tests run in randomized order
 - Unit test: Test database used or database mocked
 - Integration test: State reset verified between tests
 
 ### TB-07-001, TB-07-002, TB-07-003 Verification
+
 - Code review: External services mocked in unit tests
 - Code review: Database mocked in unit tests
 - Code review: Integration tests use test database
 
 ### TB-08-001, TB-08-002, TB-08-003 Verification
+
 - Code review: Test names are descriptive
 - Code review: Complex tests have docstrings
 - Code review: Tests demonstrate API usage
 
 ### TB-09-001, TB-09-002, TB-09-003 Verification
+
 - Code review: Tests are simple and readable
 - Code review: Minimal test duplication
 - Git history: Tests updated with production changes

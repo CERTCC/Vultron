@@ -55,6 +55,7 @@ Handler functions process DispatchActivity objects and implement protocol busine
   - **Example**: Before creating a report, check if report ID already exists in data layer
 
 **Layered Idempotency Approach**:
+
 1. **HTTP Layer** (IE-10-001): Optional fast-path duplicate detection before queueing
 2. **Validation Layer** (MV-08-001): Primary duplicate detection during message validation
 3. **Handler Layer** (HP-07-001, HP-07-002): Defense-in-depth via state-aware mutations
@@ -77,6 +78,7 @@ Handler functions process DispatchActivity objects and implement protocol busine
 ### Implementation Notes
 
 **HP-08-001 - Helper Function Pattern**:
+
 ```python
 # Use object_to_record() to convert Pydantic models for storage
 record = object_to_record(pydantic_model)
@@ -84,6 +86,7 @@ dl.create("collection", record)
 ```
 
 **HP-08-002 - Data Layer Update Signature**:
+
 ```python
 # Anti-pattern: dl.update(object)  # Missing record parameter
 # Correct: Two-argument signature
@@ -91,6 +94,7 @@ dl.update(object.as_id, object_to_record(object))
 ```
 
 **HP-08-003 - Defensive Pydantic Validators**:
+
 ```python
 @model_validator(mode="after")
 def initialize_collections(self) -> Self:
@@ -108,47 +112,56 @@ def initialize_collections(self) -> Self:
 ## Verification
 
 ### HP-01-001, HP-01-002 Verification
+
 - Unit test: Handler accepts DispatchActivity parameter
 - Unit test: Handler returns None or HandlerResult
 - Type check: Handler signature matches HandlerProtocol
 
 ### HP-02-001, HP-02-002 Verification
+
 - Unit test: Verify decorator present on all handlers
 - Unit test: Decorator validates correct semantic type
 - Unit test: Decorator raises error for mismatched semantic type
 
 ### HP-03-001, HP-03-002 Verification
+
 - Unit test: All handlers in SEMANTIC_HANDLER_MAP
 - Unit test: Registry keys match decorator values
 - Unit test: No handlers missing from registry
 
 ### HP-04-001, HP-04-002 Verification
+
 - Unit test: Handler accesses payload via dispatchable.payload
 - Unit test: Pydantic validation occurs on payload access
 - Code review: No direct dictionary access to activity data
 
 ### HP-05-001, HP-05-002 Verification
+
 - Unit test: Handler raises exception for unrecoverable error
 - Unit test: Handler logs and continues for expected error
 - Integration test: Exception propagates to dispatcher
 
 ### HP-06-001, HP-06-002, HP-06-003 Verification
+
 - Unit test: Verify DEBUG log entry on handler invocation
 - Unit test: Verify INFO log for state transitions
 - Unit test: Verify ERROR log for errors
 
 ### HP-07-001, HP-07-002 Verification
+
 - Unit test: Handler called twice with same input produces same result
 - Unit test: Handler checks existing state before mutation
 - Integration test: Retry of failed handler succeeds
 
 ### HP-08-001, HP-08-002 Verification
+
 - Code review: All `DataLayer.update()` calls include both ID and record parameters
 - Code review: All Pydantic model persistence uses `object_to_record()` helper
 - Unit test: Update with single argument raises TypeError
 - Unit test: Update with ID and record succeeds
 
 ### HP-08-003 Verification
+
 - Unit test: Pydantic model with after validator round-trips through database without data loss
 - Unit test: Validator checks field is None before initializing default value
 - Integration test: Actor inbox/outbox collections persist correctly after handler updates

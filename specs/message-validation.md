@@ -6,7 +6,8 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 
 **Source**: ActivityStreams 2.0 specification, API design requirements
 
-**Note**: 
+**Note**:
+
 - **HTTP-level validation** (Content-Type, size limits) consolidated in `specs/http-protocol.md` (HP-01, HP-02)
 - This spec focuses on **ActivityStreams structure and semantic validation**
 
@@ -62,28 +63,34 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 ## Verification
 
 ### MV-01-001 Verification
+
 - Unit test: Activity missing `type` field → ValidationError
 - Unit test: Activity missing `id` field → ValidationError
 - Unit test: Valid minimal activity → passes validation
 
 ### MV-02-001, MV-02-002, MV-02-003, MV-02-004 Verification
+
 - Integration test: POST invalid activity → HTTP 422 response
 - Verification: Error response contains Pydantic validation details
 - Verification: Log contains ERROR entry with validation failure
 
 ### MV-03-001 Verification
+
 - Unit test: Each activity type with missing required fields → ValidationError
 - Unit test: Each activity type with all required fields → passes
 
 ### MV-04-001 Verification
+
 - Unit test: Unrecognized object type → ValidationError or warning
 - Unit test: Each recognized Vultron object type → passes
 
 ### MV-05-001 Verification
+
 - Unit test: Malformed URIs → ValidationError
 - Unit test: Valid URI schemes → passes
 
 ### MV-08-001 Verification
+
 - Integration test: Submit same activity twice → both return HTTP 202
 - Verification: Second submission does not invoke handler
 - **See also**: `specs/inbox-endpoint.md` IE-10-001 verification for complete duplicate detection tests
@@ -97,4 +104,3 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 - **Tests**: `test/api/v2/routers/test_actors.py`
 - **Related Spec**: [inbox-endpoint.md](inbox-endpoint.md)
 - **Related Spec**: [error-handling.md](error-handling.md)
-

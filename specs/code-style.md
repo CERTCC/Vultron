@@ -59,4 +59,3 @@ Defines code formatting and import organization standards for Python code.
 - `CS-04-001` Relative imports MAY be used for local application imports when appropriate
 - `CS-04-002` Module imports MAY use aliases for clarity or to avoid naming conflicts
   - Aliases SHOULD be descriptive and widely recognized (e.g., `import numpy as np`)
-

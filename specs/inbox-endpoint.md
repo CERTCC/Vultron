@@ -6,7 +6,8 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 
 **Source**: ActivityPub specification, API design requirements
 
-**Cross-references**: 
+**Cross-references**:
+
 - HTTP protocol requirements: `http-protocol.md`
 - Logging requirements: `structured-logging.md`
 - Message validation: `message-validation.md`
@@ -75,33 +76,41 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 ## Verification
 
 ### IE-02-001, IE-02-002, IE-02-003 Verification
+
 - Integration test: POST to correct endpoint → HTTP 202
 - Integration test: GET to endpoint → HTTP 405
 - Integration test: Invalid actor_id → HTTP 404
 
 ### IE-03-001, IE-03-002 Verification
+
 - See `http-protocol.md` HP-01-001, HP-02-001 verification criteria
 
 ### IE-04-001, IE-04-002 Verification
+
 - Integration test: Valid activity → HTTP 202
 - Integration test: Invalid activity → HTTP 422 with error details
 
 ### IE-05-001, IE-05-002 Verification
+
 - Performance test: Response time < 100ms for valid request
 - Integration test: Verify response returned before handler completes
 
 ### IE-06-001, IE-06-002 Verification
+
 - Integration test: Verify activity queued for async processing
 - Integration test: Verify handler executes after response sent
 
 ### IE-07-001, IE-08-001 Verification
+
 - See `http-protocol.md` HP-03-001 for status code verification
 - Integration test: Response body contains required fields
 
 ### IE-09-001 Verification
+
 - See `structured-logging.md` SL-01-001, SL-02-001, SL-03-001 for logging verification
 
 ### IE-10-001, IE-10-002 Verification
+
 - Integration test: Submit same activity twice → both return 202
 - Integration test: Verify second submission not processed
 - See `message-validation.md` MV-08-001 for idempotency details

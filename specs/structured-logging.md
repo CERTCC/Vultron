@@ -45,6 +45,7 @@ Consolidated logging requirements for Vultron API v2: log format, correlation ID
 - `SL-04-004` State transition logs MUST include triggering event (activity type + semantic)
 
 Example:
+
 ```json
 {
   "timestamp": "2026-02-13T18:00:00.000Z",
@@ -84,6 +85,7 @@ Example:
 ## Verification
 
 ### SL-01-001, SL-01-002, SL-01-003, SL-01-004
+
 ```python
 # Verify log entry structure
 with caplog.at_level(logging.INFO):
@@ -96,6 +98,7 @@ with caplog.at_level(logging.INFO):
 ```
 
 ### SL-02-001, SL-02-002
+
 ```python
 # Verify correlation IDs present
 with caplog.at_level(logging.INFO):
@@ -105,6 +108,7 @@ with caplog.at_level(logging.INFO):
 ```
 
 ### SL-03-001
+
 ```python
 # Test log level usage
 # Validation errors → WARNING
@@ -112,6 +116,7 @@ with caplog.at_level(logging.INFO):
 ```
 
 ### SL-04-001, SL-04-002, SL-04-003, SL-04-004
+
 ```python
 # Verify state transition logging
 with caplog.at_level(logging.INFO):
@@ -123,16 +128,19 @@ with caplog.at_level(logging.INFO):
 ## Implementation Example
 
 ### JSON Format (Production)
+
 ```json
 {"timestamp": "2026-02-13T18:00:00.000Z", "level": "INFO", "component": "inbox", "activity_id": "urn:uuid:123", "message": "Activity received"}
 ```
 
 ### Key-Value Format (Development)
+
 ```
 2026-02-13T18:00:00.000Z [INFO] component=inbox activity_id=urn:uuid:123 message="Activity received"
 ```
 
 ### Python Implementation
+
 ```python
 import logging
 import json
@@ -157,4 +165,3 @@ class StructuredFormatter(logging.Formatter):
 
 - Implementation: `vultron/api/v2/logging_config.py` (future)
 - Tests: `test/api/v2/test_logging.py` (use caplog fixture)
-

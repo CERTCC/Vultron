@@ -10,6 +10,6 @@
 8. Update plan/IMPLEMENTATION_NOTES.md with any additional insights, questions, or observations that may be helpful for future agents working on implementation.
 9. git commit changes with a clear commit message.
 
-IMPORTANT: Write plan files only. 
-Do NOT implement any code. 
+IMPORTANT: Write plan files only.
+Do NOT implement any code.
 Do NOT assume functionality is missing; confirm with code search first.
