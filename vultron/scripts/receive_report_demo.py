@@ -72,6 +72,9 @@ BASE_URL = "http://localhost:7999/api/v2"
 
 
 def logfmt(obj):
+    """Format object for logging. Handles both Pydantic models and strings."""
+    if isinstance(obj, str):
+        return obj  # String URIs are already formatted
     return obj.model_dump_json(indent=2, exclude_none=True, by_alias=True)
 
 
@@ -294,6 +297,29 @@ def get_actor_by_id(
     return None
 
 
+def get_item_id(item):
+    """
+    Extract ID from an ActivityStreams collection item.
+
+    Per ActivityStreams spec, collection items can be:
+    - Full objects (with as_id attribute)
+    - Links (with as_id attribute)
+    - String URIs (the string IS the ID)
+    - None (for optional fields)
+
+    Args:
+        item: Collection item (object, link, string, or None)
+
+    Returns:
+        str: The ID of the item, or None if item is None
+    """
+    if item is None:
+        return None
+    if isinstance(item, str):
+        return item  # String IS the ID
+    return getattr(item, "as_id", None)
+
+
 def verify_activity_in_inbox(
     client: DataLayerClient, actor_id: str, activity_id: str
 ) -> bool:
@@ -322,8 +348,9 @@ def verify_activity_in_inbox(
     # Log all inbox items for debugging
     logger.debug(f"Looking for activity ID: {activity_id}")
     for item in actor.inbox.items:
-        logger.debug(f"Inbox item ID: {item.as_id}")
-        if item.as_id == activity_id:
+        item_id = get_item_id(item)
+        logger.debug(f"Inbox item ID: {item_id}")
+        if item_id == activity_id:
             logger.info(f"✓ Found activity in inbox: {logfmt(item)}")
             return True
 
@@ -331,7 +358,13 @@ def verify_activity_in_inbox(
     logger.warning(f"Activity {activity_id} not found in inbox")
     logger.warning(f"Inbox contains {len(actor.inbox.items)} items:")
     for item in actor.inbox.items:
-        logger.warning(f"  - {item.as_id} (type: {item.as_type})")
+        item_id = get_item_id(item)
+        # Handle both string items and object items for logging
+        if isinstance(item, str):
+            logger.warning(f"  - {item_id} (type: string URI)")
+        else:
+            item_type = getattr(item, "as_type", "unknown")
+            logger.warning(f"  - {item_id} (type: {item_type})")
 
     return False
 
@@ -698,7 +731,7 @@ def main(skip_health_check: bool = False):
         logger.error("Please ensure the Vultron API server is running.")
         logger.error("You can start it with:")
         logger.error(
-            "  uvicorn vultron.api.main:app --host localhost --port 7999"
+            "  uv run uvicorn vultron.api.main:app --host localhost --port 7999"
         )
         logger.error("=" * 80)
         sys.exit(1)
@@ -711,25 +744,54 @@ def main(skip_health_check: bool = False):
     (finder, vendor, coordinator) = discover_actors(client=client)
     init_actor_ios([finder, vendor, coordinator])
 
+    # Track errors for summary
+    errors = []
+
     # Run all three demos with different reports
     try:
         demo_validate_report(client, finder, vendor)
     except Exception as e:
-        logger.error(f"Demo 1 failed: {e}", exc_info=True)
+        error_msg = f"Demo 1 failed: {e}"
+        logger.error(error_msg, exc_info=True)
+        errors.append(("Demo 1: Validate Report", str(e)))
 
     try:
         demo_invalidate_report(client, finder, vendor)
     except Exception as e:
-        logger.error(f"Demo 2 failed: {e}", exc_info=True)
+        error_msg = f"Demo 2 failed: {e}"
+        logger.error(error_msg, exc_info=True)
+        errors.append(("Demo 2: Invalidate Report", str(e)))
 
     try:
         demo_invalidate_and_close_report(client, finder, vendor)
     except Exception as e:
-        logger.error(f"Demo 3 failed: {e}", exc_info=True)
+        error_msg = f"Demo 3 failed: {e}"
+        logger.error(error_msg, exc_info=True)
+        errors.append(("Demo 3: Invalidate and Close Report", str(e)))
 
     logger.info("=" * 80)
     logger.info("ALL DEMOS COMPLETE")
     logger.info("=" * 80)
+
+    # Display error summary
+    if errors:
+        logger.error("")
+        logger.error("=" * 80)
+        logger.error("ERROR SUMMARY")
+        logger.error("=" * 80)
+        logger.error(f"Total demos: 3")
+        logger.error(f"Failed demos: {len(errors)}")
+        logger.error(f"Successful demos: {3 - len(errors)}")
+        logger.error("")
+        for demo_name, error in errors:
+            logger.error(f"{demo_name}:")
+            logger.error(f"  {error}")
+            logger.error("")
+        logger.error("=" * 80)
+    else:
+        logger.info("")
+        logger.info("✓ All 3 demos completed successfully!")
+        logger.info("")
 
 
 def _setup_logging():
