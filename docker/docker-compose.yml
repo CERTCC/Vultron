@@ -66,3 +66,27 @@ services:
       - "/app/.venv"
     environment:
       - PYTHONPATH=/app
+    networks:
+      - vultron-network
+
+  receive-report-demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: receive-report-demo
+    image: ${PROJECT_NAME}-receive-report-demo:latest
+    depends_on:
+      api-dev:
+        condition: service_started
+    volumes:
+      - "../vultron:/app/vultron"
+      - "/app/.venv"
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_API_BASE_URL=http://api-dev:7999/api/v2
+    networks:
+      - vultron-network
+
+networks:
+  vultron-network:
+    driver: bridge

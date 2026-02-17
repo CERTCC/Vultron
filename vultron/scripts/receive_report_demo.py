@@ -39,6 +39,7 @@ When run as a script, this module will:
 # Standard library imports
 import json
 import logging
+import os
 import sys
 import time
 from http import HTTPMethod
@@ -68,7 +69,10 @@ from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "http://localhost:7999/api/v2"
+# Allow BASE_URL to be overridden via environment variable for Docker deployment
+BASE_URL = os.environ.get(
+    "VULTRON_API_BASE_URL", "http://localhost:7999/api/v2"
+)
 
 
 def logfmt(obj):

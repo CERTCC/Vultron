@@ -1,6 +1,43 @@
 # Implementation Notes
 
-**Last Updated**: 2026-02-17 (Fixture isolation bug fixed)
+**Last Updated**: 2026-02-17 (Docker demo container added)
+
+---
+
+## ✅ RESOLVED: Docker Demo Container Setup - 2026-02-17
+
+**Goal**: Run `receive_report_demo.py` in a separate Docker container that can communicate with the API server container.
+
+**Implementation**:
+
+1. **Dockerfile**: Added `receive-report-demo` build target that runs the demo script via `uv run python -m vultron.scripts.receive_report_demo`
+
+2. **docker-compose.yml**: 
+   - Added `receive-report-demo` service with dependency on `api-dev` service
+   - Created dedicated Docker bridge network (`vultron-network`) for inter-container communication
+   - Both services connected to the network for seamless communication
+   
+3. **Demo Script**: Modified to accept `VULTRON_API_BASE_URL` environment variable:
+   - Default: `http://localhost:7999/api/v2` (for local development)
+   - Docker: `http://api-dev:7999/api/v2` (uses service name as hostname)
+
+**Key Lessons**:
+
+- **Docker Networking**: Services on the same Docker network can communicate using service names as hostnames (e.g., `api-dev` resolves to the API container's IP)
+- **Environment Variables**: Using `os.environ.get()` with a sensible default allows the same script to work in both local and containerized environments without code changes
+- **Service Dependencies**: `depends_on` in docker-compose ensures the API server starts before the demo, but doesn't wait for the service to be "ready" (the demo script's health check handles this)
+- **Volume Mounts**: Both containers mount `../vultron:/app/vultron` for live code changes during development
+
+**Usage**:
+
+```bash
+# Start both API server and demo
+docker-compose up api-dev receive-report-demo
+
+# The demo runs once and exits, API server remains running
+```
+
+**Testing**: Run the existing test suite to verify no regressions from the environment variable change.
 
 ---
 
