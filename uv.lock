@@ -757,9 +757,9 @@ wheels = [
 
 [[package]]
 name = "owlready2"
-version = "0.48"
+version = "0.50"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/8d/79/01daa72fbd07b1d4dd0907356d0ae486a684f0bd4654430f27a3e31206ee/owlready2-0.48.tar.gz", hash = "sha256:86b4d8500d769a674c524b54397fdd738ff5d0a96878432b69f4d606d6a7a4d8", size = 27298462, upload-time = "2025-05-27T09:15:03.095Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a4/67/6fb3a628889d97f8a3d3c64d4597f0637db61a1856c835fe7c65d8e89658/owlready2-0.50.tar.gz", hash = "sha256:7be74c53a35497df138c8223dddcf65510def9b38494ae1fac4aa2a61c4677eb", size = 27328931, upload-time = "2026-02-05T10:42:01.733Z" }
 
 [[package]]
 name = "packaging"
@@ -1137,14 +1137,14 @@ wheels = [
 
 [[package]]
 name = "rdflib"
-version = "7.2.1"
+version = "7.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyparsing" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8d/99/d2fec85e5f6bdfe4367dea143119cb4469bf48710487939df0abf7e22003/rdflib-7.2.1.tar.gz", hash = "sha256:cf9b7fa25234e8925da8b1fb09700f8349b5f0f100e785fb4260e737308292ac", size = 4873802, upload-time = "2025-09-19T02:33:36.492Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/98/f5/18bb77b7af9526add0c727a3b2048959847dc5fb030913e2918bf384fec3/rdflib-7.6.0.tar.gz", hash = "sha256:6c831288d5e4a5a7ece85d0ccde9877d512a3d0f02d7c06455d00d6d0ea379df", size = 4943826, upload-time = "2026-02-13T07:15:55.938Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/31/98/7fa830bb4b9da21905683a5352aa0a01a1f3082328ae976aad341e980c23/rdflib-7.2.1-py3-none-any.whl", hash = "sha256:1a175bc1386a167a42fbfaba003bfa05c164a2a3ca3cb9c0c97f9c9638ca6ac2", size = 565423, upload-time = "2025-09-19T02:33:30.889Z" },
+    { url = "https://files.pythonhosted.org/packages/10/c2/6604a71269e0c1bd75656d5a001432d16f2cc5b8c057140ec797155c295e/rdflib-7.6.0-py3-none-any.whl", hash = "sha256:30c0a3ebf4c0e09215f066be7246794b6492e054e782d7ac2a34c9f70a15e0dd", size = 615416, upload-time = "2026-02-13T07:15:46.487Z" },
 ]
 
 [[package]]
