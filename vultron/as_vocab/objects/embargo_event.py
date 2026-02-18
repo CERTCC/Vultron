@@ -2,6 +2,7 @@
 """
 Provides an EmbargoEvent object for the Vultron ActivityStreams Vocabulary.
 """
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -40,6 +41,8 @@ class EmbargoEvent(as_Event):
     """
     An EmbargoEvent is an Event that represents an embargo on a VulnerabilityCase.
     """
+
+    # note: embargo events don't need to be their own as_type, the value inherited from as_Event is sufficient
 
     start_time: datetime = Field(
         default_factory=now_utc, json_schema_extra={"format": "date-time"}

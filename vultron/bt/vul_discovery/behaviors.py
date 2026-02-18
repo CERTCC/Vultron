@@ -14,6 +14,7 @@
 """
 Provides vulnerability discovery behaviors
 """
+
 from vultron.bt.base.bt_node import BtNode
 from vultron.bt.base.factory import (
     condition_check,

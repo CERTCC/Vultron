@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -16,22 +16,24 @@
 Provides a backend API router for basic Vultron data layer operations.
 """
 
-from fastapi import APIRouter, status, HTTPException
+from copy import deepcopy
 
-from vultron.api.v2.data.store import get_datalayer
+from fastapi import APIRouter, Depends, status, HTTPException
+
+from vultron.api.v2.data.rehydration import rehydrate
+from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.as_vocab.base.base import as_Base
 from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
+from vultron.as_vocab.base.objects.collections import as_OrderedCollection
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.scripts import vocab_examples
 
 router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 
 
 @router.get("/{key}", description="Returns a specific object by key.")
-def get_object_by_key(key: str) -> as_Base:
-    datalayer = get_datalayer()
-
+def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_datalayer)):
     obj = datalayer.read(key)
 
     if not obj:
@@ -44,9 +46,11 @@ def get_object_by_key(key: str) -> as_Base:
     "/{object_type}/{object_id}",
     description="Returns a specific object by type and ID.",
 )
-def get_object(object_type: str, object_id: str) -> as_Base:
-    datalayer = get_datalayer()
-
+def get_object(
+    object_type: str,
+    object_id: str,
+    datalayer: DataLayer = Depends(get_datalayer),
+):
     obj = datalayer.read(object_id)
 
     if not obj:
@@ -56,22 +60,29 @@ def get_object(object_type: str, object_id: str) -> as_Base:
 
 
 @router.get("/Offer/")
-def get_offer(object_id: str) -> as_Offer:
-    return as_Offer.model_validate(
-        get_object(object_type="Offer", object_id=object_id)
-    )
+def get_offer(
+    object_id: str, datalayer: DataLayer = Depends(get_datalayer)
+) -> as_Offer:
+    obj = datalayer.read(object_id)
+    if not obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return as_Offer.model_validate(obj)
 
 
 @router.get("/Report/")
-def get_report(id: str) -> VulnerabilityReport:
-    return VulnerabilityReport.model_validate(
-        get_object(object_type="VulnerabilityReport", object_id=id)
-    )
+def get_report(
+    id: str, datalayer: DataLayer = Depends(get_datalayer)
+) -> VulnerabilityReport:
+    obj = datalayer.read(id)
+    if not obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return VulnerabilityReport.model_validate(obj)
 
 
 @router.get("/", description="Returns the entire contents of the datalayer.")
-def get_datalayer_contents() -> dict[str, dict]:
-    datalayer = get_datalayer()
+def get_datalayer_contents(
+    datalayer: DataLayer = Depends(get_datalayer),
+) -> dict[str, dict]:
     data = datalayer.all()
 
     data = {
@@ -86,9 +97,9 @@ def get_datalayer_contents() -> dict[str, dict]:
     "/Actors/{actor_id}/Offers/{offer_id}",
     description="Returns a specific object by actor id and offer id.",
 )
-def get_actor_offer(actor_id: str, offer_id: str) -> as_Offer:
-    datalayer = get_datalayer()
-
+def get_actor_offer(
+    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_datalayer)
+) -> as_Offer:
     obj = datalayer.read(offer_id)
 
     if not obj:
@@ -110,20 +121,22 @@ def get_actor_offer(actor_id: str, offer_id: str) -> as_Offer:
 
 
 @router.get("/Offers/", description="Returns all Offer objects.")
-def get_offers() -> dict[str, as_Offer]:
-    datalayer = get_datalayer()
-
+def get_offers(
+    datalayer: DataLayer = Depends(get_datalayer),
+) -> dict[str, as_Offer]:
     results = datalayer.by_type("Offer")
 
     return {k: as_Offer.model_validate(v) for k, v in results.items()}
 
 
 @router.get(
-    "/Reports/", description="Returns all VulnerabilityReport objects."
+    "/Reports/",
+    description="Returns all VulnerabilityReport objects.",
+    response_model=dict[str, VulnerabilityReport],
 )
-def get_reports() -> dict[str, VulnerabilityReport]:
-    datalayer = get_datalayer()
-
+def get_reports(
+    datalayer: DataLayer = Depends(get_datalayer),
+) -> dict[str, VulnerabilityReport]:
     results = datalayer.by_type("VulnerabilityReport")
 
     return {
@@ -132,33 +145,66 @@ def get_reports() -> dict[str, VulnerabilityReport]:
 
 
 @router.get("/Actors/", description="Returns all Actor objects.")
-def get_actors() -> dict[str, as_Actor]:
-    datalayer = get_datalayer()
-
+def get_actors(
+    datalayer: DataLayer = Depends(get_datalayer),
+) -> dict[str, as_Actor]:
     results = datalayer.by_type("Actor")
 
     return {k: as_Actor.model_validate(v) for k, v in results.items()}
 
 
-@router.post("/reset")
-def reset_datalayer() -> dict:
-    """Resets the datalayer by clearing all stored objects."""
+@router.get(
+    "/Actors/{actor_id}/outbox/",
+    description="Returns the outbox of a specific Actor.",
+    response_model=as_OrderedCollection,
+)
+def get_actor_outbox(
+    actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
+) -> dict:
+    actor_obj = datalayer.read(actor_id)
 
-    datalayer = get_datalayer()
-    datalayer.clear()
-    vocab_examples.initialize_examples()
-    return {
-        "status": "datalayer reset successfully",
-        "n_items": len(datalayer.all()),
-    }
+    if not actor_obj:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    actor: as_Actor = actor_obj  # type: ignore
+
+    if not actor.outbox:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    # make a copy
+    outbox = deepcopy(actor.outbox)
+
+    outbox.items = [rehydrate(item) for item in outbox.items]
+
+    return outbox
 
 
 @router.get(
     "/{object_type}s/", description="Returns all objects of a given type."
 )
-def get_objects(object_type: str) -> dict[str, as_Base]:
-    datalayer = get_datalayer()
-
+def get_objects(
+    object_type: str, datalayer: DataLayer = Depends(get_datalayer)
+):
     results = datalayer.by_type(object_type)
 
     return results
+
+
+@router.delete(
+    "/reset/",
+    description="Resets the datalayer by clearing all stored objects.",
+)
+def reset_datalayer(
+    init: bool = False, datalayer: DataLayer = Depends(get_datalayer)
+) -> dict:
+    """Resets the datalayer by clearing all stored objects."""
+    datalayer.clear_all()
+    if init:
+        from vultron.scripts.vocab_examples import initialize_examples
+
+        initialize_examples()
+
+    return {
+        "status": "datalayer reset successfully",
+        "n_items": datalayer.count_all(),
+    }

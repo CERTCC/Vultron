@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """This module defines the Embargo Management states for the Vultron protocol."""
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -14,10 +15,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from enum import Enum
+from enum import StrEnum
 
 
-class EM(Enum):
+class EM(StrEnum):
     """Embargo Management States
 
     NO_EMBARGO: No embargo is in effect

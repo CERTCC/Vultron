@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """This module provides base activity classes"""
+
 #  Copyright (c) 2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -21,6 +22,7 @@ from vultron.as_vocab.base.links import as_Link
 from vultron.as_vocab.base.objects.actors import as_ActorRef
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.registry import activitystreams_activity
+from vultron.enums import as_ObjectType as O_type
 
 
 @activitystreams_activity
@@ -35,7 +37,7 @@ class as_Activity(as_Object):
     of the picture, not the person walking down the street.
     """
 
-    as_type: Literal["Activity"] = Field(default="Activity", alias="type")
+    as_type: O_type = Field(default=O_type.ACTIVITY, alias="type")
 
     actor: as_ActorRef
     target: as_Object | as_Link | str | None = None

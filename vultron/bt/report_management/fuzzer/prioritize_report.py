@@ -3,6 +3,7 @@
 This module provides a fuzzer for the report/case prioritization process.
 It contains stub implementations of prioritization nodes and conditions.
 """
+
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project

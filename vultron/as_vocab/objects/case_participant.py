@@ -2,6 +2,7 @@
 """
 Provides various CaseParticipant objects for the Vultron ActivityStreams Vocabulary.
 """
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -28,6 +29,7 @@ from vultron.as_vocab.objects.base import VultronObject
 from vultron.as_vocab.objects.case_status import ParticipantStatus
 from vultron.bt.report_management.states import RM
 from vultron.bt.roles.states import CVDRoles as CVDRole
+from vultron.enums import VultronObjectType as VO_type
 
 
 @activitystreams_object
@@ -60,9 +62,7 @@ class CaseParticipant(VultronObject):
         ```
     """
 
-    as_type: Literal["CaseParticipant"] = Field(
-        default="CaseParticipant", alias="type"
-    )
+    as_type: VO_type = Field(default=VO_type.CASE_PARTICIPANT, alias="type")
 
     actor: as_Actor | as_Link | str
     name: str | None = None

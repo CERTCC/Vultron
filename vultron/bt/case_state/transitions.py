@@ -13,6 +13,7 @@
 """
 This module defines the CVD Case State Machine as a Behavior Tree.
 """
+
 from typing import Type
 
 from vultron.bt.base.bt_node import ActionNode, BtNode

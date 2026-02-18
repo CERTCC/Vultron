@@ -13,7 +13,6 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Provides Vultron Report Management Errors"""
 
-
 from vultron.bt.errors import CvdProtocolError
 
 

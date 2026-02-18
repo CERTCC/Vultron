@@ -2,6 +2,7 @@
 """
 Provides threat monitoring behaviors for the Vultron BT.
 """
+
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -27,7 +28,6 @@ from vultron.bt.report_management.fuzzer.monitor_threats import (
     MonitorPublicReports,
     NoThreatsFound,
 )
-
 
 _NoticeAttack = sequence_node(
     "_NoticeAttack",

@@ -2,6 +2,7 @@
 """
 Provides behaviors to handle general messages.
 """
+
 #  Copyright (c) 2023 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -27,7 +28,6 @@ from vultron.bt.messaging.inbound._behaviors.fuzzer import (
     FollowUpOnErrorMessage,
 )
 from vultron.bt.messaging.outbound.behaviors import EmitGK
-
 
 # GENERAL messages
 

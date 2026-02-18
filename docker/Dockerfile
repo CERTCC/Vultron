@@ -1,5 +1,5 @@
 FROM python:3.13-slim-bookworm AS base
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git curl && rm -rf /var/lib/apt/lists/*
 RUN pip install --upgrade pip uv
 WORKDIR /app
 
@@ -37,3 +37,8 @@ CMD ["uv", "run", "vultrabot"]
 
 FROM dependencies AS api-dev
 CMD ["uv","run","uvicorn","vultron.api.main:app","--host","0.0.0.0","--port","7999","--reload"]
+
+FROM dependencies AS receive-report-demo
+ENV PYTHONPATH=/app
+# The BASE_URL in the script will be overridden via environment variable
+CMD ["uv", "run", "python", "-m", "vultron.scripts.receive_report_demo"]

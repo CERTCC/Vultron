@@ -3,7 +3,7 @@
 Vultron API v2 Routers
 """
 
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -16,7 +16,7 @@ Vultron API v2 Routers
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from vultron.api.v2.routers import (
     actors,
@@ -25,6 +25,13 @@ from vultron.api.v2.routers import (
 )
 
 router = APIRouter()
+
+
+@router.get("/version", tags=["Version"])
+def get_version(request: Request):
+    """Returns the current version of the Vultron API."""
+    return {"version": request.app.version}
+
 
 router.include_router(actors.router)
 

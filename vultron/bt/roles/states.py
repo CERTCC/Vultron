@@ -13,7 +13,6 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Provides CVD Role states"""
 
-
 from enum import Flag, auto
 
 

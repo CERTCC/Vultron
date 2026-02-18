@@ -14,6 +14,7 @@
 """
 Provides Vultron ActivityStreams Activities related to CaseParticipants
 """
+
 # TODO: remove Literals because parent classes already define them
 # TODO: use pydantic's typing more effectively
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -17,5 +17,3 @@
 """
 Provides the Data Layer for Vultron API v2.
 """
-
-from .store import get_datalayer

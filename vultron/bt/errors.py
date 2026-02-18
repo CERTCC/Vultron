@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """This module defines custom exceptions for the Vultron package."""
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project

@@ -2,6 +2,7 @@
 """
 Provides Case Status objects for the Vultron ActivityStreams Vocabulary.
 """
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -17,7 +18,7 @@ Provides Case Status objects for the Vultron ActivityStreams Vocabulary.
 
 from typing import TypeAlias
 
-from pydantic import field_serializer, field_validator, model_validator
+from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.as_vocab.base.links import as_Link, ActivityStreamRef
 from vultron.as_vocab.base.objects.actors import as_Actor
@@ -27,6 +28,7 @@ from vultron.as_vocab.objects.base import VultronObject
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
 from vultron.case_states.states import CS_pxa, CS_vfd
+from vultron.enums import VultronObjectType as VO_type
 
 
 @activitystreams_object
@@ -34,6 +36,8 @@ class CaseStatus(VultronObject):
     """
     Represents the case-level (global, participant-agnostic) status of a VulnerabilityCase.
     """
+
+    as_type: VO_type = Field(default=VO_type.CASE_STATUS, alias="type")
 
     context: str | None = None  # Case ID goes here
     em_state: EM = EM.NO_EMBARGO
@@ -50,7 +54,10 @@ class CaseStatus(VultronObject):
     @field_validator("em_state", mode="before")
     def validate_em_state(cls, v):
         if isinstance(v, str):
-            return EM[v]
+            #
+            if v in EM.__members__:
+                return EM[v]
+            return EM(v)
         return v
 
     @field_validator("pxa_state", mode="before")
@@ -74,6 +81,8 @@ class ParticipantStatus(VultronObject):
     """
     Represents the status of a participant with respect to a VulnerabilityCase (participant-specific).
     """
+
+    as_type: VO_type = Field(default=VO_type.PARTICIPANT_STATUS, alias="type")
 
     actor: as_Actor | as_Link | str
     context: as_Object | as_Link | str
@@ -126,7 +135,11 @@ def main():
     print()
 
     ps = ParticipantStatus(
-        rm_state=RM.RECEIVED, vfd_state=CS_vfd.Vfd, case_status=cs
+        actor="foo",
+        context="bar",
+        rm_state=RM.RECEIVED,
+        vfd_state=CS_vfd.Vfd,
+        case_status=cs,
     )
     print(f"### {ps.as_type} ###")
     print()

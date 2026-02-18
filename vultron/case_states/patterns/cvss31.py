@@ -14,6 +14,7 @@
 """
 Case State Patterns for CVSS 3.1
 """
+
 import re
 from enum import Enum
 from typing import List

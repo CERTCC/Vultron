@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """This module provides actor classes"""
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -13,10 +14,11 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Any, TypeAlias, Literal
+from typing import Any, TypeAlias
 
 from pydantic import Field, model_validator
 
+from vultron.enums import as_ActorType as A_type
 from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.objects.collections import (
@@ -51,12 +53,15 @@ class as_Actor(as_Object):
     def set_collections(self):
         actor_id = self.as_id
 
-        self.inbox = as_OrderedCollection(
-            id=f"{actor_id}/inbox", type="OrderedCollection"
-        )
-        self.outbox = as_OrderedCollection(
-            id=f"{actor_id}/outbox", type="OrderedCollection"
-        )
+        # Only create inbox/outbox if they don't already exist
+        if self.inbox is None:
+            self.inbox = as_OrderedCollection(
+                id=f"{actor_id}/inbox", type="OrderedCollection"
+            )
+        if self.outbox is None:
+            self.outbox = as_OrderedCollection(
+                id=f"{actor_id}/outbox", type="OrderedCollection"
+            )
 
         return self
 
@@ -70,7 +75,7 @@ class as_Group(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-group>
     """
 
-    as_type: Literal["Group"] = Field(default="Group", alias="type")
+    as_type: A_type = Field(default=A_type.GROUP, alias="type")
 
 
 as_GroupRef: TypeAlias = ActivityStreamRef[as_Group]
@@ -82,9 +87,7 @@ class as_Organization(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-organization>
     """
 
-    as_type: Literal["Organization"] = Field(
-        default="Organization", alias="type"
-    )
+    as_type: A_type = Field(default=A_type.ORGANIZATION, alias="type")
 
 
 as_OrganizationRef: TypeAlias = ActivityStreamRef[as_Organization]
@@ -96,9 +99,7 @@ class as_Application(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-application>
     """
 
-    as_type: Literal["Application"] = Field(
-        default="Application", alias="type"
-    )
+    as_type: A_type = Field(default=A_type.APPLICATION, alias="type")
 
 
 as_ApplicationRef: TypeAlias = ActivityStreamRef[as_Application]
@@ -111,7 +112,7 @@ class as_Service(as_Actor):
     A service is a kind of actor that represents a non-human actor.
     """
 
-    as_type: Literal["Service"] = Field(default="Service", alias="type")
+    as_type: A_type = Field(default=A_type.SERVICE, alias="type")
 
 
 as_ServiceRef: TypeAlias = ActivityStreamRef[as_Service]
@@ -123,7 +124,7 @@ class as_Person(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-person>
     """
 
-    as_type: Literal["Person"] = Field(default="Person", alias="type")
+    as_type: A_type = Field(default=A_type.PERSON, alias="type")
 
 
 as_PersonRef: TypeAlias = ActivityStreamRef[as_Person]

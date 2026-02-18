@@ -13,6 +13,7 @@
 """
 The `vultron` package is a collection of modules that provide the functionality for the Vultron project.
 """
+
 try:
     from ._version import version as __version__
     from ._version import version_tuple

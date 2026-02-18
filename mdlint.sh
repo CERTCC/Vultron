@@ -15,4 +15,4 @@
 # U.S. Patent and Trademark Office by Carnegie Mellon University
 #
 
-markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md" "#node_modules/**" "#.venv/**" "#.git/**"
+markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md" "#node_modules/**" "#.venv/**" "#.git/**" "#plan/**" "#specs/**" "#prompts/**" "#wip_notes/**" "#AGENTS.md" "#CONTRIBUTORS.md"

@@ -15,6 +15,7 @@
 This module contains extensions to the ActivityStreams Vocabulary for Vultron activities related to
 VulnerabilityReports.
 """
+
 from typing import TypeAlias
 
 from pydantic import Field

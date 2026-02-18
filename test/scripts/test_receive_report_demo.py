@@ -1,4 +1,4 @@
-#  Copyright (c) 2025 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -11,23 +11,36 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 import importlib
-import unittest
 
+import pytest
+from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from vultron.api.main import app as api_app
+from vultron.as_vocab.activities.report import RmValidateReport
+from vultron.as_vocab.base.objects.activities.transitive import as_Offer
+from vultron.as_vocab.base.objects.actors import as_Actor
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.scripts import receive_report_demo as demo
 
 
-class ReceiveReportDemoTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls._client = TestClient(api_app)
-        # Keep the same /api/v2 prefix the module expects
-        cls._base = str(cls._client.base_url).rstrip("/") + "/api/v2"
-        demo.BASE_URL = cls._base
+@pytest.fixture(scope="module")
+def client():
+    """Provides a TestClient instance for testing."""
+    return TestClient(api_app)
 
-        def testclient_call(method, path, **kwargs):
+
+@pytest.fixture(scope="module")
+def demo_env(client):
+    """Sets up the demo environment for testing, including BASE_URL and the testclient_call function."""
+    mp = MonkeyPatch()
+    try:
+        # Keep the same /api/v2 prefix the module expects
+        base = str(client.base_url).rstrip("/") + "/api/v2"
+        mp.setattr(demo, "BASE_URL", base)
+
+        def testclient_call(self, method, path, **kwargs):
             # Accept either a path ("/...") or a full URL starting with demo.BASE_URL
             url = str(path)
             if url.startswith(demo.BASE_URL):
@@ -37,7 +50,7 @@ class ReceiveReportDemoTest(unittest.TestCase):
             if not url.startswith("/api/v2"):
                 url = "/api/v2" + url
 
-            resp = cls._client.request(method.upper(), url, **kwargs)
+            resp = client.request(method.upper(), url, **kwargs)
             if resp.status_code >= 400:
                 raise AssertionError(
                     f"API call failed: {method.upper()} {url} --> {resp.status_code} {resp.text}"
@@ -48,13 +61,30 @@ class ReceiveReportDemoTest(unittest.TestCase):
             except Exception:
                 return resp.text
 
-        demo.call = testclient_call
+        # Patch the instance method on the DataLayerClient class
+        mp.setattr(demo.DataLayerClient, "call", testclient_call)
 
-    def test_main_runs_without_exception(self):
-        # Test passes if no exception is raised
-        demo.main()
+        yield
 
-    @classmethod
-    def tearDownClass(cls):
-        # Reload the module to reset any state changes
+    finally:
+        mp.undo()
         importlib.reload(demo)
+
+
+def test_main_executes_without_raising(demo_env):
+    """
+    Tests that demo.main() can be executed without raising exceptions.
+
+    This test verifies the complete inbox-to-inbox communication flow:
+    1. Finder submits reports to vendor's inbox
+    2. Vendor processes reports and posts responses to finder's inbox
+    3. All three demo workflows complete successfully with direct inbox communication
+
+    This integration test also indirectly verifies the helper functions:
+    - get_offer_from_datalayer
+    - post_to_inbox_and_wait
+    - get_actor_by_id
+    - verify_activity_in_inbox
+    - find_case_by_report
+    """
+    demo.main(skip_health_check=True)

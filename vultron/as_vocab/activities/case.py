@@ -15,6 +15,7 @@
 Custom Activity Streams Activities for VulnerabilityCase objects.
 Each activity should have a VulnerabilityCase object as either its target or object.
 """
+
 from typing import TypeAlias
 
 from pydantic import Field
@@ -39,7 +40,6 @@ from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCaseRef
 from vultron.as_vocab.objects.vulnerability_report import (
     VulnerabilityReportRef,
 )
-
 
 ########################################################################################
 # Activities in which the VulnerabilityCase is a target
