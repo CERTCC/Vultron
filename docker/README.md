@@ -19,6 +19,7 @@ docker-compose up api-dev receive-report-demo
 ```
 
 The demo container will:
+
 1. Wait for the API server to start
 2. Connect to the API via the internal Docker network
 3. Execute the three demonstration workflows
