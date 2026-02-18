@@ -8,6 +8,54 @@ Agents MUST follow these rules when generating, modifying, or reviewing code.
 
 ---
 
+## Agent Quickstart
+
+A short, actionable checklist for AI coding agents who need to be productive quickly in this repo.
+
+- Read this file and the `specs/` folder first; specs contain testable requirements (MUST/SHOULD/MAY).
+- Key architecture: FastAPI inbox → semantic extraction (`vultron/semantic_map.py`) → behavior dispatcher (`vultron/behavior_dispatcher.py`) → registered handler (`vultron/api/v2/backend/handlers.py`).
+- Follow the Handler Protocol: handlers accept a single `DispatchActivity` param, use `@verify_semantics(...)`, and read `dispatchable.payload`.
+
+Checklist (edit → validate → commit):
+
+1. Implement or modify code in `vultron/`.
+2. Add/adjust tests under `test/` mirroring the source layout.
+3. Run formatter, then tests locally before committing.
+
+Essential commands (run in zsh):
+
+```bash
+# Format code (pre-commit enforces Black)
+black vultron/ test/
+
+# Run full test-suite (uses uv wrapper defined in project)
+uv run pytest -q
+
+# Run the demo server locally (development/demo)
+uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
+
+# Run a specific test file
+uv run pytest test/test_semantic_activity_patterns.py -q
+```
+
+Quick pointers and gotchas:
+
+- Order matters in `SEMANTICS_ACTIVITY_PATTERNS` (place more specific patterns first).
+- Always call `rehydrate()` on incoming activities to expand URI references before pattern matching.
+- Use `object_to_record()` + `dl.update(id, record)` when persisting Pydantic models to the datalayer (TinyDB uses explicit id + dict).
+- FastAPI endpoints should return 202 quickly and schedule background work with `BackgroundTasks`.
+
+Examples (handler & datalayer):
+
+```python
+@verify_semantics(MessageSemantics.CREATE_REPORT)
+def create_report(dispatchable: DispatchActivity) -> None:
+    payload = dispatchable.payload
+    # rehydrate nested refs, validate, persist via datalayer.update(id, record)
+```
+
+If making non-trivial architectural changes, draft an ADR in `docs/adr/_adr-template.md` and include tests. When in doubt, ask a human maintainer or open an Issue describing assumptions and risks.
+
 ## Scope of Allowed Work
 
 Agents MAY:
