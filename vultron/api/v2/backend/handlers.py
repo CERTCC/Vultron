@@ -234,24 +234,33 @@ def validate_report(dispatchable: DispatchActivity) -> None:
     # Create and execute validation tree
     tree = create_validate_report_tree(report_id=report_id, offer_id=offer_id)
 
+    # Log tree structure for visibility (DEBUG level logs structure, can be enabled if needed)
+    tree_viz = BTBridge.get_tree_visualization(tree, show_status=False)
+    logger.debug("Validation BT structure:\n%s", tree_viz)
+
     result = bridge.execute_with_setup(
         tree, actor_id=actor_id, activity=activity
     )
 
-    # Handle BT execution results
+    # Handle BT execution results with detailed feedback
     if result.status == Status.SUCCESS:
         logger.info(
-            "BT execution succeeded for report validation: %s", report_id
+            "✓ BT execution succeeded for report validation: %s (feedback: %s)",
+            report_id,
+            result.feedback_message or "none",
         )
     elif result.status == Status.FAILURE:
         logger.error(
-            "BT execution failed for report validation: %s - %s",
+            "✗ BT execution failed for report validation: %s - %s",
             report_id,
             result.feedback_message,
         )
+        if result.errors:
+            for error in result.errors:
+                logger.error("  - %s", error)
     else:
         logger.warning(
-            "BT execution incomplete for report validation: %s (status=%s)",
+            "⚠ BT execution incomplete for report validation: %s (status=%s)",
             report_id,
             result.status,
         )

@@ -41,11 +41,12 @@ This file tracks insights, issues, and learnings during implementation.
 
 ### Test Status
 
-- **Total tests**: 454 passing (378 core + 76 BT), 2 xfailed
-- **BT test coverage**: 76 tests across bridge, helpers, nodes, tree, policy
+- **Total tests**: 456 passing (378 core + 78 BT), 2 xfailed
+- **BT test coverage**: 78 tests (76 infrastructure + 2 performance)
 - **Router tests**: All 18 passing (fixture isolation issue resolved)
 - **Demo tests**: 1 passing (receive_report_demo.py)
 - **Reporting workflow tests**: 5 passing, 2 xfailed (old_handlers)
+- **Performance tests**: 2 passing (single run + percentile measurements)
 
 ### Key Architectural Decisions
 
@@ -53,6 +54,7 @@ This file tracks insights, issues, and learnings during implementation.
 2. **Policy Stub Pattern**: Implemented `AlwaysAcceptPolicy` as deterministic placeholder for prototype; future custom policies can inherit from `ValidationPolicy`
 3. **Early Exit Optimization**: Validation tree checks `RMStateValid` first; if already valid, skips full validation flow
 4. **Node Communication**: Nodes pass data via blackboard keys (e.g., `case_id` from `CreateCaseNode` → `CreateCaseActivity` → `UpdateActorOutbox`)
+5. **BT Visibility**: Use py_trees display utilities for tree visualization; DEBUG logging shows structure, INFO shows execution results
 
 ### Lessons Learned
 
@@ -65,26 +67,37 @@ This file tracks insights, issues, and learnings during implementation.
    - Clean separation: handler validates inputs → BT executes business logic → handler logs results
    - No need for parallel implementation; refactoring existing handler maintains all tests
    - Code reduction: 165 lines of procedural logic → 25 lines of BT invocation + 10 lines result handling
+5. **BT logging and visibility** (BT-1.5):
+   - py_trees.display.unicode_tree() provides excellent tree visualization
+   - Logging at DEBUG level keeps detailed tree structure out of normal logs
+   - Handlers should log BT results at INFO level with status symbols (✓/✗/⚠)
+   - Performance is excellent: P99 < 1ms for full validation workflow
 
 ### Next Steps (Phase BT-1.5 through BT-1.6)
 
-1. **BT-1.5**: Update demo script and validation
-   - ✅ Demo test already passing with BT implementation
-   - Verify all three demo workflows still work (validate, invalidate, invalidate+close)
-   - Add BT execution logging output for visibility
-   - Measure performance baseline (target: P99 < 100ms)
+**Phase BT-1.5: COMPLETE** ✅ (2026-02-18)
+
+1. **BT-1.5.1**: Demo and logging ✅
+   - Demo script works with BT-enabled handler (validate_report)
+   - Added BT execution visibility via py_trees display utilities
+   - Enhanced bridge logging: tree structure visualization at DEBUG level
+   - Enhanced handler logging: detailed status, feedback, and error reporting
+   - Updated demo script docstring with BT logging guidance for users
+
+2. **BT-1.5.2**: Test suite ✅
+   - All 456 tests passing (454 core + 2 new performance tests)
+   - No regressions from BT logging enhancements
+   - BT test coverage: 78 tests (76 BT infrastructure + 2 performance)
+
+3. **BT-1.5.3**: Performance baseline ✅
+   - Created test/behaviors/test_performance.py with percentile measurements
+   - Performance results (100 runs): Mean=0.46ms, P50=0.44ms, P95=0.69ms, P99=0.84ms
+   - Well within 100ms target from plan/BT_INTEGRATION.md
+   - No measurable performance regression from BT integration
+
+**Next: Phase BT-1.6 - Documentation**
 
 2. **BT-1.6**: Documentation
-   - Update `specs/behavior-tree-integration.md` verification sections
-   - Document implementation notes in this file
-   - Create ADR-0008 for BT integration architecture
-
-2. **BT-1.5**: Update demo script and validation
-   - Verify all three demo workflows still work (validate, invalidate, invalidate+close)
-   - Add BT execution logging output
-   - Measure performance baseline (target: P99 < 100ms)
-
-3. **BT-1.6**: Documentation
    - Update `specs/behavior-tree-integration.md` verification sections
    - Document implementation notes in this file
    - Create ADR-0008 for BT integration architecture

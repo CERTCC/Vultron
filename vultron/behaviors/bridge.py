@@ -37,6 +37,7 @@ from typing import Any
 
 import py_trees
 from py_trees.common import Status
+from py_trees.display import unicode_tree
 
 from vultron.api.v2.datalayer.abc import DataLayer
 
@@ -127,6 +128,11 @@ class BTBridge:
             setattr(blackboard, key, value)
 
         self.logger.info(f"BT setup complete for actor {actor_id}")
+
+        # Log tree structure for visibility (DEBUG level)
+        tree_repr = unicode_tree(tree, show_status=True)
+        self.logger.debug(f"BT structure:\n{tree_repr}")
+
         return bt
 
     def execute_tree(
@@ -166,9 +172,14 @@ class BTBridge:
                 # Terminal states: SUCCESS or FAILURE
                 if root_status in (Status.SUCCESS, Status.FAILURE):
                     feedback = bt.root.feedback_message
+
+                    # Log final tree state with status visualization
+                    tree_repr = unicode_tree(bt.root, show_status=True)
                     self.logger.info(
                         f"BT execution completed: {root_status} after {iteration} ticks - {feedback}"
                     )
+                    self.logger.debug(f"Final BT state:\n{tree_repr}")
+
                     return BTExecutionResult(
                         status=root_status,
                         feedback_message=feedback,
@@ -249,3 +260,21 @@ class BTBridge:
         """
         bt = self.setup_tree(tree, actor_id, activity, **context_data)
         return self.execute_tree(bt, max_iterations)
+
+    @staticmethod
+    def get_tree_visualization(
+        tree: py_trees.behaviour.Behaviour, show_status: bool = False
+    ) -> str:
+        """
+        Get unicode visualization of behavior tree structure.
+
+        Useful for logging tree structure from handlers or debugging.
+
+        Args:
+            tree: Root behavior node to visualize
+            show_status: Include node execution status in visualization
+
+        Returns:
+            String representation of tree with unicode art
+        """
+        return unicode_tree(tree, show_status=show_status)

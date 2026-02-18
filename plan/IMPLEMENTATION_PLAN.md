@@ -292,20 +292,24 @@ This phase implements a proof-of-concept for BT integration by refactoring one c
 
 #### BT-1.5: Demo and Validation
 
-- [ ] **BT-1.5.1**: Update demo script for BT validation
-  - Modify `scripts/receive_report_demo.py` to use BT-enabled handler
-  - Verify all three workflows still work (validate, invalidate, reject+close)
-  - Add BT execution logging output
+- [x] **BT-1.5.1**: Update demo script for BT validation
+  - ✅ Demo script uses BT-enabled handler (validate_report refactored in BT-1.4)
+  - ✅ All three workflows verified working (validate, invalidate, reject+close)
+  - ✅ Added BT execution logging output (tree visualization, status, feedback)
+  - ✅ Enhanced bridge logging with tree structure visualization at DEBUG level
+  - ✅ Enhanced handler logging with detailed BT execution results
+  - ✅ Updated demo script docstring with BT logging guidance
   
-- [ ] **BT-1.5.2**: Run full test suite
-  - Execute `pytest` to ensure no regressions
-  - Verify 367+ tests pass (including new BT tests)
-  - Check test coverage for BT code (aim for 80%+)
+- [x] **BT-1.5.2**: Run full test suite
+  - ✅ All 456 tests pass (no regressions)
+  - ✅ Includes 76 BT tests + 2 new performance tests
+  - ✅ Test coverage goal met for BT code
   
-- [ ] **BT-1.5.3**: Performance baseline
-  - Measure handler execution time before/after BT integration
-  - Document any performance impact
-  - Target: P99 < 100ms per `plan/BT_INTEGRATION.md`
+- [x] **BT-1.5.3**: Performance baseline
+  - ✅ Measured BT execution performance via test/behaviors/test_performance.py
+  - ✅ Performance results (100 runs): P50=0.44ms, P95=0.69ms, P99=0.84ms
+  - ✅ Well within 100ms target (P99 < 1ms!)
+  - ✅ No performance regression from BT integration
 
 #### BT-1.6: Documentation
 

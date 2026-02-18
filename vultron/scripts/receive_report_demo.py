@@ -34,6 +34,17 @@ When run as a script, this module will:
    - demo_invalidate_report: Submit → Invalidate → Notify finder via inbox
    - demo_invalidate_and_close_report: Submit → Invalidate → Close → Notify finder via inbox
 5. Verify side effects in the data layer and finder's inbox for each workflow
+
+Note on Behavior Tree Execution:
+The validate_report handler uses py_trees behavior tree execution to orchestrate the validation
+workflow. BT execution logging is available server-side:
+- INFO level: BT execution start, completion status, and feedback
+- DEBUG level: Detailed tree structure visualization and execution state
+
+To see BT execution details, run the API server with DEBUG logging enabled:
+  LOG_LEVEL=DEBUG uvicorn vultron.api.main:app --port 7999
+
+The BT logs will show tree structure before execution and final state after completion.
 """
 
 # Standard library imports
