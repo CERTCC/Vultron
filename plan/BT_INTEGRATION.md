@@ -5,45 +5,6 @@
 **Status**: Planning - Refined  
 **Related**: ADR-0002 (Use Behavior Trees), ADR-0007 (Behavior Dispatcher)
 
-
-## TODO next revision must integrate the following items where appropriate:
-
-Phase 1 of the implementation outline will be a parallel to
-`vultron/scripts/receive_report_demo.py` but with the handler invoking a
-py_trees-based behavior tree instead of procedural logic.
-The background documentation for the process in ActivityStreams terms is found
-in `docs/howto/activitypub/activities/report_vulnerability.md`. Behavior tree
-documentation (from the earlier simulator prototype) is in
-`docs/topics/behavior_logic/rm_bt.md`,
-`docs/topics/behavior_logic/reporting_bt.md`,
-`docs/topics/behavior_logic/rm_validation_bt.md`,
-`docs/topics/behavior_logic/msg_rm_bt.md`, and related files. Note these as
-resources for Phase 1.
-Phase 1 will serve as a proof of concept for the integration approach.
-Demonstration should reuse the api container and datalayer already implemented,
-with the new behavior tree code added in `vultron/behaviors/` or similar so it
-can be reused later. A new demo script (e.g., `receive_report_bt_demo.py`) can
-be added to run the same workflow with BT execution from a new container,
-following
-the example set by `receive_report_demo` in `docker/docker-compose.yml`.
-It should be possible at the end to spin up the api container and demo container
-and have the demo container perform the same three demonstrations as the
-original `receive_report_demo`, but with the new BT-based implementation.
-This will include: 1. Declining and close (Invalid + Close, Reject Offer), 2.
-Invalidate (Tentative Reject Offer), and 3. Accept (Validate Report, Create
-Case, Create CaseActor).
-The originator of the report and the receiver of the Offer will both be added
-to the case as CaseParticipants. The CaseActor will be an ActivityStreams
-Service object that is created as part of the case creation process, and it will
-be
-responsible for managing the case state and coordinating actions related to the
-case. Creating the case actor should also attach the case actor to the case as a
-participant, and the case actor should be able to receive messages related to
-the case
-(e.g., CreateCaseActivity) and update the case state accordingly. The demo
-should log the BT execution results and any state changes in the data layer for
-verification.
-
 ---
 
 ## Prototype Implementation Context
@@ -110,14 +71,25 @@ The existing simulation in `vultron/bt` uses factory methods (
 `vultron/bt/base/factory.py`) to create BT nodes:
 
 - **Purpose**: Abstract node creation to allow engine swapping
-- **Current Use**: Custom BT engine for simulation
-- **Future Opportunity**: Replace factory implementations to return `py_trees`
-  nodes
-- **Benefit**: Reuse high-level BT structure (composition logic) while changing
-  execution engine
-- **Feasibility**: Unknown; requires Phase 1 exploration during POC development
-- **Risk Mitigation**: If infeasible, implement new trees directly in py_trees
-  without attempting reuse
+- **Current Use**: Custom BT engine for simulation with fuzzer nodes
+- **Simulation Example**: `vultron/bt/report_management/_behaviors/validate_report.py` uses `sequence_node()` and `fallback_node()` factories
+- **Integration Challenge**: py_trees uses different node classes and APIs than custom engine
+- **Phase 1 Exploration**: Test whether factories can return py_trees nodes with minimal changes
+- **Likely Outcome**: Direct py_trees implementation (not factory-based) due to API incompatibilities
+- **Benefit if Feasible**: Reuse high-level BT structure (composition logic) from simulation trees
+- **Risk Mitigation**: If infeasible, implement new trees directly in py_trees using simulation trees as *design reference* only
+
+**Recommended Phase 1 Approach**:
+
+1. Start with direct py_trees implementation (don't attempt factory reuse initially)
+2. Use simulation tree structure as architectural guide:
+   - Match node composition (sequence/fallback hierarchy)
+   - Preserve semantic intent (preconditions, actions, state transitions)
+   - Translate fuzzer nodes to deterministic policy nodes
+3. If time permits, explore factory method compatibility as stretch goal
+4. Document findings in Phase 1 lessons learned
+
+**Key Insight**: Prioritize working POC over code reuse abstractions; demonstrate BT integration value before optimizing for maintainability
 
 **Concurrency and Data Layer Integrity**:
 
@@ -154,40 +126,68 @@ phase; measure before optimizing
 
 **Mapping Existing BT Structures to Handlers**:
 
-Current handler implementations can leverage existing BT models in `vultron/bt`:
+Current handler implementations can leverage existing BT models in `vultron/bt` as design references:
 
-**Correspondence Between Systems**:
+**Simulation Trees as Design Templates**:
 
-- **BT Message Types** (enums in `vultron/bt/messaging/`) ↔ **MessageSemantics
-  ** (enums in `vultron/enums.py`)
-- **BT Behaviors** (`vultron/bt/messaging/inbound/_behaviors/`) ↔ **Handler
-  Functions** (`vultron/api/v2/backend/handlers.py`)
+The simulation trees provide high-level process flow and state machine logic that can guide prototype implementation:
 
-**Key Examples**:
+| Handler Function | Simulation BT Reference | Key Behavior |
+|------------------|-------------------------|--------------|
+| `validate_report()` | `vultron/bt/report_management/_behaviors/validate_report.py:RMValidateBt` | Fallback: already valid OR (gather info + evaluate + transition) OR invalidate |
+| `invalidate_report()` | `vultron/bt/report_management/_behaviors/validate_report.py:_InvalidateReport` | Sequence: transition to INVALID + emit RI message |
+| `close_report()` | `vultron/bt/report_management/_behaviors/close_report.py:RMCloseBt` | Sequence: check preconditions + transition to CLOSED + emit RC message |
+| `prioritize_report()` | `vultron/bt/report_management/_behaviors/prioritize_report.py:RMPrioritizeBt` | Policy-driven: evaluate priority + transition to ACCEPTED or DEFERRED |
+| `do_work()` | `vultron/bt/report_management/_behaviors/do_work.py:RMDoWorkBt` | Complex workflow: fix development, testing, deployment orchestration |
 
-| MessageSemantics | BT Structure                           | Handler Function    |
-|------------------|----------------------------------------|---------------------|
-| SUBMIT_REPORT    | `_HandleRs` in `rm_messages.py`        | `submit_report()`   |
-| VALIDATE_REPORT  | `RMValidateBt` in `validate_report.py` | `validate_report()` |
-| CREATE_CASE      | (subtree of RMValidateBt)              | `create_case()`     |
+**Translation Strategy**:
 
-**Important Note**: Existing BT behaviors in `_behaviors` modules are
-higher-level than needed for handler implementation:
+1. **Identify Simulation Tree**: Find corresponding tree in `vultron/bt/report_management/_behaviors/`
+2. **Extract Structure**: Note sequence/fallback composition and node ordering
+3. **Map Conditions**: Convert condition nodes (e.g., `RMinStateValid`) to py_trees condition behaviors checking DataLayer state
+4. **Replace Fuzzers**: Convert fuzzer nodes (e.g., `EvaluateReportCredibility`) to deterministic policy nodes with configurable defaults
+5. **Preserve Semantics**: Keep state transition order and precondition checks intact
+6. **Add Persistence**: Wrap state changes with DataLayer update operations
+7. **Emit Activities**: Generate ActivityStreams activities for outbox where simulation emits messages
 
-- They branch on message types (handler already knows semantic type)
-- They represent full message-processing pipelines (handler focuses on single
-  semantic action)
-- **Approach**: Extract relevant subtrees and adapt for focused handler
-  execution
+**Example Translation** (RMValidateBt):
 
-**Source of Truth**: When conflicts exist between BT behaviors and ActivityPub
-documentation:
+Simulation structure (factory-based):
+```python
+RMValidateBt = fallback_node(
+    "RMValidateBt",
+    RMinStateValid,           # Condition: already valid?
+    _HandleRmI,               # Sequence: if invalid, gather more info
+    _ValidationSequence,      # Sequence: evaluate + transition
+    _InvalidateReport,        # Fallback: if validation fails, invalidate
+)
+```
 
-- **Primary**: `docs/howto/activitypub/activities/` (process descriptions,
-  message examples)
-- **Secondary**: `vultron/bt/` (process models, state machine logic)
-- **Resolution**: Update BT behaviors to align with ActivityPub documentation
-  during implementation
+Prototype structure (py_trees-based):
+```python
+class ValidateReportBT(py_trees.composites.Selector):  # Selector = Fallback
+    def __init__(self, blackboard):
+        children = [
+            CheckRMStateValid(blackboard),              # Already valid? Success
+            HandleInvalidState(blackboard),             # Gather validation info if needed
+            ValidationSequence(blackboard),             # Evaluate credibility/validity + transition
+            InvalidateReportSequence(blackboard),       # Fallback: invalidate if validation fails
+        ]
+        super().__init__(children=children, name="ValidateReportBT")
+```
+
+**Important Notes**:
+
+- Simulation trees contain fuzzer nodes that MUST be replaced with deterministic logic
+- Simulation trees branch on message types; handlers already know semantic type (skip branching)
+- Simulation trees represent full message-processing pipelines; handlers focus on single semantic action
+- **When conflicts arise**: Follow ActivityPub documentation (`docs/howto/activitypub/activities/`) over simulation trees
+
+**Source of Truth Priority**:
+
+1. **Primary**: `docs/howto/activitypub/activities/*.md` (process descriptions, message examples)
+2. **Secondary**: `vultron/bt/report_management/_behaviors/*.py` (state machine logic, composition)
+3. **Tertiary**: `docs/topics/behavior_logic/*.md` (conceptual diagrams, motivation)
 
 ---
 
@@ -287,15 +287,17 @@ event-driven execution
 - **Inbox Processing**: FastAPI endpoint with BackgroundTasks (
   `vultron/api/v2/routers/actors.py`)
 
-**Current Implementation Status** (as of 2026-02-17):
+**Current Implementation Status** (as of 2026-02-18):
 
-- ✅ 6/36 handlers have complete business logic (17%)
+- ✅ 7/36 handlers have complete business logic (19%)
     - Report workflow: `create_report`, `submit_report`, `validate_report`,
       `invalidate_report`, `ack_report`, `close_report`
-- ⚠️ 30/36 handlers are stubs (log at DEBUG, no side effects)
+    - Special handlers: `unknown` (handles unrecognized semantic types)
+- ⚠️ 29/36 handlers are stubs (log at DEBUG, no side effects)
 - ✅ All handlers follow protocol: decorator, signature, registration
 - ✅ Infrastructure complete: semantic extraction, dispatcher, data layer, inbox
   endpoint
+- ✅ Demo script complete: Three working workflows demonstrating report lifecycle
 
 **Design for Prototype Implementation**:
 
@@ -592,24 +594,90 @@ def validate_report(dispatchable: DispatchActivity) -> None:
 
 **Goal**: Demonstrate BT execution from a single handler using py_trees
 
-**Scope**: Report submission or validation flow with end-to-end BT execution
+**Scope**: Report validation workflow with end-to-end BT execution paralleling `scripts/receive_report_demo.py`
+
+**Key Reference Documents**:
+
+- Process documentation (ActivityStreams): `docs/howto/activitypub/activities/report_vulnerability.md`
+- BT design (simulation): 
+  - `docs/topics/behavior_logic/rm_bt.md` - Report Management state machine
+  - `docs/topics/behavior_logic/rm_validation_bt.md` - Validation behavior tree
+  - `docs/topics/behavior_logic/reporting_bt.md` - Reporting process overview
+  - `docs/topics/behavior_logic/msg_rm_bt.md` - RM message handling
+- Existing simulation code: `vultron/bt/report_management/_behaviors/validate_report.py`
+- Current handler: `vultron/api/v2/backend/handlers.py:validate_report`
 
 **Key Objectives**:
 
-- Set up `vultron/behaviors/` directory with py_trees dependency
-- Create execution bridge for handler-to-BT invocation
-- Implement one complete workflow as py_trees behavior tree
-- Integrate with existing DataLayer for state persistence
-- Validate approach with existing test suite (no regressions)
+1. Set up `vultron/behaviors/` directory with py_trees dependency
+2. Create execution bridge for handler-to-BT invocation
+3. Implement report validation workflow as py_trees behavior tree:
+   - Convert fuzzer nodes to deterministic policy nodes
+   - Integrate with DataLayer for state persistence
+   - Handle VulnerabilityCase and CaseActor creation
+4. Create new demo script (`scripts/receive_report_bt_demo.py`) mirroring existing demo
+5. Add Docker Compose service for BT demo (parallel to `receive-report-demo`)
+6. Validate approach with existing test suite (no regressions)
+
+**Demonstration Workflows** (matching current demo):
+
+The Phase 1 POC must demonstrate all three report lifecycle workflows:
+
+1. **Accept Workflow**: 
+   - Submit report (Offer VulnerabilityReport)
+   - Validate report (Accept Offer → transition RM to VALID)
+   - Create VulnerabilityCase
+   - Create CaseActor (ActivityStreams Service)
+   - Add originator and receiver as CaseParticipants
+   - Add CreateCase activity to actor outbox
+
+2. **Invalidate Workflow**:
+   - Submit report (Offer VulnerabilityReport)
+   - Invalidate report (TentativeReject Offer → transition RM to INVALID)
+   - Log decision with audit trail
+
+3. **Reject and Close Workflow**:
+   - Submit report (Offer VulnerabilityReport)
+   - Invalidate report (TentativeReject Offer)
+   - Close report (Reject Offer → transition RM to CLOSED)
+
+**CaseActor Requirements**:
+
+The CaseActor creation workflow must:
+
+- Create ActivityStreams Service object with case context
+- Assign unique ID (e.g., `urn:vultron:case:actor:{case_id}`)
+- Add CaseActor to organization's actor registry (for message routing)
+- Add CaseActor as CaseParticipant in VulnerabilityCase
+- Enable CaseActor to receive case-related messages (e.g., AddReportToCase)
+- Log CaseActor creation at INFO level
+
+**BT Execution Logging**:
+
+All BT executions must log:
+
+- Tree invocation (INFO): Handler name, semantic type, activity ID
+- Node execution (DEBUG): Node name, status (SUCCESS/FAILURE/RUNNING)
+- State transitions (INFO): Before/after states with clear description
+- Policy decisions (INFO): Credibility evaluation, validity evaluation results
+- DataLayer operations (DEBUG): Create/update/read operations
+- Errors (ERROR): Exception details, activity context, recovery actions
 
 **Success Criteria**:
 
 - One handler successfully triggers py_trees-based BT
+- All three demo workflows complete successfully
 - State transitions persist to DataLayer
+- VulnerabilityCase and CaseActor creation working
 - Test suite passes without regressions
-- Performance acceptable for proof-of-concept
+- Performance acceptable for proof-of-concept (P99 < 200ms for POC)
+- BT execution visible in logs for debugging
 
-**Deliverable**: Working proof-of-concept demonstrating feasibility
+**Deliverable**: 
+
+- Working proof-of-concept demonstrating feasibility
+- New demo script and Docker Compose service
+- Documentation of lessons learned for Phase 2 planning
 
 ---
 
@@ -635,6 +703,339 @@ def validate_report(dispatchable: DispatchActivity) -> None:
 - No test regressions
 
 **Deliverable**: Complete RM message processing via behavior trees
+
+---
+
+## Phase 1 Implementation Guide
+
+This section provides concrete guidance for Phase 1 POC development based on analysis of existing code and requirements.
+
+### Starting Point: Direct py_trees Implementation
+
+**Recommended Approach**: Implement prototype behavior trees directly using py_trees classes, using simulation trees as architectural reference.
+
+**Rationale**:
+- Fastest path to working POC (no abstraction layer development)
+- Validates BT integration value before optimizing for code reuse
+- Allows Phase 1 team to learn py_trees APIs through direct use
+- Simulation trees provide clear design template for composition
+
+**Implementation Pattern**:
+
+1. **Study Simulation Tree**: Read corresponding tree in `vultron/bt/report_management/_behaviors/`
+2. **Identify Structure**: Note sequence/fallback composition and preconditions
+3. **Create py_trees Composite**: Use `py_trees.composites.Sequence` or `Selector` (fallback)
+4. **Implement Child Behaviors**: Create `py_trees.behaviour.Behaviour` subclasses for conditions and actions
+5. **Wire to DataLayer**: Access persistent state via blackboard-wrapped DataLayer
+6. **Add Logging**: Log at appropriate levels per structured logging requirements
+7. **Test Incrementally**: Unit test each behavior, integration test full tree
+
+### Behavior Tree Node Types for Phase 1
+
+**Condition Nodes** (check state, return SUCCESS/FAILURE):
+
+```python
+import py_trees
+
+class CheckRMStateValid(py_trees.behaviour.Behaviour):
+    """Check if report management state is VALID."""
+    
+    def __init__(self, actor_id: str, report_id: str, datalayer: DataLayer):
+        super().__init__(name="CheckRMStateValid")
+        self.actor_id = actor_id
+        self.report_id = report_id
+        self.datalayer = datalayer
+    
+    def update(self) -> py_trees.common.Status:
+        # Read report from data layer
+        report = self.datalayer.read(self.report_id)
+        
+        if report and report.status == ReportStatus.VALID:
+            self.logger.debug(f"Report {self.report_id} is VALID")
+            return py_trees.common.Status.SUCCESS
+        else:
+            self.logger.debug(f"Report {self.report_id} is not VALID")
+            return py_trees.common.Status.FAILURE
+```
+
+**Action Nodes** (modify state, return SUCCESS/FAILURE):
+
+```python
+class TransitionRMtoValid(py_trees.behaviour.Behaviour):
+    """Transition report management state to VALID."""
+    
+    def __init__(self, actor_id: str, report_id: str, offer_id: str, datalayer: DataLayer):
+        super().__init__(name="TransitionRMtoValid")
+        self.actor_id = actor_id
+        self.report_id = report_id
+        self.offer_id = offer_id
+        self.datalayer = datalayer
+    
+    def update(self) -> py_trees.common.Status:
+        try:
+            # Read report and offer
+            report = self.datalayer.read(self.report_id)
+            offer = self.datalayer.read(self.offer_id)
+            
+            # Update statuses
+            old_report_status = report.status
+            report.status = ReportStatus.VALID
+            offer.status = OfferStatus.ACCEPTED
+            
+            # Persist changes
+            self.datalayer.update(report.as_id, object_to_record(report))
+            self.datalayer.update(offer.as_id, object_to_record(offer))
+            
+            self.logger.info(
+                f"Report {self.report_id} transitioned from {old_report_status} to VALID"
+            )
+            return py_trees.common.Status.SUCCESS
+            
+        except Exception as e:
+            self.logger.error(f"Failed to transition report to VALID: {e}")
+            return py_trees.common.Status.FAILURE
+```
+
+**Policy Nodes** (configurable decision logic):
+
+```python
+class EvaluateReportCredibility(py_trees.behaviour.Behaviour):
+    """Evaluate report credibility using organizational policy."""
+    
+    def __init__(self, report_id: str, datalayer: DataLayer, policy: ReportValidationPolicy):
+        super().__init__(name="EvaluateReportCredibility")
+        self.report_id = report_id
+        self.datalayer = datalayer
+        self.policy = policy
+    
+    def update(self) -> py_trees.common.Status:
+        report = self.datalayer.read(self.report_id)
+        
+        if self.policy.is_credible(report):
+            self.logger.info(f"Report {self.report_id} evaluated as credible")
+            return py_trees.common.Status.SUCCESS
+        else:
+            self.logger.warning(f"Report {self.report_id} evaluated as not credible")
+            return py_trees.common.Status.FAILURE
+```
+
+**Default Policy Implementation** (for Phase 1):
+
+```python
+class AlwaysAcceptPolicy:
+    """Default policy that accepts all reports (prototype simplification)."""
+    
+    def is_credible(self, report: VulnerabilityReport) -> bool:
+        logger.info(f"Policy: Accepting report {report.as_id} as credible (default policy)")
+        return True
+    
+    def is_valid(self, report: VulnerabilityReport) -> bool:
+        logger.info(f"Policy: Accepting report {report.as_id} as valid (default policy)")
+        return True
+```
+
+### Composite Tree Example
+
+```python
+class ValidateReportBT(py_trees.composites.Selector):
+    """
+    Behavior tree for report validation workflow.
+    
+    Based on: vultron/bt/report_management/_behaviors/validate_report.py:RMValidateBt
+    
+    Structure:
+    - Fallback (Selector) over:
+      1. Already valid? (short-circuit success)
+      2. Validation sequence: evaluate credibility, evaluate validity, transition to VALID
+      3. Invalidation fallback: transition to INVALID if validation fails
+    """
+    
+    def __init__(self, actor_id: str, report_id: str, offer_id: str, 
+                 datalayer: DataLayer, policy: ReportValidationPolicy):
+        
+        # Create child behaviors
+        check_already_valid = CheckRMStateValid(actor_id, report_id, datalayer)
+        
+        validation_sequence = py_trees.composites.Sequence(
+            name="ValidationSequence",
+            children=[
+                CheckRMStateReceivedOrInvalid(actor_id, report_id, datalayer),
+                EvaluateReportCredibility(report_id, datalayer, policy),
+                EvaluateReportValidity(report_id, datalayer, policy),
+                TransitionRMtoValid(actor_id, report_id, offer_id, datalayer),
+            ]
+        )
+        
+        invalidation_sequence = py_trees.composites.Sequence(
+            name="InvalidationSequence",
+            children=[
+                TransitionRMtoInvalid(actor_id, report_id, offer_id, datalayer),
+            ]
+        )
+        
+        # Initialize selector (fallback) with children
+        super().__init__(
+            name="ValidateReportBT",
+            children=[
+                check_already_valid,
+                validation_sequence,
+                invalidation_sequence,
+            ]
+        )
+```
+
+### Handler Integration Pattern
+
+```python
+@verify_semantics(MessageSemantics.VALIDATE_REPORT)
+def validate_report(dispatchable: DispatchActivity) -> None:
+    """
+    Process a ValidateReport activity (Accept(Offer(VulnerabilityReport))).
+    
+    Uses behavior tree execution for business logic.
+    """
+    activity = dispatchable.payload
+    
+    # Extract context
+    actor_id = activity.actor
+    offer = activity.as_object  # Accept's object is the Offer
+    report = offer.as_object    # Offer's object is the VulnerabilityReport
+    
+    logger.info(f"Actor '{actor_id}' validating report '{report.as_id}' via BT")
+    
+    # Get data layer
+    dl = get_datalayer()
+    
+    # Create policy (default for Phase 1)
+    policy = AlwaysAcceptPolicy()
+    
+    # Instantiate behavior tree
+    bt = ValidateReportBT(
+        actor_id=actor_id,
+        report_id=report.as_id,
+        offer_id=offer.as_id,
+        datalayer=dl,
+        policy=policy,
+    )
+    
+    # Execute tree (single-shot)
+    bt.setup_with_descendants()
+    final_status = bt.tick_once()
+    
+    if final_status == py_trees.common.Status.SUCCESS:
+        logger.info(f"Report validation succeeded via BT")
+        
+        # If validation succeeded and created case, handle case actor creation
+        # (This would be in a subtree, but shown here for clarity)
+        # create_case_workflow(actor_id, report, dl)
+        
+    elif final_status == py_trees.common.Status.FAILURE:
+        logger.warning(f"Report validation failed via BT")
+    else:
+        logger.error(f"BT execution incomplete (RUNNING status unexpected)")
+        raise VultronBTExecutionError("BT did not complete")
+```
+
+### DataLayer Integration Pattern
+
+**Option A: Pass DataLayer to Node Constructors** (Recommended for Phase 1)
+
+```python
+# Simple, explicit, no global state
+node = TransitionRMtoValid(actor_id, report_id, offer_id, datalayer=dl)
+```
+
+**Option B: Use py_trees Blackboard for Shared State** (Explore in Phase 1)
+
+```python
+# Blackboard provides shared key-value store across tree
+blackboard = py_trees.blackboard.Client(name="ValidateReportBT")
+blackboard.register_key(key="datalayer", access=py_trees.common.Access.READ)
+blackboard.datalayer = dl
+
+# Nodes access via blackboard
+class TransitionRMtoValid(py_trees.behaviour.Behaviour):
+    def setup(self):
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        self.blackboard.register_key(key="datalayer", access=py_trees.common.Access.READ)
+    
+    def update(self):
+        dl = self.blackboard.datalayer
+        # ... use dl ...
+```
+
+**Recommendation**: Start with Option A (constructor injection) for simplicity; explore Option B if blackboard proves valuable for complex trees.
+
+### Testing Strategy for Phase 1
+
+**1. Unit Tests for Individual Behaviors**:
+
+```python
+def test_check_rm_state_valid_when_valid(datalayer_with_valid_report):
+    """Test condition node returns SUCCESS when report is VALID."""
+    node = CheckRMStateValid("actor1", "report1", datalayer_with_valid_report)
+    node.setup()
+    assert node.update() == py_trees.common.Status.SUCCESS
+
+def test_transition_rm_to_valid_updates_datalayer(datalayer_with_received_report):
+    """Test action node persists state change to data layer."""
+    dl = datalayer_with_received_report
+    node = TransitionRMtoValid("actor1", "report1", "offer1", dl)
+    node.setup()
+    
+    status = node.update()
+    
+    assert status == py_trees.common.Status.SUCCESS
+    report = dl.read("report1")
+    assert report.status == ReportStatus.VALID
+```
+
+**2. Integration Tests for Full Trees**:
+
+```python
+def test_validate_report_bt_accepts_valid_report(datalayer_with_received_report):
+    """Test full validation BT successfully accepts report."""
+    dl = datalayer_with_received_report
+    policy = AlwaysAcceptPolicy()
+    
+    bt = ValidateReportBT("actor1", "report1", "offer1", dl, policy)
+    bt.setup_with_descendants()
+    
+    final_status = bt.tick_once()
+    
+    assert final_status == py_trees.common.Status.SUCCESS
+    assert dl.read("report1").status == ReportStatus.VALID
+    assert dl.read("offer1").status == OfferStatus.ACCEPTED
+```
+
+**3. Handler Integration Tests**:
+
+```python
+def test_validate_report_handler_with_bt(client_with_report):
+    """Test handler successfully invokes BT and persists changes."""
+    # Setup: Create report and offer in datalayer
+    # Action: POST activity to inbox
+    # Assert: Report status updated, case created, outbox contains CreateCase
+```
+
+### Phase 1 Checklist
+
+- [ ] Install py_trees dependency (`pip install py_trees`)
+- [ ] Create `vultron/behaviors/` directory
+- [ ] Implement condition nodes (CheckRMState*)
+- [ ] Implement action nodes (TransitionRMto*, CreateCase, etc.)
+- [ ] Implement policy nodes (EvaluateReportCredibility, EvaluateReportValidity)
+- [ ] Implement composite tree (ValidateReportBT)
+- [ ] Modify validate_report handler to invoke BT
+- [ ] Write unit tests for all nodes
+- [ ] Write integration test for full tree
+- [ ] Write handler integration test
+- [ ] Create receive_report_bt_demo.py script
+- [ ] Add Docker Compose service for BT demo
+- [ ] Run all three demo workflows (accept, invalidate, reject+close)
+- [ ] Verify no regressions in existing test suite
+- [ ] Measure performance (establish baseline)
+- [ ] Document lessons learned
 
 ---
 
@@ -1082,17 +1483,47 @@ ActivityStreams models
 
 ### Risk 2: Factory Method Reuse Infeasibility
 
-**Risk**: Existing simulation BT structures may not map cleanly to py_trees
+**Risk**: Existing simulation BT structures may not map cleanly to py_trees due to API differences
+
+**Context**: 
+
+- Simulation uses custom BT engine with factory methods (`sequence_node()`, `fallback_node()`)
+- py_trees uses class-based node hierarchy (`py_trees.composites.Sequence`, `py_trees.composites.Selector`)
+- Factory method signatures and return types differ between engines
+- Node initialization patterns incompatible (custom uses class types, py_trees uses instances)
 
 **Mitigation**:
 
 - Document intent in ADR-0004 but don't force reuse
-- Phase 1 explores feasibility; proceed with fresh implementation if needed
-- Focus on matching *semantics* (process flow) rather than *code* (
-  implementation)
+- Phase 1 focuses on direct py_trees implementation (fastest path to working POC)
+- Use simulation trees as *design reference* only:
+  - Match composition hierarchy (sequence/fallback structure)
+  - Preserve semantic intent (preconditions, actions, state transitions)
+  - Translate fuzzer nodes to policy nodes with explicit logic
+- Explore factory compatibility only if time permits after core POC working
 
-**Fallback Strategy**: Implement new trees directly in py_trees, using
-simulation trees as design reference only
+**Fallback Strategy**: 
+
+Implement new trees directly in py_trees, documenting correspondence to simulation trees in comments:
+
+```python
+class ValidateReportBT(py_trees.composites.Selector):
+    """
+    Behavior tree for report validation workflow.
+    
+    Based on simulation tree: vultron/bt/report_management/_behaviors/validate_report.py:RMValidateBt
+    Adapted for prototype execution with py_trees.
+    """
+    def __init__(self, blackboard):
+        # Mirrors simulation structure: fallback over (already valid, validation sequence, invalidation)
+        children = [...]
+```
+
+**Decision Criteria**:
+
+- ✅ **Accept**: Direct py_trees implementation sufficient for Phase 1 POC
+- ⚠️ **Explore**: If Phase 2 shows extensive duplication, revisit factory abstraction
+- ❌ **Reject**: Don't block Phase 1 on factory method compatibility
 
 ### Risk 3: Over-Engineering for Prototype
 
@@ -1437,9 +1868,16 @@ handler system:
 ---
 
 **Document Status**: REFINED (2026-02-18)  
-**Refinement Summary**: Clarified prototype context; replaced "production"
-terminology; added risk mitigation strategies; expanded policy node pattern;
-improved example code; added relationship to existing specs  
+**Refinement Summary**: 
+- Clarified prototype context (replaced "production" terminology)
+- Added comprehensive Phase 1 implementation guide with concrete py_trees examples
+- Updated handler completion status (7/36, not 6/36)
+- Expanded factory method reuse discussion with API compatibility analysis
+- Added detailed simulation-to-prototype translation strategy
+- Included node type examples (condition, action, policy) with code
+- Added testing patterns and Phase 1 checklist
+- Improved risk mitigation strategies with decision criteria
+- Added concrete guidance on DataLayer integration options
 **Purpose**: Design intent and architectural guidance (not detailed
 implementation specification)  
 **Next Step**: Review with maintainers, then create detailed Phase 1
