@@ -162,16 +162,15 @@ This phase implements a proof-of-concept for BT integration by refactoring one c
 
 #### BT-1.2: DataLayer-Aware BT Nodes
 
-- [ ] **BT-1.2.1**: Create DataLayer helper nodes
-  - Create `vultron/behaviors/helpers.py`
-  - Implement base classes:
+- [x] **BT-1.2.1**: Create DataLayer helper nodes
+  - Created `vultron/behaviors/helpers.py` with base classes and common nodes:
     - `DataLayerCondition(py_trees.behaviour.Behaviour)`: Check state from DataLayer
     - `DataLayerAction(py_trees.behaviour.Behaviour)`: Modify state in DataLayer
-  - Implement common nodes:
-    - `ReadObject(actor_id, object_id, datalayer)`
-    - `UpdateObject(actor_id, object_id, updates, datalayer)`
-    - `CreateObject(actor_id, object_data, datalayer)`
-  - Unit tests in `test/behaviors/test_helpers.py`
+    - `ReadObject(table, object_id)`: Read object from DataLayer and store in blackboard
+    - `UpdateObject(object_id, updates)`: Update object in DataLayer with new values
+    - `CreateObject(table, object_data)`: Create new object in DataLayer
+  - Comprehensive unit tests in `test/behaviors/test_helpers.py` (18 tests, all passing)
+  - All 412 tests passing (including new BT tests)
 
 #### BT-1.3: Report Validation BT Implementation
 

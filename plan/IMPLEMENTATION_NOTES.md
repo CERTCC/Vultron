@@ -6,6 +6,65 @@ This file tracks insights, issues, and learnings during implementation.
 
 ---
 
+## 2026-02-18: BT-1.2.1 - Created DataLayer helper nodes
+
+### Task: Implement DataLayer-aware BT helper nodes
+
+**Status**: COMPLETE
+
+**Changes**:
+- Created `vultron/behaviors/helpers.py` with base classes and common CRUD nodes
+- Created `test/behaviors/test_helpers.py` with comprehensive test coverage (18 tests)
+- Implemented per specs/behavior-tree-integration.md requirements:
+  - BT-07-001: BT nodes interact with DataLayer via Protocol interface ✅
+  - BT-07-002: BT nodes use type-safe DataLayer wrappers ✅
+  - BT-07-003: State transitions logged via DataLayer integration helpers ✅
+
+**Implementation Details**:
+- **Base classes**:
+  - `DataLayerCondition`: Abstract base for condition nodes (check state, no side effects)
+  - `DataLayerAction`: Abstract base for action nodes (modify state, side effects)
+  - Both provide automatic blackboard setup for `datalayer` and `actor_id` access
+- **Common CRUD nodes**:
+  - `ReadObject(table, object_id)`: Read from DataLayer, store in blackboard
+  - `UpdateObject(object_id, updates)`: Update object (requires prior ReadObject)
+  - `CreateObject(table, object_data)`: Create new object in DataLayer
+- **Blackboard key handling**:
+  - py_trees blackboard keys cannot contain slashes (URL paths cause parsing errors)
+  - Solution: Use simplified keys like `object_{last_path_segment}` instead of full URLs
+  - Example: `https://example.org/objects/test-123` → blackboard key `object_test-123`
+- **Record format handling**:
+  - DataLayer `get()` returns dict with `{id_, type_, data_}` structure
+  - Helper nodes handle both Record dicts and plain data dicts
+  - `UpdateObject` merges updates into `data_` field when present
+
+**Key Learning: py_trees Blackboard Key Restrictions**:
+- Blackboard keys are parsed as hierarchical paths
+- Keys with slashes like `/https://example` cause "does not have read/write access" errors
+- Always use simple, alphanumeric keys with underscores/hyphens only
+- For object IDs (which are URLs), extract last path segment: `url.split('/')[-1]`
+
+**Verification**:
+- All 18 helper node tests passing
+- Full test suite: 412 tests passing (no regressions)
+- Test coverage includes:
+  - Base class setup and blackboard access
+  - CRUD operations (create, read, update)
+  - Custom node names
+  - Error handling (DataLayer unavailable, object not found)
+  - Full CRUD workflow integration test
+  - Actor isolation
+
+**Notes**:
+- Helper nodes follow Protocol-based design (duck typing, not inheritance)
+- Nodes access DataLayer and actor_id from blackboard (set by BTBridge)
+- Logging at appropriate levels (DEBUG for reads, INFO for writes, ERROR for failures)
+- Ready for Phase BT-1.3: Report validation BT nodes
+
+**Next Step**: BT-1.3.1 - Analyze existing `validate_report` handler
+
+---
+
 ## 2026-02-18: BT-1.1.3 - Implemented BT bridge layer
 
 ### Task: Implement behavior tree bridge layer for handler-to-BT execution
