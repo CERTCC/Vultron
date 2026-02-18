@@ -866,3 +866,12 @@ To run the demo server:
 ```bash
 uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
 ```
+
+## Miscellaneous tips
+
+Do not use `black` to format markdown files, it is for python files only.
+Use `markdownlint-cli2` for linting markdown instead:
+
+```bash
+markdownlint-cli2 AGENTS.md specs/ docs/ --fix
+```

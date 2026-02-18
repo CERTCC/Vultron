@@ -6,6 +6,69 @@ This file tracks insights, issues, and learnings during implementation.
 
 ---
 
+## 2026-02-18: BT-1.3.1 - Analyzed validate_report handler
+
+### Task: Document procedural logic flow for BT implementation
+
+**Status**: COMPLETE
+
+**Changes**:
+- Created comprehensive analysis document in session workspace: `validate_report_analysis.md`
+- Documented step-by-step procedural flow (6 phases: rehydration, status updates, case creation, addressee collection, activity generation, outbox update)
+- Identified decision points and potential condition nodes for BT implementation
+- Compared procedural handler against simulation BT structure (`vultron/bt/report_management/_behaviors/validate_report.py`)
+- Mapped proposed BT implementation strategy (Phase 1: minimal match, Phase 2: policy evaluation)
+
+**Key Findings**:
+
+1. **Current Handler Simplifications**:
+   - No precondition checks on report state (assumes valid input)
+   - No credibility/validity evaluation (implicitly always accepts)
+   - Relies on DataLayer duplicate detection for idempotency
+   - No early exit optimization
+
+2. **Simulation BT vs. Procedural Handler**:
+   - Simulation has explicit precondition checks (`RMinStateReceivedOrInvalid`)
+   - Simulation has policy nodes (`EvaluateReportCredibility`, `EvaluateReportValidity`)
+   - Simulation has fallback invalidation path (`_InvalidateReport`)
+   - Simulation has information gathering loop (`_HandleRmI`)
+   - Procedural handler integrates case creation (not in simulation)
+
+3. **Proposed BT Structure** (Phase 1 - Minimal):
+   ```
+   ValidateReportBT (Sequence)
+   ├─ ReadObject(...)                    # Rehydration (4 objects)
+   ├─ CheckRMStateValid(...)             # Optional early exit
+   ├─ TransitionRMtoValid(...)           # Status updates
+   ├─ CreateCase(...)                    # Case creation
+   ├─ CreateCaseActivity(...)            # Activity generation
+   └─ UpdateActorOutbox(...)             # Outbox update
+   ```
+
+4. **DataLayer Access Pattern**:
+   - Current: Handler calls `get_datalayer()` directly
+   - BT: DataLayer injected via blackboard by `BTBridge` (from Phase BT-1.1)
+
+5. **Required Nodes** (Phase BT-1.3.2):
+   - Condition: `CheckRMStateValid`, `CheckRMStateReceivedOrInvalid`
+   - Action: `TransitionRMtoValid`, `CreateCase`, `CreateCaseActivity`, `UpdateActorOutbox`
+   - Policy: `EvaluateReportCredibility`, `EvaluateReportValidity` (stubs for Phase 1)
+
+**Cross-References**:
+- Analysis document: `/Users/adh/.copilot/session-state/669dec54-6467-4768-898d-72612c8242e1/files/validate_report_analysis.md`
+- Current handler: `vultron/api/v2/backend/handlers.py::validate_report()`
+- Simulation BT: `vultron/bt/report_management/_behaviors/validate_report.py`
+- Spec: `specs/behavior-tree-integration.md`
+
+**Verification**:
+- All 412 tests still passing
+- Analysis document created with detailed flow diagrams and comparison tables
+- Ready for Phase BT-1.3.2: Implement report validation BT nodes
+
+**Next Step**: BT-1.3.2 - Implement report validation BT nodes in `vultron/behaviors/report/nodes.py`
+
+---
+
 ## 2026-02-18: BT-1.2.1 - Created DataLayer helper nodes
 
 ### Task: Implement DataLayer-aware BT helper nodes
