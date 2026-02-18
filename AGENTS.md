@@ -291,7 +291,7 @@ When implementing features, consult relevant specs for complete requirements and
 
 ## Current Implementation Status
 
-**Last Updated**: 2026-02-17 (via LEARN_prompt.md design review)
+**Last Updated**: 2026-02-18 (LEARN_prompt design review)
 
 ### ✅ Completed Infrastructure
 
@@ -301,11 +301,13 @@ When implementing features, consult relevant specs for complete requirements and
 - Error hierarchy (`VultronError` → `VultronApiError` → specific errors)
 - TinyDB data layer implementation
 - Inbox endpoint with BackgroundTasks
-- All 47 `MessageSemantics` enum values defined (36 patterns, 11 UNKNOWN/reserved)
+- All 36 `MessageSemantics` enum values defined
+- 36 handler functions registered in `SEMANTIC_HANDLER_MAP`
 - Registry infrastructure (`SEMANTIC_HANDLER_MAP`, `SEMANTICS_ACTIVITY_PATTERNS`)
 - Rehydration system for expanding URI references to full objects
-- **Test Suite**: 367 tests passing (per IMPLEMENTATION_NOTES.md 2026-02-17)
+- **Test Suite**: 378 tests passing (per IMPLEMENTATION_NOTES.md 2026-02-17)
 - **Demo**: `scripts/receive_report_demo.py` demonstrates 3 complete workflows
+- **Docker Infrastructure**: Health checks, service coordination, demo container
 
 ### ✅ Report Handlers Complete (6/36 handlers - 17%)
 
@@ -324,12 +326,13 @@ The following report workflow handlers have full business logic:
 
 **Handler Count Clarification**:
 
-- 47 `MessageSemantics` enum values total
-- 36 have handler stubs/implementations (11 are UNKNOWN/reserved for future use)
+- 36 `MessageSemantics` enum values total (including UNKNOWN)
+- 36 handler functions registered in `SEMANTIC_HANDLER_MAP`
 - 6 handlers have complete business logic (report workflow)
-- 30 handlers remain as stubs (case management, embargo, participants, metadata)
+- 1 handler for UNKNOWN activities (logs at WARNING level)
+- 29 handlers remain as stubs (case management, embargo, participants, metadata)
 
-### ⚠️ Stub Implementations Requiring Business Logic (41 handlers)
+### ⚠️ Stub Implementations Requiring Business Logic (29 handlers)
 
 Remaining handlers in `vultron/api/v2/backend/handlers.py` are stubs that:
 
@@ -339,11 +342,15 @@ Remaining handlers in `vultron/api/v2/backend/handlers.py` are stubs that:
 
 **Categories needing implementation**:
 
-- Case management (11): `create_case`, `read_case`, `update_case`, `add_report_to_case`, `suggest_actor_to_case`, ownership transfer, etc.
-- Actor invitations (6): `invite/accept/reject_invite_actor_to_case`, `invite/accept/reject_invite_actor_to_embargo`
-- Embargo management (12): `create_embargo_event`, `read/update/close_embargo_event`, embargo invitations, participant management, etc.
-- Participants & metadata (7): case participants, notes, status tracking, remove operations
-- Case lifecycle (5): `close_case`, `reopen_case`, case status tracking
+- Case management (8): `create_case`, `add_report_to_case`, `close_case`, 
+  participant management, etc.
+- Actor suggestions (6): `suggest/accept/reject_suggest_actor_to_case`, 
+  ownership transfers, etc.
+- Actor invitations (6): `invite/accept/reject_invite_actor_to_case`, 
+  `invite/accept/reject_invite_to_embargo_on_case`
+- Embargo management (7): `create_embargo_event`, 
+  `add/remove/announce_embargo_event_to_case`, etc.
+- Metadata (2): case notes, status objects
 
 When implementing handler business logic:
 
@@ -410,7 +417,37 @@ From recent implementation work (2026-02-13), critical patterns to follow:
 - Pattern matching code should still handle strings defensively (`getattr(field, "as_type", None)`)
 - See `specs/semantic-extraction.md` SE-01-002 for requirements
 
-These lessons are documented in `plan/IMPLEMENTATION_NOTES.md` with full context and debugging details.
+These lessons are documented in `plan/IMPLEMENTATION_NOTES.md` with full context
+and debugging details.
+
+**6. Docker Service Health Checks and Coordination**
+
+From Docker implementation work (2026-02-17):
+
+- **Health check retry logic**: Always implement retry logic when coordinating
+  service startup, even with Docker health checks (defense in depth)
+- **Environment variable consistency**: docker-compose.yml and .env must use
+  matching variable names (e.g., both need PROJECT_NAME)
+- **Image rebuilds after Dockerfile changes**: After adding packages (like
+  curl), rebuild images with `--no-cache` to pick up changes
+- **Service dependencies**: Use `depends_on: condition: service_healthy` not
+  just `service_started`
+- **Network configuration**: Services on same Docker network communicate via
+  service name as hostname (e.g., `http://api-dev:7999`)
+- **Health check commands**: Ensure required tools (curl, wget) are available
+  in container PATH
+
+**7. FastAPI Response Serialization**
+
+- **Issue**: Return type annotations act as implicit `response_model`,
+  restricting JSON serialization
+- **Anti-pattern**: `def get_object() -> as_Base:` returns only base class
+  fields, even when returning subclasses
+- **Solution**: Omit return type annotations for polymorphic endpoints or use
+  explicit Union types
+- **Verification**: Test API responses include all expected fields, not just
+  base class fields
+- See `specs/http-protocol.md` HP-07-001 for details
 
 ---
 
@@ -721,6 +758,48 @@ dispatchable = DispatchActivity(semantic_type=MessageSemantics.CREATE_REPORT, ..
 ```
 
 See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
+
+### Docker Health Check Coordination
+
+**Symptom**: Demo container fails to connect to API server with
+"Connection refused" despite both containers running
+
+**Cause**: Docker Compose `depends_on: service_started` only waits for
+container start, not application readiness
+
+**Solutions**:
+
+1. Add health check to API service in docker-compose.yml:
+   ```yaml
+   api-dev:
+     healthcheck:
+       test: ["CMD", "curl", "-f", "http://localhost:7999/health/live"]
+       interval: 2s
+       timeout: 5s
+       retries: 15
+   ```
+2. Update dependent service to use `condition: service_healthy`:
+   ```yaml
+   demo:
+     depends_on:
+       api-dev:
+         condition: service_healthy
+   ```
+3. Implement retry logic in client code (defense in depth):
+   ```python
+   def check_server_availability(url, max_retries=30, retry_delay=1.0):
+       for attempt in range(max_retries):
+           try:
+               response = requests.get(url, timeout=2)
+               if response.ok:
+                   return True
+           except RequestException:
+               if attempt < max_retries - 1:
+                   time.sleep(retry_delay)
+       return False
+   ```
+
+See `plan/IMPLEMENTATION_NOTES.md` Docker sections for complete context.
 
 ### FastAPI response_model Filtering
 
