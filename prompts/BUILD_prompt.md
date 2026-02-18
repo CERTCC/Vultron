@@ -1,4 +1,4 @@
-1. Study specs/*
+1. Study specs/*.md (hint: start with specs/README.md) to learn the application specifications.
 2. Study plan/IMPLEMENTATION_PLAN.md and plan/IMPLEMENTATION_NOTES.md to understand the current progress and any notes.
 3. Pick the most important unchecked task.
 4. Search the codebase before making changes ("don't assume not implemented").
