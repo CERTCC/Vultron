@@ -338,6 +338,12 @@ def test_create_case_activity_missing_case_id(datalayer, actor, report, offer):
     """CreateCaseActivity fails if case_id not in blackboard."""
     node = CreateCaseActivity(report_id=report.as_id, offer_id=offer.as_id)
     setup_node_blackboard(node, datalayer, actor.as_id)
+    # Register case_id with WRITE access for testing
+    node.blackboard.register_key(
+        key="case_id", access=py_trees.common.Access.WRITE
+    )
+    # Explicitly set case_id to None to test error handling
+    node.blackboard.set("case_id", None, overwrite=True)
 
     result = node.update()
     assert result == Status.FAILURE
@@ -375,6 +381,12 @@ def test_update_actor_outbox_missing_activity_id(datalayer, actor):
     """UpdateActorOutbox fails if activity_id not in blackboard."""
     node = UpdateActorOutbox()
     setup_node_blackboard(node, datalayer, actor.as_id)
+    # Register activity_id with WRITE access for testing
+    node.blackboard.register_key(
+        key="activity_id", access=py_trees.common.Access.WRITE
+    )
+    # Explicitly set activity_id to None to test error handling
+    node.blackboard.set("activity_id", None, overwrite=True)
 
     result = node.update()
     assert result == Status.FAILURE

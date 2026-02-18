@@ -414,6 +414,14 @@ class CreateCaseActivity(DataLayerAction):
         self.report_id = report_id
         self.offer_id = offer_id
 
+    def setup(self, **kwargs: Any) -> None:
+        """Set up blackboard access including case_id key."""
+        super().setup(**kwargs)
+        # Register READ access to case_id (set by CreateCaseNode)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
     def update(self) -> Status:
         """
         Create CreateCase activity and persist to DataLayer.
@@ -512,6 +520,14 @@ class UpdateActorOutbox(DataLayerAction):
             name: Optional custom node name (defaults to class name)
         """
         super().__init__(name=name or self.__class__.__name__)
+
+    def setup(self, **kwargs: Any) -> None:
+        """Set up blackboard access including activity_id key."""
+        super().setup(**kwargs)
+        # Register READ access to activity_id (set by CreateCaseActivity)
+        self.blackboard.register_key(
+            key="activity_id", access=py_trees.common.Access.READ
+        )
 
     def update(self) -> Status:
         """

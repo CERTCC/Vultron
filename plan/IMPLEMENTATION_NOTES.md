@@ -6,6 +6,109 @@ This file tracks insights, issues, and learnings during implementation.
 
 ---
 
+## 2026-02-18: BT-1.3.3 - Composed validation behavior tree
+
+### Task: Compose validation behavior tree
+
+**Status**: COMPLETE
+
+**Changes**:
+- Created `vultron/behaviors/report/validate_tree.py` with `create_validate_report_tree()` factory (139 lines)
+- Created `test/behaviors/report/test_validate_tree.py` with 12 comprehensive integration tests (502 lines)
+- Fixed blackboard key registration in `CreateCaseActivity` and `UpdateActorOutbox` nodes
+- Updated 2 tests in `test/behaviors/report/test_nodes.py` to handle blackboard key registration
+
+**Tree Structure** (Phase 1 - Minimal Match to Procedural Handler):
+
+```
+ValidateReportBT (Selector)
+├─ CheckRMStateValid                 # Early exit if already valid
+└─ ValidationFlow (Sequence)
+   ├─ CheckRMStateReceivedOrInvalid  # Precondition check
+   ├─ EvaluateReportCredibility      # Policy check (stub)
+   ├─ EvaluateReportValidity         # Policy check (stub)
+   └─ ValidationActions (Sequence)
+      ├─ TransitionRMtoValid         # Update statuses
+      ├─ CreateCaseNode              # Create case object
+      ├─ CreateCaseActivity          # Generate CreateCase activity
+      └─ UpdateActorOutbox           # Add to outbox
+```
+
+**Key Implementation Details**:
+1. **Factory function pattern**: `create_validate_report_tree()` returns configured root node
+   - Accepts `report_id` and `offer_id` parameters
+   - Returns `py_trees.composites.Selector` root
+   - Composable: Can be used as subtree in larger workflows
+
+2. **Blackboard key passing**:
+   - `CreateCaseNode` writes `case_id` → `CreateCaseActivity` reads it → writes `activity_id` → `UpdateActorOutbox` reads it
+   - Nodes register READ access to keys they consume
+   - Registration in `setup()` method override (not `__init__`)
+
+3. **Selector vs. Sequence at root**:
+   - Selector allows early exit optimization (CheckRMStateValid returns SUCCESS)
+   - Fallback path (invalidation) deferred to Phase 2
+   - Current structure: SUCCESS if valid OR (preconditions met AND validation succeeds)
+
+4. **Phase 1 simplifications** (noted in docstring):
+   - No InvalidateReport fallback sequence
+   - No information gathering loop
+   - Policy nodes always return SUCCESS (stubs)
+   - Direct translation of procedural handler logic
+
+**Test Coverage**:
+- 12 integration tests covering:
+  - Tree creation and structural verification
+  - Execution with various report states (RECEIVED, INVALID, VALID, no status)
+  - Early exit optimization
+  - Policy stub behavior
+  - Error handling (missing DataLayer, actor_id, report)
+  - Idempotency
+  - Actor isolation
+- All tests use proper fixtures (datalayer, bridge, actors, reports, offers)
+- Tests verify both SUCCESS status and side effects (status updates)
+
+**Lessons Learned**:
+
+1. **Blackboard key registration**: Nodes consuming blackboard keys MUST register them in `setup()`
+   - Use READ access for keys written by other nodes
+   - Use WRITE access for keys the node itself writes
+   - Failure to register causes "does not have read/write access" errors
+
+2. **Import corrections during testing**:
+   - Correct: `from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer`
+   - Correct: `from vultron.as_vocab.base.objects.activities.transitive import as_Offer`
+   - Correct: `from vultron.as_vocab.base.objects.actors import as_Service`
+   - Use existing test files as reference for import paths
+
+3. **DataLayer API usage**:
+   - `datalayer.create(obj)` takes single object argument (not table name)
+   - Status layer accessed via `get_status_layer()` (not datalayer)
+   - `set_status(ReportStatus(...))` takes single ObjectStatus argument
+
+4. **BTBridge fixture dependency**:
+   - `BTBridge(datalayer=datalayer)` requires datalayer argument
+   - Bridge fixture depends on datalayer fixture: `def bridge(datalayer): return BTBridge(datalayer=datalayer)`
+
+5. **Test assertions for BTExecutionResult**:
+   - `result.errors` is None (not `[]`) when no errors
+   - Use `assert result.errors is None or result.errors == []` for robustness
+
+6. **Updating existing tests after adding setup() overrides**:
+   - When nodes register blackboard keys in `setup()`, tests expecting FAILURE must explicitly set keys to None
+   - Must register key with WRITE access before calling `.set()`: `node.blackboard.register_key(key="case_id", access=py_trees.common.Access.WRITE)`
+   - Then: `node.blackboard.set("case_id", None, overwrite=True)`
+
+**Verification**:
+- All 442 tests passing (430 base + 12 new)
+- Full test suite: no regressions
+- Black formatting applied (1 file reformatted, 3 unchanged)
+- Integration tests verify tree composition, execution flow, and state transitions
+
+**Next Step**: BT-1.3.4 - Create default policy implementation (or skip to BT-1.4.1 - Refactor validate_report handler)
+
+---
+
 ## 2026-02-18: BT-1.3.2 - Implemented report validation BT nodes
 
 ### Task: Implement report validation BT nodes
