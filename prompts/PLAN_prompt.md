@@ -1,7 +1,7 @@
-1. Study specs/* to learn the application specifications.
-2. Study plan/IMPLEMENTATION_PLAN.md to understand the current progress.
-3. Study vultron/* to understand the codebase.
-4. Study plan/PRIORITIES.md to understand the current priorities for implementation.
+1. Study plan/PRIORITIES.md to understand the current priorities for implementation.
+2. Study specs/* to learn the application specifications.
+3. Study plan/IMPLEMENTATION_PLAN.md to understand the current progress.
+4. Study vultron/* to understand the codebase.
 5. Study test/* to understand existing tests.
 6. Use search tools to compare existing source code against specs/*. Ultrathink to perform a gap analysis.
 7. Update plan/IMPLEMENTATION_PLAN.md with a bulleted list of prioritized tasks.
