@@ -10,15 +10,29 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 
 ## Pattern Matching (MUST)
 
-- `SE-01-001` The system MUST match activities using activity type and object type patterns
-  - Support nested object type matching (e.g., Accept of Offer of VulnerabilityReport)
+- `SE-01-001` The system MUST match activities using activity type and object
+  type patterns
+  - Support nested object type matching (e.g., Accept of Offer of
+    VulnerabilityReport)
   - Evaluate patterns in order of specificity (most specific first)
-- `SE-01-002` The semantic extraction algorithm MUST handle both rehydrated objects and URI strings defensively
-  - **Rehydration timing**: Rehydration occurs *before* semantic extraction in the inbox handler flow (see `inbox_handler.py`)
-  - **Defensive pattern matching**: Pattern matching code uses safe attribute access (`getattr(field, "as_type", None)`) to handle edge cases where rehydration is incomplete
-  - **Rationale**: Rehydration is a separate concern from semantic extraction; extraction must be robust to partial rehydration
-
-**Implementation Note**: The `rehydrate()` function from `vultron/api/v2/data/rehydration.py` expands URI references to full objects. The inbox handler calls this before semantic extraction to ensure nested objects are properly typed.
+- `SE-01-002` The semantic extraction algorithm MUST handle both rehydrated
+  objects and URI strings defensively
+  - **Rehydration timing**: Rehydration occurs *before* semantic extraction in
+    the inbox handler flow (see `inbox_handler.py`)
+  - **Defensive pattern matching**: Pattern matching code uses safe attribute
+    access (`getattr(field, "as_type", None)`) to handle edge cases where
+    rehydration is incomplete
+  - **Rationale**: Rehydration is a separate concern from semantic extraction;
+    extraction must be robust to partial rehydration
+- `SE-01-003` If rehydration fails for any nested object, the system MUST:
+  - Log warning: "Rehydration failed for URI {uri}: {error}"
+  - Return `MessageSemantics.UNKNOWN` from semantic extraction
+  - Delegate to unknown activity handler (logs at WARNING level)
+  
+**Implementation Note**: The `rehydrate()` function from
+`vultron/api/v2/data/rehydration.py` expands URI references to full objects.
+The inbox handler calls this before semantic extraction to ensure nested objects
+are properly typed.
 
 ## Semantic Type Assignment (MUST)
 
@@ -44,13 +58,19 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 
 ## Verification
 
-### SE-01-001, SE-01-002, SE-02-001, SE-02-002 Verification
+### SE-01-001, SE-01-002, SE-01-003, SE-02-001, SE-02-002 Verification
 
-- Unit test: Simple pattern (Create VulnerabilityCase) → MessageSemantics.CREATE_CASE
-- Unit test: Nested pattern (Accept Offer VulnerabilityReport) → MessageSemantics.VALIDATE_REPORT
+- Unit test: Simple pattern (Create VulnerabilityCase) →
+  MessageSemantics.CREATE_CASE
+- Unit test: Nested pattern (Accept Offer VulnerabilityReport) →
+  MessageSemantics.VALIDATE_REPORT
 - Unit test: Most specific pattern matches first (multiple possible matches)
-- Integration test: Verify rehydration occurs before semantic extraction in inbox handler flow
-- Unit test: Pattern matching handles string URIs defensively when rehydration incomplete
+- Integration test: Verify rehydration occurs before semantic extraction in
+  inbox handler flow
+- Unit test: Pattern matching handles string URIs defensively when rehydration
+  incomplete
+- Unit test: Rehydration failure returns MessageSemantics.UNKNOWN
+- Integration test: Unknown activity delegated to unknown handler (WARNING log)
 
 ### SE-03-001, SE-03-002 Verification
 

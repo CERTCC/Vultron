@@ -74,7 +74,7 @@ When an agent proposes a non-trivial architectural change (new persistence parad
 
 This document provides guidance to AI agents working on the Vultron codebase. It supplements the Copilot instructions with implementation-specific advice.
 
-**Last Updated:** 2026-02-13
+**Last Updated:** 2026-02-18
 
 ## Vultron-Specific Architecture
 
@@ -363,15 +363,64 @@ When implementing handler business logic:
 7. Log state transitions at INFO level (not DEBUG)
 8. Handle errors gracefully with appropriate exceptions
 
+### ✅ Behavior Tree Integration Infrastructure (Phase BT-1.1 - BT-1.3.4)
+
+**Status**: Infrastructure complete, handler refactoring in progress
+
+**Completed Components**:
+
+- **py_trees library integrated** (v2.2.0+): Industry-standard BT execution engine
+- **BTBridge** (`vultron/behaviors/bridge.py`): Handler-to-BT execution adapter
+  - Single-shot execution model (no continuous ticking)
+  - Blackboard setup with DataLayer and actor context
+  - Error handling and execution result reporting
+- **DataLayer-aware base nodes** (`vultron/behaviors/helpers.py`):
+  - `DataLayerCondition`: Read-only state checks
+  - `DataLayerAction`: State modification actions
+  - Common CRUD nodes: `ReadObject`, `UpdateObject`, `CreateObject`
+- **Report validation BT** (`vultron/behaviors/report/`):
+  - 10 domain-specific nodes (conditions, actions, policy stubs)
+  - Composed validation tree with early exit optimization
+  - Policy system (`ValidationPolicy`, `AlwaysAcceptPolicy`)
+- **Comprehensive test coverage**: 454 tests passing (78 new BT tests)
+
+**Key Insights from BT Integration**:
+
+1. **py_trees blackboard key restrictions**: Keys cannot contain slashes (URL
+   paths break hierarchical parsing). Use simplified keys like
+   `object_{last_segment}` instead of full URLs.
+2. **Blackboard key registration**: Nodes consuming keys MUST register READ
+   access in `setup()` method (not `__init__`).
+3. **Node composition pattern**: Use factory functions (`create_*_tree()`) to
+   compose reusable BT structures; return root node for embedding in larger
+   workflows.
+4. **Policy pattern for evaluation**: Abstract policy classes enable pluggable
+   decision logic (e.g., credibility checks, validation rules) without
+   hardcoding business rules in BT nodes.
+5. **DataLayer injection via blackboard**: Pass DataLayer instance through
+   blackboard (set by BTBridge) rather than constructor injection for cleaner
+   separation and easier testing.
+
+**Next Steps** (Phase BT-1.4):
+
+- Refactor `validate_report` handler to use BT execution (procedural logic
+  currently in place)
+- Update handler tests to verify BT integration
+- Performance validation (target: P99 < 100ms)
+
+See `specs/behavior-tree-integration.md` and `plan/BT_INTEGRATION.md` for
+architecture details. See `plan/IMPLEMENTATION_NOTES.md` (2026-02-18 entries)
+for implementation lessons.
+
 ### 🔨 Future Work
 
+- Handler refactoring to use BT execution (Phase BT-1.4)
 - Response activity generation (`specs/response-format.md`)
 - Outbox processing implementation
 - Health endpoint implementation (`specs/observability.md`)
 - Duplicate detection/idempotency (`specs/inbox-endpoint.md` IE-10-001)
 - Async dispatcher implementation
 - Integration tests for full message flows
-- Behavior tree integration (per ADR-0002, ADR-0007)
 
 ### Note on _old_handlers Directory
 

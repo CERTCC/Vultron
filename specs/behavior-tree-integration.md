@@ -4,10 +4,14 @@
 
 Handler functions may orchestrate business logic using behavior trees (BTs) for complex workflows. BTs provide hierarchical, composable process modeling with explicit preconditions and state transitions.
 
-**Source**: ADR-0002 (Use Behavior Trees), ADR-0007 (Behavior Dispatcher), BT_INTEGRATION.md  
-**Status**: Design phase - implementation not yet started
+**Source**: ADR-0002 (Use Behavior Trees), ADR-0007 (Behavior Dispatcher),
+BT_INTEGRATION.md  
+**Status**: Infrastructure complete (Phase BT-1.1 through BT-1.3.4); handler
+refactoring in progress (Phase BT-1.4)
 
-**Note**: BT integration is **optional**. Simple handlers may use procedural logic. Complex workflows (report validation, case creation, embargo management) SHOULD use BTs for clarity and maintainability.
+**Note**: BT integration is **optional**. Simple handlers may use procedural
+logic. Complex workflows (report validation, case creation, embargo management)
+SHOULD use BTs for clarity and maintainability.
 
 ---
 
@@ -20,8 +24,13 @@ Handler functions may orchestrate business logic using behavior trees (BTs) for 
 
 ## BT Library (MUST)
 
-- `BT-02-001` Prototype handlers MUST use `py_trees` library for BT execution
-  - **Rationale**: Mature, well-tested, provides visualization and debugging
+- `BT-02-001` Prototype handlers MUST implement BT execution using industry-
+  standard BT library
+  - **Implementation**: Currently uses `py_trees` (v2.2.0+)
+  - **Rationale**: Mature libraries provide visualization, debugging, and
+    standard BT semantics
+  - Future: Alternative libraries MAY be substituted if they provide equivalent
+    BT execution semantics
 - `BT-02-002` Simulation code in `vultron/bt/` MUST remain unchanged
   - Simulation uses custom BT engine; prototype uses py_trees
   - No refactoring of simulation to py_trees
@@ -31,7 +40,11 @@ Handler functions may orchestrate business logic using behavior trees (BTs) for 
 - `BT-03-001` BTs MUST use DataLayer as persistent state store
 - `BT-03-002` BTs MUST NOT maintain separate blackboard persistence
 - `BT-03-003` BT blackboard MAY cache DataLayer state during execution
-- `BT-03-004` State changes MUST be committed to DataLayer on successful execution
+  - Blackboard keys MUST NOT contain slashes (hierarchical path parsing issues
+    in py_trees)
+  - Use simplified keys (e.g., `object_{id_segment}`) instead of full URLs
+- `BT-03-004` State changes MUST be committed to DataLayer on successful
+  execution
 
 ## Handler Integration (MUST)
 
@@ -52,13 +65,32 @@ Handler functions may orchestrate business logic using behavior trees (BTs) for 
 - `BT-06-001` Complex workflows SHOULD have dedicated BT implementations
   - Report validation, case creation, embargo management
 - `BT-06-002` BTs SHOULD match structure of simulation trees where applicable
-- `BT-06-003` BT nodes SHOULD be deterministic (no fuzzer nodes in prototype)
+  - **Verification**: Compare BT node sequence against simulation tree node
+    sequence
+  - Exact 1:1 mapping NOT required; semantic equivalence is sufficient
+- `BT-06-003` BT nodes SHOULD be deterministic
+  - **Definition**: Given same input state, node always returns same result
+  - No random number generation, no time-dependent behavior (e.g., timeouts,
+    retries with jitter)
+  - Exception: Externally-driven nondeterminism (e.g., human-in-the-loop
+    decisions) is acceptable
 
 ## DataLayer Integration (MUST)
 
 - `BT-07-001` BT nodes MUST interact with DataLayer via Protocol interface
-- `BT-07-002` BT nodes MUST use type-safe DataLayer wrappers
-- `BT-07-003` State transitions MUST be logged via DataLayer integration helpers
+  - **Protocol**: `vultron.api.v2.datalayer.abc.DataLayer` (duck typing, not
+    inheritance)
+  - Methods: `get(id_)`, `create(obj)`, `update(id_, record)`, `delete(id_)`,
+    `search(query)`, `get_status_layer()`
+- `BT-07-002` BT nodes MUST use type-safe DataLayer operations
+  - Pydantic models for object validation
+  - Type hints on node methods
+  - Runtime type checks where needed
+- `BT-07-003` State transitions MUST be logged via DataLayer integration
+  - Log at INFO level for state changes (e.g., "Report RM.RECEIVED →
+    RM.VALID")
+  - Log at DEBUG level for reads
+  - Include activity_id and actor_id in log context
 
 ## Command-Line Execution (MAY)
 
@@ -134,7 +166,16 @@ Handler functions may orchestrate business logic using behavior trees (BTs) for 
 
 ## Implementation
 
-- **Bridge Layer**: `vultron/behaviors/bridge.py` (proposed, not yet created)
-- **Prototype Trees**: `vultron/behaviors/{report,case,embargo}/` (proposed)
-- **DataLayer Helpers**: `vultron/behaviors/helpers.py` (proposed)
-- **Tests**: `test/behaviors/` (proposed)
+- **Bridge Layer**: `vultron/behaviors/bridge.py` ✅ (Phase BT-1.1.3)
+  - `BTBridge` class: Handler-to-BT execution adapter
+  - Single-shot execution with blackboard setup
+- **DataLayer Helpers**: `vultron/behaviors/helpers.py` ✅ (Phase BT-1.2.1)
+  - `DataLayerCondition`, `DataLayerAction` base classes
+  - `ReadObject`, `UpdateObject`, `CreateObject` common nodes
+- **Report Validation Trees**: `vultron/behaviors/report/` ✅ (Phase
+  BT-1.3.2, BT-1.3.3, BT-1.3.4)
+  - `nodes.py`: 10 domain-specific nodes (conditions, actions, policy stubs)
+  - `validate_tree.py`: Composed validation tree with early exit optimization
+  - `policy.py`: `ValidationPolicy` base class and `AlwaysAcceptPolicy`
+- **Tests**: `test/behaviors/` ✅ (78 tests passing)
+  - `test_bridge.py`, `test_helpers.py`, `test/behaviors/report/` subtests

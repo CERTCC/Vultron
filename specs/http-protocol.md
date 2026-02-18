@@ -52,9 +52,17 @@ Consolidated HTTP protocol requirements for Vultron API v2: status codes, header
 
 ## Request Timeout Handling (SHOULD)
 
-- `HP-06-001` Inbox endpoints SHOULD respond within 100ms
-- `HP-06-002` Processing exceeding 100ms SHOULD return HTTP 202 and queue for background processing
+- `HP-06-001` Inbox endpoints SHOULD respond with HTTP headers within 100ms
+  - **Measurement point**: Time from HTTP request received by server to response
+    headers sent
+  - **Excludes**: Network latency, client processing time
+  - **Rationale**: Ensures responsive UX for ActivityPub federation
+- `HP-06-002` Processing exceeding 100ms SHOULD return HTTP 202 and queue for
+  background processing
+  - **Implementation**: FastAPI BackgroundTasks decouple handler execution from
+    HTTP response
 - `HP-06-003` Timeout occurrences SHOULD be logged at WARNING level
+  - **Log format**: "Inbox request exceeded 100ms threshold: {duration}ms"
 
 ## Rate Limiting Headers (MAY)
 

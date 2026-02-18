@@ -49,7 +49,21 @@ Handler functions process DispatchActivity objects and implement protocol busine
 ## Idempotency (SHOULD)
 
 - `HP-07-001` Handlers SHOULD be idempotent to support retries
-  - **Cross-reference**: See `idempotency.md` ID-04-001 for complete requirements
+  - **Cross-reference**: See `idempotency.md` ID-04-001 for complete
+    requirements
+
+## Execution Timeout (MUST)
+
+- `HP-07-002` Handlers MUST complete execution within 30 seconds
+  - **Rationale**: Prevents indefinite blocking of background task queue
+  - **Enforcement**: MAY be implemented via timeout wrapper or async task
+    timeout
+  - **Failure behavior**: Handler timeout MUST raise `HandlerTimeoutError`
+- `HP-07-003` Long-running operations MUST be broken into async subtasks
+  - **Examples**: External API calls, bulk database operations, report
+    generation
+  - **Pattern**: Use FastAPI BackgroundTasks for orchestration; split work into
+    multiple handler invocations
 
 ## Data Model Persistence (MUST)
 
@@ -136,6 +150,12 @@ def initialize_collections(self) -> Self:
 ### HP-07-001 Verification
 
 - See `idempotency.md` ID-04-001 verification criteria
+
+### HP-07-002, HP-07-003 Verification
+
+- Integration test: Handler completes within 30 seconds
+- Unit test: Simulated long-running handler raises HandlerTimeoutError after 30s
+- Code review: Long-running operations use async subtask pattern
 
 ### HP-08-001, HP-08-002 Verification
 
