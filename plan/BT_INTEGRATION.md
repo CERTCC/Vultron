@@ -5,6 +5,45 @@
 **Status**: Planning - Refined  
 **Related**: ADR-0002 (Use Behavior Trees), ADR-0007 (Behavior Dispatcher)
 
+
+## TODO next revision must integrate the following items where appropriate:
+
+Phase 1 of the implementation outline will be a parallel to
+`vultron/scripts/receive_report_demo.py` but with the handler invoking a
+py_trees-based behavior tree instead of procedural logic.
+The background documentation for the process in ActivityStreams terms is found
+in `docs/howto/activitypub/activities/report_vulnerability.md`. Behavior tree
+documentation (from the earlier simulator prototype) is in
+`docs/topics/behavior_logic/rm_bt.md`,
+`docs/topics/behavior_logic/reporting_bt.md`,
+`docs/topics/behavior_logic/rm_validation_bt.md`,
+`docs/topics/behavior_logic/msg_rm_bt.md`, and related files. Note these as
+resources for Phase 1.
+Phase 1 will serve as a proof of concept for the integration approach.
+Demonstration should reuse the api container and datalayer already implemented,
+with the new behavior tree code added in `vultron/behaviors/` or similar so it
+can be reused later. A new demo script (e.g., `receive_report_bt_demo.py`) can
+be added to run the same workflow with BT execution from a new container,
+following
+the example set by `receive_report_demo` in `docker/docker-compose.yml`.
+It should be possible at the end to spin up the api container and demo container
+and have the demo container perform the same three demonstrations as the
+original `receive_report_demo`, but with the new BT-based implementation.
+This will include: 1. Declining and close (Invalid + Close, Reject Offer), 2.
+Invalidate (Tentative Reject Offer), and 3. Accept (Validate Report, Create
+Case, Create CaseActor).
+The originator of the report and the receiver of the Offer will both be added
+to the case as CaseParticipants. The CaseActor will be an ActivityStreams
+Service object that is created as part of the case creation process, and it will
+be
+responsible for managing the case state and coordinating actions related to the
+case. Creating the case actor should also attach the case actor to the case as a
+participant, and the case actor should be able to receive messages related to
+the case
+(e.g., CreateCaseActivity) and update the case state accordingly. The demo
+should log the BT execution results and any state changes in the data layer for
+verification.
+
 ---
 
 ## Prototype Implementation Context
