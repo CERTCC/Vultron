@@ -218,6 +218,17 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - Raise domain-specific exceptions; do not swallow errors
 - Keep formatting and linting aligned with tooling; do not reformat unnecessarily
 
+### Markdown Formatting
+
+- **Line length**: Regular text lines MUST NOT exceed 88 characters
+- Exceptions: Tables, code blocks, long URLs, or other formatting that requires it
+- Use `markdownlint-cli2` for linting markdown files
+- Break long sentences at natural points (after commas, conjunctions, etc.)
+- Keep list items and paragraphs readable and well-formatted
+
+**Rationale**: Consistent line length improves readability in text editors and
+reduces diff noise. 88 characters aligns with Python's Black formatter width.
+
 ### Logging Requirements
 
 - Use appropriate levels:
