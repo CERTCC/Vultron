@@ -49,21 +49,7 @@ Handler functions process DispatchActivity objects and implement protocol busine
 ## Idempotency (SHOULD)
 
 - `HP-07-001` Handlers SHOULD be idempotent to support retries
-  - **Idempotency**: Same input produces same result/state without unintended side effects
-- `HP-07-002` Handlers SHOULD check for existing state before mutating
-  - **Implementation**: Query data layer for existing records; update rather than create if present
-  - **Example**: Before creating a report, check if report ID already exists in data layer
-
-**Layered Idempotency Approach**:
-
-1. **HTTP Layer** (IE-10-001): Optional fast-path duplicate detection before queueing
-2. **Validation Layer** (MV-08-001): Primary duplicate detection during message validation
-3. **Handler Layer** (HP-07-001, HP-07-002): Defense-in-depth via state-aware mutations
-4. **Response Layer** (RF-09-001): Avoid generating duplicate response activities
-
-**Responsibility**: Handlers are the final defense against duplicate processing. Even if upstream duplicate detection fails, handlers should check existing state and avoid creating duplicate records.
-
-**Cross-references**: See `message-validation.md` MV-08-001 (primary duplicate detection), `inbox-endpoint.md` IE-10-001 (HTTP-layer optimization), and `response-format.md` RF-09-001 (response deduplication).
+  - **Cross-reference**: See `idempotency.md` ID-04-001 for complete requirements
 
 ## Data Model Persistence (MUST)
 
@@ -147,11 +133,9 @@ def initialize_collections(self) -> Self:
 - Unit test: Verify INFO log for state transitions
 - Unit test: Verify ERROR log for errors
 
-### HP-07-001, HP-07-002 Verification
+### HP-07-001 Verification
 
-- Unit test: Handler called twice with same input produces same result
-- Unit test: Handler checks existing state before mutation
-- Integration test: Retry of failed handler succeeds
+- See `idempotency.md` ID-04-001 verification criteria
 
 ### HP-08-001, HP-08-002 Verification
 

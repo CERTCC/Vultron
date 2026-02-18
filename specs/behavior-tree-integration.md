@@ -1,0 +1,140 @@
+# Behavior Tree Integration Specification
+
+## Overview
+
+Handler functions may orchestrate business logic using behavior trees (BTs) for complex workflows. BTs provide hierarchical, composable process modeling with explicit preconditions and state transitions.
+
+**Source**: ADR-0002 (Use Behavior Trees), ADR-0007 (Behavior Dispatcher), BT_INTEGRATION.md  
+**Status**: Design phase - implementation not yet started
+
+**Note**: BT integration is **optional**. Simple handlers may use procedural logic. Complex workflows (report validation, case creation, embargo management) SHOULD use BTs for clarity and maintainability.
+
+---
+
+## BT Execution Model (MUST)
+
+- `BT-01-001` BT execution MUST be event-driven, triggered by handler invocation
+- `BT-01-002` BTs MUST execute to completion (or max iterations) per invocation
+- `BT-01-003` BT execution MUST NOT use continuous tick-based polling loops
+- `BT-01-004` BTs MUST be single-shot executions within handler context
+
+## BT Library (MUST)
+
+- `BT-02-001` Prototype handlers MUST use `py_trees` library for BT execution
+  - **Rationale**: Mature, well-tested, provides visualization and debugging
+- `BT-02-002` Simulation code in `vultron/bt/` MUST remain unchanged
+  - Simulation uses custom BT engine; prototype uses py_trees
+  - No refactoring of simulation to py_trees
+
+## State Management (MUST)
+
+- `BT-03-001` BTs MUST use DataLayer as persistent state store
+- `BT-03-002` BTs MUST NOT maintain separate blackboard persistence
+- `BT-03-003` BT blackboard MAY cache DataLayer state during execution
+- `BT-03-004` State changes MUST be committed to DataLayer on successful execution
+
+## Handler Integration (MUST)
+
+- `BT-04-001` Handler protocol MUST be preserved (decorator, signature, registration)
+- `BT-04-002` Handlers MAY invoke BTs via bridge layer
+- `BT-04-003` Handlers MUST remain synchronous (BT execution within handler)
+- `BT-04-004` BT execution errors MUST propagate to handler error handling
+
+## BT Bridge Layer (SHOULD)
+
+- `BT-05-001` System SHOULD provide BT execution bridge for handler-to-BT invocation
+- `BT-05-002` Bridge SHOULD set up py_trees context with DataLayer access
+- `BT-05-003` Bridge SHOULD populate blackboard with activity and actor state
+- `BT-05-004` Bridge SHOULD execute tree and return execution result
+
+## Workflow-Specific Trees (SHOULD)
+
+- `BT-06-001` Complex workflows SHOULD have dedicated BT implementations
+  - Report validation, case creation, embargo management
+- `BT-06-002` BTs SHOULD match structure of simulation trees where applicable
+- `BT-06-003` BT nodes SHOULD be deterministic (no fuzzer nodes in prototype)
+
+## DataLayer Integration (MUST)
+
+- `BT-07-001` BT nodes MUST interact with DataLayer via Protocol interface
+- `BT-07-002` BT nodes MUST use type-safe DataLayer wrappers
+- `BT-07-003` State transitions MUST be logged via DataLayer integration helpers
+
+## Command-Line Execution (MAY)
+
+- `BT-08-001` System MAY provide CLI interface for BT execution
+  - Enables testing and AI agent integration
+- `BT-08-002` CLI SHOULD support invoking specific trees with test data
+- `BT-08-003` CLI SHOULD log BT execution visualization
+
+## Actor Isolation (MUST)
+
+- `BT-09-001` Each actor MUST have isolated BT execution context
+- `BT-09-002` Actor blackboards MUST NOT share state
+- `BT-09-003` Actor interaction MUST occur only via protocol messages
+
+## CaseActor Management (MUST)
+
+- `BT-10-001` Report validation MUST trigger VulnerabilityCase creation
+- `BT-10-002` Case creation MUST create corresponding CaseActor (Service)
+- `BT-10-003` CaseActor MUST manage case-related message processing
+- `BT-10-004` CaseActor MUST enforce case-level authorization
+
+## Concurrency (MUST)
+
+- `BT-11-001` Prototype MUST process messages sequentially (FIFO order)
+  - **Rationale**: Eliminates race conditions in prototype phase
+- `BT-11-002` Sequential processing MUST NOT block HTTP response (BackgroundTasks)
+- `BT-11-003` Future optimizations MAY introduce resource-level locking
+
+## Verification
+
+### BT-01-001, BT-01-002, BT-01-003, BT-01-004 Verification
+
+- Unit test: Handler invokes BT; BT executes once per handler call
+- Unit test: BT returns result after completion (not ongoing tick loop)
+- Integration test: Multiple handler invocations trigger separate BT executions
+
+### BT-02-001 Verification
+
+- Code review: Prototype BT implementations import `py_trees` library
+- Unit test: BT nodes are py_trees.behaviour.Behaviour subclasses
+
+### BT-03-001, BT-03-002, BT-03-004 Verification
+
+- Unit test: BT nodes read state via DataLayer protocol
+- Unit test: BT state changes persist to DataLayer after execution
+- Unit test: No separate blackboard persistence layer
+
+### BT-04-001, BT-04-002, BT-04-003 Verification
+
+- Code review: BT-using handlers have @verify_semantics decorator
+- Unit test: BT execution occurs synchronously within handler
+- Unit test: BT exceptions propagate to handler error handling
+
+### BT-10-001, BT-10-002, BT-10-003 Verification
+
+- Integration test: Validate report → creates VulnerabilityCase
+- Integration test: Case creation → creates CaseActor service
+- Unit test: CaseActor exists in DataLayer with correct case reference
+
+### BT-11-001, BT-11-002 Verification
+
+- Integration test: Concurrent inbox POSTs process sequentially
+- Integration test: HTTP 202 returned immediately (not blocked by BT execution)
+
+## Related
+
+- **Behavior Trees in CVD**: `docs/topics/behavior_logic/`
+- **Simulation Trees**: `vultron/bt/` (reference, not modified)
+- **Handler Protocol**: `specs/handler-protocol.md`
+- **Data Layer**: `specs/testability.md` (DataLayer abstraction)
+- **Architecture**: `plan/BT_INTEGRATION.md` (detailed design)
+- **ADRs**: ADR-0002 (BT rationale), ADR-0007 (dispatcher architecture)
+
+## Implementation
+
+- **Bridge Layer**: `vultron/behaviors/bridge.py` (proposed, not yet created)
+- **Prototype Trees**: `vultron/behaviors/{report,case,embargo}/` (proposed)
+- **DataLayer Helpers**: `vultron/behaviors/helpers.py` (proposed)
+- **Tests**: `test/behaviors/` (proposed)

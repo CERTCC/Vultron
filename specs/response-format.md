@@ -54,8 +54,8 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 
 ## Idempotent Responses (MUST)
 
-- `RF-09-001` The system MUST NOT generate duplicate responses
-  - Check for existing response before generating new one
+- `RF-09-001` Response generation MUST be idempotent
+  - **Cross-reference**: See `idempotency.md` for complete requirements
 
 ## Verification
 
@@ -100,7 +100,7 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 
 ### RF-09-001 Verification
 
-- Unit test: Duplicate response check works
+- See `idempotency.md` verification criteria
 - Integration test: Reprocessing same activity doesn't duplicate response
 
 ## Related
