@@ -2,25 +2,189 @@
 
 **Created**: 2026-02-17  
 **Last Updated**: 2026-02-18  
-**Status**: Planning  
+**Status**: Planning - Refined  
 **Related**: ADR-0002 (Use Behavior Trees), ADR-0007 (Behavior Dispatcher)
+
+---
+
+## Prototype Implementation Context
+
+This document describes the **next iteration** of the Vultron protocol
+prototype.
+
+**Project Phase**: Research Prototype
+
+- This is NOT a production-ready system
+- Focus: Demonstrate protocol feasibility and BT integration viability
+- Priorities: Simplicity, correctness, and clarity over performance optimization
+- Architecture decisions should be "production-informed" but implementation can
+  be simplified
+
+**Prototype Approach**:
+
+- Functionality can be stubbed with clear extension points for future work
+- Example: Policy engine that returns default decisions but has clear interface
+  for complex logic
+- Example: Message authenticator that validates structure but defers
+  cryptographic verification
+- Distinction: Stubs ≠ fuzzer nodes (stubs are deterministic placeholders;
+  fuzzers simulate non-deterministic behavior for protocol exploration)
+
+**Actor Isolation and BT Domains**:
+
+Each actor exists in its own behavior tree execution domain with isolated state:
+
+- **Actor A** and **Actor B** have separate BT blackboards with no shared access
+- Interaction happens exclusively through Vultron Protocol message exchange (
+  ActivityStreams)
+- Clean separation models real-world CVD: independent organizations making
+  autonomous decisions
+- Each actor's internal state (RM/EM/CS state machines) is private
+
+**CaseActor as Resource Manager**:
+
+The CaseActor is an ActivityStreams Service object that manages a
+VulnerabilityCase:
+
+- **Purpose**: Provide canonical case state and coordinate multi-actor workflows
+- **Scope**: One CaseActor per VulnerabilityCase (1:1 relationship)
+- **Lifecycle**: Created during report validation; exists until case closure
+- **Authority**: Enforces case-level rules and authorization (e.g., only case
+  owner can close case)
+- **Communication Hub**: Broadcasts case updates to CaseParticipants via direct
+  messages
+
+**Case Ownership Model**:
+
+- **Case Owner**: Organizational Actor (e.g., vendor) responsible for case
+  decisions
+- **CaseActor**: Service managing case state (NOT the case owner)
+- **Authorization**: `vultron_as:CaseOwnerActivity` in ontology defines
+  owner-restricted actions
+- **Initial Owner**: Typically the recipient of the VulnerabilityReport Offer
+- **Ownership Transfer**: Explicit workflow transferring responsibility between
+  actors
+
+**Factory Methods and Code Reuse** (ADR-0004):
+
+The existing simulation in `vultron/bt` uses factory methods (
+`vultron/bt/base/factory.py`) to create BT nodes:
+
+- **Purpose**: Abstract node creation to allow engine swapping
+- **Current Use**: Custom BT engine for simulation
+- **Future Opportunity**: Replace factory implementations to return `py_trees`
+  nodes
+- **Benefit**: Reuse high-level BT structure (composition logic) while changing
+  execution engine
+- **Feasibility**: Unknown; requires Phase 1 exploration during POC development
+- **Risk Mitigation**: If infeasible, implement new trees directly in py_trees
+  without attempting reuse
+
+**Concurrency and Data Layer Integrity**:
+
+Concurrent handler execution may require coordination to prevent race
+conditions:
+
+**Challenge**:
+
+- Multiple messages processed concurrently (BackgroundTasks)
+- BT executions may overlap when accessing shared resources (e.g.,
+  VulnerabilityCase)
+- Side effects of one BT execution could affect another's behavior
+
+**Prototype Approach (Simple First)**:
+
+- **Sequential Processing**: Process messages in FIFO order with single-threaded
+  execution
+- **Benefits**: Eliminates race conditions; simple to implement and reason about
+- **Implementation**: Queue with lock or single async worker processing inbox
+- **Performance**: Acceptable for prototype (asynchronous to HTTP layer, still
+  returns 202 immediately)
+
+**Future Optimization Paths** (if needed):
+
+- Optimistic locking: Version numbers on VulnerabilityCase objects
+- Resource-level locking: Lock specific case during update operations
+- Actor-level concurrency: Allow parallel execution for different actors,
+  sequential per-actor
+- CaseActor as coordinator: Require explicit lock acquisition before case
+  mutations
+
+**Design Principle**: Prioritize correctness over performance in prototype
+phase; measure before optimizing
+
+**Mapping Existing BT Structures to Handlers**:
+
+Current handler implementations can leverage existing BT models in `vultron/bt`:
+
+**Correspondence Between Systems**:
+
+- **BT Message Types** (enums in `vultron/bt/messaging/`) ↔ **MessageSemantics
+  ** (enums in `vultron/enums.py`)
+- **BT Behaviors** (`vultron/bt/messaging/inbound/_behaviors/`) ↔ **Handler
+  Functions** (`vultron/api/v2/backend/handlers.py`)
+
+**Key Examples**:
+
+| MessageSemantics | BT Structure                           | Handler Function    |
+|------------------|----------------------------------------|---------------------|
+| SUBMIT_REPORT    | `_HandleRs` in `rm_messages.py`        | `submit_report()`   |
+| VALIDATE_REPORT  | `RMValidateBt` in `validate_report.py` | `validate_report()` |
+| CREATE_CASE      | (subtree of RMValidateBt)              | `create_case()`     |
+
+**Important Note**: Existing BT behaviors in `_behaviors` modules are
+higher-level than needed for handler implementation:
+
+- They branch on message types (handler already knows semantic type)
+- They represent full message-processing pipelines (handler focuses on single
+  semantic action)
+- **Approach**: Extract relevant subtrees and adapt for focused handler
+  execution
+
+**Source of Truth**: When conflicts exist between BT behaviors and ActivityPub
+documentation:
+
+- **Primary**: `docs/howto/activitypub/activities/` (process descriptions,
+  message examples)
+- **Secondary**: `vultron/bt/` (process models, state machine logic)
+- **Resolution**: Update BT behaviors to align with ActivityPub documentation
+  during implementation
 
 ---
 
 ## Executive Summary
 
-This document outlines a plan to integrate the existing Vultron Behavior
-Tree (BT) logic from `vultron/bt/` with the ActivityStreams-based handler
-system in `vultron/api/v2/`. The goal is to leverage the process logic encoded
-in behavior trees while transitioning from stochastic simulation to
-deterministic real-world execution.
+This document outlines a plan to integrate Behavior Tree (BT) logic with the
+ActivityStreams-based handler system in `vultron/api/v2/`. The goal is to
+leverage the process modeling advantages of behavior trees for **prototype
+execution** while maintaining the existing simulation capability in
+`vultron/bt/`.
 
-**Key Challenge**: The existing BT system is designed for **simulation**
-(using fuzzer nodes for stochastic testing and tick-based execution), while the
-handler system is designed for **production** (processing real ActivityStreams
-messages with persistence and event-driven execution). We need a bridge that
-preserves the BT modeling advantages while enabling concrete execution within
-the event-driven handler architecture.
+**Key Architectural Decisions**:
+
+1. **Use py_trees for Prototype Handlers**: Handler implementations will use the
+   mature `py_trees` library, providing robust BT infrastructure, visualization
+   tools, and debugging support. The existing `vultron/bt/` simulation code
+   remains unchanged for protocol exploration.
+
+2. **Event-Driven BT Execution**: Rather than one monolithic behavior tree per
+   actor, handlers will trigger focused behavior trees specific to each message
+   semantic type. Each handler invocation sets up BT context and executes the
+   relevant tree to completion.
+
+3. **DataLayer as Blackboard**: The existing data layer serves as the persistent
+   state store. Behavior trees will read from and write to the data layer
+   directly, avoiding duplicate state management systems.
+
+4. **Case Creation Workflow**: Report validation triggers VulnerabilityCase
+   creation, which includes creating a corresponding CaseActor (ActivityStreams
+   Service) that owns and processes case-related messages.
+
+**Key Challenge**: Bridging simulation-focused BT models with prototype
+event-driven handlers while preserving composability, testability, and alignment
+with CVD protocol documentation.
+
+
 
 ---
 
@@ -30,49 +194,46 @@ the event-driven handler architecture.
 
 #### 1. Behavior Tree System (`vultron/bt/`)
 
-**Purpose**: Model CVD process logic as composable hierarchical behaviors
+**Purpose**: Simulate CVD process logic for protocol testing and exploration
 
 **Key Components**:
 
-- **BT Nodes**: Base classes in `vultron/bt/base/` (BtNode, composites,
-  decorators)
-- **Blackboard**: Shared state dictionary (`vultron/bt/base/blackboard.py`)
+- **BT Engine**: Base classes in `vultron/bt/base/` (BtNode, composites,
+  decorators, Blackboard)
 - **Process Models**: Report Management, Embargo Management, Case State
   transitions
-- **Message Handling**: Inbound/outbound message behaviors
-  (`vultron/bt/messaging/`)
+- **Message Handling**: Inbound/outbound message behaviors (
+  `vultron/bt/messaging/`)
 - **Fuzzer Nodes**: Stochastic simulation nodes (e.g., `AlmostAlwaysSucceed`,
   `ProbablySucceed`)
+- **CVD Protocol BT**: `CvdProtocolBt` - monolithic tree modeling full CVD
+  lifecycle
 
-**Example BT**: `_HandleRs` in `vultron/bt/messaging/inbound/_behaviors/rm_messages.py`
+**Design for Simulation**:
 
-```python
-_HandleRs = sequence_node(
-    "_HandleRs",
-    "Handle an RS message (incoming report)",
-    IsMsgTypeRS,              # Condition: Check message type
-    _LeaveRmStart,            # Action: Transition RM state S→R
-    _RecognizeVendorNotifiedIfNecessary,  # Action: Set CS→V if vendor
-)
-```
+- Tick-based execution (continuous loop)
+- Probabilistic decision nodes for state space exploration
+- Blackboard state management (in-memory dict)
+- No persistence or external integration
 
 **Strengths**:
 
 - ✅ Hierarchical, composable process modeling
 - ✅ Clear preconditions and state transitions
-- ✅ Matches documentation (docs/topics/behavior_logic/)
-- ✅ Already implements CVD protocol state machines
+- ✅ Matches documentation (`docs/topics/behavior_logic/`)
+- ✅ Implements CVD protocol state machines
 
-**Limitations**:
+**Limitations for Prototype Implementation**:
 
-- ❌ Fuzzer nodes simulate but don't implement real logic
+- ❌ Fuzzer nodes simulate rather than implement real logic
 - ❌ No integration with ActivityStreams vocabulary
 - ❌ No data layer persistence
-- ❌ Designed for tick-based simulation, not event-driven processing
+- ❌ Designed for continuous tick loop, not event-driven processing
 
 #### 2. Handler System (`vultron/api/v2/backend/handlers.py`)
 
-**Purpose**: Process real ActivityStreams activities with persistence
+**Purpose**: Process real ActivityStreams activities with persistence and
+event-driven execution
 
 **Key Components**:
 
@@ -82,34 +243,27 @@ _HandleRs = sequence_node(
   `SEMANTIC_HANDLER_MAP` (`vultron/behavior_dispatcher.py`)
 - **Handler Functions**: Business logic for each semantic type with
   `@verify_semantics` decorator
-- **Data Layer**: TinyDB persistence with Protocol abstraction
-  (`vultron/api/v2/datalayer/`)
-- **Inbox Processing**: FastAPI endpoint with BackgroundTasks
-  (`vultron/api/v2/routers/actors.py`)
+- **Data Layer**: TinyDB persistence with Protocol abstraction (
+  `vultron/api/v2/datalayer/`)
+- **Inbox Processing**: FastAPI endpoint with BackgroundTasks (
+  `vultron/api/v2/routers/actors.py`)
 
-**Example Handler**: `validate_report`
+**Current Implementation Status** (as of 2026-02-17):
 
-```python
-@verify_semantics(MessageSemantics.VALIDATE_REPORT)
-def validate_report(dispatchable: DispatchActivity) -> None:
-    # 1. Rehydrate objects from data layer
-    # 2. Validate business rules (currently procedural logic)
-    # 3. Update status (offer→ACCEPTED, report→VALID)
-    # 4. Create VulnerabilityCase
-    # 5. Add CreateCase activity to actor outbox
-    # 6. Persist changes
-    # 7. Log state transitions at INFO level
-```
-
-**Current Implementation Status** (as of 2026-02-13):
-
-- ✅ 6/47 handlers have complete business logic (13%)
-  - Report workflow: `create_report`, `submit_report`, `validate_report`,
-    `invalidate_report`, `ack_report`, `close_report`
-- ⚠️ 41/47 handlers are stubs (log at DEBUG, no side effects)
+- ✅ 6/36 handlers have complete business logic (17%)
+    - Report workflow: `create_report`, `submit_report`, `validate_report`,
+      `invalidate_report`, `ack_report`, `close_report`
+- ⚠️ 30/36 handlers are stubs (log at DEBUG, no side effects)
 - ✅ All handlers follow protocol: decorator, signature, registration
 - ✅ Infrastructure complete: semantic extraction, dispatcher, data layer, inbox
   endpoint
+
+**Design for Prototype Implementation**:
+
+- Event-driven (one activity → one handler invocation)
+- HTTP 202 asynchronous processing via BackgroundTasks
+- Persistent state via data layer
+- Type-safe ActivityStreams processing
 
 **Strengths**:
 
@@ -117,7 +271,7 @@ def validate_report(dispatchable: DispatchActivity) -> None:
 - ✅ Persistent state in data layer
 - ✅ Type-safe with Pydantic models
 - ✅ Semantic extraction matching BT message types
-- ✅ Event-driven execution model (HTTP 202 + BackgroundTasks)
+- ✅ Event-driven execution model
 
 **Limitations**:
 
@@ -133,40 +287,56 @@ def validate_report(dispatchable: DispatchActivity) -> None:
 
 ### Primary Objectives
 
-1.  **Process Logic Reuse**: Leverage existing BT models for state transitions and
-   decision flow
-2.  **Deterministic Execution**: Replace fuzzer nodes with real implementations for
-   production use
-3.  **Data Layer Integration**: Connect BT blackboard to TinyDB persistence via
-   `DataLayer` Protocol
-4.  **ActivityStreams Compatibility**: Bridge BT message types with AS2 vocabulary and
-   semantic extraction
-5.  **Maintainability**: Keep BT models as high-level process documentation that matches
-   specifications
-6.  **Handler Completion**: Implement remaining 41 stub handlers using BT logic where
-   appropriate
+1. **Process Logic Reuse**: Leverage BT models for state transitions and
+   decision flow, adapted from simulation to prototype implementation
+2. **Prototype BT Infrastructure**: Use `py_trees` library for mature,
+   well-tested behavior tree execution in prototype handlers
+3. **Event-Driven Execution**: Handlers trigger focused behavior trees specific
+   to message semantics (not monolithic tick loop)
+4. **Unified State Management**: DataLayer serves as persistent state store;
+   eliminate separate blackboard/datalayer duplication
+5. **Case Workflow Clarity**: Validate→CreateCase→CreateCaseActor flow
+   explicitly modeled in BT structure
+6. **Maintainability**: Keep BT models as high-level process documentation
+   matching specifications
+7. **Simulation Preservation**: Retain existing `vultron/bt/` simulation
+   capability unchanged
+8. **Handler Completion**: Implement remaining stub handlers using BT logic
+   where appropriate
+9. **Command-Line BT Execution**: Support triggering behavior trees
+   independently for testing and agentic AI contexts
 
 ### Non-Goals
 
+- ❌ **Not** refactoring existing `vultron/bt/` simulation to use `py_trees`
 - ❌ **Not** replacing the semantic extraction or dispatcher infrastructure
-- ❌ **Not** porting all fuzzer nodes to production immediately (gradual migration)
-- ❌ **Not** changing the ActivityStreams-based API surface or inbox endpoint behavior
-- ❌ **Not** introducing tick-based simulation into production (single-shot
-  execution only)
+- ❌ **Not** changing the ActivityStreams-based API surface or inbox endpoint
+  behavior
+- ❌ **Not** introducing continuous tick-based simulation into prototype (
+  single-shot execution only)
 - ❌ **Not** bypassing the handler protocol (handlers remain entry points with
   `@verify_semantics`)
-- ❌ **Not** modifying existing BT simulation code (create parallel production
-  implementations)
+- ❌ **Not** specifying exact implementation signatures or method details (design
+  intent only)
 
 ---
 
 ## Proposed Architecture
 
-### Hybrid Approach: Handlers Orchestrate BTs
+### Hybrid Approach: Handlers Orchestrate Focused BTs
 
-**Key Insight**: Handlers act as **entry points** that set up BT context and
-trigger execution. BTs provide the process logic model, handlers provide the
-ActivityStreams interface.
+**Key Insights**:
+
+1. **Event-Driven BT Invocation**: Handlers act as entry points that trigger
+   focused behavior trees, not monolithic CVD lifecycle trees
+2. **py_trees Foundation**: Production trees use `py_trees` library for robust
+   execution, visualization, and debugging
+3. **DataLayer as State Store**: BTs read/write persistent state via DataLayer
+   Protocol; no separate blackboard sync
+4. **Semantic-Specific Trees**: Each MessageSemantics type has a corresponding
+   behavior tree encapsulating that workflow
+
+**Architecture Overview**:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -217,7 +387,7 @@ ActivityStreams interface.
 │ 1. Load actor state from data layer                     │
 │ 2. Create BT-compatible blackboard (DataLayerBacked)    │
 │ 3. Populate blackboard: activity, current_message, etc. │
-│ 4. Instantiate BT with production node implementations  │
+│ 4. Instantiate BT with prototype node implementations   │
 │ 5. Execute BT: single-shot tick loop (max iterations)   │
 │ 6. Commit blackboard changes to data layer on success   │
 │ 7. Return BTExecutionResult (status, errors, effects)   │
@@ -237,754 +407,427 @@ ActivityStreams interface.
 
 **Critical Design Points**:
 
-1.  **Handler Protocol Preserved**: BT integration does NOT bypass `@verify_semantics`,
-   `DispatchActivity`, or handler registration
-2.  **Data Layer as Source of Truth**: BT blackboard reads/writes via `DataLayer`
-   Protocol (not direct TinyDB access)
-3.  **Single-Shot Execution**: BTs execute to completion (or max ticks) per handler
-   invocation (no tick-based loop across HTTP requests)
-4.  **Parallel Implementations**: Production nodes coexist with fuzzer nodes (simulation
-   capability preserved)
-5.  **Event-Driven Entry**: Handlers remain event-driven entry points (not tick-based
-   polling)
+1. **Handler Protocol Preserved**: BT integration does NOT bypass
+   `@verify_semantics`, `DispatchActivity`, or handler registration
+2. **DataLayer as Source of Truth**: BTs interact with DataLayer for all state
+   operations; no separate blackboard persistence
+3. **Single-Shot Execution**: BTs execute to completion (or max iterations) per
+   handler invocation
+4. **Parallel Implementations**: Production trees (py_trees-based) coexist with
+   simulation trees (custom BT engine)
+5. **Event-Driven Entry**: Handlers remain event-driven entry points (not
+   tick-based polling)
+6. **VulnerabilityCase Creation**: Report validation triggers case creation,
+   which creates CaseActor (Service) for case message handling
+7. **Command-Line Support**: Behavior trees can be invoked independently via CLI
+   for testing and AI agent contexts
 
-### Key Components to Build
+### Key Components Overview
 
-#### 1. BT Bridge Module (`vultron/api/v2/bt_bridge.py`)
+The integration adds a behavior execution layer between handlers and the data
+layer:
 
-**Purpose**: Translate between handler context and BT execution context
+**New Components** (to be designed in implementation phase):
+
+1. **BT Execution Bridge** (`vultron/behaviors/bridge.py` or similar):
+    - Entry point for handler-to-BT invocation
+    - Sets up py_trees context with DataLayer access
+    - Executes tree to completion (single-shot)
+    - Returns execution result to handler
+    - **Prototype Simplification**: Synchronous execution within handler; no
+      complex async state management
+
+2. **Prototype Behavior Trees** (using `py_trees`):
+    - Focused trees for specific workflows (e.g., ValidateReportBT,
+      CreateCaseBT)
+    - Node implementations interact with DataLayer directly
+    - Match structure and semantics of simulation trees where applicable
+    - Organized by workflow category (report, case, embargo)
+    - **Prototype Simplification**: Deterministic nodes (no fuzzer nodes);
+      configurable default policies for human-decision points
+
+3. **DataLayer Integration Utilities**:
+    - Helpers for common patterns (state transitions, object creation, outbox
+      management)
+    - Type-safe wrappers for data layer operations within BT nodes
+    - Commit-on-success semantics (no complex rollback for prototype)
+    - **Prototype Simplification**: Simple helper functions; defer complex
+      transaction management to future iterations
+
+4. **Command-Line Interface** (optional for Phase 1):
+    - CLI commands to invoke specific behavior trees for testing
+    - Support for AI agent integration and standalone workflow execution
+    - **Prototype Simplification**: Basic invoke-and-log interface; advanced
+      features deferred
+
+**Directory Structure** (proposed, notional):
+
+```
+vultron/
+  bt/                    # Existing simulation (unchanged)
+    base/                # Custom BT engine for simulation
+    report_management/   # Simulation fuzzer nodes
+    embargo_management/
+    case_state/
+  behaviors/             # NEW: Prototype behavior trees
+    bridge.py            # BT execution bridge
+    helpers.py           # DataLayer integration utilities
+    report/              # Report workflow trees (py_trees)
+    case/                # Case workflow trees
+    embargo/             # Embargo workflow trees
+  api/v2/
+    backend/
+      handlers.py        # Handlers invoke behaviors/*
+    datalayer/           # Existing DataLayer (state store for BTs)
+```
+
+**Note**: Exact directory structure will be determined during Phase 1 POC based
+on practical experience with py_trees integration.
+
+### Example: Report Validation Workflow
+
+To illustrate the integration approach, consider the report validation workflow:
+
+**Current Procedural Handler** (
+`vultron/api/v2/backend/handlers.py:validate_report`):
 
 ```python
-def execute_bt_for_handler(
-    bt_node: type[BtNode],
-    activity: as_Activity,
-    actor_id: str,
-    datalayer: Optional[DataLayer] = None,
-    max_ticks: int = 100,
-) -> BTExecutionResult:
-    """
-    Execute a behavior tree in the context of a handler.
-    
-    Steps:
-    1. Get data layer (default: get_datalayer())
-    2. Load actor state from data layer
-    3. Create DataLayerBackedBlackboard
-    4. Populate blackboard: activity, current_message, state machine states
-    5. Instantiate BT with blackboard
-    6. Execute BT: tick loop until SUCCESS/FAILURE or max_ticks
-    7. Commit blackboard changes to data layer on success
-    8. Return BTExecutionResult (status, blackboard dict, errors)
-    
-    Args:
-        bt_node: BT node class to execute (e.g., ProcessRMMessagesBt)
-        activity: Rehydrated ActivityStreams activity
-        actor_id: ID of actor processing activity
-        datalayer: Optional DataLayer (injected for testing)
-        max_ticks: Maximum tick iterations (timeout safety)
-    
-    Returns:
-        BTExecutionResult with status, final blackboard state, and errors
-    """
+@verify_semantics(MessageSemantics.VALIDATE_REPORT)
+def validate_report(dispatchable: DispatchActivity) -> None:
+# 1. Rehydrate nested objects
+# 2. Validate report exists
+# 3. Update offer status → ACCEPTED
+# 4. Update report status → VALID
+# 5. Create VulnerabilityCase
+# 6. Create CaseActor (Service) for the case
+# 7. Add CreateCase activity to actor outbox
+# 8. Persist all changes via DataLayer
 ```
 
-**Responsibilities**:
-
-- Blackboard initialization from ActivityStreams activities
-- Actor state loading via `DataLayer.read(actor_id)`
-- BT instantiation and setup (via `BehaviorTree` class)
-- Tick loop execution with timeout protection
-- Blackboard commit/rollback based on BT result
-- Structured logging (INFO for success, ERROR for failures)
-- Result packaging for handler consumption
-
-**Key Constraints**:
-
-- MUST use `DataLayer` Protocol (not direct TinyDB access)
-- MUST respect handler protocol (called from `@verify_semantics` handlers)
-- MUST implement single-shot execution (no tick persistence across HTTP requests)
-- MUST handle BT timeouts gracefully (max_ticks exceeded → FAILURE)
-
-#### 2. Production Node Implementations (`vultron/bt/production/`)
-
-**Purpose**: Provide production implementations of fuzzer nodes for real execution
-
-**Directory Structure**:
-
-```
-vultron/bt/
-  base/              # BT engine (unchanged)
-  report_management/
-    fuzzer/          # Stochastic simulation nodes (unchanged)
-      validate_report.py
-    production/      # NEW: Real implementations
-      validate_report.py
-  embargo_management/
-    fuzzer/
-    production/      # NEW
-  case_state/
-    fuzzer/
-    production/      # NEW
-```
-
-**Example**: `EvaluateReportValidity` Production Implementation
+**BT-Powered Approach** (proposed):
 
 ```python
-# vultron/bt/report_management/production/validate_report.py
-
-from vultron.bt.base.bt_node import ActionNode
-from vultron.bt.base.node_status import NodeStatus
-
-class EvaluateReportValidity(ActionNode):
-    """
-    Evaluate report validity based on organizational criteria.
-    
-    Production implementation that replaces the fuzzer node.
-    
-    Blackboard Requirements:
-    - bb["current_report"]: VulnerabilityReport object
-    - bb["validation_criteria"]: Optional dict of org-specific rules
-    
-    Returns:
-    - SUCCESS if report is valid according to organizational policy
-    - FAILURE if report is invalid or out of scope
-    """
-    name = "EvaluateReportValidity"
-    
-    def _tick(self, depth=0):
-        report = self.bb.get("current_report")
-        if not report:
-            logger.error("EvaluateReportValidity: no current_report in blackboard")
-            return NodeStatus.FAILURE
-        
-        # Check organizational scope
-        if not self._is_in_scope(report):
-            logger.info(f"Report {report.as_id} is out of scope")
-            return NodeStatus.FAILURE
-        
-        # Check quality standards
-        if not self._meets_quality_standards(report):
-            logger.info(f"Report {report.as_id} does not meet quality standards")
-            return NodeStatus.FAILURE
-        
-        logger.info(f"Report {report.as_id} is valid")
-        return NodeStatus.SUCCESS
-    
-    def _is_in_scope(self, report) -> bool:
-        """
-        Check if report is in scope for organization.
-        
-        Example criteria:
-        - Product mentioned is supported by org
-        - Vulnerability type is relevant to org's mission
-        - Report is not duplicate of existing case
-        """
-        # Phase 1: Simple heuristics (e.g., check product field)
-        # Phase 2+: Pluggable policy engine
-        criteria = self.bb.get("validation_criteria", {})
-        # ... implementation ...
-        return True  # Placeholder
-    
-    def _meets_quality_standards(self, report) -> bool:
-        """
-        Check if report meets minimum quality standards.
-        
-        Example criteria:
-        - Has description or reproduction steps
-        - Includes affected versions
-        - Credibility assessment passed
-        """
-        # Phase 1: Simple checks (non-empty fields)
-        # Phase 2+: Scoring system
-        return report.content and len(report.content) > 20  # Placeholder
-```
-
-**Implementation Strategy**:
-
-1. **Phase 1**: Implement subset of critical nodes (validation, state transitions)
-2. **Phase 2**: Expand to messaging and embargo nodes
-3. **Phase 3**: Implement advanced nodes (human-in-loop placeholders)
-4. **Future**: Pluggable policy engines for organization-specific logic
-
-**Categories of Nodes to Implement**:
-
--  **Condition Nodes**: Check state, validate data, verify preconditions (return
-  SUCCESS/FAILURE)
--  **Action Nodes**: Mutate blackboard state, trigger side effects (return
-  SUCCESS/FAILURE)
--  **State Transition Nodes**: Move between state machine states (RM/EM/CS), persist to
-  data layer
-- **Message Emission Nodes**: Add activities to actor outbox via data layer
-
-**Key Constraints**:
-
-- MUST use `_tick()` method (BT base class convention)
-- MUST access state via `self.bb` (blackboard)
-- MUST use data layer for persistence (not direct database access)
-- MUST log state changes at INFO level (per `specs/structured-logging.md`)
-- SHOULD match simulation node interface (drop-in replacement)
-
-#### 3. Blackboard-DataLayer Adapter (`vultron/api/v2/bt_blackboard.py`)
-
-**Purpose**: Sync BT blackboard state with persistent data layer
-
-```python
-from vultron.bt.base.blackboard import Blackboard
-from vultron.api.v2.datalayer.abc import DataLayer
-from vultron.api.v2.data.helpers import object_to_record
-
-class DataLayerBackedBlackboard(Blackboard):
-    """
-    Blackboard that persists state to data layer.
-    
-    Design:
-    - Extends base Blackboard (dict subclass)
-    - Tracks modifications during BT execution
-    - Commits changes on success (rollback on failure)
-    - Maps blackboard keys to data layer operations
-    
-    Lifecycle:
-    1. __init__: Load actor state from data layer
-    2. BT execution: Nodes read/write via bb[key]
-    3. commit(): Persist dirty keys to data layer
-    """
-    
-    def __init__(self, datalayer: DataLayer, actor_id: str):
-        super().__init__()
-        self._datalayer = datalayer
-        self._actor_id = actor_id
-        self._dirty = set()  # Track modified keys
-        
-        # Load initial actor state
-        self._load_actor_state()
-    
-    def _load_actor_state(self):
-        """Load actor's state machines and metadata from data layer"""
-        try:
-            actor = self._datalayer.read(self._actor_id)
-            # Map actor fields to blackboard keys
-            self["q_rm"] = actor.q_rm  # RM state
-            self["q_em"] = actor.q_em  # EM state
-            self["q_cs"] = actor.q_cs  # CS state
-            # ... other state as needed
-        except KeyError:
-            logger.warning(f"Actor {self._actor_id} not found, using defaults")
-            self["q_rm"] = RM.START
-            self["q_em"] = EM.NO_EMBARGO
-            self["q_cs"] = CS.vfdpxa
-        
-    def __setitem__(self, key, value):
-        super().__setitem__(key, value)
-        self._dirty.add(key)
-    
-    def commit(self):
-        """
-        Persist dirty state to data layer.
-        
-        Maps blackboard keys to appropriate data layer operations:
-        - State machine states → update actor record
-        - Outbox messages → append to actor.outbox
-        - Created objects → data layer create()
-        """
-        if not self._dirty:
-            return
-        
-        logger.debug(
-            f"Committing {len(self._dirty)} dirty keys for actor {self._actor_id}"
-        )
-        
-        # Update actor state machine states
-        if any(k in self._dirty for k in ["q_rm", "q_em", "q_cs"]):
-            self._update_actor_state()
-        
-        # Handle outbox messages
-        if "msgs_emitted_this_tick" in self._dirty:
-            self._emit_messages()
-        
-        # Handle created objects (reports, cases, etc.)
-        if "created_objects" in self._dirty:
-            self._persist_created_objects()
-        
-        self._dirty.clear()
-        logger.info(f"Blackboard committed for actor {self._actor_id}")
-    
-    def _update_actor_state(self):
-        """Update actor's state machine states in data layer"""
-        actor = self._datalayer.read(self._actor_id)
-        actor.q_rm = self.get("q_rm", actor.q_rm)
-        actor.q_em = self.get("q_em", actor.q_em)
-        actor.q_cs = self.get("q_cs", actor.q_cs)
-        self._datalayer.update(actor.as_id, object_to_record(actor))
-    
-    def _emit_messages(self):
-        """Add emitted messages to actor outbox"""
-        messages = self.get("msgs_emitted_this_tick", [])
-        if not messages:
-            return
-        
-        actor = self._datalayer.read(self._actor_id)
-        for msg in messages:
-            # Convert BT message to ActivityStreams activity
-            activity = bt_message_to_activity(msg)
-            actor.outbox.orderedItems.append(activity)
-        
-        self._datalayer.update(actor.as_id, object_to_record(actor))
-    
-    def _persist_created_objects(self):
-        """Persist any objects created during BT execution"""
-        objects = self.get("created_objects", [])
-        for obj in objects:
-            try:
-                self._datalayer.create(obj)
-            except ValueError as e:
-                logger.warning(f"Object {obj.as_id} already exists: {e}")
-```
-
-**Key Responsibilities**:
-
-- **State Loading**: Read actor state from data layer on initialization
-- **Change Tracking**: Track all blackboard modifications via `_dirty` set
-- **Transactional Commit**: Persist all changes atomically (or rollback on failure)
--  **Type Mapping**: Convert between BT types (RM/EM/CS enums) and data layer
-  representations
-- **Message Translation**: Convert BT messages to ActivityStreams activities
-
-**Constraints**:
-
-- MUST use `DataLayer` Protocol (not direct TinyDB access)
--  MUST use `object_to_record()` helper for Pydantic model persistence (per
-  `specs/handler-protocol.md` HP-08-001)
-- MUST call `DataLayer.update(id, record)` with both parameters (per HP-08-002)
-- MUST NOT overwrite existing data during load (defensive validators per HP-08-003)
-
-#### 4. Message Type Bridge (`vultron/api/v2/bt_messages.py`)
-
-**Purpose**: Map ActivityStreams activities to BT message types
-
-```python
-def activity_to_bt_message(activity: Activity) -> BTMessage:
-    """
-    Convert ActivityStreams activity to BT message format.
-    
-    Maps MessageSemantics → BT message type (RS, RV, RI, etc.)
-    """
-    semantic = find_matching_semantics(activity)
-    
-    mapping = {
-        MessageSemantics.SUBMIT_REPORT: BTMessageType.RS,
-        MessageSemantics.VALIDATE_REPORT: BTMessageType.RV,
-        MessageSemantics.INVALIDATE_REPORT: BTMessageType.RI,
-        # ... etc
-    }
-    
-    return BTMessage(
-        type=mapping.get(semantic),
-        payload=activity,
-        sender=activity.actor,
+@verify_semantics(MessageSemantics.VALIDATE_REPORT)
+def validate_report(dispatchable: DispatchActivity) -> None:
+    # Handler delegates to BT execution bridge
+    result = execute_bt_for_handler(
+            bt_tree=ValidateReportBT,
+            activity=dispatchable.payload,
+            actor_id=extract_actor_id(dispatchable),
     )
+    # BT returns SUCCESS/FAILURE; handler logs result
+    if result.status == BTStatus.FAILURE:
+        logger.error(f"Validation failed: {result.errors}")
+        raise ValidationError(result.errors)
 ```
+
+**BT Tree Structure** (adapted from
+`vultron/bt/report_management/_behaviors/validate_report.py:RMValidateBt`):
+
+- **Fallback Node** (succeeds if any child succeeds):
+    - **Condition**: RMinStateValid (already validated? short-circuit to
+      success)
+    - **Sequence** (all must succeed):
+        - **Condition**: RMinStateReceivedOrInvalid (check precondition)
+        - **Action**: EvaluateReportCredibility (organizational policy)
+        - **Action**: EvaluateReportValidity (organizational policy)
+        - **Sequence** (perform validation):
+            - **Action**: TransitionRMtoValid (RM state machine)
+            - **Action**: CreateCase (includes CaseActor creation subtree)
+            - **Action**: EmitResponseActivities (add to outbox)
+
+**Benefits**:
+
+- Process flow visible in tree structure (matches documentation)
+- Reusable nodes (e.g., CreateCase used in multiple workflows)
+- Testable in isolation from HTTP layer
+- Composable for complex workflows
+- Policy decisions (credibility, validity evaluation) encapsulated in action
+  nodes with clear extension points
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Foundation (Proof of Concept)
+### Phase 1: Foundation and Proof of Concept
 
-**Goal**: Demonstrate BT execution from a single handler
+**Goal**: Demonstrate BT execution from a single handler using py_trees
 
-**Scope**: Report submission flow (SUBMIT_REPORT semantic → RM state S→R transition)
+**Scope**: Report submission or validation flow with end-to-end BT execution
 
-**Tasks**:
+**Key Objectives**:
 
-- [ ] 1.1: Create `vultron/api/v2/bt_bridge.py`
-  - Implement `execute_bt_for_handler()` function
-  - Implement `BTExecutionResult` class
-  - Add structured logging (INFO for execution, ERROR for failures)
-  - Handle BT timeouts (max_ticks exceeded → FAILURE)
-
-- [ ] 1.2: Create `vultron/api/v2/bt_blackboard.py`
-  - Implement `DataLayerBackedBlackboard` class
-  - Implement `_load_actor_state()` method
-  - Implement `commit()` with state machine persistence
-  - Add dirty tracking for modified keys
-
-- [ ] 1.3: Create `vultron/api/v2/bt_messages.py`
-  - Implement `activity_to_bt_message()` function
-  - Define `SEMANTICS_TO_BT_MESSAGE` mapping (RM messages only)
-  - Stub `bt_message_to_activity()` for Phase 2
-
-- [ ] 1.4: Create `vultron/bt/report_management/production/` directory structure
-  - Implement production version of `IsMsgTypeRS` condition node
-  - Implement production version of `q_rm_to_R` state transition node
-  - Match simulation node interfaces (drop-in replacement)
-
-- [ ] 1.5: Modify `submit_report` handler to invoke BT
-  - Import `execute_bt_for_handler` from bt_bridge
-  - Import `ProcessRMMessagesBt` or `_HandleRs` node
-  - Replace procedural logic with BT execution
-  - Handle `BTExecutionResult` (log success/failure)
-
-- [ ] 1.6: Add unit tests for BT bridge components
-  - Test `DataLayerBackedBlackboard` load/commit cycle
-  - Test `activity_to_bt_message` mapping
-  - Test `execute_bt_for_handler` with mock BT
-
-- [ ] 1.7: Add integration test for full flow
-  - POST Offer(VulnerabilityReport) to inbox
-  - Verify BT execution logged
-  - Verify RM state transition S→R in data layer
-  - Verify existing submit_report tests still pass
+- Set up `vultron/behaviors/` directory with py_trees dependency
+- Create execution bridge for handler-to-BT invocation
+- Implement one complete workflow as py_trees behavior tree
+- Integrate with existing DataLayer for state persistence
+- Validate approach with existing test suite (no regressions)
 
 **Success Criteria**:
 
-- ✅ `submit_report` successfully triggers BT execution
-- ✅ RM state transitions from START→RECEIVED persist to data layer
-- ✅ Test suite passes (no regressions in existing handlers)
-- ✅ Structured logging shows BT execution flow
-- ✅ Performance acceptable (<100ms for POC flow)
+- One handler successfully triggers py_trees-based BT
+- State transitions persist to DataLayer
+- Test suite passes without regressions
+- Performance acceptable for proof-of-concept
 
-**Deliverable**: Working proof-of-concept with one BT-powered handler
-
-**Risk Mitigation**:
-
-- Keep existing procedural handler logic in fallback branch
-- Use feature flag or config to enable BT execution (gradual rollout)
-- Add comprehensive error logging to diagnose BT failures
+**Deliverable**: Working proof-of-concept demonstrating feasibility
 
 ---
 
-### Phase 2: Report Management Message Expansion
+### Phase 2: Report Management Workflows
 
-**Goal**: Integrate BT logic for all report management messages (6 handlers)
+**Goal**: Complete all report workflow handlers using behavior trees
 
-**Scope**: Complete RM message handling via behavior trees
+**Scope**: Extend BT integration to all 6 report-related handlers
 
-**Tasks**:
+**Key Objectives**:
 
-- [ ] 2.1: Implement production nodes for RM message handlers:
-  - `_HandleRs` (RS: Report Submitted) - ✅ done in Phase 1
-  - `_HandleRv` (RV: Report Validated)
-    - Production: `EvaluateReportCredibility`, `EvaluateReportValidity`
-    - State transition: `q_rm_to_V` (RECEIVED/INVALID → VALID)
-  - `_HandleRi` (RI: Report Invalidated)
-    - State transition: `q_rm_to_I` (RECEIVED → INVALID)
-  - `_HandleRc` (RC: Report Closed)
-    - State transition: `q_rm_to_C` (any → CLOSED)
-  - `_HandleRk` (RK: Report Acknowledged)
-    - No state transition, just acknowledgment logging
-  - `_HandleRe` (RE: Report Error) - if applicable
-
-- [ ] 2.2: Update handlers to use BT bridge:
-  - ✅ `submit_report` → `_HandleRs` (done in Phase 1)
-  - `validate_report` → `RMValidateBt` (includes validation + case creation)
-  - `invalidate_report` → `_InvalidateReport` node
-  - `close_report` → `_CloseReport` node
-  - `ack_report` → `_HandleRk` node
-  - Keep create_report procedural (no BT needed for simple creation)
-
-- [ ] 2.3: Expand message type mapping:
-  - Add all RM message types to `SEMANTICS_TO_BT_MESSAGE`
-  - Document mapping in `bt_messages.py`
-  - Add validation tests for mapping completeness
-
-- [ ] 2.4: Implement BT message emission:
-  - Complete `bt_message_to_activity()` for RM messages
-  - Integrate with `DataLayerBackedBlackboard._emit_messages()`
-  - Test outbox population after BT execution
-
-- [ ] 2.5: Add tests for each RM message type:
-  - Unit tests for production nodes (validation, state transitions)
-  - Integration tests for full handler → BT → data layer flow
-  - Verify state transitions match BT documentation
-
-- [ ] 2.6: Update demo scripts:
-  - Verify `scripts/receive_report_demo.py` still works
-  - Add BT execution logging to demo output
-  - Document BT behavior in demo comments
+- Implement behavior trees for remaining report workflows
+- Establish patterns for state transitions, validation, and message emission
+- Ensure demo scripts (`scripts/receive_report_demo.py`) work with BT execution
+- Validate state transitions match protocol documentation
 
 **Success Criteria**:
 
--  ✅ All 6 report handlers use BT logic (submit, validate, invalidate, close, ack +
-  create)
-- ✅ Demo script (`scripts/receive_report_demo.py`) passes with BT execution
-- ✅ State transitions match BT documentation (`docs/topics/behavior_logic/msg_rm_bt.md`)
-- ✅ Outbox messages generated correctly from BT emission
-- ✅ No regressions in existing tests
+- All report handlers use BT logic
+- Demo script passes with BT execution
+- State transitions match documentation (
+  `docs/topics/behavior_logic/msg_rm_bt.md`)
+- No test regressions
 
-**Deliverable**: Complete RM message processing via BTs
-
-**Dependencies**:
-
-- Phase 1 completion (BT bridge infrastructure)
-- Existing handler tests as regression suite
-- BT documentation for state transition validation
+**Deliverable**: Complete RM message processing via behavior trees
 
 ---
 
-### Phase 3: Case and Embargo Management Integration
+### Phase 3: Case and Embargo Workflows
 
-**Goal**: Extend BT integration to case/embargo workflows (35 handlers)
+**Goal**: Extend BT integration to case and embargo management (35+ handlers)
 
-**Scope**: Multi-actor coordination, embargo timelines, case lifecycle management
+**Scope**: Multi-actor coordination, embargo timelines, case lifecycle
 
-**Rationale**: Case and embargo handlers are currently stubs (41 of 47 handlers). BT integration provides a structured way to implement complex coordination logic.
+**Key Objectives**:
 
-**Tasks**:
-
-- [ ] 3.1: Analyze case/embargo BT models:
-  - Review `vultron/bt/case_state/behaviors.py`
-  - Review `vultron/bt/embargo_management/behaviors.py`
-  - Identify which BT nodes have production-ready equivalents
-  - Document gaps where new BT structure is needed
-
-- [ ] 3.2: Implement production nodes for case management:
-  - Case creation and initialization
-  - Actor invitation/acceptance/rejection
-  - Case participant management (add/remove)
-  - Case status updates
-  - Case closure and reopening
-
-- [ ] 3.3: Implement production nodes for embargo management:
-  - Embargo proposal/acceptance/rejection
-  - Embargo timeline management
-  - Embargo exit conditions
-  - Embargo participant coordination
-
-- [ ] 3.4: Update case handlers to use BT bridge:
-  - `create_case` → Case creation BT
-  - `add_report_to_case` → Case-report association
-  -  `invite_actor_to_case` / `accept_invite_actor_to_case` /
-    `reject_invite_actor_to_case`
-  - `update_case`, `close_case`, `reopen_case`
-  - Participant management handlers (11 handlers total)
-
-- [ ] 3.5: Update embargo handlers to use BT bridge:
-  - `create_embargo_event` → Embargo proposal BT
-  - `accept_embargo` / `reject_embargo`
-  - `update_embargo_event`, `close_embargo_event`
-  - Embargo participant handlers (12 handlers total)
-
-- [ ] 3.6: Add demo scripts for complex workflows:
-  - Multi-actor case creation and coordination
-  - Embargo timeline management
-  - Case lifecycle (create → work → close → reopen)
-  - Participant invitation and acceptance flows
-
-- [ ] 3.7: Add integration tests:
-  - Multi-actor workflows (finder → vendor → coordinator)
-  - Embargo acceptance/rejection scenarios
-  - Case participant addition/removal
-  - Edge cases (duplicate invitations, invalid state transitions)
+- Implement behavior trees for case creation and management
+- Model VulnerabilityCase → CaseActor creation workflow
+- Implement embargo proposal, acceptance, and timeline trees
+- Support multi-actor coordination via DataLayer
+- Create demo scripts for complex workflows
 
 **Success Criteria**:
 
-- ✅ Case creation, actor invitations, participant management work via BTs
-- ✅ Embargo creation, acceptance, timeline management work via BTs
-- ✅ Complex workflows (multi-actor coordination) function correctly
-- ✅ Demo scripts show end-to-end case/embargo workflows
-- ✅ Integration tests cover multi-party scenarios
+- Case and embargo workflows function via BTs
+- Multi-actor coordination works correctly
+- Demo scripts show end-to-end workflows
+- Integration tests cover multi-party scenarios
 
-**Deliverable**: Full case/embargo workflow support with BT logic (35+ handlers implemented)
+**Deliverable**: Full case/embargo workflow support (35+ handlers)
 
 **Challenges**:
 
-- **Human-in-Loop**: Some BT nodes require human decisions (e.g., accept/reject embargo)
-  - Phase 3 approach: Use configurable default policies + logging for review
-  - Future: Async workflows with pause/resume for human input
--  **Multi-Actor Coordination**: BT blackboard is per-actor; cross-actor state must sync
-  via data layer
--  **Complex State Machines**: EM/CS interactions are more complex than RM; need careful
-  testing
-
-**Dependencies**:
-
-- Phase 2 completion (RM message handling)
-- Case/embargo BT documentation review
-- Multi-actor test fixtures and data
+- Human-in-loop decisions (use configurable policies + audit logging)
+- Multi-actor state synchronization via DataLayer
+- Complex state machine interactions (EM/CS)
 
 ---
 
-### Phase 4: Production Hardening and Documentation
+### Phase 4: Hardening and Documentation
 
-**Goal**: Harden BT integration for production use and create comprehensive documentation
+**Goal**: Refine BT integration for broader use with comprehensive documentation
 
-**Scope**: Error handling, observability, performance, documentation, specification updates
+**Scope**: Error handling, observability, performance, specifications
 
-**Tasks**:
+**Key Objectives**:
 
-- [ ] 4.1: Error handling and recovery:
-  - Add exception handling in `execute_bt_for_handler()` with proper error types
-  - Implement BT timeout detection (max_ticks exceeded)
-  - Add retry logic for transient failures (optional)
-  - Ensure blackboard rollback on BT failure (no partial state)
-  - Map BT failures to HTTP error responses where appropriate
-
-- [ ] 4.2: Structured logging and observability:
-  - Add structured logging per `specs/structured-logging.md`:
-    - INFO: BT execution start/end, state transitions
-    - DEBUG: Node tick details, blackboard state snapshots
-    - ERROR: BT failures, timeouts, exceptions
-  - Include correlation IDs (activity_id, actor_id) in all logs
-  - Add logging for blackboard commit/rollback events
-  - Implement audit trail for state machine transitions
-
-- [ ] 4.3: Performance optimization and monitoring:
-  - Profile BT execution overhead (baseline vs. procedural handlers)
-  - Set and enforce performance SLOs (<100ms P99 for typical workflows)
-  - Add metrics collection:
-    - BT execution time per handler
-    - Tick count per execution
-    - Blackboard commit time
-    - Cache hit rates (if BT structure caching added)
-  - Identify and optimize bottlenecks
-
-- [ ] 4.4: Documentation:
-  - Update `AGENTS.md` with BT integration patterns
-  - Create `docs/topics/bt_integration.md` guide:
-    - When to use BT vs. procedural handlers
-    - How to implement production nodes
-    - How to test BT-powered handlers
-    - Blackboard key conventions
-  - Update handler implementation examples in specs
-  - Document migration checklist for converting handlers to BT
-
-- [ ] 4.5: Specification updates:
-  - Create `specs/bt-integration.md` with testable requirements:
-    - BT-01-*: Bridge layer requirements
-    - BT-02-*: Blackboard persistence requirements
-    - BT-03-*: Production node requirements
-    - BT-04-*: Message mapping requirements
-  - Update `specs/handler-protocol.md` to include BT execution option
-  - Cross-reference BT integration from relevant specs
-
-- [ ] 4.6: Architecture Decision Record:
-  - Create `docs/adr/0008-integrate-behavior-trees-with-handlers.md`
-  - Document design decisions, alternatives considered, tradeoffs
-  - Link to related ADRs (ADR-0002, ADR-0007)
-
-- [ ] 4.7: Testing and validation:
-  - Achieve 80%+ line coverage for BT bridge code
-  - Add property-based tests for blackboard commit logic
-  - Add chaos testing for BT timeouts and failures
-  - Validate against all specifications in `specs/`
+- Comprehensive error handling and recovery mechanisms
+- Structured logging per `specs/structured-logging.md`
+- Performance measurement and optimization
+- Create `specs/bt-integration.md` with testable requirements
+- Write ADR documenting BT integration architecture
+- Update `AGENTS.md` and developer documentation
+- Achieve 80%+ test coverage for BT integration code
 
 **Success Criteria**:
 
-- ✅ BT execution errors are caught and logged with full context
-- ✅ Performance acceptable (P99 < 100ms for typical workflows)
-- ✅ Structured logging meets `specs/structured-logging.md` requirements
-- ✅ Documentation complete (AGENTS.md, docs, specs, ADR)
-- ✅ Test coverage ≥80% for BT integration code
-- ✅ All Phase 1-3 handlers validated in production-like scenarios
+- Error handling complete with proper logging
+- Performance meets targets (P99 < 100ms typical workflows)
+- Comprehensive documentation and specifications
+- Test coverage ≥80% for BT code
+- ADR peer-reviewed and accepted
 
-**Deliverable**: Production-ready BT integration system with comprehensive documentation
-
-**Validation Checklist**:
-
-- [ ] All specs requirements satisfied (testability verification)
-- [ ] ADR peer-reviewed and accepted
-- [ ] Performance benchmarks meet SLOs
-- [ ] Error handling tested with fault injection
-- [ ] Documentation reviewed by maintainers
-- [ ] Migration guide validated with real handler conversions
-
+**Deliverable**: Refined BT integration with full documentation
 ---
 
 ## Design Decisions
 
-### 1. Handler-Orchestrated vs. BT-First
+### 1. Use py_trees for Prototype Implementation
 
-**Decision**: Handlers orchestrate BT execution (handler-first)
+**Decision**: Prototype behavior trees use the `py_trees` library
+
+**Rationale**:
+
+- ✅ Mature, well-tested BT framework with active development
+- ✅ Built-in visualization and debugging tools
+- ✅ Extensive documentation and examples
+- ✅ Follows established BT design patterns from robotics/AI community
+- ✅ Allows focus on workflow logic rather than BT engine maintenance
+
+**Implementation Boundary**:
+
+- `vultron/bt/` retains custom BT engine for simulation
+- `vultron/behaviors/` uses py_trees for prototype handlers
+- Simulation and prototype coexist independently
+
+---
+
+### 2. Handler-Orchestrated vs. BT-First
+
+**Decision**: Handlers orchestrate BT execution (handler-first approach)
 
 **Rationale**:
 
 - ✅ Preserves existing semantic extraction and dispatch infrastructure
-- ✅ Allows gradual migration (handler-by-handler)
-- ✅ Keeps ActivityStreams as the API surface (no BT details leak out)
-- ✅ Easier to test (can test handlers with/without BT)
+- ✅ Allows gradual migration handler-by-handler
+- ✅ Keeps ActivityStreams as API surface (BT as internal implementation detail)
+- ✅ Easier to test handlers with/without BT
+- ✅ Aligns with ADR-0007 Behavior Dispatcher architecture
 
-**Alternative Considered**: BT-first (BTs directly consume ActivityStreams)
+**Alternative Rejected**: BTs directly consume ActivityStreams
 
-- ❌ Would require rewriting semantic extraction in BT terms
+- ❌ Would require rewriting semantic extraction
 - ❌ Harder to migrate incrementally
 - ❌ Tighter coupling between BT and ActivityStreams
 
 ---
 
-### 2. Blackboard Persistence Strategy
+### 3. DataLayer as State Store (No Separate Blackboard)
 
-**Decision**: Write-through with explicit commit
+**Decision**: Behavior trees interact directly with DataLayer for state
+management
 
 **Rationale**:
 
-- ✅ BT execution is transactional (commit on success, rollback on failure)
-- ✅ Allows inspection of changes before persistence
-- ✅ Simplifies testing (can check blackboard state without DB)
+- ✅ Single source of truth (eliminates sync issues)
+- ✅ Simplifies architecture (one state system, not two)
+- ✅ Transaction semantics already handled by DataLayer
+- ✅ Reduces memory footprint (no duplicate state)
 
-**Alternative Considered**: Immediate write-through on every change
+**Design Implication**:
 
-- ❌ No transaction semantics
-- ❌ Partial failures leave inconsistent state
+- BT nodes will use DataLayer Protocol for reads/writes
+- py_trees "blackboard" may be used for transient execution state only
+- Persistent state (actors, cases, reports) stored in DataLayer
+
+**Alternative Rejected**: Separate blackboard with periodic sync
+
+- ❌ Risk of state inconsistencies
+- ❌ Complex sync logic
 - ❌ Harder to test and debug
 
 ---
 
-### 3. Fuzzer Node Replacement
+### 4. Focused BTs per Workflow (Not Monolithic)
 
-**Decision**: Create parallel production nodes (don't modify existing fuzzers)
+**Decision**: Create small, focused behavior trees triggered by specific message
+semantics
 
 **Rationale**:
 
-- ✅ Preserves simulation capability for testing
-- ✅ Clear separation between simulation and production code
-- ✅ Allows running same BT structure with different node implementations
+- ✅ Event-driven execution model (one message → one tree)
+- ✅ Easier to test in isolation
+- ✅ Clear entry points from handlers
+- ✅ Composable via subtrees when needed
+- ✅ Better performance (smaller trees = faster execution)
 
-**Implementation**:
+**Examples**:
 
-```python
-# Directory structure:
-vultron/bt/report_management/
-    fuzzer/
-        validate_report.py  # Stochastic simulation nodes
-    production/  # NEW
-        validate_report.py  # Real implementations
-```
+- ValidateReportBT (triggered by VALIDATE_REPORT handler)
+- CreateCaseBT (subtree of ValidateReportBT)
+- ProposeEmbargoBT (triggered by CREATE_EMBARGO_EVENT handler)
 
-**Alternative Considered**: Modify fuzzer nodes to detect production mode
+**Alternative Rejected**: Single monolithic CvdProtocolBT for prototype
 
-- ❌ Mixes concerns (simulation + production in same class)
-- ❌ Harder to test each mode independently
-- ❌ Risk of production code accidentally using fuzzer logic
+- ❌ Doesn't match event-driven handler architecture
+- ❌ Harder to test and debug
+- ❌ Poor performance (ticking entire tree per event)
+- ❌ Unclear entry points
 
 ---
 
-### 4. BT Execution Model
+### 5. Single-Shot Execution (Not Persistent Tick Loop)
 
-**Decision**: Single-shot execution (not tick-based loop)
+**Decision**: BTs execute to completion per handler invocation
 
 **Rationale**:
 
-- ✅ Handlers are event-driven (one activity → one execution)
-- ✅ Simpler failure handling (no need to pause/resume)
-- ✅ Matches HTTP request/response model (synchronous)
+- ✅ Matches event-driven HTTP request/response model
+- ✅ Simpler failure handling (no pause/resume state)
+- ✅ Clear transaction boundaries (one execution = one commit)
+- ✅ No need for tick state persistence
 
 **Implementation**:
 
-```python
-def execute_bt_for_handler(...):
-    # Execute BT to completion (or max iterations)
-    max_ticks = 100
-    for _ in range(max_ticks):
-        result = bt_node.tick()
-        if result in (NodeStatus.SUCCESS, NodeStatus.FAILURE):
-            break
-    return result
-```
+- Handler invokes BT
+- BT executes until SUCCESS/FAILURE or max iterations
+- Result returned to handler
+- No state preserved between handler invocations
 
-**Alternative Considered**: Async tick-based execution with pause/resume
+**Alternative Rejected**: Async tick-based execution with pause/resume
 
-- ❌ Requires state persistence between ticks
-- ❌ More complex error handling
-- ❌ Doesn't match current handler model
+- ❌ Requires BT state persistence between ticks
+- ❌ Complex failure recovery
+- ❌ Doesn't match current handler architecture
+
+---
+
+### 6. Case Creation Includes CaseActor Generation
+
+**Decision**: VulnerabilityCase creation triggers CaseActor (Service) creation
+as part of same workflow
+
+**Rationale**:
+
+- ✅ Case needs owner for message processing
+- ✅ Models case-as-agent pattern (case receives messages, updates state)
+- ✅ Enables multi-case coordination within single organization
+- ✅ Clear responsibility boundary (CaseActor owns case lifecycle)
+
+**Workflow**:
+
+1. VALIDATE_REPORT handler invoked
+2. ValidateReportBT executes
+3. Validation succeeds → CreateCaseBT subtree
+4. CreateCaseBT creates VulnerabilityCase
+5. CreateCaseBT creates CaseActor (Service) with case as context
+6. CaseActor added to organization's actor registry
+7. CreateCase activity added to outbox
+
+**Alternative Rejected**: Case creation without CaseActor
+
+- ❌ Unclear message routing for case-specific events
+- ❌ Organization actor becomes overloaded
+- ❌ Harder to model multi-case scenarios
+
+---
+
+### 7. Command-Line BT Invocation Support
+
+**Decision**: Provide CLI interface for invoking behavior trees independently of
+HTTP handlers
+
+**Rationale**:
+
+- ✅ Enables testing BTs in isolation
+- ✅ Supports agentic AI integration (LLM-driven workflows)
+- ✅ Facilitates debugging and development
+- ✅ Allows manual workflow execution for maintenance tasks
+
+**Use Cases**:
+
+- Testing:
+  `vultron run-behavior validate-report --actor=vendor --report=TEST-001`
+- AI agents: Invoke workflows based on LLM decision-making
+- Maintenance: Manually trigger case cleanup, embargo expiration checks
+- Debugging: Step through workflow logic without HTTP overhead
 
 ---
 
@@ -1002,7 +845,7 @@ def execute_bt_for_handler(...):
 **Per-Handler Checklist**:
 
 - [ ] Identify corresponding BT node(s)
-- [ ] Implement production versions of fuzzer nodes
+- [ ] Implement prototype versions of fuzzer nodes (deterministic logic)
 - [ ] Create test data for BT execution
 - [ ] Modify handler to use BT bridge
 - [ ] Update handler tests to verify BT execution
@@ -1014,319 +857,240 @@ def execute_bt_for_handler(...):
 
 ### 1. Unit Tests for BT Nodes
 
-Test individual production nodes in isolation:
+Test individual prototype nodes in isolation using standard pytest patterns with
+DataLayer fixtures.
 
-```python
-def test_evaluate_report_validity_in_scope():
-    """Test EvaluateReportValidity returns SUCCESS for in-scope reports"""
-    bb = DataLayerBackedBlackboard(datalayer, "test-actor")
-    bb.current_report = create_test_report(in_scope=True)
-    
-    node = EvaluateReportValidity()
-    node.bb = bb
-    
-    result = node.tick()
-    
-    assert result == NodeStatus.SUCCESS
-```
+**Coverage Requirements**:
+
+- Condition nodes: Test SUCCESS/FAILURE logic with various inputs
+- Action nodes: Verify state changes via DataLayer reads
+- Composite trees: Test node execution order and short-circuit behavior
+
+---
 
 ### 2. Integration Tests for BT Execution
 
-Test full BT execution via bridge:
+Test complete handler → BT → DataLayer flow:
 
-```python
-def test_submit_report_executes_bt(datalayer):
-    """Test submit_report handler executes _HandleRs BT"""
-    activity = as_Offer(
-        actor="reporter",
-        object=VulnerabilityReport(name="TEST-001", ...),
-        target="vendor",
-    )
-    
-    dispatchable = DispatchActivity(
-        semantic_type=MessageSemantics.SUBMIT_REPORT,
-        payload=activity,
-        actor_id="vendor",
-    )
-    
-    # Execute handler (should trigger BT)
-    submit_report(dispatchable)
-    
-    # Verify state changes from BT
-    actor = datalayer.read("vendor")
-    assert actor.rm_state == RMState.RECEIVED
-    
-    # Verify BT execution was logged
-    assert "Executing BT: _HandleRs" in caplog.text
-```
+**Test Patterns**:
+
+- Verify handler invokes BT correctly
+- Confirm state transitions persist to DataLayer
+- Check activity generation (outbox items)
+- Validate logging at appropriate levels
+
+---
 
 ### 3. Simulation Tests (Existing)
 
-Keep existing simulation tests to verify process logic:
+Preserve existing simulation tests in `vultron/bt/` for protocol exploration and
+probabilistic testing.
 
-```python
-def test_rm_message_handling_simulation():
-    """Test RM message handling BT in simulation mode"""
-    with CvdProtocolBt() as tree:
-        # Use fuzzer nodes for stochastic testing
-        for _ in range(100):
-            tree.tick()
-            # Verify probabilistic properties
-```
+**No Changes Required**: Simulation tests continue to use custom BT engine with
+fuzzer nodes.
 
 ---
 
-## Open Questions and Design Decisions
+## Open Questions and Key Considerations
 
-### 1. State Synchronization Strategy
+### 1. State Synchronization in Multi-Actor Scenarios
 
-**Question**: How do we keep BT blackboard state in sync with data layer during multi-step workflows?
+**Question**: How should behavior trees coordinate state across multiple actors
+in complex workflows?
 
-**Context**: Current architecture uses event-driven processing. Each activity → one handler invocation → one BT execution. Question is whether to persist BT state across invocations.
+**Context**: Case and embargo workflows involve multiple actors (finder, vendor,
+coordinator) with independent state machines.
 
-**Analysis**:
+**Prototype Approach**:
 
-The existing inbox handler architecture uses **BackgroundTasks** for async processing
-(per `specs/inbox-endpoint.md` IE-06-001). Each activity is processed independently:
+- Each actor's BT execution loads only that actor's state from DataLayer
+- Cross-actor coordination happens via message exchange (ActivityStreams
+  activities in outboxes/inboxes)
+- DataLayer serves as shared persistence layer but doesn't provide inter-actor
+  locking by default
+- Race conditions handled by:
+    1. **Sequential message processing** (simple, sufficient for prototype)
+    2. **Idempotent operations** (handlers check existing state before mutations
+       per HP-07-*)
+    3. **Optimistic concurrency** (defer to Phase 4 if sequential proves
+       insufficient)
 
-```python
-@router.post("/{actor_id}/inbox")
-async def inbox(actor_id: str, activity: dict, background_tasks: BackgroundTasks):
-    background_tasks.add_task(inbox_handler, actor_id, activity)
-    return Response(status_code=202)  # HTTP 202 within 100ms
-```
-
-This means:
-- Activities processed in parallel (no guaranteed ordering)
-- Each handler invocation is stateless from request perspective
-- Actor state must be loaded from data layer each time
-
-**Options**:
-
--  (A) **Fresh load per execution** (RECOMMENDED): Each BT execution loads actor state
-  from data layer, executes, commits changes
-  - ✅ Stateless, idempotent (per HP-07-001)
-  - ✅ Handles concurrent activity processing
-  - ✅ Simplest to implement and test
-  - ❌ Higher data layer read overhead
-  
--  (B) **Cached blackboard with invalidation**: Keep blackboard in memory, invalidate on
-  data layer changes
-  - ✅ Lower read overhead
-  - ❌ Complex cache invalidation logic
-  - ❌ Doesn't match event-driven architecture
-  - ❌ Harder to test and debug
-  
-- (C) **Persistent BT state**: Store blackboard in data layer between ticks
-  - ❌ Requires tick persistence (conflicts with single-shot execution model)
-  - ❌ Doesn't match HTTP request/response semantics
-  - ❌ Not needed for current architecture
-
-**Decision**: Use option (A) - fresh load per execution
-
-**Rationale**: Matches event-driven architecture, preserves idempotency, simplifies implementation. Performance impact can be measured in Phase 1 and optimized if needed.
+**Design Consideration**: Whether to implement optimistic locking or conflict
+detection in Phase 3/4 based on observed issues in testing
 
 ---
 
-### 2. Message Emission and Outbox Integration
+### 2. Message Emission and Outbox Processing
 
-**Question**: How do we integrate BT message emission with ActivityStreams outbox processing?
+**Question**: How should BT nodes emit ActivityStreams activities to actor
+outboxes?
 
-**Context**: 
+**Approach**:
 
-- BT model: Nodes like `EmitRV` add messages to `bb.msgs_emitted_this_tick`
-- Handler model: Activities added to `actor.outbox.orderedItems` via data layer
-- Outbox processing: Not yet implemented (future work per `IMPLEMENTATION_PLAN.md`)
+- BT nodes generate activities and write to actor outbox via DataLayer
+- Outbox processing (delivery to other actors) remains separate concern
+- Trees focus on local state transitions and message generation, not delivery
 
-**Options**:
-
-- (A) **BT → blackboard → bridge → outbox** (RECOMMENDED): 
-  - BT nodes emit to `bb.msgs_emitted_this_tick`
-  - `DataLayerBackedBlackboard.commit()` translates to ActivityStreams
-  - Append activities to actor outbox via data layer
-  - ✅ Preserves BT abstraction
-  - ✅ BT nodes don't need ActivityStreams knowledge
-  - ✅ Translation logic centralized in bridge
-  
-- (B) **Direct outbox writes from BT nodes**:
-  - Production nodes directly write to actor outbox
-  - ❌ Tight coupling to ActivityStreams
-  - ❌ Breaks BT simulation compatibility
-  - ❌ Harder to test in isolation
-  
-- (C) **Hybrid: Intent + handler translation**:
-  - BT emits high-level intent (e.g., "validate_report")
-  - Handler translates to specific ActivityStreams activity
-  - ✅ Flexible for different activity structures
-  - ❌ Duplicates translation logic across handlers
-  - ❌ Unclear separation of concerns
-
-**Decision**: Use option (A) - BT emits to blackboard, bridge translates
-
-**Implementation**:
-
-```python
-# In DataLayerBackedBlackboard.commit():
-def _emit_messages(self):
-    """Translate BT messages to ActivityStreams activities"""
-    messages = self.get("msgs_emitted_this_tick", [])
-    for bt_msg in messages:
-        # Use bt_message_to_activity() from bt_messages.py
-        activity = bt_message_to_activity(bt_msg)
-        actor.outbox.orderedItems.append(activity)
-    self._datalayer.update(actor.as_id, object_to_record(actor))
-```
-
-**Rationale**: Keeps BT logic decoupled from ActivityStreams, enables testing with different message formats, centralizes translation in one place.
+**Design Consideration**: Whether outbox processing should be triggered
+synchronously after BT execution or asynchronously
 
 ---
 
 ### 3. Human-in-the-Loop Decision Handling
 
-**Question**: How do we handle BT nodes that require human decisions (e.g., `EvaluateReportCredibility`)?
+**Question**: How to handle workflow steps requiring human judgment (report
+validation, embargo acceptance)?
 
-**Context**: Many fuzzer nodes represent decisions that might require human judgment in production (validation, embargo acceptance, etc.).
+**Prototype Approach (Phases 1-3)**:
 
-**Analysis**:
+- Use **configurable default policies** (organizational rules encoded as policy
+  objects)
+- **Example**: ReportValidationPolicy with `is_credible()` and `is_valid()`
+  methods
+- **Default Implementation**: Always returns True (accept all reports) with
+  audit logging
+- **Extension Point**: Policy interface allows plugging in real logic without
+  changing BT structure
+- Log decisions at INFO level for audit and review
+- Allow manual override via separate administrative actions (out of scope for
+  initial prototype)
 
-Current fuzzer nodes (e.g., `AlmostAlwaysSucceed`, `ProbablySucceed`) simulate
-stochastic decisions. Production implementations need to either:
-1. Automate the decision (heuristics, rules, ML)
-2. Defer to human operator
-3. Use configurable policy (org-specific rules)
-
-**Options**:
-
-- (A) **Async workflow with pause/resume**:
-  - BT execution pauses at human decision node
-  - Handler returns "pending" status, stores BT state
-  - Human provides input via separate endpoint
-  - BT resumes from paused state
-  - ❌ Requires tick persistence (conflicts with single-shot model)
-  - ❌ Complex state management
-  - ❌ Doesn't match HTTP semantics
-  
-- (B) **Default policy + audit log** (RECOMMENDED for Phase 1-3):
-  - Production node uses configurable default policy
-  - Decision logged at INFO level for human review
-  - Humans can override via separate action (e.g., invalidate report)
-  - ✅ Simple to implement
-  - ✅ Matches single-shot execution model
-  - ✅ Enables learning from decisions (future ML)
-  - ❌ May make incorrect decisions (requires monitoring)
-  
-- (C) **Skip BT for human-decision flows**:
-  - Use procedural handlers for flows requiring human input
-  - Use BT only for fully automated flows
-  - ✅ Avoids BT complexity for unclear cases
-  - ❌ Loses BT modeling benefits
-  - ❌ Inconsistent handler architecture
-
-**Decision**: Use option (B) for Phase 1-3 (default policy + audit log)
-
-**Phase 1-3 Implementation**:
+**Policy Node Pattern**:
 
 ```python
-class EvaluateReportCredibility(ActionNode):
-    """
-    Evaluate report credibility using configurable policy.
-    
-    Default policy: Check for minimum information (description, affected versions).
-    Future: Pluggable policy engine, ML scoring, etc.
-    """
-    def _tick(self, depth=0):
-        report = self.bb["current_report"]
-        policy = self.bb.get("credibility_policy", "default")
-        
-        # Apply policy (heuristics for Phase 1)
-        is_credible = self._apply_policy(policy, report)
-        
-        # Audit log for human review
-        logger.info(
-            f"Report {report.as_id} credibility assessment: {is_credible} "
-            f"(policy: {policy}, needs_review: {not is_credible})"
-        )
-        
-        return NodeStatus.SUCCESS if is_credible else NodeStatus.FAILURE
+class EvaluateReportCredibility(py_trees.behaviour.Behaviour):
+    def __init__(self, policy: ReportValidationPolicy):
+        self.policy = policy
+
+    def update(self):
+        report = self.blackboard.get("report")
+        if self.policy.is_credible(report):
+            logger.info(f"Report {report.id} deemed credible")
+            return py_trees.common.Status.SUCCESS
+        else:
+            logger.warning(f"Report {report.id} deemed not credible")
+            return py_trees.common.Status.FAILURE
 ```
 
-**Phase 4+ Enhancement**: Explore async workflows with external decision services (webhook, queue, etc.) for complex human-in-loop scenarios.
+**Phase 4+ Consideration** (deferred):
 
-**Rationale**: Pragmatic approach that enables progress while acknowledging limitations. Audit logging enables learning and improvement. Future async support is additive (doesn't require redesign).
+- Async workflow support with pause/resume for human review
+- Integration with external decision services or notification systems
+- Workflow queues for pending human decisions
 
 ---
 
-### 4. Performance Impact and Optimization
+### 4. Performance Optimization Strategy
 
-**Question**: What is the performance overhead of BT execution vs. procedural handler logic?
+**Question**: What is acceptable performance overhead for BT execution?
 
-**Concern**: BT adds indirection (node instantiation, tick loop, blackboard lookups, commit overhead).
+**Baseline Targets** (for prototype evaluation, not hard requirements):
 
-**Baseline Measurement Plan (Phase 1)**:
+- P50 latency: <50ms (comparable to procedural handlers)
+- P99 latency: <100ms (acceptable for typical workflows)
+- P99.9 latency: <500ms (complex multi-actor scenarios)
 
-```python
-# Measure in integration tests
-import time
+**Measurement Approach**:
 
-def test_handler_performance_baseline():
-    """Measure procedural handler execution time"""
-    activity = create_test_activity()
-    
-    start = time.perf_counter()
-    submit_report_procedural(activity)  # Old implementation
-    end = time.perf_counter()
-    
-    procedural_time = (end - start) * 1000  # ms
-    assert procedural_time < 50  # Baseline SLO
+- Phase 1: Establish baseline metrics with POC
+- Phase 2-3: Monitor and identify bottlenecks
+- Phase 4: Optimize critical paths if needed (only if blocking real usage)
 
-def test_handler_performance_bt():
-    """Measure BT-powered handler execution time"""
-    activity = create_test_activity()
-    
-    start = time.perf_counter()
-    submit_report_bt(activity)  # New BT implementation
-    end = time.perf_counter()
-    
-    bt_time = (end - start) * 1000  # ms
-    overhead = bt_time - procedural_time
-    
-    assert bt_time < 100  # Phase 1 SLO
-    assert overhead < 50  # Maximum acceptable overhead
-```
+**Potential Optimizations** (defer to Phase 4 unless necessary):
 
-**Expected Overhead Sources**:
+- Cache BT structure (instantiate once, reuse with fresh blackboard)
+- Batch DataLayer operations
+- Profile and optimize hot paths
 
-1. **BT node instantiation**: ~1-5ms (can be cached)
-2. **Blackboard lookups**: ~0.1ms per access (negligible)
-3. **Tick loop iterations**: ~0.5ms per tick (depends on tree depth)
-4. **Data layer read/commit**: ~5-10ms (dominant cost, same as procedural)
+**Principle**: Measure before optimizing; prototype phase prioritizes
+correctness and maintainability
 
-**Optimization Strategies**:
+---
 
-- **Phase 1**: Accept baseline overhead, measure and document
-- **Phase 2**: Cache BT structure (instantiate once, reuse across invocations)
-- **Phase 3**: Optimize data layer reads (batch loading, caching)
-- **Phase 4**: Profile hot paths, optimize critical nodes
+### 5. Testing Strategy Across Simulation and Production
 
-**Acceptance Criteria**:
+**Question**: How to maintain test coverage for both simulation and prototype
+implementations?
 
-- P50 latency: <50ms (same as procedural)
-- P99 latency: <100ms (acceptable overhead for typical workflows)
-- P99.9 latency: <500ms (complex multi-actor workflows)
+**Approach**:
 
-**Monitoring**:
+- Keep existing simulation tests for protocol exploration
+- Add prototype BT tests for deterministic workflows
+- Integration tests validate full handler → BT → DataLayer flow
+- Unit tests for individual BT nodes (condition/action logic)
 
-```python
-# Add to execute_bt_for_handler()
-metrics.histogram("bt_execution_time_ms", duration_ms, tags={
-    "handler": handler_name,
-    "semantic": semantic_type,
-    "result": result.status,
-})
-metrics.counter("bt_tick_count", tick_count, tags={"handler": handler_name})
-```
+---
 
-**Rationale**: Measure first, optimize later. Prioritize correctness and maintainability in Phase 1, address performance if it becomes a problem. BT modeling benefits (composability, testability, documentation) justify modest overhead.
+## Implementation Risks and Mitigation
+
+### Risk 1: py_trees Integration Complexity
+
+**Risk**: py_trees may not integrate cleanly with existing DataLayer and
+ActivityStreams models
+
+**Mitigation**:
+
+- Phase 1 POC validates integration feasibility early
+- Small scope (1 handler) limits risk exposure
+- Fallback: If py_trees proves unsuitable, can use custom BT engine or
+  procedural handlers
+
+**Indicators of Success**:
+
+- Clean DataLayer access from BT nodes
+- Reasonable performance (<100ms P99)
+- Tree visualization aids debugging
+
+### Risk 2: Factory Method Reuse Infeasibility
+
+**Risk**: Existing simulation BT structures may not map cleanly to py_trees
+
+**Mitigation**:
+
+- Document intent in ADR-0004 but don't force reuse
+- Phase 1 explores feasibility; proceed with fresh implementation if needed
+- Focus on matching *semantics* (process flow) rather than *code* (
+  implementation)
+
+**Fallback Strategy**: Implement new trees directly in py_trees, using
+simulation trees as design reference only
+
+### Risk 3: Over-Engineering for Prototype
+
+**Risk**: BT integration adds complexity that may not justify benefits for
+prototype phase
+
+**Mitigation**:
+
+- Phase 1 POC demonstrates value before committing to full implementation
+- Preserve procedural handlers as working examples (don't delete during
+  migration)
+- Gradual migration allows reverting individual handlers if BT approach proves
+  problematic
+- Document decision in ADR for future reference
+
+**Decision Criteria**: If Phase 1 POC shows BT approach is:
+
+- ✅ **Valuable**: Proceed with Phases 2-4
+- ⚠️ **Uncertain**: Implement 2-3 more handlers in Phase 2, reassess
+- ❌ **Problematic**: Document findings, revert to procedural handlers, close out
+  ADR
+
+### Risk 4: Performance Degradation
+
+**Risk**: BT execution overhead degrades handler response times
+
+**Mitigation**:
+
+- Establish baseline metrics in Phase 1
+- Set P99 < 100ms as go/no-go threshold for Phase 2
+- Profile and optimize hot paths before proceeding to Phase 3
+
+**Acceptable Outcomes**:
+
+- If overhead < 50ms: Proceed as planned
+- If overhead 50-100ms: Proceed with monitoring
+- If overhead > 100ms: Optimize critical paths or reconsider approach
 
 ---
 
@@ -1350,7 +1114,7 @@ metrics.counter("bt_tick_count", tick_count, tags={"handler": handler_name})
 - [ ] New demo scripts for case/embargo workflows
 - [ ] Integration tests for all workflows
 
-### Phase 4 (Production)
+### Phase 4 (Hardening)
 
 - [ ] Error handling complete
 - [ ] Performance acceptable (<100ms P99)
@@ -1366,53 +1130,79 @@ metrics.counter("bt_tick_count", tick_count, tags={"handler": handler_name})
 BT integration MUST comply with all handler protocol requirements
 (`specs/handler-protocol.md`):
 
--  **HP-01-001/HP-01-002**: Handler signature (BT bridge called from handler, not
+- **HP-01-001/HP-01-002**: Handler signature (BT bridge called from handler, not
   replacing it)
--  **HP-02-001/HP-02-002**: Semantic verification (`@verify_semantics` decorator
+- **HP-02-001/HP-02-002**: Semantic verification (`@verify_semantics` decorator
   required)
--  **HP-03-001/HP-03-002**: Handler registration (BT-powered handlers still in
+- **HP-03-001/HP-03-002**: Handler registration (BT-powered handlers still in
   `SEMANTIC_HANDLER_MAP`)
--  **HP-04-001/HP-04-002**: Payload access (via `dispatchable.payload`, passed to BT
+- **HP-04-001/HP-04-002**: Payload access (via `dispatchable.payload`, passed to
+  BT
   bridge)
--  **HP-05-001/HP-05-002**: Error handling (BT exceptions caught in bridge, logged
+- **HP-05-001/HP-05-002**: Error handling (BT exceptions caught in bridge,
+  logged
   appropriately)
--  **HP-06-001/HP-06-002/HP-06-003**: Logging (BT execution logged per structured
+- **HP-06-001/HP-06-002/HP-06-003**: Logging (BT execution logged per structured
   logging requirements)
--  **HP-07-001/HP-07-002**: Idempotency (BT execution idempotent by design, blackboard
+- **HP-07-001/HP-07-002**: Idempotency (BT execution idempotent by design,
+  blackboard
   fresh load)
--  **HP-08-001/HP-08-002/HP-08-003**: Data model persistence (blackboard uses
+- **HP-08-001/HP-08-002/HP-08-003**: Data model persistence (blackboard uses
   `object_to_record()`, correct signatures)
 
 ### Dispatch Routing Compliance
 
-BT integration MUST comply with dispatcher requirements (`specs/dispatch-routing.md`):
+BT integration MUST comply with dispatcher requirements (
+`specs/dispatch-routing.md`):
 
--  **DR-01-001/DR-01-002/DR-01-003**: Dispatcher protocol (handlers invoked via
+- **DR-01-001/DR-01-002/DR-01-003**: Dispatcher protocol (handlers invoked via
   dispatcher, not BT-first)
-- **DR-02-001/DR-02-002**: Handler lookup (semantic type → handler lookup unchanged)
--  **DR-03-001/DR-03-002**: Direct dispatch (BT executed synchronously within handler,
+- **DR-02-001/DR-02-002**: Handler lookup (semantic type → handler lookup
+  unchanged)
+- **DR-03-001/DR-03-002**: Direct dispatch (BT executed synchronously within
+  handler,
   exceptions logged)
 
 ### Inbox Endpoint Compliance
 
-BT integration MUST comply with inbox endpoint requirements (`specs/inbox-endpoint.md`):
+BT integration MUST comply with inbox endpoint requirements (
+`specs/inbox-endpoint.md`):
 
-- **IE-02-001**: HTTP 202 response (BT execution via BackgroundTasks, not blocking)
-- **IE-05-001**: Activity rehydration (activities rehydrated before dispatch to BT)
-- **IE-06-001**: Background processing (BT executes asynchronously after 202 response)
--  **IE-10-001**: Idempotency (BT fresh load per execution supports idempotent
+- **IE-02-001**: HTTP 202 response (BT execution via BackgroundTasks, not
+  blocking)
+- **IE-05-001**: Activity rehydration (activities rehydrated before dispatch to
+  BT)
+- **IE-06-001**: Background processing (BT executes asynchronously after 202
+  response)
+- **IE-10-001**: Idempotency (BT fresh load per execution supports idempotent
   processing)
 
 ### New Specification Required
 
 Phase 4 will create `specs/bt-integration.md` with testable requirements:
 
--  **BT-01-***: Bridge layer requirements (execute_bt_for_handler interface, result
-  format)
-- **BT-02-***: Blackboard persistence (load, commit, rollback, dirty tracking)
-- **BT-03-***: Production node requirements (interface, logging, error handling)
+- **BT-01-***: Bridge layer requirements (execute_bt_for_handler interface,
+  result format)
+- **BT-02-***: Blackboard/DataLayer integration (load, commit, state management)
+- **BT-03-***: Prototype node requirements (interface, logging, error handling)
 - **BT-04-***: Message mapping requirements (ActivityStreams ↔ BT message types)
-- **BT-05-***: Performance requirements (latency SLOs, timeout handling)
+- **BT-05-***: Performance requirements (latency targets, timeout handling)
+
+**Relationship to Existing Specs**:
+
+BT integration does NOT replace existing specifications but rather adds a layer:
+
+- **Handler Protocol** (`handler-protocol.md`): BT-powered handlers MUST still
+  comply with HP-* requirements
+- **Semantic Extraction** (`semantic-extraction.md`): BT invocation happens
+  AFTER semantic extraction
+- **Dispatch Routing** (`dispatch-routing.md`): BTs execute WITHIN handlers, not
+  replacing dispatcher
+- **Inbox Endpoint** (`inbox-endpoint.md`): BT execution via BackgroundTasks (
+  async to HTTP)
+
+BT integration is an **implementation detail** of handler business logic, not a
+replacement for the handler architecture.
 
 ---
 
@@ -1431,40 +1221,49 @@ Phase 4 will create `specs/bt-integration.md` with testable requirements:
 
 ### Architecture Decision Records
 
--  **ADR-0002**: Use Behavior Trees for modeling CVD processes (rationale for BT
+- **ADR-0002**: Use Behavior Trees for modeling CVD processes (rationale for BT
   approach)
--  **ADR-0007**: Use Behavior Dispatcher for semantic routing (establishes handler
+- **ADR-0007**: Use Behavior Dispatcher for semantic routing (establishes
+  handler
   architecture)
 - **ADR-0008** (future): BT integration with handlers (to be created in Phase 4)
 
 ### Code
 
 #### Behavior Tree System
+
 - `vultron/bt/base/` - BT engine base classes and utilities
 - `vultron/bt/base/bt.py` - BehaviorTree class, tick execution
 - `vultron/bt/base/blackboard.py` - Blackboard (dict subclass for shared state)
 - `vultron/bt/base/bt_node.py` - BtNode base class, NodeStatus enum
 - `vultron/bt/behaviors.py` - Top-level CVD protocol BT (CvdProtocolBt)
 - `vultron/bt/states.py` - ActorState model (blackboard subclass for simulation)
-- `vultron/bt/messaging/inbound/_behaviors/rm_messages.py` - RM message handling BT
-- `vultron/bt/report_management/_behaviors/validate_report.py` - Report validation BT
+- `vultron/bt/messaging/inbound/_behaviors/rm_messages.py` - RM message handling
+  BT
+- `vultron/bt/report_management/_behaviors/validate_report.py` - Report
+  validation BT
 - `vultron/bt/report_management/fuzzer/` - Stochastic simulation nodes
 - `vultron/bt/embargo_management/behaviors.py` - Embargo management BT structure
 
 #### Handler System
+
 - `vultron/api/v2/backend/handlers.py` - Handler implementations (6/47 complete)
 - `vultron/api/v2/backend/inbox_handler.py` - Inbox processing entry point
-- `vultron/behavior_dispatcher.py` - Dispatcher interface and DirectActivityDispatcher
+- `vultron/behavior_dispatcher.py` - Dispatcher interface and
+  DirectActivityDispatcher
 - `vultron/semantic_map.py` - Semantic extraction (pattern matching)
-- `vultron/semantic_handler_map.py` - Handler registry (MessageSemantics → handler)
+- `vultron/semantic_handler_map.py` - Handler registry (MessageSemantics →
+  handler)
 - `vultron/api/v2/datalayer/` - Data layer abstraction and TinyDB backend
 - `vultron/api/v2/routers/actors.py` - FastAPI inbox endpoint
 
 #### Integration Points (to be created)
+
 - `vultron/api/v2/bt_bridge.py` - BT execution bridge (Phase 1)
 - `vultron/api/v2/bt_blackboard.py` - DataLayer-backed blackboard (Phase 1)
-- `vultron/api/v2/bt_messages.py` - ActivityStreams ↔ BT message mapping (Phase 1)
-- `vultron/bt/production/` - Production node implementations (Phase 1-3)
+- `vultron/api/v2/bt_messages.py` - ActivityStreams ↔ BT message mapping (Phase
+    1)
+- `vultron/behaviors/` - Prototype node implementations (Phase 1-3)
 
 ### Specifications
 
@@ -1478,7 +1277,8 @@ Phase 4 will create `specs/bt-integration.md` with testable requirements:
 - `specs/message-validation.md` - ActivityStreams schema validation
 - `specs/error-handling.md` - Exception hierarchy and error responses
 - `specs/testability.md` - Test coverage and testing patterns
-- `specs/bt-integration.md` - BT integration requirements (to be created in Phase 4)
+- `specs/bt-integration.md` - BT integration requirements (to be created in
+  Phase 4)
 
 ---
 
@@ -1491,269 +1291,118 @@ Phase 4 will create `specs/bt-integration.md` with testable requirements:
 
 ---
 
-## Appendix A: Node Type Mapping
+## Appendix A: Key Technology References
 
-| BT Node Type | Simulation | Production | Notes |
-|-------------|-----------|-----------|-------|
-| IsMsgTypeRS | Fuzzer | Check `activity.type` and `object.type` | Simple condition |
-| q_rm_to_R | Fuzzer | Read RM state, transition S→R, persist | State transition |
-| EvaluateReportValidity | AlmostAlwaysSucceed (90%) | Real validation logic | Complex decision |
-| EmitRV | Fuzzer | Add activity to outbox | Message emission |
-| GatherValidationInfo | Fuzzer | Query external sources or wait | Async operation |
+### py_trees Library
 
----
+- **GitHub**: [py_trees](https://github.com/splintered-reality/py_trees)
+- **Documentation**: [py_trees docs](https://py-trees.readthedocs.io/)
+- **Rationale**: Mature BT framework with visualization, debugging, and
+  extensive documentation
 
-## Appendix B: Example Full Integration
+### Behavior Tree Theory
 
-**File**: `vultron/api/v2/bt_bridge.py` (skeleton)
+- Michele Colledanchise, Petter Ögren: *Behavior Trees in Robotics and
+  AI* ([arXiv](https://arxiv.org/abs/1709.00084))
+- Petter Ögren's [YouTube channel](https://www.youtube.com/@petterogren7535) for
+  BT tutorials
+-
 
-```python
-"""
-Bridge layer between ActivityStreams handlers and Behavior Tree execution.
-"""
-
-import logging
-from typing import Any, Optional
-
-from vultron.api.v2.bt_blackboard import DataLayerBackedBlackboard
-from vultron.api.v2.datalayer.abc import DataLayer
-from vultron.as_vocab.activities import Activity
-from vultron.bt.base.bt import BehaviorTree
-from vultron.bt.base.bt_node import BtNode
-from vultron.bt.base.node_status import NodeStatus
-
-logger = logging.getLogger(__name__)
-
-
-class BTExecutionResult:
-    """Result of BT execution."""
-    
-    def __init__(
-        self,
-        status: NodeStatus,
-        blackboard: dict,
-        errors: Optional[list[str]] = None,
-    ):
-        self.status = status
-        self.blackboard = blackboard
-        self.errors = errors or []
-    
-    @property
-    def succeeded(self) -> bool:
-        return self.status == NodeStatus.SUCCESS
-    
-    @property
-    def failed(self) -> bool:
-        return self.status == NodeStatus.FAILURE
-
-
-def execute_bt_for_handler(
-    bt_node: type[BtNode],
-    activity: Activity,
-    actor_id: str,
-    datalayer: Optional[DataLayer] = None,
-    max_ticks: int = 100,
-) -> BTExecutionResult:
-    """
-    Execute a behavior tree in handler context.
-    
-    Args:
-        bt_node: BT node class to execute (e.g., ProcessRMMessagesBt)
-        activity: ActivityStreams activity that triggered handler
-        actor_id: ID of actor processing the activity
-        datalayer: Data layer for persistence (default: get_datalayer())
-        max_ticks: Maximum BT ticks before timeout
-    
-    Returns:
-        BTExecutionResult with status and side effects
-    """
-    if datalayer is None:
-        from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-        datalayer = get_datalayer()
-    
-    # 1. Create blackboard with data layer integration
-    bb = DataLayerBackedBlackboard(datalayer, actor_id)
-    
-    # 2. Populate blackboard from activity
-    bb["current_activity"] = activity
-    bb["current_message"] = activity_to_bt_message(activity)
-    
-    # 3. Load actor state from data layer
-    actor = datalayer.read(actor_id)
-    bb["rm_state"] = actor.rm_state  # Assuming actor has these fields
-    bb["cs_state"] = actor.cs_state
-    bb["em_state"] = actor.em_state
-    
-    # 4. Instantiate and setup BT
-    logger.info(f"Executing BT: {bt_node.__name__} for activity {activity.as_id}")
-    tree = BehaviorTree(bt_node)
-    tree.bb = bb
-    tree.setup()
-    
-    # 5. Execute BT (tick loop)
-    result_status = NodeStatus.RUNNING
-    for tick_count in range(max_ticks):
-        result_status = tree.tick()
-        
-        if result_status in (NodeStatus.SUCCESS, NodeStatus.FAILURE):
-            break
-        
-        if result_status == NodeStatus.RUNNING and tick_count == max_ticks - 1:
-            logger.error(f"BT execution timeout after {max_ticks} ticks")
-            result_status = NodeStatus.FAILURE
-    
-    # 6. Persist changes (commit blackboard to data layer)
-    if result_status == NodeStatus.SUCCESS:
-        bb.commit()
-        logger.info(f"BT execution succeeded, changes committed")
-    else:
-        logger.warning(f"BT execution failed, changes NOT committed")
-    
-    # 7. Return result
-    return BTExecutionResult(
-        status=result_status,
-        blackboard=dict(bb),
-        errors=bb.get("errors", []),
-    )
-
-
-def activity_to_bt_message(activity: Activity) -> dict[str, Any]:
-    """
-    Convert ActivityStreams activity to BT message format.
-    
-    Maps semantic types to BT message type codes (RS, RV, etc.)
-    """
-    from vultron.semantic_map import find_matching_semantics
-    from vultron.enums import MessageSemantics
-    
-    semantic = find_matching_semantics(activity)
-    
-    # Map MessageSemantics to BT message types
-    semantic_to_bt = {
-        MessageSemantics.SUBMIT_REPORT: "RS",
-        MessageSemantics.VALIDATE_REPORT: "RV",
-        MessageSemantics.INVALIDATE_REPORT: "RI",
-        MessageSemantics.CLOSE_REPORT: "RC",
-        MessageSemantics.ACK_REPORT: "RK",
-        # ... more mappings
-    }
-    
-    bt_msg_type = semantic_to_bt.get(semantic, "UNKNOWN")
-    
-    return {
-        "type": bt_msg_type,
-        "payload": activity,
-        "sender": activity.actor,
-    }
-```
+Wikipedia: [Behavior Tree (AI, Robotics)](https://en.wikipedia.org/wiki/Behavior_tree_(artificial_intelligence,_robotics_and_control))
 
 ---
 
-**File**: `vultron/api/v2/backend/handlers.py` (modified `submit_report`)
+## Appendix B: Glossary
 
-```python
-@verify_semantics(MessageSemantics.SUBMIT_REPORT)
-def submit_report(dispatchable: DispatchActivity) -> None:
-    """
-    Process a SubmitReport activity (Offer(VulnerabilityReport)).
-    
-    NEW: Uses behavior tree execution via bt_bridge.
-    """
-    from vultron.api.v2.bt_bridge import execute_bt_for_handler
-    from vultron.bt.messaging.inbound._behaviors.rm_messages import ProcessRMMessagesBt
-    
-    activity = dispatchable.payload
-    actor_id = dispatchable.actor_id or activity.target
-    
-    logger.info(
-        "Actor '%s' receives report submission from '%s'",
-        actor_id,
-        activity.actor,
-    )
-    
-    # Execute behavior tree
-    result = execute_bt_for_handler(
-        bt_node=ProcessRMMessagesBt,
-        activity=activity,
-        actor_id=actor_id,
-    )
-    
-    if result.succeeded:
-        logger.info("Report submission processed successfully via BT")
-    else:
-        logger.error("Report submission processing failed: %s", result.errors)
-        # Optionally raise exception for error handling
-```
-
----
-
-## Appendix C: Glossary
-
-- **BT**: Behavior Tree - hierarchical decision/action structure for modeling processes
-- **Node**: Single unit in a behavior tree (condition, action, composite)
-- **Blackboard**: Shared state dictionary accessible to all BT nodes (dict subclass)
+- **Behavior Tree (BT)**: Hierarchical decision/action structure for modeling
+  processes as composable nodes
+- **Node**: Single unit in a behavior tree (condition, action, composite,
+  decorator)
+- **py_trees**: Python library providing production-ready BT infrastructure with
+  visualization
 - **Tick**: Single execution step of a BT node (returns SUCCESS/FAILURE/RUNNING)
-- **Fuzzer Node**: Stochastic node used for simulation (returns random success/failure)
--  **Production Node**: Deterministic node with real business logic (replaces fuzzer in
-  production)
-- **Handler**: Python function that processes a specific ActivityStreams semantic type
--  **Semantic Extraction**: Pattern matching to determine message meaning from activity
-  structure
+- **Fuzzer Node**: Stochastic simulation node for protocol exploration (custom
+  BT engine)
+- **Prototype Node/Tree**: Deterministic py_trees-based BT for handler workflow
+  execution
+- **Handler**: Python function processing specific ActivityStreams semantic
+  types
+- **Semantic Extraction**: Pattern matching to determine message meaning from
+  activity structure
 - **Data Layer**: Persistence abstraction (Protocol with TinyDB implementation)
-- **Dispatcher**: Routes activities to appropriate handlers based on semantic type
-- **Bridge Layer**: Translation layer between handlers and BT execution (bt_bridge.py)
--  **Single-Shot Execution**: BT executes to completion in one handler invocation (vs.
-  tick-based loop)
-- **Commit**: Persist blackboard changes to data layer (transaction-like semantics)
-- **Rehydration**: Expanding URI references to full objects before processing
+- **Dispatcher**: Routes activities to appropriate handlers based on semantic
+  type
+- **Single-Shot Execution**: BT executes to completion in one handler
+  invocation (vs. continuous tick loop)
+- **CaseActor**: ActivityStreams Service object created during case creation to
+  own case lifecycle
+- **VulnerabilityCase**: Domain object representing a case; created during
+  report validation
 
 ---
 
 ## Summary
 
-This plan outlines a **hybrid architecture** where handlers orchestrate BT execution:
+This plan outlines an architecture for integrating behavior trees with the
+handler system:
 
-- **Handlers remain entry points** with `@verify_semantics` and dispatcher routing
-- **BTs provide process logic** with hierarchical, composable structure
-- **Bridge layer translates** between ActivityStreams context and BT execution
-- **Data layer provides persistence** via blackboard adapter with commit/rollback
+**Core Principles**:
 
-### Key Design Principles
+1. **py_trees Foundation**: Prototype behavior trees use the mature py_trees
+   library
+2. **Event-Driven Execution**: Handlers trigger focused BTs per message
+   semantic (not monolithic tick loop)
+3. **DataLayer as State Store**: BTs interact with DataLayer for all
+   persistence; no separate blackboard sync
+4. **Simulation Preserved**: Existing `vultron/bt/` simulation code remains
+   unchanged for protocol exploration
+5. **Case Creation Workflow**: Validate→CreateCase→CreateCaseActor flow
+   explicitly modeled
+6. **Gradual Migration**: Handler-by-handler implementation starting with report
+   workflows
 
-1. **Preserve Handler Protocol**: BT integration does NOT bypass existing infrastructure
-2.  **Single-Shot Execution**: BTs execute to completion per handler invocation
-   (event-driven)
-3.  **Parallel Implementations**: Production nodes coexist with fuzzer nodes (simulation
-   preserved)
-4. **Data Layer as Source of Truth**: Blackboard loads fresh state, commits on success
-5. **Gradual Migration**: Implement handler-by-handler, starting with RM messages
+**Key Design Decisions**:
 
-### Implementation Roadmap
+- **Handler-First**: Handlers orchestrate BT execution (not BT-first)
+- **Single-Shot**: BTs execute to completion per handler invocation
+- **Focused Trees**: Small semantic-specific trees (not one monolithic CVD tree)
+- **Command-Line Support**: BTs invokable independently for testing and AI
+  agents
+- **Configurable Policies**: Human-decision nodes use default policies with
+  audit logging
 
-- **Phase 1** (POC): One BT-powered handler (submit_report), foundation infrastructure
-- **Phase 2** (RM): All 6 report handlers use BT logic, message emission working
--  **Phase 3** (Case/Embargo): 35+ handlers for complex workflows, multi-actor
+**Implementation Roadmap**:
+
+- **Phase 1**: Foundation - one BT-powered handler proof-of-concept with
+  py_trees
+- **Phase 2**: Report workflows - all 6 report handlers using BTs
+- **Phase 3**: Case/Embargo workflows - remaining handlers for complex
   coordination
--  **Phase 4** (Production): Error handling, observability, documentation, ADR,
-  specifications
+- **Phase 4**: Hardening - error handling, documentation, specifications, ADR
 
-### Success Criteria
+**Success Criteria**:
 
-- ✅ BT execution from handlers with state persistence
-- ✅ Process logic matches BT documentation
-- ✅ No regressions in existing handlers
-- ✅ Performance acceptable (P99 < 100ms)
-- ✅ Comprehensive documentation and specifications
+- BT execution integrated with handler system
+- Process logic matches CVD protocol documentation
+- No regressions in existing functionality
+- Performance acceptable (P99 < 100ms)
+- Comprehensive documentation and specifications
 
-### Next Actions
+**Next Actions**:
 
-1. **Review and Feedback**: Discuss this refined plan with maintainers
-2. **Prototype Phase 1**: Build minimal POC with submit_report handler
-3. **Evaluate and Iterate**: Measure performance, validate approach, refine as needed
-4. **Execute Phases 2-4**: Proceed based on learnings from Phase 1
+1. **Maintainer Review**: Discuss refined plan and design decisions
+2. **Phase 1 Prototyping**: Build proof-of-concept with py_trees integration
+3. **Evaluation**: Measure performance, validate approach, adjust as needed
+4. **Iteration**: Proceed with Phases 2-4 based on learnings
 
 ---
 
 **Document Status**: REFINED (2026-02-18)  
-**Ready for**: Maintainer review and Phase 1 prototyping  
+**Refinement Summary**: Clarified prototype context; replaced "production"
+terminology; added risk mitigation strategies; expanded policy node pattern;
+improved example code; added relationship to existing specs  
+**Purpose**: Design intent and architectural guidance (not detailed
+implementation specification)  
+**Next Step**: Review with maintainers, then create detailed Phase 1
+implementation plan  
 **Contact**: See `CONTRIBUTING.md` for discussion channels
