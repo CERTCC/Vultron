@@ -8,7 +8,7 @@ This file tracks insights, issues, and learnings during implementation.
 
 ## Phase BT-1 Progress Summary (2026-02-18)
 
-**Status**: Phases BT-1.1 through BT-1.3 COMPLETE; Phases BT-1.4 through BT-1.6 remain
+**Status**: Phases BT-1.1 through BT-1.4 COMPLETE; Phases BT-1.5 through BT-1.6 remain
 
 ### Completed Infrastructure
 
@@ -29,12 +29,23 @@ This file tracks insights, issues, and learnings during implementation.
    - `policy.py`: `ValidationPolicy` base class and `AlwaysAcceptPolicy` default
    - 42 integration tests covering tree execution and error handling
 
+4. **Handler Refactoring** (BT-1.4.1 and BT-1.4.2 COMPLETE)
+   - Refactored `validate_report` handler in `vultron/api/v2/backend/handlers.py`
+   - Handler now uses BT execution via `BTBridge.execute_with_setup()`
+   - Replaced 165 lines of procedural logic with 25 lines of BT invocation
+   - Preserved validation and rehydration logic in handler
+   - Delegated workflow orchestration (status updates, case creation, outbox) to BT
+   - All 454 tests passing (no regressions)
+   - Demo test passing (test/scripts/test_receive_report_demo.py)
+   - Reporting workflow tests passing (5/7, 2 xfailed for old_handlers)
+
 ### Test Status
 
 - **Total tests**: 454 passing (378 core + 76 BT), 2 xfailed
 - **BT test coverage**: 76 tests across bridge, helpers, nodes, tree, policy
 - **Router tests**: All 18 passing (fixture isolation issue resolved)
 - **Demo tests**: 1 passing (receive_report_demo.py)
+- **Reporting workflow tests**: 5 passing, 2 xfailed (old_handlers)
 
 ### Key Architectural Decisions
 
@@ -48,14 +59,25 @@ This file tracks insights, issues, and learnings during implementation.
 1. **py_trees blackboard key registration**: Nodes must call `setup()` to register READ/WRITE access for blackboard keys used during execution
 2. **Test data quality**: BT tests use full Pydantic models (not string IDs) to match real-world usage
 3. **DataLayer mocking**: BT tests mock DataLayer for isolation; integration tests will use real TinyDB backend
+4. **Handler refactoring approach** (BT-1.4):
+   - Keep validation/rehydration logic in handler (input validation belongs at handler boundary)
+   - Delegate workflow orchestration to BT (status updates, case creation, outbox management)
+   - Clean separation: handler validates inputs → BT executes business logic → handler logs results
+   - No need for parallel implementation; refactoring existing handler maintains all tests
+   - Code reduction: 165 lines of procedural logic → 25 lines of BT invocation + 10 lines result handling
 
-### Next Steps (Phase BT-1.4 through BT-1.6)
+### Next Steps (Phase BT-1.5 through BT-1.6)
 
-1. **BT-1.4**: Refactor `validate_report` handler to invoke BT via `BTBridge`
-   - Replace procedural logic with `BTBridge.execute_with_setup()`
-   - Pass activity context (actor_id, report_id, offer_id) to bridge
-   - Handle BT execution results (SUCCESS/FAILURE/RUNNING)
-   - Preserve `@verify_semantics` decorator and error handling
+1. **BT-1.5**: Update demo script and validation
+   - ✅ Demo test already passing with BT implementation
+   - Verify all three demo workflows still work (validate, invalidate, invalidate+close)
+   - Add BT execution logging output for visibility
+   - Measure performance baseline (target: P99 < 100ms)
+
+2. **BT-1.6**: Documentation
+   - Update `specs/behavior-tree-integration.md` verification sections
+   - Document implementation notes in this file
+   - Create ADR-0008 for BT integration architecture
 
 2. **BT-1.5**: Update demo script and validation
    - Verify all three demo workflows still work (validate, invalidate, invalidate+close)

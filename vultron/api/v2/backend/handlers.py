@@ -172,30 +172,27 @@ def validate_report(dispatchable: DispatchActivity) -> None:
     """
     Process a ValidateReport activity (Accept(Offer(VulnerabilityReport))).
 
-    Updates report status to VALID, creates a VulnerabilityCase containing the
-    validated report, and generates a CreateCase activity in the actor's outbox.
+    Uses behavior tree execution to orchestrate report validation workflow,
+    including status updates, case creation, and activity generation.
 
     Args:
         dispatchable: DispatchActivity containing the as_Accept with Offer object
     """
+    from py_trees.common import Status
+
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.data.status import (
-        OfferStatus,
-        ReportStatus,
-        set_status,
-    )
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-    from vultron.as_vocab.activities.case import CreateCase
-    from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
     from vultron.as_vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
-    from vultron.bt.report_management.states import RM
-    from vultron.enums import OfferStatusEnum
+    from vultron.behaviors.bridge import BTBridge
+    from vultron.behaviors.report.validate_tree import (
+        create_validate_report_tree,
+    )
 
     activity = dispatchable.payload
 
-    # Rehydrate the accepted offer and report
+    # Rehydrate the accepted offer and report (validation phase)
     try:
         accepted_offer = rehydrate(activity.as_object)
         accepted_report = rehydrate(accepted_offer.as_object)
@@ -222,113 +219,41 @@ def validate_report(dispatchable: DispatchActivity) -> None:
         return None
 
     logger.info(
-        "Actor '%s' validates VulnerabilityReport '%s'",
+        "Actor '%s' validates VulnerabilityReport '%s' via BT execution",
         actor_id,
         accepted_report.as_id,
     )
 
-    # Update offer status to ACCEPTED
-    offer_status = OfferStatus(
-        object_type=accepted_offer.as_type,
-        object_id=accepted_offer.as_id,
-        status=OfferStatusEnum.ACCEPTED,
-        actor_id=actor_id,
-    )
-    set_status(offer_status)
-    logger.info(
-        "Set offer status to ACCEPTED for offer %s", accepted_offer.as_id
-    )
+    # Delegate to behavior tree for workflow orchestration
+    report_id = accepted_report.as_id
+    offer_id = accepted_offer.as_id
 
-    # Update report status to VALID
-    report_status = ReportStatus(
-        object_type=accepted_report.as_type,
-        object_id=accepted_report.as_id,
-        status=RM.VALID,
-        actor_id=actor_id,
-    )
-    set_status(report_status)
-    logger.info(
-        "Set report status to VALID for report %s", accepted_report.as_id
-    )
-
-    # Create a VulnerabilityCase
-    case = VulnerabilityCase(
-        name=f"Case for Report {accepted_report.as_id}",
-        vulnerability_reports=[accepted_report],
-        attributed_to=actor_id,
-    )
-
-    # Store the case in data layer
     dl = get_datalayer()
-    try:
-        dl.create(case)
-        logger.info("Created VulnerabilityCase: %s: %s", case.as_id, case.name)
-    except ValueError as e:
-        logger.warning(
-            "VulnerabilityCase %s already exists: %s", case.as_id, e
-        )
+    bridge = BTBridge(datalayer=dl)
 
-    # Collect addressees
-    addressees = []
-    for x in [actor, accepted_report.attributed_to, accepted_offer.to]:
-        if x is None:
-            continue
-        if isinstance(x, str):
-            addressees.append(x)
-        elif isinstance(x, list):
-            for item in x:
-                if isinstance(item, str):
-                    addressees.append(item)
-                elif hasattr(item, "as_id"):
-                    addressees.append(item.as_id)
-        elif hasattr(x, "as_id"):
-            addressees.append(x.as_id)
+    # Create and execute validation tree
+    tree = create_validate_report_tree(report_id=report_id, offer_id=offer_id)
 
-    # Unique addressees
-    addressees = list(set(addressees))
-    logger.info("Notifying addressees: %s", addressees)
-
-    # Create a CreateCase activity
-    create_case_activity = CreateCase(
-        actor=actor_id, object=case.as_id, to=addressees
+    result = bridge.execute_with_setup(
+        tree, actor_id=actor_id, activity=activity
     )
 
-    # Store the CreateCase activity
-    try:
-        dl.create(create_case_activity)
+    # Handle BT execution results
+    if result.status == Status.SUCCESS:
         logger.info(
-            "Created CreateCase activity: %s", create_case_activity.as_id
+            "BT execution succeeded for report validation: %s", report_id
         )
-    except ValueError as e:
-        logger.warning(
-            "CreateCase activity %s already exists: %s",
-            create_case_activity.as_id,
-            e,
-        )
-
-    # Add to actor's outbox
-    try:
-        actor_obj = dl.read(actor_id, raise_on_missing=True)
-        if hasattr(actor_obj, "outbox") and hasattr(actor_obj.outbox, "items"):
-            actor_obj.outbox.items.append(create_case_activity.as_id)
-            logger.info(
-                "Added CreateCase activity to actor outbox: %s",
-                create_case_activity.as_id,
-            )
-            # Save the updated actor back to the data layer
-            from vultron.api.v2.datalayer.db_record import object_to_record
-
-            dl.update(actor_obj.as_id, object_to_record(actor_obj))
-            logger.info(
-                "Updated actor %s in data layer with new outbox item", actor_id
-            )
-        else:
-            logger.error(
-                "Actor %s has no outbox or outbox.items attribute", actor_id
-            )
-    except Exception as e:
+    elif result.status == Status.FAILURE:
         logger.error(
-            "Failed to add CreateCase activity to actor outbox: %s", e
+            "BT execution failed for report validation: %s - %s",
+            report_id,
+            result.feedback_message,
+        )
+    else:
+        logger.warning(
+            "BT execution incomplete for report validation: %s (status=%s)",
+            report_id,
+            result.status,
         )
 
     return None
