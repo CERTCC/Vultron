@@ -182,20 +182,18 @@ This phase implements a proof-of-concept for BT integration by refactoring one c
   - Mapped proposed BT structure (Phase 1: minimal match, Phase 2: policy evaluation)
   - See IMPLEMENTATION_NOTES.md (2026-02-18) for details
 
-- [ ] **BT-1.3.2**: Implement report validation BT nodes
-  - Create `vultron/behaviors/report/nodes.py`
-  - Condition nodes:
-    - `CheckRMStateValid(report_id, datalayer)`: Check if report already valid
-    - `CheckRMStateReceivedOrInvalid(report_id, datalayer)`: Check preconditions
-  - Action nodes:
-    - `TransitionRMtoValid(report_id, offer_id, datalayer)`: Update statuses to VALID/ACCEPTED
-    - `TransitionRMtoInvalid(report_id, offer_id, datalayer)`: Update statuses to INVALID/REJECTED
-    - `CreateCase(actor_id, report_id, datalayer)`: Create VulnerabilityCase
-    - `CreateCaseActor(case_id, datalayer)`: Instantiate CaseActor service (fixes BT-10-002 gap)
-  - Policy nodes:
-    - `EvaluateReportCredibility(report_id, datalayer, policy)`: Check report credibility
-    - `EvaluateReportValidity(report_id, datalayer, policy)`: Check report validity
-  - Unit tests in `test/behaviors/report/test_nodes.py`
+- [x] **BT-1.3.2**: Implement report validation BT nodes
+  - Created `vultron/behaviors/report/nodes.py` (724 lines, 10 node classes)
+  - Implemented condition nodes: `CheckRMStateValid`, `CheckRMStateReceivedOrInvalid`
+  - Implemented action nodes: `TransitionRMtoValid`, `TransitionRMtoInvalid`, `CreateCaseNode`, `CreateCaseActivity`, `UpdateActorOutbox`
+  - Implemented policy stubs: `EvaluateReportCredibility`, `EvaluateReportValidity` (always SUCCESS)
+  - Created comprehensive unit tests in `test/behaviors/report/test_nodes.py` (398 lines, 18 tests)
+  - All nodes inherit from DataLayerCondition/DataLayerAction base classes
+  - Blackboard key passing: case_id → CreateCaseActivity → activity_id → UpdateActorOutbox
+  - Status updates via `set_status()`, DataLayer persistence
+  - All 430 tests passing (412 base + 18 new)
+  - See IMPLEMENTATION_NOTES.md (2026-02-18) for details
+  - Note: Did not implement `CreateCaseActor` (deferred - not needed for minimal POC)
 
 - [ ] **BT-1.3.3**: Compose validation behavior tree
   - Create `vultron/behaviors/report/validate_tree.py`

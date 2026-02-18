@@ -6,6 +6,68 @@ This file tracks insights, issues, and learnings during implementation.
 
 ---
 
+## 2026-02-18: BT-1.3.2 - Implemented report validation BT nodes
+
+### Task: Implement report validation BT nodes
+
+**Status**: COMPLETE
+
+**Changes**:
+- Created `vultron/behaviors/report/nodes.py` with 10 node classes (724 lines)
+- Created `test/behaviors/report/test_nodes.py` with 18 comprehensive tests (398 lines)
+- Implemented per specs/behavior-tree-integration.md requirements BT-07 and BT-10
+
+**Node Classes Implemented**:
+
+1. **Condition Nodes** (2):
+   - `CheckRMStateValid(report_id)`: Check if report already in RM.VALID state (early exit optimization)
+   - `CheckRMStateReceivedOrInvalid(report_id)`: Check preconditions for validation
+
+2. **Action Nodes** (6):
+   - `TransitionRMtoValid(report_id, offer_id)`: Set report=RM.VALID, offer=ACCEPTED
+   - `TransitionRMtoInvalid(report_id, offer_id)`: Set report=RM.INVALID, offer=TENTATIVELY_REJECTED
+   - `CreateCaseNode(report_id)`: Create VulnerabilityCase, store case_id in blackboard
+   - `CreateCaseActivity(report_id, offer_id)`: Create CreateCase activity, collect addressees
+   - `UpdateActorOutbox()`: Append activity_id to actor outbox.items
+
+3. **Policy Nodes** (2 - stubs for Phase 1):
+   - `EvaluateReportCredibility(report_id)`: Always returns SUCCESS (stub)
+   - `EvaluateReportValidity(report_id)`: Always returns SUCCESS (stub)
+
+**Key Implementation Details**:
+- All nodes inherit from `DataLayerCondition` or `DataLayerAction` base classes (from Phase BT-1.2)
+- Nodes access DataLayer and actor_id from blackboard (set by BTBridge)
+- Blackboard key passing: `CreateCaseNode` → `case_id` → `CreateCaseActivity` → `activity_id` → `UpdateActorOutbox`
+- Status updates via `vultron.api.v2.data.status.set_status()` (in-memory STATUS dict)
+- Logging at appropriate levels: DEBUG for reads, INFO for state transitions, ERROR for failures
+
+**Test Coverage**:
+- 18 tests covering all node classes
+- Tests for SUCCESS and FAILURE paths
+- Condition node state checks (VALID, RECEIVED, INVALID, no status)
+- Action node side effects (status updates, DataLayer persistence, blackboard state)
+- Policy node stubs (always SUCCESS)
+- Full integration test (9-step validation workflow)
+- Idempotency test (duplicate case creation)
+
+**Lessons Learned**:
+1. **Import corrections during testing**:
+   - `TinyDbDataLayer` (not `TinyDBDataLayer`)
+   - `db_path=None` (not `storage=None`)
+   - `as_Offer` from `vultron.as_vocab.base.objects.activities.transitive`
+   - `as_Service` from `vultron.as_vocab.base.objects.actors`
+2. **Blackboard write access**: Test helper must register keys with WRITE access before setting values
+3. **Offer validation**: `as_Offer` requires `actor` field (not optional)
+
+**Verification**:
+- All 18 new tests passing
+- Full test suite: 430 tests passing (412 base + 18 new, no regressions)
+- Black formatting applied to both implementation and tests
+
+**Next Step**: BT-1.3.3 - Compose validation behavior tree in `vultron/behaviors/report/validate_tree.py`
+
+---
+
 ## 2026-02-18: BT-1.3.1 - Analyzed validate_report handler
 
 ### Task: Document procedural logic flow for BT implementation
