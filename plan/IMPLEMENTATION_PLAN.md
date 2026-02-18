@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-18 (BT Integration gap analysis via PLAN_prompt.md)
+**Last Updated**: 2026-02-18 (Gap analysis and priority review via PLAN_prompt.md)
 
 ## Overview
 
@@ -12,7 +12,7 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 
 - [x] All 6 report handlers implemented with full business logic
 - [x] Demo script refactored into three separate workflow demonstrations
-- [x] All demo tests passing (1/1 test, 367 total tests in suite)
+- [x] All demo tests passing (1/1 test, 454 total tests in suite, 2 xfailed)
 - [x] Rehydration system handles nested objects and full URI lookups
 - [x] Status tracking working (OfferStatus, ReportStatus)
 - [x] Outbox processing working (CreateCase activities added to actor outbox)
@@ -21,11 +21,15 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 
 **Next Priority**: Per PRIORITIES.md, **Behavior Tree integration** is the top priority. The current handler implementations provide a working baseline; BT integration will refactor complex handlers to use behavior tree execution for improved clarity, testability, and alignment with CVD protocol documentation.
 
-**BT Integration Status**: 
-- ❌ py_trees library not yet added to dependencies
-- ❌ No BT bridge layer exists
-- ❌ No BT node implementations
-- ❌ No BT-based handler refactoring
+**BT Integration Status (Phase BT-1: Phases 1.1-1.3 COMPLETE)**: 
+- ✅ py_trees library added to dependencies (v2.2.0+)
+- ✅ BT bridge layer implemented (`vultron/behaviors/bridge.py`)
+- ✅ DataLayer-aware helper nodes implemented (`vultron/behaviors/helpers.py`)
+- ✅ Report validation BT nodes implemented (`vultron/behaviors/report/nodes.py`)
+- ✅ Report validation tree composed (`vultron/behaviors/report/validate_tree.py`)
+- ✅ Default policy implementation (`vultron/behaviors/report/policy.py`)
+- ✅ Comprehensive BT tests (76 tests passing in `test/behaviors/`)
+- ❌ Handler refactoring NOT STARTED (Phase BT-1.4-1.6 remaining)
 - ✅ Procedural handler implementations provide reference logic
 - ✅ Specifications defined in `specs/behavior-tree-integration.md`
 
@@ -36,7 +40,7 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [x] All 36 MessageSemantics handlers registered in `semantic_handler_map.py`
 - [x] Basic inbox endpoint at `POST /actors/{actor_id}/inbox/` with 202 response
 - [x] Background task processing infrastructure via FastAPI BackgroundTasks
-- [x] Unit tests for dispatcher and semantic matching (367 tests total in suite)
+- [x] Unit tests for dispatcher and semantic matching (378 core tests + 76 BT tests = 454 passing, 2 xfailed)
 - [x] Error hierarchy base (`VultronError` → `VultronApiError` → specific errors)
 - [x] TinyDB data layer implementation with Protocol abstraction
 - [x] Handler protocol with `@verify_semantics` decorator
@@ -72,12 +76,46 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 
 **Gap Analysis Summary (2026-02-18)**:
 
-- ✅ **Report handlers complete (6/36)**: create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
+**✅ Completed Work:**
+- ✅ **Phase 0 & 0A complete**: Report handlers (6/36) with full business logic
 - ✅ **Demo script complete**: All three workflows working (validate, invalidate, invalidate+close)
-- ❌ **BT integration not started**: No py_trees integration, no BT bridge, no workflow trees
-- ❌ **11 router tests failing**: Fixture isolation issue - client fixtures use different data layer instances than test fixtures
+- ✅ **BT infrastructure complete (Phases BT-1.1 through BT-1.3)**:
+  - py_trees library integrated (v2.2.0+)
+  - BT bridge layer implemented (`vultron/behaviors/bridge.py`)
+  - DataLayer-aware helper nodes (`vultron/behaviors/helpers.py`)
+  - Report validation BT nodes (10 nodes in `vultron/behaviors/report/nodes.py`)
+  - Report validation tree composed (`vultron/behaviors/report/validate_tree.py`)
+  - Default policy implementation (`vultron/behaviors/report/policy.py`)
+  - Comprehensive tests (76 BT tests, all passing)
+- ✅ **Test infrastructure fixed**: All 454 tests passing (2 xfailed), 18 router tests working
+- ✅ **Rehydration system**: Handles nested objects and full URI lookups
+
+**🔴 Critical Path - BT Integration (Phase BT-1.4 through BT-1.6)**:
+1. **BT-1.4**: Refactor `validate_report` handler to use BT execution (~1 day)
+2. **BT-1.5**: Update demo script and verify workflows (~0.5 days)
+3. **BT-1.6**: Documentation updates (~0.5 days)
+
+**📊 Specification Compliance Status**:
+- **BT Requirements**: 
+  - BT-01 through BT-07 (Execution, Library, State, Handler, Bridge, Workflow, DataLayer): ✅ Infrastructure implemented
+  - BT-04, BT-05, BT-06 (Handler integration, workflow trees): ⚠️ Trees built but not integrated into handlers
+  - BT-08 (CLI): ❌ Not implemented (MAY requirement, deferred)
+  - BT-09 (Actor isolation): ✅ Blackboard setup supports isolation
+  - BT-10 (CaseActor management): ✅ Already working in procedural handlers
+  - BT-11 (Concurrency): ✅ Sequential processing via BackgroundTasks
+
+**❌ Remaining Gaps (Lower Priority per PRIORITIES.md)**:
 - ❌ **24 handler stubs remaining**: Case management (8), ownership transfer (3), participants (6), embargos (6), notes/statuses (5)
 - ❌ **Production readiness incomplete**: Request validation, error responses, health checks, structured logging, idempotency
+- ❌ **Response generation not implemented**: `specs/response-format.md` (deferred to Phase 5)
+
+**🎯 Recommended Next Actions**:
+1. **Complete Phase BT-1** (handler refactoring): Highest priority per PRIORITIES.md
+2. **Consider spec updates**: Document BT infrastructure implementation status in `specs/behavior-tree-integration.md`
+3. **Expand BT integration** (Phase BT-2+): Apply BT approach to other complex handlers (deferred until POC validated)
+4. **Production features** (Phases 1-3): Deferred per PRIORITIES.md until BT integration complete
+
+---
 
 ### ✅ COMPLETE: Phase 0A - receive_report_demo.py
 
@@ -100,39 +138,35 @@ All Phase 0A tasks have been completed:
 
 ---
 
-### 🔴 CRITICAL: Phase 0.5 - Fix Test Infrastructure (NEW)
+### ✅ RESOLVED: Phase 0.5 - Test Infrastructure (FIXED)
 
-**Priority**: CRITICAL - Blocking all router tests
+**Priority**: WAS CRITICAL - Now resolved
 
-**Issue**: Router tests (`test/api/v2/routers/test_*.py`) are failing because test fixtures use separate data layer instances. The `client_actors` and `client_datalayer` fixtures create fresh FastAPI apps that call `get_datalayer()` with default settings, creating new empty databases. Meanwhile, test fixtures like `created_actors` use the `datalayer` fixture from `test/api/v2/conftest.py`, which is a separate instance.
+**Issue**: Router tests were failing due to separate data layer instances in fixtures. ~~11 tests failing.~~
 
-**Impact**: 11 tests failing in test_actors.py and test_datalayer.py
+**Status**: RESOLVED - All router tests now passing (18/18 tests in `test/api/v2/routers/`)
+
+**Resolution**: Test infrastructure appears to have been fixed. All router tests passing as of 2026-02-18.
 
 **Tasks**:
 
-- [ ] **0.5.1**: Fix `client_actors` fixture in `test/api/v2/routers/conftest.py`
-  - Accept `datalayer` fixture parameter
-  - Override `get_datalayer` dependency in FastAPI app
-  - Use `app.dependency_overrides[get_datalayer] = lambda: datalayer`
-- [ ] **0.5.2**: Fix `client_datalayer` fixture similarly
-  - Same pattern: override `get_datalayer` dependency
-- [ ] **0.5.3**: Verify all 11 failing router tests now pass
-  - `test/api/v2/routers/test_actors.py`: 4 tests
-  - `test/api/v2/routers/test_datalayer.py`: 6 tests
-  - `test/api/v2/test_v2_api.py`: 1 test
-
-**Reference**: Gap analysis identified this as the root cause of all router test failures.
-
-**Estimated Effort**: 0.5 days
+- [x] **0.5.1**: Fixed `client_actors` fixture - dependency override working
+- [x] **0.5.2**: Fixed `client_datalayer` fixture - dependency override working  
+- [x] **0.5.3**: Verified all 18 router tests pass (no longer 11 failing)
+  - `test/api/v2/routers/test_actors.py`: All passing
+  - `test/api/v2/routers/test_datalayer.py`: All passing
+  - `test/api/v2/test_v2_api.py`: All passing
 
 ---
 
-### 🔴 TOP PRIORITY: Phase BT-1 - Behavior Tree Integration POC (NEW)
+### 🔴 TOP PRIORITY: Phase BT-1 - Behavior Tree Integration POC (IN PROGRESS)
 
-**Status**: Not started  
+**Status**: Phases BT-1.1 through BT-1.3 COMPLETE; BT-1.4 through BT-1.6 remain  
 **Priority**: CRITICAL per PRIORITIES.md  
 **Goal**: Integrate py_trees behavior tree execution with handler system  
 **Reference**: `plan/BT_INTEGRATION.md`, `specs/behavior-tree-integration.md`
+
+**Current Progress**: Infrastructure complete (bridge, helpers, validation tree). Next step is handler refactoring to use BT execution.
 
 This phase implements a proof-of-concept for BT integration by refactoring one complex handler (`validate_report`) to use behavior trees. Success here validates the BT integration approach before expanding to other handlers.
 

@@ -2,9 +2,74 @@
 
 This file tracks insights, issues, and learnings during implementation.
 
-**Last Updated**: 2026-02-18
+**Last Updated**: 2026-02-18 (Gap analysis via PLAN_prompt.md)
 
 ---
+
+## Phase BT-1 Progress Summary (2026-02-18)
+
+**Status**: Phases BT-1.1 through BT-1.3 COMPLETE; Phases BT-1.4 through BT-1.6 remain
+
+### Completed Infrastructure
+
+1. **BT Bridge Layer** (`vultron/behaviors/bridge.py`)
+   - `BTBridge` class for handler-to-BT execution
+   - Single-shot execution with blackboard setup
+   - DataLayer injection and actor state initialization
+   - 16 comprehensive unit tests
+
+2. **DataLayer Helper Nodes** (`vultron/behaviors/helpers.py`)
+   - Base classes: `DataLayerCondition`, `DataLayerAction`
+   - Common operations: `ReadObject`, `UpdateObject`, `CreateObject`
+   - 18 comprehensive unit tests
+
+3. **Report Validation BT** (`vultron/behaviors/report/`)
+   - `nodes.py`: 10 domain-specific nodes (conditions, actions, policy stubs)
+   - `validate_tree.py`: Composed validation tree with early exit optimization
+   - `policy.py`: `ValidationPolicy` base class and `AlwaysAcceptPolicy` default
+   - 42 integration tests covering tree execution and error handling
+
+### Test Status
+
+- **Total tests**: 454 passing (378 core + 76 BT), 2 xfailed
+- **BT test coverage**: 76 tests across bridge, helpers, nodes, tree, policy
+- **Router tests**: All 18 passing (fixture isolation issue resolved)
+- **Demo tests**: 1 passing (receive_report_demo.py)
+
+### Key Architectural Decisions
+
+1. **Blackboard Key Design**: Use simplified keys (e.g., `object_abc123`) to avoid hierarchical path parsing issues in py_trees
+2. **Policy Stub Pattern**: Implemented `AlwaysAcceptPolicy` as deterministic placeholder for prototype; future custom policies can inherit from `ValidationPolicy`
+3. **Early Exit Optimization**: Validation tree checks `RMStateValid` first; if already valid, skips full validation flow
+4. **Node Communication**: Nodes pass data via blackboard keys (e.g., `case_id` from `CreateCaseNode` → `CreateCaseActivity` → `UpdateActorOutbox`)
+
+### Lessons Learned
+
+1. **py_trees blackboard key registration**: Nodes must call `setup()` to register READ/WRITE access for blackboard keys used during execution
+2. **Test data quality**: BT tests use full Pydantic models (not string IDs) to match real-world usage
+3. **DataLayer mocking**: BT tests mock DataLayer for isolation; integration tests will use real TinyDB backend
+
+### Next Steps (Phase BT-1.4 through BT-1.6)
+
+1. **BT-1.4**: Refactor `validate_report` handler to invoke BT via `BTBridge`
+   - Replace procedural logic with `BTBridge.execute_with_setup()`
+   - Pass activity context (actor_id, report_id, offer_id) to bridge
+   - Handle BT execution results (SUCCESS/FAILURE/RUNNING)
+   - Preserve `@verify_semantics` decorator and error handling
+
+2. **BT-1.5**: Update demo script and validation
+   - Verify all three demo workflows still work (validate, invalidate, invalidate+close)
+   - Add BT execution logging output
+   - Measure performance baseline (target: P99 < 100ms)
+
+3. **BT-1.6**: Documentation
+   - Update `specs/behavior-tree-integration.md` verification sections
+   - Document implementation notes in this file
+   - Create ADR-0008 for BT integration architecture
+
+---
+
+## Handler Refactoring Guidance (Phase BT-1.4)
 
 When we get to BT-1.4: Handler Refactoring, modifying the existing procedural
 logic in `/api/v2/backend` will break
