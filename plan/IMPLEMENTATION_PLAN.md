@@ -1,10 +1,10 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-17 (Gap analysis via PLAN_prompt.md)
+**Last Updated**: 2026-02-18 (BT Integration gap analysis via PLAN_prompt.md)
 
 ## Overview
 
-This implementation plan tracks the development of the Vultron API v2 inbox handler system against the detailed specifications in `specs/*`. **Per PRIORITIES.md, the top priority is completing the `scripts/receive_report_demo.py` demonstration**, which showcases the core report submission workflow described in `docs/howto/activitypub/activities/report_vulnerability.md`.
+This implementation plan tracks the development of the Vultron API v2 inbox handler system against the detailed specifications in `specs/*`. **Per PRIORITIES.md, the top priority is Behavior Tree (BT) integration** as outlined in `plan/BT_INTEGRATION.md`. This supersedes previous demo completion priorities.
 
 ### Current Status Summary
 
@@ -19,7 +19,15 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [x] Actor ID resolution working (short IDs like "vendorco" resolve to full URIs)
 - [x] All handler tests passing (9/9 handler-specific tests)
 
-**Next Priority**: Per PRIORITIES.md, production-readiness features are **lower priority**. Focus remains on completing handler business logic for case/embargo workflows as needed.
+**Next Priority**: Per PRIORITIES.md, **Behavior Tree integration** is the top priority. The current handler implementations provide a working baseline; BT integration will refactor complex handlers to use behavior tree execution for improved clarity, testability, and alignment with CVD protocol documentation.
+
+**BT Integration Status**: 
+- ❌ py_trees library not yet added to dependencies
+- ❌ No BT bridge layer exists
+- ❌ No BT node implementations
+- ❌ No BT-based handler refactoring
+- ✅ Procedural handler implementations provide reference logic
+- ✅ Specifications defined in `specs/behavior-tree-integration.md`
 
 **Completed Infrastructure:**
 
@@ -62,10 +70,11 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 
 ## Prioritized Task List (Per PRIORITIES.md and Gap Analysis)
 
-**Gap Analysis Summary (2026-02-17)**:
+**Gap Analysis Summary (2026-02-18)**:
 
 - ✅ **Report handlers complete (6/36)**: create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
 - ✅ **Demo script complete**: All three workflows working (validate, invalidate, invalidate+close)
+- ❌ **BT integration not started**: No py_trees integration, no BT bridge, no workflow trees
 - ❌ **11 router tests failing**: Fixture isolation issue - client fixtures use different data layer instances than test fixtures
 - ❌ **24 handler stubs remaining**: Case management (8), ownership transfer (3), participants (6), embargos (6), notes/statuses (5)
 - ❌ **Production readiness incomplete**: Request validation, error responses, health checks, structured logging, idempotency
@@ -118,21 +127,204 @@ All Phase 0A tasks have been completed:
 
 ---
 
-### CURRENT PRIORITIES: Handler Business Logic
+### 🔴 TOP PRIORITY: Phase BT-1 - Behavior Tree Integration POC (NEW)
 
-Per PRIORITIES.md, the demo is complete. Next steps depend on project direction:
+**Status**: Not started  
+**Priority**: CRITICAL per PRIORITIES.md  
+**Goal**: Integrate py_trees behavior tree execution with handler system  
+**Reference**: `plan/BT_INTEGRATION.md`, `specs/behavior-tree-integration.md`
 
-#### Option A: Expand Demo to Cover More Workflows
+This phase implements a proof-of-concept for BT integration by refactoring one complex handler (`validate_report`) to use behavior trees. Success here validates the BT integration approach before expanding to other handlers.
 
-If the goal is to demonstrate additional CVD workflows beyond basic report submission:
+#### BT-1.1: Infrastructure Setup
 
-- [ ] **Phase 0B: Case Management Demo**
+- [ ] **BT-1.1.1**: Add `py_trees` to project dependencies
+  - Update `pyproject.toml` with `py_trees = "^2.2.0"` (or latest stable)
+  - Run `uv sync` to install
+  - Verify import works: `python -c "import py_trees; print(py_trees.__version__)"`
+  
+- [ ] **BT-1.1.2**: Create behavior tree directory structure
+  - Create `vultron/behaviors/` directory
+  - Create `vultron/behaviors/__init__.py`
+  - Create `vultron/behaviors/report/` subdirectory
+  - Create `test/behaviors/` directory structure
+  
+- [ ] **BT-1.1.3**: Implement BT bridge layer
+  - Create `vultron/behaviors/bridge.py`
+  - Implement `BTBridge` class:
+    - `setup_tree(tree: py_trees.trees.BehaviourTree, datalayer: DataLayer)`
+    - `execute_tree() -> py_trees.common.Status`
+    - Blackboard setup with DataLayer injection
+    - Error handling and logging
+  - Unit tests in `test/behaviors/test_bridge.py`
+
+#### BT-1.2: DataLayer-Aware BT Nodes
+
+- [ ] **BT-1.2.1**: Create DataLayer helper nodes
+  - Create `vultron/behaviors/helpers.py`
+  - Implement base classes:
+    - `DataLayerCondition(py_trees.behaviour.Behaviour)`: Check state from DataLayer
+    - `DataLayerAction(py_trees.behaviour.Behaviour)`: Modify state in DataLayer
+  - Implement common nodes:
+    - `ReadObject(actor_id, object_id, datalayer)`
+    - `UpdateObject(actor_id, object_id, updates, datalayer)`
+    - `CreateObject(actor_id, object_data, datalayer)`
+  - Unit tests in `test/behaviors/test_helpers.py`
+
+#### BT-1.3: Report Validation BT Implementation
+
+- [ ] **BT-1.3.1**: Analyze existing `validate_report` handler
+  - Document current procedural logic flow
+  - Identify decision points and state transitions
+  - Map to BT structure (sequence/selector composition)
+  - Reference: `vultron/bt/report_management/_behaviors/validate_report.py` (simulation)
+
+- [ ] **BT-1.3.2**: Implement report validation BT nodes
+  - Create `vultron/behaviors/report/nodes.py`
+  - Condition nodes:
+    - `CheckRMStateValid(report_id, datalayer)`: Check if report already valid
+    - `CheckRMStateReceivedOrInvalid(report_id, datalayer)`: Check preconditions
+  - Action nodes:
+    - `TransitionRMtoValid(report_id, offer_id, datalayer)`: Update statuses to VALID/ACCEPTED
+    - `TransitionRMtoInvalid(report_id, offer_id, datalayer)`: Update statuses to INVALID/REJECTED
+    - `CreateCase(actor_id, report_id, datalayer)`: Create VulnerabilityCase
+    - `CreateCaseActor(case_id, datalayer)`: Instantiate CaseActor service (fixes BT-10-002 gap)
+  - Policy nodes:
+    - `EvaluateReportCredibility(report_id, datalayer, policy)`: Check report credibility
+    - `EvaluateReportValidity(report_id, datalayer, policy)`: Check report validity
+  - Unit tests in `test/behaviors/report/test_nodes.py`
+
+- [ ] **BT-1.3.3**: Compose validation behavior tree
+  - Create `vultron/behaviors/report/validate_tree.py`
+  - Implement `ValidateReportBT(py_trees.composites.Selector)`:
+    - Child 1: `CheckRMStateValid` (short-circuit if already valid)
+    - Child 2: `ValidationSequence` (credibility → validity → transition → create case)
+    - Child 3: `InvalidationSequence` (fallback: mark invalid if validation fails)
+  - Integration test in `test/behaviors/report/test_validate_tree.py`
+
+- [ ] **BT-1.3.4**: Create default policy implementation
+  - Create `vultron/behaviors/report/policy.py`
+  - Implement `AlwaysAcceptPolicy`:
+    - `is_credible(report) -> True` (prototype simplification)
+    - `is_valid(report) -> True`
+    - Log policy decisions at INFO level
+  - Document extension points for custom policies
+
+#### BT-1.4: Handler Refactoring
+
+- [ ] **BT-1.4.1**: Refactor `validate_report` handler to use BT
+  - Modify `vultron/api/v2/backend/handlers.py:validate_report()`
+  - Extract activity context (actor_id, report_id, offer_id)
+  - Instantiate `ValidateReportBT` with DataLayer and policy
+  - Call `BTBridge.execute_tree()`
+  - Handle BT execution results (SUCCESS/FAILURE/RUNNING)
+  - Preserve `@verify_semantics` decorator and error handling
+  
+- [ ] **BT-1.4.2**: Update handler tests
+  - Modify `test/api/v2/backend/test_handlers.py`
+  - Verify BT integration doesn't break existing tests
+  - Add BT-specific assertions:
+    - BT execution logged at appropriate levels
+    - State transitions match expected behavior
+    - CaseActor created when validation succeeds
+
+#### BT-1.5: Demo and Validation
+
+- [ ] **BT-1.5.1**: Update demo script for BT validation
+  - Modify `scripts/receive_report_demo.py` to use BT-enabled handler
+  - Verify all three workflows still work (validate, invalidate, reject+close)
+  - Add BT execution logging output
+  
+- [ ] **BT-1.5.2**: Run full test suite
+  - Execute `pytest` to ensure no regressions
+  - Verify 367+ tests pass (including new BT tests)
+  - Check test coverage for BT code (aim for 80%+)
+  
+- [ ] **BT-1.5.3**: Performance baseline
+  - Measure handler execution time before/after BT integration
+  - Document any performance impact
+  - Target: P99 < 100ms per `plan/BT_INTEGRATION.md`
+
+#### BT-1.6: Documentation
+
+- [ ] **BT-1.6.1**: Update specifications
+  - Mark BT-01 through BT-10 requirements as implemented in `specs/behavior-tree-integration.md`
+  - Add verification notes for completed requirements
+  - Document any deviations from spec
+  
+- [ ] **BT-1.6.2**: Create implementation notes
+  - Document lessons learned in `plan/IMPLEMENTATION_NOTES.md`
+  - Note any challenges with py_trees integration
+  - Identify improvements for Phase BT-2
+
+**Estimated Effort**: 3-5 days for experienced developer
+
+**Success Criteria**:
+- ✅ py_trees integrated and working
+- ✅ `validate_report` handler uses BT execution
+- ✅ All existing tests pass
+- ✅ Demo script works with BT-enabled handler
+- ✅ CaseActor creation fixed (BT-10-002 gap)
+- ✅ Performance acceptable (P99 < 100ms)
+
+**Deliverable**: Working POC demonstrating BT integration value
+
+---
+
+### LOWER PRIORITY: Additional BT Integration (Deferred)
+
+Per PRIORITIES.md, expand BT integration to other handlers after Phase BT-1 succeeds.
+
+#### Phase BT-2: Report Workflow BTs (Deferred)
+
+**Goal**: Migrate remaining report handlers to BT execution
+
+- [ ] Refactor `create_report` handler to use BT
+- [ ] Refactor `submit_report` handler to use BT
+- [ ] Refactor `invalidate_report` handler to use BT
+- [ ] Refactor `ack_report` handler to use BT
+- [ ] Refactor `close_report` handler to use BT
+- [ ] Create reusable BT components for common patterns
+- [ ] Update demo to showcase BT-powered workflows
+
+#### Phase BT-3: Case Management BTs (Deferred)
+
+**Goal**: Implement case workflow BTs for multi-actor coordination
+
+- [ ] Create `vultron/behaviors/case/` directory
+- [ ] Implement case creation BT
+- [ ] Implement actor invitation BTs
+- [ ] Implement case participant management BTs
+- [ ] Implement case ownership transfer BTs
+- [ ] Create case management demo script
+
+#### Phase BT-4: Embargo Management BTs (Deferred)
+
+**Goal**: Implement embargo workflow BTs
+
+- [ ] Create `vultron/behaviors/embargo/` directory
+- [ ] Implement embargo proposal BT
+- [ ] Implement embargo acceptance BT
+- [ ] Implement embargo timeline management BTs
+- [ ] Create embargo coordination demo script
+
+---
+
+### LOWER PRIORITY: Additional Workflows (Deferred)
+
+**Note**: These are lower priority than BT integration per PRIORITIES.md.
+
+#### Option A: Expand Demo to Cover More Workflows (Non-BT)
+
+If procedural handler implementations are needed before BT integration:
+
+- [ ] **Phase 0B: Case Management Demo** (Procedural)
   - [ ] Implement case workflow handlers (create_case, add_report_to_case)
   - [ ] Implement actor invitation handlers (invite/accept/reject_invite_actor_to_case)
   - [ ] Create demo script showing multi-actor case collaboration
   - [ ] Document in `docs/howto/activitypub/activities/manage_case.md`
 
-- [ ] **Phase 0C: Embargo Management Demo**
+- [ ] **Phase 0C: Embargo Management Demo** (Procedural)
   - [ ] Implement embargo handlers (create_embargo_event, add_embargo_event_to_case)
   - [ ] Implement embargo invitation handlers
   - [ ] Create demo script showing embargo coordination
