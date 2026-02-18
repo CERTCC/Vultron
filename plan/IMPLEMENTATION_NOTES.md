@@ -6,6 +6,33 @@ This file tracks insights, issues, and learnings during implementation.
 
 ---
 
+## 2026-02-18: BT-1.1.2 - Created behavior tree directory structure
+
+### Task: Create directory structure for behavior tree implementations
+
+**Status**: COMPLETE
+
+**Changes**:
+- Created `vultron/behaviors/` directory with `__init__.py`
+- Created `vultron/behaviors/report/` subdirectory with `__init__.py`
+- Created `test/behaviors/` directory with `__init__.py`
+- Created `test/behaviors/report/` subdirectory with `__init__.py`
+- All __init__.py files include docstrings describing purpose
+
+**Verification**:
+- Directory structure verified with `tree -L 3`
+- All 378 tests pass with new directories in place
+- Black formatting applied (no changes needed)
+
+**Notes**:
+- Directory structure mirrors planned architecture from `plan/BT_INTEGRATION.md`
+- Ready for implementing bridge layer (BT-1.1.3) and helper nodes (BT-1.2.1)
+- No imports or code yet—just scaffolding
+
+**Next Step**: BT-1.1.3 - Implement BT bridge layer
+
+---
+
 ## 2026-02-18: BT-1.1.1 - Added py_trees dependency
 
 ### Task: Add py_trees to project dependencies
