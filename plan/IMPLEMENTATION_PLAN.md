@@ -138,7 +138,7 @@ This phase implements a proof-of-concept for BT integration by refactoring one c
 
 #### BT-1.1: Infrastructure Setup
 
-- [ ] **BT-1.1.1**: Add `py_trees` to project dependencies
+- [x] **BT-1.1.1**: Add `py_trees` to project dependencies
   - Update `pyproject.toml` with `py_trees = "^2.2.0"` (or latest stable)
   - Run `uv sync` to install
   - Verify import works: `python -c "import py_trees; print(py_trees.__version__)"`

@@ -6,6 +6,27 @@ This file tracks insights, issues, and learnings during implementation.
 
 ---
 
+## 2026-02-18: BT-1.1.1 - Added py_trees dependency
+
+### Task: Add py_trees to project dependencies
+
+**Status**: COMPLETE
+
+**Changes**:
+- Added `py-trees>=2.2.0` to `pyproject.toml` dependencies (alphabetically ordered)
+- Ran `uv sync` to install the package
+- Verified import works: `import py_trees` succeeds
+- All 378 tests still pass after adding dependency
+
+**Notes**:
+- The package is named `py-trees` in PyPI but imports as `py_trees` in Python
+- py_trees module does not expose `__version__` attribute, but the import succeeds and module is functional
+- No test regressions after adding the dependency
+
+**Next Step**: BT-1.1.2 - Create behavior tree directory structure
+
+---
+
 ## 2026-02-18: BT Integration Gap Analysis (PLAN_prompt.md)
 
 ### Gap Analysis Findings
