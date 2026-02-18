@@ -122,7 +122,7 @@ When an agent proposes a non-trivial architectural change (new persistence parad
 
 This document provides guidance to AI agents working on the Vultron codebase. It supplements the Copilot instructions with implementation-specific advice.
 
-**Last Updated:** 2026-02-18
+**Last Updated:** 2026-02-18 (Design review completed)
 
 ## Vultron-Specific Architecture
 
@@ -411,9 +411,13 @@ When implementing handler business logic:
 7. Log state transitions at INFO level (not DEBUG)
 8. Handle errors gracefully with appropriate exceptions
 
-### ✅ Behavior Tree Integration Infrastructure (Phase BT-1.1 - BT-1.3.4)
+### ✅ Behavior Tree Integration Complete (Phase BT-1)
 
-**Status**: Infrastructure complete, handler refactoring in progress
+**Status**: Phase BT-1 complete (infrastructure + handler refactoring validated)
+
+**Achievement**: Successfully demonstrated BT architecture feasibility with
+`validate_report` handler refactored to use BT execution. Performance validated
+at P99 < 1ms (far exceeding 100ms target). All 454 tests passing.
 
 **Completed Components**:
 
@@ -449,26 +453,80 @@ When implementing handler business logic:
    blackboard (set by BTBridge) rather than constructor injection for cleaner
    separation and easier testing.
 
-**Next Steps** (Phase BT-1.4):
+**Handler Refactoring Approach** (Validated):
 
-- Refactor `validate_report` handler to use BT execution (procedural logic
-  currently in place)
-- Update handler tests to verify BT integration
-- Performance validation (target: P99 < 100ms)
+Phase BT-1 demonstrated the **handler-calls-BT pattern**:
+- Handler function remains entry point (preserves semantic routing)
+- Handler prepares context (rehydration, validation, setup)
+- Handler delegates to BT execution via `BTBridge.execute_tree()`
+- Handler processes results (persist state, generate responses, log)
 
-See `specs/behavior-tree-integration.md` and `plan/BT_INTEGRATION.md` for
-architecture details. See `plan/IMPLEMENTATION_NOTES.md` (2026-02-18 entries)
-for implementation lessons.
+This approach preserves the handler protocol while enabling BT orchestration
+for complex workflows. See `validate_report` in `handlers.py` for reference
+implementation (25 lines vs 165-line procedural version).
+
+**Lessons Learned**:
+- BT execution is fast enough for inline use (no async queue needed)
+- Blackboard key naming must avoid slashes (use simplified keys)
+- Policy pattern enables pluggable business rules
+- Helper nodes (ReadObject, UpdateObject, CreateObject) reduce boilerplate
+
+**Next Steps** (Phase BT-2+):
+
+Agents implementing remaining handlers SHOULD consider:
+1. **Simple handlers** (e.g., `ack_report`, `close_report`): Use procedural
+   approach; BT overhead not justified
+2. **Complex handlers** (e.g., case ownership transfer, embargo management):
+   Use BT execution pattern demonstrated in `validate_report`
+3. **Uncertain complexity**: Start procedural; refactor to BT if logic becomes
+   difficult to maintain
+
+See `specs/behavior-tree-integration.md`, `plan/BT_INTEGRATION.md`, and
+`plan/IMPLEMENTATION_NOTES.md` (2026-02-18 entries) for complete guidance.
 
 ### 🔨 Future Work
 
-- Handler refactoring to use BT execution (Phase BT-1.4)
-- Response activity generation (`specs/response-format.md`)
-- Outbox processing implementation
-- Health endpoint implementation (`specs/observability.md`)
-- Duplicate detection/idempotency (`specs/inbox-endpoint.md` IE-10-001)
-- Async dispatcher implementation
-- Integration tests for full message flows
+- **Response activity generation** (`specs/response-format.md`) - System
+  doesn't generate Accept/Reject responses back to submitters
+- **Outbox processing** - No implementation for routing response activities to
+  recipient inboxes
+- **Health endpoint** implementation (`specs/observability.md`) - Health checks
+  defined but not implemented
+- **Duplicate detection/idempotency** (`specs/inbox-endpoint.md` IE-10-001,
+  `specs/idempotency.md`) - Activity ID tracking needed
+- **Request validation** - Content-Type, size limits, URI validation per
+  `specs/http-protocol.md`
+- **Structured logging** - JSON format, correlation IDs per
+  `specs/structured-logging.md`
+- **Async dispatcher** - Queue-based dispatcher (currently only synchronous
+  DirectActivityDispatcher)
+- **Integration tests** - Multi-handler workflow tests (currently mostly unit
+  tests)
+- **BT expansion** (Phase BT-2+) - Apply BT pattern to complex handlers beyond
+  `validate_report`
+
+### ⚠️ Production Readiness Gaps
+
+**Critical** (affects data integrity):
+- ❌ **Idempotency guards**: Handlers can process duplicate activities →
+  potential data inconsistency
+- ❌ **Activity response generation**: System doesn't notify submitters of
+  validation outcomes (Accept/Reject)
+- ❌ **Request validation**: No Content-Type, size, or URI validation at HTTP
+  layer
+
+**Important** (affects observability):
+- ⚠️ **Correlation IDs**: Logs lack request tracing across async tasks
+- ⚠️ **Structured logging**: Plain text logs instead of JSON format
+- ⚠️ **Health endpoints**: No `/health/live` or `/health/ready` endpoints
+
+**Nice-to-have** (affects scalability):
+- 🟡 **Async dispatcher**: Only synchronous dispatcher implemented; no
+  queue-based async dispatch
+- 🟡 **Handler implementation**: 29/36 handlers remain stubs (83% incomplete)
+
+**Recommendation**: If moving beyond prototype, prioritize idempotency and
+response generation first, then observability features, then remaining handlers.
 
 ### Note on _old_handlers Directory
 
@@ -761,6 +819,72 @@ When updating specs per LEARN_prompt instructions:
 
 ---
 
+## Known Specification Issues
+
+**Important**: The following issues were identified during design review
+(2026-02-18). Agents should be aware of these when implementing features.
+
+### Cross-Reference Errors
+
+1. **Error response format** (`specs/error-handling.md` EH-05-001):
+   - References `http-protocol.md` HP-06-001 for error response format
+   - HP-06-001 is actually about timeouts, not error response format
+   - **Workaround**: Error response format is defined in EH-05-001 itself; use
+     that as authoritative source
+
+### Specification Ambiguities
+
+1. **Rehydration timing** (`specs/semantic-extraction.md`):
+   - SE-01-002 states rehydration occurs *before* semantic extraction
+   - Yet spec also requires extraction to be "defensive" to partial rehydration
+   - **Resolution**: Inbox handler MUST call `rehydrate()` before extraction
+     (current implementation correct); pattern matching defensiveness is
+     belt-and-suspenders safety
+
+2. **Handler idempotency strength** (`specs/handler-protocol.md` HP-07-001,
+   `specs/idempotency.md` ID-04-001):
+   - Both specs say handlers SHOULD be idempotent
+   - But critical workflow handlers (validate_report, create_report) likely
+     need MUST-level idempotency
+   - **Recommendation**: Treat idempotency as MUST for state-changing handlers;
+     SHOULD for read-only handlers
+
+3. **Duplicate detection implementation** (`specs/idempotency.md` ID-02-002):
+   - Spec says system SHOULD track activity IDs in DataLayer
+   - No details provided on schema, method signature, or query interface
+   - **Workaround**: Use `dl.read(activity.as_id)` to check existence before
+     creating; no separate tracking table needed yet
+
+### Incomplete Specifications
+
+1. **Outbox implementation**: `specs/response-format.md` RF-06-001 requires
+   response delivery to recipient inboxes, but no spec exists for outbox
+   processing or routing
+2. **CaseActor lifecycle**: `specs/behavior-tree-integration.md` BT-10 mentions
+   Case creation triggers CaseActor creation, but no spec on CaseActor message
+   handling, authorization, or lifecycle
+3. **BT blackboard key conventions**: BT-03-003 prohibits slashes in keys but
+   doesn't document naming conventions (current practice:
+   `object_{last_segment}`)
+4. **Async dispatcher**: Framework assumes async via BackgroundTasks but
+   `specs/dispatch-routing.md` only specifies synchronous
+   DirectActivityDispatcher; queue-based dispatcher is mentioned as SHOULD but
+   unspecified
+
+### Specification Maintenance Notes
+
+When updating specs based on this review:
+- Fix EH-05-001 cross-reference (should reference error response format section
+  in same spec or create HP-09 section in http-protocol.md)
+- Clarify rehydration timing requirement (remove defensive pattern matching if
+  rehydration is guaranteed)
+- Add outbox spec (similar to inbox-endpoint.md but for outbound routing)
+- Add CaseActor spec (message handling, authorization, lifecycle)
+- Document BT blackboard key naming conventions (see
+  `vultron/behaviors/report/validation.py` for examples)
+
+---
+
 ## Safety & Guardrails
 
 - Treat anything under `/security`, `/auth`, or equivalent paths as sensitive
@@ -784,6 +908,81 @@ If instructions are ambiguous:
 - Choose correctness over convenience
 - Choose explicitness over brevity
 - Ask for clarification rather than assuming intent
+
+---
+
+## Implementation Prioritization Guidance
+
+**Context**: As of 2026-02-18, Vultron is a **validated prototype** with solid
+architecture but incomplete feature coverage. Phase BT-1 successfully
+demonstrated behavior tree integration feasibility. 454 tests pass. 6/36
+handlers complete.
+
+### What to Prioritize (by scenario)
+
+**Scenario 1: Continuing POC/Research** (current state)
+1. ✅ Expand BT integration to additional complex handlers (Phase BT-2)
+2. ✅ Implement response generation (`specs/response-format.md`) to close
+   feedback loop
+3. ✅ Document lessons learned from BT integration (update specs with BT
+   patterns)
+4. ⏸️ Defer: Production features (request validation, structured logging)
+5. ⏸️ Defer: Remaining 29 handler stubs (low priority for POC)
+
+**Scenario 2: Moving to Production** (future)
+1. 🔴 **Critical**: Implement idempotency guards (prevents data corruption)
+2. 🔴 **Critical**: Implement response generation (users need feedback)
+3. 🟠 **High**: Request validation (Content-Type, size limits, URI validation)
+4. 🟠 **High**: Structured logging + correlation IDs (observability)
+5. 🟠 **High**: Health endpoints (`/health/live`, `/health/ready`)
+6. 🟡 **Medium**: Complete remaining 29 handlers (or document which are
+   out-of-scope)
+7. 🟡 **Medium**: Async dispatcher (queue-based) for scalability
+8. 🟢 **Low**: BT expansion (only if handlers need complex orchestration)
+
+**Scenario 3: Maintaining/Refactoring** (ongoing)
+1. Fix specification cross-references (see Known Specification Issues section)
+2. Add missing specs (outbox, CaseActor, BT naming conventions)
+3. Improve test coverage for edge cases (concurrent requests, malformed
+   activities)
+4. Performance profiling (ensure P99 < 100ms target maintained as handlers
+   added)
+
+### Decision Tree: Should I Use Behavior Trees?
+
+```
+Handler complexity assessment:
+├─ Simple CRUD operation (ack_report, close_report)?
+│  └─ NO → Use procedural approach
+├─ Linear workflow with 3-5 steps?
+│  └─ MAYBE → Start procedural; refactor to BT if maintainability suffers
+└─ Complex orchestration (validate_report, ownership transfer)?
+   └─ YES → Use BT pattern (see validate_report as reference)
+```
+
+**BT Justification Criteria**:
+- Multiple conditional branches (IF report.credibility > threshold THEN...)
+- State machine transitions (CS/RM/EM state changes)
+- Need for policy injection (validation rules, authorization)
+- Workflow composition (reuse subtrees across handlers)
+
+**BT Not Justified**:
+- Simple state updates (status = CLOSED)
+- Logging-only operations
+- Single database operation
+
+### Agent Self-Assessment Checklist
+
+Before implementing a feature, agents should verify:
+
+- [ ] Feature aligns with current scenario (POC vs Production)
+- [ ] Relevant specs consulted (check Known Specification Issues)
+- [ ] Tests planned (unit + integration where applicable)
+- [ ] Idempotency considered (for state-changing operations)
+- [ ] Logging added (INFO for state transitions, ERROR for failures)
+- [ ] Error handling (domain-specific exceptions, not generic catch-all)
+- [ ] If using BT: Complexity justifies overhead?
+- [ ] If not using BT: Could procedural become unmaintainable?
 
 ---
 
@@ -940,6 +1139,20 @@ See `specs/http-protocol.md` HP-07-001 for guidance.
 **Current Implementation**: Report handlers (create_report, submit_report) check for existing offers/reports before creating duplicates. Other handlers should follow this pattern.
 
 See cross-references: `handler-protocol.md` HP-07-001, `message-validation.md` MV-08-001, `inbox-endpoint.md` IE-10-001.
+
+### Test Suite Status
+
+**Current Status** (2026-02-18): 454 tests passing (378 core + 76 BT tests)
+
+**Note**: Test count in AGENTS.md may drift from actual count as tests are
+added/removed. Always verify current count with:
+
+```bash
+uv run pytest --collect-only -q | tail -1
+```
+
+When updating AGENTS.md with test counts, include the date to indicate when the
+count was last verified.
 
 ---
 
