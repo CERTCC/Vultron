@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-18 (Gap analysis and priority review via PLAN_prompt.md)
+**Last Updated**: 2026-02-19 (Gap analysis and priority review via PLAN_prompt.md)
 
 ## Overview
 
@@ -19,9 +19,8 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [x] Actor ID resolution working (short IDs like "vendorco" resolve to full URIs)
 - [x] All handler tests passing (9/9 handler-specific tests)
 
-**Next Priority**: Per PRIORITIES.md, **Behavior Tree integration** is the top priority. The current handler implementations provide a working baseline; BT integration will refactor complex handlers to use behavior tree execution for improved clarity, testability, and alignment with CVD protocol documentation.
+**BT Integration Status (Phase BT-1: COMPLETE ✅)**:
 
-**BT Integration Status (Phase BT-1: COMPLETE ✅)**: 
 - ✅ py_trees library added to dependencies (v2.2.0+)
 - ✅ BT bridge layer implemented (`vultron/behaviors/bridge.py`)
 - ✅ DataLayer-aware helper nodes implemented (`vultron/behaviors/helpers.py`)
@@ -29,9 +28,14 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - ✅ Report validation tree composed (`vultron/behaviors/report/validate_tree.py`)
 - ✅ Default policy implementation (`vultron/behaviors/report/policy.py`)
 - ✅ Comprehensive BT tests (76 tests passing in `test/behaviors/`)
-- ✅ Handler refactoring COMPLETE (validate_report handler now uses BT execution)
+- ✅ Handler refactoring COMPLETE (`validate_report` handler now uses BT execution)
 - ✅ Demo and documentation updated (Phase BT-1.5-1.6 COMPLETE)
 - ✅ ADR-0008 created for py_trees integration decision
+
+**Next Priority**: Per PRIORITIES.md, the focus is now on **Phase BT-2: extending BT
+integration to remaining report handlers** AND **ActivityPub workflow demonstrations**
+as standalone demo scripts (similar to `receive_report_demo.py`). See phases BT-2
+through BT-6 below.
 
 **Completed Infrastructure:**
 
@@ -47,6 +51,14 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [x] ActivityStreams 2.0 Pydantic models (vocabulary implementation)
 - [x] Rehydration system for expanding URI references to full objects
 
+**Handler Business Logic Status:**
+
+- ✅ Report handlers complete (6/36): create_report, submit_report, validate_report
+  (BT-powered), invalidate_report, ack_report, close_report
+- ❌ 30 stub handlers remain: case management (8), ownership transfer (3),
+  invite/accept/reject actor to case (3), embargo management (6), embargo invitations
+  (3), participants (3), notes (3), statuses (3), close_case (1)
+
 **Production Readiness Features (Lower Priority per PRIORITIES.md):**
 
 - [ ] Request validation (Content-Type, 1MB size limit, URI validation) - See Phase 1.1
@@ -56,64 +68,49 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [ ] Idempotency/duplicate detection - See Phase 2.2
 - [ ] Test coverage enforcement (80%+ overall, 100% critical paths) - See Phase 3.1
 
-**Handler Business Logic (Partially Complete):**
-
-- ✅ Report handlers complete (6/36): create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
-- [ ] Case handlers (8): create_case, add_report_to_case, suggest_actor_to_case, ownership transfers, etc.
-- [ ] Actor invitation handlers (3): invite/accept/reject_invite_actor_to_case
-- [ ] Embargo handlers (7): create_embargo_event, invitations, participant management, etc.
-- [ ] Participant & metadata handlers (7): case participants, notes, status tracking
-- [ ] Case lifecycle handlers (2): close_case, reopen_case
-- [ ] Embargo invitation handlers (3): invite/accept/reject_invite_to_embargo_on_case
-
 **Deferred (Lowest Priority):**
 
 - [ ] Response generation (Accept/Reject/TentativeReject responses back to submitter) - See Phase 5
 - [ ] Async dispatcher optimization (FastAPI async processing already in place)
-- [ ] Additional case/embargo workflow implementations beyond demo requirements
+- [ ] agentic-readiness.md spec cleanup (see Priority 1000 in PRIORITIES.md)
 
 ## Prioritized Task List (Per PRIORITIES.md and Gap Analysis)
 
-**Gap Analysis Summary (2026-02-18)**:
+**Gap Analysis Summary (2026-02-19)**:
 
 **✅ Completed Work:**
 - ✅ **Phase 0 & 0A complete**: Report handlers (6/36) with full business logic
-- ✅ **Demo script complete**: All three workflows working (validate, invalidate, invalidate+close)
-- ✅ **BT infrastructure complete (Phases BT-1.1 through BT-1.3)**:
-  - py_trees library integrated (v2.2.0+)
-  - BT bridge layer implemented (`vultron/behaviors/bridge.py`)
-  - DataLayer-aware helper nodes (`vultron/behaviors/helpers.py`)
-  - Report validation BT nodes (10 nodes in `vultron/behaviors/report/nodes.py`)
-  - Report validation tree composed (`vultron/behaviors/report/validate_tree.py`)
-  - Default policy implementation (`vultron/behaviors/report/policy.py`)
-  - Comprehensive tests (76 BT tests, all passing)
-- ✅ **Test infrastructure fixed**: All 454 tests passing (2 xfailed), 18 router tests working
-- ✅ **Rehydration system**: Handles nested objects and full URI lookups
-
-**🔴 Critical Path - BT Integration (Phase BT-1.4 through BT-1.6)**:
-1. **BT-1.4**: Refactor `validate_report` handler to use BT execution (~1 day)
-2. **BT-1.5**: Update demo script and verify workflows (~0.5 days)
-3. **BT-1.6**: Documentation updates (~0.5 days)
+- ✅ **BT Phase BT-1 complete**: BT infrastructure + `validate_report` BT handler
+  - py_trees integrated, bridge layer, helpers, report validation tree, policy stubs
+  - All 454 tests passing (76 BT tests + 378 core)
+- ✅ **Demo script complete**: `receive_report_demo.py` with 3 workflows
 
 **📊 Specification Compliance Status**:
-- **BT Requirements**: 
-  - BT-01 through BT-07 (Execution, Library, State, Handler, Bridge, Workflow, DataLayer): ✅ Infrastructure implemented
-  - BT-04, BT-05, BT-06 (Handler integration, workflow trees): ⚠️ Trees built but not integrated into handlers
-  - BT-08 (CLI): ❌ Not implemented (MAY requirement, deferred)
-  - BT-09 (Actor isolation): ✅ Blackboard setup supports isolation
-  - BT-10 (CaseActor management): ✅ Already working in procedural handlers
-  - BT-11 (Concurrency): ✅ Sequential processing via BackgroundTasks
+- **BT Requirements (specs/behavior-tree-integration.md)**:
+  - BT-01 through BT-07, BT-09 through BT-11: ✅ Implemented
+  - BT-08 (CLI): ❌ Not implemented (MAY requirement, low priority)
+- **Handler stubs**: 30 of 36 handlers are debug-only stubs with no business logic
 
-**❌ Remaining Gaps (Lower Priority per PRIORITIES.md)**:
-- ❌ **24 handler stubs remaining**: Case management (8), ownership transfer (3), participants (6), embargos (6), notes/statuses (5)
-- ❌ **Production readiness incomplete**: Request validation, error responses, health checks, structured logging, idempotency
-- ❌ **Response generation not implemented**: `specs/response-format.md` (deferred to Phase 5)
+**❌ Remaining Gaps (prioritized per PRIORITIES.md)**:
+- ❌ **Phase BT-2**: Remaining report handlers need BT trees (prioritize_report,
+  close_report, invalidate_report, ack_report — complex ones worth BT treatment)
+- ❌ **Demo scripts missing**: No standalone demos for case/embargo/participant
+  workflows listed in PRIORITIES.md as highest priority targets
+- ❌ **30 handler stubs**: case management, actor invitations, embargo, participants,
+  notes, statuses, close_case
+- ❌ **Production readiness incomplete**: Request validation, error responses, health
+  checks, structured logging, idempotency (all `PROD_ONLY` or lower priority)
 
-**🎯 Recommended Next Actions**:
-1. **Complete Phase BT-1** (handler refactoring): Highest priority per PRIORITIES.md
-2. **Consider spec updates**: Document BT infrastructure implementation status in `specs/behavior-tree-integration.md`
-3. **Expand BT integration** (Phase BT-2+): Apply BT approach to other complex handlers (deferred until POC validated)
-4. **Production features** (Phases 1-3): Deferred per PRIORITIES.md until BT integration complete
+**🎯 Next Actions (ordered by PRIORITIES.md):**
+1. **Phase BT-2** — Extend BT to remaining complex report handlers
+   (`prioritize_report` BT is the main new one; optionally wrap others)
+2. **Phase BT-3** — Implement `initialize_case` + `manage_case` demo with
+   BT-powered `create_case` handler (higher priority per PRIORITIES.md)
+3. **Phase BT-4** — Implement `invite_actor` + `initialize_participant` +
+   `manage_participants` demo
+4. **Phase BT-5** — Implement `establish_embargo` + `manage_embargo` demo
+5. **Phase BT-6** — Implement `status_updates` + `acknowledge` demo
+6. **Lower priority demos** — `suggest_actor`, `transfer_ownership`, `error`
 
 ---
 
@@ -337,66 +334,266 @@ This phase implements a proof-of-concept for BT integration by refactoring one c
 
 ---
 
-### LOWER PRIORITY: Additional BT Integration (Deferred)
+### 🔴 TOP PRIORITY: Phase BT-2 — Remaining Report Handler BTs
 
-Per PRIORITIES.md, expand BT integration to other handlers after Phase BT-1 succeeds.
+**Goal**: Extend BT integration to remaining complex report handlers, completing
+the report management workflow with BT-powered logic throughout.
 
-#### Phase BT-2: Report Workflow BTs (Deferred)
+**Reference simulation trees**: `vultron/bt/report_management/_behaviors/`
 
-**Goal**: Migrate remaining report handlers to BT execution
+**Decision guide** (from IMPLEMENTATION_NOTES.md):
 
-- [ ] Refactor `create_report` handler to use BT
-- [ ] Refactor `submit_report` handler to use BT
-- [ ] Refactor `invalidate_report` handler to use BT
-- [ ] Refactor `ack_report` handler to use BT
+- Use BTs for complex handlers with multiple branches/state transitions
+- Keep procedural for simple CRUD-style handlers (create_report, ack_report)
+
+#### BT-2.1: `prioritize_report` BT (NEW — highest value)
+
+`prioritize_report` is the most complex remaining report handler and does not
+yet have full business logic. It corresponds to
+`vultron/bt/report_management/_behaviors/prioritize_report.py:RMPrioritizeBt`.
+
+- [ ] Implement `vultron/behaviors/report/prioritize_tree.py`
+  - BT: evaluate priority policy → ACCEPTED (RmEngageCase) or DEFERRED (RmDeferCase)
+  - Condition: check RM state is VALID (precondition)
+  - Action: `TransitionRMtoAccepted` or `TransitionRMtoDeferred` based on policy
+  - Use `PrioritizationPolicy` protocol (similar to `ValidationPolicy`)
+  - `AlwaysAcceptPolicy` default (transitions to ACCEPTED)
+- [ ] Add `PrioritizationPolicy` to `vultron/behaviors/report/policy.py`
+- [ ] Implement BT nodes in `vultron/behaviors/report/nodes.py`:
+  - `CheckRMStateValid` (may already exist — reuse)
+  - `TransitionRMtoAccepted`
+  - `TransitionRMtoDeferred`
+  - `EvaluateReportPriority` (policy stub, always SUCCESS)
+- [ ] Refactor `prioritize_report` handler in `handlers.py` to use BT
+- [ ] Add tests in `test/behaviors/report/test_prioritize_tree.py`
+
+#### BT-2.2: `close_report` BT (OPTIONAL — already has procedural logic)
+
+`close_report` already has full procedural business logic (~84 lines). A BT
+refactor is valuable but not urgent. Reference:
+`vultron/bt/report_management/_behaviors/close_report.py:RMCloseBt`.
+
+- [ ] Implement `vultron/behaviors/report/close_tree.py`
+  - Sequence: check preconditions (RM in closeable state) → transition to CLOSED
+    → emit RmCloseReport activity → update outbox
 - [ ] Refactor `close_report` handler to use BT
-- [ ] Create reusable BT components for common patterns
-- [ ] Update demo to showcase BT-powered workflows
+- [ ] Update tests
 
-#### Phase BT-3: Case Management BTs (Deferred)
+#### BT-2.3: `invalidate_report` BT (OPTIONAL — already has procedural logic)
 
-**Goal**: Implement case workflow BTs for multi-actor coordination
+Already implemented procedurally. Reference: `_InvalidateReport` subtree in
+`vultron/bt/report_management/_behaviors/validate_report.py`.
 
-- [ ] Create `vultron/behaviors/case/` directory
-- [ ] Implement case creation BT
-- [ ] Implement actor invitation BTs
-- [ ] Implement case participant management BTs
-- [ ] Implement case ownership transfer BTs
-- [ ] Create case management demo script
+- [ ] Implement `vultron/behaviors/report/invalidate_tree.py`
+  - Sequence: check RM state received → transition to INVALID → emit RI activity
+    → update outbox
+- [ ] Refactor `invalidate_report` handler to use BT
+- [ ] Update tests
 
-#### Phase BT-4: Embargo Management BTs (Deferred)
+#### BT-2.4: Assess remaining simple report handlers
 
-**Goal**: Implement embargo workflow BTs
-
-- [ ] Create `vultron/behaviors/embargo/` directory
-- [ ] Implement embargo proposal BT
-- [ ] Implement embargo acceptance BT
-- [ ] Implement embargo timeline management BTs
-- [ ] Create embargo coordination demo script
+- [ ] Evaluate `create_report`, `submit_report`, `ack_report` for BT value
+  - These are simple CRUD/state operations; procedural code is likely sufficient
+  - Document decision in IMPLEMENTATION_NOTES.md
 
 ---
 
-### LOWER PRIORITY: Additional Workflows (Deferred)
+### 🔴 TOP PRIORITY: Phase BT-3 — Case Management Demo
 
-**Note**: These are lower priority than BT integration per PRIORITIES.md.
+**Goal**: Demonstrate `initialize_case` and `manage_case` ActivityPub workflows
+as standalone demo script. Reference:
+`docs/howto/activitypub/activities/initialize_case.md`,
+`docs/howto/activitypub/activities/manage_case.md`
 
-#### Option A: Expand Demo to Cover More Workflows (Non-BT)
+**Workflows to demo**: CreateCase → AddReportToCase → AddParticipantToCase →
+(optionally) prioritize → engage/defer → close
 
-If procedural handler implementations are needed before BT integration:
+**Simulation reference**: `vultron/bt/case_state/` (conditions, transitions),
+but note: no `_behaviors/` subdirectory exists for case state — implement
+fresh using case_state conditions/transitions as reference.
 
-- [ ] **Phase 0B: Case Management Demo** (Procedural)
-  - [ ] Implement case workflow handlers (create_case, add_report_to_case)
-  - [ ] Implement actor invitation handlers (invite/accept/reject_invite_actor_to_case)
-  - [ ] Create demo script showing multi-actor case collaboration
-  - [ ] Document in `docs/howto/activitypub/activities/manage_case.md`
+#### BT-3.1: `create_case` handler (BT-powered)
 
-- [ ] **Phase 0C: Embargo Management Demo** (Procedural)
-  - [ ] Implement embargo handlers (create_embargo_event, add_embargo_event_to_case)
-  - [ ] Implement embargo invitation handlers
-  - [ ] Create demo script showing embargo coordination
-  - [ ] Document in `docs/howto/activitypub/activities/manage_embargo.md`
+- [ ] Implement `vultron/behaviors/case/` directory with `__init__.py`
+- [ ] Implement `vultron/behaviors/case/create_tree.py`
+  - Sequence: validate case object → persist VulnerabilityCase to DataLayer →
+    create CaseActor (Service) → emit CreateCase activity → update outbox
+  - Reuse CaseActor creation pattern from `validate_report` BT
+- [ ] Implement BT nodes in `vultron/behaviors/case/nodes.py`:
+  - `ValidateCaseObject`: check required fields on incoming case
+  - `PersistCase`: create VulnerabilityCase in DataLayer
+  - `CreateCaseActorNode`: create CaseActor service in DataLayer (reuse/refactor
+    from report validation tree)
+  - `EmitCreateCaseActivity`: generate `as:Create(VulnerabilityCase)` for outbox
+- [ ] Refactor `create_case` handler in `handlers.py` to use BT
+- [ ] Add `test/behaviors/case/test_create_tree.py`
 
-#### Option B: Production Readiness
+#### BT-3.2: `add_report_to_case` handler (procedural — simpler)
+
+- [ ] Implement `add_report_to_case` handler:
+  - Rehydrate case and report from payload
+  - Append report ID to `case.vulnerability_reports` list
+  - Persist updated case via `dl.update(case_id, object_to_record(case))`
+  - Log state transition at INFO level
+
+#### BT-3.3: `close_case` handler (procedural)
+
+- [ ] Implement `close_case` handler:
+  - Update case status to CLOSED
+  - Emit `RmCloseCase` activity to outbox
+  - Log at INFO level
+
+#### BT-3.4: `engage_case` / `defer_case` mapping
+
+- [ ] Review `RmEngageCase` and `RmDeferCase` semantics in
+  `docs/howto/activitypub/activities/manage_case.md`
+- [ ] Verify these map to existing MessageSemantics enums or add new ones if
+  missing (check `vultron/enums.py` and `vultron/activity_patterns.py`)
+- [ ] Implement handlers if semantic/pattern support exists
+
+#### BT-3.5: `initialize_case` demo script
+
+- [ ] Create `vultron/scripts/initialize_case_demo.py`
+  - Setup: create actor, submit report, validate report (reuse receive_report
+    workflow as precondition)
+  - Demo: create case → add report to case → add participant to case
+  - Show case state at each step
+
+---
+
+### 🔴 TOP PRIORITY: Phase BT-4 — Actor Invitation + Participant Demo
+
+**Goal**: Demonstrate `invite_actor`, `initialize_participant`, and
+`manage_participants` workflows. Reference:
+`docs/howto/activitypub/activities/invite_actor.md`,
+`docs/howto/activitypub/activities/initialize_participant.md`,
+`docs/howto/activitypub/activities/manage_participants.md`
+
+#### BT-4.1: Actor invitation handlers
+
+- [ ] Implement `invite_actor_to_case` handler:
+  - Store Invite activity in DataLayer
+  - Emit `as:Invite(object=VulnerabilityCase)` to target actor inbox
+- [ ] Implement `accept_invite_actor_to_case` handler:
+  - Rehydrate invitation object
+  - Create `CaseParticipant(actor=invitee, case=case_id)`
+  - Persist participant to DataLayer
+  - Notify case owner via outbox activity
+- [ ] Implement `reject_invite_actor_to_case` handler:
+  - Log rejection at INFO
+  - Optionally notify inviter via outbox activity
+
+#### BT-4.2: Case participant handlers
+
+- [ ] Implement `create_case_participant` handler:
+  - Create `CaseParticipant` object with actor reference and role
+  - Persist to DataLayer
+- [ ] Implement `add_case_participant_to_case` handler:
+  - Rehydrate case and participant
+  - Add participant ID to `case.participants`
+  - Persist updated case
+- [ ] Implement `remove_case_participant_from_case` handler:
+  - Remove participant from `case.participants`
+  - Persist updated case
+
+#### BT-4.3: Participant management demo script
+
+- [ ] Create `vultron/scripts/invite_actor_demo.py`
+  - Setup: initialize case with first actor
+  - Demo: case owner invites second actor → second actor accepts → participant
+    added → show updated participant list
+
+---
+
+### 🔴 TOP PRIORITY: Phase BT-5 — Embargo Management Demo
+
+**Goal**: Demonstrate `establish_embargo` and `manage_embargo` workflows.
+Reference: `docs/howto/activitypub/activities/establish_embargo.md`,
+`docs/howto/activitypub/activities/manage_embargo.md`
+
+**Simulation reference**: `vultron/bt/embargo_management/` (behaviors.py,
+conditions.py, states.py, transitions.py — no `_behaviors/` subdirectory,
+translate directly from these files).
+
+#### BT-5.1: Core embargo handlers
+
+- [ ] Implement `create_embargo_event` handler:
+  - Create `EmbargoEvent` object with timeline/terms
+  - Persist to DataLayer
+- [ ] Implement `add_embargo_event_to_case` / `ActivateEmbargo` handler:
+  - Link embargo to case; update `case.embargo_events`
+  - Persist updated case
+- [ ] Implement `remove_embargo_event_from_case` handler:
+  - Unlink embargo from case
+  - Persist updated case
+- [ ] Implement `announce_embargo_event_to_case` handler:
+  - Emit `as:Announce(EmbargoEvent)` to all case participants via outbox
+
+#### BT-5.2: Embargo negotiation handlers
+
+- [ ] Implement `invite_to_embargo_on_case` / `EmProposeEmbargo` handler:
+  - Emit `as:Invite(EmbargoEvent)` to target actor
+  - Persist invite activity
+- [ ] Implement `accept_invite_to_embargo_on_case` / `EmAcceptEmbargo` handler:
+  - Record acceptance; trigger ActivateEmbargo if quorum reached
+  - Emit `as:Accept` reply
+- [ ] Implement `reject_invite_to_embargo_on_case` / `EmRejectEmbargo` handler:
+  - Log rejection; notify proposer via outbox
+
+#### BT-5.3: Embargo demo script
+
+- [ ] Create `vultron/scripts/establish_embargo_demo.py`
+  - Setup: initialized case with two participants
+  - Demo: participant proposes embargo → other participant accepts → embargo
+    activated and announced → show embargo state
+
+---
+
+### 🟡 MEDIUM PRIORITY: Phase BT-6 — Status Updates + Acknowledge Demo
+
+**Goal**: Demonstrate `status_updates` and `acknowledge` workflows. Reference:
+`docs/howto/activitypub/activities/status_updates.md`,
+`docs/howto/activitypub/activities/acknowledge.md`
+
+#### BT-6.1: Note handlers
+
+- [ ] Implement `create_note` handler: create `as:Note` object, persist to DataLayer
+- [ ] Implement `add_note_to_case` handler: append note ID to `case.notes`, persist
+- [ ] Implement `remove_note_from_case` handler: remove note from `case.notes`, persist
+
+#### BT-6.2: Status handlers
+
+- [ ] Implement `create_case_status` handler: create `CaseStatus` object, persist
+- [ ] Implement `add_case_status_to_case` handler: set `case.status`, persist
+- [ ] Implement `create_participant_status` handler: create `ParticipantStatus`, persist
+- [ ] Implement `add_participant_status_to_participant` handler: set status on
+  participant, persist
+
+#### BT-6.3: Acknowledge (`ack_report`) review
+
+- [ ] Review `ack_report` handler against `docs/howto/activitypub/activities/acknowledge.md`
+- [ ] `RmReadReport` is already handled by `ack_report` — verify correctness and
+  update if needed
+
+#### BT-6.4: Status updates demo script
+
+- [ ] Create `vultron/scripts/status_updates_demo.py`
+  - Demo: create note → add to case → create status → add to case → show updated case
+
+---
+
+### 🟡 LOWER PRIORITY: Phase BT-7 — Ownership Transfer + Suggest Actor
+
+**Goal**: Lower-priority workflows from PRIORITIES.md.
+
+- [ ] Implement `suggest_actor_to_case`, `accept_suggest_actor_to_case`,
+  `reject_suggest_actor_to_case` handlers
+- [ ] Implement `offer_case_ownership_transfer`, `accept_case_ownership_transfer`,
+  `reject_case_ownership_transfer` handlers
+- [ ] Create `vultron/scripts/suggest_actor_demo.py`
+- [ ] Create `vultron/scripts/transfer_ownership_demo.py`
+
+---
 
 If the goal is to harden the current implementation for real-world use:
 

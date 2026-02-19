@@ -289,7 +289,71 @@ CS-05-* for requirements.
 
 ---
 
-## ActivityStreams Rehydration
+## Phase BT-2+ Strategy Notes (2026-02-19)
+
+### Which Report Handlers Benefit from BT Refactoring
+
+Based on complexity analysis after Phase BT-1:
+
+| Handler | BT Value | Rationale |
+|---|---|---|
+| `prioritize_report` | ✅ HIGH | No business logic yet; complex branching (ACCEPTED vs DEFERRED); policy injection valuable |
+| `close_report` | ⚠️ MEDIUM | Has procedural logic; multi-step with preconditions; BT adds clarity |
+| `invalidate_report` | ⚠️ MEDIUM | Has procedural logic; relatively short but state-machine-tied |
+| `create_report` | ❌ LOW | Simple CRUD; no branching; keep procedural |
+| `submit_report` | ❌ LOW | Offer/status update; simple; keep procedural |
+| `ack_report` | ❌ LOW | Single status transition; no branching; keep procedural |
+
+**Recommendation**: Prioritize `prioritize_report` BT (no existing logic to preserve).
+Optionally refactor `close_report` for alignment with simulation.
+
+### Case Management BT Structure
+
+The `vultron/bt/case_state/` module contains `conditions.py` and `transitions.py`
+but no `_behaviors/` subdirectory (unlike report management). This means:
+
+- Use `conditions.py` and `transitions.py` as state machine logic reference
+- Implement BT nodes directly from the ActivityPub how-to docs
+- Map `RM:ACCEPTED → RmEngageCase (as:Join)` and `RM:DEFERRED → RmDeferCase (as:Ignore)`
+  when implementing `prioritize_report` BT
+
+### Embargo Management BT Structure
+
+The `vultron/bt/embargo_management/` has:
+
+- `behaviors.py` — workflow behaviors (reference for BT node logic)
+- `conditions.py` — state checks (map to `DataLayerCondition` subclasses)
+- `states.py` — EM state enum (reference, already exists in `vultron/case_states/`)
+- `transitions.py` — state transition logic
+
+These provide good BT node implementations to translate. The embargo state machine
+(EM: NONE → PROPOSED → ACCEPTED → ACTIVE) maps directly to handler sequence for
+establish_embargo workflow.
+
+### Demo Script Architecture Pattern
+
+Each demo script should follow `receive_report_demo.py` pattern:
+
+1. `setup_*()` — create preconditions (actors, prior state)
+2. `demo_*(server_url)` — execute the workflow via HTTP inbox POSTs
+3. `show_state(dl)` — display relevant DataLayer state after workflow
+4. `main()` — orchestrate with logging, call setup then demos
+
+Use `httpx` or `requests` against a live FastAPI test server (via
+`TestClient` for in-process testing, or a running server for integration tests).
+
+### `engage_case` / `defer_case` Semantic Check
+
+Before implementing `RmEngageCase` and `RmDeferCase` workflows in Phase BT-3,
+verify:
+1. Are `ENGAGE_CASE` and `DEFER_CASE` in `MessageSemantics` enum?
+2. Are the activity patterns defined in `vultron/activity_patterns.py`?
+3. Do handlers exist in `handlers.py` and `semantic_handler_map.py`?
+
+`manage_case.md` references `RmEngageCase (as:Join)` and `RmDeferCase (as:Ignore)`.
+These may need to be added as new semantic types if not already present.
+
+
 
 **Pattern**: Activities may contain string URI references instead of inline
 objects. Always call `rehydrate()` on incoming activities before pattern
