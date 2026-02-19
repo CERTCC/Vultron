@@ -750,6 +750,37 @@ def check_server_availability(
     return False
 
 
+def setup_clean_environment(
+    client: DataLayerClient,
+) -> Tuple[as_Actor, as_Actor, as_Actor]:
+    """
+    Sets up a clean environment for a demo by resetting data layer and discovering actors.
+
+    This method ensures each demo starts with a known clean state, preventing
+    duplicate object errors and other side effects from previous demos.
+
+    Args:
+        client: DataLayerClient instance
+
+    Returns:
+        Tuple[as_Actor, as_Actor, as_Actor]: finder, vendor, coordinator actors
+    """
+    logger.info("Setting up clean environment...")
+
+    # Reset the data layer to a clean state
+    reset = reset_datalayer(client=client, init=True)
+    logger.info(f"Reset status: {reset}")
+
+    # Discover actors
+    finder, vendor, coordinator = discover_actors(client=client)
+
+    # Initialize actor I/O
+    init_actor_ios([finder, vendor, coordinator])
+
+    logger.info("Clean environment setup complete.")
+    return finder, vendor, coordinator
+
+
 def main(skip_health_check: bool = False):
     """
     Main entry point for the demo script.
@@ -777,19 +808,12 @@ def main(skip_health_check: bool = False):
         logger.error("=" * 80)
         sys.exit(1)
 
-    # Reset the data layer to a clean state
-    reset = reset_datalayer(client=client, init=True)
-    logger.info(f"Reset status: {reset}")
-
-    # Discover actors once at the beginning
-    finder, vendor, coordinator = discover_actors(client=client)
-    init_actor_ios([finder, vendor, coordinator])
-
     # Track errors for summary
     errors = []
 
-    # Run all three demos with different reports
+    # Run all three demos with different reports, each with clean environment
     try:
+        finder, vendor, coordinator = setup_clean_environment(client)
         demo_validate_report(client, finder, vendor)
     except Exception as e:
         error_msg = f"Demo 1 failed: {e}"
@@ -797,6 +821,7 @@ def main(skip_health_check: bool = False):
         errors.append(("Demo 1: Validate Report", str(e)))
 
     try:
+        finder, vendor, coordinator = setup_clean_environment(client)
         demo_invalidate_report(client, finder, vendor)
     except Exception as e:
         error_msg = f"Demo 2 failed: {e}"
@@ -804,6 +829,7 @@ def main(skip_health_check: bool = False):
         errors.append(("Demo 2: Invalidate Report", str(e)))
 
     try:
+        finder, vendor, coordinator = setup_clean_environment(client)
         demo_invalidate_and_close_report(client, finder, vendor)
     except Exception as e:
         error_msg = f"Demo 3 failed: {e}"
