@@ -85,7 +85,7 @@ def mock_datalayer():
             case = VulnerabilityCase(name="Test Case")
             case.as_id = id_
             return case
-        elif "example.org" in id_:  # Actor IDs
+        elif id_.startswith("https://example.org/"):  # Actor IDs
             from vultron.as_vocab.base.objects.actors import as_Actor
 
             actor = as_Actor()
