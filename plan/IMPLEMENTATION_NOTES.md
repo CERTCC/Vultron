@@ -2,7 +2,7 @@
 
 This file tracks insights, issues, and learnings during implementation.
 
-**Last Updated**: 2026-02-19 (Bugfix: health endpoints; fix Docker healthcheck noise)
+**Last Updated**: 2026-02-19 (Bugfix: clear ACTOR_IO_STORE in setup_clean_environment)
 
 ---
 
