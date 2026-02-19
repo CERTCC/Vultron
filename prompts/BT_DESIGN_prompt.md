@@ -5,8 +5,12 @@
  behavior tree simulator implementation.
  5. Study @vultron/ to understand the current codebase. 
     1. @vultron/bt and @vultron/api will be of particular relevance.
- 6. Refine @plan/BT_INTEGRATION.md based on your understanding of the project. 
+    2. @vultron/behavior contains the latest behavior tree implementation, 
+       but it is still in early stages and will be the target of future BT integration work.
+ 6. Ensure all insights from @plan/BT_INTEGRATION.md are capture in the 
+    appropriate specs or IMPLEMENTATION_NOTES.md files.
+ 7. Remove BT_INTEGRATION.md once all insights have been distributed to the appropriate files.
+ 8. git commit the refined specifications with a clear commit message.
 
 DO NOT BEGIN IMPLEMENTATION.
-This task is ONLY to update @plan/BT_INTEGRATION.md to refine the plan. 
-We will be integrating this into requirement specifications later, but you're only updating the one file for now.
+This task is ONLY to update markdown files to refine the plan. 
