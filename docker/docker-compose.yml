@@ -69,7 +69,7 @@ services:
     networks:
       - vultron-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7999/api/v2/actors/"]
+      test: ["CMD", "curl", "-f", "http://localhost:7999/api/v2/health/live"]
       interval: 2s
       timeout: 2s
       retries: 15

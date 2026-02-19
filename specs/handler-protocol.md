@@ -49,21 +49,23 @@ Handler functions process DispatchActivity objects and implement protocol busine
 ## Idempotency (SHOULD)
 
 - `HP-07-001` Handlers SHOULD be idempotent to support retries
-  - **Idempotency**: Same input produces same result/state without unintended side effects
-- `HP-07-002` Handlers SHOULD check for existing state before mutating
-  - **Implementation**: Query data layer for existing records; update rather than create if present
-  - **Example**: Before creating a report, check if report ID already exists in data layer
+  - State-changing handlers (those that transition RM/EM/CS state) MUST be
+    idempotent to prevent data corruption
+  - **Cross-reference**: See `idempotency.md` ID-04-001 for complete
+    requirements
 
-**Layered Idempotency Approach**:
+## Execution Timeout (MUST)
 
-1. **HTTP Layer** (IE-10-001): Optional fast-path duplicate detection before queueing
-2. **Validation Layer** (MV-08-001): Primary duplicate detection during message validation
-3. **Handler Layer** (HP-07-001, HP-07-002): Defense-in-depth via state-aware mutations
-4. **Response Layer** (RF-09-001): Avoid generating duplicate response activities
-
-**Responsibility**: Handlers are the final defense against duplicate processing. Even if upstream duplicate detection fails, handlers should check existing state and avoid creating duplicate records.
-
-**Cross-references**: See `message-validation.md` MV-08-001 (primary duplicate detection), `inbox-endpoint.md` IE-10-001 (HTTP-layer optimization), and `response-format.md` RF-09-001 (response deduplication).
+- `HP-07-002` `PROD_ONLY` Handlers MUST complete execution within 30 seconds
+  - **Rationale**: Prevents indefinite blocking of background task queue
+  - **Enforcement**: MAY be implemented via timeout wrapper or async task
+    timeout
+  - **Failure behavior**: Handler timeout MUST raise `HandlerTimeoutError`
+- `HP-07-003` `PROD_ONLY` Long-running operations MUST be broken into async subtasks
+  - **Examples**: External API calls, bulk database operations, report
+    generation
+  - **Pattern**: Use FastAPI BackgroundTasks for orchestration; split work into
+    multiple handler invocations
 
 ## Data Model Persistence (MUST)
 
@@ -147,11 +149,15 @@ def initialize_collections(self) -> Self:
 - Unit test: Verify INFO log for state transitions
 - Unit test: Verify ERROR log for errors
 
-### HP-07-001, HP-07-002 Verification
+### HP-07-001 Verification
 
-- Unit test: Handler called twice with same input produces same result
-- Unit test: Handler checks existing state before mutation
-- Integration test: Retry of failed handler succeeds
+- See `idempotency.md` ID-04-001 verification criteria
+
+### HP-07-002, HP-07-003 Verification
+
+- Integration test: Handler completes within 30 seconds
+- Unit test: Simulated long-running handler raises HandlerTimeoutError after 30s
+- Code review: Long-running operations use async subtask pattern
 
 ### HP-08-001, HP-08-002 Verification
 

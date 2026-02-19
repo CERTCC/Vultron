@@ -6,11 +6,7 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 
 **Source**: ActivityPub specification, API design requirements
 
-**Cross-references**:
-
-- HTTP protocol requirements: `http-protocol.md`
-- Logging requirements: `structured-logging.md`
-- Message validation: `message-validation.md`
+**Cross-references**: `http-protocol.md`, `message-validation.md`, `idempotency.md`, `structured-logging.md`
 
 ---
 
@@ -67,11 +63,9 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 
 ## Idempotency (SHOULD)
 
-- `IE-10-001` The endpoint SHOULD detect duplicate activity IDs at the HTTP layer (optimization)
-  - **Note**: This is an optional performance optimization; primary duplicate detection occurs at validation and handler layers
-  - **Cross-reference**: See `message-validation.md` MV-08-001 for validation-layer detection and `handler-protocol.md` HP-07-001 for handler-layer idempotency
-- `IE-10-002` The endpoint SHOULD return HTTP 202 for duplicates without queuing for reprocessing
-  - **Behavior**: Early return avoids unnecessary background task creation
+- `IE-10-001` The endpoint SHOULD implement early duplicate detection at HTTP layer
+  - **Note**: Optional performance optimization; see `idempotency.md` for complete requirements
+  - **Cross-reference**: `idempotency.md` ID-05-002
 
 ## Verification
 
@@ -109,18 +103,12 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 
 - See `structured-logging.md` SL-01-001, SL-02-001, SL-03-001 for logging verification
 
-### IE-10-001, IE-10-002 Verification
+### IE-10-001 Verification
 
-- Integration test: Submit same activity twice → both return 202
-- Integration test: Verify second submission not processed
-- See `message-validation.md` MV-08-001 for idempotency details
+- See `idempotency.md` ID-05-002 for verification criteria
 
 ## Related
 
-- Implementation: `vultron/api/v2/routers/actors.py`
-- Tests: `test/api/v2/routers/test_actors.py`
-- **Cross-specifications**:
-  - [http-protocol.md](http-protocol.md) - HTTP status codes, Content-Type, size limits
-  - [structured-logging.md](structured-logging.md) - Logging format and correlation IDs
-  - [message-validation.md](message-validation.md) - Activity validation and idempotency
-  - [error-handling.md](error-handling.md) - Error response format
+- **Implementation**: `vultron/api/v2/routers/actors.py`
+- **Tests**: `test/api/v2/routers/test_actors.py`
+- **Cross-specifications**: `http-protocol.md`, `message-validation.md`, `idempotency.md`, `structured-logging.md`, `error-handling.md`

@@ -26,7 +26,8 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 - `MV-02-001` The system MUST use Pydantic models to validate activities
 - `MV-02-002` The system MUST reject activities that fail Pydantic validation with HTTP 422
 - `MV-02-003` Validation error responses MUST include detailed error information
-- `MV-02-004` The system MUST log validation failures at ERROR level
+- `MV-02-004` The system MUST log validation failures at WARNING level
+  - Validation failures are client errors (HTTP 422); see `structured-logging.md` SL-03-001
 
 ## Required Field Validation (MUST)
 
@@ -54,11 +55,8 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 
 ## Duplicate Detection (SHOULD)
 
-- `MV-08-001` The system SHOULD detect and handle duplicate activity submissions during validation
-  - **Responsibility**: Validation layer checks if activity ID has been processed recently
-  - **Behavior**: Returns HTTP 202 for duplicates without invoking handlers
-  - **Layering**: This is the primary duplicate detection mechanism; inbox-layer detection (IE-10-001) is optional optimization
-  - **Cross-reference**: See `inbox-endpoint.md` IE-10-001 for HTTP-layer optimization and `handler-protocol.md` HP-07-001 for handler-layer idempotency as defense-in-depth
+- `MV-08-001` The system SHOULD detect duplicate activity submissions during validation
+  - **Cross-reference**: See `idempotency.md` ID-02-001 for complete requirements
 
 ## Verification
 
@@ -91,9 +89,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 
 ### MV-08-001 Verification
 
-- Integration test: Submit same activity twice → both return HTTP 202
-- Verification: Second submission does not invoke handler
-- **See also**: `specs/inbox-endpoint.md` IE-10-001 verification for complete duplicate detection tests
+- See `idempotency.md` ID-02-001 verification criteria
 
 ## Related
 

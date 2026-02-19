@@ -21,7 +21,7 @@ Consolidated HTTP protocol requirements for Vultron API v2: status codes, header
 
 ## Request Size Limits (MUST)
 
-- `HP-02-001` Inbox endpoint MUST reject requests exceeding 1 MB with HTTP 413
+- `HP-02-001` `PROD_ONLY` Inbox endpoint MUST reject requests exceeding 1 MB with HTTP 413
 
 ## HTTP Status Codes (MUST)
 
@@ -47,20 +47,28 @@ Consolidated HTTP protocol requirements for Vultron API v2: status codes, header
 
 ## Correlation ID Propagation (SHOULD)
 
-- `HP-05-001` API SHOULD accept `X-Correlation-ID` or `X-Request-ID` headers for request tracing
-- `HP-05-002` API SHOULD generate correlation ID from activity `id` field if header not provided
+- `HP-05-001` `PROD_ONLY` API SHOULD accept `X-Correlation-ID` or `X-Request-ID` headers for request tracing
+- `HP-05-002` `PROD_ONLY` API SHOULD generate correlation ID from activity `id` field if header not provided
 
 ## Request Timeout Handling (SHOULD)
 
-- `HP-06-001` Inbox endpoints SHOULD respond within 100ms
-- `HP-06-002` Processing exceeding 100ms SHOULD return HTTP 202 and queue for background processing
-- `HP-06-003` Timeout occurrences SHOULD be logged at WARNING level
+- `HP-06-001` Inbox endpoints SHOULD respond with HTTP headers within 100ms
+  - **Measurement point**: Time from HTTP request received by server to response
+    headers sent
+  - **Excludes**: Network latency, client processing time
+  - **Rationale**: Ensures responsive UX for ActivityPub federation
+- `HP-06-002` Processing exceeding 100ms SHOULD return HTTP 202 and queue for
+  background processing
+  - **Implementation**: FastAPI BackgroundTasks decouple handler execution from
+    HTTP response
+- `HP-06-003` `PROD_ONLY` Timeout occurrences SHOULD be logged at WARNING level
+  - **Log format**: "Inbox request exceeded 100ms threshold: {duration}ms"
 
 ## Rate Limiting Headers (MAY)
 
-- `HP-07-001` API MAY include `X-RateLimit-Limit` header (maximum requests per window)
-- `HP-07-002` API MAY include `X-RateLimit-Remaining` header (requests remaining)
-- `HP-07-003` API MAY include `X-RateLimit-Reset` header (UTC timestamp for window reset)
+- `HP-07-001` `PROD_ONLY` API MAY include `X-RateLimit-Limit` header (maximum requests per window)
+- `HP-07-002` `PROD_ONLY` API MAY include `X-RateLimit-Remaining` header (requests remaining)
+- `HP-07-003` `PROD_ONLY` API MAY include `X-RateLimit-Reset` header (UTC timestamp for window reset)
 
 ## Verification
 

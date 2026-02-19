@@ -1,0 +1,158 @@
+#!/usr/bin/env python
+
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+"""
+Report validation policy implementations.
+
+This module provides policy classes for evaluating report credibility and validity
+during the validation workflow. Policy decisions determine whether reports are
+accepted (RM.VALID) or rejected (RM.INVALID).
+
+Per specs/behavior-tree-integration.md, policies are pluggable and extensible.
+Phase 1 provides AlwaysAcceptPolicy as a prototype simplification.
+
+Extension Points:
+    - Subclass ValidationPolicy to implement custom decision logic
+    - Policies can access report data, metadata, and context
+    - Future: Machine learning models, reputation systems, human-in-the-loop
+"""
+
+import logging
+
+from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+
+logger = logging.getLogger(__name__)
+
+
+class ValidationPolicy:
+    """
+    Abstract base class for report validation policies.
+
+    Policies evaluate whether reports should be accepted or rejected during
+    the validation workflow. Subclasses implement specific decision logic.
+
+    This class defines the interface for pluggable policy implementations.
+    """
+
+    def is_credible(self, report: VulnerabilityReport) -> bool:
+        """
+        Evaluate whether report source is credible.
+
+        Credibility checks assess whether the reporter is trustworthy and
+        the report appears legitimate (not spam, not malicious).
+
+        Args:
+            report: VulnerabilityReport object to evaluate
+
+        Returns:
+            True if report source is credible, False otherwise
+
+        Example:
+            >>> policy = ValidationPolicy()
+            >>> report = VulnerabilityReport(name="CVE-2024-001", content="...")
+            >>> policy.is_credible(report)
+            NotImplementedError
+        """
+        raise NotImplementedError("Subclasses must implement is_credible()")
+
+    def is_valid(self, report: VulnerabilityReport) -> bool:
+        """
+        Evaluate whether report content is technically valid.
+
+        Validity checks assess whether the report describes a real
+        vulnerability with sufficient technical detail and accurate impact
+        assessment.
+
+        Args:
+            report: VulnerabilityReport object to evaluate
+
+        Returns:
+            True if report content is valid, False otherwise
+
+        Example:
+            >>> policy = ValidationPolicy()
+            >>> report = VulnerabilityReport(name="CVE-2024-001", content="...")
+            >>> policy.is_valid(report)
+            NotImplementedError
+        """
+        raise NotImplementedError("Subclasses must implement is_valid()")
+
+
+class AlwaysAcceptPolicy(ValidationPolicy):
+    """
+    Default policy that accepts all reports (prototype simplification).
+
+    This policy always returns True for both credibility and validity checks,
+    effectively auto-accepting all submitted reports. Suitable for:
+    - Prototype/demo environments
+    - Internal testing
+    - Trusted reporter scenarios
+    - Development and exploration
+
+    Phase 1 implementation: Simple always-accept logic with INFO-level logging.
+
+    Future enhancements:
+    - Configurable acceptance criteria
+    - Metadata-based filtering
+    - Integration with external validation services
+    - Reputation-based scoring
+
+    Example:
+        >>> from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+        >>> policy = AlwaysAcceptPolicy()
+        >>> report = VulnerabilityReport(
+        ...     as_id="https://example.org/reports/CVE-2024-001",
+        ...     name="CVE-2024-001",
+        ...     content="Buffer overflow in parse_input()"
+        ... )
+        >>> policy.is_credible(report)
+        True
+        >>> policy.is_valid(report)
+        True
+    """
+
+    def is_credible(self, report: VulnerabilityReport) -> bool:
+        """
+        Accept report as credible (always returns True).
+
+        Logs acceptance decision at INFO level for observability.
+
+        Args:
+            report: VulnerabilityReport object to evaluate
+
+        Returns:
+            True (always accepts)
+        """
+        logger.info(
+            f"Policy: Accepting report {report.as_id} as credible (AlwaysAcceptPolicy)"
+        )
+        return True
+
+    def is_valid(self, report: VulnerabilityReport) -> bool:
+        """
+        Accept report as valid (always returns True).
+
+        Logs acceptance decision at INFO level for observability.
+
+        Args:
+            report: VulnerabilityReport object to evaluate
+
+        Returns:
+            True (always accepts)
+        """
+        logger.info(
+            f"Policy: Accepting report {report.as_id} as valid (AlwaysAcceptPolicy)"
+        )
+        return True

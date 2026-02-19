@@ -87,6 +87,10 @@ dispatchable = DispatchActivity(
 - `TB-06-001` Tests MUST be independent and runnable in any order
 - `TB-06-002` Tests MUST use test database or mocked database
 - `TB-06-003` Test state MUST be reset between tests
+- `TB-06-004` Test fixtures MUST clean up created data after test completion
+  - **Implementation**: Use pytest teardown fixtures or finalizers
+  - **Rationale**: Prevents test database bloat and ensures isolation
+  - **Scope**: Applies to integration tests with persistent storage
 
 ## Mocking and Stubbing (MUST)
 

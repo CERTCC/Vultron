@@ -11,15 +11,57 @@ Defines code formatting and import organization standards for Python code.
 
 ## Code Formatting (MUST)
 
-- `CS-01-001` Code SHALL be formatted using Black with default settings
-- `CS-01-002` Formatting checks SHALL be included in CI/CD pipeline
-- `CS-01-003` Pre-commit hooks SHALL enforce code formatting standards
+- `CS-01-001` Code MUST follow PEP 8 style guidelines
+  - **Implementation**: Black formatter (or equivalent) SHOULD be used for
+    consistency
+  - **Settings**: Default Black settings (88 character line length, etc.)
+- `CS-01-002` Formatting checks MUST be included in CI/CD pipeline
+  - Builds MUST fail if code does not conform to style guidelines
+- `CS-01-003` Code formatting MUST be enforced
+  - **Implementation options**: Pre-commit hooks, CI pipeline checks, IDE
+    integration
+  - **Current implementation**: Pre-commit hooks with Black formatter
 
-- Methods SHOULD have docstrings following PEP 257 conventions
-  - Docstrings SHOULD follow Google style consistently (Args, Returns, Raises sections) when informative
-    - Empty Google docstrings sections (Args, Returns, Raises) SHOULD be omitted for clarity
-  - Small methods where the purpose is clear from the name MAY omit or use one-line docstrings for brevity
-- Use type hints for function signatures and variable annotations where appropriate
+## Docstring Standards (SHOULD)
+
+- `CS-01-004` Functions and methods SHOULD have docstrings following PEP 257
+  conventions
+  - Public APIs MUST have docstrings
+  - Internal utilities MAY use brief one-line docstrings when purpose is clear
+    from name
+- `CS-01-005` Docstrings SHOULD follow Google style for structured sections
+  - Include `Args`, `Returns`, `Raises` sections when informative
+  - Omit empty sections for brevity
+  
+**Examples**:
+
+```python
+# Public API - comprehensive docstring
+def validate_report(dispatchable: DispatchActivity) -> None:
+    """Validate vulnerability report and create case on acceptance.
+    
+    Args:
+        dispatchable: Activity dispatch wrapper containing report offer
+        
+    Raises:
+        VultronApiError: If report validation fails
+        DataLayerError: If case creation fails
+        
+    Side Effects:
+        - Updates report status to VALID or INVALID
+        - Creates VulnerabilityCase on validation success
+        - Adds CreateCase activity to actor outbox
+    """
+    ...
+
+# Simple utility - brief docstring
+def extract_id_segment(url: str) -> str:
+    """Extract last path segment from URL for blackboard key."""
+    return url.split('/')[-1]
+```
+
+- Use type hints for function signatures and variable annotations where
+  appropriate
 - Use descriptive variable and function names for readability
 
 ## Import Organization (SHOULD)

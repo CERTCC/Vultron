@@ -34,6 +34,17 @@ When run as a script, this module will:
    - demo_invalidate_report: Submit → Invalidate → Notify finder via inbox
    - demo_invalidate_and_close_report: Submit → Invalidate → Close → Notify finder via inbox
 5. Verify side effects in the data layer and finder's inbox for each workflow
+
+Note on Behavior Tree Execution:
+The validate_report handler uses py_trees behavior tree execution to orchestrate the validation
+workflow. BT execution logging is available server-side:
+- INFO level: BT execution start, completion status, and feedback
+- DEBUG level: Detailed tree structure visualization and execution state
+
+To see BT execution details, run the API server with DEBUG logging enabled:
+  LOG_LEVEL=DEBUG uvicorn vultron.api.main:app --port 7999
+
+The BT logs will show tree structure before execution and final state after completion.
 """
 
 # Standard library imports
@@ -51,7 +62,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
 # Vultron imports
-from vultron.api.v2.data.actor_io import init_actor_io
+from vultron.api.v2.data.actor_io import clear_all_actor_ios, init_actor_io
 from vultron.api.v2.data.utils import parse_id
 from vultron.as_vocab.activities.case import CreateCase
 from vultron.as_vocab.activities.report import (
@@ -696,6 +707,8 @@ def check_server_availability(
     """
     Checks if the API server is available, with retry logic for startup delays.
 
+    Uses the /health/ready endpoint per OB-05-002 from specs/observability.md.
+
     Args:
         client: DataLayerClient instance
         max_retries: Maximum number of retry attempts (default: 30)
@@ -704,7 +717,7 @@ def check_server_availability(
     Returns:
         bool: True if server is available, False otherwise
     """
-    url = f"{client.base_url}/actors/"
+    url = f"{client.base_url}/health/ready"
 
     for attempt in range(max_retries):
         try:
@@ -712,7 +725,7 @@ def check_server_availability(
                 f"Checking server availability at: {url} (attempt {attempt + 1}/{max_retries})"
             )
             response = requests.get(url, timeout=2)
-            available = response.status_code < 500
+            available = response.status_code == 200
             if available:
                 logger.debug(
                     f"Server availability check: SUCCESS (status: {response.status_code})"
@@ -728,7 +741,6 @@ def check_server_availability(
         except Exception as e:
             logger.debug(f"Unexpected error checking server: {e}")
 
-        # If not the last attempt, wait before retrying
         if attempt < max_retries - 1:
             logger.debug(f"Retrying in {retry_delay} seconds...")
             time.sleep(retry_delay)
@@ -737,6 +749,40 @@ def check_server_availability(
         f"Server availability check: FAILED after {max_retries} attempts"
     )
     return False
+
+
+def setup_clean_environment(
+    client: DataLayerClient,
+) -> Tuple[as_Actor, as_Actor, as_Actor]:
+    """
+    Sets up a clean environment for a demo by resetting data layer and discovering actors.
+
+    This method ensures each demo starts with a known clean state, preventing
+    duplicate object errors and other side effects from previous demos.
+
+    Args:
+        client: DataLayerClient instance
+
+    Returns:
+        Tuple[as_Actor, as_Actor, as_Actor]: finder, vendor, coordinator actors
+    """
+    logger.info("Setting up clean environment...")
+
+    # Reset the data layer to a clean state
+    reset = reset_datalayer(client=client, init=True)
+    logger.info(f"Reset status: {reset}")
+
+    # Clear in-memory actor I/O state from any previous runs
+    clear_all_actor_ios()
+
+    # Discover actors
+    finder, vendor, coordinator = discover_actors(client=client)
+
+    # Initialize actor I/O
+    init_actor_ios([finder, vendor, coordinator])
+
+    logger.info("Clean environment setup complete.")
+    return finder, vendor, coordinator
 
 
 def main(skip_health_check: bool = False):
@@ -766,19 +812,12 @@ def main(skip_health_check: bool = False):
         logger.error("=" * 80)
         sys.exit(1)
 
-    # Reset the data layer to a clean state
-    reset = reset_datalayer(client=client, init=True)
-    logger.info(f"Reset status: {reset}")
-
-    # Discover actors once at the beginning
-    finder, vendor, coordinator = discover_actors(client=client)
-    init_actor_ios([finder, vendor, coordinator])
-
     # Track errors for summary
     errors = []
 
-    # Run all three demos with different reports
+    # Run all three demos with different reports, each with clean environment
     try:
+        finder, vendor, coordinator = setup_clean_environment(client)
         demo_validate_report(client, finder, vendor)
     except Exception as e:
         error_msg = f"Demo 1 failed: {e}"
@@ -786,6 +825,7 @@ def main(skip_health_check: bool = False):
         errors.append(("Demo 1: Validate Report", str(e)))
 
     try:
+        finder, vendor, coordinator = setup_clean_environment(client)
         demo_invalidate_report(client, finder, vendor)
     except Exception as e:
         error_msg = f"Demo 2 failed: {e}"
@@ -793,6 +833,7 @@ def main(skip_health_check: bool = False):
         errors.append(("Demo 2: Invalidate Report", str(e)))
 
     try:
+        finder, vendor, coordinator = setup_clean_environment(client)
         demo_invalidate_and_close_report(client, finder, vendor)
     except Exception as e:
         error_msg = f"Demo 3 failed: {e}"
