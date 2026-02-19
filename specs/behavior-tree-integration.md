@@ -5,7 +5,7 @@
 Handler functions may orchestrate business logic using behavior trees (BTs) for complex workflows. BTs provide hierarchical, composable process modeling with explicit preconditions and state transitions.
 
 **Source**: ADR-0002 (Use Behavior Trees), ADR-0007 (Behavior Dispatcher),
-BT_INTEGRATION.md  
+ADR-0008 (py_trees integration)
 **Status**: Phase BT-1 COMPLETE — infrastructure, handler refactoring, demo
 validation, and documentation all done.
 
@@ -165,7 +165,8 @@ SHOULD use BTs for clarity and maintainability.
 - **Simulation Trees**: `vultron/bt/` (reference, not modified)
 - **Handler Protocol**: `specs/handler-protocol.md`
 - **Data Layer**: `specs/testability.md` (DataLayer abstraction)
-- **Architecture**: `plan/BT_INTEGRATION.md` (detailed design)
+- **Architecture**: `plan/IMPLEMENTATION_NOTES.md` (design decisions and
+  rationale)
 - **ADRs**: ADR-0002 (BT rationale), ADR-0007 (dispatcher architecture)
 
 ## Implementation

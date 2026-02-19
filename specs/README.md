@@ -131,7 +131,8 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing, handler protocol, data layer
 - ✅ **6/36 handlers complete**: Report workflow (create, submit, validate, invalidate, ack, close)
-- ⚠️ **BT integration planned**: See `behavior-tree-integration.md` and `plan/BT_INTEGRATION.md`
+- ✅ **BT integration Phase BT-1 complete**: See `behavior-tree-integration.md`
+  and `plan/IMPLEMENTATION_NOTES.md`
 - ⚠️ **Production readiness partial**: Request validation, error responses need work
 - ❌ **Response generation not started**: See `response-format.md`
 
@@ -153,7 +154,7 @@ When updating specifications:
 ## Related Documentation
 
 - **Implementation Plan**: `plan/IMPLEMENTATION_PLAN.md`
-- **BT Integration Design**: `plan/BT_INTEGRATION.md`
+- **Implementation Notes**: `plan/IMPLEMENTATION_NOTES.md`
 - **Architecture Decisions**: `docs/adr/*.md`
 - **ActivityPub Workflows**: `docs/howto/activitypub/activities/*.md`
 - **Agent Instructions**: `AGENTS.md` (AI coding agent guidance)

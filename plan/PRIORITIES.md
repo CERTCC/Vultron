@@ -1,9 +1,10 @@
 # Priorities
 
-The top priority is the Behavior Tree prototype implementation outlined in 
-`plan/BT_INTEGRATION.md`. This is the critical path for the project and will 
-enable us to test and iterate on the core architecture. Incorporating this
-plan into the relevant specifications is the next step.
+The top priority is the Behavior Tree prototype implementation outlined in
+`specs/behavior-tree-integration.md` and `plan/IMPLEMENTATION_PLAN.md`.
+Phase BT-1 is complete; the next priority is Phase BT-2 (extend BT integration
+to remaining report handlers). See `plan/IMPLEMENTATION_NOTES.md` for design
+decisions and rationale.
 
 Features that primarily serve to improve production-readiness are lower priority
 than any of the above.

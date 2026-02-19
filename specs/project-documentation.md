@@ -105,26 +105,17 @@ history from implementation work.
 
 ---
 
-### plan/BT_INTEGRATION.md (Feature-Specific Plan)
+### plan/BT_INTEGRATION.md (Feature-Specific Plan) — ARCHIVED
 
-**Purpose**: Detailed planning for specific feature (Behavior Tree integration).
+**Status**: ARCHIVED — BT integration Phase BT-1 is complete. All insights
+from this document have been distributed to:
+- `plan/IMPLEMENTATION_NOTES.md` — design decisions, rationale, open questions
+- `specs/behavior-tree-integration.md` — formal BT requirements
+- `plan/IMPLEMENTATION_PLAN.md` — Phase BT-2 through BT-4 planning
 
-**Scope** (MUST contain):
-- Feature-specific architecture decisions
-- Implementation phases for this feature
-- Design constraints and requirements
-- Integration points with existing code
-- Testing strategy for this feature
-
-**Scope** (MUST NOT contain):
-- General project planning (belongs in IMPLEMENTATION_PLAN.md)
-- Implementation lessons (belongs in IMPLEMENTATION_NOTES.md after work done)
-
-**Maintenance**:
-- Update as feature design evolves
-- Archive when feature complete (move lessons to IMPLEMENTATION_NOTES.md)
-
-**Target Audience**: Agents implementing this specific feature
+Feature-specific plans of this type should follow the pattern described above:
+when a feature phase is complete, archive the plan and move lessons to
+IMPLEMENTATION_NOTES.md.
 
 ---
 

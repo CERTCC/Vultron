@@ -4,7 +4,7 @@
 
 ## Overview
 
-This implementation plan tracks the development of the Vultron API v2 inbox handler system against the detailed specifications in `specs/*`. **Per PRIORITIES.md, the top priority is Behavior Tree (BT) integration** as outlined in `plan/BT_INTEGRATION.md`. This supersedes previous demo completion priorities.
+This implementation plan tracks the development of the Vultron API v2 inbox handler system against the detailed specifications in `specs/*`. **Per PRIORITIES.md, the top priority is Behavior Tree (BT) integration** as outlined in `specs/behavior-tree-integration.md`. This supersedes previous demo completion priorities.
 
 ### Current Status Summary
 
@@ -164,7 +164,8 @@ All Phase 0A tasks have been completed:
 **Status**: Phase BT-1 COMPLETE ✅ (BT-1.1 through BT-1.6)  
 **Priority**: CRITICAL per PRIORITIES.md  
 **Goal**: Integrate py_trees behavior tree execution with handler system  
-**Reference**: `plan/BT_INTEGRATION.md`, `specs/behavior-tree-integration.md`
+**Reference**: `specs/behavior-tree-integration.md`,
+`plan/IMPLEMENTATION_NOTES.md`
 
 **Current Progress**: Infrastructure complete (bridge, helpers, validation tree). Next step is handler refactoring to use BT execution.
 
