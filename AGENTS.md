@@ -754,7 +754,7 @@ Not all handlers need BT execution. Use this guide when deciding:
 
 **Use procedural code** (simple workflows):
 
-- Simple CRUD operations (ack_report, close_report)
+- Simple CRUD operations (ack_report, create_report, submit_report)
 - Linear workflows with 3–5 steps and no branching
 - Single database read/write operations
 - Logging-only or passthrough operations
@@ -762,7 +762,34 @@ Not all handlers need BT execution. Use this guide when deciding:
 **Uncertain?** Start procedural; refactor to BT if branching complexity grows.
 
 See `specs/behavior-tree-integration.md` for BT integration requirements and
-`plan/IMPLEMENTATION_NOTES.md` for Phase BT-1 lessons.
+`plan/IMPLEMENTATION_NOTES.md` for BT integration lessons.
+
+### py_trees Blackboard Global State
+
+**Symptom**: Test state leaks between tests; blackboard key reads return values
+from a previous test
+
+**Cause**: The py_trees blackboard uses a singleton storage dict shared across
+all tests in the same process. Without explicit clearing, key values written in
+one test persist into the next.
+
+**Solution**: Add an `autouse` fixture in `test/behaviors/conftest.py` that
+clears the blackboard before (and optionally after) each test:
+
+```python
+import py_trees
+import pytest
+
+@pytest.fixture(autouse=True)
+def clear_blackboard():
+    py_trees.blackboard.Blackboard.storage.clear()
+    yield
+    py_trees.blackboard.Blackboard.storage.clear()
+```
+
+**When this matters**: Key collisions are unlikely in small test suites but
+become a problem as the BT test suite grows. Add this fixture proactively to
+`test/behaviors/conftest.py` rather than reactively after mysterious failures.
 
 ### BT Blackboard Key Naming
 

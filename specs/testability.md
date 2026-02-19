@@ -91,6 +91,11 @@ dispatchable = DispatchActivity(
   - **Implementation**: Use pytest teardown fixtures or finalizers
   - **Rationale**: Prevents test database bloat and ensures isolation
   - **Scope**: Applies to integration tests with persistent storage
+- `TB-06-005` Behavior Tree tests MUST clear the py_trees blackboard between tests
+  - **Implementation**: Add `autouse` fixture in `test/behaviors/conftest.py`
+    that calls `py_trees.blackboard.Blackboard.storage.clear()` before each test
+  - **Rationale**: py_trees blackboard is a global singleton; without clearing,
+    state from one test leaks into subsequent tests
 
 ## Mocking and Stubbing (MUST)
 
