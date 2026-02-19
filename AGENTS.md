@@ -339,7 +339,8 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - **Line length**: Regular text lines MUST NOT exceed 88 characters
 - Exceptions: Tables, code blocks, long URLs, or other formatting that requires
   it
-- Use `markdownlint-cli2` for linting markdown files
+- Use `markdownlint-cli2` for linting markdown files; see Miscellaneous tips
+  for the correct commands (default config ignores `AGENTS.md` and `specs/**`)
 - Break long sentences at natural points (after commas, conjunctions, etc.)
 - Keep list items and paragraphs readable and well-formatted
 
@@ -949,8 +950,21 @@ uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
 ## Miscellaneous tips
 
 Do not use `black` to format markdown files, it is for python files only.
-Use `markdownlint-cli2` for linting markdown instead:
+Use `markdownlint-cli2` for linting markdown. The default config
+(`.markdownlint-cli2.yaml`) ignores `AGENTS.md` and `specs/**`. To lint those
+files, run markdownlint from outside the repo using the strict config, which
+has the same rules but no ignores:
 
 ```bash
-markdownlint-cli2 AGENTS.md specs/ docs/ --fix
+# Lint docs/ with the default config (ignores AGENTS.md and specs/**)
+markdownlint-cli2 "docs/**/*.md" --fix
+
+# Lint AGENTS.md and specs/** — must run from /tmp to bypass local config discovery
+cd /tmp && markdownlint-cli2 \
+  --config /Users/adh/Documents/git/vultron_pub/strict.markdownlint-cli2.yaml \
+  /Users/adh/Documents/git/vultron_pub/AGENTS.md \
+  "/Users/adh/Documents/git/vultron_pub/specs/**/*.md" --fix
 ```
+
+The `strict.markdownlint-cli2.yaml` file at the repo root contains the same
+rules as the default config with the `ignores` block removed.

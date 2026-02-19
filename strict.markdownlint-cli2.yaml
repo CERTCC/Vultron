@@ -1,0 +1,26 @@
+# Strict markdownlint config — same rules as .markdownlint-cli2.yaml but with
+# no ignores. Use this to lint files that the default config excludes
+# (AGENTS.md, specs/**/*.md, etc.).
+#
+# Usage:
+#   markdownlint-cli2 --config strict.markdownlint-cli2.yaml AGENTS.md "specs/**/*.md" --fix
+config:
+  # 0004 Unordered List style — force dash style
+  "MDOO4":
+    style: "dash"
+  # 013 Line length — disabled (many long lines in this project)
+  "MD013": false
+  # 033 Inline HTML — disabled (used in table cells)
+  "MD033": false
+  # 041 First line must be top-level header — disabled (include-markdown plugin)
+  "MD041": false
+  # 046 Code block style — disabled (mkdocs-material admonitions)
+  "MD046": false
+  # 049 Emphasis style — force asterisk
+  "MD049":
+    style: "asterisk"
+  # 050 Strong style — force asterisk
+  "MD050":
+    style: "asterisk"
+  # 051 Link fragments valid — disabled (TeX→markdown conversion artefacts)
+  "MD051": false
