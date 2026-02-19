@@ -4,99 +4,23 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ---
 
-## ✅ FIXED: Docker Compose PROJECT_NAME Variable Missing
+When we `docker-compose up api-dev`, even with no other applications hitting
+the API, the container is just idling, but the logs continuously show:
 
-**Status**: ✅ FIXED (2026-02-17)
-
-**Problem**: The `docker-compose.yml` file references `${PROJECT_NAME}` for image naming, but the `.env` file only contained `COMPOSE_PROJECT_NAME=vultron`. This caused docker-compose to emit warnings about the missing variable and resulted in images with empty project name prefix (e.g., `-base:latest` instead of `vultron-base:latest`).
-
-Additionally, when the health check was added to the `api-dev` service, it required `curl` to be installed in the base image. However, running containers were using old images built before `curl` was added, causing the health check to fail with "executable file not found in $PATH".
-
-**Logs showing the bug**:
 ```
-WARN[0000] The "PROJECT_NAME" variable is not set. Defaulting to a blank string.
+api-dev-1  | INFO:     127.0.0.1:46668 - "GET /api/v2/actors/ HTTP/1.1" 200
+api-dev-1  | INFO:     127.0.0.1:46668 - "GET /api/v2/actors/ HTTP/1.1" 200 OK
+api-dev-1  | INFO:     results: [{'id_': 'https://vultron.example/organizations/vendorco', 'type_': 'Organization', 'data_': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'Organization', 'as_id': 'https://vultron.example/organizations/vendorco', 'name': 'VendorCo', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'inbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': 'a989a02c-4c8f-4a32-9ff7-55c0a011155d', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': ['57ca0a22-aff5-49f7-97d6-f6976a4eca01', 'cadf7fe1-c1e8-44da-8c9a-e8f795e92e09', '9ecf38b5-8f80-41a4-a9fa-3e199105516b', '25d4c905-1260-4864-a805-0802e1b6a878', '47b7c9ae-ec4d-4732-9b2c-edf490ca9cc2', '2c67d28d-5299-4eec-ac5c-096cae0a6a26', '2c4a8310-0e14-4c91-a818-8aaeda684011'], 'current': 0}, 'outbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': 'af0fccaa-3a43-4adc-af0d-1804edbf1843', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': ['f8eaed39-26a9-4473-b31a-8dd6b1133939'], 'current': 0}, 'following': None, 'followers': None, 'liked': None, 'streams': None, 'preferred_username': None, 'endpoints': None}}, {'id_': 'https://vultron.example/organizations/coordinator', 'type_': 'Organization', 'data_': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'Organization', 'as_id': 'https://vultron.example/organizations/coordinator', 'name': 'Coordinator LLC', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'inbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': 'e47156f0-589c-470d-9ca0-5760db6a3c4a', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': [], 'current': 0}, 'outbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': '792fdbe1-0fb6-4cd7-96c4-05374e5cbacc', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': [], 'current': 0}, 'following': None, 'followers': None, 'liked': None, 'streams': None, 'preferred_username': None, 'endpoints': None}}, {'id_': 'https://vultron.example/users/finndervul', 'type_': 'Person', 'data_': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'Person', 'as_id': 'https://vultron.example/users/finndervul', 'name': 'Finn der Vul', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'inbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': '8f5af0da-4102-4827-9f86-76402bbc486a', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': ['8d627565-1833-4cc9-b1e3-4b51ff8e7dea', '491ae3e6-cab1-4688-97c4-23de12f2fe9f', '391e9c30-f631-4c14-9d8b-1885dd2d41b5', 'f6bd8188-52be-495f-b1a7-b8e639df9dea'], 'current': 0}, 'outbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': 'a585d6d9-9522-4d3a-8545-46195743d0be', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': [], 'current': 0}, 'following': None, 'followers': None, 'liked': None, 'streams': None, 'preferred_username': None, 'endpoints': None}}]
+api-dev-1  | INFO:     rec: {'id_': 'https://vultron.example/organizations/vendorco', 'type_': 'Organization', 'data_': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'Organization', 'as_id': 'https://vultron.example/organizations/vendorco', 'name': 'VendorCo', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'inbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': 'a989a02c-4c8f-4a32-9ff7-55c0a011155d', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': ['57ca0a22-aff5-49f7-97d6-f6976a4eca01', 'cadf7fe1-c1e8-44da-8c9a-e8f795e92e09', '9ecf38b5-8f80-41a4-a9fa-3e199105516b', '25d4c905-1260-4864-a805-0802e1b6a878', '47b7c9ae-ec4d-4732-9b2c-edf490ca9cc2', '2c67d28d-5299-4eec-ac5c-096cae0a6a26', '2c4a8310-0e14-4c91-a818-8aaeda684011'], 'current': 0}, 'outbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': 'af0fccaa-3a43-4adc-af0d-1804edbf1843', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': ['f8eaed39-26a9-4473-b31a-8dd6b1133939'], 'current': 0}, 'following': None, 'followers': None, 'liked': None, 'streams': None, 'preferred_username': None, 'endpoints': None}}
+api-dev-1  | INFO:     rec: {'id_': 'https://vultron.example/organizations/coordinator', 'type_': 'Organization', 'data_': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'Organization', 'as_id': 'https://vultron.example/organizations/coordinator', 'name': 'Coordinator LLC', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'inbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': 'e47156f0-589c-470d-9ca0-5760db6a3c4a', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': [], 'current': 0}, 'outbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': '792fdbe1-0fb6-4cd7-96c4-05374e5cbacc', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': [], 'current': 0}, 'following': None, 'followers': None, 'liked': None, 'streams': None, 'preferred_username': None, 'endpoints': None}}
+api-dev-1  | INFO:     rec: {'id_': 'https://vultron.example/users/finndervul', 'type_': 'Person', 'data_': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'Person', 'as_id': 'https://vultron.example/users/finndervul', 'name': 'Finn der Vul', 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'inbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': '8f5af0da-4102-4827-9f86-76402bbc486a', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': ['8d627565-1833-4cc9-b1e3-4b51ff8e7dea', '491ae3e6-cab1-4688-97c4-23de12f2fe9f', '391e9c30-f631-4c14-9d8b-1885dd2d41b5', 'f6bd8188-52be-495f-b1a7-b8e639df9dea'], 'current': 0}, 'outbox': {'as_context': 'https://www.w3.org/ns/activitystreams', 'as_type': 'OrderedCollection', 'as_id': 'a585d6d9-9522-4d3a-8545-46195743d0be', 'name': None, 'preview': None, 'media_type': None, 'replies': None, 'url': None, 'generator': None, 'context': None, 'tag': None, 'in_reply_to': None, 'duration': None, 'start_time': None, 'end_time': None, 'published': '2026-02-19T16:23:44+00:00', 'updated': '2026-02-19T16:23:44+00:00', 'content': None, 'summary': None, 'icon': None, 'image': None, 'attachment': None, 'location': None, 'to': None, 'cc': None, 'bto': None, 'bcc': None, 'audience': None, 'attributed_to': None, 'items': [], 'current': 0}, 'following': None, 'followers': None, 'liked': None, 'streams': None, 'preferred_username': None, 'endpoints': None}}
 ```
-
-**Root Cause**: Environment variable mismatch between `.env` (which had `COMPOSE_PROJECT_NAME`) and `docker-compose.yml` (which referenced `PROJECT_NAME`). Combined with stale Docker images that needed rebuilding after Dockerfile changes.
-
-**Solution Implemented**:
-
-1. **Added PROJECT_NAME to `.env` file**:
-   - Added `PROJECT_NAME=vultron` alongside existing `COMPOSE_PROJECT_NAME=vultron`
-   - Maintains backward compatibility while fixing the variable reference
-
-2. **Added test to prevent regression**:
-   - Created `test/docker/test_docker_compose_config.sh` to verify:
-     - `.env` file exists
-     - `PROJECT_NAME` is set in `.env`
-     - `docker-compose config` produces no warnings about missing PROJECT_NAME
-     - Image names are properly formed (vultron-*:latest)
-
-**Tests Added**: Shell script test at `test/docker/test_docker_compose_config.sh`
-
-**Test Results**: All 378 tests passing (2 xfail expected)
-
-**Files Changed**:
-- `docker/.env`: Added `PROJECT_NAME=vultron`
-- `test/docker/test_docker_compose_config.sh`: New test script to verify configuration
-
-**Verification**:
-```bash
-cd docker && docker-compose config  # No warnings
-docker-compose build --no-cache base dependencies api-dev receive-report-demo
-docker-compose up api-dev receive-report-demo  # All 3 demos complete successfully
-```
+where the ephemeral port number changes but the rest of the log is identical every time.
+This is unexpected because there are no requests being made to the API, so it 
+seems like something is wrong with the API server that's causing it to 
+continuously make requests to itself. This is a problem because it causes a lot
+of noise in the logs, and might be indicative of some underlying issue that 
+could cause bigger problems down the line.
 
 ---
 
-## ✅ FIXED: Docker Container Startup Race Condition
-
-**Status**: ✅ FIXED (2026-02-17)
-
-**Problem**: The `receive-report-demo` container was failing to connect to the `api-dev` service when both were started with `docker-compose up`. The demo script only checked once for server availability with a 2-second timeout, but the API server takes several seconds to fully start after the container starts.
-
-**Logs showing the bug**:
-```
-api-dev-1              | INFO:     Started reloader process [9] using StatReload
-receive-report-demo-1  | 2026-02-17 21:29:35,724 ERROR Cannot connect to: http://api-dev:7999/api/v2
-receive-report-demo-1 exited with code 1
-api-dev-1              | INFO:     Started server process [11]
-api-dev-1              | INFO:     Application startup complete.
-```
-
-**Root Cause**: Classic Docker race condition - `depends_on: service_started` only waits for the container to start, not for the application inside to be ready.
-
-**Solution Implemented**:
-
-1. **Added retry logic to `check_server_availability()`** in `vultron/scripts/receive_report_demo.py`:
-   - Added `max_retries` parameter (default: 30 attempts)
-   - Added `retry_delay` parameter (default: 1.0 seconds)
-   - Logs each retry attempt at DEBUG level
-   - Returns True on first successful check, False after exhausting retries
-
-2. **Added Docker health check** to `api-dev` service in `docker-compose.yml`:
-   - Uses `curl` to check `/api/v2/actors/` endpoint
-   - Checks every 2 seconds with 15 retries (30 seconds total)
-   - 5-second start period before first check
-
-3. **Updated `receive-report-demo` dependency** in `docker-compose.yml`:
-   - Changed from `condition: service_started` to `condition: service_healthy`
-   - Now waits for API server to pass health check before starting
-
-4. **Added `curl` to Docker base image** in `Dockerfile`:
-   - Required for health check to work
-
-**Tests Added**: `test/scripts/test_health_check_retry.py` with 5 test cases:
-- Immediate success
-- Permanent failure after retries
-- Success after initial failures
-- Retry attempt logging
-- Respects max_retries limit
-
-**Test Results**: All 91 tests passing (2 xfail expected)
-
-**Files Changed**:
-- `vultron/scripts/receive_report_demo.py`: Added retry logic
-- `docker/docker-compose.yml`: Added health check and updated dependency
-- `docker/Dockerfile`: Added curl to base image
-- `test/scripts/test_health_check_retry.py`: New test file

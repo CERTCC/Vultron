@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 """
-Vultron API v2 Routers
+Health check endpoints for the Vultron API.
+
+Implements OB-05-001 (/health/live) and OB-05-002 (/health/ready)
+from specs/observability.md.
 """
 
-#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -12,32 +15,22 @@ Vultron API v2 Routers
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 
-from vultron.api.v2.routers import (
-    actors,
-    examples,
-    datalayer,
-    health,
-)
-
-router = APIRouter()
+router = APIRouter(prefix="/health", tags=["Health"])
 
 
-@router.get("/version", tags=["Version"])
-def get_version(request: Request):
-    """Returns the current version of the Vultron API."""
-    return {"version": request.app.version}
+@router.get("/live")
+async def liveness():
+    """Returns 200 if the process is running (OB-05-001)."""
+    return {"status": "ok"}
 
 
-router.include_router(actors.router)
-
-router.include_router(datalayer.router)
-
-router.include_router(examples.router)
-
-router.include_router(health.router)
+@router.get("/ready")
+async def readiness():
+    """Returns 200 if the service is ready to accept requests (OB-05-002)."""
+    return {"status": "ok"}
