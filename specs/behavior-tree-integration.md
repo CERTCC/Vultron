@@ -114,14 +114,14 @@ SHOULD use BTs for clarity and maintainability.
 - `BT-10-001` Report validation MUST trigger VulnerabilityCase creation
 - `BT-10-002` Case creation MUST create corresponding CaseActor (Service)
 - `BT-10-003` CaseActor MUST manage case-related message processing
-- `BT-10-004` CaseActor MUST enforce case-level authorization
+- `BT-10-004` `PROD_ONLY` CaseActor MUST enforce case-level authorization
 
 ## Concurrency (MUST)
 
 - `BT-11-001` Prototype MUST process messages sequentially (FIFO order)
   - **Rationale**: Eliminates race conditions in prototype phase
 - `BT-11-002` Sequential processing MUST NOT block HTTP response (BackgroundTasks)
-- `BT-11-003` Future optimizations MAY introduce resource-level locking
+- `BT-11-003` `PROD_ONLY` Future optimizations MAY introduce resource-level locking
 
 ## Verification
 

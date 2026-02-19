@@ -56,12 +56,12 @@ Handler functions process DispatchActivity objects and implement protocol busine
 
 ## Execution Timeout (MUST)
 
-- `HP-07-002` Handlers MUST complete execution within 30 seconds
+- `HP-07-002` `PROD_ONLY` Handlers MUST complete execution within 30 seconds
   - **Rationale**: Prevents indefinite blocking of background task queue
   - **Enforcement**: MAY be implemented via timeout wrapper or async task
     timeout
   - **Failure behavior**: Handler timeout MUST raise `HandlerTimeoutError`
-- `HP-07-003` Long-running operations MUST be broken into async subtasks
+- `HP-07-003` `PROD_ONLY` Long-running operations MUST be broken into async subtasks
   - **Examples**: External API calls, bulk database operations, report
     generation
   - **Pattern**: Use FastAPI BackgroundTasks for orchestration; split work into

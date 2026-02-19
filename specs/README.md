@@ -92,9 +92,26 @@ Each requirement has a unique ID: `PREFIX-NN-NNN`
 
 Example: `HP-04-002` = Handler Protocol, category 4 (Payload Access), requirement 2
 
+## Requirement Tags
+
+Some requirements carry special tags to indicate scope or applicability:
+
+- **`PROD_ONLY`**: Requirement may be deferred during the prototype stage.
+  See `prototype-shortcuts.md` PROTO-04-001 for the deferral policy.
+  Tagged requirements appear inline after the requirement ID:
+  `- `REQ-ID` `PROD_ONLY` Requirement statement`
+
+  Common categories of `PROD_ONLY` requirements include:
+  - Authentication and authorization (per PROTO-01-001)
+  - Federation and cross-server delivery (per PROTO-02-001/02-002)
+  - Rate limiting and request size enforcement
+  - Correlation ID propagation and structured log format
+  - Audit and data access logging
+  - Execution timeout enforcement
+  - Future performance optimizations
+
 ---
 
-## Consolidated Requirements
 
 Some specifications consolidate requirements from multiple sources to create a single source of truth:
 

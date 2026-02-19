@@ -44,11 +44,11 @@ is deferred to future work.
 
 ## Federation Delivery (MAY)
 
-- `OX-05-001` For remote actors, the system MAY deliver via HTTP POST to the
+- `OX-05-001` `PROD_ONLY` For remote actors, the system MAY deliver via HTTP POST to the
   remote actor's inbox URL
   - **Deferred**: Full federation delivery is out of scope for the current
     prototype
-- `OX-05-002` Remote delivery failures SHOULD be logged at WARNING level and
+- `OX-05-002` `PROD_ONLY` Remote delivery failures SHOULD be logged at WARNING level and
   retried
 
 ## Delivery Idempotency (MUST)
