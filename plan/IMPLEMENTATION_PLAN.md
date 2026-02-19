@@ -21,7 +21,7 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 
 **Next Priority**: Per PRIORITIES.md, **Behavior Tree integration** is the top priority. The current handler implementations provide a working baseline; BT integration will refactor complex handlers to use behavior tree execution for improved clarity, testability, and alignment with CVD protocol documentation.
 
-**BT Integration Status (Phase BT-1: Phases 1.1-1.4 COMPLETE)**: 
+**BT Integration Status (Phase BT-1: COMPLETE ✅)**: 
 - ✅ py_trees library added to dependencies (v2.2.0+)
 - ✅ BT bridge layer implemented (`vultron/behaviors/bridge.py`)
 - ✅ DataLayer-aware helper nodes implemented (`vultron/behaviors/helpers.py`)
@@ -30,9 +30,8 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - ✅ Default policy implementation (`vultron/behaviors/report/policy.py`)
 - ✅ Comprehensive BT tests (76 tests passing in `test/behaviors/`)
 - ✅ Handler refactoring COMPLETE (validate_report handler now uses BT execution)
-- ⚠️ Demo and documentation update remaining (Phase BT-1.5-1.6)
-- ✅ Procedural handler implementations provide reference logic
-- ✅ Specifications defined in `specs/behavior-tree-integration.md`
+- ✅ Demo and documentation updated (Phase BT-1.5-1.6 COMPLETE)
+- ✅ ADR-0008 created for py_trees integration decision
 
 **Completed Infrastructure:**
 
@@ -162,7 +161,7 @@ All Phase 0A tasks have been completed:
 
 ### 🔴 TOP PRIORITY: Phase BT-1 - Behavior Tree Integration POC (IN PROGRESS)
 
-**Status**: Phases BT-1.1 through BT-1.3 COMPLETE; BT-1.4 through BT-1.6 remain  
+**Status**: Phase BT-1 COMPLETE ✅ (BT-1.1 through BT-1.6)  
 **Priority**: CRITICAL per PRIORITIES.md  
 **Goal**: Integrate py_trees behavior tree execution with handler system  
 **Reference**: `plan/BT_INTEGRATION.md`, `specs/behavior-tree-integration.md`
@@ -313,12 +312,12 @@ This phase implements a proof-of-concept for BT integration by refactoring one c
 
 #### BT-1.6: Documentation
 
-- [ ] **BT-1.6.1**: Update specifications
+- [x] **BT-1.6.1**: Update specifications
   - Mark BT-01 through BT-10 requirements as implemented in `specs/behavior-tree-integration.md`
   - Add verification notes for completed requirements
   - Document any deviations from spec
   
-- [ ] **BT-1.6.2**: Create implementation notes
+- [x] **BT-1.6.2**: Create implementation notes
   - Document lessons learned in `plan/IMPLEMENTATION_NOTES.md`
   - Note any challenges with py_trees integration
   - Identify improvements for Phase BT-2

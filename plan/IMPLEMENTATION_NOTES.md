@@ -2,13 +2,13 @@
 
 This file tracks insights, issues, and learnings during implementation.
 
-**Last Updated**: 2026-02-18 (Gap analysis via PLAN_prompt.md)
+**Last Updated**: 2026-02-19 (Phase BT-1.6 documentation via BUILD_prompt.md)
 
 ---
 
-## Phase BT-1 Progress Summary (2026-02-18)
+## Phase BT-1 Progress Summary (2026-02-19)
 
-**Status**: Phases BT-1.1 through BT-1.4 COMPLETE; Phases BT-1.5 through BT-1.6 remain
+**Status**: Phase BT-1 COMPLETE ✅ (Phases BT-1.1 through BT-1.6)
 
 ### Completed Infrastructure
 
@@ -73,7 +73,7 @@ This file tracks insights, issues, and learnings during implementation.
    - Handlers should log BT results at INFO level with status symbols (✓/✗/⚠)
    - Performance is excellent: P99 < 1ms for full validation workflow
 
-### Next Steps (Phase BT-1.5 through BT-1.6)
+### Phase BT-1 Completion Summary
 
 **Phase BT-1.5: COMPLETE** ✅ (2026-02-18)
 
@@ -91,39 +91,34 @@ This file tracks insights, issues, and learnings during implementation.
 
 3. **BT-1.5.3**: Performance baseline ✅
    - Created test/behaviors/test_performance.py with percentile measurements
-   - Performance results (100 runs): Mean=0.46ms, P50=0.44ms, P95=0.69ms, P99=0.84ms
+   - Performance results (100 runs): Mean=0.46ms, P50=0.44ms, P95=0.69ms,
+     P99=0.84ms
    - Well within 100ms target from plan/BT_INTEGRATION.md
    - No measurable performance regression from BT integration
 
-**Next: Phase BT-1.6 - Documentation**
+**Phase BT-1.6: COMPLETE** ✅ (2026-02-19)
 
-2. **BT-1.6**: Documentation
-   - Update `specs/behavior-tree-integration.md` verification sections
-   - Document implementation notes in this file
-   - Create ADR-0008 for BT integration architecture
+1. **BT-1.6.1**: Specs updated ✅
+   - `specs/behavior-tree-integration.md`: Status updated to Phase BT-1
+     COMPLETE; Implementation section updated to include handler integration
+     and performance results
+2. **BT-1.6.2**: Implementation notes updated ✅
+   - This file updated with Phase BT-1 completion status and lessons learned
+3. **ADR-0008 created** ✅
+   - `docs/adr/0008-use-py-trees-for-handler-bt-integration.md`
+   - Captures decision to use py_trees for handler-level BT execution
+   - `docs/adr/index.md` updated to include ADR-0007 and ADR-0008
 
 ---
 
-## Handler Refactoring Guidance (Phase BT-1.4)
+## Handler Refactoring Guidance (Phase BT-1.4 — Completed)
 
-When we get to BT-1.4: Handler Refactoring, modifying the existing procedural
-logic in `/api/v2/backend` will break
-`vultron/scripts/receive_report_demo.py` script. Instead, we should create 
-a new set of handlers that use the BT implementation, and then we will need to 
-create a new demo script that uses those handlers. This will allow us to keep the existing
-demo script working while we transition to the new BT-based implementation. 
-Adding BT-based handlers while retaining the existing procedural handlers 
-might have implications to the `vultron/api/v2` module structure, since we might
-need to propagate things back up to routers or even the main FastAPI app. 
-We should be mindful of this as we implement the new handlers, and we should aim
-to keep the module structure clean and organized. Consider making the FastAPI 
-invocation selective to use either the procedural or BT-based handlers based on
-a configuration setting, command line flag, or environment variable, to allow
-for easy switching between implementations without code changes. This can be
-added into the docker configs as well so that you could run either version of the
-app in a container. (So the old `receive_report_demo.py` could use a container
-running the procedural version, and a new `receive_report_demo_bt.py` could use
-a container running the BT-based version.)
+The concern about breaking the demo script did not materialise. The
+`validate_report` handler was refactored in-place (not duplicated), and the
+existing demo script continued to work without modification. The BT execution
+delegates orchestration (status updates, case creation, outbox management) to
+the tree, while the handler retains input validation and rehydration. This
+clean separation meant no changes were needed at the router or app level.
 
 #### Cross-References
 
