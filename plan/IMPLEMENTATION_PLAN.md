@@ -346,26 +346,32 @@ the report management workflow with BT-powered logic throughout.
 - Use BTs for complex handlers with multiple branches/state transitions
 - Keep procedural for simple CRUD-style handlers (create_report, ack_report)
 
-#### BT-2.1: `prioritize_report` BT (NEW — highest value)
+#### BT-2.1: `engage_case` / `defer_case` BTs (was "prioritize_report") ✅ COMPLETE
 
-`prioritize_report` is the most complex remaining report handler and does not
-yet have full business logic. It corresponds to
-`vultron/bt/report_management/_behaviors/prioritize_report.py:RMPrioritizeBt`.
+The original plan called this "prioritize_report" but the correct framing is
+case-level: RM is a **participant-specific** state machine. Each
+`CaseParticipant` carries its own RM state in `participant_status[].rm_state`.
+The simulation BT `RMPrioritizeBt` corresponds to the receive-side of
+`RmEngageCase` and `RmDeferCase` activities.
 
-- [ ] Implement `vultron/behaviors/report/prioritize_tree.py`
-  - BT: evaluate priority policy → ACCEPTED (RmEngageCase) or DEFERRED (RmDeferCase)
-  - Condition: check RM state is VALID (precondition)
-  - Action: `TransitionRMtoAccepted` or `TransitionRMtoDeferred` based on policy
-  - Use `PrioritizationPolicy` protocol (similar to `ValidationPolicy`)
-  - `AlwaysAcceptPolicy` default (transitions to ACCEPTED)
-- [ ] Add `PrioritizationPolicy` to `vultron/behaviors/report/policy.py`
-- [ ] Implement BT nodes in `vultron/behaviors/report/nodes.py`:
-  - `CheckRMStateValid` (may already exist — reuse)
-  - `TransitionRMtoAccepted`
-  - `TransitionRMtoDeferred`
-  - `EvaluateReportPriority` (policy stub, always SUCCESS)
-- [ ] Refactor `prioritize_report` handler in `handlers.py` to use BT
-- [ ] Add tests in `test/behaviors/report/test_prioritize_tree.py`
+- [x] Added `ENGAGE_CASE` and `DEFER_CASE` to `MessageSemantics` in `enums.py`
+- [x] Added `EngageCase` (Join(VulnerabilityCase)) and `DeferCase`
+  (Ignore(VulnerabilityCase)) patterns to `activity_patterns.py`
+- [x] Registered patterns in `semantic_map.py`
+- [x] Added `PrioritizationPolicy` and `AlwaysPrioritizePolicy` to
+  `vultron/behaviors/report/policy.py`
+- [x] Implemented BT nodes in `vultron/behaviors/report/nodes.py`:
+  - `CheckParticipantExists`
+  - `TransitionParticipantRMtoAccepted`
+  - `TransitionParticipantRMtoDeferred`
+  - `EvaluateCasePriority` (stub for outgoing direction / future SSVC)
+- [x] Implemented `vultron/behaviors/report/prioritize_tree.py` with
+  `create_engage_case_tree` and `create_defer_case_tree`
+- [x] Added `engage_case` and `defer_case` handlers in `handlers.py`
+- [x] Registered handlers in `semantic_handler_map.py`
+- [x] Added tests in `test/behaviors/report/test_prioritize_tree.py`
+  (11 tests, covering structure, success, failure, and participant isolation)
+- [x] Documented SSVC deferral in `specs/prototype-shortcuts.md` PROTO-05-001
 
 #### BT-2.2: `close_report` BT (OPTIONAL — already has procedural logic)
 
@@ -443,13 +449,10 @@ fresh using case_state conditions/transitions as reference.
   - Emit `RmCloseCase` activity to outbox
   - Log at INFO level
 
-#### BT-3.4: `engage_case` / `defer_case` mapping
+#### BT-3.4: `engage_case` / `defer_case` mapping ✅ COMPLETE (done in BT-2.1)
 
-- [ ] Review `RmEngageCase` and `RmDeferCase` semantics in
-  `docs/howto/activitypub/activities/manage_case.md`
-- [ ] Verify these map to existing MessageSemantics enums or add new ones if
-  missing (check `vultron/enums.py` and `vultron/activity_patterns.py`)
-- [ ] Implement handlers if semantic/pattern support exists
+- [x] `ENGAGE_CASE` / `DEFER_CASE` semantics, patterns, and handlers
+  implemented in BT-2.1. See notes there.
 
 #### BT-3.5: `initialize_case` demo script
 

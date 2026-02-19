@@ -40,3 +40,21 @@ during the prototype stage.
 - `PROTO-04-002` Review specifications to identify requirements that should
   carry the `PROD_ONLY` tag.
 
+## Case Prioritization (MAY)
+
+- `PROTO-05-001` Use a stub always-engage policy (`AlwaysPrioritizePolicy`)
+  in place of a real prioritization framework.
+  - The intended production mechanism is SSVC (Stakeholder-Specific
+    Vulnerability Categorization) or an equivalent tool that evaluates report
+    content and context to produce an engage/defer decision.
+  - The `PrioritizationPolicy` interface in
+    `vultron/behaviors/report/policy.py` and the `EvaluateCasePriority` BT
+    node in `vultron/behaviors/report/nodes.py` provide the hook point for
+    this integration.
+  - Note: RM is a **participant-specific** state machine. Each
+    `CaseParticipant` (actor-in-case wrapper) carries its own RM state in
+    `participant_status[].rm_state`, independent of other participants.
+    `ReportStatus` in the flat status layer is a separate mechanism used
+    only for reports that have not yet been associated with a case (i.e.,
+    before a case is created from a validated report).
+

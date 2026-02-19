@@ -655,3 +655,256 @@ class EvaluateReportValidity(DataLayerCondition):
             f"{self.name}: Evaluating validity for report {self.report_id} (stub: always accepts)"
         )
         return Status.SUCCESS
+
+
+# ============================================================================
+# Case Prioritization Nodes (BT-2.1)
+# ============================================================================
+
+
+class CheckParticipantExists(DataLayerCondition):
+    """
+    Check if actor has a CaseParticipant record in the specified case.
+
+    Returns SUCCESS if the actor's CaseParticipant is found in
+    case.case_participants. Returns FAILURE if the case is not found or
+    the actor has no participant record.
+
+    This is the precondition for engage_case and defer_case BTs: RM state
+    for a case is tracked in CaseParticipant.participant_status, so a
+    participant record must exist before transitioning RM state.
+    """
+
+    def __init__(self, case_id: str, actor_id: str, name: str | None = None):
+        """
+        Initialize CheckParticipantExists node.
+
+        Args:
+            case_id: ID of VulnerabilityCase to check
+            actor_id: ID of Actor to find in case_participants
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.actor_id = actor_id
+
+    def update(self) -> Status:
+        """
+        Check whether actor has a CaseParticipant in the case.
+
+        Returns:
+            SUCCESS if participant found, FAILURE otherwise
+        """
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+
+        try:
+            case_obj = self.datalayer.read(
+                self.case_id, raise_on_missing=False
+            )
+            if case_obj is None:
+                self.logger.debug(
+                    f"{self.name}: Case {self.case_id} not found"
+                )
+                return Status.FAILURE
+
+            for participant in case_obj.case_participants:
+                actor_ref = participant.actor
+                p_actor_id = (
+                    actor_ref
+                    if isinstance(actor_ref, str)
+                    else getattr(actor_ref, "as_id", str(actor_ref))
+                )
+                if p_actor_id == self.actor_id:
+                    self.logger.debug(
+                        f"{self.name}: Participant found for actor {self.actor_id} in case {self.case_id}"
+                    )
+                    return Status.SUCCESS
+
+            self.logger.debug(
+                f"{self.name}: No participant for actor {self.actor_id} in case {self.case_id}"
+            )
+            return Status.FAILURE
+
+        except Exception as e:
+            self.logger.error(f"{self.name}: Error checking participant: {e}")
+            return Status.FAILURE
+
+
+def _find_and_update_participant_rm(
+    datalayer, case_id: str, actor_id: str, new_rm_state, logger
+) -> Status:
+    """
+    Shared helper: find actor's CaseParticipant in case and append a new
+    ParticipantStatus with the given RM state, then persist the case.
+
+    Returns SUCCESS on success, FAILURE on error or missing participant.
+    """
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.as_vocab.objects.case_status import ParticipantStatus
+
+    try:
+        case_obj = datalayer.read(case_id, raise_on_missing=True)
+
+        for participant in case_obj.case_participants:
+            actor_ref = participant.actor
+            p_actor_id = (
+                actor_ref
+                if isinstance(actor_ref, str)
+                else getattr(actor_ref, "as_id", str(actor_ref))
+            )
+            if p_actor_id == actor_id:
+                new_status = ParticipantStatus(
+                    actor=actor_id,
+                    context=case_id,
+                    rm_state=new_rm_state,
+                )
+                participant.participant_status.append(new_status)
+                datalayer.update(case_obj.as_id, object_to_record(case_obj))
+                logger.info(
+                    f"Set participant {actor_id} RM state to {new_rm_state} in case {case_id}"
+                )
+                return Status.SUCCESS
+
+        logger.error(
+            f"No CaseParticipant found for actor {actor_id} in case {case_id}"
+        )
+        return Status.FAILURE
+
+    except Exception as e:
+        logger.error(f"Error updating participant RM state: {e}")
+        return Status.FAILURE
+
+
+class TransitionParticipantRMtoAccepted(DataLayerAction):
+    """
+    Transition actor's RM state to ACCEPTED in the specified case.
+
+    Finds the actor's CaseParticipant in case.case_participants, appends a
+    new ParticipantStatus with rm_state=RM.ACCEPTED, and persists the
+    updated case to the DataLayer.
+
+    Called when an actor engages a case (receives RmEngageCase /
+    Join(VulnerabilityCase)).
+    """
+
+    def __init__(self, case_id: str, actor_id: str, name: str | None = None):
+        """
+        Initialize TransitionParticipantRMtoAccepted node.
+
+        Args:
+            case_id: ID of VulnerabilityCase
+            actor_id: ID of Actor whose RM state transitions to ACCEPTED
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.actor_id = actor_id
+
+    def update(self) -> Status:
+        """
+        Append ParticipantStatus(rm_state=ACCEPTED) to actor's CaseParticipant.
+
+        Returns:
+            SUCCESS if transition persisted, FAILURE on error
+        """
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+
+        from vultron.bt.report_management.states import RM
+
+        return _find_and_update_participant_rm(
+            self.datalayer,
+            self.case_id,
+            self.actor_id,
+            RM.ACCEPTED,
+            self.logger,
+        )
+
+
+class TransitionParticipantRMtoDeferred(DataLayerAction):
+    """
+    Transition actor's RM state to DEFERRED in the specified case.
+
+    Finds the actor's CaseParticipant in case.case_participants, appends a
+    new ParticipantStatus with rm_state=RM.DEFERRED, and persists the
+    updated case to the DataLayer.
+
+    Called when an actor defers a case (receives RmDeferCase /
+    Ignore(VulnerabilityCase)).
+    """
+
+    def __init__(self, case_id: str, actor_id: str, name: str | None = None):
+        """
+        Initialize TransitionParticipantRMtoDeferred node.
+
+        Args:
+            case_id: ID of VulnerabilityCase
+            actor_id: ID of Actor whose RM state transitions to DEFERRED
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+        self.actor_id = actor_id
+
+    def update(self) -> Status:
+        """
+        Append ParticipantStatus(rm_state=DEFERRED) to actor's CaseParticipant.
+
+        Returns:
+            SUCCESS if transition persisted, FAILURE on error
+        """
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+
+        from vultron.bt.report_management.states import RM
+
+        return _find_and_update_participant_rm(
+            self.datalayer,
+            self.case_id,
+            self.actor_id,
+            RM.DEFERRED,
+            self.logger,
+        )
+
+
+class EvaluateCasePriority(DataLayerCondition):
+    """
+    Evaluate whether to engage or defer a case using prioritization policy.
+
+    Phase 1: Always returns SUCCESS (stub — always engage).
+    Future: Plug in SSVC or other priority framework via PrioritizationPolicy.
+
+    This node is used when the local actor is DECIDING whether to engage or
+    defer (i.e., generating an outgoing RmEngageCase or RmDeferCase message),
+    as opposed to the receive-side nodes above which record a decision already
+    made by the sending actor.
+
+    See specs/prototype-shortcuts.md PROTO-05-001 for SSVC deferral policy.
+    """
+
+    def __init__(self, case_id: str, name: str | None = None):
+        """
+        Initialize EvaluateCasePriority node.
+
+        Args:
+            case_id: ID of VulnerabilityCase to evaluate
+            name: Optional custom node name (defaults to class name)
+        """
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_id = case_id
+
+    def update(self) -> Status:
+        """
+        Evaluate case priority (stub: always engage).
+
+        Returns:
+            SUCCESS (always, for Phase 1)
+        """
+        self.logger.info(
+            f"{self.name}: Evaluating priority for case {self.case_id} (stub: always engage)"
+        )
+        return Status.SUCCESS

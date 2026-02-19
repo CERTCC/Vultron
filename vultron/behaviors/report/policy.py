@@ -14,23 +14,26 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Report validation policy implementations.
+Report validation and prioritization policy implementations.
 
-This module provides policy classes for evaluating report credibility and validity
-during the validation workflow. Policy decisions determine whether reports are
-accepted (RM.VALID) or rejected (RM.INVALID).
+This module provides policy classes for:
+1. Report validation: credibility and validity during the validation workflow.
+2. Case prioritization: whether to engage (RM.ACCEPTED) or defer (RM.DEFERRED)
+   a case after it has been created from a validated report.
 
 Per specs/behavior-tree-integration.md, policies are pluggable and extensible.
-Phase 1 provides AlwaysAcceptPolicy as a prototype simplification.
+Phase 1 provides stub always-accept policies as prototype simplifications.
 
 Extension Points:
     - Subclass ValidationPolicy to implement custom decision logic
-    - Policies can access report data, metadata, and context
-    - Future: Machine learning models, reputation systems, human-in-the-loop
+    - Subclass PrioritizationPolicy to implement SSVC or other priority logic
+    - Policies can access report/case data, metadata, and context
+    - Future: SSVC evaluation, machine learning models, human-in-the-loop
 """
 
 import logging
 
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
 logger = logging.getLogger(__name__)
@@ -154,5 +157,62 @@ class AlwaysAcceptPolicy(ValidationPolicy):
         """
         logger.info(
             f"Policy: Accepting report {report.as_id} as valid (AlwaysAcceptPolicy)"
+        )
+        return True
+
+
+class PrioritizationPolicy:
+    """
+    Abstract base class for case prioritization policies.
+
+    Policies evaluate whether a case should be engaged (RM.ACCEPTED) or
+    deferred (RM.DEFERRED). Subclasses implement specific decision logic.
+
+    Future: Plug in SSVC (Stakeholder-Specific Vulnerability Categorization)
+    or other priority frameworks here. See specs/prototype-shortcuts.md
+    PROTO-05-001 for the deferral policy on SSVC integration.
+    """
+
+    def should_engage(self, case: VulnerabilityCase) -> bool:
+        """
+        Evaluate whether the case should be engaged (accepted for active work).
+
+        Args:
+            case: VulnerabilityCase to evaluate
+
+        Returns:
+            True to engage (RM.ACCEPTED), False to defer (RM.DEFERRED)
+        """
+        raise NotImplementedError("Subclasses must implement should_engage()")
+
+
+class AlwaysPrioritizePolicy(PrioritizationPolicy):
+    """
+    Default policy that always engages cases (prototype simplification).
+
+    Always returns True, transitioning the actor to RM.ACCEPTED for every
+    case. Suitable for prototype and trusted-coordinator scenarios.
+
+    Future: Replace with SSVC-based evaluation (see PROTO-05-001).
+
+    Example:
+        >>> policy = AlwaysPrioritizePolicy()
+        >>> case = VulnerabilityCase(name="Test Case")
+        >>> policy.should_engage(case)
+        True
+    """
+
+    def should_engage(self, case: VulnerabilityCase) -> bool:
+        """
+        Always engage the case (returns True).
+
+        Args:
+            case: VulnerabilityCase to evaluate (unused in this stub)
+
+        Returns:
+            True (always engages)
+        """
+        logger.info(
+            f"Policy: Engaging case {case.as_id} (AlwaysPrioritizePolicy)"
         )
         return True

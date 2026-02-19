@@ -503,6 +503,122 @@ def create_case(dispatchable: DispatchActivity) -> None:
     return None
 
 
+@verify_semantics(MessageSemantics.ENGAGE_CASE)
+def engage_case(dispatchable: DispatchActivity) -> None:
+    """
+    Process an RmEngageCase activity (Join(VulnerabilityCase)).
+
+    The sending actor has decided to engage the case (RM → ACCEPTED). Records
+    their RM state transition in their CaseParticipant.participant_status.
+
+    RM is participant-specific: each CaseParticipant tracks its own RM state
+    independently of other participants in the same case.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Join with
+                      VulnerabilityCase object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.behaviors.bridge import BTBridge
+    from vultron.behaviors.report.prioritize_tree import (
+        create_engage_case_tree,
+    )
+
+    activity = dispatchable.payload
+
+    try:
+        actor = rehydrate(obj=activity.actor)
+        actor_id = actor.as_id
+        case = rehydrate(obj=activity.as_object)
+        case_id = case.as_id
+
+        logger.info(
+            "Actor '%s' engages case '%s' (RM → ACCEPTED)", actor_id, case_id
+        )
+
+        dl = get_datalayer()
+        bridge = BTBridge(datalayer=dl)
+        tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=activity
+        )
+
+        if result.status.name != "SUCCESS":
+            logger.warning(
+                "EngageCaseBT did not succeed for actor '%s' / case '%s': %s",
+                actor_id,
+                case_id,
+                result.feedback_message,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error in engage_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
+
+    return None
+
+
+@verify_semantics(MessageSemantics.DEFER_CASE)
+def defer_case(dispatchable: DispatchActivity) -> None:
+    """
+    Process an RmDeferCase activity (Ignore(VulnerabilityCase)).
+
+    The sending actor has decided to defer the case (RM → DEFERRED). Records
+    their RM state transition in their CaseParticipant.participant_status.
+
+    RM is participant-specific: each CaseParticipant tracks its own RM state
+    independently of other participants in the same case.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Ignore with
+                      VulnerabilityCase object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.behaviors.bridge import BTBridge
+    from vultron.behaviors.report.prioritize_tree import create_defer_case_tree
+
+    activity = dispatchable.payload
+
+    try:
+        actor = rehydrate(obj=activity.actor)
+        actor_id = actor.as_id
+        case = rehydrate(obj=activity.as_object)
+        case_id = case.as_id
+
+        logger.info(
+            "Actor '%s' defers case '%s' (RM → DEFERRED)", actor_id, case_id
+        )
+
+        dl = get_datalayer()
+        bridge = BTBridge(datalayer=dl)
+        tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=activity
+        )
+
+        if result.status.name != "SUCCESS":
+            logger.warning(
+                "DeferCaseBT did not succeed for actor '%s' / case '%s': %s",
+                actor_id,
+                case_id,
+                result.feedback_message,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error in defer_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
+
+    return None
+
+
 @verify_semantics(MessageSemantics.ADD_REPORT_TO_CASE)
 def add_report_to_case(dispatchable: DispatchActivity) -> None:
     logger.debug("add_report_to_case handler called: %s", dispatchable)

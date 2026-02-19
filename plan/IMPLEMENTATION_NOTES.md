@@ -6,6 +6,38 @@ This file tracks insights, issues, and learnings during implementation.
 
 ## Behavior Tree Integration
 
+### Phase BT-2.1 Status: Complete ✅
+
+BT-2.1 implemented `engage_case` and `defer_case` handlers with BT execution.
+
+**Key clarification from design review**: The plan named this "prioritize_report"
+but the correct framing is case-level prioritization. RM is a
+**participant-specific** state machine — each `CaseParticipant` (an Actor
+wrapped in a Case context) carries its own RM state in
+`participant_status[].rm_state`, independently of other participants.
+
+**`ReportStatus` vs `CaseParticipant.participant_status`**: `ReportStatus` in
+the flat status layer tracks RM state only for reports that have not yet been
+associated with a case (pre-case RM states: RECEIVED, INVALID). Once a case
+is created from a validated report, RM state is tracked in
+`CaseParticipant.participant_status[].rm_state`.
+
+**What was implemented**:
+
+- `ENGAGE_CASE` (Join(VulnerabilityCase)) and `DEFER_CASE`
+  (Ignore(VulnerabilityCase)) semantics, patterns, and handlers.
+- `PrioritizationPolicy` / `AlwaysPrioritizePolicy` stub (hook point for
+  future SSVC integration — see `specs/prototype-shortcuts.md` PROTO-05-001).
+- `EvaluateCasePriority` node is for the **outgoing** direction (when the
+  local actor decides to engage/defer). The receive-side trees
+  (`EngageCaseBT`, `DeferCaseBT`) do not need policy evaluation; they just
+  record the sender's already-made decision.
+- 11 BT tests passing; full suite: 472 passed, 2 xfailed.
+
+**Next**: BT-2.2 (`close_report` BT) or BT-3 (Case Management Demo).
+
+---
+
 ### Phase BT-1 Status: Complete ✅
 
 Phase BT-1 successfully validated the BT integration approach:
@@ -18,8 +50,6 @@ Phase BT-1 successfully validated the BT integration approach:
 - 78 BT tests passing.
 - Performance: P50=0.44ms, P95=0.69ms, P99=0.84ms (well within 100ms target).
 - ADR-0008 created for py_trees integration decision.
-
-**Next**: Phase BT-2 — extend BT approach to remaining report handlers.
 
 ---
 

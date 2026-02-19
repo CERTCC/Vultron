@@ -136,6 +136,16 @@ CloseReport = ActivityPattern(
 CreateCase = ActivityPattern(
     activity_=TAtype.CREATE, object_=VOtype.VULNERABILITY_CASE
 )
+EngageCase = ActivityPattern(
+    description="Actor engages (joins) a VulnerabilityCase, transitioning their RM state to ACCEPTED.",
+    activity_=TAtype.JOIN,
+    object_=VOtype.VULNERABILITY_CASE,
+)
+DeferCase = ActivityPattern(
+    description="Actor defers (ignores) a VulnerabilityCase, transitioning their RM state to DEFERRED.",
+    activity_=TAtype.IGNORE,
+    object_=VOtype.VULNERABILITY_CASE,
+)
 AddReportToCase = ActivityPattern(
     activity_=TAtype.ADD,
     object_=VOtype.VULNERABILITY_REPORT,
