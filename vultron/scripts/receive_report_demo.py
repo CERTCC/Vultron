@@ -707,6 +707,8 @@ def check_server_availability(
     """
     Checks if the API server is available, with retry logic for startup delays.
 
+    Uses the /health/ready endpoint per OB-05-002 from specs/observability.md.
+
     Args:
         client: DataLayerClient instance
         max_retries: Maximum number of retry attempts (default: 30)
@@ -715,7 +717,7 @@ def check_server_availability(
     Returns:
         bool: True if server is available, False otherwise
     """
-    url = f"{client.base_url}/actors/"
+    url = f"{client.base_url}/health/ready"
 
     for attempt in range(max_retries):
         try:
@@ -723,7 +725,7 @@ def check_server_availability(
                 f"Checking server availability at: {url} (attempt {attempt + 1}/{max_retries})"
             )
             response = requests.get(url, timeout=2)
-            available = response.status_code < 500
+            available = response.status_code == 200
             if available:
                 logger.debug(
                     f"Server availability check: SUCCESS (status: {response.status_code})"
@@ -739,7 +741,6 @@ def check_server_availability(
         except Exception as e:
             logger.debug(f"Unexpected error checking server: {e}")
 
-        # If not the last attempt, wait before retrying
         if attempt < max_retries - 1:
             logger.debug(f"Retrying in {retry_delay} seconds...")
             time.sleep(retry_delay)
