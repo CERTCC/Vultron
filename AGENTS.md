@@ -39,15 +39,21 @@ Essential commands (run in zsh):
 # Format code (pre-commit enforces Black)
 black vultron/ test/
 
-# Run full test-suite (uses uv wrapper defined in project)
-uv run pytest -q
+# Run full test-suite — use EXACTLY this command, ONCE, and read tail -5
+uv run pytest --tb=short 2>&1 | tail -5
+
+# Run a specific test file
+uv run pytest test/test_semantic_activity_patterns.py -v
 
 # Run the demo server locally (development/demo)
 uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
-
-# Run a specific test file
-uv run pytest test/test_semantic_activity_patterns.py -q
 ```
+
+**Full test-suite rule**: Run `uv run pytest --tb=short 2>&1 | tail -5` exactly
+**once** per validation cycle. The last 5 lines always contain the summary (e.g.
+`472 passed, 2 xfailed in 40s`) and any short tracebacks for failures. Do NOT
+re-run to grep for counts — read the tail output directly. Do NOT use `-q` for
+the full suite; it suppresses the summary line in some terminal configurations.
 
 Quick pointers and gotchas:
 
@@ -550,27 +556,27 @@ to relevant tests and design notes.
 
 ### Commit Workflow
 
-**BEFORE committing**, agents SHOULD run Black to format code:
+**BEFORE committing**, agents MUST run Black then the full test suite exactly
+once, in this order:
 
 ```bash
 black vultron/ test/
+uv run pytest --tb=short 2>&1 | tail -5
+git add -A && git commit -m "..."
 ```
 
-This avoids the inefficient cycle of:
+**Why this order matters**:
 
-1. `git commit` → pre-commit hook runs Black → reformats files → commit fails
-2. `git add` → re-stage reformatted files
-3. `git commit` → try again
-
-**Why this matters**: Pre-commit hooks are configured to enforce Black
-formatting. Running Black before committing ensures a clean single-commit
-workflow.
+1. Black formatting is enforced by pre-commit hooks — format first to avoid a
+   failed commit → re-stage → re-commit cycle.
+2. The test suite must pass before committing — read the `tail -5` output
+   directly for the summary line (e.g. `472 passed, 2 xfailed in 40s`).
+   Do NOT re-run pytest to grep for counts. Run it **once** and read the tail.
 
 **When to run Black**:
 
-- After editing any Python files
-- Before staging files for commit
-- As part of your validation process
+- After editing any Python files, before staging for commit
+- Do NOT run `black` on markdown files (use `markdownlint-cli2` for those)
 
 **Alternative**: If you forget and the pre-commit hook reformats files, simply:
 
