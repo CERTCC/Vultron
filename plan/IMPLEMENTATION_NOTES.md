@@ -2,7 +2,7 @@
 
 This file tracks insights, issues, and learnings during implementation.
 
-**Last Updated**: 2026-02-19 (Phase BT-1.6 documentation via BUILD_prompt.md)
+**Last Updated**: 2026-02-19 (Bugfix: health endpoints; fix Docker healthcheck noise)
 
 ---
 
