@@ -93,7 +93,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 
 ## Related
 
-- **HTTP Protocol**: `specs/http-protocol.md` (Content-Type validation MV-06-001, size limits MV-07-001 consolidated as HP-01, HP-02)
+- **HTTP Protocol**: `specs/http-protocol.md` (Content-Type validation MV-06-001, size limits MV-07-001 consolidated as HTTP-01, HTTP-02)
 - **Idempotency**: `specs/inbox-endpoint.md` IE-10-001, `specs/handler-protocol.md` HP-07-001
 - **Implementation**: `vultron/api/v2/routers/actors.py` (`parse_activity()`)
 - **Implementation**: `vultron/as_vocab/activities/` (Pydantic models)

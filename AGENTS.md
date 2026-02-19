@@ -886,7 +886,7 @@ types, or use explicit `Union[Type1, Type2, ...]` if types are known.
 **Verification**: Test API serialization completeness, not just database
 storage. Check that all expected fields appear in JSON responses.
 
-See `specs/http-protocol.md` HP-07-001 for guidance.
+See `specs/http-protocol.md` HTTP-08-001 for guidance.
 
 ### Idempotency Responsibility Chain
 

@@ -51,11 +51,18 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Future Implementation**:
 
 - **`response-format.md`** - ActivityStreams response generation (Accept, Reject, etc.)
+- **`outbox.md`** - Actor outbox structure and delivery
 
 ### Code Standards
 
 - **`code-style.md`** - Python formatting, import organization, circular import prevention
 - **`meta-specifications.md`** - How to write and maintain specifications
+
+### Project and Agent Guidance
+
+- **`project-documentation.md`** - Documentation file structure and purpose
+- **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage
+- **`agentic-readiness.md`** - API and CLI requirements for automated agent integration
 
 ---
 
@@ -91,6 +98,9 @@ Each requirement has a unique ID: `PREFIX-NN-NNN`
 - **NNN**: Requirement number within category
 
 Example: `HP-04-002` = Handler Protocol, category 4 (Payload Access), requirement 2
+
+**Note**: The `HP-` prefix is reserved for `handler-protocol.md`. The
+`http-protocol.md` file uses the `HTTP-` prefix to avoid ambiguity.
 
 ## Requirement Tags
 

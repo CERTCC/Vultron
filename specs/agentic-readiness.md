@@ -1,101 +1,136 @@
-# Agentic Readiness
-
-TODOs: 
-- [ ] Revise this list to match the style of `./meta-specifications.md`
-- [ ] Identify which items are `PROD_ONLY` according to guidance in `./README.md`
-- [ ] Reconcile duplicative items in this list with other specification 
-  already present in `./*.md`
-- [ ] Remove this TODO list from the final committed version of this file; all items should be reflected in the prose below.
+# Agentic Readiness Specification
 
 ## Overview
 
-This file defines specification for API and CLI design, data contracts, error
-handling, and other aspects of the system that are critical for agentic readiness. 
-The requirements outlined here ensure that the system is designed with clear, 
-consistent interfaces and behaviors that enable agents to interact with it 
-effectively and reliably.
+Requirements for API and CLI design that enable reliable interaction by
+automated agents and AI systems. Ensures consistent, machine-parseable
+interfaces that support agentic workflows.
 
-## Requirements
+**Source**: `plan/PRIORITIES.md` (Priority 1000), API design principles
+**Note**: Prototype-stage shortcuts apply; see `prototype-shortcuts.md`
+**Cross-references**: `error-handling.md`, `http-protocol.md`,
+`structured-logging.md`, `observability.md`
 
-### API Design & Endpoint Conventions
+---
 
-- Every endpoint accepts and returns JSON exclusively; no HTML, form-encoded, or multipart responses on data routes.
-- Every request and response body is typed to a Pydantic `BaseModel` subclass; no use of raw `dict` or `Any` as a top-level body type.
-- All endpoints use explicit, versioned URL prefixes (e.g., `/v1/...`); version is never inferred from headers alone.
-- Every endpoint that mutates state uses `POST`, `PUT`, `PATCH`, or `DELETE` consistently and correctly; `GET` endpoints are free of side effects.
-- Paginated list endpoints expose `limit`, `offset` (or `cursor`) as query parameters with documented defaults and maximums.
-- Bulk operation endpoints exist for any resource that an agent may need to create, update, or delete in quantity (e.g., `POST /v1/items/batch`).
-- Every endpoint returns a consistent top-level response envelope (e.g., `{"data": ..., "meta": ..., "errors": [...]}`) so agents can parse responses without per-route logic.
-- Long-running operations return a job/task object immediately with a stable `id` and a `status` field; a separate polling or webhook endpoint reports completion.
-- Filtering, sorting, and field selection are available on all collection endpoints via documented query parameters.
+## API Discoverability (MUST)
 
-### Data Contracts & Pydantic Schema
+- `AR-01-001` The API MUST expose a machine-readable OpenAPI JSON schema at
+  `/openapi.json`
+- `AR-01-002` The API MUST expose rendered documentation UI at `/docs` and
+  `/redoc` in development environments
+- `AR-01-003` Every endpoint MUST have a unique, stable `operationId`
+  following the `{resource}_{action}` naming convention
+- `AR-01-004` `PROD_ONLY` All possible HTTP response codes for each endpoint
+  MUST be declared in the OpenAPI spec with typed response models
 
-- Every Pydantic model used in a request or response is exported in the OpenAPI schema with a `$ref` name matching the Python class name exactly.
-- All fields include a `description=` string in the `Field(...)` declaration; no undocumented fields exist in any model.
-- All fields with constrained values use Pydantic validators or `Literal` / `Enum` types; constraints are reflected in the JSON Schema (e.g., `minLength`, `pattern`, `minimum`).
-- Optional fields are explicitly typed as `Optional[T]` with a documented default; no field is implicitly optional via `= None` without the `Optional` annotation.
-- Every `Enum` used in a model is a `str` enum (inherits from `str, Enum`) so serialized values are human-readable strings, not integers.
-- Date and time fields use `datetime` with explicit timezone (`datetime` with `tzinfo`) and serialize to ISO 8601 strings.
-- Monetary or precision-sensitive numeric fields use `Decimal`, not `float`; the JSON schema documents precision and scale.
-- Pydantic models expose `.model_json_schema()` programmatically; a `/v1/schema` or equivalent endpoint returns the full OpenAPI JSON schema document.
-- Breaking changes to any model field (rename, type change, removal) require a version increment; additive changes (new optional fields) do not.
+## State and Workflow Transitions (SHOULD)
 
-### OpenAPI / Documentation
+- `AR-02-001` Resources with a `status` field SHOULD include a
+  `next_allowed_actions` list identifying valid state transitions from the
+  current state
+- `AR-02-002` All valid states and state transitions for state machine
+  resources MUST be documented
+- `AR-02-003` Endpoints with prerequisites MUST return a structured error with
+  `error_code: "PRECONDITION_FAILED"` when invoked out of sequence
+  - **Cross-reference**: `error-handling.md` EH-05-001 for error response
+    format
 
-- The FastAPI app exposes `/openapi.json` and a rendered UI (`/docs` and `/redoc`) without authentication in development; these are lockable behind auth in production but must remain machine-fetchable.
-- Every path, query parameter, and body field has a non-empty `description` in the OpenAPI output.
-- Every endpoint has a unique, stable `operationId` that follows a consistent naming convention (e.g., `{resource}_{action}`).
-- All possible HTTP response codes for an endpoint are declared in the OpenAPI spec with a typed response model for each.
-- The OpenAPI document includes a top-level `info.description` that states the system's purpose, base URL, and auth mechanism.
-- A machine-readable changelog (e.g., `CHANGELOG.md` or `/v1/meta/changelog`) documents every breaking and non-breaking API change by version.
+## Stable Error Codes (MUST)
 
-### Error Handling & Structured Errors
+- `AR-03-001` The API MUST maintain a documented, stable set of `error_code`
+  string values for all error conditions
+  - Agents MUST be able to branch on `error_code` without parsing the
+    human-readable `message` field
+  - **Cross-reference**: `error-handling.md` EH-05-001 for error response
+    format
+- `AR-03-002` Transient errors (rate limiting, temporary unavailability) MUST
+  return HTTP 429 or 503 with a `Retry-After` header indicating when to retry
+  - **Cross-reference**: `http-protocol.md` HTTP-03-001 for status code
+    semantics
 
-- All error responses use a single Pydantic model (e.g., `ErrorResponse`) with at minimum: `error_code` (stable string identifier), `message` (human-readable), `details` (optional list of field-level errors), and `request_id`.
-- HTTP 422 Unprocessable Entity responses include per-field validation errors in the `details` array with `field`, `issue`, and `input` sub-fields, using FastAPI's default validation error format extended to match the `ErrorResponse` model.
-- HTTP 4xx errors never return an empty body; every client error is actionable (the agent can determine whether to retry, fix the request, or escalate).
-- HTTP 500 errors include a `request_id` traceable in server logs; stack traces are never exposed in production responses.
-- A documented, stable set of `error_code` string values is maintained (e.g., `RESOURCE_NOT_FOUND`, `VALIDATION_FAILED`, `RATE_LIMIT_EXCEEDED`); agents can branch on these without parsing `message` strings.
-- Transient errors (rate limiting, temporary unavailability) return HTTP 429 or 503 with a `Retry-After` header.
+## Long-Running Operations (SHOULD)
 
-### Idempotency & Safe Retry
+- `AR-04-001` Long-running operations SHOULD return a job or task object
+  immediately with a stable `id` and `status` field
+- `AR-04-002` `PROD_ONLY` A separate polling endpoint or webhook mechanism
+  SHOULD be available to report operation completion
 
-- All `POST` endpoints that create or trigger resources accept an optional `Idempotency-Key` header; repeat requests with the same key within a defined window return the original response without re-executing the operation.
-- The idempotency window duration and behavior are documented per endpoint.
-- `PUT` endpoints are fully idempotent by design; calling with the same payload twice produces the same server state and response.
-- Every destructive operation (`DELETE`, irreversible state transitions) is documented with its idempotency behavior explicitly (e.g., "deleting an already-deleted resource returns 404, not 500").
-- Job/task submission endpoints are idempotent when an `Idempotency-Key` is provided; the returned job `id` is stable for the same key.
+## Pagination (SHOULD)
 
-### Observability & Introspection
+- `AR-05-001` Collection endpoints SHOULD expose `limit` and `offset` (or
+  `cursor`) query parameters with documented defaults and maximums
 
-- A `GET /health` endpoint returns HTTP 200 with a structured JSON body (`{"status": "ok", "version": "...", "timestamp": "..."}`) when the service is operational; returns non-200 when degraded.
-- A `GET /health/ready` endpoint separately reports dependency readiness (database, external services) with per-dependency status.
-- A `GET /v1/meta/capabilities` or equivalent endpoint returns a machine-readable list of available resources, actions, and any feature flags relevant to agents.
-- Every request receives a unique `X-Request-ID` response header; the service accepts and propagates a caller-supplied `X-Request-ID` header if present.
-- Structured logs are emitted as JSON with at minimum: `timestamp`, `level`, `request_id`, `method`, `path`, `status_code`, `duration_ms`.
-- Metrics expose request counts, error rates, and latency percentiles in a machine-scrapable format (e.g., Prometheus `/metrics` endpoint).
+## Bulk Operations (MAY)
 
-### Authentication (API Key)
+- `AR-06-001` Resources that agents may need to create, update, or delete in
+  quantity MAY expose batch endpoints (e.g., `POST /v1/items/batch`)
 
-- API keys are passed via the `Authorization: Bearer <token>` header; no API keys accepted as query parameters.
-- Missing or malformed credentials return HTTP 401 with a structured `ErrorResponse`; insufficient permissions return HTTP 403.
-- The API key format is documented (length, alphabet, prefix) so agents can validate keys client-side before sending requests.
-- Key expiry or revocation returns HTTP 401 with `error_code: "TOKEN_EXPIRED"` or `"TOKEN_REVOKED"` so agents can distinguish and respond appropriately.
+## Request Correlation (SHOULD)
 
-### CLI Interface
+- `AR-07-001` `PROD_ONLY` The API SHOULD accept a caller-supplied `X-Request-ID`
+  header and propagate it in responses and log entries
+  - **Cross-reference**: `http-protocol.md` HTTP-05-001 for correlation ID
+    propagation
+  - **Cross-reference**: `structured-logging.md` SL-02-001 for log
+    correlation requirements
 
-- The CLI is installable as a Python package entry point (defined in `pyproject.toml`); no need to invoke via `python -m`.
-- Every CLI command accepts `--output json` (or equivalent flag) to emit structured JSON to stdout suitable for programmatic consumption.
-- Every CLI command exits with code `0` on success, `1` on handled error, and `2` on usage/argument error; no command exits non-zero silently.
-- CLI commands that wrap API calls surface the same `error_code` and `request_id` fields from the API response in their JSON error output.
-- Long-running CLI commands support a `--wait` / `--no-wait` flag; `--no-wait` returns the job object immediately.
-- All CLI arguments and options are documented via `--help`; help text is parseable (no ANSI color codes) when stdout is not a TTY.
+## CLI Interface (MUST)
 
-### Workflow & Sequencing Support
+- `AR-08-001` The CLI MUST be installable as a Python package entry point
+  defined in `pyproject.toml`
+- `AR-08-002` Every CLI command MUST support a structured JSON output mode
+  (e.g., `--output json`) emitting machine-parseable JSON to stdout
+- `AR-08-003` CLI commands MUST exit with code `0` on success, `1` on handled
+  error, and `2` on usage or argument error
+- `AR-08-004` CLI commands wrapping API calls MUST surface `error_code` and
+  `request_id` from API error responses in their JSON error output
+- `AR-08-005` Long-running CLI commands SHOULD support `--wait` / `--no-wait`
+  flags; `--no-wait` returns the job object immediately
 
-- Endpoints expose sufficient state information in responses (e.g., `status`, `next_allowed_actions`) for an agent to determine valid next steps without out-of-band documentation.
-- State machine transitions are documented: for every resource with a `status` field, all valid states and valid transitions between them are listed.
-- Any operation with a prerequisite (e.g., "must call `/v1/session/start` before `/v1/items`") is documented and enforced; violation returns a structured error with `error_code: "PRECONDITION_FAILED"`.
-- Endpoints that return related resource references include the full resource URL or `id` needed to fetch them (HATEOAS-lite: no dangling foreign keys without a resolution path).
-- Rate limits are documented per endpoint or resource type; limit, window, and current consumption are available via response headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`).
+## Verification
+
+### AR-01-001, AR-01-002, AR-01-003 Verification
+
+- Integration test: `GET /openapi.json` returns valid OpenAPI JSON schema
+- Integration test: `GET /docs` and `GET /redoc` return HTML UI
+- Code review: Every FastAPI route has a unique `operation_id`
+
+### AR-02-001, AR-02-002 Verification
+
+- Unit test: Resources with `status` field include `next_allowed_actions`
+- Documentation review: State transitions documented per resource type
+
+### AR-03-001, AR-03-002 Verification
+
+- Unit test: Structured error responses include stable `error_code` field
+- Integration test: HTTP 429 and 503 responses include `Retry-After` header
+
+### AR-04-001 Verification
+
+- Integration test: Long-running operation returns job ID and status
+  immediately
+- Integration test: Job status endpoint returns current state
+
+### AR-05-001 Verification
+
+- Integration test: Collection endpoint supports `limit` and `offset`
+  parameters
+- Code review: Default and maximum page sizes documented in OpenAPI schema
+
+### AR-08-001, AR-08-002, AR-08-003 Verification
+
+- Integration test: CLI entry point installed and executable via
+  `pyproject.toml`
+- Integration test: `--output json` produces valid JSON on stdout
+- Integration test: CLI exit codes match specification
+
+## Related
+
+- **Error Handling**: `specs/error-handling.md` (EH-05-001)
+- **HTTP Protocol**: `specs/http-protocol.md` (HTTP-03-001, HTTP-05-001)
+- **Structured Logging**: `specs/structured-logging.md` (SL-02-001)
+- **Observability**: `specs/observability.md` (health check endpoints)
+- **Prototype Shortcuts**: `specs/prototype-shortcuts.md` (PROD_ONLY deferral)
+- **Priorities**: `plan/PRIORITIES.md` (Priority 1000)
+- **Implementation**: `pyproject.toml` (CLI entry points)
