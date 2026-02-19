@@ -62,7 +62,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
 # Vultron imports
-from vultron.api.v2.data.actor_io import init_actor_io
+from vultron.api.v2.data.actor_io import clear_all_actor_ios, init_actor_io
 from vultron.api.v2.data.utils import parse_id
 from vultron.as_vocab.activities.case import CreateCase
 from vultron.as_vocab.activities.report import (
@@ -770,6 +770,9 @@ def setup_clean_environment(
     # Reset the data layer to a clean state
     reset = reset_datalayer(client=client, init=True)
     logger.info(f"Reset status: {reset}")
+
+    # Clear in-memory actor I/O state from any previous runs
+    clear_all_actor_ios()
 
     # Discover actors
     finder, vendor, coordinator = discover_actors(client=client)

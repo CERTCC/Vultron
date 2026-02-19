@@ -88,3 +88,20 @@ def test_main_executes_without_raising(demo_env):
     - find_case_by_report
     """
     demo.main(skip_health_check=True)
+
+
+def test_all_demos_succeed(demo_env, caplog):
+    """
+    Tests that all 3 demos complete successfully with no errors.
+
+    Regression test for bug: setup_clean_environment does not clear ACTOR_IO_STORE,
+    causing demos 2 and 3 to fail with KeyError when re-initializing actor IOs.
+    """
+    import logging
+
+    with caplog.at_level(logging.ERROR):
+        demo.main(skip_health_check=True)
+
+    assert "ERROR SUMMARY" not in caplog.text, (
+        "Expected all demos to succeed, but got errors:\n" + caplog.text
+    )
