@@ -49,6 +49,8 @@ Handler functions process DispatchActivity objects and implement protocol busine
 ## Idempotency (SHOULD)
 
 - `HP-07-001` Handlers SHOULD be idempotent to support retries
+  - State-changing handlers (those that transition RM/EM/CS state) MUST be
+    idempotent to prevent data corruption
   - **Cross-reference**: See `idempotency.md` ID-04-001 for complete
     requirements
 

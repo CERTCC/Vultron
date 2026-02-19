@@ -37,6 +37,11 @@ The system must handle duplicate activity submissions gracefully, ensuring repea
 - `ID-04-002` Handlers SHOULD check existing state before state transitions
   - Example: validate_report checks if report already valid
 - `ID-04-003` Handlers SHOULD log attempted re-execution at INFO level
+- `ID-04-004` State-changing handlers MUST be idempotent
+  - Applies to any handler that transitions RM, EM, or CS state machine states
+  - **Rationale**: Duplicate processing of state-change messages causes data
+    corruption; SHOULD-level idempotency is insufficient for state machines
+  - **Examples**: `validate_report`, `create_report`, `create_case`
 
 ## Implementation Strategy (SHOULD)
 
@@ -62,10 +67,11 @@ The system must handle duplicate activity submissions gracefully, ensuring repea
 - Integration test: Duplicate submission returns HTTP 202 within 100ms
 - Integration test: Duplicate submission does not trigger handler re-execution
 
-### ID-04-001, ID-04-002 Verification
+### ID-04-001, ID-04-002, ID-04-003, ID-04-004 Verification
 
 - Unit test: validate_report called twice → same state transition once
 - Unit test: create_report called twice → second call logs "already exists"
+- Unit test: State-changing handler called with already-transitioned state → no-op
 
 ## Related
 

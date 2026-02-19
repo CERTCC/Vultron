@@ -42,7 +42,11 @@ SHOULD use BTs for clarity and maintainability.
 - `BT-03-003` BT blackboard MAY cache DataLayer state during execution
   - Blackboard keys MUST NOT contain slashes (hierarchical path parsing issues
     in py_trees)
-  - Use simplified keys (e.g., `object_{id_segment}`) instead of full URLs
+  - Use simplified keys following the pattern `{noun}_{id_segment}` where
+    `id_segment` is the last path segment of the object's URI
+  - Examples: `object_abc123`, `case_def456`, `actor_vendorco`
+  - Current convention: `object_{last_url_segment}` (see
+    `vultron/behaviors/report/nodes.py`)
 - `BT-03-004` State changes MUST be committed to DataLayer on successful
   execution
 

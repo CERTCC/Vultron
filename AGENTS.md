@@ -736,6 +736,30 @@ dispatchable = DispatchActivity(semantic_type=MessageSemantics.CREATE_REPORT, ..
 
 See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
 
+### BT Blackboard Key Naming
+
+**Symptom**: `KeyError` or unexpected `None` from py_trees blackboard reads
+
+**Cause**: py_trees blackboard uses hierarchical key parsing; keys containing
+slashes are treated as nested paths, breaking simple key lookups.
+
+**Solution**: Use simplified keys following `{noun}_{id_segment}` pattern:
+
+```python
+# Anti-pattern: full URI as key (contains slashes)
+bb.set("https://example.org/reports/abc123", report)
+
+# Correct: last URL segment as key suffix
+id_segment = report_id.split("/")[-1]
+bb.set(f"object_{id_segment}", report)  # e.g., "object_abc123"
+```
+
+**Convention**: Use `{noun}_{last_url_segment}` (e.g., `object_abc123`,
+`case_def456`). Nodes must register READ/WRITE access in `setup()` before
+accessing the blackboard in `update()`.
+
+See `specs/behavior-tree-integration.md` BT-03-003.
+
 ### Docker Health Check Coordination
 
 **Symptom**: Demo container fails to connect to API server with "Connection

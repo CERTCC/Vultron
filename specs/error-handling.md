@@ -41,8 +41,13 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
 
 ## Error Response Format (MUST)
 
-- `EH-05-001` HTTP error responses MUST include structured JSON body
-  - **Cross-reference**: See `http-protocol.md` HP-06-001 for complete format specification
+- `EH-05-001` HTTP error responses MUST include structured JSON body with fields:
+  - `status`: HTTP status code (integer)
+  - `error`: Exception type name (string)
+  - `message`: Human-readable error description (string)
+  - `activity_id`: Activity ID if available (string or null)
+  - **Example**: `{"status": 400, "error": "ValidationError", "message": "...", "activity_id": "urn:uuid:..."}`
+  - **Cross-reference**: `http-protocol.md` HP-03-001 for HTTP status code semantics
 
 ## Error Logging (MUST)
 
@@ -77,7 +82,9 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
 
 ### EH-05-001 Verification
 
-- See `http-protocol.md` HP-06-001 verification criteria
+- Unit test: Error response contains all required JSON fields (`status`, `error`, `message`, `activity_id`)
+- Integration test: HTTP 400 response body conforms to error response format
+- Code review: All exception handlers return structured JSON bodies
 
 ### EH-06-001 Verification
 
