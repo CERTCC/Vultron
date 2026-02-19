@@ -26,7 +26,8 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 - `MV-02-001` The system MUST use Pydantic models to validate activities
 - `MV-02-002` The system MUST reject activities that fail Pydantic validation with HTTP 422
 - `MV-02-003` Validation error responses MUST include detailed error information
-- `MV-02-004` The system MUST log validation failures at ERROR level
+- `MV-02-004` The system MUST log validation failures at WARNING level
+  - Validation failures are client errors (HTTP 422); see `structured-logging.md` SL-03-001
 
 ## Required Field Validation (MUST)
 

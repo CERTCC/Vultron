@@ -236,12 +236,18 @@ Identified during design review:
    DirectActivityDispatcher
 
 **Specification Maintenance TODO**:
-- Fix EH-05-001 cross-reference
-- Clarify rehydration timing requirement
-- Add outbox spec (similar to inbox-endpoint.md)
-- Add CaseActor spec (message handling, authorization, lifecycle)
-- Document BT blackboard key naming conventions
-- Upgrade handler idempotency from SHOULD to MUST for state-changing handlers
+- ✅ Fix EH-05-001 cross-reference (references HP-03-001, not HP-06-001)
+- ✅ Clarify rehydration timing requirement (SE-01-002 updated)
+- ✅ Add outbox spec (`specs/outbox.md` created 2026-02-19)
+- ✅ Document BT blackboard key naming conventions (BT-03-003 updated)
+- ✅ Upgrade handler idempotency from SHOULD to MUST for state-changing handlers
+  (ID-04-004 and HP-07-001 updated)
+- ✅ Fix `SEMANTIC_ACTIVITY_PATTERNS` → `SEMANTICS_ACTIVITY_PATTERNS` in
+  semantic-extraction.md (matched to code 2026-02-19)
+- ✅ Fix MV-02-004 log level ERROR → WARNING (validation failures are 4xx
+  client errors per SL-03-001; fixed 2026-02-19)
+- ⬜ Add CaseActor spec (message handling, authorization, lifecycle)
+- ⬜ Add async dispatcher spec to dispatch-routing.md
 
 ### BT Integration Lessons
 

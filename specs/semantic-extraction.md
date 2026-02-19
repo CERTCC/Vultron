@@ -42,7 +42,7 @@ are properly typed.
 
 ## Pattern Registry (MUST)
 
-- `SE-03-001` SEMANTIC_ACTIVITY_PATTERNS MUST contain patterns for all supported MessageSemantics values except UNKNOWN
+- `SE-03-001` SEMANTICS_ACTIVITY_PATTERNS MUST contain patterns for all supported MessageSemantics values except UNKNOWN
 - `SE-03-002` Pattern registry MUST be ordered from most specific to least specific
 
 ## Unrecognized Activity Handling (MUST)
@@ -85,7 +85,7 @@ are properly typed.
 
 ### SE-05-001, SE-05-002, SE-05-003 Verification
 
-- Unit test: All patterns in SEMANTIC_ACTIVITY_PATTERNS have enum entry
+- Unit test: All patterns in SEMANTICS_ACTIVITY_PATTERNS have enum entry
 - Unit test: All patterns have corresponding handler in SEMANTIC_HANDLER_MAP
 - Code coverage: All patterns exercised by tests
 

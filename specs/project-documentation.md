@@ -142,7 +142,7 @@ When refactoring documentation:
 
 ## File Size Guidelines
 
-- **AGENTS.md**: Target < 800 lines (currently 1187 lines - needs reduction)
+- **AGENTS.md**: Target < 1000 lines; prioritize clarity and scannability
 - **IMPLEMENTATION_NOTES.md**: No limit (grows over time)
 - **IMPLEMENTATION_PLAN.md**: Target < 400 lines (archive completed phases)
 

@@ -107,6 +107,7 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 
 - Implementation: `vultron/api/v2/backend/handlers.py`
 - Implementation: (Future) `vultron/api/v2/backend/outbox.py`
+- Related Spec: [outbox.md](outbox.md)
 - Tests: `test/api/v2/backend/test_response_generation.py`
 - Related Spec: [inbox-endpoint.md](inbox-endpoint.md)
 - Related Spec: [handler-protocol.md](handler-protocol.md)

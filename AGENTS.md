@@ -521,6 +521,9 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **Data Layer**: `vultron/api/v2/datalayer/abc.py` - Persistence abstraction
 - **TinyDB Backend**: `vultron/api/v2/datalayer/tinydb.py` - TinyDB
   implementation
+- **BT Bridge**: `vultron/behaviors/bridge.py` - Handler-to-BT execution adapter
+- **BT Helpers**: `vultron/behaviors/helpers.py` - DataLayer-aware BT nodes
+- **BT Report**: `vultron/behaviors/report/` - Report validation tree and nodes
 
 ### Specification Quick Links
 
@@ -599,6 +602,7 @@ The `specs/` directory contains testable requirements. Key specifications:
 3. **Quality and observability**:
    - `error-handling.md`: Exception hierarchy
    - `response-format.md`: Response activity generation
+   - `outbox.md`: Outbox population and delivery
    - `observability.md`: Health checks and monitoring
    - `testability.md`: Test coverage requirements
    - `code-style.md`: Code formatting and organization
@@ -735,6 +739,30 @@ dispatchable = DispatchActivity(semantic_type=MessageSemantics.CREATE_REPORT, ..
 ```
 
 See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
+
+### When to Use Behavior Trees
+
+Not all handlers need BT execution. Use this guide when deciding:
+
+**Use BTs** (complex orchestration):
+
+- Multiple conditional branches in the workflow
+- State machine transitions (RM/EM/CS state changes with preconditions)
+- Policy injection needed (e.g., pluggable validation rules)
+- Workflow composition (reuse subtrees across handlers)
+- Reference implementations for CVD protocol documentation alignment
+
+**Use procedural code** (simple workflows):
+
+- Simple CRUD operations (ack_report, close_report)
+- Linear workflows with 3–5 steps and no branching
+- Single database read/write operations
+- Logging-only or passthrough operations
+
+**Uncertain?** Start procedural; refactor to BT if branching complexity grows.
+
+See `specs/behavior-tree-integration.md` for BT integration requirements and
+`plan/IMPLEMENTATION_NOTES.md` for Phase BT-1 lessons.
 
 ### BT Blackboard Key Naming
 
