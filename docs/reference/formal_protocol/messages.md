@@ -250,6 +250,6 @@ For convenience, we collected these into the table below.
                     ET,EK,EE,CV,CF,CD,CP,\\
                     CX,CA,CK,CE,GI,GK,GE\\
             \end{array}
-            \right\}\textrm{ where $i \neq j$; $\varnothing$ otherwise; for $i,j \leq N$}$$
+            \right\}\text{ where } i \neq j \text{; } \varnothing \text{ otherwise; for } i,j \leq N$$
 
 Message *formats* are left as [future work](../../topics/future_work/index.md).
