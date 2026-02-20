@@ -28,11 +28,11 @@ sequenceDiagram
     note over B: Consider offer
     activate B
     alt Accept Offer
-        B -->> A: Accept(object=Case, inReplyTo=Offer)
+        B -->> A: Accept(object=Offer)
         A ->> C: Update(object=Case)
         note over C: Case has new owner
     else Reject Offer
-        B -->> A: Reject(object=Case, inReplyTo=Offer)
+        B -->> A: Reject(object=Offer)
         note over C: Case ownership unchanged
     end
     deactivate B

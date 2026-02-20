@@ -535,10 +535,10 @@ def accept_case_ownership_transfer() -> AcceptCaseOwnershipTransfer:
     _case = case()
     _coordinator = _COORDINATOR
     _vendor = vendor()
+    _offer = offer_case_ownership_transfer()
     _activity = AcceptCaseOwnershipTransfer(
         actor=_coordinator.as_id,
-        object=_case,
-        origin=_vendor.as_id,
+        object=_offer,
         content=f"We're accepting your offer to transfer ownership of case {_case.name} to us.",
     )
     return _activity
@@ -561,10 +561,10 @@ def reject_case_ownership_transfer() -> RejectCaseOwnershipTransfer:
     _case = case()
     _coordinator = _COORDINATOR
     _vendor = vendor()
+    _offer = offer_case_ownership_transfer()
     _activity = RejectCaseOwnershipTransfer(
         actor=_coordinator.as_id,
-        object=_case,
-        origin=_vendor.as_id,
+        object=_offer,
         content=f"We're declining your offer to transfer ownership of case {_case.name} to us.",
     )
     return _activity
@@ -650,11 +650,11 @@ def accept_invite_to_case() -> RmAcceptInviteToCase:
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _case = case()
+    _invite = rm_invite_to_case()
     _activity = RmAcceptInviteToCase(
         actor=_coordinator.as_id,
-        object=_case.as_id,
+        object=_invite,
         to=_vendor.as_id,
-        in_reply_to=rm_invite_to_case().as_id,
         content=f"We're accepting your invitation to participate in {_case.name}.",
     )
     return _activity
@@ -664,11 +664,11 @@ def reject_invite_to_case() -> RmRejectInviteToCase:
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _case = case()
+    _invite = rm_invite_to_case()
     _activity = RmRejectInviteToCase(
         actor=_coordinator.as_id,
-        object=_case.as_id,
+        object=_invite,
         to=_vendor.as_id,
-        in_reply_to=rm_invite_to_case().as_id,
         content=f"Thanks for the invitation, but we're declining to participate in {_case.name}.",
     )
     return _activity

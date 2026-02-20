@@ -4,6 +4,49 @@ Longer-term notes can be found in `/notes/*.md`. This file is ephemeral
 and will be reset periodically, so it's meant to capture more immediate 
 insights, issues, and learnings during the implementation process.
 
+## 2026-02-20 — "Accept the offer" model/doc fixes
+
+Corrected a systematic inconsistency where Accept/Reject responses were
+modelled with `object=<offered-thing>` + `in_reply_to=<offer>`. The correct
+ActivityStreams pattern is `object=<offer>` (you accept/reject the offer
+activity itself, not what was offered).
+
+### What changed
+
+**Models** (`vultron/as_vocab/activities/case.py`):
+- `RmInviteToCase`: `as_object` re-typed from `VulnerabilityCaseRef` →
+  `as_ActorRef` (actor being invited); added `target: VulnerabilityCaseRef`.
+- `RmAcceptInviteToCase`: dropped redundant `in_reply_to`; added
+  `as_object: RmInviteToCaseRef`.
+- `RmRejectInviteToCase`: same fix as Accept.
+- `AcceptCaseOwnershipTransfer`: `as_object` re-typed to
+  `OfferCaseOwnershipTransfer | str | None`; removed redundant `in_reply_to`.
+- `RejectCaseOwnershipTransfer`: same fix as Accept.
+
+**Vocab examples** (`vultron/scripts/vocab_examples.py`):
+- `accept_invite_to_case()` / `reject_invite_to_case()`: `object` is now
+  the `RmInviteToCase` activity; `in_reply_to` removed.
+- `accept_case_ownership_transfer()` / `reject_case_ownership_transfer()`:
+  `object` is now the `OfferCaseOwnershipTransfer` activity; `origin` removed.
+
+**Docs** (sequence diagrams updated):
+- `invite_actor.md`: `Accept(object=Invite)` / `Reject(object=Invite)`;
+  `Invite` now shows full signature `Invite(actor=CaseOwner, object=Actor,
+  target=Case)`.
+- `transfer_ownership.md`: `Accept(object=Offer)` / `Reject(object=Offer)`.
+- `suggest_actor.md`: same pattern for the inner Invite/Accept/Reject.
+
+**Tests**: updated `test_vocab_examples.py` assertions to match new structure.
+
+### Deferred: embargo Accept/Reject
+
+`EmAcceptEmbargo` and `EmRejectEmbargo` in `embargo.py` have the same issue:
+`as_object: EmbargoEventRef` should become `as_object: EmProposeEmbargoRef`.
+The embargo flow also involves `ChoosePreferredEmbargo` (a Question type),
+making the semantics more nuanced. Deferring to BT-5 implementation.
+
+---
+
 ## 2026-02-20 — Bug fix: `VulnerabilityCase.set_embargo()` (BUGS.md HIGH priority)
 
 Added `current_status` property to `VulnerabilityCase` returning the most-recent

@@ -420,42 +420,24 @@ class TestVocabExamples(unittest.TestCase):
     def test_accept_case_ownership_transfer(self):
         activity = examples.accept_case_ownership_transfer()
         self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
         coordinator = examples.coordinator()
-        case = examples.case()
 
         self.assertIsInstance(activity, as_Accept)
         self.assertEqual(activity.as_type, "Accept")
 
         self.assertEqual(activity.actor, coordinator.as_id)
-        self.assertEqual(activity.origin, vendor.as_id)
-
-        for k, v in activity.as_object.to_dict().items():
-            # skip list fields because they aren't always identical
-            if isinstance(v, list):
-                continue
-
-            self.assertEqual(v, case.to_dict()[k])
+        self.assertIsInstance(activity.as_object, as_Offer)
 
     def test_reject_case_ownership_transfer(self):
         activity = examples.reject_case_ownership_transfer()
         self.assertIsInstance(activity, as_Activity)
-        vendor = examples.vendor()
         coordinator = examples.coordinator()
-        case = examples.case()
 
         self.assertIsInstance(activity, as_Reject)
         self.assertEqual(activity.as_type, "Reject")
 
         self.assertEqual(activity.actor, coordinator.as_id)
-        self.assertEqual(activity.origin, vendor.as_id)
-
-        for k, v in activity.as_object.to_dict().items():
-            # skip list fields because they aren't always identical
-            if isinstance(v, list):
-                continue
-
-            self.assertEqual(v, case.to_dict()[k])
+        self.assertIsInstance(activity.as_object, as_Offer)
 
     def test_update_case(self):
         activity = examples.update_case()
@@ -540,7 +522,6 @@ class TestVocabExamples(unittest.TestCase):
         activity = examples.accept_invite_to_case()
         self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
-        case = examples.case()
         coordinator = examples.coordinator()
         invite = examples.rm_invite_to_case()
 
@@ -548,15 +529,13 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.as_type, "Accept")
 
         self.assertEqual(activity.actor, coordinator.as_id)
-        self.assertEqual(activity.as_object, case.as_id)
+        self.assertEqual(activity.as_object.as_id, invite.as_id)
         self.assertEqual(activity.to, vendor.as_id)
-        self.assertEqual(activity.in_reply_to, invite.as_id)
 
     def test_reject_invite_to_case(self):
         activity = examples.reject_invite_to_case()
         self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
-        case = examples.case()
         coordinator = examples.coordinator()
         invite = examples.rm_invite_to_case()
 
@@ -564,9 +543,8 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.as_type, "Reject")
 
         self.assertEqual(activity.actor, coordinator.as_id)
-        self.assertEqual(activity.as_object, case.as_id)
+        self.assertEqual(activity.as_object.as_id, invite.as_id)
         self.assertEqual(activity.to, vendor.as_id)
-        self.assertEqual(activity.in_reply_to, invite.as_id)
 
     def test_create_participant(self):
         activity = examples.create_participant()

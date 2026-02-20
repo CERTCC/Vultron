@@ -169,32 +169,35 @@ class OfferCaseOwnershipTransfer(as_Offer):
 class AcceptCaseOwnershipTransfer(as_Accept):
     """The actor is accepting an offer to transfer ownership of the case.
 
-    - as_object: VulnerabilityCase
-    - in_reply_to: the original offer
+    - as_object: the OfferCaseOwnershipTransfer being accepted
     """
 
-    as_object: VulnerabilityCaseRef = Field(None, alias="object")
-    in_reply_to: OfferCaseOwnershipTransfer | str | None = None
+    as_object: OfferCaseOwnershipTransfer | str | None = Field(
+        None, alias="object"
+    )
 
 
 class RejectCaseOwnershipTransfer(as_Reject):
     """The actor is rejecting an offer to transfer ownership of the case.
-    as_object: VulnerabilityCase
-    context: the original offer
+
+    - as_object: the OfferCaseOwnershipTransfer being rejected
     """
 
-    as_object: VulnerabilityCaseRef = Field(None, alias="object")
-    in_reply_to: OfferCaseOwnershipTransfer | str | None = None
+    as_object: OfferCaseOwnershipTransfer | str | None = Field(
+        None, alias="object"
+    )
 
 
 class RmInviteToCase(as_Invite):
     """The actor is inviting another actor to a case.
     This corresponds to the Vultron Message Type RS when a case already exists.
     See also RmSubmitReport for the scenario when a case does not exist yet.
-    as_object: VulnerabilityCase
+    as_object: the Actor being invited
+    target: VulnerabilityCase
     """
 
-    as_object: VulnerabilityCaseRef = Field(None, alias="object")
+    as_object: as_ActorRef = Field(None, alias="object")
+    target: VulnerabilityCaseRef = None
 
 
 RmInviteToCaseRef: TypeAlias = ActivityStreamRef[RmInviteToCase]
@@ -204,11 +207,10 @@ class RmAcceptInviteToCase(as_Accept):
     """The actor is accepting an invitation to a case.
     This corresponds to the Vultron Message Type RV when the case already exists.
     See also RmValidateReport for the scenario when the case does not exist yet.
-    as_object: VulnerabilityCase
-    in_reply_to: RmInviteToCase
+    as_object: the RmInviteToCase being accepted
     """
 
-    in_reply_to: RmInviteToCaseRef = None
+    as_object: RmInviteToCaseRef = Field(None, alias="object")
 
 
 class RmRejectInviteToCase(as_Reject):
@@ -216,8 +218,7 @@ class RmRejectInviteToCase(as_Reject):
     This corresponds to the Vultron Message Type RI when the case already exists.
     See also RmInvalidateReport for the scenario when the case does not exist yet.
 
-    `as_object`: `VulnerabilityCase`
-    `in_reply_to`: `RmInviteToCase`
+    `as_object`: the `RmInviteToCase` being rejected
     """
 
-    in_reply_to: RmInviteToCaseRef = None
+    as_object: RmInviteToCaseRef = Field(None, alias="object")
