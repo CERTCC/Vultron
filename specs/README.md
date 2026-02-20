@@ -125,11 +125,16 @@ Some requirements carry special tags to indicate scope or applicability:
 
 Some specifications consolidate requirements from multiple sources to create a single source of truth:
 
-- **`http-protocol.md`** consolidates HTTP requirements from `inbox-endpoint.md`, `message-validation.md`, `error-handling.md`
-- **`structured-logging.md`** consolidates logging requirements from `observability.md`, `error-handling.md`, `inbox-endpoint.md`
-- **`idempotency.md`** consolidates duplicate detection requirements from `inbox-endpoint.md`, `message-validation.md`, `handler-protocol.md`, `response-format.md`
+- **`http-protocol.md`** consolidates HTTP requirements from `inbox-endpoint.md`,
+  `message-validation.md`, `error-handling.md`, and `agentic-readiness.md`
+- **`structured-logging.md`** consolidates logging requirements from `observability.md`,
+  `error-handling.md`, `inbox-endpoint.md`
+- **`idempotency.md`** consolidates duplicate detection requirements from
+  `inbox-endpoint.md`, `message-validation.md`, `handler-protocol.md`,
+  `response-format.md`
 
-When requirements appear consolidated, the consolidating spec is the authoritative source.
+When requirements appear consolidated, the consolidating spec is the authoritative
+source.
 
 ---
 

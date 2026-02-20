@@ -86,80 +86,23 @@ Example:
 
 ### SL-01-001, SL-01-002, SL-01-003, SL-01-004
 
-```python
-# Verify log entry structure
-with caplog.at_level(logging.INFO):
-    process_activity(activity)
-    log_entry = json.loads(caplog.records[0].message)
-    assert "timestamp" in log_entry
-    assert "level" in log_entry
-    assert "component" in log_entry
-    assert "message" in log_entry
-```
+- Unit test: Log entries include `timestamp`, `level`, `component`, `message`
+  fields (use `caplog` fixture)
 
 ### SL-02-001, SL-02-002
 
-```python
-# Verify correlation IDs present
-with caplog.at_level(logging.INFO):
-    process_activity(activity)
-    assert any("activity_id" in record.message for record in caplog.records)
-    assert any("actor_id" in record.message for record in caplog.records)
-```
+- Unit test: Log entries for activity processing include `activity_id` and
+  `actor_id` fields
 
 ### SL-03-001
 
-```python
-# Test log level usage
-# Validation errors → WARNING
-# Handler exceptions → ERROR with stack trace
-```
+- Unit test: Validation errors logged at WARNING level
+- Unit test: Handler exceptions logged at ERROR level with stack trace
 
 ### SL-04-001, SL-04-002, SL-04-003, SL-04-004
 
-```python
-# Verify state transition logging
-with caplog.at_level(logging.INFO):
-    validate_report(activity)
-    assert "RECEIVED -> VALID" in caplog.text
-    assert "ValidateReport" in caplog.text
-```
-
-## Implementation Example
-
-### JSON Format (Production)
-
-```json
-{"timestamp": "2026-02-13T18:00:00.000Z", "level": "INFO", "component": "inbox", "activity_id": "urn:uuid:123", "message": "Activity received"}
-```
-
-### Key-Value Format (Development)
-
-```
-2026-02-13T18:00:00.000Z [INFO] component=inbox activity_id=urn:uuid:123 message="Activity received"
-```
-
-### Python Implementation
-
-```python
-import logging
-import json
-from datetime import datetime
-
-class StructuredFormatter(logging.Formatter):
-    def format(self, record):
-        log_entry = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "level": record.levelname,
-            "component": record.name,
-            "message": record.getMessage(),
-        }
-        if hasattr(record, "activity_id"):
-            log_entry["activity_id"] = record.activity_id
-        if hasattr(record, "actor_id"):
-            log_entry["actor_id"] = record.actor_id
-        return json.dumps(log_entry)
-```
+- Unit test: State transition log includes before state, after state, and
+  triggering event
 
 ## Related
 

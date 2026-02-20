@@ -9,7 +9,8 @@
 Consolidated HTTP protocol requirements for Vultron API v2: status codes, headers, content negotiation.
 
 **Source:** ActivityStreams 2.0 specification, HTTP/1.1 RFC 7231  
-**Consolidates:** `inbox-endpoint.md` (IE-03, IE-07), `message-validation.md` (MV-06, MV-07), `error-handling.md` (EH-06)
+**Consolidates:** `inbox-endpoint.md` (IE-03, IE-07), `message-validation.md` (MV-06,
+MV-07), `error-handling.md` (EH-06), `agentic-readiness.md` (AR-03-002)
 
 ---
 
@@ -69,30 +70,20 @@ Consolidated HTTP protocol requirements for Vultron API v2: status codes, header
 - `HTTP-07-001` `PROD_ONLY` API MAY include `X-RateLimit-Limit` header (maximum requests per window)
 - `HTTP-07-002` `PROD_ONLY` API MAY include `X-RateLimit-Remaining` header (requests remaining)
 - `HTTP-07-003` `PROD_ONLY` API MAY include `X-RateLimit-Reset` header (UTC timestamp for window reset)
+- `HTTP-07-004` `PROD_ONLY` Transient error responses (HTTP 429, 503) MUST include a `Retry-After`
+  header indicating when the client should retry
 
 ## Verification
 
 ### HTTP-01-001, HTTP-01-002, HTTP-01-003
 
-```python
-# Accept valid Content-Type
-response = client.post("/actors/test/inbox/", json=activity,
-    headers={"Content-Type": "application/activity+json"})
-assert response.status_code in [200, 202]
-
-# Reject invalid Content-Type
-response = client.post("/actors/test/inbox/", json=activity,
-    headers={"Content-Type": "application/json"})
-assert response.status_code == 415
-```
+- Integration test: POST with `application/activity+json` Content-Type → HTTP
+  202
+- Integration test: POST with `application/json` Content-Type → HTTP 415
 
 ### HTTP-02-001
 
-```python
-large_activity = {"type": "Create", "object": {"data": "x" * (1024 * 1024 + 1)}}
-response = client.post("/actors/test/inbox/", json=large_activity)
-assert response.status_code == 413
-```
+- Integration test: POST with payload > 1 MB → HTTP 413
 
 ### HTTP-03-001
 
@@ -101,25 +92,21 @@ assert response.status_code == 413
 
 ### HTTP-04-001
 
-```python
-response = client.post("/actors/test/inbox/", json=activity)
-assert "application/json" in response.headers["content-type"]
-```
+- Integration test: Response `Content-Type` header contains `application/json`
 
 ### HTTP-05-001, HTTP-05-002
 
-```python
-response = client.post("/actors/test/inbox/", json=activity,
-    headers={"X-Correlation-ID": "test-123"})
-# Verify logs contain correlation ID
-```
+- Integration test: Request with `X-Correlation-ID` header → logs contain
+  correlation ID
 
 ### HTTP-06-001, HTTP-06-002, HTTP-06-003
 
-```python
-# Measure response time with timeit
-# Verify BackgroundTasks usage for long-running processing
-```
+- Performance test: Response headers sent within 100ms of receiving request
+- Integration test: Handlers invoked via `BackgroundTasks` (not blocking HTTP)
+
+### HTTP-07-004
+
+- Integration test: HTTP 429 and 503 responses include `Retry-After` header
 
 ## FastAPI Response Serialization (SHOULD)
 
@@ -132,20 +119,6 @@ response = client.post("/actors/test/inbox/", json=activity,
     polymorphic types, or use explicit `Union` types
 
 ### HTTP-08-001 Verification
-
-```python
-# Anti-pattern: Returns only as_Base fields
-def get_object_by_key() -> as_Base:
-    return VulnerabilityCase(...)  # Case-specific fields excluded!
-
-# Correct: No type annotation allows full serialization
-def get_object_by_key():
-    return VulnerabilityCase(...)  # All fields included
-
-# Alternative: Explicit union for known types
-def get_object_by_key() -> Union[VulnerabilityCase, VulnerabilityReport, as_Actor]:
-    ...
-```
 
 - Integration test: API endpoint response contains all expected subclass fields
 - Integration test: Database content and API response content match

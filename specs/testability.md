@@ -53,35 +53,6 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
   - **Rationale**: Handler `@verify_semantics` decorators validate type; mismatched tests bypass actual code paths
   - **Verification**: Each test uses the semantic type that would be extracted from the activity
 
-### Test Data Quality Examples
-
-**Anti-pattern**:
-
-```python
-# Bad: String IDs bypass object validation
-activity = as_Create(actor="alice", object="report-1")
-dispatchable = DispatchActivity(semantic_type=MessageSemantics.UNKNOWN, ...)
-```
-
-**Best practice**:
-
-```python
-# Good: Complete object graph
-report = VulnerabilityReport(
-    as_id="https://example.org/reports/test-001",
-    name="TEST-001",
-    content="Test vulnerability"
-)
-activity = as_Create(
-    actor="https://example.org/actors/alice",
-    object=report
-)
-dispatchable = DispatchActivity(
-    semantic_type=MessageSemantics.CREATE_REPORT,
-    payload=activity
-)
-```
-
 ## Test Isolation (MUST)
 
 - `TB-06-001` Tests MUST be independent and runnable in any order

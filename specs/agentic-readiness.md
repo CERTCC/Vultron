@@ -26,33 +26,30 @@ interfaces that support agentic workflows.
 
 ## State and Workflow Transitions (SHOULD)
 
-- `AR-02-001` Resources with a `status` field SHOULD include a
+- `AR-02-001` `PROD_ONLY` Resources with a `status` field SHOULD include a
   `next_allowed_actions` list identifying valid state transitions from the
   current state
 - `AR-02-002` All valid states and state transitions for state machine
   resources MUST be documented
-- `AR-02-003` Endpoints with prerequisites MUST return a structured error with
-  `error_code: "PRECONDITION_FAILED"` when invoked out of sequence
+- `AR-02-003` `PROD_ONLY` Endpoints with prerequisites MUST return a structured
+  error using the `error` field value `"PreconditionFailedError"` when invoked
+  out of sequence
   - **Cross-reference**: `error-handling.md` EH-05-001 for error response
     format
 
-## Stable Error Codes (MUST)
+## Stable Error Types (MUST)
 
-- `AR-03-001` The API MUST maintain a documented, stable set of `error_code`
-  string values for all error conditions
-  - Agents MUST be able to branch on `error_code` without parsing the
+- `AR-03-001` The API MUST use the `error` field (per `error-handling.md`
+  EH-05-001) as a stable, machine-parseable error type identifier
+  - Agents MUST be able to branch on `error` without parsing the
     human-readable `message` field
   - **Cross-reference**: `error-handling.md` EH-05-001 for error response
     format
-- `AR-03-002` Transient errors (rate limiting, temporary unavailability) MUST
-  return HTTP 429 or 503 with a `Retry-After` header indicating when to retry
-  - **Cross-reference**: `http-protocol.md` HTTP-03-001 for status code
-    semantics
 
 ## Long-Running Operations (SHOULD)
 
-- `AR-04-001` Long-running operations SHOULD return a job or task object
-  immediately with a stable `id` and `status` field
+- `AR-04-001` `PROD_ONLY` Long-running operations SHOULD return a job or task
+  object immediately with a stable `id` and `status` field
 - `AR-04-002` `PROD_ONLY` A separate polling endpoint or webhook mechanism
   SHOULD be available to report operation completion
 
@@ -63,17 +60,12 @@ interfaces that support agentic workflows.
 
 ## Bulk Operations (MAY)
 
-- `AR-06-001` Resources that agents may need to create, update, or delete in
-  quantity MAY expose batch endpoints (e.g., `POST /v1/items/batch`)
+- `AR-06-001` `PROD_ONLY` Resources that agents may need to create, update, or
+  delete in quantity MAY expose batch endpoints (e.g., `POST /v1/items/batch`)
 
 ## Request Correlation (SHOULD)
 
-- `AR-07-001` `PROD_ONLY` The API SHOULD accept a caller-supplied `X-Request-ID`
-  header and propagate it in responses and log entries
-  - **Cross-reference**: `http-protocol.md` HTTP-05-001 for correlation ID
-    propagation
-  - **Cross-reference**: `structured-logging.md` SL-02-001 for log
-    correlation requirements
+- See `http-protocol.md` HTTP-05-001 for request correlation ID requirements.
 
 ## CLI Interface (MUST)
 
@@ -83,8 +75,8 @@ interfaces that support agentic workflows.
   (e.g., `--output json`) emitting machine-parseable JSON to stdout
 - `AR-08-003` `PROD_ONLY` CLI commands MUST exit with code `0` on success, `1` on handled
   error, and `2` on usage or argument error
-- `AR-08-004` `PROD_ONLY` CLI commands wrapping API calls MUST surface `error_code` and
-  `request_id` from API error responses in their JSON error output
+- `AR-08-004` `PROD_ONLY` CLI commands wrapping API calls MUST surface the `error`
+  field and `request_id` from API error responses in their JSON error output
 - `AR-08-005` `PROD_ONLY` Long-running CLI commands SHOULD support `--wait` / `--no-wait`
   flags; `--no-wait` returns the job object immediately
 
@@ -101,16 +93,15 @@ interfaces that support agentic workflows.
 - Unit test: Resources with `status` field include `next_allowed_actions`
 - Documentation review: State transitions documented per resource type
 
-### AR-03-001, AR-03-002 Verification
+### AR-03-001 Verification
 
-- Unit test: Structured error responses include stable `error_code` field
-- Integration test: HTTP 429 and 503 responses include `Retry-After` header
+- Unit test: Structured error responses include stable `error` field
+- Code review: `error` values are documented and stable across releases
 
 ### AR-04-001 Verification
 
 - Integration test: Long-running operation returns job ID and status
   immediately
-- Integration test: Job status endpoint returns current state
 
 ### AR-05-001 Verification
 
@@ -128,7 +119,8 @@ interfaces that support agentic workflows.
 ## Related
 
 - **Error Handling**: `specs/error-handling.md` (EH-05-001)
-- **HTTP Protocol**: `specs/http-protocol.md` (HTTP-03-001, HTTP-05-001)
+- **HTTP Protocol**: `specs/http-protocol.md` (HTTP-03-001, HTTP-05-001,
+  HTTP-07-004)
 - **Structured Logging**: `specs/structured-logging.md` (SL-02-001)
 - **Observability**: `specs/observability.md` (health check endpoints)
 - **Prototype Shortcuts**: `specs/prototype-shortcuts.md` (PROD_ONLY deferral)

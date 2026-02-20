@@ -84,40 +84,6 @@ Handler functions process DispatchActivity objects and implement protocol busine
   - **Verification**: Objects with populated fields retain data after `model_validate()` from database records
   - **Impact**: Prevents data loss when round-tripping through persistence layer
 
-### Implementation Notes
-
-**HP-08-001 - Helper Function Pattern**:
-
-```python
-# Use object_to_record() to convert Pydantic models for storage
-record = object_to_record(pydantic_model)
-dl.create("collection", record)
-```
-
-**HP-08-002 - Data Layer Update Signature**:
-
-```python
-# Anti-pattern: dl.update(object)  # Missing record parameter
-# Correct: Two-argument signature
-dl.update(object.as_id, object_to_record(object))
-```
-
-**HP-08-003 - Defensive Pydantic Validators**:
-
-```python
-@model_validator(mode="after")
-def initialize_collections(self) -> Self:
-    # Anti-pattern: Unconditional assignment
-    # self.inbox = OrderedCollection()  # Overwrites database values!
-    
-    # Correct: Check before initializing
-    if self.inbox is None:
-        self.inbox = OrderedCollection()
-    return self
-```
-
-**Rationale**: Pydantic validators with `mode="after"` execute during both object creation AND database reconstruction (`model_validate()`). Validators that create default values must check if the field is already populated to avoid overwriting data loaded from persistence. This particularly affects collection fields (lists, OrderedCollections) that handlers populate and persist.
-
 ## Verification
 
 ### HP-00-001, HP-00-002 Verification
