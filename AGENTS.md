@@ -3,13 +3,20 @@
 ## Purpose
 
 This file provides quick technical reference for AI coding agents working in
-this repository. For implementation status, lessons learned, and design
-insights, see `plan/IMPLEMENTATION_NOTES.md`.
+this repository.
+
+**See also**:
+
+- `notes/` — durable design insights (BT integration, ActivityStreams
+  semantics). These files are committed to version control and are the
+  authoritative source for design decisions.
+- `specs/project-documentation.md` — documentation structure guidance.
+
+> **Note**: `plan/IMPLEMENTATION_NOTES.md` is **ephemeral** and may be wiped
+> at any time. Do not treat it as a source of truth. Capture durable insights
+> in `notes/` or in `AGENTS.md` files instead.
 
 Agents MUST follow these rules when generating, modifying, or reviewing code.
-
-**See also**: `specs/project-documentation.md` for documentation structure
-guidance.
 
 ---
 
@@ -54,6 +61,10 @@ uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
 `472 passed, 2 xfailed in 40s`) and any short tracebacks for failures. Do NOT
 re-run to grep for counts — read the tail output directly. Do NOT use `-q` for
 the full suite; it suppresses the summary line in some terminal configurations.
+
+**Expected xfails**: The 2 `xfailed` tests in
+`test/api/test_reporting_workflow.py` use deprecated `_old_handlers` with
+import issues and are intentionally skipped. They do NOT indicate regressions.
 
 Quick pointers and gotchas:
 
@@ -166,10 +177,10 @@ include migration/compatibility notes and tests.
 This document provides guidance to AI agents working on the Vultron codebase.
 It supplements the Copilot instructions with implementation-specific advice.
 
-**Last Updated:** 2026-02-18
+**Last Updated:** 2026-02-20
 
-**For implementation status and lessons learned**, see
-`plan/IMPLEMENTATION_NOTES.md`.
+**For durable design insights**, see `notes/` directory (committed to version
+control). `plan/IMPLEMENTATION_NOTES.md` is ephemeral.
 
 ## Vultron-Specific Architecture
 
@@ -215,6 +226,7 @@ or Invite MUST:
 - Set `inReplyTo` to the ID of the Offer/Invite activity
 
 See `specs/response-format.md` RF-02-003, RF-03-003, RF-04-003, RF-08-001.
+See `notes/activitystreams-semantics.md` for detailed discussion.
 
 ---
 
@@ -423,6 +435,8 @@ requirements.
 - `specs/message-validation.md`: ActivityStreams schema validation
 - `specs/error-handling.md`: Error hierarchy and exception types
 - `specs/response-format.md`: Response activity generation
+- `specs/idempotency.md`: Duplicate detection and handler idempotency
+  (consolidates IE-10, MV-08, HP-07 idempotency requirements)
 - `specs/observability.md`: High-level observability overview (health checks)
 - `specs/testability.md`: Testing requirements and patterns
 - `specs/code-style.md`: Code formatting and import organization
@@ -557,6 +571,8 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **BT Bridge**: `vultron/behaviors/bridge.py` - Handler-to-BT execution adapter
 - **BT Helpers**: `vultron/behaviors/helpers.py` - DataLayer-aware BT nodes
 - **BT Report**: `vultron/behaviors/report/` - Report validation tree and nodes
+- **BT Prioritize**: `vultron/behaviors/report/prioritize_tree.py` -
+  engage_case/defer_case trees
 
 ### Specification Quick Links
 
@@ -571,7 +587,7 @@ When making non-trivial changes, agents SHOULD:
 
 1. Briefly state assumptions
 2. Consult relevant specifications in `specs/` for requirements
-3. Review `plan/IMPLEMENTATION_NOTES.md` for context and lessons learned
+3. Review `notes/` directory for durable design insights
 4. Describe the intended change
 5. Apply the minimal diff required
 6. Update or add tests per Testing Expectations
@@ -631,6 +647,7 @@ The `specs/` directory contains testable requirements. Key specifications:
    - `semantic-extraction.md`: Pattern matching rules
    - `dispatch-routing.md`: Handler routing
    - `handler-protocol.md`: Handler function requirements
+   - `idempotency.md`: Duplicate detection and handler idempotency
 
 3. **Quality and observability**:
    - `error-handling.md`: Exception hierarchy
@@ -699,8 +716,7 @@ If instructions are ambiguous:
 
 ## Common Pitfalls (Lessons Learned)
 
-**See `plan/IMPLEMENTATION_NOTES.md` for detailed lessons learned and debugging
-history.**
+**See `notes/` for durable design insights.**
 
 ### Circular Imports
 
@@ -795,7 +811,7 @@ Not all handlers need BT execution. Use this guide when deciding:
 **Uncertain?** Start procedural; refactor to BT if branching complexity grows.
 
 See `specs/behavior-tree-integration.md` for BT integration requirements and
-`plan/IMPLEMENTATION_NOTES.md` for BT integration lessons.
+`notes/bt-integration.md` for BT design decisions.
 
 ### py_trees Blackboard Global State
 
@@ -848,6 +864,16 @@ accessing the blackboard in `update()`.
 
 See `specs/behavior-tree-integration.md` BT-03-003.
 
+### Health Check Readiness Gap
+
+**Known gap**: The `/health/ready` endpoint in
+`vultron/api/v2/routers/health.py` currently returns `{"status": "ok"}`
+unconditionally. It does **not** check DataLayer connectivity as required by
+`specs/observability.md` OB-05-002.
+
+**When implementing readiness**: Add a DataLayer read probe (e.g., attempt a
+simple `dl.list()` call) and return HTTP 503 if it fails.
+
 ### Docker Health Check Coordination
 
 **Symptom**: Demo container fails to connect to API server with "Connection
@@ -888,7 +914,7 @@ start, not application readiness
        return False
    ```
 
-See `plan/IMPLEMENTATION_NOTES.md` Docker sections for complete context.
+See `plan/IMPLEMENTATION_NOTES.md` (if present) for complete Docker context.
 
 ### FastAPI response_model Filtering
 
