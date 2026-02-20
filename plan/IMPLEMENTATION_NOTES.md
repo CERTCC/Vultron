@@ -145,3 +145,27 @@ It's a waste of effort to maintain test counts in multiple files. It just
 makes for more work to update them and they can easily get out of sync.
 
 ---
+
+In a `VulnerabilityCase`, the `case_status` field is intended to be an 
+append-only 
+list of `CaseStatus` objects that represent the history of status changes to 
+the case. The most recent `case_status` is the one with the latest updated 
+timestamp. Items may arrive out of order, so sorting
+by timestamp is necessary to determine the current status. It is an error for
+updates to arrive from the future.
+
+Similarly for `CaseParticipant` and `ParticipantStatus`.
+
+Also note that a `ParticipantStatus` can include a `CaseStatus` object which 
+is to 
+be interpreted as the participant's view of the case status.
+For example, a participant might be reporting that they are aware of attacks 
+related to the vulnerability, which would be a participant status update that
+includes a case status update that reflects the participant's view of the case
+status as being in the ATTACKS_OBSERVED state.
+The `CaseActor` 
+might decide to update the `CaseStatus` based on a participant's view of the 
+case, whether automatically or by prompting the case owner to review the status
+update for approval before applying it to the case.
+
+---

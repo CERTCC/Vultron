@@ -14,6 +14,13 @@ silently no-ops (Python allows arbitrary attribute assignment to list
 subclasses... actually no, it raises `AttributeError` at runtime because
 `list` does not allow arbitrary attribute assignment).
 
+**Design Notes**: the `case_status` field is intended to be an append-only 
+list of `CaseStatus` objects that represent the history of status changes to 
+the case. The most recent `case_status` is the one with the latest updated 
+timestamp. Items may arrive out of order, so sorting
+by timestamp is necessary to determine the current status. It is an error for
+updates to arrive from the future.
+
 **Expected**: Update `em_state` on the current `CaseStatus` object.
 For example: `self.case_status[0].em_state = EM.ACTIVE` (or a helper that
 returns the current `CaseStatus`).
