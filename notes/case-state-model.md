@@ -141,6 +141,107 @@ event sequence format expected by `CVDmodel`.
 
 ---
 
+## Participant-Specific vs. Participant-Agnostic States
+
+This distinction is **vitally important** for implementation correctness. Mixing
+up which states belong to a single participant versus which states are shared
+across all participants in a case leads to incorrect modeling and protocol
+behavior.
+
+### The Split
+
+| State dimension | Participant-Specific or Agnostic? | Where tracked |
+|-----------------|----------------------------------|---------------|
+| RM state | **Participant-specific** | `ParticipantStatus.rm_state` |
+| VFD (Vendor Fix Deployment) path | **Participant-specific** (only for Vendors/Deployers) | `ParticipantStatus.vfd_state` |
+| EM (Embargo Management) state | **Participant-agnostic** (global per case) | `CaseStatus.em_state` |
+| PXA (Public/Exploit/Attack) sub-state | **Participant-agnostic** (global per case) | `CaseStatus.pxa_state` |
+
+In the Mermaid diagram from `docs/topics/process_models/model_interactions/index.md`:
+
+```
+Participant-Agnostic: EM ↔ CS_pxa
+Participant-Specific: RM ↔ CS_vfd
+```
+
+### Implementation: CaseStatus vs. ParticipantStatus
+
+The canonical Python implementation is in
+`vultron/as_vocab/objects/case_status.py`:
+
+**`CaseStatus`** — participant-agnostic, one per case:
+- `em_state: EM` — Embargo management state (default `EM.NO_EMBARGO`)
+- `pxa_state: CS_pxa` — Public/exploit/attack sub-state (default `CS_pxa.pxa`)
+- `context` — references the `VulnerabilityCase` this status belongs to
+
+**`ParticipantStatus`** — participant-specific, one per (actor × case) pair:
+- `rm_state: RM` — Report management state (default `RM.START`)
+- `vfd_state: CS_vfd` — Vendor fix path sub-state (default `CS_vfd.vfd`)
+- `actor` — references the participant Actor
+- `context` — references the `VulnerabilityCase`
+- `case_engagement: bool` — whether participant is engaged
+- `embargo_adherence: bool` — whether participant respects the embargo
+- `tracking_id: str | None` — participant's local tracking ID for the case
+- `case_status: CaseStatus | None` — optionally embeds the shared case status
+
+Note that `ParticipantStatus` MAY embed a `CaseStatus` for convenience when
+presenting the full participant state as a triple `(rm_state, vfd_state,
+case_status)`, corresponding to the formal protocol's participant state tuple
+`(q^rm, q^em, q^cs)`.
+
+### Role-Specific VFD Access
+
+Not all participants have a VFD state:
+
+- **Vendors**: Have `vfd_state` in `{Vfd, VFd, VFD}` (plus `VFD` only if they
+  also deploy). They enter at `Vfd` (vendor aware) by definition.
+- **Non-Vendor Deployers**: Have `vfd_state` only for the `d → D` transition.
+- **Finders, Reporters, Coordinators**: Do NOT have VFD state. Use the null
+  element `∅` (represented as `CS_vfd.vfd` but semantically "not applicable"
+  for non-vendors — see `vultron/case_states/states.py`).
+
+### Consequence for Handler Implementation
+
+When handlers process incoming Activities:
+
+- **RM state transitions** (e.g., `engage_case`, `defer_case`):
+  Update `ParticipantStatus.rm_state` for the **sending actor's**
+  `CaseParticipant`.
+- **VFD transitions** (e.g., a vendor signaling fix readiness):
+  Update `ParticipantStatus.vfd_state` for the **sending actor's**
+  `CaseParticipant`.
+- **EM transitions** (e.g., `accept_embargo`):
+  Update `CaseStatus.em_state` — this is **shared** and affects all
+  participants.
+- **PXA transitions** (e.g., public disclosure, exploit publication):
+  Update `CaseStatus.pxa_state` — this is **shared** state of the world.
+
+Getting this wrong — e.g., updating `CaseStatus.em_state` with a
+participant-specific value, or forgetting to scope RM updates to the correct
+participant — would produce incorrect case state representations.
+
+### Key Reference Documents
+
+The following documents explain this distinction in depth and MUST be
+consulted when implementing state-related handlers or BT nodes:
+
+- `docs/topics/process_models/model_interactions/index.md` — canonical
+  explanation of the participant-agnostic vs. participant-specific split
+- `docs/howto/activitypub/objects.md` — how objects are structured in the
+  ActivityStreams vocabulary
+- `docs/howto/case_object.md` — case object design (note: predates
+  ActivityStreams; see "Documentation vs. Implementation Gap" section above)
+- `docs/topics/behavior_logic/msg_cs_bt.md` — behavior tree logic for CS
+  message handling
+- `docs/topics/process_models/cs/index.md` — CS model overview
+- `docs/topics/process_models/cs/model_definition.md` — formal CS model
+  definition
+- `docs/reference/formal_protocol/states.md` — formal state space for each
+  participant role (Vendor, Deployer, Finder/Reporter, Coordinator, Other)
+- `docs/reference/formal_protocol/conclusion.md` — protocol design conclusions
+
+---
+
 ## RM and EM State Machines (Cross-Reference)
 
 Case State (CS) is one of three interacting state machines:
