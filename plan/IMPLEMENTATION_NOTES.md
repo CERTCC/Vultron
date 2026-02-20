@@ -94,3 +94,34 @@ called `demo.main()` (all 3 demos), totalling 6 demo runs and ~24s wall time.
 
 ---
 
+
+## 2026-02-20: BT-3 — Case Management Handlers COMPLETE
+
+**BT-3.1 (create_case BT handler)**:
+- Added `vultron/behaviors/case/` package with `nodes.py` and `create_tree.py`.
+- `CreateCaseBT` follows the same Selector pattern as `ValidateReportBT`:
+  - First child: `CheckCaseAlreadyExists` returns SUCCESS if case already in
+    DataLayer (idempotency early exit per ID-04-004).
+  - Second child: `CreateCaseFlow` Sequence — validate → persist → CaseActor
+    → emit activity → update outbox.
+- Idempotency naming: used `CheckCaseAlreadyExists` (SUCCESS when case exists)
+  rather than `CheckCaseNotExists` from the plan because the Selector pattern
+  requires the early-exit node to return SUCCESS on the already-done condition.
+- `CreateCaseActorNode` creates the CaseActor with `context=case_id` and
+  `attributed_to=actor_id` per CM-02-001.
+- `execute_with_setup` called with `activity=None` when activity is not needed
+  by any node in the tree (case and actor data carried via constructor args).
+
+**BT-3.2 (add_report_to_case procedural)**:
+- Rehydrates both report and case from the Add activity payload.
+- Idempotency: checks existing `vulnerability_reports` before appending.
+
+**BT-3.3 (close_case procedural)**:
+- Handles Leave(VulnerabilityCase) by creating an RmCloseCase activity.
+- Idempotent: catches `ValueError` on duplicate activity creation.
+- Outbox update skipped gracefully if actor has no outbox attribute.
+
+**Tests**: 8 new tests in `test/behaviors/case/test_create_tree.py`.
+Total: 483 passed (was 474), 2 xfailed.
+
+---

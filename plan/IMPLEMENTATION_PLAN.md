@@ -466,36 +466,36 @@ handlers in this phase MUST comply with CM-04 scoping rules.
 but note: no `_behaviors/` subdirectory exists for case state — implement
 fresh using case_state conditions/transitions as reference.
 
-#### BT-3.1: `create_case` handler (BT-powered)
+#### BT-3.1: `create_case` handler (BT-powered) ✅ COMPLETE
 
-- [ ] Implement `vultron/behaviors/case/` directory with `__init__.py`
-- [ ] Implement `vultron/behaviors/case/create_tree.py`
-  - Sequence: **check case doesn't already exist** (idempotency — ID-04-004) →
-    validate case object → persist VulnerabilityCase to DataLayer →
-    create CaseActor (Service) → emit CreateCase activity → update outbox
-  - Reuse CaseActor creation pattern from `validate_report` BT
-- [ ] Implement BT nodes in `vultron/behaviors/case/nodes.py`:
-  - `CheckCaseNotExists`: idempotency guard — returns early if case already in DataLayer
+- [x] Implement `vultron/behaviors/case/` directory with `__init__.py`
+- [x] Implement `vultron/behaviors/case/create_tree.py`
+  - Selector: CheckCaseAlreadyExists (idempotency early exit) OR
+    CreateCaseFlow Sequence (validate → persist → CaseActor → emit → outbox)
+- [x] Implement BT nodes in `vultron/behaviors/case/nodes.py`:
+  - `CheckCaseAlreadyExists`: idempotency guard — SUCCESS if case already in DataLayer
   - `ValidateCaseObject`: check required fields on incoming case
   - `PersistCase`: create VulnerabilityCase in DataLayer (CM-02-001)
-  - `CreateCaseActorNode`: create CaseActor service in DataLayer (CM-02-001, BT-10-002)
-  - `EmitCreateCaseActivity`: generate `as:Create(VulnerabilityCase)` for outbox
-- [ ] Refactor `create_case` handler in `handlers.py` to use BT
-- [ ] Add `test/behaviors/case/test_create_tree.py`
+  - `CreateCaseActorNode`: create CaseActor service in DataLayer (CM-02-001)
+  - `EmitCreateCaseActivity`: generate `CreateCase` activity for outbox
+  - `UpdateActorOutbox`: append activity to actor outbox
+- [x] Refactor `create_case` handler in `handlers.py` to use BT
+- [x] Add `test/behaviors/case/test_create_tree.py` (8 tests)
 
-#### BT-3.2: `add_report_to_case` handler (procedural — simpler)
+#### BT-3.2: `add_report_to_case` handler (procedural — simpler) ✅ COMPLETE
 
-- [ ] Implement `add_report_to_case` handler:
+- [x] Implement `add_report_to_case` handler:
   - Rehydrate case and report from payload
-  - Append report ID to `case.vulnerability_reports` list
+  - Append report ID to `case.vulnerability_reports` list (idempotent check)
   - Persist updated case via `dl.update(case_id, object_to_record(case))`
   - Log state transition at INFO level
 
-#### BT-3.3: `close_case` handler (procedural)
+#### BT-3.3: `close_case` handler (procedural) ✅ COMPLETE
 
-- [ ] Implement `close_case` handler:
-  - Update case status to CLOSED
-  - Emit `RmCloseCase` activity to outbox
+- [x] Implement `close_case` handler:
+  - Rehydrate actor and case from Leave(VulnerabilityCase) payload
+  - Create RmCloseCase activity and persist to DataLayer
+  - Update actor outbox; idempotent on duplicate activity
   - Log at INFO level
 
 #### BT-3.4: `engage_case` / `defer_case` mapping ✅ COMPLETE (done in BT-2.1)
