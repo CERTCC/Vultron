@@ -137,12 +137,11 @@ When requirements appear consolidated, the consolidating spec is the authoritati
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-02-18)**:
+**Summary (2026-02-20)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing, handler protocol, data layer
 - ✅ **6/36 handlers complete**: Report workflow (create, submit, validate, invalidate, ack, close)
-- ✅ **BT integration Phase BT-1 complete**: See `behavior-tree-integration.md`
-  and `plan/IMPLEMENTATION_NOTES.md`
+- ✅ **BT integration Phases BT-1 and BT-2.1 complete**: See `behavior-tree-integration.md`
 - ⚠️ **Production readiness partial**: Request validation, error responses need work
 - ❌ **Response generation not started**: See `response-format.md`
 

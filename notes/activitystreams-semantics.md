@@ -106,6 +106,30 @@ RF-08-001.
 
 ---
 
+## Vocabulary Examples as Canonical Reference
+
+The file `vultron/scripts/vocab_examples.py` contains canonical examples of
+every Vultron ActivityStreams activity type. These examples serve as:
+
+- **Documentation**: Illustrate the expected structure for each message type.
+- **Pattern-matching reference**: Show which `(Activity Type, Object Type)`
+  pairs correspond to each `MessageSemantics` enum value.
+- **Test fixtures**: Provide well-formed activity structures for unit tests
+  against `vultron/activity_patterns.py` and handlers.
+
+When implementing or testing a new handler, consult `vocab_examples.py` first
+to understand the expected activity structure before looking at the pattern
+definitions in `vultron/activity_patterns.py`.
+
+The examples MUST be kept up to date as the vocabulary evolves. When adding a
+new vocabulary type or message semantic, add a corresponding example to
+`vocab_examples.py`.
+
+**Cross-references**: `vultron/activity_patterns.py`, `vultron/enums.py`,
+`vultron/as_vocab/`.
+
+---
+
 ## Rehydration Before Pattern Matching
 
 ActivityStreams allows both inline objects and URI string references in

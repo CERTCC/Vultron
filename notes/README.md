@@ -10,7 +10,7 @@ implementation evolves.
 | File | Topics |
 |------|--------|
 | `bt-integration.md` | Behavior tree design decisions, py_trees patterns, simulation-to-prototype strategy |
-| `activitystreams-semantics.md` | Activity model, state-change notification semantics, response conventions |
+| `activitystreams-semantics.md` | Activity model, state-change notification semantics, response conventions, vocabulary examples |
 
 ## Conventions
 

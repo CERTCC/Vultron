@@ -12,10 +12,6 @@ this repository.
   authoritative source for design decisions.
 - `specs/project-documentation.md` — documentation structure guidance.
 
-> **Note**: `plan/IMPLEMENTATION_NOTES.md` is **ephemeral** and may be wiped
-> at any time. Do not treat it as a source of truth. Capture durable insights
-> in `notes/` or in `AGENTS.md` files instead.
-
 Agents MUST follow these rules when generating, modifying, or reviewing code.
 
 ---
@@ -179,8 +175,7 @@ It supplements the Copilot instructions with implementation-specific advice.
 
 **Last Updated:** 2026-02-20
 
-**For durable design insights**, see `notes/` directory (committed to version
-control). `plan/IMPLEMENTATION_NOTES.md` is ephemeral.
+**For durable design insights**, see the `notes/` directory.
 
 ## Vultron-Specific Architecture
 
@@ -423,30 +418,17 @@ requirements.
 
 ### Key Specifications
 
-- `specs/meta-specifications.md`: How to read and write specs
-- `specs/handler-protocol.md`: Handler function requirements
-- `specs/semantic-extraction.md`: Pattern matching rules
-- `specs/dispatch-routing.md`: Dispatcher requirements
-- `specs/inbox-endpoint.md`: Endpoint behavior
-- `specs/http-protocol.md`: HTTP status codes, Content-Type, headers
-  (consolidates parts of inbox-endpoint, message-validation, error-handling)
-- `specs/structured-logging.md`: Log format, levels, correlation IDs, audit
-  trail (consolidates parts of observability, error-handling)
-- `specs/message-validation.md`: ActivityStreams schema validation
-- `specs/error-handling.md`: Error hierarchy and exception types
-- `specs/response-format.md`: Response activity generation
-- `specs/idempotency.md`: Duplicate detection and handler idempotency
-  (consolidates IE-10, MV-08, HP-07 idempotency requirements)
-- `specs/observability.md`: High-level observability overview (health checks)
-- `specs/testability.md`: Testing requirements and patterns
-- `specs/code-style.md`: Code formatting and import organization
-- `specs/project-documentation.md`: Documentation file structure and purpose
+See `specs/README.md` for the full index organized by topic. Key groups:
+
+- **Cross-cutting**: `http-protocol.md`, `structured-logging.md`,
+  `idempotency.md`, `error-handling.md`
+- **Handler pipeline**: `inbox-endpoint.md`, `message-validation.md`,
+  `semantic-extraction.md`, `dispatch-routing.md`, `handler-protocol.md`
+- **Quality**: `testability.md`, `observability.md`, `code-style.md`
+- **BT integration**: `behavior-tree-integration.md`
 
 **Note**: Some specs consolidate requirements from multiple sources; check file
-headers for cross-references.
-
-When implementing features, consult relevant specs for complete requirements and
-verification criteria.
+headers for cross-references. Consolidated specs take precedence.
 
 ### Test Coverage Requirements
 
@@ -573,6 +555,11 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **BT Report**: `vultron/behaviors/report/` - Report validation tree and nodes
 - **BT Prioritize**: `vultron/behaviors/report/prioritize_tree.py` -
   engage_case/defer_case trees
+- **Vocabulary Examples**: `vultron/scripts/vocab_examples.py` - Canonical
+  ActivityStreams activity examples; use as reference for message semantics
+  and as test fixtures for pattern matching
+- **Case States**: `vultron/case_states/` - RM/EM/CS state machine enums and
+  patterns; use as reference for valid state transitions and preconditions
 
 ### Specification Quick Links
 
@@ -630,32 +617,6 @@ git add -A && git commit -m "Same message"
 ---
 
 ## Specification Usage Guidance
-
-### Key Specifications
-
-The `specs/` directory contains testable requirements. Key specifications:
-
-1. **Cross-cutting concerns** (reference these first):
-   - `http-protocol.md`: HTTP status codes, Content-Type, size limits
-   - `structured-logging.md`: Log format, correlation IDs, log levels
-   - `meta-specifications.md`: How to read and write specs
-   - `project-documentation.md`: Documentation file structure
-
-2. **Message processing pipeline**:
-   - `inbox-endpoint.md`: FastAPI endpoint behavior
-   - `message-validation.md`: Activity validation rules
-   - `semantic-extraction.md`: Pattern matching rules
-   - `dispatch-routing.md`: Handler routing
-   - `handler-protocol.md`: Handler function requirements
-   - `idempotency.md`: Duplicate detection and handler idempotency
-
-3. **Quality and observability**:
-   - `error-handling.md`: Exception hierarchy
-   - `response-format.md`: Response activity generation
-   - `outbox.md`: Outbox population and delivery
-   - `observability.md`: Health checks and monitoring
-   - `testability.md`: Test coverage requirements
-   - `code-style.md`: Code formatting and organization
 
 ### Reading Specifications
 
@@ -920,7 +881,9 @@ start, not application readiness
        return False
    ```
 
-See `plan/IMPLEMENTATION_NOTES.md` (if present) for complete Docker context.
+The pitfall above is self-contained. The three-layer solution (Docker health
+check, `condition: service_healthy`, and client retry) is the recommended
+pattern for any demo or integration test setup.
 
 ### FastAPI response_model Filtering
 
@@ -997,14 +960,6 @@ MV-08-001, `inbox-endpoint.md` IE-10-001.
 
 ---
 
-## Running demo server
-
-To run the demo server:
-
-```bash
-uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
-```
-
 ## Miscellaneous tips
 
 Do not use `black` to format markdown files, it is for python files only.
@@ -1018,10 +973,11 @@ has the same rules but no ignores:
 markdownlint-cli2 "docs/**/*.md" --fix
 
 # Lint AGENTS.md and specs/** — must run from /tmp to bypass local config discovery
+REPO=$(git rev-parse --show-toplevel)
 cd /tmp && markdownlint-cli2 \
-  --config /Users/adh/Documents/git/vultron_pub/strict.markdownlint-cli2.yaml \
-  /Users/adh/Documents/git/vultron_pub/AGENTS.md \
-  "/Users/adh/Documents/git/vultron_pub/specs/**/*.md" --fix
+  --config "${REPO}/strict.markdownlint-cli2.yaml" \
+  "${REPO}/AGENTS.md" \
+  "${REPO}/specs/**/*.md" --fix
 ```
 
 The `strict.markdownlint-cli2.yaml` file at the repo root contains the same

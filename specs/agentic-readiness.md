@@ -77,15 +77,15 @@ interfaces that support agentic workflows.
 
 ## CLI Interface (MUST)
 
-- `AR-08-001` The CLI MUST be installable as a Python package entry point
+- `AR-08-001` `PROD_ONLY` The CLI MUST be installable as a Python package entry point
   defined in `pyproject.toml`
-- `AR-08-002` Every CLI command MUST support a structured JSON output mode
+- `AR-08-002` `PROD_ONLY` Every CLI command MUST support a structured JSON output mode
   (e.g., `--output json`) emitting machine-parseable JSON to stdout
-- `AR-08-003` CLI commands MUST exit with code `0` on success, `1` on handled
+- `AR-08-003` `PROD_ONLY` CLI commands MUST exit with code `0` on success, `1` on handled
   error, and `2` on usage or argument error
-- `AR-08-004` CLI commands wrapping API calls MUST surface `error_code` and
+- `AR-08-004` `PROD_ONLY` CLI commands wrapping API calls MUST surface `error_code` and
   `request_id` from API error responses in their JSON error output
-- `AR-08-005` Long-running CLI commands SHOULD support `--wait` / `--no-wait`
+- `AR-08-005` `PROD_ONLY` Long-running CLI commands SHOULD support `--wait` / `--no-wait`
   flags; `--no-wait` returns the job object immediately
 
 ## Verification
@@ -120,10 +120,10 @@ interfaces that support agentic workflows.
 
 ### AR-08-001, AR-08-002, AR-08-003 Verification
 
-- Integration test: CLI entry point installed and executable via
+- `PROD_ONLY` Integration test: CLI entry point installed and executable via
   `pyproject.toml`
-- Integration test: `--output json` produces valid JSON on stdout
-- Integration test: CLI exit codes match specification
+- `PROD_ONLY` Integration test: `--output json` produces valid JSON on stdout
+- `PROD_ONLY` Integration test: CLI exit codes match specification
 
 ## Related
 
