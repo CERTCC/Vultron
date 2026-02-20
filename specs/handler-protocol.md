@@ -8,6 +8,13 @@ Handler functions process DispatchActivity objects and implement protocol busine
 
 ---
 
+## Protocol Semantics (MUST)
+
+- `HP-00-001` Handlers MUST interpret received activities as assertions about the
+  sender's state, not as commands to perform work
+- `HP-00-002` Handlers MUST update local RM/EM/CS state to reflect the state
+  transition asserted by the received activity
+
 ## Handler Signature (MUST)
 
 - `HP-01-001` All handler functions MUST accept a single DispatchActivity parameter
@@ -112,6 +119,11 @@ def initialize_collections(self) -> Self:
 **Rationale**: Pydantic validators with `mode="after"` execute during both object creation AND database reconstruction (`model_validate()`). Validators that create default values must check if the field is already populated to avoid overwriting data loaded from persistence. This particularly affects collection fields (lists, OrderedCollections) that handlers populate and persist.
 
 ## Verification
+
+### HP-00-001, HP-00-002 Verification
+
+- Integration test: Handler receiving RM state-transition activity updates local RM state
+- Code review: Handlers do not issue work requests back to activity sender
 
 ### HP-01-001, HP-01-002 Verification
 

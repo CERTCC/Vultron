@@ -192,6 +192,32 @@ before general ones.
 See `specs/dispatch-routing.md`, `specs/semantic-extraction.md`, and ADR-0007
 for complete architecture details.
 
+### Protocol Activity Model
+
+Vultron activities are **state-change notifications**, not commands.
+
+**Inbound activities** (in an actor's inbox) declare that the sender completed
+a protocol-relevant state transition. When a handler processes an inbound
+activity, it MUST:
+
+- Update local RM/EM/CS state to reflect the sender's assertion
+- NOT interpret the activity as an instruction to execute work on the sender's
+  behalf
+
+**Outbound activities** (from an actor's outbox) declare that the local actor
+completed a state transition. The work causes the activity; the activity does
+not cause the work.
+
+**Response activities** (Accept, Reject, TentativeReject) in reply to an Offer
+or Invite MUST:
+
+- Set the `object` field to the Offer/Invite activity being responded to
+- Set `inReplyTo` to the ID of the Offer/Invite activity
+
+See `specs/response-format.md` RF-02-003, RF-03-003, RF-04-003, RF-08-001.
+
+---
+
 ### Handler Protocol (MANDATORY)
 
 All handler functions MUST:

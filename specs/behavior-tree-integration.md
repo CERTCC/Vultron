@@ -6,8 +6,9 @@ Handler functions may orchestrate business logic using behavior trees (BTs) for 
 
 **Source**: ADR-0002 (Use Behavior Trees), ADR-0007 (Behavior Dispatcher),
 ADR-0008 (py_trees integration)
-**Status**: Phase BT-1 COMPLETE — infrastructure, handler refactoring, demo
-validation, and documentation all done.
+**Status**: Phase BT-1 COMPLETE, Phase BT-2.1 COMPLETE — infrastructure,
+handler refactoring, demo validation, documentation, and engage_case/defer_case
+handlers done.
 
 **Note**: BT integration is **optional**. Simple handlers may use procedural
 logic. Complex workflows (report validation, case creation, embargo management)
