@@ -710,7 +710,7 @@ class CheckParticipantExists(DataLayerCondition):
                 return Status.FAILURE
 
             for participant in case_obj.case_participants:
-                actor_ref = participant.actor
+                actor_ref = participant.attributed_to
                 p_actor_id = (
                     actor_ref
                     if isinstance(actor_ref, str)
@@ -748,7 +748,7 @@ def _find_and_update_participant_rm(
         case_obj = datalayer.read(case_id, raise_on_missing=True)
 
         for participant in case_obj.case_participants:
-            actor_ref = participant.actor
+            actor_ref = participant.attributed_to
             p_actor_id = (
                 actor_ref
                 if isinstance(actor_ref, str)

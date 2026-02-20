@@ -70,7 +70,7 @@ def case_with_participant(datalayer, actor_id, actor, report):
     """Case with the test actor as a CaseParticipant."""
     participant = CaseParticipant(
         as_id="https://example.org/participants/vendor-cp-001",
-        actor=actor_id,
+        attributed_to=actor_id,
         context="https://example.org/cases/case-001",
     )
     case = VulnerabilityCase(
@@ -246,12 +246,12 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
 
     participant_a = CaseParticipant(
         as_id="https://example.org/participants/cp-a",
-        actor=actor_a,
+        attributed_to=actor_a,
         context="https://example.org/cases/case-multi",
     )
     participant_b = CaseParticipant(
         as_id="https://example.org/participants/cp-b",
-        actor=actor_b,
+        attributed_to=actor_b,
         context="https://example.org/cases/case-multi",
     )
     case = VulnerabilityCase(
@@ -268,7 +268,11 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
 
     updated_case = datalayer.read(case.as_id)
     for p in updated_case.case_participants:
-        p_actor = p.actor if isinstance(p.actor, str) else p.actor.as_id
+        p_actor = (
+            p.attributed_to
+            if isinstance(p.attributed_to, str)
+            else p.attributed_to.as_id
+        )
         latest_rm = p.participant_status[-1].rm_state
         if p_actor == actor_a:
             assert latest_rm == RM.ACCEPTED

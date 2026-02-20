@@ -125,3 +125,30 @@ called `demo.main()` (all 3 demos), totalling 6 demo runs and ~24s wall time.
 Total: 483 passed (was 474), 2 xfailed.
 
 ---
+
+---
+
+## Technical Debt: Object IDs Should Be URL-Like, Not Bare UUIDs
+
+**Context**: The `/datalayer/{key}` route and `datalayer.read(key)` use the
+object's `as_id` as the lookup key. When objects are created without an
+explicit `id`, `generate_new_id()` returns a bare UUID-4 string (e.g.,
+`2196cbb2-fb6f-407c-b473-1ed8ae806578`) rather than a full URL (e.g.,
+`https://vultron.example/participants/2196cbb2-...`).
+
+**Why bare UUIDs were used**: The initial implementation deliberately used bare
+UUIDs to avoid URL-encoding/escaping issues when using object IDs as path
+segments in API routes (a full URL contains `/` characters that would require
+percent-encoding as `%2F` in the path, or a different route design).
+
+**What should be done**: Object IDs should be proper URL-like identifiers (per
+ActivityStreams spec). The API routes should accept URL-encoded IDs or use a
+different lookup mechanism (e.g., query parameter `?id=<url>`, or base64url
+encoding the ID in the path).
+
+**Affected areas**:
+- `generate_new_id()` in `vultron/as_vocab/base/utils.py` — add a
+  `prefix` default based on object type
+- Demo scripts and tests that assert on `as_id` format
+- `/datalayer/{key}` route in `vultron/api/v2/routers/datalayer.py`
+- Any handler that constructs participant or case IDs inline

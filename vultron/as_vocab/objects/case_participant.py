@@ -18,12 +18,11 @@ Provides various CaseParticipant objects for the Vultron ActivityStreams Vocabul
 
 from __future__ import annotations
 
-from typing import TypeAlias, Literal
+from typing import TypeAlias
 
 from pydantic import Field, field_validator, field_serializer, model_validator
 
 from vultron.as_vocab.base.links import as_Link, ActivityStreamRef
-from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.registry import activitystreams_object
 from vultron.as_vocab.objects.base import VultronObject
 from vultron.as_vocab.objects.case_status import ParticipantStatus
@@ -56,7 +55,7 @@ class CaseParticipant(VultronObject):
 
         ```python
         actor = as_Actor(name="Actor Name")
-        cp = CaseParticipant(actor=actor, context="case_id_foo")
+        cp = CaseParticipant(attributed_to=actor, context="case_id_foo")
         cp.add_role(CVDRole.VENDOR)
         cp.add_role(CVDRole.DEPLOYER)
         ```
@@ -64,7 +63,6 @@ class CaseParticipant(VultronObject):
 
     as_type: VO_type = Field(default=VO_type.CASE_PARTICIPANT, alias="type")
 
-    actor: as_Actor | as_Link | str
     name: str | None = None
     case_roles: list[CVDRole] = Field(default_factory=list)
     participant_status: list[ParticipantStatus] = Field(default_factory=list)
@@ -94,19 +92,19 @@ class CaseParticipant(VultronObject):
 
     @model_validator(mode="after")
     def set_name_if_empty(self):
-        """If name is empty, set it to the actor's name if available, otherwise set it to the string representation of the actor."""
+        """If name is empty, set it to the actor's name if available, otherwise set it to the string representation of attributed_to."""
         if self.name is not None:
             # name is already set, do nothing
             return self
 
-        if self.actor is None:
-            # actor is not set, cannot set name
+        if self.attributed_to is None:
+            # attributed_to is not set, cannot set name
             return self
 
-        if hasattr(self.actor, "name"):
-            self.name = self.actor.name
+        if hasattr(self.attributed_to, "name"):
+            self.name = self.attributed_to.name
         else:
-            self.name = str(self.actor)
+            self.name = str(self.attributed_to)
 
         return self
 
@@ -120,7 +118,7 @@ class CaseParticipant(VultronObject):
         self.participant_status = [
             ParticipantStatus(
                 context=self.context,
-                actor=self.actor,
+                attributed_to=self.attributed_to,
             ),
         ]
         return self
@@ -161,7 +159,7 @@ class ReporterParticipant(CaseParticipant):
         # by definition, to be a reporter, you must have accepted the report
         pstatus = ParticipantStatus(
             context=self.context,
-            actor=self.actor,
+            attributed_to=self.attributed_to,
             rm_state=RM.ACCEPTED,
         )
         self.participant_status = [pstatus]
@@ -190,7 +188,7 @@ class FinderReporterParticipant(CaseParticipant):
         """
         pstatus = ParticipantStatus(
             context=self.context,
-            actor=self.actor,
+            attributed_to=self.attributed_to,
             rm_state=RM.ACCEPTED,
         )
         self.participant_status = [pstatus]
@@ -262,8 +260,10 @@ CaseParticipantRef: TypeAlias = ActivityStreamRef[
 
 
 def main():
+    from vultron.as_vocab.base.objects.actors import as_Actor
+
     actor = as_Actor(name="Actor Name")
-    cp = CaseParticipant(actor=actor, context="case_id_foo")
+    cp = CaseParticipant(attributed_to=actor, context="case_id_foo")
     print(f"### {cp.as_type} ###")
     print()
     print(cp.to_json(indent=2))
@@ -278,7 +278,9 @@ def main():
         CoordinatorParticipant,
         OtherParticipant,
     ]:
-        obj = role(actor=actor, context="https://for.example/case/99999")
+        obj = role(
+            attributed_to=actor, context="https://for.example/case/99999"
+        )
         print(f"### {obj.as_type} ###")
         print()
         print(obj.to_json(indent=2))

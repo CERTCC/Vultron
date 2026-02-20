@@ -236,9 +236,9 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(
             case_from_activity.vulnerability_reports[0], report.as_id
         )
-        # actor should be a pointer to the vendor
+        # attributed_to should be a pointer to the vendor
         self.assertEqual(
-            case_from_activity.case_participants[0].actor, vendor.as_id
+            case_from_activity.case_participants[0].attributed_to, vendor.as_id
         )
 
     def test_add_report_to_case(self):
@@ -269,7 +269,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.target, case.as_id)
 
         participant = activity.as_object
-        self.assertEqual(participant.actor, vendor.as_id)
+        self.assertEqual(participant.attributed_to, vendor.as_id)
         self.assertEqual(participant.name, vendor.name)
         self.assertEqual(participant.context, case.as_id)
 
@@ -287,7 +287,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.target, case.as_id)
 
         participant = activity.as_object
-        self.assertEqual(participant.actor, finder.as_id)
+        self.assertEqual(participant.attributed_to, finder.as_id)
         self.assertEqual(participant.name, finder.name)
         self.assertEqual(participant.context, case.as_id)
 
@@ -305,7 +305,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.target, case.as_id)
 
         participant = activity.as_object
-        self.assertEqual(participant.actor, coordinator.as_id)
+        self.assertEqual(participant.attributed_to, coordinator.as_id)
         self.assertEqual(participant.name, coordinator.name)
         self.assertEqual(participant.context, case.as_id)
 
@@ -579,8 +579,8 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.as_type, "Create")
 
         self.assertEqual(activity.actor, vendor.as_id)
-        self.assertEqual(activity.target, case.as_id)
-        self.assertEqual(activity.as_object.actor, coordinator.as_id)
+        self.assertEqual(activity.context, case.as_id)
+        self.assertEqual(activity.as_object.attributed_to, coordinator.as_id)
         self.assertEqual(activity.as_object.context, case.as_id)
         self.assertEqual(activity.as_object.name, coordinator.name)
 
@@ -596,8 +596,8 @@ class TestVocabExamples(unittest.TestCase):
         self.assertIsInstance(obj, as_Object)
         self.assertIsInstance(obj, ParticipantStatus)
 
-        # actor and context are required
-        self.assertIsNotNone(obj.actor)
+        # attributed_to and context are required
+        self.assertIsNotNone(obj.attributed_to)
         self.assertIsNotNone(obj.context)
 
         self.assertIn(obj.rm_state, RM)
@@ -613,10 +613,10 @@ class TestVocabExamples(unittest.TestCase):
         self.assertIsInstance(obj, as_Object)
         self.assertIsInstance(obj, CaseParticipant)
 
-        # actor and context are required
+        # attributed_to and context are required
         self.assertIsNotNone(obj.as_id)
         self.assertIsNotNone(obj.name)
-        self.assertIsNotNone(obj.actor)
+        self.assertIsNotNone(obj.attributed_to)
         self.assertIsNotNone(obj.context)
 
         # status should be a list of ParticipantStatus objects
