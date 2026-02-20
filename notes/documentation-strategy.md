@@ -69,6 +69,7 @@ evaluate:
    design that has since been superseded, mark it as historical or update it.
 
 **Decision framework**:
+
 - Divergence with documented rationale → update docs to reflect new reality.
 - Divergence without clear rationale → investigate before changing either.
 - Outdated design docs with no corresponding implementation → mark as

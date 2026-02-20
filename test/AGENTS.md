@@ -63,11 +63,3 @@ Use `-v` for verbose output when debugging a single file or module.
   `vultron/api/v2/backend/`
 - Shared fixtures live in `conftest.py` files at each directory level
 - Test files are named `test_*.py`
-
----
-
-## Expected Baseline
-
-The 2 `xfailed` tests in `test/api/test_reporting_workflow.py` use
-deprecated `_old_handlers` with import issues and are **intentionally
-skipped**. They do NOT indicate regressions.

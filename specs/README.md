@@ -152,11 +152,17 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
 **Summary (2026-02-20)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing, handler protocol, data layer
-- ✅ **6/36 handlers complete**: Report workflow (create, submit, validate, invalidate, ack, close)
-- ✅ **BT integration Phases BT-1 and BT-2.1 complete**: See `behavior-tree-integration.md`
+- ✅ **13/36 handlers complete**: Report workflow (create, submit, validate, invalidate, ack,
+  close, engage_case, defer_case) + case workflow (create_case, add_report_to_case, close_case,
+  create_case_participant, add_case_participant_to_case)
+- ✅ **BT integration Phases BT-1, BT-2.1, BT-3, BT-3.5, BT-4.2 complete**:
+  See `behavior-tree-integration.md`
+- ✅ **Demo scripts dockerized**: `receive-report-demo` and `initialize-case-demo` services in
+  `docker/docker-compose.yml` with health-check-based startup ordering
 - ⚠️ **Production readiness partial**: Request validation, error responses need work
 - ❌ **Response generation not started**: See `response-format.md`
-- ❌ **30 handler stubs remain**: Case management, embargo, participants, notes, statuses
+- ❌ **23 handler stubs remain**: Embargo management, actor invitations, participants (remove),
+  notes, statuses, ownership transfer, case suggestions
 
 ---
 

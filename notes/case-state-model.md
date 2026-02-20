@@ -159,7 +159,7 @@ behavior.
 
 In the Mermaid diagram from `docs/topics/process_models/model_interactions/index.md`:
 
-```
+```text
 Participant-Agnostic: EM ↔ CS_pxa
 Participant-Specific: RM ↔ CS_vfd
 ```
@@ -170,11 +170,13 @@ The canonical Python implementation is in
 `vultron/as_vocab/objects/case_status.py`:
 
 **`CaseStatus`** — participant-agnostic, one per case:
+
 - `em_state: EM` — Embargo management state (default `EM.NO_EMBARGO`)
 - `pxa_state: CS_pxa` — Public/exploit/attack sub-state (default `CS_pxa.pxa`)
 - `context` — references the `VulnerabilityCase` this status belongs to
 
 **`ParticipantStatus`** — participant-specific, one per (actor × case) pair:
+
 - `rm_state: RM` — Report management state (default `RM.START`)
 - `vfd_state: CS_vfd` — Vendor fix path sub-state (default `CS_vfd.vfd`)
 - `actor` — references the participant Actor

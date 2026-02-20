@@ -150,18 +150,23 @@ execution of the inbox queue is sufficient for prototype validation.
 - Single database read/write operations
 - Logging-only or passthrough operations
 
-**Decision table for report handlers**:
+**Decision table for report and case handlers**:
 
-| Handler             | BT Value  | Rationale                                                                |
-|---------------------|-----------|--------------------------------------------------------------------------|
-| `validate_report`   | ✅ HIGH   | ✅ DONE — complex branching, policy injection, case creation subtree      |
-| `engage_case`       | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
-| `defer_case`        | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
-| `close_report`      | ⚠️ MEDIUM | Has procedural logic; multi-step with preconditions; BT adds clarity    |
-| `invalidate_report` | ⚠️ MEDIUM | Has procedural logic; relatively short but state-machine-tied           |
-| `create_report`     | ❌ LOW    | Simple CRUD; no branching; keep procedural                              |
-| `submit_report`     | ❌ LOW    | Offer/status update; simple; keep procedural                            |
-| `ack_report`        | ❌ LOW    | Single status transition; no branching; keep procedural                 |
+| Handler                     | BT Value  | Rationale                                                                |
+|-----------------------------|-----------|--------------------------------------------------------------------------|
+| `validate_report`           | ✅ HIGH   | ✅ DONE — complex branching, policy injection, case creation subtree      |
+| `engage_case`               | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
+| `defer_case`                | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
+| `create_case`               | ✅ HIGH   | ✅ DONE — idempotency check, validate, persist, CaseActor creation        |
+| `close_report`              | ⚠️ MEDIUM | Has procedural logic; multi-step with preconditions; BT adds clarity    |
+| `invalidate_report`         | ⚠️ MEDIUM | Has procedural logic; relatively short but state-machine-tied           |
+| `create_report`             | ❌ LOW    | Simple CRUD; no branching; keep procedural                              |
+| `submit_report`             | ❌ LOW    | Offer/status update; simple; keep procedural                            |
+| `ack_report`                | ❌ LOW    | Single status transition; no branching; keep procedural                 |
+| `add_report_to_case`        | ❌ LOW    | Simple append with idempotency; keep procedural                         |
+| `close_case`                | ❌ LOW    | Leave + activity emit; simple; keep procedural                          |
+| `create_case_participant`   | ❌ LOW    | Simple CRUD with idempotency; keep procedural                           |
+| `add_case_participant_to_case` | ❌ LOW | Simple append with idempotency; keep procedural                         |
 
 ---
 
@@ -206,6 +211,7 @@ stub with an explicit extension point.
 | `validate_report`   | `_behaviors/validate_report.py:RMValidateBt`      | ✅ DONE               |
 | `engage_case`       | `_behaviors/prioritize_report.py:RMPrioritizeBt`  | ✅ DONE               |
 | `defer_case`        | `_behaviors/prioritize_report.py:RMPrioritizeBt`  | ✅ DONE               |
+| `create_case`       | `case_state/conditions.py`, `transitions.py`      | ✅ DONE               |
 | `invalidate_report` | `_behaviors/validate_report.py:_InvalidateReport` | ⚠️ Optional refactor  |
 | `close_report`      | `_behaviors/close_report.py:RMCloseBt`            | ⚠️ Optional refactor  |
 

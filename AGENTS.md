@@ -64,12 +64,8 @@ uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
 > - Change `tail -5` to `tail -3` or `tail -15`
 > - Pipe to `grep -E "passed|failed|error"` (the tail already shows this)
 >
-> The summary line (`N passed, M xfailed in Xs`) is **always** in the last
+> The summary line (`N passed in Xs`) is **always** in the last
 > 5 lines. One run is sufficient for all information you need.
-
-**Expected xfails**: The 2 `xfailed` tests in
-`test/api/test_reporting_workflow.py` use deprecated `_old_handlers` with
-import issues and are intentionally skipped. They do NOT indicate regressions.
 
 Quick pointers and gotchas:
 
@@ -564,6 +560,7 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **BT Report**: `vultron/behaviors/report/` - Report validation tree and nodes
 - **BT Prioritize**: `vultron/behaviors/report/prioritize_tree.py` -
   engage_case/defer_case trees
+- **BT Case**: `vultron/behaviors/case/` - Case creation tree and nodes
 - **Vocabulary Examples**: `vultron/scripts/vocab_examples.py` - Canonical
   ActivityStreams activity examples; use as reference for message semantics
   and as test fixtures for pattern matching
@@ -609,7 +606,7 @@ git add -A && git commit -m "..."
 1. Black formatting is enforced by pre-commit hooks — format first to avoid a
    failed commit → re-stage → re-commit cycle.
 2. The test suite must pass before committing — read the `tail -5` output
-   directly for the summary line (e.g. `472 passed, 2 xfailed in 40s`).
+   directly for the summary line (e.g. `486 passed in 35s`).
    Do NOT re-run pytest to grep for counts. Run it **once** and read the tail.
 
 **When to run Black**:
