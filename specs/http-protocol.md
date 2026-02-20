@@ -1,15 +1,11 @@
 # HTTP Protocol Requirements
 
-**Version:** 1.0  
-**Status:** ACTIVE  
-**Last Updated:** 2026-02-13
-
-## Purpose
+## Overview
 
 Consolidated HTTP protocol requirements for Vultron API v2: status codes, headers, content negotiation.
 
-**Source:** ActivityStreams 2.0 specification, HTTP/1.1 RFC 7231  
-**Consolidates:** `inbox-endpoint.md` (IE-03, IE-07), `message-validation.md` (MV-06,
+**Source**: ActivityStreams 2.0 specification, HTTP/1.1 RFC 7231  
+**Consolidates**: `inbox-endpoint.md` (IE-03, IE-07), `message-validation.md` (MV-06,
 MV-07), `error-handling.md` (EH-06), `agentic-readiness.md` (AR-03-002)
 
 ---

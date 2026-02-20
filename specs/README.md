@@ -26,6 +26,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 6. **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
 
+### Case and Actor Management
+
+7. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model
+
 ### Cross-Cutting Concerns
 
 **HTTP Protocol**:
@@ -132,6 +136,9 @@ Some specifications consolidate requirements from multiple sources to create a s
 - **`idempotency.md`** consolidates duplicate detection requirements from
   `inbox-endpoint.md`, `message-validation.md`, `handler-protocol.md`,
   `response-format.md`
+- **`case-management.md`** consolidates case state and actor isolation requirements
+  from `behavior-tree-integration.md` (BT-09, BT-10), `notes/case-state-model.md`,
+  and `plan/PRIORITIES.md` (Priority 100, 200)
 
 When requirements appear consolidated, the consolidating spec is the authoritative
 source.
@@ -149,6 +156,7 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
 - ✅ **BT integration Phases BT-1 and BT-2.1 complete**: See `behavior-tree-integration.md`
 - ⚠️ **Production readiness partial**: Request validation, error responses need work
 - ❌ **Response generation not started**: See `response-format.md`
+- ❌ **30 handler stubs remain**: Case management, embargo, participants, notes, statuses
 
 ---
 

@@ -6,9 +6,6 @@ Handler functions may orchestrate business logic using behavior trees (BTs) for 
 
 **Source**: ADR-0002 (Use Behavior Trees), ADR-0007 (Behavior Dispatcher),
 ADR-0008 (py_trees integration)
-**Status**: Phase BT-1 COMPLETE, Phase BT-2.1 COMPLETE — infrastructure,
-handler refactoring, demo validation, documentation, and engage_case/defer_case
-handlers done.
 
 **Note**: BT integration is **optional**. Simple handlers may use procedural
 logic. Complex workflows (report validation, case creation, embargo management)
@@ -96,11 +93,9 @@ SHOULD use BTs for clarity and maintainability.
   - Pydantic models for object validation
   - Type hints on node methods
   - Runtime type checks where needed
-- `BT-07-003` State transitions MUST be logged via DataLayer integration
-  - Log at INFO level for state changes (e.g., "Report RM.RECEIVED →
-    RM.VALID")
-  - Log at DEBUG level for reads
-  - Include activity_id and actor_id in log context
+- `BT-07-003` State transitions MUST be logged at the appropriate level
+  - **Cross-reference**: `structured-logging.md` SL-03-001, SL-04-001 for log
+    level semantics and state transition log format
 
 ## Command-Line Execution (MAY)
 
@@ -170,39 +165,10 @@ SHOULD use BTs for clarity and maintainability.
 - **Behavior Trees in CVD**: `docs/topics/behavior_logic/`
 - **Simulation Trees**: `vultron/bt/` (reference, not modified)
 - **Handler Protocol**: `specs/handler-protocol.md`
+- **Case Management**: `specs/case-management.md` (CaseActor, actor isolation)
 - **Data Layer**: `specs/testability.md` (DataLayer abstraction)
 - **Design Notes**: `notes/bt-integration.md` (durable design decisions,
   handler decision table, directionality of EvaluateCasePriority)
 - **ADRs**: ADR-0002 (BT rationale), ADR-0007 (dispatcher architecture)
-
-## Implementation
-
-- **Bridge Layer**: `vultron/behaviors/bridge.py` ✅ (Phase BT-1.1.3)
-  - `BTBridge` class: Handler-to-BT execution adapter
-  - Single-shot execution with blackboard setup
-  - `get_tree_visualization()` for DEBUG-level tree display
-- **DataLayer Helpers**: `vultron/behaviors/helpers.py` ✅ (Phase BT-1.2.1)
-  - `DataLayerCondition`, `DataLayerAction` base classes
-  - `ReadObject`, `UpdateObject`, `CreateObject` common nodes
-- **Report Behavior Trees**: `vultron/behaviors/report/` ✅ (Phase BT-1,
-  BT-2.1)
-  - `nodes.py`: Domain-specific nodes (conditions, actions, policy stubs);
-    includes `EvaluateCasePriority` (outgoing direction only — see
-    `notes/bt-integration.md`)
-  - `validate_tree.py`: Composed validation tree with early exit optimization
-  - `prioritize_tree.py`: `create_engage_case_tree()` and
-    `create_defer_case_tree()` for receive-side RM state recording
-  - `policy.py`: `ValidationPolicy` / `PrioritizationPolicy` base classes and
-    `AlwaysAcceptPolicy` / `AlwaysPrioritizePolicy` stubs
-- **Handler Integration**: `vultron/api/v2/backend/handlers.py` ✅ (Phase
-  BT-1.4.1, BT-2.1)
-  - `validate_report`: uses `BTBridge.execute_with_setup()` (replaced ~165
-    lines of procedural logic with ~25 lines of BT invocation)
-  - `engage_case` / `defer_case`: use `create_engage_case_tree()` /
-    `create_defer_case_tree()` via `BTBridge`
-  - Preserved `@verify_semantics` decorator and error handling in all handlers
-- **Tests**: `test/behaviors/` ✅ (Phase BT-1: 78 tests; BT-2.1: 11
-  additional tests; total suite: 472 passed, 2 xfailed)
-  - `test_bridge.py`, `test_helpers.py`, `test/behaviors/report/` subtests
-  - `test_performance.py`: P50=0.44ms, P95=0.69ms, P99=0.84ms (well within
-    100ms target)
+- **Implementation**: `vultron/behaviors/` (bridge layer, helpers, report trees)
+- **Tests**: `test/behaviors/`

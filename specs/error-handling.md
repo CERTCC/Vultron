@@ -51,11 +51,10 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
 
 ## Error Logging (MUST)
 
-- `EH-06-001` All errors MUST be logged with appropriate level
-  - Client errors (4xx) → WARNING
-  - Server errors (5xx) → ERROR
-  - Include full context and stack trace for server errors
-  - **Cross-reference**: `structured-logging.md` SL-03-001 for complete log level semantics
+- `EH-06-001` All errors MUST be logged at the appropriate level per log level
+  semantics
+  - **Cross-reference**: `structured-logging.md` SL-03-001 for complete log
+    level semantics and examples
 
 ## Verification
 

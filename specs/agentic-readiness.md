@@ -63,10 +63,6 @@ interfaces that support agentic workflows.
 - `AR-06-001` `PROD_ONLY` Resources that agents may need to create, update, or
   delete in quantity MAY expose batch endpoints (e.g., `POST /v1/items/batch`)
 
-## Request Correlation (SHOULD)
-
-- See `http-protocol.md` HTTP-05-001 for request correlation ID requirements.
-
 ## CLI Interface (MUST)
 
 - `AR-08-001` `PROD_ONLY` The CLI MUST be installable as a Python package entry point
@@ -120,7 +116,7 @@ interfaces that support agentic workflows.
 
 - **Error Handling**: `specs/error-handling.md` (EH-05-001)
 - **HTTP Protocol**: `specs/http-protocol.md` (HTTP-03-001, HTTP-05-001,
-  HTTP-07-004)
+  HTTP-07-004) — includes request correlation ID requirements
 - **Structured Logging**: `specs/structured-logging.md` (SL-02-001)
 - **Observability**: `specs/observability.md` (health check endpoints)
 - **Prototype Shortcuts**: `specs/prototype-shortcuts.md` (PROD_ONLY deferral)

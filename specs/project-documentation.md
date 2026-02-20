@@ -1,10 +1,6 @@
 # Project Documentation Structure
 
-**Status**: Draft  
-**Created**: 2026-02-18  
-**Last Updated**: 2026-02-20
-
-## Purpose
+## Overview
 
 This specification defines the purpose, scope, and maintenance requirements for
 key project documentation files that guide AI agents and human developers.

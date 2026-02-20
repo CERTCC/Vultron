@@ -1,15 +1,11 @@
 # Structured Logging Requirements
 
-**Version:** 1.0  
-**Status:** ACTIVE  
-**Last Updated:** 2026-02-13
-
-## Purpose
+## Overview
 
 Consolidated logging requirements for Vultron API v2: log format, correlation IDs, log levels, audit trail.
 
-**Source:** Observability best practices, RFC 5424 Syslog severity  
-**Consolidates:** `observability.md` (OB-01, OB-03, OB-04, OB-06), `error-handling.md` (EH-04, EH-06), `inbox-endpoint.md` (IE-09)
+**Source**: Observability best practices, RFC 5424 Syslog severity  
+**Consolidates**: `observability.md` (OB-01, OB-03, OB-04, OB-06), `error-handling.md` (EH-04, EH-06), `inbox-endpoint.md` (IE-09)
 
 ---
 

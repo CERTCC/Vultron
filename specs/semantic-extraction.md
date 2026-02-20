@@ -15,24 +15,16 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
   - Support nested object type matching (e.g., Accept of Offer of
     VulnerabilityReport)
   - Evaluate patterns in order of specificity (most specific first)
-- `SE-01-002` The semantic extraction algorithm MUST handle both rehydrated
-  objects and URI strings defensively
-  - **Rehydration timing**: Rehydration occurs *before* semantic extraction in
-    the inbox handler flow (see `inbox_handler.py`)
-  - **Defensive pattern matching**: Pattern matching code uses safe attribute
-    access (`getattr(field, "as_type", None)`) to handle edge cases where
-    rehydration is incomplete
-  - **Rationale**: Rehydration is a separate concern from semantic extraction;
-    extraction must be robust to partial rehydration
+- `SE-01-002` The semantic extraction algorithm MUST handle both fully expanded
+  objects and URI string references defensively
+  - Pattern matching MUST NOT fail when activity fields contain URI strings
+    rather than fully expanded objects
+  - **Note**: Activities SHOULD be rehydrated before semantic extraction to
+    ensure accurate pattern matching; see `notes/activitystreams-semantics.md`
 - `SE-01-003` If rehydration fails for any nested object, the system MUST:
-  - Log warning: "Rehydration failed for URI {uri}: {error}"
+  - Log a warning identifying the failed URI
   - Return `MessageSemantics.UNKNOWN` from semantic extraction
-  - Delegate to unknown activity handler (logs at WARNING level)
-  
-**Implementation Note**: The `rehydrate()` function from
-`vultron/api/v2/data/rehydration.py` expands URI references to full objects.
-The inbox handler calls this before semantic extraction to ensure nested objects
-are properly typed.
+  - Delegate to the unknown activity handler
 
 ## Semantic Type Assignment (MUST)
 
@@ -65,12 +57,8 @@ are properly typed.
 - Unit test: Nested pattern (Accept Offer VulnerabilityReport) →
   MessageSemantics.VALIDATE_REPORT
 - Unit test: Most specific pattern matches first (multiple possible matches)
-- Integration test: Verify rehydration occurs before semantic extraction in
-  inbox handler flow
-- Unit test: Pattern matching handles string URIs defensively when rehydration
-  incomplete
-- Unit test: Rehydration failure returns MessageSemantics.UNKNOWN
-- Integration test: Unknown activity delegated to unknown handler (WARNING log)
+- Unit test: Pattern matching handles URI string references without raising exceptions
+- Unit test: Rehydration failure returns MessageSemantics.UNKNOWN and logs WARNING
 
 ### SE-03-001, SE-03-002 Verification
 
