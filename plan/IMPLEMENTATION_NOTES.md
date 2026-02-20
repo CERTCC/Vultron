@@ -10,7 +10,8 @@ This file tracks insights, issues, and learnings during implementation.
 
 BT-2.1 implemented `engage_case` and `defer_case` handlers with BT execution.
 
-**Key clarification from design review**: The plan named this "prioritize_report"
+**Key clarification from design review**: The plan named this "
+prioritize_report"
 but the correct framing is case-level prioritization. RM is a
 **participant-specific** state machine — each `CaseParticipant` (an Actor
 wrapped in a Case context) carries its own RM state in
@@ -134,9 +135,11 @@ One CaseActor per VulnerabilityCase (1:1 relationship).
 message processing → exists until case closure.
 
 **Case ownership model**:
+
 - **Case Owner**: Organizational Actor (vendor/coordinator) responsible for
   decisions
-- **CaseActor**: ActivityStreams Service managing case state (NOT the case owner)
+- **CaseActor**: ActivityStreams Service managing case state (NOT the case
+  owner)
 - **Initial Owner**: Typically the recipient of the VulnerabilityReport Offer
 
 #### 7. CLI Invocation Support (MAY)
@@ -170,6 +173,7 @@ execution of the inbox queue is sufficient for prototype validation.
 immediately. BT execution happens in the background, sequentially.
 
 **Future optimization paths** (defer until needed):
+
 - Optimistic locking (version numbers on VulnerabilityCase)
 - Resource-level locking (lock specific case during mutations)
 - Actor-level concurrency (parallel across actors, sequential per-actor)
@@ -209,13 +213,13 @@ explicit extension point.
 
 **Simulation tree to handler mapping**:
 
-| Handler | Simulation Reference | Key Behavior |
-|---|---|---|
-| `validate_report` | `_behaviors/validate_report.py:RMValidateBt` | ✅ DONE |
-| `invalidate_report` | `_behaviors/validate_report.py:_InvalidateReport` | Sequence: transition to INVALID + emit RI |
-| `close_report` | `_behaviors/close_report.py:RMCloseBt` | Sequence: check preconditions + transition to CLOSED + emit RC |
-| `prioritize_report` | `_behaviors/prioritize_report.py:RMPrioritizeBt` | Policy-driven: evaluate priority + ACCEPTED or DEFERRED |
-| `do_work` | `_behaviors/do_work.py:RMDoWorkBt` | Complex: fix dev, testing, deployment |
+| Handler             | Simulation Reference                              | Key Behavior                                                   |
+|---------------------|---------------------------------------------------|----------------------------------------------------------------|
+| `validate_report`   | `_behaviors/validate_report.py:RMValidateBt`      | ✅ DONE                                                         |
+| `invalidate_report` | `_behaviors/validate_report.py:_InvalidateReport` | Sequence: transition to INVALID + emit RI                      |
+| `close_report`      | `_behaviors/close_report.py:RMCloseBt`            | Sequence: check preconditions + transition to CLOSED + emit RC |
+| `prioritize_report` | `_behaviors/prioritize_report.py:RMPrioritizeBt`  | Policy-driven: evaluate priority + ACCEPTED or DEFERRED        |
+| `do_work`           | `_behaviors/do_work.py:RMDoWorkBt`                | Complex: fix dev, testing, deployment                          |
 
 ---
 
@@ -325,26 +329,29 @@ CS-05-* for requirements.
 
 Based on complexity analysis after Phase BT-1:
 
-| Handler | BT Value | Rationale |
-|---|---|---|
-| `prioritize_report` | ✅ HIGH | No business logic yet; complex branching (ACCEPTED vs DEFERRED); policy injection valuable |
-| `close_report` | ⚠️ MEDIUM | Has procedural logic; multi-step with preconditions; BT adds clarity |
-| `invalidate_report` | ⚠️ MEDIUM | Has procedural logic; relatively short but state-machine-tied |
-| `create_report` | ❌ LOW | Simple CRUD; no branching; keep procedural |
-| `submit_report` | ❌ LOW | Offer/status update; simple; keep procedural |
-| `ack_report` | ❌ LOW | Single status transition; no branching; keep procedural |
+| Handler             | BT Value  | Rationale                                                                                  |
+|---------------------|-----------|--------------------------------------------------------------------------------------------|
+| `prioritize_report` | ✅ HIGH    | No business logic yet; complex branching (ACCEPTED vs DEFERRED); policy injection valuable |
+| `close_report`      | ⚠️ MEDIUM | Has procedural logic; multi-step with preconditions; BT adds clarity                       |
+| `invalidate_report` | ⚠️ MEDIUM | Has procedural logic; relatively short but state-machine-tied                              |
+| `create_report`     | ❌ LOW     | Simple CRUD; no branching; keep procedural                                                 |
+| `submit_report`     | ❌ LOW     | Offer/status update; simple; keep procedural                                               |
+| `ack_report`        | ❌ LOW     | Single status transition; no branching; keep procedural                                    |
 
-**Recommendation**: Prioritize `prioritize_report` BT (no existing logic to preserve).
+**Recommendation**: Prioritize `prioritize_report` BT (no existing logic to
+preserve).
 Optionally refactor `close_report` for alignment with simulation.
 
 ### Case Management BT Structure
 
-The `vultron/bt/case_state/` module contains `conditions.py` and `transitions.py`
+The `vultron/bt/case_state/` module contains `conditions.py` and
+`transitions.py`
 but no `_behaviors/` subdirectory (unlike report management). This means:
 
 - Use `conditions.py` and `transitions.py` as state machine logic reference
 - Implement BT nodes directly from the ActivityPub how-to docs
-- Map `RM:ACCEPTED → RmEngageCase (as:Join)` and `RM:DEFERRED → RmDeferCase (as:Ignore)`
+- Map `RM:ACCEPTED → RmEngageCase (as:Join)` and
+  `RM:DEFERRED → RmDeferCase (as:Ignore)`
   when implementing `prioritize_report` BT
 
 ### Embargo Management BT Structure
@@ -353,10 +360,12 @@ The `vultron/bt/embargo_management/` has:
 
 - `behaviors.py` — workflow behaviors (reference for BT node logic)
 - `conditions.py` — state checks (map to `DataLayerCondition` subclasses)
-- `states.py` — EM state enum (reference, already exists in `vultron/case_states/`)
+- `states.py` — EM state enum (reference, already exists in
+  `vultron/case_states/`)
 - `transitions.py` — state transition logic
 
-These provide good BT node implementations to translate. The embargo state machine
+These provide good BT node implementations to translate. The embargo state
+machine
 (EM: NONE → PROPOSED → ACCEPTED → ACTIVE) maps directly to handler sequence for
 establish_embargo workflow.
 
@@ -376,17 +385,132 @@ Use `httpx` or `requests` against a live FastAPI test server (via
 
 Before implementing `RmEngageCase` and `RmDeferCase` workflows in Phase BT-3,
 verify:
+
 1. Are `ENGAGE_CASE` and `DEFER_CASE` in `MessageSemantics` enum?
 2. Are the activity patterns defined in `vultron/activity_patterns.py`?
 3. Do handlers exist in `handlers.py` and `semantic_handler_map.py`?
 
-`manage_case.md` references `RmEngageCase (as:Join)` and `RmDeferCase (as:Ignore)`.
+`manage_case.md` references `RmEngageCase (as:Join)` and
+`RmDeferCase (as:Ignore)`.
 These may need to be added as new semantic types if not already present.
-
-
 
 **Pattern**: Activities may contain string URI references instead of inline
 objects. Always call `rehydrate()` on incoming activities before pattern
 matching. The `inbox_handler.py` does this before dispatch, so handlers receive
 fully expanded objects. See `vultron/api/v2/data/rehydration.py`.
 
+### Conceptual Notes
+
+There are some conceptual distinctions that are important to keep in mind during
+implementation:
+
+#### Activities as State Change Notifications, Not Commands
+
+In Vultron, an ActivityStreams Activity is a **statement about a state change
+that has already occurred**, not a request for another Actor to perform an
+action.
+
+When an Actor receives an Activity, it is being informed that:
+
+- Another Actor performed a state transition in their RM, EM, or CS process.
+- The shared state of the Case has changed.
+- The sender’s internal model of the world has been updated accordingly.
+
+The receiver MUST treat the Activity as an assertion about the sender’s state
+and update its own model of the world. This model includes:
+
+- The Case
+- Reports
+- Participants
+- Embargo status
+- Case state events (V, F, D, P, X, A)
+- Known prior transitions
+
+Receiving an Activity means:
+
+> “Someone else observed or performed a state change and is informing me.”
+
+It does **not** mean:
+
+> “I am being instructed to perform this action.”
+
+---
+
+#### Emitting Activities
+
+When an Actor emits an Activity, it is declaring:
+
+- “My internal state has changed.”
+- “I have performed a protocol-relevant transition.”
+- “The shared case state should now reflect this.”
+
+Vultron assumes that when a Participant observes or performs a protocol-relevant
+state change, they inform the other Participants by emitting an Activity.
+
+Activities are therefore:
+
+- Distributed state synchronization signals.
+- Logs of completed transitions.
+- Assertions about protocol-visible facts.
+
+They are **not**:
+
+- Remote Procedure Calls.
+- Commands.
+- Requests to execute behavior.
+
+---
+
+#### Work Outside the Protocol
+
+Participants perform substantial work outside the Vultron messaging layer, such
+as:
+
+- Reproducing a vulnerability
+- Root cause analysis
+- Fix development
+- Patch deployment
+- Human embargo negotiation
+- Document preparation
+
+These actions occur in local processes.
+
+When such work results in a protocol-relevant state transition (e.g., Fix Ready,
+Fix Deployed, Embargo Accepted), the Actor emits the corresponding Activity.
+
+The Activity does not cause the work.  
+The work causes the Activity.
+
+---
+
+#### Processing Is Still Required
+
+Although Activities are not commands, recipients MUST still process them:
+
+1. Parse and validate the Activity.
+2. Update local RM/EM/CS state.
+3. Potentially trigger local behaviors (e.g., reprioritize, start validation,
+   update embargo tracking).
+
+The key distinction is:
+
+- Activities describe what has happened.
+- Behavior logic determines what to do next in response.
+
+---
+
+**Implementation Intent:**  
+Treat Activities as immutable, declarative records of completed
+protocol-relevant transitions.  
+Do not interpret them as imperative instructions to execute remote work.
+
+#### Responses should use the in-reply-to (inReplyTo) field
+
+Responses to activities that imply a response (e.g., Offer, Invite) must use
+the in-reply-to (inReplyTo) field to reference the original activity.
+This is important for threading and context. For example, if an actor receives
+an Offer of a VulnerabilityReport, then their response (Accept,
+TentativeReject, or Reject) should have the Offer as the object of the response
+activity, but should also include the ID of the Offer in the in-reply-to field.
+This allows other actors to understand the relationship between the response and
+the original offer, which is important for threading and context.
