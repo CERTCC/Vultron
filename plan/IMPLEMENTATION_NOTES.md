@@ -59,3 +59,19 @@ satisfying ID-04-004.
 
 ---
 
+## 2026-02-20: Test Speed — Parametrize demo tests
+
+**Problem**: `test/scripts/test_receive_report_demo.py` had two tests that each
+called `demo.main()` (all 3 demos), totalling 6 demo runs and ~24s wall time.
+
+**Fix**:
+- Added `demos` parameter to `main()` (optional sequence of callables; defaults
+  to all three). Extracted `_ALL_DEMOS` registry so the loop is data-driven.
+- Replaced the two monolithic tests with a single `@pytest.mark.parametrize`
+  test over the three demo functions, each calling
+  `demo.main(skip_health_check=True, demos=[demo_fn])`.
+- Result: 3 demo runs instead of 6; wall time drops from ~24s to ~13s.
+- Removed unused imports from the test file.
+
+---
+
