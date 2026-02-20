@@ -499,8 +499,54 @@ def close_report(dispatchable: DispatchActivity) -> None:
 
 @verify_semantics(MessageSemantics.CREATE_CASE)
 def create_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("create_case handler called: %s", dispatchable)
-    return None
+    """
+    Process a CreateCase activity (Create(VulnerabilityCase)).
+
+    Persists the new VulnerabilityCase to the DataLayer, creates the
+    associated CaseActor (CM-02-001), and emits a CreateCase activity to
+    the actor outbox. Idempotent: re-processing an already-stored case
+    succeeds without side effects (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Create with
+                      VulnerabilityCase object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.behaviors.bridge import BTBridge
+    from vultron.behaviors.case.create_tree import create_create_case_tree
+
+    activity = dispatchable.payload
+
+    try:
+        actor = rehydrate(obj=activity.actor)
+        actor_id = actor.as_id
+        case = rehydrate(obj=activity.as_object)
+        case_id = case.as_id
+
+        logger.info("Actor '%s' creates case '%s'", actor_id, case_id)
+
+        dl = get_datalayer()
+        bridge = BTBridge(datalayer=dl)
+        tree = create_create_case_tree(case_obj=case, actor_id=actor_id)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=activity
+        )
+
+        if result.status.name != "SUCCESS":
+            logger.warning(
+                "CreateCaseBT did not succeed for actor '%s' / case '%s': %s",
+                actor_id,
+                case_id,
+                result.feedback_message,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error in create_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ENGAGE_CASE)
@@ -621,8 +667,55 @@ def defer_case(dispatchable: DispatchActivity) -> None:
 
 @verify_semantics(MessageSemantics.ADD_REPORT_TO_CASE)
 def add_report_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("add_report_to_case handler called: %s", dispatchable)
-    return None
+    """
+    Process an AddReportToCase activity
+    (Add(VulnerabilityReport, target=VulnerabilityCase)).
+
+    Appends the report reference to the case's vulnerability_reports list
+    and persists the updated case to the DataLayer. Idempotent: re-adding a
+    report already in the case succeeds without side effects (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Add with
+                      VulnerabilityReport object and VulnerabilityCase target
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        report = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=activity.target)
+        report_id = report.as_id
+        case_id = case.as_id
+
+        dl = get_datalayer()
+
+        existing_report_ids = [
+            (r.as_id if hasattr(r, "as_id") else r)
+            for r in case.vulnerability_reports
+        ]
+        if report_id in existing_report_ids:
+            logger.info(
+                "Report '%s' already in case '%s' — skipping (idempotent)",
+                report_id,
+                case_id,
+            )
+            return None
+
+        case.vulnerability_reports.append(report_id)
+        dl.update(case_id, object_to_record(case))
+
+        logger.info("Added report '%s' to case '%s'", report_id, case_id)
+
+    except Exception as e:
+        logger.error(
+            "Error in add_report_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.SUGGEST_ACTOR_TO_CASE)
@@ -745,8 +838,66 @@ def reject_invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
 
 @verify_semantics(MessageSemantics.CLOSE_CASE)
 def close_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("close_case handler called: %s", dispatchable)
-    return None
+    """
+    Process a CloseCase activity (Leave(VulnerabilityCase)).
+
+    Records that the sending actor is leaving/closing their participation
+    in the case. Emits an RmCloseCase activity to the actor outbox.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Leave with
+                      VulnerabilityCase object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.as_vocab.activities.case import RmCloseCase
+
+    activity = dispatchable.payload
+
+    try:
+        actor = rehydrate(obj=activity.actor)
+        actor_id = actor.as_id
+        case = rehydrate(obj=activity.as_object)
+        case_id = case.as_id
+
+        logger.info("Actor '%s' is closing case '%s'", actor_id, case_id)
+
+        dl = get_datalayer()
+
+        close_activity = RmCloseCase(
+            actor=actor_id,
+            object=case_id,
+        )
+        try:
+            dl.create(close_activity)
+            logger.info(
+                "Created RmCloseCase activity %s", close_activity.as_id
+            )
+        except ValueError:
+            logger.info(
+                "RmCloseCase activity for case '%s' already exists"
+                " — skipping (idempotent)",
+                case_id,
+            )
+            return None
+
+        actor_obj = dl.read(actor_id)
+        if actor_obj is not None and hasattr(actor_obj, "outbox"):
+            actor_obj.outbox.items.append(close_activity.as_id)
+            dl.update(actor_id, object_to_record(actor_obj))
+            logger.info(
+                "Added RmCloseCase activity %s to actor %s outbox",
+                close_activity.as_id,
+                actor_id,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error in close_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.CREATE_CASE_PARTICIPANT)
