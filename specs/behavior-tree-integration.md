@@ -68,7 +68,12 @@ SHOULD use BTs for clarity and maintainability.
 ## Workflow-Specific Trees (SHOULD)
 
 - `BT-06-001` Complex workflows SHOULD have dedicated BT implementations
-  - Report validation, case creation, embargo management
+  - Report validation, case creation, embargo management, case engagement/deferral
+  - **Decision criteria**: Use BTs for multi-branch workflows, RM/EM/CS state
+    transitions with preconditions, or policy injection; use procedural code
+    for simple CRUD or linear 3–5 step workflows with no branching
+  - **Reference**: `notes/bt-integration.md` for handler-by-handler decision
+    table
 - `BT-06-002` BTs SHOULD match structure of simulation trees where applicable
   - **Verification**: Compare BT node sequence against simulation tree node
     sequence
@@ -166,8 +171,8 @@ SHOULD use BTs for clarity and maintainability.
 - **Simulation Trees**: `vultron/bt/` (reference, not modified)
 - **Handler Protocol**: `specs/handler-protocol.md`
 - **Data Layer**: `specs/testability.md` (DataLayer abstraction)
-- **Architecture**: `plan/IMPLEMENTATION_NOTES.md` (design decisions and
-  rationale)
+- **Design Notes**: `notes/bt-integration.md` (durable design decisions,
+  handler decision table, directionality of EvaluateCasePriority)
 - **ADRs**: ADR-0002 (BT rationale), ADR-0007 (dispatcher architecture)
 
 ## Implementation
@@ -179,17 +184,25 @@ SHOULD use BTs for clarity and maintainability.
 - **DataLayer Helpers**: `vultron/behaviors/helpers.py` ✅ (Phase BT-1.2.1)
   - `DataLayerCondition`, `DataLayerAction` base classes
   - `ReadObject`, `UpdateObject`, `CreateObject` common nodes
-- **Report Validation Trees**: `vultron/behaviors/report/` ✅ (Phase
-  BT-1.3.2, BT-1.3.3, BT-1.3.4)
-  - `nodes.py`: 10 domain-specific nodes (conditions, actions, policy stubs)
+- **Report Behavior Trees**: `vultron/behaviors/report/` ✅ (Phase BT-1,
+  BT-2.1)
+  - `nodes.py`: Domain-specific nodes (conditions, actions, policy stubs);
+    includes `EvaluateCasePriority` (outgoing direction only — see
+    `notes/bt-integration.md`)
   - `validate_tree.py`: Composed validation tree with early exit optimization
-  - `policy.py`: `ValidationPolicy` base class and `AlwaysAcceptPolicy`
+  - `prioritize_tree.py`: `create_engage_case_tree()` and
+    `create_defer_case_tree()` for receive-side RM state recording
+  - `policy.py`: `ValidationPolicy` / `PrioritizationPolicy` base classes and
+    `AlwaysAcceptPolicy` / `AlwaysPrioritizePolicy` stubs
 - **Handler Integration**: `vultron/api/v2/backend/handlers.py` ✅ (Phase
-  BT-1.4.1)
-  - `validate_report` handler refactored to use `BTBridge.execute_with_setup()`
-  - Replaced ~165 lines of procedural logic with ~25 lines of BT invocation
-  - Preserved `@verify_semantics` decorator and error handling
-- **Tests**: `test/behaviors/` ✅ (78 tests passing)
+  BT-1.4.1, BT-2.1)
+  - `validate_report`: uses `BTBridge.execute_with_setup()` (replaced ~165
+    lines of procedural logic with ~25 lines of BT invocation)
+  - `engage_case` / `defer_case`: use `create_engage_case_tree()` /
+    `create_defer_case_tree()` via `BTBridge`
+  - Preserved `@verify_semantics` decorator and error handling in all handlers
+- **Tests**: `test/behaviors/` ✅ (Phase BT-1: 78 tests; BT-2.1: 11
+  additional tests; total suite: 472 passed, 2 xfailed)
   - `test_bridge.py`, `test_helpers.py`, `test/behaviors/report/` subtests
   - `test_performance.py`: P50=0.44ms, P95=0.69ms, P99=0.84ms (well within
     100ms target)

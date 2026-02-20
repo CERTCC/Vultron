@@ -810,6 +810,12 @@ Not all handlers need BT execution. Use this guide when deciding:
 
 **Uncertain?** Start procedural; refactor to BT if branching complexity grows.
 
+**`EvaluateCasePriority` is outgoing-only**: This BT node (in
+`vultron/behaviors/report/nodes.py`) is for the **local actor deciding** to
+engage or defer a case. Receive-side trees (`EngageCaseBT`, `DeferCaseBT`)
+do **not** use it — they only record the **sender's already-made decision** by
+updating the sender's `CaseParticipant.participant_status[].rm_state`.
+
 See `specs/behavior-tree-integration.md` for BT integration requirements and
 `notes/bt-integration.md` for BT design decisions.
 

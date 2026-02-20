@@ -241,6 +241,26 @@ tests).
 
 ---
 
+## EvaluateCasePriority: Outgoing Direction Only
+
+`EvaluateCasePriority` (in `vultron/behaviors/report/nodes.py`) is a **stub
+node for the outgoing direction** — when the local actor decides whether to
+engage or defer a case after receiving a validated report.
+
+The receive-side trees (`EngageCaseBT`, `DeferCaseBT` in
+`vultron/behaviors/report/prioritize_tree.py`) do **not** use
+`EvaluateCasePriority`. They only record the **sender's already-made
+decision** by updating the sender's `CaseParticipant.participant_status[].rm_state`.
+
+This distinction matters because Activities are state-change notifications, not
+commands: when the local actor receives `Join(VulnerabilityCase)` (ENGAGE_CASE)
+or `Ignore(VulnerabilityCase)` (DEFER_CASE), it is being informed that another
+participant already made their decision — the receiver simply records that fact.
+Policy evaluation is only needed when the **local actor** decides to engage or
+defer.
+
+---
+
 ## RM State Machine: Participant-Specific Context
 
 RM is a **participant-specific** state machine — each `CaseParticipant`
