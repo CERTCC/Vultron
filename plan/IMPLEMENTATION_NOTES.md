@@ -128,8 +128,10 @@ are needed to complete the `invite_actor_demo.py` script (BT-4.3).
 
 **BT-5 (embargo)** follows. The simulation reference is
 `vultron/bt/embargo_management/` (behaviors.py, conditions.py, states.py,
-transitions.py). The EM state machine (NONE → PROPOSED → ACCEPTED → ACTIVE)
-maps to the establish_embargo workflow. Remember: EM state updates MUST go to
+transitions.py). The EM state machine (NO_EMBARGO → PROPOSED → ACTIVE → REVISE → EXITED)
+maps to the establish_embargo workflow. Note: `Accept` is an **activity
+type** causing PROPOSED→ACTIVE (or REVISE→ACTIVE), not a state name.
+Remember: EM state updates MUST go to
 `CaseStatus.em_state` (participant-agnostic), NOT to `ParticipantStatus` —
 CM-04-003.
 
@@ -149,10 +151,14 @@ baseline precondition for all subsequent workflow demos.
 
 ---
 
+### Test count maintenance note
+
 It's a waste of effort to maintain test counts in multiple files. It just 
 makes for more work to update them and they can easily get out of sync.
 
 ---
+
+### CaseStatus and ParticipantStatus ordering and interpretation
 
 In a `VulnerabilityCase`, the `case_status` field is intended to be an 
 append-only 

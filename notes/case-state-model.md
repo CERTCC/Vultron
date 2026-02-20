@@ -252,8 +252,10 @@ Case State (CS) is one of three interacting state machines:
   INVALID → ACCEPTED → DEFERRED → CLOSED` lifecycle. Tracked in
   `CaseParticipant.participant_status[].rm_state`.
 - **EM (Embargo Management)**: Shared across case participants; tracks
-  `NONE → PROPOSED → ACCEPTED → ACTIVE → REVISE → TERMINATED`. Tracked in
-  `CaseStatus`.
+  `NO_EMBARGO → PROPOSED → ACTIVE → REVISE → EXITED`. Tracked in
+  `CaseStatus`. Note: `Accept` is an **activity type** that triggers the
+  `PROPOSED → ACTIVE` (or `REVISE → ACTIVE`) transition — it is not itself a
+  state. See `vultron/bt/embargo_management/states.py`.
 - **CS (Case State)**: The 6-dimensional VFD/PXA hypercube described above.
 
 See `docs/topics/process_models/rm/`, `docs/topics/process_models/em/`, and
