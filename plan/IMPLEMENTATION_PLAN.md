@@ -503,9 +503,9 @@ fresh using case_state conditions/transitions as reference.
 - [x] `ENGAGE_CASE` / `DEFER_CASE` semantics, patterns, and handlers
   implemented in BT-2.1. See notes there.
 
-#### BT-3.5: `initialize_case` demo script
+#### BT-3.5: `initialize_case` demo script ✅ COMPLETE
 
-- [ ] Create `vultron/scripts/initialize_case_demo.py`
+- [x] Create `vultron/scripts/initialize_case_demo.py`
   - Setup: create actor, submit report, validate report (reuse receive_report
     workflow as precondition)
   - Demo: create case → add report to case → add participant to case
@@ -535,17 +535,17 @@ fresh using case_state conditions/transitions as reference.
   - Log rejection at INFO
   - Optionally notify inviter via outbox activity
 
-#### BT-4.2: Case participant handlers
+#### BT-4.2: Case participant handlers ✅ COMPLETE (done in BT-3.5)
 
-- [ ] Implement `create_case_participant` handler:
-  - Create `CaseParticipant` object with actor reference and role
+- [x] Implement `create_case_participant` handler:
+  - Create `CaseParticipant` object with attributed_to reference and role
   - Persist to DataLayer
-- [ ] Implement `add_case_participant_to_case` handler:
+- [x] Implement `add_case_participant_to_case` handler:
   - Rehydrate case and participant
-  - Add participant ID to `case.participants`
+  - Add participant ID to `case.case_participants`
   - Persist updated case
 - [ ] Implement `remove_case_participant_from_case` handler:
-  - Remove participant from `case.participants`
+  - Remove participant from `case.case_participants`
   - Persist updated case
 
 #### BT-4.3: Participant management demo script
