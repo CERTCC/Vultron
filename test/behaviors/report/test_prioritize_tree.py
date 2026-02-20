@@ -275,3 +275,60 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
         else:
             # actor_b's RM state must be unchanged (START, from default init)
             assert latest_rm != RM.ACCEPTED
+
+
+# ============================================================================
+# Idempotency tests (BT-2.0.3, BT-2.0.4, BT-2.0.5 — ID-04-004 MUST)
+# ============================================================================
+
+
+def test_engage_case_tree_idempotent(
+    bridge, datalayer, actor_id, case_with_participant
+):
+    """Executing EngageCaseBT twice leaves RM state ACCEPTED, no duplicate entries."""
+    tree1 = create_engage_case_tree(
+        case_id=case_with_participant.as_id, actor_id=actor_id
+    )
+    result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor_id)
+    assert result1.status == Status.SUCCESS
+
+    tree2 = create_engage_case_tree(
+        case_id=case_with_participant.as_id, actor_id=actor_id
+    )
+    result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor_id)
+    assert result2.status == Status.SUCCESS
+
+    updated_case = datalayer.read(case_with_participant.as_id)
+    participant = updated_case.case_participants[0]
+    assert participant.participant_status[-1].rm_state == RM.ACCEPTED
+    # Second execution must NOT append a duplicate status entry
+    accepted_entries = [
+        s for s in participant.participant_status if s.rm_state == RM.ACCEPTED
+    ]
+    assert len(accepted_entries) == 1
+
+
+def test_defer_case_tree_idempotent(
+    bridge, datalayer, actor_id, case_with_participant
+):
+    """Executing DeferCaseBT twice leaves RM state DEFERRED, no duplicate entries."""
+    tree1 = create_defer_case_tree(
+        case_id=case_with_participant.as_id, actor_id=actor_id
+    )
+    result1 = bridge.execute_with_setup(tree=tree1, actor_id=actor_id)
+    assert result1.status == Status.SUCCESS
+
+    tree2 = create_defer_case_tree(
+        case_id=case_with_participant.as_id, actor_id=actor_id
+    )
+    result2 = bridge.execute_with_setup(tree=tree2, actor_id=actor_id)
+    assert result2.status == Status.SUCCESS
+
+    updated_case = datalayer.read(case_with_participant.as_id)
+    participant = updated_case.case_participants[0]
+    assert participant.participant_status[-1].rm_state == RM.DEFERRED
+    # Second execution must NOT append a duplicate status entry
+    deferred_entries = [
+        s for s in participant.participant_status if s.rm_state == RM.DEFERRED
+    ]
+    assert len(deferred_entries) == 1

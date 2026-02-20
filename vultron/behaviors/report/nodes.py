@@ -755,6 +755,16 @@ def _find_and_update_participant_rm(
                 else getattr(actor_ref, "as_id", str(actor_ref))
             )
             if p_actor_id == actor_id:
+                # Idempotency guard (ID-04-004): if already in target state,
+                # log at INFO and return SUCCESS without side effects.
+                if participant.participant_status:
+                    latest = participant.participant_status[-1]
+                    if latest.rm_state == new_rm_state:
+                        logger.info(
+                            f"Participant {actor_id} already in RM state "
+                            f"{new_rm_state} in case {case_id} (idempotent)"
+                        )
+                        return Status.SUCCESS
                 new_status = ParticipantStatus(
                     actor=actor_id,
                     context=case_id,

@@ -31,10 +31,31 @@ Two specs were added/consolidated since the last plan revision:
 - Pattern: check current state before transitioning; if already in target state, log
   at INFO and return without side effects.
 
-**Implication for BT implementations going forward**:
-- Every BT node that transitions RM/EM/CS/VFD state MUST include a precondition
-  node that checks whether the transition has already occurred (idempotency guard).
-- The existing `validate_report` BT uses `CheckRMStateValid` as an early-exit
-  idempotency check — use this pattern for all future state-machine BT nodes.
+## 2026-02-20: BT-2.0 — CM-04 + ID-04-004 Compliance Audit COMPLETE
 
+**BT-2.0.1 & BT-2.0.2 (verification)**: Confirmed `engage_case` and
+`defer_case` handlers correctly update `ParticipantStatus.rm_state` (via
+`_find_and_update_participant_rm` in `nodes.py`) and do not touch `CaseStatus`.
+No code change needed.
+
+**BT-2.0.3 & BT-2.0.4 (idempotency guards)**: Added idempotency check to
+`_find_and_update_participant_rm` helper in `vultron/behaviors/report/nodes.py`.
+Before appending a new `ParticipantStatus`, the helper checks if the latest
+entry already has the target RM state. If so, it logs at INFO and returns
+SUCCESS without side effects, satisfying ID-04-004 MUST.
+
+**BT-2.0.5 (tests)**: Added two new tests to
+`test/behaviors/report/test_prioritize_tree.py`:
+- `test_engage_case_tree_idempotent`: runs EngageCaseBT twice; verifies
+  exactly one ACCEPTED entry and final state is ACCEPTED.
+- `test_defer_case_tree_idempotent`: runs DeferCaseBT twice; verifies
+  exactly one DEFERRED entry and final state is DEFERRED.
+
+Total test count: 474 passed, 2 xfailed (was 472).
+
+**Pattern for future BTs**: Use the same helper-level idempotency check rather
+than adding a dedicated BT node. This avoids BT tree complexity while still
+satisfying ID-04-004.
+
+---
 

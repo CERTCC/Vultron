@@ -379,15 +379,15 @@ New specs `case-management.md` (CM-04) and `idempotency.md` (ID-04-004) require
 state-changing handlers to scope state updates correctly and to be idempotent.
 The completed `engage_case` and `defer_case` handlers need explicit verification.
 
-- [ ] **BT-2.0.1**: Verify `engage_case` updates `ParticipantStatus.rm_state`
+- [x] **BT-2.0.1**: Verify `engage_case` updates `ParticipantStatus.rm_state`
   (participant-specific RM — CM-04-001) and NOT `CaseStatus`
-- [ ] **BT-2.0.2**: Verify `defer_case` updates `ParticipantStatus.rm_state`
+- [x] **BT-2.0.2**: Verify `defer_case` updates `ParticipantStatus.rm_state`
   (CM-04-001) and NOT `CaseStatus`
-- [ ] **BT-2.0.3**: Add idempotency guard to `engage_case` BT tree — if participant
+- [x] **BT-2.0.3**: Add idempotency guard to `engage_case` BT tree — if participant
   RM is already ACCEPTED, log at INFO and return (ID-04-004 MUST)
-- [ ] **BT-2.0.4**: Add idempotency guard to `defer_case` BT tree — if participant
+- [x] **BT-2.0.4**: Add idempotency guard to `defer_case` BT tree — if participant
   RM is already DEFERRED, log at INFO and return (ID-04-004 MUST)
-- [ ] **BT-2.0.5**: Update tests to verify idempotent re-execution behavior
+- [x] **BT-2.0.5**: Update tests to verify idempotent re-execution behavior
   (same input twice → same state, no error)
 
 #### BT-2.1: `engage_case` / `defer_case` BTs (was "prioritize_report") ✅ COMPLETE
