@@ -20,3 +20,15 @@ implementation evolves.
 - When a lesson is learned during implementation, add it here (not just in
   `plan/IMPLEMENTATION_NOTES.md`).
 - Cross-reference from `AGENTS.md` where relevant.
+
+## Relationship to plan/IMPLEMENTATION_NOTES.md
+
+`plan/IMPLEMENTATION_NOTES.md` is **ephemeral** — it is wiped periodically to
+keep it focused on current work. **Do not reference it from `AGENTS.md`.**
+
+When updating `AGENTS.md`:
+
+- Pull durable technical guidance from `notes/` (this directory), not from
+  `plan/IMPLEMENTATION_NOTES.md`.
+- If `plan/IMPLEMENTATION_NOTES.md` contains insights worth preserving, move
+  them here first, then reference `notes/` from `AGENTS.md`.
