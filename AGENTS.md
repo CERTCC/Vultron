@@ -566,6 +566,12 @@ behavior across backends (in-memory / tinydb) where reasonable.
   and as test fixtures for pattern matching
 - **Case States**: `vultron/case_states/` - RM/EM/CS state machine enums and
   patterns; use as reference for valid state transitions and preconditions
+  - **State machine enums are authoritative**: When documentation and code
+    disagree on state names or valid states, the enum definitions in
+    `vultron/bt/report_management/states.py`,
+    `vultron/bt/embargo_management/states.py`, and
+    `vultron/case_states/states.py` take precedence. Update the docs, not
+    the enums.
 
 ### Specification Quick Links
 

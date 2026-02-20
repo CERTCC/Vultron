@@ -75,6 +75,14 @@ evaluate:
 - Outdated design docs with no corresponding implementation → mark as
   historical or archive.
 
+**State machine enums are authoritative**: When documentation and enum
+definitions disagree on state names or valid states, the enum code wins.
+Update the documentation to match the enum, never the reverse (unless the
+enum itself is explicitly identified as a bug by a maintainer). Canonical
+enum files: `vultron/bt/report_management/states.py` (RM),
+`vultron/bt/embargo_management/states.py` (EM),
+`vultron/case_states/states.py` (CS/VFD/PXA).
+
 ---
 
 ## Process Models and Formal Protocol Documentation
