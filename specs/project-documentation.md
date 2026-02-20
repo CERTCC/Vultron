@@ -2,7 +2,7 @@
 
 **Status**: Draft  
 **Created**: 2026-02-18  
-**Last Updated**: 2026-02-18
+**Last Updated**: 2026-02-20
 
 ## Purpose
 
@@ -12,6 +12,102 @@ key project documentation files that guide AI agents and human developers.
 ---
 
 ## Documentation Files Overview
+
+### docs/adr/*.md (Architectural Decision Records)
+
+**Purpose**: Capture architectural decisions, their rationale, and alternatives
+considered.
+
+**Format**: MADR (Markdown Any Decision Records) with optional YAML front matter.
+A template is available at `docs/adr/_adr-template.md`.
+
+**Front matter fields** (optional but encouraged):
+
+- `status`: proposed | rejected | accepted | deprecated | superseded by
+  (link to new ADR)
+- `date`: YYYY-MM-DD when the decision was last updated
+- `deciders`: list of people involved in the decision
+- `consulted`: subject-matter experts consulted (two-way communication)
+- `informed`: people kept up-to-date on progress (one-way communication)
+
+**Scope** (MUST contain):
+
+- Title describing the decision (short, problem + solution form)
+- Context and Problem Statement
+- Considered Options (at least two)
+- Decision Outcome (chosen option with justification)
+
+**Scope** (SHOULD contain):
+
+- Decision Drivers
+- Consequences (positive and negative)
+- Pros and Cons of each option
+
+**Scope** (MAY contain):
+
+- Validation criteria (how to verify compliance with the decision)
+- Non-Goals
+- More Information (links to related ADRs, team agreements,
+  re-evaluation criteria)
+
+**Maintenance**:
+
+- Create a new ADR for each significant architectural decision
+- Use `docs/adr/_adr-template.md` as the starting point
+- Number sequentially (e.g., `0009-next-decision.md`)
+- Mark superseded ADRs with `status: superseded by [ADR-XXXX](link)`
+- Do not delete superseded ADRs; preserve the historical record
+
+**Target Audience**: Developers and agents needing context on why key
+architectural decisions were made
+
+### notes/*.md (Design Insights)
+
+**Purpose**: Capture durable design insights, domain-specific guidance, and
+lessons learned that are expected to remain relevant over time. Unlike
+`plan/IMPLEMENTATION_NOTES.md` (which is ephemeral and may be wiped), files
+in `notes/` are committed to version control and MUST be kept up to date as
+the implementation evolves.
+
+**Current files**:
+
+- `notes/bt-integration.md`: Behavior tree design decisions, py_trees
+  patterns, simulation-to-prototype strategy
+- `notes/activitystreams-semantics.md`: Activity model, state-change
+  notification semantics, response conventions
+- `notes/README.md`: Index and conventions for the notes directory
+
+**Scope** (MUST contain):
+
+- Design and implementation insights expected to remain relevant over time
+- Domain-specific guidance for future agents and developers
+- Cross-references to relevant specs and ADRs
+- Architectural patterns and the rationale behind them
+
+**Scope** (MUST NOT contain):
+
+- Implementation status or progress tracking (belongs in
+  IMPLEMENTATION_NOTES.md)
+- Future planning or prioritization (belongs in IMPLEMENTATION_PLAN.md)
+- Ephemeral debugging history (belongs in IMPLEMENTATION_NOTES.md)
+- Technical how-tos or quick-reference content (belongs in AGENTS.md)
+
+**Maintenance**:
+
+- Update with new insights or observations from design reviews that are not
+  specific technical instructions or refinements to the specifications
+- When a lesson is learned during implementation, add it here as durable
+  guidance (not only in `plan/IMPLEMENTATION_NOTES.md`)
+- Retain indefinitely — these files serve as a long-term resource for
+  future agents to learn from past experiences and insights
+- Each file focuses on a specific topic area; create new files for
+  distinct topics
+- Cross-reference from `AGENTS.md` where relevant
+
+**Target Audience**: Future agents and developers needing durable design
+context and domain-specific guidance
+
+---
 
 ### AGENTS.md (Technical Reference)
 
@@ -105,20 +201,6 @@ history from implementation work.
 
 ---
 
-### plan/BT_INTEGRATION.md (Feature-Specific Plan) — ARCHIVED
-
-**Status**: ARCHIVED — BT integration Phase BT-1 is complete. All insights
-from this document have been distributed to:
-- `plan/IMPLEMENTATION_NOTES.md` — design decisions, rationale, open questions
-- `specs/behavior-tree-integration.md` — formal BT requirements
-- `plan/IMPLEMENTATION_PLAN.md` — Phase BT-2 through BT-4 planning
-
-Feature-specific plans of this type should follow the pattern described above:
-when a feature phase is complete, archive the plan and move lessons to
-IMPLEMENTATION_NOTES.md.
-
----
-
 ## Content Migration Guidelines
 
 When refactoring documentation:
@@ -128,12 +210,14 @@ When refactoring documentation:
 3. **Future priorities** → Move to IMPLEMENTATION_PLAN.md
 4. **Technical gotchas** → Keep in AGENTS.md Common Pitfalls
 5. **How-to guides** → Keep in AGENTS.md
-6. **Design insights** → Move to IMPLEMENTATION_NOTES.md
-7. **Specification issues** → Move to IMPLEMENTATION_NOTES.md
+6. **Durable design insights** → Move to notes/*.md (topic-specific file)
+7. **Ephemeral design context** → Move to IMPLEMENTATION_NOTES.md
+8. **Specification issues** → Move to IMPLEMENTATION_NOTES.md
 
 ## File Size Guidelines
 
 - **AGENTS.md**: Target < 1000 lines; prioritize clarity and scannability
+- **notes/*.md**: No strict limit per file; create new files for distinct topics
 - **IMPLEMENTATION_NOTES.md**: No limit (grows over time)
 - **IMPLEMENTATION_PLAN.md**: Target < 400 lines (archive completed phases)
 
@@ -144,6 +228,8 @@ When refactoring documentation:
 When one document references another:
 
 - AGENTS.md MAY reference IMPLEMENTATION_NOTES.md for "see lessons learned"
+- AGENTS.md MAY reference notes/*.md for "see design insights"
+- notes/*.md MUST reference relevant specs and ADRs
 - IMPLEMENTATION_NOTES.md SHOULD reference relevant specs and ADRs
 - IMPLEMENTATION_PLAN.md SHOULD reference spec requirements
 - All documents MAY reference specs/ for authoritative requirements
