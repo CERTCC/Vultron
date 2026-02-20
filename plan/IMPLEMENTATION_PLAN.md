@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-19 (Gap analysis and priority review via PLAN_prompt.md)
+**Last Updated**: 2026-02-20 (Gap analysis and priority review via PLAN_prompt.md)
 
 ## Overview
 
@@ -19,7 +19,7 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [x] Actor ID resolution working (short IDs like "vendorco" resolve to full URIs)
 - [x] All handler tests passing (9/9 handler-specific tests)
 
-**BT Integration Status (Phase BT-1: COMPLETE ✅)**:
+**BT Integration Status (Phase BT-1: COMPLETE ✅, Phase BT-2.1: COMPLETE ✅)**:
 
 - ✅ py_trees library added to dependencies (v2.2.0+)
 - ✅ BT bridge layer implemented (`vultron/behaviors/bridge.py`)
@@ -27,15 +27,17 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - ✅ Report validation BT nodes implemented (`vultron/behaviors/report/nodes.py`)
 - ✅ Report validation tree composed (`vultron/behaviors/report/validate_tree.py`)
 - ✅ Default policy implementation (`vultron/behaviors/report/policy.py`)
-- ✅ Comprehensive BT tests (76 tests passing in `test/behaviors/`)
+- ✅ Comprehensive BT tests (76 BT-1 tests passing in `test/behaviors/`)
 - ✅ Handler refactoring COMPLETE (`validate_report` handler now uses BT execution)
 - ✅ Demo and documentation updated (Phase BT-1.5-1.6 COMPLETE)
 - ✅ ADR-0008 created for py_trees integration decision
+- ✅ Phase BT-2.1 COMPLETE: `engage_case` + `defer_case` BT trees + handlers
+  (11 tests in `test/behaviors/report/test_prioritize_tree.py`)
 
-**Next Priority**: Per PRIORITIES.md, the focus is now on **Phase BT-2: extending BT
-integration to remaining report handlers** AND **ActivityPub workflow demonstrations**
-as standalone demo scripts (similar to `receive_report_demo.py`). See phases BT-2
-through BT-6 below.
+**Next Priority**: Per PRIORITIES.md, the focus is now on **Phase BT-3 (case
+management demo)** AND **remaining Phase BT-2 optional refactors** AND
+**ActivityPub workflow demonstrations** as standalone demo scripts
+(similar to `receive_report_demo.py`). See phases BT-2 through BT-6 below.
 
 **Completed Infrastructure:**
 
@@ -44,7 +46,7 @@ through BT-6 below.
 - [x] All 36 MessageSemantics handlers registered in `semantic_handler_map.py`
 - [x] Basic inbox endpoint at `POST /actors/{actor_id}/inbox/` with 202 response
 - [x] Background task processing infrastructure via FastAPI BackgroundTasks
-- [x] Unit tests for dispatcher and semantic matching (378 core tests + 76 BT tests = 454 passing, 2 xfailed)
+- [x] Unit tests for dispatcher and semantic matching (472 total passing: core + BT-1 + BT-2.1; 2 xfailed)
 - [x] Error hierarchy base (`VultronError` → `VultronApiError` → specific errors)
 - [x] TinyDB data layer implementation with Protocol abstraction
 - [x] Handler protocol with `@verify_semantics` decorator
@@ -53,11 +55,12 @@ through BT-6 below.
 
 **Handler Business Logic Status:**
 
-- ✅ Report handlers complete (6/36): create_report, submit_report, validate_report
-  (BT-powered), invalidate_report, ack_report, close_report
-- ❌ 30 stub handlers remain: case management (8), ownership transfer (3),
-  invite/accept/reject actor to case (3), embargo management (6), embargo invitations
-  (3), participants (3), notes (3), statuses (3), close_case (1)
+- ✅ Report handlers complete (8/36): create_report, submit_report, validate_report
+  (BT-powered), invalidate_report, ack_report, close_report, engage_case
+  (BT-powered), defer_case (BT-powered)
+- ❌ 28 stub handlers remain: create_case (partial stub), case management (7),
+  ownership transfer (3), invite/accept/reject actor to case (3), embargo management
+  (6), embargo invitations (3), participants (3), notes (3), statuses (3), close_case (1)
 
 **Production Readiness Features (Lower Priority per PRIORITIES.md):**
 
@@ -76,36 +79,60 @@ through BT-6 below.
 
 ## Prioritized Task List (Per PRIORITIES.md and Gap Analysis)
 
-**Gap Analysis Summary (2026-02-19)**:
+**Gap Analysis Summary (2026-02-20)**:
 
 **✅ Completed Work:**
 - ✅ **Phase 0 & 0A complete**: Report handlers (6/36) with full business logic
 - ✅ **BT Phase BT-1 complete**: BT infrastructure + `validate_report` BT handler
   - py_trees integrated, bridge layer, helpers, report validation tree, policy stubs
-  - All 454 tests passing (76 BT tests + 378 core)
+  - All 472 tests passing (76 BT-1 tests + 11 BT-2.1 tests; 2 xfailed)
+- ✅ **BT Phase BT-2.1 complete**: `engage_case` + `defer_case` BT handlers
+  - `vultron/behaviors/report/prioritize_tree.py` with 11 tests
+  - SSVC deferral documented in `specs/prototype-shortcuts.md` PROTO-05-001
 - ✅ **Demo script complete**: `receive_report_demo.py` with 3 workflows
 
 **📊 Specification Compliance Status**:
 - **BT Requirements (specs/behavior-tree-integration.md)**:
   - BT-01 through BT-07, BT-09 through BT-11: ✅ Implemented
   - BT-08 (CLI): ❌ Not implemented (MAY requirement, low priority)
-- **Handler stubs**: 30 of 36 handlers are debug-only stubs with no business logic
+- **Case Management (specs/case-management.md)** — NEW SPEC (added 2026-02-20):
+  - CM-01 (Actor Isolation): ✅ Implemented (per-actor blackboard isolation)
+  - CM-02 (CaseActor Lifecycle): ✅ Partially (CaseActor created in validate_report BT)
+  - CM-03 (State Model): ✅ Data model correct (CaseStatus, ParticipantStatus in place)
+  - CM-04 (State Transition Correctness): ⚠️ Needs verification — all state-changing
+    handlers must correctly scope RM updates to `ParticipantStatus.rm_state` (not
+    `CaseStatus`) and EM/PXA updates to `CaseStatus` (not participant status)
+- **Idempotency (specs/idempotency.md)** — NOW STANDALONE (consolidated 2026-02-20):
+  - ID-01 (Activity ID Uniqueness): ✅ Activities have IDs
+  - ID-02/03 (Duplicate Detection/Response): ❌ HTTP-layer duplicate detection not implemented
+  - ID-04-001/002/003 (Handler Idempotency SHOULD): ✅ validate_report has state checks
+  - **ID-04-004 (State-changing handlers MUST be idempotent)**: ⚠️ `engage_case` and
+    `defer_case` need explicit idempotency guards; `create_case` (stub) will need them
+  - ID-05 (Implementation Strategy): ❌ Not implemented
+- **Handler stubs**: 28 of 36 handlers are debug-only stubs with no business logic
 
 **❌ Remaining Gaps (prioritized per PRIORITIES.md)**:
-- ❌ **Phase BT-2**: Remaining report handlers need BT trees (prioritize_report,
-  close_report, invalidate_report, ack_report — complex ones worth BT treatment)
+- ❌ **CM-04 compliance gap**: Verify `engage_case` + `defer_case` correctly update
+  `ParticipantStatus.rm_state` (participant-specific), not `CaseStatus` (shared).
+  Required by `specs/case-management.md` CM-04-001.
+- ❌ **ID-04-004 compliance gap**: `engage_case`, `defer_case` need idempotency guards
+  (check if RM state is already in target state before transitioning).
+- ❌ **Phase BT-3**: `create_case` BT + `initialize_case` + `manage_case` demo —
+  `create_case` is currently a debug-only stub; highest priority new work
+- ❌ **Phase BT-2.2/2.3**: `close_report` + `invalidate_report` optional BT refactors
+  (procedural logic already exists; BT adds clarity)
 - ❌ **Demo scripts missing**: No standalone demos for case/embargo/participant
   workflows listed in PRIORITIES.md as highest priority targets
-- ❌ **30 handler stubs**: case management, actor invitations, embargo, participants,
+- ❌ **28 handler stubs**: case management, actor invitations, embargo, participants,
   notes, statuses, close_case
 - ❌ **Production readiness incomplete**: Request validation, error responses, health
-  checks, structured logging, idempotency (all `PROD_ONLY` or lower priority)
+  checks, structured logging, HTTP-layer idempotency (all `PROD_ONLY` or lower priority)
 
 **🎯 Next Actions (ordered by PRIORITIES.md):**
-1. **Phase BT-2** — Extend BT to remaining complex report handlers
-   (`prioritize_report` BT is the main new one; optionally wrap others)
-2. **Phase BT-3** — Implement `initialize_case` + `manage_case` demo with
-   BT-powered `create_case` handler (higher priority per PRIORITIES.md)
+1. **CM-04 + ID-04-004 audit** — Verify `engage_case` / `defer_case` correctly scope
+   state updates (participant-specific RM) and have idempotency guards
+2. **Phase BT-3** — Implement BT-powered `create_case` handler + `initialize_case`
+   + `manage_case` demo script (highest priority new demo per PRIORITIES.md)
 3. **Phase BT-4** — Implement `invite_actor` + `initialize_participant` +
    `manage_participants` demo
 4. **Phase BT-5** — Implement `establish_embargo` + `manage_embargo` demo
@@ -346,6 +373,23 @@ the report management workflow with BT-powered logic throughout.
 - Use BTs for complex handlers with multiple branches/state transitions
 - Keep procedural for simple CRUD-style handlers (create_report, ack_report)
 
+#### BT-2.0: CM-04 + ID-04-004 Compliance Audit (NEW — 2026-02-20)
+
+New specs `case-management.md` (CM-04) and `idempotency.md` (ID-04-004) require
+state-changing handlers to scope state updates correctly and to be idempotent.
+The completed `engage_case` and `defer_case` handlers need explicit verification.
+
+- [ ] **BT-2.0.1**: Verify `engage_case` updates `ParticipantStatus.rm_state`
+  (participant-specific RM — CM-04-001) and NOT `CaseStatus`
+- [ ] **BT-2.0.2**: Verify `defer_case` updates `ParticipantStatus.rm_state`
+  (CM-04-001) and NOT `CaseStatus`
+- [ ] **BT-2.0.3**: Add idempotency guard to `engage_case` BT tree — if participant
+  RM is already ACCEPTED, log at INFO and return (ID-04-004 MUST)
+- [ ] **BT-2.0.4**: Add idempotency guard to `defer_case` BT tree — if participant
+  RM is already DEFERRED, log at INFO and return (ID-04-004 MUST)
+- [ ] **BT-2.0.5**: Update tests to verify idempotent re-execution behavior
+  (same input twice → same state, no error)
+
 #### BT-2.1: `engage_case` / `defer_case` BTs (was "prioritize_report") ✅ COMPLETE
 
 The original plan called this "prioritize_report" but the correct framing is
@@ -411,6 +455,10 @@ as standalone demo script. Reference:
 `docs/howto/activitypub/activities/initialize_case.md`,
 `docs/howto/activitypub/activities/manage_case.md`
 
+**Key spec reference**: `specs/case-management.md` CM-02 (CaseActor lifecycle),
+CM-03 (state model), CM-04 (state transition correctness). All BT nodes and
+handlers in this phase MUST comply with CM-04 scoping rules.
+
 **Workflows to demo**: CreateCase → AddReportToCase → AddParticipantToCase →
 (optionally) prioritize → engage/defer → close
 
@@ -422,14 +470,15 @@ fresh using case_state conditions/transitions as reference.
 
 - [ ] Implement `vultron/behaviors/case/` directory with `__init__.py`
 - [ ] Implement `vultron/behaviors/case/create_tree.py`
-  - Sequence: validate case object → persist VulnerabilityCase to DataLayer →
+  - Sequence: **check case doesn't already exist** (idempotency — ID-04-004) →
+    validate case object → persist VulnerabilityCase to DataLayer →
     create CaseActor (Service) → emit CreateCase activity → update outbox
   - Reuse CaseActor creation pattern from `validate_report` BT
 - [ ] Implement BT nodes in `vultron/behaviors/case/nodes.py`:
+  - `CheckCaseNotExists`: idempotency guard — returns early if case already in DataLayer
   - `ValidateCaseObject`: check required fields on incoming case
-  - `PersistCase`: create VulnerabilityCase in DataLayer
-  - `CreateCaseActorNode`: create CaseActor service in DataLayer (reuse/refactor
-    from report validation tree)
+  - `PersistCase`: create VulnerabilityCase in DataLayer (CM-02-001)
+  - `CreateCaseActorNode`: create CaseActor service in DataLayer (CM-02-001, BT-10-002)
   - `EmitCreateCaseActivity`: generate `as:Create(VulnerabilityCase)` for outbox
 - [ ] Refactor `create_case` handler in `handlers.py` to use BT
 - [ ] Add `test/behaviors/case/test_create_tree.py`
@@ -517,6 +566,10 @@ Reference: `docs/howto/activitypub/activities/establish_embargo.md`,
 **Simulation reference**: `vultron/bt/embargo_management/` (behaviors.py,
 conditions.py, states.py, transitions.py — no `_behaviors/` subdirectory,
 translate directly from these files).
+
+**Key spec reference**: `specs/case-management.md` CM-04-003 — EM state
+transitions MUST update `CaseStatus.em_state` (participant-agnostic, shared).
+Do NOT update `ParticipantStatus` for EM state changes.
 
 #### BT-5.1: Core embargo handlers
 
