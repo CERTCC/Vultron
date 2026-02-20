@@ -9,8 +9,11 @@ implementation evolves.
 
 | File | Topics |
 |------|--------|
-| `bt-integration.md` | Behavior tree design decisions, py_trees patterns, simulation-to-prototype strategy |
 | `activitystreams-semantics.md` | Activity model, state-change notification semantics, response conventions, vocabulary examples |
+| `bt-integration.md` | Behavior tree design decisions, py_trees patterns, simulation-to-prototype strategy |
+| `case-state-model.md` | VFD/PXA case state hypercube, potential actions, measuring CVD quality, case object docs vs implementation |
+| `codebase-structure.md` | Module reorganization candidates, enum refactoring, code documentation strategy |
+| `documentation-strategy.md` | Docs chronology and trust levels, process models, formal protocol, behavior simulator reference, Do Work behaviors, ISO crosswalks |
 
 ## Conventions
 
