@@ -785,14 +785,26 @@ def setup_clean_environment(
     return finder, vendor, coordinator
 
 
-def main(skip_health_check: bool = False):
+_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+    ("Demo 1: Validate Report", demo_validate_report),
+    ("Demo 2: Invalidate Report", demo_invalidate_report),
+    ("Demo 3: Invalidate and Close Report", demo_invalidate_and_close_report),
+]
+
+
+def main(
+    skip_health_check: bool = False,
+    demos: Optional[Sequence] = None,
+):
     """
     Main entry point for the demo script.
 
     Args:
         skip_health_check: Skip the server availability check (useful for testing)
+        demos: Optional sequence of demo functions to run. Defaults to all three.
+            Pass a subset (e.g. ``[demo_validate_report]``) to run only those demos.
 
-    Runs all three demonstration workflows to showcase the different outcomes
+    Runs demonstration workflows to showcase the different outcomes
     when processing vulnerability reports.
     """
     client = DataLayerClient()
@@ -812,33 +824,24 @@ def main(skip_health_check: bool = False):
         logger.error("=" * 80)
         sys.exit(1)
 
+    selected = (
+        _ALL_DEMOS
+        if demos is None
+        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+    )
+    total = len(selected)
+
     # Track errors for summary
     errors = []
 
-    # Run all three demos with different reports, each with clean environment
-    try:
-        finder, vendor, coordinator = setup_clean_environment(client)
-        demo_validate_report(client, finder, vendor)
-    except Exception as e:
-        error_msg = f"Demo 1 failed: {e}"
-        logger.error(error_msg, exc_info=True)
-        errors.append(("Demo 1: Validate Report", str(e)))
-
-    try:
-        finder, vendor, coordinator = setup_clean_environment(client)
-        demo_invalidate_report(client, finder, vendor)
-    except Exception as e:
-        error_msg = f"Demo 2 failed: {e}"
-        logger.error(error_msg, exc_info=True)
-        errors.append(("Demo 2: Invalidate Report", str(e)))
-
-    try:
-        finder, vendor, coordinator = setup_clean_environment(client)
-        demo_invalidate_and_close_report(client, finder, vendor)
-    except Exception as e:
-        error_msg = f"Demo 3 failed: {e}"
-        logger.error(error_msg, exc_info=True)
-        errors.append(("Demo 3: Invalidate and Close Report", str(e)))
+    # Run selected demos with different reports, each with clean environment
+    for demo_name, demo_fn in selected:
+        try:
+            finder, vendor, coordinator = setup_clean_environment(client)
+            demo_fn(client, finder, vendor)
+        except Exception as e:
+            logger.error(f"{demo_name} failed: {e}", exc_info=True)
+            errors.append((demo_name, str(e)))
 
     logger.info("=" * 80)
     logger.info("ALL DEMOS COMPLETE")
@@ -850,9 +853,9 @@ def main(skip_health_check: bool = False):
         logger.error("=" * 80)
         logger.error("ERROR SUMMARY")
         logger.error("=" * 80)
-        logger.error(f"Total demos: 3")
+        logger.error(f"Total demos: {total}")
         logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {3 - len(errors)}")
+        logger.error(f"Successful demos: {total - len(errors)}")
         logger.error("")
         for demo_name, error in errors:
             logger.error(f"{demo_name}:")
@@ -861,7 +864,7 @@ def main(skip_health_check: bool = False):
         logger.error("=" * 80)
     else:
         logger.info("")
-        logger.info("✓ All 3 demos completed successfully!")
+        logger.info(f"✓ All {total} demos completed successfully!")
         logger.info("")
 
 
