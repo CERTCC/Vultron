@@ -104,11 +104,6 @@ who are directing them to perform specific tasks.
 We will need to design the system in a way that allows for either of these 
 possibilities to be implemented in the future without requiring major refactoring.
 
-There are some requirements already defined in `specs/agentic-readiness.md` that
-are relevant to this, but that file will need to be revised to match our 
-specifications format and de-duplicated against existing requirements in 
-other files. See the TODO list at the top of that file for more details on what needs to be done.
-
 ---
 ## Priority 99999: Remaining Requirements and Documentation Updates
 
