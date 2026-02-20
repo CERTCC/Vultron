@@ -4,7 +4,7 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ---
 
-## BUG: `VulnerabilityCase.set_embargo()` does not update `em_state`
+## ~~BUG: `VulnerabilityCase.set_embargo()` does not update `em_state`~~ FIXED
 
 **File**: `vultron/as_vocab/objects/vulnerability_case.py`, line 100
 

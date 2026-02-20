@@ -4,9 +4,17 @@ Longer-term notes can be found in `/notes/*.md`. This file is ephemeral
 and will be reset periodically, so it's meant to capture more immediate 
 insights, issues, and learnings during the implementation process.
 
-Append new notes below this line.
+## 2026-02-20 — Bug fix: `VulnerabilityCase.set_embargo()` (BUGS.md HIGH priority)
+
+Added `current_status` property to `VulnerabilityCase` returning the most-recent
+`CaseStatus` (sorted by `updated` timestamp). Fixed `set_embargo()` to call
+`self.current_status.em_state = EM.ACTIVE` instead of the broken
+`self.case_status.em_state = EM.ACTIVE` (list attribute set). Added 6 tests in
+`test/as_vocab/test_vulnerability_case.py`. All 492 tests pass.
 
 ---
+
+
 
 ## 2026-02-20 — Gap Analysis Refresh #2 (PLAN_prompt.md run)
 
