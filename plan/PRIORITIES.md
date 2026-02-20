@@ -5,10 +5,6 @@
 The top priority is the Behavior Tree prototype implementation 
 partially outlined in
 `specs/behavior-tree-integration.md` and `plan/IMPLEMENTATION_PLAN.md`.
-Phase BT-1 is complete; the next priority is Phase BT-2 (extend BT integration
-to remaining report handlers). See `plan/IMPLEMENTATION_NOTES.md` for design
-decisions and rationale.
-
 BT integration from this point forwards should focus on implementing 
 and integrating workflow demonstrations of the ActivityPub processes outlined in
 
@@ -29,11 +25,13 @@ Lower priority:
 - `docs/howto/activitypub/activities/suggest_actor.md`
 - `docs/howto/activitypub/activities/error.md`
 
-It would be ideal if different workflow demonstrations could be implemented
+Workflow demonstrations should be implemented
 as distinct demo scripts similar to `vultron/scripts/receive_report_demo.py` 
 that can be run independently to demonstrate the specific workflow. Each of 
 these would require some amount of setup to create the necessary preconditions,
-then execute the workflow and demonstrate side effects and outputs.
+then execute the workflow and demonstrate side effects and outputs. They 
+should also be dockerized and use the same `api-dev` container so that the
+demo is legitimately demonstrating the backend API.
 
 The ActivityPub processes often refer to message types that correspond to 
 behavior tree nodes in the BT simulator in `vultron/bt` that will need to be 
