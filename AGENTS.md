@@ -42,8 +42,10 @@ Essential commands (run in zsh):
 # Format code (pre-commit enforces Black)
 black vultron/ test/
 
-# Run full test-suite — use EXACTLY this command, ONCE, and read tail -5
+# ⚠️  Run full test-suite — EXACTLY this command, EXACTLY ONCE per cycle
 uv run pytest --tb=short 2>&1 | tail -5
+# The last 5 lines always contain the summary AND any short failure tracebacks.
+# Read the tail output directly. Do NOT re-run with grep, -q, or tail -3/-15.
 
 # Run a specific test file
 uv run pytest test/test_semantic_activity_patterns.py -v
@@ -52,11 +54,18 @@ uv run pytest test/test_semantic_activity_patterns.py -v
 uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
 ```
 
-**Full test-suite rule**: Run `uv run pytest --tb=short 2>&1 | tail -5` exactly
-**once** per validation cycle. The last 5 lines always contain the summary (e.g.
-`472 passed, 2 xfailed in 40s`) and any short tracebacks for failures. Do NOT
-re-run to grep for counts — read the tail output directly. Do NOT use `-q` for
-the full suite; it suppresses the summary line in some terminal configurations.
+> ⚠️ **STOP — Full test-suite rule (MUST follow)**
+>
+> Run `uv run pytest --tb=short 2>&1 | tail -5` **exactly once** per
+> validation cycle and read its output. Do NOT:
+>
+> - Re-run pytest a second time to grep for counts or check pass/fail
+> - Use the `-q` flag (suppresses the summary line in some configurations)
+> - Change `tail -5` to `tail -3` or `tail -15`
+> - Pipe to `grep -E "passed|failed|error"` (the tail already shows this)
+>
+> The summary line (`N passed, M xfailed in Xs`) is **always** in the last
+> 5 lines. One run is sufficient for all information you need.
 
 **Expected xfails**: The 2 `xfailed` tests in
 `test/api/test_reporting_workflow.py` use deprecated `_old_handlers` with

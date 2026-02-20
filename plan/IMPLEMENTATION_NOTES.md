@@ -8,6 +8,25 @@ Append new notes below this line.
 
 ---
 
+## 2026-02-20: Agent test-suite efficiency fix
+
+Agents were running `pytest` multiple times with slightly different flags
+(`-q`, `tail -3`, `tail -15`, `grep -E "passed|failed"`) to extract counts
+and failure info separately. This is wasteful.
+
+**Fix**: Strengthened the one-run rule in root `AGENTS.md` (added explicit
+`⚠️` warning block with the exact anti-patterns to avoid) and created
+`test/AGENTS.md` with the same rule — so agents see the guidance when they
+navigate into the `test/` directory.
+
+The canonical command remains:
+
+```bash
+uv run pytest --tb=short 2>&1 | tail -5
+```
+
+---
+
 ## 2026-02-20: Spec Updates — New case-management.md and idempotency.md
 
 Two specs were added/consolidated since the last plan revision:
