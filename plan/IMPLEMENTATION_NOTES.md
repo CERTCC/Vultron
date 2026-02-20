@@ -8,7 +8,70 @@ Append new notes below this line.
 
 ---
 
-## 2026-02-20 — Gap Analysis Refresh (PLAN_prompt.md run)
+## 2026-02-20 — Gap Analysis Refresh #2 (PLAN_prompt.md run)
+
+### Test status
+
+486 passing, 5581 subtests passed, 0 xfailed (confirmed by running full suite).
+
+### Bug: `VulnerabilityCase.set_embargo()` — silent no-op on em_state
+
+`vultron/as_vocab/objects/vulnerability_case.py` line 100:
+`self.case_status.em_state = EM.ACTIVE` — but `case_status` is
+`list[CaseStatusRef]`. Setting `.em_state` on a plain Python list will raise
+`AttributeError` at runtime (lists don't support arbitrary attribute
+assignment). The fix is `self.case_status[0].em_state = EM.ACTIVE`. Logged in
+`plan/BUGS.md`. **Must fix before implementing BT-5 embargo handlers.**
+
+### Actor direction for invite handlers
+
+Per the sequence diagram in `docs/howto/activitypub/activities/invite_actor.md`:
+
+- **Case Owner → Actor**: `Invite(object=Case)` hits the **Actor's** inbox
+  → `invite_actor_to_case` handler stores the invite for local consideration.
+- **Actor → Case Owner**: `Accept(object=Case, inReplyTo=Invite)` hits the
+  **Case Owner's** inbox → `accept_invite_actor_to_case` handler creates the
+  `CaseParticipant`. **The participant creation logic lives in the accept
+  handler, not the invite handler.**
+
+This asymmetry is easy to miss. Each actor only sees their own inbox.
+
+### VulnerabilityCase API for embargo handlers (BT-5 implementation notes)
+
+`VulnerabilityCase` already provides:
+
+- `active_embargo: EmbargoEventRef` — currently active embargo
+- `proposed_embargoes: list[EmbargoEventRef]` — embargoes under negotiation
+- `set_embargo(embargo)` — once bug is fixed, this is the right API to call
+  for `add_embargo_event_to_case` / ActivateEmbargo
+
+Handler-to-field mapping for BT-5:
+
+| Handler                          | VulnerabilityCase mutation                               |
+|----------------------------------|----------------------------------------------------------|
+| `create_embargo_event`           | persist `EmbargoEvent` to DataLayer only                |
+| `invite_to_embargo_on_case`      | append to `case.proposed_embargoes`, emit Invite        |
+| `accept_invite_to_embargo_on_case` | call `case.set_embargo(embargo)` (after bug fix)      |
+| `add_embargo_event_to_case`      | call `case.set_embargo(embargo)` (after bug fix)        |
+| `remove_embargo_event_from_case` | `case.active_embargo = None`; update `em_state`         |
+| `announce_embargo_event_to_case` | emit `as:Announce(EmbargoEvent)` to all participants    |
+| `reject_invite_to_embargo_on_case` | log, optionally remove from `proposed_embargoes`      |
+
+EM state transitions (CM-04-003): MUST update `CaseStatus.em_state`, NOT
+`ParticipantStatus`. Use `case.case_status[0].em_state` (or the fixed
+`set_embargo()` helper).
+
+### Embargo state machine reminder
+
+`EM` enum (from `vultron/bt/embargo_management/states.py`):
+`NO_EMBARGO → PROPOSED → ACTIVE` (aliases: N=NO_EMBARGO, P=PROPOSED, A=ACTIVE).
+Update `case_status[0].em_state` at each transition.
+Note: There is no explicit "ACCEPTED" state in the enum — acceptance triggers
+the `ACTIVE` transition directly.
+
+---
+
+
 
 ### Current state after BT-3 and BT-4.2 completion
 

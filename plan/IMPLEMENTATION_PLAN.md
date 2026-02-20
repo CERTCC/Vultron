@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-20 (Gap analysis refresh — BT-3 + BT-4.2 confirmed complete; BT-4 next)
+**Last Updated**: 2026-02-20 (Gap analysis refresh #2 — BT-4 next; set_embargo bug logged in BUGS.md)
 
 ## Overview
 
@@ -117,6 +117,7 @@ invitation + participant demo)** AND **Phase BT-5 (embargo demo)** AND
   structured logging, HTTP-layer idempotency (all `PROD_ONLY` or lower priority)
 
 **🎯 Next Actions (ordered by PRIORITIES.md):**
+0. **Bug fix** — Fix `VulnerabilityCase.set_embargo()` (see `plan/BUGS.md`)
 1. **Phase BT-4.1** — Implement `invite_actor_to_case`, `accept_invite_actor_to_case`,
    `reject_invite_actor_to_case` handlers; `remove_case_participant_from_case`
 2. **Phase BT-4.3** — Create `invite_actor_demo.py` demo script
@@ -509,6 +510,14 @@ fresh using case_state conditions/transitions as reference.
 
 #### BT-4.1: Actor invitation handlers
 
+**Direction note**: Per `invite_actor.md` sequence diagram, the Case Owner
+sends `Invite(object=Case)` to an Actor. The **receiving** Actor's inbox
+handler (`invite_actor_to_case`) stores the invite for local decision. The
+Case Owner's inbox then handles `Accept(object=Case, inReplyTo=Invite)`
+via `accept_invite_actor_to_case`, which creates the CaseParticipant. This
+means the *create-participant logic lives in the accept handler*, not the
+invite handler.
+
 - [ ] Implement `invite_actor_to_case` handler:
   - Store Invite activity in DataLayer
   - Emit `as:Invite(object=VulnerabilityCase)` to target actor inbox
@@ -552,6 +561,12 @@ Reference: `docs/howto/activitypub/activities/establish_embargo.md`,
 **Simulation reference**: `vultron/bt/embargo_management/` (behaviors.py,
 conditions.py, states.py, transitions.py — no `_behaviors/` subdirectory,
 translate directly from these files).
+
+**⚠️ Pre-condition**: Fix `VulnerabilityCase.set_embargo()` bug (see
+`plan/BUGS.md`) before implementing BT-5.1 — the method does
+`self.case_status.em_state = EM.ACTIVE` but `case_status` is a list;
+correct approach is `self.case_status[0].em_state = EM.ACTIVE` (or a
+helper returning the current `CaseStatus`).
 
 **Key spec reference**: `specs/case-management.md` CM-04-003 — EM state
 transitions MUST update `CaseStatus.em_state` (participant-agnostic, shared).
