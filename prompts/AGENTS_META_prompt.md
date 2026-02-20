@@ -11,5 +11,9 @@
    corresponding to the relevant topics of concern. For example, if there are
    many insights related to the design of the system, those could be moved to
    a /specs/AGENTS.md file.
-8. DO NOT IMPLEMENT ANYTHING YET. This is a design review to provide guidance to future agents.
-9. git commit the refined AGENTS.md file(s) with a clear commit message
+8. Insights that do not belong in an AGENTS.md can be placed into an 
+   appropriate notes/*.md file. Notes files are intended to be retained 
+   indefinitely, unlike plan/IMPLEMENTATION_NOTES.md which is meant to be 
+   ephemeral and reset periodically.
+9. DO NOT IMPLEMENT ANYTHING YET. This is a design review to provide guidance to future agents.
+10. git commit the refined AGENTS.md file(s) with a clear commit message

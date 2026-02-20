@@ -2,9 +2,12 @@
 2. Study plan/IMPLEMENTATION_PLAN.md to understand the current progress.
 3. Study plan/IMPLEMENTATION_NOTES.md to understand any additional insights or observations that may be helpful for implementation.
 
-- plan/IMPLEMENTATION_NOTES.md is meant to be reset periodically, so any 
-  critical insights in it need to be incorporated into either AGENTS.md or 
-  the specs/*.md files, depending on the nature of the insight.
+- plan/IMPLEMENTATION_NOTES.md is ephemeral and meant to be reset periodically,
+  so any critical insights in it need to be incorporated into either an AGENTS.
+  md (specific technical instructions and tips), notes/*.md (insights about the
+  design and implementation that are not specs), or the specs/*.md files 
+  (refinements to the specifications based on lessons learned during 
+  implementation).
 
 4. Update AGENTS.md with any new insights or recommendations based on your 
    design review.
