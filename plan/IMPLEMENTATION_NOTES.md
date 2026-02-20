@@ -2,515 +2,167 @@
 
 This file tracks insights, issues, and learnings during implementation.
 
----
-
-## Behavior Tree Integration
-
-### Phase BT-2.1 Status: Complete ✅
-
-BT-2.1 implemented `engage_case` and `defer_case` handlers with BT execution.
-
-**Key clarification from design review**: The plan named this "
-prioritize_report"
-but the correct framing is case-level prioritization. RM is a
-**participant-specific** state machine — each `CaseParticipant` (an Actor
-wrapped in a Case context) carries its own RM state in
-`participant_status[].rm_state`, independently of other participants.
-
-**`ReportStatus` vs `CaseParticipant.participant_status`**: `ReportStatus` in
-the flat status layer tracks RM state only for reports that have not yet been
-associated with a case (pre-case RM states: RECEIVED, INVALID). Once a case
-is created from a validated report, RM state is tracked in
-`CaseParticipant.participant_status[].rm_state`.
-
-**What was implemented**:
-
-- `ENGAGE_CASE` (Join(VulnerabilityCase)) and `DEFER_CASE`
-  (Ignore(VulnerabilityCase)) semantics, patterns, and handlers.
-- `PrioritizationPolicy` / `AlwaysPrioritizePolicy` stub (hook point for
-  future SSVC integration — see `specs/prototype-shortcuts.md` PROTO-05-001).
-- `EvaluateCasePriority` node is for the **outgoing** direction (when the
-  local actor decides to engage/defer). The receive-side trees
-  (`EngageCaseBT`, `DeferCaseBT`) do not need policy evaluation; they just
-  record the sender's already-made decision.
-- 11 BT tests passing; full suite: 472 passed, 2 xfailed.
-
-**Next**: BT-2.2 (`close_report` BT) or BT-3 (Case Management Demo).
-
----
-
-### Phase BT-1 Status: Complete ✅
-
-Phase BT-1 successfully validated the BT integration approach:
-
-- Bridge layer (`vultron/behaviors/bridge.py`), DataLayer helpers
-  (`vultron/behaviors/helpers.py`), and report validation BT
-  (`vultron/behaviors/report/`) are implemented.
-- `validate_report` handler refactored to use BT execution (reduced from
-  ~165 lines of procedural logic to ~25 lines of BT invocation).
-- 78 BT tests passing.
-- Performance: P50=0.44ms, P95=0.69ms, P99=0.84ms (well within 100ms target).
-- ADR-0008 created for py_trees integration decision.
-
----
-
-### Key Design Decisions
-
-#### 1. py_trees for Prototype (Not Custom BT Engine)
-
-Use the `py_trees` library (v2.2.0+) for prototype handler BTs. The existing
-`vultron/bt/` simulation code uses a custom BT engine and MUST remain unchanged.
-
-**Rationale**: py_trees is mature, well-tested, provides visualization and
-debugging tools, and allows focus on workflow logic rather than BT engine
-maintenance.
-
-**Boundary**: `vultron/bt/` retains custom engine for simulation;
-`vultron/behaviors/` uses py_trees for prototype handlers. These coexist
-independently.
-
-#### 2. Handler-Orchestrated BT (Handler-First)
-
-Handlers orchestrate BT execution — handlers call BTs, BTs do not replace the
-handler architecture.
-
-**Rationale**: Preserves existing semantic extraction and dispatch
-infrastructure. Allows gradual handler-by-handler migration. Keeps
-ActivityStreams as the API surface (BT is an internal implementation detail).
-Aligns with ADR-0007.
-
-**Rejected alternative**: BTs directly consuming ActivityStreams — would require
-rewriting semantic extraction and tighter coupling.
-
-#### 3. DataLayer as State Store (No Separate Blackboard Persistence)
-
-BTs interact directly with DataLayer for all persistent state. The py_trees
-blackboard MAY be used for transient in-execution state only.
-
-**Rationale**: Single source of truth, eliminates sync issues, simplifies
-architecture, transaction semantics handled by DataLayer.
-
-**Blackboard key naming**: Blackboard keys MUST NOT contain slashes (py_trees
-hierarchical path parsing issues). Use `{noun}_{id_segment}` where `id_segment`
-is the last path segment of the object's URI. Example: `object_abc123`,
-`case_def456`, `actor_vendorco`.
-
-**Rejected alternative**: Separate blackboard with periodic sync — risk of
-inconsistencies, complex sync logic.
-
-#### 4. Focused BTs per Workflow (Not Monolithic)
-
-Create small, focused behavior trees triggered by specific message semantics.
-Each `MessageSemantics` type has a corresponding BT encapsulating that workflow.
-
-**Rationale**: Event-driven model (one message → one tree), easier to test in
-isolation, clear handler entry points, composable via subtrees, better
-performance.
-
-**Rejected alternative**: Single monolithic `CvdProtocolBT` for prototype —
-doesn't match event-driven handler architecture, harder to test, poor
-performance.
-
-#### 5. Single-Shot Execution (Not Persistent Tick Loop)
-
-BTs execute to completion per handler invocation. No state is preserved between
-handler invocations.
-
-**Rationale**: Matches HTTP request/response model, simpler failure handling,
-clear transaction boundaries (one execution = one commit).
-
-**Rejected alternative**: Async tick-based execution with pause/resume —
-requires BT state persistence between ticks, complex failure recovery.
-
-#### 6. Case Creation Includes CaseActor Generation
-
-VulnerabilityCase creation triggers CaseActor (ActivityStreams Service) creation
-as part of the same workflow.
-
-**Rationale**: Case needs a message-processing owner. CaseActor models
-case-as-agent, enables multi-case coordination, clear responsibility boundary.
-One CaseActor per VulnerabilityCase (1:1 relationship).
-
-**CaseActor lifecycle**: Created during report validation → owns case-related
-message processing → exists until case closure.
-
-**Case ownership model**:
-
-- **Case Owner**: Organizational Actor (vendor/coordinator) responsible for
-  decisions
-- **CaseActor**: ActivityStreams Service managing case state (NOT the case
-  owner)
-- **Initial Owner**: Typically the recipient of the VulnerabilityReport Offer
-
-#### 7. CLI Invocation Support (MAY)
-
-BTs can be invoked independently via CLI for testing and AI agent integration.
-See `BT-08-*` in `specs/behavior-tree-integration.md`.
-
----
-
-### Actor Isolation and BT Domains
-
-Each actor has an isolated BT execution domain with no shared blackboard access:
-
-- Actor A and Actor B have separate py_trees blackboards
-- Cross-actor interaction happens ONLY through ActivityStreams messages
-  (inboxes/outboxes)
-- This models real-world CVD: independent organizations making autonomous
-  decisions
-- Each actor's internal state (RM/EM/CS state machines) is private
-
----
-
-### Concurrency Model
-
-**Prototype approach**: Sequential FIFO message processing.
-
-**Rationale**: Eliminates race conditions without complexity. Single-threaded
-execution of the inbox queue is sufficient for prototype validation.
-
-**Implementation**: BackgroundTasks queues messages; inbox endpoint returns 202
-immediately. BT execution happens in the background, sequentially.
-
-**Future optimization paths** (defer until needed):
-
-- Optimistic locking (version numbers on VulnerabilityCase)
-- Resource-level locking (lock specific case during mutations)
-- Actor-level concurrency (parallel across actors, sequential per-actor)
-
----
-
-### Simulation-to-Prototype Translation Strategy
-
-When implementing Phase BT-2 through BT-4, use simulation trees as
-architectural reference (not code reuse targets).
-
-**Why NOT factory method reuse**: The simulation uses custom BT engine factory
-methods (`sequence_node()`, `fallback_node()`) from `vultron/bt/base/factory.py`
-that return custom node types. py_trees uses class-based hierarchy
-(`py_trees.composites.Sequence`, `py_trees.composites.Selector`) with
-incompatible initialization patterns. Direct py_trees implementation is faster
-and cleaner.
-
-**Translation steps**:
-
-1. Find the corresponding simulation tree in
-   `vultron/bt/report_management/_behaviors/` (or embargo/case equivalents).
-2. Note the sequence/fallback composition hierarchy and node ordering.
-3. Map condition nodes (e.g., `RMinStateValid`) to py_trees `Behaviour`
-   subclasses checking DataLayer state.
-4. Replace fuzzer nodes (e.g., `EvaluateReportCredibility`) with deterministic
-   policy nodes using configurable defaults.
-5. Preserve state transition order and precondition checks.
-6. Wrap state changes with DataLayer update operations.
-7. Generate ActivityStreams activities for outbox where simulation emits
-   messages.
-
-**Fuzzer node replacement pattern**: Create a policy class with a clear
-interface (e.g., `ValidationPolicy.is_credible(report) -> bool`) and a default
-`AlwaysAcceptPolicy` implementation. This provides a deterministic stub with an
-explicit extension point.
-
-**Simulation tree to handler mapping**:
-
-| Handler             | Simulation Reference                              | Key Behavior                                                   |
-|---------------------|---------------------------------------------------|----------------------------------------------------------------|
-| `validate_report`   | `_behaviors/validate_report.py:RMValidateBt`      | ✅ DONE                                                         |
-| `invalidate_report` | `_behaviors/validate_report.py:_InvalidateReport` | Sequence: transition to INVALID + emit RI                      |
-| `close_report`      | `_behaviors/close_report.py:RMCloseBt`            | Sequence: check preconditions + transition to CLOSED + emit RC |
-| `prioritize_report` | `_behaviors/prioritize_report.py:RMPrioritizeBt`  | Policy-driven: evaluate priority + ACCEPTED or DEFERRED        |
-| `do_work`           | `_behaviors/do_work.py:RMDoWorkBt`                | Complex: fix dev, testing, deployment                          |
-
----
-
-### Source of Truth Priority
-
-When conflicts arise between reference documents during Phase BT-2+
-implementation:
-
-1. **Primary**: `docs/howto/activitypub/activities/*.md` — process descriptions,
-   message examples, workflow steps
-2. **Secondary**: `vultron/bt/report_management/_behaviors/*.py` — state machine
-   logic, tree composition
-3. **Tertiary**: `docs/topics/behavior_logic/*.md` — conceptual diagrams,
-   motivation
-
----
-
-### Open Questions for Future Phases
-
-These questions were identified during Phase BT-1 planning and remain open for
-Phase BT-2 through BT-4:
-
-**Multi-actor state synchronization (Phase BT-3)**:
-Each actor's BT loads only that actor's DataLayer state. Cross-actor
-coordination happens via message exchange. Whether to add optimistic locking for
-Phase 3 multi-actor scenarios should be decided based on observed issues during
-testing.
-
-**Message emission and outbox processing (Phase BT-2)**:
-BT nodes generate activities and write to actor outbox via DataLayer. Whether
-outbox delivery should be triggered synchronously after BT execution or
-asynchronously remains to be decided.
-
-**Human-in-the-loop decision handling (All phases)**:
-Report validation, embargo acceptance, and similar steps require human judgment.
-The prototype uses configurable default policies (always-accept stubs with audit
-logging). Async workflow support with pause/resume is a Phase 4+ consideration.
-
-**Performance optimization (Phase BT-4)**:
-Current targets: P50 < 50ms, P99 < 100ms. Phase BT-1 results (P99 = 0.84ms)
-far exceed targets. If more complex trees degrade performance, consider:
-caching BT structure (instantiate once, reuse with fresh blackboard) and
-batching DataLayer operations. Measure before optimizing.
-
----
-
-### Specification References
-
-- `specs/behavior-tree-integration.md` — formal BT requirements (BT-01 through
-  BT-11)
-- `specs/handler-protocol.md` — handler protocol BT-powered handlers must
-  comply with
-- `specs/testability.md` — test coverage requirements
-- ADR-0002 — Use Behavior Trees (rationale)
-- ADR-0007 — Behavior Dispatcher architecture
-- ADR-0008 — py_trees integration decision
-
----
-
-## Docker Health Check Coordination
-
-**Symptom**: Demo container fails to connect to API server with "Connection
-refused" despite both containers running.
-
-**Cause**: Docker Compose `depends_on: service_started` only waits for
-container start, not application readiness.
-
-**Solution**: Add health check to API service and use
-`condition: service_healthy` in dependent services. Add retry logic in client
-code as defense in depth. See `docker/` for current configuration.
-
----
-
-## FastAPI response_model Filtering
-
-**Symptom**: API endpoints return objects missing subclass-specific fields.
-
-**Cause**: FastAPI uses return type annotation as implicit `response_model`,
-restricting JSON serialization to fields defined in the annotated base class.
-
-**Solution**: Remove return type annotation from endpoints returning multiple
-types, or use explicit `Union[Type1, Type2, ...]`.
-
----
-
-## Idempotency Responsibility Chain
-
-Handlers SHOULD check for existing records before creating new ones to prevent
-duplicates. Use DataLayer queries to detect duplicates based on business keys
-(report ID, case ID). Report handlers (`create_report`, `submit_report`) already
-implement this pattern.
-
----
-
-## Circular Import Patterns
-
-**Common cause**: Core module importing from `api.v2.*` triggers full app
-initialization. Use neutral shared modules (`types.py`,
-`dispatcher_errors.py`) and lazy imports when needed. See `specs/code-style.md`
-CS-05-* for requirements.
-
----
-
-## Phase BT-2+ Strategy Notes (2026-02-19)
-
-### Which Report Handlers Benefit from BT Refactoring
-
-Based on complexity analysis after Phase BT-1:
-
-| Handler             | BT Value  | Rationale                                                                                  |
-|---------------------|-----------|--------------------------------------------------------------------------------------------|
-| `prioritize_report` | ✅ HIGH    | No business logic yet; complex branching (ACCEPTED vs DEFERRED); policy injection valuable |
-| `close_report`      | ⚠️ MEDIUM | Has procedural logic; multi-step with preconditions; BT adds clarity                       |
-| `invalidate_report` | ⚠️ MEDIUM | Has procedural logic; relatively short but state-machine-tied                              |
-| `create_report`     | ❌ LOW     | Simple CRUD; no branching; keep procedural                                                 |
-| `submit_report`     | ❌ LOW     | Offer/status update; simple; keep procedural                                               |
-| `ack_report`        | ❌ LOW     | Single status transition; no branching; keep procedural                                    |
-
-**Recommendation**: Prioritize `prioritize_report` BT (no existing logic to
-preserve).
-Optionally refactor `close_report` for alignment with simulation.
-
-### Case Management BT Structure
-
-The `vultron/bt/case_state/` module contains `conditions.py` and
-`transitions.py`
-but no `_behaviors/` subdirectory (unlike report management). This means:
-
-- Use `conditions.py` and `transitions.py` as state machine logic reference
-- Implement BT nodes directly from the ActivityPub how-to docs
-- Map `RM:ACCEPTED → RmEngageCase (as:Join)` and
-  `RM:DEFERRED → RmDeferCase (as:Ignore)`
-  when implementing `prioritize_report` BT
-
-### Embargo Management BT Structure
-
-The `vultron/bt/embargo_management/` has:
-
-- `behaviors.py` — workflow behaviors (reference for BT node logic)
-- `conditions.py` — state checks (map to `DataLayerCondition` subclasses)
-- `states.py` — EM state enum (reference, already exists in
-  `vultron/case_states/`)
-- `transitions.py` — state transition logic
-
-These provide good BT node implementations to translate. The embargo state
-machine
-(EM: NONE → PROPOSED → ACCEPTED → ACTIVE) maps directly to handler sequence for
-establish_embargo workflow.
-
-### Demo Script Architecture Pattern
-
-Each demo script should follow `receive_report_demo.py` pattern:
-
-1. `setup_*()` — create preconditions (actors, prior state)
-2. `demo_*(server_url)` — execute the workflow via HTTP inbox POSTs
-3. `show_state(dl)` — display relevant DataLayer state after workflow
-4. `main()` — orchestrate with logging, call setup then demos
-
-Use `httpx` or `requests` against a live FastAPI test server (via
-`TestClient` for in-process testing, or a running server for integration tests).
-
-### `engage_case` / `defer_case` Semantic Check
-
-Before implementing `RmEngageCase` and `RmDeferCase` workflows in Phase BT-3,
-verify:
-
-1. Are `ENGAGE_CASE` and `DEFER_CASE` in `MessageSemantics` enum?
-2. Are the activity patterns defined in `vultron/activity_patterns.py`?
-3. Do handlers exist in `handlers.py` and `semantic_handler_map.py`?
-
-`manage_case.md` references `RmEngageCase (as:Join)` and
-`RmDeferCase (as:Ignore)`.
-These may need to be added as new semantic types if not already present.
-
-**Pattern**: Activities may contain string URI references instead of inline
-objects. Always call `rehydrate()` on incoming activities before pattern
-matching. The `inbox_handler.py` does this before dispatch, so handlers receive
-fully expanded objects. See `vultron/api/v2/data/rehydration.py`.
-
-### Conceptual Notes
-
-There are some conceptual distinctions that are important to keep in mind during
-implementation:
-
-#### Activities as State Change Notifications, Not Commands
-
-In Vultron, an ActivityStreams Activity is a **statement about a state change
-that has already occurred**, not a request for another Actor to perform an
-action.
-
-When an Actor receives an Activity, it is being informed that:
-
-- Another Actor performed a state transition in their RM, EM, or CS process.
-- The shared state of the Case has changed.
-- The sender’s internal model of the world has been updated accordingly.
-
-The receiver MUST treat the Activity as an assertion about the sender’s state
-and update its own model of the world. This model includes:
-
-- The Case
-- Reports
-- Participants
-- Embargo status
-- Case state events (V, F, D, P, X, A)
-- Known prior transitions
-
-Receiving an Activity means:
-
-> “Someone else observed or performed a state change and is informing me.”
-
-It does **not** mean:
-
-> “I am being instructed to perform this action.”
-
----
-
-#### Emitting Activities
-
-When an Actor emits an Activity, it is declaring:
-
-- “My internal state has changed.”
-- “I have performed a protocol-relevant transition.”
-- “The shared case state should now reflect this.”
-
-Vultron assumes that when a Participant observes or performs a protocol-relevant
-state change, they inform the other Participants by emitting an Activity.
-
-Activities are therefore:
-
-- Distributed state synchronization signals.
-- Logs of completed transitions.
-- Assertions about protocol-visible facts.
-
-They are **not**:
-
-- Remote Procedure Calls.
-- Commands.
-- Requests to execute behavior.
-
----
-
-#### Work Outside the Protocol
-
-Participants perform substantial work outside the Vultron messaging layer, such
-as:
-
-- Reproducing a vulnerability
-- Root cause analysis
-- Fix development
-- Patch deployment
-- Human embargo negotiation
-- Document preparation
-
-These actions occur in local processes.
-
-When such work results in a protocol-relevant state transition (e.g., Fix Ready,
-Fix Deployed, Embargo Accepted), the Actor emits the corresponding Activity.
-
-The Activity does not cause the work.  
-The work causes the Activity.
-
----
-
-#### Processing Is Still Required
-
-Although Activities are not commands, recipients MUST still process them:
-
-1. Parse and validate the Activity.
-2. Update local RM/EM/CS state.
-3. Potentially trigger local behaviors (e.g., reprioritize, start validation,
-   update embargo tracking).
-
-The key distinction is:
-
-- Activities describe what has happened.
-- Behavior logic determines what to do next in response.
-
----
-
-**Implementation Intent:**  
-Treat Activities as immutable, declarative records of completed
-protocol-relevant transitions.  
-Do not interpret them as imperative instructions to execute remote work.
-
-#### Responses should use the in-reply-to (inReplyTo) field
-
-Responses to activities that imply a response (e.g., Offer, Invite) must use
-the in-reply-to (inReplyTo) field to reference the original activity.
-This is important for threading and context. For example, if an actor receives
-an Offer of a VulnerabilityReport, then their response (Accept,
-TentativeReject, or Reject) should have the Offer as the object of the response
-activity, but should also include the ID of the Offer in the in-reply-to field.
-This allows other actors to understand the relationship between the response and
-the original offer, which is important for threading and context.
+## Case object notes
+
+An early design for the case object is found in `docs/howto/case_object.md`.
+The implementation is in `vultron/as_vocab/objects/vulnerability_case.py`. 
+The documentation will need to be updated to reflect the final 
+implementation. This is not a high priority right now, just a note to capture
+it into the knowledge base for future reference.
+
+## Process models and formal protocol notes
+
+Process model notes can be found in `docs/topics/background/overview.md` with
+even more detail in `docs/topics/process_models/**/*.md`. Keep in mind that 
+these files were all written prior to the implementation, so they are 
+informative but not necessarily reflective of the implementation details. 
+However, when the implementation significantly diverges from these 
+descriptions, it is worth asking whether the documentation should be updated 
+to reflect the implementation, or whether the implementation is diverging
+from the intended design.
+
+Formal protocol models exist in `docs/reference/formal_protocol/*.md`. These
+correspond to the process models and are also informative but not necessarily 
+reflective of the implementation details. Again, changes to the implementation
+that significantly diverge from these models should be evaluated for whether the
+documentation should be updated or whether the implementation is diverging from
+the intended design.
+
+## Case states and what you can do in them
+
+There are suggestions about what actions can be taken in different case states
+in `docs/reference/case_states/*.md`. These are derived from pattern matches
+found in `vultron/case_states/patterns/*.py` with enums in 
+`vultron/case_states/enums/*.py`. These are not required actions, they are more
+like a menu of options that an actor might take when the case is in a given 
+state. This could be useful for future UI design, or for future agents to 
+understand what sorts of actions are possible.
+
+## Vocabulary Examples
+
+The vocabulary examples in `vultron/scripts/vocab_examples.py` are important for
+documentation, testing, and demonstration purposes. They should be kept up 
+to date with the current implementation of the vocabulary. They can also be used
+as a reference for testing the message semantics patterns in  
+`vultron/activity_patterns.py`. The examples, method names, and type hints 
+should provide enough information to understand how the semantics and 
+ActivityStreams vocabulary fit together into the process models.
+
+## Need to reorganize top-level modules
+
+There are a few top-level modules in `vultron/` that probably should be 
+reorganized into submodules. They were initially created as top-level modules 
+for ease of development, but they are starting to make the `vultron/` directory 
+look a bit cluttered. This is not a high priority right now, but it is
+something to keep in mind for future refactoring.
+
+Specifically, consider reorganizing:
+- `activity_patterns.py`
+- `behavior_dispatcher.py`
+- `dispatcher_errors.py`
+- `enums.py`
+- `errors.py`
+- `semantic_handler_map.py`
+- `semantic_map.py`
+- `types.py`
+
+## Refactoring of enums spread across modules
+
+There are enums scattered throughout the codebase. It might make sense at 
+some point to reorganize these into a single `vultron/enums/` module with 
+submodules for different categories of enums. This would make it easier to find
+and manage the enums, and also provide an opportunity to review and clean up any
+redundant or unused enums.
+
+## Behavior simulator
+
+There is a ton of behavior logic to be mined from `vultron/bt/**/*.py` that
+is informative for understanding the behavior patterns of the intended system.
+Much of this logic is not currently being used in the implementation as it is 
+from an older simulation, but it is absolutely relevant to the newer 
+`vultron/behavior` modules. The documentation that was used as the original 
+design for `vultron/bt` is found in `docs/topics/behavior_logic/*.md`.
+It may be useful to index these files and map out correspondences between 
+the docs and the simulation code and make notes as to how those might relate to
+the current implementation. Priority of this depends on how useful it would 
+be. It could be worth doing in order to update some `notes/*.md`files with 
+insights and hints for future reference.
+
+## "Do Work" behaviors are largely placeholders
+
+Throughout the behavior simulator and documentation, there are a number of 
+items under the `do work` node that are largely placeholders for actors to do 
+things that are not yet fully specified for automation. These can be though 
+of as tasks that the system might need to pose as tasks to an actor (human or 
+machine) in order to make progress on a case. Some of them may be more 
+amenable to automation than others, we have not yet done a thorough analysis of
+which ones those are. It could be useful to review these and make notes about
+which ones might be more or less amenable to automation, and what sorts of
+actions an agent might take to accomplish them. This could be useful for future
+UI design, or for future agents to understand what sorts of actions are possible.
+
+## Code documentation (static and dynamic)
+
+We maintain code documentation in `docs/reference/code/**/*.md` that is 
+generated from docstrings in the codebase. This documentation should be updated
+to reflect the current implementation, and should be kept up to date with any future
+changes to the codebase. This documentation is intended for inclusion in our 
+static web site (produced by mkdocs from `/docs`). The organization of this 
+section to date has been rather ad-hoc and not very comprehensive. It could 
+stand to be reviewed and reorganized to be more systematic and comprehensive, but
+this is not a high priority for the prototype.
+
+API documentation is generated via FastAPI's built-in OpenAPI support, which is
+available at `/docs` when the server is running. This documentation is intended 
+for developers who are interacting with the API, and should be kept up to date 
+with any changes to the API endpoints or request/response formats. API 
+documentation that is automatically generated and made available via the FastAPI
+server is a higher priority to maintain than the static code documentation, as
+it is more likely to be used by developers and agents interacting with the 
+running system.
+
+## ISO standards cross-references
+
+We have a number of ISO standards that are relevant to our domain, and we've 
+documented high-level cross-references to those standards in 
+`docs/reference/iso_crosswalks/*.md`. As the system development progresses, it
+may be useful to review these crosswalks to incorporate more of the 
+ActivityStreams vocabulary implementation details and make more specific
+references to how the ISO standards relate to the implementation. 
+This is not a high priority right now, but it could be useful for future 
+reference and for ensuring that our implementation is aligned with relevant standards.
+
+## Measuring the CVD process using the case state model
+
+There is considerable documentation (based on a research paper) to be found in 
+`docs/topics/measuring_cvd/*.md` that describes how to use the sequence of 
+events in the case state model to measure the "quality" of the CVD process. 
+There is some code that implements this scoring model (and the Hasse diagram of
+case states) in `vultron/case_states/hypercube.py`. Applying these techniques
+to analyze the implemented `VulnerabilityCase` objects and their history 
+would be a useful addition to the system in the future, although it is not a 
+high priority for the prototype.
+
+## Broad advice about documentation vs implementation
+
+In general, the documentation in `docs/**/*.md` predates the implementation and
+was the original source material for the first few iterations of implementation.
+Files like `vultron/case_states/hypercube.py` were some of the earliest 
+implementations when we were still working out the details of the case state 
+model in a paper called [*A State-Based Model for Coordinated Vulnerability 
+Disclosure*](https://www.sei.cmu.edu/documents/1952/2021_003_001_737890.pdf).
+The behavior tree implemenation in the simulator (`vultron/bt/**/*.py`) 
+and `vultron/demo/vultrabot.py` was also an early implementation that was 
+based on the second paper in our series [*Designing Vultron*](https://www.sei.cmu.edu/documents/1954/2022_003_001_887202.pdf)
+Both of these papers and the documentation and implementation came before our
+decision to implement this using ActivityStreams vocabulary and most of the 
+current codebase. So while the documentation is informative for understanding the original
+design and the intended behavior patterns, it is not necessarily reflective of the
+current implementation details. As the implementation progresses, it may be useful to
+review the documentation and update it to reflect the current implementation,
+or to make notes about where the implementation diverges from the original design 
+and why. Some documentation may eventually be appropriate to archive into a 
+clearly marked "historical" section of the docs, while other documentation may be worth
+updating to reflect the current implementation. This is not a high priority 
+for the prototype, but it could be useful for future reference and for ensuring 
+that our documentation is aligned with our implementation.
