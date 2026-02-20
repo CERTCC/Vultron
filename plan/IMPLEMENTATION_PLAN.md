@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-20 (Gap analysis and priority review via PLAN_prompt.md)
+**Last Updated**: 2026-02-20 (Gap analysis refresh — BT-3 + BT-4.2 confirmed complete; BT-4 next)
 
 ## Overview
 
@@ -19,25 +19,26 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [x] Actor ID resolution working (short IDs like "vendorco" resolve to full URIs)
 - [x] All handler tests passing (9/9 handler-specific tests)
 
-**BT Integration Status (Phase BT-1: COMPLETE ✅, Phase BT-2.1: COMPLETE ✅)**:
+**BT Integration Status (BT-1 ✅, BT-2.0 ✅, BT-2.1 ✅, BT-3 ✅, BT-4.2 ✅)**:
 
 - ✅ py_trees library added to dependencies (v2.2.0+)
-- ✅ BT bridge layer implemented (`vultron/behaviors/bridge.py`)
-- ✅ DataLayer-aware helper nodes implemented (`vultron/behaviors/helpers.py`)
-- ✅ Report validation BT nodes implemented (`vultron/behaviors/report/nodes.py`)
-- ✅ Report validation tree composed (`vultron/behaviors/report/validate_tree.py`)
-- ✅ Default policy implementation (`vultron/behaviors/report/policy.py`)
-- ✅ Comprehensive BT tests (76 BT-1 tests passing in `test/behaviors/`)
-- ✅ Handler refactoring COMPLETE (`validate_report` handler now uses BT execution)
-- ✅ Demo and documentation updated (Phase BT-1.5-1.6 COMPLETE)
-- ✅ ADR-0008 created for py_trees integration decision
+- ✅ BT bridge layer (`vultron/behaviors/bridge.py`)
+- ✅ DataLayer-aware helper nodes (`vultron/behaviors/helpers.py`)
+- ✅ Report BT nodes + trees (`vultron/behaviors/report/`)
+- ✅ Default validation policy (`vultron/behaviors/report/policy.py`)
+- ✅ `validate_report` handler BT-powered; ADR-0008 documenting py_trees choice
+- ✅ Phase BT-2.0 COMPLETE: CM-04/ID-04-004 compliance audit for engage/defer
 - ✅ Phase BT-2.1 COMPLETE: `engage_case` + `defer_case` BT trees + handlers
-  (11 tests in `test/behaviors/report/test_prioritize_tree.py`)
+- ✅ Phase BT-3 COMPLETE: `create_case` BT + `add_report_to_case` + `close_case`
+  handlers + `initialize_case_demo.py` script
+- ✅ Phase BT-4.2 COMPLETE: `create_case_participant` + `add_case_participant_to_case`
+  handlers (procedural, part of BT-3.5/demo setup)
+- ✅ All xfailed tests resolved; 486 passing total
 
-**Next Priority**: Per PRIORITIES.md, the focus is now on **Phase BT-3 (case
-management demo)** AND **remaining Phase BT-2 optional refactors** AND
-**ActivityPub workflow demonstrations** as standalone demo scripts
-(similar to `receive_report_demo.py`). See phases BT-2 through BT-6 below.
+**Next Priority**: Per PRIORITIES.md, the focus is now on **Phase BT-4 (actor
+invitation + participant demo)** AND **Phase BT-5 (embargo demo)** AND
+**remaining Phase BT-2 optional refactors** as standalone demo scripts
+(similar to `receive_report_demo.py`). See phases BT-2 through BT-7 below.
 
 **Completed Infrastructure:**
 
@@ -46,7 +47,7 @@ management demo)** AND **remaining Phase BT-2 optional refactors** AND
 - [x] All 36 MessageSemantics handlers registered in `semantic_handler_map.py`
 - [x] Basic inbox endpoint at `POST /actors/{actor_id}/inbox/` with 202 response
 - [x] Background task processing infrastructure via FastAPI BackgroundTasks
-- [x] Unit tests for dispatcher and semantic matching (472 total passing: core + BT-1 + BT-2.1; 2 xfailed)
+- [x] Unit tests for dispatcher and semantic matching (486 total passing; 0 xfailed)
 - [x] Error hierarchy base (`VultronError` → `VultronApiError` → specific errors)
 - [x] TinyDB data layer implementation with Protocol abstraction
 - [x] Handler protocol with `@verify_semantics` decorator
@@ -55,12 +56,13 @@ management demo)** AND **remaining Phase BT-2 optional refactors** AND
 
 **Handler Business Logic Status:**
 
-- ✅ Report handlers complete (8/36): create_report, submit_report, validate_report
-  (BT-powered), invalidate_report, ack_report, close_report, engage_case
-  (BT-powered), defer_case (BT-powered)
-- ❌ 28 stub handlers remain: create_case (partial stub), case management (7),
-  ownership transfer (3), invite/accept/reject actor to case (3), embargo management
-  (6), embargo invitations (3), participants (3), notes (3), statuses (3), close_case (1)
+- ✅ Report + case handlers complete (13/36): create_report, submit_report,
+  validate_report (BT), invalidate_report, ack_report, close_report, engage_case
+  (BT), defer_case (BT), create_case (BT), add_report_to_case, close_case,
+  create_case_participant, add_case_participant_to_case
+- ❌ 23 stub handlers remain: invite/accept/reject actor to case (3), ownership
+  transfer (3), suggest_actor (3), embargo management (4), embargo invitations (3),
+  remove_case_participant (1), notes (3), statuses (4)
 
 **Production Readiness Features (Lower Priority per PRIORITIES.md):**
 
@@ -79,65 +81,49 @@ management demo)** AND **remaining Phase BT-2 optional refactors** AND
 
 ## Prioritized Task List (Per PRIORITIES.md and Gap Analysis)
 
-**Gap Analysis Summary (2026-02-20)**:
+**Gap Analysis Summary (2026-02-20 refresh)**:
 
 **✅ Completed Work:**
-- ✅ **Phase 0 & 0A complete**: Report handlers (6/36) with full business logic
+- ✅ **Phase 0 & 0A complete**: Report handlers (8 report) with full business logic
 - ✅ **BT Phase BT-1 complete**: BT infrastructure + `validate_report` BT handler
-  - py_trees integrated, bridge layer, helpers, report validation tree, policy stubs
-  - All 472 tests passing (76 BT-1 tests + 11 BT-2.1 tests; 2 xfailed)
+- ✅ **BT Phase BT-2.0 complete**: CM-04/ID-04-004 compliance audit
 - ✅ **BT Phase BT-2.1 complete**: `engage_case` + `defer_case` BT handlers
-  - `vultron/behaviors/report/prioritize_tree.py` with 11 tests
-  - SSVC deferral documented in `specs/prototype-shortcuts.md` PROTO-05-001
-- ✅ **Demo script complete**: `receive_report_demo.py` with 3 workflows
+- ✅ **BT Phase BT-3 complete**: `create_case` (BT), `add_report_to_case`,
+  `close_case` handlers + `initialize_case_demo.py`
+- ✅ **BT Phase BT-4.2 partial**: `create_case_participant` + `add_case_participant_to_case`
+- ✅ **Demo script complete**: `receive_report_demo.py` (3 workflows) +
+  `initialize_case_demo.py`
+- ✅ **xfailed tests resolved**: 486 passing, 0 xfailed
 
 **📊 Specification Compliance Status**:
-- **BT Requirements (specs/behavior-tree-integration.md)**:
-  - BT-01 through BT-07, BT-09 through BT-11: ✅ Implemented
-  - BT-08 (CLI): ❌ Not implemented (MAY requirement, low priority)
-- **Case Management (specs/case-management.md)** — NEW SPEC (added 2026-02-20):
-  - CM-01 (Actor Isolation): ✅ Implemented (per-actor blackboard isolation)
-  - CM-02 (CaseActor Lifecycle): ✅ Partially (CaseActor created in validate_report BT)
-  - CM-03 (State Model): ✅ Data model correct (CaseStatus, ParticipantStatus in place)
-  - CM-04 (State Transition Correctness): ⚠️ Needs verification — all state-changing
-    handlers must correctly scope RM updates to `ParticipantStatus.rm_state` (not
-    `CaseStatus`) and EM/PXA updates to `CaseStatus` (not participant status)
-- **Idempotency (specs/idempotency.md)** — NOW STANDALONE (consolidated 2026-02-20):
-  - ID-01 (Activity ID Uniqueness): ✅ Activities have IDs
-  - ID-02/03 (Duplicate Detection/Response): ❌ HTTP-layer duplicate detection not implemented
-  - ID-04-001/002/003 (Handler Idempotency SHOULD): ✅ validate_report has state checks
-  - **ID-04-004 (State-changing handlers MUST be idempotent)**: ⚠️ `engage_case` and
-    `defer_case` need explicit idempotency guards; `create_case` (stub) will need them
-  - ID-05 (Implementation Strategy): ❌ Not implemented
-- **Handler stubs**: 28 of 36 handlers are debug-only stubs with no business logic
+- **BT Requirements**: BT-01 through BT-11 all implemented (BT-08 MAY, low priority)
+- **Case Management (specs/case-management.md)**:
+  - CM-01: ✅ Actor isolation implemented
+  - CM-02: ✅ CaseActor lifecycle (create_case BT creates CaseActor)
+  - CM-03: ✅ Data model correct (CaseStatus, ParticipantStatus)
+  - CM-04: ✅ State transition scoping verified (BT-2.0 audit)
+- **Idempotency (specs/idempotency.md)**:
+  - ID-01/ID-04: ✅ Activity IDs and handler idempotency
+  - ID-02/ID-03/ID-05: ❌ HTTP-layer duplicate detection not implemented (lower priority)
 
 **❌ Remaining Gaps (prioritized per PRIORITIES.md)**:
-- ❌ **CM-04 compliance gap**: Verify `engage_case` + `defer_case` correctly update
-  `ParticipantStatus.rm_state` (participant-specific), not `CaseStatus` (shared).
-  Required by `specs/case-management.md` CM-04-001.
-- ❌ **ID-04-004 compliance gap**: `engage_case`, `defer_case` need idempotency guards
-  (check if RM state is already in target state before transitioning).
-- ❌ **Phase BT-3**: `create_case` BT + `initialize_case` + `manage_case` demo —
-  `create_case` is currently a debug-only stub; highest priority new work
-- ❌ **Phase BT-2.2/2.3**: `close_report` + `invalidate_report` optional BT refactors
-  (procedural logic already exists; BT adds clarity)
-- ❌ **Demo scripts missing**: No standalone demos for case/embargo/participant
-  workflows listed in PRIORITIES.md as highest priority targets
-- ❌ **28 handler stubs**: case management, actor invitations, embargo, participants,
-  notes, statuses, close_case
-- ❌ **Production readiness incomplete**: Request validation, error responses, health
-  checks, structured logging, HTTP-layer idempotency (all `PROD_ONLY` or lower priority)
+- ❌ **Phase BT-4 remaining**: `invite_actor_to_case` + accept/reject handlers,
+  `remove_case_participant_from_case`, `invite_actor_demo.py`
+- ❌ **Phase BT-5**: All embargo handlers (7 stubs) + `establish_embargo_demo.py`
+- ❌ **Phase BT-6**: Notes (3), statuses (4) + `status_updates_demo.py`
+- ❌ **Phase BT-7**: suggest_actor (3) + ownership transfer (3) + demo scripts
+- ❌ **Phase BT-2.2/2.3**: Optional `close_report` + `invalidate_report` BT refactors
+- ❌ **Production readiness**: Request validation, error responses, health checks,
+  structured logging, HTTP-layer idempotency (all `PROD_ONLY` or lower priority)
 
 **🎯 Next Actions (ordered by PRIORITIES.md):**
-1. **CM-04 + ID-04-004 audit** — Verify `engage_case` / `defer_case` correctly scope
-   state updates (participant-specific RM) and have idempotency guards
-2. **Phase BT-3** — Implement BT-powered `create_case` handler + `initialize_case`
-   + `manage_case` demo script (highest priority new demo per PRIORITIES.md)
-3. **Phase BT-4** — Implement `invite_actor` + `initialize_participant` +
-   `manage_participants` demo
-4. **Phase BT-5** — Implement `establish_embargo` + `manage_embargo` demo
-5. **Phase BT-6** — Implement `status_updates` + `acknowledge` demo
-6. **Lower priority demos** — `suggest_actor`, `transfer_ownership`, `error`
+1. **Phase BT-4.1** — Implement `invite_actor_to_case`, `accept_invite_actor_to_case`,
+   `reject_invite_actor_to_case` handlers; `remove_case_participant_from_case`
+2. **Phase BT-4.3** — Create `invite_actor_demo.py` demo script
+3. **Phase BT-5** — Implement embargo handlers + `establish_embargo_demo.py`
+4. **Phase BT-6** — Implement notes/status handlers + `status_updates_demo.py`
+5. **Phase BT-7** — suggest_actor, transfer_ownership handlers + demo scripts
+6. **Phase BT-2.2/2.3** — Optional `close_report` + `invalidate_report` BT refactors
 
 ---
 
