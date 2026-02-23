@@ -109,6 +109,66 @@ layer.
 
 ---
 
+## Roadmap: Handlers Module Refactoring
+
+The `vultron/api/v2/backend/handlers.py` module is well over a thousand lines
+and growing. Consider organizing handlers into submodules in a
+`vultron/api/v2/backend/handlers/` directory, grouped by topic (e.g.,
+`report.py`, `case.py`, `embargo.py`, `actor.py`, `notes.py`, `status.py`).
+
+**Constraint**: The `SEMANTIC_HANDLER_MAP` import in `vultron/semantic_handler_map.py`
+must stay importable from the same logical location. If handlers are split
+into submodules, `handlers/__init__.py` should re-export all handler functions
+and the submodule organization should mirror the vocabulary example module
+reorganization (see below) for consistency.
+
+**Priority**: Not urgent during initial demos. Tackle after the last handler
+stubs are filled (Phase BT-7).
+
+---
+
+## Roadmap: Vocab Examples Module Refactoring
+
+`vultron/scripts/vocab_examples.py` is used by demo scripts, the documentation
+build pipeline, and as test fixtures. It has grown beyond a simple script into
+a de-facto module. Consider moving it to `vultron/as_vocab/examples/` with
+submodules organized by topic (mirroring the handler submodule topics above).
+
+**Constraint**: Demo scripts and documentation build tools import from
+`vultron.scripts.vocab_examples`. A refactor must update all import sites and
+ensure backward compatibility (e.g., a compatibility shim or re-export from the
+old location).
+
+**Priority**: Not urgent during prototype. Coordinate with handlers refactoring
+so the two share a consistent topic taxonomy.
+
+---
+
+## Demo Scripts Belong in `vultron/demo/`, Not `vultron/scripts/`
+
+The `vultron/scripts/*_demo.py` files demonstrate end-to-end workflows and are
+not standalone utility scripts. They should move to `vultron/demo/` to clarify
+their role:
+
+- **`vultron/scripts/`** — intended for standalone utilities users run directly
+  (data migration, maintenance, one-off tooling)
+- **`vultron/demo/`** — end-to-end workflow demonstrations, depended on by
+  tests and Docker configs
+
+**Affected files when relocating**:
+
+- `vultron/scripts/receive_report_demo.py`
+- `vultron/scripts/initialize_case_demo.py`
+- `vultron/scripts/invite_actor_demo.py`
+- `vultron/scripts/establish_embargo_demo.py`
+- Corresponding test files in `test/scripts/`
+- Docker Compose service definitions in `docker/docker-compose.yml`
+- Any import paths in tests or documentation
+
+**Priority**: Not urgent; complete demo set first, then migrate.
+
+---
+
 ## Technical Debt: Object IDs Should Be URL-Like, Not Bare UUIDs
 
 The `datalayer.read(key)` method and the `/datalayer/{key}` route use

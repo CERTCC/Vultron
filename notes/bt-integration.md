@@ -150,23 +150,30 @@ execution of the inbox queue is sufficient for prototype validation.
 - Single database read/write operations
 - Logging-only or passthrough operations
 
-**Decision table for report and case handlers**:
+**Decision table for report, case, and embargo handlers**:
 
-| Handler                     | BT Value  | Rationale                                                                |
-|-----------------------------|-----------|--------------------------------------------------------------------------|
-| `validate_report`           | ✅ HIGH   | ✅ DONE — complex branching, policy injection, case creation subtree      |
-| `engage_case`               | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
-| `defer_case`                | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
-| `create_case`               | ✅ HIGH   | ✅ DONE — idempotency check, validate, persist, CaseActor creation        |
-| `close_report`              | ⚠️ MEDIUM | Has procedural logic; multi-step with preconditions; BT adds clarity    |
-| `invalidate_report`         | ⚠️ MEDIUM | Has procedural logic; relatively short but state-machine-tied           |
-| `create_report`             | ❌ LOW    | Simple CRUD; no branching; keep procedural                              |
-| `submit_report`             | ❌ LOW    | Offer/status update; simple; keep procedural                            |
-| `ack_report`                | ❌ LOW    | Single status transition; no branching; keep procedural                 |
-| `add_report_to_case`        | ❌ LOW    | Simple append with idempotency; keep procedural                         |
-| `close_case`                | ❌ LOW    | Leave + activity emit; simple; keep procedural                          |
-| `create_case_participant`   | ❌ LOW    | Simple CRUD with idempotency; keep procedural                           |
-| `add_case_participant_to_case` | ❌ LOW | Simple append with idempotency; keep procedural                         |
+| Handler                          | BT Value  | Rationale                                                                |
+|----------------------------------|-----------|--------------------------------------------------------------------------|
+| `validate_report`                | ✅ HIGH   | ✅ DONE — complex branching, policy injection, case creation subtree      |
+| `engage_case`                    | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
+| `defer_case`                     | ✅ HIGH   | ✅ DONE — participant RM state, policy evaluation, state transitions      |
+| `create_case`                    | ✅ HIGH   | ✅ DONE — idempotency check, validate, persist, CaseActor creation        |
+| `close_report`                   | ⚠️ MEDIUM | Has procedural logic; multi-step with preconditions; BT adds clarity    |
+| `invalidate_report`              | ⚠️ MEDIUM | Has procedural logic; relatively short but state-machine-tied           |
+| `create_report`                  | ❌ LOW    | Simple CRUD; no branching; keep procedural                              |
+| `submit_report`                  | ❌ LOW    | Offer/status update; simple; keep procedural                            |
+| `ack_report`                     | ❌ LOW    | Single status transition; no branching; keep procedural                 |
+| `add_report_to_case`             | ❌ LOW    | Simple append with idempotency; keep procedural                         |
+| `close_case`                     | ❌ LOW    | Leave + activity emit; simple; keep procedural                          |
+| `create_case_participant`        | ❌ LOW    | Simple CRUD with idempotency; keep procedural                           |
+| `add_case_participant_to_case`   | ❌ LOW    | Simple append with idempotency; keep procedural                         |
+| `create_embargo_event`           | ❌ LOW    | ✅ DONE (procedural) — CRUD; store EmbargoEvent in DataLayer             |
+| `add_embargo_event_to_case`      | ❌ LOW    | ✅ DONE (procedural) — sets `active_embargo`, transitions EM → PROPOSED  |
+| `remove_embargo_event_from_case` | ❌ LOW    | ✅ DONE (procedural) — removes active embargo, transitions EM → NONE     |
+| `announce_embargo_event_to_case` | ❌ LOW    | ✅ DONE (procedural) — log only; cannot write to `case_activity` (type limitation) |
+| `invite_to_embargo_on_case`      | ❌ LOW    | ✅ DONE (procedural) — stores invite activity in DataLayer               |
+| `accept_invite_to_embargo_on_case` | ❌ LOW  | ✅ DONE (procedural) — sets `active_embargo`, transitions EM → ACTIVE    |
+| `reject_invite_to_embargo_on_case` | ❌ LOW  | ✅ DONE (procedural) — stores reject activity; no state change           |
 
 ---
 

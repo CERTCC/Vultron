@@ -179,3 +179,96 @@ semantic = find_matching_semantics(activity)
 
 **References**: `specs/semantic-extraction.md` SE-01-002,
 `vultron/api/v2/data/rehydration.py`.
+
+---
+
+## Embargo Management as Calendar Invitation
+
+The embargo management flow is structurally analogous to inviting actors to
+a calendar event:
+
+1. A **proposer** sends an `Invite(object=Actor, target=EmbargoEvent)` to
+   each participant — "can you make this time slot?"
+2. Each invitee **accepts** or **rejects**: `Accept(object=Invite)` /
+   `Reject(object=Invite)` — "yes I can" / "no I can't."
+3. A participant may **counter-propose** a different embargo window by sending
+   a new `Invite` with `inReplyTo` referencing the original — "I can't do
+   Tuesday noon, can we do Wednesday at 3pm?"
+4. Once all relevant parties accept, the embargo becomes `ACTIVE`.
+
+Key consequence: `Accept(object=<Invite>)` — the actor accepts the
+**proposal activity** (the `Invite`), not the `EmbargoEvent` being proposed.
+This is the same pattern as `RmAcceptInviteToCase`. The `as_object` field on
+`EmAcceptEmbargo` must reference the `EmProposeEmbargoRef` (the Invite), not
+the `EmbargoEventRef`.
+
+**Reference docs**: `docs/topics/process_models/em/` (principles, defaults,
+negotiating, working_with_others, early_termination, split_merge).
+
+---
+
+## ChoosePreferredEmbargo Is a Corner Case
+
+`ChoosePreferredEmbargo` (a Question type) is only relevant when **multiple
+simultaneous embargo proposals** exist from different actors. In practice,
+most cases will have at most one active proposal at a time (0 or 1 active
+embargo, 0 or 1 pending proposal). The `ChoosePreferredEmbargo` activity
+is therefore a low-priority edge case; implement it only after the core
+propose/accept/reject flow is fully working and tested.
+
+---
+
+## `VulnerabilityCase.case_activity` Cannot Store Typed Activities
+
+`VulnerabilityCase.case_activity: list[as_Activity]` uses
+`as_Activity.as_type: as_ObjectType`. The `as_ObjectType` enum covers only
+core AS2 object types (`'Activity'`, `'Note'`, `'Event'`, etc.) — it does
+**not** include transitive activity types like `'Announce'`, `'Add'`,
+`'Accept'`, `'Reject'`, etc.
+
+**Consequence**: Writing a typed activity (e.g., `AnnounceEmbargo`) to
+`case_activity`, serializing, and reloading causes `model_validate` to fail
+with `Input should be 'Activity', 'Actor', ...`. The `record_to_object`
+fallback returns a raw `TinyDB Document`, losing all typed state silently.
+
+**Fix pattern**: Handlers that would add specific-typed activities to
+`case_activity` MUST log the event instead. Only use `case_activity` for
+generic `as_Activity` objects if the activity type is guaranteed to be a
+core AS2 type.
+
+**Reference**: `plan/IMPLEMENTATION_NOTES.md` (BT-5 section).
+
+---
+
+## Accept/Reject `object` Field Should Reference Offer/Invite by ID
+
+When constructing `Accept` or `Reject` responses to an `Invite` or `Offer`,
+set the `object` field to the **ID string** of the original activity, not the
+full inline object. Using the full inline object causes it to be deserialized
+as generic `as_Object` during HTTP deserialization (losing subtype fields
+like `actor`), which then fails Pydantic validation during rehydration.
+
+Using the ID string allows the handler to rehydrate the full invite/offer
+from the DataLayer with all fields intact.
+
+**Pattern**:
+
+```python
+# Correct: object is the invite's ID string
+accept = RmAcceptInviteToCase(
+    actor=responding_actor.as_id,
+    object=invite.as_id,  # ID string, not inline object
+)
+
+# Incorrect: object is the full invite object inline
+accept = RmAcceptInviteToCase(
+    actor=responding_actor.as_id,
+    object=invite,  # Loses actor field during HTTP deserialization
+)
+```
+
+This applies to all Accept/Reject/TentativeReject responses to Invite/Offer
+activities.
+
+**Cross-reference**: `specs/response-format.md` RF-02-003, RF-03-003,
+RF-04-003, RF-08-001.

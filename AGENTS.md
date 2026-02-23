@@ -564,6 +564,10 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **Vocabulary Examples**: `vultron/scripts/vocab_examples.py` - Canonical
   ActivityStreams activity examples; use as reference for message semantics
   and as test fixtures for pattern matching
+- **Demo Scripts**: `vultron/scripts/receive_report_demo.py`,
+  `initialize_case_demo.py`, `invite_actor_demo.py`,
+  `establish_embargo_demo.py` - End-to-end workflow demonstrations; also
+  used by `test/scripts/` and Docker Compose configs
 - **Case States**: `vultron/case_states/` - RM/EM/CS state machine enums and
   patterns; use as reference for valid state transitions and preconditions
   - **State machine enums are authoritative**: When documentation and code
@@ -967,6 +971,76 @@ follow this pattern.
 
 See cross-references: `handler-protocol.md` HP-07-001, `message-validation.md`
 MV-08-001, `inbox-endpoint.md` IE-10-001.
+
+---
+
+### `VulnerabilityCase.case_activity` Cannot Store Typed Activities
+
+**Symptom**: Handler writes a typed activity (e.g., `AnnounceEmbargo`) to
+`case_activity`, then a subsequent `dl.read(case.as_id)` returns a raw TinyDB
+`Document` instead of a `VulnerabilityCase`, causing `AttributeError` or
+silent state loss.
+
+**Cause**: `VulnerabilityCase.case_activity: list[as_Activity]` uses
+`as_Activity.as_type: as_ObjectType`. The `as_ObjectType` enum covers only
+core AS2 object types (`'Activity'`, `'Note'`, `'Event'`, etc.) — NOT
+transitive types like `'Announce'`, `'Add'`, `'Accept'`, `'Reject'`. When a
+typed activity is serialized and reloaded, `model_validate` fails with
+`Input should be 'Activity', 'Actor', ...` and `record_to_object` falls back
+to a raw `Document`.
+
+**Fix**: Do not write specific-typed activities to `case_activity`. Log the
+event instead, or store only the activity's `as_id` (string) rather than the
+full object.
+
+See `notes/activitystreams-semantics.md` for details.
+
+---
+
+### Accept/Reject `object` Field Must Use ID String, Not Inline Object
+
+**Symptom**: Accept or Reject handler fails with `ValidationError` during
+rehydration because the referenced Invite/Offer is missing its `actor` field.
+
+**Cause**: When the full inline Invite/Offer object is passed as `object` in
+an Accept/Reject activity and sent over HTTP, FastAPI deserializes it as
+generic `as_Object`, losing subtype-specific fields like `actor`. The
+subsequent `rehydrate()` call cannot reconstruct the full Invite.
+
+**Fix**: Set `object` to the **ID string** of the original Invite/Offer.
+The handler rehydrates the full object from the DataLayer.
+
+```python
+# Correct
+accept = RmAcceptInviteToCase(actor=actor.as_id, object=invite.as_id)
+
+# Incorrect — loses `actor` field after HTTP deserialization
+accept = RmAcceptInviteToCase(actor=actor.as_id, object=invite)
+```
+
+This applies to all `Accept` / `Reject` / `TentativeReject` responses to
+`Invite` or `Offer` activities.
+
+See `notes/activitystreams-semantics.md` for details.
+
+---
+
+### Pydantic Union Serialization Silently Returns `None` for `active_embargo`
+
+**Symptom**: `VulnerabilityCase.active_embargo` is `None` after a round-trip
+through the DataLayer, even though it was set to an `EmbargoEvent`.
+
+**Cause**: `active_embargo: EmbargoEvent | as_Link | str | None` — Pydantic
+v2 serializes Union types left-to-right. If the stored value is an `as_Event`
+(not the `EmbargoEvent` subclass) AND serialized with `by_alias=True`,
+Pydantic silently returns `None`.
+
+**Fix**: Always store `embargo.as_id` (a string) as `active_embargo` rather
+than the full `EmbargoEvent` object. The `validate_by_name=True` in
+`VulnerabilityCase.model_config` ensures the string round-trips correctly.
+Retrieve the full `EmbargoEvent` from the DataLayer when needed.
+
+See `notes/activitystreams-semantics.md` for details.
 
 ---
 
