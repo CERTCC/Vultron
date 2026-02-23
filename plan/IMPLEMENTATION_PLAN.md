@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-23 (BT-5 complete; BT-6 notes/status next — gap analysis refresh #4)
+**Last Updated**: 2026-02-23 (BT-6 notes/status handlers complete; BT-7 next)
 
 ## Overview
 
@@ -60,20 +60,20 @@ and BT-7 below.
 
 **Handler Business Logic Status:**
 
-- ✅ Report + case + embargo handlers complete (24/37): create_report,
-  submit_report, validate_report (BT), invalidate_report, ack_report,
-  close_report, engage_case (BT), defer_case (BT), create_case (BT),
-  add_report_to_case, close_case, create_case_participant,
+- ✅ Report + case + embargo + notes + status handlers complete (31/37):
+  create_report, submit_report, validate_report (BT), invalidate_report,
+  ack_report, close_report, engage_case (BT), defer_case (BT), create_case
+  (BT), add_report_to_case, close_case, create_case_participant,
   add_case_participant_to_case, invite_actor_to_case,
   accept_invite_actor_to_case, reject_invite_actor_to_case,
   remove_case_participant_from_case, create_embargo_event,
   add_embargo_event_to_case, remove_embargo_event_from_case,
   announce_embargo_event_to_case, invite_to_embargo_on_case,
-  accept_invite_to_embargo_on_case, reject_invite_to_embargo_on_case
-- ❌ 13 stub handlers remain: ownership transfer (3), suggest_actor (3),
-  notes (3: create/add/remove), statuses (4: create_case_status,
-  add_case_status_to_case, create_participant_status,
-  add_participant_status_to_participant)
+  accept_invite_to_embargo_on_case, reject_invite_to_embargo_on_case,
+  create_note, add_note_to_case, remove_note_from_case,
+  create_case_status, add_case_status_to_case, create_participant_status,
+  add_participant_status_to_participant
+- ❌ 6 stub handlers remain: ownership transfer (3), suggest_actor (3)
 
 **Production Readiness Features (Lower Priority per PRIORITIES.md):**
 
@@ -125,14 +125,15 @@ and BT-7 below.
   - ID-02/ID-03/ID-05: ❌ HTTP-layer duplicate detection not implemented (lower priority)
 
 **❌ Remaining Gaps (prioritized per PRIORITIES.md)**:
-- ❌ **Phase BT-6**: Notes (3 stubs), statuses (4 stubs) + `status_updates_demo.py`
+- ✅ **Phase BT-6**: Notes + status handlers complete (7/7)
+- ❌ **Phase BT-6 (remaining)**: `status_updates_demo.py` + `ack_report` review
 - ❌ **Phase BT-7**: suggest_actor (3 stubs) + ownership transfer (3 stubs) + demo scripts
 - ❌ **Phase BT-2.2/2.3**: Optional `close_report` + `invalidate_report` BT refactors
 - ❌ **Production readiness**: Request validation, error responses, health checks,
   structured logging, HTTP-layer idempotency (all `PROD_ONLY` or lower priority)
 
 **🎯 Next Actions (ordered by PRIORITIES.md):**
-1. **Phase BT-6** — Implement notes/status handlers + `status_updates_demo.py`
+1. **Phase BT-6 (remaining)** — `ack_report` review + `status_updates_demo.py`
 2. **Phase BT-7** — suggest_actor, transfer_ownership handlers + demo scripts
 3. **Phase BT-2.2/2.3** — Optional `close_report` + `invalidate_report` BT refactors
 
@@ -617,16 +618,16 @@ transitions MUST update `CaseStatus.em_state` (participant-agnostic, shared).
 
 #### BT-6.1: Note handlers
 
-- [ ] Implement `create_note` handler: create `as:Note` object, persist to DataLayer
-- [ ] Implement `add_note_to_case` handler: append note ID to `case.notes`, persist
-- [ ] Implement `remove_note_from_case` handler: remove note from `case.notes`, persist
+- [x] Implement `create_note` handler: create `as:Note` object, persist to DataLayer
+- [x] Implement `add_note_to_case` handler: append note ID to `case.notes`, persist
+- [x] Implement `remove_note_from_case` handler: remove note from `case.notes`, persist
 
 #### BT-6.2: Status handlers
 
-- [ ] Implement `create_case_status` handler: create `CaseStatus` object, persist
-- [ ] Implement `add_case_status_to_case` handler: set `case.status`, persist
-- [ ] Implement `create_participant_status` handler: create `ParticipantStatus`, persist
-- [ ] Implement `add_participant_status_to_participant` handler: set status on
+- [x] Implement `create_case_status` handler: create `CaseStatus` object, persist
+- [x] Implement `add_case_status_to_case` handler: set `case.status`, persist
+- [x] Implement `create_participant_status` handler: create `ParticipantStatus`, persist
+- [x] Implement `add_participant_status_to_participant` handler: set status on
   participant, persist
 
 #### BT-6.3: Acknowledge (`ack_report`) review
