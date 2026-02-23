@@ -1,19 +1,34 @@
-1. Study plan/PRIORITIES.md to understand the current priorities for implementation.
-2. Study specs/* to learn the application specifications.
-3. Study plan/IMPLEMENTATION_PLAN.md to understand the current progress.
-4. Study notes/*.md for lessons learned and insights from previous implementation efforts.
-5. Study plan/IMPLEMENTATION_NOTES.md for any additional insights, 
-   questions,  or observations that may be helpful for future agents working on implementation.
-6. Study vultron/* to understand the codebase.
-7. Study test/* to understand existing tests.
-8. Use search tools to compare existing source code against specs/*.
-   1. Ultrathink to perform a gap analysis.
-9. Update plan/IMPLEMENTATION_PLAN.md with a bulleted list of prioritized tasks.
-    - Use markdown tasks (e.g. `- [ ] Task description`) to track progress.
-    - Each item in IMPLEMENTATION_PLAN.md should be atomic, actionable, and clearly defined.
-10. Update plan/IMPLEMENTATION_NOTES.md with any additional insights, questions, or observations that may be helpful for future agents working on implementation.
-11. git commit changes with a clear commit message.
+Objective: Update the implementation plan based on current priorities, specifications, code, and tests.
 
-IMPORTANT: Write plan files only.
-Do NOT implement any code.
-Do NOT assume functionality is missing; confirm with code search first.
+1. Review Context
+   - plan/PRIORITIES.md — current implementation priorities.
+   - specs/* — authoritative application specifications.
+   - plan/IMPLEMENTATION_PLAN.md — current task status.
+   - notes/*.md — lessons learned and prior insights.
+   - plan/IMPLEMENTATION_NOTES.md — open questions and observations.
+   - vultron/* — codebase.
+   - test/* — existing tests.
+
+2. Perform Gap Analysis
+   - Use search tools to compare specs/* against vultron/* and test/*.
+   - Confirm implementation status via code search; do not assume missing functionality.
+   - Identify mismatches, omissions, partial implementations, and untested behaviors.
+   - Think rigorously and systematically.
+
+3. Update plan/IMPLEMENTATION_PLAN.md
+   - Replace or refine content with a prioritized, bulleted task list.
+   - Use markdown task format: `- [ ] Task description`.
+   - Tasks must be atomic, actionable, testable, and unambiguous.
+   - Order tasks by implementation priority.
+
+4. Update plan/IMPLEMENTATION_NOTES.md
+   - Add clarified assumptions, open questions, architectural concerns, and risks.
+   - Record insights that will assist future agents.
+
+5. Commit
+   - Commit only modified plan files with a clear, specific commit message.
+
+Constraints:
+- Modify plan files only.
+- Do NOT implement code.
+- Do NOT speculate about missing functionality; verify with search first.
