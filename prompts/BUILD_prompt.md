@@ -1,14 +1,31 @@
-1. Study specs/*.md (hint: start with specs/README.md) to learn the application specifications.
-2. Study plan/IMPLEMENTATION_PLAN.md to understand the current progress and 
-   remaining tasks
-3. study plan/IMPLEMENTATION_NOTES.md to understand the current progress notes
-5. Pick the most important unchecked task.
-4. As needed, study notes/*.md for any relevant lessons learned (hint: start with notes/README.md).
-6. Search the codebase before making changes ("don't assume not implemented").
-7. Implement the task and run the validation commands found in AGENTS.md.
-8. If tests pass
-   1. update plans/IMPLEMENTATION_PLAN.md (mark task done),
-   2. update plans/IMPLEMENTATION_NOTES.md with any relevant notes about the implementation
-   3. git add -A,
-   4. and git commit with a description.
-9. Exit. Every iteration must start with a fresh context.
+Objective: Complete the highest-priority pending implementation task.
+
+1. Review Context
+   - specs/*.md (start with specs/README.md) — authoritative requirements.
+   - plan/IMPLEMENTATION_PLAN.md — current tasks and status.
+   - plan/IMPLEMENTATION_NOTES.md — implementation notes and constraints.
+   - notes/*.md (start with notes/README.md) — relevant lessons learned.
+
+2. Select Work
+   - Identify the highest-priority unchecked task in IMPLEMENTATION_PLAN.md.
+
+3. Verify Before Coding
+   - Search vultron/* and test/* to confirm current behavior.
+   - Do not assume missing functionality; confirm via code search.
+
+4. Implement
+   - Implement only the selected task.
+   - Follow project conventions.
+   - Run validation commands specified in AGENTS.md.
+
+5. If Validation Succeeds
+   - Mark the task complete in plan/IMPLEMENTATION_PLAN.md.
+   - Update plan/IMPLEMENTATION_NOTES.md with relevant implementation details.
+   - `git add -A`
+   - Commit with a clear, specific message.
+   - Exit
+
+Constraints:
+- Do not modify unrelated tasks.
+- Do not skip validation.
+- Each run operates in a fresh context.
