@@ -331,6 +331,30 @@ needed to reflect this distinction between `demo/` and `scripts/`.
 
 ---
 
+## Embargo management process in a nutshell
 
+There have been recent difficulties in implementing the embargo management 
+process in part due to fact that the initial implementations didn't necessarily
+align with how ActivityStreams models the semantics of Invite/Accept/Reject 
+patterns. The core concept of embargo management is that it's essentially an 
+analog to inviting actors to a meeting. You send out an invitation to a 
+calendar event, and the invitees can accept or reject that invitation. The 
+inviting party then reviews the individual responses and decides whether to 
+propose a new schedule or go with the proposed one. Someone might reply "I 
+can't make it Tuesday at noon, but could we do Wednesday at 3pm instead?" 
+This is a counter proposal, an Invite InReplyTo the original Invite. There 
+is guidance in the documentation that may be informative about the process 
+as well. These should be reviewed and internalized into `specs/*` and `notes/*`
+as needed to ensure that the implementation of the embargo management process is
+aligned with the intended semantics and design.
+
+- `docs/topics/process_models/em/principles.md`
+- `docs/topics/process_models/em/defaults.md`
+- `docs/topics/process_models/em/negotiating.md`
+- `docs/topics/process_models/em/working_with_others.md`
+- `docs/topics/process_models/em/early_termination.md`
+- `docs/topics/process_models/em/split_merge.md`
+
+---
 
 

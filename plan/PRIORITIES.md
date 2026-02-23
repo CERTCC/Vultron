@@ -52,6 +52,15 @@ reflect the eventual design of the new BT implementation will be necessary but
 is a lower priority than implementing the BT itself and demonstrating the
 ActivityPub processes through the BT.
 
+## Priority 50: Refactoring large modules
+
+There are some implementation notes about refactoring large modules in  
+`plan/IMPLEMENTATION_NOTES.md` that are worth keeping in mind as we implement
+the prototype. These are not high priority from a feature perspective, but they
+are important because these large files are being manipulated on nearly 
+every task in the `plan/IMPLEMENTATION_PLAN.md` and so refactoring them 
+sooner rather than later will make the implementation process smoother and 
+less error-prone.
 
 ## Priority 100: Actor independence
 
