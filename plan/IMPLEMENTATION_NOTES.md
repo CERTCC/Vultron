@@ -130,16 +130,17 @@ the `ACTIVE` transition directly.
 were rewritten in commit `fix: rewrite xfail reporting workflow tests for
 current handlers`.
 
-**Handler inventory (13 done / 23 stubs)**:
+**Handler inventory (17 done / 19 stubs)**:
 
 Done:
 - Report: create_report, submit_report, validate_report (BT), invalidate_report,
   ack_report, close_report, engage_case (BT), defer_case (BT)
 - Case: create_case (BT), add_report_to_case, close_case, create_case_participant,
   add_case_participant_to_case
+- Actor invitation: invite_actor_to_case, accept_invite_actor_to_case,
+  reject_invite_actor_to_case, remove_case_participant_from_case
 
-Stub (23 remaining):
-- invite_actor_to_case, accept_invite_actor_to_case, reject_invite_actor_to_case
+Stub (19 remaining):
 - offer_case_ownership_transfer, accept_case_ownership_transfer,
   reject_case_ownership_transfer
 - suggest_actor_to_case, accept_suggest_actor_to_case, reject_suggest_actor_to_case
@@ -147,7 +148,6 @@ Stub (23 remaining):
   announce_embargo_event_to_case
 - invite_to_embargo_on_case, accept_invite_to_embargo_on_case,
   reject_invite_to_embargo_on_case
-- remove_case_participant_from_case
 - create_note, add_note_to_case, remove_note_from_case
 - create_case_status, add_case_status_to_case, create_participant_status,
   add_participant_status_to_participant
@@ -224,5 +224,25 @@ The `CaseActor`
 might decide to update the `CaseStatus` based on a participant's view of the 
 case, whether automatically or by prompting the case owner to review the status
 update for approval before applying it to the case.
+
+---
+
+This note should update AGENTS.md and likely either a spec/*.md or notes/*.
+md file for future reference.
+Although AGENTS.md currently says to use lazy imports to avoid circular 
+dependencies, 
+in practice we should prefer to make imports at the module level and only use
+lazy (local) imports when we actually encounter circular import issues. 
+Using module level imports makes it easier to understand the dependencies of 
+the module and is more consistent with typical Python coding practices.
+
+When 
+you encounter local imports, it's a code smell that there may be circular 
+dependencies that need to be refactored. Try to refactor the code to use 
+module-level imports and only keep the minimal local imports necessary to 
+break circular dependencies when refactoring is not possible or practical.
+If you encounter local imports while modifying code, it's okay to refactor
+to use module level imports and fix any circular dependencies as part of the same change,
+but avoid introducing new local imports without trying to refactor to module level imports first.
 
 ---

@@ -19,7 +19,7 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - [x] Actor ID resolution working (short IDs like "vendorco" resolve to full URIs)
 - [x] All handler tests passing (9/9 handler-specific tests)
 
-**BT Integration Status (BT-1 ✅, BT-2.0 ✅, BT-2.1 ✅, BT-3 ✅, BT-4.2 ✅)**:
+**BT Integration Status (BT-1 ✅, BT-2.0 ✅, BT-2.1 ✅, BT-3 ✅, BT-4.1 ✅, BT-4.2 ✅)**:
 
 - ✅ py_trees library added to dependencies (v2.2.0+)
 - ✅ BT bridge layer (`vultron/behaviors/bridge.py`)
@@ -90,6 +90,8 @@ invitation + participant demo)** AND **Phase BT-5 (embargo demo)** AND
 - ✅ **BT Phase BT-2.1 complete**: `engage_case` + `defer_case` BT handlers
 - ✅ **BT Phase BT-3 complete**: `create_case` (BT), `add_report_to_case`,
   `close_case` handlers + `initialize_case_demo.py`
+- ✅ **BT Phase BT-4.1 complete**: `invite_actor_to_case`, `accept_invite_actor_to_case`,
+  `reject_invite_actor_to_case`, `remove_case_participant_from_case`
 - ✅ **BT Phase BT-4.2 partial**: `create_case_participant` + `add_case_participant_to_case`
 - ✅ **Demo script complete**: `receive_report_demo.py` (3 workflows) +
   `initialize_case_demo.py`
@@ -107,8 +109,7 @@ invitation + participant demo)** AND **Phase BT-5 (embargo demo)** AND
   - ID-02/ID-03/ID-05: ❌ HTTP-layer duplicate detection not implemented (lower priority)
 
 **❌ Remaining Gaps (prioritized per PRIORITIES.md)**:
-- ❌ **Phase BT-4 remaining**: `invite_actor_to_case` + accept/reject handlers,
-  `remove_case_participant_from_case`, `invite_actor_demo.py`
+- ❌ **Phase BT-4 remaining**: `invite_actor_demo.py` demo script (BT-4.3)
 - ❌ **Phase BT-5**: All embargo handlers (7 stubs) + `establish_embargo_demo.py`
 - ❌ **Phase BT-6**: Notes (3), statuses (4) + `status_updates_demo.py`
 - ❌ **Phase BT-7**: suggest_actor (3) + ownership transfer (3) + demo scripts
@@ -117,11 +118,8 @@ invitation + participant demo)** AND **Phase BT-5 (embargo demo)** AND
   structured logging, HTTP-layer idempotency (all `PROD_ONLY` or lower priority)
 
 **🎯 Next Actions (ordered by PRIORITIES.md):**
-0. **Bug fix** — Fix `VulnerabilityCase.set_embargo()` (see `plan/BUGS.md`)
-1. **Phase BT-4.1** — Implement `invite_actor_to_case`, `accept_invite_actor_to_case`,
-   `reject_invite_actor_to_case` handlers; `remove_case_participant_from_case`
-2. **Phase BT-4.3** — Create `invite_actor_demo.py` demo script
-3. **Phase BT-5** — Implement embargo handlers + `establish_embargo_demo.py`
+1. **Phase BT-4.3** — Create `invite_actor_demo.py` demo script
+2. **Phase BT-5** — Implement embargo handlers + `establish_embargo_demo.py`
 4. **Phase BT-6** — Implement notes/status handlers + `status_updates_demo.py`
 5. **Phase BT-7** — suggest_actor, transfer_ownership handlers + demo scripts
 6. **Phase BT-2.2/2.3** — Optional `close_report` + `invalidate_report` BT refactors
@@ -508,7 +506,7 @@ fresh using case_state conditions/transitions as reference.
 `docs/howto/activitypub/activities/initialize_participant.md`,
 `docs/howto/activitypub/activities/manage_participants.md`
 
-#### BT-4.1: Actor invitation handlers
+#### BT-4.1: Actor invitation handlers ✅ COMPLETE (2026-02-23)
 
 **Direction note**: Per `invite_actor.md` sequence diagram, the Case Owner
 sends `Invite(object=Case)` to an Actor. The **receiving** Actor's inbox
@@ -518,17 +516,12 @@ via `accept_invite_actor_to_case`, which creates the CaseParticipant. This
 means the *create-participant logic lives in the accept handler*, not the
 invite handler.
 
-- [ ] Implement `invite_actor_to_case` handler:
-  - Store Invite activity in DataLayer
-  - Emit `as:Invite(object=VulnerabilityCase)` to target actor inbox
-- [ ] Implement `accept_invite_actor_to_case` handler:
-  - Rehydrate invitation object
-  - Create `CaseParticipant(actor=invitee, case=case_id)`
-  - Persist participant to DataLayer
-  - Notify case owner via outbox activity
-- [ ] Implement `reject_invite_actor_to_case` handler:
-  - Log rejection at INFO
-  - Optionally notify inviter via outbox activity
+- [x] Implement `invite_actor_to_case` handler:
+  - Store Invite activity in DataLayer; idempotent
+- [x] Implement `accept_invite_actor_to_case` handler:
+  - Rehydrate invitation; create CaseParticipant; add to case; idempotent
+- [x] Implement `reject_invite_actor_to_case` handler:
+  - Log rejection at INFO; no state change
 
 #### BT-4.2: Case participant handlers ✅ COMPLETE (done in BT-3.5)
 
@@ -539,9 +532,8 @@ invite handler.
   - Rehydrate case and participant
   - Add participant ID to `case.case_participants`
   - Persist updated case
-- [ ] Implement `remove_case_participant_from_case` handler:
-  - Remove participant from `case.case_participants`
-  - Persist updated case
+- [x] Implement `remove_case_participant_from_case` handler:
+  - Remove participant from `case.case_participants`; idempotent; persist
 
 #### BT-4.3: Participant management demo script
 
