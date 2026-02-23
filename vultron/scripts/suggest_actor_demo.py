@@ -66,6 +66,8 @@ from vultron.scripts.initialize_case_demo import (
     BASE_URL,
     DataLayerClient,
     check_server_availability,
+    demo_check,
+    demo_step,
     get_offer_from_datalayer,
     log_case_state,
     logfmt,
@@ -177,38 +179,39 @@ def demo_suggest_actor_accept(
 
     case = _setup_initialized_case(client, finder, vendor)
 
-    # Step 2: Finder recommends coordinator to vendor
-    recommendation = RecommendActor(
-        actor=finder.as_id,
-        as_object=coordinator.as_id,
-        target=case.as_id,
-        to=[vendor.as_id],
-        content=(
-            f"I suggest inviting {coordinator.as_id} to participate in "
-            f"{case.name}."
-        ),
-    )
-    logger.info(f"Sending recommendation: {logfmt(recommendation)}")
-    post_to_inbox_and_wait(client, vendor.as_id, recommendation)
-    verify_object_stored(client, recommendation.as_id)
-    logger.info("✓ Step 2: Recommendation sent to vendor inbox and stored")
+    with demo_step("Step 2: Finder recommends coordinator to vendor"):
+        recommendation = RecommendActor(
+            actor=finder.as_id,
+            as_object=coordinator.as_id,
+            target=case.as_id,
+            to=[vendor.as_id],
+            content=(
+                f"I suggest inviting {coordinator.as_id} to participate in "
+                f"{case.name}."
+            ),
+        )
+        logger.info(f"Sending recommendation: {logfmt(recommendation)}")
+        post_to_inbox_and_wait(client, vendor.as_id, recommendation)
+        with demo_check("Recommendation stored in data layer"):
+            verify_object_stored(client, recommendation.as_id)
 
-    # Step 3: Vendor accepts the recommendation (object = the Offer itself)
-    accept = AcceptActorRecommendation(
-        actor=vendor.as_id,
-        as_object=recommendation.as_id,
-        to=[finder.as_id],
-        content=(
-            f"Accepting your suggestion to invite "
-            f"{coordinator.as_id} to {case.name}."
-        ),
-    )
-    logger.info(f"Sending accept: {logfmt(accept)}")
-    post_to_inbox_and_wait(client, finder.as_id, accept)
-    verify_object_stored(client, accept.as_id)
-    logger.info("✓ Step 3: Acceptance sent to finder inbox and stored")
+    with demo_step("Step 3: Vendor accepts recommendation"):
+        accept = AcceptActorRecommendation(
+            actor=vendor.as_id,
+            as_object=recommendation.as_id,
+            to=[finder.as_id],
+            content=(
+                f"Accepting your suggestion to invite "
+                f"{coordinator.as_id} to {case.name}."
+            ),
+        )
+        logger.info(f"Sending accept: {logfmt(accept)}")
+        post_to_inbox_and_wait(client, finder.as_id, accept)
+        with demo_check("Acceptance stored in data layer"):
+            verify_object_stored(client, accept.as_id)
+        with demo_check("Case state after accept"):
+            log_case_state(client, case.as_id, "after accept")
 
-    log_case_state(client, case.as_id, "after accept")
     logger.info(
         "✅ DEMO COMPLETE (accept path): Recommendation accepted. "
         "Vendor should now invite the coordinator."
@@ -243,48 +246,47 @@ def demo_suggest_actor_reject(
     initial_case = log_case_state(client, case.as_id, "initial")
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
-    # Step 2: Finder recommends coordinator to vendor
-    recommendation = RecommendActor(
-        actor=finder.as_id,
-        as_object=coordinator.as_id,
-        target=case.as_id,
-        to=[vendor.as_id],
-        content=(
-            f"I suggest inviting {coordinator.as_id} to participate in "
-            f"{case.name}."
-        ),
-    )
-    logger.info(f"Sending recommendation: {logfmt(recommendation)}")
-    post_to_inbox_and_wait(client, vendor.as_id, recommendation)
-    verify_object_stored(client, recommendation.as_id)
-    logger.info("✓ Step 2: Recommendation sent to vendor inbox and stored")
-
-    # Step 3: Vendor rejects the recommendation (object = the Offer itself)
-    reject = RejectActorRecommendation(
-        actor=vendor.as_id,
-        as_object=recommendation.as_id,
-        to=[finder.as_id],
-        content=(
-            f"Declining your suggestion to invite "
-            f"{coordinator.as_id} to {case.name}."
-        ),
-    )
-    logger.info(f"Sending reject: {logfmt(reject)}")
-    post_to_inbox_and_wait(client, finder.as_id, reject)
-    logger.info("✓ Step 3: Rejection sent to finder inbox")
-
-    # Step 4: Verify no new participant was added
-    final_case = log_case_state(client, case.as_id, "after reject")
-    if final_case is None:
-        raise ValueError("Could not retrieve case after reject")
-
-    final_count = len(final_case.case_participants)
-    if final_count != initial_count:
-        raise ValueError(
-            f"Expected participant count to remain {initial_count} after "
-            f"reject, got {final_count}"
+    with demo_step("Step 2: Finder recommends coordinator to vendor"):
+        recommendation = RecommendActor(
+            actor=finder.as_id,
+            as_object=coordinator.as_id,
+            target=case.as_id,
+            to=[vendor.as_id],
+            content=(
+                f"I suggest inviting {coordinator.as_id} to participate in "
+                f"{case.name}."
+            ),
         )
-    logger.info("✓ Step 4: Participant list unchanged — coordinator not added")
+        logger.info(f"Sending recommendation: {logfmt(recommendation)}")
+        post_to_inbox_and_wait(client, vendor.as_id, recommendation)
+        with demo_check("Recommendation stored in data layer"):
+            verify_object_stored(client, recommendation.as_id)
+
+    with demo_step("Step 3: Vendor rejects recommendation"):
+        reject = RejectActorRecommendation(
+            actor=vendor.as_id,
+            as_object=recommendation.as_id,
+            to=[finder.as_id],
+            content=(
+                f"Declining your suggestion to invite "
+                f"{coordinator.as_id} to {case.name}."
+            ),
+        )
+        logger.info(f"Sending reject: {logfmt(reject)}")
+        post_to_inbox_and_wait(client, finder.as_id, reject)
+
+    with demo_step("Step 4: Verify coordinator not added as participant"):
+        with demo_check("Participant count unchanged after reject"):
+            final_case = log_case_state(client, case.as_id, "after reject")
+            if final_case is None:
+                raise ValueError("Could not retrieve case after reject")
+            final_count = len(final_case.case_participants)
+            if final_count != initial_count:
+                raise ValueError(
+                    f"Expected participant count to remain {initial_count} after "
+                    f"reject, got {final_count}"
+                )
+
     logger.info(
         "✅ DEMO COMPLETE (reject path): Recommendation rejected gracefully."
     )

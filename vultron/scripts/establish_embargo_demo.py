@@ -75,6 +75,8 @@ from vultron.scripts.initialize_case_demo import (
     BASE_URL,
     DataLayerClient,
     check_server_availability,
+    demo_check,
+    demo_step,
     get_offer_from_datalayer,
     log_case_state,
     logfmt,
@@ -235,77 +237,76 @@ def demo_propose_embargo_accept(
 
     case = _setup_two_participant_case(client, finder, vendor, coordinator)
 
-    # Step 2: Coordinator proposes embargo
-    embargo = _make_embargo_event(case, days=90)
-    create_embargo = as_Create(
-        actor=vendor.as_id,
-        object=embargo,
-        context=case.as_id,
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
-    logger.info("✓ Step 2a: EmbargoEvent created and stored")
-
-    proposal = EmProposeEmbargo(
-        id=f"{case.as_id}/embargo_proposals/1",
-        actor=coordinator.as_id,
-        object=embargo,
-        context=case.as_id,
-        summary=f"Proposing a 90-day embargo for {case.name}.",
-        to=[vendor.as_id],
-    )
-    logger.info(f"Sending embargo proposal: {logfmt(proposal)}")
-    post_to_inbox_and_wait(client, vendor.as_id, proposal)
-    logger.info("✓ Step 2b: Embargo proposal sent to vendor inbox and stored")
-
-    # Step 3: Vendor accepts the embargo proposal
-    accept = EmAcceptEmbargo(
-        actor=vendor.as_id,
-        object=proposal.as_id,
-        context=case.as_id,
-        to=[coordinator.as_id],
-        summary=f"Accepting embargo proposal for {case.name}.",
-    )
-    logger.info(f"Sending embargo acceptance: {logfmt(accept)}")
-    post_to_inbox_and_wait(client, coordinator.as_id, accept)
-    logger.info("✓ Step 3a: Acceptance sent to coordinator inbox")
-
-    # Vendor activates embargo on the case
-    activate = ActivateEmbargo(
-        actor=vendor.as_id,
-        object=embargo.as_id,
-        target=case.as_id,
-        in_reply_to=proposal.as_id,
-        to=f"{case.as_id}/participants",
-    )
-    logger.info(f"Activating embargo: {logfmt(activate)}")
-    post_to_inbox_and_wait(client, vendor.as_id, activate)
-    logger.info("✓ Step 3b: Embargo activated on case")
-
-    # Step 4: Vendor announces embargo to participants
-    announce = AnnounceEmbargo(
-        actor=vendor.as_id,
-        object=embargo.as_id,
-        context=case.as_id,
-        to=f"{case.as_id}/participants",
-        summary=f"Embargo for {case.name} is now active.",
-    )
-    logger.info(f"Announcing embargo: {logfmt(announce)}")
-    post_to_inbox_and_wait(client, vendor.as_id, announce)
-    logger.info("✓ Step 4: Embargo announced to participants")
-
-    # Step 5: Verify case has ACTIVE embargo
-    final_case = log_case_state(client, case.as_id, "after embargo acceptance")
-    if final_case is None:
-        raise ValueError("Could not retrieve case after embargo acceptance")
-
-    if final_case.active_embargo is None:
-        raise ValueError(
-            f"Expected case '{case.as_id}' to have an active embargo after "
-            f"acceptance, but active_embargo is None. "
-            f"Case status: {final_case.current_status}"
+    with demo_step("Step 2: Coordinator proposes embargo"):
+        embargo = _make_embargo_event(case, days=90)
+        create_embargo = as_Create(
+            actor=vendor.as_id,
+            object=embargo,
+            context=case.as_id,
         )
+        post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
+        with demo_check("EmbargoEvent stored in data layer"):
+            verify_object_stored(client, embargo.as_id)
 
-    logger.info("✓ Step 5: Case has active embargo")
+        proposal = EmProposeEmbargo(
+            id=f"{case.as_id}/embargo_proposals/1",
+            actor=coordinator.as_id,
+            object=embargo,
+            context=case.as_id,
+            summary=f"Proposing a 90-day embargo for {case.name}.",
+            to=[vendor.as_id],
+        )
+        logger.info(f"Sending embargo proposal: {logfmt(proposal)}")
+        post_to_inbox_and_wait(client, vendor.as_id, proposal)
+
+    with demo_step("Step 3: Vendor accepts embargo and activates it"):
+        accept = EmAcceptEmbargo(
+            actor=vendor.as_id,
+            object=proposal.as_id,
+            context=case.as_id,
+            to=[coordinator.as_id],
+            summary=f"Accepting embargo proposal for {case.name}.",
+        )
+        logger.info(f"Sending embargo acceptance: {logfmt(accept)}")
+        post_to_inbox_and_wait(client, coordinator.as_id, accept)
+
+        activate = ActivateEmbargo(
+            actor=vendor.as_id,
+            object=embargo.as_id,
+            target=case.as_id,
+            in_reply_to=proposal.as_id,
+            to=f"{case.as_id}/participants",
+        )
+        logger.info(f"Activating embargo: {logfmt(activate)}")
+        post_to_inbox_and_wait(client, vendor.as_id, activate)
+
+    with demo_step("Step 4: Vendor announces embargo to participants"):
+        announce = AnnounceEmbargo(
+            actor=vendor.as_id,
+            object=embargo.as_id,
+            context=case.as_id,
+            to=f"{case.as_id}/participants",
+            summary=f"Embargo for {case.name} is now active.",
+        )
+        logger.info(f"Announcing embargo: {logfmt(announce)}")
+        post_to_inbox_and_wait(client, vendor.as_id, announce)
+
+    with demo_step("Step 5: Verify case has active embargo"):
+        with demo_check("Case has active_embargo set"):
+            final_case = log_case_state(
+                client, case.as_id, "after embargo acceptance"
+            )
+            if final_case is None:
+                raise ValueError(
+                    "Could not retrieve case after embargo acceptance"
+                )
+            if final_case.active_embargo is None:
+                raise ValueError(
+                    f"Expected case '{case.as_id}' to have an active embargo after "
+                    f"acceptance, but active_embargo is None. "
+                    f"Case status: {final_case.current_status}"
+                )
+
     logger.info(
         "✅ DEMO COMPLETE (accept path): Embargo established successfully."
     )
@@ -335,51 +336,52 @@ def demo_propose_embargo_reject(
 
     case = _setup_two_participant_case(client, finder, vendor, coordinator)
 
-    # Step 2: Coordinator proposes embargo
-    embargo = _make_embargo_event(case, days=45)
-    create_embargo = as_Create(
-        actor=vendor.as_id,
-        object=embargo,
-        context=case.as_id,
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
-
-    proposal = EmProposeEmbargo(
-        id=f"{case.as_id}/embargo_proposals/1",
-        actor=coordinator.as_id,
-        object=embargo,
-        context=case.as_id,
-        summary=f"Proposing a 45-day embargo for {case.name}.",
-        to=[vendor.as_id],
-    )
-    logger.info(f"Sending embargo proposal: {logfmt(proposal)}")
-    post_to_inbox_and_wait(client, vendor.as_id, proposal)
-    logger.info("✓ Step 2: Embargo proposal sent to vendor inbox")
-
-    # Step 3: Vendor rejects the embargo proposal
-    reject = EmRejectEmbargo(
-        actor=vendor.as_id,
-        object=proposal.as_id,
-        context=case.as_id,
-        to=[coordinator.as_id],
-        summary=f"Rejecting embargo proposal for {case.name}.",
-    )
-    logger.info(f"Sending embargo rejection: {logfmt(reject)}")
-    post_to_inbox_and_wait(client, coordinator.as_id, reject)
-    logger.info("✓ Step 3: Rejection sent to coordinator inbox")
-
-    # Step 4: Verify case has no active embargo
-    final_case = log_case_state(client, case.as_id, "after embargo rejection")
-    if final_case is None:
-        raise ValueError("Could not retrieve case after embargo rejection")
-
-    if final_case.active_embargo is not None:
-        raise ValueError(
-            f"Expected case '{case.as_id}' to have no active embargo after "
-            f"rejection, but active_embargo = {final_case.active_embargo}"
+    with demo_step("Step 2: Coordinator proposes embargo"):
+        embargo = _make_embargo_event(case, days=45)
+        create_embargo = as_Create(
+            actor=vendor.as_id,
+            object=embargo,
+            context=case.as_id,
         )
+        post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
 
-    logger.info("✓ Step 4: Case has no active embargo — rejection confirmed")
+        proposal = EmProposeEmbargo(
+            id=f"{case.as_id}/embargo_proposals/1",
+            actor=coordinator.as_id,
+            object=embargo,
+            context=case.as_id,
+            summary=f"Proposing a 45-day embargo for {case.name}.",
+            to=[vendor.as_id],
+        )
+        logger.info(f"Sending embargo proposal: {logfmt(proposal)}")
+        post_to_inbox_and_wait(client, vendor.as_id, proposal)
+
+    with demo_step("Step 3: Vendor rejects embargo proposal"):
+        reject = EmRejectEmbargo(
+            actor=vendor.as_id,
+            object=proposal.as_id,
+            context=case.as_id,
+            to=[coordinator.as_id],
+            summary=f"Rejecting embargo proposal for {case.name}.",
+        )
+        logger.info(f"Sending embargo rejection: {logfmt(reject)}")
+        post_to_inbox_and_wait(client, coordinator.as_id, reject)
+
+    with demo_step("Step 4: Verify case has no active embargo"):
+        with demo_check("Case active_embargo is None after rejection"):
+            final_case = log_case_state(
+                client, case.as_id, "after embargo rejection"
+            )
+            if final_case is None:
+                raise ValueError(
+                    "Could not retrieve case after embargo rejection"
+                )
+            if final_case.active_embargo is not None:
+                raise ValueError(
+                    f"Expected case '{case.as_id}' to have no active embargo after "
+                    f"rejection, but active_embargo = {final_case.active_embargo}"
+                )
+
     logger.info("✅ DEMO COMPLETE (reject path): Embargo rejected gracefully.")
 
 

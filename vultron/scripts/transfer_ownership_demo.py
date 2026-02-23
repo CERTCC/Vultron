@@ -66,6 +66,8 @@ from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.scripts.initialize_case_demo import (
     DataLayerClient,
     check_server_availability,
+    demo_check,
+    demo_step,
     get_offer_from_datalayer,
     log_case_state,
     logfmt,
@@ -184,46 +186,42 @@ def demo_transfer_ownership_accept(
         raise ValueError("Could not retrieve initial case state")
     logger.info(f"Initial owner: {initial_case.attributed_to}")
 
-    # Step 2: Vendor offers case ownership to coordinator
-    offer = OfferCaseOwnershipTransfer(
-        actor=vendor.as_id,
-        as_object=case.as_id,
-        to=[coordinator.as_id],
-        content=(f"Offering to transfer ownership of {case.name} to you."),
-    )
-    logger.info(f"Sending offer: {logfmt(offer)}")
-    post_to_inbox_and_wait(client, coordinator.as_id, offer)
-    verify_object_stored(client, offer.as_id)
-    logger.info(
-        "✓ Step 2: Ownership offer sent to coordinator inbox and stored"
-    )
-
-    # Step 3: Coordinator accepts (object = the Offer itself)
-    accept = AcceptCaseOwnershipTransfer(
-        actor=coordinator.as_id,
-        as_object=offer.as_id,
-        to=[vendor.as_id],
-        content=(f"Accepting ownership of {case.name}."),
-    )
-    logger.info(f"Sending accept: {logfmt(accept)}")
-    post_to_inbox_and_wait(client, vendor.as_id, accept)
-    logger.info("✓ Step 3: Acceptance sent to vendor inbox")
-
-    # Step 4: Verify case.attributed_to was updated to coordinator
-    final_case = log_case_state(client, case.as_id, "after accept")
-    if final_case is None:
-        raise ValueError("Could not retrieve case after accept")
-
-    new_owner = final_case.attributed_to
-    coord_segment = coordinator.as_id.split("/")[-1]
-    if coord_segment not in str(new_owner):
-        raise ValueError(
-            f"Expected case owner to be coordinator '{coordinator.as_id}', "
-            f"got: {new_owner}"
+    with demo_step("Step 2: Vendor offers case ownership to coordinator"):
+        offer = OfferCaseOwnershipTransfer(
+            actor=vendor.as_id,
+            as_object=case.as_id,
+            to=[coordinator.as_id],
+            content=(f"Offering to transfer ownership of {case.name} to you."),
         )
-    logger.info(
-        f"✓ Step 4: Case ownership transferred — new owner: {new_owner}"
-    )
+        logger.info(f"Sending offer: {logfmt(offer)}")
+        post_to_inbox_and_wait(client, coordinator.as_id, offer)
+        with demo_check("Ownership offer stored in data layer"):
+            verify_object_stored(client, offer.as_id)
+
+    with demo_step("Step 3: Coordinator accepts ownership transfer"):
+        accept = AcceptCaseOwnershipTransfer(
+            actor=coordinator.as_id,
+            as_object=offer.as_id,
+            to=[vendor.as_id],
+            content=(f"Accepting ownership of {case.name}."),
+        )
+        logger.info(f"Sending accept: {logfmt(accept)}")
+        post_to_inbox_and_wait(client, vendor.as_id, accept)
+
+    with demo_step("Step 4: Verify case ownership transferred to coordinator"):
+        with demo_check("Case attributed_to updated to coordinator"):
+            final_case = log_case_state(client, case.as_id, "after accept")
+            if final_case is None:
+                raise ValueError("Could not retrieve case after accept")
+            new_owner = final_case.attributed_to
+            coord_segment = coordinator.as_id.split("/")[-1]
+            if coord_segment not in str(new_owner):
+                raise ValueError(
+                    f"Expected case owner to be coordinator '{coordinator.as_id}', "
+                    f"got: {new_owner}"
+                )
+        logger.info(f"Case ownership transferred — new owner: {new_owner}")
+
     logger.info("✅ DEMO COMPLETE (accept path): Case ownership transferred.")
 
 
@@ -259,44 +257,42 @@ def demo_transfer_ownership_reject(
     original_owner = initial_case.attributed_to
     logger.info(f"Initial owner: {original_owner}")
 
-    # Step 2: Vendor offers case ownership to coordinator
-    offer = OfferCaseOwnershipTransfer(
-        actor=vendor.as_id,
-        as_object=case.as_id,
-        to=[coordinator.as_id],
-        content=(f"Offering to transfer ownership of {case.name} to you."),
-    )
-    logger.info(f"Sending offer: {logfmt(offer)}")
-    post_to_inbox_and_wait(client, coordinator.as_id, offer)
-    verify_object_stored(client, offer.as_id)
-    logger.info(
-        "✓ Step 2: Ownership offer sent to coordinator inbox and stored"
-    )
-
-    # Step 3: Coordinator rejects (object = the Offer itself)
-    reject = RejectCaseOwnershipTransfer(
-        actor=coordinator.as_id,
-        as_object=offer.as_id,
-        to=[vendor.as_id],
-        content=(f"Declining ownership of {case.name}."),
-    )
-    logger.info(f"Sending reject: {logfmt(reject)}")
-    post_to_inbox_and_wait(client, vendor.as_id, reject)
-    logger.info("✓ Step 3: Rejection sent to vendor inbox")
-
-    # Step 4: Verify case.attributed_to is unchanged
-    final_case = log_case_state(client, case.as_id, "after reject")
-    if final_case is None:
-        raise ValueError("Could not retrieve case after reject")
-
-    if final_case.attributed_to != original_owner:
-        raise ValueError(
-            f"Expected case owner to remain '{original_owner}' after reject, "
-            f"got: {final_case.attributed_to}"
+    with demo_step("Step 2: Vendor offers case ownership to coordinator"):
+        offer = OfferCaseOwnershipTransfer(
+            actor=vendor.as_id,
+            as_object=case.as_id,
+            to=[coordinator.as_id],
+            content=(f"Offering to transfer ownership of {case.name} to you."),
         )
-    logger.info(
-        f"✓ Step 4: Ownership unchanged — still with: {final_case.attributed_to}"
-    )
+        logger.info(f"Sending offer: {logfmt(offer)}")
+        post_to_inbox_and_wait(client, coordinator.as_id, offer)
+        with demo_check("Ownership offer stored in data layer"):
+            verify_object_stored(client, offer.as_id)
+
+    with demo_step("Step 3: Coordinator rejects ownership transfer"):
+        reject = RejectCaseOwnershipTransfer(
+            actor=coordinator.as_id,
+            as_object=offer.as_id,
+            to=[vendor.as_id],
+            content=(f"Declining ownership of {case.name}."),
+        )
+        logger.info(f"Sending reject: {logfmt(reject)}")
+        post_to_inbox_and_wait(client, vendor.as_id, reject)
+
+    with demo_step("Step 4: Verify case ownership unchanged"):
+        with demo_check("Case attributed_to still vendor"):
+            final_case = log_case_state(client, case.as_id, "after reject")
+            if final_case is None:
+                raise ValueError("Could not retrieve case after reject")
+            if final_case.attributed_to != original_owner:
+                raise ValueError(
+                    f"Expected case owner to remain '{original_owner}' after reject, "
+                    f"got: {final_case.attributed_to}"
+                )
+        logger.info(
+            f"Ownership unchanged — still with: {final_case.attributed_to}"
+        )
+
     logger.info(
         "✅ DEMO COMPLETE (reject path): Ownership transfer rejected gracefully."
     )

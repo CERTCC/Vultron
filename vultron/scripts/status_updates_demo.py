@@ -74,6 +74,8 @@ from vultron.scripts.initialize_case_demo import (
     BASE_URL,
     DataLayerClient,
     check_server_availability,
+    demo_check,
+    demo_step,
     get_offer_from_datalayer,
     log_case_state,
     logfmt,
@@ -186,63 +188,65 @@ def demo_notes_workflow(
 
     case, participant = _setup_initialized_case(client, finder, vendor)
 
-    # Step 1: Create a note
-    note = as_Note(
-        name="Initial Triage Note",
-        content=(
-            "Reviewed the report. The heap buffer overflow is confirmed "
-            "and affects all versions prior to 3.2.1."
-        ),
-        context=case.as_id,
-        attributed_to=vendor.as_id,
-    )
-    create_note_activity = as_Create(
-        actor=vendor.as_id,
-        as_object=note,
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, create_note_activity)
-    verify_object_stored(client, note.as_id)
-    logger.info("✓ Step 1: Note created")
+    with demo_step("Step 1: Vendor creates note"):
+        note = as_Note(
+            name="Initial Triage Note",
+            content=(
+                "Reviewed the report. The heap buffer overflow is confirmed "
+                "and affects all versions prior to 3.2.1."
+            ),
+            context=case.as_id,
+            attributed_to=vendor.as_id,
+        )
+        create_note_activity = as_Create(
+            actor=vendor.as_id,
+            as_object=note,
+        )
+        post_to_inbox_and_wait(client, vendor.as_id, create_note_activity)
+        with demo_check("Note stored in data layer"):
+            verify_object_stored(client, note.as_id)
 
-    # Step 2: Add the note to the case
-    add_note_activity = AddNoteToCase(
-        actor=vendor.as_id,
-        object=note,
-        target=case.as_id,
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, add_note_activity)
-
-    updated_case = log_case_state(client, case.as_id, "after AddNoteToCase")
-    if updated_case:
-        note_ids = [
-            (n.as_id if hasattr(n, "as_id") else n) for n in updated_case.notes
-        ]
-        if note.as_id not in note_ids:
-            raise ValueError(
-                f"Note '{note.as_id}' not found in case after AddNoteToCase"
+    with demo_step("Step 2: Vendor adds note to case"):
+        add_note_activity = AddNoteToCase(
+            actor=vendor.as_id,
+            object=note,
+            target=case.as_id,
+        )
+        post_to_inbox_and_wait(client, vendor.as_id, add_note_activity)
+        with demo_check("Note present in case"):
+            updated_case = log_case_state(
+                client, case.as_id, "after AddNoteToCase"
             )
-    logger.info("✓ Step 2: Note added to case")
+            if updated_case:
+                note_ids = [
+                    (n.as_id if hasattr(n, "as_id") else n)
+                    for n in updated_case.notes
+                ]
+                if note.as_id not in note_ids:
+                    raise ValueError(
+                        f"Note '{note.as_id}' not found in case after AddNoteToCase"
+                    )
 
-    # Step 3: Remove the note from the case
-    remove_note_activity = as_Remove(
-        actor=vendor.as_id,
-        as_object=note,
-        target=case.as_id,
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, remove_note_activity)
-
-    updated_case = log_case_state(
-        client, case.as_id, "after RemoveNoteFromCase"
-    )
-    if updated_case:
-        note_ids = [
-            (n.as_id if hasattr(n, "as_id") else n) for n in updated_case.notes
-        ]
-        if note.as_id in note_ids:
-            raise ValueError(
-                f"Note '{note.as_id}' still in case after RemoveNoteFromCase"
+    with demo_step("Step 3: Vendor removes note from case"):
+        remove_note_activity = as_Remove(
+            actor=vendor.as_id,
+            as_object=note,
+            target=case.as_id,
+        )
+        post_to_inbox_and_wait(client, vendor.as_id, remove_note_activity)
+        with demo_check("Note absent from case"):
+            updated_case = log_case_state(
+                client, case.as_id, "after RemoveNoteFromCase"
             )
-    logger.info("✓ Step 3: Note removed from case")
+            if updated_case:
+                note_ids = [
+                    (n.as_id if hasattr(n, "as_id") else n)
+                    for n in updated_case.notes
+                ]
+                if note.as_id in note_ids:
+                    raise ValueError(
+                        f"Note '{note.as_id}' still in case after RemoveNoteFromCase"
+                    )
 
     logger.info("✅ DEMO COMPLETE: Notes workflow finished.")
 
@@ -267,68 +271,69 @@ def demo_status_workflow(
 
     case, participant = _setup_initialized_case(client, finder, vendor)
 
-    # Step 1: Create a CaseStatus
-    case_status = CaseStatus(
-        context=case.as_id,
-        em_state=EM.NO_EMBARGO,
-        pxa_state=CS_pxa.pxa,
-    )
-    create_status_activity = CreateCaseStatus(
-        actor=vendor.as_id,
-        object=case_status,
-        context=case.as_id,
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, create_status_activity)
-    verify_object_stored(client, case_status.as_id)
-    logger.info("✓ Step 1: CaseStatus created")
+    with demo_step("Step 1: Vendor creates CaseStatus"):
+        case_status = CaseStatus(
+            context=case.as_id,
+            em_state=EM.NO_EMBARGO,
+            pxa_state=CS_pxa.pxa,
+        )
+        create_status_activity = CreateCaseStatus(
+            actor=vendor.as_id,
+            object=case_status,
+            context=case.as_id,
+        )
+        post_to_inbox_and_wait(client, vendor.as_id, create_status_activity)
+        with demo_check("CaseStatus stored in data layer"):
+            verify_object_stored(client, case_status.as_id)
 
-    # Step 2: Add CaseStatus to the case
-    add_status_activity = AddStatusToCase(
-        actor=vendor.as_id,
-        object=case_status,
-        target=case.as_id,
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, add_status_activity)
-
-    updated_case = log_case_state(client, case.as_id, "after AddStatusToCase")
-    if updated_case:
-        status_ids = [
-            (s.as_id if hasattr(s, "as_id") else s)
-            for s in updated_case.case_status
-        ]
-        if case_status.as_id not in status_ids:
-            raise ValueError(
-                f"CaseStatus '{case_status.as_id}' not found in case "
-                "after AddStatusToCase"
+    with demo_step("Step 2: Vendor adds CaseStatus to case"):
+        add_status_activity = AddStatusToCase(
+            actor=vendor.as_id,
+            object=case_status,
+            target=case.as_id,
+        )
+        post_to_inbox_and_wait(client, vendor.as_id, add_status_activity)
+        with demo_check("CaseStatus present in case"):
+            updated_case = log_case_state(
+                client, case.as_id, "after AddStatusToCase"
             )
-    logger.info("✓ Step 2: CaseStatus added to case")
+            if updated_case:
+                status_ids = [
+                    (s.as_id if hasattr(s, "as_id") else s)
+                    for s in updated_case.case_status
+                ]
+                if case_status.as_id not in status_ids:
+                    raise ValueError(
+                        f"CaseStatus '{case_status.as_id}' not found in case "
+                        "after AddStatusToCase"
+                    )
 
-    # Step 3: Create a ParticipantStatus for the finder participant
-    participant_status = ParticipantStatus(
-        context=participant.as_id,
-        rm_state=RM.RECEIVED,
-        vfd_state=CS_vfd.vfd,
-        attributed_to=finder.as_id,
-        case_status=case_status,
-    )
-    create_pstatus_activity = CreateStatusForParticipant(
-        actor=vendor.as_id,
-        object=participant_status,
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, create_pstatus_activity)
-    verify_object_stored(client, participant_status.as_id)
-    logger.info("✓ Step 3: ParticipantStatus created")
+    with demo_step("Step 3: Vendor creates ParticipantStatus"):
+        participant_status = ParticipantStatus(
+            context=participant.as_id,
+            rm_state=RM.RECEIVED,
+            vfd_state=CS_vfd.vfd,
+            attributed_to=finder.as_id,
+            case_status=case_status,
+        )
+        create_pstatus_activity = CreateStatusForParticipant(
+            actor=vendor.as_id,
+            object=participant_status,
+        )
+        post_to_inbox_and_wait(client, vendor.as_id, create_pstatus_activity)
+        with demo_check("ParticipantStatus stored in data layer"):
+            verify_object_stored(client, participant_status.as_id)
 
-    # Step 4: Add ParticipantStatus to the participant
-    add_pstatus_activity = AddStatusToParticipant(
-        actor=vendor.as_id,
-        object=participant_status,
-        target=participant.as_id,
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, add_pstatus_activity)
-    logger.info("✓ Step 4: ParticipantStatus added to participant")
+    with demo_step("Step 4: Vendor adds ParticipantStatus to participant"):
+        add_pstatus_activity = AddStatusToParticipant(
+            actor=vendor.as_id,
+            object=participant_status,
+            target=participant.as_id,
+        )
+        post_to_inbox_and_wait(client, vendor.as_id, add_pstatus_activity)
+        with demo_check("Final case state"):
+            log_case_state(client, case.as_id, "final state")
 
-    log_case_state(client, case.as_id, "final state")
     logger.info("✅ DEMO COMPLETE: Status updates workflow finished.")
 
 

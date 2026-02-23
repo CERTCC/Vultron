@@ -72,6 +72,8 @@ from vultron.scripts.initialize_case_demo import (
     BASE_URL,
     DataLayerClient,
     check_server_availability,
+    demo_check,
+    demo_step,
     get_offer_from_datalayer,
     log_case_state,
     logfmt,
@@ -183,51 +185,52 @@ def demo_invite_actor_accept(
 
     case = _setup_initialized_case(client, finder, vendor)
 
-    # Step 2: Vendor invites coordinator
-    invite = RmInviteToCase(
-        actor=vendor.as_id,
-        object=coordinator.as_id,
-        target=case.as_id,
-        to=[coordinator.as_id],
-        content=f"We're inviting you to participate in {case.name}.",
-    )
-    logger.info(f"Sending invite: {logfmt(invite)}")
-    post_to_inbox_and_wait(client, coordinator.as_id, invite)
-    logger.info("✓ Step 2: Invite sent to coordinator inbox")
-
-    # Step 3: Coordinator accepts (reference invite by ID so the handler can
-    # rehydrate it from the datalayer with all fields intact)
-    accept = RmAcceptInviteToCase(
-        actor=coordinator.as_id,
-        object=invite.as_id,
-        to=[vendor.as_id],
-        content=f"Accepting invitation to participate in {case.name}.",
-    )
-    logger.info(f"Sending accept: {logfmt(accept)}")
-    post_to_inbox_and_wait(client, vendor.as_id, accept)
-    logger.info("✓ Step 3: Acceptance sent to vendor inbox")
-
-    # Step 4: Verify coordinator was added as a participant.
-    # The handler creates a participant with ID {case_uuid}/participants/{coord_segment}.
-    # Instead of fetching each participant, check that the participant list grew.
-    final_case = log_case_state(client, case.as_id, "after accept")
-    if final_case is None:
-        raise ValueError("Could not retrieve case after accept")
-
-    participant_ids = [
-        (p.as_id if hasattr(p, "as_id") else str(p))
-        for p in final_case.case_participants
-    ]
-    coord_segment = coordinator.as_id.split("/")[-1]
-    coord_participant = [
-        pid for pid in participant_ids if str(pid).endswith(coord_segment)
-    ]
-    if not coord_participant:
-        raise ValueError(
-            f"Coordinator '{coordinator.as_id}' not found in case "
-            f"participants after accept. Participants: {participant_ids}"
+    with demo_step("Step 2: Vendor invites coordinator to case"):
+        invite = RmInviteToCase(
+            actor=vendor.as_id,
+            object=coordinator.as_id,
+            target=case.as_id,
+            to=[coordinator.as_id],
+            content=f"We're inviting you to participate in {case.name}.",
         )
-    logger.info("✓ Step 4: Coordinator is now a case participant")
+        logger.info(f"Sending invite: {logfmt(invite)}")
+        post_to_inbox_and_wait(client, coordinator.as_id, invite)
+
+    with demo_step("Step 3: Coordinator accepts invitation"):
+        # reference invite by ID so the handler can rehydrate it from the
+        # datalayer with all fields intact
+        accept = RmAcceptInviteToCase(
+            actor=coordinator.as_id,
+            object=invite.as_id,
+            to=[vendor.as_id],
+            content=f"Accepting invitation to participate in {case.name}.",
+        )
+        logger.info(f"Sending accept: {logfmt(accept)}")
+        post_to_inbox_and_wait(client, vendor.as_id, accept)
+
+    with demo_step("Step 4: Verify coordinator added as case participant"):
+        with demo_check("Coordinator present in case participant list"):
+            # The handler creates a participant with ID
+            # {case_uuid}/participants/{coord_segment}. Check participant list grew.
+            final_case = log_case_state(client, case.as_id, "after accept")
+            if final_case is None:
+                raise ValueError("Could not retrieve case after accept")
+            participant_ids = [
+                (p.as_id if hasattr(p, "as_id") else str(p))
+                for p in final_case.case_participants
+            ]
+            coord_segment = coordinator.as_id.split("/")[-1]
+            coord_participant = [
+                pid
+                for pid in participant_ids
+                if str(pid).endswith(coord_segment)
+            ]
+            if not coord_participant:
+                raise ValueError(
+                    f"Coordinator '{coordinator.as_id}' not found in case "
+                    f"participants after accept. Participants: {participant_ids}"
+                )
+
     logger.info("✅ DEMO COMPLETE (accept path): Coordinator added to case.")
 
 
@@ -259,42 +262,41 @@ def demo_invite_actor_reject(
     initial_case = log_case_state(client, case.as_id, "initial")
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
-    # Step 2: Vendor invites coordinator
-    invite = RmInviteToCase(
-        actor=vendor.as_id,
-        object=coordinator.as_id,
-        target=case.as_id,
-        to=[coordinator.as_id],
-        content=f"We're inviting you to participate in {case.name}.",
-    )
-    logger.info(f"Sending invite: {logfmt(invite)}")
-    post_to_inbox_and_wait(client, coordinator.as_id, invite)
-    logger.info("✓ Step 2: Invite sent to coordinator inbox")
-
-    # Step 3: Coordinator rejects (reference invite by ID so the handler can
-    # rehydrate it from the datalayer with all fields intact)
-    reject = RmRejectInviteToCase(
-        actor=coordinator.as_id,
-        object=invite.as_id,
-        to=[vendor.as_id],
-        content=f"Declining the invitation to participate in {case.name}.",
-    )
-    logger.info(f"Sending reject: {logfmt(reject)}")
-    post_to_inbox_and_wait(client, vendor.as_id, reject)
-    logger.info("✓ Step 3: Rejection sent to vendor inbox")
-
-    # Step 4: Verify coordinator is NOT a participant
-    final_case = log_case_state(client, case.as_id, "after reject")
-    if final_case is None:
-        raise ValueError("Could not retrieve case after reject")
-
-    final_count = len(final_case.case_participants)
-    if final_count != initial_count:
-        raise ValueError(
-            f"Expected participant count to remain {initial_count} after "
-            f"reject, got {final_count}"
+    with demo_step("Step 2: Vendor invites coordinator to case"):
+        invite = RmInviteToCase(
+            actor=vendor.as_id,
+            object=coordinator.as_id,
+            target=case.as_id,
+            to=[coordinator.as_id],
+            content=f"We're inviting you to participate in {case.name}.",
         )
-    logger.info("✓ Step 4: Participant list unchanged — coordinator not added")
+        logger.info(f"Sending invite: {logfmt(invite)}")
+        post_to_inbox_and_wait(client, coordinator.as_id, invite)
+
+    with demo_step("Step 3: Coordinator rejects invitation"):
+        # reference invite by ID so the handler can rehydrate it from the
+        # datalayer with all fields intact
+        reject = RmRejectInviteToCase(
+            actor=coordinator.as_id,
+            object=invite.as_id,
+            to=[vendor.as_id],
+            content=f"Declining the invitation to participate in {case.name}.",
+        )
+        logger.info(f"Sending reject: {logfmt(reject)}")
+        post_to_inbox_and_wait(client, vendor.as_id, reject)
+
+    with demo_step("Step 4: Verify coordinator not added as participant"):
+        with demo_check("Participant count unchanged after reject"):
+            final_case = log_case_state(client, case.as_id, "after reject")
+            if final_case is None:
+                raise ValueError("Could not retrieve case after reject")
+            final_count = len(final_case.case_participants)
+            if final_count != initial_count:
+                raise ValueError(
+                    f"Expected participant count to remain {initial_count} after "
+                    f"reject, got {final_count}"
+                )
+
     logger.info("✅ DEMO COMPLETE (reject path): Invite rejected gracefully.")
 
 
