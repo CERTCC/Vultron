@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-23 (BT-6 complete including status_updates_demo.py; BT-7 next)
+**Last Updated**: 2026-02-24 (BT-7 complete: suggest_actor + ownership transfer handlers + demo scripts)
 
 ## Overview
 
@@ -39,10 +39,9 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - ✅ Phase BT-5 COMPLETE: All 7 embargo handlers + `establish_embargo_demo.py`
 - ✅ All xfailed tests resolved; 507 passing total
 
-**Next Priority**: Per PRIORITIES.md, the immediate next step is **Phase BT-6**
-(notes/status handlers + `status_updates_demo.py`), then **Phase BT-7**
-(suggest_actor + ownership transfer handlers + demo scripts). See phases BT-6
-and BT-7 below.
+**Next Priority**: Per PRIORITIES.md, all BT handler phases (BT-1 through BT-7)
+are complete. Next focus is **Phase BT-2.2/2.3** (optional `close_report` +
+`invalidate_report` BT refactors) or production readiness work.
 
 **Completed Infrastructure:**
 
@@ -73,7 +72,7 @@ and BT-7 below.
   create_note, add_note_to_case, remove_note_from_case,
   create_case_status, add_case_status_to_case, create_participant_status,
   add_participant_status_to_participant
-- ❌ 6 stub handlers remain: ownership transfer (3), suggest_actor (3)
+- ✅ 0 stub handlers remain (all 37 handlers fully implemented)
 
 **Production Readiness Features (Lower Priority per PRIORITIES.md):**
 
@@ -92,7 +91,7 @@ and BT-7 below.
 
 ## Prioritized Task List (Per PRIORITIES.md and Gap Analysis)
 
-**Gap Analysis Summary (2026-02-23 refresh #4)**:
+**Gap Analysis Summary (2026-02-24 refresh #5)**:
 
 **✅ Completed Work:**
 - ✅ **Phase 0 & 0A complete**: Report handlers (8 report) with full business logic
@@ -106,12 +105,19 @@ and BT-7 below.
 - ✅ **BT Phase BT-4.2 complete**: `create_case_participant` + `add_case_participant_to_case`
 - ✅ **BT Phase BT-4.3 complete**: `invite_actor_demo.py` (accept + reject paths)
 - ✅ **BT Phase BT-5 complete**: All 7 embargo handlers + `establish_embargo_demo.py`
-- ✅ **Demo scripts complete**: `receive_report_demo.py` (3 workflows) +
-  `initialize_case_demo.py` + `invite_actor_demo.py` + `establish_embargo_demo.py`
-- ✅ **507 tests passing**, 0 xfailed
-- ✅ **Bug fixed**: `VulnerabilityCase.set_embargo()` uses `current_status` property
-- ✅ **Bug fixed**: `EmAcceptEmbargo`/`EmRejectEmbargo` `as_object` type corrected to
-  `EmProposeEmbargoRef`
+- ✅ **BT Phase BT-6 complete**: Notes + status handlers (7/7) + `status_updates_demo.py`
+- ✅ **BT Phase BT-7 complete**: `suggest_actor_to_case`, `accept_suggest_actor_to_case`,
+  `reject_suggest_actor_to_case`, `offer_case_ownership_transfer`,
+  `accept_case_ownership_transfer`, `reject_case_ownership_transfer` + demo scripts
+- ✅ **All 37 handlers implemented** (0 stubs remaining)
+- ✅ **Demo scripts complete**: `receive_report_demo.py` + `initialize_case_demo.py` +
+  `invite_actor_demo.py` + `establish_embargo_demo.py` + `status_updates_demo.py` +
+  `suggest_actor_demo.py` + `transfer_ownership_demo.py`
+- ✅ **525 tests passing**, 0 xfailed
+- ✅ **Model fix**: `AcceptActorRecommendation`/`RejectActorRecommendation` now wrap
+  the `RecommendActor` Offer as their `object` (consistent with all other Accept/Reject pairs)
+- ✅ **Bug fixed**: `match_field` in `activity_patterns.py` handles string URI refs
+  before `ActivityPattern` check (prevents crash)
 
 **📊 Specification Compliance Status**:
 - **BT Requirements**: BT-01 through BT-11 all implemented (BT-08 MAY, low priority)
@@ -125,15 +131,12 @@ and BT-7 below.
   - ID-02/ID-03/ID-05: ❌ HTTP-layer duplicate detection not implemented (lower priority)
 
 **❌ Remaining Gaps (prioritized per PRIORITIES.md)**:
-- ✅ **Phase BT-6**: Notes + status handlers complete (7/7) + `status_updates_demo.py` + `ack_report` verified
-- ❌ **Phase BT-7**: suggest_actor (3 stubs) + ownership transfer (3 stubs) + demo scripts
 - ❌ **Phase BT-2.2/2.3**: Optional `close_report` + `invalidate_report` BT refactors
 - ❌ **Production readiness**: Request validation, error responses, health checks,
   structured logging, HTTP-layer idempotency (all `PROD_ONLY` or lower priority)
 
 **🎯 Next Actions (ordered by PRIORITIES.md):**
-1. **Phase BT-7** — suggest_actor, transfer_ownership handlers + demo scripts
-2. **Phase BT-2.2/2.3** — Optional `close_report` + `invalidate_report` BT refactors
+1. **Phase BT-2.2/2.3** — Optional `close_report` + `invalidate_report` BT refactors
 
 ---
 
@@ -641,16 +644,16 @@ transitions MUST update `CaseStatus.em_state` (participant-agnostic, shared).
 
 ---
 
-### 🟡 MEDIUM PRIORITY: Phase BT-7 — Ownership Transfer + Suggest Actor
+### ✅ COMPLETE: Phase BT-7 — Ownership Transfer + Suggest Actor
 
 **Goal**: Lower-priority workflows from PRIORITIES.md.
 
-- [ ] Implement `suggest_actor_to_case`, `accept_suggest_actor_to_case`,
+- [x] Implement `suggest_actor_to_case`, `accept_suggest_actor_to_case`,
   `reject_suggest_actor_to_case` handlers
-- [ ] Implement `offer_case_ownership_transfer`, `accept_case_ownership_transfer`,
+- [x] Implement `offer_case_ownership_transfer`, `accept_case_ownership_transfer`,
   `reject_case_ownership_transfer` handlers
-- [ ] Create `vultron/scripts/suggest_actor_demo.py`
-- [ ] Create `vultron/scripts/transfer_ownership_demo.py`
+- [x] Create `vultron/scripts/suggest_actor_demo.py`
+- [x] Create `vultron/scripts/transfer_ownership_demo.py`
 
 ---
 

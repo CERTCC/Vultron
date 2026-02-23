@@ -473,7 +473,6 @@ class TestVocabExamples(unittest.TestCase):
         vendor = examples.vendor()
         case = examples.case()
         finder = examples.finder()
-        coordinator = examples.coordinator()
 
         self.assertIsInstance(activity, as_Accept)
         self.assertEqual(activity.as_type, "Accept")
@@ -481,7 +480,10 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertEqual(activity.context, case.as_id)
 
-        self.assertEqual(activity.as_object, coordinator.as_id)
+        # as_object is now the RecommendActor offer, not the coordinator ID
+        from vultron.as_vocab.activities.actor import RecommendActor
+
+        self.assertIsInstance(activity.as_object, RecommendActor)
         self.assertEqual(activity.target, case.as_id)
         self.assertEqual(activity.to, finder.as_id)
 
@@ -491,7 +493,6 @@ class TestVocabExamples(unittest.TestCase):
         vendor = examples.vendor()
         case = examples.case()
         finder = examples.finder()
-        coordinator = examples.coordinator()
 
         self.assertIsInstance(activity, as_Reject)
         self.assertEqual(activity.as_type, "Reject")
@@ -499,7 +500,10 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertEqual(activity.context, case.as_id)
 
-        self.assertEqual(activity.as_object, coordinator.as_id)
+        # as_object is now the RecommendActor offer, not the coordinator ID
+        from vultron.as_vocab.activities.actor import RecommendActor
+
+        self.assertIsInstance(activity.as_object, RecommendActor)
         self.assertEqual(activity.target, case.as_id)
         self.assertEqual(activity.to, finder.as_id)
 

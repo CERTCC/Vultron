@@ -42,13 +42,13 @@ class ActivityPattern(BaseModel):
             """Helper to match a single field, supporting nested patterns."""
             if pattern_field is None:
                 return True
+            # If activity_field is a string (URI/ID reference), we can't match on type
+            # In this case, we conservatively return True (can't determine match)
+            if isinstance(activity_field, str):
+                return True
             if isinstance(pattern_field, ActivityPattern):
                 return pattern_field.match(activity_field)
             else:
-                # If activity_field is a string (URI/ID reference), we can't match on type
-                # In this case, we conservatively return True (can't determine match)
-                if isinstance(activity_field, str):
-                    return True
                 # Otherwise check if types match
                 return pattern_field == getattr(
                     activity_field, "as_type", None

@@ -1135,3 +1135,284 @@ class TestStatusHandlers:
             for s in participant.participant_status
         ]
         assert pstatus.as_id in status_ids
+
+
+class TestSuggestActorHandlers:
+    """Tests for suggest_actor_to_case, accept/reject suggest_actor handlers."""
+
+    def test_suggest_actor_to_case_persists_recommendation(self, monkeypatch):
+        """suggest_actor_to_case persists the RecommendActor offer."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.actor import RecommendActor
+        from vultron.as_vocab.base.objects.actors import as_Actor
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        coordinator = as_Actor(id="https://example.org/users/coordinator")
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_sa1",
+            name="SA Case 1",
+        )
+        activity = RecommendActor(
+            actor="https://example.org/users/finder",
+            object=coordinator,
+            target=case,
+            to="https://example.org/users/vendor",
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.SUGGEST_ACTOR_TO_CASE
+        )
+        mock_dispatchable.payload = activity
+
+        handlers.suggest_actor_to_case(mock_dispatchable)
+
+        stored = dl.get(activity.as_type.value, activity.as_id)
+        assert stored is not None
+
+    def test_suggest_actor_to_case_idempotent(self, monkeypatch):
+        """suggest_actor_to_case is idempotent — second call is a no-op."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.actor import RecommendActor
+        from vultron.as_vocab.base.objects.actors import as_Actor
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        coordinator = as_Actor(id="https://example.org/users/coordinator")
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_sa2",
+            name="SA Case 2",
+        )
+        activity = RecommendActor(
+            actor="https://example.org/users/finder",
+            object=coordinator,
+            target=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.SUGGEST_ACTOR_TO_CASE
+        )
+        mock_dispatchable.payload = activity
+
+        handlers.suggest_actor_to_case(mock_dispatchable)
+        handlers.suggest_actor_to_case(mock_dispatchable)
+
+        # Second call should be a no-op; record is still present (not duplicated)
+        stored = dl.get(activity.as_type.value, activity.as_id)
+        assert stored is not None
+
+    def test_accept_suggest_actor_to_case_persists_acceptance(
+        self, monkeypatch
+    ):
+        """accept_suggest_actor_to_case persists the AcceptActorRecommendation."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.actor import (
+            AcceptActorRecommendation,
+            RecommendActor,
+        )
+        from vultron.as_vocab.base.objects.actors import as_Actor
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        coordinator = as_Actor(id="https://example.org/users/coordinator")
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_sa3",
+            name="SA Case 3",
+        )
+        recommendation = RecommendActor(
+            actor="https://example.org/users/finder",
+            object=coordinator,
+            target=case,
+        )
+        activity = AcceptActorRecommendation(
+            actor="https://example.org/users/vendor",
+            object=recommendation,
+            target=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE
+        )
+        mock_dispatchable.payload = activity
+
+        handlers.accept_suggest_actor_to_case(mock_dispatchable)
+
+        stored = dl.get(activity.as_type.value, activity.as_id)
+        assert stored is not None
+
+    def test_reject_suggest_actor_to_case_logs_rejection(
+        self, monkeypatch, caplog
+    ):
+        """reject_suggest_actor_to_case logs rejection without state change."""
+        import logging
+
+        from vultron.as_vocab.activities.actor import (
+            RecommendActor,
+            RejectActorRecommendation,
+        )
+        from vultron.as_vocab.base.objects.actors import as_Actor
+
+        coordinator = as_Actor(id="https://example.org/users/coordinator")
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_sa4",
+            name="SA Case 4",
+        )
+        recommendation = RecommendActor(
+            actor="https://example.org/users/finder",
+            object=coordinator,
+            target=case,
+        )
+        activity = RejectActorRecommendation(
+            actor="https://example.org/users/vendor",
+            object=recommendation,
+            target=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE
+        )
+        mock_dispatchable.payload = activity
+
+        with caplog.at_level(logging.INFO):
+            handlers.reject_suggest_actor_to_case(mock_dispatchable)
+
+        assert any("rejected" in r.message.lower() for r in caplog.records)
+
+
+class TestOwnershipTransferHandlers:
+    """Tests for offer/accept/reject ownership transfer handlers."""
+
+    def test_offer_case_ownership_transfer_persists_offer(self, monkeypatch):
+        """offer_case_ownership_transfer persists the offer."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import OfferCaseOwnershipTransfer
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_ot1",
+            name="OT Case 1",
+        )
+        activity = OfferCaseOwnershipTransfer(
+            actor="https://example.org/users/vendor",
+            object=case,
+            target="https://example.org/users/coordinator",
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
+        )
+        mock_dispatchable.payload = activity
+
+        handlers.offer_case_ownership_transfer(mock_dispatchable)
+
+        stored = dl.get(activity.as_type.value, activity.as_id)
+        assert stored is not None
+
+    def test_accept_case_ownership_transfer_updates_attributed_to(
+        self, monkeypatch
+    ):
+        """accept_case_ownership_transfer updates case.attributed_to to new owner."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import (
+            AcceptCaseOwnershipTransfer,
+            OfferCaseOwnershipTransfer,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_ot2",
+            name="OT Case 2",
+            attributed_to="https://example.org/users/vendor",
+        )
+        dl.create(case)
+
+        offer = OfferCaseOwnershipTransfer(
+            id="https://example.org/activities/offer_ot2",
+            actor="https://example.org/users/vendor",
+            object=case,
+            target="https://example.org/users/coordinator",
+        )
+        dl.create(offer)
+
+        activity = AcceptCaseOwnershipTransfer(
+            actor="https://example.org/users/coordinator",
+            object=offer,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER
+        )
+        mock_dispatchable.payload = activity
+
+        handlers.accept_case_ownership_transfer(mock_dispatchable)
+
+        updated_record = dl.get(case.as_type.value, case.as_id)
+        assert updated_record is not None
+        data = updated_record.get("data_", updated_record)
+        assert (
+            data.get("attributed_to")
+            == "https://example.org/users/coordinator"
+        )
+
+    def test_reject_case_ownership_transfer_logs_rejection(
+        self, monkeypatch, caplog
+    ):
+        """reject_case_ownership_transfer logs rejection; ownership unchanged."""
+        import logging
+
+        from vultron.as_vocab.activities.case import (
+            OfferCaseOwnershipTransfer,
+            RejectCaseOwnershipTransfer,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_ot3",
+            name="OT Case 3",
+        )
+        offer = OfferCaseOwnershipTransfer(
+            id="https://example.org/activities/offer_ot3",
+            actor="https://example.org/users/vendor",
+            object=case,
+            target="https://example.org/users/coordinator",
+        )
+        activity = RejectCaseOwnershipTransfer(
+            actor="https://example.org/users/coordinator",
+            object=offer,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER
+        )
+        mock_dispatchable.payload = activity
+
+        with caplog.at_level(logging.INFO):
+            handlers.reject_case_ownership_transfer(mock_dispatchable)
+
+        assert any("rejected" in r.message.lower() for r in caplog.records)

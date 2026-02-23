@@ -603,9 +603,10 @@ def accept_actor_recommendation() -> AcceptActorRecommendation:
     _coordinator = _COORDINATOR
     _finder = finder()
     _case = case()
+    _recommendation = recommend_actor()
     _activity = AcceptActorRecommendation(
         actor=_vendor.as_id,
-        object=_coordinator.as_id,
+        object=_recommendation,
         context=_case.as_id,
         target=_case.as_id,
         to=_finder.as_id,
@@ -620,9 +621,10 @@ def reject_actor_recommendation() -> RejectActorRecommendation:
     _coordinator = _COORDINATOR
     _finder = finder()
     _case = case()
+    _recommendation = recommend_actor()
     _activity = RejectActorRecommendation(
         actor=_vendor.as_id,
-        object=_coordinator.as_id,
+        object=_recommendation,
         context=_case.as_id,
         target=_case.as_id,
         to=_finder.as_id,

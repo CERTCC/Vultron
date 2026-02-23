@@ -8,6 +8,12 @@ Add new items below this line
 
 ---
 
+The reason fields are `actor` and not `as_actor` is that we only use the 
+`as_` prefix for field names that would otherwise conflict with python keywords
+(e.g., `object` is a reserved keyword in Python, so we use `as_object` for the field name).
+
+---
+
 Pattern matching for message semantics seems to break down when the pattern 
 needs to match on a subclass of as_Actor, which will be any time it matches 
 on as_Actor because as_Actor is the base class for all actors but any given
@@ -69,3 +75,30 @@ and AGENTS.md files as appropriate.
 
 ---
 
+
+### BT-7: Suggest Actor + Ownership Transfer Handlers
+
+**Accept/Reject always wraps the Offer, not the thing being offered.**
+This applies uniformly across the protocol:
+
+- `AcceptActorRecommendation.as_object` → `RecommendActor` (the Offer)
+- `RejectActorRecommendation.as_object` → `RecommendActor` (the Offer)
+- `AcceptCaseOwnershipTransfer.as_object` → `OfferCaseOwnershipTransfer` (the Offer)
+- `RejectCaseOwnershipTransfer.as_object` → `OfferCaseOwnershipTransfer` (the Offer)
+
+This is consistent with all other Accept/Reject pairs (e.g., `EmAcceptEmbargo`
+wraps `EmProposeEmbargo`, `RmAcceptInviteToCase` wraps `RmInviteToCase`).
+
+**`AcceptActorRecommendation` model was incorrect**: Previously used
+`as_ActorRef` as the `as_object` type. Fixed to `RecommendActor | str | None`.
+
+**`match_field` bug**: When `activity_field` is a string (URI ref) and
+`pattern_field` is an `ActivityPattern`, the old code called
+`pattern_field.match(str)` which crashed with `AttributeError`. Fix: check
+`isinstance(activity_field, str)` before the `ActivityPattern` branch and
+return `True` conservatively.
+
+**`accept_case_ownership_transfer`**: Rehydrates the stored Offer to get the
+case ID, then reads the case from the data layer. TinyDB returns a `Document`
+with structure `{id_, type_, data_: {...}}`; read `record["data_"]["attributed_to"]`
+directly (not via `record_to_object()`).
