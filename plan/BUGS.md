@@ -4,15 +4,13 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ---
 
-## CreateParticipant activity "name" attribute is misleading
+## ~~CreateParticipant activity "name" attribute is misleading~~ **FIXED**
 
-The "name" of the Create when creating a participant is misleading:
-"name": "https://vultron.example/organizations/vendorco Create https://vultron.example/users/finndervul",
-but it should be more like f"{actor_id} Create CaseParticipant 
-{participant_id} from {other_actor_id}" so that it's obvious that this is 
-creating a participant from an actor and not an actor itself. For log 
-correlation, it may also be useful to include the case ID, which should be 
-present in the `context` of the `Create` activity.
+**Fixed (2026-02-23):** Overrode `set_name()` in `CreateParticipant` to produce:
+`"{actor} Create CaseParticipant {participant_id} from {attributed_to} in {case_id}"`
+Previously the default `as_TransitiveActivity.set_name()` produced
+`"{actor_uri} Create {attributed_to_uri}"` — indistinguishable from creating an actor.
+Tests added in `test/as_vocab/test_actvitities/test_activities.py`.
 
 ---
 

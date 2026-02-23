@@ -9,6 +9,23 @@ Add new items below this line
 
 ---
 
+## Bug Fixed: CreateParticipant activity "name" attribute (2026-02-23)
+
+Overrode `set_name()` in `CreateParticipant`
+(`vultron/as_vocab/activities/case_participant.py`) to produce a descriptive name:
+`"{actor} Create CaseParticipant {participant_id} from {attributed_to} in {case_id}"`.
+
+Root cause: the default `as_TransitiveActivity.set_name()` used `name_of(as_object)`
+which for a `CaseParticipant` returns the participant's `name` field — which is set
+to `attributed_to` (an actor URI) by `CaseParticipant.set_name_if_empty`. The result
+was `"{actor_uri} Create {actor_uri}"`, making it look like actor creation.
+
+Fix: override `set_name` in `CreateParticipant` using `as_object.as_id` (the
+participant ID) and `as_object.attributed_to` (the underlying actor), plus the
+`context` field for case correlation.
+
+---
+
 ## Object IDs are causing problems as they are handled inconsistently
 
 ActivityStreams Object IDs should be handled consistently as strings across the codebase.
