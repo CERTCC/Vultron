@@ -90,6 +90,17 @@ activities to the case owner, such as closing the case or transferring ownership
 These details are defined in the `vultron_as:CaseOwnerActivity`
 in `ontology/vultron_activitystreams.ttl`.
 
+### Demos must be dockerized
+
+All demos must be dockerized and use the same `api-dev` container so that the
+demo is legitimately demonstrating the backend API. This will also make it  
+easier to run the demos in a consistent environment and to share them with others.
+Although obviously the demos must exist before they can be dockerized, 
+dockerization should be a prioirity for each demo once the initial  
+implementation is complete. Note that some demos do not currently have a 
+dockerized version, this should be remedied as soon as possible to ensure that
+all demos are consistently demonstrating the API.
+
 ## Priority 1000: Agentic AI readiness
 
 We are going to want to allow for the possibility of agentic AI integration 
