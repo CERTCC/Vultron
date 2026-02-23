@@ -8,11 +8,43 @@ Add new items below this line
 
 ---
 
+## `case_status` and `participant_status` field names are misleading and should be pluralized
+
+`VulnerabilityCase.case_status` is misnamed. It is actually a list of 
+`CaseStatus` objects. It should be renamed to `case_statuses` to reflect that it
+is intended to hold multiple status objects over the lifecycle of the case.
+This is important for debugging as it has confused me multiple times when I 
+forget that `case_status` is a list and I try to access it as if it were a 
+single object. The same applies to `CaseParticipant.participant_status`, which 
+should be renamed to `participant_statuses` for the same reason.
+This would allow for the singular `case_status` and `participant_status` to be
+used as a property that could return the current status of the case and 
+participant (by date), respectively, without having to access the list and find
+the most recent status. This would make it easier to access the current status 
+of the case and participant, while the plural versions can hold the history 
+of status changes over time. The property should be implemented such that it is
+read-only and does not permit setting the current status directly, as the status
+should only be changed through the appending of a new status object to the list.
+
+---
+
+## Refactoring Large Modules is Important
+
+The refactoring of `handlers.py` and `vocab_examples.py` is becoming more
+urgent as we continue to implement more and more tasks that require modifying
+these modules. See `notes/codebase-structure.md` for roadmap details.
+
+---
+
+## `as_` prefix for field names is only for reserved python keywords
+
 The reason fields are `actor` and not `as_actor` is that we only use the 
 `as_` prefix for field names that would otherwise conflict with python keywords
 (e.g., `object` is a reserved keyword in Python, so we use `as_object` for the field name).
 
 ---
+
+## Pattern matching for message semantics may need improvement to handle subclasses of as_Actor
 
 Pattern matching for message semantics seems to break down when the pattern 
 needs to match on a subclass of as_Actor, which will be any time it matches 
