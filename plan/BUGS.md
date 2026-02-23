@@ -4,16 +4,6 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ---
 
-## ~~CreateParticipant activity "name" attribute is misleading~~ **FIXED**
-
-**Fixed (2026-02-23):** Overrode `set_name()` in `CreateParticipant` to produce:
-`"{actor} Create CaseParticipant {participant_id} from {attributed_to} in {case_id}"`
-Previously the default `as_TransitiveActivity.set_name()` produced
-`"{actor_uri} Create {attributed_to_uri}"` — indistinguishable from creating an actor.
-Tests added in `test/as_vocab/test_actvitities/test_activities.py`.
-
----
-
 ## Clarify intent in all demos
 
 ### Use INFO level log messages to declare what step of the workflow the demo is executing
