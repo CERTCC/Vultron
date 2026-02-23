@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-23 (BT-4.3 complete; BT-5 embargo next)
+**Last Updated**: 2026-02-24 (BT-5 complete; BT-6 notes/status next)
 
 ## Overview
 
@@ -116,9 +116,9 @@ BT-7 below.
 
 **❌ Remaining Gaps (prioritized per PRIORITIES.md)**:
 - ✅ **Phase BT-4.3**: `invite_actor_demo.py` demo script (accept + reject paths)
-- ❌ **Phase BT-5 pre-condition**: Fix `EmAcceptEmbargo` + `EmRejectEmbargo` model
+- ✅ **Phase BT-5 pre-condition**: Fix `EmAcceptEmbargo` + `EmRejectEmbargo` model
   (`as_object` type should be `EmProposeEmbargoRef`, not `EmbargoEventRef`)
-- ❌ **Phase BT-5**: All 7 embargo stub handlers + `establish_embargo_demo.py`
+- ✅ **Phase BT-5**: All 7 embargo stub handlers + `establish_embargo_demo.py`
 - ❌ **Phase BT-6**: Notes (3 stubs), statuses (4 stubs) + `status_updates_demo.py`
 - ❌ **Phase BT-7**: suggest_actor (3 stubs) + ownership transfer (3 stubs) + demo scripts
 - ❌ **Phase BT-2.2/2.3**: Optional `close_report` + `invalidate_report` BT refactors
@@ -128,12 +128,9 @@ BT-7 below.
   structured logging, HTTP-layer idempotency (all `PROD_ONLY` or lower priority)
 
 **🎯 Next Actions (ordered by PRIORITIES.md):**
-1. **Phase BT-5 pre-condition** — Fix `EmAcceptEmbargo` / `EmRejectEmbargo`
-   `as_object` type in `vultron/as_vocab/activities/embargo.py`
-2. **Phase BT-5** — Implement 7 embargo handlers + `establish_embargo_demo.py`
-4. **Phase BT-6** — Implement notes/status handlers + `status_updates_demo.py`
-5. **Phase BT-7** — suggest_actor, transfer_ownership handlers + demo scripts
-6. **Phase BT-2.2/2.3** — Optional `close_report` + `invalidate_report` BT refactors
+1. **Phase BT-6** — Implement notes/status handlers + `status_updates_demo.py`
+2. **Phase BT-7** — suggest_actor, transfer_ownership handlers + demo scripts
+3. **Phase BT-2.2/2.3** — Optional `close_report` + `invalidate_report` BT refactors
 
 ---
 

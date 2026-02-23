@@ -706,7 +706,7 @@ class TestVocabExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertEqual(activity.as_object, embargo)
-        self.assertEqual(activity.target, case.as_id)
+        self.assertEqual(activity.context, case.as_id)
 
     def test_choose_preferred_embargo(self):
         activity = examples.choose_preferred_embargo()
@@ -731,7 +731,7 @@ class TestVocabExamples(unittest.TestCase):
         activity = examples.accept_embargo()
         self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
-        question = examples.choose_preferred_embargo()
+        proposal = examples.propose_embargo()
 
         self.assertIsInstance(activity, as_Accept)
         self.assertEqual(activity.as_type, "Accept")
@@ -739,13 +739,13 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertIsNotNone(activity.context)
         self.assertIsNotNone(activity.to)
-        self.assertEqual(activity.in_reply_to, question.as_id)
+        self.assertEqual(activity.as_object.as_id, proposal.as_id)
 
     def test_reject_embargo(self):
         activity = examples.reject_embargo()
         self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
-        question = examples.choose_preferred_embargo()
+        proposal = examples.propose_embargo()
 
         self.assertIsInstance(activity, as_Reject)
         self.assertEqual(activity.as_type, "Reject")
@@ -753,7 +753,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertIsNotNone(activity.context)
         self.assertIsNotNone(activity.to)
-        self.assertEqual(activity.in_reply_to, question.as_id)
+        self.assertEqual(activity.as_object.as_id, proposal.as_id)
 
     def test_add_embargo_to_case(self):
         activity = examples.add_embargo_to_case()

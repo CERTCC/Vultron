@@ -399,3 +399,257 @@ class TestInviteActorHandlers:
 
         result = handlers.remove_case_participant_from_case(mock_dispatchable)
         assert result is None
+
+
+class TestEmbargoHandlers:
+    """Tests for embargo management handlers."""
+
+    def test_create_embargo_event_stores_event(self, monkeypatch):
+        """create_embargo_event persists the EmbargoEvent to the DataLayer."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.base.objects.activities.transitive import (
+            as_Create,
+        )
+        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_cem1",
+            name="Create Embargo Test",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_cem1/embargo_events/embargo1",
+            content="Proposed embargo",
+        )
+        activity = as_Create(
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            context=case,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.CREATE_EMBARGO_EVENT
+        mock_dispatchable.payload = activity
+
+        handlers.create_embargo_event(mock_dispatchable)
+
+        stored = dl.get(embargo.as_type.value, embargo.as_id)
+        assert stored is not None
+
+    def test_create_embargo_event_idempotent(self, monkeypatch):
+        """create_embargo_event skips storing a duplicate EmbargoEvent."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.base.objects.activities.transitive import (
+            as_Create,
+        )
+        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_cem2",
+            name="Create Embargo Idempotent",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_cem2/embargo_events/embargo2",
+            content="Proposed embargo",
+        )
+        activity = as_Create(
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            context=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.CREATE_EMBARGO_EVENT
+        mock_dispatchable.payload = activity
+
+        handlers.create_embargo_event(mock_dispatchable)
+        handlers.create_embargo_event(mock_dispatchable)  # second call no-op
+
+        stored = dl.get(embargo.as_type.value, embargo.as_id)
+        assert stored is not None
+
+    def test_add_embargo_event_to_case_activates_embargo(self, monkeypatch):
+        """add_embargo_event_to_case sets the active embargo on the case."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.embargo import AddEmbargoToCase
+        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.bt.embargo_management.states import EM
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em1",
+            name="EM Test Case",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_em1/embargo_events/e1",
+            content="Embargo test",
+        )
+        dl.create(case)
+        dl.create(embargo)
+
+        activity = AddEmbargoToCase(
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            target=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE
+        )
+        mock_dispatchable.payload = activity
+
+        handlers.add_embargo_event_to_case(mock_dispatchable)
+
+        assert case.active_embargo is not None
+        assert case.current_status.em_state == EM.ACTIVE
+
+    def test_invite_to_embargo_on_case_stores_proposal(self, monkeypatch):
+        """invite_to_embargo_on_case persists the EmProposeEmbargo activity."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.embargo import EmProposeEmbargo
+        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_em2/embargo_events/e2",
+            content="Proposed embargo",
+        )
+        proposal = EmProposeEmbargo(
+            id="https://example.org/cases/case_em2/embargo_proposals/1",
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            context="https://example.org/cases/case_em2",
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+        )
+        mock_dispatchable.payload = proposal
+
+        handlers.invite_to_embargo_on_case(mock_dispatchable)
+
+        stored = dl.get(proposal.as_type.value, proposal.as_id)
+        assert stored is not None
+
+    def test_accept_invite_to_embargo_on_case_activates_embargo(
+        self, monkeypatch
+    ):
+        """accept_invite_to_embargo_on_case activates the embargo on the case."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.embargo import (
+            EmAcceptEmbargo,
+            EmProposeEmbargo,
+        )
+        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.bt.embargo_management.states import EM
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em3",
+            name="EM Accept Test",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_em3/embargo_events/e3",
+            content="Embargo",
+        )
+        # Use inline objects (not string IDs) so rehydration skips DataLayer lookup
+        proposal = EmProposeEmbargo(
+            id="https://example.org/cases/case_em3/embargo_proposals/1",
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            context=case,
+        )
+        dl.create(case)
+        dl.create(embargo)
+        dl.create(proposal)
+
+        accept = EmAcceptEmbargo(
+            actor="https://example.org/users/coordinator",
+            object=proposal,
+            context=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
+        )
+        mock_dispatchable.payload = accept
+
+        handlers.accept_invite_to_embargo_on_case(mock_dispatchable)
+
+        assert case.active_embargo is not None
+        assert case.current_status.em_state == EM.ACTIVE
+
+    def test_reject_invite_to_embargo_on_case_logs_rejection(self):
+        """reject_invite_to_embargo_on_case logs without raising."""
+        from vultron.as_vocab.activities.embargo import (
+            EmProposeEmbargo,
+            EmRejectEmbargo,
+        )
+        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_em4/embargo_events/e4",
+            content="Embargo",
+        )
+        proposal = EmProposeEmbargo(
+            id="https://example.org/cases/case_em4/embargo_proposals/1",
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            context="https://example.org/cases/case_em4",
+        )
+        reject = EmRejectEmbargo(
+            actor="https://example.org/users/coordinator",
+            object=proposal,
+            context="https://example.org/cases/case_em4",
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE
+        )
+        mock_dispatchable.payload = reject
+
+        result = handlers.reject_invite_to_embargo_on_case(mock_dispatchable)
+        assert result is None

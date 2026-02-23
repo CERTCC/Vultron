@@ -4,7 +4,75 @@ Longer-term notes can be found in `/notes/*.md`. This file is ephemeral
 and will be reset periodically, so it's meant to capture more immediate 
 insights, issues, and learnings during the implementation process.
 
-## 2026-02-23 — Phase BT-4.3 Complete
+## 2026-02-24 — Phase BT-5 Complete
+
+### 7 embargo handlers implemented
+
+All 7 embargo management handlers are implemented in
+`vultron/api/v2/backend/handlers.py`:
+
+- `create_embargo_event` — stores a new `EmbargoEvent` in the DataLayer
+- `add_embargo_event_to_case` — associates an embargo with a case, sets
+  `active_embargo = embargo.as_id` and transitions `em_state` to `PROPOSED`
+- `remove_embargo_event_from_case` — removes the active embargo from a case,
+  transitions `em_state` back to `NONE`
+- `announce_embargo_event_to_case` — logs receipt of the announcement; no
+  case state change (see note below)
+- `invite_to_embargo_on_case` — stores the invite activity in the DataLayer
+- `accept_invite_to_embargo_on_case` — sets `active_embargo = embargo.as_id`
+  and transitions `em_state` to `ACTIVE`
+- `reject_invite_to_embargo_on_case` — stores the reject activity, no state
+  change
+
+### `establish_embargo_demo.py` created
+
+Demo script at `vultron/scripts/establish_embargo_demo.py` demonstrates two
+paths: propose-accept and propose-reject. Both paths pass
+(`test/scripts/test_establish_embargo_demo.py`).
+
+### BT-5 pre-condition fixes
+
+Fixed `EmAcceptEmbargo` and `EmRejectEmbargo` in
+`vultron/as_vocab/activities/embargo.py`:
+
+- `as_object` type changed from `EmbargoEventRef` to `EmProposeEmbargoRef`
+  (Accept/Reject respond to the *proposal activity*, not the proposed thing)
+- `in_reply_to` fields removed (redundant with `as_object`)
+
+Fixed 3 activity patterns in `vultron/activity_patterns.py`:
+`InviteToEmbargoOnCase`, `AnnounceEmbargoEventToCase`,
+`RemoveEmbargoEventFromCase`.
+
+### `case_activity` list cannot store specific activity subtypes
+
+`VulnerabilityCase.case_activity: list[as_Activity]` uses
+`as_Activity.as_type: as_ObjectType`. The `as_ObjectType` enum only includes
+core AS2 object types ('Activity', 'Note', 'Event', etc.) — NOT transitive
+activity types like 'Announce', 'Add', 'Accept', etc.
+
+Storing a specific-typed activity (e.g., `AnnounceEmbargo`) in `case_activity`
+then serializing and reloading causes `model_validate` to fail with
+`Input should be 'Activity', 'Actor', ...`, causing `record_to_object` to fall
+back to a raw TinyDB `Document`. The handler's subsequent `dl.read(case.as_id)`
+returns a `Document`, not a `VulnerabilityCase`, silently losing all state
+(including `active_embargo`).
+
+**Fix**: `announce_embargo_event_to_case` does NOT write to `case.case_activity`
+— it only logs the announcement. Handlers that would modify case state
+(add/remove/accept) store `embargo.as_id` (string) rather than the full object
+to avoid the `active_embargo` Pydantic Union serialization issue.
+
+### `active_embargo` must be stored as string ID
+
+`VulnerabilityCase.active_embargo: EmbargoEvent | as_Link | str | None` —
+Pydantic v2 serializes Union types left-to-right. If the value is an
+`as_Event` (not `EmbargoEvent`) AND serialized with `by_alias=True`, Pydantic
+silently returns `None`. `object_to_record` uses `model_dump(mode='json')`
+(without `by_alias=True`), which works — but to be safe and avoid type
+confusion, all embargo handlers store `embargo.as_id` (a string) rather than
+the full object. `validate_by_name=True` in `VulnerabilityCase.model_config`
+ensures the string round-trips correctly.
+
 
 ### `invite_actor_demo.py` created
 

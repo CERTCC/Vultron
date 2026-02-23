@@ -51,29 +51,29 @@ EmProposeEmbargoRef: TypeAlias = ActivityStreamRef[EmProposeEmbargo]
 
 
 class EmAcceptEmbargo(as_Accept):
-    """The actor is accepting an embargo on the case.
-    This corresponds to the Vultron Message Types EA and EC
-    as_object: the EmbargoEvent being rejected
-    context: the VulnerabilityCase for which the EmbargoEvent was proposed
-    origin: the EmProposeEmbargo activity that proposed the EmbargoEvent
+    """The actor is accepting an embargo proposal.
+    This corresponds to the Vultron Message Types EA and EC.
+    Per ActivityStreams convention: Accept(object=<Invite>) — the actor accepts
+    the proposal activity itself, not the EmbargoEvent being proposed.
+    as_object: the EmProposeEmbargo activity being accepted
+    context: the VulnerabilityCase for which the embargo was proposed
     """
 
-    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    as_object: EmProposeEmbargoRef = Field(default=None, alias="object")
     context: VulnerabilityCaseRef = None
-    in_reply_to: EmProposeEmbargoRef = None
 
 
 class EmRejectEmbargo(as_Reject):
-    """The actor is rejecting an embargo on the case.
-    This corresponds to the Vultron Message Types ER and EJ
-    as_object: the EmbargoEvent being rejected
-    context: the VulnerabilityCase for which the EmbargoEvent was proposed
-    in_reply_to: the EmProposeEmbargo activity that proposed the EmbargoEvent
+    """The actor is rejecting an embargo proposal.
+    This corresponds to the Vultron Message Types ER and EJ.
+    Per ActivityStreams convention: Reject(object=<Invite>) — the actor rejects
+    the proposal activity itself, not the EmbargoEvent being proposed.
+    as_object: the EmProposeEmbargo activity being rejected
+    context: the VulnerabilityCase for which the embargo was proposed
     """
 
-    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    as_object: EmProposeEmbargoRef = Field(default=None, alias="object")
     context: VulnerabilityCaseRef = None
-    in_reply_to: EmProposeEmbargoRef = None
 
 
 class ChoosePreferredEmbargo(as_Question):

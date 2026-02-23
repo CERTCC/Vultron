@@ -83,23 +83,22 @@ AddEmbargoEventToCase = ActivityPattern(
     target_=VOtype.VULNERABILITY_CASE,
 )
 RemoveEmbargoEventFromCase = ActivityPattern(
-    description="Remove an embargo event from a vulnerability case. This is typically observed as a REMOVE activity where the object is an EVENT and the target is a VULNERABILITY_CASE.",
+    description="Remove an embargo event from a vulnerability case. This is typically observed as a REMOVE activity where the object is an EVENT. The origin field of the activity contains the VulnerabilityCase from which the embargo is removed.",
     activity_=TAtype.REMOVE,
     object_=AOtype.EVENT,
-    target_=VOtype.VULNERABILITY_CASE,
 )
 AnnounceEmbargoEventToCase = ActivityPattern(
-    description="Announce an embargo event to a vulnerability case. This is typically observed as an ANNOUNCE activity where the object is an EVENT and the target is a VULNERABILITY_CASE.",
+    description="Announce an embargo event to a vulnerability case. This is typically observed as an ANNOUNCE activity where the object is an EVENT and the context is a VULNERABILITY_CASE.",
     activity_=TAtype.ANNOUNCE,
     object_=AOtype.EVENT,
-    target_=VOtype.VULNERABILITY_CASE,
+    context_=VOtype.VULNERABILITY_CASE,
 )
 InviteToEmbargoOnCase = ActivityPattern(
-    description="Invite an actor to an embargo on a vulnerability case. "
-    "If accepted, this should precede invitation to the case itself.",
+    description="Propose an embargo on a vulnerability case. "
+    "This is observed as an INVITE activity where the object is an EmbargoEvent "
+    "and the context is the VulnerabilityCase. Corresponds to EmProposeEmbargo.",
     activity_=TAtype.INVITE,
-    object_=AOtype.ACTOR,
-    target_=AOtype.EVENT,
+    object_=AOtype.EVENT,
     context_=VOtype.VULNERABILITY_CASE,
 )
 AcceptInviteToEmbargoOnCase = ActivityPattern(
