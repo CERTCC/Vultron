@@ -187,4 +187,29 @@ conform to the ActivityStreams spec.
 
 ---
 
+### Object and activity IDs should be treated as strings
+
+Even if we are generating UUIDs for ActivityStreams object and activity IDs 
+using semantic structures, the implementation should treat these IDs as opaque 
+strings. This is important for ensuring that ID generation can be site-specific
+and flexible, and that the implementation can interoperate with other systems that
+may have different ID generation strategies. The implementation should not make
+assumptions about the structure of IDs. This will imply a need to encode strings
+so that they are, for example, URL-safe if they are being used in contexts where certain characters
+might cause issues. This is a common practice when using UUIDs or other complex strings as IDs.
+
+---
+
+### Handlers module is becoming unwieldy — consider refactor into submodules
+
+The Handlers module is well over a thousand lines and growing as the prototype 
+development continues. We should consider refactoring it into multiple 
+submodules in a `vultron/api/v2/backend/handlers/` directory. Organizing the 
+handlers by topic or business proces (e.g., case management, report 
+management,  embargo management, etc.) could make the codebase more 
+navigable  and maintainable as it grows. This is not an urgent priority while
+we are still building out the initial demos, but it should be on the roadmap
+for the next phase of development after the initial demos are complete.
+
+---
 
