@@ -136,3 +136,18 @@ and may in fact be unnecessary to implement, because the "0/1 active, 0/1
 pending" scenario is likely to cover the vast majority of real-world cases.
 
 ---
+
+### Prototype must conform to ActivityStreams Vocabulary spec
+
+In cases like "Remove" where the ActivityStreams spec defines a specific 
+structure (e.g., `Remove` Indicates that the `actor` is removing the 
+`object`. If specified, the `origin` indicates the context from which the  
+object is being removed.), the prototype implementation must conform to that 
+structure. If current implementation is inconsistent with the ActivitStreams 
+spec, it should be refactored to align with the spec. This is important for
+ensuring that the implementation is interoperable with other systems that also
+conform to the ActivityStreams spec.
+
+---
+
+
