@@ -149,11 +149,11 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-02-24, updated post BT-5)**:
+**Summary (2026-02-23, updated post BT-6)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer
-- ✅ **24/36 handlers complete**: Report workflow (create, submit, validate,
+- ✅ **31/36 handlers complete**: Report workflow (create, submit, validate,
   invalidate, ack, close, engage_case, defer_case) + case workflow (create_case,
   add_report_to_case, close_case, create_case_participant,
   add_case_participant_to_case) + actor invitation (invite_actor_to_case,
@@ -162,19 +162,23 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
   (create_embargo_event, add_embargo_event_to_case,
   remove_embargo_event_from_case, announce_embargo_event_to_case,
   invite_to_embargo_on_case, accept_invite_to_embargo_on_case,
-  reject_invite_to_embargo_on_case)
+  reject_invite_to_embargo_on_case) + notes + statuses (create_note,
+  add_note_to_case, remove_note_from_case, create_case_status,
+  add_case_status_to_case, create_participant_status,
+  add_participant_status_to_participant)
 - ✅ **BT integration Phases BT-1, BT-2.1, BT-3, BT-3.5, BT-4.1, BT-4.2,
-  BT-5 complete**: See `behavior-tree-integration.md`
+  BT-5, BT-6 complete**: See `behavior-tree-integration.md`
 - ✅ **Demo scripts**: `receive_report_demo.py`, `initialize_case_demo.py`,
-  `invite_actor_demo.py`, `establish_embargo_demo.py` in `vultron/scripts/`
+  `invite_actor_demo.py`, `establish_embargo_demo.py`,
+  `status_updates_demo.py` in `vultron/scripts/`
 - ✅ **Demo scripts dockerized**: `receive-report-demo` and
   `initialize-case-demo` services in `docker/docker-compose.yml` with
   health-check-based startup ordering
 - ⚠️ **Production readiness partial**: Request validation, error responses
   need work
 - ❌ **Response generation not started**: See `response-format.md`
-- ❌ **12 handler stubs remain**: Ownership transfer (3), suggest_actor (3),
-  notes (3), statuses (4); see Phases BT-6 and BT-7
+- ❌ **5 handler stubs remain**: Ownership transfer (3), suggest_actor (3);
+  see Phase BT-7
 
 ---
 

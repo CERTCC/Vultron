@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-23 (BT-6 notes/status handlers complete; BT-7 next)
+**Last Updated**: 2026-02-23 (BT-6 complete including status_updates_demo.py; BT-7 next)
 
 ## Overview
 
@@ -125,17 +125,15 @@ and BT-7 below.
   - ID-02/ID-03/ID-05: ❌ HTTP-layer duplicate detection not implemented (lower priority)
 
 **❌ Remaining Gaps (prioritized per PRIORITIES.md)**:
-- ✅ **Phase BT-6**: Notes + status handlers complete (7/7)
-- ❌ **Phase BT-6 (remaining)**: `status_updates_demo.py` + `ack_report` review
+- ✅ **Phase BT-6**: Notes + status handlers complete (7/7) + `status_updates_demo.py` + `ack_report` verified
 - ❌ **Phase BT-7**: suggest_actor (3 stubs) + ownership transfer (3 stubs) + demo scripts
 - ❌ **Phase BT-2.2/2.3**: Optional `close_report` + `invalidate_report` BT refactors
 - ❌ **Production readiness**: Request validation, error responses, health checks,
   structured logging, HTTP-layer idempotency (all `PROD_ONLY` or lower priority)
 
 **🎯 Next Actions (ordered by PRIORITIES.md):**
-1. **Phase BT-6 (remaining)** — `ack_report` review + `status_updates_demo.py`
-2. **Phase BT-7** — suggest_actor, transfer_ownership handlers + demo scripts
-3. **Phase BT-2.2/2.3** — Optional `close_report` + `invalidate_report` BT refactors
+1. **Phase BT-7** — suggest_actor, transfer_ownership handlers + demo scripts
+2. **Phase BT-2.2/2.3** — Optional `close_report` + `invalidate_report` BT refactors
 
 ---
 
@@ -632,13 +630,13 @@ transitions MUST update `CaseStatus.em_state` (participant-agnostic, shared).
 
 #### BT-6.3: Acknowledge (`ack_report`) review
 
-- [ ] Review `ack_report` handler against `docs/howto/activitypub/activities/acknowledge.md`
-- [ ] `RmReadReport` is already handled by `ack_report` — verify correctness and
+- [x] Review `ack_report` handler against `docs/howto/activitypub/activities/acknowledge.md`
+- [x] `RmReadReport` is already handled by `ack_report` — verify correctness and
   update if needed
 
 #### BT-6.4: Status updates demo script
 
-- [ ] Create `vultron/scripts/status_updates_demo.py`
+- [x] Create `vultron/scripts/status_updates_demo.py`
   - Demo: create note → add to case → create status → add to case → show updated case
 
 ---
