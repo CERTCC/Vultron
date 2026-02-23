@@ -6,6 +6,13 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ## Clarify intent in all demos
 
+The core problem is that the demo scripts are intended to be run and the logs
+shown to stakeholders to demonstrate that the system is doing what we say it is
+doing. In order for that to be effective, the logs need to be clear and easy to 
+skim for understanding what the demo is doing and what it is demonstrating at
+each step. Currently, the logs are very verbose and all at the DEBUG level, which
+makes it difficult to quickly understand the intent of each step of the demo.
+
 ### Use INFO level log messages to declare what step of the workflow the demo is executing
 Many demo scripts execute a workflow that is comprised of multiple steps. 
 For example, the `initialize-case-demo.py` script executes the following steps:
