@@ -313,4 +313,24 @@ based on the updated timestamp.
 
 ---
 
+## Demo scripts belong in `vultron/demo/` not `vultron/scripts/`
+
+The `vultron/scripts/*_demo.py` scripts are intended to be for demonstration
+purposes, and so they are not really "scripts" in the traditional sense of 
+being standalone utilities that can be run independently for some user 
+facing purpose. They should be moved to the `vultron/demo/` directory to 
+reflect their purpose as demos. This is not urgent, but it should be on the 
+roadmap for the next phase of development after the initial demos are 
+complete. Because these demos are also depended on by the test suite and docker
+configs, the move will need to account for those dependencies and update 
+import paths accordingly. The `vultron/scripts/` directory can be reserved for
+actual utility scripts that are intended to be run independently by users, such
+as data migration scripts, maintenance utilities, or other tools that are 
+not specifically for demonstration purposes. Update documentation specs if
+needed to reflect this distinction between `demo/` and `scripts/`.
+
+---
+
+
+
 
