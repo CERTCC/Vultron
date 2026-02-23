@@ -653,3 +653,485 @@ class TestEmbargoHandlers:
 
         result = handlers.reject_invite_to_embargo_on_case(mock_dispatchable)
         assert result is None
+
+
+class TestNoteHandlers:
+    """Tests for note management handlers."""
+
+    def test_create_note_stores_note(self, monkeypatch):
+        """create_note persists the Note to the DataLayer."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.base.objects.activities.transitive import (
+            as_Create,
+        )
+        from vultron.as_vocab.base.objects.object_types import as_Note
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        note = as_Note(
+            id="https://example.org/notes/note1",
+            content="Test note content",
+        )
+        activity = as_Create(
+            actor="https://example.org/users/finder",
+            object=note,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.CREATE_NOTE
+        mock_dispatchable.payload = activity
+
+        handlers.create_note(mock_dispatchable)
+
+        stored = dl.get(note.as_type.value, note.as_id)
+        assert stored is not None
+
+    def test_create_note_idempotent(self, monkeypatch):
+        """create_note skips storing a duplicate Note."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.base.objects.activities.transitive import (
+            as_Create,
+        )
+        from vultron.as_vocab.base.objects.object_types import as_Note
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        note = as_Note(
+            id="https://example.org/notes/note2",
+            content="Duplicate note",
+        )
+        activity = as_Create(
+            actor="https://example.org/users/finder",
+            object=note,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.CREATE_NOTE
+        mock_dispatchable.payload = activity
+
+        dl.create(note)
+        handlers.create_note(mock_dispatchable)
+
+        stored = dl.get(note.as_type.value, note.as_id)
+        assert stored is not None
+
+    def test_add_note_to_case_appends_note(self, monkeypatch):
+        """add_note_to_case appends note ID to case.notes and persists."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import AddNoteToCase
+        from vultron.as_vocab.base.objects.object_types import as_Note
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_n1",
+            name="Note Case",
+        )
+        note = as_Note(
+            id="https://example.org/notes/note3",
+            content="A note",
+        )
+        dl.create(case)
+        dl.create(note)
+
+        activity = AddNoteToCase(
+            actor="https://example.org/users/finder",
+            object=note,
+            target=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
+        mock_dispatchable.payload = activity
+
+        handlers.add_note_to_case(mock_dispatchable)
+
+        assert note.as_id in case.notes
+
+    def test_add_note_to_case_idempotent(self, monkeypatch):
+        """add_note_to_case skips adding a note already in the case."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import AddNoteToCase
+        from vultron.as_vocab.base.objects.object_types import as_Note
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        note = as_Note(
+            id="https://example.org/notes/note4",
+            content="A note",
+        )
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_n2",
+            name="Note Case Idempotent",
+            notes=[note.as_id],
+        )
+        dl.create(case)
+        dl.create(note)
+
+        activity = AddNoteToCase(
+            actor="https://example.org/users/finder",
+            object=note,
+            target=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
+        mock_dispatchable.payload = activity
+
+        handlers.add_note_to_case(mock_dispatchable)
+
+        assert case.notes.count(note.as_id) == 1
+
+    def test_remove_note_from_case_removes_note(self, monkeypatch):
+        """remove_note_from_case removes note ID from case.notes and persists."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.base.objects.activities.transitive import (
+            as_Remove,
+        )
+        from vultron.as_vocab.base.objects.object_types import as_Note
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        note = as_Note(
+            id="https://example.org/notes/note5",
+            content="A note",
+        )
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_n3",
+            name="Remove Note Case",
+            notes=[note.as_id],
+        )
+        dl.create(case)
+        dl.create(note)
+
+        activity = as_Remove(
+            actor="https://example.org/users/finder",
+            object=note,
+            target=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.REMOVE_NOTE_FROM_CASE
+        )
+        mock_dispatchable.payload = activity
+
+        handlers.remove_note_from_case(mock_dispatchable)
+
+        assert note.as_id not in case.notes
+
+    def test_remove_note_from_case_idempotent(self, monkeypatch):
+        """remove_note_from_case is idempotent when note not in case."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.base.objects.activities.transitive import (
+            as_Remove,
+        )
+        from vultron.as_vocab.base.objects.object_types import as_Note
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        note = as_Note(
+            id="https://example.org/notes/note6",
+            content="A note",
+        )
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_n4",
+            name="Remove Note Idempotent",
+        )
+        dl.create(case)
+        dl.create(note)
+
+        activity = as_Remove(
+            actor="https://example.org/users/finder",
+            object=note,
+            target=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.REMOVE_NOTE_FROM_CASE
+        )
+        mock_dispatchable.payload = activity
+
+        result = handlers.remove_note_from_case(mock_dispatchable)
+        assert result is None
+
+
+class TestStatusHandlers:
+    """Tests for case status and participant status handlers."""
+
+    def test_create_case_status_stores_status(self, monkeypatch):
+        """create_case_status persists the CaseStatus to the DataLayer."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import CreateCaseStatus
+        from vultron.as_vocab.objects.case_status import CaseStatus
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_cs1",
+            name="Case Status Test",
+        )
+        status = CaseStatus(
+            id="https://example.org/cases/case_cs1/statuses/s1",
+            context=case.as_id,
+        )
+        activity = CreateCaseStatus(
+            actor="https://example.org/users/vendor",
+            object=status,
+            context=case.as_id,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.CREATE_CASE_STATUS
+        mock_dispatchable.payload = activity
+
+        handlers.create_case_status(mock_dispatchable)
+
+        stored = dl.get(status.as_type.value, status.as_id)
+        assert stored is not None
+
+    def test_create_case_status_idempotent(self, monkeypatch):
+        """create_case_status skips storing a duplicate CaseStatus."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import CreateCaseStatus
+        from vultron.as_vocab.objects.case_status import CaseStatus
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_cs2",
+            name="Case Status Idempotent",
+        )
+        status = CaseStatus(
+            id="https://example.org/cases/case_cs2/statuses/s2",
+            context=case.as_id,
+        )
+        dl.create(status)
+
+        activity = CreateCaseStatus(
+            actor="https://example.org/users/vendor",
+            object=status,
+            context=case.as_id,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.CREATE_CASE_STATUS
+        mock_dispatchable.payload = activity
+
+        handlers.create_case_status(mock_dispatchable)
+
+        stored = dl.get(status.as_type.value, status.as_id)
+        assert stored is not None
+
+    def test_add_case_status_to_case_appends_status(self, monkeypatch):
+        """add_case_status_to_case appends status ID to case.case_status."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import AddStatusToCase
+        from vultron.as_vocab.objects.case_status import CaseStatus
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_cs3",
+            name="Add Status Case",
+        )
+        status = CaseStatus(
+            id="https://example.org/cases/case_cs3/statuses/s3",
+            context=case.as_id,
+        )
+        dl.create(case)
+        dl.create(status)
+
+        activity = AddStatusToCase(
+            actor="https://example.org/users/vendor",
+            object=status,
+            target=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ADD_CASE_STATUS_TO_CASE
+        )
+        mock_dispatchable.payload = activity
+
+        handlers.add_case_status_to_case(mock_dispatchable)
+
+        status_ids = [
+            (s.as_id if hasattr(s, "as_id") else s) for s in case.case_status
+        ]
+        assert status.as_id in status_ids
+
+    def test_create_participant_status_stores_status(self, monkeypatch):
+        """create_participant_status persists the ParticipantStatus."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case_participant import (
+            CreateStatusForParticipant,
+        )
+        from vultron.as_vocab.objects.case_status import ParticipantStatus
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        pstatus = ParticipantStatus(
+            id="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
+            context="https://example.org/cases/case_ps1",
+        )
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        case_ps1 = VulnerabilityCase(
+            id="https://example.org/cases/case_ps1",
+            name="PS Case 1",
+        )
+        activity = CreateStatusForParticipant(
+            actor="https://example.org/users/vendor",
+            object=pstatus,
+            context=case_ps1,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.CREATE_PARTICIPANT_STATUS
+        )
+        mock_dispatchable.payload = activity
+
+        handlers.create_participant_status(mock_dispatchable)
+
+        stored = dl.get(pstatus.as_type.value, pstatus.as_id)
+        assert stored is not None
+
+    def test_add_participant_status_to_participant_appends_status(
+        self, monkeypatch
+    ):
+        """add_participant_status_to_participant appends status to participant."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case_participant import (
+            AddStatusToParticipant,
+        )
+        from vultron.as_vocab.objects.case_participant import CaseParticipant
+        from vultron.as_vocab.objects.case_status import ParticipantStatus
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        participant = CaseParticipant(
+            id="https://example.org/cases/case_ps2/participants/p2",
+            context="https://example.org/cases/case_ps2",
+            attributed_to="https://example.org/users/vendor",
+        )
+        pstatus = ParticipantStatus(
+            id="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
+            context="https://example.org/cases/case_ps2",
+        )
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        case_ps2 = VulnerabilityCase(
+            id="https://example.org/cases/case_ps2",
+            name="PS Case 2",
+        )
+        dl.create(participant)
+        dl.create(pstatus)
+
+        activity = AddStatusToParticipant(
+            actor="https://example.org/users/vendor",
+            object=pstatus,
+            target=participant,
+            context=case_ps2,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+        )
+        mock_dispatchable.payload = activity
+
+        handlers.add_participant_status_to_participant(mock_dispatchable)
+
+        status_ids = [
+            (s.as_id if hasattr(s, "as_id") else s)
+            for s in participant.participant_status
+        ]
+        assert pstatus.as_id in status_ids
