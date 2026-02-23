@@ -226,3 +226,23 @@ submodules by topic, we should also refactor the vocab examples into submodules
 by the same or similar topics.
 
 ---
+
+## CaseStatus is an append-only list that captures the history of status changes for a case
+
+Code should not modify existing `CaseStatus` objects inside a case. Instead,
+you should create a new `CaseStatus` object for each status change and append it to the
+case's list of statuses. The current status of the case can be determined by
+looking at the most recently added `CaseStatus` object in the list (e.g., by 
+sorting by the `updated` timestamp). This approach allows us to maintain a 
+complete history of status changes for each case, which can be important for 
+auditing and understanding the lifecycle of a case. It also simplifies the logic 
+for handling status changes, as we don't have to worry about modifying 
+existing  objects or maintaining complex state transitions.
+
+A helper method could be implemented on VulnerabilityCase to facilitate finding
+the current status, e.g., a property that returns the most recent CaseStatus
+based on the updated timestamp.
+
+---
+
+
