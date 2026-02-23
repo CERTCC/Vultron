@@ -9,6 +9,26 @@ Add new items below this line
 
 ---
 
+## Bug Fixed: Demo log clarity via `demo_step` / `demo_check` context managers (2026-02-23)
+
+Added two context managers to `vultron/scripts/initialize_case_demo.py`:
+
+- **`demo_step(description)`**: wraps a workflow step; logs `🚥 description` at
+  INFO on entry, `🟢 description` on clean exit, `🔴 description` at ERROR on
+  exception (and re-raises).
+- **`demo_check(description)`**: wraps a side-effect verification; logs
+  `📋 description` at INFO on entry, `✅ description` on success,
+  `❌ description` at ERROR on exception (and re-raises).
+
+All six demo scripts (`initialize_case_demo.py`, `status_updates_demo.py`,
+`suggest_actor_demo.py`, `transfer_ownership_demo.py`, `invite_actor_demo.py`,
+`establish_embargo_demo.py`, `receive_report_demo.py`) now import and use these
+context managers to wrap each numbered workflow step and each verification block.
+
+Tests added in `test/scripts/test_demo_context_managers.py` (18 tests).
+
+---
+
 ## Bug Fixed: CreateParticipant activity "name" attribute (2026-02-23)
 
 Overrode `set_name()` in `CreateParticipant`

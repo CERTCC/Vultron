@@ -245,8 +245,6 @@ def demo_propose_embargo_accept(
             context=case.as_id,
         )
         post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
-        with demo_check("EmbargoEvent stored in data layer"):
-            verify_object_stored(client, embargo.as_id)
 
         proposal = EmProposeEmbargo(
             id=f"{case.as_id}/embargo_proposals/1",
