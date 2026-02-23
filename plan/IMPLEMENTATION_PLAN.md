@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-20 (Gap analysis refresh #2 — BT-4 next; set_embargo bug logged in BUGS.md)
+**Last Updated**: 2026-02-23 (Gap analysis refresh #3 — BT-4.1 complete; BT-4.3 demo + BT-5 embargo next)
 
 ## Overview
 
@@ -31,14 +31,17 @@ This implementation plan tracks the development of the Vultron API v2 inbox hand
 - ✅ Phase BT-2.1 COMPLETE: `engage_case` + `defer_case` BT trees + handlers
 - ✅ Phase BT-3 COMPLETE: `create_case` BT + `add_report_to_case` + `close_case`
   handlers + `initialize_case_demo.py` script
+- ✅ Phase BT-4.1 COMPLETE: `invite_actor_to_case`, `accept_invite_actor_to_case`,
+  `reject_invite_actor_to_case`, `remove_case_participant_from_case` handlers
 - ✅ Phase BT-4.2 COMPLETE: `create_case_participant` + `add_case_participant_to_case`
   handlers (procedural, part of BT-3.5/demo setup)
-- ✅ All xfailed tests resolved; 486 passing total
+- ✅ All xfailed tests resolved; 497 passing total
 
-**Next Priority**: Per PRIORITIES.md, the focus is now on **Phase BT-4 (actor
-invitation + participant demo)** AND **Phase BT-5 (embargo demo)** AND
-**remaining Phase BT-2 optional refactors** as standalone demo scripts
-(similar to `receive_report_demo.py`). See phases BT-2 through BT-7 below.
+**Next Priority**: Per PRIORITIES.md, the immediate next step is **Phase BT-4.3**
+(`invite_actor_demo.py` demo script), then **Phase BT-5** (embargo handlers +
+`establish_embargo_demo.py`). BT-5 has a pre-condition: fix `EmAcceptEmbargo` and
+`EmRejectEmbargo` model types (see BT-5 pre-conditions). See phases BT-4 through
+BT-7 below.
 
 **Completed Infrastructure:**
 
@@ -56,13 +59,15 @@ invitation + participant demo)** AND **Phase BT-5 (embargo demo)** AND
 
 **Handler Business Logic Status:**
 
-- ✅ Report + case handlers complete (13/36): create_report, submit_report,
+- ✅ Report + case handlers complete (17/37): create_report, submit_report,
   validate_report (BT), invalidate_report, ack_report, close_report, engage_case
   (BT), defer_case (BT), create_case (BT), add_report_to_case, close_case,
-  create_case_participant, add_case_participant_to_case
-- ❌ 23 stub handlers remain: invite/accept/reject actor to case (3), ownership
-  transfer (3), suggest_actor (3), embargo management (4), embargo invitations (3),
-  remove_case_participant (1), notes (3), statuses (4)
+  create_case_participant, add_case_participant_to_case, invite_actor_to_case,
+  accept_invite_actor_to_case, reject_invite_actor_to_case,
+  remove_case_participant_from_case
+- ❌ 20 stub handlers remain: ownership transfer (3), suggest_actor (3),
+  embargo management (7: create/add/remove/announce embargo + invite/accept/reject
+  to embargo), notes (3), statuses (4)
 
 **Production Readiness Features (Lower Priority per PRIORITIES.md):**
 
@@ -81,7 +86,7 @@ invitation + participant demo)** AND **Phase BT-5 (embargo demo)** AND
 
 ## Prioritized Task List (Per PRIORITIES.md and Gap Analysis)
 
-**Gap Analysis Summary (2026-02-20 refresh)**:
+**Gap Analysis Summary (2026-02-23 refresh #3)**:
 
 **✅ Completed Work:**
 - ✅ **Phase 0 & 0A complete**: Report handlers (8 report) with full business logic
@@ -92,10 +97,11 @@ invitation + participant demo)** AND **Phase BT-5 (embargo demo)** AND
   `close_case` handlers + `initialize_case_demo.py`
 - ✅ **BT Phase BT-4.1 complete**: `invite_actor_to_case`, `accept_invite_actor_to_case`,
   `reject_invite_actor_to_case`, `remove_case_participant_from_case`
-- ✅ **BT Phase BT-4.2 partial**: `create_case_participant` + `add_case_participant_to_case`
-- ✅ **Demo script complete**: `receive_report_demo.py` (3 workflows) +
+- ✅ **BT Phase BT-4.2 complete**: `create_case_participant` + `add_case_participant_to_case`
+- ✅ **Demo scripts complete**: `receive_report_demo.py` (3 workflows) +
   `initialize_case_demo.py`
-- ✅ **xfailed tests resolved**: 486 passing, 0 xfailed
+- ✅ **xfailed tests resolved**: 497 passing, 0 xfailed
+- ✅ **Bug fixed**: `VulnerabilityCase.set_embargo()` uses `current_status` property
 
 **📊 Specification Compliance Status**:
 - **BT Requirements**: BT-01 through BT-11 all implemented (BT-08 MAY, low priority)
@@ -109,17 +115,23 @@ invitation + participant demo)** AND **Phase BT-5 (embargo demo)** AND
   - ID-02/ID-03/ID-05: ❌ HTTP-layer duplicate detection not implemented (lower priority)
 
 **❌ Remaining Gaps (prioritized per PRIORITIES.md)**:
-- ❌ **Phase BT-4 remaining**: `invite_actor_demo.py` demo script (BT-4.3)
-- ❌ **Phase BT-5**: All embargo handlers (7 stubs) + `establish_embargo_demo.py`
-- ❌ **Phase BT-6**: Notes (3), statuses (4) + `status_updates_demo.py`
-- ❌ **Phase BT-7**: suggest_actor (3) + ownership transfer (3) + demo scripts
+- ❌ **Phase BT-4.3**: `invite_actor_demo.py` demo script
+- ❌ **Phase BT-5 pre-condition**: Fix `EmAcceptEmbargo` + `EmRejectEmbargo` model
+  (`as_object` type should be `EmProposeEmbargoRef`, not `EmbargoEventRef`)
+- ❌ **Phase BT-5**: All 7 embargo stub handlers + `establish_embargo_demo.py`
+- ❌ **Phase BT-6**: Notes (3 stubs), statuses (4 stubs) + `status_updates_demo.py`
+- ❌ **Phase BT-7**: suggest_actor (3 stubs) + ownership transfer (3 stubs) + demo scripts
 - ❌ **Phase BT-2.2/2.3**: Optional `close_report` + `invalidate_report` BT refactors
+- ❌ **AGENTS.md**: Update lazy imports guidance (prefer module-level imports; see
+  IMPLEMENTATION_NOTES.md)
 - ❌ **Production readiness**: Request validation, error responses, health checks,
   structured logging, HTTP-layer idempotency (all `PROD_ONLY` or lower priority)
 
 **🎯 Next Actions (ordered by PRIORITIES.md):**
-1. **Phase BT-4.3** — Create `invite_actor_demo.py` demo script
-2. **Phase BT-5** — Implement embargo handlers + `establish_embargo_demo.py`
+1. **Phase BT-4.3** — Create `vultron/scripts/invite_actor_demo.py` demo script
+2. **Phase BT-5 pre-condition** — Fix `EmAcceptEmbargo` / `EmRejectEmbargo`
+   `as_object` type in `vultron/as_vocab/activities/embargo.py`
+3. **Phase BT-5** — Implement 7 embargo handlers + `establish_embargo_demo.py`
 4. **Phase BT-6** — Implement notes/status handlers + `status_updates_demo.py`
 5. **Phase BT-7** — suggest_actor, transfer_ownership handlers + demo scripts
 6. **Phase BT-2.2/2.3** — Optional `close_report` + `invalidate_report` BT refactors
@@ -554,11 +566,13 @@ Reference: `docs/howto/activitypub/activities/establish_embargo.md`,
 conditions.py, states.py, transitions.py — no `_behaviors/` subdirectory,
 translate directly from these files).
 
-**⚠️ Pre-condition**: Fix `VulnerabilityCase.set_embargo()` bug (see
-`plan/BUGS.md`) before implementing BT-5.1 — the method does
-`self.case_status.em_state = EM.ACTIVE` but `case_status` is a list;
-correct approach is `self.case_status[0].em_state = EM.ACTIVE` (or a
-helper returning the current `CaseStatus`).
+**⚠️ Pre-condition**: Fix model types in `vultron/as_vocab/activities/embargo.py`
+before implementing BT-5.2:
+- `EmAcceptEmbargo.as_object` should be `EmProposeEmbargoRef` (not `EmbargoEventRef`)
+  — the actor accepts the *invite/proposal*, not the embargo event itself.
+- `EmRejectEmbargo.as_object` same fix: should be `EmProposeEmbargoRef`.
+- Per "Accept the offer" model: `Accept(object=<Invite>)`, not `Accept(object=<what-was-offered>)`.
+- The `set_embargo()` bug from BT-4 notes is already **FIXED** (uses `current_status` property).
 
 **Key spec reference**: `specs/case-management.md` CM-04-003 — EM state
 transitions MUST update `CaseStatus.em_state` (participant-agnostic, shared).

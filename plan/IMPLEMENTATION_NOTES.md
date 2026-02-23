@@ -4,7 +4,84 @@ Longer-term notes can be found in `/notes/*.md`. This file is ephemeral
 and will be reset periodically, so it's meant to capture more immediate 
 insights, issues, and learnings during the implementation process.
 
-## 2026-02-20 — "Accept the offer" model/doc fixes
+## 2026-02-23 — Gap Analysis Refresh #3 (PLAN_prompt.md run)
+
+### Test status
+
+497 passing, 5581 subtests passed, 0 xfailed (confirmed by running full suite).
+
+### Handler inventory (17 done / 20 stubs)
+
+**Done** (17 handlers with real business logic):
+- Report: `create_report`, `submit_report`, `validate_report` (BT),
+  `invalidate_report`, `ack_report`, `close_report`
+- Case priority: `engage_case` (BT), `defer_case` (BT)
+- Case: `create_case` (BT), `add_report_to_case`, `close_case`
+- Participant CRUD: `create_case_participant`, `add_case_participant_to_case`
+- Actor invitation (BT-4.1): `invite_actor_to_case`, `accept_invite_actor_to_case`,
+  `reject_invite_actor_to_case`, `remove_case_participant_from_case`
+
+**Stubs** (20 remaining — debug-log only):
+- Ownership transfer: `offer_case_ownership_transfer`,
+  `accept_case_ownership_transfer`, `reject_case_ownership_transfer`
+- Suggest actor: `suggest_actor_to_case`, `accept_suggest_actor_to_case`,
+  `reject_suggest_actor_to_case`
+- Embargo core: `create_embargo_event`, `add_embargo_event_to_case`,
+  `remove_embargo_event_from_case`, `announce_embargo_event_to_case`
+- Embargo negotiation: `invite_to_embargo_on_case`,
+  `accept_invite_to_embargo_on_case`, `reject_invite_to_embargo_on_case`
+- Notes: `create_note`, `add_note_to_case`, `remove_note_from_case`
+- Statuses: `create_case_status`, `add_case_status_to_case`,
+  `create_participant_status`, `add_participant_status_to_participant`
+
+### BT-5 Pre-condition: EmAcceptEmbargo / EmRejectEmbargo model fix
+
+`EmAcceptEmbargo` and `EmRejectEmbargo` in
+`vultron/as_vocab/activities/embargo.py` have incorrect `as_object` types:
+
+- **Current**: `as_object: EmbargoEventRef` (the embargo event itself)
+- **Correct**: `as_object: EmProposeEmbargoRef` (the invite/proposal activity)
+
+Per the "Accept the offer" model (`notes/activitystreams-semantics.md`):
+`Accept(object=<Invite>)` — the actor accepts the *proposal activity*, not the
+thing being proposed. This parallels the fix applied to `RmAcceptInviteToCase`
+and `RmRejectInviteToCase` in `vultron/as_vocab/activities/case.py` on
+2026-02-20.
+
+Fix both classes before implementing BT-5.2 handlers. Also update any
+vocab examples (`vultron/scripts/vocab_examples.py`) and tests that assert on
+the old structure.
+
+### `VulnerabilityCase.set_embargo()` bug — RESOLVED
+
+Confirmed fixed: `set_embargo()` now calls `self.current_status.em_state =
+EM.ACTIVE` via the `current_status` property (sorted by `updated` timestamp).
+The `BUGS.md` entry has been cleared. No action needed.
+
+### Demo script gap
+
+`vultron/scripts/invite_actor_demo.py` does not yet exist. This is the
+BT-4.3 deliverable. It should:
+1. Call `initialize_case_demo` setup functions as preconditions.
+2. Demo: case owner invites a second actor → second actor accepts → participant
+   added to case → show updated participant list.
+3. Include a test in `test/scripts/` mirroring `test_initialize_case_demo.py`.
+
+### AGENTS.md lazy imports guidance update needed
+
+The current AGENTS.md advises using lazy imports (inside functions) to avoid
+circular import issues. In practice, module-level imports are preferred for
+readability and discoverability. The guidance should be updated to say:
+*prefer module-level imports; use lazy imports only when a circular dependency
+cannot be refactored away*. Local imports already present in the codebase are a
+code smell indicating potential circular dependencies to be refactored over time.
+
+This update is low priority but should be done before the next agent picks up
+the codebase to avoid confusion.
+
+---
+
+
 
 Corrected a systematic inconsistency where Accept/Reject responses were
 modelled with `object=<offered-thing>` + `in_reply_to=<offer>`. The correct
@@ -244,5 +321,11 @@ break circular dependencies when refactoring is not possible or practical.
 If you encounter local imports while modifying code, it's okay to refactor
 to use module level imports and fix any circular dependencies as part of the same change,
 but avoid introducing new local imports without trying to refactor to module level imports first.
+
+---
+
+ChoosePreferredEmbargo is known to be underspecified and may require 
+additional details before it can be implemented. It should be treated as a lower
+priority than the rest of the Embargo Management process.
 
 ---
