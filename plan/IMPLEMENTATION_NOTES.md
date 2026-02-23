@@ -8,6 +8,18 @@ Add new items below this line
 
 ---
 
+Pattern matching for message semantics seems to break down when the pattern 
+needs to match on a subclass of as_Actor, which will be any time it matches 
+on as_Actor because as_Actor is the base class for all actors but any given
+message will come from a specific subclass of as_Actor (e.g., as_Person, 
+as_Organization, etc.). This is because the pattern matching may be overly 
+simplistic and it needs to be smarter about matching on as_Actor subclasses.
+Design a solution for this issue, which may involve implementing a more 
+sophisticated pattern matching system that can recognize and match on subclasses
+of as_Actor.
+
+---
+
 ## BT-6: Notes and Status Handler Pre-Implementation Notes (2026-02-23)
 
 Phase BT-6 implements the `status_updates` and `acknowledge` workflows
