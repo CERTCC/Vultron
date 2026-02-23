@@ -128,6 +128,27 @@ and AGENTS.md files as appropriate.
 ---
 
 
+## Case creation: vendor must be first participant; `attributed_to` = case owner
+
+**Fixed (2026-02-23):** `initialize_case_demo.py` now adds a `VendorParticipant`
+for the vendor (case creator) immediately after `CreateCase`, before the finder
+participant. Steps renumbered 4a/4b (vendor participant) then 5/6/7 (report +
+finder participant).
+
+**`attributed_to` is the correct case owner field.** `VulnerabilityCase` is
+created with `attributed_to=vendor.as_id`. The `accept_case_ownership_transfer`
+handler also updates `attributed_to` when ownership changes. No model change
+needed.
+
+**Test fix:** The pre-existing `test_initialize_case_demo` test was silently
+running 0 demos in the full suite due to a stale function reference after
+`importlib.reload()` in `test_invite_actor_demo`'s teardown. Changed to call
+`demo.main(skip_health_check=True)` (no `demos=` filter) so it always runs all
+demos in the module, removing the function-identity dependency.
+
+---
+
+
 ### BT-7: Suggest Actor + Ownership Transfer Handlers
 
 **Accept/Reject always wraps the Offer, not the thing being offered.**

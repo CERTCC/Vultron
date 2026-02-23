@@ -63,28 +63,27 @@ def demo_env(client):
         importlib.reload(demo)
 
 
-@pytest.mark.parametrize(
-    "demo_fn",
-    [demo.demo_initialize_case],
-    ids=["initialize_case"],
-)
-def test_demo(demo_env, demo_fn, caplog):
+def test_demo(demo_env, caplog):
     """
     Tests that the initialize_case demo workflow completes successfully.
 
     Verifies the full case initialization sequence:
     - Report submitted and validated
     - Case created with CreateCase
+    - Vendor (case creator) added as VendorParticipant before finder
     - Report linked via AddReportToCase
-    - Participant created via CreateParticipant
-    - Participant added via AddParticipantToCase
+    - Finder participant created via CreateParticipant
+    - Finder participant added via AddParticipantToCase
     - No errors logged during execution
     """
     import logging
 
-    with caplog.at_level(logging.ERROR):
-        demo.main(skip_health_check=True, demos=[demo_fn])
+    with caplog.at_level(logging.INFO):
+        demo.main(skip_health_check=True)
 
     assert "ERROR SUMMARY" not in caplog.text, (
         "Expected demo to succeed, but got errors:\n" + caplog.text
     )
+    assert (
+        "Vendor added as participant to case" in caplog.text
+    ), "Expected vendor (case creator) to be added as a case participant"

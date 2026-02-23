@@ -20,10 +20,11 @@ This demo script showcases the case initialization process:
 
 1. Setup: submit a vulnerability report (precondition for case creation)
 2. Create Case: vendor explicitly creates a VulnerabilityCase
-3. Add Report to Case: vendor links the submitted report to the case
-4. Create Participant: vendor creates a CaseParticipant for the finder
-5. Add Participant to Case: vendor adds the finder participant to the case
-6. Show final case state
+3. Add Vendor as Participant: vendor adds themselves as case creator/owner
+4. Add Report to Case: vendor links the submitted report to the case
+5. Create Participant: vendor creates a CaseParticipant for the finder
+6. Add Participant to Case: vendor adds the finder participant to the case
+7. Show final case state
 
 This corresponds to the workflow documented in:
     docs/howto/activitypub/activities/initialize_case.md
@@ -67,7 +68,10 @@ from vultron.as_vocab.base.objects.activities.transitive import (
 )
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.base import as_Object
-from vultron.as_vocab.objects.case_participant import FinderReporterParticipant
+from vultron.as_vocab.objects.case_participant import (
+    FinderReporterParticipant,
+    VendorParticipant,
+)
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 
@@ -248,12 +252,16 @@ def demo_initialize_case(
     1. Finder submits a vulnerability report to vendor inbox
     2. Vendor validates the report (RmValidateReport)
     3. Vendor explicitly creates a VulnerabilityCase (CreateCase)
-    4. Vendor adds the report to the case (AddReportToCase)
-    5. Vendor creates a FinderReporterParticipant for the finder
-    6. Vendor adds the participant to the case (AddParticipantToCase)
-    7. Final case state is logged
+    4. Vendor adds themselves as VendorParticipant (case creator/owner)
+    5. Vendor adds the report to the case (AddReportToCase)
+    6. Vendor creates a FinderReporterParticipant for the finder
+    7. Vendor adds the finder participant to the case (AddParticipantToCase)
+    8. Final case state is logged
 
     This follows the workflow in docs/howto/activitypub/activities/initialize_case.md.
+    The case creator (vendor) must be added as a participant before any other
+    participants, as they need to be a case participant to act on the case.
+    The vendor is also the case owner, indicated by attributed_to on the case.
     """
     logger.info("=" * 80)
     logger.info("DEMO: Initialize Case")
@@ -303,7 +311,47 @@ def demo_initialize_case(
     log_case_state(client, case.as_id, "after CreateCase")
     logger.info("✓ Step 3: Case created")
 
-    # Step 4: Add the report to the case
+    # Step 4: Add the vendor as a participant (case creator must be first)
+    vendor_participant = VendorParticipant(
+        attributed_to=vendor.as_id,
+        context=case.as_id,
+    )
+    logger.info(f"Created vendor participant: {logfmt(vendor_participant)}")
+
+    create_vendor_participant_activity = as_Create(
+        actor=vendor.as_id,
+        as_object=vendor_participant,
+        context=case.as_id,
+    )
+    post_to_inbox_and_wait(
+        client, vendor.as_id, create_vendor_participant_activity
+    )
+    verify_object_stored(client, vendor_participant.as_id)
+    logger.info("✓ Step 4a: Vendor participant created")
+
+    add_vendor_participant_activity = AddParticipantToCase(
+        actor=vendor.as_id,
+        as_object=vendor_participant.as_id,
+        target=case.as_id,
+    )
+    post_to_inbox_and_wait(
+        client, vendor.as_id, add_vendor_participant_activity
+    )
+    vendor_case = log_case_state(
+        client, case.as_id, "after vendor AddParticipantToCase"
+    )
+    if vendor_case and vendor_participant.as_id not in [
+        (p.as_id if hasattr(p, "as_id") else p)
+        for p in vendor_case.case_participants
+    ]:
+        raise ValueError(
+            f"Vendor participant '{vendor_participant.as_id}' not found in"
+            " case after AddParticipantToCase"
+        )
+    logger.info("Vendor added as participant to case")
+    logger.info("✓ Step 4b: Vendor added as participant to case")
+
+    # Step 5: Add the report to the case
     add_report_activity = AddReportToCase(
         actor=vendor.as_id,
         as_object=report.as_id,
@@ -318,9 +366,9 @@ def demo_initialize_case(
         raise ValueError(
             f"Report '{report.as_id}' not found in case after AddReportToCase"
         )
-    logger.info("✓ Step 4: Report linked to case")
+    logger.info("✓ Step 5: Report linked to case")
 
-    # Step 5: Create a FinderReporter participant for the finder
+    # Step 6: Create a FinderReporter participant for the finder
     participant = FinderReporterParticipant(
         attributed_to=finder.as_id,
         context=case.as_id,
@@ -334,9 +382,9 @@ def demo_initialize_case(
     )
     post_to_inbox_and_wait(client, vendor.as_id, create_participant_activity)
     verify_object_stored(client, participant.as_id)
-    logger.info("✓ Step 5: Participant created")
+    logger.info("✓ Step 6: Finder participant created")
 
-    # Step 6: Add the participant to the case
+    # Step 7: Add the finder participant to the case
     add_participant_activity = AddParticipantToCase(
         actor=vendor.as_id,
         as_object=participant.as_id,
@@ -354,10 +402,10 @@ def demo_initialize_case(
             f"Participant '{participant.as_id}' not found in case "
             "after AddParticipantToCase"
         )
-    logger.info("✓ Step 6: Participant added to case")
+    logger.info("✓ Step 7: Finder participant added to case")
 
     logger.info(
-        "✅ DEMO COMPLETE: Case initialized with report and participant."
+        "✅ DEMO COMPLETE: Case initialized with vendor and finder participants."
     )
 
 

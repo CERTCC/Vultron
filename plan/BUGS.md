@@ -4,21 +4,18 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ---
 
-## Case creation workflow currently neglects adding case creator as first participant and case owner
+## ~~Case creation workflow currently neglects adding case creator as first participant and case owner~~ [FIXED]
 
-This is a problem in two parts:
+**Fixed in**: `vultron/scripts/initialize_case_demo.py`
 
-1) In `initialize-case-demo.py`, the vendor validates the report, creates a 
-   case, and eventually adds the reporter as a participant. But when a case 
-   is created, the creator should add themselves first as a participant, 
-   then add the reporter as a participant. This is because the creator needs 
-   to be a participant in order to perform any actions on the case.
-2) The creator should also indicated as the case owner of the new case. It 
-   seems that `attributedTo` might be the right property to use for this, 
-   but please confirm that this is semantically correct and that it is being 
-   used correctly in the codebase. This part might be a non-issue, this is more
-   of a check to confirm that it's behaving as intended since you will be 
-    working with the case creation workflow in solving the first part of this issue.
+The demo now adds the vendor (case creator) as a `VendorParticipant` immediately
+after case creation (step 4a/4b), before the finder is added. The remaining steps
+are renumbered accordingly.
+
+**Case owner (`attributed_to`)**: Confirmed correct. The `VulnerabilityCase` is
+created with `attributed_to=vendor.as_id`, which is the semantically correct
+field for case ownership. Ownership transfer via `accept_case_ownership_transfer`
+also updates `attributed_to`. No code change required for this part.
 
 ---
 
