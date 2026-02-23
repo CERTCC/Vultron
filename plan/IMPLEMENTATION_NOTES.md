@@ -4,6 +4,43 @@ Longer-term notes can be found in `/notes/*.md`. This file is ephemeral
 and will be reset periodically, so it's meant to capture more immediate 
 insights, issues, and learnings during the implementation process.
 
+## 2026-02-23 — Phase BT-4.3 Complete
+
+### `invite_actor_demo.py` created
+
+`vultron/scripts/invite_actor_demo.py` implements two demo workflows:
+
+1. **Accept path**: vendor invites coordinator → coordinator accepts →
+   coordinator added as `CaseParticipant` to the case
+2. **Reject path**: vendor invites coordinator → coordinator rejects →
+   participant list unchanged
+
+Test: `test/scripts/test_invite_actor_demo.py` mirrors
+`test_initialize_case_demo.py`.
+
+### Bug fixed: `InviteActorToCase` pattern
+
+`InviteActorToCase` in `vultron/activity_patterns.py` used
+`object_=AOtype.ACTOR` ("Actor") but real actors have type "Organization"
+or "Person". This prevented semantic matching for invite/accept/reject
+workflows when the invited actor was rehydrated from the datalayer.
+
+Fix: removed `object_=AOtype.ACTOR` from `InviteActorToCase`. The pattern
+now checks only `activity_=INVITE` and `target_=VULNERABILITY_CASE`, which
+is sufficient to distinguish it from `InviteToEmbargoOnCase`
+(`target_=EVENT`).
+
+### Note: Accept/Reject activities should reference invite by ID
+
+When constructing `RmAcceptInviteToCase` or `RmRejectInviteToCase`,
+`object` should be the invite's ID string (not the full invite object
+inline). Passing the full object inline causes it to be parsed as generic
+`as_Object` during HTTP deserialization, losing the `actor` field, which
+then fails `as_Invite` validation during rehydration. Using the ID allows
+the handler to rehydrate the invite from the datalayer with all fields.
+
+---
+
 ## 2026-02-23 — Gap Analysis Refresh #3 (PLAN_prompt.md run)
 
 ### Test status

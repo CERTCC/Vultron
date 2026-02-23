@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-23 (Gap analysis refresh #3 — BT-4.1 complete; BT-4.3 demo + BT-5 embargo next)
+**Last Updated**: 2026-02-23 (BT-4.3 complete; BT-5 embargo next)
 
 ## Overview
 
@@ -115,7 +115,7 @@ BT-7 below.
   - ID-02/ID-03/ID-05: ❌ HTTP-layer duplicate detection not implemented (lower priority)
 
 **❌ Remaining Gaps (prioritized per PRIORITIES.md)**:
-- ❌ **Phase BT-4.3**: `invite_actor_demo.py` demo script
+- ✅ **Phase BT-4.3**: `invite_actor_demo.py` demo script (accept + reject paths)
 - ❌ **Phase BT-5 pre-condition**: Fix `EmAcceptEmbargo` + `EmRejectEmbargo` model
   (`as_object` type should be `EmProposeEmbargoRef`, not `EmbargoEventRef`)
 - ❌ **Phase BT-5**: All 7 embargo stub handlers + `establish_embargo_demo.py`
@@ -128,10 +128,9 @@ BT-7 below.
   structured logging, HTTP-layer idempotency (all `PROD_ONLY` or lower priority)
 
 **🎯 Next Actions (ordered by PRIORITIES.md):**
-1. **Phase BT-4.3** — Create `vultron/scripts/invite_actor_demo.py` demo script
-2. **Phase BT-5 pre-condition** — Fix `EmAcceptEmbargo` / `EmRejectEmbargo`
+1. **Phase BT-5 pre-condition** — Fix `EmAcceptEmbargo` / `EmRejectEmbargo`
    `as_object` type in `vultron/as_vocab/activities/embargo.py`
-3. **Phase BT-5** — Implement 7 embargo handlers + `establish_embargo_demo.py`
+2. **Phase BT-5** — Implement 7 embargo handlers + `establish_embargo_demo.py`
 4. **Phase BT-6** — Implement notes/status handlers + `status_updates_demo.py`
 5. **Phase BT-7** — suggest_actor, transfer_ownership handlers + demo scripts
 6. **Phase BT-2.2/2.3** — Optional `close_report` + `invalidate_report` BT refactors
@@ -549,10 +548,14 @@ invite handler.
 
 #### BT-4.3: Participant management demo script
 
-- [ ] Create `vultron/scripts/invite_actor_demo.py`
+- [x] Create `vultron/scripts/invite_actor_demo.py`
   - Setup: initialize case with first actor
-  - Demo: case owner invites second actor → second actor accepts → participant
-    added → show updated participant list
+  - Demo accept: case owner invites coordinator → coordinator accepts →
+    participant added → show updated participant list
+  - Demo reject: case owner invites coordinator → coordinator rejects →
+    participant list unchanged
+  - Fixed `InviteActorToCase` pattern: removed `object_=AOtype.ACTOR`
+    (real actors have type "Organization"/"Person", not "Actor")
 
 ---
 

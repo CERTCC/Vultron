@@ -173,7 +173,6 @@ RejectCaseOwnershipTransfer = ActivityPattern(
 )
 InviteActorToCase = ActivityPattern(
     activity_=TAtype.INVITE,
-    object_=AOtype.ACTOR,
     target_=VOtype.VULNERABILITY_CASE,
 )
 AcceptInviteActorToCase = ActivityPattern(
