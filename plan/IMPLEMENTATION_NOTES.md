@@ -213,3 +213,16 @@ for the next phase of development after the initial demos are complete.
 
 ---
 
+### Vocab Examples script should be turned into a module with submodules
+
+The vocab examples module in `vultron/scripts/vocab_examples.py` is 
+actually a module that is used by other things, including the API demos and the
+documentation build process. It would be better suited as a new module with 
+submodules outside of the `vultron/scripts` directory. For example, it could 
+be moved to `vultron/as_vocab/examples/` with submodules organized by topic.
+It probably makes sense for the examples and handlers to share a common 
+convention for organizing code by topic, so if we refactor the handlers into
+submodules by topic, we should also refactor the vocab examples into submodules 
+by the same or similar topics.
+
+---
