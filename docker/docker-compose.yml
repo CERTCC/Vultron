@@ -93,6 +93,114 @@ services:
     networks:
       - vultron-network
 
+  initialize-case-demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: initialize-case-demo
+    image: ${PROJECT_NAME}-initialize-case-demo:latest
+    depends_on:
+      api-dev:
+        condition: service_healthy
+    volumes:
+      - "../vultron:/app/vultron"
+      - "/app/.venv"
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_API_BASE_URL=http://api-dev:7999/api/v2
+    networks:
+      - vultron-network
+
+  establish-embargo-demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: establish-embargo-demo
+    image: ${PROJECT_NAME}-establish-embargo-demo:latest
+    depends_on:
+      api-dev:
+        condition: service_healthy
+    volumes:
+      - "../vultron:/app/vultron"
+      - "/app/.venv"
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_API_BASE_URL=http://api-dev:7999/api/v2
+    networks:
+      - vultron-network
+
+  invite-actor-demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: invite-actor-demo
+    image: ${PROJECT_NAME}-invite-actor-demo:latest
+    depends_on:
+      api-dev:
+        condition: service_healthy
+    volumes:
+      - "../vultron:/app/vultron"
+      - "/app/.venv"
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_API_BASE_URL=http://api-dev:7999/api/v2
+    networks:
+      - vultron-network
+
+  status-updates-demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: status-updates-demo
+    image: ${PROJECT_NAME}-status-updates-demo:latest
+    depends_on:
+      api-dev:
+        condition: service_healthy
+    volumes:
+      - "../vultron:/app/vultron"
+      - "/app/.venv"
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_API_BASE_URL=http://api-dev:7999/api/v2
+    networks:
+      - vultron-network
+
+  suggest-actor-demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: suggest-actor-demo
+    image: ${PROJECT_NAME}-suggest-actor-demo:latest
+    depends_on:
+      api-dev:
+        condition: service_healthy
+    volumes:
+      - "../vultron:/app/vultron"
+      - "/app/.venv"
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_API_BASE_URL=http://api-dev:7999/api/v2
+    networks:
+      - vultron-network
+
+  transfer-ownership-demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: transfer-ownership-demo
+    image: ${PROJECT_NAME}-transfer-ownership-demo:latest
+    depends_on:
+      api-dev:
+        condition: service_healthy
+    volumes:
+      - "../vultron:/app/vultron"
+      - "/app/.venv"
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_API_BASE_URL=http://api-dev:7999/api/v2
+    networks:
+      - vultron-network
+
 networks:
   vultron-network:
     driver: bridge

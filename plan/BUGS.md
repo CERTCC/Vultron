@@ -15,6 +15,15 @@ There may in fact be two problems here:
 2) The dockerization of the demo scripts is not complete, which means we
    cannot reliably demonstrate to users that the backend API is working as intended.
 
+**STATUS: FIXED (2026-02-23)**
+
+- All 7 demo scripts now have pytest coverage in `test/scripts/`.
+- All 7 demo scripts now have Dockerfile targets and docker-compose services
+  in `docker/Dockerfile` and `docker/docker-compose.yml`:
+  `receive-report-demo`, `initialize-case-demo`, `establish-embargo-demo`,
+  `invite-actor-demo`, `status-updates-demo`, `suggest-actor-demo`,
+  `transfer-ownership-demo`.
+
 ---
 
 
