@@ -702,12 +702,26 @@ module`
 - Module-level registry initialization that imports handlers
 - Deep import chains through `__init__.py` files
 
-**Solutions**:
+**Preferred approach**: Module-level imports are preferred. Resolve circular
+dependencies by reorganizing code (e.g., moving shared types to neutral
+modules), NOT by switching to lazy imports. Lazy imports make dependency
+graphs harder to understand and are inconsistent with Python conventions.
 
-1. Move shared code to neutral modules (`types.py`, `dispatcher_errors.py`)
-2. Use lazy imports (import inside functions, not at module level)
-3. Add caching to avoid repeated initialization overhead
-4. **Before adding imports, trace the chain**: `python -c "import
+**Local imports are a code smell**: When you encounter imports inside
+functions, this signals a potential circular dependency that SHOULD be
+refactored to module-level. If modifying code with local imports, try to
+refactor them away. Only keep local imports if the circular dependency
+cannot be resolved by reorganization.
+
+**Solutions (in order of preference)**:
+
+1. **Refactor first**: Move shared code to neutral modules
+   (`types.py`, `dispatcher_errors.py`) to break the import cycle
+2. Move shared code to neutral modules (`types.py`, `dispatcher_errors.py`)
+3. **Last resort**: Use lazy imports (import inside functions) only when
+   refactoring is not possible or practical
+4. Add caching to avoid repeated initialization overhead
+5. **Before adding imports, trace the chain**: `python -c "import
    vultron.MODULE"`
 
 See `specs/code-style.md` CS-05-* for requirements.

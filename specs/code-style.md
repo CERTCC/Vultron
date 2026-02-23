@@ -87,8 +87,13 @@ def extract_id_segment(url: str) -> str:
 - `CS-05-001` Core modules SHALL NOT import from application layer modules
   - Core modules: `behavior_dispatcher.py`, `semantic_map.py`, `semantic_handler_map.py`, `activity_patterns.py`
   - Application layer: `api/v2/*`
-- `CS-05-002` When unavoidable dependencies exist, use lazy initialization patterns
-  - Import inside functions rather than at module level
+- `CS-05-002` When circular dependencies cannot be resolved by reorganization,
+  use lazy initialization patterns as a **last resort**
+  - Prefer module-level imports; local imports are a code smell indicating a
+    circular dependency that SHOULD be refactored
+  - Import inside functions only when refactoring is not possible or practical
+  - When encountering existing local imports, attempt to refactor them to
+    module-level before accepting them as-is
   - Use caching to avoid repeated initialization overhead
 - `CS-05-003` Shared types and errors SHALL be placed in neutral modules
   - Example: `types.py` for shared type definitions, `dispatcher_errors.py` for dispatcher errors

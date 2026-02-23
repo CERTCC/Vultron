@@ -244,6 +244,36 @@ consulted when implementing state-related handlers or BT nodes:
 
 ---
 
+## CaseStatus and ParticipantStatus as Append-Only History
+
+The `case_status` field on `VulnerabilityCase` is an **append-only list** of
+`CaseStatus` objects representing the full history of case status changes. Key
+rules for correct handling:
+
+- The **current** case status is the `CaseStatus` with the **latest `updated`
+  timestamp**. Sort by timestamp to determine the current status; do not assume
+  list order.
+- Items may arrive out of order (e.g., delayed network messages), so timestamp
+  sorting is always required.
+- It is an error for a status update to carry a timestamp in the future.
+- Use `VulnerabilityCase.current_status` (a property that returns the
+  most-recent `CaseStatus` sorted by `updated` timestamp) when you need the
+  active status; avoid direct list indexing.
+
+The same pattern applies to `CaseParticipant.participant_status`: each
+`ParticipantStatus` is an append-only history entry, and the current
+participant status is the entry with the latest timestamp.
+
+**Implementation note**: `set_embargo()` and similar mutation helpers on
+`VulnerabilityCase` MUST operate on `current_status`, not on the raw list.
+Directly setting `.em_state` on the `case_status` list attribute is a bug
+(lists do not support arbitrary attribute assignment).
+
+**Cross-reference**: `vultron/as_vocab/objects/vulnerability_case.py` (the
+`current_status` property), `vultron/as_vocab/objects/case_status.py`.
+
+---
+
 ## RM and EM State Machines (Cross-Reference)
 
 Case State (CS) is one of three interacting state machines:

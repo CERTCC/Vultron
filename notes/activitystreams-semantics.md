@@ -130,6 +130,36 @@ new vocabulary type or message semantic, add a corresponding example to
 
 ---
 
+## Asymmetric Inbox Routing for Invite/Accept/Reject
+
+Invite, Accept, and Reject activities are **not** all received by the same
+actor. Each activity hits the inbox of a **different** actor:
+
+| Activity | Sender | Recipient inbox | Handler |
+|----------|--------|-----------------|---------|
+| `Invite(object=Actor, target=Case)` | Case Owner | Target Actor | `invite_actor_to_case` — stores invite for local consideration |
+| `Accept(object=Invite)` | Target Actor | Case Owner | `accept_invite_actor_to_case` — creates `CaseParticipant` |
+| `Reject(object=Invite)` | Target Actor | Case Owner | `reject_invite_actor_to_case` — logs rejection |
+
+**Consequence for implementation**: The `CaseParticipant` creation logic
+belongs in `accept_invite_actor_to_case` (the case owner's inbox handler),
+**not** in `invite_actor_to_case` (the target actor's inbox handler). Each
+actor only processes their own inbox.
+
+This asymmetry is easy to miss. It reflects the ActivityPub convention that
+responses are addressed to the original sender, and the work triggered by the
+response (creating a participant record) is the responsibility of the party
+who initiated the flow (the case owner).
+
+The same pattern applies to embargo Invite/Accept/Reject flows:
+`invite_to_embargo_on_case` hits the invitee's inbox, while
+`accept_invite_to_embargo_on_case` hits the inviter's (case owner's) inbox.
+
+**Reference**: `docs/howto/activitypub/activities/invite_actor.md`,
+`docs/howto/activitypub/activities/establish_embargo.md`.
+
+---
+
 ## Rehydration Before Pattern Matching
 
 ActivityStreams allows both inline objects and URI string references in
