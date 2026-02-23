@@ -766,24 +766,146 @@ def reject_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
 
 @verify_semantics(MessageSemantics.INVITE_ACTOR_TO_CASE)
 def invite_actor_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("invite_actor_to_case handler called: %s", dispatchable)
-    return None
+    """
+    Process an Invite(actor=CaseOwner, object=Actor, target=Case) activity.
+
+    This arrives in the *invited actor's* inbox. The handler persists the
+    Invite so that the actor can later accept or reject it.
+
+    Args:
+        dispatchable: DispatchActivity containing the RmInviteToCase activity
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        existing = dl.get(activity.as_type.value, activity.as_id)
+        if existing is not None:
+            logger.info(
+                "Invite '%s' already stored — skipping (idempotent)",
+                activity.as_id,
+            )
+            return None
+
+        dl.create(activity)
+        logger.info(
+            "Stored invite '%s' (actor=%s, target=%s)",
+            activity.as_id,
+            activity.as_actor,
+            activity.target,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in invite_actor_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE)
 def accept_invite_actor_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "accept_invite_actor_to_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process an Accept(object=RmInviteToCase) activity.
+
+    This arrives in the *case owner's* inbox after the invited actor accepts.
+    The handler creates a CaseParticipant for the invited actor and adds them
+    to the case's participant list. Idempotent: if the participant is already
+    in the case, the handler returns without side effects (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the RmAcceptInviteToCase
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.as_vocab.objects.case_participant import CaseParticipant
+
+    activity = dispatchable.payload
+
+    try:
+        invite = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=invite.target)
+        invitee_ref = invite.as_object
+        invitee_id = (
+            invitee_ref.as_id
+            if hasattr(invitee_ref, "as_id")
+            else str(invitee_ref)
+        )
+        case_id = case.as_id
+
+        dl = get_datalayer()
+
+        existing_ids = [
+            (p.as_id if hasattr(p, "as_id") else p)
+            for p in case.case_participants
+        ]
+        if invitee_id in existing_ids:
+            logger.info(
+                "Actor '%s' already participant in case '%s' — skipping (idempotent)",
+                invitee_id,
+                case_id,
+            )
+            return None
+
+        participant = CaseParticipant(
+            id=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
+            attributed_to=invitee_id,
+            context=case_id,
+        )
+        dl.create(participant)
+
+        case.case_participants.append(participant.as_id)
+        dl.update(case_id, object_to_record(case))
+
+        logger.info(
+            "Added participant '%s' to case '%s' via accepted invite",
+            invitee_id,
+            case_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in accept_invite_actor_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE)
 def reject_invite_actor_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "reject_invite_actor_to_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process a Reject(object=RmInviteToCase) activity.
+
+    This arrives in the *case owner's* inbox. The handler logs the rejection;
+    no state change is required.
+
+    Args:
+        dispatchable: DispatchActivity containing the RmRejectInviteToCase
+    """
+    activity = dispatchable.payload
+
+    try:
+        invite_ref = activity.as_object
+        invite_id = (
+            invite_ref.as_id
+            if hasattr(invite_ref, "as_id")
+            else str(invite_ref)
+        )
+        logger.info(
+            "Actor '%s' rejected invitation '%s'",
+            activity.as_actor,
+            invite_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in reject_invite_actor_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.CREATE_EMBARGO_EVENT)
@@ -1002,10 +1124,62 @@ def add_case_participant_to_case(dispatchable: DispatchActivity) -> None:
 
 @verify_semantics(MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE)
 def remove_case_participant_from_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "remove_case_participant_from_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process a Remove(CaseParticipant, target=VulnerabilityCase) activity.
+
+    Removes the participant reference from the case's case_participants list
+    and persists the updated case. Idempotent: if the participant is not in
+    the case, the handler returns without error (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Remove with
+                      CaseParticipant object and VulnerabilityCase target
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        participant = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=activity.target)
+        participant_id = participant.as_id
+        case_id = case.as_id
+
+        dl = get_datalayer()
+
+        existing_ids = [
+            (p.as_id if hasattr(p, "as_id") else p)
+            for p in case.case_participants
+        ]
+        if participant_id not in existing_ids:
+            logger.info(
+                "Participant '%s' not in case '%s' — skipping (idempotent)",
+                participant_id,
+                case_id,
+            )
+            return None
+
+        case.case_participants = [
+            p
+            for p in case.case_participants
+            if (p.as_id if hasattr(p, "as_id") else p) != participant_id
+        ]
+        dl.update(case_id, object_to_record(case))
+
+        logger.info(
+            "Removed participant '%s' from case '%s'",
+            participant_id,
+            case_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in remove_case_participant_from_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.CREATE_NOTE)

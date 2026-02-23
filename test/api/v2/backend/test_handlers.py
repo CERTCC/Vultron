@@ -215,3 +215,187 @@ class TestHandlerExecution:
         # Should raise semantic mismatch error
         with pytest.raises(VultronApiHandlerSemanticMismatchError):
             handlers.create_report(mock_activity)
+
+
+class TestInviteActorHandlers:
+    """Tests for invite_actor_to_case, accept_invite_actor_to_case,
+    reject_invite_actor_to_case, and remove_case_participant_from_case."""
+
+    def test_invite_actor_to_case_stores_invite(self, monkeypatch):
+        """invite_actor_to_case persists the Invite activity to the DataLayer."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import RmInviteToCase
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        invite = RmInviteToCase(
+            id="https://example.org/cases/case1/invitations/1",
+            actor="https://example.org/users/owner",
+            object="https://example.org/users/coordinator",
+            target="https://example.org/cases/case1",
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.INVITE_ACTOR_TO_CASE
+        mock_dispatchable.payload = invite
+
+        handlers.invite_actor_to_case(mock_dispatchable)
+
+        stored = dl.get(invite.as_type.value, invite.as_id)
+        assert stored is not None
+
+    def test_invite_actor_to_case_idempotent(self, monkeypatch):
+        """invite_actor_to_case skips storing a duplicate Invite."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import RmInviteToCase
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        invite = RmInviteToCase(
+            id="https://example.org/cases/case1/invitations/2",
+            actor="https://example.org/users/owner",
+            object="https://example.org/users/coordinator",
+            target="https://example.org/cases/case1",
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.INVITE_ACTOR_TO_CASE
+        mock_dispatchable.payload = invite
+
+        handlers.invite_actor_to_case(mock_dispatchable)
+        handlers.invite_actor_to_case(
+            mock_dispatchable
+        )  # second call is no-op
+
+        stored = dl.get(invite.as_type.value, invite.as_id)
+        assert stored is not None
+
+    def test_reject_invite_actor_to_case_logs_rejection(self):
+        """reject_invite_actor_to_case logs without raising."""
+        from vultron.as_vocab.activities.case import (
+            RmInviteToCase,
+            RmRejectInviteToCase,
+        )
+
+        invite = RmInviteToCase(
+            id="https://example.org/cases/case1/invitations/3",
+            actor="https://example.org/users/owner",
+            object="https://example.org/users/coordinator",
+            target="https://example.org/cases/case1",
+        )
+        reject = RmRejectInviteToCase(
+            actor="https://example.org/users/coordinator",
+            object=invite,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE
+        )
+        mock_dispatchable.payload = reject
+
+        result = handlers.reject_invite_actor_to_case(mock_dispatchable)
+        assert result is None
+
+    def test_remove_case_participant_from_case(self, monkeypatch):
+        """remove_case_participant_from_case removes the participant from case."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.base.objects.activities.transitive import (
+            as_Remove,
+        )
+        from vultron.as_vocab.objects.case_participant import CaseParticipant
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case2",
+            name="TEST-REMOVE",
+        )
+        participant = CaseParticipant(
+            id="https://example.org/cases/case2/participants/coord",
+            attributed_to="https://example.org/users/coordinator",
+            context=case.as_id,
+        )
+        case.case_participants.append(participant.as_id)
+        dl.create(case)
+        dl.create(participant)
+
+        # Pass objects directly so rehydrate returns them without a DB lookup
+        remove_activity = as_Remove(
+            actor="https://example.org/users/owner",
+            object=participant,
+            target=case,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
+        )
+        mock_dispatchable.payload = remove_activity
+
+        handlers.remove_case_participant_from_case(mock_dispatchable)
+
+        assert participant.as_id not in [
+            (p.as_id if hasattr(p, "as_id") else p)
+            for p in case.case_participants
+        ]
+
+    def test_remove_case_participant_idempotent(self, monkeypatch):
+        """remove_case_participant_from_case is idempotent when participant absent."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.base.objects.activities.transitive import (
+            as_Remove,
+        )
+        from vultron.as_vocab.objects.case_participant import CaseParticipant
+        from vultron.as_vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case3",
+            name="TEST-REMOVE-IDEMPOTENT",
+        )
+        participant = CaseParticipant(
+            id="https://example.org/cases/case3/participants/coord",
+            attributed_to="https://example.org/users/coordinator",
+            context=case.as_id,
+        )
+        # participant NOT added to case
+        dl.create(case)
+        dl.create(participant)
+
+        remove_activity = as_Remove(
+            actor="https://example.org/users/owner",
+            object=participant,
+            target=case,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
+        )
+        mock_dispatchable.payload = remove_activity
+
+        result = handlers.remove_case_participant_from_case(mock_dispatchable)
+        assert result is None
