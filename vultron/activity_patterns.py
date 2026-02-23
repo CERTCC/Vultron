@@ -227,11 +227,9 @@ AddCaseStatusToCase = ActivityPattern(
 CreateParticipantStatus = ActivityPattern(
     activity_=TAtype.CREATE,
     object_=VOtype.PARTICIPANT_STATUS,
-    context_=VOtype.VULNERABILITY_CASE,
 )
 AddParticipantStatusToParticipant = ActivityPattern(
     activity_=TAtype.ADD,
     object_=VOtype.PARTICIPANT_STATUS,
     target_=VOtype.CASE_PARTICIPANT,
-    context_=VOtype.VULNERABILITY_CASE,
 )

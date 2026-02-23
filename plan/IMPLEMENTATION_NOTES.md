@@ -6,6 +6,26 @@ insights, issues, and learnings during the implementation process.
 
 Add new items below this line
 
+
+---
+
+## Object IDs are causing problems as they are handled inconsistently
+
+ActivityStreams Object IDs should be handled consistently as strings across the codebase.
+Previous implementations tried to shortcut by only using bare UUIDs instead of 
+full URIs, but this has caused confusion and bugs because some parts of the code
+write the full URI while others write just the UUID, and some parts expect one 
+format while others expect the other. This inconsistency has led to bugs where 
+an ID is stored as a full URI but then later accessed as if it were a bare UUID,
+causing erroneous reports of missing data or incorrect behavior. To fix this,
+we should standardize on using full URIs for all Object IDs in the codebase, 
+and ensure that all code that reads or writes Object IDs is updated to use this 
+format consistently. See in particular the datalayer where sometimes UUIDs are
+appended to URLs, and anywhere that Object IDs are being parsed as if they have
+internal structure (hint: we should not assume Object IDs have any internal 
+structure at all, they should be treated as opaque URI strings properly 
+URL-encoded).
+
 ---
 
 ## `case_status` and `participant_status` field names are misleading and should be pluralized
@@ -134,3 +154,29 @@ return `True` conservatively.
 case ID, then reads the case from the data layer. TinyDB returns a `Document`
 with structure `{id_, type_, data_: {...}}`; read `record["data_"]["attributed_to"]`
 directly (not via `record_to_object()`).
+
+---
+
+## Bug: `add_case_status_to_case` must append full object, not bare ID string
+
+**Root cause (2026-02-23):** `add_case_status_to_case` was appending `status_id`
+(a plain UUID string) to `case.case_status` instead of the full `status` object.
+`VulnerabilityCase` has a `@model_validator(mode="after")` called `set_cs_context`
+that iterates `case_status` and sets `cs.context = self.as_id` on every item. When
+a bare string is present in that list, the validator crashes with:
+
+    AttributeError: 'str' object has no attribute 'context'
+
+This exception was silently swallowed by the `except` block, so `dl.update()` was
+never called and the case was never persisted with the new status. The fix is to
+append the rehydrated `status` object rather than `status_id`.
+
+**Note:** `add_note_to_case` appends a bare string ID to `case.notes` and works
+because `VulnerabilityCase` has no equivalent model validator over `notes`. The two
+fields behave differently; `case_status` requires full objects.
+
+**Tests added:** `test/scripts/test_status_updates_demo.py`,
+`test/scripts/test_suggest_actor_demo.py`,
+`test/scripts/test_transfer_ownership_demo.py` — 6 new parametrized tests covering
+the three previously-untested demo scripts. The `status_workflow` test is a
+regression test for the bug above.

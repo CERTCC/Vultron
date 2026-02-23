@@ -1894,7 +1894,7 @@ def add_case_status_to_case(dispatchable: DispatchActivity) -> None:
             )
             return None
 
-        case.case_status.append(status_id)
+        case.case_status.append(status)
         dl.update(case_id, object_to_record(case))
         logger.info("Added CaseStatus '%s' to case '%s'", status_id, case_id)
 
@@ -1986,7 +1986,7 @@ def add_participant_status_to_participant(
             )
             return None
 
-        participant.participant_status.append(status_id)
+        participant.participant_status.append(status)
         dl.update(participant_id, object_to_record(participant))
         logger.info(
             "Added ParticipantStatus '%s' to participant '%s'",
