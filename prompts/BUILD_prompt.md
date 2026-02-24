@@ -27,9 +27,10 @@ Objective: Complete the highest-priority pending implementation task.
 
    - Mark the task complete in plan/IMPLEMENTATION_PLAN.md.
    - Update plan/IMPLEMENTATION_NOTES.md with relevant implementation details.
-   - `git add -A`
-   - Commit with a clear, specific message.
-   - Exit
+   - `git add` modified files and commit with a clear, specific message.
+
+6. Exit. Only one task should be completed per run.
+
 
 Constraints:
 

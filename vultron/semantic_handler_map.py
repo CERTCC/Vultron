@@ -32,6 +32,7 @@ def get_semantics_handlers() -> dict[MessageSemantics, BehaviorHandler]:
         MessageSemantics.ACK_REPORT: h.ack_report,
         MessageSemantics.CLOSE_REPORT: h.close_report,
         MessageSemantics.CREATE_CASE: h.create_case,
+        MessageSemantics.UPDATE_CASE: h.update_case,
         MessageSemantics.ENGAGE_CASE: h.engage_case,
         MessageSemantics.DEFER_CASE: h.defer_case,
         MessageSemantics.ADD_REPORT_TO_CASE: h.add_report_to_case,

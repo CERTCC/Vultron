@@ -14,6 +14,7 @@ class MessageSemantics(StrEnum):
     CLOSE_REPORT = auto()
 
     CREATE_CASE = auto()
+    UPDATE_CASE = auto()
     ENGAGE_CASE = auto()
     DEFER_CASE = auto()
     ADD_REPORT_TO_CASE = auto()

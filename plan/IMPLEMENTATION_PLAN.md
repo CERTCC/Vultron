@@ -10,7 +10,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 554 passing, 5581 subtests, 0 xfailed (2026-02-24)
+**Test suite**: 557 passing, 5581 subtests, 0 xfailed (2026-02-24)
 
 **All 37 handlers implemented** (38 including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -110,14 +110,14 @@ This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred
 NOTE: See `plan/IMPLEMENTATION_NOTES.md` for discussion of the likely low 
 usage of this semantic type and the rationale for implementing it anyway.
 
-- [ ] **BT-8.6**: Add `UPDATE_CASE` to `MessageSemantics` in `vultron/enums.py`
-- [ ] **BT-8.7**: Add `UpdateCasePattern` in `vultron/activity_patterns.py`
+- [x] **BT-8.6**: Add `UPDATE_CASE` to `MessageSemantics` in `vultron/enums.py`
+- [x] **BT-8.7**: Add `UpdateCasePattern` in `vultron/activity_patterns.py`
   and register in `vultron/semantic_map.py`
-- [ ] **BT-8.8**: Implement `update_case` handler; register in `semantic_handler_map.py`
+- [x] **BT-8.8**: Implement `update_case` handler; register in `semantic_handler_map.py`
   - Apply partial updates from activity to VulnerabilityCase in DataLayer
   - Restrict to case owner (log WARNING and skip if not; PROD_ONLY: reject)
   - Idempotent: last-write-wins on scalar fields
-- [ ] **BT-8.9**: Add tests for pattern matching and handler behavior
+- [x] **BT-8.9**: Add tests for pattern matching and handler behavior
 
 #### CHOOSE_PREFERRED_EMBARGO
 

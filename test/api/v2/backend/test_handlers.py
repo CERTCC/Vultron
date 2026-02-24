@@ -1416,3 +1416,144 @@ class TestOwnershipTransferHandlers:
             handlers.reject_case_ownership_transfer(mock_dispatchable)
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
+
+
+class TestUpdateCaseHandler:
+    """Tests for update_case handler."""
+
+    def test_update_case_applies_scalar_updates(self, monkeypatch, caplog):
+        """update_case applies name/summary/content updates from a full object."""
+        import logging
+
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import UpdateCase
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        owner_id = "https://example.org/users/owner"
+        case = VulnerabilityCase(
+            id="https://example.org/cases/uc1",
+            name="Original Name",
+            attributed_to=owner_id,
+        )
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case.as_id,
+            name="Updated Name",
+            content="New content",
+            attributed_to=owner_id,
+        )
+        activity = UpdateCase(
+            actor=owner_id,
+            object=updated_case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
+        mock_dispatchable.payload = activity
+
+        with caplog.at_level(logging.INFO):
+            handlers.update_case(mock_dispatchable)
+
+        stored = dl.read(case.as_id)
+        assert stored is not None
+        assert stored.name == "Updated Name"
+        assert stored.content == "New content"
+
+    def test_update_case_rejects_non_owner(self, monkeypatch, caplog):
+        """update_case logs a warning and skips if actor is not the case owner."""
+        import logging
+
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import UpdateCase
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        owner_id = "https://example.org/users/owner"
+        non_owner_id = "https://example.org/users/other"
+        case = VulnerabilityCase(
+            id="https://example.org/cases/uc2",
+            name="Original Name",
+            attributed_to=owner_id,
+        )
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case.as_id,
+            name="Hijacked Name",
+            attributed_to=owner_id,
+        )
+        activity = UpdateCase(
+            actor=non_owner_id,
+            object=updated_case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
+        mock_dispatchable.payload = activity
+
+        with caplog.at_level(logging.WARNING):
+            handlers.update_case(mock_dispatchable)
+
+        stored = dl.read(case.as_id)
+        assert stored is not None
+        assert stored.name == "Original Name"
+        assert any("not the owner" in r.message for r in caplog.records)
+
+    def test_update_case_idempotent(self, monkeypatch):
+        """update_case with same data produces the same result (last-write-wins)."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.as_vocab.activities.case import UpdateCase
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            lambda **_: dl,
+        )
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        owner_id = "https://example.org/users/owner"
+        case = VulnerabilityCase(
+            id="https://example.org/cases/uc3",
+            name="Original",
+            attributed_to=owner_id,
+        )
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case.as_id,
+            name="Updated",
+            attributed_to=owner_id,
+        )
+        activity = UpdateCase(
+            actor=owner_id,
+            object=updated_case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
+        mock_dispatchable.payload = activity
+
+        handlers.update_case(mock_dispatchable)
+        handlers.update_case(mock_dispatchable)
+
+        stored = dl.read(case.as_id)
+        assert stored is not None
+        assert stored.name == "Updated"

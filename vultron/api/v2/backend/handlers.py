@@ -1521,6 +1521,87 @@ def close_case(dispatchable: DispatchActivity) -> None:
         )
 
 
+@verify_semantics(MessageSemantics.UPDATE_CASE)
+def update_case(dispatchable: DispatchActivity) -> None:
+    """
+    Process an UpdateCase activity (Update(VulnerabilityCase)).
+
+    Applies scalar field updates from the activity's object to the stored
+    VulnerabilityCase in the DataLayer. Restricted to the case owner: if
+    the sending actor is not the case owner, logs a WARNING and skips.
+    Idempotent: last-write-wins on scalar fields.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Update with
+                      VulnerabilityCase object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+
+    activity = dispatchable.payload
+
+    try:
+        actor_id = (
+            activity.actor.as_id
+            if hasattr(activity.actor, "as_id")
+            else str(activity.actor)
+        )
+        incoming = rehydrate(obj=activity.as_object)
+        case_id = (
+            incoming.as_id if hasattr(incoming, "as_id") else str(incoming)
+        )
+
+        dl = get_datalayer()
+        stored_case = dl.read(case_id)
+        if stored_case is None:
+            logger.warning(
+                "update_case: case '%s' not found in DataLayer — skipping",
+                case_id,
+            )
+            return None
+
+        owner_id = (
+            stored_case.attributed_to.as_id
+            if hasattr(stored_case.attributed_to, "as_id")
+            else (
+                str(stored_case.attributed_to)
+                if stored_case.attributed_to
+                else None
+            )
+        )
+        if owner_id != actor_id:
+            logger.warning(
+                "update_case: actor '%s' is not the owner of case '%s'"
+                " — skipping update",
+                actor_id,
+                case_id,
+            )
+            return None
+
+        if isinstance(incoming, VulnerabilityCase):
+            for field in ("name", "summary", "content"):
+                value = getattr(incoming, field, None)
+                if value is not None:
+                    setattr(stored_case, field, value)
+            dl.update(case_id, object_to_record(stored_case))
+            logger.info("Actor '%s' updated case '%s'", actor_id, case_id)
+        else:
+            logger.info(
+                "update_case: object for case '%s' is a reference only"
+                " — no fields to apply",
+                case_id,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error in update_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
+
+
 @verify_semantics(MessageSemantics.CREATE_CASE_PARTICIPANT)
 def create_case_participant(dispatchable: DispatchActivity) -> None:
     """

@@ -20,6 +20,7 @@ SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
     MessageSemantics.INVALIDATE_REPORT: ap.InvalidateReport,
     MessageSemantics.CLOSE_REPORT: ap.CloseReport,
     MessageSemantics.CREATE_CASE: ap.CreateCase,
+    MessageSemantics.UPDATE_CASE: ap.UpdateCase,
     MessageSemantics.ENGAGE_CASE: ap.EngageCase,
     MessageSemantics.DEFER_CASE: ap.DeferCase,
     MessageSemantics.ADD_REPORT_TO_CASE: ap.AddReportToCase,
