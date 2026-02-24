@@ -211,6 +211,42 @@ This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred
 
 ---
 
+## Technical debt (housekeeping)
+
+Priority: LOW–MEDIUM. These tasks reduce long-term maintenance and should be
+addressed as time permits.
+
+- [ ] TECHDEBT-1: Split large handlers module into submodules — move related
+  handlers into `vultron/api/v2/backend/handlers/*.py` and re-export in
+  `vultron.api.v2.backend.handlers.__init__`.
+  Done when: handlers module size reduces below 400 LOC and full test-suite passes.
+
+- [ ] TECHDEBT-2: Extract demo utilities and centralize demos — move
+  `demo_step`/`demo_check` context managers and shared client helpers to
+  `vultron/demo/utils.py` and relocate demo scripts to `vultron/demo/`.
+  Done when: demos import from `vultron.demo.utils` and demo tests pass.
+
+- [ ] TECHDEBT-3: Standardize object IDs to URL-like form — draft ADR
+  `docs/adr/ADR-XXXX-standardize-object-ids.md` and implement a compatibility
+  shim in the DataLayer that accepts existing IDs.
+  Done when: ADR created and tests validate URL-like ID acceptance.
+
+- [ ] TECHDEBT-4: Reorganize top-level modules (activity_patterns, semantic_map,
+  enums) into small packages to reduce circular imports and improve
+  discoverability.
+  Done when: modules moved with minimal interface changes and tests pass.
+
+- [ ] TECHDEBT-5: Move `vultron/scripts/vocab_examples.py` to
+  `vultron/as_vocab/examples/` and provide a compatibility shim for existing
+  import paths.
+  Done when: new location is used and existing import paths remain functional.
+
+References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
+`plan/IDEATION.md`, and files in `specs/`.
+
+
+---
+
 ## Deferred (Per PRIORITIES.md)
 
 The following are deferred until BT phases and demos are complete:
