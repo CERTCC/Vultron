@@ -93,18 +93,6 @@ to reflect that re-engagement is done via the existing `accept` activity.
 This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred 
 "future consideration" if we decide not to implement it.
 
-- [ ] **BT-8.1**: Define `RmReEngageCase(as_Undo)` class in
-  `vultron/as_vocab/activities/case.py` with `as_object: RmDeferCaseRef`
-- [ ] **BT-8.2**: Add `REENGAGE_CASE` to `MessageSemantics` in `vultron/enums.py`
-- [ ] **BT-8.3**: Add `ReEngageCase` pattern in `vultron/activity_patterns.py`
-  and register in `vultron/semantic_map.py`
-- [ ] **BT-8.4**: Implement `reengage_case` handler in
-  `vultron/api/v2/backend/handlers.py`; register in `semantic_handler_map.py`
-  - Transition sending actor's `ParticipantStatus.rm_state` → ACCEPTED (undoing deferral)
-  - Idempotent: no-op if already ACCEPTED
-- [ ] **BT-8.5**: Add tests for pattern matching and handler behavior
-  (`test/test_semantic_activity_patterns.py`, `test/api/v2/backend/test_handlers.py`)
-
 #### UPDATE_CASE
 
 NOTE: See `plan/IMPLEMENTATION_NOTES.md` for discussion of the likely low 
@@ -125,15 +113,6 @@ NOTE: See `plan/IMPLEMENTATION_NOTES.md` for discussion of the likely rarity and
 unnecessity of this semantic type and the rationale for not implementing it at this time.
 This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred 
 "future consideration" if we decide not to implement it.
-
-- [ ] **BT-8.10**: Add `CHOOSE_PREFERRED_EMBARGO` to `MessageSemantics`
-- [ ] **BT-8.11**: Add `ChoosePreferredEmbargoPattern` in
-  `vultron/activity_patterns.py`; register in `vultron/semantic_map.py`
-- [ ] **BT-8.12**: Implement `choose_preferred_embargo` handler; register in
-  `semantic_handler_map.py`
-  - Record choice in DataLayer; log at INFO
-  - Idempotent: overwrite existing choice
-- [ ] **BT-8.13**: Add tests for pattern matching and handler behavior
 
 ---
 
