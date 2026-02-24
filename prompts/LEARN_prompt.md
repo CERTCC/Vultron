@@ -8,7 +8,7 @@ priorities, and lessons learned.
     - Study plan/IMPLEMENTATION_PLAN.md — implementation status.
     - Study notes/*.md — durable lessons learned.
     - Study plan/IMPLEMENTATION_NOTES.md — recent, ephemeral insights.
-   
+
    Note: Critical insights in IMPLEMENTATION_NOTES.md must be preserved
    elsewhere.
 
@@ -16,7 +16,7 @@ priorities, and lessons learned.
     - Identify requirement gaps, ambiguity, redundancy, drift from priorities,
       and architectural inconsistencies.
     - Confirm assumptions against the codebase before concluding functionality
-      is missing. 
+      is missing.
       - search, don't assume not implemented.
 
 3. Update AGENTS.md
@@ -44,4 +44,3 @@ Constraints:
 - Modify markdown files only.
 - Do not implement code.
 - Verify assumptions via code search before asserting gaps.
-

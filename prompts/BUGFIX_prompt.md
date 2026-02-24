@@ -11,7 +11,7 @@ Objective: Fix the highest-priority open bug using test-first development.
    - Choose the highest-priority open bug in plan/BUGS.md.
 
 3. Verify Before Changes
-   - Search vultron/* and test/* to confirm current behavior.
+   - Search vultron/*and test/* to confirm current behavior.
    - Do not assume the bug exists without verification.
 
 4. Reproduce with a Failing Test
@@ -33,6 +33,7 @@ Objective: Fix the highest-priority open bug using test-first development.
    - Commit with a clear, specific message.
 
 Constraints:
+
 - Follow test-first discipline.
 - Do not work on implementation-plan tasks while bugs remain.
 - Each run starts in a fresh context.
