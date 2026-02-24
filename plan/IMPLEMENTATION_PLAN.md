@@ -1,7 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-24 (gap analysis refresh #6; archive completed phases to
-`IMPLEMENTATION_HISTORY.md`)
+**Last Updated**: 2026-02-24 (gap analysis refresh #7)
 
 ## Overview
 
@@ -12,7 +11,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 **Test suite**: 557 passing, 5581 subtests, 0 xfailed (2026-02-24)
 
-**All 37 handlers implemented** (38 including `unknown`):
+**All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
 close_report, engage_case (BT), defer_case (BT), create_case (BT),
 add_report_to_case, close_case, create_case_participant,
@@ -27,38 +26,22 @@ add_case_status_to_case, create_participant_status,
 add_participant_status_to_participant, suggest_actor_to_case,
 accept_suggest_actor_to_case, reject_suggest_actor_to_case,
 offer_case_ownership_transfer, accept_case_ownership_transfer,
-reject_case_ownership_transfer
+reject_case_ownership_transfer, update_case
 
 **Demo scripts** (all dockerized in `docker-compose.yml`):
 `receive_report_demo.py`, `initialize_case_demo.py`, `invite_actor_demo.py`,
 `establish_embargo_demo.py`, `status_updates_demo.py`, `suggest_actor_demo.py`,
-`transfer_ownership_demo.py`
+`transfer_ownership_demo.py`, `acknowledge_demo.py`, `manage_case_demo.py`,
+`initialize_participant_demo.py`
 
 ---
 
-## Gap Analysis (2026-02-24)
-
-### ❌ Missing MessageSemantics + handlers
-
-Three activity types exist in `vultron/as_vocab/` and `vultron/scripts/vocab_examples.py`
-but have **no** `MessageSemantics` enum value, no pattern in `activity_patterns.py`,
-and no handler:
-
-| Activity class | AS2 type | Notes |
-|---|---|---|
-| `as_Undo(object=RmDeferCase)` | `Undo` | `reengage_case()` in vocab_examples; no named class |
-| `UpdateCase` | `Update(VulnerabilityCase)` | class exists in `as_vocab/activities/case.py` |
-| `ChoosePreferredEmbargo` | `Question` | class exists in `as_vocab/activities/embargo.py` |
-
-These block full coverage of `manage_case.md` and `manage_embargo.md` workflows.
+## Gap Analysis (2026-02-24, refresh #7)
 
 ### ❌ Demo scripts missing for PRIORITIES.md higher-priority workflows
 
 | Howto doc | Existing demo | Gap |
 |---|---|---|
-| `acknowledge.md` | none | `ack_report` handler exists; needs dedicated demo |
-| `manage_case.md` | none | All case handlers exist; needs end-to-end demo |
-| `initialize_participant.md` | none | Participant handlers exist; needs demo |
 | `manage_embargo.md` | partial (`establish_embargo_demo`) | Full propose/accept/reject/terminate cycle not demoed |
 | `manage_participants.md` | partial (`invite_actor_demo`) | Status + remove paths not demoed |
 
@@ -76,45 +59,6 @@ actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 ---
 
 ## Prioritized Task List
-
-### Phase BT-8 — Missing MessageSemantics and Handlers
-
-**Priority**: HIGH — needed before manage_case and manage_embargo demos can be complete
-**References**: `vultron/as_vocab/activities/case.py`, `vultron/as_vocab/activities/embargo.py`,
-`vultron/scripts/vocab_examples.py`, `docs/howto/activitypub/activities/manage_case.md`,
-`docs/howto/activitypub/activities/manage_embargo.md`
-
-#### REENGAGE_CASE (RmReEngageCase — `as:Undo(object=RmDeferCase)`)
-
-NOTE: See `plan/IMPLEMENTATION_NOTES.md` for explanation of why `REENGAGE_CASE` 
-is not
-needed as a separate semantic type and why the documentation should be updated
-to reflect that re-engagement is done via the existing `accept` activity.
-This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred 
-"future consideration" if we decide not to implement it.
-
-#### UPDATE_CASE
-
-NOTE: See `plan/IMPLEMENTATION_NOTES.md` for discussion of the likely low 
-usage of this semantic type and the rationale for implementing it anyway.
-
-- [x] **BT-8.6**: Add `UPDATE_CASE` to `MessageSemantics` in `vultron/enums.py`
-- [x] **BT-8.7**: Add `UpdateCasePattern` in `vultron/activity_patterns.py`
-  and register in `vultron/semantic_map.py`
-- [x] **BT-8.8**: Implement `update_case` handler; register in `semantic_handler_map.py`
-  - Apply partial updates from activity to VulnerabilityCase in DataLayer
-  - Restrict to case owner (log WARNING and skip if not; PROD_ONLY: reject)
-  - Idempotent: last-write-wins on scalar fields
-- [x] **BT-8.9**: Add tests for pattern matching and handler behavior
-
-#### CHOOSE_PREFERRED_EMBARGO
-
-NOTE: See `plan/IMPLEMENTATION_NOTES.md` for discussion of the likely rarity and
-unnecessity of this semantic type and the rationale for not implementing it at this time.
-This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred 
-"future consideration" if we decide not to implement it.
-
----
 
 ### Phase DEMO-3 — Remaining ActivityPub Workflow Demo Scripts
 
@@ -136,8 +80,8 @@ This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred
 
 - [x] **DEMO-3.4**: Create `vultron/scripts/manage_case_demo.py`
   - Full lifecycle from `manage_case.md`: submit → validate → create_case →
-    engage/defer → reengage → close (requires BT-8.1–BT-8.5 for reengage step)
-  - Demonstrate both engage and defer paths
+    engage/defer → reengage (via second `RmEngageCase`) → close
+  - Demonstrate both engage and defer/reengage paths
 - [x] **DEMO-3.5**: Add `test/scripts/test_manage_case_demo.py`
 - [x] **DEMO-3.6**: Add `manage-case-demo` service to docker-compose.yml
 
@@ -154,7 +98,6 @@ This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred
 
 - [ ] **DEMO-3.10**: Create `vultron/scripts/manage_embargo_demo.py`
   - Full cycle from `manage_embargo.md`: propose → accept → activate → terminate
-    (requires BT-8.10–BT-8.13 for choose_preferred_embargo step if included)
   - Also demonstrate propose → reject → re-propose path
 - [ ] **DEMO-3.11**: Add `test/scripts/test_manage_embargo_demo.py`
 - [ ] **DEMO-3.12**: Add `manage-embargo-demo` service to docker-compose.yml
@@ -244,7 +187,6 @@ addressed as time permits.
 References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
 `plan/IDEATION.md`, and files in `specs/`.
 
-
 ---
 
 ## Deferred (Per PRIORITIES.md)
@@ -269,8 +211,8 @@ The following are deferred until BT phases and demos are complete:
 |-----------|--------|
 | BT-01–BT-11 | ✅ Implemented (BT-08 CLI is MAY, low priority) |
 | CM-01–CM-04 | ✅ Implemented (CM-03-006 rename pending REFACTOR-1) |
-| Handler Protocol (HP-*) | ✅ All 37+1 handlers registered |
-| Semantic extraction (SE-*) | ✅ 37 patterns + UNKNOWN |
+| Handler Protocol (HP-*) | ✅ All 38 handlers registered (incl. update_case) |
+| Semantic extraction (SE-*) | ✅ 38 patterns + UNKNOWN |
 | Dispatch routing (DR-*) | ✅ DirectActivityDispatcher |
 | Inbox endpoint (IE-*) | ✅ 202 + BackgroundTasks |
 | Idempotency (ID-01, ID-04) | ✅ Handler-level guards present |

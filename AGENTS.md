@@ -567,9 +567,10 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **Demo Scripts**: `vultron/scripts/receive_report_demo.py`,
   `initialize_case_demo.py`, `invite_actor_demo.py`,
   `establish_embargo_demo.py`, `status_updates_demo.py`,
-  `suggest_actor_demo.py`, `transfer_ownership_demo.py` - End-to-end
-  workflow demonstrations; also used by `test/scripts/` and Docker Compose
-  configs
+  `suggest_actor_demo.py`, `transfer_ownership_demo.py`,
+  `acknowledge_demo.py`, `manage_case_demo.py`,
+  `initialize_participant_demo.py` - End-to-end workflow demonstrations;
+  also used by `test/scripts/` and Docker Compose configs
 - **Case States**: `vultron/case_states/` - RM/EM/CS state machine enums and
   patterns; use as reference for valid state transitions and preconditions
   - **State machine enums are authoritative**: When documentation and code

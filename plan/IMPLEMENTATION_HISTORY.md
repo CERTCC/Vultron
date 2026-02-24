@@ -121,6 +121,36 @@ All router tests (18/18) fixed after resolving separate data layer instances in 
 
 ---
 
+## Phase BT-8 — Missing MessageSemantics (COMPLETE 2026-02-24)
+
+- `UPDATE_CASE` (`as:Update(VulnerabilityCase)`) fully wired: `MessageSemantics` enum
+  value, `UpdateCasePattern`, `update_case` handler, and tests (BT-8.6–BT-8.9)
+- `REENGAGE_CASE` (`as:Undo(object=RmDeferCase)`) — **decided not to implement as a
+  separate semantic type**. Re-engagement is achieved by emitting a second
+  `RmEngageCase` (`as:Join`) activity from the `DEFERRED` state. The `reengage_case()`
+  factory in `vocab_examples.py` is retained as a legacy documentation artifact only.
+  See `notes/activitystreams-semantics.md` for the rationale.
+- `CHOOSE_PREFERRED_EMBARGO` (`as:Question`) — **deferred**. The core
+  propose/accept/reject flow covers the vast majority of embargo workflows. The
+  placeholder class in `vultron/as_vocab/activities/embargo.py` is retained; no
+  handler or pattern wired. Revisit if multiple simultaneous embargo proposals
+  prove necessary in practice.
+
+---
+
+## Phase DEMO-3.1–3.9 — Acknowledge, Manage Case, Initialize Participant (COMPLETE 2026-02-24)
+
+- `acknowledge_demo.py` — submit → ack_report workflow + dockerized
+- `manage_case_demo.py` — full RM lifecycle including defer/reengage via second
+  `RmEngageCase` + dockerized
+- `initialize_participant_demo.py` — standalone participant creation workflow +
+  dockerized
+- Tests: `test/scripts/test_acknowledge_demo.py`,
+  `test/scripts/test_manage_case_demo.py`,
+  `test/scripts/test_initialize_participant_demo.py`
+
+---
+
 ## Resolved Design Decisions
 
 | # | Question | Decision |

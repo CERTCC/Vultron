@@ -272,3 +272,31 @@ activities.
 
 **Cross-reference**: `specs/response-format.md` RF-02-003, RF-03-003,
 RF-04-003, RF-08-001.
+
+---
+
+## Re-Engagement Uses `RmEngageCase`, Not a Separate Activity
+
+Re-engaging a deferred case does **not** use a separate `RmReEngageCase`
+activity. Instead, the existing `RmEngageCase` (`as:Join`) activity is
+reused for re-engagement.
+
+**Rationale**: The RM model already permits reversible transitions between
+`ACCEPTED` and `DEFERRED`. Re-engagement is a forward state transition —
+the actor in `DEFERRED` emits an `accept` transition to move back to
+`ACCEPTED`. Introducing `Undo(Ignore)` was considered and rejected:
+
+- `as:Undo` implies retracting the *effects* of a prior action (historical
+  negation), not a new forward transition.
+- Using only `RmEngageCase` and `RmDeferCase` preserves a minimal symbol set,
+  produces clean audit histories, and keeps engagement distinct from
+  participation semantics such as `RmCloseCase` (`as:Leave`), which
+  represents permanent departure rather than temporary deferral.
+
+**Consequence for implementation**: The `reengage_case()` factory in
+`vultron/scripts/vocab_examples.py` returns a raw `as_Undo` — this is a
+legacy artifact for documentation purposes only. Actual re-engagement MUST
+be implemented as a second `RmEngageCase` (`as:Join`) activity.
+
+**Reference**: `docs/howto/activitypub/activities/manage_case.md` ("Re-Engaging
+a Case" note), `vultron/scripts/manage_case_demo.py` (`demo_defer_reengage_path`).
