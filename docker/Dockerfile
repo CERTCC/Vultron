@@ -67,3 +67,7 @@ CMD ["uv", "run", "python", "-m", "vultron.scripts.suggest_actor_demo"]
 FROM dependencies AS transfer-ownership-demo
 ENV PYTHONPATH=/app
 CMD ["uv", "run", "python", "-m", "vultron.scripts.transfer_ownership_demo"]
+
+FROM dependencies AS acknowledge-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.acknowledge_demo"]

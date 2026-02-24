@@ -145,12 +145,12 @@ This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred
 
 #### acknowledge_demo.py
 
-- [ ] **DEMO-3.1**: Create `vultron/scripts/acknowledge_demo.py`
+- [x] **DEMO-3.1**: Create `vultron/scripts/acknowledge_demo.py`
   - Workflow from `acknowledge.md`: submit report → ack_report (RmReadReport)
     → optionally validate or invalidate
   - Show RM state transitions at each step
-- [ ] **DEMO-3.2**: Add `test/scripts/test_acknowledge_demo.py`
-- [ ] **DEMO-3.3**: Add `acknowledge-demo` service to `docker/docker-compose.yml`
+- [x] **DEMO-3.2**: Add `test/scripts/test_acknowledge_demo.py`
+- [x] **DEMO-3.3**: Add `acknowledge-demo` service to `docker/docker-compose.yml`
   and corresponding Dockerfile target
 
 #### manage_case_demo.py
