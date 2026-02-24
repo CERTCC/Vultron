@@ -143,12 +143,12 @@ This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred
 
 #### initialize_participant_demo.py
 
-- [ ] **DEMO-3.7**: Create `vultron/scripts/initialize_participant_demo.py`
+- [x] **DEMO-3.7**: Create `vultron/scripts/initialize_participant_demo.py`
   - Workflow from `initialize_participant.md`: create_case_participant →
     add_case_participant_to_case (standalone, not requiring prior invite)
   - Show case participant list before and after
-- [ ] **DEMO-3.8**: Add `test/scripts/test_initialize_participant_demo.py`
-- [ ] **DEMO-3.9**: Add `initialize-participant-demo` service to docker-compose.yml
+- [x] **DEMO-3.8**: Add `test/scripts/test_initialize_participant_demo.py`
+- [x] **DEMO-3.9**: Add `initialize-participant-demo` service to docker-compose.yml
 
 #### manage_embargo_demo.py
 
