@@ -134,12 +134,12 @@ This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred
 
 #### manage_case_demo.py
 
-- [ ] **DEMO-3.4**: Create `vultron/scripts/manage_case_demo.py`
+- [x] **DEMO-3.4**: Create `vultron/scripts/manage_case_demo.py`
   - Full lifecycle from `manage_case.md`: submit → validate → create_case →
     engage/defer → reengage → close (requires BT-8.1–BT-8.5 for reengage step)
   - Demonstrate both engage and defer paths
-- [ ] **DEMO-3.5**: Add `test/scripts/test_manage_case_demo.py`
-- [ ] **DEMO-3.6**: Add `manage-case-demo` service to docker-compose.yml
+- [x] **DEMO-3.5**: Add `test/scripts/test_manage_case_demo.py`
+- [x] **DEMO-3.6**: Add `manage-case-demo` service to docker-compose.yml
 
 #### initialize_participant_demo.py
 
