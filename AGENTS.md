@@ -566,8 +566,10 @@ behavior across backends (in-memory / tinydb) where reasonable.
   and as test fixtures for pattern matching
 - **Demo Scripts**: `vultron/scripts/receive_report_demo.py`,
   `initialize_case_demo.py`, `invite_actor_demo.py`,
-  `establish_embargo_demo.py` - End-to-end workflow demonstrations; also
-  used by `test/scripts/` and Docker Compose configs
+  `establish_embargo_demo.py`, `status_updates_demo.py`,
+  `suggest_actor_demo.py`, `transfer_ownership_demo.py` - End-to-end
+  workflow demonstrations; also used by `test/scripts/` and Docker Compose
+  configs
 - **Case States**: `vultron/case_states/` - RM/EM/CS state machine enums and
   patterns; use as reference for valid state transitions and preconditions
   - **State machine enums are authoritative**: When documentation and code
@@ -1065,6 +1067,32 @@ this rename has not yet landed in the code.
 
 **See also**: `notes/case-state-model.md` "CaseStatus and ParticipantStatus as
 Append-Only History", CM-03-006.
+
+---
+
+### ActivityStreams as Wire Format, Not Domain Model
+
+**Symptom**: Refactoring status fields, notes, or embargo tracking requires
+coordinated changes across handlers, tests, and DataLayer helpers because the
+domain object inherits directly from an ActivityStreams base type.
+
+**Cause**: `VulnerabilityCase` (and related objects) subclass `VultronObject`
+which inherits from ActivityStreams `as_Object`. This collapses three distinct
+concerns — wire format, domain logic, and persistence — into one object. The
+`case_activity` type limitation and `active_embargo` union serialization
+failures (documented above) are direct symptoms of this coupling.
+
+**Architectural direction**: The correct long-term fix is a clear translation
+boundary between Wire Model (ActivityStreams JSON), Domain Model (BT-facing
+objects), and Persistence Model (DataLayer storage). See
+`notes/domain-model-separation.md` for the full analysis and recommended next
+steps.
+
+**For now**: Work within the existing model. Use the workarounds documented
+above for `case_activity`, `active_embargo`, and `case_status`. When proposing
+refactors that touch `VulnerabilityCase`, consult
+`notes/domain-model-separation.md` first and consider drafting an ADR before
+implementing.
 
 ---
 

@@ -14,6 +14,7 @@ implementation evolves.
 | `case-state-model.md` | VFD/PXA case state hypercube, potential actions, measuring CVD quality, case object docs vs implementation, participant-specific vs participant-agnostic state distinction |
 | `codebase-structure.md` | Module reorganization candidates, enum refactoring, code documentation strategy, demo script lifecycle logging (`demo_step`/`demo_check`) |
 | `documentation-strategy.md` | Docs chronology and trust levels, process models, formal protocol, behavior simulator reference, Do Work behaviors, ISO crosswalks |
+| `domain-model-separation.md` | Wire/Domain/Persistence layer separation, current coupling in `VulnerabilityCase`, architectural direction and recommended next steps |
 
 ## Conventions
 
