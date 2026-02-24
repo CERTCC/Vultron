@@ -93,11 +93,10 @@ Handler functions process DispatchActivity objects and implement protocol busine
   (not bare ID strings) to the case/participant status history lists
   - `add_case_status_to_case` style handlers MUST rehydrate and persist the full `CaseStatus` object and then append that object into the case status history list (currently `VulnerabilityCase.case_status`; see CM-03-006 for the pending rename to `case_statuses`) before persisting the case.
   - If the storage layer contains validators that enforce `context` or other fields (e.g., `@model_validator`), the handler MUST provide full objects so validators can operate correctly.
-- `HP-08-006` The `AddNoteToCase` handler MUST persist a Note object and
-  either:
-  - append an `as_NoteRef` to `VulnerabilityCase.notes` (preferred), or
-  - persist the Note independently and ensure it is discoverable by the Case `context`.
-  - The choice MUST be documented and tests MUST ensure discovery semantics remain stable.
+- `HP-08-006` The `AddNoteToCase` handler MUST persist a Note object and append its ID as a `as_NoteRef` to `VulnerabilityCase.notes`.
+  - **Rationale**: Ensures notes are fully persisted and linked to cases, consistent with the case management data model
+  - (VulnerabilityCase.notes is conceptually a "join table" linking cases to 
+    notes)
 
 ## Verification
 

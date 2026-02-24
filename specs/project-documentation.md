@@ -189,11 +189,11 @@ history from implementation work.
 
 **Maintenance**:
 - Update phase status as work progresses
-- Move completed phase details to IMPLEMENTATION_NOTES.md
-- Add new phases as roadmap evolves
+- Move completed phase details to `plan/IMPLEMENTATION_NOTES.md`
+- Add new phases as roadmap evolves 
 - Mark blockers as resolved when fixed
-- `PD-02-001` Long-running implementation details and prior task history SHOULD
-  be moved out of `IMPLEMENTATION_PLAN.md` into the append-only
+- `PD-02-001` Prior task history SHOULD be moved out of  
+  `plan/IMPLEMENTATION_PLAN.md` into the append-only
   `plan/IMPLEMENTATION_HISTORY.md` archive to keep the active plan concise
   - Create `plan/IMPLEMENTATION_HISTORY.md` if it does not exist
 
@@ -217,25 +217,28 @@ When refactoring documentation:
 ## File Size Guidelines
 
 - **AGENTS.md**: Target < 1000 lines; prioritize clarity and scannability
+  - Use directory-specific AGENTS.md files if needed to keep content focused and concise
 - **notes/*.md**: No strict limit per file; create new files for distinct topics
 - **IMPLEMENTATION_NOTES.md**: No limit (grows over time)
 - **IMPLEMENTATION_PLAN.md**: Target < 400 lines (archive completed phases)
+- **IMPLEMENTATION_HISTORY.md**: No limit (archive of past completed 
+  implementation details)
 - `PD-01-001` Large modules with multiple responsibilities SHOULD be refactored
   into smaller cohesive modules
-  - Keep core BT base classes in `vultron/bt/base`
-  - Keep protocol-specific nodes in `vultron/bt/`
-  - Keep example data/generators in `vultron/scripts/vocab_examples.py` but
-    split example generators from demonstration orchestration
   - When proposed refactors affect architecture, consider raising an ADR and
     document the change in `docs/adr/`
+
 ---
 
 ## Cross-References
 
 When one document references another:
 
-- AGENTS.md MAY reference IMPLEMENTATION_NOTES.md for "see lessons learned"
-- AGENTS.md MAY reference notes/*.md for "see design insights"
+- AGENTS.md SHOULD NOT reference IMPLEMENTATION_NOTES.md for "see lessons 
+  learned" because the content is expected to be ephemeral and may be wiped, 
+  instead:
+  - AGENTS.md MAY reference notes/*.md for "see lessons learned and design 
+    insights"
 - notes/*.md MUST reference relevant specs and ADRs
 - IMPLEMENTATION_NOTES.md SHOULD reference relevant specs and ADRs
 - IMPLEMENTATION_PLAN.md SHOULD reference spec requirements
