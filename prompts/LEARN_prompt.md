@@ -6,6 +6,7 @@ priorities, and lessons learned.
     - Study plan/PRIORITIES.md — current priorities.
     - Study plan/IDEATION.md — new ideas and proposals.
     - Study plan/IMPLEMENTATION_PLAN.md — implementation status.
+    - Study plan/IMPLEMENTATION_HISTORY.md — completed tasks.
     - Study notes/*.md — durable lessons learned.
     - Study plan/IMPLEMENTATION_NOTES.md — recent, ephemeral insights.
 
