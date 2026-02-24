@@ -21,6 +21,9 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 - `RF-02-001` Accept responses MUST use `Accept` activity type
 - `RF-02-002` Accept responses MUST include `object` field referencing accepted activity or object
 - `RF-02-003` Accepting an Offer of an object MUST reference the Offer activity in the `object` field of the Accept response
+- RF-02-004 / RF-03-004 Accept/Reject semantics for Offers:
+  - When accepting or rejecting an offered object, the `object` field of the `Accept`/`Reject` activity MUST reference the Offer activity itself (e.g., `OfferCaseOwnershipTransfer`, `RecommendActor`), not the underlying object being offered.
+  - Handlers and semantic-matching logic MUST treat Accept/Reject.as_object as an Offer activity; rehydration and downstream processing SHOULD rehydrate the referenced Offer to discover the underlying thing being offered.
 
 ## Reject Response (MUST)
 
@@ -70,6 +73,7 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 - Unit test: Reject response has required fields
 - Unit test: Reject response includes reason
 - Integration test: Reject response delivered with reason
+- Unit test: `AcceptActorRecommendation` / `RejectActorRecommendation` must have `object` referencing `RecommendActor` (Offer), not the actor ref itself.
 
 ### RF-04-001, RF-04-002 Verification
 

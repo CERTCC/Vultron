@@ -25,6 +25,10 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
   - Log a warning identifying the failed URI
   - Return `MessageSemantics.UNKNOWN` from semantic extraction
   - Delegate to the unknown activity handler
+- SE-01-004 Pattern matching MUST support type/subclass matching semantics for actor/object classes.
+  - When matching patterns that expect `as_Actor` the algorithm MUST consider subclass relationships (e.g., `as_Person`, `as_Organization`) as satisfying an `as_Actor` pattern.
+  - Pattern evaluation MUST be robust to `object`/`actor` fields that are either (a) fully expanded objects or (b) URI string references. If a field is a URI string, matching logic MUST not assume the string encodes the object's type; rehydration is preferred before applying subclass-aware matching.
+  - If pattern objects are represented by an ActivityPattern instance, the matching routine MUST NOT call pattern-specific methods on plain strings; instead, it MUST detect string‑typed fields first and either attempt rehydration or conservatively treat the pattern as not matched and log a warning (see SE-01-002 for rehydration policy).
 
 ## Semantic Type Assignment (MUST)
 

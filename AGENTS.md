@@ -1044,6 +1044,30 @@ See `notes/activitystreams-semantics.md` for details.
 
 ---
 
+### `case_status` Field Is a List (Rename Pending)
+
+**Symptom**: `AttributeError` or incorrect logic when treating `case_status` as
+a single object.
+
+**Cause**: `VulnerabilityCase.case_status` is a `list[CaseStatusRef]` — the
+singular field name is misleading. Spec CM-03-006 requires renaming to
+`case_statuses` (history list) with a read-only `case_status` property, but
+this rename has not yet landed in the code.
+
+**Until the rename lands**:
+
+- Use `case.current_status` to access the active `CaseStatus` (property that
+  sorts by `updated` timestamp).
+- Append new `CaseStatus` objects to the list `case.case_status`; do NOT
+  assign to `case.case_status` directly or treat it as a scalar.
+- The same pattern applies to `CaseParticipant.participant_status` — it is also
+  a list; use the most-recent entry by timestamp as the current status.
+
+**See also**: `notes/case-state-model.md` "CaseStatus and ParticipantStatus as
+Append-Only History", CM-03-006.
+
+---
+
 ## Parallelism and Single-Agent Testing
 
 - Agents may use parallel subagents for complex tasks, but the testing step must
@@ -1082,3 +1106,24 @@ cd /tmp && markdownlint-cli2 \
 
 The `strict.markdownlint-cli2.yaml` file at the repo root contains the same
 rules as the default config with the `ignores` block removed.
+
+### Demo script lifecycle logging
+
+Demo scripts use `demo_step` and `demo_check` context managers (defined
+locally in each demo file) to log structured lifecycle events:
+
+- `demo_step(description)` — workflow step: logs 🚥 on entry, 🟢 on success,
+  🔴 on exception (re-raises).
+- `demo_check(description)` — verification block: logs 📋 on entry, ✅ on
+  success, ❌ on exception (re-raises).
+
+Wrap every numbered workflow step and every verification block in these
+managers. See `notes/codebase-structure.md` "Demo Script Lifecycle Logging"
+for the durable pattern and `test/scripts/test_demo_context_managers.py`.
+
+### Archiving IMPLEMENTATION_PLAN.md
+
+`plan/IMPLEMENTATION_PLAN.md` is the forward-looking roadmap (target < 400
+lines). Completed phase details and historical implementation notes belong
+in `plan/IMPLEMENTATION_HISTORY.md` (append-only; create if absent). See
+`specs/project-documentation.md` PD-XX-002.

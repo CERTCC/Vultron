@@ -39,6 +39,13 @@ Consolidated logging requirements for Vultron API v2: log format, correlation ID
 - `SL-04-002` State transition logs MUST include before state
 - `SL-04-003` State transition logs MUST include after state
 - `SL-04-004` State transition logs MUST include triggering event (activity type + semantic)
+- SL-04-005 Developer / Demo logging guidance:
+  - Demo scripts and stepwise workflows SHOULD use structured, consistent lifecycle logs for readability during development and test runs.
+  - Example convention (used in demos): wrap workflow steps in context-managers that log:
+    - INFO on step start with a clear "step description"
+    - INFO (or INFO + semantic token) on successful completion
+    - ERROR with exception context on failure
+  - Demo-specific shorthand/emojis (e.g., 🚥/🟢/🔴 for start/success/failure) are allowed for developer-facing logs but MUST NOT be relied upon by production log parsers; production logs should preserve structured fields (`component`, `activity_id`, `message`, `level`) regardless of visual decorations.
 
 Example:
 

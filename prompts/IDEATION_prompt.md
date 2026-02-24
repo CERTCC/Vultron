@@ -1,4 +1,4 @@
-1. Study plans/IDEATION.md to understand the intent of the project.
+1. Study plans/IDEATION.md to understand new ideas in the project.
 2. Study specs/*.md to understand the current specifications.
 3. Generate a comprehensive list of specifications that align with the project intent.
 4. Ensure each specification is atomic, verifiable, and succinct.

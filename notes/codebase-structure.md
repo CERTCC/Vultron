@@ -144,6 +144,37 @@ so the two share a consistent topic taxonomy.
 
 ---
 
+## Demo Script Lifecycle Logging: `demo_step` / `demo_check`
+
+All demo scripts use two context managers defined in each demo module for
+structured lifecycle logging:
+
+- **`demo_step(description)`**: Wraps a workflow step. Logs `🚥 description`
+  at INFO on entry, `🟢 description` on clean exit, `🔴 description` at ERROR
+  on exception (and re-raises).
+- **`demo_check(description)`**: Wraps a side-effect verification block. Logs
+  `📋 description` at INFO on entry, `✅ description` on success,
+  `❌ description` at ERROR on exception (and re-raises).
+
+These context managers are defined locally in each demo script (not a shared
+library module). Use them consistently to wrap numbered workflow steps and
+verification blocks so that log output clearly shows progress and failure
+location during test runs and live demos.
+
+**Pattern**:
+
+```python
+with demo_step("1. Create vulnerability report"):
+    report = create_report(...)
+
+with demo_check("1a. Verify report persisted"):
+    assert dl.get(report.as_id) is not None
+```
+
+**Cross-reference**: `test/scripts/test_demo_context_managers.py` (18 tests).
+
+---
+
 ## Demo Scripts Belong in `vultron/demo/`, Not `vultron/scripts/`
 
 The `vultron/scripts/*_demo.py` files demonstrate end-to-end workflows and are

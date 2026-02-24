@@ -106,3 +106,13 @@ def extract_id_segment(url: str) -> str:
 - `CS-04-001` Relative imports MAY be used for local application imports when appropriate
 - `CS-04-002` Module imports MAY use aliases for clarity or to avoid naming conflicts
   - Aliases SHOULD be descriptive and widely recognized (e.g., `import numpy as np`)
+
+## Module Size (SHOULD)
+
+- CS-XX-001 Module size: Prefer modules that are < ~400 lines for maintainability; split large modules by responsibility and avoid single-file catchalls (e.g., separate handlers registry, handler implementations, and handler utilities).
+
+## `as_` Field Prefix Policy (SHOULD)
+
+- CS-XX-002 `as_` field prefix policy:
+  - Use `as_` prefix on Pydantic fields only when the plain name would collide with a Python reserved word (e.g., use `as_object` instead of `object`).
+  - Otherwise prefer descriptive field names without `as_` (e.g., `actor`, not `as_actor`).
