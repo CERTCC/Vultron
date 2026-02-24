@@ -10,13 +10,18 @@ Objective: Update the implementation plan based on current priorities, specifica
    - Study plan/IMPLEMENTATION_NOTES.md — open questions and observations.
    - Study vultron/* — codebase.
    - Study test/* — existing tests.
+   - Study plan/BUGS.md - any known bugs that might impact implementation.
 
 2. Perform Gap Analysis
 
-   - Use search tools to compare specs/*against vultron/* and test/*.
+   - Use search tools to compare specs/* against vultron/* and test/*.
    - Confirm implementation status via code search; do not assume missing functionality.
    - Identify mismatches, omissions, partial implementations, and untested behaviors.
    - Think rigorously and systematically.
+
+   - Constraints: Do not attempt to verify, diagnose, or fix bugs here, just 
+     identify them as potential gaps and add them as tasks as appropriate in 
+     the next step.
 
 4. Update plan/IMPLEMENTATION_PLAN.md
    
