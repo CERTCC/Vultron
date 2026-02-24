@@ -75,3 +75,7 @@ CMD ["uv", "run", "python", "-m", "vultron.scripts.acknowledge_demo"]
 FROM dependencies AS manage-case-demo
 ENV PYTHONPATH=/app
 CMD ["uv", "run", "python", "-m", "vultron.scripts.manage_case_demo"]
+
+FROM dependencies AS initialize-participant-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.initialize_participant_demo"]
