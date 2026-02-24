@@ -34,6 +34,12 @@ then execute the workflow and demonstrate side effects and outputs. They
 should also be dockerized and use the same `api-dev` container so that the
 demo is legitimately demonstrating the backend API.
 
+See note in `notes/codebase-structure.md` about refactoring the demos out of 
+the `scripts/` directory and into the `demos/` directory to keep them 
+organized and separate from the main scripts. Refactoring also includes DRYing
+out any common setup or utility code that is shared across multiple demos into
+common modules in `vultron/demos/` that can be imported by the individual demo scripts.
+
 The ActivityPub processes often refer to message types that correspond to
 behavior tree nodes in the BT simulator in `vultron/bt` that will need to be
 reimplemented in the new BT implementation in `vultron/behavior`. Additional
@@ -52,6 +58,19 @@ structure and purpose of the behavior tree. Updating the documentation to
 reflect the eventual design of the new BT implementation will be necessary but
 is a lower priority than implementing the BT itself and demonstrating the
 ActivityPub processes through the BT.
+
+### Demos must be dockerized
+
+All demos must be dockerized and use the same `api-dev` container so that the
+demo is legitimately demonstrating the backend API. This will also make it  
+easier to run the demos in a consistent environment and to share them with others.
+Although obviously the demos must exist before they can be dockerized,
+dockerization should be a prioirity for each demo once the initial  
+implementation is complete. Note that some demos do not currently have a
+dockerized version, this should be remedied as soon as possible to ensure that
+all demos are consistently demonstrating the API.
+
+
 
 ## Priority 50: Refactoring large modules
 
@@ -90,17 +109,6 @@ it is stored in the VulnerabilityCase itself. The CaseActor must restrict certai
 activities to the case owner, such as closing the case or transferring ownership.
 These details are defined in the `vultron_as:CaseOwnerActivity`
 in `ontology/vultron_activitystreams.ttl`.
-
-### Demos must be dockerized
-
-All demos must be dockerized and use the same `api-dev` container so that the
-demo is legitimately demonstrating the backend API. This will also make it  
-easier to run the demos in a consistent environment and to share them with others.
-Although obviously the demos must exist before they can be dockerized,
-dockerization should be a prioirity for each demo once the initial  
-implementation is complete. Note that some demos do not currently have a
-dockerized version, this should be remedied as soon as possible to ensure that
-all demos are consistently demonstrating the API.
 
 ## Priority 1000: Agentic AI readiness
 

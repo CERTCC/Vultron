@@ -185,6 +185,8 @@ their role:
   (data migration, maintenance, one-off tooling)
 - **`vultron/demo/`** — end-to-end workflow demonstrations, depended on by
   tests and Docker configs
+- **`vultron/demo/utils.py`** or **`vultron/demo/utils/` — shared utilities and 
+  fixtures for demo scripts (DRYing out common setup during refactor)
 
 **Affected files when relocating**:
 
@@ -192,6 +194,7 @@ their role:
 - `vultron/scripts/initialize_case_demo.py`
 - `vultron/scripts/invite_actor_demo.py`
 - `vultron/scripts/establish_embargo_demo.py`
+- any new `*_demo.py` scripts created for remaining howto workflows
 - Corresponding test files in `test/scripts/`
 - Docker Compose service definitions in `docker/docker-compose.yml`
 - Any import paths in tests or documentation
