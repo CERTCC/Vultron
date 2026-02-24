@@ -192,12 +192,10 @@ history from implementation work.
 - Move completed phase details to IMPLEMENTATION_NOTES.md
 - Add new phases as roadmap evolves
 - Mark blockers as resolved when fixed
-- PD-XX-002 Implementation plan archival:
-  - Long-running implementation details and prior task history SHOULD be moved
-    out of `IMPLEMENTATION_PLAN.md` into the append-only
-    `plan/IMPLEMENTATION_HISTORY.md` archive to keep the active plan concise.
-    Create `plan/IMPLEMENTATION_HISTORY.md` if it does not exist.
-  - Document this practice and the archive location in this spec.
+- `PD-02-001` Long-running implementation details and prior task history SHOULD
+  be moved out of `IMPLEMENTATION_PLAN.md` into the append-only
+  `plan/IMPLEMENTATION_HISTORY.md` archive to keep the active plan concise
+  - Create `plan/IMPLEMENTATION_HISTORY.md` if it does not exist
 
 **Target Audience**: Agents planning next implementation steps
 
@@ -222,12 +220,14 @@ When refactoring documentation:
 - **notes/*.md**: No strict limit per file; create new files for distinct topics
 - **IMPLEMENTATION_NOTES.md**: No limit (grows over time)
 - **IMPLEMENTATION_PLAN.md**: Target < 400 lines (archive completed phases)
-- PD-XX-001 Module decomposition guidance:
-  - Large modules with multiple responsibilities (for example, `handlers.py` and `vocab_examples.py`) SHOULD be refactored into smaller cohesive modules:
-    - Keep core BT base classes in `vultron/bt/base`
-    - Keep protocol-specific nodes in `vultron/bt/`
-    - Keep example data/generators in `vultron/scripts/vocab_examples.py` but split example generators from demonstration orchestration
-  - When proposed refactors affect architecture, consider raising an ADR and document the change in `docs/adr/`.
+- `PD-01-001` Large modules with multiple responsibilities SHOULD be refactored
+  into smaller cohesive modules
+  - Keep core BT base classes in `vultron/bt/base`
+  - Keep protocol-specific nodes in `vultron/bt/`
+  - Keep example data/generators in `vultron/scripts/vocab_examples.py` but
+    split example generators from demonstration orchestration
+  - When proposed refactors affect architecture, consider raising an ADR and
+    document the change in `docs/adr/`
 ---
 
 ## Cross-References

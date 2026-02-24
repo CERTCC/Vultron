@@ -109,10 +109,14 @@ def extract_id_segment(url: str) -> str:
 
 ## Module Size (SHOULD)
 
-- CS-XX-001 Module size: Prefer modules that are < ~400 lines for maintainability; split large modules by responsibility and avoid single-file catchalls (e.g., separate handlers registry, handler implementations, and handler utilities).
+- `CS-06-001` Prefer modules that are < ~400 lines; split large modules by
+  responsibility and avoid single-file catchalls
+  - E.g., separate handlers registry, handler implementations, and handler
+    utilities into distinct modules
 
 ## `as_` Field Prefix Policy (SHOULD)
 
-- CS-XX-002 `as_` field prefix policy:
-  - Use `as_` prefix on Pydantic fields only when the plain name would collide with a Python reserved word (e.g., use `as_object` instead of `object`).
-  - Otherwise prefer descriptive field names without `as_` (e.g., `actor`, not `as_actor`).
+- `CS-07-001` Use `as_` prefix on Pydantic fields only when the plain name
+  would collide with a Python reserved word
+  - Use `as_object` instead of `object` (reserved keyword)
+  - Otherwise use plain field names: `actor`, not `as_actor`

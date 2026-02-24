@@ -1126,4 +1126,4 @@ for the durable pattern and `test/scripts/test_demo_context_managers.py`.
 `plan/IMPLEMENTATION_PLAN.md` is the forward-looking roadmap (target < 400
 lines). Completed phase details and historical implementation notes belong
 in `plan/IMPLEMENTATION_HISTORY.md` (append-only; create if absent). See
-`specs/project-documentation.md` PD-XX-002.
+`specs/project-documentation.md` `PD-02-001`.

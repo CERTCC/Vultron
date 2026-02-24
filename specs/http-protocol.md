@@ -104,7 +104,7 @@ MV-07), `error-handling.md` (EH-06), `agentic-readiness.md` (AR-03-002)
 
 - Integration test: HTTP 429 and 503 responses include `Retry-After` header
 
-## FastAPI Response Serialization (SHOULD)
+## FastAPI Response Serialization (MUST)
 
 - `HTTP-08-001` API responses MUST include all fields of the actual returned
   object type, not only fields declared on the annotated base class

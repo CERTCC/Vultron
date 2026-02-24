@@ -83,15 +83,18 @@ Handler functions process DispatchActivity objects and implement protocol busine
 - `HP-08-003` Pydantic validators MUST NOT overwrite existing field values during deserialization
   - **Verification**: Objects with populated fields retain data after `model_validate()` from database records
   - **Impact**: Prevents data loss when round-tripping through persistence layer
-- HP-08-004 IDs and Persistence: The DataLayer and handlers MUST treat object IDs as opaque URI strings.
+- `HP-08-004` The DataLayer and handlers MUST treat object IDs as opaque URI
+  strings
   - Handlers MUST persist full URI IDs (e.g., `urn:uuid:...` / `https://...`) rather than bare UUID fragments.
   - Persistence helpers (`object_to_record()` / `record_to_object()`) MUST preserve ID strings exactly and MUST NOT rely on extracting parts of the ID.
   - Comparison and duplicate-detection MUST use full-ID string equality.
   - If any legacy storage contains bare-UUIDs, a migration plan MUST be documented and executed (see project documentation).
-- HP-08-005 Status object persistence: When handlers add status updates they MUST append full status objects (not bare ID strings) to the case/participant status history lists.
+- `HP-08-005` Handlers that add status updates MUST append full status objects
+  (not bare ID strings) to the case/participant status history lists
   - `add_case_status_to_case` style handlers MUST rehydrate and persist the full `CaseStatus` object and then append that object into the case status history list (currently `VulnerabilityCase.case_status`; see CM-03-006 for the pending rename to `case_statuses`) before persisting the case.
   - If the storage layer contains validators that enforce `context` or other fields (e.g., `@model_validator`), the handler MUST provide full objects so validators can operate correctly.
-- HP-08-006 Notes persistence: The `AddNoteToCase` handler MUST persist a Note object and either:
+- `HP-08-006` The `AddNoteToCase` handler MUST persist a Note object and
+  either:
   - append an `as_NoteRef` to `VulnerabilityCase.notes` (preferred), or
   - persist the Note independently and ensure it is discoverable by the Case `context`.
   - The choice MUST be documented and tests MUST ensure discovery semantics remain stable.

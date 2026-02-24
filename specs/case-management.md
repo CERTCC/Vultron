@@ -40,14 +40,19 @@ the distinction between participant-specific and participant-agnostic state.
 - `CM-02-006` `PROD_ONLY` CaseActor MUST enforce case-level authorization for all
   case mutations
   - **Cross-reference**: `behavior-tree-integration.md` BT-10-004
-- CM-02-007 Notes on Cases: `VulnerabilityCase` MUST include a `notes: list
-[as_NoteRef]` field to record case-scoped notes created via `AddNoteToCase` activities.
-  - Rationale: This provides a canonical link from a case to in-scope notes and keeps note management consistent with `case_participants` and `vulnerability_reports`.
-  - Handlers implementing `AddNoteToCase` MUST append the `as_NoteRef` to `VulnerabilityCase.notes`
-- CM-02-008 Initial participants and ownership:
-  - When a `VulnerabilityCase` is created from an originating `VulnerabilityReport` Offer, the vendor (case recipient / owner) MUST be recorded as the initial primary participant for the case.
-  - The `VulnerabilityCase.attributed_to` field identifies the case owner (organizational actor URI) and MUST be set to the vendor/coordinator's actor ID at case creation.
-  - Implementation detail: handlers creating a case SHOULD create a `VendorParticipant` prior to appending other participants (e.g., finder), so that subsequent steps treat the vendor as an established participant.
+- `CM-02-007` `VulnerabilityCase` MUST include a `notes: list[as_NoteRef]`
+  field to record case-scoped notes created via `AddNoteToCase` activities
+  - Provides a canonical link from a case to in-scope notes, consistent with
+    `case_participants` and `vulnerability_reports` tracking
+  - Handlers implementing `AddNoteToCase` MUST append the `as_NoteRef` to
+    `VulnerabilityCase.notes`
+- `CM-02-008` When a `VulnerabilityCase` is created from an originating
+  `VulnerabilityReport` Offer, the vendor (case recipient / owner) MUST be
+  recorded as the initial primary participant
+  - `VulnerabilityCase.attributed_to` MUST be set to the vendor/coordinator's
+    actor ID at case creation
+  - Handlers creating a case SHOULD create a `VendorParticipant` before
+    appending other participants (e.g., finder)
 
 ## Case State Model (MUST)
 
@@ -67,11 +72,17 @@ the distinction between participant-specific and participant-agnostic state.
   - Only Vendors and non-vendor Deployers have a meaningful VFD state
   - Finders, Reporters, and Coordinators MUST use the null VFD state
   - VFD state is tracked in `ParticipantStatus.vfd_state`
-- CM-03-006 Model naming and semantics: Collection fields that hold status histories MUST be pluralized and documented as history collections.
-  - `VulnerabilityCase` MUST expose `case_statuses: list[CaseStatusRef]` (history). A convenience read-only property `case_status` MAY be provided to return the most recent `CaseStatus` (determined by timestamp).
-  - `CaseParticipant` MUST expose `participant_statuses: list[ParticipantStatus]` (history). A read-only property `participant_status` MAY return the current `ParticipantStatus`.
-  - Handlers MUST append new status objects to the pluralized history lists; handlers MUST NOT mutate historical items in-place.
-  - The read-only property MUST be implemented via computed logic (not by in-place mutation) and MUST NOT permit direct assignment.
+- `CM-03-006` Collection fields that hold status histories MUST be pluralized
+  and documented as history collections
+  - `VulnerabilityCase` MUST expose `case_statuses: list[CaseStatusRef]`
+    (history); a read-only property `case_status` MAY return the most recent
+    `CaseStatus` by timestamp
+  - `CaseParticipant` MUST expose `participant_statuses: list[ParticipantStatus]`
+    (history); a read-only property `participant_status` MAY return the current
+    `ParticipantStatus`
+  - Handlers MUST append new status objects to the pluralized history lists;
+    handlers MUST NOT mutate historical items in-place
+  - The read-only property MUST be computed (not direct assignment)
 
 ## State Transition Correctness (MUST)
 
