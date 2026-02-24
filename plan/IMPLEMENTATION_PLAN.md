@@ -86,6 +86,13 @@ actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 
 #### REENGAGE_CASE (RmReEngageCase — `as:Undo(object=RmDeferCase)`)
 
+NOTE: See `plan/IMPLEMENTATION_NOTES.md` for explanation of why `REENGAGE_CASE` 
+is not
+needed as a separate semantic type and why the documentation should be updated
+to reflect that re-engagement is done via the existing `accept` activity.
+This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred 
+"future consideration" if we decide not to implement it.
+
 - [ ] **BT-8.1**: Define `RmReEngageCase(as_Undo)` class in
   `vultron/as_vocab/activities/case.py` with `as_object: RmDeferCaseRef`
 - [ ] **BT-8.2**: Add `REENGAGE_CASE` to `MessageSemantics` in `vultron/enums.py`
@@ -100,6 +107,9 @@ actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 
 #### UPDATE_CASE
 
+NOTE: See `plan/IMPLEMENTATION_NOTES.md` for discussion of the likely low 
+usage of this semantic type and the rationale for implementing it anyway.
+
 - [ ] **BT-8.6**: Add `UPDATE_CASE` to `MessageSemantics` in `vultron/enums.py`
 - [ ] **BT-8.7**: Add `UpdateCasePattern` in `vultron/activity_patterns.py`
   and register in `vultron/semantic_map.py`
@@ -110,6 +120,11 @@ actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 - [ ] **BT-8.9**: Add tests for pattern matching and handler behavior
 
 #### CHOOSE_PREFERRED_EMBARGO
+
+NOTE: See `plan/IMPLEMENTATION_NOTES.md` for discussion of the likely rarity and
+unnecessity of this semantic type and the rationale for not implementing it at this time.
+This item can be migrated to `plan/IMPLEMENTATION_HISTORY.md` as a deferred 
+"future consideration" if we decide not to implement it.
 
 - [ ] **BT-8.10**: Add `CHOOSE_PREFERRED_EMBARGO` to `MessageSemantics`
 - [ ] **BT-8.11**: Add `ChoosePreferredEmbargoPattern` in
