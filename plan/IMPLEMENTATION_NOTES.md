@@ -37,15 +37,9 @@ deferral).
 Three activity types are in `vultron/as_vocab/` and referenced by vocab_examples
 but have no `MessageSemantics` entry, no `ActivityPattern`, and no handler:
 
+- **`RmReEngageCase`** (`as:Undo` of `RmDeferCase`) — used in `manage_case.md` and has a `reengage_case()` factory in `vocab_examples.py` that returns a raw `as_Undo`. A named `RmReEngageCase(as_Undo)` class does not yet exist in `vultron/as_vocab/activities/case.py`. Semantics: undo deferral → transition actor's `ParticipantStatus.rm_state` back to ACCEPTED.
 
-~~1. **`RmReEngageCase`** (`as:Undo` of `RmDeferCase`) — used in 
-`manage_case.md`
-   and has a `reengage_case()` factory in `vocab_examples.py` that returns a raw
-   `as_Undo`. A named `RmReEngageCase(as_Undo)` class does not yet exist in
-   `vultron/as_vocab/activities/case.py`. Semantics: undo deferral → transition
-   actor's `ParticipantStatus.rm_state` back to ACCEPTED.~~ 
-
-See implementation note above for rational on why REENGAGE_CASE is not 
+See implementation note above for rational on why REENGAGE_CASE is not
 needed as a separate semantic type.
 Instead, this should imply that we need to update the documentation in  
 `manage_case.md` to reflect that re-engagement is done via the existing  
