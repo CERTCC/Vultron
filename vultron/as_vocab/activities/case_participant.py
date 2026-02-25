@@ -100,8 +100,8 @@ class RemoveParticipantFromCase(as_Remove):
     """Remove a CaseParticipant from a VulnerabilityCase.
     This should only be performed by the case owner.
     as_object: CaseParticipant
-    origin: VulnerabilityCase
+    target: VulnerabilityCase
     """
 
     as_object: CaseParticipantRef = Field(None, alias="object")
-    origin: VulnerabilityCaseRef = None
+    target: VulnerabilityCaseRef = None

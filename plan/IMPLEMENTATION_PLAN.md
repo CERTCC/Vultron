@@ -104,13 +104,13 @@ actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 
 #### manage_participants_demo.py
 
-- [ ] **DEMO-3.13**: Create `vultron/scripts/manage_participants_demo.py`
+- [x] **DEMO-3.13**: Create `vultron/scripts/manage_participants_demo.py`
   - Full cycle from `manage_participants.md`: invite → accept →
     create_participant → add_to_case → create_status → add_status →
     remove_participant
   - Demonstrate reject path as well
-- [ ] **DEMO-3.14**: Add `test/scripts/test_manage_participants_demo.py`
-- [ ] **DEMO-3.15**: Add `manage-participants-demo` service to docker-compose.yml
+- [x] **DEMO-3.14**: Add `test/scripts/test_manage_participants_demo.py`
+- [x] **DEMO-3.15**: Add `manage-participants-demo` service to docker-compose.yml
 
 ---
 
