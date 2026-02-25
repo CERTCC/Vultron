@@ -62,6 +62,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`code-style.md`** - Python formatting, import organization, circular import prevention
 - **`meta-specifications.md`** - How to write and maintain specifications
 
+### Documentation Content and Organization
+
+- **`diataxis-requirements.md`** - Requirements for organizing project documentation according to the Diátaxis framework.
+
 ### Project and Agent Guidance
 
 - **`project-documentation.md`** - Documentation file structure and purpose
@@ -206,3 +210,5 @@ When updating specifications:
 - **ActivityPub Workflows**: `docs/howto/activitypub/activities/*.md`
 - **Agent Instructions**: `AGENTS.md` (AI coding agent guidance)
 - **Copilot Instructions**: Embedded in system context (development guidance)
+- **Diátaxis requirements**: `diataxis-requirements.md` — requirements for organizing
+  project documentation according to the Diátaxis framework.
