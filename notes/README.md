@@ -5,10 +5,15 @@ Unlike `plan/IMPLEMENTATION_NOTES.md` (which is ephemeral and may be wiped),
 files here are committed to version control and MUST be kept up to date as the
 implementation evolves.
 
+A new guidance document, **diataxis-framework.md**, provides documentation
+standards adapted from the Diátaxis model (Tutorials, How‑to, Reference,
+Explanation) and an implementation workflow for authoring technical docs.
+
 ## Contents
 
 | File | Topics |
 |------|--------|
+| `diataxis-framework.md` | Diátaxis documentation framework: Tutorials, How‑to, Reference, Explanation, Compass, and implementation workflow |
 | `activitystreams-semantics.md` | Activity model, state-change notification semantics, response conventions, vocabulary examples |
 | `bt-integration.md` | Behavior tree design decisions, py_trees patterns, simulation-to-prototype strategy |
 | `case-state-model.md` | VFD/PXA case state hypercube, potential actions, measuring CVD quality, case object docs vs implementation, participant-specific vs participant-agnostic state distinction |
