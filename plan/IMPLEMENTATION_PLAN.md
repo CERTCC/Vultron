@@ -96,11 +96,11 @@ actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 
 #### manage_embargo_demo.py
 
-- [ ] **DEMO-3.10**: Create `vultron/scripts/manage_embargo_demo.py`
+- [x] **DEMO-3.10**: Create `vultron/scripts/manage_embargo_demo.py`
   - Full cycle from `manage_embargo.md`: propose → accept → activate → terminate
   - Also demonstrate propose → reject → re-propose path
-- [ ] **DEMO-3.11**: Add `test/scripts/test_manage_embargo_demo.py`
-- [ ] **DEMO-3.12**: Add `manage-embargo-demo` service to docker-compose.yml
+- [x] **DEMO-3.11**: Add `test/scripts/test_manage_embargo_demo.py`
+- [x] **DEMO-3.12**: Add `manage-embargo-demo` service to docker-compose.yml
 
 #### manage_participants_demo.py
 
