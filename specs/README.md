@@ -28,7 +28,14 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Case and Actor Management
 
-7. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model
+7. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
+   object model relationships (Report/Case/Publication/VulnerabilityRecord), case update
+   broadcast, CVD action rules API
+
+### Object Identifiers
+
+8. **`object-ids.md`** - Object ID format (full URI), DataLayer handling, blackboard key
+   conventions, ADR requirement
 
 ### Cross-Cutting Concerns
 
@@ -56,6 +63,19 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 - **`response-format.md`** - ActivityStreams response generation (Accept, Reject, etc.)
 - **`outbox.md`** - Actor outbox structure and delivery
+
+### Demo and Tooling
+
+- **`demo-cli.md`** - Unified demo CLI: Click-based entry point, demo isolation, Docker,
+  unit and integration test requirements
+
+### Actor Profiles and Policies
+
+- **`embargo-policy.md`** - Actor embargo policy record format and API
+
+### Security
+
+- **`encryption.md`** - ActivityPub encryption and key management (`PROD_ONLY`)
 
 ### Code Standards
 
@@ -153,39 +173,20 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-02-24, updated post BT-7)**:
+**Summary (2026-02-25)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer
-- ✅ **All 37 handlers complete**: Report workflow (create, submit, validate,
-  invalidate, ack, close, engage_case, defer_case) + case workflow (create_case,
-  add_report_to_case, close_case, create_case_participant,
-  add_case_participant_to_case) + actor invitation (invite_actor_to_case,
-  accept_invite_actor_to_case, reject_invite_actor_to_case,
-  remove_case_participant_from_case) + embargo management
-  (create_embargo_event, add_embargo_event_to_case,
-  remove_embargo_event_from_case, announce_embargo_event_to_case,
-  invite_to_embargo_on_case, accept_invite_to_embargo_on_case,
-  reject_invite_to_embargo_on_case) + notes + statuses (create_note,
-  add_note_to_case, remove_note_from_case, create_case_status,
-  add_case_status_to_case, create_participant_status,
-  add_participant_status_to_participant) + suggest_actor (suggest_actor_to_case,
-  accept_suggest_actor_to_case, reject_suggest_actor_to_case) + ownership
-  transfer (offer_case_ownership_transfer, accept_case_ownership_transfer,
-  reject_case_ownership_transfer)
+- ✅ **All 38 handlers complete** (incl. `update_case` and `unknown`):
+  See `plan/IMPLEMENTATION_PLAN.md` for full handler list
 - ✅ **BT integration Phases BT-1 through BT-7 complete**: See
   `behavior-tree-integration.md`
-- ✅ **Demo scripts (7)**: `receive_report_demo.py`, `initialize_case_demo.py`,
-  `invite_actor_demo.py`, `establish_embargo_demo.py`,
-  `status_updates_demo.py`, `suggest_actor_demo.py`,
-  `transfer_ownership_demo.py` in `vultron/scripts/`
-- ✅ **Demo scripts dockerized**: `receive-report-demo` and
-  `initialize-case-demo` services in `docker/docker-compose.yml` with
-  health-check-based startup ordering
-- ✅ **525 tests passing**, 0 xfailed
+- ✅ **Demo scripts (10)**: See `plan/IMPLEMENTATION_PLAN.md`
+- ✅ **557 tests passing**, 0 xfailed (2026-02-24)
 - ⚠️ **Production readiness partial**: Request validation, error responses
   need work
 - ❌ **Response generation not started**: See `response-format.md`
+- ❌ **Unified demo CLI not started**: See `specs/demo-cli.md`
 
 ---
 

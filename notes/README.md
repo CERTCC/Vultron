@@ -20,6 +20,7 @@ Explanation) and an implementation workflow for authoring technical docs.
 | `codebase-structure.md` | Module reorganization candidates, enum refactoring, code documentation strategy, demo script lifecycle logging (`demo_step`/`demo_check`) |
 | `documentation-strategy.md` | Docs chronology and trust levels, process models, formal protocol, behavior simulator reference, Do Work behaviors, ISO crosswalks |
 | `domain-model-separation.md` | Wire/Domain/Persistence layer separation, current coupling in `VulnerabilityCase`, architectural direction and recommended next steps |
+| `do-work-behaviors.md` | Scope of "do work" BT behaviors: out-of-scope, not-implementable, partially-implementable items; reporting behavior notes; embargo policy prior art |
 
 ## Conventions
 

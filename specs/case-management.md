@@ -99,6 +99,64 @@ the distinction between participant-specific and participant-agnostic state.
   - Updating `CaseStatus.em_state` with a participant-specific value is
     incorrect and MUST be avoided
 
+## Object Model Relationships (MUST)
+
+- `CM-05-001` The system MUST distinguish the following domain objects as
+  separate, non-interchangeable types:
+  - `VulnerabilityReport`: an inbound report describing one or more
+    potential vulnerabilities; submitted by a finder or reporter
+  - `VulnerabilityCase`: a coordination unit grouping one or more reports
+    and tracking state across participants
+  - `VulnerabilityRecord`: a persistent identifier record for a confirmed
+    vulnerability (e.g., CVE number); created during coordination
+  - `Publication`: a public disclosure artifact linked to a case; may
+    reference external URLs rather than storing content
+- `CM-05-002` A `VulnerabilityCase` MUST reference at least one
+  `VulnerabilityReport`; a case with zero reports MUST NOT exist
+- `CM-05-003` A `VulnerabilityCase` SHOULD reference at least one
+  `VulnerabilityRecord` before closure; cases with no associated record at
+  closure SHOULD log a warning
+- `CM-05-004` A `VulnerabilityCase` MAY have zero or more associated
+  publications
+- `CM-05-005` Publications associated with a case MUST be stored as
+  reference links (metadata including title, publisher, date, URL) rather
+  than embedding full publication content
+  - Exception: a case MAY embed a publication snapshot as a
+    `VulnerabilityCase` note when content preservation is explicitly required
+- `CM-05-006` One report MAY describe multiple vulnerabilities; one case MAY
+  group multiple reports (e.g., when overlapping participants are involved)
+- `CM-05-007` Multiple publications MAY arise from a single case
+  (e.g., coordinated simultaneous disclosure by multiple vendors)
+
+## Case Update Broadcast (MUST)
+
+- `CM-06-001` When the CaseActor updates canonical case state, it MUST
+  notify all current case participants
+  - Notification MUST be sent as an ActivityStreams activity to each
+    participant's inbox
+- `CM-06-002` Participants receiving a case update notification MUST treat
+  the update as authoritative only when it originates from the CaseActor
+  - **Cross-reference**: CM-02-002
+- `CM-06-003` `PROD_ONLY` Case update notifications MUST include the
+  updated CaseActor URL so participants can fetch the current case state
+  if needed
+- `CM-06-004` `PROD_ONLY` Participants MUST authenticate case update
+  notifications before accepting them as authoritative
+  - **Cross-reference**: `prototype-shortcuts.md` PROTO-01-001
+
+## CVD Action Rules API (SHOULD)
+
+- `CM-07-001` The system SHOULD expose an endpoint that returns the set of
+  valid actions available to a case participant given the current case state
+  and their role
+  - This supports both human and agent consumers in knowing which protocol
+    actions are applicable at any given moment
+  - **Cross-reference**: `agentic-readiness.md` AR-07-001, AR-07-002
+- `CM-07-002` The action rules response MUST include the participant's role
+  and the current RM, EM, CS, and VFD states relevant to that participant
+- `CM-07-003` The action rules response MUST list valid next actions as
+  structured objects including the action name and any required parameters
+
 ## Verification
 
 ### CM-01-001, CM-01-002 Verification
@@ -135,6 +193,27 @@ the distinction between participant-specific and participant-agnostic state.
   correct per-participant values
 - Code review: No handler mixes participant-specific and agnostic state
 
+### CM-05-001 through CM-05-007 Verification
+
+- Unit test: `VulnerabilityCase`, `VulnerabilityReport`, `VulnerabilityRecord`,
+  and `Publication` are separate Pydantic model types
+- Unit test: Creating a case with no reports raises a validation error
+- Unit test: Publication stored as reference link includes title, publisher,
+  date, and URL fields
+
+### CM-06-001 through CM-06-004 Verification
+
+- Unit test: After a case state update, CaseActor outbox contains one
+  notification per active case participant
+- Code review: Participant inboxes are populated from `CaseParticipant` list
+  at notification time
+
+### CM-07-001 through CM-07-003 Verification
+
+- Integration test: `GET /actors/{case_actor_id}/action-rules?participant={id}`
+  returns structured action list for known participant
+- Unit test: Action rules reflect current RM/EM/CS state for the participant
+
 ## Related
 
 - **Behavior Tree Integration**: `specs/behavior-tree-integration.md`
@@ -148,5 +227,8 @@ the distinction between participant-specific and participant-agnostic state.
   documentation for case, embargo, participant management)
 - **Priorities**: `plan/PRIORITIES.md` (Priority 100: Actor independence,
   Priority 200: CaseActor as source of truth)
+- **Agentic Readiness**: `specs/agentic-readiness.md` (AR-07-001, AR-07-002)
+- **Object IDs**: `specs/object-ids.md`
+- **Do Work Behaviors**: `notes/do-work-behaviors.md`
 - **Implementation**: `vultron/as_vocab/objects/vulnerability_case.py`
 - **Implementation**: `vultron/as_vocab/objects/case_status.py`

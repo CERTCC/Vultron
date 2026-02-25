@@ -63,6 +63,23 @@ interfaces that support agentic workflows.
 - `AR-06-001` `PROD_ONLY` Resources that agents may need to create, update, or
   delete in quantity MAY expose batch endpoints (e.g., `POST /v1/items/batch`)
 
+## CVD Action Rules API (SHOULD)
+
+- `AR-07-001` The system SHOULD expose an endpoint that returns the set of
+  valid CVD actions available to a participant given current case state and
+  their role
+  - Endpoint: `GET /actors/{case_actor_id}/action-rules`
+  - Query parameter: `participant={participant_actor_id}` to scope results
+    to a specific participant
+- `AR-07-002` The action rules response MUST be a machine-parseable JSON
+  object that includes:
+  - The participant's current role (e.g., Vendor, Finder, Coordinator)
+  - The participant's current RM, EM, CS, and VFD states
+  - A list of valid next actions, each with `name` and `description` fields
+- `AR-07-003` `PROD_ONLY` The action rules endpoint MUST be reflected in
+  the OpenAPI schema per AR-01-001
+  - **Cross-reference**: `case-management.md` CM-07-001 through CM-07-003
+
 ## CLI Interface (MUST)
 
 - `AR-08-001` `PROD_ONLY` The CLI MUST be installable as a Python package entry point
@@ -112,6 +129,12 @@ interfaces that support agentic workflows.
 - `PROD_ONLY` Integration test: `--output json` produces valid JSON on stdout
 - `PROD_ONLY` Integration test: CLI exit codes match specification
 
+### AR-07-001, AR-07-002 Verification
+
+- Integration test: `GET /actors/{case_actor_id}/action-rules?participant={id}`
+  returns JSON with `role`, state fields, and `actions` list
+- Unit test: Action list changes when RM/EM state transitions occur
+
 ## Related
 
 - **Error Handling**: `specs/error-handling.md` (EH-05-001)
@@ -120,5 +143,6 @@ interfaces that support agentic workflows.
 - **Structured Logging**: `specs/structured-logging.md` (SL-02-001)
 - **Observability**: `specs/observability.md` (health check endpoints)
 - **Prototype Shortcuts**: `specs/prototype-shortcuts.md` (PROD_ONLY deferral)
+- **Case Management**: `specs/case-management.md` (CM-07-001 through CM-07-003)
 - **Priorities**: `plan/PRIORITIES.md` (Priority 1000)
 - **Implementation**: `pyproject.toml` (CLI entry points)
