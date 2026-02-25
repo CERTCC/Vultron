@@ -79,3 +79,7 @@ CMD ["uv", "run", "python", "-m", "vultron.scripts.manage_case_demo"]
 FROM dependencies AS initialize-participant-demo
 ENV PYTHONPATH=/app
 CMD ["uv", "run", "python", "-m", "vultron.scripts.initialize_participant_demo"]
+
+FROM dependencies AS manage-embargo-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.manage_embargo_demo"]
