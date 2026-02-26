@@ -124,6 +124,16 @@ to use `with demo_environment(client) as (finder, vendor, coordinator):` in thei
 DC-03-001 (teardown runs even on exception) and DC-03-003 (each invocation manages
 its own context).
 
+## DEMO-4.11 Resolved (2026-02-26)
+
+`DEFAULT_WAIT_SECONDS = 1.0` added to `vultron/demo/utils.py`.
+`post_to_inbox_and_wait` now reads this constant when `wait_seconds` is not
+explicitly provided. `test/demo/conftest.py` sets it to `0.0` at import time,
+eliminating all `time.sleep` calls in the test environment. A `make_testclient_call`
+factory in `test/demo/_helpers.py` replaces the 30-line closure duplicated across
+all 12 demo test files. The shared `client` fixture in conftest removes 12 redundant
+fixture definitions. Demo suite runtime dropped from ~4 minutes to ~28 seconds.
+
 ## DEMO-4.11 test suite performance is a concern
 
 The test suite is rather slow, largely because of the demo tests.

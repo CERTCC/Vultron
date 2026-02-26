@@ -153,9 +153,13 @@ provide a clean foundation before CLI wiring.
   - Done when: `uv run pytest test/demo/test_cli.py` passes
 - [x] **DEMO-4.10**: Refactor demo tests to maintain parallelism to the new 
   structure — e.g., `test/demo/test_receive_report.py` tests `receive_report_demo`
-- [ ] **DEMO-4.11**: See note in `plan/IMPLEMENTATION_NOTES.md` about demo 
-  test slowness and potential refactor or segmentation to speed up development iterations.
-  Recommended: refactoring demo tests to remove redundancy.
+- [x] **DEMO-4.11**: Refactored demo tests to eliminate `time.sleep` in test
+  environments and remove fixture redundancy. Added `DEFAULT_WAIT_SECONDS`
+  constant to `vultron/demo/utils.py`; created `test/demo/conftest.py` (sets
+  wait to 0 for all demo tests, shared `client` fixture) and
+  `test/demo/_helpers.py` (`make_testclient_call` factory). Removed duplicate
+  `client` fixture and `testclient_call` closure from all 12 demo test files.
+  Result: demo suite ~10x faster (≤0.5s per test vs. 8–15s).
 
 #### Step 7 — Integration test
 
