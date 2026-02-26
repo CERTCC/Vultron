@@ -92,7 +92,7 @@ provide a clean foundation before CLI wiring.
   existing demo scripts (DC-02-001)
   - Done when: `from vultron.demo.utils import demo_step, demo_check`
     succeeds and all demo scripts import from there
-- [ ] **DEMO-4.2**: Update all demo scripts in `vultron/scripts/` to import
+- [x] **DEMO-4.2**: Update all demo scripts in `vultron/scripts/` to import
   `demo_step`, `demo_check`, and client helpers from `vultron.demo.utils`
   instead of defining them locally (DC-02-001)
   - Done when: no demo script defines its own `demo_step`/`demo_check`
