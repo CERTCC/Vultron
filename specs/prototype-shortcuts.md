@@ -58,3 +58,17 @@ during the prototype stage.
     only for reports that have not yet been associated with a case (i.e.,
     before a case is created from a validated report).
 
+## Domain Model Separation (MAY)
+
+- `PROTO-06-001` Prototype MAY allow domain objects to directly inherit from
+  ActivityStreams base types (`VultronObject`, `as_Object`, etc.) without a
+  translation boundary between wire representation, domain model, and
+  persistence model
+  - The intended production approach introduces explicit translation functions
+    (`from_activitystreams`, `to_activitystreams`) at the protocol boundary
+  - **Cross-reference**: `case-management.md` CM-08-001, CM-08-002 for the
+    production architecture requirement
+  - **Cross-reference**: `notes/domain-model-separation.md` for design
+    rationale, known constraints of the current approach, and recommended
+    migration steps
+

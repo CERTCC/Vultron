@@ -58,6 +58,17 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 ## Response Delivery (MUST)
 
 - `RF-06-001` Response activities MUST be delivered to the relevant actors' inboxes
+- `RF-06-002` Response activities MUST be addressed to the INITIATING actor's
+  inbox, not to the inbox that received the original activity
+  - When an actor receives an `Invite` or `Offer` and replies with `Accept` or
+    `Reject`, the response MUST be sent to the initiating actor's inbox
+  - Example: An `Invite(Actor, Case)` arrives at the invitee's inbox; the
+    `Accept(Invite)` response goes to the inviter's (case owner's) inbox, not
+    back to the invitee's own inbox
+  - **Rationale**: Activities are state-change assertions; the initiator must
+    receive the response to update their model of the case state
+  - **Cross-reference**: `notes/activitystreams-semantics.md` for the
+    asymmetric routing pattern and examples
 
 ## Response Timing (MUST)
 

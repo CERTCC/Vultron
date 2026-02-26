@@ -84,12 +84,14 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Documentation Content and Organization
 
-- **`diataxis-requirements.md`** - Requirements for organizing project documentation according to the Diátaxis framework.
+- **`diataxis-requirements.md`** - Requirements for organizing project
+  documentation according to the Diátaxis framework (requirement IDs: `DF-NN-NNN`)
 
 ### Project and Agent Guidance
 
 - **`project-documentation.md`** - Documentation file structure and purpose
-- **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage
+- **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage,
+  including domain model separation deferral (PROTO-06)
 - **`agentic-readiness.md`** - API and CLI requirements for automated agent integration
 
 ---
@@ -128,7 +130,8 @@ Each requirement has a unique ID: `PREFIX-NN-NNN`
 Example: `HP-04-002` = Handler Protocol, category 4 (Payload Access), requirement 2
 
 **Note**: The `HP-` prefix is reserved for `handler-protocol.md`. The
-`http-protocol.md` file uses the `HTTP-` prefix to avoid ambiguity.
+`http-protocol.md` file uses the `HTTP-` prefix to avoid ambiguity. The
+`diataxis-requirements.md` file uses the `DF-` prefix.
 
 ## Requirement Tags
 
@@ -162,7 +165,8 @@ Some specifications consolidate requirements from multiple sources to create a s
   `response-format.md`
 - **`case-management.md`** consolidates case state and actor isolation requirements
   from `behavior-tree-integration.md` (BT-09, BT-10), `notes/case-state-model.md`,
-  and `plan/PRIORITIES.md` (Priority 100, 200)
+  and `plan/PRIORITIES.md` (Priority 100, 200); also captures domain model
+  architecture guidance (CM-08)
 
 When requirements appear consolidated, the consolidating spec is the authoritative
 source.
@@ -173,7 +177,7 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-02-25)**:
+**Summary (2026-02-26)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer

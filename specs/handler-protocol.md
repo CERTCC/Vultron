@@ -91,8 +91,13 @@ Handler functions process DispatchActivity objects and implement protocol busine
   - If any legacy storage contains bare-UUIDs, a migration plan MUST be documented and executed (see project documentation).
 - `HP-08-005` Handlers that add status updates MUST append full status objects
   (not bare ID strings) to the case/participant status history lists
-  - `add_case_status_to_case` style handlers MUST rehydrate and persist the full `CaseStatus` object and then append that object into the case status history list (currently `VulnerabilityCase.case_status`; see CM-03-006 for the pending rename to `case_statuses`) before persisting the case.
-  - If the storage layer contains validators that enforce `context` or other fields (e.g., `@model_validator`), the handler MUST provide full objects so validators can operate correctly.
+  - Handlers MUST rehydrate and persist the full `CaseStatus` object and then
+    append it to `VulnerabilityCase.case_statuses` before persisting the case
+  - If the storage layer contains validators that enforce `context` or other
+    fields, the handler MUST provide full objects so validators can operate
+    correctly
+  - **Cross-reference**: `case-management.md` CM-03-006 for the `case_statuses`
+    field contract
 - `HP-08-006` The `AddNoteToCase` handler MUST persist a Note object and append its ID as a `as_NoteRef` to `VulnerabilityCase.notes`.
   - **Rationale**: Ensures notes are fully persisted and linked to cases, consistent with the case management data model
   - (VulnerabilityCase.notes is conceptually a "join table" linking cases to 

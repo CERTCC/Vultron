@@ -83,6 +83,15 @@ the distinction between participant-specific and participant-agnostic state.
   - Handlers MUST append new status objects to the pluralized history lists;
     handlers MUST NOT mutate historical items in-place
   - The read-only property MUST be computed (not direct assignment)
+- `CM-03-007` RM state transitions MUST use the established protocol activity
+  types without introducing new activity types for reverse transitions
+  - Re-engagement from `DEFERRED` back to `ACCEPTED` MUST use the same `Join`
+    activity type as initial engagement (`RmEngageCase`), not an `Undo` activity
+  - Using `Undo` for re-engagement MUST NOT be implemented; `Undo` implies
+    retracting a prior state assertion, not a new forward state transition
+  - **Rationale**: Keeps the RM symbol set minimal and produces clean audit
+    histories; `Undo` conflates historical negation with a new forward
+    transition
 
 ## State Transition Correctness (MUST)
 
@@ -214,6 +223,25 @@ the distinction between participant-specific and participant-agnostic state.
   returns structured action list for known participant
 - Unit test: Action rules reflect current RM/EM/CS state for the participant
 
+## Domain Model Architecture (SHOULD)
+
+- `CM-08-001` The system SHOULD maintain a clear separation between the wire
+  representation, domain model, and persistence model for CVD objects
+  - **Wire representation**: ActivityStreams JSON exchanged between participants
+    at the inbox/outbox boundary
+  - **Domain model**: Internal objects with business logic, explicit invariants,
+    and append-only event history semantics
+  - **Persistence model**: Storage-optimized structures for the DataLayer
+  - These three concerns SHOULD be independently evolvable; wire format changes
+    SHOULD NOT require domain logic changes, and vice versa
+- `CM-08-002` `PROD_ONLY` Domain objects SHOULD NOT directly inherit from
+  ActivityStreams base types; explicit translation functions SHOULD be provided
+  at the protocol boundary
+  - **Cross-reference**: `notes/domain-model-separation.md` for design rationale
+    and recommended migration steps
+  - **Cross-reference**: `prototype-shortcuts.md` PROTO-06-001 for the prototype
+    deferral policy
+
 ## Related
 
 - **Behavior Tree Integration**: `specs/behavior-tree-integration.md`
@@ -221,6 +249,8 @@ the distinction between participant-specific and participant-agnostic state.
 - **Handler Protocol**: `specs/handler-protocol.md` (HP-00-001, HP-00-002)
 - **Case State Model**: `notes/case-state-model.md` (VFD/PXA hypercube,
   participant-specific vs agnostic detail)
+- **Domain Model Separation**: `notes/domain-model-separation.md` (wire/domain/
+  persistence architecture and migration guidance)
 - **BT Integration Notes**: `notes/bt-integration.md` (actor isolation domains,
   EvaluateCasePriority directionality)
 - **ActivityPub Workflows**: `docs/howto/activitypub/activities/` (workflow
