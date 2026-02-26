@@ -61,3 +61,28 @@ run demo` or `docker compose up demo` with TTY). The `DEMO` env var override
 (`DEMO=receive-report docker compose up demo`) is the non-interactive path for
 CI or scripted runs. Verify that click's interactive prompts degrade gracefully
 when stdin is not a TTY (use `click.echo` + non-interactive fallback if needed).
+
+## Demo tests are slow
+
+The test suite is rather slow, largely because of the demo tests.
+Consider either refactoring demo tests to be faster, more focused, less 
+end-to-end, or moving them to a separate suite that can be deliberately chosen
+when needed. Obviously segregating the tests doesn't help when running the full 
+suite, so optimizing the tests themselves is likely necessary. This could be a
+non-trivial task, so segmentation might be a good first step to allow for other
+development to proceed without being bottlenecked by the test suite until 
+the tests can be optimized.
+
+## DEMO-4.1 Complete (2026-02-26)
+
+`vultron/demo/utils.py` created with all shared utilities extracted from
+`initialize_case_demo.py`: `demo_step`, `demo_check`, `logfmt`, `postfmt`,
+`BASE_URL`, `DataLayerClient`, `reset_datalayer`, `discover_actors`,
+`init_actor_ios`, `post_to_inbox_and_wait`, `verify_object_stored`,
+`get_offer_from_datalayer`, `log_case_state`, `setup_clean_environment`,
+`check_server_availability`.
+
+`initialize_case_demo.py` updated to import from `vultron.demo.utils`. All
+other demo scripts continue to import via `initialize_case_demo` (DEMO-4.2
+will update them to import directly from `vultron.demo.utils`).
+568 tests pass.

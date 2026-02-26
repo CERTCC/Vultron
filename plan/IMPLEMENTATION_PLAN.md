@@ -87,7 +87,7 @@ provide a clean foundation before CLI wiring.
 
 #### Step 1 — Extract shared demo utilities (TECHDEBT-2, part A)
 
-- [ ] **DEMO-4.1**: Create `vultron/demo/utils.py` with `demo_step`,
+- [x] **DEMO-4.1**: Create `vultron/demo/utils.py` with `demo_step`,
   `demo_check` context managers and HTTP client helpers extracted from
   existing demo scripts (DC-02-001)
   - Done when: `from vultron.demo.utils import demo_step, demo_check`
