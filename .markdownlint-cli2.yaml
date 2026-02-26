@@ -28,6 +28,7 @@ config:
   # We might eventually be able to re-enable this one.
   "MD051": false
 ignores:
+  - "plan/**"
   - "specs/**"
   - "wip_notes/**"
   - "AGENTS.md"
