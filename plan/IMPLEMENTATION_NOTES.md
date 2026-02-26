@@ -152,3 +152,48 @@ Updated all test imports in `test/scripts/` (`from vultron.scripts import X_demo
 other demo scripts continue to import via `initialize_case_demo` (DEMO-4.2
 will update them to import directly from `vultron.demo.utils`).
 568 tests pass.
+
+## Documentation needed
+
+1. `vultron/demo/README.md` should contain a high-level 
+   overview of the 
+   demo 
+   suite, instructions for running the demos via docker-compose and directly,
+   along with any prerequisites or setup steps needed.
+2. The workflow descriptions in `docs/howto/activitypub/activities/*.md` 
+   should be expanded to include references to the relevant demo scripts, 
+   possibly via example or tip admonitions that point readers to the demos 
+   for concrete examples of the workflows in action. Docker-compose instructions
+   can be included in examples on each page. If this ends up being a lot of 
+   duplication, consider creating a single admonition file in 
+   `docs/includes/` to be included on each page that needs it. See examples 
+   of existing admonitions in `docs/includes/` for reference.
+3. TUTORIAL-1: A tutorial in `docs/tutorials/` that walks through the 
+   process of 
+   setting 
+   up for running the `receive-report` demo in a local environment via 
+   docker-compose. Tutorials can provide links to other docs for deeper 
+   dives, but they should be entirely self-contained with respect to the 
+   learning goals of the individual tutorial.
+4. TUTORIAL-2: A second tutorial that follows item 3 but tells users how to run 
+   the 
+   other demos and what they show. It can assume TUTORIAL-1 as a 
+   prerequisite and focus on what users will learn from the other demos. 
+5. Reference documentation for the demo utilities and demos themselves 
+   belongs in `docs/reference/code/demo/*.md` as a new section for the demo 
+   suite. Each utility function should have a docstring with a description of its 
+   purpose, parameters, and return value. The demo scripts themselves should 
+   also have docstrings at the module level describing their purpose and any
+   important details about their implementation.
+
+NOTE: For updates in the `docs/` directory, be sure to study 
+`notes/diataxis-framework.md` to understand our documentation strategy, and 
+`specs/diataxis-requirements.md` for specific documentation requirements.
+
+NOTE 2: Be sure to update `mkdocs.yml` to include any new or moved files in 
+`docs/`
+
+
+
+
+

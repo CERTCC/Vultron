@@ -163,6 +163,9 @@ provide a clean foundation before CLI wiring.
 
 #### Step 7 — Integration test
 
+The following tasks may be grouped into a single update that covers all of 
+them if appropriate, or split into multiple updates if needed to manage complexity.
+
 - [ ] **DEMO-4.12**: Create 
   `integration_tests/demo/run_demo_integration_test.sh`
   (or equivalent Python script) that starts `api-dev`, runs `vultron-demo
@@ -172,6 +175,31 @@ provide a clean foundation before CLI wiring.
   run integration tests, what success looks like, and a note that these are
   manual acceptance tests (not run by `pytest`) (DC-06-002)
 - [ ] **DEMO-4.14**: Add `make integration-test` Makefile target (DC-06-003)
+
+#### Step 8 — Documentation
+
+See `plan/IMPLEMENTATION_NOTES.md` for notes on documentation needs and  
+potential content. Some tasks in this section may be grouped into a single 
+update if appropriate to avoid repetitive commits with small doc changes. E.
+g., DEMO-4.17 and DEMO-4.18 could be implemented together, as could 4.19, 4.
+20, and 4.21.
+
+- [ ] **DEMO-4.15**: Create `vultron/demo/README.md` with an overview of the
+  demo suite, instructions for running the demos via docker-compose and
+  directly, and a note about the unified CLI 
+- [ ] **DEMO-4.16**: Update `docs/howto/activitypub/activities/*.md` files to
+  reference the new unified demo CLI and provide instructions for running
+  relevant demos 
+- [ ] **DEMO-4.17**: `receive-report` demo tutorial (TUTORIAL-1) that walks through setting up and running the demo in a local environment via
+  docker-compose, with links to relevant docs for deeper dives
+- [ ] **DEMO-4.18**: create "other" demo tutorial (TUTORIAL-2) 
+- [ ] **DEMO-4.19**: Ensure or add docstrings to `vultron.demo.cli` and 
+  `vultron.demo.
+utils`
+- [ ] **DEMO-4.20**: Ensure or add docstrings to all demo scripts in `vultron.
+demo`
+- [ ] **DEMO-4.21**: Add reference documentation for demos to 
+  `docs/reference/code/demo/*.md`
 
 ---
 
