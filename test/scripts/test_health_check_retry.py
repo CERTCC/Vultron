@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from vultron.scripts.receive_report_demo import (
+from vultron.demo.receive_report_demo import (
     DataLayerClient,
     check_server_availability,
 )

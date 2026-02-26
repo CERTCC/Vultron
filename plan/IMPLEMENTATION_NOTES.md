@@ -62,6 +62,15 @@ run demo` or `docker compose up demo` with TTY). The `DEMO` env var override
 CI or scripted runs. Verify that click's interactive prompts degrade gracefully
 when stdin is not a TTY (use `click.echo` + non-interactive fallback if needed).
 
+Also ensure that the startup process (presumably in `docker-compose.yml`?) demo 
+container has appropriate dependency on the `api-dev` container so that 
+running the demo container will also trigger the API container to start if 
+it's not already running, and that the demo container waits for the API to 
+be available before starting the demo script. This will help ensure a 
+smoother  experience for users who may not have the API container already running.
+We want this to be as turnkey as possible, so minimizing manual steps for demo
+users is a key goal.
+
 ## Demo tests are slow
 
 The test suite is rather slow, largely because of the demo tests.
@@ -73,7 +82,12 @@ non-trivial task, so segmentation might be a good first step to allow for other
 development to proceed without being bottlenecked by the test suite until 
 the tests can be optimized.
 
-## DEMO-4.1 Complete (2026-02-26)
+## DEMO-4.3 Complete (2026-02-26)
+
+All 12 `*_demo.py` scripts moved from `vultron/scripts/` to `vultron/demo/`.
+Updated all test imports in `test/scripts/` (`from vultron.scripts import X_demo`
+→ `from vultron.demo import X_demo`). Updated Dockerfile CMDs to use
+`vultron.demo.X_demo`. 568 tests pass.
 
 `vultron/demo/utils.py` created with all shared utilities extracted from
 `initialize_case_demo.py`: `demo_step`, `demo_check`, `logfmt`, `postfmt`,

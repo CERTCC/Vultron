@@ -16,7 +16,7 @@ from unittest.mock import Mock
 
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.scripts.receive_report_demo import find_case_by_report
+from vultron.demo.receive_report_demo import find_case_by_report
 
 
 def test_find_case_by_report_with_vulnerability_reports_field():

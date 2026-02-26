@@ -100,7 +100,7 @@ provide a clean foundation before CLI wiring.
 
 #### Step 2 — Relocate demo scripts (TECHDEBT-2, part B)
 
-- [ ] **DEMO-4.3**: Move all `*_demo.py` scripts from `vultron/scripts/` to
+- [x] **DEMO-4.3**: Move all `*_demo.py` scripts from `vultron/scripts/` to
   `vultron/demo/` (DC-02-002)
   - Each demo MUST remain directly invokable via `if __name__ == "__main__"`
     (DC-01-005)

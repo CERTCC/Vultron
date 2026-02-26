@@ -17,7 +17,7 @@ from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from vultron.api.main import app as api_app
-from vultron.scripts import acknowledge_demo as demo
+from vultron.demo import acknowledge_demo as demo
 
 
 @pytest.fixture(scope="module")
