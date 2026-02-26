@@ -71,7 +71,17 @@ smoother  experience for users who may not have the API container already runnin
 We want this to be as turnkey as possible, so minimizing manual steps for demo
 users is a key goal.
 
-## Demo tests are slow
+## DEMO-4.4 Isolation Implementation (2026-02-26)
+
+Added `demo_environment(client)` context manager to `vultron/demo/utils.py`.
+It calls `setup_clean_environment()` on entry and `reset_datalayer(init=False)` +
+`clear_all_actor_ios()` in a `finally` block on exit. All 12 demo scripts updated
+to use `with demo_environment(client) as (finder, vendor, coordinator):` in their
+`main()` loops, replacing the bare `setup_clean_environment()` call. This satisfies
+DC-03-001 (teardown runs even on exception) and DC-03-003 (each invocation manages
+its own context).
+
+
 
 The test suite is rather slow, largely because of the demo tests.
 Consider either refactoring demo tests to be faster, more focused, less 

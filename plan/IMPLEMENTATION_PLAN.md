@@ -111,7 +111,7 @@ provide a clean foundation before CLI wiring.
 
 #### Step 3 — Demo isolation (teardown logic)
 
-- [ ] **DEMO-4.4**: Add setup/teardown logic to each demo so it leaves the
+- [x] **DEMO-4.4**: Add setup/teardown logic to each demo so it leaves the
   DataLayer clean regardless of success or failure (DC-03-001, DC-03-003)
   - Teardown MUST run even when the demo raises an exception
   - Done when: running any two demos in sequence leaves no cross-demo state
