@@ -120,14 +120,14 @@ provide a clean foundation before CLI wiring.
 
 #### Step 4 — Build the unified CLI
 
-- [ ] **DEMO-4.5**: Create `vultron/demo/cli.py` as a `click`-based CLI with
+- [x] **DEMO-4.5**: Create `vultron/demo/cli.py` as a `click`-based CLI with
   a sub-command for each demo and an `all` sub-command (DC-01-001 through
   DC-01-004)
   - Sub-command names MUST match short names of corresponding demo scripts
     (e.g., `receive-report`, `initialize-case`)
   - `all` sub-command MUST stop and report failure on first demo failure
   - `all` MUST print a human-readable pass/fail summary on completion
-- [ ] **DEMO-4.6**: Register `vultron-demo = "vultron.demo.cli:main"` as an
+- [x] **DEMO-4.6**: Register `vultron-demo = "vultron.demo.cli:main"` as an
   entry point in `pyproject.toml` (DC-01-001)
   - Done when: `vultron-demo --help` lists all demo sub-commands after
     `uv pip install -e .`
