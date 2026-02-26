@@ -187,7 +187,7 @@ g., DEMO-4.17 and DEMO-4.18 could be implemented together, as could 4.19, 4.
 - [x] **DEMO-4.15**: Create `vultron/demo/README.md` with an overview of the
   demo suite, instructions for running the demos via docker-compose and
   directly, and a note about the unified CLI 
-- [ ] **DEMO-4.16**: Update `docs/howto/activitypub/activities/*.md` files to
+- [x] **DEMO-4.16**: Update `docs/howto/activitypub/activities/*.md` files to
   reference the new unified demo CLI and provide instructions for running
   relevant demos 
 - [ ] **DEMO-4.17**: `receive-report` demo tutorial (TUTORIAL-1) that walks through setting up and running the demo in a local environment via
