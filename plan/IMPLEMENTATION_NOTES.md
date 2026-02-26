@@ -40,8 +40,19 @@ designed to run against a clean slate. Key risks:
 - Teardown should use the DataLayer directly (not via HTTP inbox) to guarantee
   cleanup even when the demo fails mid-way.
 
-Consider designing teardown as a `finally` block that iterates all DataLayer
-entries created during the demo and deletes them by ID.
+Consider designing a demo context manager that can be used as a `with` block
+around each demo. The `__enter__` method can set up tracking to record the IDs of 
+all created DataLayer entries, and the `__exit__` method can iterate those IDs and delete 
+them from the DataLayer to ensure a clean slate for the next demo. 
+This would also help ensure that teardown runs even if the demo encounters an 
+error, as the `__exit__` method of a context manager is guaranteed to execute 
+regardless of exceptions.
+
+More generally: given the choice between implementing identical 
+try/except/finally clean up logic when it will be repeated across multiple 
+locations, versus implementing a reusable context manager that abstracts 
+that logic, the context manager is likely the better choice for 
+maintainability and reducing code duplication.
 
 ## DEMO-4 Docker Interaction Mode
 
