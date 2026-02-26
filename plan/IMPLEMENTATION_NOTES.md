@@ -193,7 +193,45 @@ NOTE: For updates in the `docs/` directory, be sure to study
 NOTE 2: Be sure to update `mkdocs.yml` to include any new or moved files in 
 `docs/`
 
+## Docker builds are slow
 
+The process for building the `demo` and `api-dev` docker images is currently 
+taking multiple minutes. There are definitely optimizations that can be made 
+either to the `docker/Dockerfile` or to the `docker/docker-compose.yml` to speed 
+this up. 
 
+### Docker build performance — things to consider
 
+The following list was generated elsewhere without direct reference to the 
+current project, so not all items may be applicable, but they are worth 
+reviewing when optimizing the Docker build process:
+
+- Add a `.dockerignore` and exclude `.git`, `node_modules`, `dist`, `.venv`, `build`, `docs/_site`, large test/data directories to reduce build context upload.
+- Copy dependency metadata first (e.g., `pyproject.toml`, `uv.lock`) and run dependency install before copying the rest of the source to maximize layer cache reuse.
+- Split dependency install into its own stage (`dependencies`) and reuse it as the base for other targets; build it once and reference with `--target`/image tag.
+- Enable BuildKit and use cache mounts for package caches (pip/uv). Example: `RUN --mount=type=cache,id=pycache,target=/root/.cache/pip uv sync --frozen`.
+- Use `docker buildx` with `--cache-to` / `--cache-from` in CI to persist and reuse layer cache across jobs (or push cache to a registry).
+- Avoid copying entire repo early (no `COPY . /app` before deps); only copy files needed for install, then `COPY` the rest.
+- Combine apt installs and cleanup in a single `RUN` to reduce layers and keep image small: `apt-get update && apt-get install -y ... && rm -rf /var/lib/apt/lists/*`.
+- Only install runtime system packages in the final image; keep build-only tooling in an earlier stage and discard it.
+- Pin base image (e.g., `python:3.13-slim-bookworm@sha256:...`) to avoid cache misses from upstream image updates.
+- Use slim/minimal base images and remove unused packages to shorten install time and image size.
+- Avoid running tests or long tasks during image build; run tests in CI using the test stage or separate job after the image is built.
+- Use named volumes (not literal `/app/.venv`) to persist venv between restarts, or keep venv in the dependency image and bind-mount source only.
+- Provide build-time ARG/ENV flags to skip expensive steps for quick dev builds (e.g., `--build-arg SKIP_DOCS=true`).
+- Reduce context size by setting `build.context` to a narrow path if possible instead of the entire repo.
+- Use `--target` to build only needed stages during iterative work (e.g., `--target dependencies`).
+- Cache package indexes and set HTTP/registry mirrors (CI/config) to speed downloads when allowed by policy.
+- In CI, persist Docker daemon build cache between runs (runner-specific) or use remote cache backends.
+- Profile the build to find hotspots: measure which RUN steps take the most time and address them first.
+
+### Project-specific Docker optimizations to consider
+
+- The `api-dev` and `demo` images do not need all the documentation for the 
+  project. We could exclude `docs/` from those images.
+- The `docs` image does in fact require the source code because there is 
+  dynamically generated content that leverages docstrings and runs python 
+  code as part of the `mkdocs` process.
+- none of the current images require the plan, prompts, specs, or notes 
+  directories.
 
