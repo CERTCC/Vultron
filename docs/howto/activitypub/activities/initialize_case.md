@@ -32,3 +32,19 @@ flowchart LR
 {% include-markdown "./_add_report_to_case.md" heading-offset=1 %}
 {% include-markdown "./_add_participant_to_case.md" heading-offset=1 %}
 {% include-markdown "./_add_note_to_case.md" heading-offset=1 %}
+
+## Demo
+
+!!! example "Try it: `vultron-demo initialize-case`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo initialize-case
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=initialize-case docker compose -f docker/docker-compose.yml run --rm demo
+    ```

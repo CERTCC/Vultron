@@ -77,3 +77,19 @@ sequenceDiagram
 {% include-markdown "./_accept_invite_to_case.md" heading-offset=1 %}
 {% include-markdown "./_reject_invite_to_case.md" heading-offset=1 %}
 {% include-markdown "./_add_coordinator_participant_to_case.md" heading-offset=1 %}
+
+## Demo
+
+!!! example "Try it: `vultron-demo invite-actor`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo invite-actor
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=invite-actor docker compose -f docker/docker-compose.yml run --rm demo
+    ```

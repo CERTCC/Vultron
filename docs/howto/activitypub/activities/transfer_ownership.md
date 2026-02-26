@@ -81,3 +81,19 @@ from vultron.scripts.vocab_examples import update_case, json2md
 
 print(json2md(update_case()))
 ```
+
+## Demo
+
+!!! example "Try it: `vultron-demo transfer-ownership`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo transfer-ownership
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=transfer-ownership docker compose -f docker/docker-compose.yml run --rm demo
+    ```
