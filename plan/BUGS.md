@@ -4,15 +4,48 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ---
 
-## ✅ FIXED — Demo Commands produce no visible output
+## test_check_server_availability_logs_retry_attempts failure:
 
-**Fixed in**: `vultron/demo/cli.py` (logging.basicConfig added to `main` group callback)
+```shell
+FAILED [ 94%]
+test/scripts/test_health_check_retry.py:79 (test_check_server_availability_logs_retry_attempts)
+'Checking server at' != ''
 
-Running from a command line, `uv run vultron-demo initialize-case` produced
-no output because the CLI never called `logging.basicConfig()`, so Python's
-default WARNING-level root logger suppressed all INFO-level demo messages.
+Expected :''
+Actual   :'Checking server at'
+<Click to see difference>
 
-**Resolution**: The `main` click group now accepts `--debug` and `--log-file`
-options and calls `logging.basicConfig(force=True)` with INFO level (or DEBUG
-with `--debug`) before any sub-command runs. Tests added in
-`test/demo/test_cli.py`.
+caplog = <_pytest.logging.LogCaptureFixture object at 0x10e456f20>
+
+    def test_check_server_availability_logs_retry_attempts(caplog):
+        """Test that health check logs retry attempts."""
+        client = DataLayerClient(base_url="http://test:7999/api/v2")
+    
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.ok = True
+    
+        side_effects = [
+            requests.exceptions.ConnectionError("Connection refused"),
+            mock_response,
+        ]
+    
+        with patch("requests.get", side_effect=side_effects):
+            result = check_server_availability(
+                client, max_retries=3, retry_delay=0.1
+            )
+    
+        assert result is True
+        # Should see retry attempt logs
+>       assert (
+            "Retrying in" in caplog.text
+            or "Checking server availability" in caplog.text
+            or "Checking server at" in caplog.text
+        )
+E       AssertionError: assert ('Retrying in' in '' or 'Checking server availability' in '' or 'Checking server at' in '')
+E        +  where '' = <_pytest.logging.LogCaptureFixture object at 0x10e456f20>.text
+E        +  and   '' = <_pytest.logging.LogCaptureFixture object at 0x10e456f20>.text
+E        +  and   '' = <_pytest.logging.LogCaptureFixture object at 0x10e456f20>.text
+
+scripts/test_health_check_retry.py:99: AssertionError
+```
