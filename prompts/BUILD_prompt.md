@@ -37,6 +37,10 @@ Objective: Complete the highest-priority pending implementation task.
    - Implement only the selected task.
    - Follow project conventions.
    - Run validation commands specified in AGENTS.md.
+   - If you encounter incidental bugs during implementation, add them to 
+     `plan/BUGS.md` with a clear description and reproduction steps, but do not
+     pursue them unless they block the current task.
+
 
 5. If Validation Succeeds
 
