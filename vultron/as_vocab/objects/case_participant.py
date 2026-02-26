@@ -92,7 +92,7 @@ class CaseParticipant(VultronObject):
 
     @model_validator(mode="after")
     def set_name_if_empty(self):
-        """If name is empty, set it to the actor's name if available, otherwise set it to the string representation of attributed_to."""
+        """If name is empty, set it to the attributed_to's name if available, otherwise set it to the string representation of attributed_to."""
         if self.name is not None:
             # name is already set, do nothing
             return self
