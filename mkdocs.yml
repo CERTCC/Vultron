@@ -8,6 +8,7 @@ nav:
   - Learning Vultron:
     - 'tutorials/index.md'
     - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
+    - Running the Other Demos: 'tutorials/other_demos.md'
   - Understanding Vultron:
     - 'topics/index.md'
     - Background:

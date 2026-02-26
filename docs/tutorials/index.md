@@ -5,6 +5,10 @@
 - [Run the Receive-Report Demo](receive_report_demo.md) — start the Vultron
   demo environment with Docker Compose and run three vulnerability-report
   workflows end-to-end.
+- [Running the Other Demos](other_demos.md) — explore case initialization,
+  actor management, embargo negotiation, acknowledgement, status updates,
+  and the full RM case lifecycle using the remaining `vultron-demo`
+  sub-commands.
 
 ## Further reading
 
