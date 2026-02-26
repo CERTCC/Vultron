@@ -5,7 +5,9 @@ site_author: 'CERT Coordination Center'
 nav:
   - Home: 'https://certcc.github.io/'
   - Vultron: 'index.md'
-  - Learning Vultron: 'tutorials/index.md'
+  - Learning Vultron:
+    - 'tutorials/index.md'
+    - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
   - Understanding Vultron:
     - 'topics/index.md'
     - Background:
