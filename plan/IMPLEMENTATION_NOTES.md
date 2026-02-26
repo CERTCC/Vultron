@@ -134,23 +134,6 @@ factory in `test/demo/_helpers.py` replaces the 30-line closure duplicated acros
 all 12 demo test files. The shared `client` fixture in conftest removes 12 redundant
 fixture definitions. Demo suite runtime dropped from ~4 minutes to ~28 seconds.
 
-## DEMO-4.11 test suite performance is a concern
-
-The test suite is rather slow, largely because of the demo tests.
-Consider either refactoring demo tests to be faster, more focused, less 
-end-to-end, or moving them to a separate suite that can be deliberately chosen
-when needed. Obviously segregating the tests doesn't help when running the full 
-suite, so optimizing the tests themselves is likely necessary. This could be a
-non-trivial task, so segmentation might be a good first step to allow for other
-development to proceed without being bottlenecked by the test suite until 
-the tests can be optimized. It is important that we maintain assurance that 
-the demos work correctly, so we should be careful not to remove too much of the 
-end-to-end nature of the tests, but we can look for ways to speed them up while
-still providing good coverage. Refactoring the demos themselves to be more 
-modular for testing purposes could also help, as it would allow us to test
-individual components of the demos more quickly without having to run through 
-the entire end-to-end flow each time.
-
 ## DEMO-4.3 Complete (2026-02-26)
 
 All 12 `*_demo.py` scripts moved from `vultron/scripts/` to `vultron/demo/`.
