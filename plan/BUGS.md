@@ -253,11 +253,18 @@ makes it harder to see the actual test results. These print statements
 should be removed or replaced with proper debug logging that could be 
 enabled when desired.
 
-### mkdocs serve error
+### ~~mkdocs serve error~~ FIXED (2026-02-26)
 
-This bug takes precedence over testing errors.
+**Fixed**: Removed `griffe>=2.0.0` and `griffecli>=2.0.0` from
+`pyproject.toml`. The stub `griffe` 2.0.0 package conflicted with
+`griffelib` 2.0.0 (the real library), causing `griffe/__init__.py` to be
+absent from the venv after `uv sync`. Keeping only `griffelib>=2.0.0` (which
+`mkdocstrings-python` also requires directly) eliminates the conflict.
+
+### ~~mkdocs serve error (original report)~~
+
 When attempting to run `uv run mkdocs serve` to serve the documentation 
-locally, the following error occurs. 
+locally, the following error occurred. 
 
 ```shell
 INFO    -  Building documentation...

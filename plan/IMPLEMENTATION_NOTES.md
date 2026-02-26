@@ -6,9 +6,27 @@ insights, issues, and learnings during the implementation process.
 
 Add new items below this line
 
+## BUG FIX — mkdocs serve ImportError from griffe (2026-02-26)
+
+**Issue**: `uv run mkdocs serve` (and `mkdocs build`) failed with
+`ImportError: cannot import name 'Alias' from 'griffe' (unknown location)`.
+
+**Root cause**: `pyproject.toml` listed three griffe-related packages as
+direct dependencies: `griffe>=2.0.0` (a CLI stub), `griffelib>=2.0.0` (the
+real griffe library), and `griffecli>=2.0.0` (the CLI). The stub `griffe`
+2.0.0 package and `griffelib` 2.0.0 both contribute to the `griffe` Python
+namespace. When uv installs them together, `griffelib`'s `griffe/__init__.py`
+and most of its source files were absent from the venv, leaving `griffe` as
+an empty namespace package. `mkdocstrings-python` then failed to import
+`Alias` from it.
+
+**Fix**: Removed `griffe>=2.0.0` and `griffecli>=2.0.0` from `pyproject.toml`.
+`griffelib>=2.0.0` alone provides the full `griffe` Python module (and is also
+a direct dependency of `mkdocstrings-python`).
+
 ---
 
-## BUG FIX — test_check_server_availability_logs_retry_attempts (2026-02-26)
+
 
 **Issue**: `test_check_server_availability_logs_retry_attempts` passed in
 isolation but failed when the full test suite ran.

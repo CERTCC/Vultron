@@ -1519,6 +1519,7 @@ source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "fastapi" },
+    { name = "griffelib" },
     { name = "isodate" },
     { name = "markdown-exec" },
     { name = "mkdocs" },
@@ -1559,6 +1560,7 @@ dev = [
 requires-dist = [
     { name = "click", specifier = ">=8.3.1" },
     { name = "fastapi", specifier = ">=0.118.0" },
+    { name = "griffelib", specifier = ">=2.0.0" },
     { name = "isodate", specifier = ">=0.7.2" },
     { name = "markdown-exec", specifier = ">=1.11.0" },
     { name = "mkdocs", specifier = ">=1.6.1" },
