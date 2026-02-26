@@ -25,12 +25,17 @@ Objective: Fix the highest-priority open bug using test-first development.
 6. Iterate
    - If tests fail, continue refining the fix until all relevant tests pass.
    - Do not proceed until validation succeeds.
+   - If you encounter additional bugs during implementation, add them to 
+     `plan/BUGS.md` with a clear description and reproduction steps, but do not
+     pursue them unless they are the highest-priority open bug.
 
 7. Finalize
    - Mark the bug fixed in plan/BUGS.md.
    - Update plan/IMPLEMENTATION_NOTES.md with relevant details.
-   - `git add -A`
-   - Commit with a clear, specific message.
+     - include a summary of the issue, root cause, and how it was resolved.
+     - include notes about other bugs encountered if applicable.
+     - include notes of architectural or design implications if applicable
+   - git add and commit changes with a clear, specific message.
 
 Constraints:
 
