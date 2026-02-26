@@ -26,8 +26,8 @@ Objective: Complete the highest-priority pending implementation task.
      - record rationale and any implementation notes in `plan/IMPLEMENTATION_NOTES.md`
      - commit the change with a message prefixed `plan: add prerequisite` and
        - include the selected-task id and the one-line justification
-     - if more than one prerequisite is required or the change is 
-       non-trivial (affects design, scope, or more than one file), update 
+     - if more than one prerequisite is required or the change is
+       non-trivial (affects design, scope, or more than one file), update
        `plan/IMPLEMENTATION_NOTES.md` with details and stop.
      - This exception is only for small, necessary prerequisites and does not
        authorize broader plan edits.
@@ -45,7 +45,6 @@ Objective: Complete the highest-priority pending implementation task.
    - `git add` modified files and commit with a clear, specific message.
 
 6. Exit. Only one task should be completed per run.
-
 
 Constraints:
 

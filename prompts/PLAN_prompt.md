@@ -14,29 +14,29 @@ Objective: Update the implementation plan based on current priorities, specifica
 
 2. Perform Gap Analysis
 
-   - Use search tools to compare specs/* against vultron/* and test/*.
+   - Use search tools to compare specs/*against vultron/* and test/*.
    - Confirm implementation status via code search; do not assume missing functionality.
    - Identify mismatches, omissions, partial implementations, and untested behaviors.
    - Think rigorously and systematically.
 
-   - Constraints: Do not attempt to verify, diagnose, or fix bugs here, just 
-     identify them as potential gaps and add them as tasks as appropriate in 
+   - Constraints: Do not attempt to verify, diagnose, or fix bugs here, just
+     identify them as potential gaps and add them as tasks as appropriate in
      the next step.
 
-4. Update plan/IMPLEMENTATION_PLAN.md
-   
+3. Update plan/IMPLEMENTATION_PLAN.md
+
    - Replace or refine content with a prioritized, bulleted task list.
    - Use markdown task format: `- [ ] Task description`.
    - Tasks must be atomic, actionable, testable, and unambiguous.
    - Order tasks by implementation priority.
 
-5. Update plan/IMPLEMENTATION_NOTES.md
-   
+4. Update plan/IMPLEMENTATION_NOTES.md
+
    - Add clarified assumptions, open questions, architectural concerns, and risks.
    - Record insights that will assist future agents.
 
-6. Commit
-   
+5. Commit
+
    - Commit only modified plan files with a clear, specific commit message.
 
 Constraints:

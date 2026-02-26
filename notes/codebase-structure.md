@@ -185,7 +185,7 @@ their role:
   (data migration, maintenance, one-off tooling)
 - **`vultron/demo/`** — end-to-end workflow demonstrations, depended on by
   tests and Docker configs
-- **`vultron/demo/utils.py`** or **`vultron/demo/utils/` — shared utilities and 
+- **`vultron/demo/utils.py`** or **`vultron/demo/utils/` — shared utilities and
   fixtures for demo scripts (DRYing out common setup during refactor)
 
 **Affected files when relocating**:
