@@ -253,3 +253,15 @@ reviewing when optimizing the Docker build process:
 - none of the current images require the plan, prompts, specs, or notes 
   directories.
 
+## Future documentation review: activities sequence diagrams vs demo scripts
+
+The mermaid sequence diagrams in `docs/howto/activitypub/activities/*.md` 
+were created prior to the demo scripts implementation. The demo scripts are 
+currently the canonical reference for the workflows, so the diagrams in 
+the docs should be reviewed for accuracy against the demo implementations.
+If there are discrepancies, the diagrams should be updated to match the demos,
+and the doc pages should include references to the relevant demo scripts as
+concrete examples of the workflows in action. This will help ensure that the
+documentation is accurate and provides value to readers who want to see how the
+workflows are implemented in practice.
+  
