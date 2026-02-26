@@ -115,6 +115,8 @@ provide a clean foundation before CLI wiring.
   DataLayer clean regardless of success or failure (DC-03-001, DC-03-003)
   - Teardown MUST run even when the demo raises an exception
   - Done when: running any two demos in sequence leaves no cross-demo state
+  - See `DEMO-4 Isolation Complexity` notes in `IMPLEMENTATION_NOTES.md` for 
+    risks and potential approaches
 
 #### Step 4 — Build the unified CLI
 
