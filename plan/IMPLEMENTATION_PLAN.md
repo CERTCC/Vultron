@@ -139,7 +139,7 @@ provide a clean foundation before CLI wiring.
   - Docker entry point MUST launch the CLI interactively by default
   - When `DEMO` env var is set, run named sub-command non-interactively and
     exit (DC-04-002)
-- [ ] **DEMO-4.8**: Remove individual per-demo Docker services from
+- [x] **DEMO-4.8**: Remove individual per-demo Docker services from
   `docker-compose.yml` after verifying the unified service runs all demos
   successfully (DC-04-003)
 
