@@ -145,7 +145,7 @@ provide a clean foundation before CLI wiring.
 
 #### Step 6 — Unit tests
 
-- [ ] **DEMO-4.9**: Create `test/demo/test_cli.py` with unit tests for the
+- [x] **DEMO-4.9**: Create `test/demo/test_cli.py` with unit tests for the
   unified CLI (DC-05-001 through DC-05-004)
   - Test that each sub-command invokes the correct demo function
   - Test that `all` invokes every demo exactly once in order (using mocks)

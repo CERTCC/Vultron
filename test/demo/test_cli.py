@@ -14,7 +14,7 @@
 """Unit tests for the unified Vultron demo CLI (DC-05-001 through DC-05-004)."""
 
 import logging
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -136,6 +136,73 @@ class TestCliAll:
         for name, _ in DEMOS:
             mocks[name].assert_called_once()
 
+    def test_all_invokes_demos_in_registered_order(self):
+        """The `all` sub-command must invoke demos in DEMOS list order (DC-05-002)."""
+        runner = CliRunner()
+        call_order: list[str] = []
+
+        def make_recorder(name):
+            def recorder(**_kwargs):
+                call_order.append(name)
+
+            return recorder
+
+        patches = [
+            patch.object(module, "main", side_effect=make_recorder(name))
+            for name, module in DEMOS
+        ]
+        for p in patches:
+            p.start()
+        try:
+            result = runner.invoke(main, ["all", "--skip-health-check"])
+        finally:
+            for p in patches:
+                p.stop()
+
+        assert result.exit_code == 0, result.output
+        expected_order = [name for name, _ in DEMOS]
+        assert (
+            call_order == expected_order
+        ), f"Expected order {expected_order}, got {call_order}"
+
+    def test_all_stops_after_first_failure(self):
+        """The `all` sub-command must not invoke subsequent demos after a failure."""
+        runner = CliRunner()
+        fail_index = 2
+        fail_name, fail_module = DEMOS[fail_index]
+
+        call_order: list[str] = []
+
+        def make_recorder(name, fail=False):
+            def recorder(**_kwargs):
+                call_order.append(name)
+                if fail:
+                    raise RuntimeError("injected failure")
+
+            return recorder
+
+        patches = [
+            patch.object(
+                module,
+                "main",
+                side_effect=make_recorder(name, fail=(name == fail_name)),
+            )
+            for name, module in DEMOS
+        ]
+        for p in patches:
+            p.start()
+        try:
+            result = runner.invoke(main, ["all", "--skip-health-check"])
+        finally:
+            for p in patches:
+                p.stop()
+
+        assert result.exit_code != 0
+        assert fail_name in call_order
+        subsequent_names = [name for name, _ in DEMOS[fail_index + 1 :]]
+        for name in subsequent_names:
+            assert name not in call_order, f"Demo '{name}' ran after failure"
+
     def test_all_exits_nonzero_on_first_failure(self):
         """The `all` sub-command must exit non-zero when a demo raises."""
         runner = CliRunner()
@@ -160,3 +227,18 @@ class TestCliAll:
                 p.stop()
 
         assert result.exit_code != 0, "Expected non-zero exit on demo failure"
+
+
+class TestCliSubCommandFailure:
+    """Tests that individual sub-commands exit non-zero on exception (DC-05-003)."""
+
+    @pytest.mark.parametrize("name,module", DEMOS[:3])
+    def test_subcommand_exits_nonzero_on_exception(self, name, module):
+        """A sub-command must exit with non-zero status when its demo raises."""
+        runner = CliRunner()
+        mock_fn = MagicMock(side_effect=RuntimeError("demo failure"))
+        with patch.object(module, "main", mock_fn):
+            result = runner.invoke(main, [name, "--skip-health-check"])
+        assert (
+            result.exit_code != 0
+        ), f"Expected non-zero exit for '{name}' when demo raises"
