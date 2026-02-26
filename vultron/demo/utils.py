@@ -49,6 +49,10 @@ BASE_URL = os.environ.get(
     "VULTRON_API_BASE_URL", "http://localhost:7999/api/v2"
 )
 
+# Default wait time (seconds) after posting to an inbox, to allow background
+# tasks to complete before checking state. Set to 0 in test environments.
+DEFAULT_WAIT_SECONDS: float = 1.0
+
 
 @contextmanager
 def demo_step(description: str):
@@ -178,14 +182,15 @@ def post_to_inbox_and_wait(
     client: DataLayerClient,
     actor_id: str,
     activity: as_Activity,
-    wait_seconds: float = 1.0,
+    wait_seconds: float | None = None,
 ) -> None:
     actor_obj_id = parse_id(actor_id)["object_id"]
     logger.info(
         f"Posting activity to {actor_obj_id}'s inbox: {logfmt(activity)}"
     )
     client.post(f"/actors/{actor_obj_id}/inbox/", json=postfmt(activity))
-    time.sleep(wait_seconds)
+    delay = DEFAULT_WAIT_SECONDS if wait_seconds is None else wait_seconds
+    time.sleep(delay)
 
 
 def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:

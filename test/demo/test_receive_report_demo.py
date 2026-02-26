@@ -14,53 +14,22 @@ import importlib
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
-from fastapi.testclient import TestClient
 
-from vultron.api.main import app as api_app
+from test.demo._helpers import make_testclient_call
 from vultron.demo import receive_report_demo as demo
 
 
 @pytest.fixture(scope="module")
-def client():
-    """Provides a TestClient instance for testing."""
-    return TestClient(api_app)
-
-
-@pytest.fixture(scope="module")
 def demo_env(client):
-    """Sets up the demo environment for testing, including BASE_URL and the testclient_call function."""
+    """Sets up the demo environment, patching BASE_URL and DataLayerClient.call."""
     mp = MonkeyPatch()
+    base = str(client.base_url).rstrip("/") + "/api/v2"
     try:
-        # Keep the same /api/v2 prefix the module expects
-        base = str(client.base_url).rstrip("/") + "/api/v2"
         mp.setattr(demo, "BASE_URL", base)
-
-        def testclient_call(self, method, path, **kwargs):
-            # Accept either a path ("/...") or a full URL starting with demo.BASE_URL
-            url = str(path)
-            if url.startswith(demo.BASE_URL):
-                url = url[len(demo.BASE_URL) :]
-            if not url.startswith("/"):
-                url = "/" + url
-            if not url.startswith("/api/v2"):
-                url = "/api/v2" + url
-
-            resp = client.request(method.upper(), url, **kwargs)
-            if resp.status_code >= 400:
-                raise AssertionError(
-                    f"API call failed: {method.upper()} {url} --> {resp.status_code} {resp.text}"
-                )
-            # return parsed JSON (or raw text if not JSON)
-            try:
-                return resp.json()
-            except Exception:
-                return resp.text
-
-        # Patch the instance method on the DataLayerClient class
-        mp.setattr(demo.DataLayerClient, "call", testclient_call)
-
+        mp.setattr(
+            demo.DataLayerClient, "call", make_testclient_call(client, base)
+        )
         yield
-
     finally:
         mp.undo()
         importlib.reload(demo)

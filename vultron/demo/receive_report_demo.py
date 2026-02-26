@@ -486,7 +486,6 @@ def demo_invalidate_and_close_report(
             client,
             finder.as_id,
             invalidate_response_to_finder,
-            wait_seconds=2.0,
         )
         close_response_to_finder = RmCloseReport(
             actor=vendor.as_id,
@@ -494,9 +493,7 @@ def demo_invalidate_and_close_report(
             to=[finder.as_id],
             content="This report has been closed.",
         )
-        post_to_inbox_and_wait(
-            client, finder.as_id, close_response_to_finder, wait_seconds=2.0
-        )
+        post_to_inbox_and_wait(client, finder.as_id, close_response_to_finder)
         with demo_check("InvalidateReport response in finder's inbox"):
             if not verify_activity_in_inbox(
                 client, finder.as_id, invalidate_response_to_finder.as_id

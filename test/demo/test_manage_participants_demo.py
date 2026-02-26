@@ -14,52 +14,24 @@ import importlib
 
 import pytest
 from _pytest.monkeypatch import MonkeyPatch
-from fastapi.testclient import TestClient
 
-from vultron.api.main import app as api_app
+from test.demo._helpers import make_testclient_call
 from vultron.demo import manage_participants_demo as demo
 from vultron.demo import initialize_case_demo as init_demo
-
-
-@pytest.fixture(scope="module")
-def client():
-    """Provides a TestClient instance for testing."""
-    return TestClient(api_app)
 
 
 @pytest.fixture(scope="module")
 def demo_env(client):
     """Sets up the demo environment, patching BASE_URL and DataLayerClient.call."""
     mp = MonkeyPatch()
+    base = str(client.base_url).rstrip("/") + "/api/v2"
     try:
-        base = str(client.base_url).rstrip("/") + "/api/v2"
         mp.setattr(demo, "BASE_URL", base)
         mp.setattr(init_demo, "BASE_URL", base)
-
-        def testclient_call(self, method, path, **kwargs):
-            url = str(path)
-            if url.startswith(base):
-                url = url[len(base) :]
-            if not url.startswith("/"):
-                url = "/" + url
-            if not url.startswith("/api/v2"):
-                url = "/api/v2" + url
-
-            resp = client.request(method.upper(), url, **kwargs)
-            if resp.status_code >= 400:
-                raise AssertionError(
-                    f"API call failed: {method.upper()} {url} --> "
-                    f"{resp.status_code} {resp.text}"
-                )
-            try:
-                return resp.json()
-            except Exception:
-                return resp.text
-
-        mp.setattr(demo.DataLayerClient, "call", testclient_call)
-
+        mp.setattr(
+            demo.DataLayerClient, "call", make_testclient_call(client, base)
+        )
         yield
-
     finally:
         mp.undo()
         importlib.reload(demo)
