@@ -56,10 +56,10 @@ sequenceDiagram
     activate A
     C -->+ B: Observe suggestion
     alt Accept Suggestion
-        B -->> C: Accept(object=Actor, target=Case, inReplyTo=Offer)
-        B ->>+ D: Invite(object=Case, target=Actor)
+        B -->> C: Accept(object=Offer)
+        B ->>+ D: Invite(actor=CaseOwner, object=Actor, target=Case)
     else Reject Suggestion
-        B -->> C: Reject(object=Actor, target=Case, inReplyTo=Offer)
+        B -->> C: Reject(object=Offer)
     end
     deactivate B
     C --> A: Observe response

@@ -27,9 +27,10 @@ config:
   # Disabled because conversion from TeX to markdown produces invalid links
   # We might eventually be able to re-enable this one.
   "MD051": false
+  # 060 - Table column style
+  "MD060": false
 ignores:
   - "plan/**"
-  - "prompts/**"
   - "specs/**"
   - "wip_notes/**"
   - "AGENTS.md"

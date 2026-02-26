@@ -5,9 +5,7 @@
 Handler functions may orchestrate business logic using behavior trees (BTs) for complex workflows. BTs provide hierarchical, composable process modeling with explicit preconditions and state transitions.
 
 **Source**: ADR-0002 (Use Behavior Trees), ADR-0007 (Behavior Dispatcher),
-BT_INTEGRATION.md  
-**Status**: Phase BT-1 COMPLETE — infrastructure, handler refactoring, demo
-validation, and documentation all done.
+ADR-0008 (py_trees integration)
 
 **Note**: BT integration is **optional**. Simple handlers may use procedural
 logic. Complex workflows (report validation, case creation, embargo management)
@@ -67,7 +65,12 @@ SHOULD use BTs for clarity and maintainability.
 ## Workflow-Specific Trees (SHOULD)
 
 - `BT-06-001` Complex workflows SHOULD have dedicated BT implementations
-  - Report validation, case creation, embargo management
+  - Report validation, case creation, embargo management, case engagement/deferral
+  - **Decision criteria**: Use BTs for multi-branch workflows, RM/EM/CS state
+    transitions with preconditions, or policy injection; use procedural code
+    for simple CRUD or linear 3–5 step workflows with no branching
+  - **Reference**: `notes/bt-integration.md` for handler-by-handler decision
+    table
 - `BT-06-002` BTs SHOULD match structure of simulation trees where applicable
   - **Verification**: Compare BT node sequence against simulation tree node
     sequence
@@ -90,11 +93,9 @@ SHOULD use BTs for clarity and maintainability.
   - Pydantic models for object validation
   - Type hints on node methods
   - Runtime type checks where needed
-- `BT-07-003` State transitions MUST be logged via DataLayer integration
-  - Log at INFO level for state changes (e.g., "Report RM.RECEIVED →
-    RM.VALID")
-  - Log at DEBUG level for reads
-  - Include activity_id and actor_id in log context
+- `BT-07-003` State transitions MUST be logged at the appropriate level
+  - **Cross-reference**: `structured-logging.md` SL-03-001, SL-04-001 for log
+    level semantics and state transition log format
 
 ## Command-Line Execution (MAY)
 
@@ -164,30 +165,10 @@ SHOULD use BTs for clarity and maintainability.
 - **Behavior Trees in CVD**: `docs/topics/behavior_logic/`
 - **Simulation Trees**: `vultron/bt/` (reference, not modified)
 - **Handler Protocol**: `specs/handler-protocol.md`
+- **Case Management**: `specs/case-management.md` (CaseActor, actor isolation)
 - **Data Layer**: `specs/testability.md` (DataLayer abstraction)
-- **Architecture**: `plan/BT_INTEGRATION.md` (detailed design)
+- **Design Notes**: `notes/bt-integration.md` (durable design decisions,
+  handler decision table, directionality of EvaluateCasePriority)
 - **ADRs**: ADR-0002 (BT rationale), ADR-0007 (dispatcher architecture)
-
-## Implementation
-
-- **Bridge Layer**: `vultron/behaviors/bridge.py` ✅ (Phase BT-1.1.3)
-  - `BTBridge` class: Handler-to-BT execution adapter
-  - Single-shot execution with blackboard setup
-  - `get_tree_visualization()` for DEBUG-level tree display
-- **DataLayer Helpers**: `vultron/behaviors/helpers.py` ✅ (Phase BT-1.2.1)
-  - `DataLayerCondition`, `DataLayerAction` base classes
-  - `ReadObject`, `UpdateObject`, `CreateObject` common nodes
-- **Report Validation Trees**: `vultron/behaviors/report/` ✅ (Phase
-  BT-1.3.2, BT-1.3.3, BT-1.3.4)
-  - `nodes.py`: 10 domain-specific nodes (conditions, actions, policy stubs)
-  - `validate_tree.py`: Composed validation tree with early exit optimization
-  - `policy.py`: `ValidationPolicy` base class and `AlwaysAcceptPolicy`
-- **Handler Integration**: `vultron/api/v2/backend/handlers.py` ✅ (Phase
-  BT-1.4.1)
-  - `validate_report` handler refactored to use `BTBridge.execute_with_setup()`
-  - Replaced ~165 lines of procedural logic with ~25 lines of BT invocation
-  - Preserved `@verify_semantics` decorator and error handling
-- **Tests**: `test/behaviors/` ✅ (78 tests passing)
-  - `test_bridge.py`, `test_helpers.py`, `test/behaviors/report/` subtests
-  - `test_performance.py`: P50=0.44ms, P95=0.69ms, P99=0.84ms (well within
-    100ms target)
+- **Implementation**: `vultron/behaviors/` (bridge layer, helpers, report trees)
+- **Tests**: `test/behaviors/`

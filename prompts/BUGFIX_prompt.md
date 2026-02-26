@@ -1,16 +1,39 @@
-1. Study specs/*
-2. Study plan/IMPLEMENTATION_PLAN.md and plan/IMPLEMENTATION_NOTES.md to understand the current progress and any notes.
-3. Study plan/BUGS.md to understand the current known bugs and their status.
-4. Pick the most important bug to fix.
-5. Search the codebase before making changes ("don't assume not implemented").
-6. Write a test that fails due to the bug.
-   1. This may involve writing a new test or modifying an existing one.
-   2. The test should be added to the appropriate test file in tests/*.
-7. Implement the fix and run the validation commands found in AGENTS.md.
-8. If tests fail, repeat steps 5-7 until they pass. Do not proceed to step 9 until all relevant tests pass.
-9. If tests pass
-   1. update plans/BUGS.md (mark bug as fixed),
-   2. update plans/IMPLEMENTATION_NOTES.md with any relevant notes about the implementation
-   3. git add -A,
-   4. and git commit with a description.
-10. Exit. Every iteration must start with a fresh context.
+Objective: Fix the highest-priority open bug using test-first development.
+
+1. Review Context
+   - specs/* (start with specs/README.md) — authoritative requirements.
+   - plan/IMPLEMENTATION_PLAN.md — current task status.
+   - plan/IMPLEMENTATION_NOTES.md — prior implementation notes.
+   - plan/BUGS.md — known bugs (BUGS.md supersedes the implementation plan).
+   - notes/*.md (start with notes/README.md) — relevant lessons learned.
+
+2. Select Work
+   - Choose the highest-priority open bug in plan/BUGS.md.
+
+3. Verify Before Changes
+   - Search vultron/*and test/* to confirm current behavior.
+   - Do not assume the bug exists without verification.
+
+4. Reproduce with a Failing Test
+   - Add or modify a test in tests/* that fails due to the bug.
+   - Confirm the test fails before implementing the fix.
+
+5. Implement the Fix
+   - Modify code only as required to resolve the bug.
+   - Run validation commands specified in AGENTS.md.
+
+6. Iterate
+   - If tests fail, continue refining the fix until all relevant tests pass.
+   - Do not proceed until validation succeeds.
+
+7. Finalize
+   - Mark the bug fixed in plan/BUGS.md.
+   - Update plan/IMPLEMENTATION_NOTES.md with relevant details.
+   - `git add -A`
+   - Commit with a clear, specific message.
+
+Constraints:
+
+- Follow test-first discipline.
+- Do not work on implementation-plan tasks while bugs remain.
+- Each run starts in a fresh context.

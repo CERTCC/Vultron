@@ -42,13 +42,13 @@ class ActivityPattern(BaseModel):
             """Helper to match a single field, supporting nested patterns."""
             if pattern_field is None:
                 return True
+            # If activity_field is a string (URI/ID reference), we can't match on type
+            # In this case, we conservatively return True (can't determine match)
+            if isinstance(activity_field, str):
+                return True
             if isinstance(pattern_field, ActivityPattern):
                 return pattern_field.match(activity_field)
             else:
-                # If activity_field is a string (URI/ID reference), we can't match on type
-                # In this case, we conservatively return True (can't determine match)
-                if isinstance(activity_field, str):
-                    return True
                 # Otherwise check if types match
                 return pattern_field == getattr(
                     activity_field, "as_type", None
@@ -83,23 +83,22 @@ AddEmbargoEventToCase = ActivityPattern(
     target_=VOtype.VULNERABILITY_CASE,
 )
 RemoveEmbargoEventFromCase = ActivityPattern(
-    description="Remove an embargo event from a vulnerability case. This is typically observed as a REMOVE activity where the object is an EVENT and the target is a VULNERABILITY_CASE.",
+    description="Remove an embargo event from a vulnerability case. This is typically observed as a REMOVE activity where the object is an EVENT. The origin field of the activity contains the VulnerabilityCase from which the embargo is removed.",
     activity_=TAtype.REMOVE,
     object_=AOtype.EVENT,
-    target_=VOtype.VULNERABILITY_CASE,
 )
 AnnounceEmbargoEventToCase = ActivityPattern(
-    description="Announce an embargo event to a vulnerability case. This is typically observed as an ANNOUNCE activity where the object is an EVENT and the target is a VULNERABILITY_CASE.",
+    description="Announce an embargo event to a vulnerability case. This is typically observed as an ANNOUNCE activity where the object is an EVENT and the context is a VULNERABILITY_CASE.",
     activity_=TAtype.ANNOUNCE,
     object_=AOtype.EVENT,
-    target_=VOtype.VULNERABILITY_CASE,
+    context_=VOtype.VULNERABILITY_CASE,
 )
 InviteToEmbargoOnCase = ActivityPattern(
-    description="Invite an actor to an embargo on a vulnerability case. "
-    "If accepted, this should precede invitation to the case itself.",
+    description="Propose an embargo on a vulnerability case. "
+    "This is observed as an INVITE activity where the object is an EmbargoEvent "
+    "and the context is the VulnerabilityCase. Corresponds to EmProposeEmbargo.",
     activity_=TAtype.INVITE,
-    object_=AOtype.ACTOR,
-    target_=AOtype.EVENT,
+    object_=AOtype.EVENT,
     context_=VOtype.VULNERABILITY_CASE,
 )
 AcceptInviteToEmbargoOnCase = ActivityPattern(
@@ -136,6 +135,19 @@ CloseReport = ActivityPattern(
 CreateCase = ActivityPattern(
     activity_=TAtype.CREATE, object_=VOtype.VULNERABILITY_CASE
 )
+UpdateCase = ActivityPattern(
+    activity_=TAtype.UPDATE, object_=VOtype.VULNERABILITY_CASE
+)
+EngageCase = ActivityPattern(
+    description="Actor engages (joins) a VulnerabilityCase, transitioning their RM state to ACCEPTED.",
+    activity_=TAtype.JOIN,
+    object_=VOtype.VULNERABILITY_CASE,
+)
+DeferCase = ActivityPattern(
+    description="Actor defers (ignores) a VulnerabilityCase, transitioning their RM state to DEFERRED.",
+    activity_=TAtype.IGNORE,
+    object_=VOtype.VULNERABILITY_CASE,
+)
 AddReportToCase = ActivityPattern(
     activity_=TAtype.ADD,
     object_=VOtype.VULNERABILITY_REPORT,
@@ -163,7 +175,6 @@ RejectCaseOwnershipTransfer = ActivityPattern(
 )
 InviteActorToCase = ActivityPattern(
     activity_=TAtype.INVITE,
-    object_=AOtype.ACTOR,
     target_=VOtype.VULNERABILITY_CASE,
 )
 AcceptInviteActorToCase = ActivityPattern(
@@ -219,11 +230,9 @@ AddCaseStatusToCase = ActivityPattern(
 CreateParticipantStatus = ActivityPattern(
     activity_=TAtype.CREATE,
     object_=VOtype.PARTICIPANT_STATUS,
-    context_=VOtype.VULNERABILITY_CASE,
 )
 AddParticipantStatusToParticipant = ActivityPattern(
     activity_=TAtype.ADD,
     object_=VOtype.PARTICIPANT_STATUS,
     target_=VOtype.CASE_PARTICIPANT,
-    context_=VOtype.VULNERABILITY_CASE,
 )

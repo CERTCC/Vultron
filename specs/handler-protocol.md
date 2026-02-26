@@ -8,6 +8,13 @@ Handler functions process DispatchActivity objects and implement protocol busine
 
 ---
 
+## Protocol Semantics (MUST)
+
+- `HP-00-001` Handlers MUST interpret received activities as assertions about the
+  sender's state, not as commands to perform work
+- `HP-00-002` Handlers MUST update local RM/EM/CS state to reflect the state
+  transition asserted by the received activity
+
 ## Handler Signature (MUST)
 
 - `HP-01-001` All handler functions MUST accept a single DispatchActivity parameter
@@ -76,42 +83,27 @@ Handler functions process DispatchActivity objects and implement protocol busine
 - `HP-08-003` Pydantic validators MUST NOT overwrite existing field values during deserialization
   - **Verification**: Objects with populated fields retain data after `model_validate()` from database records
   - **Impact**: Prevents data loss when round-tripping through persistence layer
-
-### Implementation Notes
-
-**HP-08-001 - Helper Function Pattern**:
-
-```python
-# Use object_to_record() to convert Pydantic models for storage
-record = object_to_record(pydantic_model)
-dl.create("collection", record)
-```
-
-**HP-08-002 - Data Layer Update Signature**:
-
-```python
-# Anti-pattern: dl.update(object)  # Missing record parameter
-# Correct: Two-argument signature
-dl.update(object.as_id, object_to_record(object))
-```
-
-**HP-08-003 - Defensive Pydantic Validators**:
-
-```python
-@model_validator(mode="after")
-def initialize_collections(self) -> Self:
-    # Anti-pattern: Unconditional assignment
-    # self.inbox = OrderedCollection()  # Overwrites database values!
-    
-    # Correct: Check before initializing
-    if self.inbox is None:
-        self.inbox = OrderedCollection()
-    return self
-```
-
-**Rationale**: Pydantic validators with `mode="after"` execute during both object creation AND database reconstruction (`model_validate()`). Validators that create default values must check if the field is already populated to avoid overwriting data loaded from persistence. This particularly affects collection fields (lists, OrderedCollections) that handlers populate and persist.
+- `HP-08-004` The DataLayer and handlers MUST treat object IDs as opaque URI
+  strings
+  - Handlers MUST persist full URI IDs (e.g., `urn:uuid:...` / `https://...`) rather than bare UUID fragments.
+  - Persistence helpers (`object_to_record()` / `record_to_object()`) MUST preserve ID strings exactly and MUST NOT rely on extracting parts of the ID.
+  - Comparison and duplicate-detection MUST use full-ID string equality.
+  - If any legacy storage contains bare-UUIDs, a migration plan MUST be documented and executed (see project documentation).
+- `HP-08-005` Handlers that add status updates MUST append full status objects
+  (not bare ID strings) to the case/participant status history lists
+  - `add_case_status_to_case` style handlers MUST rehydrate and persist the full `CaseStatus` object and then append that object into the case status history list (currently `VulnerabilityCase.case_status`; see CM-03-006 for the pending rename to `case_statuses`) before persisting the case.
+  - If the storage layer contains validators that enforce `context` or other fields (e.g., `@model_validator`), the handler MUST provide full objects so validators can operate correctly.
+- `HP-08-006` The `AddNoteToCase` handler MUST persist a Note object and append its ID as a `as_NoteRef` to `VulnerabilityCase.notes`.
+  - **Rationale**: Ensures notes are fully persisted and linked to cases, consistent with the case management data model
+  - (VulnerabilityCase.notes is conceptually a "join table" linking cases to 
+    notes)
 
 ## Verification
+
+### HP-00-001, HP-00-002 Verification
+
+- Integration test: Handler receiving RM state-transition activity updates local RM state
+- Code review: Handlers do not issue work requests back to activity sender
 
 ### HP-01-001, HP-01-002 Verification
 

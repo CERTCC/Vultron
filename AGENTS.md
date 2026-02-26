@@ -3,13 +3,16 @@
 ## Purpose
 
 This file provides quick technical reference for AI coding agents working in
-this repository. For implementation status, lessons learned, and design
-insights, see `plan/IMPLEMENTATION_NOTES.md`.
+this repository.
+
+**See also**:
+
+- `notes/` — durable design insights (BT integration, ActivityStreams
+  semantics). These files are committed to version control and are the
+  authoritative source for design decisions.
+- `specs/project-documentation.md` — documentation structure guidance.
 
 Agents MUST follow these rules when generating, modifying, or reviewing code.
-
-**See also**: `specs/project-documentation.md` for documentation structure
-guidance.
 
 ---
 
@@ -39,15 +42,30 @@ Essential commands (run in zsh):
 # Format code (pre-commit enforces Black)
 black vultron/ test/
 
-# Run full test-suite (uses uv wrapper defined in project)
-uv run pytest -q
+# ⚠️  Run full test-suite — EXACTLY this command, EXACTLY ONCE per cycle
+uv run pytest --tb=short 2>&1 | tail -5
+# The last 5 lines always contain the summary AND any short failure tracebacks.
+# Read the tail output directly. Do NOT re-run with grep, -q, or tail -3/-15.
+
+# Run a specific test file
+uv run pytest test/test_semantic_activity_patterns.py -v
 
 # Run the demo server locally (development/demo)
 uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
-
-# Run a specific test file
-uv run pytest test/test_semantic_activity_patterns.py -q
 ```
+
+> ⚠️ **STOP — Full test-suite rule (MUST follow)**
+>
+> Run `uv run pytest --tb=short 2>&1 | tail -5` **exactly once** per
+> validation cycle and read its output. Do NOT:
+>
+> - Re-run pytest a second time to grep for counts or check pass/fail
+> - Use the `-q` flag (suppresses the summary line in some configurations)
+> - Change `tail -5` to `tail -3` or `tail -15`
+> - Pipe to `grep -E "passed|failed|error"` (the tail already shows this)
+>
+> The summary line (`N passed in Xs`) is **always** in the last
+> 5 lines. One run is sufficient for all information you need.
 
 Quick pointers and gotchas:
 
@@ -160,10 +178,9 @@ include migration/compatibility notes and tests.
 This document provides guidance to AI agents working on the Vultron codebase.
 It supplements the Copilot instructions with implementation-specific advice.
 
-**Last Updated:** 2026-02-18
+**Last Updated:** 2026-02-20
 
-**For implementation status and lessons learned**, see
-`plan/IMPLEMENTATION_NOTES.md`.
+**For durable design insights**, see the `notes/` directory.
 
 ## Vultron-Specific Architecture
 
@@ -185,6 +202,33 @@ before general ones.
 
 See `specs/dispatch-routing.md`, `specs/semantic-extraction.md`, and ADR-0007
 for complete architecture details.
+
+### Protocol Activity Model
+
+Vultron activities are **state-change notifications**, not commands.
+
+**Inbound activities** (in an actor's inbox) declare that the sender completed
+a protocol-relevant state transition. When a handler processes an inbound
+activity, it MUST:
+
+- Update local RM/EM/CS state to reflect the sender's assertion
+- NOT interpret the activity as an instruction to execute work on the sender's
+  behalf
+
+**Outbound activities** (from an actor's outbox) declare that the local actor
+completed a state transition. The work causes the activity; the activity does
+not cause the work.
+
+**Response activities** (Accept, Reject, TentativeReject) in reply to an Offer
+or Invite MUST:
+
+- Set the `object` field to the Offer/Invite activity being responded to
+- Set `inReplyTo` to the ID of the Offer/Invite activity
+
+See `specs/response-format.md` RF-02-003, RF-03-003, RF-04-003, RF-08-001.
+See `notes/activitystreams-semantics.md` for detailed discussion.
+
+---
 
 ### Handler Protocol (MANDATORY)
 
@@ -333,7 +377,8 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - **Line length**: Regular text lines MUST NOT exceed 88 characters
 - Exceptions: Tables, code blocks, long URLs, or other formatting that requires
   it
-- Use `markdownlint-cli2` for linting markdown files
+- Use `markdownlint-cli2` for linting markdown files; see Miscellaneous tips
+  for the correct commands (default config ignores `AGENTS.md` and `specs/**`)
 - Break long sentences at natural points (after commas, conjunctions, etc.)
 - Keep list items and paragraphs readable and well-formatted
 
@@ -378,28 +423,17 @@ requirements.
 
 ### Key Specifications
 
-- `specs/meta-specifications.md`: How to read and write specs
-- `specs/handler-protocol.md`: Handler function requirements
-- `specs/semantic-extraction.md`: Pattern matching rules
-- `specs/dispatch-routing.md`: Dispatcher requirements
-- `specs/inbox-endpoint.md`: Endpoint behavior
-- `specs/http-protocol.md`: HTTP status codes, Content-Type, headers
-  (consolidates parts of inbox-endpoint, message-validation, error-handling)
-- `specs/structured-logging.md`: Log format, levels, correlation IDs, audit
-  trail (consolidates parts of observability, error-handling)
-- `specs/message-validation.md`: ActivityStreams schema validation
-- `specs/error-handling.md`: Error hierarchy and exception types
-- `specs/response-format.md`: Response activity generation
-- `specs/observability.md`: High-level observability overview (health checks)
-- `specs/testability.md`: Testing requirements and patterns
-- `specs/code-style.md`: Code formatting and import organization
-- `specs/project-documentation.md`: Documentation file structure and purpose
+See `specs/README.md` for the full index organized by topic. Key groups:
+
+- **Cross-cutting**: `http-protocol.md`, `structured-logging.md`,
+  `idempotency.md`, `error-handling.md`
+- **Handler pipeline**: `inbox-endpoint.md`, `message-validation.md`,
+  `semantic-extraction.md`, `dispatch-routing.md`, `handler-protocol.md`
+- **Quality**: `testability.md`, `observability.md`, `code-style.md`
+- **BT integration**: `behavior-tree-integration.md`
 
 **Note**: Some specs consolidate requirements from multiple sources; check file
-headers for cross-references.
-
-When implementing features, consult relevant specs for complete requirements and
-verification criteria.
+headers for cross-references. Consolidated specs take precedence.
 
 ### Test Coverage Requirements
 
@@ -524,6 +558,27 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **BT Bridge**: `vultron/behaviors/bridge.py` - Handler-to-BT execution adapter
 - **BT Helpers**: `vultron/behaviors/helpers.py` - DataLayer-aware BT nodes
 - **BT Report**: `vultron/behaviors/report/` - Report validation tree and nodes
+- **BT Prioritize**: `vultron/behaviors/report/prioritize_tree.py` -
+  engage_case/defer_case trees
+- **BT Case**: `vultron/behaviors/case/` - Case creation tree and nodes
+- **Vocabulary Examples**: `vultron/scripts/vocab_examples.py` - Canonical
+  ActivityStreams activity examples; use as reference for message semantics
+  and as test fixtures for pattern matching
+- **Demo Scripts**: `vultron/scripts/receive_report_demo.py`,
+  `initialize_case_demo.py`, `invite_actor_demo.py`,
+  `establish_embargo_demo.py`, `status_updates_demo.py`,
+  `suggest_actor_demo.py`, `transfer_ownership_demo.py`,
+  `acknowledge_demo.py`, `manage_case_demo.py`,
+  `initialize_participant_demo.py` - End-to-end workflow demonstrations;
+  also used by `test/scripts/` and Docker Compose configs
+- **Case States**: `vultron/case_states/` - RM/EM/CS state machine enums and
+  patterns; use as reference for valid state transitions and preconditions
+  - **State machine enums are authoritative**: When documentation and code
+    disagree on state names or valid states, the enum definitions in
+    `vultron/bt/report_management/states.py`,
+    `vultron/bt/embargo_management/states.py`, and
+    `vultron/case_states/states.py` take precedence. Update the docs, not
+    the enums.
 
 ### Specification Quick Links
 
@@ -538,7 +593,7 @@ When making non-trivial changes, agents SHOULD:
 
 1. Briefly state assumptions
 2. Consult relevant specifications in `specs/` for requirements
-3. Review `plan/IMPLEMENTATION_NOTES.md` for context and lessons learned
+3. Review `notes/` directory for durable design insights
 4. Describe the intended change
 5. Apply the minimal diff required
 6. Update or add tests per Testing Expectations
@@ -550,27 +605,27 @@ to relevant tests and design notes.
 
 ### Commit Workflow
 
-**BEFORE committing**, agents SHOULD run Black to format code:
+**BEFORE committing**, agents MUST run Black then the full test suite exactly
+once, in this order:
 
 ```bash
 black vultron/ test/
+uv run pytest --tb=short 2>&1 | tail -5
+git add -A && git commit -m "..."
 ```
 
-This avoids the inefficient cycle of:
+**Why this order matters**:
 
-1. `git commit` → pre-commit hook runs Black → reformats files → commit fails
-2. `git add` → re-stage reformatted files
-3. `git commit` → try again
-
-**Why this matters**: Pre-commit hooks are configured to enforce Black
-formatting. Running Black before committing ensures a clean single-commit
-workflow.
+1. Black formatting is enforced by pre-commit hooks — format first to avoid a
+   failed commit → re-stage → re-commit cycle.
+2. The test suite must pass before committing — read the `tail -5` output
+   directly for the summary line (e.g. `486 passed in 35s`).
+   Do NOT re-run pytest to grep for counts. Run it **once** and read the tail.
 
 **When to run Black**:
 
-- After editing any Python files
-- Before staging files for commit
-- As part of your validation process
+- After editing any Python files, before staging for commit
+- Do NOT run `black` on markdown files (use `markdownlint-cli2` for those)
 
 **Alternative**: If you forget and the pre-commit hook reformats files, simply:
 
@@ -581,31 +636,6 @@ git add -A && git commit -m "Same message"
 ---
 
 ## Specification Usage Guidance
-
-### Key Specifications
-
-The `specs/` directory contains testable requirements. Key specifications:
-
-1. **Cross-cutting concerns** (reference these first):
-   - `http-protocol.md`: HTTP status codes, Content-Type, size limits
-   - `structured-logging.md`: Log format, correlation IDs, log levels
-   - `meta-specifications.md`: How to read and write specs
-   - `project-documentation.md`: Documentation file structure
-
-2. **Message processing pipeline**:
-   - `inbox-endpoint.md`: FastAPI endpoint behavior
-   - `message-validation.md`: Activity validation rules
-   - `semantic-extraction.md`: Pattern matching rules
-   - `dispatch-routing.md`: Handler routing
-   - `handler-protocol.md`: Handler function requirements
-
-3. **Quality and observability**:
-   - `error-handling.md`: Exception hierarchy
-   - `response-format.md`: Response activity generation
-   - `outbox.md`: Outbox population and delivery
-   - `observability.md`: Health checks and monitoring
-   - `testability.md`: Test coverage requirements
-   - `code-style.md`: Code formatting and organization
 
 ### Reading Specifications
 
@@ -666,8 +696,7 @@ If instructions are ambiguous:
 
 ## Common Pitfalls (Lessons Learned)
 
-**See `plan/IMPLEMENTATION_NOTES.md` for detailed lessons learned and debugging
-history.**
+**See `notes/` for durable design insights.**
 
 ### Circular Imports
 
@@ -680,12 +709,26 @@ module`
 - Module-level registry initialization that imports handlers
 - Deep import chains through `__init__.py` files
 
-**Solutions**:
+**Preferred approach**: Module-level imports are preferred. Resolve circular
+dependencies by reorganizing code (e.g., moving shared types to neutral
+modules), NOT by switching to lazy imports. Lazy imports make dependency
+graphs harder to understand and are inconsistent with Python conventions.
 
-1. Move shared code to neutral modules (`types.py`, `dispatcher_errors.py`)
-2. Use lazy imports (import inside functions, not at module level)
-3. Add caching to avoid repeated initialization overhead
-4. **Before adding imports, trace the chain**: `python -c "import
+**Local imports are a code smell**: When you encounter imports inside
+functions, this signals a potential circular dependency that SHOULD be
+refactored to module-level. If modifying code with local imports, try to
+refactor them away. Only keep local imports if the circular dependency
+cannot be resolved by reorganization.
+
+**Solutions (in order of preference)**:
+
+1. **Refactor first**: Move shared code to neutral modules
+   (`types.py`, `dispatcher_errors.py`) to break the import cycle
+2. Move shared code to neutral modules (`types.py`, `dispatcher_errors.py`)
+3. **Last resort**: Use lazy imports (import inside functions) only when
+   refactoring is not possible or practical
+4. Add caching to avoid repeated initialization overhead
+5. **Before adding imports, trace the chain**: `python -c "import
    vultron.MODULE"`
 
 See `specs/code-style.md` CS-05-* for requirements.
@@ -754,15 +797,48 @@ Not all handlers need BT execution. Use this guide when deciding:
 
 **Use procedural code** (simple workflows):
 
-- Simple CRUD operations (ack_report, close_report)
+- Simple CRUD operations (ack_report, create_report, submit_report)
 - Linear workflows with 3–5 steps and no branching
 - Single database read/write operations
 - Logging-only or passthrough operations
 
 **Uncertain?** Start procedural; refactor to BT if branching complexity grows.
 
+**`EvaluateCasePriority` is outgoing-only**: This BT node (in
+`vultron/behaviors/report/nodes.py`) is for the **local actor deciding** to
+engage or defer a case. Receive-side trees (`EngageCaseBT`, `DeferCaseBT`)
+do **not** use it — they only record the **sender's already-made decision** by
+updating the sender's `CaseParticipant.participant_status[].rm_state`.
+
 See `specs/behavior-tree-integration.md` for BT integration requirements and
-`plan/IMPLEMENTATION_NOTES.md` for Phase BT-1 lessons.
+`notes/bt-integration.md` for BT design decisions.
+
+### py_trees Blackboard Global State
+
+**Symptom**: Test state leaks between tests; blackboard key reads return values
+from a previous test
+
+**Cause**: The py_trees blackboard uses a singleton storage dict shared across
+all tests in the same process. Without explicit clearing, key values written in
+one test persist into the next.
+
+**Solution**: Add an `autouse` fixture in `test/behaviors/conftest.py` that
+clears the blackboard before (and optionally after) each test:
+
+```python
+import py_trees
+import pytest
+
+@pytest.fixture(autouse=True)
+def clear_blackboard():
+    py_trees.blackboard.Blackboard.storage.clear()
+    yield
+    py_trees.blackboard.Blackboard.storage.clear()
+```
+
+**When this matters**: Key collisions are unlikely in small test suites but
+become a problem as the BT test suite grows. Add this fixture proactively to
+`test/behaviors/conftest.py` rather than reactively after mysterious failures.
 
 ### BT Blackboard Key Naming
 
@@ -787,6 +863,16 @@ bb.set(f"object_{id_segment}", report)  # e.g., "object_abc123"
 accessing the blackboard in `update()`.
 
 See `specs/behavior-tree-integration.md` BT-03-003.
+
+### Health Check Readiness Gap
+
+**Known gap**: The `/health/ready` endpoint in
+`vultron/api/v2/routers/health.py` currently returns `{"status": "ok"}`
+unconditionally. It does **not** check DataLayer connectivity as required by
+`specs/observability.md` OB-05-002.
+
+**When implementing readiness**: Add a DataLayer read probe (e.g., attempt a
+simple `dl.list()` call) and return HTTP 503 if it fails.
 
 ### Docker Health Check Coordination
 
@@ -828,7 +914,9 @@ start, not application readiness
        return False
    ```
 
-See `plan/IMPLEMENTATION_NOTES.md` Docker sections for complete context.
+The pitfall above is self-contained. The three-layer solution (Docker health
+check, `condition: service_healthy`, and client retry) is the recommended
+pattern for any demo or integration test setup.
 
 ### FastAPI response_model Filtering
 
@@ -859,7 +947,7 @@ types, or use explicit `Union[Type1, Type2, ...]` if types are known.
 **Verification**: Test API serialization completeness, not just database
 storage. Check that all expected fields appear in JSON responses.
 
-See `specs/http-protocol.md` HP-07-001 for guidance.
+See `specs/http-protocol.md` HTTP-08-001 for guidance.
 
 ### Idempotency Responsibility Chain
 
@@ -889,6 +977,126 @@ MV-08-001, `inbox-endpoint.md` IE-10-001.
 
 ---
 
+### `VulnerabilityCase.case_activity` Cannot Store Typed Activities
+
+**Symptom**: Handler writes a typed activity (e.g., `AnnounceEmbargo`) to
+`case_activity`, then a subsequent `dl.read(case.as_id)` returns a raw TinyDB
+`Document` instead of a `VulnerabilityCase`, causing `AttributeError` or
+silent state loss.
+
+**Cause**: `VulnerabilityCase.case_activity: list[as_Activity]` uses
+`as_Activity.as_type: as_ObjectType`. The `as_ObjectType` enum covers only
+core AS2 object types (`'Activity'`, `'Note'`, `'Event'`, etc.) — NOT
+transitive types like `'Announce'`, `'Add'`, `'Accept'`, `'Reject'`. When a
+typed activity is serialized and reloaded, `model_validate` fails with
+`Input should be 'Activity', 'Actor', ...` and `record_to_object` falls back
+to a raw `Document`.
+
+**Fix**: Do not write specific-typed activities to `case_activity`. Log the
+event instead, or store only the activity's `as_id` (string) rather than the
+full object.
+
+See `notes/activitystreams-semantics.md` for details.
+
+---
+
+### Accept/Reject `object` Field Must Use ID String, Not Inline Object
+
+**Symptom**: Accept or Reject handler fails with `ValidationError` during
+rehydration because the referenced Invite/Offer is missing its `actor` field.
+
+**Cause**: When the full inline Invite/Offer object is passed as `object` in
+an Accept/Reject activity and sent over HTTP, FastAPI deserializes it as
+generic `as_Object`, losing subtype-specific fields like `actor`. The
+subsequent `rehydrate()` call cannot reconstruct the full Invite.
+
+**Fix**: Set `object` to the **ID string** of the original Invite/Offer.
+The handler rehydrates the full object from the DataLayer.
+
+```python
+# Correct
+accept = RmAcceptInviteToCase(actor=actor.as_id, object=invite.as_id)
+
+# Incorrect — loses `actor` field after HTTP deserialization
+accept = RmAcceptInviteToCase(actor=actor.as_id, object=invite)
+```
+
+This applies to all `Accept` / `Reject` / `TentativeReject` responses to
+`Invite` or `Offer` activities.
+
+See `notes/activitystreams-semantics.md` for details.
+
+---
+
+### Pydantic Union Serialization Silently Returns `None` for `active_embargo`
+
+**Symptom**: `VulnerabilityCase.active_embargo` is `None` after a round-trip
+through the DataLayer, even though it was set to an `EmbargoEvent`.
+
+**Cause**: `active_embargo: EmbargoEvent | as_Link | str | None` — Pydantic
+v2 serializes Union types left-to-right. If the stored value is an `as_Event`
+(not the `EmbargoEvent` subclass) AND serialized with `by_alias=True`,
+Pydantic silently returns `None`.
+
+**Fix**: Always store `embargo.as_id` (a string) as `active_embargo` rather
+than the full `EmbargoEvent` object. The `validate_by_name=True` in
+`VulnerabilityCase.model_config` ensures the string round-trips correctly.
+Retrieve the full `EmbargoEvent` from the DataLayer when needed.
+
+See `notes/activitystreams-semantics.md` for details.
+
+---
+
+### `case_status` Field Is a List (Rename Pending)
+
+**Symptom**: `AttributeError` or incorrect logic when treating `case_status` as
+a single object.
+
+**Cause**: `VulnerabilityCase.case_status` is a `list[CaseStatusRef]` — the
+singular field name is misleading. Spec CM-03-006 requires renaming to
+`case_statuses` (history list) with a read-only `case_status` property, but
+this rename has not yet landed in the code.
+
+**Until the rename lands**:
+
+- Use `case.current_status` to access the active `CaseStatus` (property that
+  sorts by `updated` timestamp).
+- Append new `CaseStatus` objects to the list `case.case_status`; do NOT
+  assign to `case.case_status` directly or treat it as a scalar.
+- The same pattern applies to `CaseParticipant.participant_status` — it is also
+  a list; use the most-recent entry by timestamp as the current status.
+
+**See also**: `notes/case-state-model.md` "CaseStatus and ParticipantStatus as
+Append-Only History", CM-03-006.
+
+---
+
+### ActivityStreams as Wire Format, Not Domain Model
+
+**Symptom**: Refactoring status fields, notes, or embargo tracking requires
+coordinated changes across handlers, tests, and DataLayer helpers because the
+domain object inherits directly from an ActivityStreams base type.
+
+**Cause**: `VulnerabilityCase` (and related objects) subclass `VultronObject`
+which inherits from ActivityStreams `as_Object`. This collapses three distinct
+concerns — wire format, domain logic, and persistence — into one object. The
+`case_activity` type limitation and `active_embargo` union serialization
+failures (documented above) are direct symptoms of this coupling.
+
+**Architectural direction**: The correct long-term fix is a clear translation
+boundary between Wire Model (ActivityStreams JSON), Domain Model (BT-facing
+objects), and Persistence Model (DataLayer storage). See
+`notes/domain-model-separation.md` for the full analysis and recommended next
+steps.
+
+**For now**: Work within the existing model. Use the workarounds documented
+above for `case_activity`, `active_embargo`, and `case_status`. When proposing
+refactors that touch `VulnerabilityCase`, consult
+`notes/domain-model-separation.md` first and consider drafting an ADR before
+implementing.
+
+---
+
 ## Parallelism and Single-Agent Testing
 
 - Agents may use parallel subagents for complex tasks, but the testing step must
@@ -905,19 +1113,46 @@ MV-08-001, `inbox-endpoint.md` IE-10-001.
 
 ---
 
-## Running demo server
-
-To run the demo server:
-
-```bash
-uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
-```
-
 ## Miscellaneous tips
 
 Do not use `black` to format markdown files, it is for python files only.
-Use `markdownlint-cli2` for linting markdown instead:
+Use `markdownlint-cli2` for linting markdown. The default config
+(`.markdownlint-cli2.yaml`) ignores `AGENTS.md` and `specs/**`. To lint those
+files, run markdownlint from outside the repo using the strict config, which
+has the same rules but no ignores:
 
 ```bash
-markdownlint-cli2 AGENTS.md specs/ docs/ --fix
+# Lint docs/ with the default config (ignores AGENTS.md and specs/**)
+markdownlint-cli2 "docs/**/*.md" --fix
+
+# Lint AGENTS.md and specs/** — must run from /tmp to bypass local config discovery
+REPO=$(git rev-parse --show-toplevel)
+cd /tmp && markdownlint-cli2 \
+  --config "${REPO}/strict.markdownlint-cli2.yaml" \
+  "${REPO}/AGENTS.md" \
+  "${REPO}/specs/**/*.md" --fix
 ```
+
+The `strict.markdownlint-cli2.yaml` file at the repo root contains the same
+rules as the default config with the `ignores` block removed.
+
+### Demo script lifecycle logging
+
+Demo scripts use `demo_step` and `demo_check` context managers (defined
+locally in each demo file) to log structured lifecycle events:
+
+- `demo_step(description)` — workflow step: logs 🚥 on entry, 🟢 on success,
+  🔴 on exception (re-raises).
+- `demo_check(description)` — verification block: logs 📋 on entry, ✅ on
+  success, ❌ on exception (re-raises).
+
+Wrap every numbered workflow step and every verification block in these
+managers. See `notes/codebase-structure.md` "Demo Script Lifecycle Logging"
+for the durable pattern and `test/scripts/test_demo_context_managers.py`.
+
+### Archiving IMPLEMENTATION_PLAN.md
+
+`plan/IMPLEMENTATION_PLAN.md` is the forward-looking roadmap (target < 400
+lines). Completed phase details and historical implementation notes belong
+in `plan/IMPLEMENTATION_HISTORY.md` (append-only; create if absent). See
+`specs/project-documentation.md` `PD-02-001`.

@@ -58,8 +58,8 @@ After semantic extraction, the dispatcher routes DispatchActivity objects to app
 
 ## Related
 
-- Implementation: `vultron/api/v2/backend/behavior_dispatcher.py`
-- Implementation: `vultron/api/v2/backend/semantic_handler_map.py`
+- Implementation: `vultron/behavior_dispatcher.py`
+- Implementation: `vultron/semantic_handler_map.py`
 - Tests: `test/api/v2/backend/test_dispatch_routing.py`
 - Related Spec: [semantic-extraction.md](semantic-extraction.md)
 - Related Spec: [handler-protocol.md](handler-protocol.md)

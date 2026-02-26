@@ -75,15 +75,13 @@ flowchart TB
 
 !!! tip "Re-Engaging a Case"
 
-    The `RmReEngageCase` activity is used to re-engage a case that has been
-    deferred. Deferring a case is modeled as an `as:Ignore`
-    activity, since it is indicating that a participant has not entirely left
-    the case, but has instead deferred their participation for a period of
-    time. Re-engaging a case is modeled as an `as:Undo` activity, since it is
-    undoing the `as:Ignore` activity that was used to defer the case.
-    Alternatively, we could have just used the same `RmEngageCase` (`as:Join`) 
-    activity. That might still be a better option, but we'll leave it as an
-    implementation choice for now.
+    Re-engaging a deferred case uses the same `RmEngageCase` (`as:Join`)
+    activity. Because the RM model permits reversible transitions between
+    `ACCEPTED` and `DEFERRED`, re-engagement is simply an `accept` transition
+    emitted from the `DEFERRED` state — there is no separate `RmReEngageCase`
+    activity. Using `as:Undo` was considered but rejected: `Undo` implies
+    retracting the *effects* of a prior action, whereas re-engagement is a
+    forward state transition.
 
 {% include-markdown "./_close_case.md" heading-offset=1 %}
 {% include-markdown "./_close_report.md" heading-offset=1 %}

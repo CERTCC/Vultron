@@ -26,6 +26,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 6. **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
 
+### Case and Actor Management
+
+7. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model
+
 ### Cross-Cutting Concerns
 
 **HTTP Protocol**:
@@ -51,11 +55,18 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Future Implementation**:
 
 - **`response-format.md`** - ActivityStreams response generation (Accept, Reject, etc.)
+- **`outbox.md`** - Actor outbox structure and delivery
 
 ### Code Standards
 
 - **`code-style.md`** - Python formatting, import organization, circular import prevention
 - **`meta-specifications.md`** - How to write and maintain specifications
+
+### Project and Agent Guidance
+
+- **`project-documentation.md`** - Documentation file structure and purpose
+- **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage
+- **`agentic-readiness.md`** - API and CLI requirements for automated agent integration
 
 ---
 
@@ -92,6 +103,9 @@ Each requirement has a unique ID: `PREFIX-NN-NNN`
 
 Example: `HP-04-002` = Handler Protocol, category 4 (Payload Access), requirement 2
 
+**Note**: The `HP-` prefix is reserved for `handler-protocol.md`. The
+`http-protocol.md` file uses the `HTTP-` prefix to avoid ambiguity.
+
 ## Requirement Tags
 
 Some requirements carry special tags to indicate scope or applicability:
@@ -115,11 +129,19 @@ Some requirements carry special tags to indicate scope or applicability:
 
 Some specifications consolidate requirements from multiple sources to create a single source of truth:
 
-- **`http-protocol.md`** consolidates HTTP requirements from `inbox-endpoint.md`, `message-validation.md`, `error-handling.md`
-- **`structured-logging.md`** consolidates logging requirements from `observability.md`, `error-handling.md`, `inbox-endpoint.md`
-- **`idempotency.md`** consolidates duplicate detection requirements from `inbox-endpoint.md`, `message-validation.md`, `handler-protocol.md`, `response-format.md`
+- **`http-protocol.md`** consolidates HTTP requirements from `inbox-endpoint.md`,
+  `message-validation.md`, `error-handling.md`, and `agentic-readiness.md`
+- **`structured-logging.md`** consolidates logging requirements from `observability.md`,
+  `error-handling.md`, `inbox-endpoint.md`
+- **`idempotency.md`** consolidates duplicate detection requirements from
+  `inbox-endpoint.md`, `message-validation.md`, `handler-protocol.md`,
+  `response-format.md`
+- **`case-management.md`** consolidates case state and actor isolation requirements
+  from `behavior-tree-integration.md` (BT-09, BT-10), `notes/case-state-model.md`,
+  and `plan/PRIORITIES.md` (Priority 100, 200)
 
-When requirements appear consolidated, the consolidating spec is the authoritative source.
+When requirements appear consolidated, the consolidating spec is the authoritative
+source.
 
 ---
 
@@ -127,12 +149,38 @@ When requirements appear consolidated, the consolidating spec is the authoritati
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-02-18)**:
+**Summary (2026-02-24, updated post BT-7)**:
 
-- ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing, handler protocol, data layer
-- ✅ **6/36 handlers complete**: Report workflow (create, submit, validate, invalidate, ack, close)
-- ⚠️ **BT integration planned**: See `behavior-tree-integration.md` and `plan/BT_INTEGRATION.md`
-- ⚠️ **Production readiness partial**: Request validation, error responses need work
+- ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
+  handler protocol, data layer
+- ✅ **All 37 handlers complete**: Report workflow (create, submit, validate,
+  invalidate, ack, close, engage_case, defer_case) + case workflow (create_case,
+  add_report_to_case, close_case, create_case_participant,
+  add_case_participant_to_case) + actor invitation (invite_actor_to_case,
+  accept_invite_actor_to_case, reject_invite_actor_to_case,
+  remove_case_participant_from_case) + embargo management
+  (create_embargo_event, add_embargo_event_to_case,
+  remove_embargo_event_from_case, announce_embargo_event_to_case,
+  invite_to_embargo_on_case, accept_invite_to_embargo_on_case,
+  reject_invite_to_embargo_on_case) + notes + statuses (create_note,
+  add_note_to_case, remove_note_from_case, create_case_status,
+  add_case_status_to_case, create_participant_status,
+  add_participant_status_to_participant) + suggest_actor (suggest_actor_to_case,
+  accept_suggest_actor_to_case, reject_suggest_actor_to_case) + ownership
+  transfer (offer_case_ownership_transfer, accept_case_ownership_transfer,
+  reject_case_ownership_transfer)
+- ✅ **BT integration Phases BT-1 through BT-7 complete**: See
+  `behavior-tree-integration.md`
+- ✅ **Demo scripts (7)**: `receive_report_demo.py`, `initialize_case_demo.py`,
+  `invite_actor_demo.py`, `establish_embargo_demo.py`,
+  `status_updates_demo.py`, `suggest_actor_demo.py`,
+  `transfer_ownership_demo.py` in `vultron/scripts/`
+- ✅ **Demo scripts dockerized**: `receive-report-demo` and
+  `initialize-case-demo` services in `docker/docker-compose.yml` with
+  health-check-based startup ordering
+- ✅ **525 tests passing**, 0 xfailed
+- ⚠️ **Production readiness partial**: Request validation, error responses
+  need work
 - ❌ **Response generation not started**: See `response-format.md`
 
 ---
@@ -153,7 +201,7 @@ When updating specifications:
 ## Related Documentation
 
 - **Implementation Plan**: `plan/IMPLEMENTATION_PLAN.md`
-- **BT Integration Design**: `plan/BT_INTEGRATION.md`
+- **Implementation Notes**: `plan/IMPLEMENTATION_NOTES.md`
 - **Architecture Decisions**: `docs/adr/*.md`
 - **ActivityPub Workflows**: `docs/howto/activitypub/activities/*.md`
 - **Agent Instructions**: `AGENTS.md` (AI coding agent guidance)

@@ -43,3 +43,47 @@ FROM dependencies AS receive-report-demo
 ENV PYTHONPATH=/app
 # The BASE_URL in the script will be overridden via environment variable
 CMD ["uv", "run", "python", "-m", "vultron.scripts.receive_report_demo"]
+
+FROM dependencies AS initialize-case-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.initialize_case_demo"]
+
+FROM dependencies AS establish-embargo-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.establish_embargo_demo"]
+
+FROM dependencies AS invite-actor-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.invite_actor_demo"]
+
+FROM dependencies AS status-updates-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.status_updates_demo"]
+
+FROM dependencies AS suggest-actor-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.suggest_actor_demo"]
+
+FROM dependencies AS transfer-ownership-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.transfer_ownership_demo"]
+
+FROM dependencies AS acknowledge-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.acknowledge_demo"]
+
+FROM dependencies AS manage-case-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.manage_case_demo"]
+
+FROM dependencies AS initialize-participant-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.initialize_participant_demo"]
+
+FROM dependencies AS manage-embargo-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.manage_embargo_demo"]
+
+FROM dependencies AS manage-participants-demo
+ENV PYTHONPATH=/app
+CMD ["uv", "run", "python", "-m", "vultron.scripts.manage_participants_demo"]

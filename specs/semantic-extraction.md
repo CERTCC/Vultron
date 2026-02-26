@@ -15,24 +15,21 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
   - Support nested object type matching (e.g., Accept of Offer of
     VulnerabilityReport)
   - Evaluate patterns in order of specificity (most specific first)
-- `SE-01-002` The semantic extraction algorithm MUST handle both rehydrated
-  objects and URI strings defensively
-  - **Rehydration timing**: Rehydration occurs *before* semantic extraction in
-    the inbox handler flow (see `inbox_handler.py`)
-  - **Defensive pattern matching**: Pattern matching code uses safe attribute
-    access (`getattr(field, "as_type", None)`) to handle edge cases where
-    rehydration is incomplete
-  - **Rationale**: Rehydration is a separate concern from semantic extraction;
-    extraction must be robust to partial rehydration
+- `SE-01-002` The semantic extraction algorithm MUST handle both fully expanded
+  objects and URI string references defensively
+  - Pattern matching MUST NOT fail when activity fields contain URI strings
+    rather than fully expanded objects
+  - **Note**: Activities SHOULD be rehydrated before semantic extraction to
+    ensure accurate pattern matching; see `notes/activitystreams-semantics.md`
 - `SE-01-003` If rehydration fails for any nested object, the system MUST:
-  - Log warning: "Rehydration failed for URI {uri}: {error}"
+  - Log a warning identifying the failed URI
   - Return `MessageSemantics.UNKNOWN` from semantic extraction
-  - Delegate to unknown activity handler (logs at WARNING level)
-  
-**Implementation Note**: The `rehydrate()` function from
-`vultron/api/v2/data/rehydration.py` expands URI references to full objects.
-The inbox handler calls this before semantic extraction to ensure nested objects
-are properly typed.
+  - Delegate to the unknown activity handler
+- `SE-01-004` Pattern matching MUST support type/subclass matching semantics
+  for actor/object classes
+  - When matching patterns that expect `as_Actor` the algorithm MUST consider subclass relationships (e.g., `as_Person`, `as_Organization`) as satisfying an `as_Actor` pattern.
+  - Pattern evaluation MUST be robust to `object`/`actor` fields that are either (a) fully expanded objects or (b) URI string references. If a field is a URI string, matching logic MUST not assume the string encodes the object's type; rehydration is preferred before applying subclass-aware matching.
+  - If pattern objects are represented by an ActivityPattern instance, the matching routine MUST NOT call pattern-specific methods on plain strings; instead, it MUST detect string‑typed fields first and either attempt rehydration or conservatively treat the pattern as not matched and log a warning (see SE-01-002 for rehydration policy).
 
 ## Semantic Type Assignment (MUST)
 
@@ -65,12 +62,8 @@ are properly typed.
 - Unit test: Nested pattern (Accept Offer VulnerabilityReport) →
   MessageSemantics.VALIDATE_REPORT
 - Unit test: Most specific pattern matches first (multiple possible matches)
-- Integration test: Verify rehydration occurs before semantic extraction in
-  inbox handler flow
-- Unit test: Pattern matching handles string URIs defensively when rehydration
-  incomplete
-- Unit test: Rehydration failure returns MessageSemantics.UNKNOWN
-- Integration test: Unknown activity delegated to unknown handler (WARNING log)
+- Unit test: Pattern matching handles URI string references without raising exceptions
+- Unit test: Rehydration failure returns MessageSemantics.UNKNOWN and logs WARNING
 
 ### SE-03-001, SE-03-002 Verification
 

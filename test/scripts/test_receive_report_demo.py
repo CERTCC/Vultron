@@ -7,8 +7,8 @@
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
-#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon\u00ae, CERT\u00ae and CERT Coordination Center\u00ae are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 import importlib
 
@@ -17,11 +17,6 @@ from _pytest.monkeypatch import MonkeyPatch
 from fastapi.testclient import TestClient
 
 from vultron.api.main import app as api_app
-from vultron.as_vocab.activities.report import RmValidateReport
-from vultron.as_vocab.base.objects.activities.transitive import as_Offer
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.scripts import receive_report_demo as demo
 
 
@@ -71,28 +66,26 @@ def demo_env(client):
         importlib.reload(demo)
 
 
-def test_main_executes_without_raising(demo_env):
+@pytest.mark.parametrize(
+    "demo_fn",
+    [
+        demo.demo_validate_report,
+        demo.demo_invalidate_report,
+        demo.demo_invalidate_and_close_report,
+    ],
+    ids=[
+        "validate_report",
+        "invalidate_report",
+        "invalidate_and_close_report",
+    ],
+)
+def test_demo(demo_env, demo_fn, caplog):
     """
-    Tests that demo.main() can be executed without raising exceptions.
+    Tests that each demo workflow completes successfully with no errors.
 
-    This test verifies the complete inbox-to-inbox communication flow:
-    1. Finder submits reports to vendor's inbox
-    2. Vendor processes reports and posts responses to finder's inbox
-    3. All three demo workflows complete successfully with direct inbox communication
-
-    This integration test also indirectly verifies the helper functions:
-    - get_offer_from_datalayer
-    - post_to_inbox_and_wait
-    - get_actor_by_id
-    - verify_activity_in_inbox
-    - find_case_by_report
-    """
-    demo.main(skip_health_check=True)
-
-
-def test_all_demos_succeed(demo_env, caplog):
-    """
-    Tests that all 3 demos complete successfully with no errors.
+    Covers the complete inbox-to-inbox communication flow and indirectly
+    verifies helper functions: get_offer_from_datalayer, post_to_inbox_and_wait,
+    get_actor_by_id, verify_activity_in_inbox, find_case_by_report.
 
     Regression test for bug: setup_clean_environment does not clear ACTOR_IO_STORE,
     causing demos 2 and 3 to fail with KeyError when re-initializing actor IOs.
@@ -100,8 +93,8 @@ def test_all_demos_succeed(demo_env, caplog):
     import logging
 
     with caplog.at_level(logging.ERROR):
-        demo.main(skip_health_check=True)
+        demo.main(skip_health_check=True, demos=[demo_fn])
 
     assert "ERROR SUMMARY" not in caplog.text, (
-        "Expected all demos to succeed, but got errors:\n" + caplog.text
+        "Expected demo to succeed, but got errors:\n" + caplog.text
     )

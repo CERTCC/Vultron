@@ -77,6 +77,7 @@ from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.scripts.initialize_case_demo import demo_check, demo_step
 
 logger = logging.getLogger(__name__)
 
@@ -455,60 +456,60 @@ def demo_validate_report(
     logger.info("DEMO 1: Validate Report and Create Case")
     logger.info("=" * 80)
 
-    # Create a unique report for this demo
-    report = VulnerabilityReport(
-        attributed_to=finder.as_id,
-        content="This is a legitimate vulnerability in the authentication module.",
-        name="Authentication Bypass Vulnerability",
-    )
-    logger.info(f"Created report: {logfmt(report)}")
+    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
+        report = VulnerabilityReport(
+            attributed_to=finder.as_id,
+            content="This is a legitimate vulnerability in the authentication module.",
+            name="Authentication Bypass Vulnerability",
+        )
+        logger.info(f"Created report: {logfmt(report)}")
+        report_offer = make_submit_offer(finder, vendor, report)
+        submit_to_inbox(
+            client=client, vendor_id=vendor.as_id, activity=report_offer
+        )
+        with demo_check("Report offer and report stored"):
+            verify_object_stored(client=client, obj_id=report_offer.as_id)
+            verify_object_stored(client=client, obj_id=report.as_id)
 
-    # Submit the report offer
-    report_offer = make_submit_offer(finder, vendor, report)
-    submit_to_inbox(
-        client=client, vendor_id=vendor.as_id, activity=report_offer
-    )
+    with demo_step("Step 2: Vendor validates report"):
+        offer = get_offer_from_datalayer(
+            client, vendor.as_id, report_offer.as_id
+        )
+        validate_activity = RmValidateReport(
+            actor=vendor.as_id,
+            object=offer.as_id,
+            content="Validating the report as legitimate. Creating case.",
+        )
+        post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
+        with demo_check("ValidateReport activity stored"):
+            response = client.get(f"/datalayer/{validate_activity.as_id}")
+            logger.info(
+                f"ValidateReport stored: {json.dumps(response, indent=2)}"
+            )
 
-    # Verify initial side effects
-    verify_object_stored(client=client, obj_id=report_offer.as_id)
-    verify_object_stored(client=client, obj_id=report.as_id)
-
-    # Get the offer back from the data layer
-    offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
-
-    # Vendor validates the report (Accept workflow)
-    validate_activity = RmValidateReport(
-        actor=vendor.as_id,
-        object=offer.as_id,
-        content="Validating the report as legitimate. Creating case.",
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
-
-    # Verify the validation was processed
-    response = client.get(f"/datalayer/{validate_activity.as_id}")
-    logger.info(f"ValidateReport stored: {json.dumps(response, indent=2)}")
-
-    # Find the case that was created
-    case_data = find_case_by_report(client, report.as_id)
-    if not case_data:
-        logger.error("Could not find case related to this report.")
-        raise ValueError("Could not find case related to this report.")
-
-    # Vendor posts CreateCase activity to finder's inbox
-    create_case_activity = CreateCase(
-        actor=vendor.as_id,
-        as_object=case_data.as_id,
-        to=[finder.as_id],
-        content="Case created for your vulnerability report.",
-    )
-    post_to_inbox_and_wait(client, finder.as_id, create_case_activity)
-
-    # Verify the CreateCase activity appears in finder's inbox
-    if not verify_activity_in_inbox(
-        client, finder.as_id, create_case_activity.as_id
-    ):
-        logger.error("CreateCase activity not found in finder's inbox.")
-        raise ValueError("CreateCase activity not found in finder's inbox.")
+    with demo_step("Step 3: Vendor creates case and notifies finder"):
+        with demo_check("Case created for report"):
+            case_data = find_case_by_report(client, report.as_id)
+            if not case_data:
+                logger.error("Could not find case related to this report.")
+                raise ValueError("Could not find case related to this report.")
+        create_case_activity = CreateCase(
+            actor=vendor.as_id,
+            as_object=case_data.as_id,
+            to=[finder.as_id],
+            content="Case created for your vulnerability report.",
+        )
+        post_to_inbox_and_wait(client, finder.as_id, create_case_activity)
+        with demo_check("CreateCase activity in finder's inbox"):
+            if not verify_activity_in_inbox(
+                client, finder.as_id, create_case_activity.as_id
+            ):
+                logger.error(
+                    "CreateCase activity not found in finder's inbox."
+                )
+                raise ValueError(
+                    "CreateCase activity not found in finder's inbox."
+                )
 
     logger.info(
         "✅ DEMO 1 COMPLETE: Report validated, case created, and finder notified via inbox."
@@ -535,58 +536,61 @@ def demo_invalidate_report(
     logger.info("DEMO 2: Invalidate Report (Hold for Reconsideration)")
     logger.info("=" * 80)
 
-    # Create a unique report for this demo
-    report = VulnerabilityReport(
-        attributed_to=finder.as_id,
-        content="Possible vulnerability in payment processing, needs more investigation.",
-        name="Potential Payment Processing Issue",
-    )
-    logger.info(f"Created report: {logfmt(report)}")
-
-    # Submit the report offer
-    report_offer = make_submit_offer(finder, vendor, report)
-    submit_to_inbox(
-        client=client, vendor_id=vendor.as_id, activity=report_offer
-    )
-
-    # Verify initial side effects
-    verify_object_stored(client=client, obj_id=report_offer.as_id)
-    verify_object_stored(client=client, obj_id=report.as_id)
-
-    # Get the offer back from the data layer
-    offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
-
-    # Vendor invalidates the report (TentativeReject workflow)
-    invalidate_activity = RmInvalidateReport(
-        actor=vendor.as_id,
-        object=offer.as_id,
-        content="Invalidating the report - needs more investigation before accepting.",
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, invalidate_activity)
-
-    # Verify the invalidation was processed
-    invalidate_response = client.get(f"/datalayer/{invalidate_activity.as_id}")
-    logger.info(
-        f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
-    )
-
-    # Vendor posts the invalidation response to finder's inbox
-    invalidate_response_to_finder = RmInvalidateReport(
-        actor=vendor.as_id,
-        object=offer.as_id,
-        to=[finder.as_id],
-        content="We are holding this report for further investigation.",
-    )
-    post_to_inbox_and_wait(client, finder.as_id, invalidate_response_to_finder)
-
-    # Verify the response appears in finder's inbox
-    if not verify_activity_in_inbox(
-        client, finder.as_id, invalidate_response_to_finder.as_id
-    ):
-        logger.error("TentativeReject activity not found in finder's inbox.")
-        raise ValueError(
-            "TentativeReject activity not found in finder's inbox."
+    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
+        report = VulnerabilityReport(
+            attributed_to=finder.as_id,
+            content="Possible vulnerability in payment processing, needs more investigation.",
+            name="Potential Payment Processing Issue",
         )
+        logger.info(f"Created report: {logfmt(report)}")
+        report_offer = make_submit_offer(finder, vendor, report)
+        submit_to_inbox(
+            client=client, vendor_id=vendor.as_id, activity=report_offer
+        )
+        with demo_check("Report offer and report stored"):
+            verify_object_stored(client=client, obj_id=report_offer.as_id)
+            verify_object_stored(client=client, obj_id=report.as_id)
+
+    with demo_step(
+        "Step 2: Vendor invalidates report (holds for reconsideration)"
+    ):
+        offer = get_offer_from_datalayer(
+            client, vendor.as_id, report_offer.as_id
+        )
+        invalidate_activity = RmInvalidateReport(
+            actor=vendor.as_id,
+            object=offer.as_id,
+            content="Invalidating the report - needs more investigation before accepting.",
+        )
+        post_to_inbox_and_wait(client, vendor.as_id, invalidate_activity)
+        with demo_check("InvalidateReport activity stored"):
+            invalidate_response = client.get(
+                f"/datalayer/{invalidate_activity.as_id}"
+            )
+            logger.info(
+                f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
+            )
+
+    with demo_step("Step 3: Vendor notifies finder of invalidation"):
+        invalidate_response_to_finder = RmInvalidateReport(
+            actor=vendor.as_id,
+            object=offer.as_id,
+            to=[finder.as_id],
+            content="We are holding this report for further investigation.",
+        )
+        post_to_inbox_and_wait(
+            client, finder.as_id, invalidate_response_to_finder
+        )
+        with demo_check("InvalidateReport response in finder's inbox"):
+            if not verify_activity_in_inbox(
+                client, finder.as_id, invalidate_response_to_finder.as_id
+            ):
+                logger.error(
+                    "TentativeReject activity not found in finder's inbox."
+                )
+                raise ValueError(
+                    "TentativeReject activity not found in finder's inbox."
+                )
 
     logger.info(
         "✅ DEMO 2 COMPLETE: Report invalidated and finder notified via inbox."
@@ -613,88 +617,91 @@ def demo_invalidate_and_close_report(
     logger.info("DEMO 3: Invalidate and Close Report")
     logger.info("=" * 80)
 
-    # Create a unique report for this demo
-    report = VulnerabilityReport(
-        attributed_to=finder.as_id,
-        content="This is a false positive - not a real vulnerability.",
-        name="False Positive Report",
-    )
-    logger.info(f"Created report: {logfmt(report)}")
-
-    # Submit the report offer
-    report_offer = make_submit_offer(finder, vendor, report)
-    submit_to_inbox(
-        client=client, vendor_id=vendor.as_id, activity=report_offer
-    )
-
-    # Verify initial side effects
-    verify_object_stored(client=client, obj_id=report_offer.as_id)
-    verify_object_stored(client=client, obj_id=report.as_id)
-
-    # Get the offer back from the data layer
-    offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
-
-    # Vendor invalidates the report (posts to own inbox for processing)
-    invalidate_activity = RmInvalidateReport(
-        actor=vendor.as_id,
-        object=offer.as_id,
-        content="Invalidating the report - this is a false positive.",
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, invalidate_activity)
-
-    # Vendor closes the report (posts to own inbox for processing)
-    close_activity = RmCloseReport(
-        actor=vendor.as_id,
-        object=offer.as_id,
-        content="Closing the report as invalid.",
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, close_activity)
-
-    # Verify both activities were processed
-    invalidate_response = client.get(f"/datalayer/{invalidate_activity.as_id}")
-    logger.info(
-        f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
-    )
-
-    close_response = client.get(f"/datalayer/{close_activity.as_id}")
-    logger.info(f"CloseReport stored: {json.dumps(close_response, indent=2)}")
-
-    # Vendor posts TentativeReject response to finder's inbox
-    invalidate_response_to_finder = RmInvalidateReport(
-        actor=vendor.as_id,
-        object=offer.as_id,
-        to=[finder.as_id],
-        content="This report has been invalidated as a false positive.",
-    )
-    post_to_inbox_and_wait(
-        client, finder.as_id, invalidate_response_to_finder, wait_seconds=2.0
-    )
-
-    # Vendor posts Reject response to finder's inbox
-    close_response_to_finder = RmCloseReport(
-        actor=vendor.as_id,
-        object=offer.as_id,
-        to=[finder.as_id],
-        content="This report has been closed.",
-    )
-    post_to_inbox_and_wait(
-        client, finder.as_id, close_response_to_finder, wait_seconds=2.0
-    )
-
-    # Verify both responses appear in finder's inbox
-    if not verify_activity_in_inbox(
-        client, finder.as_id, invalidate_response_to_finder.as_id
-    ):
-        logger.error("TentativeReject activity not found in finder's inbox.")
-        raise ValueError(
-            "TentativeReject activity not found in finder's inbox."
+    with demo_step("Step 1: Finder submits vulnerability report to vendor"):
+        report = VulnerabilityReport(
+            attributed_to=finder.as_id,
+            content="This is a false positive - not a real vulnerability.",
+            name="False Positive Report",
         )
+        logger.info(f"Created report: {logfmt(report)}")
+        report_offer = make_submit_offer(finder, vendor, report)
+        submit_to_inbox(
+            client=client, vendor_id=vendor.as_id, activity=report_offer
+        )
+        with demo_check("Report offer and report stored"):
+            verify_object_stored(client=client, obj_id=report_offer.as_id)
+            verify_object_stored(client=client, obj_id=report.as_id)
 
-    if not verify_activity_in_inbox(
-        client, finder.as_id, close_response_to_finder.as_id
+    with demo_step("Step 2: Vendor invalidates and closes report"):
+        offer = get_offer_from_datalayer(
+            client, vendor.as_id, report_offer.as_id
+        )
+        invalidate_activity = RmInvalidateReport(
+            actor=vendor.as_id,
+            object=offer.as_id,
+            content="Invalidating the report - this is a false positive.",
+        )
+        post_to_inbox_and_wait(client, vendor.as_id, invalidate_activity)
+        close_activity = RmCloseReport(
+            actor=vendor.as_id,
+            object=offer.as_id,
+            content="Closing the report as invalid.",
+        )
+        post_to_inbox_and_wait(client, vendor.as_id, close_activity)
+        with demo_check("InvalidateReport and CloseReport activities stored"):
+            invalidate_response = client.get(
+                f"/datalayer/{invalidate_activity.as_id}"
+            )
+            logger.info(
+                f"InvalidateReport stored: {json.dumps(invalidate_response, indent=2)}"
+            )
+            close_response = client.get(f"/datalayer/{close_activity.as_id}")
+            logger.info(
+                f"CloseReport stored: {json.dumps(close_response, indent=2)}"
+            )
+
+    with demo_step(
+        "Step 3: Vendor notifies finder of invalidation and closure"
     ):
-        logger.error("Reject activity not found in finder's inbox.")
-        raise ValueError("Reject activity not found in finder's inbox.")
+        invalidate_response_to_finder = RmInvalidateReport(
+            actor=vendor.as_id,
+            object=offer.as_id,
+            to=[finder.as_id],
+            content="This report has been invalidated as a false positive.",
+        )
+        post_to_inbox_and_wait(
+            client,
+            finder.as_id,
+            invalidate_response_to_finder,
+            wait_seconds=2.0,
+        )
+        close_response_to_finder = RmCloseReport(
+            actor=vendor.as_id,
+            object=offer.as_id,
+            to=[finder.as_id],
+            content="This report has been closed.",
+        )
+        post_to_inbox_and_wait(
+            client, finder.as_id, close_response_to_finder, wait_seconds=2.0
+        )
+        with demo_check("InvalidateReport response in finder's inbox"):
+            if not verify_activity_in_inbox(
+                client, finder.as_id, invalidate_response_to_finder.as_id
+            ):
+                logger.error(
+                    "TentativeReject activity not found in finder's inbox."
+                )
+                raise ValueError(
+                    "TentativeReject activity not found in finder's inbox."
+                )
+        with demo_check("CloseReport response in finder's inbox"):
+            if not verify_activity_in_inbox(
+                client, finder.as_id, close_response_to_finder.as_id
+            ):
+                logger.error("Reject activity not found in finder's inbox.")
+                raise ValueError(
+                    "Reject activity not found in finder's inbox."
+                )
 
     logger.info(
         "✅ DEMO 3 COMPLETE: Report invalidated, closed, and finder notified via inbox."
@@ -785,14 +792,26 @@ def setup_clean_environment(
     return finder, vendor, coordinator
 
 
-def main(skip_health_check: bool = False):
+_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+    ("Demo 1: Validate Report", demo_validate_report),
+    ("Demo 2: Invalidate Report", demo_invalidate_report),
+    ("Demo 3: Invalidate and Close Report", demo_invalidate_and_close_report),
+]
+
+
+def main(
+    skip_health_check: bool = False,
+    demos: Optional[Sequence] = None,
+):
     """
     Main entry point for the demo script.
 
     Args:
         skip_health_check: Skip the server availability check (useful for testing)
+        demos: Optional sequence of demo functions to run. Defaults to all three.
+            Pass a subset (e.g. ``[demo_validate_report]``) to run only those demos.
 
-    Runs all three demonstration workflows to showcase the different outcomes
+    Runs demonstration workflows to showcase the different outcomes
     when processing vulnerability reports.
     """
     client = DataLayerClient()
@@ -812,33 +831,24 @@ def main(skip_health_check: bool = False):
         logger.error("=" * 80)
         sys.exit(1)
 
+    selected = (
+        _ALL_DEMOS
+        if demos is None
+        else [(name, fn) for name, fn in _ALL_DEMOS if fn in demos]
+    )
+    total = len(selected)
+
     # Track errors for summary
     errors = []
 
-    # Run all three demos with different reports, each with clean environment
-    try:
-        finder, vendor, coordinator = setup_clean_environment(client)
-        demo_validate_report(client, finder, vendor)
-    except Exception as e:
-        error_msg = f"Demo 1 failed: {e}"
-        logger.error(error_msg, exc_info=True)
-        errors.append(("Demo 1: Validate Report", str(e)))
-
-    try:
-        finder, vendor, coordinator = setup_clean_environment(client)
-        demo_invalidate_report(client, finder, vendor)
-    except Exception as e:
-        error_msg = f"Demo 2 failed: {e}"
-        logger.error(error_msg, exc_info=True)
-        errors.append(("Demo 2: Invalidate Report", str(e)))
-
-    try:
-        finder, vendor, coordinator = setup_clean_environment(client)
-        demo_invalidate_and_close_report(client, finder, vendor)
-    except Exception as e:
-        error_msg = f"Demo 3 failed: {e}"
-        logger.error(error_msg, exc_info=True)
-        errors.append(("Demo 3: Invalidate and Close Report", str(e)))
+    # Run selected demos with different reports, each with clean environment
+    for demo_name, demo_fn in selected:
+        try:
+            finder, vendor, coordinator = setup_clean_environment(client)
+            demo_fn(client, finder, vendor)
+        except Exception as e:
+            logger.error(f"{demo_name} failed: {e}", exc_info=True)
+            errors.append((demo_name, str(e)))
 
     logger.info("=" * 80)
     logger.info("ALL DEMOS COMPLETE")
@@ -850,9 +860,9 @@ def main(skip_health_check: bool = False):
         logger.error("=" * 80)
         logger.error("ERROR SUMMARY")
         logger.error("=" * 80)
-        logger.error(f"Total demos: 3")
+        logger.error(f"Total demos: {total}")
         logger.error(f"Failed demos: {len(errors)}")
-        logger.error(f"Successful demos: {3 - len(errors)}")
+        logger.error(f"Successful demos: {total - len(errors)}")
         logger.error("")
         for demo_name, error in errors:
             logger.error(f"{demo_name}:")
@@ -861,7 +871,7 @@ def main(skip_health_check: bool = False):
         logger.error("=" * 80)
     else:
         logger.info("")
-        logger.info("✓ All 3 demos completed successfully!")
+        logger.info(f"✓ All {total} demos completed successfully!")
         logger.info("")
 
 

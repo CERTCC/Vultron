@@ -1,1475 +1,222 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-18 (Gap analysis and priority review via PLAN_prompt.md)
+**Last Updated**: 2026-02-24 (gap analysis refresh #7)
 
 ## Overview
 
-This implementation plan tracks the development of the Vultron API v2 inbox handler system against the detailed specifications in `specs/*`. **Per PRIORITIES.md, the top priority is Behavior Tree (BT) integration** as outlined in `plan/BT_INTEGRATION.md`. This supersedes previous demo completion priorities.
+This plan tracks forward-looking work against `specs/*` and `plan/PRIORITIES.md`.
+Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Phase 0 & 0A: COMPLETE** ✅
+**Test suite**: 557 passing, 5581 subtests, 0 xfailed (2026-02-24)
 
-- [x] All 6 report handlers implemented with full business logic
-- [x] Demo script refactored into three separate workflow demonstrations
-- [x] All demo tests passing (1/1 test, 454 total tests in suite, 2 xfailed)
-- [x] Rehydration system handles nested objects and full URI lookups
-- [x] Status tracking working (OfferStatus, ReportStatus)
-- [x] Outbox processing working (CreateCase activities added to actor outbox)
-- [x] Actor ID resolution working (short IDs like "vendorco" resolve to full URIs)
-- [x] All handler tests passing (9/9 handler-specific tests)
+**All 38 handlers implemented** (including `unknown`):
+create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
+close_report, engage_case (BT), defer_case (BT), create_case (BT),
+add_report_to_case, close_case, create_case_participant,
+add_case_participant_to_case, invite_actor_to_case,
+accept_invite_actor_to_case, reject_invite_actor_to_case,
+remove_case_participant_from_case, create_embargo_event,
+add_embargo_event_to_case, remove_embargo_event_from_case,
+announce_embargo_event_to_case, invite_to_embargo_on_case,
+accept_invite_to_embargo_on_case, reject_invite_to_embargo_on_case,
+create_note, add_note_to_case, remove_note_from_case, create_case_status,
+add_case_status_to_case, create_participant_status,
+add_participant_status_to_participant, suggest_actor_to_case,
+accept_suggest_actor_to_case, reject_suggest_actor_to_case,
+offer_case_ownership_transfer, accept_case_ownership_transfer,
+reject_case_ownership_transfer, update_case
 
-**Next Priority**: Per PRIORITIES.md, **Behavior Tree integration** is the top priority. The current handler implementations provide a working baseline; BT integration will refactor complex handlers to use behavior tree execution for improved clarity, testability, and alignment with CVD protocol documentation.
-
-**BT Integration Status (Phase BT-1: COMPLETE ✅)**: 
-- ✅ py_trees library added to dependencies (v2.2.0+)
-- ✅ BT bridge layer implemented (`vultron/behaviors/bridge.py`)
-- ✅ DataLayer-aware helper nodes implemented (`vultron/behaviors/helpers.py`)
-- ✅ Report validation BT nodes implemented (`vultron/behaviors/report/nodes.py`)
-- ✅ Report validation tree composed (`vultron/behaviors/report/validate_tree.py`)
-- ✅ Default policy implementation (`vultron/behaviors/report/policy.py`)
-- ✅ Comprehensive BT tests (76 tests passing in `test/behaviors/`)
-- ✅ Handler refactoring COMPLETE (validate_report handler now uses BT execution)
-- ✅ Demo and documentation updated (Phase BT-1.5-1.6 COMPLETE)
-- ✅ ADR-0008 created for py_trees integration decision
-
-**Completed Infrastructure:**
-
-- [x] Core dispatcher architecture (`behavior_dispatcher.py`) with `DirectActivityDispatcher`
-- [x] Semantic extraction system (`semantic_map.py`, `activity_patterns.py`) with 36 patterns
-- [x] All 36 MessageSemantics handlers registered in `semantic_handler_map.py`
-- [x] Basic inbox endpoint at `POST /actors/{actor_id}/inbox/` with 202 response
-- [x] Background task processing infrastructure via FastAPI BackgroundTasks
-- [x] Unit tests for dispatcher and semantic matching (378 core tests + 76 BT tests = 454 passing, 2 xfailed)
-- [x] Error hierarchy base (`VultronError` → `VultronApiError` → specific errors)
-- [x] TinyDB data layer implementation with Protocol abstraction
-- [x] Handler protocol with `@verify_semantics` decorator
-- [x] ActivityStreams 2.0 Pydantic models (vocabulary implementation)
-- [x] Rehydration system for expanding URI references to full objects
-
-**Production Readiness Features (Lower Priority per PRIORITIES.md):**
-
-- [ ] Request validation (Content-Type, 1MB size limit, URI validation) - See Phase 1.1
-- [ ] Standardized HTTP error responses (status, error, message, activity_id) - See Phase 1.2
-- [ ] Health check endpoints (`/health/live`, `/health/ready`) - See Phase 1.3
-- [ ] Structured logging with correlation IDs - See Phase 2.1
-- [ ] Idempotency/duplicate detection - See Phase 2.2
-- [ ] Test coverage enforcement (80%+ overall, 100% critical paths) - See Phase 3.1
-
-**Handler Business Logic (Partially Complete):**
-
-- ✅ Report handlers complete (6/36): create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
-- [ ] Case handlers (8): create_case, add_report_to_case, suggest_actor_to_case, ownership transfers, etc.
-- [ ] Actor invitation handlers (3): invite/accept/reject_invite_actor_to_case
-- [ ] Embargo handlers (7): create_embargo_event, invitations, participant management, etc.
-- [ ] Participant & metadata handlers (7): case participants, notes, status tracking
-- [ ] Case lifecycle handlers (2): close_case, reopen_case
-- [ ] Embargo invitation handlers (3): invite/accept/reject_invite_to_embargo_on_case
-
-**Deferred (Lowest Priority):**
-
-- [ ] Response generation (Accept/Reject/TentativeReject responses back to submitter) - See Phase 5
-- [ ] Async dispatcher optimization (FastAPI async processing already in place)
-- [ ] Additional case/embargo workflow implementations beyond demo requirements
-
-## Prioritized Task List (Per PRIORITIES.md and Gap Analysis)
-
-**Gap Analysis Summary (2026-02-18)**:
-
-**✅ Completed Work:**
-- ✅ **Phase 0 & 0A complete**: Report handlers (6/36) with full business logic
-- ✅ **Demo script complete**: All three workflows working (validate, invalidate, invalidate+close)
-- ✅ **BT infrastructure complete (Phases BT-1.1 through BT-1.3)**:
-  - py_trees library integrated (v2.2.0+)
-  - BT bridge layer implemented (`vultron/behaviors/bridge.py`)
-  - DataLayer-aware helper nodes (`vultron/behaviors/helpers.py`)
-  - Report validation BT nodes (10 nodes in `vultron/behaviors/report/nodes.py`)
-  - Report validation tree composed (`vultron/behaviors/report/validate_tree.py`)
-  - Default policy implementation (`vultron/behaviors/report/policy.py`)
-  - Comprehensive tests (76 BT tests, all passing)
-- ✅ **Test infrastructure fixed**: All 454 tests passing (2 xfailed), 18 router tests working
-- ✅ **Rehydration system**: Handles nested objects and full URI lookups
-
-**🔴 Critical Path - BT Integration (Phase BT-1.4 through BT-1.6)**:
-1. **BT-1.4**: Refactor `validate_report` handler to use BT execution (~1 day)
-2. **BT-1.5**: Update demo script and verify workflows (~0.5 days)
-3. **BT-1.6**: Documentation updates (~0.5 days)
-
-**📊 Specification Compliance Status**:
-- **BT Requirements**: 
-  - BT-01 through BT-07 (Execution, Library, State, Handler, Bridge, Workflow, DataLayer): ✅ Infrastructure implemented
-  - BT-04, BT-05, BT-06 (Handler integration, workflow trees): ⚠️ Trees built but not integrated into handlers
-  - BT-08 (CLI): ❌ Not implemented (MAY requirement, deferred)
-  - BT-09 (Actor isolation): ✅ Blackboard setup supports isolation
-  - BT-10 (CaseActor management): ✅ Already working in procedural handlers
-  - BT-11 (Concurrency): ✅ Sequential processing via BackgroundTasks
-
-**❌ Remaining Gaps (Lower Priority per PRIORITIES.md)**:
-- ❌ **24 handler stubs remaining**: Case management (8), ownership transfer (3), participants (6), embargos (6), notes/statuses (5)
-- ❌ **Production readiness incomplete**: Request validation, error responses, health checks, structured logging, idempotency
-- ❌ **Response generation not implemented**: `specs/response-format.md` (deferred to Phase 5)
-
-**🎯 Recommended Next Actions**:
-1. **Complete Phase BT-1** (handler refactoring): Highest priority per PRIORITIES.md
-2. **Consider spec updates**: Document BT infrastructure implementation status in `specs/behavior-tree-integration.md`
-3. **Expand BT integration** (Phase BT-2+): Apply BT approach to other complex handlers (deferred until POC validated)
-4. **Production features** (Phases 1-3): Deferred per PRIORITIES.md until BT integration complete
+**Demo scripts** (all dockerized in `docker-compose.yml`):
+`receive_report_demo.py`, `initialize_case_demo.py`, `invite_actor_demo.py`,
+`establish_embargo_demo.py`, `status_updates_demo.py`, `suggest_actor_demo.py`,
+`transfer_ownership_demo.py`, `acknowledge_demo.py`, `manage_case_demo.py`,
+`initialize_participant_demo.py`
 
 ---
 
-### ✅ COMPLETE: Phase 0A - receive_report_demo.py
+## Gap Analysis (2026-02-24, refresh #7)
 
-**Goal**: Finish the demo script to properly demonstrate the report submission workflow from `docs/howto/activitypub/activities/report_vulnerability.md`.
+### ❌ Demo scripts missing for PRIORITIES.md higher-priority workflows
 
-**Status**: COMPLETE as of 2026-02-13
+| Howto doc | Existing demo | Gap |
+|---|---|---|
+| `manage_embargo.md` | partial (`establish_embargo_demo`) | Full propose/accept/reject/terminate cycle not demoed |
+| `manage_participants.md` | partial (`invite_actor_demo`) | Status + remove paths not demoed |
 
-All Phase 0A tasks have been completed:
+### ❌ CM-03-006 field rename not implemented
 
-- ✅ 0A.1: Refactored demo into three separate workflow functions (demo_validate_report, demo_invalidate_report, demo_invalidate_and_close_report)
-- ✅ 0A.2: Implemented missing workflow steps (all critical handlers working)
-- ✅ 0A.4: Fixed endpoint issues (outbox retrieval, actor persistence, async timing)
-- ✅ Demo test passing: `test/scripts/test_receive_report_demo.py::test_main_executes_without_raising`
+`VulnerabilityCase.case_status` is a `list[CaseStatusRef]` (history) but
+named in the singular; spec requires `case_statuses`. Same for
+`CaseParticipant.participant_status`.
 
-**Commits:**
+### ❌ Outbox delivery not implemented (lower priority)
 
-- a2fc317: "Refactor receive_report_demo.py into three separate workflow demonstrations"
-- 17457e7: "zero out implementation notes after lessons learned"
-- Multiple fixes for timing, persistence, and rehydration issues
-
----
-
-### ✅ RESOLVED: Phase 0.5 - Test Infrastructure (FIXED)
-
-**Priority**: WAS CRITICAL - Now resolved
-
-**Issue**: Router tests were failing due to separate data layer instances in fixtures. ~~11 tests failing.~~
-
-**Status**: RESOLVED - All router tests now passing (18/18 tests in `test/api/v2/routers/`)
-
-**Resolution**: Test infrastructure appears to have been fixed. All router tests passing as of 2026-02-18.
-
-**Tasks**:
-
-- [x] **0.5.1**: Fixed `client_actors` fixture - dependency override working
-- [x] **0.5.2**: Fixed `client_datalayer` fixture - dependency override working  
-- [x] **0.5.3**: Verified all 18 router tests pass (no longer 11 failing)
-  - `test/api/v2/routers/test_actors.py`: All passing
-  - `test/api/v2/routers/test_datalayer.py`: All passing
-  - `test/api/v2/test_v2_api.py`: All passing
+`actor_io.py` stub logs placeholder messages instead of writing to recipient
+actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 
 ---
 
-### 🔴 TOP PRIORITY: Phase BT-1 - Behavior Tree Integration POC (IN PROGRESS)
+## Prioritized Task List
 
-**Status**: Phase BT-1 COMPLETE ✅ (BT-1.1 through BT-1.6)  
-**Priority**: CRITICAL per PRIORITIES.md  
-**Goal**: Integrate py_trees behavior tree execution with handler system  
-**Reference**: `plan/BT_INTEGRATION.md`, `specs/behavior-tree-integration.md`
+### Phase DEMO-3 — Remaining ActivityPub Workflow Demo Scripts
 
-**Current Progress**: Infrastructure complete (bridge, helpers, validation tree). Next step is handler refactoring to use BT execution.
+**Priority**: HIGH per `plan/PRIORITIES.md`
+**References**: `docs/howto/activitypub/activities/`
+**Pattern**: Follow existing demo scripts; use `demo_step` / `demo_check` context managers
 
-This phase implements a proof-of-concept for BT integration by refactoring one complex handler (`validate_report`) to use behavior trees. Success here validates the BT integration approach before expanding to other handlers.
+#### acknowledge_demo.py
 
-#### BT-1.1: Infrastructure Setup
+- [x] **DEMO-3.1**: Create `vultron/scripts/acknowledge_demo.py`
+  - Workflow from `acknowledge.md`: submit report → ack_report (RmReadReport)
+    → optionally validate or invalidate
+  - Show RM state transitions at each step
+- [x] **DEMO-3.2**: Add `test/scripts/test_acknowledge_demo.py`
+- [x] **DEMO-3.3**: Add `acknowledge-demo` service to `docker/docker-compose.yml`
+  and corresponding Dockerfile target
 
-- [x] **BT-1.1.1**: Add `py_trees` to project dependencies
-  - Update `pyproject.toml` with `py_trees = "^2.2.0"` (or latest stable)
-  - Run `uv sync` to install
-  - Verify import works: `python -c "import py_trees; print(py_trees.__version__)"`
-  
-- [x] **BT-1.1.2**: Create behavior tree directory structure
-  - Create `vultron/behaviors/` directory
-  - Create `vultron/behaviors/__init__.py`
-  - Create `vultron/behaviors/report/` subdirectory
-  - Create `test/behaviors/` directory structure
-  
-- [x] **BT-1.1.3**: Implement BT bridge layer
-  - Created `vultron/behaviors/bridge.py`
-  - Implemented `BTBridge` class:
-    - `setup_tree(tree, actor_id, activity, **context_data)` - Sets up BehaviourTree with blackboard
-    - `execute_tree(bt, max_iterations)` - Single-shot BT execution to completion
-    - `execute_with_setup(...)` - Convenience method combining setup and execution
-    - Blackboard setup with DataLayer injection and actor state
-    - Error handling and logging
-  - Comprehensive unit tests in `test/behaviors/test_bridge.py` (16 tests, all passing)
-  - All 394 tests passing (including new BT tests)
+#### manage_case_demo.py
 
-#### BT-1.2: DataLayer-Aware BT Nodes
+- [x] **DEMO-3.4**: Create `vultron/scripts/manage_case_demo.py`
+  - Full lifecycle from `manage_case.md`: submit → validate → create_case →
+    engage/defer → reengage (via second `RmEngageCase`) → close
+  - Demonstrate both engage and defer/reengage paths
+- [x] **DEMO-3.5**: Add `test/scripts/test_manage_case_demo.py`
+- [x] **DEMO-3.6**: Add `manage-case-demo` service to docker-compose.yml
 
-- [x] **BT-1.2.1**: Create DataLayer helper nodes
-  - Created `vultron/behaviors/helpers.py` with base classes and common nodes:
-    - `DataLayerCondition(py_trees.behaviour.Behaviour)`: Check state from DataLayer
-    - `DataLayerAction(py_trees.behaviour.Behaviour)`: Modify state in DataLayer
-    - `ReadObject(table, object_id)`: Read object from DataLayer and store in blackboard
-    - `UpdateObject(object_id, updates)`: Update object in DataLayer with new values
-    - `CreateObject(table, object_data)`: Create new object in DataLayer
-  - Comprehensive unit tests in `test/behaviors/test_helpers.py` (18 tests, all passing)
-  - All 412 tests passing (including new BT tests)
+#### initialize_participant_demo.py
 
-#### BT-1.3: Report Validation BT Implementation
+- [x] **DEMO-3.7**: Create `vultron/scripts/initialize_participant_demo.py`
+  - Workflow from `initialize_participant.md`: create_case_participant →
+    add_case_participant_to_case (standalone, not requiring prior invite)
+  - Show case participant list before and after
+- [x] **DEMO-3.8**: Add `test/scripts/test_initialize_participant_demo.py`
+- [x] **DEMO-3.9**: Add `initialize-participant-demo` service to docker-compose.yml
 
-- [x] **BT-1.3.1**: Analyze existing `validate_report` handler
-  - Documented 6-phase procedural flow (rehydration, status updates, case creation, addressee collection, activity generation, outbox update)
-  - Identified decision points and condition nodes for BT implementation
-  - Compared against simulation BT structure
-  - Created detailed analysis: `~/.copilot/session-state/.../files/validate_report_analysis.md`
-  - Mapped proposed BT structure (Phase 1: minimal match, Phase 2: policy evaluation)
-  - See IMPLEMENTATION_NOTES.md (2026-02-18) for details
+#### manage_embargo_demo.py
 
-- [x] **BT-1.3.2**: Implement report validation BT nodes
-  - Created `vultron/behaviors/report/nodes.py` (724 lines, 10 node classes)
-  - Implemented condition nodes: `CheckRMStateValid`, `CheckRMStateReceivedOrInvalid`
-  - Implemented action nodes: `TransitionRMtoValid`, `TransitionRMtoInvalid`, `CreateCaseNode`, `CreateCaseActivity`, `UpdateActorOutbox`
-  - Implemented policy stubs: `EvaluateReportCredibility`, `EvaluateReportValidity` (always SUCCESS)
-  - Created comprehensive unit tests in `test/behaviors/report/test_nodes.py` (398 lines, 18 tests)
-  - All nodes inherit from DataLayerCondition/DataLayerAction base classes
-  - Blackboard key passing: case_id → CreateCaseActivity → activity_id → UpdateActorOutbox
-  - Status updates via `set_status()`, DataLayer persistence
-  - All 430 tests passing (412 base + 18 new)
-  - See IMPLEMENTATION_NOTES.md (2026-02-18) for details
-  - Note: Did not implement `CreateCaseActor` (deferred - not needed for minimal POC)
+- [x] **DEMO-3.10**: Create `vultron/scripts/manage_embargo_demo.py`
+  - Full cycle from `manage_embargo.md`: propose → accept → activate → terminate
+  - Also demonstrate propose → reject → re-propose path
+- [x] **DEMO-3.11**: Add `test/scripts/test_manage_embargo_demo.py`
+- [x] **DEMO-3.12**: Add `manage-embargo-demo` service to docker-compose.yml
 
-- [x] **BT-1.3.3**: Compose validation behavior tree
-  - Created `vultron/behaviors/report/validate_tree.py` (139 lines)
-  - Implemented `create_validate_report_tree(report_id, offer_id)` factory function
-  - Tree structure (Phase 1 - Minimal):
-    - Root: `Selector` (early exit OR full validation)
-    - Child 1: `CheckRMStateValid` (short-circuit if already valid)
-    - Child 2: `ValidationFlow` sequence:
-      - `CheckRMStateReceivedOrInvalid` (precondition)
-      - `EvaluateReportCredibility` (policy stub)
-      - `EvaluateReportValidity` (policy stub)
-      - `ValidationActions` sequence:
-        - `TransitionRMtoValid` (status updates)
-        - `CreateCaseNode` (case creation)
-        - `CreateCaseActivity` (activity generation)
-        - `UpdateActorOutbox` (outbox update)
-  - Fixed blackboard key registration in nodes:
-    - Added `setup()` override in `CreateCaseActivity` to register `case_id` READ access
-    - Added `setup()` override in `UpdateActorOutbox` to register `activity_id` READ access
-  - Created comprehensive integration tests in `test/behaviors/report/test_validate_tree.py` (12 tests, 502 lines)
-  - Test coverage:
-    - Tree creation and structure verification
-    - Execution with different report states (RECEIVED, INVALID, VALID, no status)
-    - Early exit optimization
-    - Policy stub behavior
-    - Error handling (missing DataLayer, actor_id, report)
-    - Idempotency
-    - Actor isolation
-  - Fixed test_nodes.py to handle new blackboard key registrations (2 tests updated)
-  - All 442 tests passing (430 base + 12 new)
-  - Black formatting applied to all new/modified files
+#### manage_participants_demo.py
 
-- [x] **BT-1.3.4**: Create default policy implementation
-  - Created `vultron/behaviors/report/policy.py` with ValidationPolicy base class and AlwaysAcceptPolicy
-  - Implemented `AlwaysAcceptPolicy`:
-    - `is_credible(report) -> True` (prototype simplification)
-    - `is_valid(report) -> True`
-    - Log policy decisions at INFO level
-  - Documented extension points for custom policies
-  - Created comprehensive unit tests in `test/behaviors/report/test_policy.py` (12 tests)
-  - All 454 tests passing (442 base + 12 new)
-  - Black formatting applied
-
-#### BT-1.4: Handler Refactoring
-
-- [x] **BT-1.4.1**: Refactor `validate_report` handler to use BT
-  - Modified `vultron/api/v2/backend/handlers.py:validate_report()`
-  - Extract activity context (actor_id, report_id, offer_id)
-  - Created `validate_report_tree` and executed via `BTBridge`
-  - Handle BT execution results (SUCCESS/FAILURE/RUNNING)
-  - Preserved `@verify_semantics` decorator and error handling
-  - All 454 tests passing (including 5 reporting workflow tests)
-  
-- [x] **BT-1.4.2**: Update handler tests
-  - Verified BT integration doesn't break existing tests
-  - All tests in `test/api/v2/backend/test_handlers.py` passing
-  - All tests in `test/api/test_reporting_workflow.py` passing (5 passed, 2 xfailed)
-  - Demo test in `test/scripts/test_receive_report_demo.py` passing
-  - State transitions match expected behavior
-  - Case creation working correctly
-
-#### BT-1.5: Demo and Validation
-
-- [x] **BT-1.5.1**: Update demo script for BT validation
-  - ✅ Demo script uses BT-enabled handler (validate_report refactored in BT-1.4)
-  - ✅ All three workflows verified working (validate, invalidate, reject+close)
-  - ✅ Added BT execution logging output (tree visualization, status, feedback)
-  - ✅ Enhanced bridge logging with tree structure visualization at DEBUG level
-  - ✅ Enhanced handler logging with detailed BT execution results
-  - ✅ Updated demo script docstring with BT logging guidance
-  
-- [x] **BT-1.5.2**: Run full test suite
-  - ✅ All 456 tests pass (no regressions)
-  - ✅ Includes 76 BT tests + 2 new performance tests
-  - ✅ Test coverage goal met for BT code
-  
-- [x] **BT-1.5.3**: Performance baseline
-  - ✅ Measured BT execution performance via test/behaviors/test_performance.py
-  - ✅ Performance results (100 runs): P50=0.44ms, P95=0.69ms, P99=0.84ms
-  - ✅ Well within 100ms target (P99 < 1ms!)
-  - ✅ No performance regression from BT integration
-
-#### BT-1.6: Documentation
-
-- [x] **BT-1.6.1**: Update specifications
-  - Mark BT-01 through BT-10 requirements as implemented in `specs/behavior-tree-integration.md`
-  - Add verification notes for completed requirements
-  - Document any deviations from spec
-  
-- [x] **BT-1.6.2**: Create implementation notes
-  - Document lessons learned in `plan/IMPLEMENTATION_NOTES.md`
-  - Note any challenges with py_trees integration
-  - Identify improvements for Phase BT-2
-
-**Estimated Effort**: 3-5 days for experienced developer
-
-**Success Criteria**:
-- ✅ py_trees integrated and working
-- ✅ `validate_report` handler uses BT execution
-- ✅ All existing tests pass
-- ✅ Demo script works with BT-enabled handler
-- ✅ CaseActor creation fixed (BT-10-002 gap)
-- ✅ Performance acceptable (P99 < 100ms)
-
-**Deliverable**: Working POC demonstrating BT integration value
+- [x] **DEMO-3.13**: Create `vultron/scripts/manage_participants_demo.py`
+  - Full cycle from `manage_participants.md`: invite → accept →
+    create_participant → add_to_case → create_status → add_status →
+    remove_participant
+  - Demonstrate reject path as well
+- [x] **DEMO-3.14**: Add `test/scripts/test_manage_participants_demo.py`
+- [x] **DEMO-3.15**: Add `manage-participants-demo` service to docker-compose.yml
 
 ---
 
-### LOWER PRIORITY: Additional BT Integration (Deferred)
+### Phase REFACTOR-1 — CM-03-006: Status History Field Renames (Priority 50)
 
-Per PRIORITIES.md, expand BT integration to other handlers after Phase BT-1 succeeds.
+**Priority**: MEDIUM — improves spec compliance; touches many files
+**Reference**: `specs/case-management.md` CM-03-006
 
-#### Phase BT-2: Report Workflow BTs (Deferred)
-
-**Goal**: Migrate remaining report handlers to BT execution
-
-- [ ] Refactor `create_report` handler to use BT
-- [ ] Refactor `submit_report` handler to use BT
-- [ ] Refactor `invalidate_report` handler to use BT
-- [ ] Refactor `ack_report` handler to use BT
-- [ ] Refactor `close_report` handler to use BT
-- [ ] Create reusable BT components for common patterns
-- [ ] Update demo to showcase BT-powered workflows
-
-#### Phase BT-3: Case Management BTs (Deferred)
-
-**Goal**: Implement case workflow BTs for multi-actor coordination
-
-- [ ] Create `vultron/behaviors/case/` directory
-- [ ] Implement case creation BT
-- [ ] Implement actor invitation BTs
-- [ ] Implement case participant management BTs
-- [ ] Implement case ownership transfer BTs
-- [ ] Create case management demo script
-
-#### Phase BT-4: Embargo Management BTs (Deferred)
-
-**Goal**: Implement embargo workflow BTs
-
-- [ ] Create `vultron/behaviors/embargo/` directory
-- [ ] Implement embargo proposal BT
-- [ ] Implement embargo acceptance BT
-- [ ] Implement embargo timeline management BTs
-- [ ] Create embargo coordination demo script
+- [ ] **REFACTOR-1.1**: Rename `VulnerabilityCase.case_status` (list) →
+  `case_statuses`; add `case_status` as read-only property returning
+  `current_status` (most recent by timestamp)
+  - Update `vulnerability_case.py`, all references in `handlers.py`,
+    `behaviors/`, and tests
+- [ ] **REFACTOR-1.2**: Rename `CaseParticipant.participant_status` (list) →
+  `participant_statuses`; add `participant_status` as read-only property
+  - Update `case_participant.py`, all references in `handlers.py` and tests
+- [ ] **REFACTOR-1.3**: Run full test suite; fix all breakage; confirm 0 regressions
 
 ---
 
-### LOWER PRIORITY: Additional Workflows (Deferred)
+### Phase BT-2.2/2.3 — Optional BT Refactors (low priority)
 
-**Note**: These are lower priority than BT integration per PRIORITIES.md.
-
-#### Option A: Expand Demo to Cover More Workflows (Non-BT)
-
-If procedural handler implementations are needed before BT integration:
-
-- [ ] **Phase 0B: Case Management Demo** (Procedural)
-  - [ ] Implement case workflow handlers (create_case, add_report_to_case)
-  - [ ] Implement actor invitation handlers (invite/accept/reject_invite_actor_to_case)
-  - [ ] Create demo script showing multi-actor case collaboration
-  - [ ] Document in `docs/howto/activitypub/activities/manage_case.md`
-
-- [ ] **Phase 0C: Embargo Management Demo** (Procedural)
-  - [ ] Implement embargo handlers (create_embargo_event, add_embargo_event_to_case)
-  - [ ] Implement embargo invitation handlers
-  - [ ] Create demo script showing embargo coordination
-  - [ ] Document in `docs/howto/activitypub/activities/manage_embargo.md`
-
-#### Option B: Production Readiness
-
-If the goal is to harden the current implementation for real-world use:
-
-- [ ] **Phase 1: Critical Infrastructure** (See detailed tasks below)
-  - Request validation, error handling, health checks
-- [ ] **Phase 2: Observability** (See detailed tasks below)
-  - Structured logging, correlation IDs, idempotency
-- [ ] **Phase 3: Testing & Quality** (See detailed tasks below)
-  - Coverage enforcement, integration tests
+- [ ] **BT-2.2**: Refactor `close_report` handler to use BT tree
+  (reference: `vultron/bt/report_management/_behaviors/close_report.py`)
+- [ ] **BT-2.3**: Refactor `invalidate_report` handler to use BT tree
+  (reference: `_InvalidateReport` subtree in `validate_report.py`)
 
 ---
 
-### LOWER PRIORITY: Production Readiness Features
+### Phase OUTBOX-1 — Outbox Local Delivery (lower priority)
 
-Per PRIORITIES.md, features that primarily serve to improve production-readiness are **lower priority** than completing handler demos.
+**Reference**: `specs/outbox.md` OX-03, OX-04
 
-### Phase 1: Critical Infrastructure & Validation (DEFERRED - Lower Priority)
-
-**Note**: These tasks improve production readiness but are not required for demonstration purposes.
-
-#### 1.1 Request Validation Middleware ❌
-
-- [ ] Create middleware or dependency for Content-Type validation
-  - [ ] Accept `application/activity+json` (MUST)
-  - [ ] Accept `application/ld+json; profile="..."` (MUST)
-  - [ ] Return HTTP 415 for non-conforming types
-- [ ] Implement 1MB payload size limit check
-  - [ ] Return HTTP 413 for oversized payloads
-  - [ ] Log oversized requests at WARNING level
-- [ ] Add URI validation using Pydantic validators
-  - [ ] Validate `as_id` field format
-  - [ ] Validate URI schemes (http, https, urn)
-  - [ ] Syntax-only check (no reachability)
-- **Files**: `vultron/api/v2/routers/actors.py`, new middleware
-- **Specs**: `IE-03-001/002`, `MV-05-001`, `MV-06-001`, `MV-07-001/002`
-- **Tests**: `test/api/v2/routers/test_actors_validation.py`
-
-#### 1.2 Standardized HTTP Error Responses
-
-- [ ] Create custom exception handler for `VultronError` hierarchy
-- [ ] Implement JSON error response format:
-
-  ```json
-  {
-    "status": <HTTP_CODE>,
-    "error": "<ERROR_TYPE>",
-    "message": "<HUMAN_READABLE>",
-    "activity_id": "<ID_IF_AVAILABLE>"
-  }
-  ```
-
-- [ ] Update all exception classes to include context attributes
-  - [ ] Add `activity_id: str | None` field
-  - [ ] Add `actor_id: str | None` field
-  - [ ] Add `original_exception: Exception | None` for wrapping
-- [ ] Map error types to HTTP status codes:
-  - [ ] Validation errors → 400/422 (WARNING log)
-  - [ ] Protocol errors → 400-499 (WARNING log)
-  - [ ] System errors → 500-599 (ERROR log with stack trace)
-- [ ] Register exception handlers in FastAPI app
-- **Files**: `vultron/api/v2/errors.py`, `vultron/api/v2/app.py`
-- **Specs**: `EH-04-001`, `EH-05-001`, `EH-06-001`
-- **Tests**: `test/api/v2/test_error_responses.py`
-
-#### 1.3 Health Check Endpoints
-
-- [ ] Create `vultron/api/v2/routers/health.py`
-- [ ] Implement `/health/live` (liveness probe)
-  - [ ] Return 200 if process running
-  - [ ] Minimal logic (just proves process alive)
-- [ ] Implement `/health/ready` (readiness probe)
-  - [ ] Check data layer connectivity
-  - [ ] Return 200 if ready, 503 if not
-  - [ ] Include status details in response body
-- [ ] Register health router in main app
-- [ ] Add integration tests
-- **Files**: New router file, update `app.py`
-- **Specs**: `OB-05-001`, `OB-05-002`
-- **Tests**: `test/api/v2/routers/test_health.py`
-
-### Phase 2: Observability & Reliability (DEFERRED - Lower Priority)
-
-#### 2.1 Structured Logging Implementation
-
-- [ ] Create logging configuration module
-  - [ ] Define structured log format (JSON or key-value)
-  - [ ] Include fields: timestamp (ISO 8601), level, component, activity_id, actor_id, message
-  - [ ] Configure formatters for console and file output
-- [ ] Implement correlation ID context manager
-  - [ ] Use activity `as_id` as correlation ID
-  - [ ] Propagate through all processing stages
-  - [ ] Include in all log entries
-- [ ] Add lifecycle logging at INFO level:
-  - [ ] Activity received (with activity_id, actor_id)
-  - [ ] Activity validated (with semantic type)
-  - [ ] Activity queued for processing
-  - [ ] Handler invoked (with handler name)
-  - [ ] State transitions (before → after)
-  - [ ] Processing completed (with result)
-- [ ] Implement proper log level usage:
-  - [ ] DEBUG: Diagnostic details, payload contents
-  - [ ] INFO: Lifecycle events, state changes
-  - [ ] WARNING: Recoverable issues, validation warnings, 4xx errors
-  - [ ] ERROR: Unrecoverable failures, handler exceptions, 5xx errors
-  - [ ] CRITICAL: System-level failures (not currently used)
-- [ ] Add audit trail logging:
-  - [ ] State transition logs (case states, embargo states)
-  - [ ] Authorization decisions (when auth implemented)
-  - [ ] Data access operations
-- **Files**: New `vultron/api/v2/logging_config.py`, update handlers
-- **Specs**: `OB-01-001`, `OB-02-001`, `OB-03-001`, `OB-04-001`, `OB-06-001/002/003`
-- **Tests**: `test/api/v2/test_logging.py` (use caplog fixture)
-
-#### 2.2 Idempotency and Duplicate Detection
-
-- [ ] Design activity ID tracking mechanism
-  - [ ] Option A: In-memory cache with TTL (simple, testing)
-  - [ ] Option B: TinyDB table with timestamp (persistent)
-  - [ ] Decide based on requirements (start with Option A)
-- [ ] Implement duplicate detection logic
-  - [ ] Check activity ID before processing
-  - [ ] Return HTTP 202 immediately for duplicates (no reprocessing)
-  - [ ] Log duplicate detection at INFO level
-- [ ] Add TTL-based cleanup
-  - [ ] Background task to expire old activity IDs
-  - [ ] Configurable retention period (e.g., 24 hours)
-- [ ] Handle edge cases
-  - [ ] Different activities with same ID (error scenario)
-  - [ ] Concurrent submissions of same activity
-- [ ] Add integration tests
-  - [ ] Submit same activity twice, verify second returns 202 without reprocessing
-  - [ ] Verify logs show duplicate detection
-  - [ ] Test cleanup after TTL expiration
-- **Files**: `vultron/api/v2/routers/actors.py`, new `deduplication.py` module
-- **Specs**: `IE-10-001`, `IE-10-002`, `MV-08-001`
-- **Tests**: `test/api/v2/test_idempotency.py`
-
-### Phase 3: Testing Infrastructure & Coverage (DEFERRED - Lower Priority)
-
-#### 3.1 Configure Test Coverage Enforcement
-
-- [ ] Add pytest-cov configuration to `pyproject.toml`
-  - [ ] Set minimum coverage threshold: 80% overall
-  - [ ] Set critical path coverage: 100% for validation, semantic extraction, dispatch, error handling
-  - [ ] Configure coverage report formats (terminal, HTML, XML)
-- [ ] Run baseline coverage measurement
-  - [ ] Execute `pytest --cov=vultron --cov-report=term-missing`
-  - [ ] Document current coverage percentages
-  - [ ] Identify coverage gaps
-- [ ] Add coverage checks to CI pipeline
-  - [ ] Fail build if coverage drops below thresholds
-  - [ ] Generate and publish coverage reports
-- **Files**: `pyproject.toml`, CI configuration
-- **Specs**: `TB-02-001`, `TB-02-002`
-- **Tests**: Configuration only
-
-#### 3.2 Create Integration Test Suite
-
-- [ ] Create `test/api/v2/integration/` directory structure
-- [ ] Add pytest markers for test categorization
-  - [ ] `@pytest.mark.unit` for isolated tests
-  - [ ] `@pytest.mark.integration` for full-stack tests
-  - [ ] Update `pyproject.toml` with marker definitions
-- [ ] Implement end-to-end inbox flow tests
-  - [ ] Test: Valid activity → 202 → handler invoked
-  - [ ] Test: Invalid Content-Type → 415
-  - [ ] Test: Oversized payload → 413
-  - [ ] Test: Malformed activity → 422
-  - [ ] Test: Unknown actor → 404
-  - [ ] Test: Duplicate activity → 202 (no reprocessing)
-  - [ ] Test: Async processing with BackgroundTasks
-- [ ] Implement semantic extraction integration tests
-  - [ ] Test all 47 semantic patterns with real activities
-  - [ ] Verify correct handler invocation for each
-  - [ ] Test pattern ordering (specific before general)
-- [ ] Implement error handling integration tests
-  - [ ] Test all HTTP error codes (400, 404, 405, 413, 415, 422, 500)
-  - [ ] Verify error response format
-  - [ ] Verify error logging
-- **Files**: New `test/api/v2/integration/` directory
-- **Specs**: `TB-03-001`, `TB-03-002`, `TB-03-003`, `TB-04-003`
-- **Tests**: Multiple new integration test files
-
-#### 3.3 Enhance Test Infrastructure
-
-- [ ] Create test data factories
-  - [ ] Factory for `VulnerabilityReport` objects
-  - [ ] Factory for `VulnerabilityCase` objects
-  - [ ] Factory for ActivityStreams activities (Create, Accept, Reject, etc.)
-  - [ ] Factory for Actor objects
-  - [ ] Use realistic domain data in tests
-- [ ] Centralize fixtures in root `conftest.py`
-  - [ ] Shared `client` fixture (FastAPI TestClient)
-  - [ ] Shared `datalayer` fixture with automatic cleanup
-  - [ ] Shared `test_actor` fixture
-  - [ ] Activity factory fixtures
-- [ ] Improve test isolation
-  - [ ] Ensure database cleared between tests
-  - [ ] Ensure no global state leakage
-  - [ ] Add markers for parallel-safe tests
-- [ ] Document test patterns and conventions
-  - [ ] Add testing guide to documentation
-  - [ ] Include examples of good test structure
-- **Files**: `test/conftest.py`, `test/factories.py`, new documentation
-- **Specs**: `TB-05-001`, `TB-05-002`, `TB-05-004`, `TB-06-001`
-- **Tests**: Infrastructure and fixtures
-
-### Phase 4: Additional Handler Business Logic (DEFERRED - Lowest Priority)
-
-**Status**: LOWEST PRIORITY per PRIORITIES.md - Core report handlers are complete (Phase 0)
-
-**Rationale**: The 6 report handlers needed for the demo are complete. The remaining 30 handlers (case management, embargo management, actor management, metadata) are deferred until the demo is polished and infrastructure is mature.
-
-**Handler Status Summary**:
-
-- ✅ Report Handlers (6/6 complete): create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
-- ⏸️ Case Handlers (0/10 complete): Stub implementations only
-- ⏸️ Embargo Handlers (0/8 complete): Stub implementations only
-- ⏸️ Actor/Participant Handlers (0/8 complete): Stub implementations only
-- ⏸️ Metadata Handlers (0/4 complete): Stub implementations only
-
-**Future Work**:
-
-- [ ] Implement case management handlers (10 handlers)
-  - [ ] create_case, add_report_to_case, remove_report_from_case
-  - [ ] update_case_status, close_case, reopen_case
-  - [ ] add_case_participant, remove_case_participant
-  - [ ] transfer_case_ownership, merge_cases
-- [ ] Implement embargo management handlers (12 handlers)
-  - [ ] create_embargo, update_embargo_status, terminate_embargo
-  - [ ] add_embargo_event, remove_embargo_event, announce_embargo_event
-  - [ ] invite_to_embargo, accept_embargo_invitation, reject_embargo_invitation
-  - [ ] notify_embargo_status, request_embargo_extension, handle_embargo_violation
-- [ ] Implement actor management handlers (9 handlers)
-  - [ ] suggest_actor_to_case, accept_actor_suggestion, reject_actor_suggestion
-  - [ ] invite_actor_to_case, accept_case_invitation, reject_case_invitation
-  - [ ] offer_case_ownership, accept_ownership_offer, reject_ownership_offer
-- [ ] Implement metadata handlers (8 handlers)
-  - [ ] add_case_note, update_case_note, remove_case_note
-  - [ ] add_case_participant_status, get_case_participants
-  - [ ] add_status_object, update_status_object, remove_status_object
-- [ ] Add comprehensive unit tests for each handler
-- **Files**: `vultron/api/v2/backend/handlers.py` and supporting modules
-- **Specs**: `HP-03-001`, `HP-04-001`, `HP-06-001`
-- **Tests**: Expand `test/api/v2/backend/test_handlers.py`
-
-### Phase 5: Response Generation (DEFERRED - Lowest Priority)
-
-**Status**: LOWEST PRIORITY per PRIORITIES.md
-
-**Rationale**: Response generation (sending Accept/Reject/TentativeReject activities back to the report submitter) is important for a complete implementation but not required for the demo script. The demo focuses on the receiving side processing.
-
-**Dependencies**:
-
-- Phase 0A complete (demo script working)
-- Understanding of response patterns from real-world usage
-
-**Future Work**:
-
-- [ ] Design response activity patterns
-  - [ ] Map handler outcomes to response types
-  - [ ] Define `inReplyTo` correlation rules
-  - [ ] Design error extension format
-- [ ] Implement response generation
-  - [ ] Accept response builder
-  - [ ] Reject response builder
-  - [ ] TentativeReject response builder
-  - [ ] Update response builder
-  - [ ] Error response builder with extensions
-- [ ] Implement response correlation
-  - [ ] Add `inReplyTo` field to all responses
-  - [ ] Track original activity ID
-  - [ ] Prevent duplicate responses
-- [ ] Implement response delivery
-  - [ ] Queue responses to actor outbox
-  - [ ] Process outbox for delivery
-  - [ ] Handle delivery failures
-  - [ ] Retry logic with backoff
-- [ ] Add tests
-  - [ ] Unit tests for response builders
-  - [ ] Integration tests for response delivery
-  - [ ] Test duplicate response prevention
-- **Files**: New `vultron/api/v2/backend/response_builder.py`, update handlers
-- **Specs**: `RF-02-001`, `RF-03-001`, `RF-04-001`, `RF-05-001`, `RF-06-001`, `RF-08-001`
-- **Tests**: `test/api/v2/backend/test_response_generation.py`
-
-### Phase 6: Code Quality & Documentation (DEFERRED - Lower Priority)
-
-#### 6.1 Code Style Compliance
-
-- [ ] Verify Black formatting compliance
-  - [ ] Run `black --check vultron/`
-  - [ ] Fix any formatting issues
-- [ ] Verify import organization per spec
-  - [ ] Standard library first
-  - [ ] Third-party packages second
-  - [ ] Local modules third
-  - [ ] No wildcard imports
-- [ ] Check for circular imports
-  - [ ] Core modules should not import from API layer
-  - [ ] Document module dependency graph
-- [ ] Run static type checking
-  - [ ] Execute `mypy vultron/`
-  - [ ] Fix type errors
-  - [ ] Add missing type hints
-- **Files**: Entire codebase
-- **Specs**: `CS-01-001` through `CS-05-001`
-- **Tests**: Linting in CI
-
-#### 6.2 Documentation Updates
-
-- [ ] Update API documentation
-  - [ ] Document inbox endpoint behavior
-  - [ ] Document health check endpoints
-  - [ ] Document error response formats
-  - [ ] Add request/response examples
-- [ ] Update specification compliance matrix
-  - [ ] Document which specs are implemented
-  - [ ] List known gaps and limitations
-  - [ ] Update as implementation progresses
-- [ ] Add inline documentation
-  - [ ] Docstrings for all public functions
-  - [ ] Docstrings for all classes
-  - [ ] Complex logic explanations where needed
-- [ ] Create troubleshooting guide
-  - [ ] Common error scenarios
-  - [ ] Debugging tips
-  - [ ] Log analysis examples
-- **Files**: `docs/` directory, inline docstrings
-- **Specs**: General documentation requirements
-- **Tests**: Documentation builds successfully
-
-### Phase 7: Performance & Scalability (FUTURE)
-
-**Status**: DEFERRED - Post-research phase
-
-**Rationale**: This is a research prototype. Performance optimization is not a priority until the protocol design is validated and we have real-world usage data.
-
-**Future Considerations**:
-
-- [ ] Evaluate async dispatcher implementation
-  - [ ] Queue-based processing (Redis, RabbitMQ)
-  - [ ] Worker pool architecture
-  - [ ] Horizontal scaling support
-- [ ] Database optimization
-  - [ ] Replace TinyDB with production database
-  - [ ] Add indexes for common queries
-  - [ ] Implement connection pooling
-- [ ] Caching strategies
-  - [ ] Actor metadata caching
-  - [ ] Activity deduplication cache
-  - [ ] Response template caching
-- [ ] Rate limiting
-  - [ ] Per-actor rate limits
-  - [ ] Global rate limits
-  - [ ] Backpressure mechanisms
-- [ ] Monitoring and metrics
-  - [ ] Prometheus metrics export
-  - [ ] Request latency tracking
-  - [ ] Queue depth monitoring
-  - [ ] Error rate alerting
-- **Files**: TBD based on performance requirements
-- **Specs**: Not yet specified
-- **Tests**: Performance test suite
-
-## Implementation Priorities & Sequencing (Updated per PRIORITIES.md)
-
-### TOP PRIORITY: Complete Demo Script (Phase 0A)
-
-**Goal**: Finish `scripts/receive_report_demo.py` to demonstrate the report submission workflow
-
-**Tasks** (See Phase 0A above for details):
-
-1. Refactor demo structure to show three separate outcomes (accept/tentative reject/reject)
-2. Implement any missing workflow steps from the howto document
-3. Fix endpoint path issues
-4. Enhance documentation
-5. Add comprehensive tests
-
-**Exit Criteria**: Demo script cleanly demonstrates all three report evaluation outcomes as described in `docs/howto/activitypub/activities/report_vulnerability.md`
+- [ ] **OX-1.1**: Implement local delivery: write activity from actor outbox to
+  recipient actor's inbox in DataLayer (OX-04-001, OX-04-002)
+- [ ] **OX-1.2**: Integrate delivery as background task after handler completion
+  (OX-03-002, OX-03-003); must not block HTTP response
+- [ ] **OX-1.3**: Add idempotency check — delivering same activity twice MUST NOT
+  create duplicate inbox entries (OX-06-001)
+- [ ] **OX-1.4**: Add `test/api/v2/backend/test_outbox.py`
 
 ---
 
-### LOWER PRIORITY: Production Readiness
+## Technical debt (housekeeping)
 
-All remaining phases (1-7) are lower priority per PRIORITIES.md. These features improve production-readiness but are not needed for the demonstration.
+Priority: LOW–MEDIUM. These tasks reduce long-term maintenance and should be
+addressed as time permits.
 
-**Deferred Work** (in rough priority order when demo is complete):
+- [ ] TECHDEBT-1: Split large handlers module into submodules — move related
+  handlers into `vultron/api/v2/backend/handlers/*.py` and re-export in
+  `vultron.api.v2.backend.handlers.__init__`.
+  Done when: handlers module size reduces below 400 LOC and full test-suite passes.
 
-- Phase 1: Request validation, error responses, health checks
-- Phase 2: Structured logging, idempotency
-- Phase 3: Test coverage enforcement, integration tests
-- Phase 4: Additional handler business logic (case, embargo, actor handlers)
-- Phase 5: Response generation (sending Accept/Reject back to submitter)
-- Phase 6: Code quality and documentation improvements
-- Phase 7: Performance and scalability (post-research phase)
+- [ ] TECHDEBT-2: Extract demo utilities and centralize demos — move
+  `demo_step`/`demo_check` context managers and shared client helpers to
+  `vultron/demo/utils.py` and relocate demo scripts to `vultron/demo/`.
+  Done when: demos import from `vultron.demo.utils` and demo tests pass.
 
----
+- [ ] TECHDEBT-3: Standardize object IDs to URL-like form — draft ADR
+  `docs/adr/ADR-XXXX-standardize-object-ids.md` and implement a compatibility
+  shim in the DataLayer that accepts existing IDs.
+  Done when: ADR created and tests validate URL-like ID acceptance.
 
-## Original Priority Structure (For Reference)
+- [ ] TECHDEBT-4: Reorganize top-level modules (activity_patterns, semantic_map,
+  enums) into small packages to reduce circular imports and improve
+  discoverability.
+  Done when: modules moved with minimal interface changes and tests pass.
 
-### Original Immediate Focus (Pre-PRIORITIES.md)
+- [ ] TECHDEBT-5: Move `vultron/scripts/vocab_examples.py` to
+  `vultron/as_vocab/examples/` and provide a compatibility shim for existing
+  import paths.
+  Done when: new location is used and existing import paths remain functional.
 
-**Goal**: Achieve specification compliance for inbox endpoint and request handling
-
-1. **Phase 1.1**: Request validation middleware (1-2 days)
-2. **Phase 1.2**: Standardized error responses (1-2 days)
-3. **Phase 1.3**: Health check endpoints (0.5 days)
-4. **Phase 3.1**: Configure test coverage enforcement (0.5 days)
-
-**Exit Criteria**: Inbox endpoint meets all IE-*and MV-* spec requirements with proper error handling
-
-### Short Term (Next 2-3 Sprints)
-
-**Goal**: Complete observability and reliability features; achieve test coverage targets
-
-1. **Phase 2.1**: Structured logging with correlation IDs (2-3 days)
-2. **Phase 2.2**: Idempotency and duplicate detection (1-2 days)
-3. **Phase 3.2**: Integration test suite (3-4 days)
-4. **Phase 3.3**: Enhanced test infrastructure and factories (2-3 days)
-
-**Exit Criteria**:
-
-- All OB-* spec requirements met
-- 80%+ test coverage overall
-- 100% coverage on critical paths (validation, semantic extraction, dispatch, error handling)
-
-### Medium Term (Following Sprints)
-
-**Goal**: Code quality and documentation
-
-1. **Phase 6.1**: Code style compliance and type checking (1-2 days)
-2. **Phase 6.2**: Documentation updates (2-3 days)
-
-**Exit Criteria**:
-
-- All CS-* spec requirements met
-- Comprehensive documentation for API consumers
-- Specification compliance matrix complete
-
-### Long Term (Post-Research Phase)
-
-**Goal**: Production readiness (if/when needed)
-
-1. **Phase 4**: Handler business logic implementation (10-15 days)
-2. **Phase 5**: Response generation system (5-7 days)
-3. **Phase 7**: Performance optimization (TBD based on requirements)
-
-**Exit Criteria**: System ready for production deployment with full CVD workflow support
-
-## Open Questions & Design Decisions
-
-### Resolved Questions
-
-#### Q1: Async Dispatcher Priority
-
-**Question**: Specs `DR-04-001` and `DR-04-002` recommend async queue-based dispatcher for production. Should this be prioritized now or deferred?
-
-**Decision**: DEFERRED. FastAPI BackgroundTasks already provides async processing at the endpoint level. Downstream processing can remain synchronous until we have performance data indicating need for queue-based architecture.
-
-#### Q2: Test Organization
-
-**Question**: Should we separate unit and integration tests into `test/unit/` and `test/integration/` directories per `TB-04-003`, or use pytest markers?
-
-**Decision**: Use pytest markers (`@pytest.mark.unit`, `@pytest.mark.integration`). Simpler to implement and maintain. Can reorganize directory structure later if needed.
-
-#### Q3: URI Validation Scope
-
-**Question**: Spec `MV-05-001` requires URI validation. Should this be syntax-only or include reachability checks?
-
-**Decision**: Syntax-only validation using Pydantic validators. Check for well-formed URIs with acceptable schemes (http, https, urn). No reachability/liveness checks required at this stage.
-
-#### Q4: Handler Implementation Order
-
-**Question**: With 47 handlers to implement, should we prioritize by CVD workflow criticality or by semantic grouping?
-
-**Decision**: DEFER all handler business logic to Phase 4. Focus first on infrastructure: request validation, semantic extraction, dispatch routing, error handling. Verify correct handler invocation without implementing business logic.
-
-#### Q5: Authorization System
-
-**Question**: Multiple specs reference authorization (e.g., `HP-05-001`), but no auth system exists. Should this be specified and implemented?
-
-**Decision**: OUT OF SCOPE for initial implementation. Design system to allow easy auth layer integration later. For now, assume all requests are authorized. Focus on message handling functionality.
-
-### Open Questions
-
-#### Q6: Duplicate Detection Storage
-
-**Question**: Should duplicate detection use in-memory cache (simple, fast, non-persistent) or TinyDB (persistent, survives restarts)?
-
-**Options**:
-
-- Option A: In-memory cache with TTL (e.g., Python dict with timestamps or `cachetools`)
-  - Pros: Fast, simple implementation
-  - Cons: Lost on restart, not shared across processes
-- Option B: TinyDB table with activity IDs and timestamps
-  - Pros: Persistent, consistent across restarts
-  - Cons: Slower, requires cleanup logic
-
-**Recommendation**: Start with Option A for simplicity. Upgrade to Option B if persistence proves necessary.
-
-#### Q7: Structured Logging Format
-
-**Question**: Should structured logs use JSON format (machine-parseable) or enhanced key-value format (human-readable)?
-
-**Options**:
-
-- JSON format: `{"timestamp": "...", "level": "INFO", "component": "...", "message": "..."}`
-- Key-value format: `2026-02-13T16:00:00Z [INFO] component=inbox_handler activity_id=... message=...`
-
-**Recommendation**: JSON format for production parsability. Can add console-friendly formatter for development.
-
-#### Q8: Health Check Ready Conditions
-
-**Question**: What should `/health/ready` check beyond data layer connectivity?
-
-**Considerations**:
-
-- Data layer read/write access
-- Disk space availability
-- Memory usage thresholds
-- Queue depth (if async queue implemented)
-
-**Recommendation**: Start with data layer connectivity check only. Add more checks as system complexity grows.
-
-#### Q9: Test Coverage Enforcement
-
-**Question**: Should coverage enforcement be strict (fail build on any decrease) or threshold-based (fail only below 80%)?
-
-**Recommendation**: Threshold-based initially (80% overall, 100% critical paths). Can tighten to strict enforcement once stable.
-
-#### Q10: Response Generation Timing
-
-**Question**: When Phase 5 is implemented, should response generation be synchronous (blocking handler) or async (queued after handler returns)?
-
-**Consideration**: Affects handler protocol design and testing approach.
-
-**Recommendation**: Defer decision until Phase 4 handler logic is better understood. Likely async to maintain fast handler execution.
+References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
+`plan/IDEATION.md`, and files in `specs/`.
 
 ---
 
-## Notes
+## Deferred (Per PRIORITIES.md)
 
-**Research Prototype Context**: This is a research project exploring federated CVD protocol design. The focus is on:
+The following are deferred until BT phases and demos are complete:
 
-- Demonstrating protocol feasibility
-- Validating behavior tree modeling approach
-- Establishing ActivityStreams vocabulary for CVD
-- Building foundation for future interoperability
-
-Performance optimization and production hardening are explicitly **not priorities** at this stage. The goal is correctness and specification compliance, not scale.
-
----
-
-## Comprehensive Prioritized Task List (Updated per PRIORITIES.md)
-
-### Status Legend
-
-- ✅ Complete
-- 🔄 In Progress
-- ⏸️ Blocked/Waiting
-- ❌ Not Started (Deferred)
+- **Production readiness** (Phase 1–3): Request validation, error responses,
+  health check readiness probe, structured logging, idempotency/duplicate detection,
+  test coverage enforcement — all `PROD_ONLY` or low-priority
+- **Response generation** (Phase 5): Accept/Reject/TentativeReject response builders,
+  outbox delivery with retry/backoff — see historical task list in
+  `IMPLEMENTATION_HISTORY.md`
+- **Code quality** (Phase 6): `mypy`, `black` audit, docstring coverage
+- **Performance / scalability** (Phase 7): Queue-based dispatcher, DB replacement,
+  rate limiting
 
 ---
 
-### TOP PRIORITY: Phase 0A - Complete Demo Script 🔄
-
-See detailed tasks in Phase 0A section above.
-
-**Current Status**: Handler implementation complete (Phase 0). Demo script needs refinement to properly demonstrate the three workflow outcomes.
-
-**Next Steps**:
-
-1. Refactor demo script structure (0A.1)
-2. Identify and implement missing workflow steps (0A.2)
-3. Fix endpoint issues (0A.4)
-4. Enhance documentation (0A.5)
-5. Add comprehensive tests (0A.6)
-
-**Estimated Effort**: 2-4 days
-
----
-
-### DEFERRED: Production Readiness Phases
-
-All remaining phases (1-7) are deferred per PRIORITIES.md. Below is the detailed breakdown for reference, but **these should not be started until Phase 0A is complete**.
-
-### DEFERRED: Phase 1 - Critical Infrastructure ❌
-
-#### 1.1 Request Validation Middleware ❌
-
-- [ ] Create `vultron/api/v2/middleware/validation.py` module
-- [ ] Implement Content-Type validation middleware
-  - [ ] Accept `application/activity+json` (HP-01-001)
-  - [ ] Accept `application/ld+json; profile="..."` (HP-01-002)
-  - [ ] Return HTTP 415 for invalid Content-Type (HP-01-003)
-- [ ] Implement payload size limit middleware
-  - [ ] Check Content-Length header
-  - [ ] Return HTTP 413 for requests > 1MB (HP-02-001)
-  - [ ] Log oversized requests at WARNING level
-- [ ] Add URI validation to Pydantic models
-  - [ ] Create custom validator for `as_id` fields
-  - [ ] Validate URI schemes (http, https, urn) (MV-05-001)
-  - [ ] Syntax-only check (no reachability)
-- [ ] Register middleware in FastAPI app
-- [ ] Add unit tests for middleware
-  - [ ] Test Content-Type acceptance/rejection
-  - [ ] Test payload size limits
-  - [ ] Test URI validation
-- [ ] Add integration tests
-  - [ ] Test invalid Content-Type → 415
-  - [ ] Test oversized payload → 413
-  - [ ] Test invalid URIs → 422
-- **Specs**: HP-01-001/002/003, HP-02-001, MV-05-001, IE-03-001/002
-- **Estimated Effort**: 1-2 days
-
-#### 1.2 Standardized HTTP Error Responses ❌
-
-- [ ] Create `vultron/api/v2/exception_handlers.py` module
-- [ ] Define custom exception handler function
-  - [ ] Match on `VultronError` base class
-  - [ ] Extract HTTP status code from exception type
-  - [ ] Build JSON response with fields: status, error, message, activity_id
-- [ ] Update exception classes
-  - [ ] Add `activity_id: str | None` attribute to VultronError
-  - [ ] Add `actor_id: str | None` attribute to VultronError
-  - [ ] Add `original_exception: Exception | None` for wrapping
-  - [ ] Add `http_status_code: int` class attribute to all exceptions
-- [ ] Define status code mapping
-  - [ ] ValidationError → 422
-  - [ ] ProtocolError → 400
-  - [ ] NotFoundError → 404
-  - [ ] SystemError → 500
-  - [ ] (Create specific exception types as needed)
-- [ ] Implement error logging
-  - [ ] Log 4xx errors at WARNING level
-  - [ ] Log 5xx errors at ERROR level with stack trace
-- [ ] Register exception handler in `app.py`
-- [ ] Add unit tests
-  - [ ] Test each exception type → correct status code
-  - [ ] Test JSON response format
-  - [ ] Test context attributes included
-- [ ] Add integration tests
-  - [ ] Test validation error → 422 with details
-  - [ ] Test system error → 500 with message
-  - [ ] Test error logging levels
-- **Specs**: EH-04-001, EH-05-001, EH-06-001
-- **Estimated Effort**: 1-2 days
-
-#### 1.3 Health Check Endpoints ❌
-
-- [ ] Create `vultron/api/v2/routers/health.py` module
-- [ ] Implement `/health/live` endpoint
-  - [ ] Return 200 if process running
-  - [ ] Minimal logic (just proves process alive)
-  - [ ] Response: `{"status": "ok"}`
-- [ ] Implement `/health/ready` endpoint
-  - [ ] Check data layer connectivity
-  - [ ] Try simple read operation from data layer
-  - [ ] Return 200 if ready, 503 if not
-  - [ ] Response: `{"status": "ready", "checks": {"datalayer": "ok"}}`
-- [ ] Register health router in `app.py`
-- [ ] Add integration tests
-  - [ ] Test `/health/live` returns 200
-  - [ ] Test `/health/ready` returns 200 when data layer available
-  - [ ] Test `/health/ready` returns 503 when data layer unavailable (mock failure)
-- **Specs**: OB-05-001, OB-05-002
-- **Estimated Effort**: 0.5 days
-
----
-
-### DEFERRED: Phase 2 - Observability & Reliability ❌
-
-#### 2.1 Structured Logging Implementation ❌
-
-- [ ] Create `vultron/api/v2/logging_config.py` module
-- [ ] Define structured log format
-  - [ ] Choose format: JSON (recommended) or key-value
-  - [ ] Include fields: timestamp (ISO 8601), level, component, activity_id, actor_id, message
-  - [ ] Create formatter class
-- [ ] Implement correlation ID context manager
-  - [ ] Use contextvars to store correlation_id
-  - [ ] Extract activity_id as correlation ID
-  - [ ] Propagate through all log entries
-  - [ ] Create decorator for automatic correlation ID injection
-- [ ] Add lifecycle logging at INFO level
-  - [ ] Activity received (with activity_id, actor_id)
-  - [ ] Activity validated (with semantic type)
-  - [ ] Activity queued for processing
-  - [ ] Handler invoked (with handler name)
-  - [ ] State transitions (before → after)
-  - [ ] Processing completed (with result)
-- [ ] Implement consistent log level usage
-  - [ ] DEBUG: Diagnostic details, payload contents
-  - [ ] INFO: Lifecycle events, state changes
-  - [ ] WARNING: Recoverable issues, validation warnings, 4xx errors
-  - [ ] ERROR: Unrecoverable failures, handler exceptions, 5xx errors
-  - [ ] CRITICAL: System-level failures (currently unused)
-- [ ] Add audit trail logging
-  - [ ] State transition logs (case states, embargo states)
-  - [ ] Data access operations (at DEBUG level)
-- [ ] Update all handlers to use structured logging
-- [ ] Add unit tests (use caplog fixture)
-  - [ ] Test log format includes required fields
-  - [ ] Test correlation ID propagation
-  - [ ] Test log levels used correctly
-- [ ] Add integration tests
-  - [ ] Test end-to-end logging for activity flow
-  - [ ] Test all logs for an activity share activity_id
-- **Specs**: OB-01-001, OB-02-001, OB-03-001, OB-04-001, OB-06-001/002/003
-- **Estimated Effort**: 2-3 days
-
-#### 2.2 Idempotency and Duplicate Detection ❌
-
-- [ ] Design activity ID tracking mechanism
-  - [ ] Choose storage: In-memory cache (Option A) or TinyDB (Option B)
-  - [ ] Recommendation: Start with Option A (Python dict with timestamps)
-- [ ] Create `vultron/api/v2/deduplication.py` module
-- [ ] Implement ActivityCache class
-  - [ ] Store activity IDs with timestamps
-  - [ ] Check if activity ID already processed
-  - [ ] Add TTL-based expiration (24 hours)
-  - [ ] Thread-safe access (use locks)
-- [ ] Integrate duplicate detection into inbox endpoint
-  - [ ] Check activity ID before processing
-  - [ ] Return HTTP 202 immediately for duplicates (no reprocessing)
-  - [ ] Log duplicate detection at INFO level
-- [ ] Add background cleanup task
-  - [ ] Remove expired activity IDs periodically
-  - [ ] Run every hour or on schedule
-- [ ] Handle edge cases
-  - [ ] Different activities with same ID (log warning)
-  - [ ] Concurrent submissions (lock-based protection)
-- [ ] Add unit tests
-  - [ ] Test cache stores and retrieves activity IDs
-  - [ ] Test TTL expiration works correctly
-  - [ ] Test thread-safe access
-- [ ] Add integration tests
-  - [ ] Submit same activity twice → second returns 202 without reprocessing
-  - [ ] Verify logs show duplicate detection
-  - [ ] Test cleanup after TTL expiration
-- **Specs**: IE-10-001, IE-10-002, MV-08-001
-- **Estimated Effort**: 1-2 days
-
----
-
-### DEFERRED: Phase 3 - Testing Infrastructure & Coverage ❌
-
-#### 3.1 Configure Test Coverage Enforcement ❌
-
-- [ ] Add pytest-cov to dependencies (if not present)
-- [ ] Configure pytest-cov in `pyproject.toml`
-  - [ ] Set `--cov=vultron` flag
-  - [ ] Set minimum coverage threshold: 80% overall
-  - [ ] Configure fail_under for critical modules: 100%
-  - [ ] Set report formats: term-missing, html, xml
-  - [ ] Add coverage omit patterns (tests, **init**.py files)
-- [ ] Run baseline coverage measurement
-  - [ ] Execute: `pytest --cov=vultron --cov-report=term-missing --cov-report=html`
-  - [ ] Document current coverage percentages in IMPLEMENTATION_NOTES.md
-  - [ ] Identify low-coverage modules
-- [ ] Add coverage badge to README (optional)
-- [ ] Add coverage checks to CI pipeline (if using CI)
-  - [ ] Fail build if coverage drops below 80%
-  - [ ] Fail build if critical paths below 100%
-  - [ ] Generate and publish HTML coverage reports
-- **Specs**: TB-02-001, TB-02-002
-- **Estimated Effort**: 0.5 days
-
-#### 3.2 Create Integration Test Suite ❌
-
-- [ ] Create `test/api/v2/integration/` directory structure
-- [ ] Add pytest markers to `pyproject.toml`
-  - [ ] Define `unit` marker for isolated tests
-  - [ ] Define `integration` marker for full-stack tests
-- [ ] Implement end-to-end inbox flow tests
-  - [ ] Test: Valid activity → 202 → handler invoked
-  - [ ] Test: Invalid Content-Type → 415
-  - [ ] Test: Oversized payload → 413
-  - [ ] Test: Malformed activity → 422
-  - [ ] Test: Unknown actor → 404
-  - [ ] Test: Duplicate activity → 202 (no reprocessing)
-  - [ ] Test: Async processing with BackgroundTasks
-- [ ] Implement semantic extraction integration tests
-  - [ ] Test all 36 semantic patterns with real activities
-  - [ ] Verify correct handler invocation for each
-  - [ ] Test pattern ordering (specific before general)
-- [ ] Implement error handling integration tests
-  - [ ] Test all HTTP error codes (400, 404, 405, 413, 415, 422, 500)
-  - [ ] Verify error response format
-  - [ ] Verify error logging
-- [ ] Implement logging integration tests
-  - [ ] Test structured log format
-  - [ ] Test correlation ID propagation
-  - [ ] Test log levels
-- **Specs**: TB-03-001, TB-03-002, TB-03-003, TB-04-003
-- **Estimated Effort**: 3-4 days
-
-#### 3.3 Enhance Test Infrastructure ❌
-
-- [ ] Create `test/factories.py` module
-- [ ] Implement test data factories
-  - [ ] Factory for VulnerabilityReport objects
-  - [ ] Factory for VulnerabilityCase objects
-  - [ ] Factory for ActivityStreams activities (Create, Accept, Reject, etc.)
-  - [ ] Factory for Actor objects
-  - [ ] Use realistic domain data in tests
-- [ ] Centralize fixtures in root `conftest.py`
-  - [ ] Shared `client` fixture (FastAPI TestClient)
-  - [ ] Shared `datalayer` fixture with automatic cleanup
-  - [ ] Shared `test_actor` fixture
-  - [ ] Activity factory fixtures
-- [ ] Improve test isolation
-  - [ ] Ensure database cleared between tests
-  - [ ] Ensure no global state leakage
-  - [ ] Add cleanup hooks for all fixtures
-  - [ ] Add markers for parallel-safe tests
-- [ ] Document test patterns and conventions
-  - [ ] Add `docs/testing-guide.md` document
-  - [ ] Include examples of good test structure
-  - [ ] Document fixture usage
-  - [ ] Document markers usage
-- **Specs**: TB-05-001, TB-05-002, TB-05-003, TB-05-004, TB-06-001
-- **Estimated Effort**: 2-3 days
-
----
-
-### DEFERRED: Phase 4 - Additional Handler Business Logic
-
-**Note**: Phase 0 completed 6 report handlers. Remaining 30 handlers are stub-only and implementation depends on project direction (expand demos vs production hardening).
-
-**Current Handler Status** (from gap analysis):
-
-- ✅ **Report handlers (6/36)**: create_report, submit_report, validate_report, invalidate_report, ack_report, close_report
-- ❌ **Case handlers (8)**: create_case, add_report_to_case, suggest_actor_to_case, ownership transfers, etc.
-- ❌ **Actor invitation handlers (3)**: invite/accept/reject_invite_actor_to_case
-- ❌ **Embargo handlers (7)**: create_embargo_event, invitations, participant management, etc.
-- ❌ **Participant & metadata handlers (7)**: case participants, notes, status tracking
-- ❌ **Case lifecycle handlers (2)**: close_case, reopen_case
-- ❌ **Embargo invitation handlers (3)**: invite/accept/reject_invite_to_embargo_on_case
-- ❌ **Unknown handler (1)**: Logs WARNING and returns None (already implemented)
-
-**Implementation Pattern** (established by report handlers):
-
-1. Extract relevant objects from `dispatchable.payload`
-2. Rehydrate nested object references using data layer
-3. Validate business rules and object types
-4. Persist state changes via data layer `create()` or `update()`
-5. Update actor outbox if creating new activities
-6. Log state transitions at INFO level
-7. Handle errors gracefully with appropriate exceptions
-
-#### 4.1 Case Management Handlers (8 handlers) ❌
-
-**Missing business logic for:**
-
-- [ ] `create_case` (line 566) - Store case in data layer, link initial reports, set attributes
-- [ ] `add_report_to_case` (line 572) - Rehydrate case/report, update case.vulnerability_reports list, persist
-- [ ] `suggest_actor_to_case` (line 578) - Store suggestion activity, create notification
-- [ ] `accept_suggest_actor_to_case` (line 584) - Rehydrate suggestion, add actor to case participants
-- [ ] `reject_suggest_actor_to_case` (line 592) - Log rejection, create response activity
-- [ ] `offer_case_ownership_transfer` (line 600) - Store ownership transfer offer, notify target
-- [ ] `accept_case_ownership_transfer` (line 608) - Update case.attributed_to, store activity
-- [ ] `reject_case_ownership_transfer` (line 616) - Log rejection, notify offerer
-
-**Implementation Pattern** (from completed report handlers):
-
-1. Rehydrate nested objects from payload
-2. Validate business rules and object types
-3. Update relevant objects (case, participants, etc)
-4. Persist changes via `dl.update(obj_id, object_to_record(obj))`
-5. Log state transitions at INFO level
-6. Create response activities where appropriate
-
-**Estimated Effort**: 3-4 days
-
-#### 4.2 Actor Invitation Handlers (3 handlers) ❌
-
-**Missing business logic for:**
-
-- [ ] `invite_actor_to_case` (line 624) - Create invitation activity, store in data layer
-- [ ] `accept_invite_actor_to_case` (line 630) - Rehydrate invitation, add actor to case participants, update status
-- [ ] `reject_invite_actor_to_case` (line 638) - Log rejection, create response activity, notify inviter
-
-**Implementation Notes**: Should follow Offer/Accept/Reject pattern similar to report submission workflow.
-
-**Estimated Effort**: 1-2 days
-
-#### 4.3 Embargo Management Handlers (6 handlers) ❌
-
-**Missing business logic for:**
-
-- [ ] `create_embargo_event` (line 646) - Store embargo event with timeline, restrictions
-- [ ] `add_embargo_event_to_case` (line 652) - Link embargo to case, update case.embargo_events
-- [ ] `remove_embargo_event_from_case` (line 658) - Unlink embargo, update case
-- [ ] `announce_embargo_event_to_case` (line 666) - Broadcast embargo details to case participants
-- [ ] `invite_to_embargo_on_case` (line 674) - Send embargo invitation with terms
-- [ ] `accept_invite_to_embargo_on_case` (line 680) - Accept embargo terms, add to participants
-- [ ] `reject_invite_to_embargo_on_case` (line 688) - Reject embargo invitation
-
-**Implementation Notes**: Embargo events are time-sensitive and require participant coordination. Consider embargo timeline validation and expiry handling.
-
-**Estimated Effort**: 3-4 days
-
-#### 4.4 Case Participant Handlers (3 handlers) ❌
-
-**Missing business logic for:**
-
-- [ ] `create_case_participant` (line 702) - Store participant object with role, permissions
-- [ ] `add_case_participant_to_case` (line 708) - Link participant to case, update case.participants
-- [ ] `remove_case_participant_from_case` (line 716) - Unlink participant, notify removal
-
-**Implementation Notes**: Participant management is prerequisite for multi-party coordination features.
-
-**Estimated Effort**: 1 day
-
-#### 4.5 Metadata Handlers (5 handlers) ❌
-
-**Missing business logic for:**
-
-- [ ] `create_note` (line 724) - Store note object with content, author
-- [ ] `add_note_to_case` (line 730) - Attach note to case, update case notes
-- [ ] `remove_note_from_case` (line 736) - Detach note from case
-- [ ] `create_case_status` (line 742) - Create case status object
-- [ ] `add_case_status_to_case` (line 748) - Attach status to case, track history
-- [ ] `create_participant_status` (line 754) - Create participant status
-- [ ] `add_participant_status_to_participant` (line 760) - Attach status to participant
-
-**Implementation Notes**: Metadata handlers support audit trail and collaboration features.
-
-**Estimated Effort**: 2-3 days
-
-#### 4.6 Case Lifecycle Handlers (1 handler) ❌
-
-**Missing business logic for:**
-
-- [ ] `close_case` (line 696) - Update case status to CLOSED, notify all participants, finalize records
-
-**Implementation Notes**: Should create closure activity and broadcast to all case participants.
-
-**Estimated Effort**: 0.5 days
-
-#### 4.7 Special Handlers (1 handler) ✅
-
-- [x] `unknown` (line 772) - Already implemented (logs WARNING and returns None)
-
-**Total Phase 4 Estimated Effort**: 10-15 days (can be done incrementally)
-
-**Gap Analysis Note (2026-02-17)**: All handlers after `close_report` (line 563) are stubs with only DEBUG logging and no business logic. Total stub count: 24 handlers across 6 categories.
-
----
-
-### DEFERRED: Phase 5 - Response Generation
-
-**Status**: DEFERRED until Phase 4 complete
-
-- [ ] Design response activity patterns
-- [ ] Implement Accept response builder
-- [ ] Implement Reject response builder
-- [ ] Implement TentativeReject response builder
-- [ ] Implement Update response builder
-- [ ] Implement error response builder with extensions
-- [ ] Implement response correlation (inReplyTo)
-- [ ] Implement response delivery mechanism
-- [ ] Add tests for response generation
-- **Specs**: RF-02-001, RF-03-001, RF-04-001, RF-05-001, RF-06-001, RF-08-001
-- **Estimated Effort**: 5-7 days
-
----
-
-### DEFERRED: Phase 6 - Code Quality & Documentation
-
-#### 6.1 Code Style Compliance ❌
-
-- [ ] Run `black --check vultron/`
-- [ ] Fix any formatting issues
-- [ ] Verify import organization (stdlib, third-party, local)
-- [ ] Check for circular imports
-- [ ] Run `mypy vultron/`
-- [ ] Fix type errors
-- [ ] Add missing type hints
-- [ ] Add docstrings to all public functions
-- [ ] Add docstrings to all classes
-- **Specs**: CS-01-001 through CS-05-001
-- **Estimated Effort**: 1-2 days
-
-#### 6.2 Documentation Updates ❌
-
-- [ ] Update API documentation
-  - [ ] Document inbox endpoint behavior
-  - [ ] Document health check endpoints
-  - [ ] Document error response formats
-  - [ ] Add request/response examples
-- [ ] Create specification compliance matrix
-  - [ ] Document which specs are implemented
-  - [ ] List known gaps and limitations
-  - [ ] Update as implementation progresses
-- [ ] Add inline documentation
-  - [ ] Complex logic explanations where needed
-- [ ] Create troubleshooting guide
-  - [ ] Common error scenarios
-  - [ ] Debugging tips
-  - [ ] Log analysis examples
-- **Estimated Effort**: 2-3 days
-
----
-
-### FUTURE: Phase 7 - Performance & Scalability
-
-**Status**: DEFERRED - Post-research phase
-
-- [ ] Evaluate async dispatcher implementation
-- [ ] Database optimization
-- [ ] Caching strategies
-- [ ] Rate limiting
-- [ ] Monitoring and metrics
-- **Estimated Effort**: TBD based on requirements
-
----
-
-## Task Sequencing & Dependencies (Updated 2026-02-13)
-
-```
-✅ Phase 0 & 0A (Report Demo) - COMPLETE
-   ├─ All 6 report handlers implemented
-   ├─ Demo script refactored into three workflows
-   ├─ All tests passing (1 demo test, 367 total tests)
-   └─ Documentation complete via comprehensive docstring
-
---- CURRENT DECISION POINT ---
-
-Option A: Expand Demos (Case/Embargo Workflows)
-  Phase 0B (Case Management Demo)
-    ├─ Implement case handlers (3-4 days)
-    ├─ Implement invitation handlers (1-2 days)
-    └─ Create demo script (1 day)
-  
-  Phase 0C (Embargo Management Demo)
-    ├─ Implement embargo handlers (3-4 days)
-    ├─ Implement embargo invitation handlers (1-2 days)
-    └─ Create demo script (1 day)
-
-Option B: Production Hardening (Deferred per PRIORITIES.md)
-  Phase 1 (Infrastructure) - DEFERRED
-    ├─ 1.1 Request Validation (1-2 days)
-    ├─ 1.2 Error Responses (1-2 days) [depends on 1.1 for validation errors]
-    └─ 1.3 Health Checks (0.5 days) [independent]
-  
-  Phase 2 (Observability) - DEFERRED
-    ├─ 2.1 Structured Logging (2-3 days) [depends on 1.2 for error logging]
-    └─ 2.2 Idempotency (1-2 days) [depends on 2.1 for logging]
-  
-  Phase 3 (Testing) - DEFERRED
-    ├─ 3.1 Coverage Config (0.5 days) [independent]
-    ├─ 3.2 Integration Tests (3-4 days) [depends on 1.1, 1.2, 2.1, 2.2]
-    └─ 3.3 Test Infrastructure (2-3 days) [depends on 3.2]
-  
-  Phase 4 (Remaining Handlers) - DEFERRED
-    ├─ 4.1-4.6 Handler Business Logic (10-15 days) [depends on 1.1 for validation]
-    └─ Can be done incrementally, grouped by semantic category
-  
-  Phase 5 (Responses) - DEFERRED
-    └─ Response Generation (5-7 days) [depends on 4.1-4.6]
-  
-  Phase 6 (Quality) - DEFERRED
-    ├─ 6.1 Code Style (1-2 days) [independent, can run anytime]
-    └─ 6.2 Documentation (2-3 days) [depends on all phases for accuracy]
-```
-
-**Effort Estimates** (for planning purposes only):
-
-- Option A (Demo Expansion): 10-14 days (case + embargo demos)
-- Option B (Production Hardening): 30-46 days (phases 1-6)
-
-**Critical Path**: Phase 0 & 0A complete. Next direction depends on project goals (more demos vs production readiness).
-
----
+## Spec Compliance Snapshot
+
+| Spec area | Status |
+|-----------|--------|
+| BT-01–BT-11 | ✅ Implemented (BT-08 CLI is MAY, low priority) |
+| CM-01–CM-04 | ✅ Implemented (CM-03-006 rename pending REFACTOR-1) |
+| Handler Protocol (HP-*) | ✅ All 38 handlers registered (incl. update_case) |
+| Semantic extraction (SE-*) | ✅ 38 patterns + UNKNOWN |
+| Dispatch routing (DR-*) | ✅ DirectActivityDispatcher |
+| Inbox endpoint (IE-*) | ✅ 202 + BackgroundTasks |
+| Idempotency (ID-01, ID-04) | ✅ Handler-level guards present |
+| Idempotency (ID-02, ID-03, ID-05) | ❌ HTTP-layer deduplication not implemented |
+| Outbox (OX-01, OX-02) | ✅ Outbox populated by handlers |
+| Outbox (OX-03, OX-04) | ❌ Delivery not implemented |
+| Production readiness | ❌ Deferred |

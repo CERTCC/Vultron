@@ -50,13 +50,48 @@ class MyTestCase(unittest.TestCase):
         cls = actor.AcceptActorRecommendation
         expect_class = as_Accept
         expect_type = "Accept"
-        self._test_base_actor_activity(cls, expect_class, expect_type)
+        self._test_accept_reject_actor_recommendation(
+            cls, expect_class, expect_type
+        )
 
     def test_reject_actor_recommendation(self):
         cls = actor.RejectActorRecommendation
         expect_class = as_Reject
         expect_type = "Reject"
-        self._test_base_actor_activity(cls, expect_class, expect_type)
+        self._test_accept_reject_actor_recommendation(
+            cls, expect_class, expect_type
+        )
+
+    def _test_accept_reject_actor_recommendation(
+        self,
+        cls: Type[as_TransitiveActivity],
+        expect_class: Type[as_TransitiveActivity],
+        expect_type: str,
+    ):
+        for actor_class in ACTOR_CLASSES:
+            _actor = actor_class(name=actor_class.__name__)
+            _case = VulnerabilityCase(name=f"{actor_class.__name__} Case")
+            _recommendation = actor.RecommendActor(
+                actor=_actor, object=_actor, target=_case
+            )
+            _object = cls(actor=_actor, object=_recommendation, target=_case)
+
+            # check activity is correct type
+            self.assertIsInstance(_object, as_Activity)
+            self.assertIsInstance(_object, expect_class)
+            self.assertIsInstance(_object, cls)
+            # check the _object of the activity is a RecommendActor
+            self.assertIsInstance(_object.as_object, actor.RecommendActor)
+            # check the target of the activity is correct instance
+            self.assertEqual(_object.target, _case)
+            # check the actor of the activity is correct instance
+            self.assertEqual(_object.actor, _actor)
+
+            # check json
+            _json = _object.to_json()
+            self.assertIn('"object"', _json)
+            self.assertIn('"type"', _json)
+            self.assertIn('"target"', _json)
 
     def _test_base_actor_activity(
         self,

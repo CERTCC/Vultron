@@ -499,207 +499,1588 @@ def close_report(dispatchable: DispatchActivity) -> None:
 
 @verify_semantics(MessageSemantics.CREATE_CASE)
 def create_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("create_case handler called: %s", dispatchable)
+    """
+    Process a CreateCase activity (Create(VulnerabilityCase)).
+
+    Persists the new VulnerabilityCase to the DataLayer, creates the
+    associated CaseActor (CM-02-001), and emits a CreateCase activity to
+    the actor outbox. Idempotent: re-processing an already-stored case
+    succeeds without side effects (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Create with
+                      VulnerabilityCase object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.behaviors.bridge import BTBridge
+    from vultron.behaviors.case.create_tree import create_create_case_tree
+
+    activity = dispatchable.payload
+
+    try:
+        actor = rehydrate(obj=activity.actor)
+        actor_id = actor.as_id
+        case = rehydrate(obj=activity.as_object)
+        case_id = case.as_id
+
+        logger.info("Actor '%s' creates case '%s'", actor_id, case_id)
+
+        dl = get_datalayer()
+        bridge = BTBridge(datalayer=dl)
+        tree = create_create_case_tree(case_obj=case, actor_id=actor_id)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=activity
+        )
+
+        if result.status.name != "SUCCESS":
+            logger.warning(
+                "CreateCaseBT did not succeed for actor '%s' / case '%s': %s",
+                actor_id,
+                case_id,
+                result.feedback_message,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error in create_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
+
+
+@verify_semantics(MessageSemantics.ENGAGE_CASE)
+def engage_case(dispatchable: DispatchActivity) -> None:
+    """
+    Process an RmEngageCase activity (Join(VulnerabilityCase)).
+
+    The sending actor has decided to engage the case (RM → ACCEPTED). Records
+    their RM state transition in their CaseParticipant.participant_status.
+
+    RM is participant-specific: each CaseParticipant tracks its own RM state
+    independently of other participants in the same case.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Join with
+                      VulnerabilityCase object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.behaviors.bridge import BTBridge
+    from vultron.behaviors.report.prioritize_tree import (
+        create_engage_case_tree,
+    )
+
+    activity = dispatchable.payload
+
+    try:
+        actor = rehydrate(obj=activity.actor)
+        actor_id = actor.as_id
+        case = rehydrate(obj=activity.as_object)
+        case_id = case.as_id
+
+        logger.info(
+            "Actor '%s' engages case '%s' (RM → ACCEPTED)", actor_id, case_id
+        )
+
+        dl = get_datalayer()
+        bridge = BTBridge(datalayer=dl)
+        tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=activity
+        )
+
+        if result.status.name != "SUCCESS":
+            logger.warning(
+                "EngageCaseBT did not succeed for actor '%s' / case '%s': %s",
+                actor_id,
+                case_id,
+                result.feedback_message,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error in engage_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
+
+    return None
+
+
+@verify_semantics(MessageSemantics.DEFER_CASE)
+def defer_case(dispatchable: DispatchActivity) -> None:
+    """
+    Process an RmDeferCase activity (Ignore(VulnerabilityCase)).
+
+    The sending actor has decided to defer the case (RM → DEFERRED). Records
+    their RM state transition in their CaseParticipant.participant_status.
+
+    RM is participant-specific: each CaseParticipant tracks its own RM state
+    independently of other participants in the same case.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Ignore with
+                      VulnerabilityCase object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.behaviors.bridge import BTBridge
+    from vultron.behaviors.report.prioritize_tree import create_defer_case_tree
+
+    activity = dispatchable.payload
+
+    try:
+        actor = rehydrate(obj=activity.actor)
+        actor_id = actor.as_id
+        case = rehydrate(obj=activity.as_object)
+        case_id = case.as_id
+
+        logger.info(
+            "Actor '%s' defers case '%s' (RM → DEFERRED)", actor_id, case_id
+        )
+
+        dl = get_datalayer()
+        bridge = BTBridge(datalayer=dl)
+        tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=activity
+        )
+
+        if result.status.name != "SUCCESS":
+            logger.warning(
+                "DeferCaseBT did not succeed for actor '%s' / case '%s': %s",
+                actor_id,
+                case_id,
+                result.feedback_message,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error in defer_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
+
     return None
 
 
 @verify_semantics(MessageSemantics.ADD_REPORT_TO_CASE)
 def add_report_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("add_report_to_case handler called: %s", dispatchable)
-    return None
+    """
+    Process an AddReportToCase activity
+    (Add(VulnerabilityReport, target=VulnerabilityCase)).
+
+    Appends the report reference to the case's vulnerability_reports list
+    and persists the updated case to the DataLayer. Idempotent: re-adding a
+    report already in the case succeeds without side effects (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Add with
+                      VulnerabilityReport object and VulnerabilityCase target
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        report = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=activity.target)
+        report_id = report.as_id
+        case_id = case.as_id
+
+        dl = get_datalayer()
+
+        existing_report_ids = [
+            (r.as_id if hasattr(r, "as_id") else r)
+            for r in case.vulnerability_reports
+        ]
+        if report_id in existing_report_ids:
+            logger.info(
+                "Report '%s' already in case '%s' — skipping (idempotent)",
+                report_id,
+                case_id,
+            )
+            return None
+
+        case.vulnerability_reports.append(report_id)
+        dl.update(case_id, object_to_record(case))
+
+        logger.info("Added report '%s' to case '%s'", report_id, case_id)
+
+    except Exception as e:
+        logger.error(
+            "Error in add_report_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.SUGGEST_ACTOR_TO_CASE)
 def suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("suggest_actor_to_case handler called: %s", dispatchable)
-    return None
+    """
+    Process a RecommendActor (Offer(object=Actor, target=Case)) activity.
+
+    This arrives in the *case owner's* inbox. The handler persists the
+    recommendation so the case owner can later accept or reject it.
+    Idempotent: if the recommendation is already stored, skips.
+
+    Args:
+        dispatchable: DispatchActivity containing the RecommendActor
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        existing = dl.get(activity.as_type.value, activity.as_id)
+        if existing is not None:
+            logger.info(
+                "RecommendActor '%s' already stored — skipping (idempotent)",
+                activity.as_id,
+            )
+            return None
+
+        dl.create(activity)
+        logger.info(
+            "Stored actor recommendation '%s' (actor=%s, object=%s, target=%s)",
+            activity.as_id,
+            activity.actor,
+            activity.as_object,
+            activity.target,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in suggest_actor_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE)
 def accept_suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "accept_suggest_actor_to_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process an AcceptActorRecommendation (Accept(object=RecommendActor)) activity.
+
+    This arrives in the *recommending actor's* inbox after the case owner
+    accepts. The handler logs the acceptance and persists it. The actual
+    invitation of the accepted actor is a separate step by the case owner.
+    Idempotent: if already stored, skips.
+
+    Args:
+        dispatchable: DispatchActivity containing the AcceptActorRecommendation
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        existing = dl.get(activity.as_type.value, activity.as_id)
+        if existing is not None:
+            logger.info(
+                "AcceptActorRecommendation '%s' already stored — skipping (idempotent)",
+                activity.as_id,
+            )
+            return None
+
+        dl.create(activity)
+        logger.info(
+            "Stored acceptance of actor recommendation '%s' (actor=%s, object=%s, target=%s)",
+            activity.as_id,
+            activity.actor,
+            activity.as_object,
+            activity.target,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in accept_suggest_actor_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE)
 def reject_suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "reject_suggest_actor_to_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process a RejectActorRecommendation (Reject(object=RecommendActor)) activity.
+
+    This arrives in the *recommending actor's* inbox after the case owner
+    rejects the recommendation. No state change is required.
+
+    Args:
+        dispatchable: DispatchActivity containing the RejectActorRecommendation
+    """
+    activity = dispatchable.payload
+
+    try:
+        object_ref = activity.as_object
+        object_id = (
+            object_ref.as_id
+            if hasattr(object_ref, "as_id")
+            else str(object_ref)
+        )
+        logger.info(
+            "Actor '%s' rejected recommendation to add actor '%s' to case",
+            activity.actor,
+            object_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in reject_suggest_actor_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER)
 def offer_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "offer_case_ownership_transfer handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process an OfferCaseOwnershipTransfer (Offer(object=Case, target=Actor)) activity.
+
+    This arrives in the *proposed new owner's* inbox. The handler persists
+    the offer so the target can later accept or reject it.
+    Idempotent: if the offer is already stored, skips.
+
+    Args:
+        dispatchable: DispatchActivity containing the OfferCaseOwnershipTransfer
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        existing = dl.get(activity.as_type.value, activity.as_id)
+        if existing is not None:
+            logger.info(
+                "OfferCaseOwnershipTransfer '%s' already stored — skipping (idempotent)",
+                activity.as_id,
+            )
+            return None
+
+        dl.create(activity)
+        logger.info(
+            "Stored ownership transfer offer '%s' (actor=%s, target=%s)",
+            activity.as_id,
+            activity.actor,
+            activity.target,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in offer_case_ownership_transfer for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER)
 def accept_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "accept_case_ownership_transfer handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process an AcceptCaseOwnershipTransfer (Accept(object=OfferCaseOwnershipTransfer)) activity.
+
+    This arrives in the *current owner's* inbox after the proposed new owner
+    accepts. The handler rehydrates the offer to retrieve the case, then
+    updates the case's attributed_to field to the new owner.
+    Idempotent: if the case already belongs to the new owner, skips.
+
+    Args:
+        dispatchable: DispatchActivity containing the AcceptCaseOwnershipTransfer
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        offer = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=offer.as_object)
+
+        new_owner_id = (
+            activity.actor.as_id
+            if hasattr(activity.actor, "as_id")
+            else str(activity.actor)
+        )
+        case_id = case.as_id
+
+        current_owner_id = (
+            case.attributed_to.as_id
+            if hasattr(case.attributed_to, "as_id")
+            else str(case.attributed_to) if case.attributed_to else None
+        )
+        if current_owner_id == new_owner_id:
+            logger.info(
+                "Case '%s' already owned by '%s' — skipping (idempotent)",
+                case_id,
+                new_owner_id,
+            )
+            return None
+
+        case.attributed_to = new_owner_id
+        dl.update(case_id, object_to_record(case))
+        logger.info(
+            "Transferred ownership of case '%s' from '%s' to '%s'",
+            case_id,
+            current_owner_id,
+            new_owner_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in accept_case_ownership_transfer for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER)
 def reject_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "reject_case_ownership_transfer handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process a RejectCaseOwnershipTransfer (Reject(object=OfferCaseOwnershipTransfer)) activity.
+
+    This arrives in the *current owner's* inbox after the proposed new owner
+    rejects. Case ownership is unchanged. No state change required.
+
+    Args:
+        dispatchable: DispatchActivity containing the RejectCaseOwnershipTransfer
+    """
+    activity = dispatchable.payload
+
+    try:
+        offer_ref = activity.as_object
+        offer_id = (
+            offer_ref.as_id if hasattr(offer_ref, "as_id") else str(offer_ref)
+        )
+        logger.info(
+            "Actor '%s' rejected ownership transfer offer '%s' — ownership unchanged",
+            activity.actor,
+            offer_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in reject_case_ownership_transfer for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.INVITE_ACTOR_TO_CASE)
 def invite_actor_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("invite_actor_to_case handler called: %s", dispatchable)
-    return None
+    """
+    Process an Invite(actor=CaseOwner, object=Actor, target=Case) activity.
+
+    This arrives in the *invited actor's* inbox. The handler persists the
+    Invite so that the actor can later accept or reject it.
+
+    Args:
+        dispatchable: DispatchActivity containing the RmInviteToCase activity
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        existing = dl.get(activity.as_type.value, activity.as_id)
+        if existing is not None:
+            logger.info(
+                "Invite '%s' already stored — skipping (idempotent)",
+                activity.as_id,
+            )
+            return None
+
+        dl.create(activity)
+        logger.info(
+            "Stored invite '%s' (actor=%s, target=%s)",
+            activity.as_id,
+            activity.as_actor,
+            activity.target,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in invite_actor_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE)
 def accept_invite_actor_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "accept_invite_actor_to_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process an Accept(object=RmInviteToCase) activity.
+
+    This arrives in the *case owner's* inbox after the invited actor accepts.
+    The handler creates a CaseParticipant for the invited actor and adds them
+    to the case's participant list. Idempotent: if the participant is already
+    in the case, the handler returns without side effects (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the RmAcceptInviteToCase
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.as_vocab.objects.case_participant import CaseParticipant
+
+    activity = dispatchable.payload
+
+    try:
+        invite = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=invite.target)
+        invitee_ref = invite.as_object
+        invitee_id = (
+            invitee_ref.as_id
+            if hasattr(invitee_ref, "as_id")
+            else str(invitee_ref)
+        )
+        case_id = case.as_id
+
+        dl = get_datalayer()
+
+        existing_ids = [
+            (p.as_id if hasattr(p, "as_id") else p)
+            for p in case.case_participants
+        ]
+        if invitee_id in existing_ids:
+            logger.info(
+                "Actor '%s' already participant in case '%s' — skipping (idempotent)",
+                invitee_id,
+                case_id,
+            )
+            return None
+
+        participant = CaseParticipant(
+            id=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
+            attributed_to=invitee_id,
+            context=case_id,
+        )
+        dl.create(participant)
+
+        case.case_participants.append(participant.as_id)
+        dl.update(case_id, object_to_record(case))
+
+        logger.info(
+            "Added participant '%s' to case '%s' via accepted invite",
+            invitee_id,
+            case_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in accept_invite_actor_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE)
 def reject_invite_actor_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "reject_invite_actor_to_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process a Reject(object=RmInviteToCase) activity.
+
+    This arrives in the *case owner's* inbox. The handler logs the rejection;
+    no state change is required.
+
+    Args:
+        dispatchable: DispatchActivity containing the RmRejectInviteToCase
+    """
+    activity = dispatchable.payload
+
+    try:
+        invite_ref = activity.as_object
+        invite_id = (
+            invite_ref.as_id
+            if hasattr(invite_ref, "as_id")
+            else str(invite_ref)
+        )
+        logger.info(
+            "Actor '%s' rejected invitation '%s'",
+            activity.as_actor,
+            invite_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in reject_invite_actor_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.CREATE_EMBARGO_EVENT)
 def create_embargo_event(dispatchable: DispatchActivity) -> None:
-    logger.debug("create_embargo_event handler called: %s", dispatchable)
-    return None
+    """
+    Process a Create(EmbargoEvent) activity.
+
+    Persists the EmbargoEvent to the DataLayer so it can be referenced by
+    subsequent add/activate/announce embargo activities.
+
+    Args:
+        dispatchable: DispatchActivity containing the Create(EmbargoEvent)
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        embargo = activity.as_object
+
+        existing = dl.get(embargo.as_type.value, embargo.as_id)
+        if existing is not None:
+            logger.info(
+                "EmbargoEvent '%s' already stored — skipping (idempotent)",
+                embargo.as_id,
+            )
+            return None
+
+        dl.create(embargo)
+        logger.info("Stored EmbargoEvent '%s'", embargo.as_id)
+
+    except Exception as e:
+        logger.error(
+            "Error in create_embargo_event for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE)
 def add_embargo_event_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("add_embargo_event_to_case handler called: %s", dispatchable)
-    return None
+    """
+    Process an Add(EmbargoEvent, target=VulnerabilityCase) or
+    ActivateEmbargo(EmbargoEvent, target=VulnerabilityCase) activity.
+
+    Links the embargo event to the case and sets the case EM state to ACTIVE.
+    Idempotent: if the case already has this embargo active, skips.
+
+    Args:
+        dispatchable: DispatchActivity containing the Add/ActivateEmbargo
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        embargo = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=activity.target)
+
+        embargo_id = (
+            embargo.as_id if hasattr(embargo, "as_id") else str(embargo)
+        )
+        case_id = case.as_id if hasattr(case, "as_id") else str(case)
+
+        current_embargo_id = (
+            case.active_embargo.as_id
+            if hasattr(case.active_embargo, "as_id")
+            else (
+                str(case.active_embargo)
+                if case.active_embargo is not None
+                else None
+            )
+        )
+        if current_embargo_id == embargo_id:
+            logger.info(
+                "Case '%s' already has embargo '%s' active — skipping (idempotent)",
+                case_id,
+                embargo_id,
+            )
+            return None
+
+        case.set_embargo(
+            embargo.as_id if hasattr(embargo, "as_id") else embargo
+        )
+        dl.update(case_id, object_to_record(case))
+        logger.info(
+            "Activated embargo '%s' on case '%s'",
+            embargo_id,
+            case_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in add_embargo_event_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE)
 def remove_embargo_event_from_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "remove_embargo_event_from_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process a Remove(EmbargoEvent, origin=VulnerabilityCase) activity.
+
+    Clears the active embargo from the case and sets EM state accordingly.
+    Per ActivityStreams spec, the `origin` field holds the context from which
+    the object is removed.
+
+    Args:
+        dispatchable: DispatchActivity containing the RemoveEmbargoFromCase
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.bt.embargo_management.states import EM
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        case = rehydrate(obj=activity.origin)
+        embargo = activity.as_object
+
+        embargo_id = (
+            embargo.as_id if hasattr(embargo, "as_id") else str(embargo)
+        )
+        case_id = case.as_id
+
+        current_embargo_id = (
+            case.active_embargo.as_id
+            if hasattr(case.active_embargo, "as_id")
+            else (
+                str(case.active_embargo)
+                if case.active_embargo is not None
+                else None
+            )
+        )
+        if current_embargo_id != embargo_id:
+            logger.info(
+                "Case '%s' does not have embargo '%s' active — skipping",
+                case_id,
+                embargo_id,
+            )
+            return None
+
+        case.active_embargo = None
+        case.current_status.em_state = EM.EMBARGO_MANAGEMENT_NONE
+        dl.update(case_id, object_to_record(case))
+        logger.info(
+            "Removed embargo '%s' from case '%s'",
+            embargo_id,
+            case_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in remove_embargo_event_from_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE)
 def announce_embargo_event_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "announce_embargo_event_to_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process an Announce(EmbargoEvent, context=VulnerabilityCase) activity.
+
+    Records the announcement in the case activity log. The AnnounceEmbargo
+    activity informs case participants of the current embargo status.
+
+    Args:
+        dispatchable: DispatchActivity containing the AnnounceEmbargo
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        case = rehydrate(obj=activity.context)
+        case_id = case.as_id
+
+        logger.info(
+            "Received embargo announcement '%s' on case '%s'",
+            activity.as_id,
+            case_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in announce_embargo_event_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.INVITE_TO_EMBARGO_ON_CASE)
 def invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("invite_to_embargo_on_case handler called: %s", dispatchable)
-    return None
+    """
+    Process an EmProposeEmbargo (Invite(EmbargoEvent, context=VulnerabilityCase)) activity.
+
+    Persists the proposal so participants can later accept or reject it.
+    This arrives in the *invitee's* inbox. Idempotent: if the proposal is
+    already stored, skips.
+
+    Args:
+        dispatchable: DispatchActivity containing the EmProposeEmbargo
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        existing = dl.get(activity.as_type.value, activity.as_id)
+        if existing is not None:
+            logger.info(
+                "EmProposeEmbargo '%s' already stored — skipping (idempotent)",
+                activity.as_id,
+            )
+            return None
+
+        dl.create(activity)
+        logger.info(
+            "Stored embargo proposal '%s' (actor=%s, context=%s)",
+            activity.as_id,
+            activity.as_actor,
+            activity.context,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in invite_to_embargo_on_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE)
 def accept_invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "accept_invite_to_embargo_on_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process an EmAcceptEmbargo (Accept(object=EmProposeEmbargo)) activity.
+
+    This arrives in the *proposer's* inbox. The handler rehydrates the
+    proposal, retrieves the proposed EmbargoEvent, and activates it on the
+    case via set_embargo(). Idempotent: if the case already has this embargo
+    active, skips.
+
+    Args:
+        dispatchable: DispatchActivity containing the EmAcceptEmbargo
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        proposal = rehydrate(obj=activity.as_object)
+        embargo = rehydrate(obj=proposal.as_object)
+        case = rehydrate(obj=proposal.context)
+
+        embargo_id = embargo.as_id
+        case_id = case.as_id
+
+        current_embargo_id = (
+            case.active_embargo.as_id
+            if hasattr(case.active_embargo, "as_id")
+            else (
+                str(case.active_embargo)
+                if case.active_embargo is not None
+                else None
+            )
+        )
+        if current_embargo_id == embargo_id:
+            logger.info(
+                "Case '%s' already has embargo '%s' active — skipping (idempotent)",
+                case_id,
+                embargo_id,
+            )
+            return None
+
+        case.set_embargo(
+            embargo.as_id if hasattr(embargo, "as_id") else embargo
+        )
+        dl.update(case_id, object_to_record(case))
+        logger.info(
+            "Accepted embargo proposal '%s'; activated embargo '%s' on case '%s'",
+            proposal.as_id,
+            embargo_id,
+            case_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in accept_invite_to_embargo_on_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE)
 def reject_invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "reject_invite_to_embargo_on_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process an EmRejectEmbargo (Reject(object=EmProposeEmbargo)) activity.
+
+    This arrives in the *proposer's* inbox. The handler logs the rejection;
+    no state change is required.
+
+    Args:
+        dispatchable: DispatchActivity containing the EmRejectEmbargo
+    """
+    activity = dispatchable.payload
+
+    try:
+        proposal_ref = activity.as_object
+        proposal_id = (
+            proposal_ref.as_id
+            if hasattr(proposal_ref, "as_id")
+            else str(proposal_ref)
+        )
+        logger.info(
+            "Actor '%s' rejected embargo proposal '%s'",
+            activity.as_actor,
+            proposal_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in reject_invite_to_embargo_on_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.CLOSE_CASE)
 def close_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("close_case handler called: %s", dispatchable)
-    return None
+    """
+    Process a CloseCase activity (Leave(VulnerabilityCase)).
+
+    Records that the sending actor is leaving/closing their participation
+    in the case. Emits an RmCloseCase activity to the actor outbox.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Leave with
+                      VulnerabilityCase object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.as_vocab.activities.case import RmCloseCase
+
+    activity = dispatchable.payload
+
+    try:
+        actor = rehydrate(obj=activity.actor)
+        actor_id = actor.as_id
+        case = rehydrate(obj=activity.as_object)
+        case_id = case.as_id
+
+        logger.info("Actor '%s' is closing case '%s'", actor_id, case_id)
+
+        dl = get_datalayer()
+
+        close_activity = RmCloseCase(
+            actor=actor_id,
+            object=case_id,
+        )
+        try:
+            dl.create(close_activity)
+            logger.info(
+                "Created RmCloseCase activity %s", close_activity.as_id
+            )
+        except ValueError:
+            logger.info(
+                "RmCloseCase activity for case '%s' already exists"
+                " — skipping (idempotent)",
+                case_id,
+            )
+            return None
+
+        actor_obj = dl.read(actor_id)
+        if actor_obj is not None and hasattr(actor_obj, "outbox"):
+            actor_obj.outbox.items.append(close_activity.as_id)
+            dl.update(actor_id, object_to_record(actor_obj))
+            logger.info(
+                "Added RmCloseCase activity %s to actor %s outbox",
+                close_activity.as_id,
+                actor_id,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error in close_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
+
+
+@verify_semantics(MessageSemantics.UPDATE_CASE)
+def update_case(dispatchable: DispatchActivity) -> None:
+    """
+    Process an UpdateCase activity (Update(VulnerabilityCase)).
+
+    Applies scalar field updates from the activity's object to the stored
+    VulnerabilityCase in the DataLayer. Restricted to the case owner: if
+    the sending actor is not the case owner, logs a WARNING and skips.
+    Idempotent: last-write-wins on scalar fields.
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Update with
+                      VulnerabilityCase object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+
+    activity = dispatchable.payload
+
+    try:
+        actor_id = (
+            activity.actor.as_id
+            if hasattr(activity.actor, "as_id")
+            else str(activity.actor)
+        )
+        incoming = rehydrate(obj=activity.as_object)
+        case_id = (
+            incoming.as_id if hasattr(incoming, "as_id") else str(incoming)
+        )
+
+        dl = get_datalayer()
+        stored_case = dl.read(case_id)
+        if stored_case is None:
+            logger.warning(
+                "update_case: case '%s' not found in DataLayer — skipping",
+                case_id,
+            )
+            return None
+
+        owner_id = (
+            stored_case.attributed_to.as_id
+            if hasattr(stored_case.attributed_to, "as_id")
+            else (
+                str(stored_case.attributed_to)
+                if stored_case.attributed_to
+                else None
+            )
+        )
+        if owner_id != actor_id:
+            logger.warning(
+                "update_case: actor '%s' is not the owner of case '%s'"
+                " — skipping update",
+                actor_id,
+                case_id,
+            )
+            return None
+
+        if isinstance(incoming, VulnerabilityCase):
+            for field in ("name", "summary", "content"):
+                value = getattr(incoming, field, None)
+                if value is not None:
+                    setattr(stored_case, field, value)
+            dl.update(case_id, object_to_record(stored_case))
+            logger.info("Actor '%s' updated case '%s'", actor_id, case_id)
+        else:
+            logger.info(
+                "update_case: object for case '%s' is a reference only"
+                " — no fields to apply",
+                case_id,
+            )
+
+    except Exception as e:
+        logger.error(
+            "Error in update_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.CREATE_CASE_PARTICIPANT)
 def create_case_participant(dispatchable: DispatchActivity) -> None:
-    logger.debug("create_case_participant handler called: %s", dispatchable)
-    return None
+    """
+    Process a Create(CaseParticipant) activity.
+
+    Persists the new CaseParticipant to the DataLayer. Because
+    CaseParticipant uses `attributed_to` (a standard as_Object field) for
+    the actor reference, the full object survives inbox deserialization.
+    Idempotent: if a participant with the same ID already exists, the
+    handler logs at INFO and returns without side effects (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Create with
+                      CaseParticipant object
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        participant = rehydrate(obj=activity.as_object)
+        participant_id = participant.as_id
+
+        dl = get_datalayer()
+
+        existing = dl.get(participant.as_type.value, participant_id)
+        if existing is not None:
+            logger.info(
+                "Participant '%s' already exists — skipping (idempotent)",
+                participant_id,
+            )
+            return None
+
+        dl.create(participant)
+        logger.info("Created participant '%s'", participant_id)
+
+    except Exception as e:
+        logger.error(
+            "Error in create_case_participant for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE)
 def add_case_participant_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "add_case_participant_to_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process an AddParticipantToCase activity
+    (Add(CaseParticipant, target=VulnerabilityCase)).
+
+    Appends the participant reference to the case's case_participants list
+    and persists the updated case to the DataLayer. Idempotent: re-adding a
+    participant already in the case succeeds without side effects (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Add with
+                      CaseParticipant object and VulnerabilityCase target
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        participant = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=activity.target)
+        participant_id = participant.as_id
+        case_id = case.as_id
+
+        dl = get_datalayer()
+
+        existing_ids = [
+            (p.as_id if hasattr(p, "as_id") else p)
+            for p in case.case_participants
+        ]
+        if participant_id in existing_ids:
+            logger.info(
+                "Participant '%s' already in case '%s' — skipping (idempotent)",
+                participant_id,
+                case_id,
+            )
+            return None
+
+        case.case_participants.append(participant_id)
+        dl.update(case_id, object_to_record(case))
+
+        logger.info(
+            "Added participant '%s' to case '%s'", participant_id, case_id
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in add_case_participant_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE)
 def remove_case_participant_from_case(dispatchable: DispatchActivity) -> None:
-    logger.debug(
-        "remove_case_participant_from_case handler called: %s", dispatchable
-    )
-    return None
+    """
+    Process a Remove(CaseParticipant, target=VulnerabilityCase) activity.
+
+    Removes the participant reference from the case's case_participants list
+    and persists the updated case. Idempotent: if the participant is not in
+    the case, the handler returns without error (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the as_Remove with
+                      CaseParticipant object and VulnerabilityCase target
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        participant = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=activity.target)
+        participant_id = participant.as_id
+        case_id = case.as_id
+
+        dl = get_datalayer()
+
+        existing_ids = [
+            (p.as_id if hasattr(p, "as_id") else p)
+            for p in case.case_participants
+        ]
+        if participant_id not in existing_ids:
+            logger.info(
+                "Participant '%s' not in case '%s' — skipping (idempotent)",
+                participant_id,
+                case_id,
+            )
+            return None
+
+        case.case_participants = [
+            p
+            for p in case.case_participants
+            if (p.as_id if hasattr(p, "as_id") else p) != participant_id
+        ]
+        dl.update(case_id, object_to_record(case))
+
+        logger.info(
+            "Removed participant '%s' from case '%s'",
+            participant_id,
+            case_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in remove_case_participant_from_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.CREATE_NOTE)
 def create_note(dispatchable: DispatchActivity) -> None:
-    logger.debug("create_note handler called: %s", dispatchable)
-    return None
+    """
+    Process a Create(Note) activity.
+
+    Persists the Note to the DataLayer so it can be referenced by
+    subsequent add_note_to_case activities. Idempotent: if a Note with
+    the same ID already exists, the handler skips creation (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the Create(Note)
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        note = activity.as_object
+
+        existing = dl.get(note.as_type.value, note.as_id)
+        if existing is not None:
+            logger.info(
+                "Note '%s' already stored — skipping (idempotent)", note.as_id
+            )
+            return None
+
+        dl.create(note)
+        logger.info("Stored Note '%s'", note.as_id)
+
+    except Exception as e:
+        logger.error(
+            "Error in create_note for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ADD_NOTE_TO_CASE)
 def add_note_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("add_note_to_case handler called: %s", dispatchable)
-    return None
+    """
+    Process an Add(Note, target=VulnerabilityCase) activity.
+
+    Appends the note reference to the case's notes list and persists the
+    updated case. Idempotent: re-adding a note already in the case
+    succeeds without side effects (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the Add(Note, target=case)
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        note = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=activity.target)
+        note_id = note.as_id if hasattr(note, "as_id") else str(note)
+        case_id = case.as_id
+
+        existing_ids = [
+            (n.as_id if hasattr(n, "as_id") else n) for n in case.notes
+        ]
+        if note_id in existing_ids:
+            logger.info(
+                "Note '%s' already in case '%s' — skipping (idempotent)",
+                note_id,
+                case_id,
+            )
+            return None
+
+        case.notes.append(note_id)
+        dl.update(case_id, object_to_record(case))
+        logger.info("Added note '%s' to case '%s'", note_id, case_id)
+
+    except Exception as e:
+        logger.error(
+            "Error in add_note_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.REMOVE_NOTE_FROM_CASE)
 def remove_note_from_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("remove_note_from_case handler called: %s", dispatchable)
-    return None
+    """
+    Process a Remove(Note, target=VulnerabilityCase) activity.
+
+    Removes the note reference from the case's notes list and persists
+    the updated case. Idempotent: if the note is not in the case,
+    the handler returns without error (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the Remove(Note, target=case)
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        note = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=activity.target)
+        note_id = note.as_id if hasattr(note, "as_id") else str(note)
+        case_id = case.as_id
+
+        existing_ids = [
+            (n.as_id if hasattr(n, "as_id") else n) for n in case.notes
+        ]
+        if note_id not in existing_ids:
+            logger.info(
+                "Note '%s' not in case '%s' — skipping (idempotent)",
+                note_id,
+                case_id,
+            )
+            return None
+
+        case.notes = [
+            n
+            for n in case.notes
+            if (n.as_id if hasattr(n, "as_id") else n) != note_id
+        ]
+        dl.update(case_id, object_to_record(case))
+        logger.info("Removed note '%s' from case '%s'", note_id, case_id)
+
+    except Exception as e:
+        logger.error(
+            "Error in remove_note_from_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.CREATE_CASE_STATUS)
 def create_case_status(dispatchable: DispatchActivity) -> None:
-    logger.debug("create_case_status handler called: %s", dispatchable)
-    return None
+    """
+    Process a Create(CaseStatus) activity.
+
+    Persists the CaseStatus to the DataLayer. Idempotent: if a CaseStatus
+    with the same ID already exists, the handler skips creation (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the Create(CaseStatus)
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        status = activity.as_object
+
+        existing = dl.get(status.as_type.value, status.as_id)
+        if existing is not None:
+            logger.info(
+                "CaseStatus '%s' already stored — skipping (idempotent)",
+                status.as_id,
+            )
+            return None
+
+        dl.create(status)
+        logger.info("Stored CaseStatus '%s'", status.as_id)
+
+    except Exception as e:
+        logger.error(
+            "Error in create_case_status for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ADD_CASE_STATUS_TO_CASE)
 def add_case_status_to_case(dispatchable: DispatchActivity) -> None:
-    logger.debug("add_case_status_to_case handler called: %s", dispatchable)
-    return None
+    """
+    Process an Add(CaseStatus, target=VulnerabilityCase) activity.
+
+    Appends the CaseStatus to the case's case_status list and persists the
+    updated case. Idempotent: re-adding a status already in the list
+    succeeds without side effects (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the Add(CaseStatus,
+                      target=VulnerabilityCase)
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        status = rehydrate(obj=activity.as_object)
+        case = rehydrate(obj=activity.target)
+        status_id = status.as_id if hasattr(status, "as_id") else str(status)
+        case_id = case.as_id
+
+        existing_ids = [
+            (s.as_id if hasattr(s, "as_id") else s) for s in case.case_status
+        ]
+        if status_id in existing_ids:
+            logger.info(
+                "CaseStatus '%s' already in case '%s' — skipping (idempotent)",
+                status_id,
+                case_id,
+            )
+            return None
+
+        case.case_status.append(status)
+        dl.update(case_id, object_to_record(case))
+        logger.info("Added CaseStatus '%s' to case '%s'", status_id, case_id)
+
+    except Exception as e:
+        logger.error(
+            "Error in add_case_status_to_case for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.CREATE_PARTICIPANT_STATUS)
 def create_participant_status(dispatchable: DispatchActivity) -> None:
-    logger.debug("create_participant_status handler called: %s", dispatchable)
-    return None
+    """
+    Process a Create(ParticipantStatus) activity.
+
+    Persists the ParticipantStatus to the DataLayer. Idempotent: if a
+    ParticipantStatus with the same ID already exists, the handler skips
+    creation (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the Create(ParticipantStatus)
+    """
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        status = activity.as_object
+
+        existing = dl.get(status.as_type.value, status.as_id)
+        if existing is not None:
+            logger.info(
+                "ParticipantStatus '%s' already stored — skipping (idempotent)",
+                status.as_id,
+            )
+            return None
+
+        dl.create(status)
+        logger.info("Stored ParticipantStatus '%s'", status.as_id)
+
+    except Exception as e:
+        logger.error(
+            "Error in create_participant_status for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT)
 def add_participant_status_to_participant(
     dispatchable: DispatchActivity,
 ) -> None:
-    logger.debug(
-        "add_participant_status_to_participant handler called: %s",
-        dispatchable,
-    )
-    return None
+    """
+    Process an Add(ParticipantStatus, target=CaseParticipant) activity.
+
+    Appends the ParticipantStatus to the participant's participant_status
+    list and persists the updated participant. Idempotent: re-adding a
+    status already in the list succeeds without side effects (ID-04-004).
+
+    Args:
+        dispatchable: DispatchActivity containing the
+                      Add(ParticipantStatus, target=CaseParticipant)
+    """
+    from vultron.api.v2.data.rehydration import rehydrate
+    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    activity = dispatchable.payload
+
+    try:
+        dl = get_datalayer()
+        status = rehydrate(obj=activity.as_object)
+        participant = rehydrate(obj=activity.target)
+        status_id = status.as_id if hasattr(status, "as_id") else str(status)
+        participant_id = participant.as_id
+
+        existing_ids = [
+            (s.as_id if hasattr(s, "as_id") else s)
+            for s in participant.participant_status
+        ]
+        if status_id in existing_ids:
+            logger.info(
+                "ParticipantStatus '%s' already on participant '%s' — "
+                "skipping (idempotent)",
+                status_id,
+                participant_id,
+            )
+            return None
+
+        participant.participant_status.append(status)
+        dl.update(participant_id, object_to_record(participant))
+        logger.info(
+            "Added ParticipantStatus '%s' to participant '%s'",
+            status_id,
+            participant_id,
+        )
+
+    except Exception as e:
+        logger.error(
+            "Error in add_participant_status_to_participant for activity %s: %s",
+            activity.as_id,
+            str(e),
+        )
 
 
 @verify_semantics(MessageSemantics.UNKNOWN)

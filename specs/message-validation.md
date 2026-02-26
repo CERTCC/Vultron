@@ -8,7 +8,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 
 **Note**:
 
-- **HTTP-level validation** (Content-Type, size limits) consolidated in `specs/http-protocol.md` (HP-01, HP-02)
+- **HTTP-level validation** (Content-Type, size limits) consolidated in `specs/http-protocol.md` (HTTP-01, HTTP-02)
 - This spec focuses on **ActivityStreams structure and semantic validation**
 
 ---
@@ -20,6 +20,9 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - MUST have an `id` field containing a unique URI
   - MAY have an `actor` field identifying the activity initiator
   - MAY have an `object` field containing the activity target
+- `MV-01-005` Pattern-matching implementation MUST be defensive:
+  - If a pattern expects an object type (or an actor base class), the match algorithm MUST handle both subclassed object types and URI string references without raising exceptions.
+  - When activity data includes string references, the inbox handler SHOULD attempt rehydration prior to pattern matching; if rehydration is not possible, the system MUST log a warning and return MessageSemantics.UNKNOWN (see `specs/semantic-extraction.md`).
 
 ## Schema Validation (MUST)
 
@@ -45,6 +48,11 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - CaseParticipant
   - EmbargoEvent
   - Standard ActivityStreams types (Person, Organization, Service)
+- `MV-04-002` For Create-style activities that create sub-objects (e.g.,
+  `CreateParticipant`), the activity `name` field SHOULD be a descriptive
+  human-readable string identifying the actor, created object ID, and context
+  (case ID)
+  - Example: `"{actor} Create CaseParticipant {participant_id} from {attributed_to} in {case_id}"`
 
 ## URI Validation (MUST)
 
@@ -52,7 +60,12 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - MUST use URI validation schemes (http, https, urn, etc.)
   - SHOULD reject obviously malformed URIs
   - MAY validate URI reachability for external references
-
+- `MV-05-002` The system MUST treat ActivityStreams object IDs as opaque URIs
+  - IDs MUST be full URIs (e.g., `urn:uuid:...` or `https://...`) — bare UUIDs are NOT allowed in canonical persisted records.
+  - Implementation components MUST NOT parse or assume internal structure of IDs (do not split or extract meaningful substrings from IDs).
+  - All layers (API, handlers, data layer) MUST consistently store and compare IDs as URI strings; when creating IDs, prefer fully-qualified URIs.
+  - The data layer and rehydration logic MUST perform URL-encoding/decoding only for transport concerns and must persist the original URI string as-is.
+  
 ## Duplicate Detection (SHOULD)
 
 - `MV-08-001` The system SHOULD detect duplicate activity submissions during validation
@@ -93,7 +106,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 
 ## Related
 
-- **HTTP Protocol**: `specs/http-protocol.md` (Content-Type validation MV-06-001, size limits MV-07-001 consolidated as HP-01, HP-02)
+- **HTTP Protocol**: `specs/http-protocol.md` (Content-Type validation MV-06-001, size limits MV-07-001 consolidated as HTTP-01, HTTP-02)
 - **Idempotency**: `specs/inbox-endpoint.md` IE-10-001, `specs/handler-protocol.md` HP-07-001
 - **Implementation**: `vultron/api/v2/routers/actors.py` (`parse_activity()`)
 - **Implementation**: `vultron/as_vocab/activities/` (Pydantic models)
