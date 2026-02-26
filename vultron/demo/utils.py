@@ -92,13 +92,33 @@ def logfmt(obj) -> str:
 
 
 def postfmt(obj) -> dict:
+    """Serialize a Pydantic model (or plain object) to a JSON-encodable dict for POST bodies."""
     return jsonable_encoder(obj, by_alias=True, exclude_none=True)
 
 
 class DataLayerClient(BaseModel):
+    """HTTP client for the Vultron DataLayer REST API.
+
+    Wraps ``requests`` with convenience methods for GET, PUT, POST, and DELETE
+    calls to the DataLayer endpoint, with automatic JSON parsing and error logging.
+    """
+
     base_url: str = BASE_URL
 
     def call(self, method: HTTPMethod, path: str, **kwargs) -> dict:
+        """Make an HTTP request to the DataLayer API.
+
+        Args:
+            method: HTTP method (GET, PUT, POST, DELETE).
+            path: API path relative to ``base_url``.
+            **kwargs: Additional keyword arguments forwarded to ``requests.request``.
+
+        Returns:
+            Parsed JSON response body as a dict.
+
+        Raises:
+            requests.HTTPError: When the response status is not OK.
+        """
         if method.upper() not in HTTPMethod.__members__:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
@@ -124,19 +144,29 @@ class DataLayerClient(BaseModel):
         return data
 
     def get(self, path: str, **kwargs) -> dict:
+        """Send an HTTP GET request."""
         return self.call(HTTPMethod.GET, path, **kwargs)
 
     def put(self, path: str, **kwargs) -> dict:
+        """Send an HTTP PUT request."""
         return self.call(HTTPMethod.PUT, path, **kwargs)
 
     def post(self, path: str, **kwargs) -> dict:
+        """Send an HTTP POST request."""
         return self.call(HTTPMethod.POST, path, **kwargs)
 
     def delete(self, path: str, **kwargs) -> dict:
+        """Send an HTTP DELETE request."""
         return self.call(HTTPMethod.DELETE, path, **kwargs)
 
 
 def reset_datalayer(client: DataLayerClient, init: bool = True) -> dict:
+    """Reset the DataLayer to a clean state via the API.
+
+    Args:
+        client: DataLayerClient instance.
+        init: When ``True``, re-seed the DataLayer with default actors after reset.
+    """
     logger.info("Resetting data layer...")
     return client.delete("/datalayer/reset/", params={"init": init})
 
@@ -144,6 +174,14 @@ def reset_datalayer(client: DataLayerClient, init: bool = True) -> dict:
 def discover_actors(
     client: DataLayerClient,
 ) -> Tuple[as_Actor, as_Actor, as_Actor]:
+    """Retrieve the Finder, Vendor, and Coordinator actors from the DataLayer.
+
+    Returns:
+        A tuple of ``(finder, vendor, coordinator)`` actor objects.
+
+    Raises:
+        ValueError: If any of the three expected actors are not found.
+    """
     finder = vendor = coordinator = None
     logger.info("Discovering actors in the data layer...")
     actors = client.get("/actors/")
@@ -171,6 +209,7 @@ def discover_actors(
 
 
 def init_actor_ios(actors: Sequence[as_Actor]) -> None:
+    """Initialize inbox and outbox queues for each actor in ``actors``."""
     logger.info("Initializing inboxes and outboxes for actors...")
     for actor in actors:
         if actor is None:
@@ -184,6 +223,14 @@ def post_to_inbox_and_wait(
     activity: as_Activity,
     wait_seconds: float | None = None,
 ) -> None:
+    """POST an activity to an actor's inbox and pause to let background tasks complete.
+
+    Args:
+        client: DataLayerClient instance.
+        actor_id: ID of the target actor.
+        activity: ActivityStreams activity to deliver.
+        wait_seconds: Seconds to sleep after posting; defaults to ``DEFAULT_WAIT_SECONDS``.
+    """
     actor_obj_id = parse_id(actor_id)["object_id"]
     logger.info(
         f"Posting activity to {actor_obj_id}'s inbox: {logfmt(activity)}"
@@ -194,6 +241,14 @@ def post_to_inbox_and_wait(
 
 
 def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
+    """Fetch an object from the DataLayer by ID and verify it is present.
+
+    Returns:
+        The retrieved ``as_Object``.
+
+    Raises:
+        requests.HTTPError: If the object is not found.
+    """
     obj = client.get(f"/datalayer/{obj_id}")
     reconstructed_obj = as_Object(**obj)
     logger.info(f"Verified object stored: {logfmt(reconstructed_obj)}")
@@ -203,6 +258,16 @@ def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
 def get_offer_from_datalayer(
     client: DataLayerClient, vendor_id: str, offer_id: str
 ) -> as_Offer:
+    """Retrieve a specific Offer from a vendor's DataLayer store.
+
+    Args:
+        client: DataLayerClient instance.
+        vendor_id: ID of the vendor actor that owns the offer.
+        offer_id: ID of the offer to retrieve.
+
+    Returns:
+        The retrieved ``as_Offer``.
+    """
     vendor_obj_id = parse_id(vendor_id)["object_id"]
     offer_obj_id = parse_id(offer_id)["object_id"]
     offer_data = client.get(
@@ -234,6 +299,14 @@ def log_case_state(
 def setup_clean_environment(
     client: DataLayerClient,
 ) -> Tuple[as_Actor, as_Actor, as_Actor]:
+    """Reset the DataLayer and return the three default demo actors.
+
+    Resets the DataLayer, clears all actor I/O queues, discovers the Finder,
+    Vendor, and Coordinator actors, and initialises their inboxes and outboxes.
+
+    Returns:
+        A tuple of ``(finder, vendor, coordinator)`` actors.
+    """
     logger.info("Setting up clean environment...")
     reset = reset_datalayer(client=client, init=True)
     logger.info(f"Reset status: {reset}")
@@ -267,6 +340,16 @@ def demo_environment(client: DataLayerClient):
 def check_server_availability(
     client: DataLayerClient, max_retries: int = 30, retry_delay: float = 1.0
 ) -> bool:
+    """Poll the API health endpoint until the server is ready or retries are exhausted.
+
+    Args:
+        client: DataLayerClient whose ``base_url`` is used to build the health URL.
+        max_retries: Maximum number of polling attempts (default: 30).
+        retry_delay: Seconds to wait between attempts (default: 1.0).
+
+    Returns:
+        ``True`` if the server responds with HTTP 200; ``False`` otherwise.
+    """
     url = f"{client.base_url}/health/ready"
     for attempt in range(max_retries):
         try:

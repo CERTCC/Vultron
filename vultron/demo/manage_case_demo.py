@@ -459,6 +459,7 @@ def main(
 
 
 def _setup_logging():
+    """Configure console logging for standalone script execution."""
     logging.getLogger("requests").setLevel(logging.WARNING)
     _logger = logging.getLogger()
     hdlr = logging.StreamHandler(sys.stdout)

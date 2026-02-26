@@ -188,6 +188,11 @@ nav:
           - Vultron Extensions: 'reference/code/as_vocab/vultron.md'
           - Vultron Objects: 'reference/code/as_vocab/v_objects.md'
           - Vultron Activities: 'reference/code/as_vocab/v_activities.md'
+        - Demo Package:
+          - 'reference/code/demo/index.md'
+          - CLI: 'reference/code/demo/cli.md'
+          - Utilities: 'reference/code/demo/utils.md'
+          - Demo Scripts: 'reference/code/demo/demos.md'
     - Ontology:
       - 'reference/ontology/index.md'
       - Vultron_AS: 'reference/ontology/vultron_as.md'

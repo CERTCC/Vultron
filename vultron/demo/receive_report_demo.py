@@ -84,6 +84,7 @@ logger = logging.getLogger(__name__)
 
 
 def make_submit_offer(finder, vendor, report) -> RmSubmitReport:
+    """Build an ``RmSubmitReport`` offer from the finder to the vendor."""
     offer = RmSubmitReport(
         actor=finder.as_id,
         as_object=report,
@@ -96,6 +97,7 @@ def make_submit_offer(finder, vendor, report) -> RmSubmitReport:
 def submit_to_inbox(
     client: DataLayerClient, vendor_id: str, activity: as_Activity
 ) -> dict:
+    """POST an activity directly to a vendor's inbox (no wait)."""
     vendor_id = parse_id(vendor_id)["object_id"]
 
     logger.info(
@@ -602,6 +604,7 @@ def main(
 
 
 def _setup_logging():
+    """Configure console logging for standalone script execution."""
     # turn down requests logging
     logging.getLogger("requests").setLevel(logging.WARNING)
 

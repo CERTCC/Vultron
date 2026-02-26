@@ -76,6 +76,7 @@ logger = logging.getLogger(__name__)
 def get_actor_by_id(
     client: DataLayerClient, actor_id: str
 ) -> Optional[as_Actor]:
+    """Retrieve an actor by ID from the DataLayer, or ``None`` if not found."""
     actors_data = client.get("/actors/")
     for actor_data in actors_data:
         actor = as_Actor(**actor_data)
@@ -85,6 +86,7 @@ def get_actor_by_id(
 
 
 def get_item_id(item):
+    """Extract the ``as_id`` string from an activity item or return the item as-is."""
     if item is None:
         return None
     if isinstance(item, str):
@@ -95,6 +97,14 @@ def get_item_id(item):
 def verify_activity_in_inbox(
     client: DataLayerClient, actor_id: str, activity_id: str
 ) -> bool:
+    """Check whether ``activity_id`` appears in the actor's inbox.
+
+    Returns:
+        ``True`` if found; ``False`` otherwise.
+
+    Raises:
+        ValueError: If the actor cannot be found or has no inbox.
+    """
     actor = get_actor_by_id(client, actor_id)
     if not actor or not actor.inbox:
         raise ValueError(f"Actor {actor_id} not found or has no inbox")
@@ -417,6 +427,7 @@ def main(
 
 
 def _setup_logging():
+    """Configure console logging for standalone script execution."""
     logging.getLogger("requests").setLevel(logging.WARNING)
     _logger = logging.getLogger()
     hdlr = logging.StreamHandler(sys.stdout)

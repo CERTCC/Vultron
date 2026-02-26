@@ -105,6 +105,7 @@ def _make_sub_command(name: str, module) -> click.Command:
         help="Skip server availability check.",
     )
     def _cmd(skip_health_check: bool) -> None:
+        """Invoke ``module.main()`` with the given options."""
         module.main(skip_health_check=skip_health_check)
 
     return _cmd
@@ -175,6 +176,7 @@ def _bt_args(print_tree: bool, verbose: bool, debug: bool) -> SimpleNamespace:
 
 
 def _bt_options(fn):
+    """Decorator that adds ``--print-tree``, ``-v``/``--verbose``, and ``-d``/``--debug`` options."""
     fn = click.option(
         "--print-tree",
         is_flag=True,
