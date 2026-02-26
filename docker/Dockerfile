@@ -87,3 +87,9 @@ CMD ["uv", "run", "python", "-m", "vultron.demo.manage_embargo_demo"]
 FROM dependencies AS manage-participants-demo
 ENV PYTHONPATH=/app
 CMD ["uv", "run", "python", "-m", "vultron.demo.manage_participants_demo"]
+
+FROM dependencies AS demo
+ENV PYTHONPATH=/app
+COPY docker/demo-entrypoint.sh /app/demo-entrypoint.sh
+RUN chmod +x /app/demo-entrypoint.sh
+ENTRYPOINT ["/app/demo-entrypoint.sh"]

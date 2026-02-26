@@ -291,6 +291,26 @@ services:
     networks:
       - vultron-network
 
+  demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: demo
+    image: ${PROJECT_NAME}-demo:latest
+    depends_on:
+      api-dev:
+        condition: service_healthy
+    volumes:
+      - "../vultron:/app/vultron"
+      - "/app/.venv"
+    environment:
+      - PYTHONPATH=/app
+      - VULTRON_API_BASE_URL=http://api-dev:7999/api/v2
+    networks:
+      - vultron-network
+    stdin_open: true
+    tty: true
+
 networks:
   vultron-network:
     driver: bridge

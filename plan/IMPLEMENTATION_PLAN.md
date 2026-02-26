@@ -134,7 +134,7 @@ provide a clean foundation before CLI wiring.
 
 #### Step 5 — Docker packaging
 
-- [ ] **DEMO-4.7**: Add unified `demo` service to `docker/docker-compose.yml`
+- [x] **DEMO-4.7**: Add unified `demo` service to `docker/docker-compose.yml`
   depending on `api-dev` with `condition: service_healthy` (DC-04-001)
   - Docker entry point MUST launch the CLI interactively by default
   - When `DEMO` env var is set, run named sub-command non-interactively and
