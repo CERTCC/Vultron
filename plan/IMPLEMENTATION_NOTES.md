@@ -27,9 +27,26 @@ carries significant breakage risk. Run `grep -rn "\.case_status" vultron/ test/`
 before starting to quantify scope. Consider doing `case_statuses` and
 `participant_statuses` renames in the same PR to keep the diff localized.
 
-## Demo Script Gap Summary
+## DEMO-4 Isolation Complexity
 
-Per `plan/PRIORITIES.md`, the following howto workflows still need demo scripts:
+When running multiple demos in sequence (via the `all` sub-command), each demo
+must leave the DataLayer in a clean state. The current demo scripts were each
+designed to run against a clean slate. Key risks:
 
-- **Higher priority**: `manage_embargo.md`, `manage_participants.md`
-- **Lower priority**: `error.md`
+- Demos that create actors with fixed IDs (e.g., `vendor`, `finder`) will
+  conflict on second run unless teardown deletes those actors.
+- The `manage_case_demo` and `manage_embargo_demo` share similar object types;
+  ensure teardown is comprehensive.
+- Teardown should use the DataLayer directly (not via HTTP inbox) to guarantee
+  cleanup even when the demo fails mid-way.
+
+Consider designing teardown as a `finally` block that iterates all DataLayer
+entries created during the demo and deletes them by ID.
+
+## DEMO-4 Docker Interaction Mode
+
+The unified demo container should be interactive by default (`docker compose
+run demo` or `docker compose up demo` with TTY). The `DEMO` env var override
+(`DEMO=receive-report docker compose up demo`) is the non-interactive path for
+CI or scripted runs. Verify that click's interactive prompts degrade gracefully
+when stdin is not a TTY (use `click.echo` + non-interactive fallback if needed).

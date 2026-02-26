@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-24 (gap analysis refresh #7)
+**Last Updated**: 2026-02-26 (gap analysis refresh #8)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 557 passing, 5581 subtests, 0 xfailed (2026-02-24)
+**Test suite**: 568 passing, 5581 subtests, 0 xfailed (2026-02-26)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -32,18 +32,30 @@ reject_case_ownership_transfer, update_case
 `receive_report_demo.py`, `initialize_case_demo.py`, `invite_actor_demo.py`,
 `establish_embargo_demo.py`, `status_updates_demo.py`, `suggest_actor_demo.py`,
 `transfer_ownership_demo.py`, `acknowledge_demo.py`, `manage_case_demo.py`,
-`initialize_participant_demo.py`
+`initialize_participant_demo.py`, `manage_embargo_demo.py`,
+`manage_participants_demo.py`
 
 ---
 
-## Gap Analysis (2026-02-24, refresh #7)
+## Gap Analysis (2026-02-26, refresh #8)
 
-### ❌ Demo scripts missing for PRIORITIES.md higher-priority workflows
+### ✅ Phase DEMO-3 fully complete
 
-| Howto doc | Existing demo | Gap |
-|---|---|---|
-| `manage_embargo.md` | partial (`establish_embargo_demo`) | Full propose/accept/reject/terminate cycle not demoed |
-| `manage_participants.md` | partial (`invite_actor_demo`) | Status + remove paths not demoed |
+All 15 tasks (DEMO-3.1–3.15) are done. All demo scripts exist in
+`vultron/scripts/`, tests exist in `test/scripts/`, and Docker services exist
+in `docker/docker-compose.yml`. The previous gap noting missing
+`manage_embargo_demo` and `manage_participants_demo` is resolved.
+
+### ❌ DEMO-4: Unified demo CLI not started (PRIORITY 10)
+
+Per `plan/PRIORITIES.md` PRIORITY 10 and `specs/demo-cli.md`:
+
+- No `vultron/demo/utils.py` with shared `demo_step`/`demo_check` utilities
+- Demo scripts still in `vultron/scripts/` (not `vultron/demo/`)
+- No `vultron/demo/cli.py` click-based CLI entry point
+- No `vultron-demo` entry point in `pyproject.toml`
+- Per-demo Docker services remain; unified `demo` service not created
+- No `integration_tests/` directory or README
 
 ### ❌ CM-03-006 field rename not implemented
 
@@ -62,55 +74,92 @@ actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 
 ### Phase DEMO-3 — Remaining ActivityPub Workflow Demo Scripts
 
-**Priority**: HIGH per `plan/PRIORITIES.md`
-**References**: `docs/howto/activitypub/activities/`
-**Pattern**: Follow existing demo scripts; use `demo_step` / `demo_check` context managers
+**Status**: ✅ COMPLETE — See `plan/IMPLEMENTATION_HISTORY.md`
 
-#### acknowledge_demo.py
+---
 
-- [x] **DEMO-3.1**: Create `vultron/scripts/acknowledge_demo.py`
-  - Workflow from `acknowledge.md`: submit report → ack_report (RmReadReport)
-    → optionally validate or invalidate
-  - Show RM state transitions at each step
-- [x] **DEMO-3.2**: Add `test/scripts/test_acknowledge_demo.py`
-- [x] **DEMO-3.3**: Add `acknowledge-demo` service to `docker/docker-compose.yml`
-  and corresponding Dockerfile target
+### Phase DEMO-4 — Unified Demo CLI (PRIORITY 10)
 
-#### manage_case_demo.py
+**Priority**: HIGHEST per `plan/PRIORITIES.md`
+**References**: `specs/demo-cli.md`, `plan/IDEATION.md`
+**Note**: TECHDEBT-2 tasks (steps 1–2 below) MUST be completed first to
+provide a clean foundation before CLI wiring.
 
-- [x] **DEMO-3.4**: Create `vultron/scripts/manage_case_demo.py`
-  - Full lifecycle from `manage_case.md`: submit → validate → create_case →
-    engage/defer → reengage (via second `RmEngageCase`) → close
-  - Demonstrate both engage and defer/reengage paths
-- [x] **DEMO-3.5**: Add `test/scripts/test_manage_case_demo.py`
-- [x] **DEMO-3.6**: Add `manage-case-demo` service to docker-compose.yml
+#### Step 1 — Extract shared demo utilities (TECHDEBT-2, part A)
 
-#### initialize_participant_demo.py
+- [ ] **DEMO-4.1**: Create `vultron/demo/utils.py` with `demo_step`,
+  `demo_check` context managers and HTTP client helpers extracted from
+  existing demo scripts (DC-02-001)
+  - Done when: `from vultron.demo.utils import demo_step, demo_check`
+    succeeds and all demo scripts import from there
+- [ ] **DEMO-4.2**: Update all demo scripts in `vultron/scripts/` to import
+  `demo_step`, `demo_check`, and client helpers from `vultron.demo.utils`
+  instead of defining them locally (DC-02-001)
+  - Done when: no demo script defines its own `demo_step`/`demo_check`
+    and all tests still pass
 
-- [x] **DEMO-3.7**: Create `vultron/scripts/initialize_participant_demo.py`
-  - Workflow from `initialize_participant.md`: create_case_participant →
-    add_case_participant_to_case (standalone, not requiring prior invite)
-  - Show case participant list before and after
-- [x] **DEMO-3.8**: Add `test/scripts/test_initialize_participant_demo.py`
-- [x] **DEMO-3.9**: Add `initialize-participant-demo` service to docker-compose.yml
+#### Step 2 — Relocate demo scripts (TECHDEBT-2, part B)
 
-#### manage_embargo_demo.py
+- [ ] **DEMO-4.3**: Move all `*_demo.py` scripts from `vultron/scripts/` to
+  `vultron/demo/` (DC-02-002)
+  - Each demo MUST remain directly invokable via `if __name__ == "__main__"`
+    (DC-01-005)
+  - Update all import paths in test files (`test/scripts/`) and Docker
+    configs
+  - Done when: all demos importable as `vultron.demo.<script_name>` and
+    full test suite passes
 
-- [x] **DEMO-3.10**: Create `vultron/scripts/manage_embargo_demo.py`
-  - Full cycle from `manage_embargo.md`: propose → accept → activate → terminate
-  - Also demonstrate propose → reject → re-propose path
-- [x] **DEMO-3.11**: Add `test/scripts/test_manage_embargo_demo.py`
-- [x] **DEMO-3.12**: Add `manage-embargo-demo` service to docker-compose.yml
+#### Step 3 — Demo isolation (teardown logic)
 
-#### manage_participants_demo.py
+- [ ] **DEMO-4.4**: Add setup/teardown logic to each demo so it leaves the
+  DataLayer clean regardless of success or failure (DC-03-001, DC-03-003)
+  - Teardown MUST run even when the demo raises an exception
+  - Done when: running any two demos in sequence leaves no cross-demo state
 
-- [x] **DEMO-3.13**: Create `vultron/scripts/manage_participants_demo.py`
-  - Full cycle from `manage_participants.md`: invite → accept →
-    create_participant → add_to_case → create_status → add_status →
-    remove_participant
-  - Demonstrate reject path as well
-- [x] **DEMO-3.14**: Add `test/scripts/test_manage_participants_demo.py`
-- [x] **DEMO-3.15**: Add `manage-participants-demo` service to docker-compose.yml
+#### Step 4 — Build the unified CLI
+
+- [ ] **DEMO-4.5**: Create `vultron/demo/cli.py` as a `click`-based CLI with
+  a sub-command for each demo and an `all` sub-command (DC-01-001 through
+  DC-01-004)
+  - Sub-command names MUST match short names of corresponding demo scripts
+    (e.g., `receive-report`, `initialize-case`)
+  - `all` sub-command MUST stop and report failure on first demo failure
+  - `all` MUST print a human-readable pass/fail summary on completion
+- [ ] **DEMO-4.6**: Register `vultron-demo = "vultron.demo.cli:main"` as an
+  entry point in `pyproject.toml` (DC-01-001)
+  - Done when: `vultron-demo --help` lists all demo sub-commands after
+    `uv pip install -e .`
+
+#### Step 5 — Docker packaging
+
+- [ ] **DEMO-4.7**: Add unified `demo` service to `docker/docker-compose.yml`
+  depending on `api-dev` with `condition: service_healthy` (DC-04-001)
+  - Docker entry point MUST launch the CLI interactively by default
+  - When `DEMO` env var is set, run named sub-command non-interactively and
+    exit (DC-04-002)
+- [ ] **DEMO-4.8**: Remove individual per-demo Docker services from
+  `docker-compose.yml` after verifying the unified service runs all demos
+  successfully (DC-04-003)
+
+#### Step 6 — Unit tests
+
+- [ ] **DEMO-4.9**: Create `test/demo/test_cli.py` with unit tests for the
+  unified CLI (DC-05-001 through DC-05-004)
+  - Test that each sub-command invokes the correct demo function
+  - Test that `all` invokes every demo exactly once in order (using mocks)
+  - Test that CLI exits with non-zero status when a demo raises an exception
+  - Done when: `uv run pytest test/demo/test_cli.py` passes
+
+#### Step 7 — Integration test
+
+- [ ] **DEMO-4.10**: Create `integration_tests/demo/run_demo_integration_test.sh`
+  (or equivalent Python script) that starts `api-dev`, runs `vultron-demo
+  all` inside the `demo` container, and verifies all demos complete without
+  errors (DC-06-001)
+- [ ] **DEMO-4.11**: Create `integration_tests/README.md` documenting how to
+  run integration tests, what success looks like, and a note that these are
+  manual acceptance tests (not run by `pytest`) (DC-06-002)
+- [ ] **DEMO-4.12**: Add `make integration-test` Makefile target (DC-06-003)
 
 ---
 
@@ -156,18 +205,21 @@ actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 
 ## Technical debt (housekeeping)
 
-Priority: LOW–MEDIUM. These tasks reduce long-term maintenance and should be
-addressed as time permits.
+Priority: TECHDEBT-1 and TECHDEBT-5 are MEDIUM per `plan/PRIORITIES.md`
+(PRIORITY 20). TECHDEBT-2 is subsumed into DEMO-4 above. TECHDEBT-3 and
+TECHDEBT-4 remain LOW.
+
+- [x] TECHDEBT-2: Subsumed into Phase DEMO-4 (DEMO-4.1–4.3).
 
 - [ ] TECHDEBT-1: Split large handlers module into submodules — move related
   handlers into `vultron/api/v2/backend/handlers/*.py` and re-export in
   `vultron.api.v2.backend.handlers.__init__`.
   Done when: handlers module size reduces below 400 LOC and full test-suite passes.
 
-- [ ] TECHDEBT-2: Extract demo utilities and centralize demos — move
-  `demo_step`/`demo_check` context managers and shared client helpers to
-  `vultron/demo/utils.py` and relocate demo scripts to `vultron/demo/`.
-  Done when: demos import from `vultron.demo.utils` and demo tests pass.
+- [ ] TECHDEBT-5: Move `vultron/scripts/vocab_examples.py` to
+  `vultron/as_vocab/examples/` and provide a compatibility shim for existing
+  import paths.
+  Done when: new location is used and existing import paths remain functional.
 
 - [ ] TECHDEBT-3: Standardize object IDs to URL-like form — draft ADR
   `docs/adr/ADR-XXXX-standardize-object-ids.md` and implement a compatibility
@@ -178,11 +230,6 @@ addressed as time permits.
   enums) into small packages to reduce circular imports and improve
   discoverability.
   Done when: modules moved with minimal interface changes and tests pass.
-
-- [ ] TECHDEBT-5: Move `vultron/scripts/vocab_examples.py` to
-  `vultron/as_vocab/examples/` and provide a compatibility shim for existing
-  import paths.
-  Done when: new location is used and existing import paths remain functional.
 
 References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
 `plan/IDEATION.md`, and files in `specs/`.

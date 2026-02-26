@@ -151,6 +151,19 @@ All router tests (18/18) fixed after resolving separate data layer instances in 
 
 ---
 
+## Phase DEMO-3.10–3.15 — Manage Embargo + Manage Participants Demos (COMPLETE 2026-02-26)
+
+- `manage_embargo_demo.py` — full propose → accept → activate → terminate cycle;
+  also demonstrates propose → reject → re-propose path + dockerized
+- `manage_participants_demo.py` — full invite → accept → create_participant →
+  add_to_case → create_status → add_status → remove_participant cycle;
+  also demonstrates reject path + dockerized
+- Tests: `test/scripts/test_manage_embargo_demo.py`,
+  `test/scripts/test_manage_participants_demo.py`
+- **All Phase DEMO-3 tasks complete**: 568 tests passing at completion
+
+---
+
 ## Resolved Design Decisions
 
 | # | Question | Decision |
