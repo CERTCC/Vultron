@@ -239,6 +239,26 @@ def setup_clean_environment(
     return finder, vendor, coordinator
 
 
+@contextmanager
+def demo_environment(client: DataLayerClient):
+    """Context manager providing an isolated, clean DataLayer environment.
+
+    Sets up a clean environment on entry and tears it down on exit, even
+    when the demo raises an exception (DC-03-001, DC-03-003).
+
+    Yields:
+        Tuple of (finder, vendor, coordinator) actors.
+    """
+    finder, vendor, coordinator = setup_clean_environment(client)
+    try:
+        yield finder, vendor, coordinator
+    finally:
+        logger.info("Tearing down demo environment...")
+        reset_datalayer(client=client, init=False)
+        clear_all_actor_ios()
+        logger.info("Demo environment torn down.")
+
+
 def check_server_availability(
     client: DataLayerClient, max_retries: int = 30, retry_delay: float = 1.0
 ) -> bool:

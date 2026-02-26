@@ -75,9 +75,9 @@ from vultron.demo.utils import (
     demo_check,
     demo_step,
     get_offer_from_datalayer,
+    demo_environment,
     log_case_state,
     logfmt,
-    setup_clean_environment,
     post_to_inbox_and_wait,
     verify_object_stored,
 )
@@ -342,8 +342,8 @@ def main(
 
     for demo_name, demo_fn in selected:
         try:
-            finder, vendor, coordinator = setup_clean_environment(client)
-            demo_fn(client, finder, vendor, coordinator)
+            with demo_environment(client) as (finder, vendor, coordinator):
+                demo_fn(client, finder, vendor, coordinator)
         except Exception as e:
             logger.error(f"{demo_name} failed: {e}", exc_info=True)
             errors.append((demo_name, str(e)))
