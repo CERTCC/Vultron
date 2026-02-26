@@ -253,3 +253,74 @@ makes it harder to see the actual test results. These print statements
 should be removed or replaced with proper debug logging that could be 
 enabled when desired.
 
+### mkdocs serve error
+
+This bug takes precedence over testing errors.
+When attempting to run `uv run mkdocs serve` to serve the documentation 
+locally, the following error occurs. 
+
+```shell
+INFO    -  Building documentation...
+INFO    -  Loading data from bib files: ['/Users/adh/Documents/git/vultron_pub/references.bib']
+Traceback (most recent call last):
+  File "/Users/adh/Documents/git/vultron_pub/.venv/bin/mkdocs", line 10, in <module>
+    sys.exit(cli())
+             ~~~^^
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/click/core.py", line 1485, in __call__
+    return self.main(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/click/core.py", line 1406, in main
+    rv = self.invoke(ctx)
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/click/core.py", line 1873, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+                           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/click/core.py", line 1269, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/click/core.py", line 824, in invoke
+    return callback(*args, **kwargs)
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/__main__.py", line 272, in serve_command
+    serve.serve(**kwargs)
+    ~~~~~~~~~~~^^^^^^^^^^
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/commands/serve.py", line 85, in serve
+    builder(config)
+    ~~~~~~~^^^^^^^^
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/commands/serve.py", line 67, in builder
+    build(config, serve_url=None if is_clean else serve_url, dirty=is_dirty)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/commands/build.py", line 265, in build
+    config = config.plugins.on_config(config)
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/plugins.py", line 587, in on_config
+    return self.run_event('config', config)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/plugins.py", line 566, in run_event
+    result = method(item, **kwargs)
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings/_internal/plugin.py", line 153, in on_config
+    handlers._download_inventories()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings/_internal/handlers/base.py", line 602, in _download_inventories
+    handler = self.get_handler(handler_name)
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings/_internal/handlers/base.py", line 581, in get_handler
+    module = importlib.import_module(f"mkdocstrings_handlers.{name}")
+  File "/Users/adh/.local/share/uv/python/cpython-3.13.7-macos-x86_64-none/lib/python3.13/importlib/__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 1026, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings_handlers/python/__init__.py", line 3, in <module>
+    from mkdocstrings_handlers.python._internal.config import (
+    ...<11 lines>...
+    )
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings_handlers/python/_internal/config.py", line 12, in <module>
+    from mkdocstrings_handlers.python._internal.rendering import Order  # noqa: TC001
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings_handlers/python/_internal/rendering.py", line 17, in <module>
+    from griffe import (
+    ...<15 lines>...
+    )
+ImportError: cannot import name 'Alias' from 'griffe' (unknown location)
+```
