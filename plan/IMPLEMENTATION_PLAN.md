@@ -151,7 +151,7 @@ provide a clean foundation before CLI wiring.
   - Test that `all` invokes every demo exactly once in order (using mocks)
   - Test that CLI exits with non-zero status when a demo raises an exception
   - Done when: `uv run pytest test/demo/test_cli.py` passes
-- [ ] **DEMO-4.10**: Refactor demo tests to maintain parallelism to the new 
+- [x] **DEMO-4.10**: Refactor demo tests to maintain parallelism to the new 
   structure — e.g., `test/demo/test_receive_report.py` tests `receive_report_demo`
 - [ ] **DEMO-4.11**: See note in `plan/IMPLEMENTATION_NOTES.md` about demo 
   test slowness and potential refactor or segmentation to speed up development iterations.
