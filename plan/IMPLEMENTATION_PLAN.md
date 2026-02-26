@@ -184,7 +184,7 @@ update if appropriate to avoid repetitive commits with small doc changes. E.
 g., DEMO-4.17 and DEMO-4.18 could be implemented together, as could 4.19, 4.
 20, and 4.21.
 
-- [ ] **DEMO-4.15**: Create `vultron/demo/README.md` with an overview of the
+- [x] **DEMO-4.15**: Create `vultron/demo/README.md` with an overview of the
   demo suite, instructions for running the demos via docker-compose and
   directly, and a note about the unified CLI 
 - [ ] **DEMO-4.16**: Update `docs/howto/activitypub/activities/*.md` files to
