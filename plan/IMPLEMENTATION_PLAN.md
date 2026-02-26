@@ -166,15 +166,15 @@ provide a clean foundation before CLI wiring.
 The following tasks may be grouped into a single update that covers all of 
 them if appropriate, or split into multiple updates if needed to manage complexity.
 
-- [ ] **DEMO-4.12**: Create 
+- [x] **DEMO-4.12**: Create 
   `integration_tests/demo/run_demo_integration_test.sh`
   (or equivalent Python script) that starts `api-dev`, runs `vultron-demo
   all` inside the `demo` container, and verifies all demos complete without
   errors (DC-06-001)
-- [ ] **DEMO-4.13**: Create `integration_tests/README.md` documenting how to
+- [x] **DEMO-4.13**: Create `integration_tests/README.md` documenting how to
   run integration tests, what success looks like, and a note that these are
   manual acceptance tests (not run by `pytest`) (DC-06-002)
-- [ ] **DEMO-4.14**: Add `make integration-test` Makefile target (DC-06-003)
+- [x] **DEMO-4.14**: Add `make integration-test` Makefile target (DC-06-003)
 
 #### Step 8 — Documentation
 
