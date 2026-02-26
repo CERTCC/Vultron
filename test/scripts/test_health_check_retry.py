@@ -99,6 +99,7 @@ def test_check_server_availability_logs_retry_attempts(caplog):
     assert (
         "Retrying in" in caplog.text
         or "Checking server availability" in caplog.text
+        or "Checking server at" in caplog.text
     )
 
 

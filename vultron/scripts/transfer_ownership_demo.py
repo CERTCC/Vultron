@@ -63,7 +63,7 @@ from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.case_participant import FinderReporterParticipant
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.scripts.initialize_case_demo import (
+from vultron.demo.utils import (
     DataLayerClient,
     check_server_availability,
     demo_check,

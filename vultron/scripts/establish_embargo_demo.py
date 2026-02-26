@@ -71,7 +71,7 @@ from vultron.as_vocab.objects.case_participant import (
 from vultron.as_vocab.objects.embargo_event import EmbargoEvent
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.scripts.initialize_case_demo import (
+from vultron.demo.utils import (
     BASE_URL,
     DataLayerClient,
     check_server_availability,

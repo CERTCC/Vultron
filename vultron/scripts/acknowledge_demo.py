@@ -44,18 +44,10 @@ When run as a script, this module will:
 
 # Standard library imports
 import logging
-import os
 import sys
-import time
 from typing import Optional, Sequence, Tuple
 
-# Third-party imports
-import requests
-from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
-
 # Vultron imports
-from vultron.api.v2.data.actor_io import clear_all_actor_ios, init_actor_io
 from vultron.api.v2.data.utils import parse_id
 from vultron.as_vocab.activities.report import (
     RmInvalidateReport,
@@ -63,133 +55,23 @@ from vultron.as_vocab.activities.report import (
     RmSubmitReport,
     RmValidateReport,
 )
-from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.as_vocab.base.objects.activities.transitive import as_Offer
 from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.scripts.initialize_case_demo import demo_check, demo_step
-
-logger = logging.getLogger(__name__)
-
-# Allow BASE_URL to be overridden via environment variable for Docker deployment
-BASE_URL = os.environ.get(
-    "VULTRON_API_BASE_URL", "http://localhost:7999/api/v2"
+from vultron.demo.utils import (
+    BASE_URL,
+    DataLayerClient,
+    check_server_availability,
+    demo_check,
+    demo_step,
+    get_offer_from_datalayer,
+    logfmt,
+    post_to_inbox_and_wait,
+    reset_datalayer,
+    setup_clean_environment,
+    verify_object_stored,
 )
 
-
-def logfmt(obj):
-    """Format object for logging. Handles both Pydantic models and strings."""
-    if isinstance(obj, str):
-        return obj
-    return obj.model_dump_json(indent=2, exclude_none=True, by_alias=True)
-
-
-def postfmt(obj):
-    return jsonable_encoder(obj, by_alias=True, exclude_none=True)
-
-
-class DataLayerClient(BaseModel):
-    base_url: str = BASE_URL
-
-    def call(self, method, path: str, **kwargs) -> dict:
-        from http import HTTPMethod
-
-        if method.upper() not in HTTPMethod.__members__:
-            raise ValueError(f"Unsupported HTTP method: {method}")
-        url = f"{self.base_url}{path}"
-        logger.info(f"Calling {method.upper()} {url}")
-        response = requests.request(method, url, **kwargs)
-        logger.info(f"Response status: {response.status_code}")
-        data = {}
-        try:
-            data = response.json()
-        except Exception as e:
-            logger.error(f"Exception: {e}")
-            logger.error(f"Response text: {response.text}")
-        if not response.ok:
-            logger.error(f"Error response: {response.text}")
-            response.raise_for_status()
-        return data
-
-    def get(self, path: str, **kwargs) -> dict:
-        return self.call("GET", path, **kwargs)
-
-    def post(self, path: str, **kwargs) -> dict:
-        return self.call("POST", path, **kwargs)
-
-    def delete(self, path: str, **kwargs) -> dict:
-        return self.call("DELETE", path, **kwargs)
-
-
-def reset_datalayer(client: DataLayerClient, init: bool = True):
-    logger.info("Resetting data layer...")
-    return client.delete("/datalayer/reset/", params={"init": init})
-
-
-def discover_actors(
-    client: DataLayerClient,
-) -> Tuple[as_Actor, as_Actor, as_Actor]:
-    finder = vendor = coordinator = None
-    logger.info("Discovering actors in the data layer...")
-    actors = client.get("/actors/")
-    for actor_json in actors:
-        actor = as_Actor(**actor_json)
-        if actor.name.startswith("Finn"):
-            finder = actor
-        elif actor.name.startswith("Vendor"):
-            vendor = actor
-        elif actor.name.startswith("Coordinator"):
-            coordinator = actor
-    if finder is None:
-        raise ValueError("Finder actor not found.")
-    if vendor is None:
-        raise ValueError("Vendor actor not found.")
-    if coordinator is None:
-        raise ValueError("Coordinator actor not found.")
-    return finder, vendor, coordinator
-
-
-def init_actor_ios(actors: Sequence[as_Actor]) -> None:
-    logger.info("Initializing inboxes and outboxes for actors...")
-    for actor in actors:
-        if actor is None:
-            continue
-        init_actor_io(actor.as_id)
-
-
-def post_to_inbox_and_wait(
-    client: DataLayerClient,
-    actor_id: str,
-    activity: as_Activity,
-    wait_seconds: float = 1.0,
-) -> None:
-    actor_obj_id = parse_id(actor_id)["object_id"]
-    logger.info(
-        f"Posting activity to {actor_obj_id}'s inbox: {logfmt(activity)}"
-    )
-    client.post(f"/actors/{actor_obj_id}/inbox/", json=postfmt(activity))
-    time.sleep(wait_seconds)
-
-
-def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
-    obj = client.get(f"/datalayer/{obj_id}")
-    reconstructed = as_Object(**obj)
-    logger.info(f"Verified object stored: {logfmt(reconstructed)}")
-    return reconstructed
-
-
-def get_offer_from_datalayer(
-    client: DataLayerClient, vendor_id: str, offer_id: str
-) -> as_Offer:
-    vendor_obj_id = parse_id(vendor_id)["object_id"]
-    offer_obj_id = parse_id(offer_id)["object_id"]
-    offer_data = client.get(
-        f"/datalayer/Actors/{vendor_obj_id}/Offers/{offer_obj_id}"
-    )
-    offer = as_Offer(**offer_data)
-    logger.info(f"Retrieved Offer: {logfmt(offer)}")
-    return offer
+logger = logging.getLogger(__name__)
 
 
 def get_actor_by_id(
@@ -460,38 +342,6 @@ def demo_acknowledge_then_invalidate(
     logger.info(
         "✅ DEMO 3 COMPLETE: Report acknowledged then invalidated; finder notified."
     )
-
-
-def check_server_availability(
-    client: DataLayerClient, max_retries: int = 30, retry_delay: float = 1.0
-) -> bool:
-    url = f"{client.base_url}/health/ready"
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(url, timeout=2)
-            if response.status_code == 200:
-                return True
-        except requests.exceptions.ConnectionError:
-            pass
-        except requests.exceptions.Timeout:
-            pass
-        except Exception:
-            pass
-        if attempt < max_retries - 1:
-            time.sleep(retry_delay)
-    return False
-
-
-def setup_clean_environment(
-    client: DataLayerClient,
-) -> Tuple[as_Actor, as_Actor, as_Actor]:
-    logger.info("Setting up clean environment...")
-    reset_datalayer(client=client, init=True)
-    clear_all_actor_ios()
-    finder, vendor, coordinator = discover_actors(client=client)
-    init_actor_ios([finder, vendor, coordinator])
-    logger.info("Clean environment setup complete.")
-    return finder, vendor, coordinator
 
 
 _ALL_DEMOS: Sequence[Tuple[str, object]] = [
