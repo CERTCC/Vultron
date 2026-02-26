@@ -149,7 +149,7 @@ quadrants to keep the explanation bounded and pure.
 The Compass is our truth table. Use it to clarify intentions and correct
 intuitive but incorrect structural decisions.
 
-**Decision logic**
+### Decision logic
 
 - *If* the content informs Action *and* serves Acquisition → **Tutorial**
 - *If* the content informs Action *and* serves Application → **How-to Guide**
@@ -179,7 +179,7 @@ We distinguish between Functional Quality (accuracy, completeness, consistency)
 and Deep Quality. Functional quality is a prerequisite; the Diátaxis framework
 is the catalyst for attaining Deep Quality.
 
-**Success criteria for Deep Quality**
+### Success criteria for Deep Quality
 
 - Anticipation: Documentation feels as if it anticipates the user's next need.
 - Flow: Movement from one state to another feels right and unforced.

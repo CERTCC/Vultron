@@ -6,7 +6,7 @@
 5. Study vultron/* to understand the codebase.
 6. Study test/* to understand existing tests.
 7. Refine specs/* to separate topics of concern into distinct files.
-   1. Incorporate new insights from your review of the specifications,  
+   1. Incorporate new insights from your review of the specifications,
       implementation plan, and notes into refined specifications.
    2. Avoid over-specifying implementation details in the specifications; focus on
       what needs to be achieved rather than how it should be achieved.

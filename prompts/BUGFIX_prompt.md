@@ -25,7 +25,7 @@ Objective: Fix the highest-priority open bug using test-first development.
 6. Iterate
    - If tests fail, continue refining the fix until all relevant tests pass.
    - Do not proceed until validation succeeds.
-   - If you encounter additional bugs during implementation, add them to 
+   - If you encounter additional bugs during implementation, add them to
      `plan/BUGS.md` with a clear description and reproduction steps, but do not
      pursue them unless they are the highest-priority open bug.
 

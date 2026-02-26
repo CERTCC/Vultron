@@ -6,14 +6,18 @@
 6. Generate a comprehensive list of specifications that align with the project intent.
 7. Ensure each specification is atomic, verifiable, and succinct.
 8. Organize the specifications into logical categories or files as appropriate.
+
    1. One file per topic of concern.
    2. Use the PROD_ONLY tag to indicate any requirements that are only relevant
       for production and not for prototype development or testing.
+
 9. Avoid redundancy by ensuring each requirement appears only once.
 10. Update specs/README.md to reflect the actual set of specification files.
-11. Items in plans/IDEATION.md that do not rise to the level of a 
-    specification should be documented in notes/*.md as appropriate with 
+11. Items in plans/IDEATION.md that do not rise to the level of a
+    specification should be documented in notes/*.md as appropriate with
     cross-references to related specifications for traceability.
-    1. If notes/*.md files are added or updated, be sure to update the 
+
+    1. If notes/*.md files are added or updated, be sure to update the
        notes/README.md if necessary to reflect the actual set of notes files.
+
 12. git commit the new specifications and notes with a clear commit message.
