@@ -8,6 +8,18 @@ Add new items below this line
 
 ---
 
+## BUG FIX — Demo CLI logging (2026-02-26)
+
+`vultron-demo` sub-commands produced no console output because the `main`
+click group never configured a logging handler. Python's default root logger
+level is WARNING, silently discarding all INFO-level demo messages.
+
+**Fix**: Added `--debug` and `--log-file` options to the `main` group; the
+group callback now calls `logging.basicConfig(force=True)` at INFO (or DEBUG
+with `--debug`). Tests covering the new behaviour are in
+`test/demo/test_cli.py`.
+
+
 ## Outbox Delivery Gap
 
 `vultron/api/v2/data/actor_io.py` has a placeholder that appends strings to an

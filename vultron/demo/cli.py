@@ -65,8 +65,33 @@ DEMOS = [
 
 
 @click.group()
-def main() -> None:
+@click.option(
+    "--debug",
+    is_flag=True,
+    default=False,
+    help="Enable DEBUG-level logging to the console (default: INFO).",
+)
+@click.option(
+    "--log-file",
+    default=None,
+    metavar="PATH",
+    help="Also write log output to FILE.",
+)
+@click.pass_context
+def main(ctx: click.Context, debug: bool, log_file: str | None) -> None:
     """Vultron demo CLI — run individual demos or all demos in sequence."""
+    level = logging.DEBUG if debug else logging.INFO
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if log_file:
+        handlers.append(logging.FileHandler(log_file))
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+        handlers=handlers,
+        force=True,
+    )
+    ctx.ensure_object(dict)
+    ctx.obj["debug"] = debug
 
 
 def _make_sub_command(name: str, module) -> click.Command:
