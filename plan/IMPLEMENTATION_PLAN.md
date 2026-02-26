@@ -149,17 +149,23 @@ provide a clean foundation before CLI wiring.
   - Test that `all` invokes every demo exactly once in order (using mocks)
   - Test that CLI exits with non-zero status when a demo raises an exception
   - Done when: `uv run pytest test/demo/test_cli.py` passes
+- [ ] **DEMO-4.10**: Refactor demo tests to maintain parallelism to the new 
+  structure — e.g., `test/demo/test_receive_report.py` tests `receive_report_demo`
+- [ ] **DEMO-4.11**: See note in `plan/IMPLEMENTATION_NOTES.md` about demo 
+  test slowness and potential refactor or segmentation to speed up development iterations.
+  Recommended: refactoring demo tests to remove redundancy.
 
 #### Step 7 — Integration test
 
-- [ ] **DEMO-4.10**: Create `integration_tests/demo/run_demo_integration_test.sh`
+- [ ] **DEMO-4.12**: Create 
+  `integration_tests/demo/run_demo_integration_test.sh`
   (or equivalent Python script) that starts `api-dev`, runs `vultron-demo
   all` inside the `demo` container, and verifies all demos complete without
   errors (DC-06-001)
-- [ ] **DEMO-4.11**: Create `integration_tests/README.md` documenting how to
+- [ ] **DEMO-4.13**: Create `integration_tests/README.md` documenting how to
   run integration tests, what success looks like, and a note that these are
   manual acceptance tests (not run by `pytest`) (DC-06-002)
-- [ ] **DEMO-4.12**: Add `make integration-test` Makefile target (DC-06-003)
+- [ ] **DEMO-4.14**: Add `make integration-test` Makefile target (DC-06-003)
 
 ---
 
