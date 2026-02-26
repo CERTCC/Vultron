@@ -97,7 +97,7 @@ class TestCliLogging:
         root = logging.getLogger()
         for h in root.handlers[:]:
             root.removeHandler(h)
-        root.setLevel(logging.WARNING)
+        root.setLevel(logging.NOTSET)
 
 
 class TestCliSubCommands:

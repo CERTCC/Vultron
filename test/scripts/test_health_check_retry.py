@@ -10,6 +10,7 @@ Solution: Add retry logic with exponential backoff to wait for the server
 to be ready before proceeding.
 """
 
+import logging
 import time
 from unittest.mock import Mock, patch
 
@@ -89,10 +90,11 @@ def test_check_server_availability_logs_retry_attempts(caplog):
         mock_response,
     ]
 
-    with patch("requests.get", side_effect=side_effects):
-        result = check_server_availability(
-            client, max_retries=3, retry_delay=0.1
-        )
+    with caplog.at_level(logging.DEBUG):
+        with patch("requests.get", side_effect=side_effects):
+            result = check_server_availability(
+                client, max_retries=3, retry_delay=0.1
+            )
 
     assert result is True
     # Should see retry attempt logs

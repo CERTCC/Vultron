@@ -8,6 +8,37 @@ Add new items below this line
 
 ---
 
+## BUG FIX — test_check_server_availability_logs_retry_attempts (2026-02-26)
+
+**Issue**: `test_check_server_availability_logs_retry_attempts` passed in
+isolation but failed when the full test suite ran.
+
+**Root cause**: `check_server_availability` logs at `DEBUG` level.
+`TestCliLogging` tests in `test/demo/test_cli.py` invoke the Vultron demo
+CLI, which calls `logging.basicConfig(level=INFO, force=True)`. This raises
+the root logger's effective level to INFO, suppressing DEBUG messages.
+`TestCliLogging.teardown_method` reset root to `WARNING`, which compounded the
+problem. `TestCliSubCommands` and `TestCliAll` also invoke the CLI (without a
+matching teardown), leaving root at INFO after the last `test_cli.py` test.
+When `test_check_server_availability_logs_retry_attempts` then ran, root was
+at INFO, `caplog` captured nothing, and the assertion failed.
+
+**Fix**:
+1. `test/scripts/test_health_check_retry.py`: Wrapped the call and assertion
+   inside `with caplog.at_level(logging.DEBUG):` — the test now explicitly
+   declares the log level it requires, making it independent of external
+   logger state.
+2. `test/demo/test_cli.py`: Changed `teardown_method` to restore root logger
+   to `logging.NOTSET` (unconditional pass-through) instead of `WARNING`,
+   reducing interference with subsequent tests.
+
+**Note on `vultron/api/v2/app.py`**: This module sets the root logger to
+DEBUG at import time (`logging.getLogger().setLevel(logging.DEBUG)`). This
+side-effect is the reason the test passed in isolation — importing demo
+modules pulls in `app.py`, which sets root to DEBUG before the test runs.
+This module-level side-effect on the root logger is a separate concern and
+should be addressed in a future cleanup.
+
 ## BUG FIX — Demo CLI logging (2026-02-26)
 
 `vultron-demo` sub-commands produced no console output because the `main`
