@@ -276,3 +276,16 @@ concrete examples of the workflows in action. This will help ensure that the
 documentation is accurate and provides value to readers who want to see how the
 workflows are implemented in practice.
   
+## Documentation in `docs/` must use relative links
+
+Markdown links in `docs/` must be relative to the current file, and never go 
+above the `docs/` directory. The site is generated using `mkdocs` so `docs/` 
+serves as the site root. Relative links must be as short as possible while 
+still being correct. For example, a link from `thisdir/file.md` to 
+`thisdir/otherfile.md` should be `otherfile.md`, not `./otherfile.md` or 
+`../thisdir/otherfile.md`. A link from `docs/a/b/c/file.md` to 
+`docs/a/d/otherfile.md` should be `../../d/otherfile.md`, 
+not `../../../a/d/otherfile.md` or an absolute link like `/a/d/otherfile.md`.
+This allows us to reorganize folders without necessarily breaking links within a
+the folder. You can use `mkdocs build --site-dir PATH` and `linkchecker PATH` to
+test that your links are correct before committing changes to the docs.
