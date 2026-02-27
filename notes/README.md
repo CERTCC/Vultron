@@ -21,6 +21,7 @@ Explanation) and an implementation workflow for authoring technical docs.
 | `documentation-strategy.md` | Docs chronology and trust levels, process models, formal protocol, behavior simulator reference, Do Work behaviors, ISO crosswalks |
 | `domain-model-separation.md` | Wire/Domain/Persistence layer separation, current coupling in `VulnerabilityCase`, architectural direction and recommended next steps |
 | `do-work-behaviors.md` | Scope of "do work" BT behaviors: out-of-scope, not-implementable, partially-implementable items; reporting behavior notes; embargo policy prior art |
+| `docker-build.md` | Project-specific Docker build observations, dependency layer caching, image content scoping, general build performance checklist |
 
 ## Conventions
 

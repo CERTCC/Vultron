@@ -274,6 +274,31 @@ Directly setting `.em_state` on the `case_status` list attribute is a bug
 
 ---
 
+## CM-03-006 Rename: `case_status` → `case_statuses`
+
+Spec `CM-03-006` requires renaming `VulnerabilityCase.case_status` (a list
+field with a misleading singular name) to `case_statuses`. The same rename
+applies to `CaseParticipant.participant_status` → `participant_statuses`.
+
+**Before starting the rename**, quantify scope:
+
+```bash
+grep -rn "\.case_status" vultron/ test/
+grep -rn "\.participant_status" vultron/ test/
+```
+
+As of the last review, `handlers.py` alone has approximately 20 call sites.
+Total scope across `behaviors/` and tests makes this a high-breakage change.
+
+**Recommended approach**: Do both renames (`case_statuses` and
+`participant_statuses`) in a single PR to keep the diff localized and avoid
+a partial-rename state that is harder to reason about.
+
+**Cross-reference**: `AGENTS.md` "case_status Field Is a List (Rename
+Pending)"; `specs/case-management.md` CM-03-006.
+
+---
+
 ## RM and EM State Machines (Cross-Reference)
 
 Case State (CS) is one of three interacting state machines:
