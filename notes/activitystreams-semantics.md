@@ -299,4 +299,4 @@ legacy artifact for documentation purposes only. Actual re-engagement MUST
 be implemented as a second `RmEngageCase` (`as:Join`) activity.
 
 **Reference**: `docs/howto/activitypub/activities/manage_case.md` ("Re-Engaging
-a Case" note), `vultron/scripts/manage_case_demo.py` (`demo_defer_reengage_path`).
+a Case" note), `vultron/demo/manage_case_demo.py` (`demo_defer_reengage_path`).

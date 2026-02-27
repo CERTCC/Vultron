@@ -177,7 +177,7 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-02-26)**:
+**Summary (2026-02-27)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer
@@ -185,12 +185,15 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
   See `plan/IMPLEMENTATION_PLAN.md` for full handler list
 - ✅ **BT integration Phases BT-1 through BT-7 complete**: See
   `behavior-tree-integration.md`
-- ✅ **Demo scripts (10)**: See `plan/IMPLEMENTATION_PLAN.md`
-- ✅ **557 tests passing**, 0 xfailed (2026-02-24)
+- ✅ **Demo scripts (12)**: All in `vultron/demo/`; see
+  `plan/IMPLEMENTATION_PLAN.md`
+- ✅ **Unified demo CLI complete** (`vultron-demo`): See `specs/demo-cli.md`
+  and `plan/IMPLEMENTATION_PLAN.md` (Phase DEMO-4)
+- ✅ **568 tests passing**, 0 xfailed (2026-02-26)
 - ⚠️ **Production readiness partial**: Request validation, error responses
   need work
 - ❌ **Response generation not started**: See `response-format.md`
-- ❌ **Unified demo CLI not started**: See `specs/demo-cli.md`
+- ❌ **Outbox delivery not implemented**: See `outbox.md` OX-03, OX-04
 
 ---
 

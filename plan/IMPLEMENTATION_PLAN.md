@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-26 (gap analysis refresh #8)
+**Last Updated**: 2026-02-27 (gap analysis refresh #9)
 
 ## Overview
 
@@ -37,25 +37,18 @@ reject_case_ownership_transfer, update_case
 
 ---
 
-## Gap Analysis (2026-02-26, refresh #8)
+## Gap Analysis (2026-02-27, refresh #9)
 
 ### ✅ Phase DEMO-3 fully complete
 
 All 15 tasks (DEMO-3.1–3.15) are done. All demo scripts exist in
-`vultron/scripts/`, tests exist in `test/scripts/`, and Docker services exist
-in `docker/docker-compose.yml`. The previous gap noting missing
-`manage_embargo_demo` and `manage_participants_demo` is resolved.
+`vultron/demo/`, tests exist in `test/demo/`, and Docker services exist
+in `docker/docker-compose.yml`.
 
-### ❌ DEMO-4: Unified demo CLI not started (PRIORITY 10)
+### ✅ Phase DEMO-4 fully complete
 
-Per `plan/PRIORITIES.md` PRIORITY 10 and `specs/demo-cli.md`:
-
-- No `vultron/demo/utils.py` with shared `demo_step`/`demo_check` utilities
-- Demo scripts still in `vultron/scripts/` (not `vultron/demo/`)
-- No `vultron/demo/cli.py` click-based CLI entry point
-- No `vultron-demo` entry point in `pyproject.toml`
-- Per-demo Docker services remain; unified `demo` service not created
-- No `integration_tests/` directory or README
+All 19 tasks (DEMO-4.1–4.19) are done. See `plan/IMPLEMENTATION_HISTORY.md`
+for the full record.
 
 ### ❌ CM-03-006 field rename not implemented
 
@@ -78,124 +71,9 @@ actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 
 ---
 
-### Phase DEMO-4 — Unified Demo CLI (PRIORITY 10)
+### Phase DEMO-4 — Unified Demo CLI
 
-**Priority**: HIGHEST per `plan/PRIORITIES.md`
-**References**: `specs/demo-cli.md`, `plan/IDEATION.md`
-**Note**: TECHDEBT-2 tasks (steps 1–2 below) MUST be completed first to
-provide a clean foundation before CLI wiring.
-
-#### Step 1 — Extract shared demo utilities (TECHDEBT-2, part A)
-
-- [x] **DEMO-4.1**: Create `vultron/demo/utils.py` with `demo_step`,
-  `demo_check` context managers and HTTP client helpers extracted from
-  existing demo scripts (DC-02-001)
-  - Done when: `from vultron.demo.utils import demo_step, demo_check`
-    succeeds and all demo scripts import from there
-- [x] **DEMO-4.2**: Update all demo scripts in `vultron/scripts/` to import
-  `demo_step`, `demo_check`, and client helpers from `vultron.demo.utils`
-  instead of defining them locally (DC-02-001)
-  - Done when: no demo script defines its own `demo_step`/`demo_check`
-    and all tests still pass
-
-#### Step 2 — Relocate demo scripts (TECHDEBT-2, part B)
-
-- [x] **DEMO-4.3**: Move all `*_demo.py` scripts from `vultron/scripts/` to
-  `vultron/demo/` (DC-02-002)
-  - Each demo MUST remain directly invokable via `if __name__ == "__main__"`
-    (DC-01-005)
-  - Update all import paths in test files (`test/scripts/`) and Docker
-    configs
-  - Done when: all demos importable as `vultron.demo.<script_name>` and
-    full test suite passes
-
-#### Step 3 — Demo isolation (teardown logic)
-
-- [x] **DEMO-4.4**: Add setup/teardown logic to each demo so it leaves the
-  DataLayer clean regardless of success or failure (DC-03-001, DC-03-003)
-  - Teardown MUST run even when the demo raises an exception
-  - Done when: running any two demos in sequence leaves no cross-demo state
-  - See `DEMO-4 Isolation Complexity` notes in `IMPLEMENTATION_NOTES.md` for 
-    risks and potential approaches
-
-#### Step 4 — Build the unified CLI
-
-- [x] **DEMO-4.5**: Create `vultron/demo/cli.py` as a `click`-based CLI with
-  a sub-command for each demo and an `all` sub-command (DC-01-001 through
-  DC-01-004)
-  - Sub-command names MUST match short names of corresponding demo scripts
-    (e.g., `receive-report`, `initialize-case`)
-  - `all` sub-command MUST stop and report failure on first demo failure
-  - `all` MUST print a human-readable pass/fail summary on completion
-- [x] **DEMO-4.6**: Register `vultron-demo = "vultron.demo.cli:main"` as an
-  entry point in `pyproject.toml` (DC-01-001)
-  - Done when: `vultron-demo --help` lists all demo sub-commands after
-    `uv pip install -e .`
-
-#### Step 5 — Docker packaging
-
-- [x] **DEMO-4.7**: Add unified `demo` service to `docker/docker-compose.yml`
-  depending on `api-dev` with `condition: service_healthy` (DC-04-001)
-  - Docker entry point MUST launch the CLI interactively by default
-  - When `DEMO` env var is set, run named sub-command non-interactively and
-    exit (DC-04-002)
-- [x] **DEMO-4.8**: Remove individual per-demo Docker services from
-  `docker-compose.yml` after verifying the unified service runs all demos
-  successfully (DC-04-003)
-
-#### Step 6 — Unit tests
-
-- [x] **DEMO-4.9**: Create `test/demo/test_cli.py` with unit tests for the
-  unified CLI (DC-05-001 through DC-05-004)
-  - Test that each sub-command invokes the correct demo function
-  - Test that `all` invokes every demo exactly once in order (using mocks)
-  - Test that CLI exits with non-zero status when a demo raises an exception
-  - Done when: `uv run pytest test/demo/test_cli.py` passes
-- [x] **DEMO-4.10**: Refactor demo tests to maintain parallelism to the new 
-  structure — e.g., `test/demo/test_receive_report.py` tests `receive_report_demo`
-- [x] **DEMO-4.11**: Refactored demo tests to eliminate `time.sleep` in test
-  environments and remove fixture redundancy. Added `DEFAULT_WAIT_SECONDS`
-  constant to `vultron/demo/utils.py`; created `test/demo/conftest.py` (sets
-  wait to 0 for all demo tests, shared `client` fixture) and
-  `test/demo/_helpers.py` (`make_testclient_call` factory). Removed duplicate
-  `client` fixture and `testclient_call` closure from all 12 demo test files.
-  Result: demo suite ~10x faster (≤0.5s per test vs. 8–15s).
-
-#### Step 7 — Integration test
-
-The following tasks may be grouped into a single update that covers all of 
-them if appropriate, or split into multiple updates if needed to manage complexity.
-
-- [x] **DEMO-4.12**: Create 
-  `integration_tests/demo/run_demo_integration_test.sh`
-  (or equivalent Python script) that starts `api-dev`, runs `vultron-demo
-  all` inside the `demo` container, and verifies all demos complete without
-  errors (DC-06-001)
-- [x] **DEMO-4.13**: Create `integration_tests/README.md` documenting how to
-  run integration tests, what success looks like, and a note that these are
-  manual acceptance tests (not run by `pytest`) (DC-06-002)
-- [x] **DEMO-4.14**: Add `make integration-test` Makefile target (DC-06-003)
-
-#### Step 8 — Documentation
-
-See `plan/IMPLEMENTATION_NOTES.md` for notes on documentation needs and  
-potential content. Some tasks in this section may be grouped into a single 
-update if appropriate to avoid repetitive commits with small doc changes. E.
-g., DEMO-4.17 and DEMO-4.18 could be implemented together, as could 4.19, 4.
-20, and 4.21.
-
-- [x] **DEMO-4.15**: Create `vultron/demo/README.md` with an overview of the
-  demo suite, instructions for running the demos via docker-compose and
-  directly, and a note about the unified CLI 
-- [x] **DEMO-4.16**: Update `docs/howto/activitypub/activities/*.md` files to
-  reference the new unified demo CLI and provide instructions for running
-  relevant demos 
-- [x] **DEMO-4.17**: `receive-report` demo tutorial (TUTORIAL-1) that walks through setting up and running the demo in a local environment via
-  docker-compose, with links to relevant docs for deeper dives
-- [x] **DEMO-4.18**: create "other" demo tutorial (TUTORIAL-2)
-- [x] **DEMO-4.19**: Ensure or add docstrings to `vultron.demo.cli` and 
-  `vultron.demo.utils` and all demo scripts in `vultron.demo`, then add 
-  reference documentation for these to `docs/reference/code/demo/*.md`
+**Status**: ✅ COMPLETE — See `plan/IMPLEMENTATION_HISTORY.md`
 
 ---
 
