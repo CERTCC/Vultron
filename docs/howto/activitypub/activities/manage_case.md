@@ -95,3 +95,19 @@ flowchart TB
     defined as subclasses of `as:Leave` to indicate that they are both
     activities that indicate that the actor's participation in the case or
     report has ended.
+
+## Demo
+
+!!! example "Try it: `vultron-demo manage-case`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo manage-case
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=manage-case docker compose -f docker/docker-compose.yml run --rm demo
+    ```

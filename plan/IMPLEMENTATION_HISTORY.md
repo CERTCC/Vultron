@@ -151,6 +151,49 @@ All router tests (18/18) fixed after resolving separate data layer instances in 
 
 ---
 
+## Phase DEMO-3.10–3.15 — Manage Embargo + Manage Participants Demos (COMPLETE 2026-02-26)
+
+- `manage_embargo_demo.py` — full propose → accept → activate → terminate cycle;
+  also demonstrates propose → reject → re-propose path + dockerized
+- `manage_participants_demo.py` — full invite → accept → create_participant →
+  add_to_case → create_status → add_status → remove_participant cycle;
+  also demonstrates reject path + dockerized
+- Tests: `test/scripts/test_manage_embargo_demo.py`,
+  `test/scripts/test_manage_participants_demo.py`
+- **All Phase DEMO-3 tasks complete**: 568 tests passing at completion
+
+---
+
+## Phase DEMO-4 — Unified Demo CLI (COMPLETE 2026-02-27)
+
+All 19 tasks completed. Key achievements:
+
+- **DEMO-4.1–4.2**: Shared utilities (`demo_step`, `demo_check`, HTTP helpers,
+  `DataLayerClient`, `demo_environment` context manager) extracted to
+  `vultron/demo/utils.py`; all demo scripts updated to import from there
+- **DEMO-4.3**: All 12 `*_demo.py` scripts moved from `vultron/scripts/` to
+  `vultron/demo/`; test imports updated from `test/scripts/` to `test/demo/`
+- **DEMO-4.4**: `demo_environment(client)` context manager added to
+  `vultron/demo/utils.py`; guaranteed teardown (setup + `reset_datalayer` +
+  `clear_all_actor_ios`) even on exception; all demo scripts updated
+- **DEMO-4.5–4.6**: `vultron/demo/cli.py` — `click`-based CLI with
+  sub-commands for all 12 demos plus `all`; `--debug` and `--log-file`
+  options on `main` group; `vultron-demo` entry point in `pyproject.toml`
+- **DEMO-4.7–4.8**: Unified `demo` Docker service in
+  `docker/docker-compose.yml` with `condition: service_healthy` on `api-dev`;
+  individual per-demo services removed
+- **DEMO-4.9–4.11**: `test/demo/test_cli.py`; demo tests migrated to
+  `test/demo/`; `conftest.py` sets `DEFAULT_WAIT_SECONDS=0.0` eliminating
+  all `time.sleep` calls in tests; `_helpers.py` `make_testclient_call`
+  factory; demo suite ~10× faster
+- **DEMO-4.12–4.14**: `integration_tests/demo/` with integration test script
+  and `README.md`; `make integration-test` Makefile target
+- **DEMO-4.15–4.19**: `vultron/demo/README.md`; updated
+  `docs/howto/activitypub/activities/*.md`; two demo tutorials in
+  `docs/tutorials/`; docstrings and `docs/reference/code/demo/*.md`
+
+---
+
 ## Resolved Design Decisions
 
 | # | Question | Decision |

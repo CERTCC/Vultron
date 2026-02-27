@@ -564,13 +564,19 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **Vocabulary Examples**: `vultron/scripts/vocab_examples.py` - Canonical
   ActivityStreams activity examples; use as reference for message semantics
   and as test fixtures for pattern matching
-- **Demo Scripts**: `vultron/scripts/receive_report_demo.py`,
+- **Demo CLI**: `vultron/demo/cli.py` - Unified `click`-based entry point
+  (`vultron-demo` command); sub-commands for each demo plus `all`
+- **Demo Utilities**: `vultron/demo/utils.py` - Shared `demo_step`,
+  `demo_check`, `DataLayerClient`, and HTTP helper utilities used by all
+  demo scripts
+- **Demo Scripts**: `vultron/demo/receive_report_demo.py`,
   `initialize_case_demo.py`, `invite_actor_demo.py`,
   `establish_embargo_demo.py`, `status_updates_demo.py`,
   `suggest_actor_demo.py`, `transfer_ownership_demo.py`,
   `acknowledge_demo.py`, `manage_case_demo.py`,
-  `initialize_participant_demo.py` - End-to-end workflow demonstrations;
-  also used by `test/scripts/` and Docker Compose configs
+  `initialize_participant_demo.py`, `manage_embargo_demo.py`,
+  `manage_participants_demo.py` - End-to-end workflow demonstrations;
+  also used by `test/demo/` and Docker Compose configs
 - **Case States**: `vultron/case_states/` - RM/EM/CS state machine enums and
   patterns; use as reference for valid state transitions and preconditions
   - **State machine enums are authoritative**: When documentation and code
@@ -1136,10 +1142,19 @@ cd /tmp && markdownlint-cli2 \
 The `strict.markdownlint-cli2.yaml` file at the repo root contains the same
 rules as the default config with the `ignores` block removed.
 
+### Docs links must be relative
+
+Markdown links in `docs/` MUST be relative to the current file and MUST NOT
+go above the `docs/` directory (the site root). Keep relative paths as short
+as possible. For example, a link from `docs/a/b/c/file.md` to
+`docs/a/d/other.md` should be `../../d/other.md`.
+Use `mkdocs build --site-dir PATH` and `linkchecker PATH` to verify links
+before committing.
+
 ### Demo script lifecycle logging
 
 Demo scripts use `demo_step` and `demo_check` context managers (defined
-locally in each demo file) to log structured lifecycle events:
+in `vultron/demo/utils.py`) to log structured lifecycle events:
 
 - `demo_step(description)` — workflow step: logs 🚥 on entry, 🟢 on success,
   🔴 on exception (re-raises).
@@ -1148,7 +1163,7 @@ locally in each demo file) to log structured lifecycle events:
 
 Wrap every numbered workflow step and every verification block in these
 managers. See `notes/codebase-structure.md` "Demo Script Lifecycle Logging"
-for the durable pattern and `test/scripts/test_demo_context_managers.py`.
+for the durable pattern and `test/demo/test_demo_context_managers.py`.
 
 ### Archiving IMPLEMENTATION_PLAN.md
 

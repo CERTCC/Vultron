@@ -95,3 +95,7 @@ api_dev:  ## Start API server in development mode
 .PHONY: docker_api_dev
 docker_api_dev: docker_up  ## Start API server in Docker in development mode
 	cd docker && docker-compose up api-dev
+
+.PHONY: integration-test
+integration-test:  ## Run demo integration tests (requires Docker)
+	./integration_tests/demo/run_demo_integration_test.sh

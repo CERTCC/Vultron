@@ -28,7 +28,14 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Case and Actor Management
 
-7. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model
+7. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
+   object model relationships (Report/Case/Publication/VulnerabilityRecord), case update
+   broadcast, CVD action rules API
+
+### Object Identifiers
+
+8. **`object-ids.md`** - Object ID format (full URI), DataLayer handling, blackboard key
+   conventions, ADR requirement
 
 ### Cross-Cutting Concerns
 
@@ -57,15 +64,34 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`response-format.md`** - ActivityStreams response generation (Accept, Reject, etc.)
 - **`outbox.md`** - Actor outbox structure and delivery
 
+### Demo and Tooling
+
+- **`demo-cli.md`** - Unified demo CLI: Click-based entry point, demo isolation, Docker,
+  unit and integration test requirements
+
+### Actor Profiles and Policies
+
+- **`embargo-policy.md`** - Actor embargo policy record format and API
+
+### Security
+
+- **`encryption.md`** - ActivityPub encryption and key management (`PROD_ONLY`)
+
 ### Code Standards
 
 - **`code-style.md`** - Python formatting, import organization, circular import prevention
 - **`meta-specifications.md`** - How to write and maintain specifications
 
+### Documentation Content and Organization
+
+- **`diataxis-requirements.md`** - Requirements for organizing project
+  documentation according to the Diátaxis framework (requirement IDs: `DF-NN-NNN`)
+
 ### Project and Agent Guidance
 
 - **`project-documentation.md`** - Documentation file structure and purpose
-- **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage
+- **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage,
+  including domain model separation deferral (PROTO-06)
 - **`agentic-readiness.md`** - API and CLI requirements for automated agent integration
 
 ---
@@ -104,7 +130,8 @@ Each requirement has a unique ID: `PREFIX-NN-NNN`
 Example: `HP-04-002` = Handler Protocol, category 4 (Payload Access), requirement 2
 
 **Note**: The `HP-` prefix is reserved for `handler-protocol.md`. The
-`http-protocol.md` file uses the `HTTP-` prefix to avoid ambiguity.
+`http-protocol.md` file uses the `HTTP-` prefix to avoid ambiguity. The
+`diataxis-requirements.md` file uses the `DF-` prefix.
 
 ## Requirement Tags
 
@@ -138,7 +165,8 @@ Some specifications consolidate requirements from multiple sources to create a s
   `response-format.md`
 - **`case-management.md`** consolidates case state and actor isolation requirements
   from `behavior-tree-integration.md` (BT-09, BT-10), `notes/case-state-model.md`,
-  and `plan/PRIORITIES.md` (Priority 100, 200)
+  and `plan/PRIORITIES.md` (Priority 100, 200); also captures domain model
+  architecture guidance (CM-08)
 
 When requirements appear consolidated, the consolidating spec is the authoritative
 source.
@@ -149,39 +177,23 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-02-24, updated post BT-7)**:
+**Summary (2026-02-27)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer
-- ✅ **All 37 handlers complete**: Report workflow (create, submit, validate,
-  invalidate, ack, close, engage_case, defer_case) + case workflow (create_case,
-  add_report_to_case, close_case, create_case_participant,
-  add_case_participant_to_case) + actor invitation (invite_actor_to_case,
-  accept_invite_actor_to_case, reject_invite_actor_to_case,
-  remove_case_participant_from_case) + embargo management
-  (create_embargo_event, add_embargo_event_to_case,
-  remove_embargo_event_from_case, announce_embargo_event_to_case,
-  invite_to_embargo_on_case, accept_invite_to_embargo_on_case,
-  reject_invite_to_embargo_on_case) + notes + statuses (create_note,
-  add_note_to_case, remove_note_from_case, create_case_status,
-  add_case_status_to_case, create_participant_status,
-  add_participant_status_to_participant) + suggest_actor (suggest_actor_to_case,
-  accept_suggest_actor_to_case, reject_suggest_actor_to_case) + ownership
-  transfer (offer_case_ownership_transfer, accept_case_ownership_transfer,
-  reject_case_ownership_transfer)
+- ✅ **All 38 handlers complete** (incl. `update_case` and `unknown`):
+  See `plan/IMPLEMENTATION_PLAN.md` for full handler list
 - ✅ **BT integration Phases BT-1 through BT-7 complete**: See
   `behavior-tree-integration.md`
-- ✅ **Demo scripts (7)**: `receive_report_demo.py`, `initialize_case_demo.py`,
-  `invite_actor_demo.py`, `establish_embargo_demo.py`,
-  `status_updates_demo.py`, `suggest_actor_demo.py`,
-  `transfer_ownership_demo.py` in `vultron/scripts/`
-- ✅ **Demo scripts dockerized**: `receive-report-demo` and
-  `initialize-case-demo` services in `docker/docker-compose.yml` with
-  health-check-based startup ordering
-- ✅ **525 tests passing**, 0 xfailed
+- ✅ **Demo scripts (12)**: All in `vultron/demo/`; see
+  `plan/IMPLEMENTATION_PLAN.md`
+- ✅ **Unified demo CLI complete** (`vultron-demo`): See `specs/demo-cli.md`
+  and `plan/IMPLEMENTATION_PLAN.md` (Phase DEMO-4)
+- ✅ **568 tests passing**, 0 xfailed (2026-02-26)
 - ⚠️ **Production readiness partial**: Request validation, error responses
   need work
 - ❌ **Response generation not started**: See `response-format.md`
+- ❌ **Outbox delivery not implemented**: See `outbox.md` OX-03, OX-04
 
 ---
 
@@ -206,3 +218,5 @@ When updating specifications:
 - **ActivityPub Workflows**: `docs/howto/activitypub/activities/*.md`
 - **Agent Instructions**: `AGENTS.md` (AI coding agent guidance)
 - **Copilot Instructions**: Embedded in system context (development guidance)
+- **Diátaxis requirements**: `diataxis-requirements.md` — requirements for organizing
+  project documentation according to the Diátaxis framework.

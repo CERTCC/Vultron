@@ -1,86 +1,47 @@
 # Priorities
 
-## Priority 1: Behavior Tree Prototype Implementation and ActivityPub Workflow Demonstrations
+The first phase of the Behavior Tree demo implementation is complete.
+There are two significant phases coming up next.
 
-The top priority is the Behavior Tree prototype implementation
-partially outlined in
-`specs/behavior-tree-integration.md` and `plan/IMPLEMENTATION_PLAN.md`.
-BT integration from this point forwards should focus on implementing
-and integrating workflow demonstrations of the ActivityPub processes outlined in
+## ✅ PRIORITY 10: Phase DEMO-4: Integrate individual demos into unified interface (COMPLETE)
 
-`docs/howto/activitypub/activities`, specifically:
+The unified demo CLI (`vultron-demo`) is complete. All 12 demo scripts are in
+`vultron/demo/`, shared utilities are in `vultron/demo/utils.py`, the
+`vultron-demo` Click CLI is in `vultron/demo/cli.py`, Docker services are
+consolidated under a single `demo` service, and integration tests are in
+`integration_tests/`. See `plan/IMPLEMENTATION_HISTORY.md` for full details.
 
-Higher priority:
+## PRIORITY 20: Address some technical debt
 
-- `docs/howto/activitypub/activities/acknowledge.md`
-- `docs/howto/activitypub/activities/initialize_case.md`
-- `docs/howto/activitypub/activities/initialize_participant.md`
-- `docs/howto/activitypub/activities/manage_case.md`
-- `docs/howto/activitypub/activities/invite_actor.md`
-- `docs/howto/activitypub/activities/establish_embargo.md`
-- `docs/howto/activitypub/activities/status_updates.md`
-- `docs/howto/activitypub/activities/manage_embargo.md`
-- `docs/howto/activitypub/activities/manage_participants.md`
-Lower priority:
-- `docs/howto/activitypub/activities/transfer_ownership.md`
-- `docs/howto/activitypub/activities/suggest_actor.md`
-- `docs/howto/activitypub/activities/error.md`
+Specifically, in the `plan/IMPLEMENTATION_PLAN.md`, we need to address
+**TECHDEBT-1** and **TECHDEBT-5** to reduce module size for future 
+maintainability.
 
-Workflow demonstrations should be implemented
-as distinct demo scripts similar to `vultron/scripts/receive_report_demo.py`
-that can be run independently to demonstrate the specific workflow. Each of
-these would require some amount of setup to create the necessary preconditions,
-then execute the workflow and demonstrate side effects and outputs. They
-should also be dockerized and use the same `api-dev` container so that the
-demo is legitimately demonstrating the backend API.
+## PRIORITY 30: Implement triggerable behaviors
 
-See note in `notes/codebase-structure.md` about refactoring the demos out of 
-the `scripts/` directory and into the `demos/` directory to keep them 
-organized and separate from the main scripts. Refactoring also includes DRYing
-out any common setup or utility code that is shared across multiple demos into
-common modules in `vultron/demos/` that can be imported by the individual demo scripts.
+Existing demos have primarily focused on updating local state based on receipt
+of ActivityStreams activity messages. However, the Vultron Protocol also defines
+a set of triggerable behaviors that are initiated by an actor based on their
+internal state and decision-making processes, rather than being solely reactive to
+external messages. Implementing demos that showcase these triggerable behaviors
+will be important for demonstrating the full capabilities of the Vultron Protocol 
+and the behavior tree implementation. Many of the behavior patterns are 
+already present in the demo scripts, but they might not be fully exposed as 
+triggerable behaviors. These triggerable behaviors will become an important 
+part of the application API and will need to be implemented and demonstrated 
+in some way. Details will need to be worked out as part of the design and 
+planning process. 
 
-The ActivityPub processes often refer to message types that correspond to
-behavior tree nodes in the BT simulator in `vultron/bt` that will need to be
-reimplemented in the new BT implementation in `vultron/behavior`. Additional
-insights on mapping processes to semantics can also be found in the
-`ontology/vultron_*.ttl` files. Note similarities in names between the
-documentation and the behavior tree nodes, these are not accidental.
+Reference docs:
+- `docs/topics/behavior_logic/rm_bt.md`
+- `docs/topics/behavior_logic/rm_validation_bt.md`
+- `docs/topics/behavior_logic/rm_prioritization_bt.md`
+- `docs/topics/behavior_logic/rm_closure_bt.md`
+- `docs/topics/behavior_logic/em_bt.md`
+- `docs/topics/behavior_logic/em_eval_bt.md`
+- `docs/topics/behavior_logic/em_propose_bt.md`
+- `docs/topics/behavior_logic/em_propose_bt.md`
 
-Behavior logic documentation can be found in `docs/topics/behavior_logic/*.md`,
-start with `docs/topics/behavior_logic/cvd_bt.md` for a map of content. Note
-that the behavior tree documentation is older than even the `vultron/bt`
-implementation, so there may be some discrepancies between the documentation and
-the simulator implementation. The simulator implementation is the more
-up-to-date reference for the behavior tree design, but the documentation may still be
-useful for understanding the rationale behind design decisions and the overall
-structure and purpose of the behavior tree. Updating the documentation to
-reflect the eventual design of the new BT implementation will be necessary but
-is a lower priority than implementing the BT itself and demonstrating the
-ActivityPub processes through the BT.
-
-### Demos must be dockerized
-
-All demos must be dockerized and use the same `api-dev` container so that the
-demo is legitimately demonstrating the backend API. This will also make it  
-easier to run the demos in a consistent environment and to share them with others.
-Although obviously the demos must exist before they can be dockerized,
-dockerization should be a prioirity for each demo once the initial  
-implementation is complete. Note that some demos do not currently have a
-dockerized version, this should be remedied as soon as possible to ensure that
-all demos are consistently demonstrating the API.
-
-
-
-## Priority 50: Refactoring large modules
-
-There are some implementation notes about refactoring large modules in  
-`plan/IMPLEMENTATION_NOTES.md` that are worth keeping in mind as we implement
-the prototype. These are not high priority from a feature perspective, but they
-are important because these large files are being manipulated on nearly
-every task in the `plan/IMPLEMENTATION_PLAN.md` and so refactoring them
-sooner rather than later will make the implementation process smoother and
-less error-prone.
 
 ## Priority 100: Actor independence
 

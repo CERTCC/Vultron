@@ -96,3 +96,19 @@ from vultron.scripts.vocab_examples import remove_participant_from_case, json2md
 
 print(json2md(remove_participant_from_case()))
 ```
+
+## Demo
+
+!!! example "Try it: `vultron-demo manage-participants`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo manage-participants
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=manage-participants docker compose -f docker/docker-compose.yml run --rm demo
+    ```

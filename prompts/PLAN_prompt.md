@@ -25,6 +25,7 @@ Objective: Update the implementation plan based on current priorities, specifica
 
 3. Update plan/IMPLEMENTATION_PLAN.md
 
+   - Based on your gap analysis, refine and revise the implementation plan.
    - Replace or refine content with a prioritized, bulleted task list.
    - Use markdown task format: `- [ ] Task description`.
    - Tasks must be atomic, actionable, testable, and unambiguous.
@@ -32,6 +33,7 @@ Objective: Update the implementation plan based on current priorities, specifica
 
 4. Update plan/IMPLEMENTATION_NOTES.md
 
+   - Items from the gap analysis that are not actionable tasks should be added as notes.
    - Add clarified assumptions, open questions, architectural concerns, and risks.
    - Record insights that will assist future agents.
 

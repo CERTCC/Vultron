@@ -108,3 +108,19 @@ print(json2md(reject_actor_recommendation()))
 ```
 
 {% include-markdown "./_invite_to_case.md" heading-offset=1 %}
+
+## Demo
+
+!!! example "Try it: `vultron-demo suggest-actor`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo suggest-actor
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=suggest-actor docker compose -f docker/docker-compose.yml run --rm demo
+    ```

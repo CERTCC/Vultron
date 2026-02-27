@@ -5,16 +5,23 @@ Unlike `plan/IMPLEMENTATION_NOTES.md` (which is ephemeral and may be wiped),
 files here are committed to version control and MUST be kept up to date as the
 implementation evolves.
 
+A new guidance document, **diataxis-framework.md**, provides documentation
+standards adapted from the Diátaxis model (Tutorials, How‑to, Reference,
+Explanation) and an implementation workflow for authoring technical docs.
+
 ## Contents
 
 | File | Topics |
 |------|--------|
+| `diataxis-framework.md` | Diátaxis documentation framework: Tutorials, How‑to, Reference, Explanation, Compass, and implementation workflow |
 | `activitystreams-semantics.md` | Activity model, state-change notification semantics, response conventions, vocabulary examples |
 | `bt-integration.md` | Behavior tree design decisions, py_trees patterns, simulation-to-prototype strategy |
 | `case-state-model.md` | VFD/PXA case state hypercube, potential actions, measuring CVD quality, case object docs vs implementation, participant-specific vs participant-agnostic state distinction |
 | `codebase-structure.md` | Module reorganization candidates, enum refactoring, code documentation strategy, demo script lifecycle logging (`demo_step`/`demo_check`) |
 | `documentation-strategy.md` | Docs chronology and trust levels, process models, formal protocol, behavior simulator reference, Do Work behaviors, ISO crosswalks |
 | `domain-model-separation.md` | Wire/Domain/Persistence layer separation, current coupling in `VulnerabilityCase`, architectural direction and recommended next steps |
+| `do-work-behaviors.md` | Scope of "do work" BT behaviors: out-of-scope, not-implementable, partially-implementable items; reporting behavior notes; embargo policy prior art |
+| `docker-build.md` | Project-specific Docker build observations, dependency layer caching, image content scoping, general build performance checklist |
 
 ## Conventions
 

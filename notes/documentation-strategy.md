@@ -187,6 +187,31 @@ framework).
 
 ---
 
+## Sequence Diagrams vs. Demo Scripts
+
+The Mermaid sequence diagrams in `docs/howto/activitypub/activities/*.md` were
+created prior to the demo scripts implementation. The demo scripts are the
+current canonical reference for the workflows, so the diagrams may be stale.
+
+**Required future work**:
+
+- Review each diagram in `docs/howto/activitypub/activities/*.md` against the
+  corresponding demo script (e.g., `vultron/demo/receive_report_demo.py`,
+  `initialize_case_demo.py`, `invite_actor_demo.py`, etc.).
+- Where diagrams diverge from demos, update the diagrams to match the
+  demo implementations.
+- Add references from each diagram page to the relevant demo script(s) as
+  concrete, executable examples of the workflow.
+
+This will ensure that readers consulting the how-to docs get an accurate,
+runnable picture of each workflow, and that the diagrams stay aligned with
+the authoritative demo implementations.
+
+**Priority**: Low — diagrams are illustrative, not normative. Address before
+the prototype is considered stable documentation.
+
+---
+
 ## ISO Standards Cross-References
 
 High-level cross-references to relevant ISO standards are documented in

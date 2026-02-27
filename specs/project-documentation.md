@@ -202,6 +202,12 @@ history from implementation work.
 - Move completed phase details to `plan/IMPLEMENTATION_HISTORY.md`
 - Implementation insights go to `plan/IMPLEMENTATION_NOTES.md` (not here)
 - Add new phases as roadmap evolves
+- Phases get a Unique ID tag (e.g., `DEMO-1`)
+  - Steps within a phase get hierarchical tags (e.g., `DEMO-1.1`, `DEMO-1.2`)
+  - Individual task items within a step get further tags (e.g., `DEMO-1.1.1`)
+    to allow precise tracking and referencing, also allowing additions or 
+    deletions of task items within a step to be less disruptive to the overall 
+    numbering scheme
 - Mark blockers as resolved when fixed
 - `PD-02-001` Prior task history SHOULD be moved out of  
   `plan/IMPLEMENTATION_PLAN.md` into the append-only

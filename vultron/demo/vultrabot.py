@@ -76,6 +76,7 @@ def main(args) -> None:
 
 
 def _run_simulation():
+    """Run the CVD protocol behaviour-tree simulation for up to 1000 ticks."""
     tick = 0
     with CvdProtocolBt() as tree:
         tree.bb.CVD_role = CVDRoles.FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
@@ -104,10 +105,12 @@ def _run_simulation():
 
 
 def _shorten_names(y):
+    """Convert a sequence of enum members to a tuple of their ``.value`` strings."""
     return tuple([x.value for x in y])
 
 
 def _print_sim_result():
+    """Print a de-duplicated tabular summary of the simulation state log."""
     df = pd.DataFrame(STATELOG)
     df.index += 1
 
@@ -124,6 +127,7 @@ def _print_sim_result():
 
 
 def _setup_logger(args):
+    """Configure the root logger using the log level from parsed arguments."""
     global logger
     logger = logging.getLogger()
     logger.setLevel(args.log_level)
@@ -132,6 +136,7 @@ def _setup_logger(args):
 
 
 def _parse_args():
+    """Parse command-line arguments for the standalone vultrabot script."""
     parser = argparse.ArgumentParser(
         description="Run a Vultron behavior tree demo"
     )

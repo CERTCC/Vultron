@@ -16,12 +16,12 @@ Objective: Complete the highest-priority pending implementation task.
 
    - Search vultron/*and test/* to confirm current behavior.
    - Do not assume missing functionality; confirm via code search.
-   - Handling missing prerequisites: If verification shows a blocking  
-     prerequisite, you MAY add at most one minimal prerequisite entry to  
+   - Handling missing prerequisites: If verification shows a blocking
+     prerequisite, you MAY add at most one minimal prerequisite entry to
      `plan/IMPLEMENTATION_PLAN.md` under these constraints:
-     - the addition is strictly necessary to complete the selected task and  
+     - the addition is strictly necessary to complete the selected task and
        must be labeled `auto-added`
-     - the entry must be a single line containing a short title, one-line  
+     - the entry must be a single line containing a short title, one-line
        justification, and a one-line acceptance criterion (e.g., "Done when <measurable>")
      - record rationale and any implementation notes in `plan/IMPLEMENTATION_NOTES.md`
      - commit the change with a message prefixed `plan: add prerequisite` and
@@ -37,6 +37,9 @@ Objective: Complete the highest-priority pending implementation task.
    - Implement only the selected task.
    - Follow project conventions.
    - Run validation commands specified in AGENTS.md.
+   - If you encounter incidental bugs during implementation, add them to
+     `plan/BUGS.md` with a clear description and reproduction steps, but do not
+     pursue them unless they block the current task.
 
 5. If Validation Succeeds
 
