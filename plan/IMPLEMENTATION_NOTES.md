@@ -6,6 +6,17 @@ insights, issues, and learnings during the implementation process.
 
 Add new items below this line
 
+## BUG FIX — Linkchecker broken demo link (2026-02-27)
+
+**Issue**: Linkchecker reported a missing file referenced by docs/reference/code/demo/index.md pointing to `../../../howto/activitypub/tutorial_receive_report.md` which does not exist in the docs tree.
+
+**Root cause**: The documentation link used a non-existent howto tutorial filename; the actual tutorial is located at `docs/tutorials/receive_report_demo.md`.
+
+**Fix**: Updated `docs/reference/code/demo/index.md` to link to `../../../tutorials/receive_report_demo.md`. Ran `mkdocs build` and `linkchecker site`; the site builds and linkchecker reports 0 errors.
+
+**Notes**: No code changes required. This resolves the highest-priority Linkchecker error recorded in `plan/BUGS.md`.
+
+
 ## BUG FIX — mkdocs serve ImportError from griffe (2026-02-26)
 
 **Issue**: `uv run mkdocs serve` (and `mkdocs build`) failed with

@@ -4,6 +4,45 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ---
 
+### Linkchecker reports errors
+
+Status: Fixed (2026-02-27) — updated demo link in docs/reference/code/demo/index.md to point to docs/tutorials/receive_report_demo.md.
+
+
+When running linkchecker on the documentation, there are some errors that 
+need to be fixed. All documentation links must use paths relative to the 
+site root (where site root = `docs/`), and they must point to files that 
+actually exist.
+
+Tech hint: `mkdocs build` will build the site, and the `linkchecker` utility 
+can be used to check for broken links. Command to run: `mkdocs site && linkchecker site`
+This should become part of any checks run when files in the `docs/` directory 
+are modified. It is not necessary to run when modifying files outside of 
+`docs/`.
+
+
+```shell
+
+URL        `../../../howto/activitypub/tutorial_receive_report.md'
+Name       `Demo Tutorial'
+Parent URL file:///home/runner/work/Vultron/Vultron/site/reference/code/demo/index.html, line 3501, col 5
+Real URL   file:///home/runner/work/Vultron/Vultron/site/howto/activitypub/tutorial_receive_report.md
+Check time 0.000 seconds
+Result     Error: URLError: <urlopen error [Errno 2] No such file or directory: '/home/runner/work/Vultron/Vultron/site/howto/activitypub/tutorial_receive_report.md'>
+WARNING bs4.dammit 2026-02-26 22:19:29,515 CheckThread-file:///home/runner/work/Vultron/Vultron/site/sitemap.xml.gz Some characters could not be decoded, and were replaced with REPLACEMENT CHARACTER.
+ 7 threads active,     0 links queued, 1426 links in 1433 URLs checked, runtime 16 seconds
+
+Statistics:
+Downloaded: 20.9MB.
+Content types: 12 image, 410 text, 0 video, 0 audio, 428 application, 2 mail and 581 other.
+URL lengths: min=16, max=967, avg=85.
+
+That's it. 1433 links in 1433 URLs checked. 0 warnings found. 1 error found.
+Stopped checking at 2026-02-26 22:19:31+000 (17 seconds)
+```
+
+---
+
 ### Logging errors when running pytest
 
 When running the test suite with pytest, there are a lot of errors like the 
@@ -253,81 +292,3 @@ makes it harder to see the actual test results. These print statements
 should be removed or replaced with proper debug logging that could be 
 enabled when desired.
 
-### ~~mkdocs serve error~~ FIXED (2026-02-26)
-
-**Fixed**: Removed `griffe>=2.0.0` and `griffecli>=2.0.0` from
-`pyproject.toml`. The stub `griffe` 2.0.0 package conflicted with
-`griffelib` 2.0.0 (the real library), causing `griffe/__init__.py` to be
-absent from the venv after `uv sync`. Keeping only `griffelib>=2.0.0` (which
-`mkdocstrings-python` also requires directly) eliminates the conflict.
-
-### ~~mkdocs serve error (original report)~~
-
-When attempting to run `uv run mkdocs serve` to serve the documentation 
-locally, the following error occurred. 
-
-```shell
-INFO    -  Building documentation...
-INFO    -  Loading data from bib files: ['/Users/adh/Documents/git/vultron_pub/references.bib']
-Traceback (most recent call last):
-  File "/Users/adh/Documents/git/vultron_pub/.venv/bin/mkdocs", line 10, in <module>
-    sys.exit(cli())
-             ~~~^^
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/click/core.py", line 1485, in __call__
-    return self.main(*args, **kwargs)
-           ~~~~~~~~~^^^^^^^^^^^^^^^^^
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/click/core.py", line 1406, in main
-    rv = self.invoke(ctx)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/click/core.py", line 1873, in invoke
-    return _process_result(sub_ctx.command.invoke(sub_ctx))
-                           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/click/core.py", line 1269, in invoke
-    return ctx.invoke(self.callback, **ctx.params)
-           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/click/core.py", line 824, in invoke
-    return callback(*args, **kwargs)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/__main__.py", line 272, in serve_command
-    serve.serve(**kwargs)
-    ~~~~~~~~~~~^^^^^^^^^^
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/commands/serve.py", line 85, in serve
-    builder(config)
-    ~~~~~~~^^^^^^^^
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/commands/serve.py", line 67, in builder
-    build(config, serve_url=None if is_clean else serve_url, dirty=is_dirty)
-    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/commands/build.py", line 265, in build
-    config = config.plugins.on_config(config)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/plugins.py", line 587, in on_config
-    return self.run_event('config', config)
-           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocs/plugins.py", line 566, in run_event
-    result = method(item, **kwargs)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings/_internal/plugin.py", line 153, in on_config
-    handlers._download_inventories()
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings/_internal/handlers/base.py", line 602, in _download_inventories
-    handler = self.get_handler(handler_name)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings/_internal/handlers/base.py", line 581, in get_handler
-    module = importlib.import_module(f"mkdocstrings_handlers.{name}")
-  File "/Users/adh/.local/share/uv/python/cpython-3.13.7-macos-x86_64-none/lib/python3.13/importlib/__init__.py", line 88, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
-  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
-  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
-  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
-  File "<frozen importlib._bootstrap_external>", line 1026, in exec_module
-  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings_handlers/python/__init__.py", line 3, in <module>
-    from mkdocstrings_handlers.python._internal.config import (
-    ...<11 lines>...
-    )
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings_handlers/python/_internal/config.py", line 12, in <module>
-    from mkdocstrings_handlers.python._internal.rendering import Order  # noqa: TC001
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/mkdocstrings_handlers/python/_internal/rendering.py", line 17, in <module>
-    from griffe import (
-    ...<15 lines>...
-    )
-ImportError: cannot import name 'Alias' from 'griffe' (unknown location)
-```
