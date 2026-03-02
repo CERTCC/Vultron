@@ -76,7 +76,7 @@ def add_case_status_to_case(dispatchable: DispatchActivity) -> None:
         case_id = case.as_id
 
         existing_ids = [
-            (s.as_id if hasattr(s, "as_id") else s) for s in case.case_status
+            (s.as_id if hasattr(s, "as_id") else s) for s in case.case_statuses
         ]
         if status_id in existing_ids:
             logger.info(
@@ -86,7 +86,7 @@ def add_case_status_to_case(dispatchable: DispatchActivity) -> None:
             )
             return None
 
-        case.case_status.append(status)
+        case.case_statuses.append(status)
         dl.update(case_id, object_to_record(case))
         logger.info("Added CaseStatus '%s' to case '%s'", status_id, case_id)
 
@@ -167,7 +167,7 @@ def add_participant_status_to_participant(
 
         existing_ids = [
             (s.as_id if hasattr(s, "as_id") else s)
-            for s in participant.participant_status
+            for s in participant.participant_statuses
         ]
         if status_id in existing_ids:
             logger.info(
@@ -178,7 +178,7 @@ def add_participant_status_to_participant(
             )
             return None
 
-        participant.participant_status.append(status)
+        participant.participant_statuses.append(status)
         dl.update(participant_id, object_to_record(participant))
         logger.info(
             "Added ParticipantStatus '%s' to participant '%s'",

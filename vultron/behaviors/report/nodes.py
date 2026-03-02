@@ -757,8 +757,8 @@ def _find_and_update_participant_rm(
             if p_actor_id == actor_id:
                 # Idempotency guard (ID-04-004): if already in target state,
                 # log at INFO and return SUCCESS without side effects.
-                if participant.participant_status:
-                    latest = participant.participant_status[-1]
+                if participant.participant_statuses:
+                    latest = participant.participant_statuses[-1]
                     if latest.rm_state == new_rm_state:
                         logger.info(
                             f"Participant {actor_id} already in RM state "
@@ -770,7 +770,7 @@ def _find_and_update_participant_rm(
                     context=case_id,
                     rm_state=new_rm_state,
                 )
-                participant.participant_status.append(new_status)
+                participant.participant_statuses.append(new_status)
                 datalayer.update(case_obj.as_id, object_to_record(case_obj))
                 logger.info(
                     f"Set participant {actor_id} RM state to {new_rm_state} in case {case_id}"

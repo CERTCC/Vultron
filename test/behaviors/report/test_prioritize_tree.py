@@ -164,7 +164,7 @@ def test_engage_case_tree_success(
 
     updated_case = datalayer.read(case_with_participant.as_id)
     participant = updated_case.case_participants[0]
-    latest_status = participant.participant_status[-1]
+    latest_status = participant.participant_statuses[-1]
     assert latest_status.rm_state == RM.ACCEPTED
 
 
@@ -208,7 +208,7 @@ def test_defer_case_tree_success(
 
     updated_case = datalayer.read(case_with_participant.as_id)
     participant = updated_case.case_participants[0]
-    latest_status = participant.participant_status[-1]
+    latest_status = participant.participant_statuses[-1]
     assert latest_status.rm_state == RM.DEFERRED
 
 
@@ -273,7 +273,7 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
             if isinstance(p.attributed_to, str)
             else p.attributed_to.as_id
         )
-        latest_rm = p.participant_status[-1].rm_state
+        latest_rm = p.participant_statuses[-1].rm_state
         if p_actor == actor_a:
             assert latest_rm == RM.ACCEPTED
         else:
@@ -304,10 +304,12 @@ def test_engage_case_tree_idempotent(
 
     updated_case = datalayer.read(case_with_participant.as_id)
     participant = updated_case.case_participants[0]
-    assert participant.participant_status[-1].rm_state == RM.ACCEPTED
+    assert participant.participant_statuses[-1].rm_state == RM.ACCEPTED
     # Second execution must NOT append a duplicate status entry
     accepted_entries = [
-        s for s in participant.participant_status if s.rm_state == RM.ACCEPTED
+        s
+        for s in participant.participant_statuses
+        if s.rm_state == RM.ACCEPTED
     ]
     assert len(accepted_entries) == 1
 
@@ -330,9 +332,11 @@ def test_defer_case_tree_idempotent(
 
     updated_case = datalayer.read(case_with_participant.as_id)
     participant = updated_case.case_participants[0]
-    assert participant.participant_status[-1].rm_state == RM.DEFERRED
+    assert participant.participant_statuses[-1].rm_state == RM.DEFERRED
     # Second execution must NOT append a duplicate status entry
     deferred_entries = [
-        s for s in participant.participant_status if s.rm_state == RM.DEFERRED
+        s
+        for s in participant.participant_statuses
+        if s.rm_state == RM.DEFERRED
     ]
     assert len(deferred_entries) == 1

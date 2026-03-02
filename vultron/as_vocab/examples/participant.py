@@ -60,7 +60,7 @@ def add_vendor_participant_to_case() -> AddParticipantToCase:
         rm_state=RM.RECEIVED,
         vfd_state=CS_vfd.Vfd,
     )
-    _vendor_participant.participant_status = [_pstatus]
+    _vendor_participant.participant_statuses = [_pstatus]
 
     activity = AddParticipantToCase(
         actor=_vendor.as_id,
