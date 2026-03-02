@@ -34,8 +34,7 @@ interfaces that support agentic workflows.
 - `AR-02-003` `PROD_ONLY` Endpoints with prerequisites MUST return a structured
   error using the `error` field value `"PreconditionFailedError"` when invoked
   out of sequence
-  - **Cross-reference**: `error-handling.md` EH-05-001 for error response
-    format
+  - AR-02-003 depends-on EH-05-001
 
 ## Stable Error Types (MUST)
 
@@ -43,8 +42,7 @@ interfaces that support agentic workflows.
   EH-05-001) as a stable, machine-parseable error type identifier
   - Agents MUST be able to branch on `error` without parsing the
     human-readable `message` field
-  - **Cross-reference**: `error-handling.md` EH-05-001 for error response
-    format
+  - AR-03-001 depends-on EH-05-001
 
 ## Long-Running Operations (SHOULD)
 
@@ -78,7 +76,9 @@ interfaces that support agentic workflows.
   - A list of valid next actions, each with `name` and `description` fields
 - `AR-07-003` `PROD_ONLY` The action rules endpoint MUST be reflected in
   the OpenAPI schema per AR-01-001
-  - **Cross-reference**: `case-management.md` CM-07-001 through CM-07-003
+  - AR-07-003 depends-on CM-07-001
+  - AR-07-003 depends-on CM-07-002
+  - AR-07-003 depends-on CM-07-003
 
 ## CLI Interface (MUST)
 

@@ -37,7 +37,7 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
     before type-based matching
   - If rehydration is not possible, the pattern MUST be treated as unmatched
     and a warning MUST be logged
-  - **Cross-reference**: SE-01-002 for rehydration policy
+  - SE-01-004 depends-on SE-01-002
 
 ## Semantic Type Assignment (MUST)
 

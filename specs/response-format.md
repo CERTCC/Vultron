@@ -19,6 +19,7 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 ## Accept Response (MUST)
 
 - `RF-02-001` Accept responses MUST use `Accept` activity type
+  - RF-02-001 implements VP-06-004
 - `RF-02-002` Accept responses MUST include `object` field referencing accepted activity or object
 - `RF-02-003` Accepting an Offer of an object MUST reference the Offer activity in the `object` field of the Accept response
 - `RF-02-004` When accepting an offered object, the `object` field of the
@@ -31,6 +32,7 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 ## Reject Response (MUST)
 
 - `RF-03-001` Reject responses MUST use `Reject` activity type
+  - RF-03-001 implements VP-06-004
 - `RF-03-002` Reject responses SHOULD include reason in `content` field
 - `RF-03-003` Rejecting an Offer of an object MUST reference the Offer activity in the `object` field of the Reject response
 - `RF-03-004` When rejecting an offered object, the `object` field of the
@@ -42,6 +44,7 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 ## TentativeReject Response (MUST)
 
 - `RF-04-001` TentativeReject responses MUST use `TentativeReject` activity type
+  - RF-04-001 implements VP-06-004
 - `RF-04-002` TentativeReject responses SHOULD include reason in `content` field
 - `RF-04-003` Tentatively Rejecting an Offer of an object MUST reference the Offer activity in the `object` field of the TentativeReject response
 - `RF-04-004` When tentatively rejecting an offered object, the `object` field 
@@ -54,6 +57,9 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 
 - `RF-05-001` Error responses SHOULD use ActivityStreams error extensions
   - Include error type and message
+  - RF-05-001 implements VP-03-010
+  - RF-05-001 implements VP-03-011
+  - RF-05-001 implements VP-11-005
 
 ## Response Delivery (MUST)
 
@@ -67,8 +73,7 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
     back to the invitee's own inbox
   - **Rationale**: Activities are state-change assertions; the initiator must
     receive the response to update their model of the case state
-  - **Cross-reference**: `notes/activitystreams-semantics.md` for the
-    asymmetric routing pattern and examples
+  - See `notes/activitystreams-semantics.md` for the asymmetric routing pattern and examples
 
 ## Response Timing (MUST)
 
@@ -78,11 +83,14 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 
 - `RF-08-001` Response activities MUST include `inReplyTo` field
   - MUST reference the activity ID being responded to
+  - RF-08-001 implements VP-03-009
+  - RF-08-001 implements VP-11-004
+  - RF-08-001 implements VP-11-005
 
 ## Idempotent Responses (MUST)
 
 - `RF-09-001` Response generation MUST be idempotent
-  - **Cross-reference**: See `idempotency.md` for complete requirements
+  - RF-09-001 depends-on ID-02-001
 
 ## Verification
 

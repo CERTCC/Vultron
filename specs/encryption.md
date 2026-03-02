@@ -19,6 +19,7 @@ implemented in the prototype.
 - `ENC-01-001` `PROD_ONLY` Each CaseActor MUST generate an asymmetric key
   pair at instantiation
   - Key pairs MUST use a well-supported algorithm (e.g., RSA-2048 or Ed25519)
+  - ENC-01-001 implements VP-15-003
 - `ENC-01-002` `PROD_ONLY` The CaseActor MUST publish its public key in its
   ActivityPub actor profile using the `publicKey` property per ActivityPub
   HTTP Signatures conventions
@@ -32,11 +33,14 @@ implemented in the prototype.
 
 - `ENC-02-001` `PROD_ONLY` Case participants MAY encrypt messages sent to
   the CaseActor using the CaseActor's published public key
+  - ENC-02-001 implements VP-15-003
+  - ENC-02-001 implements VP-15-004
 - `ENC-02-002` `PROD_ONLY` When sending messages to case participants, the
   CaseActor SHOULD encrypt each outbound message to the recipient's public
   key individually (one encrypted payload per recipient)
   - Broadcast encryption to multiple recipients in a single message payload
     is out of scope for the initial implementation
+  - ENC-02-002 implements VP-15-004
 
 ## Decryption Pipeline (MUST)
 
@@ -44,10 +48,13 @@ implemented in the prototype.
   occur in the inbox handler before the activity is passed to semantic
   extraction or dispatch
   - Handler functions MUST receive already-decrypted activities
-  - **Cross-reference**: `inbox-endpoint.md`, `semantic-extraction.md`
+  - ENC-03-001 depends-on IE-04-001
+  - ENC-03-001 depends-on SE-01-001
+  - ENC-03-001 implements VP-15-003
 - `ENC-03-002` `PROD_ONLY` If decryption fails, the inbox handler MUST
   return HTTP 400 with a structured error indicating decryption failure
-  - **Cross-reference**: `error-handling.md`, `http-protocol.md`
+  - ENC-03-002 depends-on EH-05-001
+  - ENC-03-002 depends-on HTTP-03-001
 - `ENC-03-003` `PROD_ONLY` The decryption layer MUST be separate from
   semantic extraction logic; the two concerns MUST NOT be mixed
 

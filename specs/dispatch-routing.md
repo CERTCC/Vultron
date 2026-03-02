@@ -23,7 +23,8 @@ After semantic extraction, the dispatcher routes DispatchActivity objects to app
 
 - `DR-03-001` The DirectActivityDispatcher MUST execute handlers synchronously
 - `DR-03-002` The DirectActivityDispatcher MUST catch and log handler exceptions at ERROR level
-  - **Cross-reference**: See `structured-logging.md` SL-03-001 for log level semantics and `error-handling.md` EH-06-001 for exception logging requirements
+  - DR-03-002 depends-on SL-03-001
+  - DR-03-002 depends-on EH-06-001
   - **Verification**: Logged exceptions include handler name, activity ID, and full error context
 
 ## Async Dispatch Implementation (SHOULD)
