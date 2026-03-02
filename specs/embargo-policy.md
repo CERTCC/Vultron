@@ -23,6 +23,9 @@ embargo policies on Actor profiles)
   - `inbox`: URL of the Actor's ActivityPub inbox
   - `preferred_duration_days`: integer representing the Actor's preferred
     embargo duration in days
+  - EP-01-002 implements VP-05-001
+  - EP-01-002 implements VP-07-001
+  - EP-01-002 implements VP-07-002
 - `EP-01-003` The embargo policy record SHOULD include the following fields:
   - `minimum_duration_days`: minimum acceptable embargo duration in days;
     the Actor SHOULD reject embargoes shorter than this value
@@ -30,10 +33,12 @@ embargo policies on Actor profiles)
     the Actor SHOULD reject embargoes longer than this value
   - `notes`: free-text description of the Actor's embargo preferences (e.g.,
     "prefer 45 days but consider shorter for critical vulnerabilities")
+  - EP-01-003 implements VP-05-001
+  - EP-01-003 implements VP-07-006
 - `EP-01-004` The embargo policy record MUST be serializable as a Pydantic
   model and persisted in the DataLayer
 - `EP-01-005` The embargo policy record MUST use full-URI IDs for `actor_id`
-  - **Cross-reference**: `object-ids.md` OID-01-001
+  - EP-01-005 depends-on OID-01-001
 
 ## API Endpoint (SHOULD)
 
@@ -52,9 +57,15 @@ embargo policies on Actor profiles)
   to join an existing embargo, the CaseActor SHOULD retrieve and evaluate
   the target actor's embargo policy for compatibility with the proposed
   embargo terms
+  - EP-03-001 implements VP-07-001
+  - EP-03-001 implements VP-07-006
+  - EP-03-001 implements VP-07-007
 - `EP-03-002` `PROD_ONLY` Compatibility evaluation MUST check that the
   proposed duration falls within the target actor's
   `minimum_duration_days`–`maximum_duration_days` range, if declared
+  - EP-03-002 implements VP-07-003
+  - EP-03-002 implements VP-07-004
+  - EP-03-002 implements VP-07-005
 
 ## Verification
 

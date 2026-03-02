@@ -39,7 +39,7 @@ the distinction between participant-specific and participant-agnostic state.
   - See `ontology/vultron_activitystreams.ttl` (`vultron_as:CaseOwnerActivity`)
 - `CM-02-006` `PROD_ONLY` CaseActor MUST enforce case-level authorization for all
   case mutations
-  - **Cross-reference**: `behavior-tree-integration.md` BT-10-004
+  - CM-02-006 is-implemented-by BT-10-004
 - `CM-02-007` `VulnerabilityCase` MUST include a `notes: list[as_NoteRef]`
   field to record case-scoped notes created via `AddNoteToCase` activities
   - Provides a canonical link from a case to in-scope notes, consistent with
@@ -58,12 +58,21 @@ the distinction between participant-specific and participant-agnostic state.
 
 - `CM-03-001` The system MUST implement the three interacting state machines:
   RM (Report Management), EM (Embargo Management), and CS (Case State)
+  - CM-03-001 implements VP-01-001
+  - CM-03-001 implements VP-13-001
+  - CM-03-001 implements VP-14-001
 - `CM-03-002` RM state MUST be participant-specific
   - Each CaseParticipant carries their own RM state in `ParticipantStatus.rm_state`
   - RM state is independent per (actor × case) pair
+  - CM-03-002 implements VP-01-002
+  - CM-03-002 implements VP-02-002
+  - CM-03-002 implements VP-03-001
 - `CM-03-003` EM state MUST be participant-agnostic (shared per case)
   - EM state is tracked in `CaseStatus.em_state`
   - All case participants share the same EM state
+  - CM-03-003 implements VP-04-002
+  - CM-03-003 implements VP-13-009
+  - CM-03-003 implements VP-14-001
 - `CM-03-004` CS (PXA sub-state) MUST be participant-agnostic (shared per case)
   - PXA state is tracked in `CaseStatus.pxa_state`
   - Reflects observable world state (Public awareness, eXploit publication,
@@ -92,21 +101,36 @@ the distinction between participant-specific and participant-agnostic state.
   - **Rationale**: Keeps the RM symbol set minimal and produces clean audit
     histories; `Undo` conflates historical negation with a new forward
     transition
+  - CM-03-007 implements VP-02-004
 
 ## State Transition Correctness (MUST)
 
 - `CM-04-001` Handlers processing RM state transitions MUST update
   `ParticipantStatus.rm_state` for the sending actor's CaseParticipant
+  - CM-04-001 implements VP-02-002
+  - CM-04-001 implements VP-02-003
+  - CM-04-001 implements VP-03-001
+  - CM-04-001 implements VP-13-005
 - `CM-04-002` Handlers processing VFD state transitions MUST update
   `ParticipantStatus.vfd_state` for the sending actor's CaseParticipant
 - `CM-04-003` Handlers processing EM state transitions MUST update
   `CaseStatus.em_state` — this is shared and affects all case participants
+  - CM-04-003 implements VP-06-001
+  - CM-04-003 implements VP-09-001
+  - CM-04-003 implements VP-11-001
+  - CM-04-003 implements VP-11-002
+  - CM-04-003 implements VP-14-001
+  - CM-04-003 implements VP-14-002
 - `CM-04-004` Handlers processing PXA state transitions (public disclosure,
   exploit publication, attack observation) MUST update `CaseStatus.pxa_state`
+  - CM-04-004 implements VP-03-002
+  - CM-04-004 implements VP-14-003
+  - CM-04-004 implements VP-14-004
 - `CM-04-005` State transition handlers MUST NOT mix participant-specific and
   participant-agnostic state updates
   - Updating `CaseStatus.em_state` with a participant-specific value is
     incorrect and MUST be avoided
+  - CM-04-005 implements VP-13-009
 
 ## Object Model Relationships (MUST)
 
@@ -122,6 +146,8 @@ the distinction between participant-specific and participant-agnostic state.
     reference external URLs rather than storing content
 - `CM-05-002` A `VulnerabilityCase` MUST reference at least one
   `VulnerabilityReport`; a case with zero reports MUST NOT exist
+  - CM-05-002 implements VP-02-015
+  - CM-05-002 implements VP-02-020
 - `CM-05-003` A `VulnerabilityCase` SHOULD reference at least one
   `VulnerabilityRecord` before closure; cases with no associated record at
   closure SHOULD log a warning
@@ -143,15 +169,18 @@ the distinction between participant-specific and participant-agnostic state.
   notify all current case participants
   - Notification MUST be sent as an ActivityStreams activity to each
     participant's inbox
+  - CM-06-001 implements VP-02-019
+  - CM-06-001 implements VP-03-012
+  - CM-06-001 implements VP-08-001
 - `CM-06-002` Participants receiving a case update notification MUST treat
   the update as authoritative only when it originates from the CaseActor
-  - **Cross-reference**: CM-02-002
+  - CM-06-002 depends-on CM-02-002
 - `CM-06-003` `PROD_ONLY` Case update notifications MUST include the
   updated CaseActor URL so participants can fetch the current case state
   if needed
 - `CM-06-004` `PROD_ONLY` Participants MUST authenticate case update
   notifications before accepting them as authoritative
-  - **Cross-reference**: `prototype-shortcuts.md` PROTO-01-001
+  - CM-06-004 is-constrained-by PROTO-01-001
 
 ## CVD Action Rules API (SHOULD)
 
@@ -160,7 +189,8 @@ the distinction between participant-specific and participant-agnostic state.
   and their role
   - This supports both human and agent consumers in knowing which protocol
     actions are applicable at any given moment
-  - **Cross-reference**: `agentic-readiness.md` AR-07-001, AR-07-002
+  - CM-07-001 refines AR-07-001
+  - CM-07-001 refines AR-07-002
 - `CM-07-002` The action rules response MUST include the participant's role
   and the current RM, EM, CS, and VFD states relevant to that participant
 - `CM-07-003` The action rules response MUST list valid next actions as
@@ -237,10 +267,8 @@ the distinction between participant-specific and participant-agnostic state.
 - `CM-08-002` `PROD_ONLY` Domain objects SHOULD NOT directly inherit from
   ActivityStreams base types; explicit translation functions SHOULD be provided
   at the protocol boundary
-  - **Cross-reference**: `notes/domain-model-separation.md` for design rationale
-    and recommended migration steps
-  - **Cross-reference**: `prototype-shortcuts.md` PROTO-06-001 for the prototype
-    deferral policy
+  - See `notes/domain-model-separation.md` for design rationale and recommended migration steps
+  - CM-08-002 is-constrained-by PROTO-06-001
 
 ## Related
 

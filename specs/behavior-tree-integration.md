@@ -94,8 +94,8 @@ SHOULD use BTs for clarity and maintainability.
   - Type hints on node methods
   - Runtime type checks where needed
 - `BT-07-003` State transitions MUST be logged at the appropriate level
-  - **Cross-reference**: `structured-logging.md` SL-03-001, SL-04-001 for log
-    level semantics and state transition log format
+  - BT-07-003 depends-on SL-03-001
+  - BT-07-003 depends-on SL-04-001
 
 ## Command-Line Execution (MAY)
 
@@ -113,6 +113,8 @@ SHOULD use BTs for clarity and maintainability.
 ## CaseActor Management (MUST)
 
 - `BT-10-001` Report validation MUST trigger VulnerabilityCase creation
+  - BT-10-001 implements VP-02-015
+  - BT-10-001 implements VP-02-020
 - `BT-10-002` Case creation MUST create corresponding CaseActor (Service)
 - `BT-10-003` CaseActor MUST manage case-related message processing
 - `BT-10-004` `PROD_ONLY` CaseActor MUST enforce case-level authorization

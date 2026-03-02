@@ -27,6 +27,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 ## Schema Validation (MUST)
 
 - `MV-02-001` The system MUST use Pydantic models to validate activities
+  - MV-02-001 implements VP-15-001
 - `MV-02-002` The system MUST reject activities that fail Pydantic validation with HTTP 422
 - `MV-02-003` Validation error responses MUST include detailed error information
 - `MV-02-004` The system MUST log validation failures at WARNING level
@@ -69,7 +70,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 ## Duplicate Detection (SHOULD)
 
 - `MV-08-001` The system SHOULD detect duplicate activity submissions during validation
-  - **Cross-reference**: See `idempotency.md` ID-02-001 for complete requirements
+  - MV-08-001 depends-on ID-02-001
 
 ## Verification
 

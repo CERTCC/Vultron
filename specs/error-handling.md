@@ -47,14 +47,13 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
   - `message`: Human-readable error description (string)
   - `activity_id`: Activity ID if available (string or null)
   - **Example**: `{"status": 400, "error": "ValidationError", "message": "...", "activity_id": "urn:uuid:..."}`
-  - **Cross-reference**: `http-protocol.md` HTTP-03-001 for HTTP status code semantics
+  - EH-05-001 depends-on HTTP-03-001
 
 ## Error Logging (MUST)
 
 - `EH-06-001` All errors MUST be logged at the appropriate level per log level
   semantics
-  - **Cross-reference**: `structured-logging.md` SL-03-001 for complete log
-    level semantics and examples
+  - EH-06-001 depends-on SL-03-001
 
 ## Verification
 

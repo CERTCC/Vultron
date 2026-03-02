@@ -15,6 +15,7 @@ during the prototype stage.
 
 - `PROTO-01-001` Omit cryptographic authentication for agent-to-agent
   communication.
+  - PROTO-01-001 constrains CM-06-004
 
 ## Federation (MAY)
 
@@ -66,9 +67,7 @@ during the prototype stage.
   persistence model
   - The intended production approach introduces explicit translation functions
     (`from_activitystreams`, `to_activitystreams`) at the protocol boundary
-  - **Cross-reference**: `case-management.md` CM-08-001, CM-08-002 for the
-    production architecture requirement
-  - **Cross-reference**: `notes/domain-model-separation.md` for design
-    rationale, known constraints of the current approach, and recommended
-    migration steps
+  - PROTO-06-001 constrains CM-08-001
+  - PROTO-06-001 constrains CM-08-002
+  - See `notes/domain-model-separation.md` for design rationale, known constraints of the current approach, and recommended migration steps
 

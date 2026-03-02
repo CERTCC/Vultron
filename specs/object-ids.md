@@ -20,6 +20,8 @@ Update codebase to use full-URI IDs), `plan/IMPLEMENTATION_PLAN.md`
   - Acceptable forms: `https://example.org/objects/{uuid}` or
     `urn:uuid:{uuid}`
   - Bare UUIDs (e.g., `abc123`) MUST NOT be used as canonical IDs
+  - OID-01-001 implements VP-16-002
+  - OID-01-001 implements VP-16-003
 - `OID-01-002` IDs MUST be globally unique within the system
 - `OID-01-003` The canonical base URI for locally created objects MUST be
   configurable via an environment variable (`VULTRON_BASE_URL` or equivalent)
@@ -44,7 +46,7 @@ Update codebase to use full-URI IDs), `plan/IMPLEMENTATION_PLAN.md`
   NOT use the raw full URI as the key
   - Use the last path segment or UUID portion (e.g., `object_{uuid}`) to
     avoid hierarchical key parsing issues in py_trees
-  - **Cross-reference**: `behavior-tree-integration.md` BT-03-003
+  - OID-03-001 refines BT-03-003
 
 ## ADR Requirement (SHOULD)
 

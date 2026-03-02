@@ -50,16 +50,15 @@ Handler functions process DispatchActivity objects and implement protocol busine
 - `HP-06-001` Handlers MUST log entry at DEBUG level with handler name
 - `HP-06-002` Handlers MUST log state transitions at INFO level with before/after states
 - `HP-06-003` Handlers MUST log errors at ERROR level with full context
-  - **Cross-reference**: `structured-logging.md` SL-03-001 for log level semantics
-  - **Cross-reference**: `structured-logging.md` SL-04-001 for state transition format
+  - HP-06-003 depends-on SL-03-001
+  - HP-06-003 depends-on SL-04-001
 
 ## Idempotency (SHOULD)
 
 - `HP-07-001` Handlers SHOULD be idempotent to support retries
   - State-changing handlers (those that transition RM/EM/CS state) MUST be
     idempotent to prevent data corruption
-  - **Cross-reference**: See `idempotency.md` ID-04-001 for complete
-    requirements
+  - HP-07-001 depends-on ID-04-001
 
 ## Execution Timeout (MUST)
 
@@ -96,8 +95,7 @@ Handler functions process DispatchActivity objects and implement protocol busine
   - If the storage layer contains validators that enforce `context` or other
     fields, the handler MUST provide full objects so validators can operate
     correctly
-  - **Cross-reference**: `case-management.md` CM-03-006 for the `case_statuses`
-    field contract
+  - HP-08-005 depends-on CM-03-006
 - `HP-08-006` The `AddNoteToCase` handler MUST persist a Note object and append its ID as a `as_NoteRef` to `VulnerabilityCase.notes`.
   - **Rationale**: Ensures notes are fully persisted and linked to cases, consistent with the case management data model
   - (VulnerabilityCase.notes is conceptually a "join table" linking cases to 
