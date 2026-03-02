@@ -1,11 +1,3 @@
-#!/usr/bin/env python
-"""Compatibility shim.
-
-This module has moved to ``vultron.as_vocab.examples.vocab_examples``.
-This shim re-exports all public names from the new location so that
-existing import paths continue to work.
-"""
-
 #  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -16,11 +8,3 @@ existing import paths continue to work.
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
 #  ("Third Party Software"). See LICENSE.md for more details.
-#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
-#  U.S. Patent and Trademark Office by Carnegie Mellon University
-
-from vultron.as_vocab.examples.vocab_examples import *  # noqa: F401, F403
-from vultron.as_vocab.examples.vocab_examples import main  # noqa: F401
-
-if __name__ == "__main__":
-    main()
