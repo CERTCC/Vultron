@@ -50,7 +50,7 @@ in `docker/docker-compose.yml`.
 All 19 tasks (DEMO-4.1–4.19) are done. See `plan/IMPLEMENTATION_HISTORY.md`
 for the full record.
 
-### ❌ CM-03-006 field rename not implemented
+### ✅ CM-03-006 field rename complete
 
 `VulnerabilityCase.case_status` is a `list[CaseStatusRef]` (history) but
 named in the singular; spec requires `case_statuses`. Same for
@@ -162,15 +162,15 @@ across router boundaries.
 **Priority**: MEDIUM — improves spec compliance; touches many files
 **Reference**: `specs/case-management.md` CM-03-006
 
-- [ ] **REFACTOR-1.1**: Rename `VulnerabilityCase.case_status` (list) →
+- [x] **REFACTOR-1.1**: Rename `VulnerabilityCase.case_status` (list) →
   `case_statuses`; add `case_status` as read-only property returning
   `current_status` (most recent by timestamp)
   - Update `vulnerability_case.py`, all references in `handlers.py`,
     `behaviors/`, and tests
-- [ ] **REFACTOR-1.2**: Rename `CaseParticipant.participant_status` (list) →
+- [x] **REFACTOR-1.2**: Rename `CaseParticipant.participant_status` (list) →
   `participant_statuses`; add `participant_status` as read-only property
   - Update `case_participant.py`, all references in `handlers.py` and tests
-- [ ] **REFACTOR-1.3**: Run full test suite; fix all breakage; confirm 0 regressions
+- [x] **REFACTOR-1.3**: Run full test suite; fix all breakage; confirm 0 regressions
 
 ---
 
@@ -370,7 +370,7 @@ The following are deferred until higher-priority phases are complete:
 | Spec area | Status |
 |-----------|--------|
 | BT-01–BT-11 | ✅ Implemented (BT-08 CLI is MAY, low priority) |
-| CM-01–CM-04 | ✅ Implemented (CM-03-006 rename pending REFACTOR-1) |
+| CM-01–CM-04 | ✅ Implemented (CM-03-006 rename complete in REFACTOR-1) |
 | CM-02-008 | ❌ Vendor initial participant in create_case not verified (SC-1.3) |
 | CM-05-001 | ❌ VulnerabilityRecord and Publication types missing (SC-1.1, SC-1.2) |
 | CM-06 | ❌ CaseActor broadcast not implemented (PRIORITY-200, blocked by OUTBOX-1) |
