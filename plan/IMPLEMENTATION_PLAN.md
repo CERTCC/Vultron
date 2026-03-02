@@ -144,7 +144,7 @@ across router boundaries.
 
 **Reference**: `plan/BUGS.md`, `notes/codebase-structure.md`
 
-- [ ] **BUGFIX-1.1**: Move root-logger configuration out of module-level code
+- [x] **BUGFIX-1.1**: Move root-logger configuration out of module-level code
   in `vultron/api/v2/app.py` — use `lifespan` event or lazy init so that
   importing `app.py` in tests does not mutate the root logger's handlers or
   level. Confirm no `--- Logging error ---` noise in `uv run pytest` output.
