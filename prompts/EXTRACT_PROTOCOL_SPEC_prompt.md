@@ -7,7 +7,7 @@ previously defined in the project documentation.
 
 ### Primary constraints
 
-- Modify only the `specs/vultron_protocol_spec.md`
+- Modify only the `specs/vultron-protocol-spec.md`
 - Do not modify code or tests or any other files.
 
 ### Study and understand the documentation
@@ -30,17 +30,17 @@ previously defined in the project documentation.
    4. Ensuring that the requirement is atomic, specific, concise, and verifiable.
    5. For each requirement, include a reference to the source document and
       section where it was found for traceability
-4. Compose a new markdown file `specs/vultron_protocol_spec.md` to capture
+4. Compose a new markdown file `specs/vultron-protocol-spec.md` to capture
 the extracted requirements related to the Vultron Protocol.
    1. Follow
       guidance in `specs/meta-specification.md` for formatting and organization
       of the spec file.
-   2. Do not split `vultron_protocol_spec.md` into multiple  
+   2. Do not split `vultron-protocol-spec.md` into multiple  
       files; keep all protocol-related items in a single file for now, even
       if there are multiple topics.
    3. Use headings to organize different topics within the file as needed.
    4. Use the `PROD_ONLY` tag for any requirements that only apply to
       production (i.e., not prototoype), and
       clearly indicate in the text of the requirement what the requirement is about.
-5. Git add and commit the new `specs/vultron_protocol_spec.md` file with a descriptive commit message.
+5. Git add and commit the new `specs/vultron-protocol-spec.md` file with a descriptive commit message.
 6. EXIT
