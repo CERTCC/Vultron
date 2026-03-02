@@ -148,7 +148,7 @@ across router boundaries.
   in `vultron/api/v2/app.py` — use `lifespan` event or lazy init so that
   importing `app.py` in tests does not mutate the root logger's handlers or
   level. Confirm no `--- Logging error ---` noise in `uv run pytest` output.
-- [ ] **BUGFIX-1.2**: Replace `print()` calls in
+- [x] **BUGFIX-1.2**: Replace `print()` calls in
   `test/behaviors/test_performance.py`, `test/bt/test_case_states/
   test_conditions.py`, `test/as_vocab/test_vulnerability_report.py`, and
   `test/as_vocab/test_create_activity.py` with proper logging or
