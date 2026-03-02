@@ -3,20 +3,6 @@
 The first phase of the Behavior Tree demo implementation is complete.
 There are two significant phases coming up next.
 
-## ✅ PRIORITY 10: Phase DEMO-4: Integrate individual demos into unified interface (COMPLETE)
-
-The unified demo CLI (`vultron-demo`) is complete. All 12 demo scripts are in
-`vultron/demo/`, shared utilities are in `vultron/demo/utils.py`, the
-`vultron-demo` Click CLI is in `vultron/demo/cli.py`, Docker services are
-consolidated under a single `demo` service, and integration tests are in
-`integration_tests/`. See `plan/IMPLEMENTATION_HISTORY.md` for full details.
-
-## PRIORITY 20: Address some technical debt
-
-Specifically, in the `plan/IMPLEMENTATION_PLAN.md`, we need to address
-**TECHDEBT-1** and **TECHDEBT-5** to reduce module size for future 
-maintainability.
-
 ## PRIORITY 30: Implement triggerable behaviors
 
 Existing demos have primarily focused on updating local state based on receipt
