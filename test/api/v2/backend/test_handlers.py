@@ -985,7 +985,7 @@ class TestStatusHandlers:
         assert stored is not None
 
     def test_add_case_status_to_case_appends_status(self, monkeypatch):
-        """add_case_status_to_case appends status ID to case.case_status."""
+        """add_case_status_to_case appends status ID to case.case_statuses."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
         from vultron.as_vocab.activities.case import AddStatusToCase
         from vultron.as_vocab.objects.case_status import CaseStatus
@@ -1028,7 +1028,7 @@ class TestStatusHandlers:
         handlers.add_case_status_to_case(mock_dispatchable)
 
         status_ids = [
-            (s.as_id if hasattr(s, "as_id") else s) for s in case.case_status
+            (s.as_id if hasattr(s, "as_id") else s) for s in case.case_statuses
         ]
         assert status.as_id in status_ids
 
@@ -1132,7 +1132,7 @@ class TestStatusHandlers:
 
         status_ids = [
             (s.as_id if hasattr(s, "as_id") else s)
-            for s in participant.participant_status
+            for s in participant.participant_statuses
         ]
         assert pstatus.as_id in status_ids
 

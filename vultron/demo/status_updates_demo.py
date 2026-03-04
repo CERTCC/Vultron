@@ -300,7 +300,7 @@ def demo_status_workflow(
             if updated_case:
                 status_ids = [
                     (s.as_id if hasattr(s, "as_id") else s)
-                    for s in updated_case.case_status
+                    for s in updated_case.case_statuses
                 ]
                 if case_status.as_id not in status_ids:
                     raise ValueError(

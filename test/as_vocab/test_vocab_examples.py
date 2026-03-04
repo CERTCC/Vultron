@@ -603,9 +603,9 @@ class TestVocabExamples(unittest.TestCase):
 
         # status should be a list of ParticipantStatus objects
         # and there should be at least one
-        self.assertIsInstance(obj.participant_status, Sequence)
-        self.assertGreaterEqual(len(obj.participant_status), 1)
-        for status in obj.participant_status:
+        self.assertIsInstance(obj.participant_statuses, Sequence)
+        self.assertGreaterEqual(len(obj.participant_statuses), 1)
+        for status in obj.participant_statuses:
             self.assertIsInstance(status, ParticipantStatus)
 
     def test_embargo_event(self):

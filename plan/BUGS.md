@@ -6,8 +6,9 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ### Linkchecker reports errors
 
-Status: Fixed (2026-02-27) — updated demo link in docs/reference/code/demo/index.md to point to docs/tutorials/receive_report_demo.md.
-
+Status: Fixed (2026-02-27) — updated demo link in
+docs/reference/code/demo/index.md to point to
+docs/tutorials/receive_report_demo.md.
 
 When running linkchecker on the documentation, there are some errors that 
 need to be fixed. All documentation links must use paths relative to the 

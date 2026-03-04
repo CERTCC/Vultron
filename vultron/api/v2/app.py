@@ -17,22 +17,32 @@ Vultron API v2 Application
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from .routers import router
 
-# Get Uvicorn's root logger and configure handlers
-uvicorn_logger = logging.getLogger("uvicorn")
-logging.getLogger().handlers = uvicorn_logger.handlers
-logging.getLogger().setLevel(logging.DEBUG)
-
-# Optionally, unify FastAPI’s access and error logs as well
-logging.getLogger("uvicorn.access").propagate = True
-logging.getLogger("uvicorn.error").propagate = True
-
-# Create your logger for your app
 logger = logging.getLogger(__name__)
+
+
+def configure_logging() -> None:
+    """Configure root logger to use Uvicorn's handlers at server startup.
+
+    Only called inside the lifespan context so importing this module in tests
+    does not mutate the root logger.
+    """
+    uvicorn_logger = logging.getLogger("uvicorn")
+    logging.getLogger().handlers = uvicorn_logger.handlers
+    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger("uvicorn.access").propagate = True
+    logging.getLogger("uvicorn.error").propagate = True
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    configure_logging()
+    yield
 
 
 tags_metadata = [
@@ -64,5 +74,6 @@ app_v2 = FastAPI(
     docs_url="/docs",
     openapi_url="/openapi/v2.json",
     openapi_tags=tags_metadata,
+    lifespan=lifespan,
 )
 app_v2.include_router(router)

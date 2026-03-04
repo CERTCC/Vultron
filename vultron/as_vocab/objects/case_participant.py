@@ -65,7 +65,7 @@ class CaseParticipant(VultronObject):
 
     name: str | None = None
     case_roles: list[CVDRole] = Field(default_factory=list)
-    participant_status: list[ParticipantStatus] = Field(default_factory=list)
+    participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
     participant_case_name: str | None = Field(default=None, exclude=True)
     context: as_Link | str | None = Field(default=None, repr=True)
 
@@ -110,18 +110,28 @@ class CaseParticipant(VultronObject):
 
     @model_validator(mode="after")
     def init_participant_status_if_empty(self):
-        if self.participant_status:
+        if self.participant_statuses:
             # participant status is already set, do nothing
             return self
 
         # participant status is empty, so initialize it with a default status
-        self.participant_status = [
+        self.participant_statuses = [
             ParticipantStatus(
                 context=self.context,
                 attributed_to=self.attributed_to,
             ),
         ]
         return self
+
+    @property
+    def participant_status(self) -> ParticipantStatus | None:
+        """Return the most recent ParticipantStatus (read-only; see participant_statuses for history)."""
+        if not self.participant_statuses:
+            return None
+        return max(
+            self.participant_statuses,
+            key=lambda ps: ps.updated or ps.published or ps.as_id,
+        )
 
     def add_role(self, role: CVDRole, reset=False):
         if reset:
@@ -162,7 +172,7 @@ class ReporterParticipant(CaseParticipant):
             attributed_to=self.attributed_to,
             rm_state=RM.ACCEPTED,
         )
-        self.participant_status = [pstatus]
+        self.participant_statuses = [pstatus]
 
         return self
 
@@ -191,7 +201,7 @@ class FinderReporterParticipant(CaseParticipant):
             attributed_to=self.attributed_to,
             rm_state=RM.ACCEPTED,
         )
-        self.participant_status = [pstatus]
+        self.participant_statuses = [pstatus]
 
         return self
 
