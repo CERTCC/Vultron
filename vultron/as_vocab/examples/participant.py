@@ -183,7 +183,7 @@ def case_participant() -> CaseParticipant:
         name="Vendor",
         attributed_to="https://vultron.example/organizations/vendor",
         context="https://vultron.example/cases/1",
-        participant_status=[participant_status()],
+        participant_statuses=[participant_status()],
     )
     return participant
 
