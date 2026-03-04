@@ -54,7 +54,7 @@ def add_case_status_to_case(dispatchable: DispatchActivity) -> None:
     """
     Process an Add(CaseStatus, target=VulnerabilityCase) activity.
 
-    Appends the CaseStatus to the case's case_status list and persists the
+    Appends the CaseStatus to the case's case_statuses list and persists the
     updated case. Idempotent: re-adding a status already in the list
     succeeds without side effects (ID-04-004).
 
