@@ -31,8 +31,9 @@ def verify_semantics(expected_semantic_type: MessageSemantics):
 
             if computed != expected_semantic_type:
                 logger.error(
-                    "Dispatchable activity %s claims semantic_type %s that does not match its payload (%s)",
+                    "Dispatchable activity %s claims semantic_type %s (expected %s) that does not match its payload (%s)",
                     dispatchable,
+                    dispatchable.semantic_type,
                     expected_semantic_type,
                     computed,
                 )
