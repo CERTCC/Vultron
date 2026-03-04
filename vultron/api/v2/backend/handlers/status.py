@@ -144,7 +144,7 @@ def add_participant_status_to_participant(
     """
     Process an Add(ParticipantStatus, target=CaseParticipant) activity.
 
-    Appends the ParticipantStatus to the participant's participant_status
+    Appends the ParticipantStatus to the participant's participant_statuses
     list and persists the updated participant. Idempotent: re-adding a
     status already in the list succeeds without side effects (ID-04-004).
 
