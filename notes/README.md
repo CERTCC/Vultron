@@ -13,16 +13,17 @@ Explanation) and an implementation workflow for authoring technical docs.
 
 | File | Topics                                                                                                                                                                       |
 |------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `diataxis-framework.md` | Diátaxis documentation framework: Tutorials, How‑to, Reference, Explanation, Compass, and implementation workflow                                                            |
 | `activitystreams-semantics.md` | Activity model, state-change notification semantics, response conventions, vocabulary examples, case update path and CaseActor authoritativeness                                                               |
 | `bt-fuzzer-nodes.md` | Behavior tree external touchpoints based on BT simulator fuzzing, commentary on automation potential                                                               |
 | `bt-integration.md` | Behavior tree design decisions, py_trees patterns, simulation-to-prototype strategy                                                                                          |
 | `case-state-model.md` | VFD/PXA case state hypercube, potential actions, measuring CVD quality, case object docs vs implementation, participant-specific vs participant-agnostic state distinction   |
 | `codebase-structure.md` | Module reorganization candidates, enum refactoring, API layer architecture, code documentation strategy, demo script lifecycle logging (`demo_step`/`demo_check`)                                    |
+| `diataxis-framework.md` | Diátaxis documentation framework: Tutorials, How‑to, Reference, Explanation, Compass, and implementation workflow                                                            |
 | `documentation-strategy.md` | Docs chronology and trust levels, process models, formal protocol, behavior simulator reference, Do Work behaviors, ISO crosswalks                                           |
 | `domain-model-separation.md` | Wire/Domain/Persistence layer separation, current coupling in `VulnerabilityCase`, per-actor DataLayer isolation options, architectural direction and recommended next steps |
 | `do-work-behaviors.md` | Scope of "do work" BT behaviors: out-of-scope, not-implementable, partially-implementable items; reporting behavior notes; embargo policy prior art                          |
 | `docker-build.md` | Project-specific Docker build observations, dependency layer caching, image content scoping, general build performance checklist                                             |
+| `encryption.md` | Encryption implementation notes: public-key discovery, decryption placement, outgoing strategies, key rotation, and implementation guidance |
 | `triggerable-behaviors.md` | Design notes for PRIORITY 30 triggerable behaviors: trigger scope, endpoint schema, candidate behaviors (RM/EM), relationship to actor independence                          |
 
 ## Conventions
