@@ -332,8 +332,10 @@ Proposed implementation path:
 3. **Apply decision table**: Feed the selected decision point values into
    an SSVC `DecisionTable` to produce a prioritization outcome.
 4. **Map to RM state**: For the prototype, map the SSVC outcome to
-   binary `engage` / `defer`. In a full implementation the full SSVC
-   outcome set (e.g., Track, Track*, Attend, Act) MAY be supported.
+   binary `engage` / `defer`. In a full implementation the a full SSVC
+   outcome set (e.g., *Defer*, *Scheduled*, *Out-of-Cycle*, *Immediate*, or 
+   others; different SSVC models have different outcome sets) MAY be 
+   supported.
 
 The `engage-case` / `defer-case` triggers directly correspond to this
 engage/defer binary. The "accept" and "defer" placeholder nodes in
