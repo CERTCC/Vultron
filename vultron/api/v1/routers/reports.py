@@ -26,7 +26,7 @@ from vultron.as_vocab.activities.report import (
     RmCreateReport,
 )
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.scripts import vocab_examples
+from vultron.as_vocab.examples import vocab_examples
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 

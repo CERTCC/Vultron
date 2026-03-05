@@ -27,7 +27,7 @@ from vultron.as_vocab.activities.embargo import (
     EmAcceptEmbargo,
 )
 from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-from vultron.scripts import vocab_examples
+from vultron.as_vocab.examples import vocab_examples
 
 router = APIRouter(prefix="/cases/{case_id}/embargoes", tags=["Embargoes"])
 

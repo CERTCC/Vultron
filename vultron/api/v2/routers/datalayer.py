@@ -200,7 +200,7 @@ def reset_datalayer(
     """Resets the datalayer by clearing all stored objects."""
     datalayer.clear_all()
     if init:
-        from vultron.scripts.vocab_examples import initialize_examples
+        from vultron.as_vocab.examples._base import initialize_examples
 
         initialize_examples()
 

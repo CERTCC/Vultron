@@ -45,7 +45,7 @@ from vultron.as_vocab.base.objects.activities.transitive import (
 from vultron.as_vocab.objects.case_status import CaseStatus
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.scripts import vocab_examples
+from vultron.as_vocab.examples import vocab_examples
 
 router = APIRouter(prefix="/cases", tags=["Cases"])
 case_router = APIRouter(prefix="/cases/{case_id}", tags=["Cases"])

@@ -24,7 +24,7 @@ from vultron.as_vocab.activities.case import (
 )
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.scripts import vocab_examples
+from vultron.as_vocab.examples import vocab_examples
 
 router = APIRouter(prefix="/actors", tags=["Actors"])
 
