@@ -33,7 +33,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 8. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
    object model relationships (Report/Case/Publication/VulnerabilityRecord), case update
-   broadcast, CVD action rules API
+   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
+   acceptance tracking (CM-10)
 
 ### Object Identifiers
 
@@ -82,7 +83,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Code Standards
 
-- **`code-style.md`** - Python formatting, import organization, circular import prevention
+- **`code-style.md`** - Python formatting, import organization, circular import
+  prevention, optional-field non-emptiness (CS-08-001)
 - **`meta-specifications.md`** - How to write and maintain specifications
 
 ### Documentation Content and Organization

@@ -257,9 +257,12 @@ evaluation step determining which of the three outcomes to produce. These
 values need not be strictly binary in a full implementation; intermediate
 confidence levels may be appropriate.
 
-**Open Question**: Should the `reject-report` trigger accept a mandatory
-`note` field (reason required) to encourage documentation of hard-close
-decisions? (blocks TB-03-003 refinement)
+**Design Decision**: The `reject-report` trigger MUST require a `note`
+field (reason is required; resolved — see `specs/triggerable-behaviors.md`
+TB-03-004 and `specs/code-style.md` CS-08-001).
+The `note` field MUST be present; it SHOULD be non-empty. This decision
+led to a broader schema-validation pattern: optional string fields
+throughout the codebase follow "if present, then non-empty" (CS-08-001).
 
 ---
 
@@ -333,8 +336,8 @@ Proposed implementation path:
    an SSVC `DecisionTable` to produce a prioritization outcome.
 4. **Map to RM state**: For the prototype, map the SSVC outcome to
    binary `engage` / `defer`. In a full implementation the a full SSVC
-   outcome set (e.g., *Defer*, *Scheduled*, *Out-of-Cycle*, *Immediate*, or 
-   others; different SSVC models have different outcome sets) MAY be 
+   outcome set (e.g., *Defer*, *Scheduled*, *Out-of-Cycle*, *Immediate*, or
+   others; different SSVC models have different outcome sets) MAY be
    supported.
 
 The `engage-case` / `defer-case` triggers directly correspond to this
@@ -457,51 +460,64 @@ Key design constraints:
 
 ## Invitation-Ready Case Object
 
-**Open Question**: Should `VulnerabilityCase` support a "redacted" view
-for invited-but-not-yet-accepted participants? (blocks notify-actor design)
+**Design Decision**: `VulnerabilityCase` SHOULD support a `RedactedVulnerabilityCase`
+subclass for invited-but-not-yet-accepted participants. (resolved — blocks
+resolved; see `specs/case-management.md` CM-09-*)
 
-When inviting a new actor to a case under active embargo, sharing the full
-case details before they have accepted the invitation creates an embargo
-leak risk. A potential solution is an "invitation-ready case object" — a
-stripped-down representation of the case that:
+The preferred design is:
 
-- Contains enough information for the invitee to evaluate whether to
-  accept (severity, general type of vulnerability, proposed embargo terms).
-- Does NOT include: full report contents, case discussion history, prior
-  participant details, or any information that could identify the reporter.
-- Is delivered as part of (or alongside) the `Invite` message.
+- A `RedactedVulnerabilityCase` subclass of `VulnerabilityCase` containing
+  only the fields relevant to an invitee who has not yet accepted.
+- A `redact(invitee_id)` method on `VulnerabilityCase` that returns a
+  `RedactedVulnerabilityCase` with appropriate fields omitted or redacted.
+  Not all redactions are complete omissions — some fields may be
+  partially redacted.
+- Type hints enforce that redacted versions appear only where expected, and
+  that a full `VulnerabilityCase` is never passed where only a redacted
+  view is appropriate.
+- **Opsec ID constraint**: The ID of a `RedactedVulnerabilityCase` MUST be
+  completely unrelated to the full case ID. This prevents attackers who
+  obtain a redacted case ID from inferring the full case ID.
+- **Per-invitee unique IDs**: Each invitee MUST receive a distinct
+  `RedactedVulnerabilityCase` ID so that observing one redacted ID provides
+  no information about the size of the participant list or the identities
+  of other invitees. (Assuming eventual encryption, this makes it very
+  difficult to reconstruct the invite list.)
 
-Implementation options:
-
-1. A computed property or serializer that filters `VulnerabilityCase` fields
-   based on the recipient's current participation status.
-2. A separate `CaseInvitationSummary` object built from `VulnerabilityCase`
-   at invite time.
-
-This is a PRIORITY 300 design item; for the prototype, the `Invite`
+This is a PRIORITY 300 design item. For the prototype, the `Invite`
 activity MAY reference the case by ID only, leaving the invitee to
 request full details upon acceptance.
+
+**Cross-reference**: `specs/case-management.md` CM-09-*,
+`specs/encryption.md`
 
 ---
 
 ## Per-Participant Embargo Acceptance Tracking
 
-**Open Question**: Should `CaseParticipant` track which embargo(es) a
-participant has explicitly accepted? (blocks VP-05-* compliance)
+**Design Decision**: `CaseParticipant` MUST track which embargo(es) a
+participant has explicitly accepted. (resolved — see
+`specs/case-management.md` CM-10-*)
 
 Cases can have a series of embargoes over time (one active at a time).
 If embargo terms change, participants who accepted a prior embargo may not
 have accepted the new one. The current `CaseParticipant` model tracks RM
 state per participant but does not explicitly track embargo acceptance.
 
-Design options:
+Key design constraints:
 
-1. Add an `accepted_embargo_ids: list[str]` field to `CaseParticipant`
-   (or `ParticipantStatus`) recording the IDs of `EmbargoEvent` objects
-   the participant has explicitly accepted.
-2. Derive acceptance from the protocol message history: an
-   `Accept(Invite(Actor, Case))` is implicitly an acceptance of the
-   current embargo; an `Accept(Offer(Embargo))` is an explicit acceptance.
+- All participants MUST be on record as having accepted the active embargo
+  at the time they are added to the case. This provides a complete audit
+  trail of which participants were aware of which embargo terms.
+- Embargo acceptances MUST be timestamped. The CaseActor applies the
+  trusted timestamp (the time the CaseActor received the acceptance); the
+  participant's own claimed timestamp MUST NOT be trusted for audit
+  purposes.
+- Design option (recommended): Add an `accepted_embargo_ids: list[str]`
+  field to `CaseParticipant` (or `ParticipantStatus`) recording the IDs of
+  `EmbargoEvent` objects the participant has explicitly accepted.
+- An `Accept(Invite(Actor, Case))` is implicitly an acceptance of the
+  current embargo; an `Accept(Offer(Embargo))` is an explicit acceptance.
 
 **Implication for notify-others**: Before sharing case updates with a
 participant, check that they have accepted the current active embargo. If

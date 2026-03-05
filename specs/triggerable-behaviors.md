@@ -104,8 +104,14 @@ them; a complete implementation requires both reactive and triggerable sides.
   (forward-compatibility)
 - `TB-03-003` The trigger endpoint request body SHOULD support an optional
   `note` field containing free-text content that will be embedded in the
-  outgoing ActivityStreams activity (e.g., reason for rejection, rationale
-  for embargo proposal)
+  outgoing ActivityStreams activity (e.g., rationale for embargo proposal,
+  reason for deferral)
+- `TB-03-004` The `reject-report` trigger request body MUST include a
+  `note` field (reason required); the `note` value SHOULD be non-empty
+  - **Rationale**: Hard-close decisions are irreversible and warrant
+    documented justification for audit purposes
+  - TB-03-004 refines TB-03-003
+  - TB-03-004 depends-on CS-08-001
 
 ---
 
@@ -179,13 +185,16 @@ them; a complete implementation requires both reactive and triggerable sides.
   a valid request body
 - Unit test: Unrecognized `behavior-name` returns HTTP 404
 
-### TB-03-001, TB-03-002, TB-03-003 Verification
+### TB-03-001, TB-03-002, TB-03-003, TB-03-004 Verification
 
 - Unit test: Request missing required context field returns HTTP 422
   (Unprocessable Entity) with field-level error
 - Unit test: Unknown fields in request body are silently ignored
 - Integration test: Trigger with `note` field embeds content in outgoing
   activity
+- Unit test: `reject-report` trigger request missing `note` field returns
+  HTTP 422
+- Unit test: `reject-report` trigger with empty `note` emits a warning
 
 ### TB-04-001 Verification
 

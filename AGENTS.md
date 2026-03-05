@@ -358,6 +358,11 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - Never bypass validation for convenience
 - Use Protocol for interface definitions
 - Avoid global mutable state
+- **Optional string fields MUST follow "if present, then non-empty"**:
+  `Optional[str]` fields MUST reject empty strings. Use a Pydantic validator
+  that raises `ValueError` for `""`. This pattern also applies to JSON Schemas
+  derived from Pydantic models (`minLength: 1`). See `specs/code-style.md`
+  CS-08-001.
 
 ### Decorator Usage
 

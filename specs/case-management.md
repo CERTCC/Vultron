@@ -270,6 +270,69 @@ the distinction between participant-specific and participant-agnostic state.
   - See `notes/domain-model-separation.md` for design rationale and recommended migration steps
   - CM-08-002 is-constrained-by PROTO-06-001
 
+## Redacted Case View (SHOULD)
+
+- `CM-09-001` `PROD_ONLY` The system SHOULD support a `RedactedVulnerabilityCase`
+  type for sharing case information with invited-but-not-yet-accepted participants
+  - A `redact(invitee_id)` method on `VulnerabilityCase` SHOULD return a
+    `RedactedVulnerabilityCase` containing only the fields appropriate for
+    an invitee: severity indication, general vulnerability type, and proposed
+    embargo terms
+  - Full report content, case discussion history, prior participant details,
+    and reporter-identifying information MUST NOT be included
+- `CM-09-002` `PROD_ONLY` The ID of a `RedactedVulnerabilityCase` MUST be
+  cryptographically unrelated to the full `VulnerabilityCase` ID
+  - **Rationale**: Prevents an attacker who obtains a redacted case ID from
+    inferring the full case ID
+- `CM-09-003` `PROD_ONLY` Each invitee MUST receive a distinct
+  `RedactedVulnerabilityCase` ID
+  - **Rationale**: Prevents cross-correlation of redacted IDs to infer
+    participant list size or identities
+- `CM-09-004` For the prototype, the `Invite` activity MAY reference the case
+  by full case ID only, deferring the redacted view to a later phase
+  - CM-09-004 is-constrained-by PROTO-01-001
+
+## Per-Participant Embargo Acceptance (MUST)
+
+- `CM-10-001` `CaseParticipant` MUST track which embargo(es) a participant has
+  explicitly accepted
+  - A participant added to a case MUST be on record as having accepted the
+    active embargo at the time they joined
+  - CM-10-001 implements VP-05-001
+- `CM-10-002` Embargo acceptances MUST be timestamped by the CaseActor at
+  the time of receipt, not using the participant's claimed timestamp
+  - **Rationale**: The CaseActor applies the only trusted timestamp; the
+    participant's reported time cannot be verified
+  - CM-10-002 depends-on CM-02-002
+- `CM-10-003` The `CaseParticipant` model SHOULD include an
+  `accepted_embargo_ids: list[str]` field recording the IDs of
+  `EmbargoEvent` objects the participant has explicitly accepted
+  - An `Accept(Invite(Actor, Case))` is an implicit acceptance of the
+    current active embargo at join time
+  - An `Accept(Offer(Embargo))` is an explicit acceptance of a specific embargo
+- `CM-10-004` Before sharing case updates with a participant, the system MUST
+  verify that the participant has accepted the current active embargo
+  - If not, the system MUST send a new `Offer(Embargo)` before continuing
+
+### CM-09-001 through CM-09-004 Verification
+
+- `PROD_ONLY` Unit test: `VulnerabilityCase.redact(invitee_id)` returns a
+  `RedactedVulnerabilityCase` excluding report content, discussion, and
+  participant details
+- `PROD_ONLY` Unit test: Two calls to `redact()` with different invitee IDs
+  return objects with distinct IDs
+- `PROD_ONLY` Unit test: Redacted case ID shares no substrings with the full
+  case ID
+
+### CM-10-001 through CM-10-004 Verification
+
+- Unit test: Newly added `CaseParticipant` has the current active embargo ID
+  in `accepted_embargo_ids`
+- Unit test: Embargo acceptance timestamp is set by CaseActor clock, not
+  participant-supplied time
+- Integration test: Case update sent to a participant who has not accepted the
+  current embargo triggers `Offer(Embargo)` first
+
 ## Related
 
 - **Behavior Tree Integration**: `specs/behavior-tree-integration.md`
@@ -281,6 +344,8 @@ the distinction between participant-specific and participant-agnostic state.
   persistence architecture and migration guidance)
 - **BT Integration Notes**: `notes/bt-integration.md` (actor isolation domains,
   EvaluateCasePriority directionality)
+- **Triggerable Behaviors Notes**: `notes/triggerable-behaviors.md`
+  (Invitation-Ready Case Object, Per-Participant Embargo Acceptance Tracking)
 - **ActivityPub Workflows**: `docs/howto/activitypub/activities/` (workflow
   documentation for case, embargo, participant management)
 - **Priorities**: `plan/PRIORITIES.md` (Priority 100: Actor independence,
@@ -288,5 +353,6 @@ the distinction between participant-specific and participant-agnostic state.
 - **Agentic Readiness**: `specs/agentic-readiness.md` (AR-07-001, AR-07-002)
 - **Object IDs**: `specs/object-ids.md`
 - **Do Work Behaviors**: `notes/do-work-behaviors.md`
+- **Encryption**: `specs/encryption.md`
 - **Implementation**: `vultron/as_vocab/objects/vulnerability_case.py`
 - **Implementation**: `vultron/as_vocab/objects/case_status.py`

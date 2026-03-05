@@ -120,3 +120,17 @@ def extract_id_segment(url: str) -> str:
   would collide with a Python reserved word
   - Use `as_object` instead of `object` (reserved keyword)
   - Otherwise use plain field names: `actor`, not `as_actor`
+
+## Optional Field Non-Emptiness (MUST)
+
+- `CS-08-001` Optional string fields MUST NOT contain empty strings when
+  present; the invariant is "if present, then non-empty"
+  - The converse also applies: "if empty, then not present" — Pydantic
+    validators SHOULD reject empty strings in fields that are declared
+    `Optional[str]` or `str | None`
+  - This pattern MUST be carried through to JSON Schemas derived from
+    Pydantic models (e.g., via `minLength: 1` on string properties that
+    are not required)
+  - **Rationale**: Distinguishes "not provided" from "provided but blank",
+    preventing ambiguous database states and simplifying downstream
+    validation logic
