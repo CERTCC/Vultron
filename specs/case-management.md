@@ -53,6 +53,20 @@ the distinction between participant-specific and participant-agnostic state.
     actor ID at case creation
   - Handlers creating a case SHOULD create a `VendorParticipant` before
     appending other participants (e.g., finder)
+- `CM-02-009` The CaseActor MUST apply its own trusted timestamp to every
+  state-changing event it receives, regardless of any timestamp supplied by
+  the sending participant
+  - This applies to all state-changing messages: participant join/leave,
+    embargo proposals and acceptances, notes added, status updates, and any
+    other activity that modifies canonical case state
+  - Participant-supplied timestamps MUST NOT be used as authoritative
+    timestamps for case history
+  - **Rationale**: The CaseActor's clock is the only trusted source of time
+    for event ordering within a case; using participant-supplied timestamps
+    would allow different copies of a case (held by different actors) to
+    disagree on event order, undermining auditability and the
+    single-source-of-truth guarantee
+  - CM-02-009 depends-on CM-02-002
 
 ## Case State Model (MUST)
 
@@ -216,6 +230,15 @@ the distinction between participant-specific and participant-agnostic state.
 - Unit test: CaseActor has reference to case owner
 - `PROD_ONLY` Integration test: Non-owner attempt to close case → authorization error
 
+### CM-02-009 Verification
+
+- Unit test: Participant join event stored with CaseActor-applied timestamp,
+  not sender-supplied time
+- Unit test: Embargo acceptance event stored with CaseActor-applied timestamp
+- Unit test: Note-added event stored with CaseActor-applied timestamp
+- Code review: All case state mutation handlers apply CaseActor timestamp,
+  not activity-supplied timestamp
+
 ### CM-03-001 through CM-03-005 Verification
 
 - Unit test: RM state change updates `ParticipantStatus.rm_state`, not `CaseStatus`
@@ -304,6 +327,7 @@ the distinction between participant-specific and participant-agnostic state.
   - **Rationale**: The CaseActor applies the only trusted timestamp; the
     participant's reported time cannot be verified
   - CM-10-002 depends-on CM-02-002
+  - CM-10-002 implements CM-02-009
 - `CM-10-003` The `CaseParticipant` model SHOULD include an
   `accepted_embargo_ids: list[str]` field recording the IDs of
   `EmbargoEvent` objects the participant has explicitly accepted
