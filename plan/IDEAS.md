@@ -1,294 +1,361 @@
 # Project Ideas
 
-## ~~Responses to design questions in `plan/IMPLEMENTATION_NOTES.md`~~
+## More thoughts on triggerable behaviors
 
-> **Captured in**: `notes/triggerable-behaviors.md`
-> "Open Design Questions" — covers trigger scope, input/output schema,
-> CLI relationship, and overlap with existing handlers.
+Looking at the Report Management Behavior Tree (`docs/topcis/behavior_logic/rm_bt.md`),
+the things that stand out at first glance as triggerable behaviors include:
 
-~~> 1. **Trigger scope**: Which behaviors should be triggerable via API? The
-   reference docs (`rm_bt.md`, `em_bt.md`, etc.) describe multi-step
-   state machines. Should each leaf behavior be a separate endpoint, or
-   should higher-level orchestration be the trigger unit?
+- validate
+- close
+- prioritize
 
-We want to be able to trigger meaningful chunks of behavior tree logic via 
-an API. So for example, there is no n1eed to trigger a leaf node that just 
-does a condition check. But that condition check might be part of a larger 
-behavior that performs a full "unit of work" within a larger process. The 
-names of the nodes often reflect some indication of what they are intended 
-to do, so things that a user might want to trigger directly are usually 
-going to be somewhere above a leaf node, but perhaps giving higher priority 
-to implementing the ones where the branch does something meaningful or makes 
-a simple decision before proceeding. So you wouldn't trigger "Report 
-Management" as a full process, but you might trigger "Report Validated" 
-which then flows to side effects like sending an `Accept` to the reporter, 
-triggers a case creation, etc. So the right granularity is somewhere in the 
-middle layers of the behavior tree, where there is a meaningful unit of work 
-being done.
+because these behaviors are kind of "chunky" and get reused elsewhere.
+For example, observe that all three of them appear in more than one branch 
+of the tree. This pattern indicates that they are already conceived as modular
+behaviors that can be triggered from multiple parent behavior tree branches, 
+so they are good candidates to be implemented as triggerable behaviors.
 
-> 2. **Input / output schema**: What payload does a trigger endpoint accept?
-   At minimum it needs the target `actor_id` and enough context to identify
-   the case or report. Should it return the resulting activity, a job ID,
-   or just HTTP 202?
+*However*, there is some nuance to this, because when we look 
+closely at 
+the 
+"validate" behavior as described in `docs/topics/behavior_logic/rm_validation_bt.md`,
+we see that it is composed of some nodes that represent condition checks, 
+some that represent evaluation tasks, and some that are basically execution 
+tasks.
 
-It's going to depend on the semantics of the behavior being triggered. The 
-actor is always going to be a required input (who is doing the thing?) and 
-will eventually need to be authenticated and authorized. 
+(Note that Condition checks use the "stadium" node shape in mermaid diagrams.
+But the mermaid diagrams were built by hand and might have errors or 
+inconsistencies, so when in doubt, use the text of the documentation to resolve 
+discrepancies.)
 
-Nearly every action will be taking place in some context where there is 
-something being acted upon or responeded to. So a "Validate Report" behavior 
-needs to know which `Offer(Report)` is being acted on. A "Defer Case" 
-behavior needs to know which `VulnerabilityCase` is being deferred.
+The parts that are evaluation tasks are the ones most likely to be 
+associated with "fuzzer" nodes in the original simulation (see 
+`notes/bt-fuzzer-nodes.md`), because they involve some kind of judgment or  
+decision-making process that is not entirely specified. So from this 
+perspective, it may not be possible to implement the entire "validate" 
+behavior as a triggerable behavior, but maybe there is a "mark as valid" 
+behavior that could be triggered that essentially would replace the "emit 
+RV" node or another to replace the "emit RI" node that would handle the 
+emission of the right message (in this case, `Accept(Offer)` or 
+`TentativelyReject(Offer)`).
 
-Some behaviors might have parameters that are relevant to the behavior 
-itself that could be passed in as part of the trigger. For example, if you are triggering a
-"Prioritize Case" behavior, you might want to include data about the case 
-that is relevant to the prioritization process (e.g., SSVC decision point 
-value selections, CVSS vector elements, etc.) that would be used as part of the prioritization logic.
+By analogy, if we're going to have triggerable "Accept(Offer(Report))" and 
+"TentativelyReject(Offer(Report))" behaviors, then we will also need to have a 
+triggerable "Reject(Offer(Report))" behavior as well, which would be the  
+"hard close" option mentioned in the side note below.
 
-Beyond that, there 
-is probably often an opening for some sort of note or content to be included 
-as part of the trigger, which could be used to populate the content of an 
-activity that might be generated as part of the behavior. For example, if 
-you are triggering "Defer Case", you might want to include a note about why 
-you are deferring the case, which would then be included in the 
-`Ignore` activity that gets sent to the case (and likely relayed to other 
-participants). 
+### Side note: Refining the report validation behavior structure
 
-> 3. **Relationship to BT-08**: `specs/behavior-tree-integration.md` BT-08-001
-   says the system MAY provide a CLI interface for BT execution. The trigger
-   API could serve as the canonical entry point for both HTTP and CLI
-   invocation.
+The report validation behavior does not currently have a "hard 
+close" option that would result in a `Reject(Offer)` message being emitted,
+but the protocol implementation does, so we should split the "D" branch of 
+the diagram (and update text correspondingly) in `rm_validation_bt.md` to 
+have a short branch where there a question of whether to "strong 
+invalidate/hard close/reject" or "soft invalidate/tentatively reject". The 
+change would also affect the "C" branch, because in a sense, both "evaluate 
+credibility" and "evaluate validity" should produce some sort of data that 
+is then evaluated against a policy to determine whether the resulting action 
+is to accept, tentatively reject, or reject. Part of that evaluation might 
+include some analyst notes as well as some flags like "credible: true/false"
+and "valid: true/false" that are then fed into a policy engine that 
+determines the resulting action. It seems likely that those might not be 
+purely binary values, but might have one or two intermediate levels as well. 
+This is a refinement of the simpler model described in the documentation.
 
-This is a good point, and a great idea. The more parity between the CLI and 
-API interfaces, the better, as it also serves Priority 1000: Agentic AI 
-readiness.
+### Side effects of triggerable behaviors
 
-> 4. **Overlap with existing handlers**: `validate_report`, `engage_case`, and
-   `defer_case` already exist as inbound message handlers. The trigger API
-   would be the *outgoing* counterpart — the local actor deciding to initiate
-   the behavior rather than reacting to a message.
+Although in the diagram and docs it might look like "emit RV" is a simple 
+matter of sending a single message, note from elsewhere in the docs that 
+validating a report has side effects as consequences like creating 
+instantiating a case object, linking the reporter and receiver as 
+participants to the case (receiver as owner), creating and 
+attaching a CaseActor to it, triggering embargo resolution if not already 
+complete, and so on. So the "mark as valid" behavior that would replace 
+"emit RV" will need to be more complex than just sending a message, but it 
+can still be modeled as a behavior tree with appropriate structure to cause 
+those side effects to happen as well (think pre-condition checks, tasks to 
+do things, post-condition checks to ensure that things happened, etc.) This 
+caveat will be true of all such "emit FOO" replacements with triggerable behaviors,
+because the original diagrams are simplified and do not show all the side  
+effects that are described in the text of the documentation. So when we  
+implement triggerable behaviors to replace "emit FOO" nodes, we will need  
+to make sure that we capture all the relevant side effects in the structure  
+of the behavior tree for that behavior, even if they are not explicitly  
+shown in the original diagrams. (Code, notes, specs, docs and diagrams are 
+all sources of truth, and they all need to be aligned, but they all have different
+levels of detail and abstraction.)
 
-Right. For maintainability, it might be necessary to rename some existing 
-handlers to make it clear that they are receiving inbound messages rather 
-than serving as generic trigger points. Naming conventions will need to be 
-documented as part of the design process. Perhaps as simple as 
-`handle_validate_report` vs `trigger_validate_report` or something like that.
-The key is to make it clear in the name and documentation that one is an inbound
-message handler and the other is a generic trigger point that could be invoked
-by an API or CLI.~~
+### Prioritization behavior
 
-## ~~Clarify the design between API 1 and API 2~~
+Again, when we look closer at 
+`docs/topics/behavior_logic/rm_prioritization_bt.md`, we see the same 
+categories of nodes: condition checks, evaluation tasks, and execution tasks.
+Condition checks can be implemented as direct API calls that return boolean  
+values, and execution tasks (emit RA, emit RD) can be implemented as 
+triggerable behaviors. 
 
-> **Captured in**: `notes/codebase-structure.md`
-> "API Layer Architecture (Future Refactoring)"
+"gather info" is rather generic and at present likely represents an external 
+process that is just running continuously, which would make the "no new 
+info" box turn into a condition check.
 
-~~We've been treating the two different APIs as if they were versions when in 
-fact, they are more like layers. The V2 API is intended to be serving 
-activity, pub, box, and outbox in active that level, whereas the V1 API is 
-intended to provide examples, and also to provide backend services. Probably 
-need to split it into three layers where there's an examples layer, a 
-backend services layer, and an activitypub layer. We might want to move away 
-from the "API 1" and "API 2" naming convention to something that reflects the
-layered nature of the architecture more clearly. For example, we could have
-- `vultron.api.examples` for the examples layer
-- `vultron.api.backend` for the backend services layer
-- `vultron.api.activitypub` for the ActivityPub layer
-Backend would fit things like the triggerable events pieces as 
-well as the database checks that the demos use.
-Because we are still in prototype mode we don't really need to preserve the 
-old routes for all of these things to different as long as we make sure that 
-all of the tests are adapted and we do not break anything on the way.~~
+The "evaluate priority" node is expected to turn into a callout to a 
+yet-unspecified behavior that will collect known information about the case, 
+pass it to a series of SSVC evaluators that select decision 
+point values (e.g., potential prompt to a human or LLM evaluator: "Given the 
+information from the 
+case, 
+answer the following 
+decision points as multiple choice questions and provide your answers. 
+Deselect answers that can be ruled out by the information in the case, 
+select answers that can be supported by information in the case. If you 
+can't rule out an answer, select it. Explain your reasoning for your choices.
+"). Then after the value selection has happened, an SSVC `DecisionTable` is 
+applied to the selected values, and a prioritization outcome is produced. 
+The simplified version of Vultron that we have in the documentation only 
+discriminates on a binary outcome of "act" or "defer" (act is sometimes 
+labeled as "accept" but we might need to avoid that to minimize confusion 
+with the "accept offered report" activity). However, an actual SSVC based 
+prioritization can have more than two outcomes. But for the prototype we can 
+simplify our assumption to "defer" vs (anything else is equivalent to) "act",
+which is basically captured in the "priority is not defer?" condition check 
+in the current diagram.
 
-## ~~Each actor may maintain their own copy of the Case object, but the CaseOwner's copy is authoritative~~
+The "accept" and "defer" nodes in the diagram are there as placeholders for 
+local processes that might create side effects in internal systems. So they 
+aren't really implementable here yet, they can just have a "always succeed" 
+behavior that represents the fact that they are basically no-ops in the current implementation, but they are there to represent the fact that in a more complete 
+implementation and are placeholders for callback hooks later.
 
-> **Captured in**: `notes/activitystreams-semantics.md`
-> "Case State Update Path and CaseActor Authoritativeness"
+As above, the "emit RA" and "emit RD" nodes can become triggerable behaviors,
+and probably named "mark case as active" or "mark case as deferred" for 
+names (follow naming conventions as appropriate)
 
-~~If an actor updates something on a case, they should send it to the CaseActor to
-update the case, and then updates can be emitted from the CaseActor to the
-participants of the case. So the update path for a local cache of the case would
-be
-`Actor -> CaseActor -> Case is updated -> CaseActor broadcasts changes to participants -> Actor receives update -> Actor updates local cache of the case`.
-Updates should be authenticated to be arriving from the CaseActor before being
-treated as authoritative.~~
+### Close report behavior
 
-## ~~CVD action rules applied to Cases~~
+We have a "close report" behavior in 
+`docs/topics/behavior_logic/rm_closure_bt.md`, and like "accept" and "defer" 
+above, has a "close report" node that is really a placeholder for local 
+processes to be determined. These placeholder nodes should emit log events 
+when executed.
 
-> **Captured in**: `specs/case-management.md` (CM-07-001 through CM-07-003)
-> and `specs/agentic-readiness.md` (AR-07-001, AR-07-002).
+The "close criteria met" evaluation is underspecified and might represent a 
+local policy evaluation based on facts of the case including case state, 
+embargo state, etc. But it likely also requires some judgment regarding the 
+state of the case based on the semantic content of the case history and 
+notes. (E.g., "has the case been resolved? Is there any indication that the  
+case is still active?").
 
-~~`docs/topics/other_uses/action_rules.md` contains a table of "cvd action rules"
-that give suggestions of actions an actor in a particular role within a case
-might take when a case is in a particular context. These should be made
-accessible via an API so that Actors who are Participants in a Case (note that
-Participant wrappers also indicate case roles) can retrieve a menu of potential
-actions to take given the current state of the case overall and their particular
-status. This will help to prepare the way for Agents to interact with cases for
-future automation purposes.~~
 
-## ~~Relationships between Reports, Cases, Publications, and Vulnerability records~~
+### Embargo Management Behaviors
 
-> **Captured in**: `specs/case-management.md` (CM-05-001 through CM-05-007).
+Many of the condition checks in the EM tree are mechanical value checks.
 
-~~Although often thought of as a one-to-one relationship, a report might describe
-more than one vulnerability.
-Similarly, case owners might group reports together into a single case for
-handling because maybe the reports share significant overlap in their
-participant pools.
-Published documents about vulnerabilities might include more than one
-vulnerability in the same report. Typically a publication is done at the case
-level, but it is also possible that multiple publications could arise from the
-same case. Vulnerability records are usually created within the course of the
-coordination process, and will follow "counting rules" like those established by
-the CVE program under its guidance for CVE Numbering Authorities. So while, in
-general, one report leads to one case, one vulnerability, and one publication,
-the system must be able to accomodate situations where there are potentially
-multiples of each.
+Some are judgment calls: "stop trying?", "current terms ok?" — these are 
+questions to pose to a cognitive agent (human or LLM) that would be 
+evaluating them in the context of the case and its history, along with the 
+history of the participants and general experience in handling similar cases.
+Some reporters or vendors might be more or less cooperative, or perhaps 
+there are other constraints that make it more or less likely that an embargo 
+agreement can be reached with them. Later elements in child trees like 
+"willing to counter?" are of the same nature.
 
-Multiple reports may arrive from different sources about the same
-vulnerabilities, and these would typically be added to a single case. Also,
-during the course of coordinating a case, it may become evident that there are
-multiple issues at play. These could be refined into additional reports (e.g.,
-CSAF documents) that could be shared with participants, or perhaps result in
-multiple vulnerability records being created.
+The "chunky" parts of the embargo management tree are "terminate", 
+"evaluate", "propose" and "reject".
 
-What should be maintained is that a Case has at least one report. A case should
-also associate to at least one vulnerability. Cases can have zero publications.
+#### Evaluate Embargo
 
-The original vultron documentation was not sufficiently clear on the distinction
-between Reports and Cases, and does not even mention the potential for
-Vulnerability Records to be distinct from both. We will need to rectify this in
-the course of developing the prototype. Other coordination systems like VINCE
-make this distinction by having different objects to represent reports received,
-cases being handled, and vulnerability records (for identification) associated
-with each through the case object. Vultron will need to do something similar.~~
+"evaluate" in `docs/topics/behavior_logic/em_bt.md` is expanded in 
+`docs/topics/behavior_logic/em_evaluation_bt.md`, and it has similar 
+components. "emit EA" may have side effects (enumerate these in notes, specs,
+and docs as appropriate). The "Action" nodes are:
 
-## ~~Consider a standard format for describing default embargo policies as part of an Actor profile~~
+- evaluate
+- accept
+- propose
 
-> **Captured in**: `specs/embargo-policy.md` (EP-01 through EP-03) and
-> `notes/do-work-behaviors.md` ("Prior Art and References (Embargo Policy)").
+"evaluate" is part mechanical evaluation: does the proposed embargo meet the 
+the policy criteria (note we have not yet defined how to express embargo 
+policies). Does it have a valid end date? Is that date within an acceptable 
+timeframe? 
+And part judgment: is the justification for the embargo reasonable? Is the
+proposed embargo duration appropriate given the circumstances? Is it 
+commensurate with the case (are they asking for four years of embargo for a 
+simple fix? are they asking for 2 days of embargo for a critical 
+multi-vendor implementation that will require standards bodies to coordinate 
+in order to resolve?) Does it generally follow the good practices outlined in 
+`docs/topics/process_models/em/*.md`? 
 
-~~This would basically be some sort of API-accessible record associated with an
-Actor that you could request and it would include the Actor ID, where their
-reporting endpoint (an inbox, presumably) is, their default embargo policy (
-e.g., "we expect minimum 90 days and will refuse anything less", "we will only
-agree to 7 days max", "we prefer minimum 45 days but will consider shorter",
-etc. See `docs/topics/process_models/em/defaults.md` for additional details on
-the core concepts. The format for embargo descriptions is at present
-unspecified, but there might be related work in the community (bug bounty or
-vulnerability disclosure policy formalism like disclose.io that could be
-relevant here.)
+The mechanical part can be implemented as a straightforward behavior tree.
 
-references:
+The judgement part could be another placeholder to ask for help from a human 
+or LLM evaluator, with a prompt that provides the relevant context (case, 
+plus questions like those above).
 
-- some earlier thoughts on disclosure policy formalism and Vultron in
-  `docs/topics/other_uses/policy_formalization.md`, implementation has likely
-  drifted somewhat from this initial take on it.
-- <https://www.rfc-editor.org/rfc/rfc9116> describes components for
-  `security.txt` files
-- <https://github.com/disclose/diosts/blob/252e5b9c8375e4d368af04b7b38bdfa0395b0d34/internal/pkg/discloseio/discloseio.go>
-  has a data structure for a directory of disclosure programs
-- <https://github.com/disclose/dioterms/tree/master/core-terms> has example
-  disclosure policy terms~~
 
-## ~~Vulnerability Discovery Behavior is out of scope for the system~~
+#### Propose Embargo
 
-> **Captured in**: `notes/do-work-behaviors.md`
-> "Out of Scope: Vulnerability Discovery".
+Continuing an emergent theme, there are condition checks, evaluation tasks, 
+and execution tasks in the "propose embargo" behavior as well.
+Emit EV, Emit EP are things that may have side effects (consult the rest of 
+the documentation to find those). EM and CS state checks are straightforward 
+condition checks. "Select terms" might be a judgment call, but it can be 
+stubbed out as an "apply default policy" (see discussion of default policies 
+in `docs/topics/process_models/em/defaults.md`) followed by a placeholder 
+that could allow "customize defaults" but be stubbed out as a no-op for the 
+prototype (again, placeholders should log when executed to show that they're 
+happnening).
 
-~~The vulnerability discovery behavior found in `vuldisco_bt.md` is out of scope for
-Vultron prototype implementation. The system does not need to discover
-vulnerabilities, nor does it need to model that process. It is sufficient for
-the system to receive a report of a vulnerability that has been admitted by
-another actor report. Submission process is effectively the starting point for
-all new interactions with reports and vulnerability cases so there is nothing to
-complement in the system, even though the documentation does contain a behavior
-tree for vulnerability discovery behavior~~
+**Documentation bug:** There is a typo in the `mkdocs.yml` where "Propose 
+Embargo Behavior" is misspelled as "Propse Embargo Behavior". This should be 
+fixed in the navigation (filename is okay: `em_propose_bt.md`).
 
-## ~~Future Demo Ideas~~
+#### Terminate Embargo
 
-> **Captured in**: `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-300
-> (D5-2 through D5-5) and `plan/PRIORITIES.md` Priority 300.
+"other reason?" is a judgment call. "Emit ET" and "emit ER" are execution 
+tasks that may have side effects. "timer expired?" is a condition check that 
+can directly query the current time against the embargo end date in the case.
 
-~~Demos we are going to want to have in the future:
+"exit embargo" is another local process placeholder that is there for a 
+callback hook to trigger external processes in the future.
 
-1. Two actors, a finder and vendor, running in separate containers, 
-   communicating through the Vultron Protocol. Finder reports vulnerability to 
-   Vendor, and Finder proposes embargo, vendor accepts report, accepts embargo 
-   creates case, adds report and embargo to case, adds finder as case 
-   participant, adds two vulnerabilities to the case based on the report. 
-   They exchange a few messages back and forth, maybe including a draft CVE 
-   record or something like that. This will be a good demo for showing the basic
-    Vultron Protocol interactions and the behavior tree implementation.
-2. A three-actor demo (finder, vendor, coordinator). Finder reports to 
-   coordinator. Coordinator creates case, adds finder as participant. 
-   Coordinator has a default embargo policy that it applies to all cases. 
-   Coordinator proposes embargo to finder, finder accepts. Coordinator adds 
-   embargo to case. Coordinator invites Vendor to case, vendor tentatively 
-   rejects (invalidates the report) with a message back to the Coordinator 
-   asking a question. The Coordinator relays the question to the Finder. 
-   Finder responds to Coordinator, Coordinator replies to vendor with the 
-   Finder's response. Vendor accepts the report and the embargo and becomes 
-   a participant in the case. A few messages are exchanged between the three 
-   actors within the context of the case, including a draft CVE record that 
-   they refine together. The Vendor announces to the case that they have 
-   published, which triggers a case status update reflecting public 
-   awareness. Finder reports they have published as well. Then the 
-   coordinator closes the case.
-3. A demo in which the process initially looks like scenario 1 above and an 
-   embargo is established, but 
-   then the vendor realizes they need the assistance of a coordinator to get 
-   more vendors engaged. They offer the coordinator the opportunity to take 
-   over the case, and the coordinator accepts. The coordinator becomes the 
-   new case owner, and the original finder and vendor remain participants. 
-   The coordinator then invites two more vendors to the case with the 
-   existing embargo. They accept and become participants. One of the added 
-   vendors asks for the embargo to be extended, which triggers a discussion 
-   between the participants, and they agree to extend the embargo in 
-   principle. The coordinator triggers the case actor to propose a new 
-   embargo with the agreed to terms. Participants agree to the new embargo. 
-   They exchange a few more messages, the coordinator creates a CVE record 
-   and distributes it for refinement. Coordinator and Finder announce 
-   publication, followed quickly by the original vendor and the two added vendors.
-   The coordinator then closes the case.
-   
-Each of these demos would need to show actors running in independent 
-containers, communicating through the Vultron Protocol, with the CaseActor 
-managing the case state and enforcing the rules around who can do what within the case.
-CaseActor is probably also a "spin up on demand" container that gets 
-instantiated when a case is created.~~
 
-## ~~Notes on Per-Actor DataLayer Isolation Options~~
+### Assign CVE ID behavior
 
-> **Captured in**: `notes/domain-model-separation.md`
-> "Per-Actor DataLayer Isolation Options" — includes Options A, B, C
-> analysis, recommendation for Option B (with multi-tenant and production
-> database rationale), and dependency injection guidance.
+`docs/topics/behavior_logic/id_assignment_bt.md` has a simplified tree based 
+on the CNA assignment rules, and some of its condition checks can be 
+implemented as lookups on a case ("id assigned?"). Some are about the actor 
+("is CNA?"). Others might be judgment calls or evaluations against a rule 
+set ("in scope?", "assignable?") CNA rules are defined in "4.1 Vulnerability 
+Determination" https://www.cve.org/resourcessupport/allresources/cnarules#section_4_CNA_Operational_Rules"
+The rules defined there can likely be built into a series of question and 
+answers that lead the evaluator through the decision process. This is ripe 
+for automation or at least automation assistance (e.g., prompting an 
+evaluator with the case as context, asking them to answer a series of 
+questions based on the requirements in the CNA rules)
 
-~~In `notes/domain-model-separation.md` is a section on Per-Actor DataLayer
-Isolation Options. This is commentary on that section. The underlying goal
-is that Actors have to have independent state, whether or not they are
-running in the same container or not. But we also need to assume that
-different containers can be connected to different databases. For example, a
-vulnerability disclosure provider might have a single multi-tenant
-backing store that they connect to from multiple containers that provide
-Actor instances for individual customers. A vendor might have their own
-Vultron instance in which they operate their "Vendor Actor" along with
-perhaps a pool of on-demand CaseActor containers, all connected to a
-vendor-specific backing store. A coordinator might do the same. So we have
-to assume that Actors are independent both in terms of their in-memory state
-and their backing store. TinyDB was chosen as a simple starting point
-because it was a minimal change from using in-memory dicts, but it was never
-intended to be a long-term production solution. It would be fine if for
-protoype demo purposes we made it so that different Actors had different
-backings stores, each as a TinyDB file, but just remember that the real idea
-we want is that actors are completely isolated from each other and can only
-communicate through the front-end passing of ActivityStreams messages
-between inboxes. This seems to rule out Option C as outlined in the notes,
-since that would be in-memory only. Options A or B are both viable for the
-prototype, but it seems like Option B is closer to the real long-term vision,
-and something you would implement if you were using a more robust database
-like MongoDB as the backing store, so it is likely the easiest to adapt in
-the future when we are on the road to production.~~
- 
+### Identify Participants Behavior
+
+Although this is a judgment call, it's one that is informed by understanding 
+the case/report and who the affected parties are. So it's something that can 
+become a human-in-the-loop behavior or could be an LLM-assisted behavior 
+where the LLM is prompted to suggest potential participants based on the 
+case information, and then a human can review and confirm or modify the 
+suggestions. Note that the "suggest new participant" process is already 
+supported semantically within the protocol, so there's the potential for a 
+sort of agent whose job is to evaluate a case, look up potential participant 
+contacts, and propose participants to the case. Then the normal case owner 
+accept/reject of those proposals can be used to in turn trigger invitations 
+to the accepted suggestions.
+
+### Notify Others Behavior
+
+This process seems pretty straightforward to automate as behaviors. The 
+"recipient policy compatible?" condition check is really a policy comparison 
+to the existing case embargo (if any). (In fact, it would be easier for the 
+process to require that an embargo be established on the case before the 
+notify others behavior starts.) "effort limit exceeded?" is a judgment call 
+that could reflect a policy, but can be stubbed as another no-op placeholder.
+
+The "send report" at this level is not so much about `Offer(Report)` as it 
+is about `Invite(Actor,Case)`. Note that the embargo resolution thing needs 
+to be hammered out first before the `Invite` is sent though, because we 
+don't want to invite Actors to cases when they have not yet agreed to the 
+embargo terms. However, that could be as simple as inviting them to a case 
+with their acceptance of the embargo implied as their acceptance of the 
+invitation. That means that any version of the case shared pre-embargo 
+agreement would need to not include the full report or case history details 
+including any discussion among prior participants UNTIL such time as the 
+invitation is accepted. This might imply the need for a secondary 
+"invitation-ready case object" that is a stripped down version of the case 
+that can be shared with potential participants to allow them to evaluate the 
+case and the embargo terms before accepting, and then once they accept, they
+get added as a participant to the full case. 
+
+Side note: The paragraph above also implies the potential need for 
+VulnerabilityCase objects to track embargo acceptance at a per-participant 
+level. This could be an addition to the Participant Status object that is 
+already there. Since cases can have a series of embargos over time (but only 
+one active at a time), it might be useful to track which embargos a 
+participant has explicitly accepted and ensure they have always accepted the 
+latest one. If they've accepted previously but have not yet accepted the 
+latest one, they might need to accept the new one before receiving any 
+further updates to the case. This refinement could also address the some of 
+the items in VP-05-* about participants signaling their intent to comply 
+with embargoes.
+
+
+
+The rest of the process is basically a loop iterator ("for recipient in 
+recipients: ...") This could be triggered as a one-off after an individual 
+proposed participant is accepted, or could be a loop over a queue of 
+proposed participants if needed. Direct event-driven triggering of the 
+behavior (as a single iteration of the loop) is probably ideal, because it 
+can always be wrapped in a loop if needed, but it allows it to be triggered 
+on demand as soon as there's someone new to invite. 
+
+### Fix development behavior
+
+This is entirely underspecified in the documentation, and one version of it 
+is just that fix development happens outside of the Vultron code and reports 
+back. And this is where "create fix" might just be a placeholder. However, 
+there's also the possibility that this could plug into something that 
+automates the fix creation (feed the source code and vul report and case 
+details into the right agent and have it propose a fix). We are not trying 
+to implement automated fixes at this time, but we already recognize the 
+potential for this to be automated in the future. So we should ensure that 
+the notes reflect this potential direction.
+
+### Out of scope behaviors
+
+Don't bother with any of these "do work" behaviors for the prototype (from 
+`docs/topics/behavior_logic/do_work_bt.md`). They are all external processes 
+that are not in scope for either the prototype or initial implementation.
+
+- deployment
+- publication
+- monitor threats
+- acquire exploit
+- other work
+
+Also, the parallel node that is the parent of all these might need to be 
+rethought, because for each subnode of that parallel node (even the ones we 
+have discussed 
+here like assign CVE ID, report to others) there is probably some set of 
+preconditions that could be defined to determine when that behavior should 
+be triggered. This is one of those places where the design documentation 
+simplifies something that will likely be a bit more complex in practice, but 
+it also highlights the need to ensure that we capture the relevant 
+preconditions to trigger some of these behaviors.
+
+
+### General notes on triggerable behaviors
+
+Keep track of all the places where we've identified the need for placeholder 
+behaviors, cross reference these with the `notes/bt-fuzzer-nodes.md` items too.
+
+"emit FOO" messages (which will result in an outgoing activity) will need to 
+support inclusion of a comment / content / note with some explanation at 
+times (why are we rejecting this report? why are we proposing an embargo 
+change? why did the embargo terminate?) This should be accommodated in the 
+ActivityStreams object model, so it should be easy enough to include, but we 
+need to make sure we capture the need for this as a requirement.
+
+Note that there are more than a few "mark x as y" behaviors that can 
+implement portions of the "emit FOO" behaviors including side effects and 
+emission of appropriate messages. Look for other opportunities for similar 
+things as you review the documentation, processes, and code.
+
+The documentation in `docs/topics/behavior_logic/` is currently a simplified 
+version of the process we are actually implementing. We should be careful to 
+ensure that as the implementation process unfolds, we are capturing any 
+additional complexity or nuance that we encounter in the implementation process
+and reflecting that back in the documentation as well as in the notes and 
+specs as appropriate. Note that the files in `docs/` are meant for humans 
+and others not working on the implementation to understand the design and 
+process, while `notes/` and `specs/` are intended to capture details of use 
+to the implementers, human and machine alike. So the documentation in 
+`docs/` needs to be clear and concise but does not need to capture every 
+detail, while the notes and specs should be more comprehensive and detailed 
+to ensure that the implementation is well-informed and captures all the  
+necessary subtle details and edge cases that may not be fully reflected in 
+the higher level documentation.
