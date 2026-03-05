@@ -1,9 +1,17 @@
 # Project Ideas
 
-## More thoughts on triggerable behaviors
+## ~~More thoughts on triggerable behaviors~~
 
-Looking at the Report Management Behavior Tree (`docs/topcis/behavior_logic/rm_bt.md`),
-the things that stand out at first glance as triggerable behaviors include:
+> **Captured in:** `notes/triggerable-behaviors.md` (BT Node Classification,
+> Three-Way Report Validation, Side Effects, SSVC Prioritization, Per-Behavior
+> Design Notes, Placeholder Behaviors, Additional Candidate Behaviors,
+> Invitation-Ready Case Object, Per-Participant Embargo Acceptance Tracking);
+> `specs/triggerable-behaviors.md` (TB-02-001 reject-report, TB-02-003
+> additional candidates, TB-03-001 offer_id, TB-03-003 note field);
+> `mkdocs.yml` (typo fix).
+
+~~Looking at the Report Management Behavior Tree (`docs/topcis/behavior_logic/rm_bt.md`),
+the things that stand out at first glance as triggerable behaviors include:~~
 
 - validate
 - close
@@ -44,10 +52,12 @@ By analogy, if we're going to have triggerable "Accept(Offer(Report))" and
 triggerable "Reject(Offer(Report))" behavior as well, which would be the  
 "hard close" option mentioned in the side note below.
 
-### Side note: Refining the report validation behavior structure
+### ~~Side note: Refining the report validation behavior structure~~
 
-The report validation behavior does not currently have a "hard 
-close" option that would result in a `Reject(Offer)` message being emitted,
+> **Captured in:** `notes/triggerable-behaviors.md` "Three-Way Report Validation"
+
+~~The report validation behavior does not currently have a "hard
+close" option that would result in a `Reject(Offer)` message being emitted,~~
 but the protocol implementation does, so we should split the "D" branch of 
 the diagram (and update text correspondingly) in `rm_validation_bt.md` to 
 have a short branch where there a question of whether to "strong 
@@ -62,9 +72,11 @@ determines the resulting action. It seems likely that those might not be
 purely binary values, but might have one or two intermediate levels as well. 
 This is a refinement of the simpler model described in the documentation.
 
-### Side effects of triggerable behaviors
+### ~~Side effects of triggerable behaviors~~
 
-Although in the diagram and docs it might look like "emit RV" is a simple 
+> **Captured in:** `notes/triggerable-behaviors.md` "Side Effects of Emit FOO Behaviors"
+
+~~Although in the diagram and docs it might look like "emit RV" is a simple~~ 
 matter of sending a single message, note from elsewhere in the docs that 
 validating a report has side effects as consequences like creating 
 instantiating a case object, linking the reporter and receiver as 
@@ -85,9 +97,12 @@ shown in the original diagrams. (Code, notes, specs, docs and diagrams are
 all sources of truth, and they all need to be aligned, but they all have different
 levels of detail and abstraction.)
 
-### Prioritization behavior
+### ~~Prioritization behavior~~
 
-Again, when we look closer at 
+> **Captured in:** `notes/triggerable-behaviors.md` "SSVC-Based Prioritization"
+> and "Placeholder Behaviors and Logging"
+
+~~Again, when we look closer at~~ 
 `docs/topics/behavior_logic/rm_prioritization_bt.md`, we see the same 
 categories of nodes: condition checks, evaluation tasks, and execution tasks.
 Condition checks can be implemented as direct API calls that return boolean  
@@ -130,9 +145,11 @@ As above, the "emit RA" and "emit RD" nodes can become triggerable behaviors,
 and probably named "mark case as active" or "mark case as deferred" for 
 names (follow naming conventions as appropriate)
 
-### Close report behavior
+### ~~Close report behavior~~
 
-We have a "close report" behavior in 
+> **Captured in:** `notes/triggerable-behaviors.md` "Placeholder Behaviors and Logging"
+
+~~We have a "close report" behavior in~~ 
 `docs/topics/behavior_logic/rm_closure_bt.md`, and like "accept" and "defer" 
 above, has a "close report" node that is really a placeholder for local 
 processes to be determined. These placeholder nodes should emit log events 
@@ -146,9 +163,11 @@ notes. (E.g., "has the case been resolved? Is there any indication that the
 case is still active?").
 
 
-### Embargo Management Behaviors
+### ~~Embargo Management Behaviors~~
 
-Many of the condition checks in the EM tree are mechanical value checks.
+> **Captured in:** `notes/triggerable-behaviors.md` "Per-Behavior Design Notes"
+
+~~Many of the condition checks in the EM tree are mechanical value checks.~~
 
 Some are judgment calls: "stop trying?", "current terms ok?" — these are 
 questions to pose to a cognitive agent (human or LLM) that would be 
@@ -162,9 +181,11 @@ agreement can be reached with them. Later elements in child trees like
 The "chunky" parts of the embargo management tree are "terminate", 
 "evaluate", "propose" and "reject".
 
-#### Evaluate Embargo
+#### ~~Evaluate Embargo~~
 
-"evaluate" in `docs/topics/behavior_logic/em_bt.md` is expanded in 
+> **Captured in:** `notes/triggerable-behaviors.md` "Embargo Evaluation"
+
+~~"evaluate" in `docs/topics/behavior_logic/em_bt.md` is expanded in~~ 
 `docs/topics/behavior_logic/em_evaluation_bt.md`, and it has similar 
 components. "emit EA" may have side effects (enumerate these in notes, specs,
 and docs as appropriate). The "Action" nodes are:
@@ -192,9 +213,12 @@ or LLM evaluator, with a prompt that provides the relevant context (case,
 plus questions like those above).
 
 
-#### Propose Embargo
+#### ~~Propose Embargo~~
 
-Continuing an emergent theme, there are condition checks, evaluation tasks, 
+> **Captured in:** `notes/triggerable-behaviors.md` "Embargo Proposal";
+> `mkdocs.yml` (typo fix applied).
+
+~~Continuing an emergent theme, there are condition checks, evaluation tasks,~~ 
 and execution tasks in the "propose embargo" behavior as well.
 Emit EV, Emit EP are things that may have side effects (consult the rest of 
 the documentation to find those). EM and CS state checks are straightforward 
@@ -209,9 +233,11 @@ happnening).
 Embargo Behavior" is misspelled as "Propse Embargo Behavior". This should be 
 fixed in the navigation (filename is okay: `em_propose_bt.md`).
 
-#### Terminate Embargo
+#### ~~Terminate Embargo~~
 
-"other reason?" is a judgment call. "Emit ET" and "emit ER" are execution 
+> **Captured in:** `notes/triggerable-behaviors.md` "Embargo Termination"
+
+~~"other reason?" is a judgment call. "Emit ET" and "emit ER" are execution~~ 
 tasks that may have side effects. "timer expired?" is a condition check that 
 can directly query the current time against the embargo end date in the case.
 
@@ -219,9 +245,12 @@ can directly query the current time against the embargo end date in the case.
 callback hook to trigger external processes in the future.
 
 
-### Assign CVE ID behavior
+### ~~Assign CVE ID behavior~~
 
-`docs/topics/behavior_logic/id_assignment_bt.md` has a simplified tree based 
+> **Captured in:** `notes/triggerable-behaviors.md` "CVE ID Assignment";
+> `specs/triggerable-behaviors.md` TB-02-003.
+
+~~`docs/topics/behavior_logic/id_assignment_bt.md` has a simplified tree based~~ 
 on the CNA assignment rules, and some of its condition checks can be 
 implemented as lookups on a case ("id assigned?"). Some are about the actor 
 ("is CNA?"). Others might be judgment calls or evaluations against a rule 
@@ -233,9 +262,12 @@ for automation or at least automation assistance (e.g., prompting an
 evaluator with the case as context, asking them to answer a series of 
 questions based on the requirements in the CNA rules)
 
-### Identify Participants Behavior
+### ~~Identify Participants Behavior~~
 
-Although this is a judgment call, it's one that is informed by understanding 
+> **Captured in:** `notes/triggerable-behaviors.md` "Identify Participants";
+> `specs/triggerable-behaviors.md` TB-02-003.
+
+~~Although this is a judgment call, it's one that is informed by understanding~~ 
 the case/report and who the affected parties are. So it's something that can 
 become a human-in-the-loop behavior or could be an LLM-assisted behavior 
 where the LLM is prompted to suggest potential participants based on the 
@@ -247,9 +279,13 @@ contacts, and propose participants to the case. Then the normal case owner
 accept/reject of those proposals can be used to in turn trigger invitations 
 to the accepted suggestions.
 
-### Notify Others Behavior
+### ~~Notify Others Behavior~~
 
-This process seems pretty straightforward to automate as behaviors. The 
+> **Captured in:** `notes/triggerable-behaviors.md` "Notify Others",
+> "Invitation-Ready Case Object", "Per-Participant Embargo Acceptance Tracking";
+> `specs/triggerable-behaviors.md` TB-02-003, TB-03-001.
+
+~~This process seems pretty straightforward to automate as behaviors. The~~ 
 "recipient policy compatible?" condition check is really a policy comparison 
 to the existing case embargo (if any). (In fact, it would be easier for the 
 process to require that an embargo be established on the case before the 
@@ -293,9 +329,12 @@ behavior (as a single iteration of the loop) is probably ideal, because it
 can always be wrapped in a loop if needed, but it allows it to be triggered 
 on demand as soon as there's someone new to invite. 
 
-### Fix development behavior
+### ~~Fix development behavior~~
 
-This is entirely underspecified in the documentation, and one version of it 
+> **Captured in:** `notes/do-work-behaviors.md` "Fix Development: Automation
+> Potential and Future Direction".
+
+~~This is entirely underspecified in the documentation, and one version of it~~ 
 is just that fix development happens outside of the Vultron code and reports 
 back. And this is where "create fix" might just be a placeholder. However, 
 there's also the possibility that this could plug into something that 
@@ -305,9 +344,12 @@ to implement automated fixes at this time, but we already recognize the
 potential for this to be automated in the future. So we should ensure that 
 the notes reflect this potential direction.
 
-### Out of scope behaviors
+### ~~Out of scope behaviors~~
 
-Don't bother with any of these "do work" behaviors for the prototype (from 
+> **Captured in:** `notes/do-work-behaviors.md` "Not Implementable Inside Vultron"
+> and "Do-Work Parallel Node: Preconditions".
+
+~~Don't bother with any of these "do work" behaviors for the prototype (from~~ 
 `docs/topics/behavior_logic/do_work_bt.md`). They are all external processes 
 that are not in scope for either the prototype or initial implementation.
 
@@ -328,9 +370,13 @@ it also highlights the need to ensure that we capture the relevant
 preconditions to trigger some of these behaviors.
 
 
-### General notes on triggerable behaviors
+### ~~General notes on triggerable behaviors~~
 
-Keep track of all the places where we've identified the need for placeholder 
+> **Captured in:** `notes/triggerable-behaviors.md` (Placeholder Behaviors,
+> Side Effects, "mark x as y" pattern); `specs/triggerable-behaviors.md`
+> TB-03-003 (note field requirement).
+
+~~Keep track of all the places where we've identified the need for placeholder~~ 
 behaviors, cross reference these with the `notes/bt-fuzzer-nodes.md` items too.
 
 "emit FOO" messages (which will result in an outgoing activity) will need to 
