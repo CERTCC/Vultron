@@ -45,13 +45,21 @@ them; a complete implementation requires both reactive and triggerable sides.
 - `TB-02-001` The following RM behaviors SHOULD be individually
   triggerable via the trigger API:
 
-  | `behavior-name`    | BT reference           | Description |
-  |--------------------|------------------------|-------------|
-  | `validate-report`  | `rm_validation_bt.md`  | Actor validates a held report |
-  | `invalidate-report`| `rm_validation_bt.md`  | Actor invalidates a held report |
-  | `engage-case`      | `rm_prioritization_bt.md` | Actor engages with a case |
-  | `defer-case`       | `rm_prioritization_bt.md` | Actor deprioritizes a case |
-  | `close-report`     | `rm_closure_bt.md`     | Actor closes a report |
+  | `behavior-name`        | BT reference              | Description |
+  |------------------------|---------------------------|-------------|
+  | `validate-report`      | `rm_validation_bt.md`     | Actor accepts the offered report (soft-valid path) |
+  | `invalidate-report`    | `rm_validation_bt.md`     | Actor tentatively rejects the offered report |
+  | `reject-report`        | `rm_validation_bt.md`     | Actor hard-closes the offered report (Reject) |
+  | `engage-case`          | `rm_prioritization_bt.md` | Actor engages with a case |
+  | `defer-case`           | `rm_prioritization_bt.md` | Actor deprioritizes a case |
+  | `close-report`         | `rm_closure_bt.md`        | Actor closes a report |
+
+  **Note**: Report validation has three distinct outcomes —
+  `Accept(Offer(Report))`, `TentativelyReject(Offer(Report))`, and
+  `Reject(Offer(Report))` — corresponding to `validate-report`,
+  `invalidate-report`, and `reject-report` respectively. See
+  `notes/triggerable-behaviors.md` for details on the three-way split
+  and its implications for documentation updates to `rm_validation_bt.md`.
 
 ---
 
@@ -68,16 +76,36 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ---
 
+## Additional Candidate Behaviors (MAY)
+
+- `TB-02-003` The following additional behaviors MAY be individually
+  triggerable via the trigger API in a later phase:
+
+  | `behavior-name`          | BT reference                  | Description |
+  |--------------------------|-------------------------------|-------------|
+  | `notify-actor`           | `report_to_others_bt.md`      | Actor invites a new participant to a case |
+  | `assign-cve-id`          | `id_assignment_bt.md`         | Actor assigns or records a CVE ID for a case |
+  | `identify-participants`  | `identify_participants_bt.md` | Actor identifies potential new participants |
+
+---
+
 ## Request Body (MUST)
 
 - `TB-03-001` The trigger endpoint request body MUST be a JSON object
   containing sufficient context to identify the target report or case:
   - Report-scoped behaviors (`validate-report`, `invalidate-report`,
-    `close-report`): MUST include `report_id`
+    `reject-report`, `close-report`): MUST include `offer_id`; MAY include
+    `report_id` as a confirmation guard against acting on an offer for the
+    wrong report
   - Case-scoped behaviors (`engage-case`, `defer-case`, `propose-embargo`,
-    `evaluate-embargo`, `terminate-embargo`): MUST include `case_id`
+    `evaluate-embargo`, `terminate-embargo`, `notify-actor`,
+    `assign-cve-id`, `identify-participants`): MUST include `case_id`
 - `TB-03-002` Unknown fields in the request body MUST be ignored
   (forward-compatibility)
+- `TB-03-003` The trigger endpoint request body SHOULD support an optional
+  `note` field containing free-text content that will be embedded in the
+  outgoing ActivityStreams activity (e.g., reason for rejection, rationale
+  for embargo proposal)
 
 ---
 
@@ -140,21 +168,24 @@ them; a complete implementation requires both reactive and triggerable sides.
 ### TB-01-001, TB-01-002, TB-01-003, TB-01-004 Verification
 
 - Integration test: `POST /actors/{id}/trigger/validate-report` with
-  valid `report_id` returns HTTP 202
+  valid `offer_id` returns HTTP 202
 - Integration test: Request with unknown `actor_id` returns structured
   error per EH-05-001
 - Integration test: HTTP 202 returned before behavior execution completes
 
-### TB-02-001, TB-02-002 Verification
+### TB-02-001, TB-02-002, TB-02-003 Verification
 
 - Integration test: Each named behavior endpoint exists and accepts
   a valid request body
 - Unit test: Unrecognized `behavior-name` returns HTTP 404
 
-### TB-03-001 Verification
+### TB-03-001, TB-03-002, TB-03-003 Verification
 
 - Unit test: Request missing required context field returns HTTP 422
   (Unprocessable Entity) with field-level error
+- Unit test: Unknown fields in request body are silently ignored
+- Integration test: Trigger with `note` field embeds content in outgoing
+  activity
 
 ### TB-04-001 Verification
 

@@ -33,13 +33,65 @@ to be fully automated inside Vultron.
 |---|---|---|
 | Acquire exploit | `docs/topics/behavior_logic/acquire_exploit_bt.md` | Human-driven; system may record the result as a state transition only |
 | Monitor threats | `docs/topics/behavior_logic/monitor_threats_bt.md` | Ongoing human/external monitoring; system may accept injected notes |
-| Develop fix | `docs/topics/behavior_logic/fix_dev_bt.md` | Out of scope — Vultron coordinates but does not develop fixes |
+| Develop fix | `docs/topics/behavior_logic/fix_dev_bt.md` | Out of scope — Vultron coordinates but does not develop fixes; see below |
 | Deploy fix | `docs/topics/behavior_logic/deployment_bt.md` | Out of scope for the same reasons as fix development |
 
 Some primitives within these behaviors — such as emitting a message or
 updating case/participant status — can be exposed as API actions that a human
 or external system invokes. The system acts as a state recorder and
 coordinator, not an automation engine for these activities.
+
+### Fix Development: Automation Potential and Future Direction
+
+Fix development is entirely outside the scope of the Vultron prototype.
+In a minimally functional Vultron system, "create fix" is a placeholder
+node that always succeeds and logs an event — representing the fact that
+fix development happened externally and the result was fed back into the
+case.
+
+However, this is also an area where automated or AI-assisted fix
+generation (e.g., feeding the source code, vulnerability report, and case
+details to an AI agent to propose a fix) is an active research direction.
+Vultron is not trying to implement automated fixes, but the system SHOULD
+be designed so that the fix-development placeholder can be replaced by an
+external hook in the future without major refactoring.
+
+**Design Decision (future)**: The "create fix" node is the natural
+attachment point for a future callback hook. The placeholder implementation
+MUST log when executed so that the fix-development lifecycle event is
+visible in the audit trail.
+
+---
+
+## Do-Work Parallel Node: Preconditions
+
+The top-level "do work" behavior in `docs/topics/behavior_logic/do_work_bt.md`
+is modeled as a parallel node with several sub-behaviors (assign CVE ID,
+notify others, develop fix, deploy fix, publish, etc.). In the documentation
+this is simplified as if all sub-behaviors execute simultaneously.
+
+In practice, each sub-behavior requires its own preconditions to determine
+when it should be triggered. For example:
+
+- "assign CVE ID": requires that the case be validated, actor has CNA role,
+  and no CVE ID has been assigned yet.
+- "notify others / identify participants": requires that the case be valid
+  and that embargo terms are established or that the notification is
+  embargo-compatible.
+- "develop fix": requires that the case be validated and assigned to a
+  vendor; external trigger.
+- "deploy fix": requires that a fix exists and testing is complete; external
+  trigger.
+- "publish": requires that the embargo period has ended or been waived.
+
+As the implementation matures, each sub-behavior SHOULD have its
+preconditions explicitly defined as condition-check nodes in its BT
+sub-tree. This will also clarify which behaviors can be triggered
+programmatically and which require external input or human confirmation.
+
+**Design Decision**: Start by implementing only the sub-behaviors that are
+in scope for PRIORITY 30 (assign-cve-id, notify-actor, identify-participants).
+Leave others as named placeholder nodes.
 
 ---
 

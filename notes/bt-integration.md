@@ -210,7 +210,8 @@ before proceeding. In the simulation, they would just randomly return
 SUCCESS or FAILURE based on a stochastic model. In the prototype, we will
 need to keep track of these nodes as places where further specification may
 be needed or additional implementation work may be required to handle the
-real-world logic that these nodes represent.
+real-world logic that these nodes represent. See `bt-fuzzer-nodes.md` 
+for more discussion on this topic.
 
 **Source of truth priority** when conflicts arise:
 
