@@ -128,3 +128,49 @@ Consider creating an ADR to record the decision formally before implementation.
 - `AGENTS.md` — pitfalls for `case_activity`, `active_embargo`,
   and `case_status` (singular) field
 - `docs/adr/_adr-template.md` — template for future ADR on this separation
+
+---
+
+## Per-Actor DataLayer Isolation Options
+
+All actors currently share a singleton `TinyDbDataLayer` backed by a single
+`plan/mydb.json` file. This violates `specs/case-management.md` CM-01-001
+(actor isolation) even though demo scripts manually sequence activities to
+simulate isolation.
+
+Before implementing PRIORITY 100 (actor independence), a design decision is
+needed. Three options:
+
+**Option A — One file per actor**
+Each actor gets its own TinyDB file (e.g., `{actor_id}.json`). Simple to
+reason about, but creates many files and complicates the DataLayer reset
+endpoint used by demo scripts.
+
+**Option B — Namespace prefix per actor (one file)**
+One TinyDB file with a separate table per `actor_id`. Keeps a single file;
+partitions data cleanly by actor. **This is the recommended option.**
+
+**Rationale for Option B**: In a production database (e.g., MongoDB), you
+would naturally use a separate collection or namespace per actor. Option B
+mirrors that pattern at the TinyDB level — making migration to a robust
+backing store straightforward. It also supports the multi-tenant scenario
+where a vulnerability disclosure provider connects multiple actor containers
+to a single backing store; and the vendor scenario where all actor containers
+share a vendor-specific backing store. Option B is the path of least
+resistance to production readiness.
+
+**Option C — In-memory DataLayer per actor (no persistence)**
+A dict-backed DataLayer scoped per actor. Good for tests; insufficient for
+production or Docker demos where state must survive restarts.
+
+**Implementation note**: The `BackgroundTasks` inbox handler must resolve
+the correct per-actor DataLayer instance from the `actor_id` route parameter.
+Whichever option is chosen, the `get_datalayer` FastAPI dependency MUST
+accept an `actor_id` argument and return an isolated instance.
+
+**Dependencies**: Triggerable behavior endpoints (PRIORITY 30) also need
+per-actor DataLayer resolution. Design both features to share the same
+dependency injection mechanism.
+
+**See**: `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-100,
+`notes/triggerable-behaviors.md` "Relationship to Actor Independence".

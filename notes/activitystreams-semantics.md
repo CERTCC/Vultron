@@ -300,3 +300,38 @@ be implemented as a second `RmEngageCase` (`as:Join`) activity.
 
 **Reference**: `docs/howto/activitypub/activities/manage_case.md` ("Re-Engaging
 a Case" note), `vultron/demo/manage_case_demo.py` (`demo_defer_reengage_path`).
+
+---
+
+## Case State Update Path and CaseActor Authoritativeness
+
+Each actor MAY maintain a local copy of a `VulnerabilityCase` object for
+performance or offline use. However, the **CaseActor is the authoritative
+source of truth** for all case state updates. Local copies MUST be treated
+as cached projections, not independent sources of truth.
+
+The canonical update path when an actor modifies case-related state is:
+
+```text
+Actor → CaseActor inbox
+  → CaseActor updates canonical case state
+  → CaseActor broadcasts update to all CaseParticipants
+  → Each participant updates its local copy
+```
+
+**Consequence**: Actors MUST NOT directly accept case state updates from
+other regular actors. Updates received from any source other than the
+CaseActor MUST be ignored (or at minimum flagged for verification). This
+ensures the CaseActor remains the single coordination point and prevents
+conflicting state divergence.
+
+**Authentication note** (`PROD_ONLY`): In production, participants MUST
+authenticate that a case update originated from the CaseActor before
+treating it as authoritative (see `specs/case-management.md` CM-06-002,
+CM-06-004).
+
+**Current status**: The CaseActor broadcast is not yet implemented
+(see `specs/case-management.md` CM-06-001 and
+`plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-200).
+
+**Cross-reference**: `specs/case-management.md` CM-02-002, CM-06.

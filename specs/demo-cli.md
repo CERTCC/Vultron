@@ -6,7 +6,7 @@ Requirements for a unified demo command-line interface that aggregates all
 individual Vultron demo scripts into a single invokable entry point. Covers
 CLI structure, demo isolation, Docker packaging, and test requirements.
 
-**Source**: `plan/IDEATION.md` (Unify demos), `plan/PRIORITIES.md`
+**Source**: `plan/PRIORITIES.md` (PRIORITY 10)
 (PRIORITY 10)
 **Cross-references**: `tech-stack.md`, `testability.md`,
 `prototype-shortcuts.md`

@@ -6,8 +6,8 @@ Requirements for the format and handling of object identifiers throughout
 the Vultron system. Establishes full-URI IDs as the canonical form for all
 ActivityStreams objects and DataLayer records.
 
-**Source**: `plan/IDEATION.md` (ADR for standardizing Object ID format,
-Update codebase to use full-URI IDs), `plan/IMPLEMENTATION_PLAN.md`
+**Source**: `notes/codebase-structure.md` ("Technical Debt: Object IDs
+Should Be URL-Like, Not Bare UUIDs"), `plan/IMPLEMENTATION_PLAN.md`
 (TECHDEBT-3)
 **Cross-references**: `case-management.md`, `handler-protocol.md`,
 `behavior-tree-integration.md`

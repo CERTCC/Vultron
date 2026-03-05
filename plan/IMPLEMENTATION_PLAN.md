@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-02-27 (gap analysis refresh #10)
+**Last Updated**: 2026-03-03 (gap analysis refresh #11)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 568 passing, 5581 subtests, 0 xfailed (2026-02-26)
+**Test suite**: 592 passing, 5581 subtests, 0 xfailed (2026-03-03)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -37,7 +37,18 @@ reject_case_ownership_transfer, update_case
 
 ---
 
-## Gap Analysis (2026-02-27, refresh #10)
+## Gap Analysis (2026-03-03, refresh #11)
+
+### ✅ Phase BUGFIX-1 fully complete
+
+Root-logger side effect in `app.py` fixed (BUGFIX-1.1); spurious `print()`
+calls replaced in four test files (BUGFIX-1.2). Test output is clean.
+
+### ✅ Phase REFACTOR-1 fully complete (CM-03-006)
+
+`VulnerabilityCase.case_status` → `case_statuses` and
+`CaseParticipant.participant_status` → `participant_statuses` renames done.
+All tests pass; read-only property accessors in place.
 
 ### ✅ Phase DEMO-3 fully complete
 
@@ -49,12 +60,6 @@ in `docker/docker-compose.yml`.
 
 All 19 tasks (DEMO-4.1–4.19) are done. See `plan/IMPLEMENTATION_HISTORY.md`
 for the full record.
-
-### ✅ CM-03-006 field rename complete
-
-`VulnerabilityCase.case_status` is a `list[CaseStatusRef]` (history) but
-named in the singular; spec requires `case_statuses`. Same for
-`CaseParticipant.participant_status`.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -104,19 +109,17 @@ model. No `EmbargoPolicy` class exists in the codebase. The API endpoint and
 compatibility evaluation (EP-02, EP-03) are `PROD_ONLY` but the model itself
 is not tagged `PROD_ONLY` and should be added.
 
-### ❌ Pytest logging noise from app.py root logger side effect
+### ✅ Shim removal complete (TECHDEBT-6)
 
-`vultron/api/v2/app.py` calls `logging.getLogger().setLevel(logging.DEBUG)`
-and reassigns root logger handlers at module import time. This pollutes pytest
-output with `ValueError: I/O operation on closed file.` errors from closed
-stream handlers after tests tear down. See `plan/BUGS.md` for details.
+`vultron/scripts/vocab_examples.py` shim removed in commit 29005e4.
+All callers updated to import directly from `vultron.as_vocab.examples`.
 
-### ❌ Spurious print statements in test files
+### ❌ Multi-actor demos not yet started (PRIORITY 300)
 
-`test/behaviors/test_performance.py`, `test/bt/test_case_states/test_conditions.py`,
-`test/as_vocab/test_vulnerability_report.py`, and `test/as_vocab/
-test_create_activity.py` contain `print()` calls that pollute test output.
-See `plan/BUGS.md` for details.
+`plan/IDEAS.md` defines three multi-actor demo scenarios (finder+vendor,
+finder+vendor+coordinator, ownership-transfer+multi-vendor). These require
+PRIORITY 100 (actor independence) and PRIORITY 200 (CaseActor broadcast) to
+be meaningful. Design work needed first.
 
 ### ❌ AR-01-003 — missing unique `operation_id` on FastAPI routes
 
@@ -142,6 +145,8 @@ across router boundaries.
 
 ### Phase BUGFIX-1 — Pytest Logging Noise (Priority: HIGH — developer quality of life)
 
+**Status**: ✅ COMPLETE (2026-02-27)
+
 **Reference**: `plan/BUGS.md`, `notes/codebase-structure.md`
 
 - [x] **BUGFIX-1.1**: Move root-logger configuration out of module-level code
@@ -159,8 +164,7 @@ across router boundaries.
 
 ### Phase REFACTOR-1 — CM-03-006: Status History Field Renames (Priority: MEDIUM)
 
-**Priority**: MEDIUM — improves spec compliance; touches many files
-**Reference**: `specs/case-management.md` CM-03-006
+**Status**: ✅ COMPLETE (2026-02-27)
 
 - [x] **REFACTOR-1.1**: Rename `VulnerabilityCase.case_status` (list) →
   `case_statuses`; add `case_status` as read-only property returning
@@ -202,6 +206,12 @@ TECHDEBT-4 remain LOW.
   is now 312 LOC (main() + re-exports); all submodules under 230 LOC.
   592 tests pass.
 
+- [x] TECHDEBT-6: Remove `vultron/scripts/vocab_examples.py` shim — update
+  `vultron/api/v1/routers/participants.py` and `vultron/api/v2/routers/datalayer.py`
+  to import directly from `vultron.as_vocab.examples`; then delete the shim file.
+  Done when: shim removed; all existing tests pass; no references to the old
+  `vultron.scripts.vocab_examples` import path remain.
+
 - [ ] TECHDEBT-3: Standardize object IDs to URL-like form — draft ADR
   `docs/adr/ADR-XXXX-standardize-object-ids.md` and implement a compatibility
   shim in the DataLayer that accepts existing IDs.
@@ -213,7 +223,7 @@ TECHDEBT-4 remain LOW.
   Done when: modules moved with minimal interface changes and tests pass.
 
 References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
-`plan/IDEATION.md`, and files in `specs/`.
+`plan/IDEAS.md`, and files in `specs/`.
 
 ---
 
@@ -339,6 +349,30 @@ architectural work; a design step is required first.
 
 ---
 
+### Phase PRIORITY-300 — Multi-Actor Demos (PRIORITY 300)
+
+**Blocked by**: PRIORITY-100 (actor independence), PRIORITY-200 (CaseActor
+broadcast)
+**Reference**: `plan/PRIORITIES.md` PRIORITY 300, `plan/IDEAS.md`
+
+Three multi-actor demo scenarios are defined in `plan/IDEAS.md`. Each requires
+actors to run in independent containers communicating via the Vultron Protocol.
+
+- [ ] **D5-1**: Confirm that PRIORITY-100 and PRIORITY-200 are complete before
+  starting this phase; update design if needed.
+- [ ] **D5-2**: Implement Demo Scenario 1 (finder + vendor): finder reports
+  vulnerability, vendor accepts, case created with embargo, two vulnerabilities
+  added. Dockerized with two actor containers + CaseActor container.
+- [ ] **D5-3**: Implement Demo Scenario 2 (finder + vendor + coordinator):
+  full three-actor workflow including coordinator embargo policy, invite/accept,
+  CVE record creation, PXA state transitions, case closure.
+- [ ] **D5-4**: Implement Demo Scenario 3 (ownership transfer + multi-vendor):
+  ownership transfer, coordinator invites additional vendors, embargo extension
+  negotiation, multi-vendor simultaneous disclosure, case closure.
+- [ ] **D5-5**: Add integration tests and Docker Compose configs for each scenario.
+
+---
+
 ## Deferred (Per PRIORITIES.md)
 
 The following are deferred until higher-priority phases are complete:
@@ -371,6 +405,7 @@ The following are deferred until higher-priority phases are complete:
 |-----------|--------|
 | BT-01–BT-11 | ✅ Implemented (BT-08 CLI is MAY, low priority) |
 | CM-01–CM-04 | ✅ Implemented (CM-03-006 rename complete in REFACTOR-1) |
+| CM-02-007 | ✅ `VulnerabilityCase.notes` field present; `add_note_to_case` appends correctly |
 | CM-02-008 | ❌ Vendor initial participant in create_case not verified (SC-1.3) |
 | CM-05-001 | ❌ VulnerabilityRecord and Publication types missing (SC-1.1, SC-1.2) |
 | CM-06 | ❌ CaseActor broadcast not implemented (PRIORITY-200, blocked by OUTBOX-1) |
@@ -385,4 +420,6 @@ The following are deferred until higher-priority phases are complete:
 | Outbox (OX-03, OX-04) | ❌ Delivery not implemented (OUTBOX-1) |
 | EP-01 | ❌ EmbargoPolicy model not implemented (EP-1.1, EP-1.2) |
 | Demo CLI (DC-01–DC-05) | ✅ Complete |
+| BUGFIX-1 (logging/print) | ✅ Complete |
+| REFACTOR-1 (CM-03-006) | ✅ Complete |
 | Production readiness | ❌ Deferred |

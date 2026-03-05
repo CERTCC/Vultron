@@ -561,9 +561,11 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **BT Prioritize**: `vultron/behaviors/report/prioritize_tree.py` -
   engage_case/defer_case trees
 - **BT Case**: `vultron/behaviors/case/` - Case creation tree and nodes
-- **Vocabulary Examples**: `vultron/scripts/vocab_examples.py` - Canonical
-  ActivityStreams activity examples; use as reference for message semantics
-  and as test fixtures for pattern matching
+- **Vocabulary Examples**: `vultron/as_vocab/examples/` - Canonical
+  ActivityStreams activity examples (split into submodules by topic:
+  `actor.py`, `case.py`, `embargo.py`, `note.py`, `participant.py`,
+  `report.py`, `status.py`); use as reference for message semantics
+  and as test fixtures for pattern matching.
 - **Demo CLI**: `vultron/demo/cli.py` - Unified `click`-based entry point
   (`vultron-demo` command); sub-commands for each demo plus `all`
 - **Demo Utilities**: `vultron/demo/utils.py` - Shared `demo_step`,

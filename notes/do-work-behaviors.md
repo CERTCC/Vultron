@@ -5,7 +5,7 @@ Vultron prototype and identifies which behaviors are automatable, partially
 automatable, or entirely out of scope for the system.
 
 **Cross-references**: `specs/case-management.md` (CM-05-*),
-`docs/topics/behavior_logic/`, `plan/IDEATION.md`
+`docs/topics/behavior_logic/`
 
 ---
 

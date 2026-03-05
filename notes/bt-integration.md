@@ -2,7 +2,7 @@
 
 ## Architecture Overview
 
-Handler functions in `vultron/api/v2/backend/handlers.py` MAY orchestrate
+Handler functions in `vultron/api/v2/backend/handlers` MAY orchestrate
 complex workflows using the `py_trees` behavior tree library via the bridge
 layer in `vultron/behaviors/`. Simple CRUD-style handlers use procedural code
 directly.
@@ -202,6 +202,16 @@ interface (e.g., `ValidationPolicy.is_credible(report) -> bool`) and a
 default `AlwaysAcceptPolicy` implementation. This provides a deterministic
 stub with an explicit extension point.
 
+**A word about Fuzzer nodes**: Fuzzer nodes in the simulation
+represent
+non-deterministic decisions where the system might need to check some
+external condition, ask a human for input, or perform some complex task
+before proceeding. In the simulation, they would just randomly return
+SUCCESS or FAILURE based on a stochastic model. In the prototype, we will
+need to keep track of these nodes as places where further specification may
+be needed or additional implementation work may be required to handle the
+real-world logic that these nodes represent.
+
 **Source of truth priority** when conflicts arise:
 
 1. **Primary**: `docs/howto/activitypub/activities/*.md` — process
@@ -303,6 +313,21 @@ This is well within the 100ms target. If more complex trees degrade
 performance, consider caching BT structure (instantiate once, reuse with
 fresh blackboard) and batching DataLayer operations. Measure before
 optimizing.
+
+---
+
+## Composability of Behavior Trees
+
+Behavior trees can be composed by adding one tree's root node as the child
+of a node in another tree. In this way, the Vultron Behavior Trees represent
+a library of reusable mini-workflows that can be composed into larger workflows.
+This allows us to build complex behavior logic while keeping individual trees focused
+and maintainable. In fact, the entire behavior logic described in
+`docs/topics/behavior_logic` is really one big behavior tree with all the
+sub-nodes described separately for clarity. In the real implementation, we
+want these behaviors to be more individually triggerable and composable, but
+we may still want to be able to trigger an individual behavior tree as well
+as another item that contains it for a larger workflow.
 
 ---
 
