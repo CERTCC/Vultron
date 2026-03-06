@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-06 (gap analysis refresh #14)
+**Last Updated**: 2026-03-06 (gap analysis refresh #15)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 665 passing, 5581 subtests, 0 xfailed (2026-03-06)
+**Test suite**: 674 passing, 5581 subtests, 0 xfailed (2026-03-06)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -137,20 +137,18 @@ No `operation_id` kwargs are set on any FastAPI route decorator; FastAPI
 auto-generates them from function names which may not be stable or unique
 across router boundaries.
 
-### ❌ CM-10 embargo acceptance tracking not implemented
+### ⚠️ CM-10 embargo acceptance tracking partially implemented
 
 `specs/case-management.md` CM-10 requires:
-- CM-10-001: `CaseParticipant` MUST track which embargoes the participant
-  has accepted
+- CM-10-001 / CM-10-003: `CaseParticipant` MUST track accepted embargo IDs —
+  ✅ **Done**: `accepted_embargo_ids: list[str]` field added (SC-3.1)
 - CM-10-002: Embargo acceptances MUST be timestamped by the CaseActor at
-  receipt (implements CM-02-009)
-- CM-10-003: `CaseParticipant` SHOULD include `accepted_embargo_ids:
-  list[str]` field
+  receipt — ❌ Not implemented; requires SC-PRE-1 (CaseEvent model) first
 - CM-10-004: Before sharing case updates, MUST verify participant accepted
-  current active embargo
+  current active embargo — ❌ Not implemented (SC-3.3)
 
-None of these requirements are implemented; `CaseParticipant` has no
-`accepted_embargo_ids` field. See Phase SPEC-COMPLIANCE-3.
+See Phase SPEC-COMPLIANCE-3 for remaining tasks (SC-PRE-1, SC-PRE-2, SC-3.2,
+SC-3.3).
 
 ### ❌ CM-02-009 — general trusted-timestamp requirement not implemented
 
@@ -186,6 +184,19 @@ to adopt pyright for static type checking, starting with a gradual approach:
 run pyright to inventory existing type errors as technical debt, then enforce
 it on new/modified code. No pyright configuration exists yet. Added as
 TECHDEBT-8.
+
+### ⚠️ `specs/vultron-protocol-spec.md` — VP-level gaps not tracked by implementation specs
+
+`specs/vultron-protocol-spec.md` contains ~40 VP-level protocol requirements
+marked with `**Gap**: Not addressed by any current implementation spec`.
+These are cross-references from the Vultron Protocol documentation (RM, EM,
+CS, VFD state machine rules, embargo principles, etc.) to the current
+implementation specs. Most are either already implemented implicitly
+(e.g., inbox endpoint satisfies VP-02-001 report-receiving mechanism) or are
+`PROD_ONLY` / low-priority protocol principles. No new actionable tasks are
+added at this time; see `specs/vultron-protocol-spec.md` for the full list.
+If the protocol spec is actively developed, a cross-reference audit task
+should be added to a future phase.
 
 ---
 
@@ -333,7 +344,7 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
   equivalent actor profile model) referencing the `EmbargoPolicy` record.
   **Completed**: `VultronActorMixin` + `VultronPerson`, `VultronOrganization`,
   `VultronService` subclasses in `vultron/as_vocab/objects/vultron_actor.py`.
-  Actor AS types preserved. 16 new tests; 665 pass.
+  Actor AS types preserved. 16 new tests added at completion.
 
 ---
 
@@ -552,7 +563,7 @@ The following are deferred until higher-priority phases are complete:
 | CM-05-001 | ✅ `VulnerabilityRecord` and `CaseReference` models added (SC-1.1, SC-1.2) |
 | CM-06 | ❌ CaseActor broadcast not implemented (PRIORITY-200, blocked by OUTBOX-1) |
 | CM-07 / AR-07 | ❌ Action rules endpoint not implemented (CA-2, PRIORITY-200) |
-| CM-10 | ⚠️ Partial: `accepted_embargo_ids` field added (SC-3.1 ✅); trusted-timestamp logic (SC-3.2 ❌) and embargo guard (SC-3.3 ❌) not yet implemented |
+| CM-10 | ⚠️ Partial: `accepted_embargo_ids` field added (SC-3.1 ✅); trusted-timestamp logic (SC-3.2, SC-PRE-1 ❌) and embargo guard (SC-3.3 ❌) not yet implemented |
 | Handler Protocol (HP-*) | ✅ All 38 handlers registered (incl. update_case) |
 | Semantic extraction (SE-*) | ✅ 38 patterns + UNKNOWN |
 | Dispatch routing (DR-*) | ✅ DirectActivityDispatcher |

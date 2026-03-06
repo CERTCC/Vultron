@@ -8,7 +8,34 @@ Add new items below this line
 
 ---
 
-## 2026-03-06 (gap analysis refresh #13)
+## 2026-03-06 (gap analysis refresh #15)
+
+### Current test count: 674 passing (5581 subtests)
+
+Test count grew from 665 (refresh #13 baseline) to 674 through the
+EP-1.1 (EmbargoPolicy, +24 tests), EP-1.2 (VultronActorMixin, +16 tests),
+SC-1.3 (create_case BT vendor participant, +2 tests), and SC-3.1
+(CaseParticipant.accepted_embargo_ids, +9 tests) implementations.
+All reflected in the task checklist as complete.
+
+### vultron-protocol-spec.md VP-level gaps (low priority)
+
+`specs/vultron-protocol-spec.md` has ~40 VP-level requirements marked
+**Gap: Not addressed by any current implementation spec**. These trace
+protocol principles (RM/EM/CS/VFD state machine rules, embargo principles)
+that were not explicitly cross-referenced to any implementation spec.
+Most are either already implemented implicitly or are `PROD_ONLY`.
+No new actionable tasks created; noted in the plan gap analysis section
+for future cross-reference audit if the protocol spec is actively developed.
+
+### SC-PRE-1 and SC-PRE-2: design notes in notes/case-state-model.md
+
+Design for `CaseEvent` model (SC-PRE-1) and `actor_participant_index`
+(SC-PRE-2) is documented in `notes/case-state-model.md` sections
+"CaseEvent Model for Trusted Timestamps" and "Actor-to-Participant Index".
+These remain as prerequisites for SC-3.2 and are not yet implemented.
+
+---
 
 ### `Publication` → `CaseReference` rename (captured in SC-1.2)
 
