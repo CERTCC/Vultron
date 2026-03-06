@@ -4,7 +4,7 @@ priorities, and lessons learned.
 1. Review Context
     - Study specs/* — authoritative requirements.
     - Study plan/PRIORITIES.md — current priorities.
-    - Study plan/IDEATION.md — new ideas and proposals.
+    - Study plan/IDEAS.md — new ideas and proposals.
     - Study plan/IMPLEMENTATION_PLAN.md — implementation status.
     - Study plan/IMPLEMENTATION_HISTORY.md — completed tasks.
     - Study notes/*.md — durable lessons learned.

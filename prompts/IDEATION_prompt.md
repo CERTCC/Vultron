@@ -1,4 +1,4 @@
-1. Study plans/IDEATION.md to understand new ideas in the project.
+1. Study plans/IDEAS.md to understand new ideas in the project.
 2. Study specs/*.md to understand the current specifications.
 3. Study plan/PRIORITIES.md to understand the current priorities for the project.
 4. Review plan/IMPLEMENTATION_PLAN.md to understand the current implementation status and technical debt.
@@ -13,7 +13,7 @@
 
 9. Avoid redundancy by ensuring each requirement appears only once.
 10. Update specs/README.md to reflect the actual set of specification files.
-11. Items in plans/IDEATION.md that do not rise to the level of a
+11. Items in plans/IDEAS.md that do not rise to the level of a
     specification should be documented in notes/*.md as appropriate with
     cross-references to related specifications for traceability.
 
