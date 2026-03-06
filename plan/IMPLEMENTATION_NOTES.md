@@ -82,3 +82,23 @@ almost identical except for the required `note` field. This can be
 refactored into a simpler base model that the specific request models can 
 inherit from.
 
+
+## P30-3: engage-case and defer-case triggers are procedural
+
+Like P30-2, `engage-case` and `defer-case` are implemented procedurally.
+The trigger represents the LOCAL actor deciding to engage or defer (outgoing),
+not reacting to a remote actor's state transition (which is the receive-side
+handled by `EngageCaseBT`/`DeferCaseBT`). Both endpoints:
+
+- Share a `CaseTriggerRequest` model with `case_id` field.
+- Use a `_resolve_case()` helper that reads the case from DataLayer and
+  returns 404 if absent or 422 if the object is not a `VulnerabilityCase`.
+- Create `RmEngageCase` (Join) or `RmDeferCase` (Ignore) activity directly.
+- Call `_update_participant_rm_state()` to update the actor's own
+  `CaseParticipant.participant_statuses` in the DataLayer. Note: participants
+  are stored as ID strings in `case.case_participants`, so the helper reads
+  each participant object from the DataLayer before updating it.
+- Update is persisted to the participant document, not the case document, to
+  follow the existing pattern in the BT nodes.
+- If no participant record exists for the actor, a WARNING is logged and the
+  endpoint still returns 202 with the activity (non-blocking).

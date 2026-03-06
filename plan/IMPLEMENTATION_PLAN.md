@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-06 (gap analysis refresh #17, P30-2 complete)
+**Last Updated**: 2026-03-06 (gap analysis refresh #18, P30-3 complete)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 719 passing, 5581 subtests, 0 xfailed (2026-03-06)
+**Test suite**: 736 passing, 5581 subtests, 0 xfailed (2026-03-06)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -71,10 +71,11 @@ actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 
 ### ⚠️ Triggerable behaviors partially implemented (PRIORITY 30)
 
-P30-1 and P30-2 are complete: `vultron/api/v2/routers/triggers.py` scaffolding
-created with `validate-report`, `invalidate-report`, and `reject-report`
-endpoints. PRIORITIES.md PRIORITY 30 calls for exposing behaviors the local
-actor can initiate based on internal state. P30-3 through P30-6 remain.
+P30-1, P30-2, and P30-3 are complete: `vultron/api/v2/routers/triggers.py`
+scaffolding created with `validate-report`, `invalidate-report`,
+`reject-report`, `engage-case`, and `defer-case` endpoints. PRIORITIES.md
+PRIORITY 30 calls for exposing behaviors the local actor can initiate based
+on internal state. P30-4 through P30-6 remain.
 
 ### ❌ Actor independence not implemented (PRIORITY 100)
 
@@ -488,9 +489,14 @@ Candidate behaviors from `docs/topics/behavior_logic/`:
   `RmCloseReport` (Reject) respectively; `InvalidateReportRequest` and
   `RejectReportRequest` models added; empty `note` on reject-report logs
   WARNING; 17 new tests in `test_triggers.py`; 719 tests pass.
-- [ ] **P30-3**: Add `POST /actors/{actor_id}/trigger/engage-case` and
+- [x] **P30-3**: Add `POST /actors/{actor_id}/trigger/engage-case` and
   `POST /actors/{actor_id}/trigger/defer-case` endpoints (TB-02-001).
   Both require `case_id` in request body (TB-03-001). Add tests.
+  **Completed**: Both endpoints added to `triggers.py`; procedural
+  implementation emitting `RmEngageCase` (Join) and `RmDeferCase` (Ignore)
+  respectively; `CaseTriggerRequest` model added; `_resolve_case` and
+  `_update_participant_rm_state` helpers added; 17 new tests in
+  `test_triggers.py`; 736 tests pass.
 - [ ] **P30-4**: Add `POST /actors/{actor_id}/trigger/close-report` endpoint
   (TB-02-001) with `offer_id` in request body. Add tests.
 - [ ] **P30-5**: Add EM trigger endpoints: `propose-embargo`,

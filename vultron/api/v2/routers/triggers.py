@@ -38,10 +38,13 @@ from vultron.api.v2.data.status import OfferStatus, ReportStatus, set_status
 from vultron.api.v2.datalayer.abc import DataLayer
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+from vultron.as_vocab.activities.case import RmDeferCase, RmEngageCase
 from vultron.as_vocab.activities.report import (
     RmCloseReport,
     RmInvalidateReport,
 )
+from vultron.as_vocab.objects.case_status import ParticipantStatus
+from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.behaviors.bridge import BTBridge
 from vultron.behaviors.report.validate_tree import create_validate_report_tree
@@ -86,6 +89,19 @@ class InvalidateReportRequest(BaseModel):
 
     offer_id: str
     note: str | None = None
+
+
+class CaseTriggerRequest(BaseModel):
+    """
+    Request body for case-level trigger endpoints.
+
+    TB-03-001: Must include case_id to identify the target case.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    case_id: str
 
 
 class RejectReportRequest(BaseModel):
@@ -141,6 +157,95 @@ def _resolve_actor(actor_id: str, dl: DataLayer):
     if actor is None:
         raise _not_found("Actor", actor_id)
     return actor
+
+
+def _resolve_case(case_id: str, dl: DataLayer) -> VulnerabilityCase:
+    """Resolve a VulnerabilityCase by ID; raise 404 if absent or wrong type."""
+    case_raw = dl.read(case_id)
+    if case_raw is None:
+        raise _not_found("VulnerabilityCase", case_id)
+    if not isinstance(case_raw, VulnerabilityCase):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "status": 422,
+                "error": "ValidationError",
+                "message": (
+                    f"Expected VulnerabilityCase, got "
+                    f"{type(case_raw).__name__}."
+                ),
+                "activity_id": None,
+            },
+        )
+    return case_raw
+
+
+def _update_participant_rm_state(
+    case_id: str, actor_id: str, new_rm_state: RM, dl: DataLayer
+) -> None:
+    """
+    Append a new ParticipantStatus with new_rm_state to the actor's
+    CaseParticipant in the given case and persist the updated case.
+
+    Logs a WARNING and returns without error if no participant record is found
+    (non-blocking for the outgoing trigger case; participant may be created
+    separately).
+    """
+    case_obj = dl.read(case_id)
+    if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
+        logger.warning(
+            "_update_participant_rm_state: case '%s' not found or wrong type",
+            case_id,
+        )
+        return
+
+    for participant_ref in case_obj.case_participants:
+        if isinstance(participant_ref, str):
+            participant = dl.read(participant_ref)
+            if participant is None:
+                continue
+        else:
+            participant = participant_ref
+
+        actor_ref = participant.attributed_to
+        p_actor_id = (
+            actor_ref
+            if isinstance(actor_ref, str)
+            else getattr(actor_ref, "as_id", str(actor_ref))
+        )
+        if p_actor_id == actor_id:
+            if participant.participant_statuses:
+                latest = participant.participant_statuses[-1]
+                if latest.rm_state == new_rm_state:
+                    logger.info(
+                        "Participant '%s' already in RM state %s in case '%s' "
+                        "(idempotent)",
+                        actor_id,
+                        new_rm_state,
+                        case_id,
+                    )
+                    return
+            new_status = ParticipantStatus(
+                actor=actor_id,
+                context=case_id,
+                rm_state=new_rm_state,
+            )
+            participant.participant_statuses.append(new_status)
+            dl.update(participant.as_id, object_to_record(participant))
+            logger.info(
+                "Set participant '%s' RM state to %s in case '%s'",
+                actor_id,
+                new_rm_state,
+                case_id,
+            )
+            return
+
+    logger.warning(
+        "_update_participant_rm_state: no CaseParticipant for actor '%s' "
+        "in case '%s'; RM state not updated",
+        actor_id,
+        case_id,
+    )
 
 
 def _outbox_ids(actor) -> set[str]:
@@ -482,4 +587,120 @@ def trigger_reject_report(
     )
 
     activity = reject_activity.model_dump(by_alias=True, exclude_none=True)
+    return {"activity": activity}
+
+
+@router.post(
+    "/{actor_id}/trigger/engage-case",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger case engagement.",
+    description=(
+        "Triggers the engage-case behavior for the given actor. "
+        "Emits a Join(VulnerabilityCase) activity (RmEngageCase), "
+        "transitions the actor's RM state to ACCEPTED in the case, "
+        "and returns the activity in the response body (TB-04-001)."
+    ),
+)
+def trigger_engage_case(
+    actor_id: str,
+    body: CaseTriggerRequest,
+    dl: DataLayer = Depends(get_datalayer),
+) -> dict:
+    """
+    Trigger the engage-case behavior for the given actor.
+
+    The local actor decides to engage the case (RM → ACCEPTED). Emits
+    RmEngageCase (Join(VulnerabilityCase)), updates the actor's own
+    CaseParticipant RM state, adds to actor outbox, and returns HTTP 202.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-04-001, TB-06-001, TB-06-002, TB-07-001
+    """
+    actor = _resolve_actor(actor_id, dl)
+    actor_id = actor.as_id
+
+    case = _resolve_case(body.case_id, dl)
+
+    engage_activity = RmEngageCase(
+        actor=actor_id,
+        object=case.as_id,
+    )
+
+    try:
+        dl.create(engage_activity)
+    except ValueError:
+        logger.warning(
+            "EngageCase activity '%s' already exists", engage_activity.as_id
+        )
+
+    _update_participant_rm_state(case.as_id, actor_id, RM.ACCEPTED, dl)
+
+    _add_activity_to_outbox(actor_id, engage_activity.as_id, dl)
+
+    logger.info(
+        "Actor '%s' engaged case '%s' (RM → ACCEPTED)",
+        actor_id,
+        case.as_id,
+    )
+
+    activity = engage_activity.model_dump(by_alias=True, exclude_none=True)
+    return {"activity": activity}
+
+
+@router.post(
+    "/{actor_id}/trigger/defer-case",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger case deferral.",
+    description=(
+        "Triggers the defer-case behavior for the given actor. "
+        "Emits an Ignore(VulnerabilityCase) activity (RmDeferCase), "
+        "transitions the actor's RM state to DEFERRED in the case, "
+        "and returns the activity in the response body (TB-04-001)."
+    ),
+)
+def trigger_defer_case(
+    actor_id: str,
+    body: CaseTriggerRequest,
+    dl: DataLayer = Depends(get_datalayer),
+) -> dict:
+    """
+    Trigger the defer-case behavior for the given actor.
+
+    The local actor decides to defer the case (RM → DEFERRED). Emits
+    RmDeferCase (Ignore(VulnerabilityCase)), updates the actor's own
+    CaseParticipant RM state, adds to actor outbox, and returns HTTP 202.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-04-001, TB-06-001, TB-06-002, TB-07-001
+    """
+    actor = _resolve_actor(actor_id, dl)
+    actor_id = actor.as_id
+
+    case = _resolve_case(body.case_id, dl)
+
+    defer_activity = RmDeferCase(
+        actor=actor_id,
+        object=case.as_id,
+    )
+
+    try:
+        dl.create(defer_activity)
+    except ValueError:
+        logger.warning(
+            "DeferCase activity '%s' already exists", defer_activity.as_id
+        )
+
+    _update_participant_rm_state(case.as_id, actor_id, RM.DEFERRED, dl)
+
+    _add_activity_to_outbox(actor_id, defer_activity.as_id, dl)
+
+    logger.info(
+        "Actor '%s' deferred case '%s' (RM → DEFERRED)",
+        actor_id,
+        case.as_id,
+    )
+
+    activity = defer_activity.model_dump(by_alias=True, exclude_none=True)
     return {"activity": activity}
