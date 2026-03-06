@@ -63,6 +63,21 @@ This specification defines the normative technology constraints and implementati
 
 ---
 
+## Code Quality Tooling (SHOULD)
+
+- `IMPL-TS-07-001` The project SHOULD use Black for code formatting; Black
+  MUST be enforced via pre-commit hooks.
+- `IMPL-TS-07-002` The project SHOULD adopt pyright for static type checking.
+  - Adoption SHOULD be gradual: run pyright on the existing codebase to
+    identify errors as technical debt, then enforce it on all new and
+    modified source going forward.
+  - pyright configuration MAY use different strictness levels for legacy
+    code versus new code to facilitate a smooth transition.
+  - **Rationale**: Static type checking catches type errors before runtime
+    and enforces consistent type annotation conventions across the codebase.
+
+---
+
 ## Optional and Prototype Extensions (MAY)
 
 - `IMPL-TS-06-001` The system MAY provide interactive demo interfaces using Streamlit.
