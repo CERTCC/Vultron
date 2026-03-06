@@ -57,7 +57,7 @@ nav:
       - EM Behaviors:
         - 'topics/behavior_logic/em_bt.md'
         - Evaluate Proposed Embargo Behavior: 'topics/behavior_logic/em_eval_bt.md'
-        - Propse Embargo Behavior: 'topics/behavior_logic/em_propose_bt.md'
+        - Propose Embargo Behavior: 'topics/behavior_logic/em_propose_bt.md'
         - Terminate Embargo Behavior: 'topics/behavior_logic/em_terminate_bt.md'
       - Do Work Behaviors:
         - 'topics/behavior_logic/do_work_bt.md'

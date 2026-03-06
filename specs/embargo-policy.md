@@ -7,8 +7,8 @@ Actor profile. Allows actors to declare their default embargo preferences
 so that coordinators can evaluate compatibility before proposing an embargo
 or inviting an actor to a case.
 
-**Source**: `plan/IDEATION.md` (Consider a standard format for default
-embargo policies on Actor profiles)
+**Source**: `notes/do-work-behaviors.md` ("Reporting Behavior as Central
+Coordination", "Prior Art and References (Embargo Policy)")
 **Cross-references**: `case-management.md`, `response-format.md`,
 `agentic-readiness.md`
 
@@ -92,5 +92,4 @@ embargo policies on Actor profiles)
 - **Response Format**: `specs/response-format.md`
 - **Agentic Readiness**: `specs/agentic-readiness.md`
 - **Object IDs**: `specs/object-ids.md`
-- **IDEATION Notes**: `plan/IDEATION.md` (embargo policy section)
 - **Prior Art**: RFC 9116 (security.txt), disclose.io DIOSTS and DIOTerms

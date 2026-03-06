@@ -6,7 +6,7 @@ Requirements for encrypted messaging and actor key management using
 ActivityPub extension conventions. Ensures that sensitive vulnerability
 information can be protected in transit between actors.
 
-**Source**: `plan/IDEATION.md` (Encryption and keys)
+**Source**: `notes/encryption.md` (Encryption and keys)
 **Note**: All requirements in this file are `PROD_ONLY`. Encryption is not
 implemented in the prototype.
 **Cross-references**: `prototype-shortcuts.md` PROTO-01-001,

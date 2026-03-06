@@ -53,6 +53,20 @@ the distinction between participant-specific and participant-agnostic state.
     actor ID at case creation
   - Handlers creating a case SHOULD create a `VendorParticipant` before
     appending other participants (e.g., finder)
+- `CM-02-009` The CaseActor MUST apply its own trusted timestamp to every
+  state-changing event it receives, regardless of any timestamp supplied by
+  the sending participant
+  - This applies to all state-changing messages: participant join/leave,
+    embargo proposals and acceptances, notes added, status updates, and any
+    other activity that modifies canonical case state
+  - Participant-supplied timestamps MUST NOT be used as authoritative
+    timestamps for case history
+  - **Rationale**: The CaseActor's clock is the only trusted source of time
+    for event ordering within a case; using participant-supplied timestamps
+    would allow different copies of a case (held by different actors) to
+    disagree on event order, undermining auditability and the
+    single-source-of-truth guarantee
+  - CM-02-009 depends-on CM-02-002
 
 ## Case State Model (MUST)
 
@@ -141,9 +155,12 @@ the distinction between participant-specific and participant-agnostic state.
   - `VulnerabilityCase`: a coordination unit grouping one or more reports
     and tracking state across participants
   - `VulnerabilityRecord`: a persistent identifier record for a confirmed
-    vulnerability (e.g., CVE number); created during coordination
-  - `Publication`: a public disclosure artifact linked to a case; may
-    reference external URLs rather than storing content
+    vulnerability; may carry one or more identifiers from different
+    namespaces (e.g., CVE ID, CERT/CC VU#, vendor-specific ID)
+  - `CaseReference`: a typed external reference associated with a case
+    (e.g., public advisory, patch, vendor bulletin, or other
+    vulnerability-related resource); links to external resources rather
+    than embedding their content
 - `CM-05-002` A `VulnerabilityCase` MUST reference at least one
   `VulnerabilityReport`; a case with zero reports MUST NOT exist
   - CM-05-002 implements VP-02-015
@@ -152,16 +169,37 @@ the distinction between participant-specific and participant-agnostic state.
   `VulnerabilityRecord` before closure; cases with no associated record at
   closure SHOULD log a warning
 - `CM-05-004` A `VulnerabilityCase` MAY have zero or more associated
-  publications
-- `CM-05-005` Publications associated with a case MUST be stored as
-  reference links (metadata including title, publisher, date, URL) rather
-  than embedding full publication content
-  - Exception: a case MAY embed a publication snapshot as a
+  `CaseReference` objects
+- `CM-05-005` `CaseReference` objects MUST include at minimum a `url` field;
+  SHOULD include a `name` field (human-readable title); MAY include a `tags`
+  field (array of one or more type descriptors, e.g., `"patch"`,
+  `"vendor-advisory"`, `"third-party-advisory"`, `"exploit"`,
+  `"release-notes"`)
+  - The `url`, `name`, and `tags` structure aligns with the CVE JSON schema
+    reference format
+    (<https://github.com/CVEProject/cve-schema>)
+  - Exception: a case MAY embed a reference snapshot as a
     `VulnerabilityCase` note when content preservation is explicitly required
 - `CM-05-006` One report MAY describe multiple vulnerabilities; one case MAY
   group multiple reports (e.g., when overlapping participants are involved)
-- `CM-05-007` Multiple publications MAY arise from a single case
+- `CM-05-007` Multiple `CaseReference` objects MAY arise from a single case
   (e.g., coordinated simultaneous disclosure by multiple vendors)
+- `CM-05-008` `VulnerabilityRecord` identifiers MUST be treated as opaque
+  strings; the system MUST NOT restrict identifier values to CVE ID format
+  or any other specific namespace
+  - **Rationale**: Different organizations use different identifier namespaces
+    (CVE, CERT/CC VU#, vendor-assigned IDs, etc.); requiring a specific
+    format excludes valid records and prevents multi-namespace support
+- `CM-05-009` A `VulnerabilityRecord` SHOULD support a list of alias
+  identifiers from different namespaces for the same vulnerability
+  - **Rationale**: Multiple IDs from different namespaces may refer to the
+    same underlying vulnerability (e.g., a CVE ID and a CERT/CC VU# ID)
+- `CM-05-010` When a `VulnerabilityRecord` is a `CVERecord` (i.e., it
+  carries a CVE ID), its data MUST conform to the CVE JSON schema
+  (<https://github.com/CVEProject/cve-schema>)
+  - The `CVERecord` Pydantic model SHOULD reuse the CVE JSON schema
+    `reference` definition for its `references` array, ensuring
+    compatibility with CVE data interchange formats
 
 ## Case Update Broadcast (MUST)
 
@@ -216,6 +254,15 @@ the distinction between participant-specific and participant-agnostic state.
 - Unit test: CaseActor has reference to case owner
 - `PROD_ONLY` Integration test: Non-owner attempt to close case → authorization error
 
+### CM-02-009 Verification
+
+- Unit test: Participant join event stored with CaseActor-applied timestamp,
+  not sender-supplied time
+- Unit test: Embargo acceptance event stored with CaseActor-applied timestamp
+- Unit test: Note-added event stored with CaseActor-applied timestamp
+- Code review: All case state mutation handlers apply CaseActor timestamp,
+  not activity-supplied timestamp
+
 ### CM-03-001 through CM-03-005 Verification
 
 - Unit test: RM state change updates `ParticipantStatus.rm_state`, not `CaseStatus`
@@ -232,13 +279,16 @@ the distinction between participant-specific and participant-agnostic state.
   correct per-participant values
 - Code review: No handler mixes participant-specific and agnostic state
 
-### CM-05-001 through CM-05-007 Verification
+### CM-05-001 through CM-05-010 Verification
 
 - Unit test: `VulnerabilityCase`, `VulnerabilityReport`, `VulnerabilityRecord`,
-  and `Publication` are separate Pydantic model types
+  and `CaseReference` are separate Pydantic model types
 - Unit test: Creating a case with no reports raises a validation error
-- Unit test: Publication stored as reference link includes title, publisher,
-  date, and URL fields
+- Unit test: `CaseReference` model requires a `url` field; `name` and `tags`
+  are optional
+- Unit test: `VulnerabilityRecord` accepts any non-empty string as identifier
+- Unit test: `VulnerabilityRecord.aliases` field stores a list of string IDs
+- Unit test: `CVERecord` model validates data against CVE JSON schema structure
 
 ### CM-06-001 through CM-06-004 Verification
 
@@ -270,6 +320,70 @@ the distinction between participant-specific and participant-agnostic state.
   - See `notes/domain-model-separation.md` for design rationale and recommended migration steps
   - CM-08-002 is-constrained-by PROTO-06-001
 
+## Redacted Case View (SHOULD)
+
+- `CM-09-001` `PROD_ONLY` The system SHOULD support a `RedactedVulnerabilityCase`
+  type for sharing case information with invited-but-not-yet-accepted participants
+  - A `redact(invitee_id)` method on `VulnerabilityCase` SHOULD return a
+    `RedactedVulnerabilityCase` containing only the fields appropriate for
+    an invitee: severity indication, general vulnerability type, and proposed
+    embargo terms
+  - Full report content, case discussion history, prior participant details,
+    and reporter-identifying information MUST NOT be included
+- `CM-09-002` `PROD_ONLY` The ID of a `RedactedVulnerabilityCase` MUST be
+  cryptographically unrelated to the full `VulnerabilityCase` ID
+  - **Rationale**: Prevents an attacker who obtains a redacted case ID from
+    inferring the full case ID
+- `CM-09-003` `PROD_ONLY` Each invitee MUST receive a distinct
+  `RedactedVulnerabilityCase` ID
+  - **Rationale**: Prevents cross-correlation of redacted IDs to infer
+    participant list size or identities
+- `CM-09-004` For the prototype, the `Invite` activity MAY reference the case
+  by full case ID only, deferring the redacted view to a later phase
+  - CM-09-004 is-constrained-by PROTO-01-001
+
+## Per-Participant Embargo Acceptance (MUST)
+
+- `CM-10-001` `CaseParticipant` MUST track which embargo(es) a participant has
+  explicitly accepted
+  - A participant added to a case MUST be on record as having accepted the
+    active embargo at the time they joined
+  - CM-10-001 implements VP-05-001
+- `CM-10-002` Embargo acceptances MUST be timestamped by the CaseActor at
+  the time of receipt, not using the participant's claimed timestamp
+  - **Rationale**: The CaseActor applies the only trusted timestamp; the
+    participant's reported time cannot be verified
+  - CM-10-002 depends-on CM-02-002
+  - CM-10-002 implements CM-02-009
+- `CM-10-003` The `CaseParticipant` model SHOULD include an
+  `accepted_embargo_ids: list[str]` field recording the IDs of
+  `EmbargoEvent` objects the participant has explicitly accepted
+  - An `Accept(Invite(Actor, Case))` is an implicit acceptance of the
+    current active embargo at join time
+  - An `Accept(Offer(Embargo))` is an explicit acceptance of a specific embargo
+- `CM-10-004` Before sharing case updates with a participant, the system MUST
+  verify that the participant has accepted the current active embargo
+  - If not, the system MUST send a new `Offer(Embargo)` before continuing
+
+### CM-09-001 through CM-09-004 Verification
+
+- `PROD_ONLY` Unit test: `VulnerabilityCase.redact(invitee_id)` returns a
+  `RedactedVulnerabilityCase` excluding report content, discussion, and
+  participant details
+- `PROD_ONLY` Unit test: Two calls to `redact()` with different invitee IDs
+  return objects with distinct IDs
+- `PROD_ONLY` Unit test: Redacted case ID shares no substrings with the full
+  case ID
+
+### CM-10-001 through CM-10-004 Verification
+
+- Unit test: Newly added `CaseParticipant` has the current active embargo ID
+  in `accepted_embargo_ids`
+- Unit test: Embargo acceptance timestamp is set by CaseActor clock, not
+  participant-supplied time
+- Integration test: Case update sent to a participant who has not accepted the
+  current embargo triggers `Offer(Embargo)` first
+
 ## Related
 
 - **Behavior Tree Integration**: `specs/behavior-tree-integration.md`
@@ -281,6 +395,8 @@ the distinction between participant-specific and participant-agnostic state.
   persistence architecture and migration guidance)
 - **BT Integration Notes**: `notes/bt-integration.md` (actor isolation domains,
   EvaluateCasePriority directionality)
+- **Triggerable Behaviors Notes**: `notes/triggerable-behaviors.md`
+  (Invitation-Ready Case Object, Per-Participant Embargo Acceptance Tracking)
 - **ActivityPub Workflows**: `docs/howto/activitypub/activities/` (workflow
   documentation for case, embargo, participant management)
 - **Priorities**: `plan/PRIORITIES.md` (Priority 100: Actor independence,
@@ -288,5 +404,6 @@ the distinction between participant-specific and participant-agnostic state.
 - **Agentic Readiness**: `specs/agentic-readiness.md` (AR-07-001, AR-07-002)
 - **Object IDs**: `specs/object-ids.md`
 - **Do Work Behaviors**: `notes/do-work-behaviors.md`
+- **Encryption**: `specs/encryption.md`
 - **Implementation**: `vultron/as_vocab/objects/vulnerability_case.py`
 - **Implementation**: `vultron/as_vocab/objects/case_status.py`

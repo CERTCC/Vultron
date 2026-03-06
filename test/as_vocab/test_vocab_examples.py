@@ -17,7 +17,7 @@ import tempfile
 import unittest
 from typing import Sequence
 
-import vultron.scripts.vocab_examples as examples
+import vultron.as_vocab.examples.vocab_examples as examples
 from vultron.as_vocab.base.base import as_Base
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.activities.intransitive import as_Question

@@ -21,7 +21,7 @@ from fastapi import APIRouter
 
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.object_types import as_Note
-from vultron.scripts import vocab_examples
+from vultron.as_vocab.examples import vocab_examples
 
 router = APIRouter(
     prefix="/examples",

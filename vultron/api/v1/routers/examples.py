@@ -26,7 +26,7 @@ from vultron.as_vocab.objects.case_status import CaseStatus, ParticipantStatus
 from vultron.as_vocab.objects.embargo_event import EmbargoEvent
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.scripts import vocab_examples
+from vultron.as_vocab.examples import vocab_examples
 
 router = APIRouter(
     prefix="/examples",

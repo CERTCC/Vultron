@@ -25,16 +25,20 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Behavior Tree Integration** (optional for complex workflows):
 
 6. **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
+7. **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
+   endpoint format, RM/EM candidate behaviors, request/response schema,
+   BT integration, per-actor DataLayer dependency, outbox activity requirement
 
 ### Case and Actor Management
 
-7. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
-   object model relationships (Report/Case/Publication/VulnerabilityRecord), case update
-   broadcast, CVD action rules API
+8. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
+   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
+   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
+   acceptance tracking (CM-10)
 
 ### Object Identifiers
 
-8. **`object-ids.md`** - Object ID format (full URI), DataLayer handling, blackboard key
+9. **`object-ids.md`** - Object ID format (full URI), DataLayer handling, blackboard key
    conventions, ADR requirement
 
 ### Cross-Cutting Concerns
@@ -79,7 +83,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Code Standards
 
-- **`code-style.md`** - Python formatting, import organization, circular import prevention
+- **`code-style.md`** - Python formatting, import organization, circular import
+  prevention, optional-field non-emptiness (CS-08-001)
+- **`tech-stack.md`** - Normative technology constraints: runtime, persistence,
+  tooling, and code quality tooling (including pyright gradual adoption, IMPL-TS-*)
 - **`meta-specifications.md`** - How to write and maintain specifications
 
 ### Documentation Content and Organization
@@ -177,7 +184,7 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-02-27)**:
+**Summary (2026-03-04)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer
@@ -189,9 +196,12 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
   `plan/IMPLEMENTATION_PLAN.md`
 - ✅ **Unified demo CLI complete** (`vultron-demo`): See `specs/demo-cli.md`
   and `plan/IMPLEMENTATION_PLAN.md` (Phase DEMO-4)
-- ✅ **568 tests passing**, 0 xfailed (2026-02-26)
+- ✅ **TECHDEBT-6 complete**: `vultron/scripts/vocab_examples.py` shim removed
+- ✅ **592 tests passing**, 0 xfailed (2026-03-03)
 - ⚠️ **Production readiness partial**: Request validation, error responses
   need work
+- ❌ **Triggerable behaviors not implemented**: See `triggerable-behaviors.md`
+  (PRIORITY 30, highest current priority)
 - ❌ **Response generation not started**: See `response-format.md`
 - ❌ **Outbox delivery not implemented**: See `outbox.md` OX-03, OX-04
 

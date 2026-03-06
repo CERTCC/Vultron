@@ -264,6 +264,14 @@ The same pattern applies to `CaseParticipant.participant_status`: each
 `ParticipantStatus` is an append-only history entry, and the current
 participant status is the entry with the latest timestamp.
 
+**CaseActor trusted timestamp principle** (see `CM-02-009`): The CaseActor
+MUST apply its own timestamp to every state-changing event it receives —
+not just embargo acceptances, but also participant joins, notes, status
+updates, and any other activity that modifies canonical case state.
+Using participant-supplied timestamps would allow different copies of a
+case (held by different actors) to disagree on event ordering, undermining
+auditability and the single-source-of-truth guarantee provided by CM-02-002.
+
 **Implementation note**: `set_embargo()` and similar mutation helpers on
 `VulnerabilityCase` MUST operate on `current_status`, not on the raw list.
 Directly setting `.em_state` on the `case_status` list attribute is a bug

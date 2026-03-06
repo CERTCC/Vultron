@@ -85,7 +85,7 @@ def find_matching_semantics(
 
 
 if __name__ == "__main__":
-    from vultron.scripts import vocab_examples
+    from vultron.as_vocab.examples import vocab_examples
 
     examples = [
         vocab_examples.create_report(),

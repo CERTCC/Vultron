@@ -14,6 +14,7 @@
 import random
 from uuid import uuid4
 
+from vultron.api.v2.datalayer.abc import DataLayer
 from vultron.as_vocab.base.base import as_Base
 from vultron.as_vocab.base.objects.actors import as_Organization, as_Person
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
@@ -103,11 +104,11 @@ def gen_report() -> VulnerabilityReport:
     return _REPORT
 
 
-def initialize_examples() -> None:
+def initialize_examples(datalayer: DataLayer | None = None) -> None:
     from vultron.api.v2.datalayer.db_record import Record
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    dl = get_datalayer()
+    dl = datalayer if datalayer is not None else get_datalayer()
     for obj in [_FINDER, _VENDOR, _COORDINATOR, _REPORT]:
         record = Record.from_obj(obj)
         dl.create(record)

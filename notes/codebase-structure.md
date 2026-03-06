@@ -92,6 +92,34 @@ API are more likely to use the OpenAPI docs. Ensure:
 
 ---
 
+## API Layer Architecture (Future Refactoring)
+
+The current codebase treats `vultron/api/v1/` and `vultron/api/v2/` as version
+numbers, but they are actually more like **distinct layers**:
+
+| Layer | Current location | Purpose |
+|---|---|---|
+| ActivityPub layer | `vultron/api/v2/routers/actors.py` | Inbox/outbox endpoints; ActivityStreams semantics |
+| Backend services layer | `vultron/api/v2/backend/` | Business logic, handlers, triggerable behaviors, DataLayer |
+| Examples layer | `vultron/api/v1/` | Canned example responses; not an active coordination layer |
+
+**Proposed future reorganization**: Rename to reflect layer semantics rather
+than version numbers, e.g.:
+
+- `vultron.api.activitypub` — ActivityPub inbox/outbox endpoints
+- `vultron.api.backend` — backend services (handlers, triggers, DataLayer queries)
+- `vultron.api.examples` — vocabulary and example generators
+
+This reorganization would not require preserving old routes as long as tests
+are updated accordingly. It is not high priority for the prototype but would
+improve discoverability and make the intent of each layer clear.
+
+**Constraint**: Do not start this refactor without updating all tests and
+ensuring no existing functionality is broken. An ADR is not strictly required
+for a rename, but the decision should be recorded in `AGENTS.md` or here.
+
+---
+
 ## Module Boundary: `vultron/bt/` vs `vultron/behaviors/`
 
 These two trees coexist and MUST NOT be merged or confused:
@@ -109,38 +137,30 @@ layer.
 
 ---
 
-## Roadmap: Handlers Module Refactoring
+## Handlers Module Structure (Completed)
 
-The `vultron/api/v2/backend/handlers.py` module is well over a thousand lines
-and growing. Consider organizing handlers into submodules in a
-`vultron/api/v2/backend/handlers/` directory, grouped by topic (e.g.,
-`report.py`, `case.py`, `embargo.py`, `actor.py`, `notes.py`, `status.py`).
+The `vultron/api/v2/backend/handlers/` package contains handler submodules
+organized by topic: `report.py`, `case.py`, `embargo.py`, `actor.py`,
+`note.py`, `participant.py`, `status.py`, `unknown.py`.
 
-**Constraint**: The `SEMANTIC_HANDLER_MAP` import in `vultron/semantic_handler_map.py`
-must stay importable from the same logical location. If handlers are split
-into submodules, `handlers/__init__.py` should re-export all handler functions
-and the submodule organization should mirror the vocabulary example module
-reorganization (see below) for consistency.
+`handlers/__init__.py` re-exports all handler functions so external imports
+from `vultron.api.v2.backend.handlers` remain stable.
 
-**Priority**: Not urgent during initial demos. Tackle after the last handler
-stubs are filled (Phase BT-7).
+**See**: `plan/IMPLEMENTATION_PLAN.md` Phase TECHDEBT-1 (completed).
 
 ---
 
-## Roadmap: Vocab Examples Module Refactoring
+## Vocabulary Examples Module Structure (Completed)
 
-`vultron/scripts/vocab_examples.py` is used by demo scripts, the documentation
-build pipeline, and as test fixtures. It has grown beyond a simple script into
-a de-facto module. Consider moving it to `vultron/as_vocab/examples/` with
-submodules organized by topic (mirroring the handler submodule topics above).
+`vultron/as_vocab/examples/` contains vocabulary example submodules organized
+by topic: `_base.py`, `actor.py`, `case.py`, `embargo.py`, `note.py`,
+`participant.py`, `report.py`, `status.py`. The top-level
+`vocab_examples.py` in that package re-exports all public names.
 
-**Constraint**: Demo scripts and documentation build tools import from
-`vultron.scripts.vocab_examples`. A refactor must update all import sites and
-ensure backward compatibility (e.g., a compatibility shim or re-export from the
-old location).
+The compatibility shim at `vultron/scripts/vocab_examples.py` has been removed
+(TECHDEBT-6, commit 29005e4). Import directly from `vultron.as_vocab.examples`.
 
-**Priority**: Not urgent during prototype. Coordinate with handlers refactoring
-so the two share a consistent topic taxonomy.
+**See**: `plan/IMPLEMENTATION_PLAN.md` Phase TECHDEBT-5 and TECHDEBT-6 (both completed).
 
 ---
 
@@ -237,16 +257,54 @@ manually) but must be resolved before the `CaseActor` broadcast model
 
 ---
 
-## Known Issue: `app.py` Sets Root Logger Level at Import Time
+## Resolved: `app.py` Root Logger Side Effect
 
-`vultron/api/v2/app.py` calls `logging.getLogger().setLevel(logging.DEBUG)`
-at module import time. This is a global side effect on the root logger that
-can cause test isolation problems: tests that import `app.py` (or any module
-that triggers its import) will have their root logger level raised to DEBUG,
-potentially interfering with tests that rely on caplog or logging level guards.
+`vultron/api/v2/app.py` previously called `logging.getLogger().setLevel(logging.DEBUG)`
+at module import time, causing test isolation problems.
 
-The correct fix is to configure the log level in the application startup code
-(e.g., `lifespan` event handler or explicitly in the test fixture), not at
-module import time. This should be addressed in a future cleanup.
+**Status**: Fixed in BUGFIX-1.1. Root logger configuration is now inside the
+`lifespan` context manager so importing the module in tests does not mutate
+the root logger.
 
-**Cross-reference**: `plan/IMPLEMENTATION_NOTES.md` (test isolation bug fix).
+---
+
+## Docstring and Markdown Compatibility
+
+Vultron uses `mkdocstrings` to render docstrings in the MkDocs documentation
+site. Docstrings MUST use markdown-compatible syntax.
+
+### Lists
+
+Use a blank line before every list, with consistent indentation:
+
+```python
+"""
+When run as a script, this module will:
+
+1. Check if the API server is available
+2. Post a VulnerabilityReport Offer
+"""
+```
+
+### Inline Code
+
+Use backticks for inline code references even if they are not Python
+identifiers:
+
+```python
+"""
+To see BT execution details, run with `DEBUG` logging enabled:
+`LOG_LEVEL=DEBUG uvicorn vultron.api.main:app --port 7999`
+"""
+```
+
+### Documentation Links
+
+When referencing other documentation in docstrings, use proper markdown links
+relative to `docs/` as the site root, with the target page title as link text:
+
+```python
+"""
+See [Reporting a Vulnerability](/howto/activitypub/activities/report_vulnerability.md).
+"""
+```
