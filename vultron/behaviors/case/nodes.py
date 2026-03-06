@@ -33,6 +33,7 @@ from py_trees.common import Status
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.as_vocab.activities.case import CreateCase as as_CreateCase
 from vultron.as_vocab.objects.case_actor import CaseActor
+from vultron.as_vocab.objects.case_participant import VendorParticipant
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.behaviors.helpers import DataLayerAction, DataLayerCondition
 
@@ -274,6 +275,102 @@ class EmitCreateCaseActivity(DataLayerAction):
         except Exception as e:
             self.logger.error(
                 f"{self.name}: Error creating CreateCase activity: {e}"
+            )
+            return Status.FAILURE
+
+
+class SetCaseAttributedTo(DataLayerAction):
+    """
+    Set VulnerabilityCase.attributed_to to the receiving actor's ID.
+
+    Must run before PersistCase so the stored case already carries the
+    vendor/coordinator owner reference.
+
+    Per specs/case-management.md CM-02-008.
+    """
+
+    def __init__(self, case_obj: VulnerabilityCase, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_obj = case_obj
+
+    def update(self) -> Status:
+        if self.actor_id is None:
+            self.logger.error(f"{self.name}: actor_id not available")
+            return Status.FAILURE
+
+        self.case_obj.attributed_to = self.actor_id
+        self.logger.debug(
+            f"{self.name}: Set attributed_to={self.actor_id}"
+            f" on case {self.case_obj.as_id}"
+        )
+        return Status.SUCCESS
+
+
+class CreateInitialVendorParticipant(DataLayerAction):
+    """
+    Create and persist a VendorParticipant for the receiving actor, then
+    add it to the case's case_participants list.
+
+    Must run after PersistCase so the case already exists in the DataLayer.
+
+    Per specs/case-management.md CM-02-008 (SHOULD).
+    """
+
+    def __init__(self, case_obj: VulnerabilityCase, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_obj = case_obj
+
+    def update(self) -> Status:
+        if self.datalayer is None or self.actor_id is None:
+            self.logger.error(
+                f"{self.name}: DataLayer or actor_id not available"
+            )
+            return Status.FAILURE
+
+        try:
+            participant = VendorParticipant(
+                attributed_to=self.actor_id,
+                context=self.case_obj.as_id,
+            )
+            try:
+                self.datalayer.create(participant)
+                self.logger.info(
+                    f"{self.name}: Created VendorParticipant"
+                    f" {participant.as_id} for actor {self.actor_id}"
+                )
+            except ValueError:
+                self.logger.debug(
+                    f"{self.name}: VendorParticipant {participant.as_id}"
+                    " already exists — skipping creation"
+                )
+
+            stored_case = self.datalayer.read(self.case_obj.as_id)
+            if stored_case is None:
+                self.logger.error(
+                    f"{self.name}: Case {self.case_obj.as_id} not found"
+                    " in DataLayer"
+                )
+                return Status.FAILURE
+
+            existing_ids = {
+                p.as_id if hasattr(p, "as_id") else p
+                for p in stored_case.case_participants
+            }
+            if participant.as_id not in existing_ids:
+                stored_case.case_participants.append(participant.as_id)
+                self.datalayer.update(
+                    stored_case.as_id, object_to_record(stored_case)
+                )
+                self.logger.info(
+                    f"{self.name}: Added VendorParticipant"
+                    f" {participant.as_id} to case {stored_case.as_id}"
+                )
+
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(
+                f"{self.name}: Error creating VendorParticipant: {e}"
             )
             return Status.FAILURE
 

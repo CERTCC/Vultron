@@ -224,7 +224,41 @@ which markdownlint treats as separate lists).
 
 ---
 
-## SPEC-COMPLIANCE-1 Phase: Object Model Gaps (2026-03-06)
+## SC-1.3: create_case BT vendor initial participant (2026-03-06)
+
+**Task**: Verify `create_case` BT records vendor as initial
+`CaseParticipant` before other participants (CM-02-008).
+
+**Implementation**:
+
+1. Added `SetCaseAttributedTo` BT node to `vultron/behaviors/case/nodes.py`:
+   - Sets `case_obj.attributed_to = actor_id` before case persistence
+   - Runs before `PersistCase` so the stored case carries the vendor/owner ID
+
+2. Added `CreateInitialVendorParticipant` BT node to
+   `vultron/behaviors/case/nodes.py`:
+   - Creates a `VendorParticipant(attributed_to=actor_id, context=case_id)`
+   - Persists the participant and appends it to `case.case_participants`
+   - Idempotent: skips creation if participant already exists
+
+3. Updated `vultron/behaviors/case/create_tree.py` sequence:
+   - Inserted `SetCaseAttributedTo` between `ValidateCaseObject` and
+     `PersistCase`
+   - Inserted `CreateInitialVendorParticipant` between `PersistCase` and
+     `CreateCaseActorNode`
+
+4. Added two new tests to `test/behaviors/case/test_create_tree.py`:
+   - `test_create_case_tree_sets_attributed_to`: asserts stored case
+     `attributed_to == actor_id`
+   - `test_create_case_tree_creates_vendor_participant`: asserts a
+     `VendorParticipant` with VENDOR role exists in DataLayer for the case
+
+5. Updated `vultron/demo/initialize_participant_demo.py`:
+   - Removed explicit `VendorParticipant` creation/add in
+     `setup_case_precondition` since the BT now handles it automatically
+   - Removed now-unused `VendorParticipant` import
+
+**Test Results**: 625 passed, 5581 subtests passed (2 new tests added)
 
 ### SC-1.1 and SC-1.2: VulnerabilityRecord and CaseReference Models
 

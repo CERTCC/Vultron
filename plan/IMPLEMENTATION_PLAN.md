@@ -309,7 +309,7 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
   and `tags` fields; `tags` aligned with CVE JSON schema reference tag
   vocabulary. Add to `vultron/as_vocab/objects/`. Add unit tests asserting
   `url` is required and `name`/`tags` are optional.
-- [ ] **SC-1.3**: Verify `create_case` BT records vendor as initial
+- [x] **SC-1.3**: Verify `create_case` BT records vendor as initial
   `CaseParticipant` before other participants (CM-02-008); add test asserting
   vendor `attributed_to` is set on case at creation.
 

@@ -184,3 +184,57 @@ def test_create_case_tree_idempotent(datalayer, actor, case_obj, bridge):
     stored = datalayer.read(case_obj.as_id)
     assert stored is not None
     assert stored.as_id == case_obj.as_id
+
+
+# ============================================================================
+# CM-02-008 vendor initial participant tests (SC-1.3)
+# ============================================================================
+
+
+def test_create_case_tree_sets_attributed_to(
+    datalayer, actor, case_obj, bridge
+):
+    """VulnerabilityCase.attributed_to MUST be set to the actor_id (CM-02-008)."""
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.as_id, activity=None)
+    stored = datalayer.read(case_obj.as_id)
+    assert stored is not None
+    attributed = (
+        stored.attributed_to.as_id
+        if hasattr(stored.attributed_to, "as_id")
+        else stored.attributed_to
+    )
+    assert attributed == actor.as_id
+
+
+def test_create_case_tree_creates_vendor_participant(
+    datalayer, actor, case_obj, bridge
+):
+    """A VendorParticipant SHOULD be created and added to case_participants (CM-02-008)."""
+    from vultron.as_vocab.objects.case_participant import VendorParticipant
+    from vultron.bt.roles.states import CVDRoles as CVDRole
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.as_id, activity=None)
+
+    stored_case = datalayer.read(case_obj.as_id)
+    assert stored_case is not None
+    assert len(stored_case.case_participants) >= 1
+
+    found_vendor = False
+    for table_name in datalayer._db.tables():
+        for rec in datalayer._db.table(table_name).all():
+            data = rec.get("data_", {})
+            at = data.get("attributed_to")
+            ctx = data.get("context")
+            roles = data.get("case_roles", [])
+            if (
+                at == actor.as_id
+                and ctx == case_obj.as_id
+                and CVDRole.VENDOR.name in roles
+            ):
+                found_vendor = True
+                break
+        if found_vendor:
+            break
+    assert found_vendor, "VendorParticipant was not found in DataLayer"

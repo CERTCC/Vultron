@@ -25,13 +25,15 @@ CM-02 requirements.
 Structure:
 
     CreateCaseBT (Selector)
-    ├─ CheckCaseAlreadyExists      # Early exit if case already in DataLayer
+    ├─ CheckCaseAlreadyExists          # Early exit if case already in DataLayer
     └─ CreateCaseFlow (Sequence)
-       ├─ ValidateCaseObject       # Check required fields
-       ├─ PersistCase              # Save VulnerabilityCase to DataLayer
-       ├─ CreateCaseActorNode      # Create CaseActor service (CM-02-001)
-       ├─ EmitCreateCaseActivity   # Generate CreateCase activity
-       └─ UpdateActorOutbox        # Append activity to actor outbox
+       ├─ ValidateCaseObject           # Check required fields
+       ├─ SetCaseAttributedTo          # Set attributed_to to actor_id (CM-02-008)
+       ├─ PersistCase                  # Save VulnerabilityCase to DataLayer
+       ├─ CreateInitialVendorParticipant  # Add vendor as initial participant (CM-02-008)
+       ├─ CreateCaseActorNode          # Create CaseActor service (CM-02-001)
+       ├─ EmitCreateCaseActivity       # Generate CreateCase activity
+       └─ UpdateActorOutbox            # Append activity to actor outbox
 """
 
 import logging
@@ -42,8 +44,10 @@ from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.behaviors.case.nodes import (
     CheckCaseAlreadyExists,
     CreateCaseActorNode,
+    CreateInitialVendorParticipant,
     EmitCreateCaseActivity,
     PersistCase,
+    SetCaseAttributedTo,
     UpdateActorOutbox,
     ValidateCaseObject,
 )
@@ -80,7 +84,9 @@ def create_create_case_tree(
         memory=False,
         children=[
             ValidateCaseObject(case_obj=case_obj),
+            SetCaseAttributedTo(case_obj=case_obj),
             PersistCase(case_obj=case_obj),
+            CreateInitialVendorParticipant(case_obj=case_obj),
             CreateCaseActorNode(case_id=case_id, actor_id=actor_id),
             EmitCreateCaseActivity(),
             UpdateActorOutbox(),
