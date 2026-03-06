@@ -202,7 +202,7 @@ def reset_datalayer(
     if init:
         from vultron.as_vocab.examples._base import initialize_examples
 
-        initialize_examples()
+        initialize_examples(datalayer=datalayer)
 
     return {
         "status": "datalayer reset successfully",
