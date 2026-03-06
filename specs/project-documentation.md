@@ -202,6 +202,44 @@ history from implementation work.
 - Move completed phase details to `plan/IMPLEMENTATION_HISTORY.md`
 - Implementation insights go to `plan/IMPLEMENTATION_NOTES.md` (not here)
 - Add new phases as roadmap evolves
+- Task Sizing Guidance (SHOULD)
+   - Tasks listed in `plan/IMPLEMENTATION_PLAN.md` SHOULD be sized as
+     "meaningful chunks":
+     - Make each task large enough to produce measurable progress (for
+       example: implement a feature with tests and a minimal documentation
+       note; or run a one-off migration including tests), but small enough
+       to be completed in a single agent execution cycle (one agent run or
+       one focused human work session).
+     - Rationale: grouping many very small plan items increases overhead
+       for agents and reviewers (more prompts, more context switches).
+       Overly large tasks become hard to reason about, validate, and track.
+       "Meaningful chunks" balance visibility, atomicity, and execution
+       efficiency.
+     - When a change requires multiple distinct implementation contexts
+       (separate services or major refactors), split it into separate
+       tasks. When multiple small fixes share the same implementation
+       context (same module, tests, or PR), group them into one task.
+   - Minimal acceptance criteria for a task:
+     - A clear, testable definition of "done" (e.g., tests to add/modify
+       and expected behaviours).
+     - Any blocking dependencies (phases/tasks that must complete first).
+     - A short note about scope (one sentence) to avoid ambiguity.
+   - Examples:
+     - Anti-pattern (too tiny): `- [ ] Fix one failing assert in
+       test_foo.py`
+     - Good ("meaningful chunk"): `- [ ] Fix failing test suite for module
+       foo: update validation, add edge-case tests, and document behavior in
+       docs/foo.md`
+     - Anti-pattern (too large): `- [ ] Rewrite the entire data layer and
+       update all docs`
+     - Better (split by context): `- [ ] Refactor tinydb backend to
+       DataLayer protocol + tests` and `- [ ] Update demo scripts and docs
+       to use refactored DataLayer`
+   - Guidance for reviewers/agents:
+     - Prefer tasks that can be completed and validated in a single PR.
+     - If a proposed task will require multiple agent prompts or multiple
+       distinct PRs, break it into smaller contextual subtasks and record
+       the parent/child relationship in the plan.
 - Phases get a Unique ID tag (e.g., `DEMO-1`)
   - Steps within a phase get hierarchical tags (e.g., `DEMO-1.1`, `DEMO-1.2`)
   - Individual task items within a step get further tags (e.g., `DEMO-1.1.1`)
