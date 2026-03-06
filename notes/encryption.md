@@ -1,6 +1,6 @@
 # Encryption implementation notes
 
-Overview
+## Overview
 
 - ActivityPub supports public-key distribution via actor profiles.
 - Leverage ActivityPub public keys where possible to avoid re-inventing
@@ -8,7 +8,7 @@ Overview
 - Goal: enable CaseActors and other actors to send and receive encrypted
   messages while preserving semantic routing and handler behavior.
 
-Principles
+## Principles
 
 - Prefer standard mechanisms (Actor.publicKey) for discovery and storage.
 - Perform decryption before semantic extraction/dispatch so semantics can be
@@ -18,7 +18,7 @@ Principles
 - Default to encrypting outgoing messages when the recipient advertises a
   public key.
 
-Incoming messages — where to decrypt
+## Incoming messages — where to decrypt
 
 - Decryption should occur upstream of the dispatcher/handler layer. Reasons:
   - Semantic extraction depends on object types and fields that may be
@@ -33,7 +33,7 @@ Incoming messages — where to decrypt
 - Ensure authorization and integrity checks (signatures, sender identity)
   are performed as part of decryption/validation.
 
-Outgoing messages — strategies and trade-offs
+## Outgoing messages — strategies and trade-offs
 
 - Per-recipient messages (recommended):
   - For each intended recipient, encrypt a separate message to that
@@ -50,7 +50,7 @@ Outgoing messages — strategies and trade-offs
 - Recommendation: use per-recipient encryption by default; evaluate
   multi-recipient schemes only if the message volume or latency requires it.
 
-Public key discovery and rotation
+## Public key discovery and rotation
 
 - Read public keys from the recipient actor's profile (ActivityPub
   `publicKey` property). Validate the key format and its association with the
@@ -61,7 +61,7 @@ Public key discovery and rotation
   - Fall back to sending an unencrypted message with a warning only if
     encryption is explicitly required and no valid key exists.
 
-Implementation guidance
+## Implementation guidance
 
 - Store private keys securely (OS key store, HSM, or encrypted configuration).
 - Log encryption/decryption actions at INFO or DEBUG levels without exposing
@@ -74,7 +74,7 @@ Implementation guidance
   the referenced activity's ID string (not an inline object) to ensure
   rehydration and validation succeed after transport.
 
-Open questions (to decide)
+## Open questions (to decide)
 
 - Do we accept the extra network cost of per-recipient messages to simplify
   crypto, or do we invest in multi-recipient schemes?
@@ -83,7 +83,7 @@ Open questions (to decide)
 - How should public-key metadata (creation, expiry, usage rules) be surfaced
   in actor profiles for automated decision-making?
 
-References
+## References
 
 - ActivityPub actor publicKey: <https://docs.joinmastodon.org/spec/activitypub/#publicKey>
 - ActivityPub security considerations: <https://docs.joinmastodon.org/spec/security/>
