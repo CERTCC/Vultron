@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-06 (gap analysis refresh #12)
+**Last Updated**: 2026-03-06 (gap analysis refresh #13)
 
 ## Overview
 
@@ -37,7 +37,7 @@ reject_case_ownership_transfer, update_case
 
 ---
 
-## Gap Analysis (2026-03-06, refresh #12)
+## Gap Analysis (2026-03-06, refresh #13)
 
 ### ✅ Phase BUGFIX-1 fully complete
 
@@ -93,9 +93,10 @@ and is blocked until that lands.
 
 ### ❌ CM-05 domain object types missing
 
-`VulnerabilityRecord` and `Publication` Pydantic model types specified in
-CM-05-001 do not exist in the codebase. `specs/case-management.md` CM-05-002
-through CM-05-007 cover their lifecycle constraints.
+`VulnerabilityRecord` and `CaseReference` Pydantic model types specified in
+CM-05-001 do not exist in the codebase. Note: the spec renamed `Publication`
+to `CaseReference` (commit ad46802, 2026-03-06). `specs/case-management.md`
+CM-05-002 through CM-05-007 cover their lifecycle constraints.
 
 ### ❌ CM-02-008 vendor initial participant not verified in create_case BT
 
@@ -171,6 +172,14 @@ publication (TB-07). P30 tasks updated below.
 `specs/object-ids.md` OID-01 through OID-04 was created since the last plan
 refresh, formalizing the TECHDEBT-3 task. TECHDEBT-3 updated below to
 reference OID spec IDs.
+
+### ❌ Pyright static type checking not configured (IMPL-TS-07-002)
+
+`specs/tech-stack.md` IMPL-TS-07-002 (added 2026-03-06) requires the project
+to adopt pyright for static type checking, starting with a gradual approach:
+run pyright to inventory existing type errors as technical debt, then enforce
+it on new/modified code. No pyright configuration exists yet. Added as
+TECHDEBT-8.
 
 ---
 
@@ -273,6 +282,16 @@ TECHDEBT-4 remain LOW.
   asserting that empty-string values are rejected and `None` is accepted.
   Done when: validators present on all Optional[str] fields and tests pass.
 
+- [ ] TECHDEBT-8: Configure pyright for gradual static type checking
+  (IMPL-TS-07-002). Run `pyright` on the full codebase to generate a
+  baseline error inventory; commit a `pyrightconfig.json` with `basic`
+  strictness and a baseline `# type: ignore` budget comment in
+  `pyproject.toml` or CI config. All new/modified files MUST pass pyright
+  at `basic` level from this point forward.
+  Done when: pyright config committed, baseline error count documented in
+  `plan/IMPLEMENTATION_NOTES.md`, and CI (or `Makefile`) has a target that
+  runs pyright on changed files only (or full suite).
+
 References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
 `plan/IDEAS.md`, and files in `specs/`.
 
@@ -285,9 +304,11 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
 - [ ] **SC-1.1**: Add `VulnerabilityRecord` Pydantic model (CM-05-001)
   — persistent identifier record (e.g., CVE number) with `name`, `url`,
   `case_id` fields. Add to `vultron/as_vocab/objects/`. Add unit tests.
-- [ ] **SC-1.2**: Add `Publication` Pydantic model (CM-05-001, CM-05-005)
-  — reference-link record with `title`, `publisher`, `date`, `url` fields;
-  no embedded content. Add to `vultron/as_vocab/objects/`. Add unit tests.
+- [ ] **SC-1.2**: Add `CaseReference` Pydantic model (CM-05-001, CM-05-005)
+  — typed external reference with required `url` field and optional `name`
+  and `tags` fields; `tags` aligned with CVE JSON schema reference tag
+  vocabulary. Add to `vultron/as_vocab/objects/`. Add unit tests asserting
+  `url` is required and `name`/`tags` are optional.
 - [ ] **SC-1.3**: Verify `create_case` BT records vendor as initial
   `CaseParticipant` before other participants (CM-02-008); add test asserting
   vendor `attributed_to` is set on case at creation.
@@ -496,7 +517,7 @@ The following are deferred until higher-priority phases are complete:
 | CM-02-007 | ✅ `VulnerabilityCase.notes` field present; `add_note_to_case` appends correctly |
 | CM-02-008 | ❌ Vendor initial participant in create_case not verified (SC-1.3) |
 | CM-02-009 | ❌ General trusted-timestamp requirement not implemented (SC-3.2) |
-| CM-05-001 | ❌ VulnerabilityRecord and Publication types missing (SC-1.1, SC-1.2) |
+| CM-05-001 | ❌ VulnerabilityRecord and CaseReference types missing (SC-1.1, SC-1.2) |
 | CM-06 | ❌ CaseActor broadcast not implemented (PRIORITY-200, blocked by OUTBOX-1) |
 | CM-07 / AR-07 | ❌ Action rules endpoint not implemented (CA-2, PRIORITY-200) |
 | CM-10 | ❌ Embargo acceptance tracking not implemented (SC-3.1, SC-3.2, SC-3.3) |
@@ -512,6 +533,7 @@ The following are deferred until higher-priority phases are complete:
 | TB-01–TB-07 | ❌ Triggerable behavior endpoints not implemented (P30-1 through P30-6) |
 | OID-01–OID-04 | ❌ Object ID standardization not started (TECHDEBT-3) |
 | CS-08-001 | ❌ Optional empty-string validation not implemented (TECHDEBT-7) |
+| IMPL-TS-07-002 | ❌ Pyright not configured (TECHDEBT-8) |
 | Demo CLI (DC-01–DC-05) | ✅ Complete |
 | BUGFIX-1 (logging/print) | ✅ Complete |
 | REFACTOR-1 (CM-03-006) | ✅ Complete |

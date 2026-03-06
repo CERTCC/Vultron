@@ -118,7 +118,29 @@ and (from https://github.com/CVEProject/cve-schema/blob/ce5f5c865f14dc40a6548d36
 ~~Our implementation should be identical to this in a Pydantic object to allow~~
 ~~for easy transfer and parsing of data.~~
 
-## 2026-03-06 (gap analysis refresh #12)
+## 2026-03-06 (gap analysis refresh #13)
+
+### `Publication` → `CaseReference` rename (captured in SC-1.2)
+
+> **Captured in**: `plan/IMPLEMENTATION_PLAN.md` SC-1.2
+
+`specs/case-management.md` CM-05-001 renamed the `Publication` domain object
+type to `CaseReference` (commit ad46802, 2026-03-06). The new model uses a
+required `url` field and optional `name` and `tags` fields, aligned with the
+CVE JSON schema reference format. SC-1.2 updated accordingly. Any existing
+code or test references to `Publication` as a domain type should be treated
+as the old name and updated to `CaseReference`.
+
+### Pyright gradual adoption (captured in TECHDEBT-8)
+
+> **Captured in**: `plan/IMPLEMENTATION_PLAN.md` TECHDEBT-8
+
+`specs/tech-stack.md` IMPL-TS-07-002 added a SHOULD requirement to adopt
+pyright for static type checking with a gradual approach. No pyright
+configuration currently exists. Baseline inventory step is low friction and
+should precede any new type annotation work.
+
+
 
 ### ~~PyCharm-specific `--- Logging error ---` noise (residual, known limitation)~~
 
