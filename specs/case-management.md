@@ -155,9 +155,12 @@ the distinction between participant-specific and participant-agnostic state.
   - `VulnerabilityCase`: a coordination unit grouping one or more reports
     and tracking state across participants
   - `VulnerabilityRecord`: a persistent identifier record for a confirmed
-    vulnerability (e.g., CVE number); created during coordination
-  - `Publication`: a public disclosure artifact linked to a case; may
-    reference external URLs rather than storing content
+    vulnerability; may carry one or more identifiers from different
+    namespaces (e.g., CVE ID, CERT/CC VU#, vendor-specific ID)
+  - `CaseReference`: a typed external reference associated with a case
+    (e.g., public advisory, patch, vendor bulletin, or other
+    vulnerability-related resource); links to external resources rather
+    than embedding their content
 - `CM-05-002` A `VulnerabilityCase` MUST reference at least one
   `VulnerabilityReport`; a case with zero reports MUST NOT exist
   - CM-05-002 implements VP-02-015
@@ -166,16 +169,37 @@ the distinction between participant-specific and participant-agnostic state.
   `VulnerabilityRecord` before closure; cases with no associated record at
   closure SHOULD log a warning
 - `CM-05-004` A `VulnerabilityCase` MAY have zero or more associated
-  publications
-- `CM-05-005` Publications associated with a case MUST be stored as
-  reference links (metadata including title, publisher, date, URL) rather
-  than embedding full publication content
-  - Exception: a case MAY embed a publication snapshot as a
+  `CaseReference` objects
+- `CM-05-005` `CaseReference` objects MUST include at minimum a `url` field;
+  SHOULD include a `name` field (human-readable title); MAY include a `tags`
+  field (array of one or more type descriptors, e.g., `"patch"`,
+  `"vendor-advisory"`, `"third-party-advisory"`, `"exploit"`,
+  `"release-notes"`)
+  - The `url`, `name`, and `tags` structure aligns with the CVE JSON schema
+    reference format
+    (<https://github.com/CVEProject/cve-schema>)
+  - Exception: a case MAY embed a reference snapshot as a
     `VulnerabilityCase` note when content preservation is explicitly required
 - `CM-05-006` One report MAY describe multiple vulnerabilities; one case MAY
   group multiple reports (e.g., when overlapping participants are involved)
-- `CM-05-007` Multiple publications MAY arise from a single case
+- `CM-05-007` Multiple `CaseReference` objects MAY arise from a single case
   (e.g., coordinated simultaneous disclosure by multiple vendors)
+- `CM-05-008` `VulnerabilityRecord` identifiers MUST be treated as opaque
+  strings; the system MUST NOT restrict identifier values to CVE ID format
+  or any other specific namespace
+  - **Rationale**: Different organizations use different identifier namespaces
+    (CVE, CERT/CC VU#, vendor-assigned IDs, etc.); requiring a specific
+    format excludes valid records and prevents multi-namespace support
+- `CM-05-009` A `VulnerabilityRecord` SHOULD support a list of alias
+  identifiers from different namespaces for the same vulnerability
+  - **Rationale**: Multiple IDs from different namespaces may refer to the
+    same underlying vulnerability (e.g., a CVE ID and a CERT/CC VU# ID)
+- `CM-05-010` When a `VulnerabilityRecord` is a `CVERecord` (i.e., it
+  carries a CVE ID), its data MUST conform to the CVE JSON schema
+  (<https://github.com/CVEProject/cve-schema>)
+  - The `CVERecord` Pydantic model SHOULD reuse the CVE JSON schema
+    `reference` definition for its `references` array, ensuring
+    compatibility with CVE data interchange formats
 
 ## Case Update Broadcast (MUST)
 
@@ -255,13 +279,16 @@ the distinction between participant-specific and participant-agnostic state.
   correct per-participant values
 - Code review: No handler mixes participant-specific and agnostic state
 
-### CM-05-001 through CM-05-007 Verification
+### CM-05-001 through CM-05-010 Verification
 
 - Unit test: `VulnerabilityCase`, `VulnerabilityReport`, `VulnerabilityRecord`,
-  and `Publication` are separate Pydantic model types
+  and `CaseReference` are separate Pydantic model types
 - Unit test: Creating a case with no reports raises a validation error
-- Unit test: Publication stored as reference link includes title, publisher,
-  date, and URL fields
+- Unit test: `CaseReference` model requires a `url` field; `name` and `tags`
+  are optional
+- Unit test: `VulnerabilityRecord` accepts any non-empty string as identifier
+- Unit test: `VulnerabilityRecord.aliases` field stores a list of string IDs
+- Unit test: `CVERecord` model validates data against CVE JSON schema structure
 
 ### CM-06-001 through CM-06-004 Verification
 

@@ -117,7 +117,7 @@ NVD database entry), but publication events SHOULD be represented as an
 application-level action that:
 
 1. Triggers state transitions (e.g., adds a `PUBLIC` PXA case status)
-2. Accepts publication metadata (publisher, URL, date) as a linked reference
+2. Accepts reference metadata (url, name, tags) as a `CaseReference`
 3. Stores a note on the case with the metadata
 
 See `docs/topics/behavior_logic/publication_bt.md` and
@@ -166,7 +166,7 @@ The following prior work is relevant to a standardized embargo policy record:
 
 | Topic | Specification |
 |---|---|
-| Object model (Reports, Cases, Publications, Vulnerability records) | `specs/case-management.md` CM-05-* |
+| Object model (Reports, Cases, CaseReferences, Vulnerability records) | `specs/case-management.md` CM-05-* |
 | Embargo policy format | `specs/embargo-policy.md` |
 | Do-work BT node guide | `specs/behavior-tree-integration.md` BT-* |
 | Case prioritization stub | `specs/prototype-shortcuts.md` PROTO-05-001 |
