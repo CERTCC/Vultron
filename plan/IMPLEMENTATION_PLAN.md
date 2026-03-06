@@ -340,6 +340,26 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
   `CaseParticipant` (CM-10-001, CM-10-003). Update serialization tests;
   confirm round-trip through `object_to_record`/`record_to_object`
   preserves the field.
+
+- [ ] **SC-PRE-1** `auto-added`: Add `CaseEvent` model and append-only
+  event log to `VulnerabilityCase` for trusted timestamps (CM-02-009,
+  CM-10-002). Justification: SC-3.2 requires a server-generated trusted
+  timestamp mechanism for embargo acceptances; this must be an event log on
+  the case, not a modification to the accepting object's `updated` field.
+  Done when `VulnerabilityCase` has an `events: list[CaseEvent]` field,
+  `CaseEvent` stores `(object_id, event_type, received_at: datetime)` with
+  TZ-aware UTC ISO8601 serialization, and round-trip tests pass.
+
+- [ ] **SC-PRE-2** `auto-added`: Add actor-to-participant index to
+  `VulnerabilityCase` with `add_participant()` / `remove_participant()`
+  methods (CM-10-002). Justification: SC-3.2 requires looking up a
+  `CaseParticipant` by Actor ID to record embargo acceptance; iterating all
+  participants is fragile without an index; the index must be maintained
+  atomically within the add/remove methods. Done when `VulnerabilityCase`
+  has an `actor_participant_index: dict[str, str]` field maintained by
+  `add_participant()` / `remove_participant()`, all handlers creating or
+  removing participants use these methods, and tests verify index consistency.
+
 - [ ] **SC-3.2**: In `accept_invite_to_embargo_on_case` and
   `accept_invite_actor_to_case` handlers, record the accepted embargo ID
   in `CaseParticipant.accepted_embargo_ids` using the CaseActor's
