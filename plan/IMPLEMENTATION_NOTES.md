@@ -170,3 +170,50 @@ which markdownlint treats as separate lists).
   input; validators are marked with `@classmethod`
 - Both models can be imported from their respective files and are registered
   in the ActivityStreams vocabulary registry
+
+---
+
+## EP-1.2: VultronActorMixin and Vultron actor subclasses (2026-03-06)
+
+**Task**: Add `embargo_policy` optional field to an actor profile model
+(EP-01-001).
+
+**Implementation**:
+
+1. Created `vultron/as_vocab/objects/vultron_actor.py`:
+   - `VultronActorMixin(BaseModel)`: shared mixin adding optional
+     `embargo_policy: EmbargoPolicyRef | None` field
+   - `VultronPerson(VultronActorMixin, as_Person)`: Person with Vultron
+     profile fields; retains `as_type == "Person"`
+   - `VultronOrganization(VultronActorMixin, as_Organization)`: Organization
+     with Vultron profile fields; retains `as_type == "Organization"`
+   - `VultronService(VultronActorMixin, as_Service)`: Service with Vultron
+     profile fields; retains `as_type == "Service"`
+   - TypeAlias helpers: `VultronPersonRef`, `VultronOrganizationRef`,
+     `VultronServiceRef`
+   - All three concrete classes decorated with `@activitystreams_object`
+
+2. Created `test/as_vocab/test_vultron_actor.py`: 16 tests covering actor
+   type preservation, embargo_policy defaults, inline object and reference
+   string acceptance, `VultronActorMixin` isinstance checks, and JSON
+   serialization.
+
+**Test Results**: 665 passed, 5581 subtests (16 new tests added)
+
+**Design Notes**:
+- The mixin approach keeps the `embargo_policy` field DRY across actor
+  types rather than repeating it in each subclass.
+- The actor's ActivityStreams type is intentionally preserved (Person,
+  Organization, Service) so that external ActivityPub clients that do not
+  know about Vultron extensions continue to work correctly.
+- A fully standards-conformant implementation would extend the JSON-LD
+  `@context` to define `embargoPolicy` under a Vultron namespace (e.g.,
+  `https://vultron.sei.cmu.edu/ns#`) so that decentralized clients can
+  understand or safely ignore the custom field. This is deferred; see
+  Priority 1000 (Agentic AI readiness) and the JSON-LD extension pattern
+  described in the user's note on 2026-03-06.
+- The user also noted that the longer-term goal may be a broader
+  `DisclosurePolicy` or `VulnerabilityDisclosurePolicy` object that
+  contains `embargoPolicy` as a sub-field (analogous to security.txt /
+  DIOSTS). That wrapper model is a future work item and should be tracked
+  as a follow-on to EP-01 when a formal spec is drafted.

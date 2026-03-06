@@ -323,8 +323,11 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
   with `actor_id`, `inbox`, `preferred_duration_days`,
   `minimum_duration_days`, `maximum_duration_days`, `notes` fields.
   Add to `vultron/as_vocab/objects/embargo_policy.py`. Add unit tests.
-- [ ] **EP-1.2**: Add `embargo_policy` optional field to `VultronActor` (or
+- [x] **EP-1.2**: Add `embargo_policy` optional field to `VultronActor` (or
   equivalent actor profile model) referencing the `EmbargoPolicy` record.
+  **Completed**: `VultronActorMixin` + `VultronPerson`, `VultronOrganization`,
+  `VultronService` subclasses in `vultron/as_vocab/objects/vultron_actor.py`.
+  Actor AS types preserved. 16 new tests; 665 pass.
 
 ---
 
@@ -529,7 +532,7 @@ The following are deferred until higher-priority phases are complete:
 | Idempotency (ID-02, ID-03, ID-05) | ❌ HTTP-layer deduplication not implemented |
 | Outbox (OX-01, OX-02) | ✅ Outbox populated by handlers |
 | Outbox (OX-03, OX-04) | ❌ Delivery not implemented (OUTBOX-1) |
-| EP-01 | ❌ EmbargoPolicy model not implemented (EP-1.1, EP-1.2) |
+| EP-01 | ✅ EmbargoPolicy model (EP-1.1) and VultronActor mixin (EP-1.2) implemented |
 | TB-01–TB-07 | ❌ Triggerable behavior endpoints not implemented (P30-1 through P30-6) |
 | OID-01–OID-04 | ❌ Object ID standardization not started (TECHDEBT-3) |
 | CS-08-001 | ❌ Optional empty-string validation not implemented (TECHDEBT-7) |
