@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-06 (gap analysis refresh #17)
+**Last Updated**: 2026-03-06 (gap analysis refresh #17, P30-2 complete)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 702 passing, 5581 subtests, 0 xfailed (2026-03-06)
+**Test suite**: 719 passing, 5581 subtests, 0 xfailed (2026-03-06)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -71,10 +71,10 @@ actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 
 ### ⚠️ Triggerable behaviors partially implemented (PRIORITY 30)
 
-P30-1 is complete: `vultron/api/v2/routers/triggers.py` scaffolding created
-with `POST /actors/{actor_id}/trigger/validate-report` endpoint.
-PRIORITIES.md PRIORITY 30 calls for exposing behaviors the local actor can
-initiate based on internal state. P30-2 through P30-6 remain.
+P30-1 and P30-2 are complete: `vultron/api/v2/routers/triggers.py` scaffolding
+created with `validate-report`, `invalidate-report`, and `reject-report`
+endpoints. PRIORITIES.md PRIORITY 30 calls for exposing behaviors the local
+actor can initiate based on internal state. P30-3 through P30-6 remain.
 
 ### ❌ Actor independence not implemented (PRIORITY 100)
 
@@ -479,10 +479,15 @@ Candidate behaviors from `docs/topics/behavior_logic/`:
   helpers, and outbox-diff strategy to retrieve the resulting activity.
   Router registered in `v2_router.py`. 9 tests in
   `test/api/v2/routers/test_triggers.py`. 702 tests pass.
-- [ ] **P30-2**: Add `POST /actors/{actor_id}/trigger/invalidate-report` and
+- [x] **P30-2**: Add `POST /actors/{actor_id}/trigger/invalidate-report` and
   `POST /actors/{actor_id}/trigger/reject-report` endpoints (TB-02-001).
   `reject-report` MUST require a non-empty `note` field (TB-03-004,
   CS-08-001). Add tests for both happy-path and missing-`note` error.
+  **Completed**: Both endpoints added to `triggers.py`; procedural
+  implementation emitting `RmInvalidateReport` (TentativeReject) and
+  `RmCloseReport` (Reject) respectively; `InvalidateReportRequest` and
+  `RejectReportRequest` models added; empty `note` on reject-report logs
+  WARNING; 17 new tests in `test_triggers.py`; 719 tests pass.
 - [ ] **P30-3**: Add `POST /actors/{actor_id}/trigger/engage-case` and
   `POST /actors/{actor_id}/trigger/defer-case` endpoints (TB-02-001).
   Both require `case_id` in request body (TB-03-001). Add tests.

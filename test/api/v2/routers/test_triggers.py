@@ -277,3 +277,249 @@ def test_trigger_validate_report_adds_activity_to_outbox(
     )
     new_items = outbox_after - outbox_before
     assert len(new_items) >= 1, "No new activity was added to the outbox"
+
+
+# ===========================================================================
+# Tests for trigger/invalidate-report (TB-02-001)
+# ===========================================================================
+
+
+@pytest.fixture
+def invalid_report(report, actor):
+    """Put the report into RM.INVALID state (for invalidate/reject triggers)."""
+    set_status(
+        ReportStatus(
+            object_type="VulnerabilityReport",
+            object_id=report.as_id,
+            actor_id=actor.as_id,
+            status=RM.RECEIVED,
+        )
+    )
+    return report
+
+
+def test_trigger_invalidate_report_returns_202(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-01-002: POST /actors/{id}/trigger/invalidate-report returns HTTP 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/invalidate-report",
+        json={"offer_id": offer.as_id},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_invalidate_report_response_contains_activity_key(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/invalidate-report",
+        json={"offer_id": offer.as_id},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_invalidate_report_missing_offer_id_returns_422(
+    client_triggers, actor
+):
+    """TB-03-001: Request missing offer_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/invalidate-report",
+        json={},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_trigger_invalidate_report_ignores_unknown_fields(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-03-002: Unknown fields in request body are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/invalidate-report",
+        json={"offer_id": offer.as_id, "unknown_xyz": "ignored"},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_invalidate_report_unknown_actor_returns_404(client_triggers):
+    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    resp = client_triggers.post(
+        "/actors/nonexistent/trigger/invalidate-report",
+        json={"offer_id": "urn:uuid:any"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_invalidate_report_unknown_offer_returns_404(
+    client_triggers, actor
+):
+    """TB-01-003: Unknown offer_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/invalidate-report",
+        json={"offer_id": "urn:uuid:nonexistent"},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_invalidate_report_adds_activity_to_outbox(
+    client_triggers, dl, actor, offer, invalid_report
+):
+    """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
+    actor_before = dl.read(actor.as_id)
+    outbox_before = set(
+        item for item in actor_before.outbox.items if isinstance(item, str)
+    )
+
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/invalidate-report",
+        json={"offer_id": offer.as_id},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    actor_after = dl.read(actor.as_id)
+    outbox_after = set(
+        item for item in actor_after.outbox.items if isinstance(item, str)
+    )
+    assert len(outbox_after - outbox_before) >= 1
+
+
+def test_trigger_invalidate_report_with_note_returns_202(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-03-003: Optional note field is accepted."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/invalidate-report",
+        json={
+            "offer_id": offer.as_id,
+            "note": "Soft-closing; needs more info.",
+        },
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+# ===========================================================================
+# Tests for trigger/reject-report (TB-02-001, TB-03-004)
+# ===========================================================================
+
+
+def test_trigger_reject_report_returns_202(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-01-002: POST /actors/{id}/trigger/reject-report returns HTTP 202."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/reject-report",
+        json={"offer_id": offer.as_id, "note": "Out of scope."},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_reject_report_response_contains_activity_key(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-04-001: Successful trigger response body contains 'activity' key."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/reject-report",
+        json={"offer_id": offer.as_id, "note": "Out of scope."},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    data = resp.json()
+    assert "activity" in data
+    assert data["activity"] is not None
+
+
+def test_trigger_reject_report_missing_note_returns_422(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-03-004: reject-report without note field returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/reject-report",
+        json={"offer_id": offer.as_id},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_trigger_reject_report_empty_note_emits_warning(
+    client_triggers, actor, offer, invalid_report, caplog
+):
+    """TB-03-004: reject-report with empty note emits a WARNING."""
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        resp = client_triggers.post(
+            f"/actors/{actor.as_id}/trigger/reject-report",
+            json={"offer_id": offer.as_id, "note": ""},
+        )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+    assert any("empty" in r.message.lower() for r in caplog.records)
+
+
+def test_trigger_reject_report_missing_offer_id_returns_422(
+    client_triggers, actor
+):
+    """TB-03-001: Request missing offer_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/reject-report",
+        json={"note": "Some reason."},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_trigger_reject_report_ignores_unknown_fields(
+    client_triggers, actor, offer, invalid_report
+):
+    """TB-03-002: Unknown fields in request body are silently ignored."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/reject-report",
+        json={"offer_id": offer.as_id, "note": "Reason.", "extra_field": 42},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_reject_report_unknown_actor_returns_404(client_triggers):
+    """TB-01-003: Unknown actor_id returns HTTP 404 with structured body."""
+    resp = client_triggers.post(
+        "/actors/nonexistent/trigger/reject-report",
+        json={"offer_id": "urn:uuid:any", "note": "Reason."},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+    data = resp.json()
+    assert data["detail"]["error"] == "NotFound"
+
+
+def test_trigger_reject_report_unknown_offer_returns_404(
+    client_triggers, actor
+):
+    """TB-01-003: Unknown offer_id returns HTTP 404."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/reject-report",
+        json={"offer_id": "urn:uuid:nonexistent", "note": "Reason."},
+    )
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_reject_report_adds_activity_to_outbox(
+    client_triggers, dl, actor, offer, invalid_report
+):
+    """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
+    actor_before = dl.read(actor.as_id)
+    outbox_before = set(
+        item for item in actor_before.outbox.items if isinstance(item, str)
+    )
+
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/reject-report",
+        json={"offer_id": offer.as_id, "note": "Definitively out of scope."},
+    )
+    assert resp.status_code == status.HTTP_202_ACCEPTED
+
+    actor_after = dl.read(actor.as_id)
+    outbox_after = set(
+        item for item in actor_after.outbox.items if isinstance(item, str)
+    )
+    assert len(outbox_after - outbox_before) >= 1

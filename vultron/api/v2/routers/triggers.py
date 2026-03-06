@@ -31,14 +31,22 @@ Naming convention (per notes/triggerable-behaviors.md §4):
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from vultron.api.v2.data.rehydration import rehydrate
+from vultron.api.v2.data.status import OfferStatus, ReportStatus, set_status
 from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+from vultron.as_vocab.activities.report import (
+    RmCloseReport,
+    RmInvalidateReport,
+)
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.behaviors.bridge import BTBridge
 from vultron.behaviors.report.validate_tree import create_validate_report_tree
+from vultron.bt.report_management.states import RM
+from vultron.enums import OfferStatusEnum
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +71,48 @@ class ValidateReportRequest(BaseModel):
 
     offer_id: str
     note: str | None = None
+
+
+class InvalidateReportRequest(BaseModel):
+    """
+    Request body for the invalidate-report trigger endpoint.
+
+    TB-03-001: Must include offer_id to identify the target offer.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TB-03-003: Optional note field may be included.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    offer_id: str
+    note: str | None = None
+
+
+class RejectReportRequest(BaseModel):
+    """
+    Request body for the reject-report trigger endpoint.
+
+    TB-03-001: Must include offer_id to identify the target offer.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TB-03-004: note is required (hard-close decisions warrant documented
+        justification); an empty note emits a WARNING.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    offer_id: str
+    note: str
+
+    @field_validator("note")
+    @classmethod
+    def note_must_be_present(cls, v: str) -> str:
+        # TB-03-004: note SHOULD be non-empty; warn but accept empty string
+        if not v.strip():
+            logger.warning(
+                "reject-report trigger received an empty note field; "
+                "hard-close decisions should include a documented reason."
+            )
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -202,4 +252,234 @@ def trigger_validate_report(
                 )
 
     # TB-04-001: Return 202 with {"activity": {...}}
+    return {"activity": activity}
+
+
+def _add_activity_to_outbox(
+    actor_id: str, activity_id: str, dl: DataLayer
+) -> None:
+    """Append an activity ID to an actor's outbox and persist the actor."""
+    actor_obj = dl.read(actor_id)
+    if actor_obj is None:
+        logger.error("_add_activity_to_outbox: actor '%s' not found", actor_id)
+        return
+    if not (hasattr(actor_obj, "outbox") and actor_obj.outbox is not None):
+        logger.error(
+            "_add_activity_to_outbox: actor '%s' has no outbox", actor_id
+        )
+        return
+    actor_obj.outbox.items.append(activity_id)
+    dl.update(actor_obj.as_id, object_to_record(actor_obj))
+    logger.debug(
+        "Added activity '%s' to actor '%s' outbox", activity_id, actor_id
+    )
+
+
+@router.post(
+    "/{actor_id}/trigger/invalidate-report",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger report invalidation.",
+    description=(
+        "Triggers the invalidate-report behavior for the given actor. "
+        "Emits a TentativeReject(Offer(VulnerabilityReport)) activity "
+        "(RmInvalidateReport) and returns it in the response body (TB-04-001). "
+        "Updates the offer status to TENTATIVELY_REJECTED and the report "
+        "status to INVALID."
+    ),
+)
+def trigger_invalidate_report(
+    actor_id: str,
+    body: InvalidateReportRequest,
+    dl: DataLayer = Depends(get_datalayer),
+) -> dict:
+    """
+    Trigger the invalidate-report behavior for the given actor.
+
+    Emits RmInvalidateReport (TentativeReject) for the given offer,
+    updates local state, adds to actor outbox, and returns HTTP 202.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
+    """
+    actor = _resolve_actor(actor_id, dl)
+    actor_id = actor.as_id
+
+    offer_raw = dl.read(body.offer_id)
+    if offer_raw is None:
+        raise _not_found("Offer", body.offer_id)
+
+    try:
+        offer = rehydrate(offer_raw)
+        report = rehydrate(offer.as_object)
+    except (ValueError, KeyError, AttributeError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "status": 422,
+                "error": "ValidationError",
+                "message": str(e),
+                "activity_id": None,
+            },
+        )
+
+    if not isinstance(report, VulnerabilityReport):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "status": 422,
+                "error": "ValidationError",
+                "message": (
+                    f"Expected VulnerabilityReport, got "
+                    f"{type(report).__name__}."
+                ),
+                "activity_id": None,
+            },
+        )
+
+    invalidate_activity = RmInvalidateReport(
+        actor=actor_id,
+        object=offer.as_id,
+    )
+
+    try:
+        dl.create(invalidate_activity)
+    except ValueError:
+        logger.warning(
+            "InvalidateReport activity '%s' already exists",
+            invalidate_activity.as_id,
+        )
+
+    set_status(
+        OfferStatus(
+            object_type=offer.as_type,
+            object_id=offer.as_id,
+            status=OfferStatusEnum.TENTATIVELY_REJECTED,
+            actor_id=actor_id,
+        )
+    )
+    set_status(
+        ReportStatus(
+            object_type=report.as_type,
+            object_id=report.as_id,
+            status=RM.INVALID,
+            actor_id=actor_id,
+        )
+    )
+
+    _add_activity_to_outbox(actor_id, invalidate_activity.as_id, dl)
+
+    logger.info(
+        "Actor '%s' invalidated offer '%s' (report '%s')",
+        actor_id,
+        offer.as_id,
+        report.as_id,
+    )
+
+    activity = invalidate_activity.model_dump(by_alias=True, exclude_none=True)
+    return {"activity": activity}
+
+
+@router.post(
+    "/{actor_id}/trigger/reject-report",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger hard-close of a report.",
+    description=(
+        "Triggers the reject-report behavior for the given actor. "
+        "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReport) "
+        "and returns it in the response body (TB-04-001). "
+        "A non-empty note is required (TB-03-004). "
+        "Updates the offer status to REJECTED and the report status to CLOSED."
+    ),
+)
+def trigger_reject_report(
+    actor_id: str,
+    body: RejectReportRequest,
+    dl: DataLayer = Depends(get_datalayer),
+) -> dict:
+    """
+    Trigger the reject-report (hard-close) behavior for the given actor.
+
+    Emits RmCloseReport (Reject) for the given offer, updates local state,
+    adds to actor outbox, and returns HTTP 202.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-03-004, TB-04-001, TB-06-001, TB-06-002, TB-07-001
+    """
+    actor = _resolve_actor(actor_id, dl)
+    actor_id = actor.as_id
+
+    offer_raw = dl.read(body.offer_id)
+    if offer_raw is None:
+        raise _not_found("Offer", body.offer_id)
+
+    try:
+        offer = rehydrate(offer_raw)
+        report = rehydrate(offer.as_object)
+    except (ValueError, KeyError, AttributeError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "status": 422,
+                "error": "ValidationError",
+                "message": str(e),
+                "activity_id": None,
+            },
+        )
+
+    if not isinstance(report, VulnerabilityReport):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "status": 422,
+                "error": "ValidationError",
+                "message": (
+                    f"Expected VulnerabilityReport, got "
+                    f"{type(report).__name__}."
+                ),
+                "activity_id": None,
+            },
+        )
+
+    reject_activity = RmCloseReport(
+        actor=actor_id,
+        object=offer.as_id,
+    )
+
+    try:
+        dl.create(reject_activity)
+    except ValueError:
+        logger.warning(
+            "CloseReport activity '%s' already exists", reject_activity.as_id
+        )
+
+    set_status(
+        OfferStatus(
+            object_type=offer.as_type,
+            object_id=offer.as_id,
+            status=OfferStatusEnum.REJECTED,
+            actor_id=actor_id,
+        )
+    )
+    set_status(
+        ReportStatus(
+            object_type=report.as_type,
+            object_id=report.as_id,
+            status=RM.CLOSED,
+            actor_id=actor_id,
+        )
+    )
+
+    _add_activity_to_outbox(actor_id, reject_activity.as_id, dl)
+
+    logger.info(
+        "Actor '%s' hard-closed offer '%s' (report '%s'); note: %s",
+        actor_id,
+        offer.as_id,
+        report.as_id,
+        body.note,
+    )
+
+    activity = reject_activity.model_dump(by_alias=True, exclude_none=True)
     return {"activity": activity}

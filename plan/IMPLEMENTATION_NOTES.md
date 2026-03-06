@@ -50,3 +50,24 @@ Try to avoid just copying and pasting code and changing a few lines. Instead,
 take the time to refactor and extract common logic into reusable functions or
 classes.
 
+
+## P30-2: invalidate-report and reject-report triggers are procedural
+
+Unlike `validate-report` (which uses a BT tree because of the case creation
+side effects), `invalidate-report` and `reject-report` are implemented
+procedurally. Per the AGENTS.md guidance, simple linear workflows with no
+branching should use procedural code rather than BTs. Both endpoints:
+- Create an `RmInvalidateReport` (TentativeReject) or `RmCloseReport` (Reject)
+  activity directly.
+- Store the activity via `dl.create()`.
+- Update status via `set_status()` (in-memory STATUS dict, not DataLayer).
+- Append the activity ID to `actor.outbox.items` and persist with `dl.update()`.
+- Return `{"activity": activity.model_dump(by_alias=True, exclude_none=True)}`.
+
+The shared `_add_activity_to_outbox()` helper was extracted to DRY up the
+outbox append pattern across multiple trigger endpoints.
+
+For `reject-report`, the `note` field is required in the request body
+(TB-03-004). An empty `note` string logs a WARNING but is accepted (the spec
+says the value SHOULD be non-empty, not MUST). This is enforced via a
+`@field_validator` on `RejectReportRequest.note`.
