@@ -336,7 +336,7 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
 
 **Reference**: `specs/case-management.md` CM-10, CM-02-009
 
-- [ ] **SC-3.1**: Add `accepted_embargo_ids: list[str]` field to
+- [x] **SC-3.1**: Add `accepted_embargo_ids: list[str]` field to
   `CaseParticipant` (CM-10-001, CM-10-003). Update serialization tests;
   confirm round-trip through `object_to_record`/`record_to_object`
   preserves the field.
