@@ -38,3 +38,15 @@ trigger use case. The diff is a set subtraction on string IDs, so it is
 robust to multiple concurrent triggers only if each produces a distinct
 activity ID (which is guaranteed by the UUID-based IDs used in the BT nodes).
 
+## Black format before full test suite
+
+Running `black` is fast, running the full test suite is not. There is no 
+reason to run the full test suite, then run black, then run the full test 
+suite again. Just do the `black` formatting first then run the full test suite.
+
+## Be more deliberate about writing DRY code
+
+Try to avoid just copying and pasting code and changing a few lines. Instead,
+take the time to refactor and extract common logic into reusable functions or
+classes.
+
