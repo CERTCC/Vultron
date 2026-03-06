@@ -3,301 +3,56 @@
 Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ---
+## Markdown Linting Errors
 
-### Linkchecker reports errors
-
-Status: Fixed (2026-02-27) — updated demo link in
-docs/reference/code/demo/index.md to point to
-docs/tutorials/receive_report_demo.md.
-
-When running linkchecker on the documentation, there are some errors that 
-need to be fixed. All documentation links must use paths relative to the 
-site root (where site root = `docs/`), and they must point to files that 
-actually exist.
-
-Tech hint: `mkdocs build` will build the site, and the `linkchecker` utility 
-can be used to check for broken links. Command to run: `mkdocs site && linkchecker site`
-This should become part of any checks run when files in the `docs/` directory 
-are modified. It is not necessary to run when modifying files outside of 
-`docs/`.
-
-
-```shell
-
-URL        `../../../howto/activitypub/tutorial_receive_report.md'
-Name       `Demo Tutorial'
-Parent URL file:///home/runner/work/Vultron/Vultron/site/reference/code/demo/index.html, line 3501, col 5
-Real URL   file:///home/runner/work/Vultron/Vultron/site/howto/activitypub/tutorial_receive_report.md
-Check time 0.000 seconds
-Result     Error: URLError: <urlopen error [Errno 2] No such file or directory: '/home/runner/work/Vultron/Vultron/site/howto/activitypub/tutorial_receive_report.md'>
-WARNING bs4.dammit 2026-02-26 22:19:29,515 CheckThread-file:///home/runner/work/Vultron/Vultron/site/sitemap.xml.gz Some characters could not be decoded, and were replaced with REPLACEMENT CHARACTER.
- 7 threads active,     0 links queued, 1426 links in 1433 URLs checked, runtime 16 seconds
-
-Statistics:
-Downloaded: 20.9MB.
-Content types: 12 image, 410 text, 0 video, 0 audio, 428 application, 2 mail and 581 other.
-URL lengths: min=16, max=967, avg=85.
-
-That's it. 1433 links in 1433 URLs checked. 0 warnings found. 1 error found.
-Stopped checking at 2026-02-26 22:19:31+000 (17 seconds)
-```
-
----
-
-### Logging errors when running pytest
-
-**Status**: Partially resolved. BUGFIX-1.1 (moved root-logger config from
-`app.py`) eliminated the noise under `uv run pytest` from the command line.
-Residual `--- Logging error ---` tracebacks appear only when running tests
-under **PyCharm's test runner** (`_jb_pytest_runner.py`), which closes log
-handler streams after each test before Python's logging framework finishes
-flushing. This is a PyCharm environment issue, not a code defect. No further
-project-code changes are needed.
-
-When running the test suite with pytest, there are a lot of errors like the 
-following examples. They are not causing tests to fail, but they are very noisy
-and make it difficult to see the actual test results.
-
-```shell
---- Logging error ---
-Traceback (most recent call last):
-  File "/Users/adh/.local/share/uv/python/cpython-3.13.7-macos-x86_64-none/lib/python3.13/logging/__init__.py", line 1154, in emit
-    stream.write(msg + self.terminator)
-    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-ValueError: I/O operation on closed file.
-Call stack:
-  File "/Users/adh/Applications/PyCharm.app/Contents/plugins/python-ce/helpers/pycharm/_jb_pytest_runner.py", line 84, in <module>
-    sys.exit(pytest.main(args, plugins_to_load + [Plugin]))
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 199, in main
-    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
-    return wrap_session(config, _main)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 318, in wrap_session
-    session.exitstatus = doit(config, session) or 0
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 372, in _main
-    config.hook.pytest_runtestloop(session=session)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
-    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
-    runtestprotocol(item, nextitem=nextitem)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 137, in runtestprotocol
-    reports.append(call_and_report(item, "call", log))
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 244, in call_and_report
-    call = CallInfo.from_call(
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 353, in from_call
-    result: TResult | None = func()
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 245, in <lambda>
-    lambda: runtest_hook(item=item, **kwds),
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
-    item.runtest()
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/python.py", line 1720, in runtest
-    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
-    result = testfunction(**testargs)
-  File "/Users/adh/Documents/git/vultron_pub/test/test_behavior_dispatcher.py", line 71, in test_local_dispatcher_dispatch_logs_payload
-    dispatcher.dispatch(dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/behavior_dispatcher.py", line 64, in dispatch
-    self._handle(dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/behavior_dispatcher.py", line 73, in _handle
-    handler(dispatchable=dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/api/v2/backend/handlers.py", line 43, in wrapper
-    return func(dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/api/v2/backend/handlers.py", line 77, in create_report
-    logger.info(
-Message: "Actor '%s' creates VulnerabilityReport '%s' (ID: %s)"
-Arguments: ('https://example.org/users/tester', 'TEST-REPORT-001', '4bb5b86a-ddee-4497-ba20-2a919e4c7691')
---- Logging error ---
-Traceback (most recent call last):
-  File "/Users/adh/.local/share/uv/python/cpython-3.13.7-macos-x86_64-none/lib/python3.13/logging/__init__.py", line 1154, in emit
-    stream.write(msg + self.terminator)
-    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-ValueError: I/O operation on closed file.
-Call stack:
-  File "/Users/adh/Applications/PyCharm.app/Contents/plugins/python-ce/helpers/pycharm/_jb_pytest_runner.py", line 84, in <module>
-    sys.exit(pytest.main(args, plugins_to_load + [Plugin]))
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 199, in main
-    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
-    return wrap_session(config, _main)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 318, in wrap_session
-    session.exitstatus = doit(config, session) or 0
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 372, in _main
-    config.hook.pytest_runtestloop(session=session)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
-    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
-    runtestprotocol(item, nextitem=nextitem)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 137, in runtestprotocol
-    reports.append(call_and_report(item, "call", log))
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 244, in call_and_report
-    call = CallInfo.from_call(
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 353, in from_call
-    result: TResult | None = func()
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 245, in <lambda>
-    lambda: runtest_hook(item=item, **kwds),
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
-    item.runtest()
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/python.py", line 1720, in runtest
-    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
-    result = testfunction(**testargs)
-  File "/Users/adh/Documents/git/vultron_pub/test/test_behavior_dispatcher.py", line 71, in test_local_dispatcher_dispatch_logs_payload
-    dispatcher.dispatch(dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/behavior_dispatcher.py", line 64, in dispatch
-    self._handle(dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/behavior_dispatcher.py", line 73, in _handle
-    handler(dispatchable=dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/api/v2/backend/handlers.py", line 43, in wrapper
-    return func(dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/api/v2/backend/handlers.py", line 90, in create_report
-    logger.info(
-Message: 'Stored VulnerabilityReport with ID: %s'
-Arguments: ('4bb5b86a-ddee-4497-ba20-2a919e4c7691',)
---- Logging error ---
-Traceback (most recent call last):
-  File "/Users/adh/.local/share/uv/python/cpython-3.13.7-macos-x86_64-none/lib/python3.13/logging/__init__.py", line 1154, in emit
-    stream.write(msg + self.terminator)
-    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-ValueError: I/O operation on closed file.
-Call stack:
-  File "/Users/adh/Applications/PyCharm.app/Contents/plugins/python-ce/helpers/pycharm/_jb_pytest_runner.py", line 84, in <module>
-    sys.exit(pytest.main(args, plugins_to_load + [Plugin]))
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/config/__init__.py", line 199, in main
-    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
-    return wrap_session(config, _main)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 318, in wrap_session
-    session.exitstatus = doit(config, session) or 0
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 372, in _main
-    config.hook.pytest_runtestloop(session=session)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
-    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
-    runtestprotocol(item, nextitem=nextitem)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 137, in runtestprotocol
-    reports.append(call_and_report(item, "call", log))
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 244, in call_and_report
-    call = CallInfo.from_call(
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 353, in from_call
-    result: TResult | None = func()
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 245, in <lambda>
-    lambda: runtest_hook(item=item, **kwds),
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/runner.py", line 179, in pytest_runtest_call
-    item.runtest()
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/python.py", line 1720, in runtest
-    self.ihook.pytest_pyfunc_call(pyfuncitem=self)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_hooks.py", line 512, in __call__
-    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_manager.py", line 120, in _hookexec
-    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/pluggy/_callers.py", line 121, in _multicall
-    res = hook_impl.function(*args)
-  File "/Users/adh/Documents/git/vultron_pub/.venv/lib/python3.13/site-packages/_pytest/python.py", line 166, in pytest_pyfunc_call
-    result = testfunction(**testargs)
-  File "/Users/adh/Documents/git/vultron_pub/test/test_behavior_dispatcher.py", line 71, in test_local_dispatcher_dispatch_logs_payload
-    dispatcher.dispatch(dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/behavior_dispatcher.py", line 64, in dispatch
-    self._handle(dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/behavior_dispatcher.py", line 73, in _handle
-    handler(dispatchable=dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/api/v2/backend/handlers.py", line 43, in wrapper
-    return func(dispatchable)
-  File "/Users/adh/Documents/git/vultron_pub/vultron/api/v2/backend/handlers.py", line 101, in create_report
-    logger.info("Stored CreateReport activity with ID: %s", activity.as_id)
-Message: 'Stored CreateReport activity with ID: %s'
-Arguments: ('act-xyz',)
-```
-
-
-### Older tests have spurious print statements
-
-When running the test suite, there are some tests that print output either 
-to stdout or stderr. This is not ideal, as it clutters the test output and 
-makes it harder to see the actual test results. These print statements 
-should be removed or replaced with proper debug logging that could be 
-enabled when desired.
-
+Run DavidAnson/markdownlint-cli2-action@v22
+markdownlint-cli2 v0.20.0 (markdownlint v0.40.0)
+Finding: notes/bt-fuzzer-nodes.md notes/encryption.md notes/triggerable-behaviors.md prompts/LEARN_EXTRA_prompt.md specs/triggerable-behaviors.md AGENTS.md notes/README.md notes/activitystreams-semantics.md notes/bt-integration.md notes/case-state-model.md notes/codebase-structure.md notes/do-work-behaviors.md notes/domain-model-separation.md plan/BUGS.md plan/IDEAS.md plan/IMPLEMENTATION_NOTES.md plan/IMPLEMENTATION_PLAN.md plan/PRIORITIES.md prompts/PLAN_prompt.md specs/README.md specs/case-management.md specs/code-style.md specs/demo-cli.md specs/embargo-policy.md specs/encryption.md specs/meta-specifications.md specs/object-ids.md specs/project-documentation.md specs/tech-stack.md !plan/** !specs/** !wip_notes/** !AGENTS.md !node_modules/**
+Linting: 12 file(s)
+Summary: 45 error(s)
+Error: notes/bt-integration.md:213:70 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: notes/encryption.md:4 MD032/blanks-around-lists Lists should be surrounded by blank lines [Context: "- ActivityPub supports public-..."] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md032.md
+Error: notes/encryption.md:11 MD032/blanks-around-lists Lists should be surrounded by blank lines [Context: "- Prefer standard mechanisms (..."] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md032.md
+Error: notes/encryption.md:20 MD032/blanks-around-lists Lists should be surrounded by blank lines [Context: "- Decryption should occur upst..."] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md032.md
+Error: notes/encryption.md:34 MD032/blanks-around-lists Lists should be surrounded by blank lines [Context: "- Per-recipient messages (reco..."] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md032.md
+Error: notes/encryption.md:50 MD032/blanks-around-lists Lists should be surrounded by blank lines [Context: "- Read public keys from the re..."] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md032.md
+Error: notes/encryption.md:60 MD032/blanks-around-lists Lists should be surrounded by blank lines [Context: "- Store private keys securely ..."] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md032.md
+Error: notes/encryption.md:72 MD032/blanks-around-lists Lists should be surrounded by blank lines [Context: "- Do we accept the extra netwo..."] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md032.md
+Error: notes/encryption.md:80 MD032/blanks-around-lists Lists should be surrounded by blank lines [Context: "- ActivityPub actor publicKey:..."] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md032.md
+Error: notes/encryption.md:80:32 MD034/no-bare-urls Bare URL used [Context: "https://docs.joinmastodon.org/..."] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md034.md
+Error: notes/encryption.md:81:40 MD034/no-bare-urls Bare URL used [Context: "https://docs.joinmastodon.org/..."] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md034.md
+Error: prompts/LEARN_EXTRA_prompt.md:29:85 MD037/no-space-in-emphasis Spaces inside emphasis markers [Context: "* o"] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md037.md
+Error: prompts/LEARN_EXTRA_prompt.md:30:115 MD037/no-space-in-emphasis Spaces inside emphasis markers [Context: "* o"] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md037.md
+Error: prompts/LEARN_EXTRA_prompt.md:36:1 MD029/ol-prefix Ordered list item prefix [Expected: 1; Actual: 9; Style: 1/1/1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md029.md
+Error: prompts/LEARN_EXTRA_prompt.md:37:18 MD037/no-space-in-emphasis Spaces inside emphasis markers [Context: "* a"] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md037.md
+Error: prompts/LEARN_EXTRA_prompt.md:39:71 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:45:78 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:46:80 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:47:32 MD037/no-space-in-emphasis Spaces inside emphasis markers [Context: "* a"] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md037.md
+Error: prompts/LEARN_EXTRA_prompt.md:48:64 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:49:72 MD037/no-space-in-emphasis Spaces inside emphasis markers [Context: "* o"] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md037.md
+Error: prompts/LEARN_EXTRA_prompt.md:50:79 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:51:62 MD037/no-space-in-emphasis Spaces inside emphasis markers [Context: "* o"] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md037.md
+Error: prompts/LEARN_EXTRA_prompt.md:52:76 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:58:71 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:58:1 MD029/ol-prefix Ordered list item prefix [Expected: 1; Actual: 10; Style: 1/2/3] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md029.md
+Error: prompts/LEARN_EXTRA_prompt.md:60:73 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:62:1 MD029/ol-prefix Ordered list item prefix [Expected: 2; Actual: 11; Style: 1/2/3] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md029.md
+Error: prompts/LEARN_EXTRA_prompt.md:62:19 MD037/no-space-in-emphasis Spaces inside emphasis markers [Context: "* t"] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md037.md
+Error: prompts/LEARN_EXTRA_prompt.md:68:1 MD029/ol-prefix Ordered list item prefix [Expected: 3; Actual: 12; Style: 1/2/3] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md029.md
+Error: prompts/LEARN_EXTRA_prompt.md:68:19 MD037/no-space-in-emphasis Spaces inside emphasis markers [Context: "* t"] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md037.md
+Error: prompts/LEARN_EXTRA_prompt.md:70:68 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:72:75 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:74:73 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:75:71 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:76:71 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/LEARN_EXTRA_prompt.md:80:1 MD029/ol-prefix Ordered list item prefix [Expected: 4; Actual: 13; Style: 1/2/3] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md029.md
+Error: prompts/LEARN_EXTRA_prompt.md:85:1 MD029/ol-prefix Ordered list item prefix [Expected: 1; Actual: 13; Style: 1/2/3] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md029.md
+Error: prompts/LEARN_EXTRA_prompt.md:97:1 MD029/ol-prefix Ordered list item prefix [Expected: 2; Actual: 14; Style: 1/2/3] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md029.md
+Error: prompts/LEARN_EXTRA_prompt.md:105:1 MD029/ol-prefix Ordered list item prefix [Expected: 3; Actual: 15; Style: 1/2/3] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md029.md
+Error: prompts/LEARN_EXTRA_prompt.md:109:1 MD029/ol-prefix Ordered list item prefix [Expected: 4; Actual: 16; Style: 1/2/3] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md029.md
+Error: prompts/LEARN_EXTRA_prompt.md:113:1 MD029/ol-prefix Ordered list item prefix [Expected: 1; Actual: 17; Style: 1/2/3] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md029.md
+Error: prompts/LEARN_EXTRA_prompt.md:118:1 MD029/ol-prefix Ordered list item prefix [Expected: 2; Actual: 18; Style: 1/2/3] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md029.md
+Error: prompts/PLAN_prompt.md:32:51 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: prompts/PLAN_prompt.md:34:75 MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 1] https://github.com/DavidAnson/markdownlint/blob/v0.40.0/doc/md009.md
+Error: Failed with exit code: 1
