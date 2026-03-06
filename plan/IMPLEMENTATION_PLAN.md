@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-06 (gap analysis refresh #15)
+**Last Updated**: 2026-03-06 (gap analysis refresh #16)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 674 passing, 5581 subtests, 0 xfailed (2026-03-06)
+**Test suite**: 693 passing, 5581 subtests, 0 xfailed (2026-03-06)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -358,7 +358,7 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
   confirm round-trip through `object_to_record`/`record_to_object`
   preserves the field.
 
-- [ ] **SC-PRE-1** `auto-added`: Add `CaseEvent` model and append-only
+- [x] **SC-PRE-1** `auto-added`: Add `CaseEvent` model and append-only
   event log to `VulnerabilityCase` for trusted timestamps (CM-02-009,
   CM-10-002). Justification: SC-3.2 requires a server-generated trusted
   timestamp mechanism for embargo acceptances; this must be an event log on
@@ -366,6 +366,10 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
   Done when `VulnerabilityCase` has an `events: list[CaseEvent]` field,
   `CaseEvent` stores `(object_id, event_type, received_at: datetime)` with
   TZ-aware UTC ISO8601 serialization, and round-trip tests pass.
+  **Completed**: `CaseEvent` plain Pydantic model in
+  `vultron/as_vocab/objects/case_event.py`; `events: list[CaseEvent]` field
+  and `record_event()` helper added to `VulnerabilityCase`; 19 tests in
+  `test/as_vocab/test_case_event.py`; 693 tests pass.
 
 - [ ] **SC-PRE-2** `auto-added`: Add actor-to-participant index to
   `VulnerabilityCase` with `add_participant()` / `remove_participant()`

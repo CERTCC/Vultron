@@ -8,6 +8,30 @@ Add new items below this line
 
 ---
 
+## SC-PRE-1: CaseEvent model (2026-03-06)
+
+**Task**: Add `CaseEvent` plain Pydantic model and `events` field on
+`VulnerabilityCase` for trusted-timestamp event logging (CM-02-009,
+CM-10-002).
+
+**Implementation**:
+
+- `CaseEvent` is a plain `BaseModel` (not `VultronObject`); it does not need
+  ActivityStreams identity or datalayer registration — it is always stored
+  as a nested list inside `VulnerabilityCase`.
+- `received_at` defaults to `now_utc()` (microseconds stripped, UTC timezone).
+  `field_serializer` emits ISO 8601 with timezone offset; `field_validator`
+  accepts ISO 8601 strings on deserialization.
+- `VulnerabilityCase.record_event(object_id, event_type)` is the
+  append-only helper; callers MUST NOT pass a `received_at` from an
+  incoming activity payload.
+- Round-trip tests via `model_dump/model_validate` and TinyDB confirmed
+  that `received_at` precision and timezone are preserved.
+
+**Test count**: 693 (up from 674; +19 new tests in
+`test/as_vocab/test_case_event.py`).
+
+
 ## 2026-03-06 (gap analysis refresh #15)
 
 ### Current test count: 674 passing (5581 subtests)
