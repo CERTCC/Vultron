@@ -23,6 +23,7 @@ from vultron.api.v2.routers import (
     examples,
     datalayer,
     health,
+    triggers,
 )
 
 router = APIRouter()
@@ -41,3 +42,5 @@ router.include_router(datalayer.router)
 router.include_router(examples.router)
 
 router.include_router(health.router)
+
+router.include_router(triggers.router)

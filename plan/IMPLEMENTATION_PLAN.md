@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 693 passing, 5581 subtests, 0 xfailed (2026-03-06)
+**Test suite**: 702 passing, 5581 subtests, 0 xfailed (2026-03-06)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -69,14 +69,12 @@ for the full record.
 `actor_io.py` stub logs placeholder messages instead of writing to recipient
 actor inboxes (OX-03-001, OX-04-001, OX-04-002).
 
-### ❌ Triggerable behaviors not designed/implemented (PRIORITY 30)
+### ⚠️ Triggerable behaviors partially implemented (PRIORITY 30)
 
+P30-1 is complete: `vultron/api/v2/routers/triggers.py` scaffolding created
+with `POST /actors/{actor_id}/trigger/validate-report` endpoint.
 PRIORITIES.md PRIORITY 30 calls for exposing behaviors the local actor can
-initiate based on internal state, not just reactive message processing.
-The behavior tree docs exist (`docs/topics/behavior_logic/rm_bt.md`,
-`rm_validation_bt.md`, `rm_prioritization_bt.md`, `rm_closure_bt.md`,
-`em_bt.md`, `em_eval_bt.md`, `em_propose_bt.md`) but no API trigger
-endpoints are implemented. Design work is needed before implementation.
+initiate based on internal state. P30-2 through P30-6 remain.
 
 ### ❌ Actor independence not implemented (PRIORITY 100)
 
@@ -465,7 +463,7 @@ Candidate behaviors from `docs/topics/behavior_logic/`:
 - EM behaviors: propose-embargo, evaluate-embargo, terminate-embargo
   (TB-02-002)
 
-- [ ] **P30-1**: Implement the trigger router scaffolding and first endpoint:
+- [x] **P30-1**: Implement the trigger router scaffolding and first endpoint:
   create `vultron/api/v2/routers/triggers.py`; register it in `v2_router.py`;
   add `POST /actors/{actor_id}/trigger/validate-report` that accepts a JSON
   body with `offer_id` (TB-01-001, TB-01-002, TB-01-004, TB-03-001),
@@ -476,6 +474,11 @@ Candidate behaviors from `docs/topics/behavior_logic/`:
   `{"activity": {...}}` body (TB-04-001). Inject DataLayer via
   `Depends(get_datalayer)` (TB-06-001, TB-06-002). Add unit + integration
   tests (TB-01, TB-03, TB-04, TB-05, TB-06, TB-07 verification).
+  **Completed**: `triggers.py` router created with `ValidateReportRequest`
+  model (extra="ignore"), `trigger_validate_report` endpoint, structured 404
+  helpers, and outbox-diff strategy to retrieve the resulting activity.
+  Router registered in `v2_router.py`. 9 tests in
+  `test/api/v2/routers/test_triggers.py`. 702 tests pass.
 - [ ] **P30-2**: Add `POST /actors/{actor_id}/trigger/invalidate-report` and
   `POST /actors/{actor_id}/trigger/reject-report` endpoints (TB-02-001).
   `reject-report` MUST require a non-empty `note` field (TB-03-004,

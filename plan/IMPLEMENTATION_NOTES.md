@@ -7,3 +7,34 @@ insights, issues, and learnings during the implementation process.
 Add new items below this line
 
 ---
+## TB prefix reused in specs
+
+The TB prefix is currently used in specs for both `testability.md` and 
+`triggerable-behaviors.md`. This is confusing and must be resolved by 
+picking a different prefix for one of them. The `specs/README.md` file 
+should be updated to reflect the prefix for each file so that in the future 
+we can avoid reusing existing prefixes.
+
+## Triggers are intended to be synchronous for the caller
+
+Triggerable behaviors are intended to be synchronous for the caller, which 
+should mean that there's no async concerns about:
+
+`TB-04-001` A successful trigger response SHOULD include the resulting
+  ActivityStreams activity in the response body under an `activity` key
+
+This is important to clarify because while inbound message handling is 
+eventually meant to be asynchronous, the triggerable behavior interface is 
+intended to be synchronous for the caller.
+
+## P30-1 outbox-diff strategy for retrieving the resulting activity
+
+In `trigger_validate_report`, the BT's `UpdateActorOutbox` node writes the
+new activity_id to `actor.outbox.items` in the DataLayer. To return the
+resulting activity in the response, the endpoint snapshots the outbox ID
+set before BT execution, then diffs after execution to find the newly added
+activity ID. This avoids modifying the bridge or BT nodes for a specific
+trigger use case. The diff is a set subtraction on string IDs, so it is
+robust to multiple concurrent triggers only if each produces a distinct
+activity ID (which is guaranteed by the UUID-based IDs used in the BT nodes).
+
