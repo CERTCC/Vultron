@@ -301,10 +301,10 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
 
 **Reference**: `specs/case-management.md` CM-05-*, CM-02-008
 
-- [ ] **SC-1.1**: Add `VulnerabilityRecord` Pydantic model (CM-05-001)
+- [x] **SC-1.1**: Add `VulnerabilityRecord` Pydantic model (CM-05-001)
   — persistent identifier record (e.g., CVE number) with `name`, `url`,
   `case_id` fields. Add to `vultron/as_vocab/objects/`. Add unit tests.
-- [ ] **SC-1.2**: Add `CaseReference` Pydantic model (CM-05-001, CM-05-005)
+- [x] **SC-1.2**: Add `CaseReference` Pydantic model (CM-05-001, CM-05-005)
   — typed external reference with required `url` field and optional `name`
   and `tags` fields; `tags` aligned with CVE JSON schema reference tag
   vocabulary. Add to `vultron/as_vocab/objects/`. Add unit tests asserting

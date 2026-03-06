@@ -221,3 +221,52 @@ section's ordered list to start from 1 in `prompts/LEARN_EXTRA_prompt.md`
 which markdownlint treats as separate lists).
 
 **No architectural implications.**
+
+---
+
+## SPEC-COMPLIANCE-1 Phase: Object Model Gaps (2026-03-06)
+
+### SC-1.1 and SC-1.2: VulnerabilityRecord and CaseReference Models
+
+**Completed**: SC-1.1 (VulnerabilityRecord) and SC-1.2 (CaseReference)
+
+**Implementation**:
+
+1. Created `vultron/as_vocab/objects/vulnerability_record.py`:
+   - `VulnerabilityRecord` Pydantic model with required `name` field
+   - Optional `aliases` (list of alternative identifiers) and `url` fields
+   - Validators ensuring `name` is non-empty string; all aliases are non-empty
+   - Supports opaque identifiers (CVE, CERT/CC VU#, vendor-specific, etc.)
+   - Per CM-05-001, CM-05-008, CM-05-009
+
+2. Created `vultron/as_vocab/objects/case_reference.py`:
+   - `CaseReference` Pydantic model with required `url` field
+   - Optional `name` (human-readable title) and `tags` (type descriptors)
+   - `tags` aligned with CVE JSON schema reference vocabulary (19 valid tags)
+   - Validators ensuring `url` and `name` are non-empty; tags is non-empty list
+   - Per CM-05-001, CM-05-005
+
+3. Updated `vultron/enums.py`:
+   - Added `VULNERABILITY_RECORD` and `CASE_REFERENCE` to `VultronObjectType`
+
+4. Created comprehensive test suites:
+   - `test/as_vocab/test_vulnerability_record.py`: 11 tests covering creation,
+     validation, round-trip serialization, type distinctness, and opaque
+     identifier acceptance
+   - `test/as_vocab/test_case_reference.py`: 20 tests covering all fields,
+     validation, CVE schema tags, round-trip serialization, and type
+     distinctness
+
+**Test Results**: 623 passed, 5581 subtests passed (all existing tests still pass)
+
+**Notes**:
+- Both models inherit from `VultronObject` and use `@activitystreams_object`
+  decorator for registry integration
+- `name` field in SC-1.1 task description mentioned `case_id`, but CM-05-001
+  spec does not define `case_id` on the record itself; records are referenced
+  from cases via other relationships. Implemented with `name`, `aliases`, and
+  optional `url` per spec requirements.
+- All validators follow project conventions: raise `ValueError` for invalid
+  input; validators are marked with `@classmethod`
+- Both models can be imported from their respective files and are registered
+  in the ActivityStreams vocabulary registry
