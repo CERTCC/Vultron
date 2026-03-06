@@ -208,12 +208,35 @@ which markdownlint treats as separate lists).
   know about Vultron extensions continue to work correctly.
 - A fully standards-conformant implementation would extend the JSON-LD
   `@context` to define `embargoPolicy` under a Vultron namespace (e.g.,
-  `https://vultron.sei.cmu.edu/ns#`) so that decentralized clients can
+  `https://certcc.github.io/Vultron/ns#` or `https://vultron.cert.org/ns#`) so 
+  that 
+  decentralized clients can
   understand or safely ignore the custom field. This is deferred; see
   Priority 1000 (Agentic AI readiness) and the JSON-LD extension pattern
   described in the user's note on 2026-03-06.
-- The user also noted that the longer-term goal may be a broader
-  `DisclosurePolicy` or `VulnerabilityDisclosurePolicy` object that
+- The longer-term goal is likely going to be a broader
+  `VulnerabilityDisclosurePolicy` object that
   contains `embargoPolicy` as a sub-field (analogous to security.txt /
   DIOSTS). That wrapper model is a future work item and should be tracked
-  as a follow-on to EP-01 when a formal spec is drafted.
+  as a follow-on to EP-01 when a formal spec is drafted. DIOSTS format is 
+  a likely candidate for the policy representation, but the embargo-specific 
+  fields require a custom extension to the standard DIOSTS schema. DIOSTS 
+  example follows:
+```json
+  {
+    "security_txt_domain": "certcc.github.io",
+    "source": "diosts-v0.2.2",
+    "retrieval_url": "https://certcc.github.io/.well-known/security.txt",
+    "last_update": "2026-03-06T19:53:28Z",
+    "policy_url": "https://certcc.github.io/CERT-Guide-to-CVD/reference/certcc_disclosure_policy/",
+    "contact_url": "https://kb.cert.org/vuls/report/",
+    "hall_of_fame": "https://kb.cert.org/vuls/",
+    "pgp_key": "https://certcc.github.io/pgp/asc/latest.asc",
+    "hiring": "https://cmu.wd5.myworkdayjobs.com/SEI",
+    "securitytxt_url": "https://certcc.github.io/.well-known/security.txt",
+    "preferred_languages": "en",
+    "expires_at": "2029-10-05T04:00:00Z",
+    "rfc_compliant": true
+  }
+```
+
