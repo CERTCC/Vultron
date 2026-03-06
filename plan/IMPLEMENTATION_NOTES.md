@@ -8,67 +8,70 @@ Add new items below this line
 
 ---
 
-## 2026-03-06 — SC-3.2 design prerequisites (SC-PRE-1, SC-PRE-2)
+## ~~2026-03-06 — SC-3.2 design prerequisites (SC-PRE-1, SC-PRE-2)~~
 
-**Context**: SC-3.2 requires recording embargo acceptance in
+> **Captured in**: `notes/case-state-model.md` (CaseEvent Model and
+> Actor-to-Participant Index sections)
+
+~~**Context**: SC-3.2 requires recording embargo acceptance in
 `CaseParticipant.accepted_embargo_ids` using a server-generated trusted
 timestamp (CM-10-002, CM-02-009). Two blocking prerequisites were identified
 during implementation verification. More than one prerequisite is required,
-so per BUILD_prompt rules this session stops at documentation.
+so per BUILD_prompt rules this session stops at documentation.~~
 
-### SC-PRE-1 — Case event log for trusted timestamps
+### ~~SC-PRE-1 — Case event log for trusted timestamps~~
 
-CM-02-009 and CM-10-002 require the CaseActor to apply its **own** trusted
+~~CM-02-009 and CM-10-002 require the CaseActor to apply its **own** trusted
 timestamp to state-changing events at time of receipt. The correct mechanism
 is an **append-only event log on the case**, NOT modification of an `updated`
-field on the receiving/participating object.
+field on the receiving/participating object.~~
 
-**Design notes**:
+~~**Design notes**:~~
 
-- Add a `CaseEvent` Pydantic model to `vultron/as_vocab/objects/` with:
-  - `object_id: str` — ID of the object being acted upon
-  - `event_type: str` — short descriptor (e.g. `"embargo_accepted"`)
-  - `received_at: datetime` — server-generated TZ-aware UTC timestamp
-- Add `events: list[CaseEvent] = Field(default_factory=list)` to
-  `VulnerabilityCase`
-- `received_at` MUST use `datetime.now(tz=timezone.utc)` set by the
-  handler at time of receipt, never from the incoming activity payload
-- JSON serialization: `received_at` → ISO 8601 UTC string
-  (`2026-03-06T20:00:00+00:00` or `Z` suffix); use Pydantic's standard
-  `AwareDatetime` or a `field_serializer` consistent with the existing
-  `serialize_datetime` pattern in `as_Object`
-- Round-trip tests: `object_to_record` / `record_to_object` must preserve
-  `events` list including `received_at` datetime precision and timezone
+~~- Add a `CaseEvent` Pydantic model to `vultron/as_vocab/objects/` with:~~
+~~  - `object_id: str` — ID of the object being acted upon~~
+~~  - `event_type: str` — short descriptor (e.g. `"embargo_accepted"`)~~
+~~  - `received_at: datetime` — server-generated TZ-aware UTC timestamp~~
+~~- Add `events: list[CaseEvent] = Field(default_factory=list)` to~~
+~~  `VulnerabilityCase`~~
+~~- `received_at` MUST use `datetime.now(tz=timezone.utc)` set by the~~
+~~  handler at time of receipt, never from the incoming activity payload~~
+~~- JSON serialization: `received_at` → ISO 8601 UTC string~~
+~~  (`2026-03-06T20:00:00+00:00` or `Z` suffix); use Pydantic's standard~~
+~~  `AwareDatetime` or a `field_serializer` consistent with the existing~~
+~~  `serialize_datetime` pattern in `as_Object`~~
+~~- Round-trip tests: `object_to_record` / `record_to_object` must preserve~~
+~~  `events` list including `received_at` datetime precision and timezone~~
 
-### SC-PRE-2 — Actor-to-participant index on VulnerabilityCase
+### ~~SC-PRE-2 — Actor-to-participant index on VulnerabilityCase~~
 
-SC-3.2 (and several handlers) needs to resolve an Actor ID to its
+~~SC-3.2 (and several handlers) needs to resolve an Actor ID to its
 `CaseParticipant` ID within a specific case. Iterating all participants for
-each lookup is fragile. The index must stay in sync automatically.
+each lookup is fragile. The index must stay in sync automatically.~~
 
-**Design notes**:
+~~**Design notes**:~~
 
-- Add `actor_participant_index: dict[str, str] = Field(default_factory=dict)`
-  to `VulnerabilityCase` (key = actor_id string, value = participant_id
-  string); exclude from ActivityStreams serialization (`exclude=True` or
-  similar) since it is a derived index, not protocol data
-- Add `VulnerabilityCase.add_participant(participant: CaseParticipant)`:
-  appends `participant.as_id` to `case_participants`; records
-  `actor_id → participant.as_id` in `actor_participant_index`;
-  raises if actor already registered (idempotency guard or upsert — choose
-  consistently with spec)
-- Add `VulnerabilityCase.remove_participant(participant_id: str)`:
-  removes from `case_participants`; removes corresponding key from
-  `actor_participant_index`
-- Update ALL handlers that currently write to `case.case_participants`
-  directly to call `case.add_participant()` / `case.remove_participant()`:
-  - `accept_invite_actor_to_case` (actor.py)
-  - `create_case` BT nodes (`behaviors/case/nodes.py` — `CreateInitialVendorParticipant`)
-  - `remove_case_participant_from_case` (participant.py)
-  - Any other handlers that append/remove participants
-- Tests must verify the index is populated after `add_participant()` and
-  cleared after `remove_participant()`, and that the case round-trips
-  correctly through `object_to_record`/`record_to_object`
+~~- Add `actor_participant_index: dict[str, str] = Field(default_factory=dict)`~~
+~~  to `VulnerabilityCase` (key = actor_id string, value = participant_id~~
+~~  string); exclude from ActivityStreams serialization (`exclude=True` or~~
+~~  similar) since it is a derived index, not protocol data~~
+~~- Add `VulnerabilityCase.add_participant(participant: CaseParticipant)`:~~
+~~  appends `participant.as_id` to `case_participants`; records~~
+~~  `actor_id → participant.as_id` in `actor_participant_index`;~~
+~~  raises if actor already registered (idempotency guard or upsert — choose~~
+~~  consistently with spec)~~
+~~- Add `VulnerabilityCase.remove_participant(participant_id: str)`:~~
+~~  removes from `case_participants`; removes corresponding key from~~
+~~  `actor_participant_index`~~
+~~- Update ALL handlers that currently write to `case.case_participants`~~
+~~  directly to call `case.add_participant()` / `case.remove_participant()`:~~
+~~  - `accept_invite_actor_to_case` (actor.py)~~
+~~  - `create_case` BT nodes (`behaviors/case/nodes.py` — `CreateInitialVendorParticipant`)~~
+~~  - `remove_case_participant_from_case` (participant.py)~~
+~~  - Any other handlers that append/remove participants~~
+~~- Tests must verify the index is populated after `add_participant()` and~~
+~~  cleared after `remove_participant()`, and that the case round-trips~~
+~~  correctly through `object_to_record`/`record_to_object`~~
 
 ---
 
@@ -272,62 +275,51 @@ which markdownlint treats as separate lists).
   know about Vultron extensions continue to work correctly.
 - A fully standards-conformant implementation would extend the JSON-LD
   `@context` to define `embargoPolicy` under a Vultron namespace (e.g.,
-  `https://certcc.github.io/Vultron/ns#` or `https://vultron.cert.org/ns#`) so 
-  that 
-  decentralized clients can
-  understand or safely ignore the custom field. This is deferred; see
-  Priority 1000 (Agentic AI readiness) and the JSON-LD extension pattern
-  described in the user's note on 2026-03-06.
-- The longer-term goal is likely going to be a broader
-  `VulnerabilityDisclosurePolicy` object that
-  contains `embargoPolicy` as a sub-field (analogous to security.txt /
-  DIOSTS). That wrapper model is a future work item and should be tracked
-  as a follow-on to EP-01 when a formal spec is drafted. DIOSTS format is 
-  a likely candidate for the policy representation, but the embargo-specific 
-  fields require a custom extension to the standard DIOSTS schema. DIOSTS 
-  example follows:
-```json
-  {
-    "security_txt_domain": "certcc.github.io",
-    "source": "diosts-v0.2.2",
-    "retrieval_url": "https://certcc.github.io/.well-known/security.txt",
-    "last_update": "2026-03-06T19:53:28Z",
-    "policy_url": "https://certcc.github.io/CERT-Guide-to-CVD/reference/certcc_disclosure_policy/",
-    "contact_url": "https://kb.cert.org/vuls/report/",
-    "hall_of_fame": "https://kb.cert.org/vuls/",
-    "pgp_key": "https://certcc.github.io/pgp/asc/latest.asc",
-    "hiring": "https://cmu.wd5.myworkdayjobs.com/SEI",
-    "securitytxt_url": "https://certcc.github.io/.well-known/security.txt",
-    "preferred_languages": "en",
-    "expires_at": "2029-10-05T04:00:00Z",
-    "rfc_compliant": true
-  }
-```
+  `https://certcc.github.io/Vultron/ns#` or `https://vultron.cert.org/ns#`) so
+  that decentralized clients can understand or safely ignore the custom field.
+  This is deferred; see Priority 1000 (Agentic AI readiness).
+- ~~The longer-term goal is likely going to be a broader
+  `VulnerabilityDisclosurePolicy` object that contains `embargoPolicy` as a
+  sub-field (analogous to security.txt / DIOSTS). That wrapper model is a future
+  work item and should be tracked as a follow-on to EP-01 when a formal spec is
+  drafted. DIOSTS format is a likely candidate for the policy representation,
+  but the embargo-specific fields require a custom extension to the standard
+  DIOSTS schema.~~ **Captured in**: `notes/do-work-behaviors.md` (Future
+  Work: VulnerabilityDisclosurePolicy Wrapper Object)
 
 ---
-## Timestamp notes
 
-When requirements say that case actor must timestamp things on receipt, this 
-does not mean to modify the `updated_at` field on the object itself. It 
-means that the case actor should record to an append-only event log on the 
-case that something was received at a certain time. It's probably sufficient 
-for this to be an object id and timestamp (which should be TZ-aware UTC 
-ISO8601 when rendered to JSON, internal python storage would be datetime, 
-consistent with Pydantic, and be careful about serialization, datetimes, and 
-time zones).
+## ~~Timestamp notes~~
+
+> **Captured in**: `notes/case-state-model.md` (CaseStatus and ParticipantStatus
+> as Append-Only History section — "Trusted timestamp implementation note")
+
+~~When requirements say that case actor must timestamp things on receipt, this
+does not mean to modify the `updated_at` field on the object itself. It
+means that the case actor should record to an append-only event log on the
+case that something was received at a certain time. It's probably sufficient
+for this to be an object id and timestamp (which should be TZ-aware UTC
+ISO8601 when rendered to JSON, internal python storage would be datetime,
+consistent with Pydantic, and be careful about serialization, datetimes, and
+time zones).~~
 
 ---
-## Cases should have participant-to-actor and vice versa indexes
 
-Vulnerability Cases probably need to have a quick mechanism to resolve Actor 
-ID to Participant ID and vice versa, since we will frequently receive 
-messages from Actors that need to ensure they associate with the correct 
-Case Participant. Note that Vultron allows for a single Actor to be a 
-participant in multiple cases, each of which will have a different 
-Participant ID for the actor, so this can't really be a lookup on the Actor, 
-but it needs to be a lookup within the context of a Case. If this requires 
-adding a data structure to the Case object, that's fine, but be sure to make 
-it an integral part of the add & remove participant to case logic so that it is 
-not possible for the index to get out of sync. I.e., this is not something 
-to do as a separate step in a handler behavior, it's more like an integral 
-part of Case.add_participant() and Case.remove_participant() methods or similar.
+## ~~Cases should have participant-to-actor and vice versa indexes~~
+
+> **Captured in**: `notes/case-state-model.md` (Actor-to-Participant Index
+> section) and `AGENTS.md` (Cases should have participant-to-actor and vice
+> versa indexes)
+
+~~Vulnerability Cases probably need to have a quick mechanism to resolve Actor
+ID to Participant ID and vice versa, since we will frequently receive
+messages from Actors that need to ensure they associate with the correct
+Case Participant. Note that Vultron allows for a single Actor to be a
+participant in multiple cases, each of which will have a different
+Participant ID for the actor, so this can't really be a lookup on the Actor,
+but it needs to be a lookup within the context of a Case. If this requires
+adding a data structure to the Case object, that's fine, but be sure to make
+it an integral part of the add & remove participant to case logic so that it is
+not possible for the index to get out of sync. I.e., this is not something
+to do as a separate step in a handler behavior, it's more like an integral
+part of Case.add_participant() and Case.remove_participant() methods or similar.~~

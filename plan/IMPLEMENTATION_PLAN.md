@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-06 (gap analysis refresh #13)
+**Last Updated**: 2026-03-06 (gap analysis refresh #14)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 592 passing, 5581 subtests, 0 xfailed (2026-03-06)
+**Test suite**: 665 passing, 5581 subtests, 0 xfailed (2026-03-06)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -91,27 +91,33 @@ actors from seeing each other's state.
 canonical case state is updated. This depends on outbox delivery (OUTBOX-1)
 and is blocked until that lands.
 
-### ❌ CM-05 domain object types missing
+### ✅ CM-05 domain object types implemented (SC-1.1, SC-1.2)
 
-`VulnerabilityRecord` and `CaseReference` Pydantic model types specified in
-CM-05-001 do not exist in the codebase. Note: the spec renamed `Publication`
-to `CaseReference` (commit ad46802, 2026-03-06). `specs/case-management.md`
-CM-05-002 through CM-05-007 cover their lifecycle constraints.
+`VulnerabilityRecord` (`vultron/as_vocab/objects/vulnerability_record.py`)
+and `CaseReference` (`vultron/as_vocab/objects/case_reference.py`) Pydantic
+models have been added. Both models inherit from `VultronObject` and are
+registered via `@activitystreams_object`. Tests added in
+`test/as_vocab/test_vulnerability_record.py` and
+`test/as_vocab/test_case_reference.py`. Note: the spec renamed `Publication`
+to `CaseReference` (commit ad46802, 2026-03-06).
 
-### ❌ CM-02-008 vendor initial participant not verified in create_case BT
+### ✅ CM-02-008 vendor initial participant implemented in create_case BT (SC-1.3)
 
-`specs/case-management.md` CM-02-008 requires the vendor/coordinator to be
-recorded as the initial primary participant when a case is created from a
-`VulnerabilityReport` Offer. The `create_case` BT (`vultron/behaviors/case/
-create_tree.py`) does not visibly create a `VendorParticipant` before adding
-other participants.
+`specs/case-management.md` CM-02-008 is satisfied. `SetCaseAttributedTo` and
+`CreateInitialVendorParticipant` BT nodes were added to
+`vultron/behaviors/case/nodes.py` and inserted into the `create_case` tree
+sequence. Tests confirm the vendor `attributed_to` is set and a
+`VendorParticipant` is created before other participants.
 
-### ❌ Embargo policy model not implemented (EP-01-001 to EP-01-004)
+### ✅ Embargo policy model implemented (EP-1.1, EP-1.2)
 
-`specs/embargo-policy.md` EP-01 specifies a structured `EmbargoPolicy` Pydantic
-model. No `EmbargoPolicy` class exists in the codebase. The API endpoint and
-compatibility evaluation (EP-02, EP-03) are `PROD_ONLY` but the model itself
-is not tagged `PROD_ONLY` and should be added.
+`specs/embargo-policy.md` EP-01 model requirements are implemented:
+`EmbargoPolicy` Pydantic model added in
+`vultron/as_vocab/objects/embargo_policy.py` (EP-1.1); `VultronActorMixin`
+with `embargo_policy` field and `VultronPerson`, `VultronOrganization`,
+`VultronService` subclasses added in
+`vultron/as_vocab/objects/vultron_actor.py` (EP-1.2). The API endpoint and
+compatibility evaluation (EP-02, EP-03) remain `PROD_ONLY` and deferred.
 
 ### ✅ Shim removal complete (TECHDEBT-6)
 
@@ -452,9 +458,12 @@ each actor to have an isolated state domain. This is significant
 architectural work; a design step is required first.
 
 - [ ] **ACT-1**: Draft design note or ADR for per-actor DataLayer isolation —
-  identify options (per-actor TinyDB file, namespace prefix, separate
-  singleton per `actor_id`), trade-offs, and migration path from shared
-  singleton. Consult `notes/domain-model-separation.md`.
+  identify options (per-actor TinyDB file, namespace prefix, MongoDB community
+  edition), trade-offs, and migration path from shared singleton. The MongoDB
+  option is recommended for production-grade actor independence and is
+  particularly important for PRIORITY 300 multi-actor Docker demos. Consult
+  `notes/domain-model-separation.md` (Per-Actor DataLayer Isolation Options and
+  Production Path sections).
 - [ ] **ACT-2**: Implement per-actor DataLayer isolation per chosen design.
   Done when: Actor A's DataLayer operations do not affect Actor B's state;
   tests confirm isolation.
@@ -538,12 +547,12 @@ The following are deferred until higher-priority phases are complete:
 | BT-01–BT-11 | ✅ Implemented (BT-08 CLI is MAY, low priority) |
 | CM-01–CM-04 | ✅ Implemented (CM-03-006 rename complete in REFACTOR-1) |
 | CM-02-007 | ✅ `VulnerabilityCase.notes` field present; `add_note_to_case` appends correctly |
-| CM-02-008 | ❌ Vendor initial participant in create_case not verified (SC-1.3) |
-| CM-02-009 | ❌ General trusted-timestamp requirement not implemented (SC-3.2) |
-| CM-05-001 | ❌ VulnerabilityRecord and CaseReference types missing (SC-1.1, SC-1.2) |
+| CM-02-008 | ✅ Vendor initial participant in `create_case` BT implemented (SC-1.3) |
+| CM-02-009 | ❌ General trusted-timestamp requirement not implemented (SC-3.2, SC-PRE-1) |
+| CM-05-001 | ✅ `VulnerabilityRecord` and `CaseReference` models added (SC-1.1, SC-1.2) |
 | CM-06 | ❌ CaseActor broadcast not implemented (PRIORITY-200, blocked by OUTBOX-1) |
 | CM-07 / AR-07 | ❌ Action rules endpoint not implemented (CA-2, PRIORITY-200) |
-| CM-10 | ❌ Embargo acceptance tracking not implemented (SC-3.1, SC-3.2, SC-3.3) |
+| CM-10 | ⚠️ Partial: `accepted_embargo_ids` field added (SC-3.1 ✅); trusted-timestamp logic (SC-3.2 ❌) and embargo guard (SC-3.3 ❌) not yet implemented |
 | Handler Protocol (HP-*) | ✅ All 38 handlers registered (incl. update_case) |
 | Semantic extraction (SE-*) | ✅ 38 patterns + UNKNOWN |
 | Dispatch routing (DR-*) | ✅ DirectActivityDispatcher |
