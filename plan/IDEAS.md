@@ -1,26 +1,22 @@
 # Project Ideas
 
-## ~~Broaden CaseActor timestamping requirement~~
+## Add pyright for linting and type checking
 
-> **Captured in**: `specs/case-management.md` CM-02-009 (general principle)
-> and updated CM-10-002 (specific application). Design rationale added to
-> `notes/case-state-model.md` "CaseStatus and ParticipantStatus as
-> Append-Only History".
+We'd like to start using pyright for static type checking and linting (in 
+addition to black for formatting). This will help us catch type errors and 
+enforce consistent type annotations across the codebase. However, since this 
+is a new requirement, we should make a gradual transition to it rather than  
+enforcing it immediately on all code. What this might look like in practice 
+is that we add pyright to the project and run it on all the existing code, 
+noting any critical errors as technical debt to be addressed over time, then 
+enforce it on all new and modified source going forward. We might also 
+leverage the pyright configuration to allow for gradual adoption, such as by 
+setting a higher error threshold for existing code and a stricter threshold 
+for new code or ignoring less critical errors in legacy code while enforcing 
+all errors in new code. It is possible that we might want to use different 
+configuration files depending on which folder we are in, or based on whether 
+we're checking old code vs new code. Use expert knowledge of pyright 
+configuration to design an effective strategy for this transition and ensure 
+that it is captured as part of the specs and implementation plan for the 
+project.
 
-~~`CM-10-002` says:~~
-
-> ~~Embargo acceptances MUST be timestamped by the CaseActor at
-> the time of receipt, not using the participant's claimed timestamp
-> **Rationale**: The CaseActor applies the only trusted timestamp; the
-> participant's reported time cannot be verified~~
-
-~~This is actually a generally good idea for all messages received by the
-CaseActor that cause the CaseActor to update its state. So for example,
-participant status updates, embargo status updates, notes added to a case,
-etc. Every item that causes a case to be updated needs to have the
-CaseActor's timestamp as a trusted source of time for history recostruction.
-This is important for auditability on cases, and for the "single source of
-truth" principle for a case's history. Without it, we could wind up with
-different copies of a case held by different actors having different
-timestamps for the same events, leading to disagreement about the order of
-events in the history of a case.~~
