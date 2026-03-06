@@ -74,6 +74,7 @@ class VultronObjectType(StrEnum):
     VULNERABILITY_REPORT = "VulnerabilityReport"
     VULNERABILITY_RECORD = "VulnerabilityRecord"
     CASE_REFERENCE = "CaseReference"
+    EMBARGO_POLICY = "EmbargoPolicy"
     CASE_PARTICIPANT = "CaseParticipant"
     CASE_STATUS = "CaseStatus"
     PARTICIPANT_STATUS = "ParticipantStatus"

@@ -319,7 +319,7 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
 
 **Reference**: `specs/embargo-policy.md` EP-01
 
-- [ ] **EP-1.1**: Add `EmbargoPolicy` Pydantic model (EP-01-001 to EP-01-004)
+- [x] **EP-1.1**: Add `EmbargoPolicy` Pydantic model (EP-01-001 to EP-01-004)
   with `actor_id`, `inbox`, `preferred_duration_days`,
   `minimum_duration_days`, `maximum_duration_days`, `notes` fields.
   Add to `vultron/as_vocab/objects/embargo_policy.py`. Add unit tests.

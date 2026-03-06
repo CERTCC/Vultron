@@ -224,6 +224,38 @@ which markdownlint treats as separate lists).
 
 ---
 
+## EP-1.1: EmbargoPolicy Pydantic model (2026-03-06)
+
+**Task**: Add `EmbargoPolicy` Pydantic model (EP-01-001 to EP-01-004).
+
+**Implementation**:
+
+1. Added `EMBARGO_POLICY = "EmbargoPolicy"` to `VultronObjectType` in
+   `vultron/enums.py`.
+
+2. Created `vultron/as_vocab/objects/embargo_policy.py`:
+   - `EmbargoPolicy` model inheriting from `VultronObject` with
+     `@activitystreams_object` decorator for registry integration
+   - Required fields: `actor_id` (str), `inbox` (str),
+     `preferred_duration_days` (int, ≥ 0)
+   - Optional fields: `minimum_duration_days` (int|None, ≥ 0),
+     `maximum_duration_days` (int|None, ≥ 0), `notes` (str|None)
+   - Validators: `actor_id` and `inbox` reject empty strings;
+     `notes` rejects empty strings (CS-08-001 pattern)
+   - Pydantic `ge=0` constraint on all duration fields
+   - `EmbargoPolicyRef` TypeAlias for ActivityStreamRef usage
+
+3. Created `test/as_vocab/test_embargo_policy.py`:
+   - 24 tests covering creation, required fields, optional fields,
+     validators (empty string, negative int, None acceptance),
+     serialization via `object_to_record`, DataLayer round-trip, JSON
+     serialization, and type distinctness
+   - Follows the `TestCaseReference` pattern for consistency
+
+**Test Results**: 649 passed, 5581 subtests (24 new tests added)
+
+---
+
 ## SC-1.3: create_case BT vendor initial participant (2026-03-06)
 
 **Task**: Verify `create_case` BT records vendor as initial
