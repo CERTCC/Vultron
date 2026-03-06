@@ -71,3 +71,14 @@ For `reject-report`, the `note` field is required in the request body
 (TB-03-004). An empty `note` string logs a WARNING but is accepted (the spec
 says the value SHOULD be non-empty, not MUST). This is enforced via a
 `@field_validator` on `RejectReportRequest.note`.
+
+## When implementing routers with request or response models be DRY
+
+When implementing routers that have request or response models, try to be DRY
+by checking existing models to see if they can be reused or extended rather 
+than creating new ones from scratch. For example, `ValidateReportRequest` 
+and `InvalidateReportRequest` are identical, and `RejectReportRequest` is 
+almost identical except for the required `note` field. This can be 
+refactored into a simpler base model that the specific request models can 
+inherit from.
+
