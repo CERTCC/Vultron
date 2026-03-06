@@ -8,8 +8,7 @@ concise, testable, and aligned with the project's current priorities and ideas.
 
 ### Primary constraints
 
-- Modify markdown files only (e.g., files under specs/, docs/, notes/, AGENTS.
-md)
+- Modify markdown files only (e.g., files under specs/, docs/, notes/, AGENTS.md)
 - Do not modify code or tests.
 - Verify assumptions by searching the codebase before asserting missing
   functionality or gaps. Do not assume functionality is missing without  

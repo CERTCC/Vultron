@@ -117,7 +117,7 @@ represent external touchpoints for the real process. Some of these nodes can
 be fully automated, others will require outside judgment, human input, or 
 manual work. They might rely on external tools or services that we will need 
 to integrate with. Implementing these nodes will be important for moving 
-from a protoype to a production-ready system, but they also represent a 
+from a prototype to a production-ready system, but they also represent a 
 number of decisions and implementation work that is not core to being able 
 to demonstrate the core behavior tree and coordination logic.
 

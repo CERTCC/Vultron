@@ -34,8 +34,8 @@ Objective: Update the implementation plan based on current priorities, specifica
        - (for example: implement a feature + tests + minimal docs or run a
          one-off migration + tests)
      - but small enough to be completed in a single agent execution cycle.
-     - Group closely related technical-debt items into a single task when  
-       they share the same implementation context to reduce the number of  
+     - Group closely related technical-debt items into a single task when
+       they share the same implementation context to reduce the number of
        agent prompts required.
    - Order tasks by implementation priority.
 
