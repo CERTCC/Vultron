@@ -196,3 +196,28 @@ should precede any new type annotation work.
 ~~`datetime.now(UTC)` rather than any participant-supplied timestamp, in~~
 ~~accordance with CM-02-009.~~
 
+
+---
+
+## Markdown Linting Bug Fix (2026-03-06)
+
+**Issue**: CI reported 45 markdownlint errors across `notes/` and `prompts/`
+files.
+
+**Root cause**:
+
+- `notes/bt-integration.md`: trailing space on line 213
+- `notes/encryption.md`: missing blank lines around lists (MD032) and bare
+  URLs (MD034)
+- `prompts/LEARN_EXTRA_prompt.md`: trailing spaces (MD009), spaces inside
+  emphasis markers (MD037), and globally-incrementing ordered list numbers
+  spanning section headers (MD029)
+- `prompts/PLAN_prompt.md`: trailing spaces (MD009)
+
+**Resolution**: Ran `markdownlint-cli2 --fix` to auto-fix trailing spaces,
+list spacing, bare URLs, and emphasis issues. Manually renumbered each
+section's ordered list to start from 1 in `prompts/LEARN_EXTRA_prompt.md`
+(the file used a single counter from 1–18 across five `###` section headers,
+which markdownlint treats as separate lists).
+
+**No architectural implications.**

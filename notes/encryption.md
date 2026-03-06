@@ -1,6 +1,7 @@
 # Encryption implementation notes
 
 Overview
+
 - ActivityPub supports public-key distribution via actor profiles.
 - Leverage ActivityPub public keys where possible to avoid re-inventing
   discovery and distribution.
@@ -8,6 +9,7 @@ Overview
   messages while preserving semantic routing and handler behavior.
 
 Principles
+
 - Prefer standard mechanisms (Actor.publicKey) for discovery and storage.
 - Perform decryption before semantic extraction/dispatch so semantics can be
   recognized reliably.
@@ -17,6 +19,7 @@ Principles
   public key.
 
 Incoming messages — where to decrypt
+
 - Decryption should occur upstream of the dispatcher/handler layer. Reasons:
   - Semantic extraction depends on object types and fields that may be
     unavailable on ciphertext.
@@ -31,6 +34,7 @@ Incoming messages — where to decrypt
   are performed as part of decryption/validation.
 
 Outgoing messages — strategies and trade-offs
+
 - Per-recipient messages (recommended):
   - For each intended recipient, encrypt a separate message to that
     recipient's public key and send it directly.
@@ -47,6 +51,7 @@ Outgoing messages — strategies and trade-offs
   multi-recipient schemes only if the message volume or latency requires it.
 
 Public key discovery and rotation
+
 - Read public keys from the recipient actor's profile (ActivityPub
   `publicKey` property). Validate the key format and its association with the
   actor.
@@ -57,6 +62,7 @@ Public key discovery and rotation
     encryption is explicitly required and no valid key exists.
 
 Implementation guidance
+
 - Store private keys securely (OS key store, HSM, or encrypted configuration).
 - Log encryption/decryption actions at INFO or DEBUG levels without exposing
   private material or plaintext content.
@@ -69,6 +75,7 @@ Implementation guidance
   rehydration and validation succeed after transport.
 
 Open questions (to decide)
+
 - Do we accept the extra network cost of per-recipient messages to simplify
   crypto, or do we invest in multi-recipient schemes?
 - Should we standardize on a specific envelope format for interoperability
@@ -77,5 +84,6 @@ Open questions (to decide)
   in actor profiles for automated decision-making?
 
 References
-- ActivityPub actor publicKey: https://docs.joinmastodon.org/spec/activitypub/#publicKey
-- ActivityPub security considerations: https://docs.joinmastodon.org/spec/security/
+
+- ActivityPub actor publicKey: <https://docs.joinmastodon.org/spec/activitypub/#publicKey>
+- ActivityPub security considerations: <https://docs.joinmastodon.org/spec/security/>

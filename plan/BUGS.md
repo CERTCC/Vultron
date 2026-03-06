@@ -3,7 +3,8 @@
 Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ---
-## Markdown Linting Errors
+
+## ~~Markdown Linting Errors~~ [FIXED]
 
 Run DavidAnson/markdownlint-cli2-action@v22
 markdownlint-cli2 v0.20.0 (markdownlint v0.40.0)
