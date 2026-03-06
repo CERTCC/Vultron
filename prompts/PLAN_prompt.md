@@ -29,6 +29,14 @@ Objective: Update the implementation plan based on current priorities, specifica
    - Replace or refine content with a prioritized, bulleted task list.
    - Use markdown task format: `- [ ] Task description`.
    - Tasks must be atomic, actionable, testable, and unambiguous.
+   - Tasks should be sized as "meaningful chunks": 
+     - make each task large enough to produce measurable progress
+       - (for example: implement a feature + tests + minimal docs or run a 
+         one-off migration + tests)
+     - but small enough to be completed in a single agent execution cycle.
+     - Group closely related technical-debt items into a single task when  
+       they share the same implementation context to reduce the number of  
+       agent prompts required.
    - Order tasks by implementation priority.
 
 4. Update plan/IMPLEMENTATION_NOTES.md
