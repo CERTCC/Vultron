@@ -184,7 +184,7 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-03-04)**:
+**Summary (2026-03-06)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer
@@ -197,7 +197,10 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
 - ✅ **Unified demo CLI complete** (`vultron-demo`): See `specs/demo-cli.md`
   and `plan/IMPLEMENTATION_PLAN.md` (Phase DEMO-4)
 - ✅ **TECHDEBT-6 complete**: `vultron/scripts/vocab_examples.py` shim removed
-- ✅ **592 tests passing**, 0 xfailed (2026-03-03)
+- ✅ **Object model gap closed**: `VulnerabilityRecord`, `CaseReference`,
+  `EmbargoPolicy`, `VultronActorMixin` models added (SC-1.1, SC-1.2, EP-1.1,
+  EP-1.2)
+- ✅ **665 tests passing**, 0 xfailed (2026-03-06)
 - ⚠️ **Production readiness partial**: Request validation, error responses
   need work
 - ❌ **Triggerable behaviors not implemented**: See `triggerable-behaviors.md`

@@ -162,6 +162,36 @@ The following prior work is relevant to a standardized embargo policy record:
   prioritization decisions (`specs/prototype-shortcuts.md` PROTO-05-001);
   relevant to engage/defer decisions that precede embargo negotiation
 
+### Future Work: VulnerabilityDisclosurePolicy Wrapper Object
+
+The current `EmbargoPolicy` model (`specs/embargo-policy.md` EP-01) captures
+embargo-specific preferences. The longer-term goal is a broader
+`VulnerabilityDisclosurePolicy` object that contains `embargo_policy` as a
+sub-field — analogous to the relationship between `security.txt` (contact
+and scope metadata) and DIOSTS (disclosure terms schema).
+
+Key design considerations:
+
+- DIOSTS format is a likely candidate for the policy representation, but
+  embargo-specific fields (min/max duration, preferences) require a custom
+  extension to the standard DIOSTS schema
+- A `VulnerabilityDisclosurePolicy` wrapper should be a JSON-LD extension
+  under a Vultron namespace (e.g., `vultron:disclosurePolicy`) so that
+  external ActivityPub clients can safely ignore or process the custom field
+- The wrapper would sit in an actor's ActivityPub profile alongside the
+  existing `embargo_policy` field currently provided by `VultronActorMixin`
+
+**Design Decision**: Defer `VulnerabilityDisclosurePolicy` until there is a
+formal CVD policy schema standard to align with. Track as a follow-on to EP-01
+when a formal spec is drafted.
+
+**Open Question**: (blocked-by EP-01 stabilization) Whether to extend DIOSTS
+directly or define a new Vultron-specific schema. DIOSTS is the preferred
+basis if Vultron aims for interoperability with the broader security community.
+
+**Cross-reference**: `specs/embargo-policy.md` EP-01; `vultron/as_vocab/
+objects/vultron_actor.py` (`VultronActorMixin.embargo_policy`).
+
 ---
 
 ## Relationship to Specifications

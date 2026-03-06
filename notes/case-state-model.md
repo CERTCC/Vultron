@@ -277,6 +277,14 @@ auditability and the single-source-of-truth guarantee provided by CM-02-002.
 Directly setting `.em_state` on the `case_status` list attribute is a bug
 (lists do not support arbitrary attribute assignment).
 
+**Trusted timestamp implementation note**: When the spec says the CaseActor
+must timestamp state-changing events on receipt, this does NOT mean modifying
+the `updated_at` field on the receiving or participating object. It means the
+CaseActor records the event to an **append-only event log on the case**
+(see "CaseEvent Model" below). The distinction matters: modifying an existing
+object's timestamp would break the append-only history invariant and allow
+event-ordering disagreements across actor copies.
+
 **Cross-reference**: `vultron/as_vocab/objects/vulnerability_case.py` (the
 `current_status` property), `vultron/as_vocab/objects/case_status.py`.
 
@@ -304,6 +312,107 @@ a partial-rename state that is harder to reason about.
 
 **Cross-reference**: `AGENTS.md` "case_status Field Is a List (Rename
 Pending)"; `specs/case-management.md` CM-03-006.
+
+---
+
+## CaseEvent Model for Trusted Timestamps (SC-PRE-1)
+
+Implementing `CM-02-009` and `CM-10-002` requires the CaseActor to record
+state-changing events with a **server-generated trusted timestamp** at the
+time of receipt. The correct mechanism is an **append-only event log on the
+case**, not modification of an `updated` field on any existing object.
+
+### CaseEvent Design
+
+Add a `CaseEvent` Pydantic model (e.g., in `vultron/as_vocab/objects/`) with:
+
+- `object_id: str` — ID of the object being acted upon
+- `event_type: str` — short descriptor (e.g., `"embargo_accepted"`,
+  `"participant_joined"`, `"note_added"`, `"status_updated"`)
+- `received_at: AwareDatetime` — server-generated TZ-aware UTC timestamp;
+  MUST be set by the handler at time of receipt, never from the incoming
+  activity payload
+
+Add `events: list[CaseEvent] = Field(default_factory=list)` to
+`VulnerabilityCase`.
+
+### Serialization Requirements
+
+- `received_at` MUST serialize to ISO 8601 UTC string
+  (e.g., `"2026-03-06T20:00:00+00:00"` or with `Z` suffix)
+- Use Pydantic's `AwareDatetime` type or a `field_serializer` consistent
+  with the existing `serialize_datetime` pattern in `as_Object`
+- Set via `datetime.now(tz=timezone.utc)` at handler invocation time
+
+### Round-Trip Requirements
+
+- `object_to_record` / `record_to_object` MUST preserve the `events` list
+  including `received_at` datetime precision and timezone
+
+**Design Decision**: `received_at` is set by the handler (server clock),
+never copied from the incoming activity's own timestamp fields. This is
+the invariant that makes the CaseActor the sole trusted source of event
+ordering within a case.
+
+**Cross-reference**: `specs/case-management.md` CM-02-009, CM-10-002;
+`plan/IMPLEMENTATION_PLAN.md` SC-PRE-1.
+
+---
+
+## Actor-to-Participant Index (SC-PRE-2)
+
+Several handlers (including `accept_invite_to_embargo_on_case` and
+`accept_invite_actor_to_case`) need to resolve an **Actor ID → CaseParticipant
+ID** mapping within the context of a specific case. Without a fast lookup,
+handlers must iterate all participants, which is fragile and error-prone.
+
+### Design
+
+Add `actor_participant_index: dict[str, str] = Field(default_factory=dict)`
+to `VulnerabilityCase`:
+
+- Key: `actor_id` string (full URI)
+- Value: `participant_id` string (full URI of the `CaseParticipant` object)
+- This field is a **derived index** — it MUST be excluded from
+  ActivityStreams serialization (use `exclude=True` in the field definition
+  or an equivalent Pydantic v2 pattern) because it is not protocol data
+
+### Participant Management Methods
+
+Add two methods to `VulnerabilityCase`:
+
+- `add_participant(participant: CaseParticipant)`: appends
+  `participant.as_id` to `case_participants`; records
+  `actor_id → participant.as_id` in `actor_participant_index`; raises
+  (or no-ops) if the actor is already registered — choose one behavior
+  and enforce it consistently
+- `remove_participant(participant_id: str)`: removes from
+  `case_participants`; removes the corresponding actor key from
+  `actor_participant_index`
+
+### Handler Updates
+
+All handlers that currently write to `case.case_participants` directly MUST
+be updated to call `case.add_participant()` or `case.remove_participant()`:
+
+- `accept_invite_actor_to_case` (actor handler)
+- `create_case` BT node `CreateInitialVendorParticipant`
+  (`behaviors/case/nodes.py`)
+- `remove_case_participant_from_case` (participant handler)
+- Any other handler that appends or removes participants
+
+**Invariant**: The index MUST always reflect the contents of
+`case_participants`. Out-of-sync states MUST NOT be possible via normal
+code paths.
+
+**Open Question**: (blocks SC-PRE-2) Whether to raise or silently no-op on
+duplicate `add_participant()` calls. Recommend raise for correctness;
+handlers should guard with an existence check before calling
+`add_participant()` to keep idempotency logic explicit.
+
+**Cross-reference**: `specs/case-management.md` CM-10-002, CM-10-001;
+`plan/IMPLEMENTATION_PLAN.md` SC-PRE-2; `AGENTS.md` "Cases should have
+participant-to-actor and vice versa indexes".
 
 ---
 
