@@ -16,3 +16,15 @@ This might also imply the need for a sort of event logger decorator that can
 be used to automatically capture timestamps on activities when events happen 
 on cases. That might be the easiest way to do this without having to add a 
 lot of extra code in the case management steps.
+
+## Non-empty string checks can be DRYed up
+
+There are a lot of places where we check for non-empty strings in the code, 
+such as in `case_event.py`. There is no reason for this to be repeated 
+everywhere. Come up with a way to consolidate these checks into a single 
+location that enforces the check across the codebase. Pydantic validators 
+should be able to do this in a more consolidated way without having to have 
+separate methods for every single non-empty string field. Perhaps it could 
+be by defining a NonEmptyString type that enforces the check then replacing 
+all the relevant fields with that type?
+
