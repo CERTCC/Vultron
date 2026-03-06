@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-03 (gap analysis refresh #11)
+**Last Updated**: 2026-03-06 (gap analysis refresh #12)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 592 passing, 5581 subtests, 0 xfailed (2026-03-03)
+**Test suite**: 592 passing, 5581 subtests, 0 xfailed (2026-03-06)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -37,12 +37,15 @@ reject_case_ownership_transfer, update_case
 
 ---
 
-## Gap Analysis (2026-03-03, refresh #11)
+## Gap Analysis (2026-03-06, refresh #12)
 
 ### ✅ Phase BUGFIX-1 fully complete
 
 Root-logger side effect in `app.py` fixed (BUGFIX-1.1); spurious `print()`
-calls replaced in four test files (BUGFIX-1.2). Test output is clean.
+calls replaced in four test files (BUGFIX-1.2). Test output is clean under
+`uv run pytest`. Residual `--- Logging error ---` noise seen only under
+PyCharm's test runner (closed-stream interaction) — not a project-code issue;
+documented as known environment limitation in `plan/BUGS.md`.
 
 ### ✅ Phase REFACTOR-1 fully complete (CM-03-006)
 
@@ -126,6 +129,48 @@ be meaningful. Design work needed first.
 No `operation_id` kwargs are set on any FastAPI route decorator; FastAPI
 auto-generates them from function names which may not be stable or unique
 across router boundaries.
+
+### ❌ CM-10 embargo acceptance tracking not implemented
+
+`specs/case-management.md` CM-10 requires:
+- CM-10-001: `CaseParticipant` MUST track which embargoes the participant
+  has accepted
+- CM-10-002: Embargo acceptances MUST be timestamped by the CaseActor at
+  receipt (implements CM-02-009)
+- CM-10-003: `CaseParticipant` SHOULD include `accepted_embargo_ids:
+  list[str]` field
+- CM-10-004: Before sharing case updates, MUST verify participant accepted
+  current active embargo
+
+None of these requirements are implemented; `CaseParticipant` has no
+`accepted_embargo_ids` field. See Phase SPEC-COMPLIANCE-3.
+
+### ❌ CM-02-009 — general trusted-timestamp requirement not implemented
+
+`specs/case-management.md` CM-02-009 (added 2026-03-05) generalizes
+trusted-timestamp logic to ALL state-changing messages received by the
+CaseActor, not just embargo acceptances. No trusted-timestamp logic exists
+in any handler. Addressed together with CM-10 in SPEC-COMPLIANCE-3.
+
+### ❌ CS-08-001 — Optional string fields allow empty strings
+
+`specs/code-style.md` CS-08-001 (added 2026-03-05) requires Optional string
+fields to reject empty strings. No Pydantic validators enforce this invariant
+across the object models. Added as TECHDEBT-7.
+
+### ⚠️ Triggerable-behaviors spec now formal (P30 tasks partially pre-date it)
+
+`specs/triggerable-behaviors.md` TB-01 through TB-07 was created since the
+last plan refresh. The P30 tasks exist but do not reference TB spec IDs and
+omit explicit tasks for: request body schema (TB-03), response body with
+`activity` key (TB-04), per-actor DataLayer DI (TB-06), and outbox
+publication (TB-07). P30 tasks updated below.
+
+### ⚠️ `specs/object-ids.md` now formally specifies TECHDEBT-3
+
+`specs/object-ids.md` OID-01 through OID-04 was created since the last plan
+refresh, formalizing the TECHDEBT-3 task. TECHDEBT-3 updated below to
+reference OID spec IDs.
 
 ---
 
@@ -216,11 +261,17 @@ TECHDEBT-4 remain LOW.
   `docs/adr/ADR-XXXX-standardize-object-ids.md` and implement a compatibility
   shim in the DataLayer that accepts existing IDs.
   Done when: ADR created and tests validate URL-like ID acceptance.
+  **Reference**: `specs/object-ids.md` OID-01 through OID-04.
 
 - [ ] TECHDEBT-4: Reorganize top-level modules (activity_patterns, semantic_map,
   enums) into small packages to reduce circular imports and improve
   discoverability.
   Done when: modules moved with minimal interface changes and tests pass.
+
+- [ ] TECHDEBT-7: Add Pydantic validators rejecting empty strings in Optional[str]
+  fields across `vultron/as_vocab/objects/` models (CS-08-001). Add tests
+  asserting that empty-string values are rejected and `None` is accepted.
+  Done when: validators present on all Optional[str] fields and tests pass.
 
 References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
 `plan/IDEAS.md`, and files in `specs/`.
@@ -256,6 +307,29 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
 
 ---
 
+### Phase SPEC-COMPLIANCE-3 — Embargo Acceptance Tracking + Trusted Timestamps
+(Priority: MEDIUM)
+
+**Reference**: `specs/case-management.md` CM-10, CM-02-009
+
+- [ ] **SC-3.1**: Add `accepted_embargo_ids: list[str]` field to
+  `CaseParticipant` (CM-10-001, CM-10-003). Update serialization tests;
+  confirm round-trip through `object_to_record`/`record_to_object`
+  preserves the field.
+- [ ] **SC-3.2**: In `accept_invite_to_embargo_on_case` and
+  `accept_invite_actor_to_case` handlers, record the accepted embargo ID
+  in `CaseParticipant.accepted_embargo_ids` using the CaseActor's
+  trusted timestamp at time of receipt rather than any participant-supplied
+  timestamp (CM-10-002, CM-02-009). Add tests asserting that the ID is
+  appended and the timestamp is server-generated.
+- [ ] **SC-3.3**: Add a guard in `update_case` (or a shared helper) that
+  checks each active participant has accepted the current embargo before
+  the update is broadcast (CM-10-004). For prototype: log a WARNING when
+  a participant has not accepted; full enforcement is PRIORITY-200
+  (CaseActor broadcast). Add unit tests for the check logic.
+
+---
+
 ### Phase BT-2.2/2.3 — Optional BT Refactors (low priority)
 
 - [ ] **BT-2.2**: Refactor `close_report` handler to use BT tree
@@ -281,31 +355,45 @@ References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
 
 ### Phase PRIORITY-30 — Triggerable Behaviors (PRIORITY 30)
 
-**Reference**: `plan/PRIORITIES.md` PRIORITY 30, `docs/topics/behavior_logic/`
+**Reference**: `plan/PRIORITIES.md` PRIORITY 30,
+`specs/triggerable-behaviors.md` TB-01 through TB-07,
+`notes/triggerable-behaviors.md`, `docs/topics/behavior_logic/`
 
 Design and implementation of API-level trigger endpoints for behaviors the
 local actor initiates based on internal state (not purely reactive to messages).
-Candidate behaviors (from `docs/topics/behavior_logic/`):
+Candidate behaviors from `docs/topics/behavior_logic/`:
 
-- RM behaviors: validate report, engage/defer case, close report
-- EM behaviors: propose/evaluate embargo, terminate embargo
-- Actor-initiated: publish vulnerability, assign ID
+- RM behaviors: validate-report, invalidate-report, reject-report,
+  engage-case, defer-case, close-report (TB-02-001)
+- EM behaviors: propose-embargo, evaluate-embargo, terminate-embargo
+  (TB-02-002)
 
-- [ ] **P30-1**: Design triggerable behavior API — draft ADR or design note
-  documenting endpoint shape (`POST /actors/{actor_id}/trigger/{behavior}`),
-  input schema, response format, and which behaviors are in scope.
-  Reference `docs/topics/behavior_logic/` behavior docs and
-  `specs/behavior-tree-integration.md` BT-08 (CLI MAY).
-- [ ] **P30-2**: Implement `POST /actors/{actor_id}/trigger/validate-report`
-  endpoint that invokes the `validate_report` BT on a named report.
-- [ ] **P30-3**: Implement `POST /actors/{actor_id}/trigger/engage-case`
-  endpoint that invokes the `engage_case` BT.
-- [ ] **P30-4**: Implement `POST /actors/{actor_id}/trigger/defer-case`
-  endpoint that invokes the `defer_case` BT.
-- [ ] **P30-5**: Implement remaining EM trigger endpoints based on design
-  from P30-1 (propose embargo, terminate embargo).
-- [ ] **P30-6**: Add tests for each trigger endpoint; update `vultron-demo`
-  CLI to include a demo exercising at least one trigger endpoint.
+- [ ] **P30-1**: Implement the trigger router scaffolding and first endpoint:
+  create `vultron/api/v2/routers/triggers.py`; register it in `v2_router.py`;
+  add `POST /actors/{actor_id}/trigger/validate-report` that accepts a JSON
+  body with `offer_id` (TB-01-001, TB-01-002, TB-01-004, TB-03-001),
+  validates required fields (return 422 on missing `offer_id`; TB-03-001),
+  ignores unknown fields (TB-03-002), invokes the `validate_report` BT via
+  `vultron/behaviors/bridge.py` (TB-05-001, TB-05-002), adds the resulting
+  activity to the actor's outbox (TB-07-001), and returns HTTP 202 with
+  `{"activity": {...}}` body (TB-04-001). Inject DataLayer via
+  `Depends(get_datalayer)` (TB-06-001, TB-06-002). Add unit + integration
+  tests (TB-01, TB-03, TB-04, TB-05, TB-06, TB-07 verification).
+- [ ] **P30-2**: Add `POST /actors/{actor_id}/trigger/invalidate-report` and
+  `POST /actors/{actor_id}/trigger/reject-report` endpoints (TB-02-001).
+  `reject-report` MUST require a non-empty `note` field (TB-03-004,
+  CS-08-001). Add tests for both happy-path and missing-`note` error.
+- [ ] **P30-3**: Add `POST /actors/{actor_id}/trigger/engage-case` and
+  `POST /actors/{actor_id}/trigger/defer-case` endpoints (TB-02-001).
+  Both require `case_id` in request body (TB-03-001). Add tests.
+- [ ] **P30-4**: Add `POST /actors/{actor_id}/trigger/close-report` endpoint
+  (TB-02-001) with `offer_id` in request body. Add tests.
+- [ ] **P30-5**: Add EM trigger endpoints: `propose-embargo`,
+  `evaluate-embargo`, `terminate-embargo` (TB-02-002). Each requires
+  `case_id` in request body (TB-03-001). Add tests.
+- [ ] **P30-6**: Add a `trigger` sub-command to the `vultron-demo` CLI
+  exercising at least one trigger endpoint end-to-end; update
+  `docs/reference/code/demo/*.md` to document the new command.
 
 ---
 
@@ -407,9 +495,11 @@ The following are deferred until higher-priority phases are complete:
 | CM-01–CM-04 | ✅ Implemented (CM-03-006 rename complete in REFACTOR-1) |
 | CM-02-007 | ✅ `VulnerabilityCase.notes` field present; `add_note_to_case` appends correctly |
 | CM-02-008 | ❌ Vendor initial participant in create_case not verified (SC-1.3) |
+| CM-02-009 | ❌ General trusted-timestamp requirement not implemented (SC-3.2) |
 | CM-05-001 | ❌ VulnerabilityRecord and Publication types missing (SC-1.1, SC-1.2) |
 | CM-06 | ❌ CaseActor broadcast not implemented (PRIORITY-200, blocked by OUTBOX-1) |
 | CM-07 / AR-07 | ❌ Action rules endpoint not implemented (CA-2, PRIORITY-200) |
+| CM-10 | ❌ Embargo acceptance tracking not implemented (SC-3.1, SC-3.2, SC-3.3) |
 | Handler Protocol (HP-*) | ✅ All 38 handlers registered (incl. update_case) |
 | Semantic extraction (SE-*) | ✅ 38 patterns + UNKNOWN |
 | Dispatch routing (DR-*) | ✅ DirectActivityDispatcher |
@@ -419,6 +509,9 @@ The following are deferred until higher-priority phases are complete:
 | Outbox (OX-01, OX-02) | ✅ Outbox populated by handlers |
 | Outbox (OX-03, OX-04) | ❌ Delivery not implemented (OUTBOX-1) |
 | EP-01 | ❌ EmbargoPolicy model not implemented (EP-1.1, EP-1.2) |
+| TB-01–TB-07 | ❌ Triggerable behavior endpoints not implemented (P30-1 through P30-6) |
+| OID-01–OID-04 | ❌ Object ID standardization not started (TECHDEBT-3) |
+| CS-08-001 | ❌ Optional empty-string validation not implemented (TECHDEBT-7) |
 | Demo CLI (DC-01–DC-05) | ✅ Complete |
 | BUGFIX-1 (logging/print) | ✅ Complete |
 | REFACTOR-1 (CM-03-006) | ✅ Complete |

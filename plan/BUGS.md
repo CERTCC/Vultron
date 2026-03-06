@@ -46,6 +46,14 @@ Stopped checking at 2026-02-26 22:19:31+000 (17 seconds)
 
 ### Logging errors when running pytest
 
+**Status**: Partially resolved. BUGFIX-1.1 (moved root-logger config from
+`app.py`) eliminated the noise under `uv run pytest` from the command line.
+Residual `--- Logging error ---` tracebacks appear only when running tests
+under **PyCharm's test runner** (`_jb_pytest_runner.py`), which closes log
+handler streams after each test before Python's logging framework finishes
+flushing. This is a PyCharm environment issue, not a code defect. No further
+project-code changes are needed.
+
 When running the test suite with pytest, there are a lot of errors like the 
 following examples. They are not causing tests to fail, but they are very noisy
 and make it difficult to see the actual test results.
