@@ -15,6 +15,7 @@ during the prototype stage.
 
 - `PROTO-01-001` Omit cryptographic authentication for agent-to-agent
   communication.
+  - PROTO-01-001 constrains CM-06-004
 
 ## Federation (MAY)
 
@@ -39,4 +40,34 @@ during the prototype stage.
   specification files.
 - `PROTO-04-002` Review specifications to identify requirements that should
   carry the `PROD_ONLY` tag.
+
+## Case Prioritization (MAY)
+
+- `PROTO-05-001` Use a stub always-engage policy (`AlwaysPrioritizePolicy`)
+  in place of a real prioritization framework.
+  - The intended production mechanism is SSVC (Stakeholder-Specific
+    Vulnerability Categorization) or an equivalent tool that evaluates report
+    content and context to produce an engage/defer decision.
+  - The `PrioritizationPolicy` interface in
+    `vultron/behaviors/report/policy.py` and the `EvaluateCasePriority` BT
+    node in `vultron/behaviors/report/nodes.py` provide the hook point for
+    this integration.
+  - Note: RM is a **participant-specific** state machine. Each
+    `CaseParticipant` (actor-in-case wrapper) carries its own RM state in
+    `participant_status[].rm_state`, independent of other participants.
+    `ReportStatus` in the flat status layer is a separate mechanism used
+    only for reports that have not yet been associated with a case (i.e.,
+    before a case is created from a validated report).
+
+## Domain Model Separation (MAY)
+
+- `PROTO-06-001` Prototype MAY allow domain objects to directly inherit from
+  ActivityStreams base types (`VultronObject`, `as_Object`, etc.) without a
+  translation boundary between wire representation, domain model, and
+  persistence model
+  - The intended production approach introduces explicit translation functions
+    (`from_activitystreams`, `to_activitystreams`) at the protocol boundary
+  - PROTO-06-001 constrains CM-08-001
+  - PROTO-06-001 constrains CM-08-002
+  - See `notes/domain-model-separation.md` for design rationale, known constraints of the current approach, and recommended migration steps
 

@@ -1,0 +1,409 @@
+# Case Management Specification
+
+## Overview
+
+Requirements for VulnerabilityCase lifecycle management, CaseActor responsibilities,
+and the RM/EM/CS/VFD state model. Covers actor isolation at the protocol level and
+the distinction between participant-specific and participant-agnostic state.
+
+**Source**: `plan/PRIORITIES.md` (Priority 100, 200), `notes/case-state-model.md`,
+`notes/bt-integration.md`, ActivityPub specification
+**Cross-references**: `behavior-tree-integration.md` (BT-09, BT-10),
+`handler-protocol.md` (HP-00-001, HP-00-002)
+
+---
+
+## Actor Isolation (MUST)
+
+- `CM-01-001` Each actor MUST have an isolated protocol state domain
+  - Actor A and Actor B MUST NOT share internal state (RM, EM, CS, BT blackboard)
+  - Actors interact ONLY through ActivityStreams protocol messages via inboxes/outboxes
+- `CM-01-002` Each actor's RM state MUST be maintained independently per case
+  - RM state is participant-specific; each actor tracks their own RM lifecycle
+
+## CaseActor Lifecycle (MUST)
+
+- `CM-02-001` Each VulnerabilityCase MUST have exactly one associated CaseActor
+  - CaseActor is an ActivityStreams Service object
+  - CaseActor MUST be created when a VulnerabilityCase is created
+- `CM-02-002` CaseActor MUST be the authoritative source of truth for case state
+  - Other actors MAY maintain local copies, but the CaseActor governs the
+    canonical state
+- `CM-02-003` CaseActor MUST persist until the associated VulnerabilityCase is closed
+- `CM-02-004` CaseActor MUST know the case owner
+  - Case owner identity is stored in the VulnerabilityCase object
+  - The case owner is an organizational Actor (vendor/coordinator), NOT the CaseActor
+  - Initial case owner is typically the recipient of the VulnerabilityReport Offer
+- `CM-02-005` `PROD_ONLY` CaseActor MUST restrict certain activities to the case owner
+  - Owner-only activities include: closing the case, transferring ownership
+  - See `ontology/vultron_activitystreams.ttl` (`vultron_as:CaseOwnerActivity`)
+- `CM-02-006` `PROD_ONLY` CaseActor MUST enforce case-level authorization for all
+  case mutations
+  - CM-02-006 is-implemented-by BT-10-004
+- `CM-02-007` `VulnerabilityCase` MUST include a `notes: list[as_NoteRef]`
+  field to record case-scoped notes created via `AddNoteToCase` activities
+  - Provides a canonical link from a case to in-scope notes, consistent with
+    `case_participants` and `vulnerability_reports` tracking
+  - Handlers implementing `AddNoteToCase` MUST append the `as_NoteRef` to
+    `VulnerabilityCase.notes`
+- `CM-02-008` When a `VulnerabilityCase` is created from an originating
+  `VulnerabilityReport` Offer, the vendor (case recipient / owner) MUST be
+  recorded as the initial primary participant
+  - `VulnerabilityCase.attributed_to` MUST be set to the vendor/coordinator's
+    actor ID at case creation
+  - Handlers creating a case SHOULD create a `VendorParticipant` before
+    appending other participants (e.g., finder)
+- `CM-02-009` The CaseActor MUST apply its own trusted timestamp to every
+  state-changing event it receives, regardless of any timestamp supplied by
+  the sending participant
+  - This applies to all state-changing messages: participant join/leave,
+    embargo proposals and acceptances, notes added, status updates, and any
+    other activity that modifies canonical case state
+  - Participant-supplied timestamps MUST NOT be used as authoritative
+    timestamps for case history
+  - **Rationale**: The CaseActor's clock is the only trusted source of time
+    for event ordering within a case; using participant-supplied timestamps
+    would allow different copies of a case (held by different actors) to
+    disagree on event order, undermining auditability and the
+    single-source-of-truth guarantee
+  - CM-02-009 depends-on CM-02-002
+
+## Case State Model (MUST)
+
+- `CM-03-001` The system MUST implement the three interacting state machines:
+  RM (Report Management), EM (Embargo Management), and CS (Case State)
+  - CM-03-001 implements VP-01-001
+  - CM-03-001 implements VP-13-001
+  - CM-03-001 implements VP-14-001
+- `CM-03-002` RM state MUST be participant-specific
+  - Each CaseParticipant carries their own RM state in `ParticipantStatus.rm_state`
+  - RM state is independent per (actor × case) pair
+  - CM-03-002 implements VP-01-002
+  - CM-03-002 implements VP-02-002
+  - CM-03-002 implements VP-03-001
+- `CM-03-003` EM state MUST be participant-agnostic (shared per case)
+  - EM state is tracked in `CaseStatus.em_state`
+  - All case participants share the same EM state
+  - CM-03-003 implements VP-04-002
+  - CM-03-003 implements VP-13-009
+  - CM-03-003 implements VP-14-001
+- `CM-03-004` CS (PXA sub-state) MUST be participant-agnostic (shared per case)
+  - PXA state is tracked in `CaseStatus.pxa_state`
+  - Reflects observable world state (Public awareness, eXploit publication,
+    Attack observation)
+- `CM-03-005` VFD (Vendor Fix Deployment) state MUST be participant-specific
+  - Only Vendors and non-vendor Deployers have a meaningful VFD state
+  - Finders, Reporters, and Coordinators MUST use the null VFD state
+  - VFD state is tracked in `ParticipantStatus.vfd_state`
+- `CM-03-006` Collection fields that hold status histories MUST be pluralized
+  and documented as history collections
+  - `VulnerabilityCase` MUST expose `case_statuses: list[CaseStatusRef]`
+    (history); a read-only property `case_status` MAY return the most recent
+    `CaseStatus` by timestamp
+  - `CaseParticipant` MUST expose `participant_statuses: list[ParticipantStatus]`
+    (history); a read-only property `participant_status` MAY return the current
+    `ParticipantStatus`
+  - Handlers MUST append new status objects to the pluralized history lists;
+    handlers MUST NOT mutate historical items in-place
+  - The read-only property MUST be computed (not direct assignment)
+- `CM-03-007` RM state transitions MUST use the established protocol activity
+  types without introducing new activity types for reverse transitions
+  - Re-engagement from `DEFERRED` back to `ACCEPTED` MUST use the same `Join`
+    activity type as initial engagement (`RmEngageCase`), not an `Undo` activity
+  - Using `Undo` for re-engagement MUST NOT be implemented; `Undo` implies
+    retracting a prior state assertion, not a new forward state transition
+  - **Rationale**: Keeps the RM symbol set minimal and produces clean audit
+    histories; `Undo` conflates historical negation with a new forward
+    transition
+  - CM-03-007 implements VP-02-004
+
+## State Transition Correctness (MUST)
+
+- `CM-04-001` Handlers processing RM state transitions MUST update
+  `ParticipantStatus.rm_state` for the sending actor's CaseParticipant
+  - CM-04-001 implements VP-02-002
+  - CM-04-001 implements VP-02-003
+  - CM-04-001 implements VP-03-001
+  - CM-04-001 implements VP-13-005
+- `CM-04-002` Handlers processing VFD state transitions MUST update
+  `ParticipantStatus.vfd_state` for the sending actor's CaseParticipant
+- `CM-04-003` Handlers processing EM state transitions MUST update
+  `CaseStatus.em_state` — this is shared and affects all case participants
+  - CM-04-003 implements VP-06-001
+  - CM-04-003 implements VP-09-001
+  - CM-04-003 implements VP-11-001
+  - CM-04-003 implements VP-11-002
+  - CM-04-003 implements VP-14-001
+  - CM-04-003 implements VP-14-002
+- `CM-04-004` Handlers processing PXA state transitions (public disclosure,
+  exploit publication, attack observation) MUST update `CaseStatus.pxa_state`
+  - CM-04-004 implements VP-03-002
+  - CM-04-004 implements VP-14-003
+  - CM-04-004 implements VP-14-004
+- `CM-04-005` State transition handlers MUST NOT mix participant-specific and
+  participant-agnostic state updates
+  - Updating `CaseStatus.em_state` with a participant-specific value is
+    incorrect and MUST be avoided
+  - CM-04-005 implements VP-13-009
+
+## Object Model Relationships (MUST)
+
+- `CM-05-001` The system MUST distinguish the following domain objects as
+  separate, non-interchangeable types:
+  - `VulnerabilityReport`: an inbound report describing one or more
+    potential vulnerabilities; submitted by a finder or reporter
+  - `VulnerabilityCase`: a coordination unit grouping one or more reports
+    and tracking state across participants
+  - `VulnerabilityRecord`: a persistent identifier record for a confirmed
+    vulnerability; may carry one or more identifiers from different
+    namespaces (e.g., CVE ID, CERT/CC VU#, vendor-specific ID)
+  - `CaseReference`: a typed external reference associated with a case
+    (e.g., public advisory, patch, vendor bulletin, or other
+    vulnerability-related resource); links to external resources rather
+    than embedding their content
+- `CM-05-002` A `VulnerabilityCase` MUST reference at least one
+  `VulnerabilityReport`; a case with zero reports MUST NOT exist
+  - CM-05-002 implements VP-02-015
+  - CM-05-002 implements VP-02-020
+- `CM-05-003` A `VulnerabilityCase` SHOULD reference at least one
+  `VulnerabilityRecord` before closure; cases with no associated record at
+  closure SHOULD log a warning
+- `CM-05-004` A `VulnerabilityCase` MAY have zero or more associated
+  `CaseReference` objects
+- `CM-05-005` `CaseReference` objects MUST include at minimum a `url` field;
+  SHOULD include a `name` field (human-readable title); MAY include a `tags`
+  field (array of one or more type descriptors, e.g., `"patch"`,
+  `"vendor-advisory"`, `"third-party-advisory"`, `"exploit"`,
+  `"release-notes"`)
+  - The `url`, `name`, and `tags` structure aligns with the CVE JSON schema
+    reference format
+    (<https://github.com/CVEProject/cve-schema>)
+  - Exception: a case MAY embed a reference snapshot as a
+    `VulnerabilityCase` note when content preservation is explicitly required
+- `CM-05-006` One report MAY describe multiple vulnerabilities; one case MAY
+  group multiple reports (e.g., when overlapping participants are involved)
+- `CM-05-007` Multiple `CaseReference` objects MAY arise from a single case
+  (e.g., coordinated simultaneous disclosure by multiple vendors)
+- `CM-05-008` `VulnerabilityRecord` identifiers MUST be treated as opaque
+  strings; the system MUST NOT restrict identifier values to CVE ID format
+  or any other specific namespace
+  - **Rationale**: Different organizations use different identifier namespaces
+    (CVE, CERT/CC VU#, vendor-assigned IDs, etc.); requiring a specific
+    format excludes valid records and prevents multi-namespace support
+- `CM-05-009` A `VulnerabilityRecord` SHOULD support a list of alias
+  identifiers from different namespaces for the same vulnerability
+  - **Rationale**: Multiple IDs from different namespaces may refer to the
+    same underlying vulnerability (e.g., a CVE ID and a CERT/CC VU# ID)
+- `CM-05-010` When a `VulnerabilityRecord` is a `CVERecord` (i.e., it
+  carries a CVE ID), its data MUST conform to the CVE JSON schema
+  (<https://github.com/CVEProject/cve-schema>)
+  - The `CVERecord` Pydantic model SHOULD reuse the CVE JSON schema
+    `reference` definition for its `references` array, ensuring
+    compatibility with CVE data interchange formats
+
+## Case Update Broadcast (MUST)
+
+- `CM-06-001` When the CaseActor updates canonical case state, it MUST
+  notify all current case participants
+  - Notification MUST be sent as an ActivityStreams activity to each
+    participant's inbox
+  - CM-06-001 implements VP-02-019
+  - CM-06-001 implements VP-03-012
+  - CM-06-001 implements VP-08-001
+- `CM-06-002` Participants receiving a case update notification MUST treat
+  the update as authoritative only when it originates from the CaseActor
+  - CM-06-002 depends-on CM-02-002
+- `CM-06-003` `PROD_ONLY` Case update notifications MUST include the
+  updated CaseActor URL so participants can fetch the current case state
+  if needed
+- `CM-06-004` `PROD_ONLY` Participants MUST authenticate case update
+  notifications before accepting them as authoritative
+  - CM-06-004 is-constrained-by PROTO-01-001
+
+## CVD Action Rules API (SHOULD)
+
+- `CM-07-001` The system SHOULD expose an endpoint that returns the set of
+  valid actions available to a case participant given the current case state
+  and their role
+  - This supports both human and agent consumers in knowing which protocol
+    actions are applicable at any given moment
+  - CM-07-001 refines AR-07-001
+  - CM-07-001 refines AR-07-002
+- `CM-07-002` The action rules response MUST include the participant's role
+  and the current RM, EM, CS, and VFD states relevant to that participant
+- `CM-07-003` The action rules response MUST list valid next actions as
+  structured objects including the action name and any required parameters
+
+## Verification
+
+### CM-01-001, CM-01-002 Verification
+
+- Unit test: Actor A and Actor B maintain separate RM states for same case
+- Integration test: Actor interaction only occurs via inbox/outbox message exchange
+- Code review: No shared in-memory state across actor contexts
+
+### CM-02-001, CM-02-002, CM-02-003 Verification
+
+- Integration test: Report validation triggers VulnerabilityCase creation with
+  associated CaseActor
+- Unit test: CaseActor exists in DataLayer with correct case reference
+- Integration test: CaseActor persists through case lifecycle; removed on case close
+
+### CM-02-004, CM-02-005 Verification
+
+- Unit test: CaseActor has reference to case owner
+- `PROD_ONLY` Integration test: Non-owner attempt to close case → authorization error
+
+### CM-02-009 Verification
+
+- Unit test: Participant join event stored with CaseActor-applied timestamp,
+  not sender-supplied time
+- Unit test: Embargo acceptance event stored with CaseActor-applied timestamp
+- Unit test: Note-added event stored with CaseActor-applied timestamp
+- Code review: All case state mutation handlers apply CaseActor timestamp,
+  not activity-supplied timestamp
+
+### CM-03-001 through CM-03-005 Verification
+
+- Unit test: RM state change updates `ParticipantStatus.rm_state`, not `CaseStatus`
+- Unit test: EM state change updates `CaseStatus.em_state`, not participant status
+- Unit test: PXA state change updates `CaseStatus.pxa_state`
+- Code review: Vendor-only handlers check participant role before VFD state updates
+- Unit test: Finder/Reporter/Coordinator participants have null VFD state
+
+### CM-04-001 through CM-04-005 Verification
+
+- Unit test: `engage_case` handler updates sender's `ParticipantStatus.rm_state`
+- Unit test: EM state handler updates shared `CaseStatus.em_state`
+- Integration test: State after two independent actors' RM transitions shows
+  correct per-participant values
+- Code review: No handler mixes participant-specific and agnostic state
+
+### CM-05-001 through CM-05-010 Verification
+
+- Unit test: `VulnerabilityCase`, `VulnerabilityReport`, `VulnerabilityRecord`,
+  and `CaseReference` are separate Pydantic model types
+- Unit test: Creating a case with no reports raises a validation error
+- Unit test: `CaseReference` model requires a `url` field; `name` and `tags`
+  are optional
+- Unit test: `VulnerabilityRecord` accepts any non-empty string as identifier
+- Unit test: `VulnerabilityRecord.aliases` field stores a list of string IDs
+- Unit test: `CVERecord` model validates data against CVE JSON schema structure
+
+### CM-06-001 through CM-06-004 Verification
+
+- Unit test: After a case state update, CaseActor outbox contains one
+  notification per active case participant
+- Code review: Participant inboxes are populated from `CaseParticipant` list
+  at notification time
+
+### CM-07-001 through CM-07-003 Verification
+
+- Integration test: `GET /actors/{case_actor_id}/action-rules?participant={id}`
+  returns structured action list for known participant
+- Unit test: Action rules reflect current RM/EM/CS state for the participant
+
+## Domain Model Architecture (SHOULD)
+
+- `CM-08-001` The system SHOULD maintain a clear separation between the wire
+  representation, domain model, and persistence model for CVD objects
+  - **Wire representation**: ActivityStreams JSON exchanged between participants
+    at the inbox/outbox boundary
+  - **Domain model**: Internal objects with business logic, explicit invariants,
+    and append-only event history semantics
+  - **Persistence model**: Storage-optimized structures for the DataLayer
+  - These three concerns SHOULD be independently evolvable; wire format changes
+    SHOULD NOT require domain logic changes, and vice versa
+- `CM-08-002` `PROD_ONLY` Domain objects SHOULD NOT directly inherit from
+  ActivityStreams base types; explicit translation functions SHOULD be provided
+  at the protocol boundary
+  - See `notes/domain-model-separation.md` for design rationale and recommended migration steps
+  - CM-08-002 is-constrained-by PROTO-06-001
+
+## Redacted Case View (SHOULD)
+
+- `CM-09-001` `PROD_ONLY` The system SHOULD support a `RedactedVulnerabilityCase`
+  type for sharing case information with invited-but-not-yet-accepted participants
+  - A `redact(invitee_id)` method on `VulnerabilityCase` SHOULD return a
+    `RedactedVulnerabilityCase` containing only the fields appropriate for
+    an invitee: severity indication, general vulnerability type, and proposed
+    embargo terms
+  - Full report content, case discussion history, prior participant details,
+    and reporter-identifying information MUST NOT be included
+- `CM-09-002` `PROD_ONLY` The ID of a `RedactedVulnerabilityCase` MUST be
+  cryptographically unrelated to the full `VulnerabilityCase` ID
+  - **Rationale**: Prevents an attacker who obtains a redacted case ID from
+    inferring the full case ID
+- `CM-09-003` `PROD_ONLY` Each invitee MUST receive a distinct
+  `RedactedVulnerabilityCase` ID
+  - **Rationale**: Prevents cross-correlation of redacted IDs to infer
+    participant list size or identities
+- `CM-09-004` For the prototype, the `Invite` activity MAY reference the case
+  by full case ID only, deferring the redacted view to a later phase
+  - CM-09-004 is-constrained-by PROTO-01-001
+
+## Per-Participant Embargo Acceptance (MUST)
+
+- `CM-10-001` `CaseParticipant` MUST track which embargo(es) a participant has
+  explicitly accepted
+  - A participant added to a case MUST be on record as having accepted the
+    active embargo at the time they joined
+  - CM-10-001 implements VP-05-001
+- `CM-10-002` Embargo acceptances MUST be timestamped by the CaseActor at
+  the time of receipt, not using the participant's claimed timestamp
+  - **Rationale**: The CaseActor applies the only trusted timestamp; the
+    participant's reported time cannot be verified
+  - CM-10-002 depends-on CM-02-002
+  - CM-10-002 implements CM-02-009
+- `CM-10-003` The `CaseParticipant` model SHOULD include an
+  `accepted_embargo_ids: list[str]` field recording the IDs of
+  `EmbargoEvent` objects the participant has explicitly accepted
+  - An `Accept(Invite(Actor, Case))` is an implicit acceptance of the
+    current active embargo at join time
+  - An `Accept(Offer(Embargo))` is an explicit acceptance of a specific embargo
+- `CM-10-004` Before sharing case updates with a participant, the system MUST
+  verify that the participant has accepted the current active embargo
+  - If not, the system MUST send a new `Offer(Embargo)` before continuing
+
+### CM-09-001 through CM-09-004 Verification
+
+- `PROD_ONLY` Unit test: `VulnerabilityCase.redact(invitee_id)` returns a
+  `RedactedVulnerabilityCase` excluding report content, discussion, and
+  participant details
+- `PROD_ONLY` Unit test: Two calls to `redact()` with different invitee IDs
+  return objects with distinct IDs
+- `PROD_ONLY` Unit test: Redacted case ID shares no substrings with the full
+  case ID
+
+### CM-10-001 through CM-10-004 Verification
+
+- Unit test: Newly added `CaseParticipant` has the current active embargo ID
+  in `accepted_embargo_ids`
+- Unit test: Embargo acceptance timestamp is set by CaseActor clock, not
+  participant-supplied time
+- Integration test: Case update sent to a participant who has not accepted the
+  current embargo triggers `Offer(Embargo)` first
+
+## Related
+
+- **Behavior Tree Integration**: `specs/behavior-tree-integration.md`
+  (BT-09 actor isolation, BT-10 CaseActor creation)
+- **Handler Protocol**: `specs/handler-protocol.md` (HP-00-001, HP-00-002)
+- **Case State Model**: `notes/case-state-model.md` (VFD/PXA hypercube,
+  participant-specific vs agnostic detail)
+- **Domain Model Separation**: `notes/domain-model-separation.md` (wire/domain/
+  persistence architecture and migration guidance)
+- **BT Integration Notes**: `notes/bt-integration.md` (actor isolation domains,
+  EvaluateCasePriority directionality)
+- **Triggerable Behaviors Notes**: `notes/triggerable-behaviors.md`
+  (Invitation-Ready Case Object, Per-Participant Embargo Acceptance Tracking)
+- **ActivityPub Workflows**: `docs/howto/activitypub/activities/` (workflow
+  documentation for case, embargo, participant management)
+- **Priorities**: `plan/PRIORITIES.md` (Priority 100: Actor independence,
+  Priority 200: CaseActor as source of truth)
+- **Agentic Readiness**: `specs/agentic-readiness.md` (AR-07-001, AR-07-002)
+- **Object IDs**: `specs/object-ids.md`
+- **Do Work Behaviors**: `notes/do-work-behaviors.md`
+- **Encryption**: `specs/encryption.md`
+- **Implementation**: `vultron/as_vocab/objects/vulnerability_case.py`
+- **Implementation**: `vultron/as_vocab/objects/case_status.py`

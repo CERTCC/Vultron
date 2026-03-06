@@ -65,3 +65,19 @@ flowchart LR
     about a message or object, such as `as:Like`, `as:Dislike`, and `as:Flag`.
     While these may be relevant to implementations of the Vultron protocol, we
     do not have specific use cases for them at this time.
+
+## Demo
+
+!!! example "Try it: `vultron-demo acknowledge`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo acknowledge
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=acknowledge docker compose -f docker/docker-compose.yml run --rm demo
+    ```

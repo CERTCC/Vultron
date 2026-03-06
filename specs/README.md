@@ -25,6 +25,21 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Behavior Tree Integration** (optional for complex workflows):
 
 6. **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
+7. **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
+   endpoint format, RM/EM candidate behaviors, request/response schema,
+   BT integration, per-actor DataLayer dependency, outbox activity requirement
+
+### Case and Actor Management
+
+8. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
+   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
+   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
+   acceptance tracking (CM-10)
+
+### Object Identifiers
+
+9. **`object-ids.md`** - Object ID format (full URI), DataLayer handling, blackboard key
+   conventions, ADR requirement
 
 ### Cross-Cutting Concerns
 
@@ -51,11 +66,40 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Future Implementation**:
 
 - **`response-format.md`** - ActivityStreams response generation (Accept, Reject, etc.)
+- **`outbox.md`** - Actor outbox structure and delivery
+
+### Demo and Tooling
+
+- **`demo-cli.md`** - Unified demo CLI: Click-based entry point, demo isolation, Docker,
+  unit and integration test requirements
+
+### Actor Profiles and Policies
+
+- **`embargo-policy.md`** - Actor embargo policy record format and API
+
+### Security
+
+- **`encryption.md`** - ActivityPub encryption and key management (`PROD_ONLY`)
 
 ### Code Standards
 
-- **`code-style.md`** - Python formatting, import organization, circular import prevention
+- **`code-style.md`** - Python formatting, import organization, circular import
+  prevention, optional-field non-emptiness (CS-08-001)
+- **`tech-stack.md`** - Normative technology constraints: runtime, persistence,
+  tooling, and code quality tooling (including pyright gradual adoption, IMPL-TS-*)
 - **`meta-specifications.md`** - How to write and maintain specifications
+
+### Documentation Content and Organization
+
+- **`diataxis-requirements.md`** - Requirements for organizing project
+  documentation according to the Diátaxis framework (requirement IDs: `DF-NN-NNN`)
+
+### Project and Agent Guidance
+
+- **`project-documentation.md`** - Documentation file structure and purpose
+- **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage,
+  including domain model separation deferral (PROTO-06)
+- **`agentic-readiness.md`** - API and CLI requirements for automated agent integration
 
 ---
 
@@ -92,6 +136,10 @@ Each requirement has a unique ID: `PREFIX-NN-NNN`
 
 Example: `HP-04-002` = Handler Protocol, category 4 (Payload Access), requirement 2
 
+**Note**: The `HP-` prefix is reserved for `handler-protocol.md`. The
+`http-protocol.md` file uses the `HTTP-` prefix to avoid ambiguity. The
+`diataxis-requirements.md` file uses the `DF-` prefix.
+
 ## Requirement Tags
 
 Some requirements carry special tags to indicate scope or applicability:
@@ -115,11 +163,20 @@ Some requirements carry special tags to indicate scope or applicability:
 
 Some specifications consolidate requirements from multiple sources to create a single source of truth:
 
-- **`http-protocol.md`** consolidates HTTP requirements from `inbox-endpoint.md`, `message-validation.md`, `error-handling.md`
-- **`structured-logging.md`** consolidates logging requirements from `observability.md`, `error-handling.md`, `inbox-endpoint.md`
-- **`idempotency.md`** consolidates duplicate detection requirements from `inbox-endpoint.md`, `message-validation.md`, `handler-protocol.md`, `response-format.md`
+- **`http-protocol.md`** consolidates HTTP requirements from `inbox-endpoint.md`,
+  `message-validation.md`, `error-handling.md`, and `agentic-readiness.md`
+- **`structured-logging.md`** consolidates logging requirements from `observability.md`,
+  `error-handling.md`, `inbox-endpoint.md`
+- **`idempotency.md`** consolidates duplicate detection requirements from
+  `inbox-endpoint.md`, `message-validation.md`, `handler-protocol.md`,
+  `response-format.md`
+- **`case-management.md`** consolidates case state and actor isolation requirements
+  from `behavior-tree-integration.md` (BT-09, BT-10), `notes/case-state-model.md`,
+  and `plan/PRIORITIES.md` (Priority 100, 200); also captures domain model
+  architecture guidance (CM-08)
 
-When requirements appear consolidated, the consolidating spec is the authoritative source.
+When requirements appear consolidated, the consolidating spec is the authoritative
+source.
 
 ---
 
@@ -127,13 +184,26 @@ When requirements appear consolidated, the consolidating spec is the authoritati
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-02-18)**:
+**Summary (2026-03-04)**:
 
-- ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing, handler protocol, data layer
-- ✅ **6/36 handlers complete**: Report workflow (create, submit, validate, invalidate, ack, close)
-- ⚠️ **BT integration planned**: See `behavior-tree-integration.md` and `plan/BT_INTEGRATION.md`
-- ⚠️ **Production readiness partial**: Request validation, error responses need work
+- ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
+  handler protocol, data layer
+- ✅ **All 38 handlers complete** (incl. `update_case` and `unknown`):
+  See `plan/IMPLEMENTATION_PLAN.md` for full handler list
+- ✅ **BT integration Phases BT-1 through BT-7 complete**: See
+  `behavior-tree-integration.md`
+- ✅ **Demo scripts (12)**: All in `vultron/demo/`; see
+  `plan/IMPLEMENTATION_PLAN.md`
+- ✅ **Unified demo CLI complete** (`vultron-demo`): See `specs/demo-cli.md`
+  and `plan/IMPLEMENTATION_PLAN.md` (Phase DEMO-4)
+- ✅ **TECHDEBT-6 complete**: `vultron/scripts/vocab_examples.py` shim removed
+- ✅ **592 tests passing**, 0 xfailed (2026-03-03)
+- ⚠️ **Production readiness partial**: Request validation, error responses
+  need work
+- ❌ **Triggerable behaviors not implemented**: See `triggerable-behaviors.md`
+  (PRIORITY 30, highest current priority)
 - ❌ **Response generation not started**: See `response-format.md`
+- ❌ **Outbox delivery not implemented**: See `outbox.md` OX-03, OX-04
 
 ---
 
@@ -153,8 +223,10 @@ When updating specifications:
 ## Related Documentation
 
 - **Implementation Plan**: `plan/IMPLEMENTATION_PLAN.md`
-- **BT Integration Design**: `plan/BT_INTEGRATION.md`
+- **Implementation Notes**: `plan/IMPLEMENTATION_NOTES.md`
 - **Architecture Decisions**: `docs/adr/*.md`
 - **ActivityPub Workflows**: `docs/howto/activitypub/activities/*.md`
 - **Agent Instructions**: `AGENTS.md` (AI coding agent guidance)
 - **Copilot Instructions**: Embedded in system context (development guidance)
+- **Diátaxis requirements**: `diataxis-requirements.md` — requirements for organizing
+  project documentation according to the Diátaxis framework.

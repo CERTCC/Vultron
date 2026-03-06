@@ -5,7 +5,10 @@ site_author: 'CERT Coordination Center'
 nav:
   - Home: 'https://certcc.github.io/'
   - Vultron: 'index.md'
-  - Learning Vultron: 'tutorials/index.md'
+  - Learning Vultron:
+    - 'tutorials/index.md'
+    - Run the Receive-Report Demo: 'tutorials/receive_report_demo.md'
+    - Running the Other Demos: 'tutorials/other_demos.md'
   - Understanding Vultron:
     - 'topics/index.md'
     - Background:
@@ -54,7 +57,7 @@ nav:
       - EM Behaviors:
         - 'topics/behavior_logic/em_bt.md'
         - Evaluate Proposed Embargo Behavior: 'topics/behavior_logic/em_eval_bt.md'
-        - Propse Embargo Behavior: 'topics/behavior_logic/em_propose_bt.md'
+        - Propose Embargo Behavior: 'topics/behavior_logic/em_propose_bt.md'
         - Terminate Embargo Behavior: 'topics/behavior_logic/em_terminate_bt.md'
       - Do Work Behaviors:
         - 'topics/behavior_logic/do_work_bt.md'
@@ -185,6 +188,11 @@ nav:
           - Vultron Extensions: 'reference/code/as_vocab/vultron.md'
           - Vultron Objects: 'reference/code/as_vocab/v_objects.md'
           - Vultron Activities: 'reference/code/as_vocab/v_activities.md'
+        - Demo Package:
+          - 'reference/code/demo/index.md'
+          - CLI: 'reference/code/demo/cli.md'
+          - Utilities: 'reference/code/demo/utils.md'
+          - Demo Scripts: 'reference/code/demo/demos.md'
     - Ontology:
       - 'reference/ontology/index.md'
       - Vultron_AS: 'reference/ontology/vultron_as.md'

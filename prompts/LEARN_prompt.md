@@ -1,22 +1,47 @@
-1. Study specs/* to learn the application specifications.
-2. Study plan/IMPLEMENTATION_PLAN.md to understand the current progress.
-3. Study plan/IMPLEMENTATION_NOTES.md to understand any additional insights or observations that may be helpful for implementation.
+Objective: Refine specifications and technical guidance based on current design,
+priorities, and lessons learned.
 
-- plan/IMPLEMENTATION_NOTES.md is meant to be reset periodically, so any 
-  critical insights in it need to be incorporated into either AGENTS.md or the specs/ files, depending on the nature of the insight.
+1. Review Context
+    - Study specs/* — authoritative requirements.
+    - Study plan/PRIORITIES.md — current priorities.
+    - Study plan/IDEATION.md — new ideas and proposals.
+    - Study plan/IMPLEMENTATION_PLAN.md — implementation status.
+    - Study plan/IMPLEMENTATION_HISTORY.md — completed tasks.
+    - Study notes/*.md — durable lessons learned.
+    - Study plan/IMPLEMENTATION_NOTES.md — recent, ephemeral insights.
 
-4. Update AGENTS.md with any new insights or recommendations based on your 
-    design review.
-5. Update specs/* to refine any requirements that may be unclear, redundant, 
-   or missing based on your review of the specifications, lessons learned, and implementation plan.
+   Note: Critical insights in IMPLEMENTATION_NOTES.md must be preserved
+   elsewhere.
 
-- Avoid over-specifying implementation details in the specifications; focus on what needs to be achieved rather than how it should be achieved.
-- Follow existing formatting and style conventions in the specs/ directory.
-- Ensure that each requirement is atomic, verifiable, and succinct.
-- Remove any redundant requirements that appear in multiple files.
+2. Synthesize
+    - Identify requirement gaps, ambiguity, redundancy, drift from priorities,
+      and architectural inconsistencies.
+    - Confirm assumptions against the codebase before concluding functionality
+      is missing.
+      - search, don't assume not implemented.
 
-6. git commit changes with a clear commit message.
+3. Update AGENTS.md
+    - Add precise technical guidance and recurring implementation patterns.
+    - Focus on actionable instructions for future agents.
 
-IMPORTANT: Write markdown files only.
-Do NOT implement any code.
-Do NOT assume functionality is missing; confirm with code search first.
+4. Refine specs/*
+    - Clarify, split, merge, or remove requirements as needed.
+    - Keep requirements atomic, verifiable, and succinct.
+    - Avoid prescribing implementation mechanics.
+    - Eliminate redundancy across spec files.
+    - Follow existing formatting and style conventions.
+
+5. Update notes/*.md
+    - Capture durable design insights and architectural observations.
+    - Do not duplicate spec text.
+    - Promote critical insights from IMPLEMENTATION_NOTES.md as appropriate.
+
+6. Commit
+    - Commit markdown changes only.
+    - Use a clear, specific commit message.
+
+Constraints:
+
+- Modify markdown files only.
+- Do not implement code.
+- Verify assumptions via code search before asserting gaps.

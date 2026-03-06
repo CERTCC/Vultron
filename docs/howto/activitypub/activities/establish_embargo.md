@@ -65,3 +65,19 @@ flowchart TB
 {% include-markdown "./_add_embargo_to_case.md" heading-offset=1 %}
 {% include-markdown "./_activate_embargo.md" heading-offset=1 %}
 {% include-markdown "./_announce_embargo.md" heading-offset=1 %}
+
+## Demo
+
+!!! example "Try it: `vultron-demo establish-embargo`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo establish-embargo
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=establish-embargo docker compose -f docker/docker-compose.yml run --rm demo
+    ```

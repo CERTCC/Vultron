@@ -35,7 +35,6 @@ class MyTestCase(unittest.TestCase):
         # data["as_type"] = data.pop("type")
         data["as_object"] = data.pop("object")
         create = as_Create(**data)
-        print(create)
 
 
 if __name__ == "__main__":

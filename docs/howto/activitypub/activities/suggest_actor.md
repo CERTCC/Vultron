@@ -56,10 +56,10 @@ sequenceDiagram
     activate A
     C -->+ B: Observe suggestion
     alt Accept Suggestion
-        B -->> C: Accept(object=Actor, target=Case, inReplyTo=Offer)
-        B ->>+ D: Invite(object=Case, target=Actor)
+        B -->> C: Accept(object=Offer)
+        B ->>+ D: Invite(actor=CaseOwner, object=Actor, target=Case)
     else Reject Suggestion
-        B -->> C: Reject(object=Actor, target=Case, inReplyTo=Offer)
+        B -->> C: Reject(object=Offer)
     end
     deactivate B
     C --> A: Observe response
@@ -108,3 +108,19 @@ print(json2md(reject_actor_recommendation()))
 ```
 
 {% include-markdown "./_invite_to_case.md" heading-offset=1 %}
+
+## Demo
+
+!!! example "Try it: `vultron-demo suggest-actor`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo suggest-actor
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=suggest-actor docker compose -f docker/docker-compose.yml run --rm demo
+    ```

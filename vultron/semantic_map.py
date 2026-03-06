@@ -20,6 +20,9 @@ SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
     MessageSemantics.INVALIDATE_REPORT: ap.InvalidateReport,
     MessageSemantics.CLOSE_REPORT: ap.CloseReport,
     MessageSemantics.CREATE_CASE: ap.CreateCase,
+    MessageSemantics.UPDATE_CASE: ap.UpdateCase,
+    MessageSemantics.ENGAGE_CASE: ap.EngageCase,
+    MessageSemantics.DEFER_CASE: ap.DeferCase,
     MessageSemantics.ADD_REPORT_TO_CASE: ap.AddReportToCase,
     MessageSemantics.SUGGEST_ACTOR_TO_CASE: ap.SuggestActorToCase,
     MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE: ap.AcceptSuggestActorToCase,
@@ -82,7 +85,7 @@ def find_matching_semantics(
 
 
 if __name__ == "__main__":
-    from vultron.scripts import vocab_examples
+    from vultron.as_vocab.examples import vocab_examples
 
     examples = [
         vocab_examples.create_report(),

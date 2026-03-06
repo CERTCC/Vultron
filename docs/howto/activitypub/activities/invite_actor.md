@@ -20,10 +20,10 @@ sequenceDiagram
     actor A as Actor
     participant C as Case
     activate O
-    O ->>+ A: Invite(object=Case)
+    O ->>+ A: Invite(actor=CaseOwner, object=Actor, target=Case)
     note over A: Consider invitation
     alt Accept Invitation
-        A -->> O: Accept(object=Case, inReplyTo=Invite)
+        A -->> O: Accept(object=Invite)
         alt Create CaseParticipant
         O ->> C: Create(object=CaseParticipant(actor=Actor), target=Case)
         else Add CaseParticipant
@@ -32,7 +32,7 @@ sequenceDiagram
         end
         note over C: Actor becomes participant in case
     else Reject Invitation
-        A -->> O: Reject(object=Case, inReplyTo=Invite)
+        A -->> O: Reject(object=Invite)
         note over C: Actor is not participant in case
     end
     deactivate A
@@ -77,3 +77,19 @@ sequenceDiagram
 {% include-markdown "./_accept_invite_to_case.md" heading-offset=1 %}
 {% include-markdown "./_reject_invite_to_case.md" heading-offset=1 %}
 {% include-markdown "./_add_coordinator_participant_to_case.md" heading-offset=1 %}
+
+## Demo
+
+!!! example "Try it: `vultron-demo invite-actor`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo invite-actor
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=invite-actor docker compose -f docker/docker-compose.yml run --rm demo
+    ```

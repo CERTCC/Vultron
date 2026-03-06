@@ -21,7 +21,6 @@ from typing import TypeAlias
 from pydantic import Field, field_serializer, field_validator, model_validator
 
 from vultron.as_vocab.base.links import as_Link, ActivityStreamRef
-from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.base import as_Object
 from vultron.as_vocab.base.registry import activitystreams_object
 from vultron.as_vocab.objects.base import VultronObject
@@ -84,7 +83,6 @@ class ParticipantStatus(VultronObject):
 
     as_type: VO_type = Field(default=VO_type.PARTICIPANT_STATUS, alias="type")
 
-    actor: as_Actor | as_Link | str
     context: as_Object | as_Link | str
     rm_state: RM = RM.START
     vfd_state: CS_vfd = CS_vfd.vfd
@@ -135,7 +133,7 @@ def main():
     print()
 
     ps = ParticipantStatus(
-        actor="foo",
+        attributed_to="foo",
         context="bar",
         rm_state=RM.RECEIVED,
         vfd_state=CS_vfd.Vfd,

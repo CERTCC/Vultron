@@ -113,3 +113,19 @@ from vultron.scripts.vocab_examples import add_note_to_case, json2md
 
 print(json2md(add_note_to_case()))
 ```
+
+## Demo
+
+!!! example "Try it: `vultron-demo status-updates`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo status-updates
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=status-updates docker compose -f docker/docker-compose.yml run --rm demo
+    ```

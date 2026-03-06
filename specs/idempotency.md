@@ -29,13 +29,14 @@ The system must handle duplicate activity submissions gracefully, ensuring repea
   - Subsequent submissions: HTTP 202 (already processed)
 - `ID-03-002` Duplicate detection MUST NOT delay response beyond 100ms
 - `ID-03-003` System SHOULD log duplicate submissions at WARNING level
-  - **Cross-reference**: `structured-logging.md` SL-03-001 for log level semantics
+  - ID-03-003 depends-on SL-03-001
 
 ## Handler Idempotency (SHOULD)
 
 - `ID-04-001` Handlers SHOULD be idempotent (same input → same output)
 - `ID-04-002` Handlers SHOULD check existing state before state transitions
   - Example: validate_report checks if report already valid
+  - ID-04-002 implements VP-03-013
 - `ID-04-003` Handlers SHOULD log attempted re-execution at INFO level
 - `ID-04-004` State-changing handlers MUST be idempotent
   - Applies to any handler that transitions RM, EM, or CS state machine states

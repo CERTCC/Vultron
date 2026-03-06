@@ -87,8 +87,13 @@ def extract_id_segment(url: str) -> str:
 - `CS-05-001` Core modules SHALL NOT import from application layer modules
   - Core modules: `behavior_dispatcher.py`, `semantic_map.py`, `semantic_handler_map.py`, `activity_patterns.py`
   - Application layer: `api/v2/*`
-- `CS-05-002` When unavoidable dependencies exist, use lazy initialization patterns
-  - Import inside functions rather than at module level
+- `CS-05-002` When circular dependencies cannot be resolved by reorganization,
+  use lazy initialization patterns as a **last resort**
+  - Prefer module-level imports; local imports are a code smell indicating a
+    circular dependency that SHOULD be refactored
+  - Import inside functions only when refactoring is not possible or practical
+  - When encountering existing local imports, attempt to refactor them to
+    module-level before accepting them as-is
   - Use caching to avoid repeated initialization overhead
 - `CS-05-003` Shared types and errors SHALL be placed in neutral modules
   - Example: `types.py` for shared type definitions, `dispatcher_errors.py` for dispatcher errors
@@ -101,3 +106,31 @@ def extract_id_segment(url: str) -> str:
 - `CS-04-001` Relative imports MAY be used for local application imports when appropriate
 - `CS-04-002` Module imports MAY use aliases for clarity or to avoid naming conflicts
   - Aliases SHOULD be descriptive and widely recognized (e.g., `import numpy as np`)
+
+## Module Size (SHOULD)
+
+- `CS-06-001` Prefer modules that are < ~400 lines; split large modules by
+  responsibility and avoid single-file catchalls
+  - E.g., separate handlers registry, handler implementations, and handler
+    utilities into distinct modules
+
+## `as_` Field Prefix Policy (SHOULD)
+
+- `CS-07-001` Use `as_` prefix on Pydantic fields only when the plain name
+  would collide with a Python reserved word
+  - Use `as_object` instead of `object` (reserved keyword)
+  - Otherwise use plain field names: `actor`, not `as_actor`
+
+## Optional Field Non-Emptiness (MUST)
+
+- `CS-08-001` Optional string fields MUST NOT contain empty strings when
+  present; the invariant is "if present, then non-empty"
+  - The converse also applies: "if empty, then not present" — Pydantic
+    validators SHOULD reject empty strings in fields that are declared
+    `Optional[str]` or `str | None`
+  - This pattern MUST be carried through to JSON Schemas derived from
+    Pydantic models (e.g., via `minLength: 1` on string properties that
+    are not required)
+  - **Rationale**: Distinguishes "not provided" from "provided but blank",
+    preventing ambiguous database states and simplifying downstream
+    validation logic

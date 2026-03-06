@@ -55,8 +55,7 @@ is deferred to future work.
 
 - `OX-06-001` Outbox delivery MUST be idempotent
   - Delivering the same activity twice MUST NOT create duplicate inbox entries
-  - **Cross-reference**: `specs/idempotency.md` for complete idempotency
-    requirements
+  - OX-06-001 depends-on ID-02-001
 
 ## Verification
 

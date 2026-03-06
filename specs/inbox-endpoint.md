@@ -17,14 +17,14 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
   - **Rationale**: Allow flexibility for different deployment contexts
 - `IE-02-002` The endpoint MUST accept POST requests only
 - `IE-02-003` The endpoint MUST reject non-POST requests with HTTP 405
-  - **Cross-reference**: `http-protocol.md` HP-03-001
+  - IE-02-003 depends-on HTTP-03-001
 
 ## Request Handling (MUST)
 
 - `IE-03-001` The endpoint MUST validate Content-Type header
-  - **Cross-reference**: `http-protocol.md` HP-01-001
+  - IE-03-001 depends-on HTTP-01-001
 - `IE-03-002` The endpoint MUST enforce request size limits
-  - **Cross-reference**: `http-protocol.md` HP-02-001
+  - IE-03-002 depends-on HTTP-02-001
 
 ## Activity Validation (MUST)
 
@@ -32,12 +32,12 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
   - **Implementation**: Uses Pydantic models (see `message-validation.md`)
 - `IE-04-002` The endpoint MUST return HTTP 422 for validation failures
   - Include detailed validation errors in response
-  - **Cross-reference**: `http-protocol.md` HP-03-001
+  - IE-04-002 depends-on HTTP-03-001
 
 ## Response Timing (MUST)
 
 - `IE-05-001` The endpoint MUST return HTTP 202 within 100ms
-  - **Cross-reference**: `http-protocol.md` HP-06-001
+  - IE-05-001 depends-on HTTP-06-001
 - `IE-05-002` The endpoint MUST NOT block on handler execution
 
 ## Asynchronous Processing (MUST)
@@ -49,23 +49,25 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 ## Error Responses (MUST)
 
 - `IE-07-001` The endpoint MUST return appropriate HTTP status codes
-  - **Cross-reference**: `http-protocol.md` HP-03-001 (consolidated status code table)
+  - IE-07-001 depends-on HTTP-03-001
 
 ## Response Format (MUST)
 
 - `IE-08-001` Response body MUST be JSON with fields: `status`, `activity_id`, `message`
-  - **Cross-reference**: `error-handling.md` for error response format
+  - IE-08-001 depends-on EH-05-001
 
 ## Logging (MUST)
 
 - `IE-09-001` The endpoint MUST log all requests at INFO level
-  - **Cross-reference**: `structured-logging.md` SL-01-001, SL-02-001, SL-03-001
+  - IE-09-001 depends-on SL-01-001
+  - IE-09-001 depends-on SL-02-001
+  - IE-09-001 depends-on SL-03-001
 
 ## Idempotency (SHOULD)
 
 - `IE-10-001` The endpoint SHOULD implement early duplicate detection at HTTP layer
   - **Note**: Optional performance optimization; see `idempotency.md` for complete requirements
-  - **Cross-reference**: `idempotency.md` ID-05-002
+  - IE-10-001 depends-on ID-05-002
 
 ## Verification
 
@@ -77,7 +79,7 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 
 ### IE-03-001, IE-03-002 Verification
 
-- See `http-protocol.md` HP-01-001, HP-02-001 verification criteria
+- See `http-protocol.md` HTTP-01-001, HTTP-02-001 verification criteria
 
 ### IE-04-001, IE-04-002 Verification
 
@@ -96,7 +98,7 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 
 ### IE-07-001, IE-08-001 Verification
 
-- See `http-protocol.md` HP-03-001 for status code verification
+- See `http-protocol.md` HTTP-03-001 for status code verification
 - Integration test: Response body contains required fields
 
 ### IE-09-001 Verification

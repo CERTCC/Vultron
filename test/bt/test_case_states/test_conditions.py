@@ -84,7 +84,6 @@ class MyTestCase(unittest.TestCase):
                 if any([x in state.name for x in extra]):
                     continue
 
-                print(s, state.name)
                 # if s in state.name:
                 self.assertEqual(
                     NodeStatus.FAILURE,

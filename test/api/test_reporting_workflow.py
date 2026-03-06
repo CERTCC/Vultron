@@ -16,8 +16,6 @@ Test the reporting workflow
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from unittest.mock import Mock
-
 import pytest
 
 from vultron.api.v2.backend import handlers as h
@@ -128,21 +126,13 @@ def test_accept_offer(reporter, report):
     _call_handler(activity, h.validate_report)
 
 
-@pytest.mark.xfail(
-    reason="Uses deprecated _old_handlers that have import issues"
-)
-def test_tentative_reject_triggers_invalidation(monkeypatch, reporter, report):
-    mock_invalidate = Mock()
-    monkeypatch.setattr(
-        "vultron.api.v2.backend._old_handlers.reject.rm_invalidate_report",
-        mock_invalidate,
-    )
-
+def test_tentative_reject_triggers_invalidation(reporter, report, dl):
     offer = as_Offer(actor=reporter, object=report)
     activity = as_TentativeReject(actor=reporter, object=offer)
-    _call_handler(activity, tentative_reject_offer, reporter)
+    _call_handler(activity, h.invalidate_report)
 
-    mock_invalidate.assert_called_once_with(activity)
+    # check side effects
+    assert dl.read(activity.as_id) is not None
 
 
 def test_create_case_handler_returns_none(coordinator, case):
@@ -150,18 +140,10 @@ def test_create_case_handler_returns_none(coordinator, case):
     _call_handler(activity, h.create_case, coordinator)
 
 
-@pytest.mark.xfail(
-    reason="Uses deprecated _old_handlers that have import issues"
-)
-def test_reject_offer_triggers_close_report(monkeypatch, reporter, report):
-    mock_rm_close = Mock()
-    monkeypatch.setattr(
-        "vultron.api.v2.backend._old_handlers.reject.rm_close_report",
-        mock_rm_close,
-    )
-
+def test_reject_offer_triggers_close_report(reporter, report, dl):
     offer = as_Offer(actor=reporter, object=report)
     activity = as_Reject(actor=reporter, object=offer)
-    _call_handler(activity, reject_offer, reporter)
+    _call_handler(activity, h.close_report)
 
-    mock_rm_close.assert_called_once_with(activity)
+    # check side effects
+    assert dl.read(activity.as_id) is not None

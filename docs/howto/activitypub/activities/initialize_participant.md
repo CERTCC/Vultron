@@ -34,3 +34,19 @@ flowchart LR
 
 {% include-markdown "./_create_participant.md" heading-offset=1 %}
 {% include-markdown "./_add_participant_to_case.md" heading-offset=1 %}
+
+## Demo
+
+!!! example "Try it: `vultron-demo initialize-participant`"
+
+    Run this workflow end-to-end with the unified demo CLI:
+
+    ```bash
+    vultron-demo initialize-participant
+    ```
+
+    Or with Docker Compose:
+
+    ```bash
+    DEMO=initialize-participant docker compose -f docker/docker-compose.yml run --rm demo
+    ```

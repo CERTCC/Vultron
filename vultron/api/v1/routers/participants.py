@@ -28,8 +28,8 @@ from vultron.as_vocab.activities.case_participant import (
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.case_status import ParticipantStatus
 from vultron.bt.roles.states import CVDRoles
-from vultron.scripts import vocab_examples
-from vultron.scripts.vocab_examples import (
+from vultron.as_vocab.examples import vocab_examples
+from vultron.as_vocab.examples.participant import (
     add_vendor_participant_to_case,
     add_finder_participant_to_case,
     add_coordinator_participant_to_case,

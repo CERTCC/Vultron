@@ -39,7 +39,8 @@ FROM dependencies AS api-dev
 ENV LOG_LEVEL=DEBUG
 CMD ["uv","run","uvicorn","vultron.api.main:app","--host","0.0.0.0","--port","7999","--reload"]
 
-FROM dependencies AS receive-report-demo
+FROM dependencies AS demo
 ENV PYTHONPATH=/app
-# The BASE_URL in the script will be overridden via environment variable
-CMD ["uv", "run", "python", "-m", "vultron.scripts.receive_report_demo"]
+COPY docker/demo-entrypoint.sh /app/demo-entrypoint.sh
+RUN chmod +x /app/demo-entrypoint.sh
+ENTRYPOINT ["/app/demo-entrypoint.sh"]

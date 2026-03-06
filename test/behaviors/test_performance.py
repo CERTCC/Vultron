@@ -20,8 +20,11 @@ Per plan/IMPLEMENTATION_PLAN.md BT-1.5.3, measure handler execution time
 and document performance baseline. Target: P99 < 100ms per plan/BT_INTEGRATION.md.
 """
 
+import logging
 import time
 from unittest.mock import MagicMock
+
+logger = logging.getLogger(__name__)
 
 import pytest
 from py_trees.common import Status
@@ -145,15 +148,15 @@ def test_bt_execution_performance_single_run(mock_datalayer, sample_activity):
     assert result.status == Status.SUCCESS
 
     # Log performance result
-    print(f"\nBT execution time: {elapsed_ms:.2f}ms")
+    logger.info("BT execution time: %.2fms", elapsed_ms)
 
     # Document baseline (not a hard assertion for now, just measurement)
     if elapsed_ms >= 100:
-        print(
-            f"⚠️  WARNING: Execution time ({elapsed_ms:.2f}ms) exceeds 100ms target"
+        logger.warning(
+            "Execution time (%.2fms) exceeds 100ms target", elapsed_ms
         )
     else:
-        print(f"✓ Execution time within 100ms target")
+        logger.info("Execution time within 100ms target")
 
 
 def test_bt_execution_performance_percentiles(mock_datalayer, sample_activity):
@@ -192,17 +195,20 @@ def test_bt_execution_performance_percentiles(mock_datalayer, sample_activity):
     mean = sum(timings) / len(timings)
 
     # Log performance results
-    print(f"\nBT execution performance ({n_runs} runs):")
-    print(f"  Mean:  {mean:.2f}ms")
-    print(f"  P50:   {p50:.2f}ms")
-    print(f"  P95:   {p95:.2f}ms")
-    print(f"  P99:   {p99:.2f}ms")
+    logger.info(
+        "BT execution performance (%d runs): Mean=%.2fms P50=%.2fms P95=%.2fms P99=%.2fms",
+        n_runs,
+        mean,
+        p50,
+        p95,
+        p99,
+    )
 
     # Document whether we meet target
     if p99 >= 100:
-        print(f"⚠️  WARNING: P99 ({p99:.2f}ms) exceeds 100ms target")
+        logger.warning("P99 (%.2fms) exceeds 100ms target", p99)
     else:
-        print(f"✓ P99 performance meets 100ms target")
+        logger.info("P99 performance meets 100ms target")
 
     # Soft assertion - document but don't fail build
     # (allows documenting current state even if not optimal)

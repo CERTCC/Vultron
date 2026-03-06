@@ -141,3 +141,4 @@ mydb.json
 /package-lock.json
 /ontology/*.properties
 catalog-*.xml
+/wip_notes/

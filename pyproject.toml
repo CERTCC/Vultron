@@ -53,6 +53,8 @@ dependencies = [
     "scipy>=1.16.2",
     "uvicorn>=0.37.0",
     "tinydb>=4.7.0",
+    "click>=8.3.1",
+    "griffelib>=2.0.0",
 ]
 dynamic = ["version",]
 
@@ -61,6 +63,7 @@ vultrabot_pacman="vultron.bt.base.demo.pacman:main"
 vultrabot_robot="vultron.bt.base.demo.robot:main"
 vultrabot_cvd="vultron.demo.vultrabot:main"
 vultrabot="vultron.scripts.vultrabot:main"
+vultron-demo="vultron.demo.cli:main"
 
 
 [project.urls]

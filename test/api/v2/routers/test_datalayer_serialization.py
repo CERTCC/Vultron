@@ -114,7 +114,7 @@ def test_get_vulnerability_case_includes_all_fields(client):
     expected_fields = [
         "caseParticipants",
         "vulnerabilityReports",
-        "caseStatus",
+        "caseStatuses",
         "proposedEmbargoes",
         "caseActivity",
         "parentCases",

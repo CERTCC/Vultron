@@ -37,15 +37,24 @@ class RecommendActor(as_Offer):
 
 class AcceptActorRecommendation(as_Accept):
     """The case owner is accepting a recommendation to add an actor to the case.
+
+    - as_object: the RecommendActor offer being accepted
     Should be followed by an RmInviteToCase activity targeted at the recommended actor.
     """
 
-    as_object: as_ActorRef = Field(default=None, alias="object")
+    as_object: "RecommendActor | str | None" = Field(
+        default=None, alias="object"
+    )
     target: VulnerabilityCaseRef = None
 
 
 class RejectActorRecommendation(as_Reject):
-    """The case owner is rejecting a recommendation to add an actor to the case."""
+    """The case owner is rejecting a recommendation to add an actor to the case.
 
-    as_object: as_ActorRef = Field(default=None, alias="object")
+    - as_object: the RecommendActor offer being rejected
+    """
+
+    as_object: "RecommendActor | str | None" = Field(
+        default=None, alias="object"
+    )
     target: VulnerabilityCaseRef = None
