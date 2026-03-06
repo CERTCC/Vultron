@@ -359,10 +359,14 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - Use Protocol for interface definitions
 - Avoid global mutable state
 - **Optional string fields MUST follow "if present, then non-empty"**:
-  `Optional[str]` fields MUST reject empty strings. Use a Pydantic validator
-  that raises `ValueError` for `""`. This pattern also applies to JSON Schemas
-  derived from Pydantic models (`minLength: 1`). See `specs/code-style.md`
-  CS-08-001.
+  `Optional[str]` fields MUST reject empty strings. Use the shared
+  `NonEmptyString` or `OptionalNonEmptyString` type alias from
+  `vultron/as_vocab/base/` when it exists (CS-08-002), or a field validator
+  that raises `ValueError` for `""` if the type alias is not yet available.
+  This pattern also applies to JSON Schemas derived from Pydantic models
+  (`minLength: 1`). See `specs/code-style.md` CS-08-001, CS-08-002.
+  **Do NOT** add a new per-field `@field_validator` stub for empty-string
+  rejection; instead, use or extend the shared type alias.
 
 ### Decorator Usage
 
@@ -566,6 +570,9 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **BT Prioritize**: `vultron/behaviors/report/prioritize_tree.py` -
   engage_case/defer_case trees
 - **BT Case**: `vultron/behaviors/case/` - Case creation tree and nodes
+- **Case Event Log**: `vultron/as_vocab/objects/case_event.py` -
+  `CaseEvent` Pydantic model for trusted-timestamp event logging; use
+  `VulnerabilityCase.record_event(object_id, event_type)` to append entries
 - **Vocabulary Examples**: `vultron/as_vocab/examples/` - Canonical
   ActivityStreams activity examples (split into submodules by topic:
   `actor.py`, `case.py`, `embargo.py`, `note.py`, `participant.py`,
@@ -1081,6 +1088,34 @@ this rename has not yet landed in the code.
 
 **See also**: `notes/case-state-model.md` "CaseStatus and ParticipantStatus as
 Append-Only History", CM-03-006.
+
+---
+
+### CaseEvent Trusted Timestamps: Use `record_event()`, Never Copy Activity Timestamps
+
+**Symptom**: Case event log entries have incorrect ordering or show timestamps
+that differ across actor copies of the same case.
+
+**Cause**: Handler copies the `published` or `updated` timestamp from the
+incoming ActivityStreams activity into the event log entry, rather than
+using the server clock.
+
+**Fix**: Always record case events via `VulnerabilityCase.record_event()`:
+
+```python
+case.record_event(object_id=embargo.as_id, event_type="embargo_accepted")
+```
+
+`record_event()` sets `received_at` to `now_utc()` internally. **Never
+pass `received_at` as an argument** — the helper intentionally omits that
+parameter to enforce the invariant.
+
+**Rationale**: The CaseActor's clock is the only trusted source of event
+ordering within a case. Using participant-supplied timestamps would allow
+different actor copies of a case to disagree on ordering.
+
+See `specs/case-management.md` CM-02-009; `notes/case-state-model.md`
+"CaseEvent Model for Trusted Timestamps".
 
 ---
 

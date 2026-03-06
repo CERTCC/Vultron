@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-06 (gap analysis refresh #16)
+**Last Updated**: 2026-03-06 (gap analysis refresh #17)
 
 ## Overview
 
@@ -37,7 +37,7 @@ reject_case_ownership_transfer, update_case
 
 ---
 
-## Gap Analysis (2026-03-06, refresh #13)
+## Gap Analysis (2026-03-06, refresh #17)
 
 ### ✅ Phase BUGFIX-1 fully complete
 
@@ -143,19 +143,29 @@ across router boundaries.
 - CM-10-001 / CM-10-003: `CaseParticipant` MUST track accepted embargo IDs —
   ✅ **Done**: `accepted_embargo_ids: list[str]` field added (SC-3.1)
 - CM-10-002: Embargo acceptances MUST be timestamped by the CaseActor at
-  receipt — ❌ Not implemented; requires SC-PRE-1 (CaseEvent model) first
+  receipt — ⚠️ **Model done** (SC-PRE-1 ✅); handler usage not yet implemented
+  (SC-3.2)
 - CM-10-004: Before sharing case updates, MUST verify participant accepted
   current active embargo — ❌ Not implemented (SC-3.3)
 
-See Phase SPEC-COMPLIANCE-3 for remaining tasks (SC-PRE-1, SC-PRE-2, SC-3.2,
-SC-3.3).
+See Phase SPEC-COMPLIANCE-3 for remaining tasks (SC-PRE-2, SC-3.2, SC-3.3).
 
-### ❌ CM-02-009 — general trusted-timestamp requirement not implemented
+### ⚠️ CM-02-009 — general trusted-timestamp partially implemented
 
-`specs/case-management.md` CM-02-009 (added 2026-03-05) generalizes
-trusted-timestamp logic to ALL state-changing messages received by the
-CaseActor, not just embargo acceptances. No trusted-timestamp logic exists
-in any handler. Addressed together with CM-10 in SPEC-COMPLIANCE-3.
+`specs/case-management.md` CM-02-009 requires the CaseActor to apply its own
+trusted timestamp to ALL state-changing events. The `CaseEvent` model (SC-PRE-1)
+is now implemented (`vultron/as_vocab/objects/case_event.py`), and
+`VulnerabilityCase.record_event()` is the append-only helper. No handler has
+been updated yet to call `record_event()` — that work remains in SC-3.2.
+
+### ✅ SC-PRE-1 complete — `CaseEvent` model implemented
+
+`CaseEvent` plain Pydantic model added in `vultron/as_vocab/objects/case_event.py`;
+`VulnerabilityCase.events: list[CaseEvent]` field added;
+`VulnerabilityCase.record_event(object_id, event_type)` append-only helper added.
+Key invariant: `received_at` is always set via `now_utc()` in the helper —
+callers MUST NOT pass `received_at` from an incoming activity payload.
+19 tests added in `test/as_vocab/test_case_event.py`.
 
 ### ❌ CS-08-001 — Optional string fields allow empty strings
 
@@ -308,6 +318,28 @@ TECHDEBT-4 remain LOW.
   Done when: pyright config committed, baseline error count documented in
   `plan/IMPLEMENTATION_NOTES.md`, and CI (or `Makefile`) has a target that
   runs pyright on changed files only (or full suite).
+
+- [ ] TECHDEBT-9: Introduce a `NonEmptyString` type alias (e.g.,
+  `Annotated[str, Field(min_length=1)]`) in `vultron/as_vocab/base/` to
+  consolidate the many per-field `@field_validator` stubs that reject empty
+  strings (CS-08-001). Replace duplicated validators across
+  `vultron/as_vocab/objects/` models with the shared type.
+  Done when: a `NonEmptyString` (and `OptionalNonEmptyString`) type is
+  defined, at least the existing models with per-field empty-string validators
+  are converted, and tests confirm empty-string rejection.
+  **Reference**: `specs/code-style.md` CS-08-001, CS-08-002; `plan/IDEAS.md`.
+
+- [ ] TECHDEBT-10: Backfill pre-case events into the case event log at case
+  creation (CM-02-009). When a `VulnerabilityCase` is created from an
+  originating `VulnerabilityReport` Offer, the `create_case` BT SHOULD
+  record pre-case events (initial Offer receipt, pre-case acknowledgment,
+  report acceptance) into `VulnerabilityCase.events` via `record_event()`.
+  Consider an event-logger decorator or helper to DRY up per-handler
+  invocations.
+  Done when: `create_case` BT (or handler) records at minimum the Offer
+  receipt event and the case creation event; tests verify the event log
+  entries.
+  **Reference**: `plan/IDEAS.md`, `specs/case-management.md` CM-02-009.
 
 References: `notes/codebase-structure.md`, `plan/IMPLEMENTATION_NOTES.md`,
 `plan/IDEAS.md`, and files in `specs/`.
@@ -563,11 +595,11 @@ The following are deferred until higher-priority phases are complete:
 | CM-01–CM-04 | ✅ Implemented (CM-03-006 rename complete in REFACTOR-1) |
 | CM-02-007 | ✅ `VulnerabilityCase.notes` field present; `add_note_to_case` appends correctly |
 | CM-02-008 | ✅ Vendor initial participant in `create_case` BT implemented (SC-1.3) |
-| CM-02-009 | ❌ General trusted-timestamp requirement not implemented (SC-3.2, SC-PRE-1) |
+| CM-02-009 | ⚠️ `CaseEvent` model done (SC-PRE-1 ✅); handler usage not yet implemented (SC-3.2) |
 | CM-05-001 | ✅ `VulnerabilityRecord` and `CaseReference` models added (SC-1.1, SC-1.2) |
 | CM-06 | ❌ CaseActor broadcast not implemented (PRIORITY-200, blocked by OUTBOX-1) |
 | CM-07 / AR-07 | ❌ Action rules endpoint not implemented (CA-2, PRIORITY-200) |
-| CM-10 | ⚠️ Partial: `accepted_embargo_ids` field added (SC-3.1 ✅); trusted-timestamp logic (SC-3.2, SC-PRE-1 ❌) and embargo guard (SC-3.3 ❌) not yet implemented |
+| CM-10 | ⚠️ Partial: `accepted_embargo_ids` field added (SC-3.1 ✅); `CaseEvent` model added (SC-PRE-1 ✅); handler timestamp logic (SC-3.2 ❌) and embargo guard (SC-3.3 ❌) not yet implemented |
 | Handler Protocol (HP-*) | ✅ All 38 handlers registered (incl. update_case) |
 | Semantic extraction (SE-*) | ✅ 38 patterns + UNKNOWN |
 | Dispatch routing (DR-*) | ✅ DirectActivityDispatcher |

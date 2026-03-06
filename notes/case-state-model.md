@@ -315,39 +315,42 @@ Pending)"; `specs/case-management.md` CM-03-006.
 
 ---
 
-## CaseEvent Model for Trusted Timestamps (SC-PRE-1)
+## CaseEvent Model for Trusted Timestamps (SC-PRE-1) ✅ Implemented
 
-Implementing `CM-02-009` and `CM-10-002` requires the CaseActor to record
-state-changing events with a **server-generated trusted timestamp** at the
-time of receipt. The correct mechanism is an **append-only event log on the
-case**, not modification of an `updated` field on any existing object.
+The `CaseEvent` model is implemented in
+`vultron/as_vocab/objects/case_event.py`. `VulnerabilityCase` has an
+`events: list[CaseEvent]` field and a `record_event(object_id, event_type)`
+append-only helper. Tests in `test/as_vocab/test_case_event.py` (19 tests)
+cover creation, serialization, and round-trip through TinyDB.
 
-### CaseEvent Design
+The design is described below for reference. The key invariant is
+**`received_at` is always set by the server clock** via `now_utc()`
+inside `record_event()` — callers MUST NOT pass `received_at` from
+an incoming activity payload.
 
-Add a `CaseEvent` Pydantic model (e.g., in `vultron/as_vocab/objects/`) with:
+### CaseEvent Model Fields
 
 - `object_id: str` — ID of the object being acted upon
 - `event_type: str` — short descriptor (e.g., `"embargo_accepted"`,
   `"participant_joined"`, `"note_added"`, `"status_updated"`)
-- `received_at: AwareDatetime` — server-generated TZ-aware UTC timestamp;
-  MUST be set by the handler at time of receipt, never from the incoming
-  activity payload
+- `received_at: datetime` — server-generated TZ-aware UTC timestamp;
+  defaults to `now_utc()` (microseconds stripped); serializes to
+  ISO 8601 UTC string; `field_validator` accepts ISO 8601 strings
+  on deserialization
 
-Add `events: list[CaseEvent] = Field(default_factory=list)` to
-`VulnerabilityCase`.
+### How to record an event
 
-### Serialization Requirements
+```python
+case.record_event(object_id=embargo.as_id, event_type="embargo_accepted")
+```
 
-- `received_at` MUST serialize to ISO 8601 UTC string
-  (e.g., `"2026-03-06T20:00:00+00:00"` or with `Z` suffix)
-- Use Pydantic's `AwareDatetime` type or a `field_serializer` consistent
-  with the existing `serialize_datetime` pattern in `as_Object`
-- Set via `datetime.now(tz=timezone.utc)` at handler invocation time
+Do NOT pass `received_at` — let it default to `now_utc()`.
 
-### Round-Trip Requirements
+### Remaining work
 
-- `object_to_record` / `record_to_object` MUST preserve the `events` list
-  including `received_at` datetime precision and timezone
+SC-PRE-1 provides the model and helper. Handlers have not yet been
+updated to call `record_event()` — that is tracked in SC-3.2.
+Pre-case event backfill at case creation is tracked in TECHDEBT-10.
 
 **Design Decision**: `received_at` is set by the handler (server clock),
 never copied from the incoming activity's own timestamp fields. This is
@@ -355,7 +358,7 @@ the invariant that makes the CaseActor the sole trusted source of event
 ordering within a case.
 
 **Cross-reference**: `specs/case-management.md` CM-02-009, CM-10-002;
-`plan/IMPLEMENTATION_PLAN.md` SC-PRE-1.
+`plan/IMPLEMENTATION_PLAN.md` SC-PRE-1, TECHDEBT-10.
 
 ---
 
