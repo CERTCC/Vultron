@@ -28,3 +28,30 @@ separate methods for every single non-empty string field. Perhaps it could
 be by defining a NonEmptyString type that enforces the check then replacing 
 all the relevant fields with that type?
 
+## Case state action rules will need to parse case and participant statuses
+
+When we get around to the case state action rules implementation (see 
+`specs/agentic-readiness.md` and `specs/case-management.md`), we will need 
+to be able to parse the case status objects and participant status objects 
+in order to evaluate the rules. Some of the rules are based on 
+participant-agnostic status items, while others are based on 
+participant-specific items. Furthermore, for the CaseActor or the Case Owner,
+they will need to account for the status of all the relevant participants. 
+For example in a case with multiple vendors who might be in various VFD 
+states or even different RM states, the rules for an individual participant 
+will only need to account for that participant's status, but the Case Owner 
+(and therefore CaseActor's perspective) will need to account for the 
+statuses of all the Vendor participants. This subtlety is not reflected in 
+the original description of the CVD action rules, as they were more geared 
+towards describing what an individual participant should do rather than how 
+to coordinate across them. Especially with respect to the VFD states, it's 
+going to be important that a CaseActor doesn't see that one vendor out of 
+dozens has a fix ready (while the others don't) and then jump the gun on 
+ending the embargo or pushing for public disclosure. It will need to be more 
+balanced at that level, whether that is expressed as a judgment call to a 
+cognitive agent to decide, or perhaps there might be some threshold 
+heuristics like "at least X% of vendors with VFD state of Fix Ready" or at 
+least "all engaged vendors with VFD state of Fix Ready" or something like 
+that. This is an important nuance that will need to be accounted for in the rules
+implementation.
+
