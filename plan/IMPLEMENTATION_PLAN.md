@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50)
+**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50; P50-0 complete)
 
 ## Overview
 
@@ -132,7 +132,7 @@ merely to split the file but to begin the shift toward the hexagonal
 domain logic out of routers and into a service layer, then progressively fixing
 the deeper layering violations. Work in the order below.
 
-- [ ] **P50-0**: Extract domain service layer from `triggers.py`; split routers by
+- [x] **P50-0**: Extract domain service layer from `triggers.py`; split routers by
   domain. Create `vultron/api/v2/backend/trigger_services/` package with three
   service modules: `report.py` (validate, invalidate, reject, close-report logic),
   `case.py` (engage, defer), and `embargo.py` (propose, evaluate, terminate). Each

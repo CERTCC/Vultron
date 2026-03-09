@@ -20,10 +20,12 @@ from fastapi import APIRouter, Request
 
 from vultron.api.v2.routers import (
     actors,
-    examples,
     datalayer,
+    examples,
     health,
-    triggers,
+    trigger_case,
+    trigger_embargo,
+    trigger_report,
 )
 
 router = APIRouter()
@@ -43,4 +45,8 @@ router.include_router(examples.router)
 
 router.include_router(health.router)
 
-router.include_router(triggers.router)
+router.include_router(trigger_report.router)
+
+router.include_router(trigger_case.router)
+
+router.include_router(trigger_embargo.router)

@@ -16,40 +16,41 @@ as the starting point is now the top priority. The plan has been updated accordi
 phase after PRIORITY-30 (now complete). The old "PRIORITY 150" label in the plan was
 incorrect; PRIORITIES.md has always listed this as Priority 50.
 
-### Approach for P50-0: Extract service layer from `triggers.py`
+### Approach for P50-0: Extract service layer from `triggers.py` — **COMPLETE**
 
 `triggers.py` is 1274 lines with all nine trigger endpoint functions each containing
 inline domain logic (data lookups, state transitions, activity construction, outbox
 updates). The fix is a two-step operation within one agent cycle:
 
-**Step 1 — Create `vultron/api/v2/backend/trigger_services/` package**:
+**Step 1 — Create `vultron/api/v2/backend/trigger_services/` package** ✓:
 - `report.py` — service functions for `validate_report`, `invalidate_report`,
   `reject_report`, `close_report`
 - `case.py` — service functions for `engage_case`, `defer_case`
 - `embargo.py` — service functions for `propose_embargo`, `evaluate_embargo`,
   `terminate_embargo`
 
-Each service function signature should be:
+Each service function signature:
 ```python
 def svc_validate_report(actor_id: str, offer_id: str, note: str | None, dl: DataLayer) -> dict:
     ...
 ```
 The `DataLayer` is passed in from the router (via `Depends(get_datalayer)`), not
-fetched inside the service. This aligns with R-05 (DI via ports) even before the
-full ARCH-1.4 restructure.
+fetched inside the service.
 
-**Step 2 — Thin-ify and split the router**:
+**Step 2 — Thin-ify and split the router** ✓:
 - Split `triggers.py` into `trigger_report.py`, `trigger_case.py`,
   `trigger_embargo.py` in `vultron/api/v2/routers/`
-- Each router function becomes: validate request → call service → return response
-- No domain logic in routers
+- Each router function: validate request → call service → return response
+- `triggers.py` deleted ✓
 
-**Additional cleanup**:
-- Consolidate `ValidateReportRequest` and `InvalidateReportRequest` (they are
-  structurally identical — CS-09-002). Use a shared base `ReportTriggerRequest`
-  with subclasses if needed.
-- Trigger tests should be split to match the new file structure and include
-  service-layer unit tests independent of HTTP.
+**Additional cleanup** ✓:
+- Consolidated `ValidateReportRequest`, `InvalidateReportRequest`, and
+  `CloseReportRequest` (structurally identical — CS-09-002) into shared base
+  `ReportTriggerRequest` in `_models.py`
+- Trigger tests split into `test_trigger_report.py`, `test_trigger_case.py`,
+  `test_trigger_embargo.py`; service-layer unit tests added in
+  `test/api/v2/backend/test_trigger_services.py`
+- Test count: 777 → 815 passing
 
 ### Why start with `triggers.py` before ARCH-1.1?
 
