@@ -191,3 +191,15 @@ enable better maintainability, testability, and separation of concerns in
 the codebase.
 
 ---
+
+## 2026-03-09 — ARCH-1.1 complete: MessageSemantics moved to vultron/core/models/events.py
+
+Created `vultron/core/` package with `models/events.py` containing only
+`MessageSemantics`. Removed the definition from `vultron/enums.py` (which
+now re-exports it for backward compatibility). Updated all 17 direct import
+sites across `vultron/` and `test/`. 815 tests pass.
+
+The compatibility re-export in `vultron/enums.py` may be removed once ARCH-1.3
+consolidates the extractor and the AS2 structural enums move to
+`vultron/wire/as2/enums.py` (R-04).
+

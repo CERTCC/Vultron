@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50; P50-0 complete)
+**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50; P50-0 complete, ARCH-1.1 complete)
 
 ## Overview
 
@@ -146,7 +146,7 @@ the deeper layering violations. Work in the order below.
   HTTP layer). Done when routers contain no domain logic, each service module has
   independent tests, and `triggers.py` is deleted.
 
-- [ ] **ARCH-1.1** (R-01): Separate `MessageSemantics` from AS2 structural enums
+- [x] **ARCH-1.1** (R-01): Separate `MessageSemantics` from AS2 structural enums
   in `vultron/enums.py`; move `MessageSemantics` to `vultron/core/models/events.py`
   (ARCH-02-001, V-01). Update all imports. Tests pass.
 
