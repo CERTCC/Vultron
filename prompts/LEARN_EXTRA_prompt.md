@@ -16,12 +16,12 @@ concise, testable, and aligned with the project's current priorities and ideas.
 
 ### Study and understand current state of the project
 
-1. Study `plans/PRIORITIES.md` to understand current priorities
+1. Study `plan/PRIORITIES.md` to understand current priorities
 2. Study `docs/adr/*.md` to understand past architectural decisions and their
    rationales
 3. Study `specs/` to understand current requirements
-4. Study `plans/IDEAS.md` to understand new ideas that are not yet incorporated
-5. Study `plans/IMPLEMENTATION_PLAN.md` and `plan/IMPLEMENTATION_HISTORY.md` to
+4. Study `plan/IDEAS.md` to understand new ideas that are not yet incorporated
+5. Study `plan/IMPLEMENTATION_PLAN.md` and `plan/IMPLEMENTATION_HISTORY.md` to
    understand the current implementation status
 6. Study`notes/` to understand lessons learned, design tradeoffs, and open 
    questions
