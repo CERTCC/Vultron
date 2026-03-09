@@ -175,3 +175,18 @@ Supporting changes:
 - Updated `docs/reference/code/demo/demos.md` and `cli.md` with new entries.
 
 Phase PRIORITY-30 is now fully complete (P30-1 through P30-6).
+
+---
+## TODO: write an ADR for the hexagonal architecture formalization and port/adapter design
+
+The shift toward a cleaner hexagonal architecture (port/adapter design) is a 
+significant architectural decision that will impact the entire codebase. We need
+to capture it in an ADR to document the rationale and why the status quo was 
+not sufficient. The ADR should reference the relevant notes, specs, and 
+documentation that led to this decision, including the architectural review
+findings and the identified violations that this change will address. It should
+also outline the expected benefits of this architectural shift and how it will
+enable better maintainability, testability, and separation of concerns in 
+the codebase.
+
+---
