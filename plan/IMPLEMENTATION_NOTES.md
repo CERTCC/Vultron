@@ -254,3 +254,19 @@ to work. These can be deleted once confirmed no external callers remain.
   entirely in the wire parser layer before the item reaches the inbox handler.
 - Tests: `test_raise_if_not_valid_activity_raises` deleted; 7 new wire layer tests
   added in `test/wire/as2/`. 822 tests pass (up from 815).
+
+---
+
+## Many of the workflows, triggerable behaviors, and demo scenarios map to use cases
+
+In a Hexagonal Architecure, the core domain logic is organized around use 
+cases that represent the key actions or operations that the system performs. 
+These use cases are then invoked by the ports (e.g., API endpoints, CLI 
+commands) and implemented by the adapters. As you review the codebase, many 
+of the message semantics, behaviors, workflows, triggers, and demo scenarios 
+map onto specific 
+use cases indicated in their names. For example "PrioritizeCase", 
+"ProposeEmbargo", "DeferCase" etc. Keep this in mind when deciding how to 
+refactor the codebase into the hexagonal architecture.
+
+---
