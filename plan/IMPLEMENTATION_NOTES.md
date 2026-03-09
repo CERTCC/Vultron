@@ -61,3 +61,24 @@ in cleaner BT node names (e.g., `q_rm_in_CLOSED` instead of
 `state.value` in node name instead of `state.name`.
 
 ---
+
+## Triggerable behaviors should start to live in `vultron/core/` and respect the architecture
+
+The `triggers.py` module currently has a mix of architectural violations, including
+including directly invoking domain logic in the routers. We should start 
+separating these concerns as soon as practical in preparation for the 
+architecture refactor. It would be better to start moving towards the 
+cleaner architecture where we can now than to continue building out more 
+things that will have to be refactored later. We know the direction we are 
+going with the architecture, so we should start moving in that direction now 
+when we can.
+
+This idea generalizes too. When you're modifying or adding new router code, 
+consider the architectural intent and whether the code you're writing 
+respects the intended separation of concerns. Try to avoid mixing domain 
+logic directly into the routers, and instead think about how to structure the
+code so that the ports and adapters model is cleaner even before the full 
+refactor.
+
+Fix what you can as you go, and add items you observe as technical debt to 
+the implementation notes for anything you notice but can't fix immediately.
