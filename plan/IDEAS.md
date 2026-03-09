@@ -1,5 +1,12 @@
 # Project Ideas
 
+## Documentation bug: misplaced references to demo in `IDEAS.md`
+
+In a few places there are references to a Priority 300 item about future 
+demo ideas that point to `plan/IDEAS.md` but that content has migrated to  
+`notes/demo-future-ideas.md`. Those references should be updated to point  
+to the correct location.
+
 ## Backfill pre-case events into case log on creation
 
 When a new case is created, there will have already been a few events that 
@@ -55,3 +62,12 @@ least "all engaged vendors with VFD state of Fix Ready" or something like
 that. This is an important nuance that will need to be accounted for in the rules
 implementation.
 
+## New ideas in notes need to be propagated
+
+There have been additions captured in 
+`notes/architecture-ports-and-adapters.md`, `notes/federation_ideas.md`, and 
+`notes/architecture-review.md` that have not yet been propagated into 
+`specs/`, `notes/`, or `plan/IMPLEMENTATION_PLAN.md`. These ideas should be 
+reviewed and integrated into the appropriate files as needed, or 
+cross-referenced as appropriate. These notes contain important architecture 
+and design insights that need to be reflected in plans and specs going forward.
