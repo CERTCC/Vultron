@@ -83,6 +83,9 @@ refactor.
 Fix what you can as you go, and add items you observe as technical debt to 
 the implementation notes for anything you notice but can't fix immediately.
 
+Technical debt: Refactor triggers.py to respect the hexagonal architecture 
+concepts.
+
 ## Consider use of `transitions` module for state machines
 
 Although we have manually enumerated state machine states for EM, RM, and CS,
