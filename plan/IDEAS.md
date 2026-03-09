@@ -11,9 +11,13 @@ demo ideas that point to `plan/IDEAS.md` but that content has migrated to
 `notes/demo-future-ideas.md`. Those references should be updated to point
 to the correct location.~~
 
-## Backfill pre-case events into case log on creation
+## ~~Backfill pre-case events into case log on creation~~
 
-When a new case is created, there will have already been a few events that
+> ✅ Captured: `notes/case-state-model.md` "Pre-Case Event Backfill on Case
+> Creation" section; design options (event-logger decorator) and open
+> question about implementation mechanism documented there.
+
+~~When a new case is created, there will have already been a few events that
 happened that should be added to the case log, such as the Offer of the
 initial report, any pre-case messages about the report or offer between the
 recipient and the initial reporter, acknowledgment (if any) of the Offer,
@@ -26,7 +30,7 @@ those events need to be inserted at case startup.
 This might also imply the need for a sort of event logger decorator that can
 be used to automatically capture timestamps on activities when events happen
 on cases. That might be the easiest way to do this without having to add a
-lot of extra code in the case management steps.
+lot of extra code in the case management steps.~~
 
 ## ~~Non-empty string checks can be DRYed up~~
 
@@ -42,9 +46,13 @@ separate methods for every single non-empty string field. Perhaps it could
 be by defining a NonEmptyString type that enforces the check then replacing
 all the relevant fields with that type?~~
 
-## Case state action rules will need to parse case and participant statuses
+## ~~Case state action rules will need to parse case and participant statuses~~
 
-When we get around to the case state action rules implementation (see
+> ✅ Captured: `notes/case-state-model.md` "Multi-Vendor Case State Action
+> Rules" section; participant-specific vs case-level rules distinction and
+> threshold heuristic open question documented there.
+
+~~When we get around to the case state action rules implementation (see
 `specs/agentic-readiness.md` and `specs/case-management.md`), we will need
 to be able to parse the case status objects and participant status objects
 in order to evaluate the rules. Some of the rules are based on
@@ -67,7 +75,7 @@ cognitive agent to decide, or perhaps there might be some threshold
 heuristics like "at least X% of vendors with VFD state of Fix Ready" or at
 least "all engaged vendors with VFD state of Fix Ready" or something like
 that. This is an important nuance that will need to be accounted for in the rules
-implementation.
+implementation.~~
 
 ## ~~New ideas in notes need to be propagated~~
 
