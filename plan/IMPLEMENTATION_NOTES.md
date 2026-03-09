@@ -47,3 +47,17 @@ as a subclass or alias. Low-priority but worth addressing when the file is next
 modified.
 
 ---
+
+## 2026-03-09 — P30-4 complete: close-report trigger endpoint
+
+`POST /actors/{actor_id}/trigger/close-report` added. Emits `RmCloseReport`
+(RM → C transition), updates offer/report status and actor outbox, returns
+HTTP 409 if already CLOSED. 9 unit tests added.
+
+Also converted `RM` from plain `Enum` to `StrEnum` for consistency with `EM`.
+This changes `str(RM.X)` from `"RM.REPORT_MANAGEMENT_X"` to `"X"`, resulting
+in cleaner BT node names (e.g., `q_rm_in_CLOSED` instead of
+`q_rm_in_RM.REPORT_MANAGEMENT_CLOSED`). Updated `test_conditions.py` to check
+`state.value` in node name instead of `state.name`.
+
+---

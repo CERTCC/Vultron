@@ -109,7 +109,7 @@ Blocked by PRIORITY-100 and PRIORITY-200.
 
 - [x] **P30-1** through **P30-3**: Complete — see `plan/IMPLEMENTATION_HISTORY.md`
 
-- [ ] **P30-4**: Add `POST /actors/{actor_id}/trigger/close-report` endpoint
+- [x] **P30-4**: Add `POST /actors/{actor_id}/trigger/close-report` endpoint
   (TB-02-001) with `offer_id` in request body (TB-03-001). Emits `RmCloseReport`
   (RM → C transition / RC message), updates RM state to CLOSED, adds to outbox
   (TB-07-001), returns `{"activity": {...}}` (TB-04-001). Note: `close-report`
