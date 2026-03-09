@@ -42,6 +42,15 @@ through the Vultron Protocol through passing ActivityStreams messages with
 defined semantics. This allows us to have a clean model of individual
 actors making independent decisions based on their own internal state.
 
+## Priority 150: Shift toward hexagonal architecture and port/adapter design
+
+Closely related to the Actor independence priority, we want to shift towards 
+a cleaner implementation of hexagonal architecture and port/adapter design. 
+This will require some refactoring of the existing codebase to separate 
+concerns more clearly, see `notes/architecture-ports-and-adapters.md` and  
+`specs/architecture.md` for details. This will also enable the future demo 
+scenarios to be more cleanly implemented.
+
 ## Priority 200: Case Actor as source of truth for case state
 
 The CaseActor becomes a resource that can manages the VulnerabilityCase. While
@@ -76,6 +85,9 @@ via the Vultron Protocol, with CaseActor managing case state.
 
 See `notes/demo-future-ideas.md` for the full scenario descriptions.
 
+
+
+
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
 As we originally built out the `py_trees` implementation, we replaced 
@@ -105,9 +117,10 @@ humans.
 We want to support agentic AI agents interacting with cases as well on the
 backend (i.e., not as ActivityPub Actors, but as API or command
 line clients.) We may have local agents that interact directly with
-the behavior trees or other internal system components either via a command line
-or API calls. These agents would not be ActivityPub Actors and would not directly
-participate in cases, but would instead be more like assistants to human participants
+the behavior trees or other internal system components via MCP. This would 
+be an adapter that parallels the API and CLI adapters in the hexagonal 
+architecture. These agents would not be ActivityPub Actors and would not 
+directly participate in cases, but would instead be more like assistants to human participants
 who are directing them to perform specific tasks.
 
 We will need to design the system in a way that allows for either of these
