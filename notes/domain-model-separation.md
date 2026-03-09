@@ -193,7 +193,8 @@ abc.py`) is already an abstraction layer; the MongoDB backend can be
 implemented as a new concrete implementation behind the same interface.
 
 **See**: `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-100 (ACT-1/ACT-2/ACT-3),
-`plan/IDEAS.md` (MongoDB recommendation for PRIORITY 300 multi-actor demos),
+`notes/demo-future-ideas.md` (multi-actor demo scenarios requiring MongoDB
+or equivalent for PRIORITY 300),
 `notes/triggerable-behaviors.md` "Relationship to Actor Independence".
 
 **Implementation note**: Whichever backing store is chosen, the `BackgroundTasks`

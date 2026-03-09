@@ -92,7 +92,7 @@ programmatically and which require external input or human confirmation.
 **Design Decision**: For PRIORITY 30, focus implementation effort on the
 RM/EM-related triggerable behaviors defined in `specs/triggerable-behaviors.md`.
 Treat `assign-cve-id`, `notify-actor`, and `identify-participants` as
-later-phase behaviors (MAY in TB-02-003); represent them and any other
+later-phase behaviors (MAY in TRIG-02-003); represent them and any other
 non-implemented sub-behaviors as named placeholder nodes in the BTs.
 
 ---

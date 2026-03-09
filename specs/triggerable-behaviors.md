@@ -22,27 +22,35 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ## Endpoint Format (MUST)
 
-- `TB-01-001` The system MUST expose trigger endpoints using the path
+- `TRIG-01-001` The system MUST expose trigger endpoints using the path
   pattern `POST /actors/{actor_id}/trigger/{behavior-name}`
   - `actor_id`: the locally-hosted actor initiating the behavior
   - `behavior-name`: a kebab-case identifier matching the behavior table
-    in `TB-02-001` and `TB-02-002`
-- `TB-01-002` Trigger endpoints MUST return HTTP 202 on successful
+    in `TRIG-02-001` and `TRIG-02-002`
+- `TRIG-01-002` Trigger endpoints MUST return HTTP 202 on successful
   acceptance
-  - TB-01-002 depends-on HTTP-01-003
-- `TB-01-003` Trigger endpoints MUST return a structured error response
+  - TRIG-01-002 depends-on HTTP-01-003
+- `TRIG-01-003` Trigger endpoints MUST return a structured error response
   when the actor, case, or report referenced in the request body cannot
   be resolved
-  - TB-01-003 depends-on EH-05-001
-- `TB-01-004` Trigger endpoint processing MUST NOT block the HTTP
+  - TRIG-01-003 depends-on EH-05-001
+- `TRIG-01-004` Trigger endpoint processing MUST NOT block the HTTP
   response; long-running behavior execution MUST run as a background task
-  - TB-01-004 depends-on IE-03-001
+  - TRIG-01-004 depends-on IE-03-001
+- `TRIG-01-005` Trigger endpoints MUST be synchronous from the caller's
+  perspective: the response MUST be returned only after the triggered
+  behavior completes (or fails)
+  - **Rationale**: Unlike inbound message handlers (which are intentionally
+    asynchronous because they react to remote actors), triggerable behaviors
+    are initiated locally and the caller expects an immediate result
+  - TRIG-01-005 refines TRIG-01-004 (the no-block constraint applies to
+    HTTP I/O machinery, not to the behavior execution itself)
 
 ---
 
 ## Candidate RM Behaviors (SHOULD)
 
-- `TB-02-001` The following RM behaviors SHOULD be individually
+- `TRIG-02-001` The following RM behaviors SHOULD be individually
   triggerable via the trigger API:
 
   | `behavior-name`        | BT reference              | Description |
@@ -65,7 +73,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ## Candidate EM Behaviors (SHOULD)
 
-- `TB-02-002` The following EM behaviors SHOULD be individually
+- `TRIG-02-002` The following EM behaviors SHOULD be individually
   triggerable via the trigger API:
 
   | `behavior-name`      | BT reference        | Description |
@@ -78,7 +86,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ## Additional Candidate Behaviors (MAY)
 
-- `TB-02-003` The following additional behaviors MAY be individually
+- `TRIG-02-003` The following additional behaviors MAY be individually
   triggerable via the trigger API in a later phase:
 
   | `behavior-name`          | BT reference                  | Description |
@@ -91,7 +99,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ## Request Body (MUST)
 
-- `TB-03-001` The trigger endpoint request body MUST be a JSON object
+- `TRIG-03-001` The trigger endpoint request body MUST be a JSON object
   containing sufficient context to identify the target report or case:
   - Report-scoped behaviors (`validate-report`, `invalidate-report`,
     `reject-report`, `close-report`): MUST include `offer_id`; MAY include
@@ -100,24 +108,24 @@ them; a complete implementation requires both reactive and triggerable sides.
   - Case-scoped behaviors (`engage-case`, `defer-case`, `propose-embargo`,
     `evaluate-embargo`, `terminate-embargo`, `notify-actor`,
     `assign-cve-id`, `identify-participants`): MUST include `case_id`
-- `TB-03-002` Unknown fields in the request body MUST be ignored
+- `TRIG-03-002` Unknown fields in the request body MUST be ignored
   (forward-compatibility)
-- `TB-03-003` The trigger endpoint request body SHOULD support an optional
+- `TRIG-03-003` The trigger endpoint request body SHOULD support an optional
   `note` field containing free-text content that will be embedded in the
   outgoing ActivityStreams activity (e.g., rationale for embargo proposal,
   reason for deferral)
-- `TB-03-004` The `reject-report` trigger request body MUST include a
+- `TRIG-03-004` The `reject-report` trigger request body MUST include a
   `note` field (reason required); the `note` value SHOULD be non-empty
   - **Rationale**: Hard-close decisions are irreversible and warrant
     documented justification for audit purposes
-  - TB-03-004 refines TB-03-003
-  - TB-03-004 depends-on CS-08-001
+  - TRIG-03-004 refines TRIG-03-003
+  - TRIG-03-004 depends-on CS-08-001
 
 ---
 
 ## Response Body (SHOULD)
 
-- `TB-04-001` A successful trigger response SHOULD include the resulting
+- `TRIG-04-001` A successful trigger response SHOULD include the resulting
   ActivityStreams activity in the response body under an `activity` key:
 
   ```json
@@ -126,52 +134,52 @@ them; a complete implementation requires both reactive and triggerable sides.
   }
   ```
 
-- `TB-04-002` `PROD_ONLY` When a trigger initiates a long-running
+- `TRIG-04-002` `PROD_ONLY` When a trigger initiates a long-running
   behavior, the response MAY return a job object per `AR-04-001`
   instead of the activity directly
-  - TB-04-002 depends-on AR-04-001
+  - TRIG-04-002 depends-on AR-04-001
 
 ---
 
 ## BT Integration (SHOULD)
 
-- `TB-05-001` Trigger endpoint implementations SHOULD reuse existing
+- `TRIG-05-001` Trigger endpoint implementations SHOULD reuse existing
   BT trees rather than duplicating behavior logic
   - The trigger API is the outgoing side; the BT tree is the same
     regardless of direction (inbound handler vs actor-initiated trigger)
-- `TB-05-002` The trigger endpoint SHOULD invoke the BT tree via the
+- `TRIG-05-002` The trigger endpoint SHOULD invoke the BT tree via the
   bridge layer (`vultron/behaviors/bridge.py`) using the same pattern
   as existing BT-using handlers
-  - TB-05-002 depends-on BT-05-001
+  - TRIG-05-002 depends-on BT-05-001
 
 ---
 
 ## Per-Actor DataLayer (MUST)
 
-- `TB-06-001` Trigger endpoints MUST resolve the correct per-actor
+- `TRIG-06-001` Trigger endpoints MUST resolve the correct per-actor
   DataLayer instance using the `actor_id` path parameter
   - The same dependency injection mechanism used for inbox handlers
     MUST be used for trigger endpoints
-  - TB-06-001 depends-on CM-01-001
-- `TB-06-002` Trigger endpoint implementations MUST accept the DataLayer
+  - TRIG-06-001 depends-on CM-01-001
+- `TRIG-06-002` Trigger endpoint implementations MUST accept the DataLayer
   instance via dependency injection to allow per-actor isolation to be
   retrofitted without changing endpoint contracts
-  - TB-06-002 depends-on CM-01-001
+  - TRIG-06-002 depends-on CM-01-001
 
 ---
 
 ## Outbox Activity (MUST)
 
-- `TB-07-001` A successfully executed trigger MUST produce an outgoing
+- `TRIG-07-001` A successfully executed trigger MUST produce an outgoing
   ActivityStreams activity added to the actor's outbox
   - The trigger causes the activity; the activity is not the trigger
-  - TB-07-001 depends-on OX-02-001
+  - TRIG-07-001 depends-on OX-02-001
 
 ---
 
 ## Verification
 
-### TB-01-001, TB-01-002, TB-01-003, TB-01-004 Verification
+### TRIG-01-001, TRIG-01-002, TRIG-01-003, TRIG-01-004 Verification
 
 - Integration test: `POST /actors/{id}/trigger/validate-report` with
   valid `offer_id` returns HTTP 202
@@ -179,13 +187,13 @@ them; a complete implementation requires both reactive and triggerable sides.
   error per EH-05-001
 - Integration test: HTTP 202 returned before behavior execution completes
 
-### TB-02-001, TB-02-002, TB-02-003 Verification
+### TRIG-02-001, TRIG-02-002, TRIG-02-003 Verification
 
 - Integration test: Each named behavior endpoint exists and accepts
   a valid request body
 - Unit test: Unrecognized `behavior-name` returns HTTP 404
 
-### TB-03-001, TB-03-002, TB-03-003, TB-03-004 Verification
+### TRIG-03-001, TRIG-03-002, TRIG-03-003, TRIG-03-004 Verification
 
 - Unit test: Request missing required context field returns HTTP 422
   (Unprocessable Entity) with field-level error
@@ -196,23 +204,23 @@ them; a complete implementation requires both reactive and triggerable sides.
   HTTP 422
 - Unit test: `reject-report` trigger with empty `note` emits a warning
 
-### TB-04-001 Verification
+### TRIG-04-001 Verification
 
 - Integration test: Successful trigger response body contains an
   `activity` key with a valid ActivityStreams activity
 
-### TB-05-001, TB-05-002 Verification
+### TRIG-05-001, TRIG-05-002 Verification
 
 - Code review: Trigger implementations call existing BT trees via
   `vultron/behaviors/bridge.py`
 - Unit test: BT execution result is reflected in response activity
 
-### TB-06-001, TB-06-002 Verification
+### TRIG-06-001, TRIG-06-002 Verification
 
 - Unit test: `actor_id` in path resolves to a distinct DataLayer instance
 - Code review: DataLayer injected via dependency, not accessed as singleton
 
-### TB-07-001 Verification
+### TRIG-07-001 Verification
 
 - Integration test: After successful trigger, actor outbox contains the
   resulting activity

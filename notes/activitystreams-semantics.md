@@ -236,7 +236,7 @@ fallback returns a raw `TinyDB Document`, losing all typed state silently.
 generic `as_Activity` objects if the activity type is guaranteed to be a
 core AS2 type.
 
-**Reference**: `plan/IMPLEMENTATION_NOTES.md` (BT-5 section).
+**Reference**: `notes/bt-integration.md` (BT integration design decisions).
 
 ---
 

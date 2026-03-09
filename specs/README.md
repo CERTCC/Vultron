@@ -14,6 +14,13 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Core Architecture
 
+**System Architecture**:
+
+- **`architecture.md`** - Hexagonal architecture (Ports and Adapters): layer
+  separation rules, SemanticIntent placement, extractor isolation, adapter
+  injection, connector plugins, wire replaceability, review checklist
+  (ARCH-01 through ARCH-08)
+
 **Handler Pipeline** (message processing flow):
 
 1. **`inbox-endpoint.md`** - FastAPI HTTP endpoint accepting ActivityStreams activities
@@ -138,7 +145,37 @@ Example: `HP-04-002` = Handler Protocol, category 4 (Payload Access), requiremen
 
 **Note**: The `HP-` prefix is reserved for `handler-protocol.md`. The
 `http-protocol.md` file uses the `HTTP-` prefix to avoid ambiguity. The
-`diataxis-requirements.md` file uses the `DF-` prefix.
+`diataxis-requirements.md` file uses the `DF-` prefix. The
+`triggerable-behaviors.md` file uses the `TRIG-` prefix (not `TB-`, which
+is reserved for `testability.md`).
+
+### Prefix Registry
+
+| Prefix | Specification file |
+|--------|--------------------|
+| `ARCH` | `architecture.md` |
+| `AR` | `agentic-readiness.md` |
+| `BT` | `behavior-tree-integration.md` |
+| `CM` | `case-management.md` |
+| `CS` | `code-style.md` |
+| `DF` | `diataxis-requirements.md` |
+| `EH` | `error-handling.md` |
+| `EP` | `embargo-policy.md` |
+| `HP` | `handler-protocol.md` |
+| `HTTP` | `http-protocol.md` |
+| `IE` | `inbox-endpoint.md` |
+| `IMPL-TS` | `tech-stack.md` |
+| `MV` | `message-validation.md` |
+| `OB` | `observability.md` |
+| `OX` | `outbox.md` |
+| `PD` | `project-documentation.md` |
+| `PROTO` | `prototype-shortcuts.md` |
+| `RF` | `response-format.md` |
+| `SC` | `semantic-extraction.md` / `case-management.md` (SC prefix shared; see note) |
+| `SE` | `semantic-extraction.md` |
+| `SL` | `structured-logging.md` |
+| `TB` | `testability.md` |
+| `TRIG` | `triggerable-behaviors.md` |
 
 ## Requirement Tags
 
@@ -226,8 +263,8 @@ When updating specifications:
 ## Related Documentation
 
 - **Implementation Plan**: `plan/IMPLEMENTATION_PLAN.md`
-- **Implementation Notes**: `plan/IMPLEMENTATION_NOTES.md`
 - **Architecture Decisions**: `docs/adr/*.md`
+- **Design Insights**: `notes/` — durable design insights and lessons learned
 - **ActivityPub Workflows**: `docs/howto/activitypub/activities/*.md`
 - **Agent Instructions**: `AGENTS.md` (AI coding agent guidance)
 - **Copilot Instructions**: Embedded in system context (development guidance)

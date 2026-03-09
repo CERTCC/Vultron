@@ -203,6 +203,28 @@ before general ones.
 See `specs/dispatch-routing.md`, `specs/semantic-extraction.md`, and ADR-0007
 for complete architecture details.
 
+### Hexagonal Architecture (Ports and Adapters)
+
+The target architecture is **Hexagonal** (Ports and Adapters). The core domain
+is isolated from external systems; adapters translate between external protocols
+and domain types. Rules:
+
+- **Core has no wire format imports**: no AS2, `pyld`, `rdflib`, JSON-LD
+- **Core has no framework imports**: no `fastapi`, `httpx`, `celery`, `nats`
+- **`MessageSemantics` is a domain type**: defined in core, not in the wire
+  layer
+- **Extractor is the only AS2→domain mapping point**: handlers never inspect
+  AS2 types
+- **Core functions take domain types**: the inbound pipeline finishes
+  parse → extract before calling into core
+- **Driven adapters injected via ports**: handlers do not call `get_datalayer()`
+  directly (deferred in prototype — see PROTO-06-001)
+
+See `notes/architecture-ports-and-adapters.md` for the full architecture
+specification and code patterns. See `notes/architecture-review.md` for the
+current violation inventory (V-01 to V-12) and remediation plan. See
+`specs/architecture.md` for the formal requirements (ARCH-01 to ARCH-08).
+
 ### Protocol Activity Model
 
 Vultron activities are **state-change notifications**, not commands.
@@ -823,6 +845,14 @@ Not all handlers need BT execution. Use this guide when deciding:
 - Logging-only or passthrough operations
 
 **Uncertain?** Start procedural; refactor to BT if branching complexity grows.
+
+**Trigger behavior logic belongs outside the API router**: Triggerable
+behavior implementations (BT or procedural) MUST live in separate modules
+that can be called from both API endpoints and CLI commands. API routers
+handle only request parsing, validation, and response formatting — they
+delegate immediately to the behavior implementation. This supports the
+hexagonal architecture goal of keeping business logic independent of the
+transport layer. See `specs/architecture.md` ARCH-08-001.
 
 **`EvaluateCasePriority` is outgoing-only**: This BT node (in
 `vultron/behaviors/report/nodes.py`) is for the **local actor deciding** to

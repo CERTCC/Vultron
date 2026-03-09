@@ -7,25 +7,32 @@ insights, issues, and learnings during the implementation process.
 Add new items below this line
 
 ---
-## TB prefix reused in specs
+## ~~TB prefix reused in specs~~
 
-The TB prefix is currently used in specs for both `testability.md` and 
-`triggerable-behaviors.md`. This is confusing and must be resolved by 
-picking a different prefix for one of them. The `specs/README.md` file 
-should be updated to reflect the prefix for each file so that in the future 
-we can avoid reusing existing prefixes.
+> ✅ Resolved: `triggerable-behaviors.md` requirements renamed to `TRIG-`
+> prefix. `specs/README.md` updated with a prefix registry table. External
+> reference in `notes/do-work-behaviors.md` updated from TB-02-003 →
+> TRIG-02-003.
 
-## Triggers are intended to be synchronous for the caller
+~~The TB prefix is currently used in specs for both `testability.md` and
+`triggerable-behaviors.md`. This is confusing and must be resolved by
+picking a different prefix for one of them. The `specs/README.md` file
+should be updated to reflect the prefix for each file so that in the future
+we can avoid reusing existing prefixes.~~
 
-Triggerable behaviors are intended to be synchronous for the caller, which 
-should mean that there's no async concerns about:
+## ~~Triggers are intended to be synchronous for the caller~~
 
-`TB-04-001` A successful trigger response SHOULD include the resulting
-  ActivityStreams activity in the response body under an `activity` key
+> ✅ Captured: `specs/triggerable-behaviors.md` TRIG-01-005.
 
-This is important to clarify because while inbound message handling is 
-eventually meant to be asynchronous, the triggerable behavior interface is 
-intended to be synchronous for the caller.
+~~Triggerable behaviors are intended to be synchronous for the caller, which
+should mean that there's no async concerns about:~~
+
+~~`TB-04-001` A successful trigger response SHOULD include the resulting
+ActivityStreams activity in the response body under an `activity` key~~
+
+~~This is important to clarify because while inbound message handling is
+eventually meant to be asynchronous, the triggerable behavior interface is
+intended to be synchronous for the caller.~~
 
 ## P30-1 outbox-diff strategy for retrieving the resulting activity
 
@@ -103,27 +110,35 @@ handled by `EngageCaseBT`/`DeferCaseBT`). Both endpoints:
 - If no participant record exists for the actor, a WARNING is logged and the
   endpoint still returns 202 with the activity (non-blocking).
 
-## Triggered behaviors do not belong in trigger endpoints
+## ~~Triggered behaviors do not belong in trigger endpoints~~
 
-Because we're going to be doing both an API-based and command-line based 
-implementation of triggered behaviors, we don't want the logic for the 
+> ✅ Captured: `AGENTS.md` "Trigger behavior logic belongs outside the API
+> router" guidance added; `specs/architecture.md` ARCH-08-001.
+
+~~Because we're going to be doing both an API-based and command-line based
+implementation of triggered behaviors, we don't want the logic for the
 triggered behaviors to be tightly coupled to the API endpoints. Instead, the API
-endpoints should just be responsible for handling the request, validating it, and 
-then invoking the appropriate behavior (whether that's a BT or procedural 
-code) provided in a separate module. This keeps the concerns separated (api 
-routers are just for translating API to internal calls, then behavior 
-implementations are in separate modules that can be called from both API and 
-CLI contexts).
+endpoints should just be responsible for handling the request, validating it, and
+then invoking the appropriate behavior (whether that's a BT or procedural
+code) provided in a separate module. This keeps the concerns separated (api
+routers are just for translating API to internal calls, then behavior
+implementations are in separate modules that can be called from both API and
+CLI contexts).~~
 
-## Consider "Ports and Adapters" architecture for triggerable behaviors
+## ~~Consider "Ports and Adapters" architecture for triggerable behaviors~~
 
-This seems like a good use case for a "Ports and Adapters" (Hexagonal) 
-architecture, where the triggerable behavior implementations are the core  
-domain logic, and the API endpoints and CLI commands are just different 
-adapters that call into that core logic. This would allow us to keep the  
-core behavior implementations decoupled from the specific interfaces (API 
-vs CLI) and make it easier to maintain and extend in the future. The core 
-logic can be implemented in a way that is agnostic to how it's triggered, 
-and then the API and CLI can just be thin layers that translate their 
-respective inputs into calls to the core logic.
+> ✅ Captured: `notes/architecture-ports-and-adapters.md` (full hexagonal
+> architecture spec), `notes/architecture-review.md` (violation inventory),
+> `specs/architecture.md` (formal requirements ARCH-01 to ARCH-08),
+> `AGENTS.md` "Hexagonal Architecture" section.
+
+~~This seems like a good use case for a "Ports and Adapters" (Hexagonal)
+architecture, where the triggerable behavior implementations are the core
+domain logic, and the API endpoints and CLI commands are just different
+adapters that call into that core logic. This would allow us to keep the
+core behavior implementations decoupled from the specific interfaces (API
+vs CLI) and make it easier to maintain and extend in the future. The core
+logic can be implemented in a way that is agnostic to how it's triggered,
+and then the API and CLI can just be thin layers that translate their
+respective inputs into calls to the core logic.~~
 

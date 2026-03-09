@@ -437,3 +437,52 @@ See `docs/topics/process_models/rm/`, `docs/topics/process_models/em/`, and
 `docs/topics/process_models/cs/` for process model documentation. See
 `docs/reference/formal_protocol/` for formal state machine definitions with
 transition rules.
+
+---
+
+## Pre-Case Event Backfill on Case Creation
+
+When a new case is created, several events have already occurred that should
+be recorded in the case log:
+
+- The initial `Offer(Report)` from the reporter
+- Any pre-case messages exchanged between recipient and reporter (if any)
+- Acknowledgment of the Offer (if any)
+- Acceptance of the Offer
+- Case creation itself
+- Initial participant creation and add events
+
+**Design decision**: Events like "add participant" can be captured at the
+add-participant step as part of normal case flow. Events that predate the
+case (Offer, pre-case messages, Accept) need to be backfilled at case
+creation time.
+
+**Open question**: The backfill mechanism could be an event-logger decorator
+that captures timestamps on activities as they occur. This would avoid
+duplicating backfill logic across case creation steps.
+
+**See**: `specs/case-management.md` for case creation requirements;
+`notes/activitystreams-semantics.md` for the case activity log constraints.
+
+---
+
+## Multi-Vendor Case State Action Rules
+
+When implementing the case state action rules (see `specs/agentic-readiness.md`
+and `specs/case-management.md`), the rules must distinguish two perspectives:
+
+1. **Participant-specific rules**: Evaluated against a single participant's
+   RM/VFD state (applies to each vendor independently).
+2. **Case-level rules (CaseActor/Case Owner perspective)**: Must aggregate
+   across all relevant participants. For example, an `EMBARGO_END` trigger
+   MUST NOT be based on a single vendor reaching `FIX_READY` when other
+   vendors have not.
+
+**Design decision**: (open) Threshold heuristics for multi-vendor rules
+(e.g., "all engaged vendors in FIX_READY", "≥X% of vendors with FIX_READY")
+need to be formally specified. A cognitive agent delegating the judgment
+call is an alternative to fixed heuristics.
+
+**See**: `specs/agentic-readiness.md` and `specs/case-management.md` for
+the CVD action rules; `notes/bt-fuzzer-nodes.md` for related external
+touchpoints.

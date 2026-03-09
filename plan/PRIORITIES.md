@@ -62,15 +62,19 @@ activities to the case owner, such as closing the case or transferring ownership
 These details are defined in the `vultron_as:CaseOwnerActivity`
 in `ontology/vultron_activitystreams.ttl`.
 
-## Priority 300: Demo ideas currently in IDEAS.md
+## Priority 300: Multi-Actor Demo Scenarios
 
-There are a few extended demo ideas in `plan/IDEAS.md` that are currently just
-notes and need to be implemented. These demos will be important for showcasing
-the capabilities of the Vultron Protocol and the behavior tree implementation,
-and for demonstrating how the various components of the system work together
-in practice. Implementing these demos will also help to identify any gaps or
-issues in the current implementation and provide a basis for further  
-development and refinement.
+Extended multi-actor demo scenarios are documented in
+`notes/demo-future-ideas.md`. These demos — Two-Actor (Finder + Vendor),
+Three-Actor (Finder + Vendor + Coordinator), and MultiParty (with ownership
+transfer and expanded participants) — are important for showcasing the
+capabilities of the Vultron Protocol and demonstrating how components work
+together. Implementing these demos will help identify gaps in the current
+implementation and provide a basis for further development and refinement.
+Each scenario requires actors running in independent containers communicating
+via the Vultron Protocol, with CaseActor managing case state.
+
+See `notes/demo-future-ideas.md` for the full scenario descriptions.
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
