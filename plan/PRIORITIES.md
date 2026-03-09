@@ -34,6 +34,24 @@ Reference docs:
 - `docs/topics/behavior_logic/em_propose_bt.md`
 
 
+## Priority 50: Shift toward hexagonal architecture and port/adapter design sooner than later
+
+Closely related to the Actor independence priority that follows, we want to 
+shift towards a cleaner implementation of hexagonal architecture and port/adapter design. 
+This will require some refactoring of the existing codebase to separate 
+concerns more clearly, see `notes/architecture-ports-and-adapters.md` and  
+`specs/architecture.md` for details. This will also enable the future demo 
+scenarios to be more cleanly implemented. A number of implementations of the 
+triggerable behaviors in `vultron/api/v2/routers/triggers.py` (which is too 
+large and also needs to be split) wound up being procedural and mixed domain logic in 
+with router code. Rather than merely splitting the large file, we need to refactor this code to 
+separate concerns and move towards a cleaner architecture at the same time. 
+Also, the datalayer implementation has 
+similar problems where it would be cleaner if we were doing dependency 
+injection in a way that is consistent with the hexagonal architecture.
+This will entail some refactoring of the code base to reorganize modules and 
+split out responsibilities more cleanly.
+
 ## Priority 100: Actor independence
 
 Each actor exists in its own behavior tree domain. So Actor A and Actor B
@@ -42,14 +60,6 @@ through the Vultron Protocol through passing ActivityStreams messages with
 defined semantics. This allows us to have a clean model of individual
 actors making independent decisions based on their own internal state.
 
-## Priority 150: Shift toward hexagonal architecture and port/adapter design
-
-Closely related to the Actor independence priority, we want to shift towards 
-a cleaner implementation of hexagonal architecture and port/adapter design. 
-This will require some refactoring of the existing codebase to separate 
-concerns more clearly, see `notes/architecture-ports-and-adapters.md` and  
-`specs/architecture.md` for details. This will also enable the future demo 
-scenarios to be more cleanly implemented.
 
 ## Priority 200: Case Actor as source of truth for case state
 
