@@ -102,3 +102,28 @@ handled by `EngageCaseBT`/`DeferCaseBT`). Both endpoints:
   follow the existing pattern in the BT nodes.
 - If no participant record exists for the actor, a WARNING is logged and the
   endpoint still returns 202 with the activity (non-blocking).
+
+## Triggered behaviors do not belong in trigger endpoints
+
+Because we're going to be doing both an API-based and command-line based 
+implementation of triggered behaviors, we don't want the logic for the 
+triggered behaviors to be tightly coupled to the API endpoints. Instead, the API
+endpoints should just be responsible for handling the request, validating it, and 
+then invoking the appropriate behavior (whether that's a BT or procedural 
+code) provided in a separate module. This keeps the concerns separated (api 
+routers are just for translating API to internal calls, then behavior 
+implementations are in separate modules that can be called from both API and 
+CLI contexts).
+
+## Consider "Ports and Adapters" architecture for triggerable behaviors
+
+This seems like a good use case for a "Ports and Adapters" (Hexagonal) 
+architecture, where the triggerable behavior implementations are the core  
+domain logic, and the API endpoints and CLI commands are just different 
+adapters that call into that core logic. This would allow us to keep the  
+core behavior implementations decoupled from the specific interfaces (API 
+vs CLI) and make it easier to maintain and extend in the future. The core 
+logic can be implemented in a way that is agnostic to how it's triggered, 
+and then the API and CLI can just be thin layers that translate their 
+respective inputs into calls to the core logic.
+
