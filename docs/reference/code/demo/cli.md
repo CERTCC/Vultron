@@ -8,6 +8,7 @@ scripts via the `vultron-demo` command (DC-01-001 through DC-01-005).
 ```shell
 vultron-demo --help
 vultron-demo receive-report
+vultron-demo trigger
 vultron-demo all
 vultron-demo vultrabot cvd
 ```

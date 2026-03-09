@@ -240,6 +240,37 @@ def post_to_inbox_and_wait(
     time.sleep(delay)
 
 
+def post_to_trigger(
+    client: DataLayerClient,
+    actor_id: str,
+    behavior: str,
+    body: dict,
+) -> dict:
+    """POST to a trigger endpoint and return the response body.
+
+    Trigger endpoints allow the local actor to initiate a behavior
+    proactively (e.g. validate-report, engage-case) rather than
+    reacting to an inbound activity.
+
+    Args:
+        client: DataLayerClient instance.
+        actor_id: Full URI of the actor initiating the behavior.
+        behavior: Kebab-case behavior name (e.g. ``"validate-report"``).
+        body: Request body dict (e.g. ``{"offer_id": "..."}``).
+
+    Returns:
+        Response dict from the trigger endpoint.
+    """
+    actor_obj_id = parse_id(actor_id)["object_id"]
+    logger.info(
+        "Posting trigger '%s' for actor '%s': %s",
+        behavior,
+        actor_obj_id,
+        body,
+    )
+    return client.post(f"/actors/{actor_obj_id}/trigger/{behavior}", json=body)
+
+
 def verify_object_stored(client: DataLayerClient, obj_id: str) -> as_Object:
     """Fetch an object from the DataLayer by ID and verify it is present.
 

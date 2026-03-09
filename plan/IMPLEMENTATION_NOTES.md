@@ -96,3 +96,25 @@ now, but if we find an opportunity to integrate it cleanly (especially if it
 would help solve a problem down the road) we should consider doing so.
 
 
+
+---
+
+## 2026-03-09 — P30-6 complete: trigger sub-command in vultron-demo CLI
+
+Added `vultron-demo trigger` sub-command backed by `vultron/demo/trigger_demo.py`.
+
+Two end-to-end demo workflows are implemented:
+- **Demo 1 (validate and engage)**: finder submits report via inbox → vendor
+  calls `POST .../trigger/validate-report` → vendor calls
+  `POST .../trigger/engage-case`.
+- **Demo 2 (invalidate and close)**: finder submits report via inbox → vendor
+  calls `POST .../trigger/invalidate-report` → vendor calls
+  `POST .../trigger/close-report`.
+
+Supporting changes:
+- Added `post_to_trigger()` helper to `vultron/demo/utils.py`.
+- Added `trigger` demo to `DEMOS` list in `vultron/demo/cli.py`; it now runs
+  as part of `vultron-demo all`.
+- Updated `docs/reference/code/demo/demos.md` and `cli.md` with new entries.
+
+Phase PRIORITY-30 is now fully complete (P30-1 through P30-6).

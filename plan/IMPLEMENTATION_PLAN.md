@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-09 (gap analysis refresh #19)
+**Last Updated**: 2026-03-09 (gap analysis refresh #19, P30-6 complete)
 
 ## Overview
 
@@ -125,7 +125,7 @@ Blocked by PRIORITY-100 and PRIORITY-200.
   `{"activity": {...}}`. Add tests for each endpoint (happy path, missing `case_id`
   422, unknown actor 404).
 
-- [ ] **P30-6**: Add a `trigger` sub-command to the `vultron-demo` CLI exercising
+- [x] **P30-6**: Add a `trigger` sub-command to the `vultron-demo` CLI exercising
   at least one trigger endpoint end-to-end. Update `docs/reference/code/demo/*.md`.
 
 ---
