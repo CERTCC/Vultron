@@ -147,3 +147,23 @@ def extract_id_segment(url: str) -> str:
     buried in a validator; aligns with Python/Pydantic idioms for reusable
     constraints
   - CS-08-002 refines CS-08-001
+
+## Code Reuse (SHOULD)
+
+- `CS-09-001` New code SHOULD NOT duplicate logic already present elsewhere;
+  prefer extracting shared logic into reusable helpers, base classes, or type
+  aliases
+  - Before creating a new function, class, or Pydantic model, check whether
+    an existing one can be reused or extended
+  - When a pattern repeats across three or more call sites, extract it into a
+    shared helper
+  - **Rationale**: Duplication inflates maintenance cost and allows bug fixes
+    to be applied inconsistently
+- `CS-09-002` Pydantic request and response models for API endpoints SHOULD be
+  reused or inherited rather than duplicated
+  - If two request models are structurally identical, define one and alias or
+    inherit the other
+  - If a new request model adds one field to an existing model, subclass the
+    existing model
+  - **Rationale**: Duplicated models diverge silently over time; a hierarchy
+    makes the relationship explicit and reduces boilerplate

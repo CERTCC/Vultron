@@ -581,6 +581,9 @@ behavior across backends (in-memory / tinydb) where reasonable.
   mapping
 - **Dispatcher**: `vultron/behavior_dispatcher.py` - Dispatch logic
 - **Inbox**: `vultron/api/v2/routers/actors.py` - Endpoint implementation
+- **Triggers**: `vultron/api/v2/routers/triggers.py` - Triggerable behavior
+  endpoints (`POST /actors/{id}/trigger/{behavior-name}`); see
+  `specs/triggerable-behaviors.md`
 - **Errors**: `vultron/errors.py`, `vultron/api/v2/errors.py` - Exception
   hierarchy
 - **Data Layer**: `vultron/api/v2/datalayer/abc.py` - Persistence abstraction
@@ -853,6 +856,12 @@ handle only request parsing, validation, and response formatting — they
 delegate immediately to the behavior implementation. This supports the
 hexagonal architecture goal of keeping business logic independent of the
 transport layer. See `specs/architecture.md` ARCH-08-001.
+
+**Reuse request/response models before creating new ones**: Before adding a
+new Pydantic request or response model to a router, check whether an existing
+model can be reused or subclassed. If two models are structurally identical,
+define one and reuse it. If a new model adds one field to an existing model,
+subclass the existing model. See `specs/code-style.md` CS-09-002.
 
 **`EvaluateCasePriority` is outgoing-only**: This BT node (in
 `vultron/behaviors/report/nodes.py`) is for the **local actor deciding** to
