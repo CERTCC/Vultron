@@ -22,8 +22,6 @@ from vultron.api.v2.backend import handlers  # noqa: F401
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-from vultron.api.v2.errors import VultronApiValidationError
-from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.behavior_dispatcher import get_dispatcher, prepare_for_dispatch
 from vultron.types import DispatchActivity
@@ -32,23 +30,6 @@ logger = logging.getLogger(__name__)
 
 DISPATCHER = get_dispatcher()
 logger.info("Using dispatcher: %s", type(DISPATCHER).__name__)
-
-
-def raise_if_not_valid_activity(obj: as_Activity) -> None:
-    """
-    Raises a VultronApiValidationError if the given object is not a valid Activity.
-
-    Args:
-        obj: The object to validate.
-    Returns:
-        None
-    Raises:
-        VultronApiValidationError: If the object is not a valid Activity.
-    """
-    if obj.as_type not in VOCABULARY.activities:
-        raise VultronApiValidationError(
-            f"Invalid object type {obj.as_type} in inbox item, expected an Activity."
-        )
 
 
 def dispatch(dispatchable: DispatchActivity) -> None:
@@ -85,8 +66,6 @@ def handle_inbox_item(actor_id: str, obj: as_Activity) -> None:
     logger.debug(
         f"Validated object:\n{obj.model_dump_json(indent=2,exclude_none=True)}"
     )
-
-    raise_if_not_valid_activity(obj)
 
     dispatchable = prepare_for_dispatch(activity=obj)
     dispatch(dispatchable=dispatchable)

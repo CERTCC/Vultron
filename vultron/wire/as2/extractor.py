@@ -1,0 +1,346 @@
+"""AS2 wire layer semantic extractor for the Vultron Protocol.
+
+Maps AS2 activity structures to domain MessageSemantics. This is the sole
+location where AS2 vocabulary is translated to domain concepts (ARCH-03-001).
+This is stage 3 of the inbound pipeline: typed AS2 activity → MessageSemantics.
+
+Consolidates ActivityPattern definitions (formerly in vultron/activity_patterns.py)
+and the SEMANTICS_ACTIVITY_PATTERNS mapping + find_matching_semantics function
+(formerly in vultron/semantic_map.py) into a single extractor module.
+"""
+
+from typing import Optional, Union
+
+from pydantic import BaseModel
+
+from vultron.as_vocab.base.objects.activities.base import as_Activity
+from vultron.core.models.events import MessageSemantics
+from vultron.enums import (
+    VultronObjectType as VOtype,
+    as_IntransitiveActivityType as IAtype,
+    as_ObjectType as AOtype,
+    as_TransitiveActivityType as TAtype,
+)
+
+
+class ActivityPattern(BaseModel):
+    """Represents a pattern to match against an AS2 activity for semantic dispatch.
+
+    Supports nested patterns for activities whose object is itself an activity.
+    """
+
+    description: Optional[str] = None
+    activity_: TAtype | IAtype
+
+    to_: Optional[Union[AOtype, VOtype, "ActivityPattern"]] = None
+    object_: Optional[Union[AOtype, VOtype, "ActivityPattern"]] = None
+    target_: Optional[Union[AOtype, VOtype, "ActivityPattern"]] = None
+    context_: Optional[Union[AOtype, VOtype, "ActivityPattern"]] = None
+    in_reply_to_: Optional["ActivityPattern"] = None
+
+    def match(self, activity: as_Activity) -> bool:
+        """Return True if the given activity matches this pattern."""
+        if self.activity_ != activity.as_type:
+            return False
+
+        def _match_field(pattern_field, activity_field) -> bool:
+            if pattern_field is None:
+                return True
+            # URI/ID string reference: can't type-check, conservatively allow
+            if isinstance(activity_field, str):
+                return True
+            if isinstance(pattern_field, ActivityPattern):
+                return pattern_field.match(activity_field)
+            return pattern_field == getattr(activity_field, "as_type", None)
+
+        if not _match_field(
+            self.object_, getattr(activity, "as_object", None)
+        ):
+            return False
+        if not _match_field(self.target_, getattr(activity, "target", None)):
+            return False
+        if not _match_field(self.context_, getattr(activity, "context", None)):
+            return False
+        if not _match_field(self.to_, getattr(activity, "to", None)):
+            return False
+        if not _match_field(
+            self.in_reply_to_, getattr(activity, "in_reply_to", None)
+        ):
+            return False
+
+        return True
+
+
+# ---------------------------------------------------------------------------
+# Pattern instances (formerly in vultron/activity_patterns.py)
+# ---------------------------------------------------------------------------
+
+CreateEmbargoEvent = ActivityPattern(
+    description=(
+        "Create an embargo event. This is the initial step in the embargo "
+        "management process, where a coordinator creates an embargo event to "
+        "manage the embargo on a vulnerability case."
+    ),
+    activity_=TAtype.CREATE,
+    object_=AOtype.EVENT,
+    context_=VOtype.VULNERABILITY_CASE,
+)
+AddEmbargoEventToCase = ActivityPattern(
+    description=(
+        "Add an embargo event to a vulnerability case. This is typically "
+        "observed as an ADD activity where the object is an EVENT and the "
+        "target is a VULNERABILITY_CASE."
+    ),
+    activity_=TAtype.ADD,
+    object_=AOtype.EVENT,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+RemoveEmbargoEventFromCase = ActivityPattern(
+    description=(
+        "Remove an embargo event from a vulnerability case. This is typically "
+        "observed as a REMOVE activity where the object is an EVENT. The "
+        "origin field of the activity contains the VulnerabilityCase from "
+        "which the embargo is removed."
+    ),
+    activity_=TAtype.REMOVE,
+    object_=AOtype.EVENT,
+)
+AnnounceEmbargoEventToCase = ActivityPattern(
+    description=(
+        "Announce an embargo event to a vulnerability case. This is typically "
+        "observed as an ANNOUNCE activity where the object is an EVENT and the "
+        "context is a VULNERABILITY_CASE."
+    ),
+    activity_=TAtype.ANNOUNCE,
+    object_=AOtype.EVENT,
+    context_=VOtype.VULNERABILITY_CASE,
+)
+InviteToEmbargoOnCase = ActivityPattern(
+    description=(
+        "Propose an embargo on a vulnerability case. "
+        "This is observed as an INVITE activity where the object is an "
+        "EmbargoEvent and the context is the VulnerabilityCase. "
+        "Corresponds to EmProposeEmbargo."
+    ),
+    activity_=TAtype.INVITE,
+    object_=AOtype.EVENT,
+    context_=VOtype.VULNERABILITY_CASE,
+)
+AcceptInviteToEmbargoOnCase = ActivityPattern(
+    description="Accept an invitation to an embargo on a vulnerability case.",
+    activity_=TAtype.ACCEPT,
+    object_=InviteToEmbargoOnCase,
+)
+RejectInviteToEmbargoOnCase = ActivityPattern(
+    description="Reject an invitation to an embargo on a vulnerability case.",
+    activity_=TAtype.REJECT,
+    object_=InviteToEmbargoOnCase,
+)
+CreateReport = ActivityPattern(
+    description=(
+        "Create a vulnerability report. This is the initial step in the "
+        "vulnerability disclosure process, where a finder creates a report to "
+        "disclose a vulnerability. It may not always be observed directly, as "
+        "it could be implicit in the OFFER of the report."
+    ),
+    activity_=TAtype.CREATE,
+    object_=VOtype.VULNERABILITY_REPORT,
+)
+ReportSubmission = ActivityPattern(
+    description=(
+        "Submit a vulnerability report for validation. This is typically "
+        "observed as an OFFER of a VULNERABILITY_REPORT, which represents the "
+        "submission of the report to a coordinator or vendor for validation."
+    ),
+    activity_=TAtype.OFFER,
+    object_=VOtype.VULNERABILITY_REPORT,
+)
+AckReport = ActivityPattern(activity_=TAtype.READ, object_=ReportSubmission)
+ValidateReport = ActivityPattern(
+    activity_=TAtype.ACCEPT, object_=ReportSubmission
+)
+InvalidateReport = ActivityPattern(
+    activity_=TAtype.TENTATIVE_REJECT, object_=ReportSubmission
+)
+CloseReport = ActivityPattern(
+    activity_=TAtype.REJECT, object_=ReportSubmission
+)
+CreateCase = ActivityPattern(
+    activity_=TAtype.CREATE, object_=VOtype.VULNERABILITY_CASE
+)
+UpdateCase = ActivityPattern(
+    activity_=TAtype.UPDATE, object_=VOtype.VULNERABILITY_CASE
+)
+EngageCase = ActivityPattern(
+    description=(
+        "Actor engages (joins) a VulnerabilityCase, transitioning their RM "
+        "state to ACCEPTED."
+    ),
+    activity_=TAtype.JOIN,
+    object_=VOtype.VULNERABILITY_CASE,
+)
+DeferCase = ActivityPattern(
+    description=(
+        "Actor defers (ignores) a VulnerabilityCase, transitioning their RM "
+        "state to DEFERRED."
+    ),
+    activity_=TAtype.IGNORE,
+    object_=VOtype.VULNERABILITY_CASE,
+)
+AddReportToCase = ActivityPattern(
+    activity_=TAtype.ADD,
+    object_=VOtype.VULNERABILITY_REPORT,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+SuggestActorToCase = ActivityPattern(
+    activity_=TAtype.OFFER,
+    object_=AOtype.ACTOR,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+AcceptSuggestActorToCase = ActivityPattern(
+    activity_=TAtype.ACCEPT, object_=SuggestActorToCase
+)
+RejectSuggestActorToCase = ActivityPattern(
+    activity_=TAtype.REJECT, object_=SuggestActorToCase
+)
+OfferCaseOwnershipTransfer = ActivityPattern(
+    activity_=TAtype.OFFER, object_=VOtype.VULNERABILITY_CASE
+)
+AcceptCaseOwnershipTransfer = ActivityPattern(
+    activity_=TAtype.ACCEPT, object_=OfferCaseOwnershipTransfer
+)
+RejectCaseOwnershipTransfer = ActivityPattern(
+    activity_=TAtype.REJECT, object_=OfferCaseOwnershipTransfer
+)
+InviteActorToCase = ActivityPattern(
+    activity_=TAtype.INVITE,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+AcceptInviteActorToCase = ActivityPattern(
+    activity_=TAtype.ACCEPT,
+    object_=InviteActorToCase,
+)
+RejectInviteActorToCase = ActivityPattern(
+    activity_=TAtype.REJECT,
+    object_=InviteActorToCase,
+)
+CloseCase = ActivityPattern(
+    activity_=TAtype.LEAVE, object_=VOtype.VULNERABILITY_CASE
+)
+CreateNote = ActivityPattern(
+    activity_=TAtype.CREATE,
+    object_=AOtype.NOTE,
+)
+AddNoteToCase = ActivityPattern(
+    activity_=TAtype.ADD,
+    object_=AOtype.NOTE,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+RemoveNoteFromCase = ActivityPattern(
+    activity_=TAtype.REMOVE,
+    object_=AOtype.NOTE,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+CreateCaseParticipant = ActivityPattern(
+    activity_=TAtype.CREATE,
+    object_=VOtype.CASE_PARTICIPANT,
+    context_=VOtype.VULNERABILITY_CASE,
+)
+AddCaseParticipantToCase = ActivityPattern(
+    activity_=TAtype.ADD,
+    object_=VOtype.CASE_PARTICIPANT,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+RemoveCaseParticipantFromCase = ActivityPattern(
+    activity_=TAtype.REMOVE,
+    object_=VOtype.CASE_PARTICIPANT,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+CreateCaseStatus = ActivityPattern(
+    activity_=TAtype.CREATE,
+    object_=VOtype.CASE_STATUS,
+    context_=VOtype.VULNERABILITY_CASE,
+)
+AddCaseStatusToCase = ActivityPattern(
+    activity_=TAtype.ADD,
+    object_=VOtype.CASE_STATUS,
+    target_=VOtype.VULNERABILITY_CASE,
+)
+CreateParticipantStatus = ActivityPattern(
+    activity_=TAtype.CREATE,
+    object_=VOtype.PARTICIPANT_STATUS,
+)
+AddParticipantStatusToParticipant = ActivityPattern(
+    activity_=TAtype.ADD,
+    object_=VOtype.PARTICIPANT_STATUS,
+    target_=VOtype.CASE_PARTICIPANT,
+)
+
+
+# ---------------------------------------------------------------------------
+# Semantics → pattern mapping (formerly in vultron/semantic_map.py)
+# The order of entries matters: find_matching_semantics returns the first match.
+# ---------------------------------------------------------------------------
+
+SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
+    MessageSemantics.CREATE_REPORT: CreateReport,
+    MessageSemantics.SUBMIT_REPORT: ReportSubmission,
+    MessageSemantics.ACK_REPORT: AckReport,
+    MessageSemantics.VALIDATE_REPORT: ValidateReport,
+    MessageSemantics.INVALIDATE_REPORT: InvalidateReport,
+    MessageSemantics.CLOSE_REPORT: CloseReport,
+    MessageSemantics.CREATE_CASE: CreateCase,
+    MessageSemantics.UPDATE_CASE: UpdateCase,
+    MessageSemantics.ENGAGE_CASE: EngageCase,
+    MessageSemantics.DEFER_CASE: DeferCase,
+    MessageSemantics.ADD_REPORT_TO_CASE: AddReportToCase,
+    MessageSemantics.SUGGEST_ACTOR_TO_CASE: SuggestActorToCase,
+    MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE: AcceptSuggestActorToCase,
+    MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE: RejectSuggestActorToCase,
+    MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER: OfferCaseOwnershipTransfer,
+    MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER: AcceptCaseOwnershipTransfer,
+    MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER: RejectCaseOwnershipTransfer,
+    MessageSemantics.INVITE_ACTOR_TO_CASE: InviteActorToCase,
+    MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE: AcceptInviteActorToCase,
+    MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE: RejectInviteActorToCase,
+    MessageSemantics.CREATE_EMBARGO_EVENT: CreateEmbargoEvent,
+    MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE: AddEmbargoEventToCase,
+    MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE: RemoveEmbargoEventFromCase,
+    MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE: AnnounceEmbargoEventToCase,
+    MessageSemantics.INVITE_TO_EMBARGO_ON_CASE: InviteToEmbargoOnCase,
+    MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE: AcceptInviteToEmbargoOnCase,
+    MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE: RejectInviteToEmbargoOnCase,
+    MessageSemantics.CLOSE_CASE: CloseCase,
+    MessageSemantics.CREATE_CASE_PARTICIPANT: CreateCaseParticipant,
+    MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE: AddCaseParticipantToCase,
+    MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE: RemoveCaseParticipantFromCase,
+    MessageSemantics.CREATE_NOTE: CreateNote,
+    MessageSemantics.ADD_NOTE_TO_CASE: AddNoteToCase,
+    MessageSemantics.REMOVE_NOTE_FROM_CASE: RemoveNoteFromCase,
+    MessageSemantics.CREATE_CASE_STATUS: CreateCaseStatus,
+    MessageSemantics.ADD_CASE_STATUS_TO_CASE: AddCaseStatusToCase,
+    MessageSemantics.CREATE_PARTICIPANT_STATUS: CreateParticipantStatus,
+    MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT: AddParticipantStatusToParticipant,
+}
+
+
+def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
+    """Find the MessageSemantics for the given AS2 activity.
+
+    Iterates SEMANTICS_ACTIVITY_PATTERNS in order and returns the first match.
+    Returns MessageSemantics.UNKNOWN if no pattern matches.
+
+    Note:
+        Pattern ordering matters when patterns overlap. More specific patterns
+        must appear before more general ones.
+
+    Args:
+        activity: The AS2 activity to classify.
+
+    Returns:
+        The matching MessageSemantics value, or MessageSemantics.UNKNOWN.
+    """
+    for semantics, pattern in SEMANTICS_ACTIVITY_PATTERNS.items():
+        if pattern.match(activity):
+            return semantics
+    return MessageSemantics.UNKNOWN

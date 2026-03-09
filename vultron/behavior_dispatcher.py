@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 from vultron.dispatcher_errors import VultronApiHandlerNotFoundError
 from vultron.core.models.events import InboundPayload, MessageSemantics
-from vultron.semantic_map import find_matching_semantics
+from vultron.wire.as2.extractor import find_matching_semantics
 from vultron.types import BehaviorHandler, DispatchActivity
 
 logger = logging.getLogger(__name__)

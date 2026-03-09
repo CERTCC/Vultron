@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50; P50-0 complete, ARCH-1.1 complete, ARCH-1.2 complete)
+**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50; P50-0 complete, ARCH-1.1 complete, ARCH-1.2 complete, ARCH-1.3 complete)
 
 ## Overview
 
@@ -155,7 +155,7 @@ the deeper layering violations. Work in the order below.
   V-03). Update `DispatchActivity`, all handlers, and `verify_semantics`.
   Tests pass.
 
-- [ ] **ARCH-1.3** (R-03 + R-04): Consolidate parsing and extraction — move
+- [x] **ARCH-1.3** (R-03 + R-04): Consolidate parsing and extraction — move
   `parse_activity` from router into `wire/as2/parser.py`; consolidate
   `find_matching_semantics` + `ActivityPattern.match()` into
   `wire/as2/extractor.py`; remove second `find_matching_semantics` call in

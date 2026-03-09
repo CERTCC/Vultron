@@ -5,37 +5,9 @@ from unittest.mock import Mock
 import pytest
 
 from vultron.api.v2.backend import inbox_handler as ih
-from vultron.api.v2.errors import VultronApiValidationError
-
-
-def test_raise_if_not_valid_activity_raises(monkeypatch):
-    # Arrange: ensure VOCABULARY.activities does not contain the test type
-    monkeypatch.setattr(
-        ih,
-        "VOCABULARY",
-        SimpleNamespace(activities={"SomeOtherActivity"}),
-        raising=False,
-    )
-
-    class FakeObj:
-        as_type = "NotAnActivity"
-
-    obj = FakeObj()
-
-    # Act / Assert
-    with pytest.raises(VultronApiValidationError):
-        ih.raise_if_not_valid_activity(obj)
 
 
 def test_handle_inbox_item_dispatches(monkeypatch):
-    # Arrange: make the object look like a valid Activity type
-    monkeypatch.setattr(
-        ih,
-        "VOCABULARY",
-        SimpleNamespace(activities={"TestActivity"}),
-        raising=False,
-    )
-
     class FakeActivity:
         as_type = "TestActivity"
         name = "fake"

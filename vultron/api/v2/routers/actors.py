@@ -28,12 +28,16 @@ from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.datalayer.abc import DataLayer
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-from vultron.as_vocab import VOCABULARY
 from vultron.as_vocab.base.objects.activities.base import as_Activity
 from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.base.objects.collections import as_OrderedCollection
 from vultron.as_vocab.base.registry import find_in_vocabulary
 from vultron.as_vocab.type_helpers import AsActivityType
+from vultron.wire.as2.errors import (
+    VultronParseError,
+    VultronParseMissingTypeError,
+)
+from vultron.wire.as2.parser import parse_activity as _parse_activity
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -136,35 +140,33 @@ def get_actor_inbox(
 
 
 def parse_activity(body: dict) -> AsActivityType:
-    """Parses the incoming request body into an as_Activity object.
+    """HTTP adapter: parse request body and map wire errors to HTTP responses.
+
+    Delegates AS2 parsing to the wire layer and converts domain parse errors
+    into appropriate HTTP status codes for FastAPI.
+
     Args:
         body: The request body as a dictionary.
+
     Returns:
-        An as_Activity object.
+        A typed as_Activity subclass instance.
+
     Raises:
-        HTTPException: If the activity type is unknown or validation fails.
+        HTTPException: 400 if the `type` field is missing; 422 for all other
+            parse failures (unknown type, validation error).
     """
     logger.info(f"Parsing activity from request body. {body}")
-
-    as_type = body.get("type")
-    if as_type is None:
+    try:
+        return _parse_activity(body)
+    except VultronParseMissingTypeError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing 'type' field in activity.",
+            detail=str(exc),
         )
-
-    cls = VOCABULARY.activities.get(as_type)
-    if cls is None:
+    except VultronParseError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Unrecognized activity type.",
-        )
-
-    try:
-        return cls.model_validate(body)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e)
+            detail=str(exc),
         )
 
 
