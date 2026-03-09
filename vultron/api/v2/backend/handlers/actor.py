@@ -25,7 +25,7 @@ def suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -69,7 +69,7 @@ def accept_suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -109,7 +109,7 @@ def reject_suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the RejectActorRecommendation
     """
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         object_ref = activity.as_object
@@ -146,7 +146,7 @@ def offer_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -191,7 +191,7 @@ def accept_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -246,7 +246,7 @@ def reject_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the RejectCaseOwnershipTransfer
     """
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         offer_ref = activity.as_object
@@ -280,7 +280,7 @@ def invite_actor_to_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -326,7 +326,7 @@ def accept_invite_actor_to_case(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.as_vocab.objects.case_participant import CaseParticipant
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         invite = rehydrate(obj=activity.as_object)
@@ -388,7 +388,7 @@ def reject_invite_actor_to_case(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the RmRejectInviteToCase
     """
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         invite_ref = activity.as_object

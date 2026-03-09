@@ -26,7 +26,7 @@ def create_report(dispatchable: DispatchActivity) -> None:
         VulnerabilityReport,
     )
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     # Extract the created report
     created_obj = activity.as_object
@@ -86,7 +86,7 @@ def submit_report(dispatchable: DispatchActivity) -> None:
         VulnerabilityReport,
     )
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     # Extract the offered report
     offered_obj = activity.as_object
@@ -154,7 +154,7 @@ def validate_report(dispatchable: DispatchActivity) -> None:
         create_validate_report_tree,
     )
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     # Rehydrate the accepted offer and report (validation phase)
     try:
@@ -252,7 +252,7 @@ def invalidate_report(dispatchable: DispatchActivity) -> None:
     from vultron.bt.report_management.states import RM
     from vultron.enums import OfferStatusEnum
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         # Rehydrate actor, offer, and report
@@ -335,7 +335,7 @@ def ack_report(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         # Rehydrate actor and offer
@@ -397,7 +397,7 @@ def close_report(dispatchable: DispatchActivity) -> None:
     from vultron.bt.report_management.states import RM
     from vultron.enums import OfferStatusEnum
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         # Rehydrate actor, offer, and report

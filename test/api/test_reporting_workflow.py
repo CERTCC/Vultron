@@ -84,8 +84,16 @@ def _call_handler(
     assert semantics != MessageSemantics.UNKNOWN
     assert semantics in MessageSemantics
 
+    from vultron.core.models.events import InboundPayload
+
+    payload = InboundPayload(
+        activity_id=activity.as_id,
+        actor_id=str(activity.actor) if activity.actor else "",
+        raw_activity=activity,
+    )
+
     dispatchable = DispatchActivity(
-        semantic_type=semantics, activity_id=activity.as_id, payload=activity
+        semantic_type=semantics, activity_id=activity.as_id, payload=payload
     )
 
     try:

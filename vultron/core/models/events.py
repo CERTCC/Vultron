@@ -5,6 +5,9 @@ in the system, as understood by the domain layer.
 """
 
 from enum import auto, StrEnum
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict
 
 
 class MessageSemantics(StrEnum):
@@ -60,3 +63,19 @@ class MessageSemantics(StrEnum):
 
     # reserved for activities that don't fit any of the above semantics, but we want to be able to dispatch on them anyway
     UNKNOWN = auto()
+
+
+class InboundPayload(BaseModel):
+    """Domain-level wrapper around an inbound wire-format activity.
+
+    Produced by the extractor before dispatch. The `raw_activity` field carries
+    the original wire-format object; core logic MUST NOT inspect its AS2 types.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    activity_id: str
+    actor_id: str
+    object_type: str | None = None
+    object_id: str | None = None
+    raw_activity: Any  # the original as_Activity; opaque to core logic

@@ -30,7 +30,7 @@ def create_case(dispatchable: DispatchActivity) -> None:
     from vultron.behaviors.bridge import BTBridge
     from vultron.behaviors.case.create_tree import create_create_case_tree
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         actor = rehydrate(obj=activity.actor)
@@ -85,7 +85,7 @@ def engage_case(dispatchable: DispatchActivity) -> None:
         create_engage_case_tree,
     )
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         actor = rehydrate(obj=activity.actor)
@@ -142,7 +142,7 @@ def defer_case(dispatchable: DispatchActivity) -> None:
     from vultron.behaviors.bridge import BTBridge
     from vultron.behaviors.report.prioritize_tree import create_defer_case_tree
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         actor = rehydrate(obj=activity.actor)
@@ -197,7 +197,7 @@ def add_report_to_case(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         report = rehydrate(obj=activity.as_object)
@@ -249,7 +249,7 @@ def close_case(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.as_vocab.activities.case import RmCloseCase
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         actor = rehydrate(obj=activity.actor)
@@ -315,7 +315,7 @@ def update_case(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         actor_id = (

@@ -24,7 +24,7 @@ def create_case_status(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -66,7 +66,7 @@ def add_case_status_to_case(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -112,7 +112,7 @@ def create_participant_status(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -156,7 +156,7 @@ def add_participant_status_to_participant(
     from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()

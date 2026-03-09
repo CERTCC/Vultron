@@ -3,18 +3,17 @@ Provides a behavior dispatcher for Vultron
 """
 
 import logging
-from typing import Protocol
+from typing import Any, Protocol
 
 from vultron.dispatcher_errors import VultronApiHandlerNotFoundError
-from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events import InboundPayload, MessageSemantics
 from vultron.semantic_map import find_matching_semantics
 from vultron.types import BehaviorHandler, DispatchActivity
 
 logger = logging.getLogger(__name__)
 
 
-def prepare_for_dispatch(activity: as_Activity) -> DispatchActivity:
+def prepare_for_dispatch(activity: Any) -> DispatchActivity:
     """
     Prepares an activity for dispatch by extracting its message semantics and packaging it into a DispatchActivity.
     """
@@ -25,15 +24,29 @@ def prepare_for_dispatch(activity: as_Activity) -> DispatchActivity:
     # We want dispatching to be simple and fast, so we only need to extract enough information
     # to decide how to route the message. Any additional extraction can be downstream of the dispatcher.
 
+    actor_id = str(activity.actor) if activity.actor else ""
+    obj = getattr(activity, "as_object", None)
+    object_id = getattr(obj, "as_id", None) if obj is not None else None
+    object_type = (
+        str(getattr(obj, "as_type", None)) if obj is not None else None
+    )
+
+    payload = InboundPayload(
+        activity_id=activity.as_id,
+        actor_id=actor_id,
+        object_type=object_type,
+        object_id=object_id,
+        raw_activity=activity,
+    )
     data = {
         "semantic_type": find_matching_semantics(activity=activity),
         "activity_id": activity.as_id,
-        "payload": activity,
+        "payload": payload,
     }
 
     dispatch_msg = DispatchActivity(**data)
     logger.debug(
-        f"Prepared dispatch message with semantics '{dispatch_msg.semantic_type}' for activity '{dispatch_msg.payload.as_id}'"
+        f"Prepared dispatch message with semantics '{dispatch_msg.semantic_type}' for activity '{dispatch_msg.payload.activity_id}'"
     )
     return dispatch_msg
 
@@ -54,11 +67,11 @@ class DispatcherBase(ActivityDispatcher):
     """
 
     def dispatch(self, dispatchable: DispatchActivity) -> None:
-        activity = dispatchable.payload
+        activity = dispatchable.payload.raw_activity
         semantic_type = dispatchable.semantic_type
 
         logger.info(
-            f"Dispatching activity of type '{activity.as_type}' with semantics '{semantic_type}'"
+            f"Dispatching activity of type '{dispatchable.payload.object_type}' with semantics '{semantic_type}'"
         )
         logger.debug(f"Activity payload: {activity.model_dump_json(indent=2)}")
         self._handle(dispatchable)

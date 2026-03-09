@@ -29,7 +29,7 @@ def create_case_participant(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         participant = rehydrate(obj=activity.as_object)
@@ -74,7 +74,7 @@ def add_case_participant_to_case(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         participant = rehydrate(obj=activity.as_object)
@@ -128,7 +128,7 @@ def remove_case_participant_from_case(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         participant = rehydrate(obj=activity.as_object)

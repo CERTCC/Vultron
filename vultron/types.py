@@ -8,8 +8,7 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
-from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events import InboundPayload, MessageSemantics
 
 
 class DispatchActivity(BaseModel):
@@ -19,9 +18,9 @@ class DispatchActivity(BaseModel):
 
     semantic_type: MessageSemantics
     activity_id: str
-    payload: as_Activity
+    payload: InboundPayload
     # We are deliberately not including case_id or report_id here because
-    # where they are located in the payload can vary depending on message semantics.
+    # where they are located in payload.raw_activity can vary depending on message semantics.
     # Therefore it is better to leave it to downstream semantic-specific handlers to
     # extract those values for logging or other purposes rather than having to build
     # a parallel extraction logic here in the dispatcher that may not be universally applicable.

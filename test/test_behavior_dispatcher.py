@@ -2,6 +2,7 @@ import logging
 from vultron import behavior_dispatcher as bd
 from vultron.as_vocab.base.objects.activities.transitive import as_Create
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.core.models.events import InboundPayload, MessageSemantics
 from vultron.enums import as_TransitiveActivityType
 
 MessageSemantics = bd.MessageSemantics
@@ -26,12 +27,11 @@ def test_prepare_for_dispatch_parses_activity_and_constructs_dispatchactivity(
     assert dispatch_msg.semantic_type == MessageSemantics.UNKNOWN
     assert dispatch_msg.activity_id == "act-123"
 
-    # payload should be a real as_Activity instance
-    assert isinstance(dispatch_msg.payload, bd.as_Activity)
-    # and retain the expected field values
-    assert getattr(dispatch_msg.payload, "as_id", None) == "act-123"
+    # payload should be an InboundPayload instance
+    assert isinstance(dispatch_msg.payload, InboundPayload)
+    assert dispatch_msg.payload.activity_id == "act-123"
     assert (
-        getattr(dispatch_msg.payload, "as_type", None)
+        getattr(dispatch_msg.payload.raw_activity, "as_type", None)
         == as_TransitiveActivityType.CREATE
     )
 
@@ -60,12 +60,15 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
         object=report,
     )
 
-    # Construct a DispatchActivity using a real as_Activity payload
-    # Use CREATE_REPORT semantics to match the activity structure
+    # Construct a DispatchActivity using an InboundPayload
     dispatchable = bd.DispatchActivity(
         semantic_type=MessageSemantics.CREATE_REPORT,
         activity_id=activity.as_id,
-        payload=activity,
+        payload=InboundPayload(
+            activity_id=activity.as_id,
+            actor_id="https://example.org/users/tester",
+            raw_activity=activity,
+        ),
     )
 
     dispatcher.dispatch(dispatchable)

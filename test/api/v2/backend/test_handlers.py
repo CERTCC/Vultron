@@ -20,8 +20,19 @@ from vultron.api.v2.errors import (
 from vultron.as_vocab.base.objects.activities.transitive import as_Create
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events import InboundPayload, MessageSemantics
 from vultron.types import DispatchActivity
+
+
+def _make_payload(activity):
+    """Wrap a raw activity in InboundPayload for use in tests."""
+    return InboundPayload(
+        activity_id=getattr(activity, "as_id", "") or "",
+        actor_id=(
+            str(activity.actor) if getattr(activity, "actor", None) else ""
+        ),
+        raw_activity=activity,
+    )
 
 
 class TestVerifySemanticsDecorator:
@@ -46,7 +57,7 @@ class TestVerifySemanticsDecorator:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=report
         )
-        mock_activity.payload = create_activity
+        mock_activity.payload = _make_payload(create_activity)
 
         # Should execute successfully
         result = test_handler(mock_activity)
@@ -74,18 +85,9 @@ class TestVerifySemanticsDecorator:
         def test_handler(dispatchable: DispatchActivity) -> str:
             return "success"
 
-        # Create mock that claims CREATE_REPORT but payload says CREATE_CASE
+        # Create mock with wrong semantic_type (handler expects CREATE_REPORT)
         mock_activity = MagicMock(spec=DispatchActivity)
-        mock_activity.semantic_type = MessageSemantics.CREATE_REPORT
-
-        # Create proper as_Create activity with VulnerabilityCase object (mismatched!)
-        case = VulnerabilityCase(
-            name="TEST-CASE-001", content="Test vulnerability case"
-        )
-        create_case_activity = as_Create(
-            actor="https://example.org/users/tester", object=case
-        )
-        mock_activity.payload = create_case_activity
+        mock_activity.semantic_type = MessageSemantics.CREATE_CASE
 
         # Should raise VultronApiHandlerSemanticMismatchError
         with pytest.raises(VultronApiHandlerSemanticMismatchError):
@@ -172,7 +174,7 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=report
         )
-        mock_activity.payload = create_activity
+        mock_activity.payload = _make_payload(create_activity)
 
         # Should execute without raising
         result = handlers.create_report(mock_activity)
@@ -191,7 +193,7 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=case
         )
-        mock_activity.payload = create_activity
+        mock_activity.payload = _make_payload(create_activity)
 
         # Should execute without raising
         result = handlers.create_case(mock_activity)
@@ -200,19 +202,9 @@ class TestHandlerExecution:
     def test_handler_rejects_wrong_semantic_type(self):
         """Test handler rejects activity with wrong semantic type."""
         mock_activity = MagicMock(spec=DispatchActivity)
-        mock_activity.semantic_type = MessageSemantics.CREATE_REPORT
+        mock_activity.semantic_type = MessageSemantics.CREATE_CASE
 
-        # Create proper as_Create activity with VulnerabilityCase object
-        # Payload says CREATE_CASE, but handler expects CREATE_REPORT
-        case = VulnerabilityCase(
-            name="TEST-CASE-003", content="Test vulnerability case"
-        )
-        create_activity = as_Create(
-            actor="https://example.org/users/tester", object=case
-        )
-        mock_activity.payload = create_activity
-
-        # Should raise semantic mismatch error
+        # Should raise semantic mismatch error (handler expects CREATE_REPORT)
         with pytest.raises(VultronApiHandlerSemanticMismatchError):
             handlers.create_report(mock_activity)
 
@@ -241,7 +233,7 @@ class TestInviteActorHandlers:
 
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.INVITE_ACTOR_TO_CASE
-        mock_dispatchable.payload = invite
+        mock_dispatchable.payload = _make_payload(invite)
 
         handlers.invite_actor_to_case(mock_dispatchable)
 
@@ -268,7 +260,7 @@ class TestInviteActorHandlers:
 
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.INVITE_ACTOR_TO_CASE
-        mock_dispatchable.payload = invite
+        mock_dispatchable.payload = _make_payload(invite)
 
         handlers.invite_actor_to_case(mock_dispatchable)
         handlers.invite_actor_to_case(
@@ -300,7 +292,7 @@ class TestInviteActorHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = reject
+        mock_dispatchable.payload = _make_payload(reject)
 
         result = handlers.reject_invite_actor_to_case(mock_dispatchable)
         assert result is None
@@ -346,7 +338,7 @@ class TestInviteActorHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
         )
-        mock_dispatchable.payload = remove_activity
+        mock_dispatchable.payload = _make_payload(remove_activity)
 
         handlers.remove_case_participant_from_case(mock_dispatchable)
 
@@ -395,7 +387,7 @@ class TestInviteActorHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
         )
-        mock_dispatchable.payload = remove_activity
+        mock_dispatchable.payload = _make_payload(remove_activity)
 
         result = handlers.remove_case_participant_from_case(mock_dispatchable)
         assert result is None
@@ -437,7 +429,7 @@ class TestEmbargoHandlers:
 
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.CREATE_EMBARGO_EVENT
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.create_embargo_event(mock_dispatchable)
 
@@ -476,7 +468,7 @@ class TestEmbargoHandlers:
         )
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.CREATE_EMBARGO_EVENT
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.create_embargo_event(mock_dispatchable)
         handlers.create_embargo_event(mock_dispatchable)  # second call no-op
@@ -520,7 +512,7 @@ class TestEmbargoHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.add_embargo_event_to_case(mock_dispatchable)
 
@@ -554,7 +546,7 @@ class TestEmbargoHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
         )
-        mock_dispatchable.payload = proposal
+        mock_dispatchable.payload = _make_payload(proposal)
 
         handlers.invite_to_embargo_on_case(mock_dispatchable)
 
@@ -614,7 +606,7 @@ class TestEmbargoHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
         )
-        mock_dispatchable.payload = accept
+        mock_dispatchable.payload = _make_payload(accept)
 
         handlers.accept_invite_to_embargo_on_case(mock_dispatchable)
 
@@ -649,7 +641,7 @@ class TestEmbargoHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE
         )
-        mock_dispatchable.payload = reject
+        mock_dispatchable.payload = _make_payload(reject)
 
         result = handlers.reject_invite_to_embargo_on_case(mock_dispatchable)
         assert result is None
@@ -683,7 +675,7 @@ class TestNoteHandlers:
 
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.CREATE_NOTE
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.create_note(mock_dispatchable)
 
@@ -714,7 +706,7 @@ class TestNoteHandlers:
         )
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.CREATE_NOTE
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         dl.create(note)
         handlers.create_note(mock_dispatchable)
@@ -759,7 +751,7 @@ class TestNoteHandlers:
         )
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.add_note_to_case(mock_dispatchable)
 
@@ -803,7 +795,7 @@ class TestNoteHandlers:
         )
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.add_note_to_case(mock_dispatchable)
 
@@ -851,7 +843,7 @@ class TestNoteHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.REMOVE_NOTE_FROM_CASE
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.remove_note_from_case(mock_dispatchable)
 
@@ -898,7 +890,7 @@ class TestNoteHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.REMOVE_NOTE_FROM_CASE
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         result = handlers.remove_note_from_case(mock_dispatchable)
         assert result is None
@@ -938,7 +930,7 @@ class TestStatusHandlers:
 
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.CREATE_CASE_STATUS
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.create_case_status(mock_dispatchable)
 
@@ -977,7 +969,7 @@ class TestStatusHandlers:
         )
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.CREATE_CASE_STATUS
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.create_case_status(mock_dispatchable)
 
@@ -1023,7 +1015,7 @@ class TestStatusHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.ADD_CASE_STATUS_TO_CASE
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.add_case_status_to_case(mock_dispatchable)
 
@@ -1068,7 +1060,7 @@ class TestStatusHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.CREATE_PARTICIPANT_STATUS
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.create_participant_status(mock_dispatchable)
 
@@ -1126,7 +1118,7 @@ class TestStatusHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.add_participant_status_to_participant(mock_dispatchable)
 
@@ -1168,7 +1160,7 @@ class TestSuggestActorHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.SUGGEST_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.suggest_actor_to_case(mock_dispatchable)
 
@@ -1201,7 +1193,7 @@ class TestSuggestActorHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.SUGGEST_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.suggest_actor_to_case(mock_dispatchable)
         handlers.suggest_actor_to_case(mock_dispatchable)
@@ -1246,7 +1238,7 @@ class TestSuggestActorHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.accept_suggest_actor_to_case(mock_dispatchable)
 
@@ -1284,7 +1276,7 @@ class TestSuggestActorHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
             handlers.reject_suggest_actor_to_case(mock_dispatchable)
@@ -1319,7 +1311,7 @@ class TestOwnershipTransferHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.offer_case_ownership_transfer(mock_dispatchable)
 
@@ -1369,7 +1361,7 @@ class TestOwnershipTransferHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.accept_case_ownership_transfer(mock_dispatchable)
 
@@ -1410,7 +1402,7 @@ class TestOwnershipTransferHandlers:
         mock_dispatchable.semantic_type = (
             MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER
         )
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
             handlers.reject_case_ownership_transfer(mock_dispatchable)
@@ -1458,7 +1450,7 @@ class TestUpdateCaseHandler:
         )
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
             handlers.update_case(mock_dispatchable)
@@ -1505,7 +1497,7 @@ class TestUpdateCaseHandler:
         )
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
             handlers.update_case(mock_dispatchable)
@@ -1549,7 +1541,7 @@ class TestUpdateCaseHandler:
         )
         mock_dispatchable = MagicMock(spec=DispatchActivity)
         mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = activity
+        mock_dispatchable.payload = _make_payload(activity)
 
         handlers.update_case(mock_dispatchable)
         handlers.update_case(mock_dispatchable)

@@ -24,7 +24,7 @@ def create_embargo_event(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -65,7 +65,7 @@ def add_embargo_event_to_case(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -129,7 +129,7 @@ def remove_embargo_event_from_case(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.bt.embargo_management.states import EM
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -189,7 +189,7 @@ def announce_embargo_event_to_case(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -224,7 +224,7 @@ def invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -269,7 +269,7 @@ def accept_invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
     from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         dl = get_datalayer()
@@ -327,7 +327,7 @@ def reject_invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the EmRejectEmbargo
     """
-    activity = dispatchable.payload
+    activity = dispatchable.payload.raw_activity
 
     try:
         proposal_ref = activity.as_object
