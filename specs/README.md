@@ -91,7 +91,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 ### Code Standards
 
 - **`code-style.md`** - Python formatting, import organization, circular import
-  prevention, optional-field non-emptiness (CS-08-001)
+  prevention, optional-field non-emptiness (CS-08-001), code reuse (CS-09-001)
 - **`tech-stack.md`** - Normative technology constraints: runtime, persistence,
   tooling, and code quality tooling (including pyright gradual adoption, IMPL-TS-*)
 - **`meta-specifications.md`** - How to write and maintain specifications
@@ -171,7 +171,6 @@ is reserved for `testability.md`).
 | `PD` | `project-documentation.md` |
 | `PROTO` | `prototype-shortcuts.md` |
 | `RF` | `response-format.md` |
-| `SC` | `semantic-extraction.md` / `case-management.md` (SC prefix shared; see note) |
 | `SE` | `semantic-extraction.md` |
 | `SL` | `structured-logging.md` |
 | `TB` | `testability.md` |
@@ -221,7 +220,7 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-03-06)**:
+**Summary (2026-03-09)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer
@@ -237,11 +236,12 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
 - ✅ **Object model gap closed**: `VulnerabilityRecord`, `CaseReference`,
   `EmbargoPolicy`, `VultronActorMixin` models added (SC-1.1, SC-1.2, EP-1.1,
   EP-1.2)
-- ✅ **665 tests passing**, 0 xfailed (2026-03-06)
+- ✅ **736 tests passing**, 0 xfailed (2026-03-06)
 - ⚠️ **Production readiness partial**: Request validation, error responses
   need work
-- ❌ **Triggerable behaviors not implemented**: See `triggerable-behaviors.md`
-  (PRIORITY 30, highest current priority)
+- ⚠️ **Triggerable behaviors partially implemented**: P30-1 through P30-3
+  complete (`validate-report`, `invalidate-report`, `reject-report`,
+  `engage-case`, `defer-case`); P30-4 through P30-6 remain
 - ❌ **Response generation not started**: See `response-format.md`
 - ❌ **Outbox delivery not implemented**: See `outbox.md` OX-03, OX-04
 
