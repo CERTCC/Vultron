@@ -203,3 +203,16 @@ The compatibility re-export in `vultron/enums.py` may be removed once ARCH-1.3
 consolidates the extractor and the AS2 structural enums move to
 `vultron/wire/as2/enums.py` (R-04).
 
+
+---
+
+## 2026-03-09 — ARCH-1.2 complete: InboundPayload introduced; AS2 type removed from DispatchActivity
+
+Added `InboundPayload` to `vultron/core/models/events.py` with fields
+`activity_id`, `actor_id`, `object_type`, `object_id`, and `raw_activity: Any`.
+`DispatchActivity.payload` now types as `InboundPayload` instead of `as_Activity`,
+removing the AS2 import from `vultron/types.py` (V-02) and from
+`behavior_dispatcher.py` (V-03). All 38 handler functions updated to
+`activity = dispatchable.payload.raw_activity`. `verify_semantics` decorator
+updated to compare `dispatchable.semantic_type` directly (ARCH-07-001), removing
+the second `find_matching_semantics` call. 815 tests pass.

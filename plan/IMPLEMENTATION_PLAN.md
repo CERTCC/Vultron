@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50; P50-0 complete, ARCH-1.1 complete)
+**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50; P50-0 complete, ARCH-1.1 complete, ARCH-1.2 complete)
 
 ## Overview
 
@@ -150,7 +150,7 @@ the deeper layering violations. Work in the order below.
   in `vultron/enums.py`; move `MessageSemantics` to `vultron/core/models/events.py`
   (ARCH-02-001, V-01). Update all imports. Tests pass.
 
-- [ ] **ARCH-1.2** (R-02): Introduce `InboundPayload` domain type in the core
+- [x] **ARCH-1.2** (R-02): Introduce `InboundPayload` domain type in the core
   layer; remove AS2 type from `DispatchActivity.payload` (ARCH-01-002, V-02,
   V-03). Update `DispatchActivity`, all handlers, and `verify_semantics`.
   Tests pass.
