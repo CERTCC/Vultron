@@ -82,3 +82,14 @@ refactor.
 
 Fix what you can as you go, and add items you observe as technical debt to 
 the implementation notes for anything you notice but can't fix immediately.
+
+## Consider use of `transitions` module for state machines
+
+Although we have manually enumerated state machine states for EM, RM, and CS,
+we don't really have a clean implementation of the state machines themselves.
+We should consider integrating the `transitions` module to make it easier to 
+define and maintain the state machines. This is not a high priority right 
+now, but if we find an opportunity to integrate it cleanly (especially if it 
+would help solve a problem down the road) we should consider doing so.
+
+
