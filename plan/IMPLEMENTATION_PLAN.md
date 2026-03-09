@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-09 (gap analysis refresh #19, P30-6 complete)
+**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 736 passing, 5581 subtests, 0 xfailed (2026-03-06)
+**Test suite**: 777 passing, 5581 subtests, 0 xfailed (2026-03-09)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -28,8 +28,9 @@ accept_suggest_actor_to_case, reject_suggest_actor_to_case,
 offer_case_ownership_transfer, accept_case_ownership_transfer,
 reject_case_ownership_transfer, update_case
 
-**Trigger endpoints** (P30-1 through P30-3 complete):
-`validate-report`, `invalidate-report`, `reject-report`, `engage-case`, `defer-case`
+**Trigger endpoints** (P30-1 through P30-6 complete — all 9 endpoints):
+`validate-report`, `invalidate-report`, `reject-report`, `engage-case`, `defer-case`,
+`close-report`, `propose-embargo`, `evaluate-embargo`, `terminate-embargo`
 
 **Demo scripts** (all dockerized in `docker-compose.yml`):
 `receive_report_demo.py`, `initialize_case_demo.py`, `invite_actor_demo.py`,
@@ -45,22 +46,29 @@ reject_case_ownership_transfer, update_case
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
 BUGFIX-1, REFACTOR-1, DEMO-3, DEMO-4, SPEC-COMPLIANCE-1, SPEC-COMPLIANCE-2,
-SC-3.1, SC-PRE-1, TECHDEBT-1, TECHDEBT-5, TECHDEBT-6, P30-1, P30-2, P30-3.
+SC-3.1, SC-PRE-1, TECHDEBT-1, TECHDEBT-5, TECHDEBT-6, P30-1, P30-2, P30-3,
+P30-4, P30-5, P30-6.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
 `actor_io.py` stub logs placeholder messages (OX-03-001, OX-04-001, OX-04-002).
 
-### ⚠️ Triggerable behaviors partially implemented (PRIORITY 30)
+### ✅ Triggerable behaviors fully implemented (PRIORITY 30 — COMPLETE)
 
-P30-1 through P30-3 complete (5 endpoints in `vultron/api/v2/routers/triggers.py`).
-Remaining: P30-4 (`close-report`), P30-5 (EM triggers), P30-6 (demo CLI).
+All 9 trigger endpoints implemented in `vultron/api/v2/routers/triggers.py` (1274 lines).
+P30-1 through P30-6 complete. Phase PRIORITY-30 is closed.
 
-### ❌ Hexagonal architecture shift not started (PRIORITY 150)
+**Next**: `triggers.py` is too large and mixes domain logic with router code — refactor
+is the immediate next priority (see Phase PRIORITY-50 below).
+
+### ❌ Hexagonal architecture shift not started (PRIORITY 50 — next immediate priority)
 
 `specs/architecture.md` (ARCH-01 through ARCH-08) is now formal. `notes/architecture-review.md`
-documents 11 violations (V-01 to V-11) with remediation plan (R-01 to R-06). No
-architecture refactoring tasks are yet tracked in the implementation plan.
+documents 11 violations (V-01 to V-11) with remediation plan (R-01 to R-06).
+`triggers.py` (1274 lines) is the designated starting point per `plan/PRIORITIES.md`:
+domain logic is mixed directly into router functions, the file is too large, and it
+needs to be split into a backend service layer + thin routers before the broader
+hexagonal restructure. Phase PRIORITY-50 now tracks this work as the top priority.
 
 ### ❌ Actor independence not implemented (PRIORITY 100)
 
@@ -103,30 +111,65 @@ Blocked by PRIORITY-100 and PRIORITY-200.
 
 ## Prioritized Task List
 
-### Phase PRIORITY-30 — Triggerable Behaviors (PRIORITY 30)
+### Phase PRIORITY-30 — Triggerable Behaviors (COMPLETE)
 
 **Reference**: `specs/triggerable-behaviors.md`, `notes/triggerable-behaviors.md`
 
-- [x] **P30-1** through **P30-3**: Complete — see `plan/IMPLEMENTATION_HISTORY.md`
+All P30 tasks complete (P30-1 through P30-6). All 9 trigger endpoints implemented.
+See `plan/IMPLEMENTATION_HISTORY.md` for details.
 
-- [x] **P30-4**: Add `POST /actors/{actor_id}/trigger/close-report` endpoint
-  (TB-02-001) with `offer_id` in request body (TB-03-001). Emits `RmCloseReport`
-  (RM → C transition / RC message), updates RM state to CLOSED, adds to outbox
-  (TB-07-001), returns `{"activity": {...}}` (TB-04-001). Note: `close-report`
-  closes a report in the RM lifecycle (RM → C); `reject-report` hard-rejects an
-  offer pre-validation. Add unit + integration tests (happy path, missing `offer_id`
-  422, unknown actor 404, outbox update).
+---
 
-- [x] **P30-5**: Add EM trigger endpoints: `propose-embargo`, `evaluate-embargo`,
-  `terminate-embargo` (TB-02-002). All require `case_id` in request body
-  (TB-03-001); `propose-embargo` SHOULD also accept optional `note` and embargo
-  duration. Each emits the corresponding EM ActivityStreams activity, updates
-  `CaseStatus.em_state`, adds to outbox, returns HTTP 202 with
-  `{"activity": {...}}`. Add tests for each endpoint (happy path, missing `case_id`
-  422, unknown actor 404).
+### Phase PRIORITY-50 — Hexagonal Architecture Starting with `triggers.py`
 
-- [x] **P30-6**: Add a `trigger` sub-command to the `vultron-demo` CLI exercising
-  at least one trigger endpoint end-to-end. Update `docs/reference/code/demo/*.md`.
+**Reference**: `plan/PRIORITIES.md` PRIORITY 50, `specs/architecture.md`,
+`notes/architecture-review.md` V-01 to V-11, R-01 to R-06
+
+This is the **current top priority**. `triggers.py` (1274 lines) is the designated
+entry point: domain logic is mixed directly into router functions. The goal is not
+merely to split the file but to begin the shift toward the hexagonal
+(ports-and-adapters) architecture described in `specs/architecture.md`, moving
+domain logic out of routers and into a service layer, then progressively fixing
+the deeper layering violations. Work in the order below.
+
+- [ ] **P50-0**: Extract domain service layer from `triggers.py`; split routers by
+  domain. Create `vultron/api/v2/backend/trigger_services/` package with three
+  service modules: `report.py` (validate, invalidate, reject, close-report logic),
+  `case.py` (engage, defer), and `embargo.py` (propose, evaluate, terminate). Each
+  service function accepts domain parameters and a `DataLayer` argument passed in
+  from the router — no `get_datalayer()` calls inside service logic. Split
+  `triggers.py` into three focused router modules (`trigger_report.py`,
+  `trigger_case.py`, `trigger_embargo.py`) whose functions become thin wrappers:
+  validate request → call service → return response. Consolidate
+  `ValidateReportRequest` and `InvalidateReportRequest` into a shared base class
+  (CS-09-002). Add unit tests for service functions in isolation (independent of
+  HTTP layer). Done when routers contain no domain logic, each service module has
+  independent tests, and `triggers.py` is deleted.
+
+- [ ] **ARCH-1.1** (R-01): Separate `MessageSemantics` from AS2 structural enums
+  in `vultron/enums.py`; move `MessageSemantics` to `vultron/core/models/events.py`
+  (ARCH-02-001, V-01). Update all imports. Tests pass.
+
+- [ ] **ARCH-1.2** (R-02): Introduce `InboundPayload` domain type in the core
+  layer; remove AS2 type from `DispatchActivity.payload` (ARCH-01-002, V-02,
+  V-03). Update `DispatchActivity`, all handlers, and `verify_semantics`.
+  Tests pass.
+
+- [ ] **ARCH-1.3** (R-03 + R-04): Consolidate parsing and extraction — move
+  `parse_activity` from router into `wire/as2/parser.py`; consolidate
+  `find_matching_semantics` + `ActivityPattern.match()` into
+  `wire/as2/extractor.py`; remove second `find_matching_semantics` call in
+  `verify_semantics` (ARCH-03-001, ARCH-07-001, V-04 through V-08). Tests pass.
+
+- [ ] **ARCH-1.4** (R-05 + R-06): Inject DataLayer via port; move
+  `semantic_handler_map.py` to adapter layer (ARCH-04-001, V-09, V-10).
+  Handlers receive `DataLayer` port object via DI; `get_datalayer()` no longer
+  called directly in handler bodies. Tests pass.
+
+**Note**: ARCH-1.1 through ARCH-1.4 collectively satisfy PRIORITY 50 and
+facilitate cleaner actor independence (PRIORITY 100) implementation.
+P50-0 must be done first (it is the designated entry point per PRIORITIES.md)
+and does not require ARCH-1.1 as a prerequisite.
 
 ---
 
@@ -182,6 +225,9 @@ Blocked by PRIORITY-100 and PRIORITY-200.
   improve discoverability. Done when modules moved with minimal interface
   changes and tests pass.
 
+  **Note**: TECHDEBT-4 overlaps with ARCH-1.1/ARCH-1.3; defer until those tasks
+  are complete or tackle as part of them.
+
 ---
 
 ### Phase BT-2.2/2.3 — Optional BT Refactors (low priority)
@@ -204,40 +250,6 @@ Blocked by PRIORITY-100 and PRIORITY-200.
 - [ ] **OX-1.3**: Add idempotency check — delivering same activity twice MUST NOT
   create duplicate inbox entries (OX-06-001)
 - [ ] **OX-1.4**: Add `test/api/v2/backend/test_outbox.py`
-
----
-
-### Phase ARCH-1 — Hexagonal Architecture Remediation (PRIORITY 150)
-
-**Reference**: `specs/architecture.md` ARCH-01 through ARCH-08,
-`notes/architecture-review.md` V-01 to V-11, R-01 to R-06
-
-Significant architectural work. Work in dependency order: R-01 → R-02 → R-03/R-04
-→ R-05/R-06. Each task corresponds to a remediation step in
-`notes/architecture-review.md`.
-
-- [ ] **ARCH-1.1** (R-01): Separate `MessageSemantics` from AS2 structural enums
-  in `vultron/enums.py`; move `MessageSemantics` to `vultron/core/models/events.py`
-  (ARCH-02-001, V-01). Update all imports. Tests pass.
-
-- [ ] **ARCH-1.2** (R-02): Introduce `InboundPayload` domain type in the core
-  layer; remove AS2 type from `DispatchActivity.payload` (ARCH-01-002, V-02,
-  V-03). Update `DispatchActivity`, all handlers, and `verify_semantics`.
-  Tests pass.
-
-- [ ] **ARCH-1.3** (R-03 + R-04): Consolidate parsing and extraction — move
-  `parse_activity` from router into `wire/as2/parser.py`; consolidate
-  `find_matching_semantics` + `ActivityPattern.match()` into
-  `wire/as2/extractor.py`; remove second `find_matching_semantics` call in
-  `verify_semantics` (ARCH-03-001, ARCH-07-001, V-04 through V-08). Tests pass.
-
-- [ ] **ARCH-1.4** (R-05 + R-06): Inject DataLayer via port; move
-  `semantic_handler_map.py` to adapter layer (ARCH-04-001, V-09, V-10).
-  Handlers receive `DataLayer` port object via DI; `get_datalayer()` no longer
-  called directly in handler bodies. Tests pass.
-
-**Note**: ARCH-1.1 through ARCH-1.4 collectively satisfy PRIORITY 150 and
-facilitate cleaner actor independence (PRIORITY 100) implementation.
 
 ---
 

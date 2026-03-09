@@ -8,7 +8,64 @@ Add new items below this line
 
 ---
 
-## 2026-03-09 — Architecture violation inventory now formal
+## 2026-03-09 — Hexagonal architecture refactor elevated to PRIORITY 50 (immediate next)
+
+Per updated `plan/PRIORITIES.md`, the hexagonal architecture refactor with `triggers.py`
+as the starting point is now the top priority. The plan has been updated accordingly:
+`Phase ARCH-1` is renamed to `Phase PRIORITY-50` and moved to be the immediate next
+phase after PRIORITY-30 (now complete). The old "PRIORITY 150" label in the plan was
+incorrect; PRIORITIES.md has always listed this as Priority 50.
+
+### Approach for P50-0: Extract service layer from `triggers.py`
+
+`triggers.py` is 1274 lines with all nine trigger endpoint functions each containing
+inline domain logic (data lookups, state transitions, activity construction, outbox
+updates). The fix is a two-step operation within one agent cycle:
+
+**Step 1 — Create `vultron/api/v2/backend/trigger_services/` package**:
+- `report.py` — service functions for `validate_report`, `invalidate_report`,
+  `reject_report`, `close_report`
+- `case.py` — service functions for `engage_case`, `defer_case`
+- `embargo.py` — service functions for `propose_embargo`, `evaluate_embargo`,
+  `terminate_embargo`
+
+Each service function signature should be:
+```python
+def svc_validate_report(actor_id: str, offer_id: str, note: str | None, dl: DataLayer) -> dict:
+    ...
+```
+The `DataLayer` is passed in from the router (via `Depends(get_datalayer)`), not
+fetched inside the service. This aligns with R-05 (DI via ports) even before the
+full ARCH-1.4 restructure.
+
+**Step 2 — Thin-ify and split the router**:
+- Split `triggers.py` into `trigger_report.py`, `trigger_case.py`,
+  `trigger_embargo.py` in `vultron/api/v2/routers/`
+- Each router function becomes: validate request → call service → return response
+- No domain logic in routers
+
+**Additional cleanup**:
+- Consolidate `ValidateReportRequest` and `InvalidateReportRequest` (they are
+  structurally identical — CS-09-002). Use a shared base `ReportTriggerRequest`
+  with subclasses if needed.
+- Trigger tests should be split to match the new file structure and include
+  service-layer unit tests independent of HTTP.
+
+### Why start with `triggers.py` before ARCH-1.1?
+
+ARCH-1.1 through ARCH-1.4 are deep structural changes affecting many files across
+the codebase. P50-0 (triggers.py service extraction) is scoped to a single large
+file, delivers immediate architectural value (no domain logic in routers), and does
+not require the broader `core/`/`wire/`/`adapters/` directory restructure to be
+in place first. It also establishes the pattern that ARCH-1.1 through 1.4 will
+generalize to the rest of the codebase.
+
+ARCH-1.1 and ARCH-1.2 remain prerequisites for ARCH-1.3 and ARCH-1.4 as documented
+in `notes/architecture-review.md`.
+
+---
+
+
 
 `specs/architecture.md` and `notes/architecture-review.md` were added since the
 last plan refresh. The review identifies 11 violations (V-01 to V-11) and a
