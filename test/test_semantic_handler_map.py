@@ -1,4 +1,4 @@
-from vultron.enums import MessageSemantics
+from vultron.core.models.events import MessageSemantics
 from vultron.semantic_handler_map import get_semantics_handlers
 
 

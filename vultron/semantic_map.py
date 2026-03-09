@@ -8,7 +8,7 @@ It provides a function to find the matching semantics for a given activity.
 from vultron.activity_patterns import ActivityPattern
 from vultron import activity_patterns as ap
 from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.enums import MessageSemantics
+from vultron.core.models.events import MessageSemantics
 
 # The order of the patterns in this dictionary matters for matching,
 # as the find_matching_semantics function will return the first match it finds.

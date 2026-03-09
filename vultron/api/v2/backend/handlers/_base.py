@@ -9,7 +9,7 @@ from vultron.api.v2.errors import (
     VultronApiHandlerMissingSemanticError,
     VultronApiHandlerSemanticMismatchError,
 )
-from vultron.enums import MessageSemantics
+from vultron.core.models.events import MessageSemantics
 from vultron.semantic_map import find_matching_semantics
 from vultron.types import DispatchActivity
 

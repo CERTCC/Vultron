@@ -2,7 +2,7 @@ from typing import Any, Dict, Iterable
 import itertools
 
 from vultron.activity_patterns import ActivityPattern
-from vultron.enums import MessageSemantics
+from vultron.core.models.events import MessageSemantics
 from vultron.semantic_map import SEMANTICS_ACTIVITY_PATTERNS
 
 

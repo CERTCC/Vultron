@@ -2,7 +2,7 @@
 Maps Message Semantics to their appropriate handlers
 """
 
-from vultron.enums import MessageSemantics
+from vultron.core.models.events import MessageSemantics
 from vultron.types import BehaviorHandler
 
 # Cache for lazy initialization

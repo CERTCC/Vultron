@@ -20,7 +20,7 @@ from vultron.api.v2.errors import (
 from vultron.as_vocab.base.objects.activities.transitive import as_Create
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.enums import MessageSemantics
+from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
 

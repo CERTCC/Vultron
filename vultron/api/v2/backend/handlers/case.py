@@ -5,7 +5,7 @@ Handler functions for vulnerability case activities.
 import logging
 
 from vultron.api.v2.backend.handlers._base import verify_semantics
-from vultron.enums import MessageSemantics
+from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
 logger = logging.getLogger(__name__)

@@ -9,7 +9,7 @@ from typing import Protocol
 from pydantic import BaseModel
 
 from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.enums import MessageSemantics
+from vultron.core.models.events import MessageSemantics
 
 
 class DispatchActivity(BaseModel):

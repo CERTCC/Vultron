@@ -7,7 +7,7 @@ from typing import Protocol
 
 from vultron.dispatcher_errors import VultronApiHandlerNotFoundError
 from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.enums import MessageSemantics
+from vultron.core.models.events import MessageSemantics
 from vultron.semantic_map import find_matching_semantics
 from vultron.types import BehaviorHandler, DispatchActivity
 
