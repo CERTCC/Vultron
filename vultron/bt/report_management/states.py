@@ -16,12 +16,12 @@ Provides an enumeration of Report Management states.
 """
 
 import logging
-from enum import Enum
+from enum import StrEnum
 
 logger = logging.getLogger(__name__)
 
 
-class RM(Enum):
+class RM(StrEnum):
     """
     Report Management States
 

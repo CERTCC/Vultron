@@ -34,7 +34,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from vultron.api.v2.data.rehydration import rehydrate
-from vultron.api.v2.data.status import OfferStatus, ReportStatus, set_status
+from vultron.api.v2.data.status import (
+    OfferStatus,
+    ReportStatus,
+    get_status_layer,
+    set_status,
+)
 from vultron.api.v2.datalayer.abc import DataLayer
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
@@ -48,7 +53,7 @@ from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.behaviors.bridge import BTBridge
 from vultron.behaviors.report.validate_tree import create_validate_report_tree
-from vultron.bt.report_management.states import RM
+from vultron.bt.report_management.states import RM, RM_CLOSABLE
 from vultron.enums import OfferStatusEnum
 
 logger = logging.getLogger(__name__)
@@ -102,6 +107,25 @@ class CaseTriggerRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     case_id: str
+
+
+class CloseReportRequest(BaseModel):
+    """
+    Request body for the close-report trigger endpoint.
+
+    TB-03-001: Must include offer_id to identify the target offer.
+    TB-03-002: Unknown fields are silently ignored (extra="ignore").
+    TB-03-003: Optional note field may be included.
+
+    Distinction from reject-report: close-report closes a report after the
+    RM lifecycle has proceeded (RM → C transition; emits RC message), while
+    reject-report hard-rejects an incoming offer before validation completes.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    offer_id: str
+    note: str | None = None
 
 
 class RejectReportRequest(BaseModel):
@@ -703,4 +727,132 @@ def trigger_defer_case(
     )
 
     activity = defer_activity.model_dump(by_alias=True, exclude_none=True)
+    return {"activity": activity}
+
+
+# `RM_CLOSABLE` (imported from states) defines valid RM states for closure.
+
+
+@router.post(
+    "/{actor_id}/trigger/close-report",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Trigger RM lifecycle closure of a report.",
+    description=(
+        "Triggers the close-report behavior for the given actor. "
+        "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReport) "
+        "representing the RM → C (CLOSED) transition, and returns it in the "
+        "response body (TB-04-001). "
+        "Updates the offer status to REJECTED and the report status to CLOSED. "
+        "Unlike reject-report (which hard-rejects before validation), this "
+        "endpoint closes a report that has already progressed through the RM "
+        "lifecycle. Returns HTTP 409 if the report is already CLOSED."
+    ),
+)
+def trigger_close_report(
+    actor_id: str,
+    body: CloseReportRequest,
+    dl: DataLayer = Depends(get_datalayer),
+) -> dict:
+    """
+    Trigger the close-report (RM → CLOSED) behavior for the given actor.
+
+    Emits RmCloseReport (Reject) for the given offer, updates local state,
+    adds to actor outbox, and returns HTTP 202.
+
+    Implements:
+        TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
+        TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
+    """
+    actor = _resolve_actor(actor_id, dl)
+    actor_id = actor.as_id
+
+    offer_raw = dl.read(body.offer_id)
+    if offer_raw is None:
+        raise _not_found("Offer", body.offer_id)
+
+    try:
+        offer = rehydrate(offer_raw)
+        report = rehydrate(offer.as_object)
+    except (ValueError, KeyError, AttributeError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "status": 422,
+                "error": "ValidationError",
+                "message": str(e),
+                "activity_id": None,
+            },
+        )
+
+    if not isinstance(report, VulnerabilityReport):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "status": 422,
+                "error": "ValidationError",
+                "message": (
+                    f"Expected VulnerabilityReport, got "
+                    f"{type(report).__name__}."
+                ),
+                "activity_id": None,
+            },
+        )
+
+    status_layer = get_status_layer()
+    type_dict = status_layer.get(report.as_type, {})
+    id_dict = type_dict.get(report.as_id, {})
+    actor_status_dict = id_dict.get(actor_id, {})
+    current_rm_state = actor_status_dict.get("status")
+
+    if current_rm_state == RM.CLOSED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "status": 409,
+                "error": "Conflict",
+                "message": (f"Report '{report.as_id}' is already CLOSED."),
+                "activity_id": None,
+            },
+        )
+
+    close_activity = RmCloseReport(
+        actor=actor_id,
+        object=offer.as_id,
+    )
+
+    try:
+        dl.create(close_activity)
+    except ValueError:
+        logger.warning(
+            "CloseReport activity '%s' already exists", close_activity.as_id
+        )
+
+    set_status(
+        OfferStatus(
+            object_type=offer.as_type,
+            object_id=offer.as_id,
+            status=OfferStatusEnum.REJECTED,
+            actor_id=actor_id,
+        )
+    )
+    set_status(
+        ReportStatus(
+            object_type=report.as_type,
+            object_id=report.as_id,
+            status=RM.CLOSED,
+            actor_id=actor_id,
+        )
+    )
+
+    _add_activity_to_outbox(actor_id, close_activity.as_id, dl)
+
+    logger.info(
+        "Actor '%s' closed offer '%s' (report '%s') via RM lifecycle; note: %s",
+        actor_id,
+        offer.as_id,
+        report.as_id,
+        body.note,
+    )
+
+    activity = close_activity.model_dump(by_alias=True, exclude_none=True)
     return {"activity": activity}
