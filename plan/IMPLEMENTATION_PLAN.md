@@ -117,7 +117,7 @@ Blocked by PRIORITY-100 and PRIORITY-200.
   offer pre-validation. Add unit + integration tests (happy path, missing `offer_id`
   422, unknown actor 404, outbox update).
 
-- [ ] **P30-5**: Add EM trigger endpoints: `propose-embargo`, `evaluate-embargo`,
+- [x] **P30-5**: Add EM trigger endpoints: `propose-embargo`, `evaluate-embargo`,
   `terminate-embargo` (TB-02-002). All require `case_id` in request body
   (TB-03-001); `propose-embargo` SHOULD also accept optional `note` and embargo
   duration. Each emits the corresponding EM ActivityStreams activity, updates
