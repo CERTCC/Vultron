@@ -30,6 +30,7 @@ Structure:
        ├─ ValidateCaseObject           # Check required fields
        ├─ SetCaseAttributedTo          # Set attributed_to to actor_id (CM-02-008)
        ├─ PersistCase                  # Save VulnerabilityCase to DataLayer
+       ├─ RecordCaseCreationEvents     # Backfill offer_received + case_created events (CM-02-009)
        ├─ CreateInitialVendorParticipant  # Add vendor as initial participant (CM-02-008)
        ├─ CreateCaseActorNode          # Create CaseActor service (CM-02-001)
        ├─ EmitCreateCaseActivity       # Generate CreateCase activity
@@ -47,6 +48,7 @@ from vultron.core.behaviors.case.nodes import (
     CreateInitialVendorParticipant,
     EmitCreateCaseActivity,
     PersistCase,
+    RecordCaseCreationEvents,
     SetCaseAttributedTo,
     UpdateActorOutbox,
     ValidateCaseObject,
@@ -86,6 +88,7 @@ def create_create_case_tree(
             ValidateCaseObject(case_obj=case_obj),
             SetCaseAttributedTo(case_obj=case_obj),
             PersistCase(case_obj=case_obj),
+            RecordCaseCreationEvents(case_obj=case_obj),
             CreateInitialVendorParticipant(case_obj=case_obj),
             CreateCaseActorNode(case_id=case_id, actor_id=actor_id),
             EmitCreateCaseActivity(),

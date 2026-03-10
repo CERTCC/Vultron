@@ -601,3 +601,33 @@ extended `test_vulnerability_record.py`. 860 tests pass.
 Note: `CaseParticipant.set_name_if_empty` model validator automatically
 populates `name` from `attributed_to` when `name=None`; tests for `name=None`
 must omit `attributed_to` to observe the None value.
+
+## TECHDEBT-10 — Backfill pre-case events in create_case BT (2026-03-10)
+
+**Task**: Backfill pre-case events into the case event log at case creation
+(CM-02-009).
+
+**Implementation**:
+
+- Added `RecordCaseCreationEvents` node to
+  `vultron/core/behaviors/case/nodes.py`. The node runs after `PersistCase` in
+  the `CreateCaseFlow` sequence.
+- The node records two events using `case.record_event()`:
+  1. `"offer_received"` — only when the triggering activity has an
+     `in_reply_to` reference (the originating Offer that led to case
+     creation). The `object_id` is set to the Offer's `as_id`.
+  2. `"case_created"` — always recorded; `object_id` is set to the case ID.
+- The node reads `activity` from the global py_trees blackboard storage
+  (`Blackboard.storage.get("/activity", None)`) rather than registering it as
+  a required key. This avoids a `KeyError` when the tree is invoked without an
+  inbound activity (e.g. in tests that pass `activity=None`).
+- `create_tree.py` updated to import and include `RecordCaseCreationEvents` in
+  the sequence.
+- 6 new tests added to `test/core/behaviors/case/test_create_tree.py`.
+
+**Key design note**: `received_at` in `CaseEvent` is set by
+`default_factory=_now_utc`, satisfying CM-02-009's trusted-timestamp
+requirement automatically. The node never copies a timestamp from the
+incoming activity.
+
+**866 tests pass.**

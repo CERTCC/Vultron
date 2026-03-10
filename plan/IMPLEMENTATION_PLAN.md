@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-10 (TECHDEBT-9/7 complete: NonEmptyString/OptionalNonEmptyString applied across objects)
+**Last Updated**: 2026-03-10 (TECHDEBT-10 complete: pre-case events backfilled in create_case BT)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 860 passing, 5581 subtests, 0 xfailed (2026-03-10, after TECHDEBT-9/7)
+**Test suite**: 866 passing, 5581 subtests, 0 xfailed (2026-03-10, after TECHDEBT-10)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -46,7 +46,7 @@ reject_case_ownership_transfer, update_case
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
 BUGFIX-1, REFACTOR-1, DEMO-3, DEMO-4, SPEC-COMPLIANCE-1, SPEC-COMPLIANCE-2,
-SC-3.1, SC-PRE-1, TECHDEBT-1, TECHDEBT-5, TECHDEBT-6, TECHDEBT-11, P30-1,
+SC-3.1, SC-PRE-1, TECHDEBT-1, TECHDEBT-5, TECHDEBT-6, TECHDEBT-10, TECHDEBT-11, P30-1,
 P30-2, P30-3, P30-4, P30-5, P30-6, P50-0, ARCH-1.1, ARCH-1.2, ARCH-1.3,
 ARCH-1.4, ARCH-CLEANUP-1, ARCH-CLEANUP-2, ARCH-CLEANUP-3, ARCH-ADR-9, P60-1,
 P60-2, P60-3.
@@ -290,7 +290,7 @@ incrementally — each task must leave tests passing.
   remaining `Optional[str]` fields across `vultron/wire/as2/vocab/objects/` models
   (CS-08-001). Done when all fields reject empty strings and tests pass. ✅ 2026-03-10
 
-- [ ] **TECHDEBT-10**: Backfill pre-case events into the case event log at case
+- [x] **TECHDEBT-10**: Backfill pre-case events into the case event log at case
   creation (CM-02-009). `create_case` BT SHOULD call `record_event()` for the
   originating Offer receipt and case creation events. Add tests.
 

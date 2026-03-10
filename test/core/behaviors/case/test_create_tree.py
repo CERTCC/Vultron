@@ -242,3 +242,120 @@ def test_create_case_tree_creates_vendor_participant(
         if found_vendor:
             break
     assert found_vendor, "VendorParticipant was not found in DataLayer"
+
+
+# ============================================================================
+# CM-02-009 event log backfill tests (TECHDEBT-10)
+# ============================================================================
+
+
+def test_create_case_tree_records_case_created_event(
+    datalayer, actor, case_obj, bridge
+):
+    """A case_created event MUST be recorded in the case event log (CM-02-009)."""
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.as_id, activity=None)
+
+    stored = datalayer.read(case_obj.as_id)
+    assert stored is not None
+    event_types = [e.event_type for e in stored.events]
+    assert "case_created" in event_types
+
+
+def test_create_case_tree_case_created_event_uses_case_id(
+    datalayer, actor, case_obj, bridge
+):
+    """The case_created event MUST reference the case ID as object_id (CM-02-009)."""
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.as_id, activity=None)
+
+    stored = datalayer.read(case_obj.as_id)
+    assert stored is not None
+    created_events = [
+        e for e in stored.events if e.event_type == "case_created"
+    ]
+    assert len(created_events) == 1
+    assert created_events[0].object_id == case_obj.as_id
+
+
+def test_create_case_tree_records_offer_received_event_when_present(
+    datalayer, actor, case_obj, bridge
+):
+    """If the triggering activity has in_reply_to, an offer_received event MUST be recorded (CM-02-009)."""
+    from vultron.wire.as2.vocab.base.objects.base import as_Base
+
+    offer_id = "https://example.org/activities/offer-001"
+
+    class FakeActivity:
+        in_reply_to = as_Base(as_id=offer_id)
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.as_id, activity=FakeActivity()
+    )
+
+    stored = datalayer.read(case_obj.as_id)
+    assert stored is not None
+    event_types = [e.event_type for e in stored.events]
+    assert "offer_received" in event_types
+
+    offer_events = [
+        e for e in stored.events if e.event_type == "offer_received"
+    ]
+    assert len(offer_events) == 1
+    assert offer_events[0].object_id == offer_id
+
+
+def test_create_case_tree_no_offer_received_event_without_in_reply_to(
+    datalayer, actor, case_obj, bridge
+):
+    """If the triggering activity has no in_reply_to, no offer_received event is recorded."""
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.as_id, activity=None)
+
+    stored = datalayer.read(case_obj.as_id)
+    assert stored is not None
+    event_types = [e.event_type for e in stored.events]
+    assert "offer_received" not in event_types
+
+
+def test_create_case_tree_offer_received_before_case_created(
+    datalayer, actor, case_obj, bridge
+):
+    """offer_received event MUST appear before case_created in the event log."""
+    from vultron.wire.as2.vocab.base.objects.base import as_Base
+
+    offer_id = "https://example.org/activities/offer-002"
+
+    class FakeActivity:
+        in_reply_to = as_Base(as_id=offer_id)
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
+    bridge.execute_with_setup(
+        tree=tree, actor_id=actor.as_id, activity=FakeActivity()
+    )
+
+    stored = datalayer.read(case_obj.as_id)
+    assert stored is not None
+    event_types = [e.event_type for e in stored.events]
+    assert event_types.index("offer_received") < event_types.index(
+        "case_created"
+    )
+
+
+def test_create_case_tree_events_have_trusted_timestamps(
+    datalayer, actor, case_obj, bridge
+):
+    """Case event timestamps MUST be server-generated (CM-02-009)."""
+    from datetime import timezone
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.as_id, activity=None)
+
+    stored = datalayer.read(case_obj.as_id)
+    assert stored is not None
+    assert len(stored.events) >= 1
+    for evt in stored.events:
+        assert evt.received_at is not None
+        assert evt.received_at.tzinfo is not None
+        assert evt.received_at.tzinfo == timezone.utc

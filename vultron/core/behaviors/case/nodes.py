@@ -375,6 +375,89 @@ class CreateInitialVendorParticipant(DataLayerAction):
             return Status.FAILURE
 
 
+class RecordCaseCreationEvents(DataLayerAction):
+    """
+    Backfill pre-case events into the case event log at case creation.
+
+    Records a trusted-timestamp event for the case creation itself.
+    If the triggering activity has an ``in_reply_to`` reference (e.g. an
+    originating Offer), that event is also backfilled as an
+    ``"offer_received"`` entry.
+
+    Must run after PersistCase so the case exists in the DataLayer.
+    Reads ``case_id`` and optionally ``activity`` from the blackboard.
+
+    Per specs/case-management.md CM-02-009.
+    """
+
+    def __init__(self, case_obj: VulnerabilityCase, name: str | None = None):
+        super().__init__(name=name or self.__class__.__name__)
+        self.case_obj = case_obj
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
+
+    def update(self) -> Status:
+        if self.datalayer is None:
+            self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+
+        try:
+            case_id = self.blackboard.get("case_id")
+            if case_id is None:
+                self.logger.error(
+                    f"{self.name}: case_id not found in blackboard"
+                )
+                return Status.FAILURE
+
+            case = self.datalayer.read(case_id)
+            if case is None:
+                self.logger.error(
+                    f"{self.name}: Case {case_id} not found in DataLayer"
+                )
+                return Status.FAILURE
+
+            # Backfill originating offer receipt if available.
+            # Read directly from global storage — activity is optional and may
+            # not be written to the blackboard when the tree is invoked without
+            # an inbound activity. The blackboard storage key includes the root
+            # namespace prefix "/".
+            activity = py_trees.blackboard.Blackboard.storage.get(
+                "/activity", None
+            )
+            if activity is not None:
+                offer_ref = getattr(activity, "in_reply_to", None)
+                if offer_ref is not None:
+                    offer_id = (
+                        offer_ref.as_id
+                        if hasattr(offer_ref, "as_id")
+                        else str(offer_ref)
+                    )
+                    case.record_event(offer_id, "offer_received")
+                    self.logger.info(
+                        f"{self.name}: Recorded offer_received event"
+                        f" for {offer_id} on case {case_id}"
+                    )
+
+            # Record the case creation event
+            case.record_event(case_id, "case_created")
+            self.logger.info(
+                f"{self.name}: Recorded case_created event on case {case_id}"
+            )
+
+            self.datalayer.update(case_id, object_to_record(case))
+            return Status.SUCCESS
+
+        except Exception as e:
+            self.logger.error(
+                f"{self.name}: Error recording case creation events: {e}"
+            )
+            return Status.FAILURE
+
+
 class UpdateActorOutbox(DataLayerAction):
     """
     Append the CreateCase activity to the actor's outbox.
