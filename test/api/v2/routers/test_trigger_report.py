@@ -178,7 +178,7 @@ def test_trigger_validate_report_missing_offer_id_returns_422(
         f"/actors/{actor.as_id}/trigger/validate-report",
         json={},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_validate_report_ignores_unknown_fields(
@@ -322,7 +322,7 @@ def test_trigger_invalidate_report_missing_offer_id_returns_422(
         f"/actors/{actor.as_id}/trigger/invalidate-report",
         json={},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_invalidate_report_ignores_unknown_fields(
@@ -432,7 +432,7 @@ def test_trigger_reject_report_missing_note_returns_422(
         f"/actors/{actor.as_id}/trigger/reject-report",
         json={"offer_id": offer.as_id},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_reject_report_empty_note_emits_warning(
@@ -458,7 +458,7 @@ def test_trigger_reject_report_missing_offer_id_returns_422(
         f"/actors/{actor.as_id}/trigger/reject-report",
         json={"note": "Some reason."},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_reject_report_ignores_unknown_fields(
@@ -554,7 +554,7 @@ def test_trigger_close_report_missing_offer_id_returns_422(
         f"/actors/{actor.as_id}/trigger/close-report",
         json={},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_close_report_ignores_unknown_fields(

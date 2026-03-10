@@ -121,7 +121,7 @@ def test_trigger_engage_case_missing_case_id_returns_422(
         f"/actors/{actor.as_id}/trigger/engage-case",
         json={},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_engage_case_ignores_unknown_fields(
@@ -267,7 +267,7 @@ def test_trigger_defer_case_missing_case_id_returns_422(
         f"/actors/{actor.as_id}/trigger/defer-case",
         json={},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_defer_case_ignores_unknown_fields(

@@ -64,7 +64,7 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
         report = rehydrate(offer.as_object)
     except (ValueError, KeyError, AttributeError) as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "status": 422,
                 "error": "ValidationError",
@@ -75,7 +75,7 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
 
     if getattr(report, "as_type", None) != "VulnerabilityReport":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "status": 422,
                 "error": "ValidationError",

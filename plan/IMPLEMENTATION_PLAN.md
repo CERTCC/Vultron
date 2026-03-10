@@ -274,11 +274,11 @@ incrementally — each task must leave tests passing.
   only directory moves and `conftest.py`/`__init__.py` updates are needed. Done
   when old directories are gone and tests pass. ✅ 2026-03-10
 
-- [ ] **TECHDEBT-12**: Replace deprecated `HTTP_422_UNPROCESSABLE_ENTITY` constant
+- [x] **TECHDEBT-12**: Replace deprecated `HTTP_422_UNPROCESSABLE_ENTITY` constant
   with `HTTP_422_UNPROCESSABLE_CONTENT` in all 7 usages across
   `vultron/api/v2/backend/trigger_services/` (`embargo.py`, `report.py`,
   `_helpers.py`). Done when no `DeprecationWarning` for this constant appears in
-  test output.
+  test output. ✅ 2026-03-10
 
 - [ ] **TECHDEBT-9**: Introduce `NonEmptyString` and `OptionalNonEmptyString` type
   aliases in `vultron/wire/as2/vocab/base/` (CS-08-001, CS-08-002). Replace existing

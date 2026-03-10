@@ -64,7 +64,7 @@ def resolve_case(case_id: str, dl: DataLayer) -> VulnerabilityCase:
         raise not_found("VulnerabilityCase", case_id)
     if getattr(case_raw, "as_type", None) != "VulnerabilityCase":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "status": 422,
                 "error": "ValidationError",

@@ -137,7 +137,7 @@ def test_trigger_propose_embargo_missing_case_id_returns_422(
         f"/actors/{actor.as_id}/trigger/propose-embargo",
         json={},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_propose_embargo_ignores_unknown_fields(
@@ -282,7 +282,7 @@ def test_trigger_evaluate_embargo_missing_case_id_returns_422(
         f"/actors/{actor.as_id}/trigger/evaluate-embargo",
         json={},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_evaluate_embargo_ignores_unknown_fields(
@@ -444,7 +444,7 @@ def test_trigger_terminate_embargo_missing_case_id_returns_422(
         f"/actors/{actor.as_id}/trigger/terminate-embargo",
         json={},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_terminate_embargo_ignores_unknown_fields(

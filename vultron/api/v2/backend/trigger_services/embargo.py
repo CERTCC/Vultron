@@ -190,7 +190,7 @@ def svc_evaluate_embargo(
 
     if str(getattr(proposal, "as_type", "")) != "Invite":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "status": 422,
                 "error": "ValidationError",
@@ -210,7 +210,7 @@ def svc_evaluate_embargo(
     )
     if not embargo_id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "status": 422,
                 "error": "ValidationError",
@@ -221,7 +221,7 @@ def svc_evaluate_embargo(
     embargo = dl.read(embargo_id)
     if embargo is None or str(getattr(embargo, "as_type", "")) != "Event":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={
                 "status": 422,
                 "error": "ValidationError",
