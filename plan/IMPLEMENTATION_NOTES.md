@@ -8,6 +8,37 @@ Add new items below this line
 
 ---
 
+## 2026-03-10 — P65-1 complete
+
+### What was done
+
+- Created `vultron/core/ports/__init__.py` and
+  `vultron/core/ports/activity_store.py` containing the `DataLayer`
+  Protocol. Signatures use `Any` / `BaseModel` — no `Record` import.
+- Replaced `vultron/api/v2/datalayer/abc.py` with a one-line backward-compat
+  re-export (`from vultron.core.ports.activity_store import DataLayer`). All
+  existing `api/v2/` callers continue to work unchanged via this shim.
+- Updated `core/behaviors/bridge.py` and `core/behaviors/helpers.py` to
+  import `DataLayer` from `core/ports/activity_store`. Removed the `Record`
+  import from `helpers.py`; `UpdateObject` and `CreateObject` now build plain
+  `dict` values (`{id_, type_, data_}`) and pass them to the DataLayer.
+- Updated `TinyDbDataLayer.create()` and `update()` in
+  `api/v2/datalayer/tinydb_backend.py` to accept `dict` in addition to
+  `Record` / `BaseModel` (converts via `Record.model_validate(d)` internally).
+
+### Violations resolved
+
+V-13 (`bridge.py` importing `DataLayer` from `api/v2`) and V-14
+(`helpers.py` importing `DataLayer` + `Record` from `api/v2`) are closed.
+
+### Remaining callers of the backward-compat shim
+
+Many files still import `DataLayer` from `vultron.api.v2.datalayer.abc`.
+These will be cleaned up as part of P70 (full DataLayer relocation) or as
+a separate sweep once the shim has served its purpose.
+
+---
+
 ## 2026-03-10 — Priority 65: Architecture violations and regressions
 
 ### Background
@@ -788,3 +819,15 @@ code should be made clean under pyright basic mode before merging.
 - Existing bare-UUID records in TinyDB stores are not migrated automatically.
   They will not be found by new `urn:uuid:`-keyed lookups (bare-UUID records
   are a prototype artifact from before this change).
+
+## note on P65-1
+
+When you get to P65-1, observe that `vultron/api/v2/datalayer` is actually a 
+blend of a port, a model, and an adapter. So these really belong in `core`, 
+not `wire`. 
+
+Also note that there is a gap in the code where many core 
+domain-level objects use AS2 vocab objects because they were semantically 
+identical. This is a case where we might need to build parallel core objects 
+to correspond to the semantically-identical AS2 vocab objects, but the core 
+objects don't need to be fully AS2-compliant.

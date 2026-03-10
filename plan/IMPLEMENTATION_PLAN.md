@@ -225,7 +225,7 @@ Work in dependency order: P65-1 and P65-2 are independent; P65-3 is the
 largest task and must precede P65-4; P65-5 requires P65-1; P65-6 requires P65-3
 and P65-5; P65-7 closes out the test regressions last.
 
-- [ ] **P65-1** (R-08): Move `DataLayer` Protocol from
+- [x] **P65-1** (R-08): Move `DataLayer` Protocol from
   `vultron/api/v2/datalayer/abc.py` to `vultron/core/ports/activity_store.py`.
   Update `core/behaviors/bridge.py` and `core/behaviors/helpers.py` to import
   `DataLayer` from `core/ports/`. Remove the `Record` import from
