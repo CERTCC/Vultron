@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-10 (P60-2 complete: vultron/behaviors/ moved to vultron/core/behaviors/)
+**Last Updated**: 2026-03-10 (gap analysis refresh #22: P60-2 complete; P60-3, P70, and test dir relocation added)
 
 ## Overview
 
@@ -41,13 +41,14 @@ reject_case_ownership_transfer, update_case
 
 ---
 
-## Gap Analysis (2026-03-10, refresh #21)
+## Gap Analysis (2026-03-10, refresh #22)
 
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
 BUGFIX-1, REFACTOR-1, DEMO-3, DEMO-4, SPEC-COMPLIANCE-1, SPEC-COMPLIANCE-2,
 SC-3.1, SC-PRE-1, TECHDEBT-1, TECHDEBT-5, TECHDEBT-6, P30-1, P30-2, P30-3,
-P30-4, P30-5, P30-6, P50-0, ARCH-1.1, ARCH-1.2, ARCH-1.3, ARCH-1.4.
+P30-4, P30-5, P30-6, P50-0, ARCH-1.1, ARCH-1.2, ARCH-1.3, ARCH-1.4,
+ARCH-CLEANUP-1, ARCH-CLEANUP-2, ARCH-CLEANUP-3, ARCH-ADR-9, P60-1, P60-2.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -57,35 +58,50 @@ P30-4, P30-5, P30-6, P50-0, ARCH-1.1, ARCH-1.2, ARCH-1.3, ARCH-1.4.
 
 All 9 trigger endpoints in split router files. P30-1 through P30-6 complete.
 
-### ✅ Hexagonal architecture Phase 1 complete (PRIORITY 50 — COMPLETE)
+### ✅ Hexagonal architecture fully cleaned up (PRIORITY 50 — COMPLETE)
 
-P50-0 through ARCH-1.4 complete. V-01 through V-10 remediated.
-Backward-compat shims remain for `activity_patterns.py`, `semantic_map.py`,
-`semantic_handler_map.py` — one test still imports from the shim. AS2 structural
-enums (`as_ObjectType`, `as_TransitiveActivityType`, etc.) still live in
-`vultron/enums.py` rather than `vultron/wire/as2/enums.py`.
-V-11 (`isinstance` on AS2 types in handler bodies) and V-12 (dispatcher test uses
-AS2 types) are not yet remediated. No ADR for the hexagonal architecture decision
-has been written.
+All violations V-01 through V-12 remediated. ARCH-CLEANUP-1 through
+ARCH-CLEANUP-3 and ARCH-ADR-9 complete. All backward-compat shims deleted.
+AS2 structural enums moved to `vultron/wire/as2/enums.py`. Handler `isinstance`
+checks replaced with string type comparisons. Architecture ADR written.
 
-### ❌ ARCH cleanup items (PRIORITY 50 follow-on — immediate)
+### ✅ Package relocation Phase 1 complete (PRIORITY 60 — P60-1 and P60-2 DONE)
 
-Four discrete cleanup tasks remain after P50: delete shims, move AS2 structural
-enums to the wire layer, fix V-11/V-12, write the architecture ADR
-(see Phase ARCH-CLEANUP below).
+- `vultron/as_vocab/` → `vultron/wire/as2/vocab/` (P60-1 ✅)
+- `vultron/behaviors/` → `vultron/core/behaviors/` (P60-2 ✅)
 
-### ❌ Package relocation not started (PRIORITY 60 — next after cleanup)
+`vultron/adapters/` package stub still pending (P60-3).
 
-`vultron/as_vocab/` (wire vocabulary), `vultron/behaviors/` (BT/domain logic), and
-`vultron/enums.py` (mixed domain + wire enums) need to be relocated into the
-`wire/` and `core/` packages per `plan/PRIORITIES.md` PRIORITY 60 and
-`notes/architecture-ports-and-adapters.md`.
+### ❌ Test directory layout not updated after package relocation
+
+`test/as_vocab/` and `test/behaviors/` directories remain in old locations.
+Tests already import from the correct new paths (`vultron.wire.as2.vocab.*` and
+`vultron.core.behaviors.*`), but the test files themselves have not been moved to
+`test/wire/as2/vocab/` and `test/core/behaviors/` to mirror the new source layout.
+See TECHDEBT-11.
+
+### ❌ Deprecated FastAPI status constant in trigger services
+
+`HTTP_422_UNPROCESSABLE_ENTITY` (deprecated in recent starlette) is used in 7
+places across `trigger_services/`. The replacement constant is
+`HTTP_422_UNPROCESSABLE_CONTENT`. This generates a `DeprecationWarning` in the
+test output. See TECHDEBT-12.
+
+### ❌ DataLayer not yet relocated to adapters layer (PRIORITY 70)
+
+`vultron/api/v2/datalayer/` should be moved to reflect the hexagonal architecture:
+the `DataLayer` Protocol belongs in `vultron/core/ports/` and the TinyDB
+implementation in `vultron/adapters/driven/`. Currently still under `api/v2/`.
+Per `notes/domain-model-separation.md`, this relocation SHOULD be planned
+together with PRIORITY 100 (actor independence). Blocked by P60-3 (adapters
+package must be stubbed first). See Phase PRIORITY-70.
 
 ### ❌ Actor independence not implemented (PRIORITY 100)
 
 All actors share a singleton `TinyDbDataLayer` instance. PRIORITY 100 requires
 per-actor isolated state. Options documented in `notes/domain-model-separation.md`
 (Option B: TinyDB namespace prefix; MongoDB community edition for production).
+Blocked by PRIORITY-70 (DataLayer relocation).
 
 ### ❌ CaseActor broadcast not implemented (PRIORITY 200)
 
@@ -102,7 +118,7 @@ participant embargo acceptance (SC-3.3).
 ### ❌ CS-08-001 — Optional string fields allow empty strings (TECHDEBT-7/9)
 
 No Pydantic validators enforce "if present, then non-empty" on `Optional[str]`
-fields across `vultron/as_vocab/objects/` models.
+fields across `vultron/wire/as2/vocab/objects/` models.
 
 ### ❌ Pyright static type checking not configured (TECHDEBT-8)
 
@@ -113,6 +129,15 @@ pyright adoption with a gradual approach.
 
 No ADR for `docs/adr/ADR-XXXX-standardize-object-ids.md`. `specs/object-ids.md`
 OID-01 through OID-04 defines requirements.
+
+### ❌ `vultron/enums.py` backward-compat shim still present (TECHDEBT-4)
+
+`activity_patterns.py` and `semantic_map.py` have been deleted (ARCH-CLEANUP-1).
+`vultron/enums.py` remains as a backward-compat re-export shim for `MessageSemantics`
+plus defines `OfferStatusEnum` and `VultronObjectType`. These two domain-boundary
+enums should eventually be relocated (`OfferStatusEnum` → `core/models/`,
+`VultronObjectType` → `wire/as2/enums.py` or `core/models/`). `vultron/enums.py`
+can then be deleted. Low priority; depends on completing PRIORITY-60 and PRIORITY-70.
 
 ### ❌ Multi-actor demos not yet started (PRIORITY 300)
 
@@ -246,13 +271,25 @@ incrementally — each task must leave tests passing.
 
 ### Technical Debt (housekeeping)
 
+- [ ] **TECHDEBT-11**: Relocate `test/as_vocab/` → `test/wire/as2/vocab/` and
+  `test/behaviors/` → `test/core/behaviors/` to mirror the new source layout after
+  P60-1 and P60-2. All test files already import from the correct canonical paths;
+  only directory moves and `conftest.py`/`__init__.py` updates are needed. Done
+  when old directories are gone and tests pass.
+
+- [ ] **TECHDEBT-12**: Replace deprecated `HTTP_422_UNPROCESSABLE_ENTITY` constant
+  with `HTTP_422_UNPROCESSABLE_CONTENT` in all 7 usages across
+  `vultron/api/v2/backend/trigger_services/` (`embargo.py`, `report.py`,
+  `_helpers.py`). Done when no `DeprecationWarning` for this constant appears in
+  test output.
+
 - [ ] **TECHDEBT-9**: Introduce `NonEmptyString` and `OptionalNonEmptyString` type
-  aliases in `vultron/as_vocab/base/` (CS-08-001, CS-08-002). Replace existing
+  aliases in `vultron/wire/as2/vocab/base/` (CS-08-001, CS-08-002). Replace existing
   per-field empty-string validators with the shared type. **Combine with
   TECHDEBT-7** in one agent cycle.
 
 - [ ] **TECHDEBT-7**: Add Pydantic validators rejecting empty strings in all
-  remaining `Optional[str]` fields across `vultron/as_vocab/objects/` models
+  remaining `Optional[str]` fields across `vultron/wire/as2/vocab/objects/` models
   (CS-08-001). Done when all fields reject empty strings and tests pass.
 
 - [ ] **TECHDEBT-10**: Backfill pre-case events into the case event log at case
@@ -270,13 +307,14 @@ incrementally — each task must leave tests passing.
   shim in the DataLayer (OID-01 through OID-04). Done when ADR created and
   tests validate URL-like ID acceptance.
 
-- [ ] **TECHDEBT-4**: Reorganize top-level modules (`activity_patterns`,
+- ~~[ ] **TECHDEBT-4**: Reorganize top-level modules (`activity_patterns`,
   `semantic_map`, `enums`) into small packages to reduce circular imports and
-  improve discoverability. Done when modules moved with minimal interface
-  changes and tests pass.
-
-  **Note**: TECHDEBT-4 overlaps with ARCH-1.1/ARCH-1.3; defer until those tasks
-  are complete or tackle as part of them.
+  improve discoverability.~~
+  **SUPERSEDED**: `activity_patterns.py` and `semantic_map.py` deleted in
+  ARCH-CLEANUP-1. `vultron/enums.py` reduced to a backward-compat shim (re-exports
+  `MessageSemantics`; defines `OfferStatusEnum` and `VultronObjectType`). Remaining
+  cleanup — relocating `OfferStatusEnum` and `VultronObjectType` — will be handled
+  as part of PRIORITY-70 DataLayer/core-ports work.
 
 ---
 
@@ -303,11 +341,42 @@ incrementally — each task must leave tests passing.
 
 ---
 
+### Phase PRIORITY-70 — DataLayer Refactor into Ports and Adapters
+
+**Reference**: `plan/PRIORITIES.md` PRIORITY 70,
+`notes/domain-model-separation.md` (Per-Actor DataLayer Isolation Options),
+`notes/architecture-ports-and-adapters.md`
+
+**Blocked by**: P60-3 (adapters package must be stubbed first).
+**Must precede**: PRIORITY-100 (actor independence uses the new layer structure).
+
+- [ ] **P70-1**: Move `DataLayer` Protocol (`vultron/api/v2/datalayer/abc.py`) to
+  `vultron/core/ports/activity_store.py`. Move `TinyDbDataLayer` and
+  `get_datalayer()` factory from `vultron/api/v2/datalayer/tinydb_backend.py` to
+  `vultron/adapters/driven/activity_store.py`. Update all importers. Provide a
+  backward-compat shim at the old location if needed, then remove once callers are
+  updated. Done when `vultron/api/v2/datalayer/` is gone, tests pass, and
+  `vultron/core/ports/` contains the Protocol.
+
+- [ ] **P70-2**: Move `OfferStatusEnum` and `VultronObjectType` from
+  `vultron/enums.py` to their correct architectural homes (`core/models/` and
+  `wire/as2/enums.py` respectively). Delete `vultron/enums.py`. Done when no
+  `vultron.enums` imports remain and tests pass.
+
+- [ ] **P70-3**: Stub `vultron/core/ports/` with `delivery_queue.py` and
+  `dns_resolver.py` Protocol interfaces (matching the target layout in
+  `notes/architecture-ports-and-adapters.md`). No logic required. Done when
+  `core/ports/__init__.py` and the two stub files are committed.
+
+---
+
 ### Phase PRIORITY-100 — Actor Independence (PRIORITY 100)
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 100,
 `specs/case-management.md` CM-01,
 `notes/domain-model-separation.md` (Per-Actor DataLayer Isolation Options)
+
+**Blocked by**: PRIORITY-70
 
 - [ ] **ACT-1**: Draft ADR for per-actor DataLayer isolation — document options
   (Option B: TinyDB namespace prefix; MongoDB community for production),

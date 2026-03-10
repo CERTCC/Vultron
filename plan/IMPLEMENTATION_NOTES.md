@@ -8,6 +8,60 @@ Add new items below this line
 
 ---
 
+## 2026-03-10 — Gap analysis refresh #22: new gaps identified
+
+### Test directory layout mismatch (TECHDEBT-11)
+
+After P60-1 and P60-2, the test directories `test/as_vocab/` and `test/behaviors/`
+remain at their old locations. All tests already import from the new canonical
+paths (`vultron.wire.as2.vocab.*` and `vultron.core.behaviors.*`), so tests pass.
+The directory structure just does not mirror the source layout yet.
+
+Target moves:
+- `test/as_vocab/` → `test/wire/as2/vocab/`
+- `test/behaviors/` → `test/core/behaviors/`
+
+Both moves are mechanical: create `test/wire/as2/vocab/` and `test/core/behaviors/`
+directories, move files, update `conftest.py` and `__init__.py`, delete old dirs.
+No import changes are needed (they're already correct).
+
+### Deprecated HTTP status constant (TECHDEBT-12)
+
+`starlette.status.HTTP_422_UNPROCESSABLE_ENTITY` is deprecated in favor of
+`HTTP_422_UNPROCESSABLE_CONTENT`. Seven usages remain in trigger service files:
+- `vultron/api/v2/backend/trigger_services/embargo.py` (3 usages)
+- `vultron/api/v2/backend/trigger_services/report.py` (2 usages)
+- `vultron/api/v2/backend/trigger_services/_helpers.py` (2 usages)
+
+This generates a `DeprecationWarning` in the test suite output. The fix is a
+simple string replacement; the new constant name is `HTTP_422_UNPROCESSABLE_CONTENT`.
+
+### P70 DataLayer refactor — when to plan
+
+`notes/domain-model-separation.md` says the DataLayer relocation SHOULD be planned
+together with PRIORITY-100 (actor independence). The P70 tasks in the plan follow
+that guidance: P70-1 relocates the port Protocol and TinyDB adapter to their
+correct architectural homes, which unblocks the per-actor isolation work in
+PRIORITY-100. P60-3 must come first (adapters package stub needed before TinyDB
+moves there).
+
+### TECHDEBT-4 superseded
+
+TECHDEBT-4 ("reorganize top-level modules `activity_patterns`, `semantic_map`,
+`enums`") is largely complete:
+- `vultron/activity_patterns.py` and `vultron/semantic_map.py` deleted in
+  ARCH-CLEANUP-1.
+- AS2 structural enums moved from `vultron/enums.py` to `vultron/wire/as2/enums.py`
+  in ARCH-CLEANUP-2.
+- `vultron/enums.py` now only re-exports `MessageSemantics` plus defines
+  `OfferStatusEnum` and `VultronObjectType`.
+
+Remaining work: move `OfferStatusEnum` and `VultronObjectType` to their proper
+homes and delete `vultron/enums.py`. Tracked in TECHDEBT-4 (marked superseded in
+plan) and P70-2.
+
+---
+
 ## 2026-03-10 — P60-1 complete: vultron/as_vocab moved to vultron/wire/as2/vocab
 
 > ✅ Captured in `docs/adr/0009-hexagonal-architecture.md` (P60-1 marked
@@ -258,19 +312,6 @@ the implementation notes for anything you notice but can't fix immediately.
 Technical debt: Refactor triggers.py to respect the hexagonal architecture 
 concepts.
 
-## Consider use of `transitions` module for state machines
-
-> ✅ Captured in `notes/codebase-structure.md` ("State Machine Library
-> Consideration" section, added 2026-03-10).
-
-~~Although we have manually enumerated state machine states for EM, RM, and CS,
-we don't really have a clean implementation of the state machines themselves.
-We should consider integrating the `transitions` module to make it easier to
-define and maintain the state machines. This is not a high priority right
-now, but if we find an opportunity to integrate it cleanly (especially if it
-would help solve a problem down the road) we should consider doing so.~~
-
-
 
 ---
 
@@ -293,19 +334,6 @@ Supporting changes:
 - Updated `docs/reference/code/demo/demos.md` and `cli.md` with new entries.
 
 Phase PRIORITY-30 is now fully complete (P30-1 through P30-6).
-
----
-## TODO: write an ADR for the hexagonal architecture formalization and port/adapter design
-
-The shift toward a cleaner hexagonal architecture (port/adapter design) is a 
-significant architectural decision that will impact the entire codebase. We need
-to capture it in an ADR to document the rationale and why the status quo was 
-not sufficient. The ADR should reference the relevant notes, specs, and 
-documentation that led to this decision, including the architectural review
-findings and the identified violations that this change will address. It should
-also outline the expected benefits of this architectural shift and how it will
-enable better maintainability, testability, and separation of concerns in 
-the codebase.
 
 ---
 
@@ -498,62 +526,9 @@ This might also extend toward the core needing to have an internal
 representation of all the AS2 semantics but maybe without the AS2 
 syntax.
 
-~~This likely conflicts with `PROTO-06-001`, which says that the prototype may
-continue to use AS2 structural types as the core domain model. However, this
-is starting to look increasingly untenable as we refactor toward a cleaner
-architecture. One of the prototype goals is to "discover" the architecture
-as we go, so if this is the direction the architecture is pushing us toward then
-we should adjust the prototype requirements accordingly. Building more
-towards AS2 at wire and use case at core seems like the right direction so
-we should plan accordingly.~~
-
 > ✅ PROTO-06-001 tension captured in `specs/prototype-shortcuts.md` (Design
 > Note added under PROTO-06-001, 2026-03-10).
 
 ---
 
-## Clean up tasks
 
-> ✅ Captured in `notes/codebase-structure.md` ("Future cleanup tasks"
-> section under "Still at top level (pending future relocation)", added
-> 2026-03-10).
-
-~~- `vultron/behavior_dispatcher.py` belongs in core
-- `vultron/dispatcher_errors.py` — belongs in core parallel to wherever the dispatcher goes
-- `vultron/enums.py` — is a refactoring shim left behind in a previous step.
-  Verify nothing is using it anymore, fix any stragglers, then delete it.
-- `vultron/types.py` — look inside to see if these are all core things or if
-  they need to be refactored into core vs wire etc. Move as needed into
-  appropriate submodules. (`vultron/core/models/*` seems plausible unless
-  they're more wire-centric, in which case maybe `vultron/wire/models/*` or
-  similar). Or just `vultron/core/types.py` or `vultron/wire/types.py` if
-  that makes more sense. Implementer's choice.
-- Create `errors.py` in core and wire layers where they don't exist and
-  where custom error types are needed. Create the hierarchy
-  (`vultron.core.errors.VultronCoreError` then `vultron.core.behaviors.
-  errors.VultronBehaviorError` etc.) where needed.~~
-
----
-
-## MCP server/tools are later prototype items, not PROD_ONLY
-
-> ✅ Captured in `specs/agentic-readiness.md` (`AR-09-001` through `AR-09-004`
-> PROD_ONLY tags removed; note added clarifying these are later-prototype items,
-> 2026-03-10).
-
-~~- `AR-09-001` through `AR-09-004` are marked as `PROD_ONLY` but they're
-  really just "later prototype" items.~~
-
----
-
-## DataLayer becomes a port, TinyDB is an adapter
-
-> ✅ Captured in `notes/domain-model-separation.md` ("DataLayer as a Port,
-> TinyDB as a Driven Adapter" section, added 2026-03-10).
-
-~~Even before we get to the database refactor, we should start treating the
-`DataLayer` as a port (interface definition) and the `tinydb_backend` as an
-adapter (implementation). This will require some refactoring to move things
-to the right file locations and possibly adjust dependency injection
-patterns, but this will make the future MongoDB addition a lot cleaner when
-we get there.~~
