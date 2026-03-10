@@ -8,6 +8,31 @@ Add new items below this line
 
 ---
 
+## Use typed objects (pydantic basemodels) instead dicts when interfacing ports and adapters
+
+Avoid using plain `dict`s as interfaces between the core and adapter layers.
+Instead, define Pydantic `BaseModel`-derived classes that represent the data 
+structures being passed between layers. When an object in a driving adapter 
+is paralleled in a driven adapter, create a shared model in `core/models/`
+that both can import or inherit from to customize. This allows us to retain the 
+benefits of Pydantic's validation and type safety across the architecture, 
+while still decoupling the core from adapter-specific types. The core can define
+its own domain models that are independent of the wire format, and adapters can
+handle conversion to and from those models as needed.
+
+## Technical debt: TinyDbDataLayer is mucking around with dicts instead of Pydantic models
+
+The update for P65-1 changed TinyDbDataLayer's `create()` and `update()` to 
+accept plain `dict`s instead of `Record` objects because `Records` are tied 
+to the wire layer. However, it seems like a good idea to retain a consistent 
+Pydantic BaseModel-based interface for these objects. I'm wondering if we 
+might use either a Protocol or some sort of typing helper that can enforce 
+that the `Record` object in the wire or adapters is compatible with what the 
+`DataLayer` expects, without the `DataLayer` needing to know about the adapter 
+`Record` type directly. This would let us keep a clean interface with 
+Pydantic validation on the objects without introducing a direct dependency 
+from core to the adapter layer.
+
 ## 2026-03-10 — P65-1 complete
 
 ### What was done
