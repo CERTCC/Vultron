@@ -1,6 +1,6 @@
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, MagicMock
 
 import pytest
 
@@ -23,9 +23,9 @@ def test_handle_inbox_item_dispatches(monkeypatch):
         ih, "prepare_for_dispatch", lambda activity: dispatchable
     )
 
-    # Replace the module DISPATCHER with a Mock dispatcher
+    # Initialise the module-level dispatcher with a mock
     mock_dispatcher = Mock()
-    monkeypatch.setattr(ih, "DISPATCHER", mock_dispatcher, raising=False)
+    monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
 
     # Act
     ih.handle_inbox_item(actor_id="actor1", obj=fake_activity)
@@ -42,10 +42,8 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
     inbox = SimpleNamespace(items=[item])
     actor_io = SimpleNamespace(inbox=inbox)
 
-    # get_datalayer.read can be a noop (actor not required for this test)
-    monkeypatch.setattr(
-        ih, "get_datalayer", lambda: SimpleNamespace(read=lambda aid: None)
-    )
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = None
 
     # get_actor_io should return our actor_io
     monkeypatch.setattr(
@@ -61,9 +59,29 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
 
     monkeypatch.setattr(ih, "handle_inbox_item", always_raise)
 
-    # Act: run the async inbox_handler
-    asyncio.run(ih.inbox_handler("actor-xyz"))
+    # Act: run the async inbox_handler with the injected dl
+    asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
 
     # Assert: after aborting, the item should have been reinserted into the inbox
     assert len(actor_io.inbox.items) == 1
     assert actor_io.inbox.items[0] is item
+
+
+def test_dispatch_raises_if_not_initialised(monkeypatch):
+    monkeypatch.setattr(ih, "_DISPATCHER", None)
+    dispatchable = SimpleNamespace(activity_id="x", semantic_type="y")
+    with pytest.raises(RuntimeError, match="not initialised"):
+        ih.dispatch(dispatchable)
+
+
+def test_init_dispatcher_sets_dispatcher(monkeypatch):
+    mock_dl = MagicMock()
+    mock_dispatcher = Mock()
+
+    monkeypatch.setattr(ih, "_DISPATCHER", None)
+    monkeypatch.setattr(
+        ih, "get_dispatcher", lambda handler_map, dl: mock_dispatcher
+    )
+
+    ih.init_dispatcher(dl=mock_dl)
+    assert ih._DISPATCHER is mock_dispatcher

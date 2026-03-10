@@ -21,21 +21,19 @@ Provides a Record model for document database storage.
 
 from pydantic import BaseModel
 
-from vultron.wire.as2.vocab.base.base import as_Base
-from vultron.wire.as2.vocab.base.registry import Vocabulary, find_in_vocabulary
+from vultron.core.ports.activity_store import StorableRecord
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 
-class Record(BaseModel):
+class Record(StorableRecord):
     """Record wrapper stored in TinyDB.
-    Internally fields are `id_`, `type_`, and `data_`.
-    `type_` is intended to hold the class name of the stored object, and will used to select
-    both the table name and the class to reconstitute the object when reading.
-    `data_` holds the actual data of the object as a dict.
-    """
 
-    id_: str
-    type_: str
-    data_: dict
+    Extends ``StorableRecord`` (from ``core/ports/``) with adapter-layer
+    helpers for converting to/from domain objects via the wire vocabulary.
+    Internally fields are ``id_``, ``type_``, and ``data_``.
+    ``type_`` selects both the table name and the class used to reconstitute
+    the object when reading.  ``data_`` holds the object's serialised data.
+    """
 
     @classmethod
     def from_obj(cls, obj: BaseModel) -> "Record":

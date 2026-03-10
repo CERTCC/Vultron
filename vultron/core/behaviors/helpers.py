@@ -31,7 +31,7 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.ports.activity_store import DataLayer
+from vultron.core.ports.activity_store import DataLayer, StorableRecord
 
 logger = logging.getLogger(__name__)
 
@@ -280,26 +280,25 @@ class UpdateObject(DataLayerAction):
                 self.logger.error(self.feedback_message)
                 return Status.FAILURE
 
-            # Build an updated record dict {id_, type_, data_} without
-            # constructing a Record adapter object.
+            # Build an updated StorableRecord without importing the adapter-layer Record.
             if "data_" in current_dict:
                 updated_data = {**current_dict["data_"], **self.updates}
-                record_dict = {
-                    "id_": current_dict["id_"],
-                    "type_": current_dict["type_"],
-                    "data_": updated_data,
-                }
+                storable = StorableRecord(
+                    id_=current_dict["id_"],
+                    type_=current_dict["type_"],
+                    data_=updated_data,
+                )
             else:
                 updated_data = {**current_dict, **self.updates}
                 record_type = updated_data.get("as_type", "Object")
-                record_dict = {
-                    "id_": self.object_id,
-                    "type_": record_type,
-                    "data_": updated_data,
-                }
+                storable = StorableRecord(
+                    id_=self.object_id,
+                    type_=record_type,
+                    data_=updated_data,
+                )
 
             # Persist to DataLayer
-            self.datalayer.update(self.object_id, record_dict)
+            self.datalayer.update(self.object_id, storable)
 
             self.feedback_message = (
                 f"Updated {self.object_id} with {len(self.updates)} fields"
@@ -364,15 +363,15 @@ class CreateObject(DataLayerAction):
             object_type = self.object_data.get("as_type", self.table)
             object_id = self.object_data["as_id"]
 
-            # Build a record dict and pass it to the DataLayer
-            record_dict = {
-                "id_": object_id,
-                "type_": object_type,
-                "data_": self.object_data,
-            }
+            # Build a typed StorableRecord and pass it to the DataLayer
+            storable = StorableRecord(
+                id_=object_id,
+                type_=object_type,
+                data_=self.object_data,
+            )
 
             # Create object in DataLayer
-            self.datalayer.create(record_dict)
+            self.datalayer.create(storable)
 
             self.feedback_message = f"Created {self.table}/{object_id}"
             self.logger.info(self.feedback_message)

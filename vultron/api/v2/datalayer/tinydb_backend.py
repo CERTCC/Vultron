@@ -34,6 +34,7 @@ from vultron.api.v2.datalayer.db_record import (
     object_to_record,
     record_to_object,
 )
+from vultron.core.ports.activity_store import StorableRecord
 
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
 
@@ -59,29 +60,31 @@ class TinyDbDataLayer(DataLayer):
         """
         return Query()["id_"] == id_
 
-    def create(self, record: Record | BaseModel | dict) -> None:
+    def create(self, record: StorableRecord | BaseModel) -> None:
         """
         Inserts a record into the specified table.
 
-        Accepts a pre-built ``Record``, a Pydantic ``BaseModel`` which will
-        be converted to a ``Record`` using ``object_to_record``, or a plain
-        ``dict`` with ``id_``, ``type_``, and ``data_`` keys.
+        Accepts a ``StorableRecord`` (or its ``Record`` subclass) or any
+        other Pydantic ``BaseModel``.  A plain ``StorableRecord`` is converted
+        to a full ``Record`` using its ``id_``/``type_``/``data_`` fields; a
+        non-``StorableRecord`` ``BaseModel`` is converted via
+        ``object_to_record``.
 
         Args:
-            record (Record | BaseModel | dict): The record or model to insert.
+            record (StorableRecord | BaseModel): The record or model to insert.
         Raises:
             ValueError: If a record with the same ``id_`` already exists.
         """
 
-        if isinstance(record, Record):
-            rec = record
+        if isinstance(record, StorableRecord):
+            rec = Record(
+                id_=record.id_, type_=record.type_, data_=record.data_
+            )
         elif isinstance(record, BaseModel):
             rec = object_to_record(record)
-        elif isinstance(record, dict):
-            rec = Record.model_validate(record)
         else:
             raise ValueError(
-                "record must be a Record, Pydantic BaseModel, or dict"
+                "record must be a StorableRecord or a Pydantic BaseModel"
             )
 
         table = rec.type_
@@ -174,24 +177,20 @@ class TinyDbDataLayer(DataLayer):
         records = tbl.all()
         return records
 
-    def update(self, id_: str, record: Record | dict) -> bool:
+    def update(self, id_: str, record: StorableRecord) -> bool:
         """
         Updates a record by id in the specified table.
 
-        Accepts either a pre-built ``Record`` or a plain ``dict`` with
-        ``id_``, ``type_``, and ``data_`` keys (as produced by
-        ``BT helper nodes`` that avoid importing ``Record`` directly).
+        Accepts a ``StorableRecord`` (or its ``Record`` subclass) with
+        ``id_``, ``type_``, and ``data_`` fields.
 
         Args:
             id_ (str): The id of the record to update.
-            record (Record | dict): The new record data.
+            record (StorableRecord): The new record data.
         Returns:
             bool: True if a record was updated, False if not found.
         """
-        if isinstance(record, dict):
-            rec = Record.model_validate(record)
-        else:
-            rec = record
+        rec = Record(id_=record.id_, type_=record.type_, data_=record.data_)
         tbl = self._table(rec.type_)
         updated = tbl.update(rec.model_dump(), self._id_query(id_))
         return len(updated) > 0

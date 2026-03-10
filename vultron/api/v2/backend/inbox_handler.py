@@ -12,7 +12,7 @@ Vultron Actor Inbox Handler
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
@@ -22,30 +22,54 @@ from vultron.api.v2.backend import handlers  # noqa: F401
 from vultron.api.v2.backend.handler_map import SEMANTICS_HANDLERS
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.data.rehydration import rehydrate
-from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+from vultron.core.ports.activity_store import DataLayer
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.behavior_dispatcher import get_dispatcher, prepare_for_dispatch
+from vultron.behavior_dispatcher import (
+    ActivityDispatcher,
+    get_dispatcher,
+    prepare_for_dispatch,
+)
 from vultron.types import DispatchActivity
 
 logger = logging.getLogger(__name__)
 
-DISPATCHER = get_dispatcher(handler_map=SEMANTICS_HANDLERS, dl=get_datalayer())
-logger.info("Using dispatcher: %s", type(DISPATCHER).__name__)
+_DISPATCHER: ActivityDispatcher | None = None
+
+
+def init_dispatcher(dl: DataLayer) -> None:
+    """Initialise the module-level dispatcher with an injected DataLayer.
+
+    Must be called once during application startup (e.g. from the FastAPI
+    lifespan event) before any inbox items are processed.  Calling it more
+    than once (e.g. in tests) is allowed — the dispatcher is simply replaced.
+
+    Args:
+        dl: The DataLayer instance to inject into the dispatcher.
+    """
+    global _DISPATCHER
+    _DISPATCHER = get_dispatcher(handler_map=SEMANTICS_HANDLERS, dl=dl)
+    logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
 
 
 def dispatch(dispatchable: DispatchActivity) -> None:
     """
-    Dispatches the given activity using the global dispatcher.
+    Dispatches the given activity using the module-level dispatcher.
+
     Args:
         dispatchable: The DispatchActivity to dispatch.
-    Returns:
-        None
+    Raises:
+        RuntimeError: If the dispatcher has not been initialised via
+            :func:`init_dispatcher`.
     """
+    if _DISPATCHER is None:
+        raise RuntimeError(
+            "Inbox dispatcher not initialised. "
+            "Call init_dispatcher() during application startup."
+        )
     logger.debug(
         f"Dispatching activity '{dispatchable.activity_id}' with semantics '{dispatchable.semantic_type}'"
     )
-    DISPATCHER.dl = get_datalayer()
-    DISPATCHER.dispatch(dispatchable)
+    _DISPATCHER.dispatch(dispatchable)
 
 
 def handle_inbox_item(actor_id: str, obj: as_Activity) -> None:
@@ -73,17 +97,16 @@ def handle_inbox_item(actor_id: str, obj: as_Activity) -> None:
     dispatch(dispatchable=dispatchable)
 
 
-async def inbox_handler(actor_id: str) -> None:
+async def inbox_handler(actor_id: str, dl: DataLayer) -> None:
     """
     Process the inbox for the given actor.
+
     Args:
         actor_id: The ID of the Actor whose inbox is being processed.
+        dl: The DataLayer instance to use for persistence operations.
     Returns:
         None
-    Raises:
-        None
     """
-    dl = get_datalayer()
     actor = dl.read(actor_id)
     if actor is None:
         logger.warning(f"Actor {actor_id} not found in inbox_handler.")

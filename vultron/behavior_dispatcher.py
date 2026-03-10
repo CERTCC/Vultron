@@ -69,13 +69,7 @@ class DispatcherBase(ActivityDispatcher):
     Base class for ActivityDispatcher implementations. Can include shared logic or utilities for dispatching.
     """
 
-    def __init__(
-        self, handler_map: dict | None = None, dl: "DataLayer | None" = None
-    ):
-        if handler_map is None:
-            from vultron.api.v2.backend.handler_map import SEMANTICS_HANDLERS
-
-            handler_map = SEMANTICS_HANDLERS
+    def __init__(self, handler_map: dict, dl: "DataLayer | None" = None):
         self._handler_map = handler_map
         self.dl = dl
 
@@ -125,7 +119,9 @@ class DirectActivityDispatcher(DispatcherBase):
     pass
 
 
-def get_dispatcher(handler_map=None, dl=None) -> ActivityDispatcher:
+def get_dispatcher(
+    handler_map: dict, dl: "DataLayer | None" = None
+) -> ActivityDispatcher:
     """
     Factory function to get an instance of the ActivityDispatcher.
     This allows for flexibility in swapping out different dispatcher implementations if needed.

@@ -37,7 +37,9 @@ def test_prepare_for_dispatch_parses_activity_and_constructs_dispatchactivity(
 
 def test_get_dispatcher_returns_local_dispatcher():
     """get_dispatcher should return an object implementing dispatch()."""
-    dispatcher = bd.get_dispatcher()
+    from unittest.mock import MagicMock
+
+    dispatcher = bd.get_dispatcher(handler_map={}, dl=MagicMock())
     assert hasattr(dispatcher, "dispatch") and callable(dispatcher.dispatch)
 
 
@@ -48,7 +50,9 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
     """
     caplog.set_level(logging.DEBUG)
     mock_dl = MagicMock()
-    dispatcher = bd.DirectActivityDispatcher(dl=mock_dl)
+    dispatcher = bd.DirectActivityDispatcher(
+        handler_map={MessageSemantics.CREATE_REPORT: MagicMock()}, dl=mock_dl
+    )
 
     # Use a mock raw_activity to avoid coupling this core test to AS2 types.
     mock_activity = MagicMock()

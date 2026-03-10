@@ -16,6 +16,8 @@ Vultron API Application
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.responses import RedirectResponse
@@ -26,10 +28,29 @@ from vultron.api.v2 import app_v2
 #
 # from api.v2.app import app_v2
 
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Root app lifespan — runs startup tasks not covered by sub-app lifespans.
+
+    Starlette does not automatically propagate lifespan events to mounted
+    sub-applications, so any initialisation that must run before the first
+    request (e.g. the inbox dispatcher) is performed here as well as in the
+    ``app_v2`` lifespan (which fires when that sub-app is used directly,
+    e.g. in unit tests targeting ``app_v2`` directly).
+    """
+    from vultron.api.v2.backend.inbox_handler import init_dispatcher
+    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+
+    init_dispatcher(dl=get_datalayer())
+    yield
+
+
 app = FastAPI(
     title="Vultron API Home",
     docs_url=None,  # disable default docs
     redoc_url=None,
+    lifespan=lifespan,
 )
 
 # Mount each version

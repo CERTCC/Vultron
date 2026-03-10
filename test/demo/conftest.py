@@ -30,5 +30,11 @@ demo_utils.DEFAULT_WAIT_SECONDS = 0.0
 
 @pytest.fixture(scope="module")
 def client():
-    """Provides a shared TestClient instance for demo tests in this module."""
-    return TestClient(api_app)
+    """Provides a shared TestClient instance for demo tests in this module.
+
+    Uses the context-manager form so the FastAPI lifespan events (startup and
+    shutdown) are triggered, which initialises the inbox dispatcher via
+    :func:`vultron.api.v2.backend.inbox_handler.init_dispatcher`.
+    """
+    with TestClient(api_app) as test_client:
+        yield test_client

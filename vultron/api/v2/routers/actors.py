@@ -236,7 +236,7 @@ def post_actor_inbox(
         logger.error(f"Actor {actor.as_id} has no inbox - cannot add activity")
 
     # Trigger inbox processing (in the background) using the full_actor_id
-    background_tasks.add_task(inbox_handler, full_actor_id)
+    background_tasks.add_task(inbox_handler, full_actor_id, dl)
 
     return None
 

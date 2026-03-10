@@ -28,23 +28,40 @@ from typing import Any, Protocol
 from pydantic import BaseModel
 
 
+class StorableRecord(BaseModel):
+    """Minimal typed record passed to ``DataLayer.create()`` and ``update()``.
+
+    Core BT nodes construct ``StorableRecord`` objects without importing the
+    adapter-layer ``Record`` class.  Adapter implementations receive a
+    ``StorableRecord`` (or a subclass such as ``Record``) and may add extra
+    behaviour (e.g. ``from_obj`` / ``to_obj``) without coupling the port to
+    wire-layer types.
+    """
+
+    id_: str
+    type_: str
+    data_: dict
+
+
 class DataLayer(Protocol):
     """Protocol for a data layer.
 
     Defines the minimum interface that any concrete storage adapter must
-    satisfy.  Method parameters use ``Any`` so that the core layer
-    remains decoupled from the specific record wrapper used by the adapter
-    (e.g. ``Record`` in TinyDB).  Callers that need stronger typing should
-    rely on the concrete implementation.
+    satisfy.  ``update`` accepts ``StorableRecord`` — a Pydantic model
+    defined in this module — so that the core layer passes validated, typed
+    objects to the port rather than raw dicts or ``Any``.  ``create``
+    additionally accepts a plain ``BaseModel`` for callers that have not yet
+    been updated to produce ``StorableRecord`` objects (V-15 through V-19,
+    tracked in P65-5/P65-6).
     """
 
-    def create(self, record: Any) -> None: ...
+    def create(self, record: "StorableRecord | BaseModel") -> None: ...
 
     def read(self, object_id: str) -> BaseModel | None: ...
 
     def get(self, table: str | None, id_: str | None) -> Any: ...
 
-    def update(self, id_: str, record: Any) -> None: ...
+    def update(self, id_: str, record: StorableRecord) -> None: ...
 
     def delete(self, table: str, id_: str) -> None: ...
 
