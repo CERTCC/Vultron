@@ -66,6 +66,17 @@ well. The focus here should be on separating concerns and moving towards a
 cleaner architecture overall, starting to put the pieces in place to avoid 
 large refactors later.
 
+## Priority 70: DataLayer refactor into ports and adapters
+
+The DataLayer implementation should be refactored to become a port (Protocol), 
+with the TinyDB implementation as a (driven) adapter that implements it. 
+Move files around as needed to fit the new structure cleanly. This sets us 
+up for adding new db backends in the future without needing to change core 
+logic. (That part is mostly already true since the DataLayer is reasonably 
+well abstracted already, but we still need to make sure the files and their 
+contents are 
+organized to reflect the architecture.)
+
 ## Priority 100: Actor independence
 
 Each actor exists in its own behavior tree domain. So Actor A and Actor B
@@ -73,6 +84,8 @@ cannot see each other's Behavior Tree blackboard at all. They can only interact
 through the Vultron Protocol through passing ActivityStreams messages with
 defined semantics. This allows us to have a clean model of individual
 actors making independent decisions based on their own internal state.
+
+
 
 
 ## Priority 200: Case Actor as source of truth for case state
@@ -132,13 +145,12 @@ it in the new codebase using `py_trees` as the foundation. The underlying
 
 We are going to want to allow for the possibility of agentic AI integration
 into the vultron coordination process in the future. How this will happen is
-still an open question.
-
-One possibility we can imagine coordination agents that behave as
-ActivityPub Actors and participate in cases as CaseParticipants alongside
+still an open question. One possibility we can imagine coordination agents 
+that behave as ActivityPub Actors and participate in cases as CaseParticipants alongside
 humans.
 
-We want to support agentic AI agents interacting with cases as well on the
+A more likely scenario is that we want to support agentic AI agents 
+interacting with cases as well on the
 backend (i.e., not as ActivityPub Actors, but as API or command
 line clients.) We may have local agents that interact directly with
 the behavior trees or other internal system components via MCP. This would 
@@ -146,6 +158,8 @@ be an adapter that parallels the API and CLI adapters in the hexagonal
 architecture. These agents would not be ActivityPub Actors and would not 
 directly participate in cases, but would instead be more like assistants to human participants
 who are directing them to perform specific tasks.
+
+`AR-09-001` through `AR-09-004` and similar tasks will fall here.
 
 We will need to design the system in a way that allows for either of these
 possibilities to be implemented in the future without requiring major refactoring.

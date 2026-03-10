@@ -497,4 +497,48 @@ This might also extend toward the core needing to have an internal
 representation of all the AS2 semantics but maybe without the AS2 
 syntax.
 
+This likely conflicts with `PROTO-06-001`, which says that the prototype may 
+continue to use AS2 structural types as the core domain model. However, this 
+is starting to look increasingly untenable as we refactor toward a cleaner 
+architecture. One of the prototype goals is to "discover" the architecture 
+as we go, so if this is the direction the architecture is pushing us toward then
+we should adjust the prototype requirements accordingly. Building more 
+towards AS2 at wire and use case at core seems like the right direction so 
+we should plan accordingly.
+
 ---
+
+## Clean up tasks
+
+- `vultron/behavior_dispatcher.py` belongs in core
+- `vultron/dispatcher_errors.py` — belongs in core parallel to wherever the dispatcher goes
+- `vultron/enums.py` — is a refactoring shim left behind in a previous step. 
+  Verify nothing is using it anymore, fix any stragglers, then delete it.
+- `vultron/types.py` — look inside to see if these are all core things or if 
+  they need to be refactored into core vs wire etc. Move as needed into 
+  appropriate submodules. (`vultron/core/models/*` seems plausible unless 
+  they're more wire-centric, in which case maybe `vultron/wire/models/*` or 
+  similar). Or just `vultron/core/types.py` or `vultron/wire/types.py` if 
+  that makes more sense. Implementer's choice.
+- Create `errors.py` in core and wire layers where they don't exist and 
+  where custom error types are needed. Create the hierarchy 
+  (`vultron.core.errors.VultronCoreError` then `vultron.core.behaviors.
+  errors.VultronBehaviorError` etc.) where needed.
+
+---
+
+## MCP server/tools are later prototype items, not PROD_ONLY
+
+- `AR-09-001` through `AR-09-004` are marked as `PROD_ONLY` but they're 
+  really just "later prototype" items.
+
+---
+
+## DataLayer becomes a port, TinyDB is an adapter
+
+Even before we get to the database refactor, we should start treating the 
+`DataLayer` as a port (interface definition) and the `tinydb_backend` as an 
+adapter (implementation). This will require some refactoring to move things 
+to the right file locations and possibly adjust dependency injection 
+patterns, but this will make the future MongoDB addition a lot cleaner when 
+we get there.
