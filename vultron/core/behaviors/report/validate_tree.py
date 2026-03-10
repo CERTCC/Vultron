@@ -52,7 +52,7 @@ import logging
 
 import py_trees
 
-from vultron.behaviors.report.nodes import (
+from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
     CreateCaseActivity,
@@ -89,7 +89,7 @@ def create_validate_report_tree(
         ...     report_id="https://example.org/reports/CVE-2024-001",
         ...     offer_id="https://example.org/activities/offer-123"
         ... )
-        >>> from vultron.behaviors.bridge import BTBridge
+        >>> from vultron.core.behaviors.bridge import BTBridge
         >>> bridge = BTBridge()
         >>> result = bridge.execute_with_setup(
         ...     tree,

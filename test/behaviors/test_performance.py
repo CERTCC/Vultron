@@ -35,8 +35,10 @@ from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.behaviors.bridge import BTBridge
-from vultron.behaviors.report.validate_tree import create_validate_report_tree
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.report.validate_tree import (
+    create_validate_report_tree,
+)
 
 
 @pytest.fixture

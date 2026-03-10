@@ -38,7 +38,7 @@ from vultron.api.v2.data.status import (
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.wire.as2.vocab.activities.case import CreateCase as as_CreateCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.bt.report_management.states import RM
 from vultron.enums import OfferStatusEnum
 

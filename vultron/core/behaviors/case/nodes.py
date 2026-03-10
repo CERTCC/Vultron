@@ -35,7 +35,7 @@ from vultron.wire.as2.vocab.activities.case import CreateCase as as_CreateCase
 from vultron.wire.as2.vocab.objects.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
 
 logger = logging.getLogger(__name__)
 

@@ -36,8 +36,10 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.behaviors.bridge import BTBridge
-from vultron.behaviors.report.validate_tree import create_validate_report_tree
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.report.validate_tree import (
+    create_validate_report_tree,
+)
 from vultron.bt.report_management.states import RM
 
 

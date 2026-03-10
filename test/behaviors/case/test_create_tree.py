@@ -32,8 +32,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.behaviors.bridge import BTBridge
-from vultron.behaviors.case.create_tree import create_create_case_tree
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.case.create_tree import create_create_case_tree
 
 
 @pytest.fixture
@@ -93,7 +93,7 @@ def test_create_create_case_tree_returns_selector(case_obj, actor_id):
 
 def test_create_case_tree_first_child_is_idempotency_check(case_obj, actor_id):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor_id)
-    from vultron.behaviors.case.nodes import CheckCaseAlreadyExists
+    from vultron.core.behaviors.case.nodes import CheckCaseAlreadyExists
 
     assert isinstance(tree.children[0], CheckCaseAlreadyExists)
 

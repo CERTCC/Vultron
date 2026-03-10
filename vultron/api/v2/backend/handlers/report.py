@@ -131,8 +131,8 @@ def validate_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     from py_trees.common import Status
 
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.behaviors.bridge import BTBridge
-    from vultron.behaviors.report.validate_tree import (
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.report.validate_tree import (
         create_validate_report_tree,
     )
 

@@ -427,3 +427,22 @@ No ADR exists for the hexagonal architecture decision. The implementation notes
 ARCH-1.4 provide all the raw material for the ADR.
 
 ---
+
+## 2026-03-10 — P60-2: vultron/behaviors/ moved to vultron/core/behaviors/
+
+### What changed
+
+- Copied entire `vultron/behaviors/` tree (bridge, helpers, case/, report/)
+  to `vultron/core/behaviors/`.
+- Updated all internal imports within the moved files from
+  `vultron.behaviors.*` to `vultron.core.behaviors.*`.
+- Updated all external callers:
+  - `vultron/api/v2/backend/handlers/report.py` (lazy imports)
+  - `vultron/api/v2/backend/handlers/case.py` (lazy imports)
+  - `vultron/api/v2/backend/trigger_services/report.py`
+  - 8 test files under `test/behaviors/`
+- Deleted `vultron/behaviors/` entirely (no shim retained; all callers
+  updated in the same step).
+- 822 tests pass.
+
+---

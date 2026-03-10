@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-10 (P60-1 complete: vultron/as_vocab moved to vultron/wire/as2/vocab)
+**Last Updated**: 2026-03-10 (P60-2 complete: vultron/behaviors/ moved to vultron/core/behaviors/)
 
 ## Overview
 
@@ -206,7 +206,7 @@ incrementally — each task must leave tests passing.
   Remove the shim once all callers are updated. Done when `vultron/as_vocab/` is
   gone and tests pass.
 
-- [ ] **P60-2**: Move `vultron/behaviors/` to `vultron/core/behaviors/`. Relocate
+- [x] **P60-2**: Move `vultron/behaviors/` to `vultron/core/behaviors/`. Relocate
   all BT bridge, helper, and tree modules. Provide a compatibility shim at
   `vultron/behaviors/` then remove once all callers are updated. Done when
   `vultron/behaviors/` is gone and tests pass.

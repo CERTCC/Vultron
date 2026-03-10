@@ -41,7 +41,7 @@ import logging
 import py_trees
 
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.behaviors.case.nodes import (
+from vultron.core.behaviors.case.nodes import (
     CheckCaseAlreadyExists,
     CreateCaseActorNode,
     CreateInitialVendorParticipant,

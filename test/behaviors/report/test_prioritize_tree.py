@@ -31,8 +31,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.behaviors.bridge import BTBridge
-from vultron.behaviors.report.prioritize_tree import (
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
 )

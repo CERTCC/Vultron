@@ -28,7 +28,7 @@ import pytest
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.behaviors.report.policy import (
+from vultron.core.behaviors.report.policy import (
     AlwaysAcceptPolicy,
     ValidationPolicy,
 )

@@ -34,7 +34,7 @@ from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.behaviors.report.nodes import (
+from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
     CreateCaseActivity,

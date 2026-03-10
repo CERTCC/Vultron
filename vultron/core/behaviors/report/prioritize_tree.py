@@ -46,7 +46,7 @@ import logging
 
 import py_trees
 
-from vultron.behaviors.report.nodes import (
+from vultron.core.behaviors.report.nodes import (
     CheckParticipantExists,
     TransitionParticipantRMtoAccepted,
     TransitionParticipantRMtoDeferred,

@@ -28,8 +28,8 @@ def create_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
                       VulnerabilityCase object
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.behaviors.bridge import BTBridge
-    from vultron.behaviors.case.create_tree import create_create_case_tree
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.case.create_tree import create_create_case_tree
 
     activity = dispatchable.payload.raw_activity
 
@@ -79,8 +79,8 @@ def engage_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
                       VulnerabilityCase object
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.behaviors.bridge import BTBridge
-    from vultron.behaviors.report.prioritize_tree import (
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.report.prioritize_tree import (
         create_engage_case_tree,
     )
 
@@ -136,8 +136,10 @@ def defer_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
                       VulnerabilityCase object
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.behaviors.bridge import BTBridge
-    from vultron.behaviors.report.prioritize_tree import create_defer_case_tree
+    from vultron.core.behaviors.bridge import BTBridge
+    from vultron.core.behaviors.report.prioritize_tree import (
+        create_defer_case_tree,
+    )
 
     activity = dispatchable.payload.raw_activity
 

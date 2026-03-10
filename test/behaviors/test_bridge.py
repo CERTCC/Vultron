@@ -19,7 +19,7 @@ import pytest
 import py_trees
 from py_trees.common import Status
 
-from vultron.behaviors.bridge import BTBridge, BTExecutionResult
+from vultron.core.behaviors.bridge import BTBridge, BTExecutionResult
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
 
 # Test behavior nodes for verifying bridge functionality

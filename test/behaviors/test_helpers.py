@@ -19,14 +19,14 @@ import pytest
 import py_trees
 from py_trees.common import Status
 
-from vultron.behaviors.helpers import (
+from vultron.core.behaviors.helpers import (
     DataLayerCondition,
     DataLayerAction,
     ReadObject,
     UpdateObject,
     CreateObject,
 )
-from vultron.behaviors.bridge import BTBridge
+from vultron.core.behaviors.bridge import BTBridge
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
 from vultron.api.v2.datalayer.db_record import Record
 
