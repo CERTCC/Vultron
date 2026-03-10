@@ -32,6 +32,7 @@ General information about architectural decision records is available at <https:
 - [ADR-0006 Use CalVer for Project Versioning](0006-use-calver-for-project-versioning.md)
 - [ADR-0007 Introduce a Behavior Dispatcher](0007-use-behavior-dispatcher.md)
 - [ADR-0008 Use py_trees for Handler BT Integration](0008-use-py-trees-for-handler-bt-integration.md)
+- [ADR-0009 Adopt Hexagonal Architecture (Ports and Adapters)](0009-hexagonal-architecture.md)
 
 ## Proposed ADRs
 

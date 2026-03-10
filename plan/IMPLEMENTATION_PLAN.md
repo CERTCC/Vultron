@@ -181,7 +181,7 @@ Four discrete cleanup tasks complete the PRIORITY-50 work. Work in order.
   `isinstance` checks against AS2 types remain in handler/service code and
   tests pass.
 
-- [ ] **ARCH-ADR-9**: Write `docs/adr/0009-hexagonal-architecture.md` documenting
+- [x] **ARCH-ADR-9**: Write `docs/adr/0009-hexagonal-architecture.md` documenting
   the decision to adopt hexagonal architecture for Vultron. Reference
   `notes/architecture-ports-and-adapters.md`, `notes/architecture-review.md`,
   `specs/architecture.md`. Record violations V-01 through V-12, what was remediated
