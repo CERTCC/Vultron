@@ -63,6 +63,11 @@ mypy:  ## Run mypy for type checking
 	# edit $(PROJECT_HOME)/.mypy.ini to configure mypy options
 	uv run mypy
 
+# pyright static type checking
+.PHONY: pyright
+pyright:  ## Run pyright for static type checking
+	uv run pyright
+
 # run all linters
 .PHONY: lint
 lint: black mdlint flake8-lint mypy ## Run all linters (black, markdownlint)

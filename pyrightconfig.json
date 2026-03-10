@@ -1,0 +1,8 @@
+{
+  "include": ["vultron", "test"],
+  "exclude": ["**/__pycache__", "**/node_modules", "site", "docs"],
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.12",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false
+}

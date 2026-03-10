@@ -118,7 +118,7 @@ enforcement deferred to PRIORITY-200.
 all `Optional[str]` fields in `vultron/wire/as2/vocab/objects/`. Per-field
 empty-string validators replaced with shared types. ✅ 2026-03-10
 
-### ❌ Pyright static type checking not configured (TECHDEBT-8)
+### ✅ Pyright static type checking configured (TECHDEBT-8 DONE)
 
 No `pyrightconfig.json` exists. `specs/tech-stack.md` IMPL-TS-07-002 requires
 pyright adoption with a gradual approach.
@@ -294,11 +294,11 @@ incrementally — each task must leave tests passing.
   creation (CM-02-009). `create_case` BT SHOULD call `record_event()` for the
   originating Offer receipt and case creation events. Add tests.
 
-- [ ] **TECHDEBT-8**: Configure pyright for gradual static type checking
+- [x] **TECHDEBT-8**: Configure pyright for gradual static type checking
   (IMPL-TS-07-002). Commit `pyrightconfig.json` at `basic` strictness; run
   pyright to produce a baseline error count documented in
   `plan/IMPLEMENTATION_NOTES.md`; add a `Makefile` target. Done when config
-  committed and baseline documented.
+  committed and baseline documented. ✅ 2026-03-10
 
 - [ ] **TECHDEBT-3**: Standardize object IDs to URL-like form — draft ADR
   `docs/adr/ADR-XXXX-standardize-object-ids.md` and implement a compatibility
