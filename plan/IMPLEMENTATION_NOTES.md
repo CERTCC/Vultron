@@ -8,7 +8,7 @@ Add new items below this line
 
 ---
 
-## Use typed objects (pydantic basemodels) instead dicts when interfacing ports and adapters
+## General guidance: Use typed objects (pydantic basemodels) instead dicts when interfacing ports and adapters
 
 Avoid using plain `dict`s as interfaces between the core and adapter layers.
 Instead, define Pydantic `BaseModel`-derived classes that represent the data 
@@ -19,6 +19,39 @@ benefits of Pydantic's validation and type safety across the architecture,
 while still decoupling the core from adapter-specific types. The core can define
 its own domain models that are independent of the wire format, and adapters can
 handle conversion to and from those models as needed.
+
+## P65-3 Pre-implementation notes
+
+There is a gap in the code where many core domain-level objects use AS2 
+vocab  objects because they were semantically 
+identical. This is a case where we might need to build parallel core objects 
+to correspond to the semantically-identical AS2 vocab objects, but the core 
+objects don't need to be fully AS2-compliant. This is likely to become 
+apparent when addressing P56-3.
+
+P65-3 carries a risk of information loss depending on how `InboundPayload` 
+ends up being enriched. We probably want to define a core Pydantic model 
+that is something like a `VultronEvent` that carries all the relevant domain 
+information extracted from the AS2 activity. Structurally, a `VultronEvent` 
+would be nearly identical to the AS2 activity/object/target/origin/etc 
+structure but just not dependent on AS2-specific types. This would finally 
+address the decoupling of the core from the AS2 wire formats while still 
+retaining the rich semantic information needed for Vultron to operate on. 
+`VultronEvent` is a domain event, but it carries the same information as the 
+AS2 activity (who did what to what, when, how, etc.) but it's a core domain 
+type that can evolve independently of the AS2 wire format. This looks like 
+duplication on the surface, but it's actually important for the separation 
+between wire format and domain model.
+
+We only really need to build core `VultronEvents` to match up to the things 
+that are represented by use cases (hint: things corresponding to 
+MessageSemantics items or triggerable behaviors), so the VultronEvents could 
+be data classes that specifically map to those particular semantics as 
+things come in (e.g. `ReportSubmittedEvent`, `CaseUpdatedEvent`, etc.) rather than 
+a single generic `VultronEvent` that tries to mirror the AS2 structure.
+This can help with the use-case-as-port pattern too, making it a bit clearer 
+in an adapter when you're translating from an AS2 activity to a specific 
+domain event.
 
 ## 2026-03-10 — P65-1 complete
 
@@ -668,46 +701,6 @@ ARCH-1.4 provide all the raw material for the ADR.
 
 ---
 
-## Problem on the horizon: defining incoming "ports" as use cases
-
-> ✅ Captured in `notes/architecture-ports-and-adapters.md` ("Design Note: Use
-> Cases as Incoming Ports" section, added 2026-03-10). Also noted in `AGENTS.md`
-> Key Files Map (`vultron/core/use_cases/` stub entry).
-
-There are a lot of handlers that are built around specific message semantics,
-and these are in fact natural use cases that the system needs to support. 
-For example, "SubmitReport", "DeferCase", "TerminateEmbargo" etc. These are 
-all things that carry semantic meaning in the domain and represent key 
-business logic level operations (some of which have behavior trees that 
-implement them). However, as we are in the process of refactoring towards a 
-cleaner hexagonal architecture, it's clear that we will rapidly find that 
-there's a gap between the semantic routing and what the core is exporting. 
-This is one of the places where the overlap between the AS2 vocabulary and 
-the domain model was so close that we didn't really notice the distinction, 
-but now that we're thinking architecturally we will need to have some way 
-for the core to export these use cases so that the adapters can invoke them 
-independently of the AS2 semantics (again, even though the semantics are 
-still a 1:1 mapping to the use cases). This may require some tasks to be 
-inserted into the plan to create these use cases as explicit invokable 
-entities in the core. Whether they're a class that gets instantiated or just 
-functions to be called is left as a decision to be made at implementation 
-time, but the key point is that we need to have a peering structure between 
-the adapters and the core that allows adapters to invoke these use cases 
-without necessarily relying on the wire format (AS2) to be the thing that 
-the core is built around. `vultron/wire/as2/vocab/examples.py` is also a 
-good example of a list of primitives (use cases) that the core needs to be 
-able to understand. (The examples produce these things as AS2 messages, but 
-we need the thing those messages get routed *to* to be the core use case, 
-not the AS2 syntax itself).
-
-This might also extend toward the core needing to have an internal 
-representation of all the AS2 semantics but maybe without the AS2 
-syntax.
-
-> ✅ PROTO-06-001 tension captured in `specs/prototype-shortcuts.md` (Design
-> Note added under PROTO-06-001, 2026-03-10).
-
----
 
 
 
@@ -832,17 +825,7 @@ code should be made clean under pyright basic mode before merging.
   They will not be found by new `urn:uuid:`-keyed lookups (bare-UUID records
   are a prototype artifact from before this change).
 
-## note on P65-1
 
-When you get to P65-1, observe that `vultron/api/v2/datalayer` is actually a 
-blend of a port, a model, and an adapter. So these really belong in `core`, 
-not `wire`. 
-
-Also note that there is a gap in the code where many core 
-domain-level objects use AS2 vocab objects because they were semantically 
-identical. This is a case where we might need to build parallel core objects 
-to correspond to the semantically-identical AS2 vocab objects, but the core 
-objects don't need to be fully AS2-compliant.
 ## 2026-03-10 — P65-2 complete (marked; done in P65-1 commit)
 
 P65-2 was implemented in the same commit as P65-1. The `inbox_handler.py`
