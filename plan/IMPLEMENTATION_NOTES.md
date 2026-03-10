@@ -8,6 +8,56 @@ Add new items below this line
 
 ---
 
+## 2026-03-09 — ARCH-1.4 complete: DataLayer injected via port; handler map moved to adapter layer
+
+### What changed
+
+- **`vultron/api/v2/backend/handler_map.py`** (new): Module-level handler registry in
+  the adapter layer. `SEMANTICS_HANDLERS` dict maps `MessageSemantics` → handler
+  functions with plain module-level imports (no lazy imports needed since this file
+  is already in the adapter layer). This addresses V-09.
+
+- **`vultron/semantic_handler_map.py`**: Converted to a backward-compat shim that
+  re-exports `SEMANTICS_HANDLERS` and a `get_semantics_handlers()` wrapper from
+  the new location. Can be deleted once all callers are updated.
+
+- **`vultron/behavior_dispatcher.py`**: `DispatcherBase` now accepts `dl: DataLayer`
+  and `handler_map: dict[MessageSemantics, BehaviorHandler]` in its constructor.
+  `_handle()` passes `dl=self.dl` to each handler. `_get_handler_for_semantics()`
+  uses `self._handler_map` directly (no lazy import). `get_dispatcher()` updated to
+  accept `dl` and `handler_map` parameters.
+
+- **`vultron/api/v2/backend/inbox_handler.py`**: Module-level `DISPATCHER` now
+  constructed with `get_datalayer()` + `SEMANTICS_HANDLERS` injected. The lazy
+  import in `_get_handler_for_semantics` is gone; the coupling to the handler map
+  now lives in the adapter layer only.
+
+- **All handler files** (`report.py`, `case.py`, `embargo.py`, `actor.py`, `note.py`,
+  `participant.py`, `status.py`, `unknown.py`): Each handler function signature
+  updated to `(dispatchable: DispatchActivity, dl: DataLayer) -> None`. All
+  `from vultron.api.v2.datalayer.tinydb_backend import get_datalayer` lazy imports
+  and `dl = get_datalayer()` calls removed. `DataLayer` imported at module level from
+  `vultron.api.v2.datalayer.abc`. This addresses V-10.
+
+- **`vultron/types.py`**: `BehaviorHandler` Protocol updated to
+  `__call__(self, dispatchable: DispatchActivity, dl: DataLayer) -> None`.
+
+- **`vultron/api/v2/backend/handlers/_base.py`**: `verify_semantics` wrapper updated
+  to accept and forward `dl: DataLayer`.
+
+- **Tests**: All `@patch("vultron.api.v2.datalayer.tinydb_backend.get_datalayer")`
+  patches in `test_handlers.py` replaced with direct `mock_dl` argument passing.
+  `test_behavior_dispatcher.py` updated to construct dispatcher with injected DL
+  and handler map. 824 tests pass (up from 822).
+
+### Phase PRIORITY-50 is now complete (ARCH-1.1 through ARCH-1.4)
+
+All four ARCH-1.x tasks are done. The hexagonal architecture violations V-01 through
+V-10 have been remediated. The remaining violations in the inventory (V-11, V-12)
+are lower severity and can be addressed as part of subsequent work.
+
+---
+
 ## 2026-03-09 — Hexagonal architecture refactor elevated to PRIORITY 50 (immediate next)
 
 Per updated `plan/PRIORITIES.md`, the hexagonal architecture refactor with `triggers.py`

@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50; P50-0 complete, ARCH-1.1 complete, ARCH-1.2 complete, ARCH-1.3 complete)
+**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50; P50-0 complete, ARCH-1.1 complete, ARCH-1.2 complete, ARCH-1.3 complete, ARCH-1.4 complete)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 777 passing, 5581 subtests, 0 xfailed (2026-03-09)
+**Test suite**: 824 passing, 5581 subtests, 0 xfailed (2026-03-09)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -161,7 +161,7 @@ the deeper layering violations. Work in the order below.
   `wire/as2/extractor.py`; remove second `find_matching_semantics` call in
   `verify_semantics` (ARCH-03-001, ARCH-07-001, V-04 through V-08). Tests pass.
 
-- [ ] **ARCH-1.4** (R-05 + R-06): Inject DataLayer via port; move
+- [x] **ARCH-1.4** (R-05 + R-06): Inject DataLayer via port; move
   `semantic_handler_map.py` to adapter layer (ARCH-04-001, V-09, V-10).
   Handlers receive `DataLayer` port object via DI; `get_datalayer()` no longer
   called directly in handler bodies. Tests pass.
