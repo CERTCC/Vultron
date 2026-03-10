@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-10 (SC-3.3 complete: update_case embargo acceptance guard added)
+**Last Updated**: 2026-03-10 (TECHDEBT-11 complete: test dirs relocated to mirror source layout)
 
 ## Overview
 
@@ -46,10 +46,10 @@ reject_case_ownership_transfer, update_case
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
 BUGFIX-1, REFACTOR-1, DEMO-3, DEMO-4, SPEC-COMPLIANCE-1, SPEC-COMPLIANCE-2,
-SC-3.1, SC-PRE-1, TECHDEBT-1, TECHDEBT-5, TECHDEBT-6, P30-1, P30-2, P30-3,
-P30-4, P30-5, P30-6, P50-0, ARCH-1.1, ARCH-1.2, ARCH-1.3, ARCH-1.4,
-ARCH-CLEANUP-1, ARCH-CLEANUP-2, ARCH-CLEANUP-3, ARCH-ADR-9, P60-1, P60-2,
-P60-3.
+SC-3.1, SC-PRE-1, TECHDEBT-1, TECHDEBT-5, TECHDEBT-6, TECHDEBT-11, P30-1,
+P30-2, P30-3, P30-4, P30-5, P30-6, P50-0, ARCH-1.1, ARCH-1.2, ARCH-1.3,
+ARCH-1.4, ARCH-CLEANUP-1, ARCH-CLEANUP-2, ARCH-CLEANUP-3, ARCH-ADR-9, P60-1,
+P60-2, P60-3.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -72,13 +72,11 @@ checks replaced with string type comparisons. Architecture ADR written.
 - `vultron/behaviors/` → `vultron/core/behaviors/` (P60-2 ✅)
 - `vultron/adapters/` package stub created (P60-3 ✅)
 
-### ❌ Test directory layout not updated after package relocation
+### ✅ Test directory layout updated after package relocation (TECHDEBT-11 DONE)
 
-`test/as_vocab/` and `test/behaviors/` directories remain in old locations.
-Tests already import from the correct new paths (`vultron.wire.as2.vocab.*` and
-`vultron.core.behaviors.*`), but the test files themselves have not been moved to
-`test/wire/as2/vocab/` and `test/core/behaviors/` to mirror the new source layout.
-See TECHDEBT-11.
+`test/as_vocab/` → `test/wire/as2/vocab/` and `test/behaviors/` →
+`test/core/behaviors/` relocated to mirror the new source layout. Old directories
+removed. 841 tests pass. ✅ 2026-03-10
 
 ### ❌ Deprecated FastAPI status constant in trigger services
 
@@ -270,11 +268,11 @@ incrementally — each task must leave tests passing.
 
 ### Technical Debt (housekeeping)
 
-- [ ] **TECHDEBT-11**: Relocate `test/as_vocab/` → `test/wire/as2/vocab/` and
+- [x] **TECHDEBT-11**: Relocate `test/as_vocab/` → `test/wire/as2/vocab/` and
   `test/behaviors/` → `test/core/behaviors/` to mirror the new source layout after
   P60-1 and P60-2. All test files already import from the correct canonical paths;
   only directory moves and `conftest.py`/`__init__.py` updates are needed. Done
-  when old directories are gone and tests pass.
+  when old directories are gone and tests pass. ✅ 2026-03-10
 
 - [ ] **TECHDEBT-12**: Replace deprecated `HTTP_422_UNPROCESSABLE_ENTITY` constant
   with `HTTP_422_UNPROCESSABLE_CONTENT` in all 7 usages across
