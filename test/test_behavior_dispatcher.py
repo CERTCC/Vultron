@@ -5,7 +5,7 @@ from vultron import behavior_dispatcher as bd
 from vultron.as_vocab.base.objects.activities.transitive import as_Create
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.core.models.events import InboundPayload, MessageSemantics
-from vultron.enums import as_TransitiveActivityType
+from vultron.wire.as2.enums import as_TransitiveActivityType
 
 MessageSemantics = bd.MessageSemantics
 

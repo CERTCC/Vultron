@@ -18,7 +18,7 @@ VultronActorMixin (EP-01-001).
 
 import unittest
 
-from vultron.enums import as_ActorType
+from vultron.wire.as2.enums import as_ActorType
 from vultron.as_vocab.objects.embargo_policy import EmbargoPolicy
 from vultron.as_vocab.objects.vultron_actor import (
     VultronActorMixin,
