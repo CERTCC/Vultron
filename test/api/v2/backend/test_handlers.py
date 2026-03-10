@@ -43,7 +43,7 @@ class TestVerifySemanticsDecorator:
 
         # Create a test handler decorated with verify_semantics
         @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity) -> str:
+        def test_handler(dispatchable: DispatchActivity, dl=None) -> str:
             return "success"
 
         # Create a mock DispatchActivity with matching semantics
@@ -60,14 +60,14 @@ class TestVerifySemanticsDecorator:
         mock_activity.payload = _make_payload(create_activity)
 
         # Should execute successfully
-        result = test_handler(mock_activity)
+        result = test_handler(mock_activity, None)
         assert result == "success"
 
     def test_decorator_raises_error_for_missing_semantic_type(self):
         """Test that decorator raises error when semantic_type is None."""
 
         @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity) -> str:
+        def test_handler(dispatchable: DispatchActivity, dl=None) -> str:
             return "success"
 
         # Create mock with None semantic_type
@@ -76,13 +76,13 @@ class TestVerifySemanticsDecorator:
 
         # Should raise VultronApiHandlerMissingSemanticError
         with pytest.raises(VultronApiHandlerMissingSemanticError):
-            test_handler(mock_activity)
+            test_handler(mock_activity, None)
 
     def test_decorator_raises_error_for_semantic_mismatch(self):
         """Test that decorator raises error when semantic types don't match."""
 
         @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity) -> str:
+        def test_handler(dispatchable: DispatchActivity, dl=None) -> str:
             return "success"
 
         # Create mock with wrong semantic_type (handler expects CREATE_REPORT)
@@ -91,13 +91,13 @@ class TestVerifySemanticsDecorator:
 
         # Should raise VultronApiHandlerSemanticMismatchError
         with pytest.raises(VultronApiHandlerSemanticMismatchError):
-            test_handler(mock_activity)
+            test_handler(mock_activity, None)
 
     def test_decorator_preserves_function_name(self):
         """Test that decorator preserves the wrapped function's __name__."""
 
         @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity) -> str:
+        def test_handler(dispatchable: DispatchActivity, dl=None) -> str:
             return "success"
 
         # Decorator should preserve function name via @wraps
@@ -177,7 +177,8 @@ class TestHandlerExecution:
         mock_activity.payload = _make_payload(create_activity)
 
         # Should execute without raising
-        result = handlers.create_report(mock_activity)
+        mock_dl = MagicMock()
+        result = handlers.create_report(mock_activity, mock_dl)
         # Current stub implementation returns None
         assert result is None
 
@@ -196,7 +197,8 @@ class TestHandlerExecution:
         mock_activity.payload = _make_payload(create_activity)
 
         # Should execute without raising
-        result = handlers.create_case(mock_activity)
+        mock_dl = MagicMock()
+        result = handlers.create_case(mock_activity, mock_dl)
         assert result is None
 
     def test_handler_rejects_wrong_semantic_type(self):
@@ -206,7 +208,7 @@ class TestHandlerExecution:
 
         # Should raise semantic mismatch error (handler expects CREATE_REPORT)
         with pytest.raises(VultronApiHandlerSemanticMismatchError):
-            handlers.create_report(mock_activity)
+            handlers.create_report(mock_activity, None)
 
 
 class TestInviteActorHandlers:
@@ -219,10 +221,6 @@ class TestInviteActorHandlers:
         from vultron.as_vocab.activities.case import RmInviteToCase
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         invite = RmInviteToCase(
             id="https://example.org/cases/case1/invitations/1",
@@ -235,7 +233,7 @@ class TestInviteActorHandlers:
         mock_dispatchable.semantic_type = MessageSemantics.INVITE_ACTOR_TO_CASE
         mock_dispatchable.payload = _make_payload(invite)
 
-        handlers.invite_actor_to_case(mock_dispatchable)
+        handlers.invite_actor_to_case(mock_dispatchable, dl)
 
         stored = dl.get(invite.as_type.value, invite.as_id)
         assert stored is not None
@@ -246,10 +244,6 @@ class TestInviteActorHandlers:
         from vultron.as_vocab.activities.case import RmInviteToCase
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         invite = RmInviteToCase(
             id="https://example.org/cases/case1/invitations/2",
@@ -262,9 +256,9 @@ class TestInviteActorHandlers:
         mock_dispatchable.semantic_type = MessageSemantics.INVITE_ACTOR_TO_CASE
         mock_dispatchable.payload = _make_payload(invite)
 
-        handlers.invite_actor_to_case(mock_dispatchable)
+        handlers.invite_actor_to_case(mock_dispatchable, dl)
         handlers.invite_actor_to_case(
-            mock_dispatchable
+            mock_dispatchable, dl
         )  # second call is no-op
 
         stored = dl.get(invite.as_type.value, invite.as_id)
@@ -294,7 +288,9 @@ class TestInviteActorHandlers:
         )
         mock_dispatchable.payload = _make_payload(reject)
 
-        result = handlers.reject_invite_actor_to_case(mock_dispatchable)
+        result = handlers.reject_invite_actor_to_case(
+            mock_dispatchable, MagicMock()
+        )
         assert result is None
 
     def test_remove_case_participant_from_case(self, monkeypatch):
@@ -309,10 +305,6 @@ class TestInviteActorHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case2",
@@ -340,7 +332,7 @@ class TestInviteActorHandlers:
         )
         mock_dispatchable.payload = _make_payload(remove_activity)
 
-        handlers.remove_case_participant_from_case(mock_dispatchable)
+        handlers.remove_case_participant_from_case(mock_dispatchable, dl)
 
         assert participant.as_id not in [
             (p.as_id if hasattr(p, "as_id") else p)
@@ -359,10 +351,6 @@ class TestInviteActorHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case3",
@@ -389,7 +377,9 @@ class TestInviteActorHandlers:
         )
         mock_dispatchable.payload = _make_payload(remove_activity)
 
-        result = handlers.remove_case_participant_from_case(mock_dispatchable)
+        result = handlers.remove_case_participant_from_case(
+            mock_dispatchable, dl
+        )
         assert result is None
 
 
@@ -408,10 +398,6 @@ class TestEmbargoHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_cem1",
@@ -431,7 +417,7 @@ class TestEmbargoHandlers:
         mock_dispatchable.semantic_type = MessageSemantics.CREATE_EMBARGO_EVENT
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.create_embargo_event(mock_dispatchable)
+        handlers.create_embargo_event(mock_dispatchable, dl)
 
         stored = dl.get(embargo.as_type.value, embargo.as_id)
         assert stored is not None
@@ -448,10 +434,6 @@ class TestEmbargoHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_cem2",
@@ -470,8 +452,10 @@ class TestEmbargoHandlers:
         mock_dispatchable.semantic_type = MessageSemantics.CREATE_EMBARGO_EVENT
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.create_embargo_event(mock_dispatchable)
-        handlers.create_embargo_event(mock_dispatchable)  # second call no-op
+        handlers.create_embargo_event(mock_dispatchable, dl)
+        handlers.create_embargo_event(
+            mock_dispatchable, dl
+        )  # second call no-op
 
         stored = dl.get(embargo.as_type.value, embargo.as_id)
         assert stored is not None
@@ -487,10 +471,6 @@ class TestEmbargoHandlers:
         from vultron.bt.embargo_management.states import EM
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_em1",
@@ -514,7 +494,7 @@ class TestEmbargoHandlers:
         )
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.add_embargo_event_to_case(mock_dispatchable)
+        handlers.add_embargo_event_to_case(mock_dispatchable, dl)
 
         assert case.active_embargo is not None
         assert case.current_status.em_state == EM.ACTIVE
@@ -526,10 +506,6 @@ class TestEmbargoHandlers:
         from vultron.as_vocab.objects.embargo_event import EmbargoEvent
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         embargo = EmbargoEvent(
             id="https://example.org/cases/case_em2/embargo_events/e2",
@@ -548,7 +524,7 @@ class TestEmbargoHandlers:
         )
         mock_dispatchable.payload = _make_payload(proposal)
 
-        handlers.invite_to_embargo_on_case(mock_dispatchable)
+        handlers.invite_to_embargo_on_case(mock_dispatchable, dl)
 
         stored = dl.get(proposal.as_type.value, proposal.as_id)
         assert stored is not None
@@ -569,10 +545,6 @@ class TestEmbargoHandlers:
         from vultron.bt.embargo_management.states import EM
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
         monkeypatch.setattr(
             "vultron.api.v2.data.rehydration.get_datalayer",
             lambda **_: dl,
@@ -608,7 +580,7 @@ class TestEmbargoHandlers:
         )
         mock_dispatchable.payload = _make_payload(accept)
 
-        handlers.accept_invite_to_embargo_on_case(mock_dispatchable)
+        handlers.accept_invite_to_embargo_on_case(mock_dispatchable, dl)
 
         assert case.active_embargo is not None
         assert case.current_status.em_state == EM.ACTIVE
@@ -643,7 +615,9 @@ class TestEmbargoHandlers:
         )
         mock_dispatchable.payload = _make_payload(reject)
 
-        result = handlers.reject_invite_to_embargo_on_case(mock_dispatchable)
+        result = handlers.reject_invite_to_embargo_on_case(
+            mock_dispatchable, MagicMock()
+        )
         assert result is None
 
 
@@ -659,10 +633,6 @@ class TestNoteHandlers:
         from vultron.as_vocab.base.objects.object_types import as_Note
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         note = as_Note(
             id="https://example.org/notes/note1",
@@ -677,7 +647,7 @@ class TestNoteHandlers:
         mock_dispatchable.semantic_type = MessageSemantics.CREATE_NOTE
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.create_note(mock_dispatchable)
+        handlers.create_note(mock_dispatchable, dl)
 
         stored = dl.get(note.as_type.value, note.as_id)
         assert stored is not None
@@ -691,10 +661,6 @@ class TestNoteHandlers:
         from vultron.as_vocab.base.objects.object_types import as_Note
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         note = as_Note(
             id="https://example.org/notes/note2",
@@ -709,7 +675,7 @@ class TestNoteHandlers:
         mock_dispatchable.payload = _make_payload(activity)
 
         dl.create(note)
-        handlers.create_note(mock_dispatchable)
+        handlers.create_note(mock_dispatchable, dl)
 
         stored = dl.get(note.as_type.value, note.as_id)
         assert stored is not None
@@ -724,10 +690,6 @@ class TestNoteHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
         monkeypatch.setattr(
             "vultron.api.v2.data.rehydration.get_datalayer",
             lambda **_: dl,
@@ -753,7 +715,7 @@ class TestNoteHandlers:
         mock_dispatchable.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.add_note_to_case(mock_dispatchable)
+        handlers.add_note_to_case(mock_dispatchable, dl)
 
         assert note.as_id in case.notes
 
@@ -767,10 +729,6 @@ class TestNoteHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
         monkeypatch.setattr(
             "vultron.api.v2.data.rehydration.get_datalayer",
             lambda **_: dl,
@@ -797,7 +755,7 @@ class TestNoteHandlers:
         mock_dispatchable.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.add_note_to_case(mock_dispatchable)
+        handlers.add_note_to_case(mock_dispatchable, dl)
 
         assert case.notes.count(note.as_id) == 1
 
@@ -813,10 +771,6 @@ class TestNoteHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
         monkeypatch.setattr(
             "vultron.api.v2.data.rehydration.get_datalayer",
             lambda **_: dl,
@@ -845,7 +799,7 @@ class TestNoteHandlers:
         )
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.remove_note_from_case(mock_dispatchable)
+        handlers.remove_note_from_case(mock_dispatchable, dl)
 
         assert note.as_id not in case.notes
 
@@ -861,10 +815,6 @@ class TestNoteHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
         monkeypatch.setattr(
             "vultron.api.v2.data.rehydration.get_datalayer",
             lambda **_: dl,
@@ -892,7 +842,7 @@ class TestNoteHandlers:
         )
         mock_dispatchable.payload = _make_payload(activity)
 
-        result = handlers.remove_note_from_case(mock_dispatchable)
+        result = handlers.remove_note_from_case(mock_dispatchable, dl)
         assert result is None
 
 
@@ -909,10 +859,6 @@ class TestStatusHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_cs1",
@@ -932,7 +878,7 @@ class TestStatusHandlers:
         mock_dispatchable.semantic_type = MessageSemantics.CREATE_CASE_STATUS
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.create_case_status(mock_dispatchable)
+        handlers.create_case_status(mock_dispatchable, dl)
 
         stored = dl.get(status.as_type.value, status.as_id)
         assert stored is not None
@@ -947,10 +893,6 @@ class TestStatusHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_cs2",
@@ -971,7 +913,7 @@ class TestStatusHandlers:
         mock_dispatchable.semantic_type = MessageSemantics.CREATE_CASE_STATUS
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.create_case_status(mock_dispatchable)
+        handlers.create_case_status(mock_dispatchable, dl)
 
         stored = dl.get(status.as_type.value, status.as_id)
         assert stored is not None
@@ -986,10 +928,6 @@ class TestStatusHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
         monkeypatch.setattr(
             "vultron.api.v2.data.rehydration.get_datalayer",
             lambda **_: dl,
@@ -1017,7 +955,7 @@ class TestStatusHandlers:
         )
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.add_case_status_to_case(mock_dispatchable)
+        handlers.add_case_status_to_case(mock_dispatchable, dl)
 
         status_ids = [
             (s.as_id if hasattr(s, "as_id") else s) for s in case.case_statuses
@@ -1033,10 +971,6 @@ class TestStatusHandlers:
         from vultron.as_vocab.objects.case_status import ParticipantStatus
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         pstatus = ParticipantStatus(
             id="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
@@ -1062,7 +996,7 @@ class TestStatusHandlers:
         )
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.create_participant_status(mock_dispatchable)
+        handlers.create_participant_status(mock_dispatchable, dl)
 
         stored = dl.get(pstatus.as_type.value, pstatus.as_id)
         assert stored is not None
@@ -1079,10 +1013,6 @@ class TestStatusHandlers:
         from vultron.as_vocab.objects.case_status import ParticipantStatus
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
         monkeypatch.setattr(
             "vultron.api.v2.data.rehydration.get_datalayer",
             lambda **_: dl,
@@ -1120,7 +1050,7 @@ class TestStatusHandlers:
         )
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.add_participant_status_to_participant(mock_dispatchable)
+        handlers.add_participant_status_to_participant(mock_dispatchable, dl)
 
         status_ids = [
             (s.as_id if hasattr(s, "as_id") else s)
@@ -1139,10 +1069,6 @@ class TestSuggestActorHandlers:
         from vultron.as_vocab.base.objects.actors import as_Actor
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         coordinator = as_Actor(id="https://example.org/users/coordinator")
         case = VulnerabilityCase(
@@ -1162,7 +1088,7 @@ class TestSuggestActorHandlers:
         )
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.suggest_actor_to_case(mock_dispatchable)
+        handlers.suggest_actor_to_case(mock_dispatchable, dl)
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
@@ -1174,10 +1100,6 @@ class TestSuggestActorHandlers:
         from vultron.as_vocab.base.objects.actors import as_Actor
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         coordinator = as_Actor(id="https://example.org/users/coordinator")
         case = VulnerabilityCase(
@@ -1195,8 +1117,8 @@ class TestSuggestActorHandlers:
         )
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.suggest_actor_to_case(mock_dispatchable)
-        handlers.suggest_actor_to_case(mock_dispatchable)
+        handlers.suggest_actor_to_case(mock_dispatchable, dl)
+        handlers.suggest_actor_to_case(mock_dispatchable, dl)
 
         # Second call should be a no-op; record is still present (not duplicated)
         stored = dl.get(activity.as_type.value, activity.as_id)
@@ -1214,10 +1136,6 @@ class TestSuggestActorHandlers:
         from vultron.as_vocab.base.objects.actors import as_Actor
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         coordinator = as_Actor(id="https://example.org/users/coordinator")
         case = VulnerabilityCase(
@@ -1240,7 +1158,7 @@ class TestSuggestActorHandlers:
         )
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.accept_suggest_actor_to_case(mock_dispatchable)
+        handlers.accept_suggest_actor_to_case(mock_dispatchable, dl)
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
@@ -1279,7 +1197,9 @@ class TestSuggestActorHandlers:
         mock_dispatchable.payload = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            handlers.reject_suggest_actor_to_case(mock_dispatchable)
+            handlers.reject_suggest_actor_to_case(
+                mock_dispatchable, MagicMock()
+            )
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
 
@@ -1293,10 +1213,6 @@ class TestOwnershipTransferHandlers:
         from vultron.as_vocab.activities.case import OfferCaseOwnershipTransfer
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_ot1",
@@ -1313,7 +1229,7 @@ class TestOwnershipTransferHandlers:
         )
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.offer_case_ownership_transfer(mock_dispatchable)
+        handlers.offer_case_ownership_transfer(mock_dispatchable, dl)
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
@@ -1329,10 +1245,6 @@ class TestOwnershipTransferHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
         monkeypatch.setattr(
             "vultron.api.v2.data.rehydration.get_datalayer",
             lambda **_: dl,
@@ -1363,7 +1275,7 @@ class TestOwnershipTransferHandlers:
         )
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.accept_case_ownership_transfer(mock_dispatchable)
+        handlers.accept_case_ownership_transfer(mock_dispatchable, dl)
 
         updated_record = dl.get(case.as_type.value, case.as_id)
         assert updated_record is not None
@@ -1405,7 +1317,9 @@ class TestOwnershipTransferHandlers:
         mock_dispatchable.payload = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            handlers.reject_case_ownership_transfer(mock_dispatchable)
+            handlers.reject_case_ownership_transfer(
+                mock_dispatchable, MagicMock()
+            )
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
 
@@ -1421,10 +1335,6 @@ class TestUpdateCaseHandler:
         from vultron.as_vocab.activities.case import UpdateCase
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
         monkeypatch.setattr(
             "vultron.api.v2.data.rehydration.get_datalayer",
             lambda **_: dl,
@@ -1453,7 +1363,7 @@ class TestUpdateCaseHandler:
         mock_dispatchable.payload = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            handlers.update_case(mock_dispatchable)
+            handlers.update_case(mock_dispatchable, dl)
 
         stored = dl.read(case.as_id)
         assert stored is not None
@@ -1468,10 +1378,6 @@ class TestUpdateCaseHandler:
         from vultron.as_vocab.activities.case import UpdateCase
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
         monkeypatch.setattr(
             "vultron.api.v2.data.rehydration.get_datalayer",
             lambda **_: dl,
@@ -1500,7 +1406,7 @@ class TestUpdateCaseHandler:
         mock_dispatchable.payload = _make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
-            handlers.update_case(mock_dispatchable)
+            handlers.update_case(mock_dispatchable, dl)
 
         stored = dl.read(case.as_id)
         assert stored is not None
@@ -1513,10 +1419,6 @@ class TestUpdateCaseHandler:
         from vultron.as_vocab.activities.case import UpdateCase
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
         monkeypatch.setattr(
             "vultron.api.v2.data.rehydration.get_datalayer",
             lambda **_: dl,
@@ -1543,8 +1445,8 @@ class TestUpdateCaseHandler:
         mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
         mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.update_case(mock_dispatchable)
-        handlers.update_case(mock_dispatchable)
+        handlers.update_case(mock_dispatchable, dl)
+        handlers.update_case(mock_dispatchable, dl)
 
         stored = dl.read(case.as_id)
         assert stored is not None

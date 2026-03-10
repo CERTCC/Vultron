@@ -19,6 +19,7 @@ Vultron Actor Inbox Handler
 import logging
 
 from vultron.api.v2.backend import handlers  # noqa: F401
+from vultron.api.v2.backend.handler_map import SEMANTICS_HANDLERS
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
@@ -28,7 +29,7 @@ from vultron.types import DispatchActivity
 
 logger = logging.getLogger(__name__)
 
-DISPATCHER = get_dispatcher()
+DISPATCHER = get_dispatcher(handler_map=SEMANTICS_HANDLERS, dl=get_datalayer())
 logger.info("Using dispatcher: %s", type(DISPATCHER).__name__)
 
 
@@ -43,6 +44,7 @@ def dispatch(dispatchable: DispatchActivity) -> None:
     logger.debug(
         f"Dispatching activity '{dispatchable.activity_id}' with semantics '{dispatchable.semantic_type}'"
     )
+    DISPATCHER.dl = get_datalayer()
     DISPATCHER.dispatch(dispatchable)
 
 

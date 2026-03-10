@@ -1,4 +1,6 @@
 import logging
+from unittest.mock import MagicMock
+
 from vultron import behavior_dispatcher as bd
 from vultron.as_vocab.base.objects.activities.transitive import as_Create
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
@@ -48,7 +50,8 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
     message containing the activity dump (ensure the activity id appears in the debug output).
     """
     caplog.set_level(logging.DEBUG)
-    dispatcher = bd.DirectActivityDispatcher()
+    mock_dl = MagicMock()
+    dispatcher = bd.DirectActivityDispatcher(dl=mock_dl)
 
     # Create a proper VulnerabilityReport and Create activity
     report = VulnerabilityReport(
