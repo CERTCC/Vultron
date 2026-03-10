@@ -107,6 +107,11 @@ class CaseReference(VultronObject):
         for tag in v:
             if not isinstance(tag, str) or not tag.strip():
                 raise ValueError("All tags must be non-empty strings")
+            if tag not in CASE_REFERENCE_TAG_VOCABULARY:
+                raise ValueError(
+                    f"Invalid tag '{tag}'. Must be one of: "
+                    f"{sorted(CASE_REFERENCE_TAG_VOCABULARY)}"
+                )
         return v
 
 

@@ -77,7 +77,7 @@ class CaseEvent(BaseModel):
     @classmethod
     def parse_received_at(cls, v) -> datetime:
         if isinstance(v, str):
-            return datetime.fromisoformat(v)
+            return datetime.fromisoformat(v.replace("Z", "+00:00"))
         return v
 
     @field_serializer("received_at", when_used="json")

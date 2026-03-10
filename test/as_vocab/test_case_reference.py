@@ -111,6 +111,15 @@ class TestCaseReference(unittest.TestCase):
 
         assert "All tags must be non-empty strings" in str(exc_info.value)
 
+    def test_case_reference_invalid_tag_rejected(self):
+        """Test that tags not in CASE_REFERENCE_TAG_VOCABULARY are rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            cr.CaseReference(
+                url="https://example.org/", tags=["not-a-real-tag"]
+            )
+
+        assert "Invalid tag" in str(exc_info.value)
+
     def test_case_reference_valid_cve_tags(self):
         """Test CaseReference with valid CVE JSON schema tags."""
         valid_tags = [
