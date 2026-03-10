@@ -320,3 +320,53 @@ use cases indicated in their names. For example "PrioritizeCase",
 refactor the codebase into the hexagonal architecture.
 
 ---
+
+## 2026-03-10 — Gap analysis refresh #21: PRIORITY-50 complete, ARCH-CLEANUP and PRIORITY-60 added
+
+### PRIORITY-50 status
+
+All four ARCH-1.x tasks complete (P50-0 through ARCH-1.4). V-01 through V-10 from
+`notes/architecture-review.md` are remediated. Four follow-on cleanup items remain:
+
+1. **Shims ready to delete**: `vultron/activity_patterns.py`, `vultron/semantic_map.py`,
+   and `vultron/semantic_handler_map.py` are all backward-compat shims. Only one external
+   caller remains: `test/api/test_reporting_workflow.py:36` imports
+   `find_matching_semantics` from `vultron.semantic_map`. Update that import to
+   `vultron.wire.as2.extractor`, then delete all three shim files.
+
+2. **AS2 structural enums still in `vultron/enums.py`**: `as_ObjectType`, `as_ActorType`,
+   `as_IntransitiveActivityType`, `as_TransitiveActivityType`, `merge_enums`,
+   `as_ActivityType`, and `as_AllObjectTypes` were not moved in ARCH-1.1 (only
+   `MessageSemantics` moved then). They belong in `vultron/wire/as2/enums.py`. Four
+   `as_vocab/base/objects/` importers need updating. `VultronObjectType` and
+   `OfferStatusEnum` are domain/wire-boundary enums that should also be considered
+   for migration in ARCH-CLEANUP-2.
+
+3. **V-11 still present**: `isinstance(x, VulnerabilityReport)` and similar checks appear
+   in `vultron/api/v2/backend/handlers/report.py` (lines 34, 90, 163),
+   `handlers/case.py` (line 346), `trigger_services/report.py` (line 75), and
+   `trigger_services/_helpers.py` (lines 65, 93). These should be replaced with
+   `dispatchable.payload.object_type == "VulnerabilityReport"` or equivalent domain
+   checks.
+
+4. **V-12 still present**: `test/test_behavior_dispatcher.py` imports `as_Create`,
+   `VulnerabilityReport`, and `as_TransitiveActivityType` from `vultron.as_vocab` to
+   build test inputs. Should be refactored to use `InboundPayload` directly.
+
+### PRIORITY-60 note
+
+`plan/PRIORITIES.md` PRIORITY 60 calls for continued package relocation: `vultron/as_vocab/`
+→ `wire/`, `vultron/behaviors/` → `core/behaviors/`, and stubbing the `adapters/`
+package structure. These are now tracked as P60-1 through P60-3 in the plan. P60-1
+(moving `as_vocab`) is the largest task and will affect imports across nearly every
+module; consider using a shim-in-place approach to manage the transition.
+
+### ARCH-ADR-9 note
+
+No ADR exists for the hexagonal architecture decision. The implementation notes
+(2026-03-09 entry) recorded a TODO for this. The architecture decisions in
+`notes/architecture-ports-and-adapters.md`, the violation inventory in
+`notes/architecture-review.md`, and the remediation work in ARCH-1.1 through
+ARCH-1.4 provide all the raw material for the ADR.
+
+---

@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-09 (gap analysis refresh #20, P30 complete, ARCH elevated to P50; P50-0 complete, ARCH-1.1 complete, ARCH-1.2 complete, ARCH-1.3 complete, ARCH-1.4 complete)
+**Last Updated**: 2026-03-10 (gap analysis refresh #21, PRIORITY-50 complete; ARCH-CLEANUP and PRIORITY-60 phases added)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 824 passing, 5581 subtests, 0 xfailed (2026-03-09)
+**Test suite**: 824 passing, 5581 subtests, 0 xfailed (2026-03-10)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -41,13 +41,13 @@ reject_case_ownership_transfer, update_case
 
 ---
 
-## Gap Analysis (2026-03-09, refresh #19)
+## Gap Analysis (2026-03-10, refresh #21)
 
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
 BUGFIX-1, REFACTOR-1, DEMO-3, DEMO-4, SPEC-COMPLIANCE-1, SPEC-COMPLIANCE-2,
 SC-3.1, SC-PRE-1, TECHDEBT-1, TECHDEBT-5, TECHDEBT-6, P30-1, P30-2, P30-3,
-P30-4, P30-5, P30-6.
+P30-4, P30-5, P30-6, P50-0, ARCH-1.1, ARCH-1.2, ARCH-1.3, ARCH-1.4.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -55,20 +55,31 @@ P30-4, P30-5, P30-6.
 
 ### ✅ Triggerable behaviors fully implemented (PRIORITY 30 — COMPLETE)
 
-All 9 trigger endpoints implemented in `vultron/api/v2/routers/triggers.py` (1274 lines).
-P30-1 through P30-6 complete. Phase PRIORITY-30 is closed.
+All 9 trigger endpoints in split router files. P30-1 through P30-6 complete.
 
-**Next**: `triggers.py` is too large and mixes domain logic with router code — refactor
-is the immediate next priority (see Phase PRIORITY-50 below).
+### ✅ Hexagonal architecture Phase 1 complete (PRIORITY 50 — COMPLETE)
 
-### ❌ Hexagonal architecture shift not started (PRIORITY 50 — next immediate priority)
+P50-0 through ARCH-1.4 complete. V-01 through V-10 remediated.
+Backward-compat shims remain for `activity_patterns.py`, `semantic_map.py`,
+`semantic_handler_map.py` — one test still imports from the shim. AS2 structural
+enums (`as_ObjectType`, `as_TransitiveActivityType`, etc.) still live in
+`vultron/enums.py` rather than `vultron/wire/as2/enums.py`.
+V-11 (`isinstance` on AS2 types in handler bodies) and V-12 (dispatcher test uses
+AS2 types) are not yet remediated. No ADR for the hexagonal architecture decision
+has been written.
 
-`specs/architecture.md` (ARCH-01 through ARCH-08) is now formal. `notes/architecture-review.md`
-documents 11 violations (V-01 to V-11) with remediation plan (R-01 to R-06).
-`triggers.py` (1274 lines) is the designated starting point per `plan/PRIORITIES.md`:
-domain logic is mixed directly into router functions, the file is too large, and it
-needs to be split into a backend service layer + thin routers before the broader
-hexagonal restructure. Phase PRIORITY-50 now tracks this work as the top priority.
+### ❌ ARCH cleanup items (PRIORITY 50 follow-on — immediate)
+
+Four discrete cleanup tasks remain after P50: delete shims, move AS2 structural
+enums to the wire layer, fix V-11/V-12, write the architecture ADR
+(see Phase ARCH-CLEANUP below).
+
+### ❌ Package relocation not started (PRIORITY 60 — next after cleanup)
+
+`vultron/as_vocab/` (wire vocabulary), `vultron/behaviors/` (BT/domain logic), and
+`vultron/enums.py` (mixed domain + wire enums) need to be relocated into the
+`wire/` and `core/` packages per `plan/PRIORITIES.md` PRIORITY 60 and
+`notes/architecture-ports-and-adapters.md`.
 
 ### ❌ Actor independence not implemented (PRIORITY 100)
 
@@ -120,56 +131,98 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details.
 
 ---
 
-### Phase PRIORITY-50 — Hexagonal Architecture Starting with `triggers.py`
+### Phase PRIORITY-50 — Hexagonal Architecture Starting with `triggers.py` (COMPLETE)
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 50, `specs/architecture.md`,
 `notes/architecture-review.md` V-01 to V-11, R-01 to R-06
 
-This is the **current top priority**. `triggers.py` (1274 lines) is the designated
-entry point: domain logic is mixed directly into router functions. The goal is not
-merely to split the file but to begin the shift toward the hexagonal
-(ports-and-adapters) architecture described in `specs/architecture.md`, moving
-domain logic out of routers and into a service layer, then progressively fixing
-the deeper layering violations. Work in the order below.
+All P50 tasks complete. V-01 through V-10 remediated. See
+`plan/IMPLEMENTATION_HISTORY.md` for details.
 
-- [x] **P50-0**: Extract domain service layer from `triggers.py`; split routers by
-  domain. Create `vultron/api/v2/backend/trigger_services/` package with three
-  service modules: `report.py` (validate, invalidate, reject, close-report logic),
-  `case.py` (engage, defer), and `embargo.py` (propose, evaluate, terminate). Each
-  service function accepts domain parameters and a `DataLayer` argument passed in
-  from the router — no `get_datalayer()` calls inside service logic. Split
-  `triggers.py` into three focused router modules (`trigger_report.py`,
-  `trigger_case.py`, `trigger_embargo.py`) whose functions become thin wrappers:
-  validate request → call service → return response. Consolidate
-  `ValidateReportRequest` and `InvalidateReportRequest` into a shared base class
-  (CS-09-002). Add unit tests for service functions in isolation (independent of
-  HTTP layer). Done when routers contain no domain logic, each service module has
-  independent tests, and `triggers.py` is deleted.
+- [x] **P50-0**: Extract domain service layer from `triggers.py`; split into three
+  focused router modules (`trigger_report.py`, `trigger_case.py`,
+  `trigger_embargo.py`) and a `trigger_services/` backend package.
+- [x] **ARCH-1.1** (R-01): `MessageSemantics` moved to `vultron/core/models/events.py`.
+- [x] **ARCH-1.2** (R-02): `InboundPayload` domain type introduced; AS2 type removed
+  from `DispatchActivity.payload`.
+- [x] **ARCH-1.3** (R-03 + R-04): `wire/as2/parser.py` and `wire/as2/extractor.py`
+  created; parsing and extraction consolidated; shims left for compatibility.
+- [x] **ARCH-1.4** (R-05 + R-06): DataLayer injected via port; handler map moved to
+  adapter layer (`vultron/api/v2/backend/handler_map.py`).
 
-- [x] **ARCH-1.1** (R-01): Separate `MessageSemantics` from AS2 structural enums
-  in `vultron/enums.py`; move `MessageSemantics` to `vultron/core/models/events.py`
-  (ARCH-02-001, V-01). Update all imports. Tests pass.
+---
 
-- [x] **ARCH-1.2** (R-02): Introduce `InboundPayload` domain type in the core
-  layer; remove AS2 type from `DispatchActivity.payload` (ARCH-01-002, V-02,
-  V-03). Update `DispatchActivity`, all handlers, and `verify_semantics`.
-  Tests pass.
+### Phase ARCH-CLEANUP — PRIORITY 50 Follow-on Cleanup (immediate)
 
-- [x] **ARCH-1.3** (R-03 + R-04): Consolidate parsing and extraction — move
-  `parse_activity` from router into `wire/as2/parser.py`; consolidate
-  `find_matching_semantics` + `ActivityPattern.match()` into
-  `wire/as2/extractor.py`; remove second `find_matching_semantics` call in
-  `verify_semantics` (ARCH-03-001, ARCH-07-001, V-04 through V-08). Tests pass.
+**Reference**: `notes/architecture-review.md` V-11, V-12; `docs/adr/_adr-template.md`
 
-- [x] **ARCH-1.4** (R-05 + R-06): Inject DataLayer via port; move
-  `semantic_handler_map.py` to adapter layer (ARCH-04-001, V-09, V-10).
-  Handlers receive `DataLayer` port object via DI; `get_datalayer()` no longer
-  called directly in handler bodies. Tests pass.
+Four discrete cleanup tasks complete the PRIORITY-50 work. Work in order.
 
-**Note**: ARCH-1.1 through ARCH-1.4 collectively satisfy PRIORITY 50 and
-facilitate cleaner actor independence (PRIORITY 100) implementation.
-P50-0 must be done first (it is the designated entry point per PRIORITIES.md)
-and does not require ARCH-1.1 as a prerequisite.
+- [ ] **ARCH-CLEANUP-1**: Delete backward-compat shims `vultron/activity_patterns.py`,
+  `vultron/semantic_map.py`, and `vultron/semantic_handler_map.py`. Update the one
+  remaining caller (`test/api/test_reporting_workflow.py:36`) to import
+  `find_matching_semantics` from `vultron.wire.as2.extractor` directly. Done when
+  shim files are gone and tests pass.
+
+- [ ] **ARCH-CLEANUP-2**: Move AS2 structural enums (`as_ObjectType`, `as_ActorType`,
+  `as_IntransitiveActivityType`, `as_TransitiveActivityType`, `merge_enums`,
+  `as_ActivityType`, `as_AllObjectTypes`) from `vultron/enums.py` to a new
+  `vultron/wire/as2/enums.py` module. Update the four `as_vocab/base/objects/`
+  files that import these enums. Reduce `vultron/enums.py` to only `OfferStatusEnum`
+  and `VultronObjectType` (plus the `MessageSemantics` re-export). Done when no
+  AS2 structural enums remain in `vultron/enums.py` and tests pass.
+
+- [ ] **ARCH-CLEANUP-3**: Replace `isinstance(x, AS2Type)` checks in handler files
+  (`vultron/api/v2/backend/handlers/report.py`, `handlers/case.py`) and trigger
+  services (`trigger_services/report.py`, `trigger_services/_helpers.py`) with
+  `InboundPayload.object_type` string comparisons (V-11). Update
+  `test/test_behavior_dispatcher.py` to construct `InboundPayload` directly using
+  domain types rather than `as_Create`/`as_Activity` objects (V-12). Done when no
+  `isinstance` checks against AS2 types remain in handler/service code and
+  tests pass.
+
+- [ ] **ARCH-ADR-9**: Write `docs/adr/0009-hexagonal-architecture.md` documenting
+  the decision to adopt hexagonal architecture for Vultron. Reference
+  `notes/architecture-ports-and-adapters.md`, `notes/architecture-review.md`,
+  `specs/architecture.md`. Record violations V-01 through V-12, what was remediated
+  (ARCH-1.1 through ARCH-1.4), and what remains (ARCH-CLEANUP, PRIORITY-60
+  package relocation). Done when ADR is committed and indexed in `docs/adr/index.md`.
+
+---
+
+### Phase PRIORITY-60 — Continue Hexagonal Architecture Refactor
+
+**Reference**: `plan/PRIORITIES.md` PRIORITY 60, `notes/architecture-ports-and-adapters.md`
+
+The goal is to relocate packages into the `wire/`, `core/`, and `adapters/`
+layer structure defined in `notes/architecture-ports-and-adapters.md`. Work
+incrementally — each task must leave tests passing.
+
+- [ ] **P60-1**: Move `vultron/as_vocab/` into the wire layer. Relocate
+  `vultron/as_vocab/` to `vultron/wire/as2/vocab/` (keeping base types, objects,
+  activities, and examples sub-packages). Provide a backward-compat shim at
+  `vultron/as_vocab/` re-exporting from the new location. Update all direct
+  imports in `vultron/behaviors/`, `vultron/api/`, `test/`, and `vultron/demo/`.
+  Remove the shim once all callers are updated. Done when `vultron/as_vocab/` is
+  gone and tests pass.
+
+  **Note**: This is the largest single task in P60. Consider splitting into a
+  shim-in-place step followed by a caller-update sweep.
+
+- [ ] **P60-2**: Move `vultron/behaviors/` to `vultron/core/behaviors/`. Relocate
+  all BT bridge, helper, and tree modules. Provide a compatibility shim at
+  `vultron/behaviors/` then remove once all callers are updated. Done when
+  `vultron/behaviors/` is gone and tests pass.
+
+- [ ] **P60-3**: Stub the `vultron/adapters/` package per the target layout in
+  `notes/architecture-ports-and-adapters.md`. Create `vultron/adapters/driving/`
+  with placeholder `cli.py`, `http_inbox.py`, `mcp_server.py`; create
+  `vultron/adapters/driven/` with placeholder `activity_store.py`,
+  `delivery_queue.py`, `http_delivery.py`; create
+  `vultron/adapters/connectors/base.py` with `ConnectorPlugin` Protocol stub.
+  No logic required — stubs establish the package structure and document intent.
+  Done when the directory tree exists, `__init__.py` files are in place, and
+  no existing tests break.
 
 ---
 
