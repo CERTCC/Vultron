@@ -31,8 +31,7 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
-from vultron.api.v2.datalayer.abc import DataLayer
-from vultron.api.v2.datalayer.db_record import Record
+from vultron.core.ports.activity_store import DataLayer
 
 logger = logging.getLogger(__name__)
 
@@ -281,27 +280,26 @@ class UpdateObject(DataLayerAction):
                 self.logger.error(self.feedback_message)
                 return Status.FAILURE
 
-            # Assume current_dict is the raw record dict {id_, type_, data_}
-            # Apply updates to the data_ field
+            # Build an updated record dict {id_, type_, data_} without
+            # constructing a Record adapter object.
             if "data_" in current_dict:
-                # This is a Record dict
                 updated_data = {**current_dict["data_"], **self.updates}
-                updated_record = Record(
-                    id_=current_dict["id_"],
-                    type_=current_dict["type_"],
-                    data_=updated_data,
-                )
+                record_dict = {
+                    "id_": current_dict["id_"],
+                    "type_": current_dict["type_"],
+                    "data_": updated_data,
+                }
             else:
-                # This is just data fields directly
                 updated_data = {**current_dict, **self.updates}
-                # Extract type from data if available
                 record_type = updated_data.get("as_type", "Object")
-                updated_record = Record(
-                    id_=self.object_id, type_=record_type, data_=updated_data
-                )
+                record_dict = {
+                    "id_": self.object_id,
+                    "type_": record_type,
+                    "data_": updated_data,
+                }
 
             # Persist to DataLayer
-            self.datalayer.update(self.object_id, updated_record)
+            self.datalayer.update(self.object_id, record_dict)
 
             self.feedback_message = (
                 f"Updated {self.object_id} with {len(self.updates)} fields"
@@ -326,7 +324,7 @@ class CreateObject(DataLayerAction):
     def __init__(
         self,
         table: str,
-        object_data: Record,
+        object_data: dict,
         name: str | None = None,
     ):
         """
@@ -334,7 +332,7 @@ class CreateObject(DataLayerAction):
 
         Args:
             table: DataLayer table name to create object in
-            object_data: Record data for new object (must include 'as_id' field)
+            object_data: Data dict for new object (must include 'as_id' field)
             name: Optional custom name (defaults to "CreateObject_{table}")
         """
         display_name = name or f"CreateObject_{table}"
@@ -366,13 +364,15 @@ class CreateObject(DataLayerAction):
             object_type = self.object_data.get("as_type", self.table)
             object_id = self.object_data["as_id"]
 
-            # Create Record wrapper
-            record = Record(
-                id_=object_id, type_=object_type, data_=self.object_data
-            )
+            # Build a record dict and pass it to the DataLayer
+            record_dict = {
+                "id_": object_id,
+                "type_": object_type,
+                "data_": self.object_data,
+            }
 
             # Create object in DataLayer
-            self.datalayer.create(record)
+            self.datalayer.create(record_dict)
 
             self.feedback_message = f"Created {self.table}/{object_id}"
             self.logger.info(self.feedback_message)

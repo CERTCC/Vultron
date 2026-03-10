@@ -14,13 +14,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Backward-compatible re-export of ``DataLayer``.
+Core ports package.
 
-The authoritative definition lives in ``vultron.core.ports.activity_store``.
-New code should import from there directly.  This shim will be removed once
-all callers outside ``api/v2/`` have been updated.
+Contains port (interface) definitions used by the core domain layer.
+Concrete adapter implementations live in ``vultron/api/v2/datalayer/``.
 """
-
-from vultron.core.ports.activity_store import DataLayer
-
-__all__ = ["DataLayer"]

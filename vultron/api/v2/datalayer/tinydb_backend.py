@@ -59,26 +59,30 @@ class TinyDbDataLayer(DataLayer):
         """
         return Query()["id_"] == id_
 
-    def create(self, record: Record | BaseModel) -> None:
+    def create(self, record: Record | BaseModel | dict) -> None:
         """
         Inserts a record into the specified table.
 
-        Accepts either a pre-built `Record` or a Pydantic `BaseModel` which will
-        be converted to a `Record` using `object_to_record`.
+        Accepts a pre-built ``Record``, a Pydantic ``BaseModel`` which will
+        be converted to a ``Record`` using ``object_to_record``, or a plain
+        ``dict`` with ``id_``, ``type_``, and ``data_`` keys.
 
         Args:
-            record (Record | BaseModel): The record or model to insert.
+            record (Record | BaseModel | dict): The record or model to insert.
         Raises:
-            ValueError: If a record with the same `_id` already exists.
+            ValueError: If a record with the same ``id_`` already exists.
         """
 
-        # allow callers to pass either a Record wrapper or a BaseModel
         if isinstance(record, Record):
             rec = record
         elif isinstance(record, BaseModel):
             rec = object_to_record(record)
+        elif isinstance(record, dict):
+            rec = Record.model_validate(record)
         else:
-            raise ValueError("record must be a Record or Pydantic BaseModel")
+            raise ValueError(
+                "record must be a Record, Pydantic BaseModel, or dict"
+            )
 
         table = rec.type_
         id_ = rec.id_
@@ -170,19 +174,26 @@ class TinyDbDataLayer(DataLayer):
         records = tbl.all()
         return records
 
-    def update(self, id_: str, record: Record) -> bool:
+    def update(self, id_: str, record: Record | dict) -> bool:
         """
         Updates a record by id in the specified table.
 
+        Accepts either a pre-built ``Record`` or a plain ``dict`` with
+        ``id_``, ``type_``, and ``data_`` keys (as produced by
+        ``BT helper nodes`` that avoid importing ``Record`` directly).
+
         Args:
-            table (str): The name of the table.
             id_ (str): The id of the record to update.
-            record (dict): The new record data.
+            record (Record | dict): The new record data.
         Returns:
             bool: True if a record was updated, False if not found.
         """
-        tbl = self._table(record.type_)
-        updated = tbl.update(record.model_dump(), self._id_query(id_))
+        if isinstance(record, dict):
+            rec = Record.model_validate(record)
+        else:
+            rec = record
+        tbl = self._table(rec.type_)
+        updated = tbl.update(rec.model_dump(), self._id_query(id_))
         return len(updated) > 0
 
     def delete(self, table: str, id_: str) -> bool:

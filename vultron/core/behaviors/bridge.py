@@ -39,7 +39,7 @@ import py_trees
 from py_trees.common import Status
 from py_trees.display import unicode_tree
 
-from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.core.ports.activity_store import DataLayer
 
 logger = logging.getLogger(__name__)
 
