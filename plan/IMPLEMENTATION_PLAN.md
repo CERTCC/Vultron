@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-10 (gap analysis refresh #22: P60-2 complete; P60-3, P70, and test dir relocation added)
+**Last Updated**: 2026-03-10 (P60-3 complete: vultron/adapters/ package stub created)
 
 ## Overview
 
@@ -48,7 +48,8 @@ reject_case_ownership_transfer, update_case
 BUGFIX-1, REFACTOR-1, DEMO-3, DEMO-4, SPEC-COMPLIANCE-1, SPEC-COMPLIANCE-2,
 SC-3.1, SC-PRE-1, TECHDEBT-1, TECHDEBT-5, TECHDEBT-6, P30-1, P30-2, P30-3,
 P30-4, P30-5, P30-6, P50-0, ARCH-1.1, ARCH-1.2, ARCH-1.3, ARCH-1.4,
-ARCH-CLEANUP-1, ARCH-CLEANUP-2, ARCH-CLEANUP-3, ARCH-ADR-9, P60-1, P60-2.
+ARCH-CLEANUP-1, ARCH-CLEANUP-2, ARCH-CLEANUP-3, ARCH-ADR-9, P60-1, P60-2,
+P60-3.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -65,12 +66,11 @@ ARCH-CLEANUP-3 and ARCH-ADR-9 complete. All backward-compat shims deleted.
 AS2 structural enums moved to `vultron/wire/as2/enums.py`. Handler `isinstance`
 checks replaced with string type comparisons. Architecture ADR written.
 
-### ✅ Package relocation Phase 1 complete (PRIORITY 60 — P60-1 and P60-2 DONE)
+### ✅ Package relocation Phase 1 complete (PRIORITY 60 — P60-1, P60-2, and P60-3 DONE)
 
 - `vultron/as_vocab/` → `vultron/wire/as2/vocab/` (P60-1 ✅)
 - `vultron/behaviors/` → `vultron/core/behaviors/` (P60-2 ✅)
-
-`vultron/adapters/` package stub still pending (P60-3).
+- `vultron/adapters/` package stub created (P60-3 ✅)
 
 ### ❌ Test directory layout not updated after package relocation
 
@@ -236,15 +236,15 @@ incrementally — each task must leave tests passing.
   `vultron/behaviors/` then remove once all callers are updated. Done when
   `vultron/behaviors/` is gone and tests pass.
 
-- [ ] **P60-3**: Stub the `vultron/adapters/` package per the target layout in
+- [x] **P60-3**: Stub the `vultron/adapters/` package per the target layout in
   `notes/architecture-ports-and-adapters.md`. Create `vultron/adapters/driving/`
-  with placeholder `cli.py`, `http_inbox.py`, `mcp_server.py`; create
-  `vultron/adapters/driven/` with placeholder `activity_store.py`,
-  `delivery_queue.py`, `http_delivery.py`; create
-  `vultron/adapters/connectors/base.py` with `ConnectorPlugin` Protocol stub.
-  No logic required — stubs establish the package structure and document intent.
+  with placeholder `cli.py`, `http_inbox.py`, `mcp_server.py`, `shared_inbox.py`;
+  create `vultron/adapters/driven/` with placeholder `activity_store.py`,
+  `delivery_queue.py`, `http_delivery.py`, `dns_resolver.py`; create
+  `vultron/adapters/connectors/base.py` with `ConnectorPlugin` Protocol stub,
+  `loader.py` stub, and `example/` sub-package with `jira.py` and `vince.py`.
   Done when the directory tree exists, `__init__.py` files are in place, and
-  no existing tests break.
+  no existing tests break. ✅ 2026-03-10
 
 ---
 
