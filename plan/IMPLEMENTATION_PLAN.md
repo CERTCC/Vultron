@@ -164,7 +164,7 @@ Four discrete cleanup tasks complete the PRIORITY-50 work. Work in order.
   `find_matching_semantics` from `vultron.wire.as2.extractor` directly. Done when
   shim files are gone and tests pass.
 
-- [ ] **ARCH-CLEANUP-2**: Move AS2 structural enums (`as_ObjectType`, `as_ActorType`,
+- [x] **ARCH-CLEANUP-2**: Move AS2 structural enums (`as_ObjectType`, `as_ActorType`,
   `as_IntransitiveActivityType`, `as_TransitiveActivityType`, `merge_enums`,
   `as_ActivityType`, `as_AllObjectTypes`) from `vultron/enums.py` to a new
   `vultron/wire/as2/enums.py` module. Update the four `as_vocab/base/objects/`
