@@ -125,8 +125,8 @@ The examples MUST be kept up to date as the vocabulary evolves. When adding a
 new vocabulary type or message semantic, add a corresponding example to
 `vocab_examples.py`.
 
-**Cross-references**: `vultron/activity_patterns.py`, `vultron/enums.py`,
-`vultron/as_vocab/`.
+**Cross-references**: `vultron/wire/as2/extractor.py`,
+`vultron/core/models/events.py`, `vultron/wire/as2/vocab/`.
 
 ---
 

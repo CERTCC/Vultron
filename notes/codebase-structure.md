@@ -1,26 +1,33 @@
 # Codebase Structure Notes
 
-## Top-Level Module Reorganization (Future Refactoring)
+## Top-Level Module Reorganization Status
 
 Several top-level modules in `vultron/` were created at the top level for
-development convenience but are candidates for reorganization into submodules
-as the codebase matures. This is not a high priority for the prototype, but
-worth tracking.
+development convenience but have since been reorganized as part of the
+hexagonal architecture refactoring.
 
-**Candidates for reorganization:**
+**Completed reorganizations (ARCH-CLEANUP-1 through P60-2):**
 
-- `vultron/activity_patterns.py` — pattern definitions; could move to
-  `vultron/dispatch/` or `vultron/messaging/`
-- `vultron/behavior_dispatcher.py` — dispatch logic; same candidate submodule
-- `vultron/dispatcher_errors.py` — currently kept at top level to avoid
-  circular imports; see `specs/code-style.md` CS-05-001
-- `vultron/enums.py` — primary enum registry; see Enum Refactoring section
-  below
-- `vultron/errors.py` — top-level error base; submodule errors already exist
-  at `vultron/api/v2/errors.py`
-- `vultron/semantic_handler_map.py` — handler registry
-- `vultron/semantic_map.py` — semantics-to-pattern registry
-- `vultron/types.py` — shared type aliases; a neutral module used to break
+- `vultron/activity_patterns.py` — merged into `vultron/wire/as2/extractor.py`
+- `vultron/semantic_map.py` — merged into `vultron/wire/as2/extractor.py`
+- `vultron/semantic_handler_map.py` — moved to
+  `vultron/api/v2/backend/handler_map.py`
+- `vultron/as_vocab/` — moved to `vultron/wire/as2/vocab/` (P60-1)
+- `vultron/behaviors/` — moved to `vultron/core/behaviors/` (P60-2)
+- AS2 structural enums — moved from `vultron/enums.py` to
+  `vultron/wire/as2/enums.py` (ARCH-CLEANUP-2)
+- `MessageSemantics` — moved to `vultron/core/models/events.py` (ARCH-1.1)
+
+**Still at top level (intentionally):**
+
+- `vultron/behavior_dispatcher.py` — core dispatch logic; no wire imports
+- `vultron/dispatcher_errors.py` — kept at top level to avoid circular imports;
+  see `specs/code-style.md` CS-05-001
+- `vultron/enums.py` — now only re-exports `MessageSemantics`,
+  `OfferStatusEnum`, and `VultronObjectType` for backward compatibility
+- `vultron/errors.py` — top-level error base; submodule errors exist at
+  `vultron/api/v2/errors.py`
+- `vultron/types.py` — shared type aliases; neutral module used to break
   circular import chains
 
 **Constraint**: `dispatcher_errors.py` and `types.py` MUST remain accessible
@@ -32,9 +39,12 @@ Imports" section for the import chain rules.
 
 ## Enum Refactoring
 
-Enums are currently scattered across multiple locations in the codebase:
+Enums are currently organized across multiple locations in the codebase:
 
-- `vultron/enums.py` — primary application-layer enums (e.g., `MessageSemantics`)
+- `vultron/core/models/events.py` — `MessageSemantics` (domain enum)
+- `vultron/wire/as2/enums.py` — AS2 structural enums (`as_ObjectType`,
+  `as_TransitiveActivityType`, etc.)
+- `vultron/enums.py` — backward-compat re-exports only
 - `vultron/case_states/enums/` — case state enums, split into submodules:
   - `cvss_31.py`
   - `embargo.py`
@@ -45,7 +55,8 @@ Enums are currently scattered across multiple locations in the codebase:
   - `utils.py`
   - `vep.py`
   - `zerodays.py`
-- `vultron/as_vocab/` — vocabulary-level type enums
+- `vultron/wire/as2/vocab/` — vocabulary-level type enums (moved from
+  `vultron/as_vocab/`)
 
 **Proposed future reorganization**: Consider a `vultron/enums/` package with
 submodules grouped by domain:
@@ -120,17 +131,17 @@ for a rename, but the decision should be recorded in `AGENTS.md` or here.
 
 ---
 
-## Module Boundary: `vultron/bt/` vs `vultron/behaviors/`
+## Module Boundary: `vultron/bt/` vs `vultron/core/behaviors/`
 
 These two trees coexist and MUST NOT be merged or confused:
 
 | Module | Purpose | BT Engine | Status |
 |--------|---------|-----------|--------|
 | `vultron/bt/` | Original simulation (custom engine) | Custom (`vultron.bt.base`) | Legacy; do not modify for prototype handlers |
-| `vultron/behaviors/` | Prototype handler BTs | `py_trees` (v2.2.0+) | Active development |
+| `vultron/core/behaviors/` | Prototype handler BTs | `py_trees` (v2.2.0+) | Active development |
 
 The `vultron/sim/` module also exists as another simulation-related module and
-MUST NOT be confused with `vultron/bt/` or `vultron/behaviors/`.
+MUST NOT be confused with `vultron/bt/` or `vultron/core/behaviors/`.
 
 See `notes/bt-integration.md` for architectural decisions about the BT
 layer.
@@ -152,15 +163,16 @@ from `vultron.api.v2.backend.handlers` remain stable.
 
 ## Vocabulary Examples Module Structure (Completed)
 
-`vultron/as_vocab/examples/` contains vocabulary example submodules organized
-by topic: `_base.py`, `actor.py`, `case.py`, `embargo.py`, `note.py`,
-`participant.py`, `report.py`, `status.py`. The top-level
-`vocab_examples.py` in that package re-exports all public names.
+`vultron/wire/as2/vocab/examples/` contains vocabulary example submodules
+organized by topic: `_base.py`, `actor.py`, `case.py`, `embargo.py`, `note.py`,
+`participant.py`, `report.py`, `status.py`. The top-level `vocab_examples.py`
+in that package re-exports all public names.
 
-The compatibility shim at `vultron/scripts/vocab_examples.py` has been removed
-(TECHDEBT-6, commit 29005e4). Import directly from `vultron.as_vocab.examples`.
+The old `vultron/as_vocab/` package was relocated to `vultron/wire/as2/vocab/`
+as part of P60-1. Import directly from `vultron.wire.as2.vocab.examples`.
 
-**See**: `plan/IMPLEMENTATION_PLAN.md` Phase TECHDEBT-5 and TECHDEBT-6 (both completed).
+**See**: `plan/IMPLEMENTATION_PLAN.md` Phase TECHDEBT-5, TECHDEBT-6, and P60-1
+(all completed).
 
 ---
 

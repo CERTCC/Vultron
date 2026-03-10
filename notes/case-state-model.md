@@ -89,7 +89,7 @@ The how-to doc describes a UML class diagram for a `Case` object with:
 
 This design was written before the ActivityStreams vocabulary was adopted.
 
-### Current Implementation (`vultron/as_vocab/objects/vulnerability_case.py`)
+### Current Implementation (`vultron/wire/as2/vocab/objects/vulnerability_case.py`)
 
 The `VulnerabilityCase` class is a Pydantic model inheriting from
 `VultronObject` (which inherits from the ActivityStreams `as_Object`). It
@@ -167,7 +167,7 @@ Participant-Specific: RM ↔ CS_vfd
 ### Implementation: CaseStatus vs. ParticipantStatus
 
 The canonical Python implementation is in
-`vultron/as_vocab/objects/case_status.py`:
+`vultron/wire/as2/vocab/objects/case_status.py`:
 
 **`CaseStatus`** — participant-agnostic, one per case:
 
@@ -285,8 +285,9 @@ CaseActor records the event to an **append-only event log on the case**
 object's timestamp would break the append-only history invariant and allow
 event-ordering disagreements across actor copies.
 
-**Cross-reference**: `vultron/as_vocab/objects/vulnerability_case.py` (the
-`current_status` property), `vultron/as_vocab/objects/case_status.py`.
+**Cross-reference**: `vultron/wire/as2/vocab/objects/vulnerability_case.py`
+(the `current_status` property),
+`vultron/wire/as2/vocab/objects/case_status.py`.
 
 ---
 
@@ -304,7 +305,8 @@ grep -rn "\.participant_status" vultron/ test/
 ```
 
 As of the last review, `handlers.py` alone has approximately 20 call sites.
-Total scope across `behaviors/` and tests makes this a high-breakage change.
+Total scope across `core/behaviors/` and tests makes this a high-breakage
+change.
 
 **Recommended approach**: Do both renames (`case_statuses` and
 `participant_statuses`) in a single PR to keep the diff localized and avoid
@@ -318,9 +320,9 @@ Pending)"; `specs/case-management.md` CM-03-006.
 ## CaseEvent Model for Trusted Timestamps (SC-PRE-1) ✅ Implemented
 
 The `CaseEvent` model is implemented in
-`vultron/as_vocab/objects/case_event.py`. `VulnerabilityCase` has an
+`vultron/wire/as2/vocab/objects/case_event.py`. `VulnerabilityCase` has an
 `events: list[CaseEvent]` field and a `record_event(object_id, event_type)`
-append-only helper. Tests in `test/as_vocab/test_case_event.py` (19 tests)
+append-only helper. Tests in `test/wire/as2/vocab/test_case_event.py`
 cover creation, serialization, and round-trip through TinyDB.
 
 The design is described below for reference. The key invariant is

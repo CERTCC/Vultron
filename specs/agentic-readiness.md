@@ -93,6 +93,29 @@ interfaces that support agentic workflows.
 - `AR-08-005` `PROD_ONLY` Long-running CLI commands SHOULD support `--wait` / `--no-wait`
   flags; `--no-wait` returns the job object immediately
 
+## MCP Server Adapter (MAY)
+
+The Model Context Protocol (MCP) server is a driving adapter that exposes the
+Vultron core to AI agent tool calls. Like the CLI and HTTP inbox, the MCP
+server translates external requests into domain use-case invocations without
+containing domain logic.
+
+- `AR-09-001` `PROD_ONLY` A local MCP server adapter MAY be provided at
+  `vultron/adapters/driving/mcp_server.py`, exposing Vultron use cases as MCP
+  tools
+- `AR-09-002` `PROD_ONLY` Each MCP tool MUST map 1:1 to a domain use case in
+  `vultron/core/use_cases/`, with no business logic in the adapter itself
+- `AR-09-003` `PROD_ONLY` The MCP server MUST authenticate tool calls using the
+  same actor identity model as the HTTP inbox
+- `AR-09-004` `PROD_ONLY` MCP tool responses MUST use the same structured JSON
+  format as CLI `--output json` responses, enabling consistent AI agent parsing
+
+The MCP adapter is architecturally equivalent to the CLI adapter: both are
+driving adapters that invoke the same core use cases. The MCP server allows AI
+agents to use Vultron as a tool in automated vulnerability coordination
+workflows. See `notes/architecture-ports-and-adapters.md` (Adapter Categories,
+Driving Adapters) for the architecture context.
+
 ## Verification
 
 ### AR-01-001, AR-01-002, AR-01-003 Verification
