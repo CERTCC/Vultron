@@ -43,13 +43,15 @@ from vultron.api.v2.backend.trigger_services.report import (
 from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.api.v2.data.status import ReportStatus, set_status
 from vultron.api.v2.datalayer.db_record import object_to_record
-from vultron.as_vocab.activities.embargo import EmProposeEmbargo
-from vultron.as_vocab.base.objects.activities.transitive import as_Offer
-from vultron.as_vocab.base.objects.actors import as_Service
-from vultron.as_vocab.objects.case_participant import CaseParticipant
-from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargo
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
 

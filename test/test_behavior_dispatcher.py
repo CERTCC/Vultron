@@ -2,7 +2,7 @@ import logging
 from unittest.mock import MagicMock
 
 from vultron import behavior_dispatcher as bd
-from vultron.as_vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.core.models.events import InboundPayload, MessageSemantics
 
 MessageSemantics = bd.MessageSemantics

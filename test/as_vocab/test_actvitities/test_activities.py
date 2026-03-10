@@ -13,9 +13,11 @@
 
 import unittest
 
-import vultron.as_vocab.activities as activities  # noqa: F401
-from vultron.as_vocab.activities.case_participant import CreateParticipant
-from vultron.as_vocab.objects.case_participant import VendorParticipant
+import vultron.wire.as2.vocab.activities as activities  # noqa: F401
+from vultron.wire.as2.vocab.activities.case_participant import (
+    CreateParticipant,
+)
+from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
 
 
 class MyTestCase(unittest.TestCase):

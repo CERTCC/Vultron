@@ -19,9 +19,9 @@ import random
 
 from fastapi import APIRouter
 
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.base.objects.object_types import as_Note
-from vultron.as_vocab.examples import vocab_examples
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.examples import vocab_examples
 
 router = APIRouter(
     prefix="/examples",

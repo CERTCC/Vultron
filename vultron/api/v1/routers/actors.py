@@ -18,13 +18,13 @@ Vultron API Routers
 
 from fastapi import APIRouter
 
-from vultron.as_vocab.activities.case import (
+from vultron.wire.as2.vocab.activities.case import (
     OfferCaseOwnershipTransfer,
     RmInviteToCase,
 )
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.examples import vocab_examples
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.examples import vocab_examples
 
 router = APIRouter(prefix="/actors", tags=["Actors"])
 

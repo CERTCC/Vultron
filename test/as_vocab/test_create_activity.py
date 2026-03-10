@@ -13,7 +13,7 @@
 
 import unittest
 
-from vultron.as_vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 
 
 class MyTestCase(unittest.TestCase):

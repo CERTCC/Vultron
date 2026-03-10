@@ -27,8 +27,8 @@ from fastapi import HTTPException, status
 
 from vultron.api.v2.datalayer.abc import DataLayer
 from vultron.api.v2.datalayer.db_record import object_to_record
-from vultron.as_vocab.objects.case_status import ParticipantStatus
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.bt.report_management.states import RM
 
 logger = logging.getLogger(__name__)

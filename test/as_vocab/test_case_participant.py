@@ -21,7 +21,7 @@ from vultron.api.v2.datalayer.db_record import (
     object_to_record,
     record_to_object,
 )
-from vultron.as_vocab.objects.case_participant import (
+from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
     CoordinatorParticipant,
     FinderParticipant,

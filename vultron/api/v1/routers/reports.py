@@ -17,7 +17,7 @@ Vultron API Report Routers
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 from fastapi import APIRouter
 
-from vultron.as_vocab.activities.report import (
+from vultron.wire.as2.vocab.activities.report import (
     RmCloseReport,
     RmInvalidateReport,
     RmValidateReport,
@@ -25,8 +25,10 @@ from vultron.as_vocab.activities.report import (
     RmSubmitReport,
     RmCreateReport,
 )
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.as_vocab.examples import vocab_examples
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
+from vultron.wire.as2.vocab.examples import vocab_examples
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 

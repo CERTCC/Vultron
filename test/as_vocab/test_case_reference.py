@@ -16,7 +16,7 @@ import unittest
 import pytest
 from pydantic import ValidationError
 
-import vultron.as_vocab.objects.case_reference as cr
+import vultron.wire.as2.vocab.objects.case_reference as cr
 from vultron.enums import VultronObjectType as VO_type
 
 
@@ -168,7 +168,7 @@ class TestCaseReference(unittest.TestCase):
 
     def test_case_reference_separate_from_report(self):
         """Test that CaseReference is a distinct type."""
-        from vultron.as_vocab.objects.vulnerability_report import (
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
             VulnerabilityReport,
         )
 
@@ -180,7 +180,7 @@ class TestCaseReference(unittest.TestCase):
 
     def test_case_reference_separate_from_vulnerability_record(self):
         """Test that CaseReference is distinct from VulnerabilityRecord."""
-        from vultron.as_vocab.objects.vulnerability_record import (
+        from vultron.wire.as2.vocab.objects.vulnerability_record import (
             VulnerabilityRecord,
         )
 

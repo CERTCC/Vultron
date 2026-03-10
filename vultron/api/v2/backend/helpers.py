@@ -19,8 +19,8 @@ Vultron API Backend Helpers
 from fastapi import HTTPException
 from pydantic import BaseModel, ValidationError
 
-from vultron.as_vocab.base.base import as_Base
-from vultron.as_vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 
 def obj_from_item(item: dict) -> as_Base:

@@ -25,8 +25,8 @@ from pydantic import ValidationError
 
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-from vultron.as_vocab.objects.case_event import CaseEvent
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.case_event import CaseEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 OBJ_ID = "https://example.org/reports/abc123"
 EVENT_TYPE = "embargo_accepted"

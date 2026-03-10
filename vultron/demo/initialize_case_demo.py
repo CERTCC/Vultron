@@ -47,17 +47,24 @@ import sys
 from typing import Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.as_vocab.activities.case import AddReportToCase, CreateCase
-from vultron.as_vocab.activities.case_participant import AddParticipantToCase
-from vultron.as_vocab.activities.report import RmSubmitReport, RmValidateReport
-from vultron.as_vocab.base.objects.activities.transitive import as_Create
-from vultron.as_vocab.objects.case_participant import (
+from vultron.wire.as2.vocab.activities.case import AddReportToCase, CreateCase
+from vultron.wire.as2.vocab.activities.case_participant import (
+    AddParticipantToCase,
+)
+from vultron.wire.as2.vocab.activities.report import (
+    RmSubmitReport,
+    RmValidateReport,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.objects.case_participant import (
     FinderReporterParticipant,
     VendorParticipant,
 )
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.demo.utils import (
     BASE_URL,
     DataLayerClient,

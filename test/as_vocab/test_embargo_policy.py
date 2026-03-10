@@ -20,7 +20,7 @@ import unittest
 import pytest
 from pydantic import ValidationError
 
-import vultron.as_vocab.objects.embargo_policy as ep_module
+import vultron.wire.as2.vocab.objects.embargo_policy as ep_module
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
 from vultron.enums import VultronObjectType as VO_type
@@ -201,7 +201,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
         self.assertIn(INBOX, j)
 
     def test_type_distinctness(self):
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 

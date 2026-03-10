@@ -327,7 +327,7 @@ def accept_invite_actor_to_case(
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.as_vocab.objects.case_participant import CaseParticipant
+    from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 
     activity = dispatchable.payload.raw_activity
 

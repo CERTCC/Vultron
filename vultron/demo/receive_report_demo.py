@@ -55,17 +55,19 @@ from typing import Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.api.v2.data.utils import parse_id
-from vultron.as_vocab.activities.case import CreateCase
-from vultron.as_vocab.activities.report import (
+from vultron.wire.as2.vocab.activities.case import CreateCase
+from vultron.wire.as2.vocab.activities.report import (
     RmCloseReport,
     RmInvalidateReport,
     RmSubmitReport,
     RmValidateReport,
 )
-from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.demo.utils import (
     BASE_URL,
     DataLayerClient,

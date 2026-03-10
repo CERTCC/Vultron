@@ -39,7 +39,9 @@ def test_parse_activity_raises_validation_error_for_invalid_data(monkeypatch):
 
 
 def test_parse_activity_returns_typed_activity_for_valid_create():
-    from vultron.as_vocab.base.objects.activities.transitive import as_Create
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
 
     result = parse_activity(
         {

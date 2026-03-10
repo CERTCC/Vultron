@@ -31,9 +31,9 @@ from vultron.api.v2.data.status import (
     set_status,
 )
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-from vultron.as_vocab.base.objects.activities.transitive import as_Offer
-from vultron.as_vocab.base.objects.actors import as_Service
-from vultron.as_vocab.objects.vulnerability_report import (
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 from vultron.behaviors.bridge import BTBridge

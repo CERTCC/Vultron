@@ -49,14 +49,16 @@ from typing import Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.api.v2.data.utils import parse_id
-from vultron.as_vocab.activities.report import (
+from vultron.wire.as2.vocab.activities.report import (
     RmInvalidateReport,
     RmReadReport,
     RmSubmitReport,
     RmValidateReport,
 )
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.demo.utils import (
     BASE_URL,
     DataLayerClient,

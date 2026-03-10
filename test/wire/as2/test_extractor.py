@@ -11,8 +11,10 @@ from vultron.wire.as2.extractor import (
 
 
 def test_find_matching_semantics_returns_unknown_for_unmatched_activity():
-    from vultron.as_vocab.base.objects.activities.transitive import as_Create
-    from vultron.as_vocab.base.objects.actors import as_Actor
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
     # Create + Actor has no matching pattern (conservative string matching
     # means only explicit typed objects trigger pattern skips)
@@ -26,8 +28,10 @@ def test_find_matching_semantics_returns_unknown_for_unmatched_activity():
 
 
 def test_find_matching_semantics_returns_correct_semantics_for_create_report():
-    from vultron.as_vocab.base.objects.activities.transitive import as_Create
-    from vultron.as_vocab.objects.vulnerability_report import (
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+    from vultron.wire.as2.vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
 
@@ -51,7 +55,9 @@ def test_all_message_semantics_except_unknown_have_patterns():
 
 
 def test_activity_pattern_match_returns_false_for_wrong_activity_type():
-    from vultron.as_vocab.base.objects.activities.transitive import as_Create
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
     from vultron.wire.as2.enums import (
         as_TransitiveActivityType as TAtype,
         as_ObjectType as AOtype,

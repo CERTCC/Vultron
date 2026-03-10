@@ -25,7 +25,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.behaviors.report.policy import (
     AlwaysAcceptPolicy,
     ValidationPolicy,

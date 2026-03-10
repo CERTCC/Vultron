@@ -13,22 +13,22 @@
 import unittest
 from typing import Type
 
-import vultron.as_vocab.activities.actor as actor  # noqa: F401
-from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.as_vocab.base.objects.activities.transitive import (
+import vultron.wire.as2.vocab.activities.actor as actor  # noqa: F401
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Offer,
     as_Reject,
     as_TransitiveActivity,
 )
-from vultron.as_vocab.base.objects.actors import (
+from vultron.wire.as2.vocab.base.objects.actors import (
     as_Application,
     as_Group,
     as_Organization,
     as_Person,
     as_Service,
 )
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 ACTOR_CLASSES = [
     as_Application,

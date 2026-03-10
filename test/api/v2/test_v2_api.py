@@ -19,7 +19,7 @@
 Provides API v2 tests
 """
 
-from vultron.as_vocab.base.objects.actors import as_Person
+from vultron.wire.as2.vocab.base.objects.actors import as_Person
 from vultron.api.v2.datalayer.db_record import object_to_record
 
 

@@ -33,8 +33,10 @@ Extension Points:
 
 import logging
 
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +115,7 @@ class AlwaysAcceptPolicy(ValidationPolicy):
     - Reputation-based scoring
 
     Example:
-        >>> from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+        >>> from vultron.wire.as2.vocab.objects.vulnerability_report import VulnerabilityReport
         >>> policy = AlwaysAcceptPolicy()
         >>> report = VulnerabilityReport(
         ...     as_id="https://example.org/reports/CVE-2024-001",

@@ -8,8 +8,8 @@ to transport-level error responses (e.g., HTTP status codes).
 
 import logging
 
-from vultron.as_vocab import VOCABULARY
-from vultron.as_vocab.type_helpers import AsActivityType
+from vultron.wire.as2.vocab import VOCABULARY
+from vultron.wire.as2.vocab.type_helpers import AsActivityType
 from vultron.wire.as2.errors import (
     VultronParseMissingTypeError,
     VultronParseUnknownTypeError,

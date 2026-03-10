@@ -27,9 +27,11 @@ import pytest
 from py_trees.common import Status
 
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-from vultron.as_vocab.base.objects.actors import as_Service
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.behaviors.bridge import BTBridge
 from vultron.behaviors.case.create_tree import create_create_case_tree
 
@@ -129,7 +131,7 @@ def test_create_case_tree_creates_case_actor(
 ):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
     bridge.execute_with_setup(tree=tree, actor_id=actor.as_id, activity=None)
-    from vultron.as_vocab.objects.case_actor import CaseActor
+    from vultron.wire.as2.vocab.objects.case_actor import CaseActor
 
     all_objects = datalayer.get_all("Service")
     case_actors = [
@@ -211,7 +213,9 @@ def test_create_case_tree_creates_vendor_participant(
     datalayer, actor, case_obj, bridge
 ):
     """A VendorParticipant SHOULD be created and added to case_participants (CM-02-008)."""
-    from vultron.as_vocab.objects.case_participant import VendorParticipant
+    from vultron.wire.as2.vocab.objects.case_participant import (
+        VendorParticipant,
+    )
     from vultron.bt.roles.states import CVDRoles as CVDRole
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)

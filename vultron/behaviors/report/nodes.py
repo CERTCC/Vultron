@@ -36,8 +36,8 @@ from vultron.api.v2.data.status import (
     set_status,
 )
 from vultron.api.v2.datalayer.db_record import object_to_record
-from vultron.as_vocab.activities.case import CreateCase as as_CreateCase
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.activities.case import CreateCase as as_CreateCase
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.behaviors.helpers import DataLayerAction, DataLayerCondition
 from vultron.bt.report_management.states import RM
 from vultron.enums import OfferStatusEnum
@@ -742,7 +742,7 @@ def _find_and_update_participant_rm(
     Returns SUCCESS on success, FAILURE on error or missing participant.
     """
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.as_vocab.objects.case_status import ParticipantStatus
+    from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 
     try:
         case_obj = datalayer.read(case_id, raise_on_missing=True)

@@ -28,11 +28,13 @@ from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.datalayer.abc import DataLayer
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.base.objects.collections import as_OrderedCollection
-from vultron.as_vocab.base.registry import find_in_vocabulary
-from vultron.as_vocab.type_helpers import AsActivityType
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.collections import (
+    as_OrderedCollection,
+)
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.type_helpers import AsActivityType
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingTypeError,

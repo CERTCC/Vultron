@@ -35,12 +35,12 @@ from vultron.api.v2.backend.trigger_services._helpers import (
 )
 from vultron.api.v2.datalayer.abc import DataLayer
 from vultron.api.v2.datalayer.db_record import object_to_record
-from vultron.as_vocab.activities.embargo import (
+from vultron.wire.as2.vocab.activities.embargo import (
     AnnounceEmbargo,
     EmAcceptEmbargo,
     EmProposeEmbargo,
 )
-from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.bt.embargo_management.states import EM
 
 logger = logging.getLogger(__name__)

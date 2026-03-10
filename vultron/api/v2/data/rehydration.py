@@ -22,8 +22,8 @@ import logging
 from pydantic import ValidationError
 
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-from vultron.as_vocab.base.objects.base import as_Object
-from vultron.as_vocab.base.registry import find_in_vocabulary
+from vultron.wire.as2.vocab.base.objects.base import as_Object
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 logger = logging.getLogger(__name__)
 

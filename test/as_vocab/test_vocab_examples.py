@@ -17,11 +17,13 @@ import tempfile
 import unittest
 from typing import Sequence
 
-import vultron.as_vocab.examples.vocab_examples as examples
-from vultron.as_vocab.base.base import as_Base
-from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.as_vocab.base.objects.activities.intransitive import as_Question
-from vultron.as_vocab.base.objects.activities.transitive import (
+import vultron.wire.as2.vocab.examples.vocab_examples as examples
+from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.intransitive import (
+    as_Question,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Accept,
     as_Add,
     as_Announce,
@@ -38,13 +40,21 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Update,
     as_TentativeReject,
 )
-from vultron.as_vocab.base.objects.actors import as_Actor, as_Organization
-from vultron.as_vocab.base.objects.base import as_Object
-from vultron.as_vocab.base.objects.object_types import as_Event, as_Note
-from vultron.as_vocab.objects.case_participant import CaseParticipant
-from vultron.as_vocab.objects.case_status import CaseStatus, ParticipantStatus
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Actor,
+    as_Organization,
+)
+from vultron.wire.as2.vocab.base.objects.base import as_Object
+from vultron.wire.as2.vocab.base.objects.object_types import as_Event, as_Note
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import (
+    CaseStatus,
+    ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
 from vultron.case_states.states import CS_pxa, CS_vfd
@@ -481,7 +491,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.context, case.as_id)
 
         # as_object is now the RecommendActor offer, not the coordinator ID
-        from vultron.as_vocab.activities.actor import RecommendActor
+        from vultron.wire.as2.vocab.activities.actor import RecommendActor
 
         self.assertIsInstance(activity.as_object, RecommendActor)
         self.assertEqual(activity.target, case.as_id)
@@ -501,7 +511,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.context, case.as_id)
 
         # as_object is now the RecommendActor offer, not the coordinator ID
-        from vultron.as_vocab.activities.actor import RecommendActor
+        from vultron.wire.as2.vocab.activities.actor import RecommendActor
 
         self.assertIsInstance(activity.as_object, RecommendActor)
         self.assertEqual(activity.target, case.as_id)

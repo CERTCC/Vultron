@@ -15,8 +15,8 @@
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
-from vultron.as_vocab.base.objects.activities.transitive import as_Create
-from vultron.as_vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 
 def test_created_actors_fixture_has_expected_count(created_actors):

@@ -23,7 +23,7 @@ from vultron.api.v2.backend.handler_map import SEMANTICS_HANDLERS
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-from vultron.as_vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.behavior_dispatcher import get_dispatcher, prepare_for_dispatch
 from vultron.types import DispatchActivity
 

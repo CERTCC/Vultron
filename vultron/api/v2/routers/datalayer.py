@@ -23,11 +23,15 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.api.v2.datalayer.abc import DataLayer
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-from vultron.as_vocab.base.base import as_Base
-from vultron.as_vocab.base.objects.activities.transitive import as_Offer
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.base.objects.collections import as_OrderedCollection
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.base.base import as_Base
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.collections import (
+    as_OrderedCollection,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 
 router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 
@@ -200,7 +204,7 @@ def reset_datalayer(
     """Resets the datalayer by clearing all stored objects."""
     datalayer.clear_all()
     if init:
-        from vultron.as_vocab.examples._base import initialize_examples
+        from vultron.wire.as2.vocab.examples._base import initialize_examples
 
         initialize_examples(datalayer=datalayer)
 

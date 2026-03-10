@@ -30,7 +30,7 @@ from vultron.api.v2.backend.trigger_services._helpers import (
     update_participant_rm_state,
 )
 from vultron.api.v2.datalayer.abc import DataLayer
-from vultron.as_vocab.activities.case import RmDeferCase, RmEngageCase
+from vultron.wire.as2.vocab.activities.case import RmDeferCase, RmEngageCase
 from vultron.bt.report_management.states import RM
 
 logger = logging.getLogger(__name__)

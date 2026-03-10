@@ -57,24 +57,28 @@ import sys
 from typing import Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.as_vocab.activities.case import (
+from vultron.wire.as2.vocab.activities.case import (
     AddReportToCase,
     CreateCase,
     RmCloseCase,
     RmDeferCase,
     RmEngageCase,
 )
-from vultron.as_vocab.activities.case_participant import AddParticipantToCase
-from vultron.as_vocab.activities.report import (
+from vultron.wire.as2.vocab.activities.case_participant import (
+    AddParticipantToCase,
+)
+from vultron.wire.as2.vocab.activities.report import (
     RmCloseReport,
     RmInvalidateReport,
     RmSubmitReport,
     RmValidateReport,
 )
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.case_participant import VendorParticipant
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.demo.utils import (
     BASE_URL,
     DataLayerClient,
@@ -142,7 +146,9 @@ def setup_report_and_case(
         attributed_to=vendor.as_id,
         context=case.as_id,
     )
-    from vultron.as_vocab.base.objects.activities.transitive import as_Create
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
 
     create_vendor_participant = as_Create(
         actor=vendor.as_id,

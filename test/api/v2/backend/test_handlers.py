@@ -17,9 +17,11 @@ from vultron.api.v2.errors import (
     VultronApiHandlerMissingSemanticError,
     VultronApiHandlerSemanticMismatchError,
 )
-from vultron.as_vocab.base.objects.activities.transitive import as_Create
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.core.models.events import InboundPayload, MessageSemantics
 from vultron.types import DispatchActivity
 
@@ -218,7 +220,7 @@ class TestInviteActorHandlers:
     def test_invite_actor_to_case_stores_invite(self, monkeypatch):
         """invite_actor_to_case persists the Invite activity to the DataLayer."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import RmInviteToCase
+        from vultron.wire.as2.vocab.activities.case import RmInviteToCase
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -241,7 +243,7 @@ class TestInviteActorHandlers:
     def test_invite_actor_to_case_idempotent(self, monkeypatch):
         """invite_actor_to_case skips storing a duplicate Invite."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import RmInviteToCase
+        from vultron.wire.as2.vocab.activities.case import RmInviteToCase
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -266,7 +268,7 @@ class TestInviteActorHandlers:
 
     def test_reject_invite_actor_to_case_logs_rejection(self):
         """reject_invite_actor_to_case logs without raising."""
-        from vultron.as_vocab.activities.case import (
+        from vultron.wire.as2.vocab.activities.case import (
             RmInviteToCase,
             RmRejectInviteToCase,
         )
@@ -296,11 +298,13 @@ class TestInviteActorHandlers:
     def test_remove_case_participant_from_case(self, monkeypatch):
         """remove_case_participant_from_case removes the participant from case."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
-        from vultron.as_vocab.objects.case_participant import CaseParticipant
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -342,11 +346,13 @@ class TestInviteActorHandlers:
     def test_remove_case_participant_idempotent(self, monkeypatch):
         """remove_case_participant_from_case is idempotent when participant absent."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
-        from vultron.as_vocab.objects.case_participant import CaseParticipant
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -389,11 +395,11 @@ class TestEmbargoHandlers:
     def test_create_embargo_event_stores_event(self, monkeypatch):
         """create_embargo_event persists the EmbargoEvent to the DataLayer."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Create,
         )
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -425,11 +431,11 @@ class TestEmbargoHandlers:
     def test_create_embargo_event_idempotent(self, monkeypatch):
         """create_embargo_event skips storing a duplicate EmbargoEvent."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Create,
         )
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -463,9 +469,9 @@ class TestEmbargoHandlers:
     def test_add_embargo_event_to_case_activates_embargo(self, monkeypatch):
         """add_embargo_event_to_case sets the active embargo on the case."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.embargo import AddEmbargoToCase
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.activities.embargo import AddEmbargoToCase
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
         from vultron.bt.embargo_management.states import EM
@@ -502,8 +508,8 @@ class TestEmbargoHandlers:
     def test_invite_to_embargo_on_case_stores_proposal(self, monkeypatch):
         """invite_to_embargo_on_case persists the EmProposeEmbargo activity."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.embargo import EmProposeEmbargo
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargo
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -534,12 +540,12 @@ class TestEmbargoHandlers:
     ):
         """accept_invite_to_embargo_on_case activates the embargo on the case."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.embargo import (
+        from vultron.wire.as2.vocab.activities.embargo import (
             EmAcceptEmbargo,
             EmProposeEmbargo,
         )
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
         from vultron.bt.embargo_management.states import EM
@@ -587,11 +593,11 @@ class TestEmbargoHandlers:
 
     def test_reject_invite_to_embargo_on_case_logs_rejection(self):
         """reject_invite_to_embargo_on_case logs without raising."""
-        from vultron.as_vocab.activities.embargo import (
+        from vultron.wire.as2.vocab.activities.embargo import (
             EmProposeEmbargo,
             EmRejectEmbargo,
         )
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
         embargo = EmbargoEvent(
             id="https://example.org/cases/case_em4/embargo_events/e4",
@@ -627,10 +633,10 @@ class TestNoteHandlers:
     def test_create_note_stores_note(self, monkeypatch):
         """create_note persists the Note to the DataLayer."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Create,
         )
-        from vultron.as_vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -655,10 +661,10 @@ class TestNoteHandlers:
     def test_create_note_idempotent(self, monkeypatch):
         """create_note skips storing a duplicate Note."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Create,
         )
-        from vultron.as_vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -683,9 +689,9 @@ class TestNoteHandlers:
     def test_add_note_to_case_appends_note(self, monkeypatch):
         """add_note_to_case appends note ID to case.notes and persists."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import AddNoteToCase
-        from vultron.as_vocab.base.objects.object_types import as_Note
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.activities.case import AddNoteToCase
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -722,9 +728,9 @@ class TestNoteHandlers:
     def test_add_note_to_case_idempotent(self, monkeypatch):
         """add_note_to_case skips adding a note already in the case."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import AddNoteToCase
-        from vultron.as_vocab.base.objects.object_types import as_Note
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.activities.case import AddNoteToCase
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -762,11 +768,11 @@ class TestNoteHandlers:
     def test_remove_note_from_case_removes_note(self, monkeypatch):
         """remove_note_from_case removes note ID from case.notes and persists."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
-        from vultron.as_vocab.base.objects.object_types import as_Note
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -806,11 +812,11 @@ class TestNoteHandlers:
     def test_remove_note_from_case_idempotent(self, monkeypatch):
         """remove_note_from_case is idempotent when note not in case."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
-        from vultron.as_vocab.base.objects.object_types import as_Note
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -852,9 +858,9 @@ class TestStatusHandlers:
     def test_create_case_status_stores_status(self, monkeypatch):
         """create_case_status persists the CaseStatus to the DataLayer."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import CreateCaseStatus
-        from vultron.as_vocab.objects.case_status import CaseStatus
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.activities.case import CreateCaseStatus
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -886,9 +892,9 @@ class TestStatusHandlers:
     def test_create_case_status_idempotent(self, monkeypatch):
         """create_case_status skips storing a duplicate CaseStatus."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import CreateCaseStatus
-        from vultron.as_vocab.objects.case_status import CaseStatus
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.activities.case import CreateCaseStatus
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -921,9 +927,9 @@ class TestStatusHandlers:
     def test_add_case_status_to_case_appends_status(self, monkeypatch):
         """add_case_status_to_case appends status ID to case.case_statuses."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import AddStatusToCase
-        from vultron.as_vocab.objects.case_status import CaseStatus
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.activities.case import AddStatusToCase
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -965,10 +971,12 @@ class TestStatusHandlers:
     def test_create_participant_status_stores_status(self, monkeypatch):
         """create_participant_status persists the ParticipantStatus."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case_participant import (
+        from vultron.wire.as2.vocab.activities.case_participant import (
             CreateStatusForParticipant,
         )
-        from vultron.as_vocab.objects.case_status import ParticipantStatus
+        from vultron.wire.as2.vocab.objects.case_status import (
+            ParticipantStatus,
+        )
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -976,7 +984,7 @@ class TestStatusHandlers:
             id="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
             context="https://example.org/cases/case_ps1",
         )
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -1006,11 +1014,15 @@ class TestStatusHandlers:
     ):
         """add_participant_status_to_participant appends status to participant."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case_participant import (
+        from vultron.wire.as2.vocab.activities.case_participant import (
             AddStatusToParticipant,
         )
-        from vultron.as_vocab.objects.case_participant import CaseParticipant
-        from vultron.as_vocab.objects.case_status import ParticipantStatus
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import (
+            ParticipantStatus,
+        )
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -1027,7 +1039,7 @@ class TestStatusHandlers:
             id="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
             context="https://example.org/cases/case_ps2",
         )
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -1065,8 +1077,8 @@ class TestSuggestActorHandlers:
     def test_suggest_actor_to_case_persists_recommendation(self, monkeypatch):
         """suggest_actor_to_case persists the RecommendActor offer."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.actor import RecommendActor
-        from vultron.as_vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.activities.actor import RecommendActor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -1096,8 +1108,8 @@ class TestSuggestActorHandlers:
     def test_suggest_actor_to_case_idempotent(self, monkeypatch):
         """suggest_actor_to_case is idempotent — second call is a no-op."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.actor import RecommendActor
-        from vultron.as_vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.activities.actor import RecommendActor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -1129,11 +1141,11 @@ class TestSuggestActorHandlers:
     ):
         """accept_suggest_actor_to_case persists the AcceptActorRecommendation."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.actor import (
+        from vultron.wire.as2.vocab.activities.actor import (
             AcceptActorRecommendation,
             RecommendActor,
         )
-        from vultron.as_vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -1169,11 +1181,11 @@ class TestSuggestActorHandlers:
         """reject_suggest_actor_to_case logs rejection without state change."""
         import logging
 
-        from vultron.as_vocab.activities.actor import (
+        from vultron.wire.as2.vocab.activities.actor import (
             RecommendActor,
             RejectActorRecommendation,
         )
-        from vultron.as_vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         coordinator = as_Actor(id="https://example.org/users/coordinator")
         case = VulnerabilityCase(
@@ -1210,7 +1222,9 @@ class TestOwnershipTransferHandlers:
     def test_offer_case_ownership_transfer_persists_offer(self, monkeypatch):
         """offer_case_ownership_transfer persists the offer."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import OfferCaseOwnershipTransfer
+        from vultron.wire.as2.vocab.activities.case import (
+            OfferCaseOwnershipTransfer,
+        )
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -1239,7 +1253,7 @@ class TestOwnershipTransferHandlers:
     ):
         """accept_case_ownership_transfer updates case.attributed_to to new owner."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import (
+        from vultron.wire.as2.vocab.activities.case import (
             AcceptCaseOwnershipTransfer,
             OfferCaseOwnershipTransfer,
         )
@@ -1291,7 +1305,7 @@ class TestOwnershipTransferHandlers:
         """reject_case_ownership_transfer logs rejection; ownership unchanged."""
         import logging
 
-        from vultron.as_vocab.activities.case import (
+        from vultron.wire.as2.vocab.activities.case import (
             OfferCaseOwnershipTransfer,
             RejectCaseOwnershipTransfer,
         )
@@ -1332,7 +1346,7 @@ class TestUpdateCaseHandler:
         import logging
 
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.activities.case import UpdateCase
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -1375,7 +1389,7 @@ class TestUpdateCaseHandler:
         import logging
 
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.activities.case import UpdateCase
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -1416,7 +1430,7 @@ class TestUpdateCaseHandler:
     def test_update_case_idempotent(self, monkeypatch):
         """update_case with same data produces the same result (last-write-wins)."""
         from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.activities.case import UpdateCase
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(

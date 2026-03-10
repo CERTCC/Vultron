@@ -25,10 +25,12 @@ import pytest
 from py_trees.common import Status
 
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-from vultron.as_vocab.base.objects.actors import as_Service
-from vultron.as_vocab.objects.case_participant import CaseParticipant
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.behaviors.bridge import BTBridge
 from vultron.behaviors.report.prioritize_tree import (
     create_defer_case_tree,

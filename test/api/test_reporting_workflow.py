@@ -20,7 +20,7 @@ import pytest
 
 from vultron.api.v2.backend import handlers as h
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-from vultron.as_vocab.base.objects.activities.transitive import (
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Offer,
     as_Read,
@@ -28,10 +28,12 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Accept,
 )
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.as_vocab.type_helpers import AsActivityType
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
+from vultron.wire.as2.vocab.type_helpers import AsActivityType
 from vultron.core.models.events import MessageSemantics
 from vultron.wire.as2.extractor import find_matching_semantics
 from vultron.types import BehaviorHandler, DispatchActivity

@@ -28,9 +28,9 @@ from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 from vultron.api.v2.routers import trigger_case as trigger_case_router
-from vultron.as_vocab.base.objects.actors import as_Service
-from vultron.as_vocab.objects.case_participant import CaseParticipant
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.base.objects.actors import as_Service
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.bt.report_management.states import RM
 
 # ---------------------------------------------------------------------------

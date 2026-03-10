@@ -30,9 +30,11 @@ import pytest
 from py_trees.common import Status
 
 from vultron.api.v2.datalayer.abc import DataLayer
-from vultron.as_vocab.base.objects.activities.transitive import as_Accept
-from vultron.as_vocab.base.objects.activities.transitive import as_Offer
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.behaviors.bridge import BTBridge
 from vultron.behaviors.report.validate_tree import create_validate_report_tree
 
@@ -81,7 +83,7 @@ def mock_datalayer():
                 as_object="test-report-123",
             )
         elif "case" in id_:
-            from vultron.as_vocab.objects.vulnerability_case import (
+            from vultron.wire.as2.vocab.objects.vulnerability_case import (
                 VulnerabilityCase,
             )
 
@@ -89,7 +91,7 @@ def mock_datalayer():
             case.as_id = id_
             return case
         elif id_.startswith("https://example.org/"):  # Actor IDs
-            from vultron.as_vocab.base.objects.actors import as_Actor
+            from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
             actor = as_Actor()
             actor.as_id = id_

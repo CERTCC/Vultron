@@ -13,7 +13,7 @@ from typing import Optional, Union
 
 from pydantic import BaseModel
 
-from vultron.as_vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.core.models.events import MessageSemantics
 from vultron.enums import VultronObjectType as VOtype
 from vultron.wire.as2.enums import (

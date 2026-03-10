@@ -41,32 +41,40 @@ import logging
 import sys
 from typing import Optional, Sequence, Tuple
 
-from vultron.as_vocab.activities.case import (
+from vultron.wire.as2.vocab.activities.case import (
     AddNoteToCase,
     AddReportToCase,
     AddStatusToCase,
     CreateCase,
     CreateCaseStatus,
 )
-from vultron.as_vocab.activities.case_participant import (
+from vultron.wire.as2.vocab.activities.case_participant import (
     AddParticipantToCase,
     AddStatusToParticipant,
     CreateStatusForParticipant,
 )
-from vultron.as_vocab.activities.report import RmSubmitReport, RmValidateReport
-from vultron.as_vocab.base.objects.activities.transitive import (
+from vultron.wire.as2.vocab.activities.report import (
+    RmSubmitReport,
+    RmValidateReport,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Remove,
 )
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.base.objects.object_types import as_Note
-from vultron.as_vocab.objects.case_participant import (
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import (
     CaseParticipant,
     FinderReporterParticipant,
 )
-from vultron.as_vocab.objects.case_status import CaseStatus, ParticipantStatus
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.objects.case_status import (
+    CaseStatus,
+    ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
 from vultron.case_states.states import CS_pxa, CS_vfd

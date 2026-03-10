@@ -239,7 +239,7 @@ def close_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.as_vocab.activities.case import RmCloseCase
+    from vultron.wire.as2.vocab.activities.case import RmCloseCase
 
     activity = dispatchable.payload.raw_activity
 

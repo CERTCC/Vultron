@@ -18,12 +18,12 @@ Vultron API Case Routers
 
 from fastapi import APIRouter
 
-from vultron.as_vocab.activities.actor import (
+from vultron.wire.as2.vocab.activities.actor import (
     RecommendActor,
     AcceptActorRecommendation,
     RejectActorRecommendation,
 )
-from vultron.as_vocab.activities.case import (
+from vultron.wire.as2.vocab.activities.case import (
     CreateCase,
     AddReportToCase,
     RmEngageCase,
@@ -38,14 +38,16 @@ from vultron.as_vocab.activities.case import (
     RejectCaseOwnershipTransfer,
     AddStatusToCase,
 )
-from vultron.as_vocab.base.objects.activities.transitive import (
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Undo,
     as_Create,
 )
-from vultron.as_vocab.objects.case_status import CaseStatus
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.as_vocab.examples import vocab_examples
+from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
+from vultron.wire.as2.vocab.examples import vocab_examples
 
 router = APIRouter(prefix="/cases", tags=["Cases"])
 case_router = APIRouter(prefix="/cases/{case_id}", tags=["Cases"])

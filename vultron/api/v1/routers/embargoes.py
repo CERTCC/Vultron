@@ -17,7 +17,7 @@ Vultron API Routers
 
 from fastapi import APIRouter
 
-from vultron.as_vocab.activities.embargo import (
+from vultron.wire.as2.vocab.activities.embargo import (
     EmProposeEmbargo,
     RemoveEmbargoFromCase,
     AnnounceEmbargo,
@@ -26,8 +26,8 @@ from vultron.as_vocab.activities.embargo import (
     EmRejectEmbargo,
     EmAcceptEmbargo,
 )
-from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-from vultron.as_vocab.examples import vocab_examples
+from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.examples import vocab_examples
 
 router = APIRouter(prefix="/cases/{case_id}/embargoes", tags=["Embargoes"])
 
