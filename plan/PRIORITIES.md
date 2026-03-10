@@ -85,7 +85,9 @@ through the Vultron Protocol through passing ActivityStreams messages with
 defined semantics. This allows us to have a clean model of individual
 actors making independent decisions based on their own internal state.
 
-
+Implementation Phase OUTBOX-1 logically falls under this priority, because 
+it's part of getting messages flowing between actors. But it does not
+fully achieve this goal by itself.
 
 
 ## Priority 200: Case Actor as source of truth for case state
