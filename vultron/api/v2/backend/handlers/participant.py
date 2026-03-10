@@ -8,11 +8,15 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
+from vultron.api.v2.datalayer.abc import DataLayer
+
 logger = logging.getLogger(__name__)
 
 
 @verify_semantics(MessageSemantics.CREATE_CASE_PARTICIPANT)
-def create_case_participant(dispatchable: DispatchActivity) -> None:
+def create_case_participant(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process a Create(CaseParticipant) activity.
 
@@ -27,15 +31,12 @@ def create_case_participant(dispatchable: DispatchActivity) -> None:
                       CaseParticipant object
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
     try:
         participant = rehydrate(obj=activity.as_object)
         participant_id = participant.as_id
-
-        dl = get_datalayer()
 
         existing = dl.get(participant.as_type.value, participant_id)
         if existing is not None:
@@ -57,7 +58,9 @@ def create_case_participant(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE)
-def add_case_participant_to_case(dispatchable: DispatchActivity) -> None:
+def add_case_participant_to_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an AddParticipantToCase activity
     (Add(CaseParticipant, target=VulnerabilityCase)).
@@ -72,7 +75,6 @@ def add_case_participant_to_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
@@ -81,8 +83,6 @@ def add_case_participant_to_case(dispatchable: DispatchActivity) -> None:
         case = rehydrate(obj=activity.target)
         participant_id = participant.as_id
         case_id = case.as_id
-
-        dl = get_datalayer()
 
         existing_ids = [
             (p.as_id if hasattr(p, "as_id") else p)
@@ -112,7 +112,9 @@ def add_case_participant_to_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE)
-def remove_case_participant_from_case(dispatchable: DispatchActivity) -> None:
+def remove_case_participant_from_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process a Remove(CaseParticipant, target=VulnerabilityCase) activity.
 
@@ -126,7 +128,6 @@ def remove_case_participant_from_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
@@ -135,8 +136,6 @@ def remove_case_participant_from_case(dispatchable: DispatchActivity) -> None:
         case = rehydrate(obj=activity.target)
         participant_id = participant.as_id
         case_id = case.as_id
-
-        dl = get_datalayer()
 
         existing_ids = [
             (p.as_id if hasattr(p, "as_id") else p)

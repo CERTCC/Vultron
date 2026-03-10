@@ -1,14 +1,13 @@
-"""
-Shared type definitions for Vultron.
+from __future__ import annotations
 
-This module contains common types used across the codebase to avoid circular imports.
-"""
-
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from pydantic import BaseModel
 
 from vultron.core.models.events import InboundPayload, MessageSemantics
+
+if TYPE_CHECKING:
+    from vultron.api.v2.datalayer.abc import DataLayer
 
 
 class DispatchActivity(BaseModel):
@@ -31,4 +30,6 @@ class BehaviorHandler(Protocol):
     Protocol for behavior handler functions.
     """
 
-    def __call__(self, dispatchable: DispatchActivity) -> None: ...
+    def __call__(
+        self, dispatchable: DispatchActivity, dl: "DataLayer"
+    ) -> None: ...

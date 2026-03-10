@@ -8,11 +8,13 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
+from vultron.api.v2.datalayer.abc import DataLayer
+
 logger = logging.getLogger(__name__)
 
 
 @verify_semantics(MessageSemantics.CREATE_CASE_STATUS)
-def create_case_status(dispatchable: DispatchActivity) -> None:
+def create_case_status(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process a Create(CaseStatus) activity.
 
@@ -22,12 +24,9 @@ def create_case_status(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the Create(CaseStatus)
     """
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         status = activity.as_object
 
         existing = dl.get(status.as_type.value, status.as_id)
@@ -50,7 +49,9 @@ def create_case_status(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ADD_CASE_STATUS_TO_CASE)
-def add_case_status_to_case(dispatchable: DispatchActivity) -> None:
+def add_case_status_to_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an Add(CaseStatus, target=VulnerabilityCase) activity.
 
@@ -64,12 +65,10 @@ def add_case_status_to_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         status = rehydrate(obj=activity.as_object)
         case = rehydrate(obj=activity.target)
         status_id = status.as_id if hasattr(status, "as_id") else str(status)
@@ -99,7 +98,9 @@ def add_case_status_to_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.CREATE_PARTICIPANT_STATUS)
-def create_participant_status(dispatchable: DispatchActivity) -> None:
+def create_participant_status(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process a Create(ParticipantStatus) activity.
 
@@ -110,12 +111,9 @@ def create_participant_status(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the Create(ParticipantStatus)
     """
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         status = activity.as_object
 
         existing = dl.get(status.as_type.value, status.as_id)
@@ -140,6 +138,7 @@ def create_participant_status(dispatchable: DispatchActivity) -> None:
 @verify_semantics(MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT)
 def add_participant_status_to_participant(
     dispatchable: DispatchActivity,
+    dl: DataLayer,
 ) -> None:
     """
     Process an Add(ParticipantStatus, target=CaseParticipant) activity.
@@ -154,12 +153,10 @@ def add_participant_status_to_participant(
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         status = rehydrate(obj=activity.as_object)
         participant = rehydrate(obj=activity.target)
         status_id = status.as_id if hasattr(status, "as_id") else str(status)

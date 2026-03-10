@@ -8,11 +8,15 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
+from vultron.api.v2.datalayer.abc import DataLayer
+
 logger = logging.getLogger(__name__)
 
 
 @verify_semantics(MessageSemantics.CREATE_EMBARGO_EVENT)
-def create_embargo_event(dispatchable: DispatchActivity) -> None:
+def create_embargo_event(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process a Create(EmbargoEvent) activity.
 
@@ -22,12 +26,9 @@ def create_embargo_event(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the Create(EmbargoEvent)
     """
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         embargo = activity.as_object
 
         existing = dl.get(embargo.as_type.value, embargo.as_id)
@@ -50,7 +51,9 @@ def create_embargo_event(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE)
-def add_embargo_event_to_case(dispatchable: DispatchActivity) -> None:
+def add_embargo_event_to_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an Add(EmbargoEvent, target=VulnerabilityCase) or
     ActivateEmbargo(EmbargoEvent, target=VulnerabilityCase) activity.
@@ -63,12 +66,10 @@ def add_embargo_event_to_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         embargo = rehydrate(obj=activity.as_object)
         case = rehydrate(obj=activity.target)
 
@@ -113,7 +114,9 @@ def add_embargo_event_to_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE)
-def remove_embargo_event_from_case(dispatchable: DispatchActivity) -> None:
+def remove_embargo_event_from_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process a Remove(EmbargoEvent, origin=VulnerabilityCase) activity.
 
@@ -126,13 +129,11 @@ def remove_embargo_event_from_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.bt.embargo_management.states import EM
 
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         case = rehydrate(obj=activity.origin)
         embargo = activity.as_object
 
@@ -176,7 +177,9 @@ def remove_embargo_event_from_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE)
-def announce_embargo_event_to_case(dispatchable: DispatchActivity) -> None:
+def announce_embargo_event_to_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an Announce(EmbargoEvent, context=VulnerabilityCase) activity.
 
@@ -187,12 +190,10 @@ def announce_embargo_event_to_case(dispatchable: DispatchActivity) -> None:
         dispatchable: DispatchActivity containing the AnnounceEmbargo
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         case = rehydrate(obj=activity.context)
         case_id = case.as_id
 
@@ -211,7 +212,9 @@ def announce_embargo_event_to_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.INVITE_TO_EMBARGO_ON_CASE)
-def invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
+def invite_to_embargo_on_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an EmProposeEmbargo (Invite(EmbargoEvent, context=VulnerabilityCase)) activity.
 
@@ -222,12 +225,9 @@ def invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the EmProposeEmbargo
     """
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         existing = dl.get(activity.as_type.value, activity.as_id)
         if existing is not None:
             logger.info(
@@ -253,7 +253,9 @@ def invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE)
-def accept_invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
+def accept_invite_to_embargo_on_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an EmAcceptEmbargo (Accept(object=EmProposeEmbargo)) activity.
 
@@ -267,12 +269,10 @@ def accept_invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         proposal = rehydrate(obj=activity.as_object)
         embargo = rehydrate(obj=proposal.as_object)
         case = rehydrate(obj=proposal.context)
@@ -317,7 +317,9 @@ def accept_invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE)
-def reject_invite_to_embargo_on_case(dispatchable: DispatchActivity) -> None:
+def reject_invite_to_embargo_on_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an EmRejectEmbargo (Reject(object=EmProposeEmbargo)) activity.
 

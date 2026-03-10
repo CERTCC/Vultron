@@ -8,11 +8,13 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
+from vultron.api.v2.datalayer.abc import DataLayer
+
 logger = logging.getLogger(__name__)
 
 
 @verify_semantics(MessageSemantics.CREATE_NOTE)
-def create_note(dispatchable: DispatchActivity) -> None:
+def create_note(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process a Create(Note) activity.
 
@@ -23,12 +25,9 @@ def create_note(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the Create(Note)
     """
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         note = activity.as_object
 
         existing = dl.get(note.as_type.value, note.as_id)
@@ -50,7 +49,7 @@ def create_note(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ADD_NOTE_TO_CASE)
-def add_note_to_case(dispatchable: DispatchActivity) -> None:
+def add_note_to_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process an Add(Note, target=VulnerabilityCase) activity.
 
@@ -63,12 +62,10 @@ def add_note_to_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         note = rehydrate(obj=activity.as_object)
         case = rehydrate(obj=activity.target)
         note_id = note.as_id if hasattr(note, "as_id") else str(note)
@@ -98,7 +95,9 @@ def add_note_to_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.REMOVE_NOTE_FROM_CASE)
-def remove_note_from_case(dispatchable: DispatchActivity) -> None:
+def remove_note_from_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process a Remove(Note, target=VulnerabilityCase) activity.
 
@@ -111,12 +110,10 @@ def remove_note_from_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         note = rehydrate(obj=activity.as_object)
         case = rehydrate(obj=activity.target)
         note_id = note.as_id if hasattr(note, "as_id") else str(note)

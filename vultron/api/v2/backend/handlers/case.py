@@ -8,11 +8,13 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
+from vultron.api.v2.datalayer.abc import DataLayer
+
 logger = logging.getLogger(__name__)
 
 
 @verify_semantics(MessageSemantics.CREATE_CASE)
-def create_case(dispatchable: DispatchActivity) -> None:
+def create_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process a CreateCase activity (Create(VulnerabilityCase)).
 
@@ -26,7 +28,6 @@ def create_case(dispatchable: DispatchActivity) -> None:
                       VulnerabilityCase object
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.behaviors.bridge import BTBridge
     from vultron.behaviors.case.create_tree import create_create_case_tree
 
@@ -40,7 +41,6 @@ def create_case(dispatchable: DispatchActivity) -> None:
 
         logger.info("Actor '%s' creates case '%s'", actor_id, case_id)
 
-        dl = get_datalayer()
         bridge = BTBridge(datalayer=dl)
         tree = create_create_case_tree(case_obj=case, actor_id=actor_id)
         result = bridge.execute_with_setup(
@@ -64,7 +64,7 @@ def create_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ENGAGE_CASE)
-def engage_case(dispatchable: DispatchActivity) -> None:
+def engage_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process an RmEngageCase activity (Join(VulnerabilityCase)).
 
@@ -79,7 +79,6 @@ def engage_case(dispatchable: DispatchActivity) -> None:
                       VulnerabilityCase object
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.behaviors.bridge import BTBridge
     from vultron.behaviors.report.prioritize_tree import (
         create_engage_case_tree,
@@ -97,7 +96,6 @@ def engage_case(dispatchable: DispatchActivity) -> None:
             "Actor '%s' engages case '%s' (RM → ACCEPTED)", actor_id, case_id
         )
 
-        dl = get_datalayer()
         bridge = BTBridge(datalayer=dl)
         tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
@@ -123,7 +121,7 @@ def engage_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.DEFER_CASE)
-def defer_case(dispatchable: DispatchActivity) -> None:
+def defer_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process an RmDeferCase activity (Ignore(VulnerabilityCase)).
 
@@ -138,7 +136,6 @@ def defer_case(dispatchable: DispatchActivity) -> None:
                       VulnerabilityCase object
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.behaviors.bridge import BTBridge
     from vultron.behaviors.report.prioritize_tree import create_defer_case_tree
 
@@ -154,7 +151,6 @@ def defer_case(dispatchable: DispatchActivity) -> None:
             "Actor '%s' defers case '%s' (RM → DEFERRED)", actor_id, case_id
         )
 
-        dl = get_datalayer()
         bridge = BTBridge(datalayer=dl)
         tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
@@ -180,7 +176,7 @@ def defer_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ADD_REPORT_TO_CASE)
-def add_report_to_case(dispatchable: DispatchActivity) -> None:
+def add_report_to_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process an AddReportToCase activity
     (Add(VulnerabilityReport, target=VulnerabilityCase)).
@@ -195,7 +191,6 @@ def add_report_to_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
@@ -204,8 +199,6 @@ def add_report_to_case(dispatchable: DispatchActivity) -> None:
         case = rehydrate(obj=activity.target)
         report_id = report.as_id
         case_id = case.as_id
-
-        dl = get_datalayer()
 
         existing_report_ids = [
             (r.as_id if hasattr(r, "as_id") else r)
@@ -233,7 +226,7 @@ def add_report_to_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.CLOSE_CASE)
-def close_case(dispatchable: DispatchActivity) -> None:
+def close_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process a CloseCase activity (Leave(VulnerabilityCase)).
 
@@ -246,7 +239,6 @@ def close_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.as_vocab.activities.case import RmCloseCase
 
     activity = dispatchable.payload.raw_activity
@@ -258,8 +250,6 @@ def close_case(dispatchable: DispatchActivity) -> None:
         case_id = case.as_id
 
         logger.info("Actor '%s' is closing case '%s'", actor_id, case_id)
-
-        dl = get_datalayer()
 
         close_activity = RmCloseCase(
             actor=actor_id,
@@ -297,7 +287,7 @@ def close_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.UPDATE_CASE)
-def update_case(dispatchable: DispatchActivity) -> None:
+def update_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process an UpdateCase activity (Update(VulnerabilityCase)).
 
@@ -312,7 +302,6 @@ def update_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 
     activity = dispatchable.payload.raw_activity
@@ -328,7 +317,6 @@ def update_case(dispatchable: DispatchActivity) -> None:
             incoming.as_id if hasattr(incoming, "as_id") else str(incoming)
         )
 
-        dl = get_datalayer()
         stored_case = dl.read(case_id)
         if stored_case is None:
             logger.warning(

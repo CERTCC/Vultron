@@ -8,11 +8,15 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
+from vultron.api.v2.datalayer.abc import DataLayer
+
 logger = logging.getLogger(__name__)
 
 
 @verify_semantics(MessageSemantics.SUGGEST_ACTOR_TO_CASE)
-def suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
+def suggest_actor_to_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process a RecommendActor (Offer(object=Actor, target=Case)) activity.
 
@@ -23,12 +27,9 @@ def suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the RecommendActor
     """
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         existing = dl.get(activity.as_type.value, activity.as_id)
         if existing is not None:
             logger.info(
@@ -55,7 +56,9 @@ def suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE)
-def accept_suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
+def accept_suggest_actor_to_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an AcceptActorRecommendation (Accept(object=RecommendActor)) activity.
 
@@ -67,12 +70,9 @@ def accept_suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the AcceptActorRecommendation
     """
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         existing = dl.get(activity.as_type.value, activity.as_id)
         if existing is not None:
             logger.info(
@@ -99,7 +99,9 @@ def accept_suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE)
-def reject_suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
+def reject_suggest_actor_to_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process a RejectActorRecommendation (Reject(object=RecommendActor)) activity.
 
@@ -133,7 +135,9 @@ def reject_suggest_actor_to_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER)
-def offer_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
+def offer_case_ownership_transfer(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an OfferCaseOwnershipTransfer (Offer(object=Case, target=Actor)) activity.
 
@@ -144,12 +148,9 @@ def offer_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the OfferCaseOwnershipTransfer
     """
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         existing = dl.get(activity.as_type.value, activity.as_id)
         if existing is not None:
             logger.info(
@@ -175,7 +176,9 @@ def offer_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER)
-def accept_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
+def accept_case_ownership_transfer(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an AcceptCaseOwnershipTransfer (Accept(object=OfferCaseOwnershipTransfer)) activity.
 
@@ -189,12 +192,10 @@ def accept_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         offer = rehydrate(obj=activity.as_object)
         case = rehydrate(obj=offer.as_object)
 
@@ -236,7 +237,9 @@ def accept_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER)
-def reject_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
+def reject_case_ownership_transfer(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process a RejectCaseOwnershipTransfer (Reject(object=OfferCaseOwnershipTransfer)) activity.
 
@@ -268,7 +271,9 @@ def reject_case_ownership_transfer(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.INVITE_ACTOR_TO_CASE)
-def invite_actor_to_case(dispatchable: DispatchActivity) -> None:
+def invite_actor_to_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an Invite(actor=CaseOwner, object=Actor, target=Case) activity.
 
@@ -278,12 +283,9 @@ def invite_actor_to_case(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the RmInviteToCase activity
     """
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-
     activity = dispatchable.payload.raw_activity
 
     try:
-        dl = get_datalayer()
         existing = dl.get(activity.as_type.value, activity.as_id)
         if existing is not None:
             logger.info(
@@ -309,7 +311,9 @@ def invite_actor_to_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE)
-def accept_invite_actor_to_case(dispatchable: DispatchActivity) -> None:
+def accept_invite_actor_to_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process an Accept(object=RmInviteToCase) activity.
 
@@ -323,7 +327,6 @@ def accept_invite_actor_to_case(dispatchable: DispatchActivity) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.as_vocab.objects.case_participant import CaseParticipant
 
     activity = dispatchable.payload.raw_activity
@@ -338,8 +341,6 @@ def accept_invite_actor_to_case(dispatchable: DispatchActivity) -> None:
             else str(invitee_ref)
         )
         case_id = case.as_id
-
-        dl = get_datalayer()
 
         existing_ids = [
             (p.as_id if hasattr(p, "as_id") else p)
@@ -378,7 +379,9 @@ def accept_invite_actor_to_case(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE)
-def reject_invite_actor_to_case(dispatchable: DispatchActivity) -> None:
+def reject_invite_actor_to_case(
+    dispatchable: DispatchActivity, dl: DataLayer
+) -> None:
     """
     Process a Reject(object=RmInviteToCase) activity.
 

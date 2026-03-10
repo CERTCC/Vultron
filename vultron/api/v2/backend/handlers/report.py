@@ -8,11 +8,13 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
+from vultron.api.v2.datalayer.abc import DataLayer
+
 logger = logging.getLogger(__name__)
 
 
 @verify_semantics(MessageSemantics.CREATE_REPORT)
-def create_report(dispatchable: DispatchActivity) -> None:
+def create_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process a CreateReport activity (Create(VulnerabilityReport)).
 
@@ -21,7 +23,6 @@ def create_report(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the as_Create with VulnerabilityReport object
     """
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.as_vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
@@ -44,9 +45,6 @@ def create_report(dispatchable: DispatchActivity) -> None:
         created_obj.name,
         created_obj.as_id,
     )
-
-    # Get data layer
-    dl = get_datalayer()
 
     # Store the report object
     try:
@@ -72,7 +70,7 @@ def create_report(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.SUBMIT_REPORT)
-def submit_report(dispatchable: DispatchActivity) -> None:
+def submit_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process a SubmitReport activity (Offer(VulnerabilityReport)).
 
@@ -81,7 +79,6 @@ def submit_report(dispatchable: DispatchActivity) -> None:
     Args:
         dispatchable: DispatchActivity containing the as_Offer with VulnerabilityReport object
     """
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.as_vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
@@ -104,9 +101,6 @@ def submit_report(dispatchable: DispatchActivity) -> None:
         offered_obj.name,
         offered_obj.as_id,
     )
-
-    # Get data layer
-    dl = get_datalayer()
 
     # Store the report object
     try:
@@ -132,7 +126,7 @@ def submit_report(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.VALIDATE_REPORT)
-def validate_report(dispatchable: DispatchActivity) -> None:
+def validate_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process a ValidateReport activity (Accept(Offer(VulnerabilityReport))).
 
@@ -145,7 +139,6 @@ def validate_report(dispatchable: DispatchActivity) -> None:
     from py_trees.common import Status
 
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.as_vocab.objects.vulnerability_report import (
         VulnerabilityReport,
     )
@@ -192,7 +185,6 @@ def validate_report(dispatchable: DispatchActivity) -> None:
     report_id = accepted_report.as_id
     offer_id = accepted_offer.as_id
 
-    dl = get_datalayer()
     bridge = BTBridge(datalayer=dl)
 
     # Create and execute validation tree
@@ -233,7 +225,7 @@ def validate_report(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.INVALIDATE_REPORT)
-def invalidate_report(dispatchable: DispatchActivity) -> None:
+def invalidate_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process an InvalidateReport activity (TentativeReject(Offer(VulnerabilityReport))).
 
@@ -248,7 +240,6 @@ def invalidate_report(dispatchable: DispatchActivity) -> None:
         ReportStatus,
         set_status,
     )
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.bt.report_management.states import RM
     from vultron.enums import OfferStatusEnum
 
@@ -298,7 +289,6 @@ def invalidate_report(dispatchable: DispatchActivity) -> None:
         )
 
         # Store the activity
-        dl = get_datalayer()
         try:
             dl.create(activity)
             logger.info(
@@ -322,7 +312,7 @@ def invalidate_report(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.ACK_REPORT)
-def ack_report(dispatchable: DispatchActivity) -> None:
+def ack_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process an AckReport activity (Read(Offer(VulnerabilityReport))).
 
@@ -333,7 +323,6 @@ def ack_report(dispatchable: DispatchActivity) -> None:
         dispatchable: DispatchActivity containing the as_Read with Offer object
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
 
     activity = dispatchable.payload.raw_activity
 
@@ -356,7 +345,6 @@ def ack_report(dispatchable: DispatchActivity) -> None:
         )
 
         # Store the activity
-        dl = get_datalayer()
         try:
             dl.create(activity)
             logger.info(
@@ -378,7 +366,7 @@ def ack_report(dispatchable: DispatchActivity) -> None:
 
 
 @verify_semantics(MessageSemantics.CLOSE_REPORT)
-def close_report(dispatchable: DispatchActivity) -> None:
+def close_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     Process a CloseReport activity (Reject(Offer(VulnerabilityReport))).
 
@@ -393,7 +381,6 @@ def close_report(dispatchable: DispatchActivity) -> None:
         ReportStatus,
         set_status,
     )
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
     from vultron.bt.report_management.states import RM
     from vultron.enums import OfferStatusEnum
 
@@ -438,7 +425,6 @@ def close_report(dispatchable: DispatchActivity) -> None:
         logger.info("Set report '%s' status to CLOSED", subject_of_offer.as_id)
 
         # Store the activity
-        dl = get_datalayer()
         try:
             dl.create(activity)
             logger.info(
