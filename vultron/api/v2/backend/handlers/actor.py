@@ -357,14 +357,29 @@ def accept_invite_actor_to_case(
             )
             return None
 
+        active_embargo_id = (
+            case.active_embargo.as_id
+            if hasattr(case.active_embargo, "as_id")
+            else (
+                str(case.active_embargo)
+                if case.active_embargo is not None
+                else None
+            )
+        )
+
         participant = CaseParticipant(
             id=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
             attributed_to=invitee_id,
             context=case_id,
         )
+        if active_embargo_id:
+            participant.accepted_embargo_ids.append(active_embargo_id)
         dl.create(participant)
 
         case.add_participant(participant)
+        case.record_event(invitee_id, "participant_joined")
+        if active_embargo_id:
+            case.record_event(active_embargo_id, "embargo_accepted")
         dl.update(case_id, object_to_record(case))
 
         logger.info(

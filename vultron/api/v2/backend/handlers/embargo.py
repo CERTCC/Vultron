@@ -300,6 +300,32 @@ def accept_invite_to_embargo_on_case(
         case.set_embargo(
             embargo.as_id if hasattr(embargo, "as_id") else embargo
         )
+
+        accepting_actor_id = (
+            activity.actor.as_id
+            if hasattr(activity.actor, "as_id")
+            else str(activity.actor)
+        )
+        participant_id = case.actor_participant_index.get(accepting_actor_id)
+        if participant_id:
+            participant = rehydrate(obj=participant_id)
+            if embargo_id not in participant.accepted_embargo_ids:
+                participant.accepted_embargo_ids.append(embargo_id)
+                dl.update(participant_id, object_to_record(participant))
+                logger.info(
+                    "Recorded embargo acceptance '%s' for participant '%s'",
+                    embargo_id,
+                    accepting_actor_id,
+                )
+        else:
+            logger.warning(
+                "Accepting actor '%s' has no CaseParticipant in case '%s' — "
+                "cannot record embargo acceptance",
+                accepting_actor_id,
+                case_id,
+            )
+
+        case.record_event(embargo_id, "embargo_accepted")
         dl.update(case_id, object_to_record(case))
         logger.info(
             "Accepted embargo proposal '%s'; activated embargo '%s' on case '%s'",

@@ -478,6 +478,167 @@ class TestInviteActorHandlers:
 
         assert actor_id not in case.actor_participant_index
 
+    def test_accept_invite_actor_to_case_adds_participant(self, monkeypatch):
+        """accept_invite_actor_to_case creates a CaseParticipant and adds them to the case."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCase,
+            RmInviteToCase,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        invitee_id = "https://example.org/users/coordinator"
+        invitee = as_Actor(id=invitee_id)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/caseIA1",
+            name="TEST-ACCEPT-INVITE",
+        )
+        invite = RmInviteToCase(
+            id="https://example.org/cases/caseIA1/invitations/1",
+            actor="https://example.org/users/owner",
+            object=invitee,
+            target=case,
+        )
+        dl.create(case)
+        dl.create(invite)
+
+        accept = RmAcceptInviteToCase(
+            actor=invitee_id,
+            object=invite,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+        )
+        mock_dispatchable.payload = _make_payload(accept)
+
+        handlers.accept_invite_actor_to_case(mock_dispatchable, dl)
+
+        assert invitee_id in case.actor_participant_index
+
+    def test_accept_invite_actor_to_case_records_active_embargo(
+        self, monkeypatch
+    ):
+        """accept_invite_actor_to_case records the active embargo ID on the new participant (CM-10-001, CM-10-003)."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCase,
+            RmInviteToCase,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        invitee_id = "https://example.org/users/coordinator"
+        invitee = as_Actor(id=invitee_id)
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/caseIA2/embargo_events/e1",
+            content="Active embargo",
+        )
+        case = VulnerabilityCase(
+            id="https://example.org/cases/caseIA2",
+            name="TEST-ACCEPT-INVITE-EMBARGO",
+        )
+        case.active_embargo = embargo.as_id
+        invite = RmInviteToCase(
+            id="https://example.org/cases/caseIA2/invitations/1",
+            actor="https://example.org/users/owner",
+            object=invitee,
+            target=case,
+        )
+        dl.create(case)
+        dl.create(embargo)
+        dl.create(invite)
+
+        accept = RmAcceptInviteToCase(
+            actor=invitee_id,
+            object=invite,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+        )
+        mock_dispatchable.payload = _make_payload(accept)
+
+        handlers.accept_invite_actor_to_case(mock_dispatchable, dl)
+
+        participant_id = case.actor_participant_index.get(invitee_id)
+        assert participant_id is not None
+        participant_obj = dl.get(id_=participant_id)
+        assert participant_obj is not None
+        assert embargo.as_id in participant_obj.accepted_embargo_ids
+
+    def test_accept_invite_actor_to_case_records_case_event(self, monkeypatch):
+        """accept_invite_actor_to_case appends a trusted-timestamp event to case.events (CM-02-009)."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCase,
+            RmInviteToCase,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        invitee_id = "https://example.org/users/coordinator"
+        invitee = as_Actor(id=invitee_id)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/caseIA3",
+            name="TEST-ACCEPT-INVITE-EVENT",
+        )
+        invite = RmInviteToCase(
+            id="https://example.org/cases/caseIA3/invitations/1",
+            actor="https://example.org/users/owner",
+            object=invitee,
+            target=case,
+        )
+        dl.create(case)
+        dl.create(invite)
+
+        accept = RmAcceptInviteToCase(
+            actor=invitee_id,
+            object=invite,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+        )
+        mock_dispatchable.payload = _make_payload(accept)
+
+        assert len(case.events) == 0
+
+        handlers.accept_invite_actor_to_case(mock_dispatchable, dl)
+
+        assert len(case.events) >= 1
+        event_types = [e.event_type for e in case.events]
+        assert "participant_joined" in event_types
+
 
 class TestEmbargoHandlers:
     """Tests for embargo management handlers."""
@@ -680,6 +841,127 @@ class TestEmbargoHandlers:
 
         assert case.active_embargo is not None
         assert case.current_status.em_state == EM.ACTIVE
+
+    def test_accept_invite_to_embargo_records_embargo_on_participant(
+        self, monkeypatch
+    ):
+        """accept_invite_to_embargo_on_case records embargo ID in participant.accepted_embargo_ids (CM-10-002, CM-10-003)."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            EmAcceptEmbargo,
+            EmProposeEmbargo,
+        )
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        coordinator_id = "https://example.org/users/coordinator"
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em5",
+            name="EM Accept Participant Test",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_em5/embargo_events/e5",
+            content="Embargo",
+        )
+        participant = CaseParticipant(
+            id="https://example.org/cases/case_em5/participants/coord",
+            attributed_to=coordinator_id,
+            context=case.as_id,
+        )
+        case.add_participant(participant)
+        proposal = EmProposeEmbargo(
+            id="https://example.org/cases/case_em5/embargo_proposals/1",
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            context=case,
+        )
+        dl.create(case)
+        dl.create(embargo)
+        dl.create(participant)
+        dl.create(proposal)
+
+        accept = EmAcceptEmbargo(
+            actor=coordinator_id,
+            object=proposal,
+            context=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
+        )
+        mock_dispatchable.payload = _make_payload(accept)
+
+        handlers.accept_invite_to_embargo_on_case(mock_dispatchable, dl)
+
+        updated_participant = dl.get(id_=participant.as_id)
+        assert updated_participant is not None
+        assert embargo.as_id in updated_participant.accepted_embargo_ids
+
+    def test_accept_invite_to_embargo_records_case_event(self, monkeypatch):
+        """accept_invite_to_embargo_on_case appends a trusted-timestamp event to case.events (CM-02-009)."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            EmAcceptEmbargo,
+            EmProposeEmbargo,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em6",
+            name="EM Accept Event Test",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_em6/embargo_events/e6",
+            content="Embargo",
+        )
+        proposal = EmProposeEmbargo(
+            id="https://example.org/cases/case_em6/embargo_proposals/1",
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            context=case,
+        )
+        dl.create(case)
+        dl.create(embargo)
+        dl.create(proposal)
+
+        accept = EmAcceptEmbargo(
+            actor="https://example.org/users/coordinator",
+            object=proposal,
+            context=case,
+        )
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
+        )
+        mock_dispatchable.payload = _make_payload(accept)
+
+        assert len(case.events) == 0
+
+        handlers.accept_invite_to_embargo_on_case(mock_dispatchable, dl)
+
+        assert len(case.events) >= 1
+        event_types = [e.event_type for e in case.events]
+        assert "embargo_accepted" in event_types
 
     def test_reject_invite_to_embargo_on_case_logs_rejection(self):
         """reject_invite_to_embargo_on_case logs without raising."""
