@@ -137,7 +137,7 @@ def extract_id_segment(url: str) -> str:
 - `CS-08-002` Non-empty string validation SHOULD be consolidated into a
   shared type alias rather than duplicated per-field validators
   - Define a `NonEmptyString` type (e.g., `Annotated[str, Field(min_length=1)]`)
-    in a shared base module (e.g., `vultron/as_vocab/base/`)
+    in a shared base module (e.g., `vultron/wire/as2/vocab/base/`)
   - Define an `OptionalNonEmptyString` type alias
     (e.g., `Optional[NonEmptyString]`) for nullable fields that follow CS-08-001
   - Replace per-field `@field_validator` stubs that only check `if not v` or

@@ -23,12 +23,14 @@ quickly in this repo.
 
 - Read this file and the `specs/` folder first; specs contain testable
   requirements (MUST/SHOULD/MAY).
-- Key architecture: FastAPI inbox → semantic extraction
-  (`vultron/semantic_map.py`) → behavior dispatcher
+- Key architecture: FastAPI inbox → AS2 parser
+  (`vultron/wire/as2/parser.py`) → semantic extraction
+  (`vultron/wire/as2/extractor.py`) → behavior dispatcher
   (`vultron/behavior_dispatcher.py`) → registered handler
-  (`vultron/api/v2/backend/handlers.py`).
-- Follow the Handler Protocol: handlers accept a single `DispatchActivity`
-  param, use `@verify_semantics(...)`, and read `dispatchable.payload`.
+  (`vultron/api/v2/backend/handlers/`).
+- Follow the Handler Protocol: handlers accept `dispatchable: DispatchActivity`
+  and `dl: DataLayer`, use `@verify_semantics(...)`, and read
+  `dispatchable.payload` (an `InboundPayload` domain type).
 
 Checklist (edit → validate → commit):
 
@@ -49,6 +51,7 @@ uv run pytest --tb=short 2>&1 | tail -5
 
 # Run a specific test file
 uv run pytest test/test_semantic_activity_patterns.py -v
+# (patterns now live in vultron/wire/as2/extractor.py)
 
 # Run the demo server locally (development/demo)
 uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
@@ -70,7 +73,7 @@ uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
 Quick pointers and gotchas:
 
 - Order matters in `SEMANTICS_ACTIVITY_PATTERNS` (place more specific patterns
-  first).
+  first); patterns live in `vultron/wire/as2/extractor.py`.
 - Always call `rehydrate()` on incoming activities to expand URI references
   before pattern matching.
 - Use `object_to_record()` + `dl.update(id, record)` when persisting Pydantic
@@ -158,11 +161,11 @@ explicit approval from the maintainers.
 - Side effects (I/O, persistence, network) MUST be isolated from pure logic
 - **Core modules MUST NOT import from application layer modules** (see
   `specs/code-style.md` CS-05-001)
-  - Core: `behavior_dispatcher.py`, `semantic_map.py`,
-    `semantic_handler_map.py`, `activity_patterns.py`
-  - Application layer: `api/v2/*`
-  - Use lazy imports or shared neutral modules (e.g., `types.py`,
-    `dispatcher_errors.py`) when dependencies exist
+  - Core: `vultron/core/`, `vultron/behavior_dispatcher.py`
+  - Wire layer: `vultron/wire/`
+  - Application layer: `vultron/api/v2/*`
+  - Use shared neutral modules (e.g., `types.py`, `dispatcher_errors.py`)
+    when cross-layer dependencies exist
 
 Avoid tight coupling between layers.
 
@@ -178,7 +181,7 @@ include migration/compatibility notes and tests.
 This document provides guidance to AI agents working on the Vultron codebase.
 It supplements the Copilot instructions with implementation-specific advice.
 
-**Last Updated:** 2026-02-20
+**Last Updated:** 2026-03-10
 
 **For durable design insights**, see the `notes/` directory.
 
@@ -186,22 +189,27 @@ It supplements the Copilot instructions with implementation-specific advice.
 
 ### Semantic Message Processing Pipeline
 
-Vultron processes inbound ActivityStreams activities through a three-stage
+Vultron processes inbound ActivityStreams activities through a four-stage
 pipeline:
 
 1. **Inbox Endpoint** (`vultron/api/v2/routers/actors.py`): FastAPI POST
-   endpoint accepting activities
-2. **Semantic Extraction** (`vultron/semantic_map.py`): Pattern matching on
-   (Activity Type, Object Type) to determine MessageSemantics
-3. **Behavior Dispatch** (`vultron/behavior_dispatcher.py`): Routes to
-   semantic-specific handler functions
+   endpoint accepting activities; returns 202 immediately
+2. **AS2 Parser** (`vultron/wire/as2/parser.py`): Structural validation and
+   deserialization of AS2 JSON
+3. **Semantic Extraction** (`vultron/wire/as2/extractor.py`): Pattern matching
+   on (Activity Type, Object Type) to determine `MessageSemantics`
+4. **Behavior Dispatch** (`vultron/behavior_dispatcher.py`): Routes to
+   semantic-specific handler functions via `SEMANTICS_HANDLERS`
+   (`vultron/api/v2/backend/handler_map.py`)
 
 **Key constraint:** Semantic extraction uses **ordered pattern matching**. When
-adding patterns to `SEMANTICS_ACTIVITY_PATTERNS`, place more specific patterns
-before general ones.
+adding patterns to `SEMANTICS_ACTIVITY_PATTERNS` in
+`vultron/wire/as2/extractor.py`, place more specific patterns before general
+ones.
 
-See `specs/dispatch-routing.md`, `specs/semantic-extraction.md`, and ADR-0007
-for complete architecture details.
+See `specs/dispatch-routing.md`, `specs/semantic-extraction.md`,
+`docs/adr/0007-use-behavior-dispatcher.md`, and
+`docs/adr/0009-hexagonal-architecture.md` for complete architecture details.
 
 ### Hexagonal Architecture (Ports and Adapters)
 
@@ -217,13 +225,14 @@ and domain types. Rules:
   AS2 types
 - **Core functions take domain types**: the inbound pipeline finishes
   parse → extract before calling into core
-- **Driven adapters injected via ports**: handlers do not call `get_datalayer()`
-  directly (deferred in prototype — see PROTO-06-001)
+- **Driven adapters injected via ports**: handlers receive `dl: DataLayer` as
+  a parameter; they do not call `get_datalayer()` directly
 
 See `notes/architecture-ports-and-adapters.md` for the full architecture
 specification and code patterns. See `notes/architecture-review.md` for the
-current violation inventory (V-01 to V-12) and remediation plan. See
-`specs/architecture.md` for the formal requirements (ARCH-01 to ARCH-08).
+violation inventory (V-01 to V-12, all remediated as of ARCH-CLEANUP).
+See `specs/architecture.md` for formal requirements (ARCH-01 to ARCH-08) and
+`docs/adr/0009-hexagonal-architecture.md` for the decision rationale.
 
 ### Protocol Activity Model
 
@@ -256,10 +265,11 @@ See `notes/activitystreams-semantics.md` for detailed discussion.
 
 All handler functions MUST:
 
-- Accept single `DispatchActivity` parameter
+- Accept `dispatchable: DispatchActivity` and `dl: DataLayer` parameters
 - Use `@verify_semantics(MessageSemantics.X)` decorator
-- Be registered in `SEMANTIC_HANDLER_MAP`
-- Access activity data via `dispatchable.payload`
+- Be registered in `SEMANTICS_HANDLERS` (in
+  `vultron/api/v2/backend/handler_map.py`)
+- Access activity data via `dispatchable.payload` (an `InboundPayload`)
 - Use Pydantic models for type-safe access
 - Follow idempotency best practices
 
@@ -267,10 +277,10 @@ Example:
 
 ```python
 @verify_semantics(MessageSemantics.CREATE_REPORT)
-def create_report(dispatchable: DispatchActivity) -> None:
+def create_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     payload = dispatchable.payload
     # Access validated activity data from payload
-    # Implement business logic
+    # Use dl for persistence operations
     # Log state transitions
 ```
 
@@ -281,19 +291,21 @@ verification criteria.
 
 The system uses two key registries that MUST stay synchronized:
 
-- `SEMANTIC_HANDLER_MAP` (in `vultron/semantic_handler_map.py`): Maps
-  MessageSemantics → handler functions
-- `SEMANTICS_ACTIVITY_PATTERNS` (in `vultron/semantic_map.py`): Maps
-  MessageSemantics → ActivityPattern objects
+- `SEMANTICS_HANDLERS` (in `vultron/api/v2/backend/handler_map.py`): Maps
+  `MessageSemantics` → handler functions (adapter layer)
+- `SEMANTICS_ACTIVITY_PATTERNS` (in `vultron/wire/as2/extractor.py`): Maps
+  `MessageSemantics` → `ActivityPattern` objects (wire layer)
 
 When adding new message types:
 
-1. Add enum value to `MessageSemantics` in `vultron/enums.py`
-2. Define ActivityPattern in `vultron/activity_patterns.py`
+1. Add enum value to `MessageSemantics` in `vultron/core/models/events.py`
+   (re-exported via `vultron/enums.py` for compatibility)
+2. Define `ActivityPattern` in `vultron/wire/as2/extractor.py`
 3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in correct order (specific
    before general)
-4. Implement handler in `vultron/api/v2/backend/handlers.py`
-5. Register handler in `SEMANTIC_HANDLER_MAP`
+4. Implement handler in `vultron/api/v2/backend/handlers/`
+5. Register handler in `SEMANTICS_HANDLERS` in
+   `vultron/api/v2/backend/handler_map.py`
 6. Add tests verifying pattern matching and handler invocation
 
 ### Layer Separation (MUST)
@@ -383,10 +395,10 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - **Optional string fields MUST follow "if present, then non-empty"**:
   `Optional[str]` fields MUST reject empty strings. Use the shared
   `NonEmptyString` or `OptionalNonEmptyString` type alias from
-  `vultron/as_vocab/base/` when it exists (CS-08-002), or a field validator
-  that raises `ValueError` for `""` if the type alias is not yet available.
-  This pattern also applies to JSON Schemas derived from Pydantic models
-  (`minLength: 1`). See `specs/code-style.md` CS-08-001, CS-08-002.
+  `vultron/wire/as2/vocab/base/` when it exists (CS-08-002), or a field
+  validator that raises `ValueError` for `""` if the type alias is not yet
+  available. This pattern also applies to JSON Schemas derived from Pydantic
+  models (`minLength: 1`). See `specs/code-style.md` CS-08-001, CS-08-002.
   **Do NOT** add a new per-field `@field_validator` stub for empty-string
   rejection; instead, use or extend the shared type alias.
 
@@ -557,15 +569,16 @@ behavior across backends (in-memory / tinydb) where reasonable.
 
 ### Adding a New Message Type
 
-1. Add `MessageSemantics` enum value in `vultron/enums.py`
-2. Define `ActivityPattern` in `vultron/activity_patterns.py`
-3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in `vultron/semantic_map.py`
-   (order matters!)
-4. Implement handler function in `vultron/api/v2/backend/handlers.py`:
+1. Add `MessageSemantics` enum value in `vultron/core/models/events.py`
+2. Define `ActivityPattern` in `vultron/wire/as2/extractor.py`
+3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in
+   `vultron/wire/as2/extractor.py` (order matters!)
+4. Implement handler function in `vultron/api/v2/backend/handlers/`:
    - Use `@verify_semantics(MessageSemantics.NEW_TYPE)` decorator
-   - Accept `dispatchable: DispatchActivity` parameter
-   - Access data via `dispatchable.payload`
-5. Register in `SEMANTIC_HANDLER_MAP` in `vultron/semantic_handler_map.py`
+   - Accept `dispatchable: DispatchActivity` and `dl: DataLayer` parameters
+   - Access data via `dispatchable.payload` (`InboundPayload`)
+5. Register in `SEMANTICS_HANDLERS` in
+   `vultron/api/v2/backend/handler_map.py`
 6. Add tests:
    - Pattern matching in `test/test_semantic_activity_patterns.py`
    - Handler registration in `test/test_semantic_handler_map.py`
@@ -573,32 +586,42 @@ behavior across backends (in-memory / tinydb) where reasonable.
 
 ### Key Files Map
 
-- **Enums**: `vultron/enums.py` - All enum types including MessageSemantics
-- **Patterns**: `vultron/activity_patterns.py` - Pattern definitions
-- **Pattern Map**: `vultron/semantic_map.py` - Semantics → Pattern mapping
-- **Handlers**: `vultron/api/v2/backend/handlers.py` - Handler implementations
-- **Handler Map**: `vultron/semantic_handler_map.py` - Semantics → Handler
-  mapping
+- **Enums**: `vultron/enums.py` - Re-exports `MessageSemantics` plus
+  `OfferStatusEnum`, `VultronObjectType`; `MessageSemantics` is defined in
+  `vultron/core/models/events.py`
+- **Patterns**: `vultron/wire/as2/extractor.py` - `ActivityPattern`
+  definitions and `SEMANTICS_ACTIVITY_PATTERNS` dict (sole AS2→domain
+  mapping point)
+- **Pattern Map**: `vultron/wire/as2/extractor.py` - `find_matching_semantics()`
+- **Handlers**: `vultron/api/v2/backend/handlers/` - Handler implementations
+- **Handler Map**: `vultron/api/v2/backend/handler_map.py` - `SEMANTICS_HANDLERS`
+  dict mapping `MessageSemantics` → handler functions
 - **Dispatcher**: `vultron/behavior_dispatcher.py` - Dispatch logic
 - **Inbox**: `vultron/api/v2/routers/actors.py` - Endpoint implementation
-- **Triggers**: `vultron/api/v2/routers/triggers.py` - Triggerable behavior
-  endpoints (`POST /actors/{id}/trigger/{behavior-name}`); see
+- **Triggers**: `vultron/api/v2/routers/trigger_report.py`,
+  `trigger_case.py`, `trigger_embargo.py` - Triggerable behavior endpoints
+  (`POST /actors/{id}/trigger/{behavior-name}`); see
   `specs/triggerable-behaviors.md`
+- **Trigger Services**: `vultron/api/v2/backend/trigger_services/` - Domain
+  service layer for trigger endpoints
 - **Errors**: `vultron/errors.py`, `vultron/api/v2/errors.py` - Exception
   hierarchy
 - **Data Layer**: `vultron/api/v2/datalayer/abc.py` - Persistence abstraction
 - **TinyDB Backend**: `vultron/api/v2/datalayer/tinydb.py` - TinyDB
   implementation
-- **BT Bridge**: `vultron/behaviors/bridge.py` - Handler-to-BT execution adapter
-- **BT Helpers**: `vultron/behaviors/helpers.py` - DataLayer-aware BT nodes
-- **BT Report**: `vultron/behaviors/report/` - Report validation tree and nodes
-- **BT Prioritize**: `vultron/behaviors/report/prioritize_tree.py` -
+- **BT Bridge**: `vultron/core/behaviors/bridge.py` - Handler-to-BT execution
+  adapter
+- **BT Helpers**: `vultron/core/behaviors/helpers.py` - DataLayer-aware BT
+  nodes
+- **BT Report**: `vultron/core/behaviors/report/` - Report validation tree and
+  nodes
+- **BT Prioritize**: `vultron/core/behaviors/report/prioritize_tree.py` -
   engage_case/defer_case trees
-- **BT Case**: `vultron/behaviors/case/` - Case creation tree and nodes
-- **Case Event Log**: `vultron/as_vocab/objects/case_event.py` -
+- **BT Case**: `vultron/core/behaviors/case/` - Case creation tree and nodes
+- **Case Event Log**: `vultron/wire/as2/vocab/objects/case_event.py` -
   `CaseEvent` Pydantic model for trusted-timestamp event logging; use
   `VulnerabilityCase.record_event(object_id, event_type)` to append entries
-- **Vocabulary Examples**: `vultron/as_vocab/examples/` - Canonical
+- **Vocabulary Examples**: `vultron/wire/as2/vocab/examples/` - Canonical
   ActivityStreams activity examples (split into submodules by topic:
   `actor.py`, `case.py`, `embargo.py`, `note.py`, `participant.py`,
   `report.py`, `status.py`); use as reference for message semantics
@@ -864,7 +887,7 @@ define one and reuse it. If a new model adds one field to an existing model,
 subclass the existing model. See `specs/code-style.md` CS-09-002.
 
 **`EvaluateCasePriority` is outgoing-only**: This BT node (in
-`vultron/behaviors/report/nodes.py`) is for the **local actor deciding** to
+`vultron/core/behaviors/report/nodes.py`) is for the **local actor deciding** to
 engage or defer a case. Receive-side trees (`EngageCaseBT`, `DeferCaseBT`)
 do **not** use it — they only record the **sender's already-made decision** by
 updating the sender's `CaseParticipant.participant_status[].rm_state`.

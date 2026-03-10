@@ -56,8 +56,8 @@ and Python stack candidates.
     Vulnerability Categorization) or an equivalent tool that evaluates report
     content and context to produce an engage/defer decision.
   - The `PrioritizationPolicy` interface in
-    `vultron/behaviors/report/policy.py` and the `EvaluateCasePriority` BT
-    node in `vultron/behaviors/report/nodes.py` provide the hook point for
+    `vultron/core/behaviors/report/policy.py` and the `EvaluateCasePriority` BT
+    node in `vultron/core/behaviors/report/nodes.py` provide the hook point for
     this integration.
   - Note: RM is a **participant-specific** state machine. Each
     `CaseParticipant` (actor-in-case wrapper) carries its own RM state in

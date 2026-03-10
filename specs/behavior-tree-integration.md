@@ -44,7 +44,7 @@ SHOULD use BTs for clarity and maintainability.
     `id_segment` is the last path segment of the object's URI
   - Examples: `object_abc123`, `case_def456`, `actor_vendorco`
   - Current convention: `object_{last_url_segment}` (see
-    `vultron/behaviors/report/nodes.py`)
+    `vultron/core/behaviors/report/nodes.py`)
 - `BT-03-004` State changes MUST be committed to DataLayer on successful
   execution
 
@@ -172,5 +172,6 @@ SHOULD use BTs for clarity and maintainability.
 - **Design Notes**: `notes/bt-integration.md` (durable design decisions,
   handler decision table, directionality of EvaluateCasePriority)
 - **ADRs**: ADR-0002 (BT rationale), ADR-0007 (dispatcher architecture)
-- **Implementation**: `vultron/behaviors/` (bridge layer, helpers, report trees)
+- **Implementation**: `vultron/core/behaviors/` (bridge layer, helpers,
+  report trees)
 - **Tests**: `test/behaviors/`
