@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-10 (TECHDEBT-10 complete: pre-case events backfilled in create_case BT)
+**Last Updated**: 2026-03-10 (TECHDEBT-3 complete: object IDs standardized to URI form, ADR-0010 created)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 866 passing, 5581 subtests, 0 xfailed (2026-03-10, after TECHDEBT-10)
+**Test suite**: 878 passing, 5581 subtests, 0 xfailed (2026-03-10, after TECHDEBT-3)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -123,10 +123,12 @@ empty-string validators replaced with shared types. ✅ 2026-03-10
 No `pyrightconfig.json` exists. `specs/tech-stack.md` IMPL-TS-07-002 requires
 pyright adoption with a gradual approach.
 
-### ❌ Object IDs not standardized to URL-like form (TECHDEBT-3)
+### ✅ Object IDs standardized to URI form (TECHDEBT-3 DONE)
 
-No ADR for `docs/adr/ADR-XXXX-standardize-object-ids.md`. `specs/object-ids.md`
-OID-01 through OID-04 defines requirements.
+`generate_new_id()` now returns `urn:uuid:{uuid}` by default. `BASE_URL` in
+`vultron/api/v2/data/utils.py` is configurable via `VULTRON_BASE_URL` env var.
+DataLayer compatibility shim accepts bare UUIDs during the migration period.
+ADR-0010 created. ✅ 2026-03-10
 
 ### ❌ `vultron/enums.py` backward-compat shim still present (TECHDEBT-4)
 
@@ -300,10 +302,10 @@ incrementally — each task must leave tests passing.
   `plan/IMPLEMENTATION_NOTES.md`; add a `Makefile` target. Done when config
   committed and baseline documented. ✅ 2026-03-10
 
-- [ ] **TECHDEBT-3**: Standardize object IDs to URL-like form — draft ADR
-  `docs/adr/ADR-XXXX-standardize-object-ids.md` and implement a compatibility
+- [x] **TECHDEBT-3**: Standardize object IDs to URL-like form — draft ADR
+  `docs/adr/0010-standardize-object-ids.md` and implement a compatibility
   shim in the DataLayer (OID-01 through OID-04). Done when ADR created and
-  tests validate URL-like ID acceptance.
+  tests validate URL-like ID acceptance. ✅ 2026-03-10
 
 - ~~[ ] **TECHDEBT-4**: Reorganize top-level modules (`activity_patterns`,
   `semantic_map`, `enums`) into small packages to reduce circular imports and

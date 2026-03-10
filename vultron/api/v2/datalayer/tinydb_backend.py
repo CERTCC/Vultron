@@ -27,6 +27,7 @@ from tinydb.queries import QueryInstance
 from tinydb.storages import MemoryStorage
 from tinydb.table import Table
 
+from vultron.api.v2.data.utils import _UUID_RE, _URN_UUID_PREFIX
 from vultron.api.v2.datalayer.abc import DataLayer
 from vultron.api.v2.datalayer.db_record import (
     Record,
@@ -101,18 +102,27 @@ class TinyDbDataLayer(DataLayer):
         Reads an object by id across all tables and returns the reconstituted
         Pydantic object (as_Base subclass) or None if not found. If
         `raise_on_missing` is True, raises a KeyError when the object is not found.
+
+        Compatibility shim: when *object_id* is a bare UUID the lookup is
+        retried with the ``urn:uuid:`` prefix so that callers using the legacy
+        bare-UUID pattern still work while IDs are being migrated to URI form.
         """
-        for name in self._db.tables():
-            tbl = self._table(name)
-            rec = tbl.get(self._id_query(object_id))
-            if rec:
-                # rec is a dict representing Record
-                try:
-                    record = Record.model_validate(rec)
-                    return record_to_object(record)
-                except Exception:
-                    # fallback: if stored data is already the object dict, return it
-                    return rec
+        candidates = [object_id]
+        if _UUID_RE.match(object_id):
+            candidates.append(f"{_URN_UUID_PREFIX}{object_id}")
+
+        for candidate in candidates:
+            for name in self._db.tables():
+                tbl = self._table(name)
+                rec = tbl.get(self._id_query(candidate))
+                if rec:
+                    # rec is a dict representing Record
+                    try:
+                        record = Record.model_validate(rec)
+                        return record_to_object(record)
+                    except Exception:
+                        # fallback: if stored data is already the object dict, return it
+                        return rec
         if raise_on_missing:
             raise KeyError(
                 f"Object with id '{object_id}' not found in datalayer"

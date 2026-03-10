@@ -661,3 +661,35 @@ code should be made clean under pyright basic mode before merging.
 - `reportAttributeAccessIssue` / `reportOptionalMemberAccess`: Union types
   narrowed incorrectly in property implementations.
 - `reportGeneralTypeIssues`: Field override without default value.
+
+---
+
+## TECHDEBT-3: Object IDs standardized to URI form (2026-03-10)
+
+**Changes made**:
+
+- `generate_new_id()` in `vultron/wire/as2/vocab/base/utils.py` now returns
+  `urn:uuid:{uuid}` by default. The bare-UUID return was replaced with a
+  proper absolute IRI, satisfying OID-01-001.
+- `parse_id()` in `vultron/api/v2/data/utils.py` extended to handle
+  `urn:uuid:` form IDs, returning the bare UUID as the `object_id` component.
+- `BASE_URL` in `vultron/api/v2/data/utils.py` now reads from the
+  `VULTRON_BASE_URL` environment variable (OID-01-003), defaulting to
+  `https://demo.vultron.local/`.
+- Compatibility shim added to `TinyDbDataLayer.read()`: when a bare UUID is
+  passed as the lookup key the method also tries `urn:uuid:{uuid}`, allowing
+  demo and API code that uses the `parse_id()["object_id"]` pattern to
+  continue working during the migration period.
+- ADR-0010 created at `docs/adr/0010-standardize-object-ids.md`.
+- New tests in `test/wire/as2/vocab/test_base_utils.py` validate URI-form
+  IDs; additional tests added to `test/api/v2/data/test_utils.py`.
+
+**Caveats**:
+
+- The compatibility shim accepts bare-UUID lookups (it tries the `urn:uuid:`
+  form automatically). OID-02-004 says bare UUIDs MUST NOT be accepted as
+  valid lookup keys; the shim is a deliberate prototype-phase deviation.
+  Remove it once all callers use full-URI IDs (PRIORITY-70 work).
+- Existing bare-UUID records in TinyDB stores are not migrated automatically.
+  They will not be found by new `urn:uuid:`-keyed lookups (bare-UUID records
+  are a prototype artifact from before this change).

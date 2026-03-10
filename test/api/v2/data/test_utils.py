@@ -46,6 +46,21 @@ def test_parse_id_extracts_components_correctly(test_base_url):
         assert _UUID_PATTERN.fullmatch(parsed["object_id"]) is not None
 
 
+def test_base_url_reads_from_vultron_base_url_env_var(monkeypatch):
+    custom_url = "https://custom.vultron.example/"
+    monkeypatch.setenv("VULTRON_BASE_URL", custom_url)
+    import importlib
+
+    importlib.reload(utils)
+    assert utils.BASE_URL == custom_url
+    importlib.reload(utils)  # restore defaults for other tests
+
+
+def test_make_id_produces_uri_form_id():
+    object_id = utils.make_id("Actor")
+    assert "://" in object_id, "make_id() must return a URI-form ID"
+
+
 def test_id_prefix_handles_base_url_without_trailing_slash(
     monkeypatch, test_base_url
 ):

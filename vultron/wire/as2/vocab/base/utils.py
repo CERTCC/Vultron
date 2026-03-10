@@ -19,6 +19,8 @@ Provides utilities for the ActivityStreams Vocabulary.
 import uuid
 from typing import Any
 
+URN_UUID_PREFIX = "urn:uuid:"
+
 
 def name_of(obj: Any) -> str:
     """Get the name of an object if it has one, otherwise return the object itself
@@ -61,14 +63,21 @@ def exclude_if_empty(value: Any) -> bool:
 
 
 def generate_new_id(prefix: str | None = None) -> str:
-    """Generate a new ID for an object
+    """Generate a new URI-form ID for an object.
+
+    Returns a ``urn:uuid:`` URI by default, which is a valid AS2 identifier
+    and requires no HTTP server configuration. When a *prefix* is supplied the
+    UUID is appended to it with a ``/`` separator, allowing callers to produce
+    HTTPS-style identifiers (e.g. ``https://example.org/reports/{uuid}``).
 
     Returns:
-        the new ID
+        a URI-form ID string
     """
-    _id = str(uuid.uuid4())
+    _uuid = str(uuid.uuid4())
     if prefix is not None:
-        _id = f"{prefix}/{_id}"
+        _id = f"{prefix}/{_uuid}"
+    else:
+        _id = f"{URN_UUID_PREFIX}{_uuid}"
 
     return _id
 

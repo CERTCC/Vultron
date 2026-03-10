@@ -17,10 +17,18 @@
 Provides TODO writeme
 """
 
+import os
+import re
 from urllib.parse import urljoin, urlparse
 from uuid import uuid4
 
-BASE_URL = "https://demo.vultron.local/"
+BASE_URL = os.environ.get("VULTRON_BASE_URL", "https://demo.vultron.local/")
+
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+_URN_UUID_PREFIX = "urn:uuid:"
 
 
 def id_prefix(object_type: str) -> str:
@@ -39,13 +47,22 @@ def make_id(object_type: str) -> str:
 
 
 def parse_id(object_id: str) -> dict[str, str]:
-    """Parses an object ID into its prefix, type, and UUID components."""
+    """Parses an object ID into its prefix, type, and UUID components.
 
-    # if the object_id is a url, split it into parts:
-    # after last slash is the object id
-    # before that is the object type
-    # and everything in front of that is the base url
+    Handles both HTTPS-URL form (``https://example.org/Type/uuid``) and
+    ``urn:uuid:`` form (``urn:uuid:uuid``).  For ``urn:uuid:`` IDs the
+    returned ``object_type`` is ``None`` and ``object_id`` is the bare UUID
+    portion.
+    """
+    if object_id.startswith(_URN_UUID_PREFIX):
+        bare_uuid = object_id[len(_URN_UUID_PREFIX) :]
+        return {
+            "base_url": _URN_UUID_PREFIX,
+            "object_type": None,
+            "object_id": bare_uuid,
+        }
 
+    # HTTPS or other URL form
     parsed_url = urlparse(object_id)
 
     path_parts = parsed_url.path.lstrip("/").split("/")
