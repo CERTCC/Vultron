@@ -252,7 +252,7 @@ incrementally — each task must leave tests passing.
 
 **Reference**: `specs/case-management.md` CM-10, CM-02-009
 
-- [ ] **SC-PRE-2**: Add `actor_participant_index: dict[str, str]` field to
+- [x] **SC-PRE-2**: Add `actor_participant_index: dict[str, str]` field to
   `VulnerabilityCase`; update `add_participant()` and add `remove_participant()`
   to maintain the index atomically (CM-10-002). Update all handlers that create or
   remove participants to use these methods. Add tests confirming index consistency.
