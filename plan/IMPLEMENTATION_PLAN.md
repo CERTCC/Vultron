@@ -236,7 +236,7 @@ and P65-5; P65-7 closes out the test regressions last.
   activity_store.py` contains the Protocol, no core module imports `DataLayer`
   from `api/v2/`, and tests pass. Addresses V-13, V-14.
 
-- [ ] **P65-2** (R-11): Fix module-level DataLayer instantiation in
+- [x] **P65-2** (R-11): Fix module-level DataLayer instantiation in
   `vultron/api/v2/backend/inbox_handler.py`. Replace module-level
   `DISPATCHER = get_dispatcher(..., dl=get_datalayer())` with a FastAPI lifespan
   event or app-factory pattern that injects the `DataLayer` once at startup.
@@ -273,7 +273,7 @@ and P65-5; P65-7 closes out the test regressions last.
   `InboundPayload`, and tests pass. Addresses V-03-R, V-20, V-21.
   **Depends on P65-3.**
 
-- [ ] **P65-5** (R-09 part 1): Remove adapter-layer persistence calls from core
+- [x] **P65-5** (R-09 part 1): Remove adapter-layer persistence calls from core
   BT nodes. In `core/behaviors/report/nodes.py` and
   `core/behaviors/case/nodes.py`, replace all `object_to_record(obj)` +
   `dl.update(id, record)` patterns with direct `dl.update(id, obj.model_dump())`

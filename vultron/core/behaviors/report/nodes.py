@@ -29,16 +29,19 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
-from vultron.api.v2.data.status import (
+from vultron.core.models.status import (
     OfferStatus,
     ReportStatus,
     get_status_layer,
     set_status,
 )
-from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.wire.as2.vocab.activities.case import CreateCase as as_CreateCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerCondition,
+    save_to_datalayer,
+)
 from vultron.bt.report_management.states import RM
 from vultron.enums import OfferStatusEnum
 
@@ -572,7 +575,7 @@ class UpdateActorOutbox(DataLayerAction):
             )
 
             # Persist updated actor
-            self.datalayer.update(actor_obj.as_id, object_to_record(actor_obj))
+            save_to_datalayer(self.datalayer, actor_obj)
             self.logger.info(
                 f"{self.name}: Updated actor {self.actor_id} in DataLayer"
             )
@@ -741,7 +744,6 @@ def _find_and_update_participant_rm(
 
     Returns SUCCESS on success, FAILURE on error or missing participant.
     """
-    from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 
     try:
@@ -771,7 +773,7 @@ def _find_and_update_participant_rm(
                     rm_state=new_rm_state,
                 )
                 participant.participant_statuses.append(new_status)
-                datalayer.update(case_obj.as_id, object_to_record(case_obj))
+                save_to_datalayer(datalayer, case_obj)
                 logger.info(
                     f"Set participant {actor_id} RM state to {new_rm_state} in case {case_id}"
                 )

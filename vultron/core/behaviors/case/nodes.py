@@ -30,12 +30,15 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
-from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.wire.as2.vocab.activities.case import CreateCase as as_CreateCase
 from vultron.wire.as2.vocab.objects.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.core.behaviors.helpers import DataLayerAction, DataLayerCondition
+from vultron.core.behaviors.helpers import (
+    DataLayerAction,
+    DataLayerCondition,
+    save_to_datalayer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -358,9 +361,7 @@ class CreateInitialVendorParticipant(DataLayerAction):
             }
             if participant.as_id not in existing_ids:
                 stored_case.case_participants.append(participant.as_id)
-                self.datalayer.update(
-                    stored_case.as_id, object_to_record(stored_case)
-                )
+                save_to_datalayer(self.datalayer, stored_case)
                 self.logger.info(
                     f"{self.name}: Added VendorParticipant"
                     f" {participant.as_id} to case {stored_case.as_id}"
@@ -448,7 +449,7 @@ class RecordCaseCreationEvents(DataLayerAction):
                 f"{self.name}: Recorded case_created event on case {case_id}"
             )
 
-            self.datalayer.update(case_id, object_to_record(case))
+            save_to_datalayer(self.datalayer, case)
             return Status.SUCCESS
 
         except Exception as e:
@@ -503,7 +504,7 @@ class UpdateActorOutbox(DataLayerAction):
                 return Status.FAILURE
 
             actor_obj.outbox.items.append(activity_id)
-            self.datalayer.update(actor_obj.as_id, object_to_record(actor_obj))
+            save_to_datalayer(self.datalayer, actor_obj)
             self.logger.info(
                 f"{self.name}: Added activity {activity_id} to"
                 f" actor {self.actor_id} outbox"

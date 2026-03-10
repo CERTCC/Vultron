@@ -30,10 +30,31 @@ from typing import Any
 
 import py_trees
 from py_trees.common import Status
+from pydantic import BaseModel
 
 from vultron.core.ports.activity_store import DataLayer, StorableRecord
 
 logger = logging.getLogger(__name__)
+
+
+def save_to_datalayer(dl: DataLayer, obj: BaseModel) -> None:
+    """Persist an AS2-like Pydantic model to the DataLayer.
+
+    Constructs a ``StorableRecord`` from the object's ``as_id``,
+    ``as_type``, and serialised data, then calls ``dl.update()``.
+    This helper lets core BT nodes persist objects without importing
+    the adapter-layer ``Record`` / ``object_to_record`` utilities.
+
+    Args:
+        dl: The DataLayer instance to persist to.
+        obj: A Pydantic model with ``as_id`` and ``as_type`` attributes.
+    """
+    record = StorableRecord(
+        id_=getattr(obj, "as_id"),
+        type_=str(getattr(obj, "as_type", type(obj).__name__)),
+        data_=obj.model_dump(mode="json"),
+    )
+    dl.update(record.id_, record)
 
 
 class DataLayerCondition(py_trees.behaviour.Behaviour):

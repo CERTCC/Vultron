@@ -843,3 +843,46 @@ domain-level objects use AS2 vocab objects because they were semantically
 identical. This is a case where we might need to build parallel core objects 
 to correspond to the semantically-identical AS2 vocab objects, but the core 
 objects don't need to be fully AS2-compliant.
+## 2026-03-10 — P65-2 complete (marked; done in P65-1 commit)
+
+P65-2 was implemented in the same commit as P65-1. The `inbox_handler.py`
+already used `_DISPATCHER: ActivityDispatcher | None = None` at module level,
+`init_dispatcher(dl)` for lifespan injection, and both `main.py` and `app.py`
+call `init_dispatcher(dl=get_datalayer())` in their lifespan contexts.
+No `get_datalayer()` call appears at module level or inside `dispatch()`.
+
+## 2026-03-10 — P65-5 complete
+
+### What was done
+
+- Created `vultron/core/models/status.py` containing `ObjectStatus`,
+  `OfferStatus`, `ReportStatus`, `STATUS`, `set_status`, `get_status_layer`,
+  and `status_to_record_dict`. These were previously defined in the
+  adapter-layer `api/v2/data/status.py`.
+- Replaced `vultron/api/v2/data/status.py` with a backward-compat re-export
+  shim pointing to `core/models/status`.
+- Added `save_to_datalayer(dl, obj)` helper to `core/behaviors/helpers.py`.
+  This constructs a `StorableRecord` from `obj.as_id`, `obj.as_type`, and
+  `obj.model_dump(mode="json")` then calls `dl.update()`. Avoids importing
+  the adapter-layer `Record`/`object_to_record` in core BT nodes.
+- Updated `core/behaviors/report/nodes.py`: replaced `api/v2/data/status`
+  and `api/v2/datalayer/db_record` imports with `core/models/status` and
+  `core/behaviors/helpers`; replaced all `object_to_record` calls with
+  `save_to_datalayer`; removed lazy imports at old lines 744–745.
+- Updated `core/behaviors/case/nodes.py`: same pattern for `object_to_record`.
+
+### What was NOT done (deferred to P65-6)
+
+AS2 wire type imports (`VulnerabilityCase`, `CreateCase`, `CaseActor`,
+`VendorParticipant`) remain in the core BT nodes — their removal requires
+defining domain event types and an outbound serialiser (P65-6). The `ParticipantStatus`
+lazy import was converted to a local import inside `_find_and_update_participant_rm`
+(still a local import, but now the only remaining local import, and it
+references a wire-layer type that will be addressed in P65-6).
+
+### Violations addressed
+
+- V-14 (Record): No core BT node imports `Record` or `object_to_record`.
+- V-16: `core/behaviors/report/nodes.py` no longer imports `OfferStatus`
+  from the adapter layer.
+- V-18 partial: Adapter-level `object_to_record` removed from core BT nodes.
