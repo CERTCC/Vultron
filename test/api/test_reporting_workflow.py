@@ -83,9 +83,14 @@ def _call_handler(
 
     from vultron.core.models.events import InboundPayload
 
+    obj = getattr(activity, "as_object", None)
+    object_type = (
+        str(getattr(obj, "as_type", None)) if obj is not None else None
+    )
     payload = InboundPayload(
         activity_id=activity.as_id,
         actor_id=str(activity.actor) if activity.actor else "",
+        object_type=object_type,
         raw_activity=activity,
     )
 

@@ -23,18 +23,14 @@ def create_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     Args:
         dispatchable: DispatchActivity containing the as_Create with VulnerabilityReport object
     """
-    from vultron.as_vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
-    )
-
     activity = dispatchable.payload.raw_activity
 
     # Extract the created report
     created_obj = activity.as_object
-    if not isinstance(created_obj, VulnerabilityReport):
+    if dispatchable.payload.object_type != "VulnerabilityReport":
         logger.error(
             "Expected VulnerabilityReport in create_report, got %s",
-            type(created_obj).__name__,
+            dispatchable.payload.object_type,
         )
         return None
 
@@ -79,18 +75,14 @@ def submit_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     Args:
         dispatchable: DispatchActivity containing the as_Offer with VulnerabilityReport object
     """
-    from vultron.as_vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
-    )
-
     activity = dispatchable.payload.raw_activity
 
     # Extract the offered report
     offered_obj = activity.as_object
-    if not isinstance(offered_obj, VulnerabilityReport):
+    if dispatchable.payload.object_type != "VulnerabilityReport":
         logger.error(
             "Expected VulnerabilityReport in submit_report, got %s",
-            type(offered_obj).__name__,
+            dispatchable.payload.object_type,
         )
         return None
 
@@ -139,9 +131,6 @@ def validate_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     from py_trees.common import Status
 
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.as_vocab.objects.vulnerability_report import (
-        VulnerabilityReport,
-    )
     from vultron.behaviors.bridge import BTBridge
     from vultron.behaviors.report.validate_tree import (
         create_validate_report_tree,
@@ -159,11 +148,13 @@ def validate_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
         )
         return None
 
-    # Verify we have a VulnerabilityReport
-    if not isinstance(accepted_report, VulnerabilityReport):
+    # Verify we have a VulnerabilityReport via domain type string
+    if getattr(accepted_report, "as_type", None) != "VulnerabilityReport":
         logger.error(
             "Expected VulnerabilityReport in validate_report, got %s",
-            type(accepted_report).__name__,
+            getattr(
+                accepted_report, "as_type", type(accepted_report).__name__
+            ),
         )
         return None
 

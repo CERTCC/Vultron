@@ -43,7 +43,6 @@ from vultron.as_vocab.activities.report import (
     RmCloseReport,
     RmInvalidateReport,
 )
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.behaviors.bridge import BTBridge
 from vultron.behaviors.report.validate_tree import create_validate_report_tree
 from vultron.bt.report_management.states import RM
@@ -72,7 +71,7 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
             },
         )
 
-    if not isinstance(report, VulnerabilityReport):
+    if getattr(report, "as_type", None) != "VulnerabilityReport":
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={
@@ -80,7 +79,7 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
                 "error": "ValidationError",
                 "message": (
                     f"Expected VulnerabilityReport, got "
-                    f"{type(report).__name__}."
+                    f"{getattr(report, 'as_type', type(report).__name__)}."
                 ),
                 "activity_id": None,
             },

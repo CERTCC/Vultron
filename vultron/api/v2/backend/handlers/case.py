@@ -302,7 +302,6 @@ def update_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
-    from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 
     activity = dispatchable.payload.raw_activity
 
@@ -343,7 +342,7 @@ def update_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
             )
             return None
 
-        if isinstance(incoming, VulnerabilityCase):
+        if getattr(incoming, "as_type", None) == "VulnerabilityCase":
             for field in ("name", "summary", "content"):
                 value = getattr(incoming, field, None)
                 if value is not None:

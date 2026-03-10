@@ -3,9 +3,7 @@ from unittest.mock import MagicMock
 
 from vultron import behavior_dispatcher as bd
 from vultron.as_vocab.base.objects.activities.transitive import as_Create
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.core.models.events import InboundPayload, MessageSemantics
-from vultron.wire.as2.enums import as_TransitiveActivityType
 
 MessageSemantics = bd.MessageSemantics
 
@@ -33,8 +31,7 @@ def test_prepare_for_dispatch_parses_activity_and_constructs_dispatchactivity(
     assert isinstance(dispatch_msg.payload, InboundPayload)
     assert dispatch_msg.payload.activity_id == "act-123"
     assert (
-        getattr(dispatch_msg.payload.raw_activity, "as_type", None)
-        == as_TransitiveActivityType.CREATE
+        getattr(dispatch_msg.payload.raw_activity, "as_type", None) == "Create"
     )
 
 
@@ -53,24 +50,19 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
     mock_dl = MagicMock()
     dispatcher = bd.DirectActivityDispatcher(dl=mock_dl)
 
-    # Create a proper VulnerabilityReport and Create activity
-    report = VulnerabilityReport(
-        name="TEST-REPORT-001", content="Test vulnerability report"
-    )
-    activity = as_Create(
-        as_id="act-xyz",
-        actor="https://example.org/users/tester",
-        object=report,
-    )
+    # Use a mock raw_activity to avoid coupling this core test to AS2 types.
+    mock_activity = MagicMock()
+    mock_activity.model_dump_json.return_value = '{"id": "act-xyz"}'
 
-    # Construct a DispatchActivity using an InboundPayload
+    # Construct a DispatchActivity directly with InboundPayload (no AS2 construction needed)
     dispatchable = bd.DispatchActivity(
         semantic_type=MessageSemantics.CREATE_REPORT,
-        activity_id=activity.as_id,
+        activity_id="act-xyz",
         payload=InboundPayload(
-            activity_id=activity.as_id,
+            activity_id="act-xyz",
             actor_id="https://example.org/users/tester",
-            raw_activity=activity,
+            object_type="VulnerabilityReport",
+            raw_activity=mock_activity,
         ),
     )
 

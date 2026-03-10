@@ -62,7 +62,7 @@ def resolve_case(case_id: str, dl: DataLayer) -> VulnerabilityCase:
     case_raw = dl.read(case_id)
     if case_raw is None:
         raise not_found("VulnerabilityCase", case_id)
-    if not isinstance(case_raw, VulnerabilityCase):
+    if getattr(case_raw, "as_type", None) != "VulnerabilityCase":
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={
@@ -90,7 +90,10 @@ def update_participant_rm_state(
     separately).
     """
     case_obj = dl.read(case_id)
-    if case_obj is None or not isinstance(case_obj, VulnerabilityCase):
+    if (
+        case_obj is None
+        or getattr(case_obj, "as_type", None) != "VulnerabilityCase"
+    ):
         logger.warning(
             "update_participant_rm_state: case '%s' not found or wrong type",
             case_id,
