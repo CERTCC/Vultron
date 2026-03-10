@@ -158,7 +158,7 @@ All P50 tasks complete. V-01 through V-10 remediated. See
 
 Four discrete cleanup tasks complete the PRIORITY-50 work. Work in order.
 
-- [ ] **ARCH-CLEANUP-1**: Delete backward-compat shims `vultron/activity_patterns.py`,
+- [x] **ARCH-CLEANUP-1**: Delete backward-compat shims `vultron/activity_patterns.py`,
   `vultron/semantic_map.py`, and `vultron/semantic_handler_map.py`. Update the one
   remaining caller (`test/api/test_reporting_workflow.py:36`) to import
   `find_matching_semantics` from `vultron.wire.as2.extractor` directly. Done when

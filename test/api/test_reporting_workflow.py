@@ -33,7 +33,7 @@ from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
 from vultron.as_vocab.type_helpers import AsActivityType
 from vultron.core.models.events import MessageSemantics
-from vultron.semantic_map import find_matching_semantics
+from vultron.wire.as2.extractor import find_matching_semantics
 from vultron.types import BehaviorHandler, DispatchActivity
 
 

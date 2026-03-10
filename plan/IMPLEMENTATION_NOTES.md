@@ -8,7 +8,24 @@ Add new items below this line
 
 ---
 
-## 2026-03-09 — ARCH-1.4 complete: DataLayer injected via port; handler map moved to adapter layer
+## 2026-03-10 — ARCH-CLEANUP-1 complete: Backward-compat shims deleted
+
+### What changed
+
+- Deleted `vultron/activity_patterns.py`, `vultron/semantic_map.py`, and
+  `vultron/semantic_handler_map.py` (all were pure re-export shims).
+- Updated all callers to import from canonical locations:
+  - `test/test_semantic_activity_patterns.py`: `ActivityPattern` and
+    `SEMANTICS_ACTIVITY_PATTERNS` now imported from `vultron.wire.as2.extractor`.
+  - `test/api/test_reporting_workflow.py`: `find_matching_semantics` now imported
+    from `vultron.wire.as2.extractor`.
+  - `test/test_semantic_handler_map.py`: Shim-specific tests removed; test now
+    uses `SEMANTICS_HANDLERS` from `vultron.api.v2.backend.handler_map` directly.
+- 822 tests pass.
+
+---
+
+
 
 ### What changed
 
