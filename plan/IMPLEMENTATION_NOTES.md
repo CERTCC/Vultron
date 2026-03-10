@@ -38,6 +38,14 @@ using the CaseActor's trusted timestamp. The index makes it efficient to
 look up a participant from the actor ID when processing `Accept(Invite(...))` or
 `Accept(Offer(Embargo))` activities.
 
+SC-3.3 adds `_check_participant_embargo_acceptance()` as a module-level helper
+in `vultron/api/v2/backend/handlers/case.py`. It is called from `update_case`
+after the ownership check passes. The helper iterates `actor_participant_index`,
+rehydrates each participant, and logs a WARNING if the participant's
+`accepted_embargo_ids` does not include the case's `active_embargo` ID.
+Full enforcement (withholding the broadcast) is deferred to PRIORITY-200 when
+the outbox delivery pipeline is implemented.
+
 ---
 
 ## 2026-03-10 — Gap analysis refresh #22: new gaps identified

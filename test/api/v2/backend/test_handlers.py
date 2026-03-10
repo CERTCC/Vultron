@@ -1837,3 +1837,171 @@ class TestUpdateCaseHandler:
         stored = dl.read(case.as_id)
         assert stored is not None
         assert stored.name == "Updated"
+
+    def test_update_case_warns_when_participant_has_not_accepted_embargo(
+        self, monkeypatch, caplog
+    ):
+        """update_case logs WARNING per CM-10-004 when a participant has not accepted the active embargo."""
+        import logging
+
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        owner_id = "https://example.org/users/owner"
+        actor_id = "https://example.org/users/alice"
+        embargo = EmbargoEvent(id="https://example.org/embargoes/em1")
+        dl.create(embargo)
+
+        participant = CaseParticipant(
+            id="https://example.org/participants/p1",
+            attributed_to=actor_id,
+            context="https://example.org/cases/uc4",
+            accepted_embargo_ids=[],
+        )
+        dl.create(participant)
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/uc4",
+            name="Original",
+            attributed_to=owner_id,
+            active_embargo=embargo.as_id,
+        )
+        case.actor_participant_index[actor_id] = participant.as_id
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case.as_id,
+            name="Updated",
+            attributed_to=owner_id,
+        )
+        activity = UpdateCase(actor=owner_id, object=updated_case)
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
+        mock_dispatchable.payload = _make_payload(activity)
+
+        with caplog.at_level(logging.WARNING):
+            handlers.update_case(mock_dispatchable, dl)
+
+        assert any(
+            "has not accepted" in r.message and "CM-10-004" in r.message
+            for r in caplog.records
+        )
+
+    def test_update_case_no_warning_when_all_participants_accepted_embargo(
+        self, monkeypatch, caplog
+    ):
+        """update_case does NOT warn when all participants have accepted the active embargo (CM-10-004)."""
+        import logging
+
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        owner_id = "https://example.org/users/owner"
+        actor_id = "https://example.org/users/bob"
+        embargo = EmbargoEvent(id="https://example.org/embargoes/em2")
+        dl.create(embargo)
+
+        participant = CaseParticipant(
+            id="https://example.org/participants/p2",
+            attributed_to=actor_id,
+            context="https://example.org/cases/uc5",
+            accepted_embargo_ids=[embargo.as_id],
+        )
+        dl.create(participant)
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/uc5",
+            name="Original",
+            attributed_to=owner_id,
+            active_embargo=embargo.as_id,
+        )
+        case.actor_participant_index[actor_id] = participant.as_id
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case.as_id,
+            name="Updated",
+            attributed_to=owner_id,
+        )
+        activity = UpdateCase(actor=owner_id, object=updated_case)
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
+        mock_dispatchable.payload = _make_payload(activity)
+
+        with caplog.at_level(logging.WARNING):
+            handlers.update_case(mock_dispatchable, dl)
+
+        assert not any("has not accepted" in r.message for r in caplog.records)
+
+    def test_update_case_no_warning_when_no_active_embargo(
+        self, monkeypatch, caplog
+    ):
+        """update_case does NOT warn when there is no active embargo (CM-10-004)."""
+        import logging
+
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        owner_id = "https://example.org/users/owner"
+        actor_id = "https://example.org/users/carol"
+
+        participant = CaseParticipant(
+            id="https://example.org/participants/p3",
+            attributed_to=actor_id,
+            context="https://example.org/cases/uc6",
+            accepted_embargo_ids=[],
+        )
+        dl.create(participant)
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/uc6",
+            name="Original",
+            attributed_to=owner_id,
+            active_embargo=None,
+        )
+        case.actor_participant_index[actor_id] = participant.as_id
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case.as_id,
+            name="Updated",
+            attributed_to=owner_id,
+        )
+        activity = UpdateCase(actor=owner_id, object=updated_case)
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
+        mock_dispatchable.payload = _make_payload(activity)
+
+        with caplog.at_level(logging.WARNING):
+            handlers.update_case(mock_dispatchable, dl)
+
+        assert not any("has not accepted" in r.message for r in caplog.records)

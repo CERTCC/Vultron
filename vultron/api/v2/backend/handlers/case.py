@@ -288,6 +288,56 @@ def close_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
         )
 
 
+def _check_participant_embargo_acceptance(stored_case, dl, rehydrate) -> None:
+    """Log a WARNING for each active participant who has not accepted the current embargo.
+
+    Per CM-10-004: before sharing case updates with a participant, verify they
+    have accepted the current active embargo.  Full enforcement (withholding the
+    update) is deferred to PRIORITY-200; this prototype guard only logs.
+
+    Args:
+        stored_case: the VulnerabilityCase read from the DataLayer.
+        dl: the DataLayer instance (unused directly; rehydrate uses it via DI).
+        rehydrate: callable that expands URI references to full objects.
+    """
+    active_embargo = stored_case.active_embargo
+    if active_embargo is None:
+        return
+
+    embargo_id = (
+        active_embargo.as_id
+        if hasattr(active_embargo, "as_id")
+        else str(active_embargo)
+    )
+
+    for (
+        actor_id,
+        participant_id,
+    ) in stored_case.actor_participant_index.items():
+        try:
+            participant = rehydrate(obj=participant_id)
+        except Exception:
+            logger.warning(
+                "update_case: could not rehydrate participant '%s' for"
+                " embargo acceptance check",
+                participant_id,
+            )
+            continue
+
+        if not hasattr(participant, "accepted_embargo_ids"):
+            continue
+
+        if embargo_id not in participant.accepted_embargo_ids:
+            logger.warning(
+                "update_case: participant '%s' (actor '%s') has not accepted"
+                " the active embargo '%s' — case update will not be"
+                " broadcast to this participant (CM-10-004)",
+                participant_id,
+                actor_id,
+                embargo_id,
+            )
+
+
 @verify_semantics(MessageSemantics.UPDATE_CASE)
 def update_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     """
@@ -297,6 +347,10 @@ def update_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     VulnerabilityCase in the DataLayer. Restricted to the case owner: if
     the sending actor is not the case owner, logs a WARNING and skips.
     Idempotent: last-write-wins on scalar fields.
+
+    Also checks (CM-10-004) that each participant has accepted the active
+    embargo before broadcasting; logs a WARNING for any who have not.
+    Full enforcement is deferred to PRIORITY-200.
 
     Args:
         dispatchable: DispatchActivity containing the as_Update with
@@ -343,6 +397,8 @@ def update_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
                 case_id,
             )
             return None
+
+        _check_participant_embargo_acceptance(stored_case, dl, rehydrate)
 
         if getattr(incoming, "as_type", None) == "VulnerabilityCase":
             for field in ("name", "summary", "content"):

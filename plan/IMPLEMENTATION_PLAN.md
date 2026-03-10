@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-10 (SC-3.2 complete: embargo acceptance recorded in CaseParticipant and case event log)
+**Last Updated**: 2026-03-10 (SC-3.3 complete: update_case embargo acceptance guard added)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 838 passing, 5581 subtests, 0 xfailed (2026-03-10, after SC-3.2)
+**Test suite**: 841 passing, 5581 subtests, 0 xfailed (2026-03-10, after SC-3.3)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -108,10 +108,11 @@ Blocked by PRIORITY-70 (DataLayer relocation).
 CM-06-001 requires CaseActor to notify all case participants on case state update.
 Blocked by OUTBOX-1.
 
-### ⚠️ SPEC-COMPLIANCE-3 partially done (SC-3.3 remains)
+### ✅ SPEC-COMPLIANCE-3 complete (SC-PRE-2, SC-3.2, SC-3.3 all done)
 
-`SC-PRE-2` and `SC-3.2` are complete. No `update_case` guard checks
-participant embargo acceptance (SC-3.3).
+`SC-PRE-2`, `SC-3.2`, and `SC-3.3` are all complete. The `update_case` guard
+checks participant embargo acceptance and logs a WARNING (CM-10-004); full
+enforcement deferred to PRIORITY-200.
 
 ### ❌ CS-08-001 — Optional string fields allow empty strings (TECHDEBT-7/9)
 
@@ -260,7 +261,7 @@ incrementally — each task must leave tests passing.
   `CaseParticipant.accepted_embargo_ids` using the CaseActor's trusted timestamp
   via `VulnerabilityCase.record_event()` (CM-10-002, CM-02-009). Add tests.
 
-- [ ] **SC-3.3**: Add a guard in `update_case` (or a shared helper) that checks
+- [x] **SC-3.3**: Add a guard in `update_case` (or a shared helper) that checks
   each active participant has accepted the current embargo before broadcasting
   (CM-10-004). For prototype: log WARNING when a participant has not accepted;
   full enforcement is PRIORITY-200. Add unit tests.
