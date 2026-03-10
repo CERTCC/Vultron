@@ -20,19 +20,6 @@ while still decoupling the core from adapter-specific types. The core can define
 its own domain models that are independent of the wire format, and adapters can
 handle conversion to and from those models as needed.
 
-## Technical debt: TinyDbDataLayer is mucking around with dicts instead of Pydantic models
-
-The update for P65-1 changed TinyDbDataLayer's `create()` and `update()` to 
-accept plain `dict`s instead of `Record` objects because `Records` are tied 
-to the wire layer. However, it seems like a good idea to retain a consistent 
-Pydantic BaseModel-based interface for these objects. I'm wondering if we 
-might use either a Protocol or some sort of typing helper that can enforce 
-that the `Record` object in the wire or adapters is compatible with what the 
-`DataLayer` expects, without the `DataLayer` needing to know about the adapter 
-`Record` type directly. This would let us keep a clean interface with 
-Pydantic validation on the objects without introducing a direct dependency 
-from core to the adapter layer.
-
 ## 2026-03-10 — P65-1 complete
 
 ### What was done
