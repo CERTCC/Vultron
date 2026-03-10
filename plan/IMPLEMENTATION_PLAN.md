@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-10 (TECHDEBT-3 complete: object IDs standardized to URI form, ADR-0010 created)
+**Last Updated**: 2026-03-10 (Priority 65 added: architecture violation remediation plan)
 
 ## Overview
 
@@ -59,12 +59,34 @@ P60-2, P60-3.
 
 All 9 trigger endpoints in split router files. P30-1 through P30-6 complete.
 
-### ✅ Hexagonal architecture fully cleaned up (PRIORITY 50 — COMPLETE)
+### ⚠️ Hexagonal architecture has active regressions (PRIORITY 50 / PRIORITY 65)
 
-All violations V-01 through V-12 remediated. ARCH-CLEANUP-1 through
-ARCH-CLEANUP-3 and ARCH-ADR-9 complete. All backward-compat shims deleted.
-AS2 structural enums moved to `vultron/wire/as2/enums.py`. Handler `isinstance`
-checks replaced with string type comparisons. Architecture ADR written.
+A fresh review of the codebase (2026-03-10) reveals that ARCH-1.x remediations
+are **incomplete or regressed**:
+
+- **V-02-R / V-11-R**: `InboundPayload.raw_activity: Any` carries the original
+  `as_Activity` wire object into domain code. All handlers access AS2 attributes
+  (`.as_object`, `.as_id`, `.as_type`) via this field. The type annotation was
+  fixed but runtime behaviour was not.
+- **V-03-R**: `behavior_dispatcher.py` still imports
+  `from vultron.wire.as2.extractor import find_matching_semantics` (line 10) —
+  a core→wire dependency that ARCH-1.2 was claimed to fix.
+- **V-10-R**: `inbox_handler.py` instantiates `TinyDbDataLayer` at module import
+  time. Per-call `DISPATCHER.dl = get_datalayer()` mutation remains.
+
+Additionally, V-13 through V-21 are **new violations** introduced in
+`vultron/core/behaviors/` by P60-2:
+
+- V-13/14: `core/behaviors/bridge.py` and `helpers.py` import `DataLayer` from
+  `api/v2/datalayer/abc.py` (adapter layer, not `core/ports/`).
+- V-15/16/17/18/19: Core BT nodes import AS2 wire types (`VulnerabilityCase`,
+  `CreateCase`, etc.) and adapter utilities (`object_to_record`, `OfferStatus`).
+- V-20/21: Dispatcher lazy-imports adapter handler map; accesses
+  `.model_dump_json()` on raw AS2 activity.
+
+V-22/23 are test-level regressions (tests use AS2 types for core fixtures).
+
+**All violations are addressed in Phase PRIORITY-65 below.**
 
 ### ✅ Package relocation Phase 1 complete (PRIORITY 60 — P60-1, P60-2, and P60-3 DONE)
 
@@ -84,6 +106,12 @@ removed. 841 tests pass. ✅ 2026-03-10
 places across `trigger_services/`. The replacement constant is
 `HTTP_422_UNPROCESSABLE_CONTENT`. This generates a `DeprecationWarning` in the
 test output. See TECHDEBT-12.
+
+### ❌ Architecture violations not yet remediated (PRIORITY 65)
+
+Active regressions V-02-R, V-03-R, V-10-R, V-11-R plus new violations
+V-13 through V-23 (detailed above). Phase PRIORITY-65 tracks remediation tasks
+P65-1 through P65-7. **P65-1 replaces P70-1.**
 
 ### ❌ DataLayer not yet relocated to adapters layer (PRIORITY 70)
 
@@ -147,174 +175,140 @@ Blocked by PRIORITY-100 and PRIORITY-200.
 
 ## Prioritized Task List
 
-### Phase PRIORITY-30 — Triggerable Behaviors (COMPLETE)
+### Phase PRIORITY-30 — Triggerable Behaviors (COMPLETE ✅)
 
-**Reference**: `specs/triggerable-behaviors.md`, `notes/triggerable-behaviors.md`
-
-All P30 tasks complete (P30-1 through P30-6). All 9 trigger endpoints implemented.
+All P30 tasks (P30-1 through P30-6) complete. All 9 trigger endpoints implemented.
 See `plan/IMPLEMENTATION_HISTORY.md` for details.
 
 ---
 
-### Phase PRIORITY-50 — Hexagonal Architecture Starting with `triggers.py` (COMPLETE)
+### Phase PRIORITY-50 — Hexagonal Architecture (COMPLETE with regressions ⚠️)
 
-**Reference**: `plan/PRIORITIES.md` PRIORITY 50, `specs/architecture.md`,
-`notes/architecture-review.md` V-01 to V-11, R-01 to R-06
-
-All P50 tasks complete. V-01 through V-10 remediated. See
-`plan/IMPLEMENTATION_HISTORY.md` for details.
-
-- [x] **P50-0**: Extract domain service layer from `triggers.py`; split into three
-  focused router modules (`trigger_report.py`, `trigger_case.py`,
-  `trigger_embargo.py`) and a `trigger_services/` backend package.
-- [x] **ARCH-1.1** (R-01): `MessageSemantics` moved to `vultron/core/models/events.py`.
-- [x] **ARCH-1.2** (R-02): `InboundPayload` domain type introduced; AS2 type removed
-  from `DispatchActivity.payload`.
-- [x] **ARCH-1.3** (R-03 + R-04): `wire/as2/parser.py` and `wire/as2/extractor.py`
-  created; parsing and extraction consolidated; shims left for compatibility.
-- [x] **ARCH-1.4** (R-05 + R-06): DataLayer injected via port; handler map moved to
-  adapter layer (`vultron/api/v2/backend/handler_map.py`).
+P50-0 and ARCH-1.1 through ARCH-1.4 complete. V-01 through V-12 formally
+remediated. However, V-02-R, V-03-R, V-10-R, V-11-R are **active regressions**
+and V-13 through V-23 are **new violations** introduced by P60-2.
+All are addressed in Phase PRIORITY-65 below.
+See `plan/IMPLEMENTATION_HISTORY.md` for P50/ARCH-CLEANUP task details.
 
 ---
 
-### Phase ARCH-CLEANUP — PRIORITY 50 Follow-on Cleanup (immediate)
+### Phase PRIORITY-60 — Continue Hexagonal Architecture Refactor (COMPLETE ✅)
 
-**Reference**: `notes/architecture-review.md` V-11, V-12; `docs/adr/_adr-template.md`
-
-Four discrete cleanup tasks complete the PRIORITY-50 work. Work in order.
-
-- [x] **ARCH-CLEANUP-1**: Delete backward-compat shims `vultron/activity_patterns.py`,
-  `vultron/semantic_map.py`, and `vultron/semantic_handler_map.py`. Update the one
-  remaining caller (`test/api/test_reporting_workflow.py:36`) to import
-  `find_matching_semantics` from `vultron.wire.as2.extractor` directly. Done when
-  shim files are gone and tests pass.
-
-- [x] **ARCH-CLEANUP-2**: Move AS2 structural enums (`as_ObjectType`, `as_ActorType`,
-  `as_IntransitiveActivityType`, `as_TransitiveActivityType`, `merge_enums`,
-  `as_ActivityType`, `as_AllObjectTypes`) from `vultron/enums.py` to a new
-  `vultron/wire/as2/enums.py` module. Update the four `as_vocab/base/objects/`
-  files that import these enums. Reduce `vultron/enums.py` to only `OfferStatusEnum`
-  and `VultronObjectType` (plus the `MessageSemantics` re-export). Done when no
-  AS2 structural enums remain in `vultron/enums.py` and tests pass.
-
-- [x] **ARCH-CLEANUP-3**: Replace `isinstance(x, AS2Type)` checks in handler files
-  (`vultron/api/v2/backend/handlers/report.py`, `handlers/case.py`) and trigger
-  services (`trigger_services/report.py`, `trigger_services/_helpers.py`) with
-  `InboundPayload.object_type` string comparisons (V-11). Update
-  `test/test_behavior_dispatcher.py` to construct `InboundPayload` directly using
-  domain types rather than `as_Create`/`as_Activity` objects (V-12). Done when no
-  `isinstance` checks against AS2 types remain in handler/service code and
-  tests pass.
-
-- [x] **ARCH-ADR-9**: Write `docs/adr/0009-hexagonal-architecture.md` documenting
-  the decision to adopt hexagonal architecture for Vultron. Reference
-  `notes/architecture-ports-and-adapters.md`, `notes/architecture-review.md`,
-  `specs/architecture.md`. Record violations V-01 through V-12, what was remediated
-  (ARCH-1.1 through ARCH-1.4), and what remains (ARCH-CLEANUP, PRIORITY-60
-  package relocation). Done when ADR is committed and indexed in `docs/adr/index.md`.
+P60-1 (`as_vocab/` → `wire/as2/vocab/`), P60-2 (`behaviors/` →
+`core/behaviors/`), P60-3 (`adapters/` package stub) all complete.
+TECHDEBT-11 (test layout) complete. See `plan/IMPLEMENTATION_HISTORY.md` for details.
 
 ---
 
-### Phase PRIORITY-60 — Continue Hexagonal Architecture Refactor
+### Phase SPEC-COMPLIANCE-3 — Embargo Acceptance Tracking (COMPLETE ✅)
 
-**Reference**: `plan/PRIORITIES.md` PRIORITY 60, `notes/architecture-ports-and-adapters.md`
-
-The goal is to relocate packages into the `wire/`, `core/`, and `adapters/`
-layer structure defined in `notes/architecture-ports-and-adapters.md`. Work
-incrementally — each task must leave tests passing.
-
-- [x] **P60-1**: Move `vultron/as_vocab/` into the wire layer. Relocate
-  `vultron/as_vocab/` to `vultron/wire/as2/vocab/` (keeping base types, objects,
-  activities, and examples sub-packages). Provide a backward-compat shim at
-  `vultron/as_vocab/` re-exporting from the new location. Update all direct
-  imports in `vultron/behaviors/`, `vultron/api/`, `test/`, and `vultron/demo/`.
-  Remove the shim once all callers are updated. Done when `vultron/as_vocab/` is
-  gone and tests pass.
-
-- [x] **P60-2**: Move `vultron/behaviors/` to `vultron/core/behaviors/`. Relocate
-  all BT bridge, helper, and tree modules. Provide a compatibility shim at
-  `vultron/behaviors/` then remove once all callers are updated. Done when
-  `vultron/behaviors/` is gone and tests pass.
-
-- [x] **P60-3**: Stub the `vultron/adapters/` package per the target layout in
-  `notes/architecture-ports-and-adapters.md`. Create `vultron/adapters/driving/`
-  with placeholder `cli.py`, `http_inbox.py`, `mcp_server.py`, `shared_inbox.py`;
-  create `vultron/adapters/driven/` with placeholder `activity_store.py`,
-  `delivery_queue.py`, `http_delivery.py`, `dns_resolver.py`; create
-  `vultron/adapters/connectors/base.py` with `ConnectorPlugin` Protocol stub,
-  `loader.py` stub, and `example/` sub-package with `jira.py` and `vince.py`.
-  Done when the directory tree exists, `__init__.py` files are in place, and
-  no existing tests break. ✅ 2026-03-10
+SC-PRE-2, SC-3.2, SC-3.3 all complete. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
-### Phase SPEC-COMPLIANCE-3 — Embargo Acceptance Tracking + Trusted Timestamps
+### Technical Debt (housekeeping) — all complete ✅
 
-**Reference**: `specs/case-management.md` CM-10, CM-02-009
-
-- [x] **SC-PRE-2**: Add `actor_participant_index: dict[str, str]` field to
-  `VulnerabilityCase`; update `add_participant()` and add `remove_participant()`
-  to maintain the index atomically (CM-10-002). Update all handlers that create or
-  remove participants to use these methods. Add tests confirming index consistency.
-
-- [x] **SC-3.2**: In `accept_invite_to_embargo_on_case` and
-  `accept_invite_actor_to_case` handlers, record the accepted embargo ID in
-  `CaseParticipant.accepted_embargo_ids` using the CaseActor's trusted timestamp
-  via `VulnerabilityCase.record_event()` (CM-10-002, CM-02-009). Add tests.
-
-- [x] **SC-3.3**: Add a guard in `update_case` (or a shared helper) that checks
-  each active participant has accepted the current embargo before broadcasting
-  (CM-10-004). For prototype: log WARNING when a participant has not accepted;
-  full enforcement is PRIORITY-200. Add unit tests.
+TECHDEBT-3, TECHDEBT-7, TECHDEBT-8, TECHDEBT-9, TECHDEBT-10, TECHDEBT-11,
+TECHDEBT-12 all done. TECHDEBT-4 superseded. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
-### Technical Debt (housekeeping)
+### Phase PRIORITY-65 — Address Architecture Violations
 
-- [x] **TECHDEBT-11**: Relocate `test/as_vocab/` → `test/wire/as2/vocab/` and
-  `test/behaviors/` → `test/core/behaviors/` to mirror the new source layout after
-  P60-1 and P60-2. All test files already import from the correct canonical paths;
-  only directory moves and `conftest.py`/`__init__.py` updates are needed. Done
-  when old directories are gone and tests pass. ✅ 2026-03-10
+**Reference**: `plan/PRIORITIES.md` PRIORITY 65, `notes/architecture-review.md`
+V-02-R, V-03-R, V-10-R, V-11-R, V-13 through V-23; R-07 through R-11
 
-- [x] **TECHDEBT-12**: Replace deprecated `HTTP_422_UNPROCESSABLE_ENTITY` constant
-  with `HTTP_422_UNPROCESSABLE_CONTENT` in all 7 usages across
-  `vultron/api/v2/backend/trigger_services/` (`embargo.py`, `report.py`,
-  `_helpers.py`). Done when no `DeprecationWarning` for this constant appears in
-  test output. ✅ 2026-03-10
+**Note**: P65-1 replaces P70-1 (same work). P65-2 and P65-4 are independent of
+each other but must each land before downstream phases.
 
-- [x] **TECHDEBT-9**: Introduce `NonEmptyString` and `OptionalNonEmptyString` type
-  aliases in `vultron/wire/as2/vocab/base/` (CS-08-001, CS-08-002). Replace existing
-  per-field empty-string validators with the shared type. **Combine with
-  TECHDEBT-7** in one agent cycle. ✅ 2026-03-10
+Work in dependency order: P65-1 and P65-2 are independent; P65-3 is the
+largest task and must precede P65-4; P65-5 requires P65-1; P65-6 requires P65-3
+and P65-5; P65-7 closes out the test regressions last.
 
-- [x] **TECHDEBT-7**: Add Pydantic validators rejecting empty strings in all
-  remaining `Optional[str]` fields across `vultron/wire/as2/vocab/objects/` models
-  (CS-08-001). Done when all fields reject empty strings and tests pass. ✅ 2026-03-10
+- [ ] **P65-1** (R-08): Move `DataLayer` Protocol from
+  `vultron/api/v2/datalayer/abc.py` to `vultron/core/ports/activity_store.py`.
+  Update `core/behaviors/bridge.py` and `core/behaviors/helpers.py` to import
+  `DataLayer` from `core/ports/`. Remove the `Record` import from
+  `core/behaviors/helpers.py` — BT nodes must pass domain Pydantic models to the
+  port, not adapter record types. The `TinyDbDataLayer` stays in `api/v2/datalayer/`
+  and imports from `core/ports/`. Provide a backward-compat re-export at the old
+  location, then remove once all callers are updated. Done when `core/ports/
+  activity_store.py` contains the Protocol, no core module imports `DataLayer`
+  from `api/v2/`, and tests pass. Addresses V-13, V-14.
 
-- [x] **TECHDEBT-10**: Backfill pre-case events into the case event log at case
-  creation (CM-02-009). `create_case` BT SHOULD call `record_event()` for the
-  originating Offer receipt and case creation events. Add tests.
+- [ ] **P65-2** (R-11): Fix module-level DataLayer instantiation in
+  `vultron/api/v2/backend/inbox_handler.py`. Replace module-level
+  `DISPATCHER = get_dispatcher(..., dl=get_datalayer())` with a FastAPI lifespan
+  event or app-factory pattern that injects the `DataLayer` once at startup.
+  Remove the per-call `DISPATCHER.dl = get_datalayer()` mutation. Remove the
+  `handler_map=None` default from `DispatcherBase.__init__()` (require explicit
+  injection). Done when no `get_datalayer()` call appears at module level or
+  inside `dispatch()`, and tests pass. Addresses V-10-R.
 
-- [x] **TECHDEBT-8**: Configure pyright for gradual static type checking
-  (IMPL-TS-07-002). Commit `pyrightconfig.json` at `basic` strictness; run
-  pyright to produce a baseline error count documented in
-  `plan/IMPLEMENTATION_NOTES.md`; add a `Makefile` target. Done when config
-  committed and baseline documented. ✅ 2026-03-10
+- [ ] **P65-3** (R-07): Enrich `InboundPayload`; eliminate `raw_activity`. This
+  is the largest P65 task. Steps: (1) Audit every handler in
+  `vultron/api/v2/backend/handlers/*.py` and document all fields read from
+  `raw_activity` (`.as_object`, `.as_id`, `.as_type`, `.actor`, nested objects).
+  (2) Add typed domain fields to `InboundPayload` in `core/models/events.py`:
+  `activity_id`, `actor_id`, `object_type`, `object_id`, `target_type`,
+  `target_id`, `inner_object_type`, `inner_object_id` (no AS2 types; plain
+  strings or domain Pydantic types). (3) Extend `wire/as2/extractor.py` with an
+  `extract_intent()` function (or extend `find_matching_semantics`) that returns
+  `(MessageSemantics, InboundPayload)` with all domain fields populated from the
+  AS2 object graph. (4) Update every handler to read exclusively from
+  `InboundPayload` fields — no `.raw_activity`, no `.as_object`, no `.as_type`
+  references. (5) Remove `raw_activity: Any` from `InboundPayload`. Done when no
+  handler references `raw_activity` or any AS2 attribute, and tests pass.
+  Addresses V-02-R, V-11-R.
 
-- [x] **TECHDEBT-3**: Standardize object IDs to URL-like form — draft ADR
-  `docs/adr/0010-standardize-object-ids.md` and implement a compatibility
-  shim in the DataLayer (OID-01 through OID-04). Done when ADR created and
-  tests validate URL-like ID acceptance. ✅ 2026-03-10
+- [ ] **P65-4** (R-10): Decouple `behavior_dispatcher.py` from the wire layer.
+  Move the `find_matching_semantics` call (currently in `prepare_for_dispatch`)
+  upstream into the adapter-layer inbox handler, which should call
+  `extract_intent()` (from P65-3) to produce a fully-populated `InboundPayload`
+  before handing it to the dispatcher. Remove
+  `from vultron.wire.as2.extractor import find_matching_semantics` from
+  `behavior_dispatcher.py`. Remove the `.model_dump_json()` call on `raw_activity`
+  in `DispatcherBase.dispatch()`. Done when `behavior_dispatcher.py` contains no
+  wire-layer imports, `prepare_for_dispatch` accepts a pre-populated
+  `InboundPayload`, and tests pass. Addresses V-03-R, V-20, V-21.
+  **Depends on P65-3.**
 
-- ~~[ ] **TECHDEBT-4**: Reorganize top-level modules (`activity_patterns`,
-  `semantic_map`, `enums`) into small packages to reduce circular imports and
-  improve discoverability.~~
-  **SUPERSEDED**: `activity_patterns.py` and `semantic_map.py` deleted in
-  ARCH-CLEANUP-1. `vultron/enums.py` reduced to a backward-compat shim (re-exports
-  `MessageSemantics`; defines `OfferStatusEnum` and `VultronObjectType`). Remaining
-  cleanup — relocating `OfferStatusEnum` and `VultronObjectType` — will be handled
-  as part of PRIORITY-70 DataLayer/core-ports work.
+- [ ] **P65-5** (R-09 part 1): Remove adapter-layer persistence calls from core
+  BT nodes. In `core/behaviors/report/nodes.py` and
+  `core/behaviors/case/nodes.py`, replace all `object_to_record(obj)` +
+  `dl.update(id, record)` patterns with direct `dl.update(id, obj.model_dump())`
+  or a thin `save(dl, obj)` helper defined in `core/ports/` (not in the adapter).
+  Remove imports of `object_to_record` and `OfferStatus` from these files.
+  Remove the lazy imports at `nodes.py` lines 744–745. Done when no core BT
+  module imports from `api/v2/datalayer/db_record` or `api/v2/data/status`,
+  and tests pass. Addresses V-14 (Record), V-15 partial, V-16, V-18 partial.
+  **Depends on P65-1.**
+
+- [ ] **P65-6** (R-09 part 2): Replace AS2 wire types in core BT nodes and
+  policy with domain types. Define domain event types (e.g.
+  `CaseCreatedEvent`, `ReportEngagedEvent`) in `core/models/` to replace direct
+  construction of `CreateCase`, `VulnerabilityCase`, `CaseActor`,
+  `VendorParticipant` inside `core/behaviors/case/nodes.py` and
+  `core/behaviors/report/nodes.py`. Add an outbound serializer in
+  `wire/as2/serializer.py` that converts domain events to AS2 wire format
+  (used by adapter layer, not core). Update `core/behaviors/report/policy.py`
+  method signatures to take domain Pydantic types instead of
+  `VulnerabilityCase`/`VulnerabilityReport` wire types. Update
+  `core/behaviors/case/create_tree.py` factory to accept domain types.
+  This task SHOULD include an ADR or note in `notes/` covering the domain
+  event design before implementation begins. Done when no `core/behaviors/`
+  module imports from `wire/as2/vocab/`, and tests pass. Addresses V-15 full,
+  V-17, V-18 full, V-19. **Depends on P65-3, P65-5.**
+
+- [ ] **P65-7**: Fix test regressions. Update
+  `test/test_behavior_dispatcher.py` to construct `InboundPayload` using
+  domain types only — remove the `as_Create` import and replace with a
+  domain fixture. Update `test/core/behaviors/report/test_nodes.py` and
+  `test/core/behaviors/case/test_create_tree.py` to use domain objects as
+  fixtures rather than AS2 wire types (`as_Offer`, `VulnerabilityReport`,
+  `as_Service`, `VulnerabilityCase`). Done when no core test imports wire-layer
+  AS2 types, and tests pass. Addresses V-22, V-23.
+  **Depends on P65-3 and P65-6.**
 
 ---
 
@@ -347,16 +341,11 @@ incrementally — each task must leave tests passing.
 `notes/domain-model-separation.md` (Per-Actor DataLayer Isolation Options),
 `notes/architecture-ports-and-adapters.md`
 
-**Blocked by**: P60-3 (adapters package must be stubbed first).
+**Blocked by**: P65 (P65-1 is P70-1; complete P65 first).
 **Must precede**: PRIORITY-100 (actor independence uses the new layer structure).
 
-- [ ] **P70-1**: Move `DataLayer` Protocol (`vultron/api/v2/datalayer/abc.py`) to
-  `vultron/core/ports/activity_store.py`. Move `TinyDbDataLayer` and
-  `get_datalayer()` factory from `vultron/api/v2/datalayer/tinydb_backend.py` to
-  `vultron/adapters/driven/activity_store.py`. Update all importers. Provide a
-  backward-compat shim at the old location if needed, then remove once callers are
-  updated. Done when `vultron/api/v2/datalayer/` is gone, tests pass, and
-  `vultron/core/ports/` contains the Protocol.
+- ~~[ ] **P70-1**~~ **SUPERSEDED by P65-1** — DataLayer Protocol move to
+  `core/ports/` is handled there.
 
 - [ ] **P70-2**: Move `OfferStatusEnum` and `VultronObjectType` from
   `vultron/enums.py` to their correct architectural homes (`core/models/` and

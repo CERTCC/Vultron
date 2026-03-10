@@ -292,3 +292,59 @@ All 19 tasks completed. Key achievements:
 | Q8 | Health check ready conditions | Data layer connectivity only initially |
 | Q9 | Coverage enforcement | Threshold-based (80% overall, 100% critical paths) |
 | Q10 | Response generation timing | Defer decision until Phase 5 |
+
+---
+
+## Phase PRIORITY-50 — Hexagonal Architecture (archived 2026-03-10)
+
+All tasks complete, but active regressions V-02-R, V-03-R, V-10-R, V-11-R
+remain. New violations V-13 through V-23 introduced in P60-2. See
+`plan/PRIORITIES.md` Priority 65 and `notes/architecture-review.md`.
+
+- [x] **P50-0**: Extract domain service layer from `triggers.py`; split into three
+  focused router modules (`trigger_report.py`, `trigger_case.py`,
+  `trigger_embargo.py`) and a `trigger_services/` backend package.
+- [x] **ARCH-1.1** (R-01): `MessageSemantics` moved to `vultron/core/models/events.py`.
+- [x] **ARCH-1.2** (R-02): `InboundPayload` domain type introduced; AS2 type removed
+  from `DispatchActivity.payload`. *(regression V-02-R active)*
+- [x] **ARCH-1.3** (R-03 + R-04): `wire/as2/parser.py` and `wire/as2/extractor.py`
+  created; parsing and extraction consolidated.
+- [x] **ARCH-1.4** (R-05 + R-06): DataLayer injected via port; handler map moved to
+  adapter layer. *(regression V-10-R active)*
+- [x] **ARCH-CLEANUP-1**: Shims deleted; all callers updated.
+- [x] **ARCH-CLEANUP-2**: AS2 structural enums moved to `vultron/wire/as2/enums.py`.
+- [x] **ARCH-CLEANUP-3**: `isinstance` checks against AS2 types removed.
+  *(regression V-11-R active: pattern unchanged via `raw_activity`)*
+- [x] **ARCH-ADR-9**: `docs/adr/0009-hexagonal-architecture.md` written.
+
+---
+
+## Phase PRIORITY-60 — Package Relocation (archived 2026-03-10)
+
+- [x] **P60-1**: `vultron/as_vocab/` → `vultron/wire/as2/vocab/`
+- [x] **P60-2**: `vultron/behaviors/` → `vultron/core/behaviors/`
+  *(introduced violations V-13 through V-21 — addressed in P65)*
+- [x] **P60-3**: `vultron/adapters/` package stub created. ✅ 2026-03-10
+
+---
+
+## Phase SPEC-COMPLIANCE-3 — Embargo Acceptance Tracking (archived 2026-03-10)
+
+- [x] **SC-PRE-2**: `actor_participant_index` added to `VulnerabilityCase`.
+- [x] **SC-3.2**: Accepted embargo ID recorded in `CaseParticipant.accepted_embargo_ids`.
+- [x] **SC-3.3**: Guard in `update_case` logs WARNING when participant has not accepted.
+
+---
+
+## Technical Debt (housekeeping, archived 2026-03-10)
+
+- [x] **TECHDEBT-3**: Object IDs standardized to URI form; ADR-0010 created. ✅
+- [x] **TECHDEBT-4**: SUPERSEDED — shims deleted in ARCH-CLEANUP-1; remaining
+  `OfferStatusEnum`/`VultronObjectType` relocation deferred to P70.
+- [x] **TECHDEBT-7/9**: `NonEmptyString`/`OptionalNonEmptyString` type aliases
+  introduced; empty-string validators replaced. ✅ 2026-03-10
+- [x] **TECHDEBT-8**: `pyrightconfig.json` committed; Makefile target added. ✅
+- [x] **TECHDEBT-10**: Pre-case events backfilled in case event log. ✅
+- [x] **TECHDEBT-11**: Test layout mirrored to match source after P60-1/P60-2. ✅
+- [x] **TECHDEBT-12**: Deprecated `HTTP_422_UNPROCESSABLE_ENTITY` replaced. ✅
+

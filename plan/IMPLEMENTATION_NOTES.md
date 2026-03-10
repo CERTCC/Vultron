@@ -8,6 +8,101 @@ Add new items below this line
 
 ---
 
+## 2026-03-10 — Priority 65: Architecture violations and regressions
+
+### Background
+
+A fresh codebase review (`notes/architecture-review.md`, 2026-03-10 update)
+shows that ARCH-1.2, ARCH-1.4, and ARCH-CLEANUP-3 have active regressions and
+that P60-2 introduced a new class of violations in `vultron/core/behaviors/`.
+PRIORITIES.md Priority 65 was added to track remediation.
+
+### Active Regressions
+
+- **V-02-R / V-11-R** (`InboundPayload.raw_activity`): The `raw_activity: Any`
+  field carries the original AS2 wire object into every handler. All 4 handler
+  modules (`case.py`, `report.py`, `embargo.py`, `participant.py`) navigate AS2
+  attributes directly. ARCH-CLEANUP-3 removed `isinstance` checks but the
+  underlying pattern is unchanged. Fix: P65-3 (enrich `InboundPayload`;
+  remove `raw_activity`).
+- **V-03-R** (`behavior_dispatcher.py` line 10): Wire-layer import
+  `from vultron.wire.as2.extractor import find_matching_semantics` still
+  present. Fix: P65-4 (move call upstream to adapter layer).
+- **V-10-R** (`inbox_handler.py` lines 32–33): `TinyDbDataLayer` instantiated
+  at module import time. Fix: P65-2 (lifespan-managed DL injection).
+
+### New Violations (introduced by P60-2)
+
+- **V-13, V-14**: `core/behaviors/bridge.py` and `helpers.py` import `DataLayer`
+  and `Record` from `api/v2/datalayer/` — adapter-layer types inside core.
+  Fix: P65-1 (move `DataLayer` to `core/ports/`).
+- **V-15 through V-19**: Core BT nodes in `report/nodes.py`, `case/nodes.py`,
+  and `case/create_tree.py` import AS2 wire vocabulary types and `object_to_record`.
+  Fix: P65-5 (remove `object_to_record`), P65-6 (replace AS2 wire types with
+  domain types).
+- **V-20, V-21**: Dispatcher lazy-imports adapter handler map; calls
+  `.model_dump_json()` on raw AS2 activity.
+  Fix: P65-4 (decouple dispatcher from wire layer).
+- **V-22, V-23**: Core test files use AS2 wire types as fixtures.
+  Fix: P65-7 (update tests to use domain types).
+
+### Task Ordering Constraints for P65
+
+P65-1 and P65-2 are independent; start either first.
+P65-3 is the largest task — do not start it until a full audit of `raw_activity`
+field accesses across all handler files is complete.
+P65-4 requires P65-3 (needs enriched `InboundPayload`).
+P65-5 requires P65-1 (needs `DataLayer` in `core/ports/`).
+P65-6 requires P65-3 (domain types for policy signatures) and P65-5
+(persistence calls cleaned up first).
+P65-7 requires P65-3 (dispatcher test) and P65-6 (core BT node tests).
+
+### P65-3 Design Note (`InboundPayload` enrichment)
+
+The sketch in `notes/architecture-review.md` R-07 shows a minimal
+domain-only payload:
+
+```python
+class InboundPayload(BaseModel):
+    activity_id: str
+    actor_id: str
+    object_type: str | None = None   # domain vocab string, not AS2 enum
+    object_id: str | None = None
+    target_type: str | None = None
+    target_id: str | None = None
+    inner_object_type: str | None = None
+    inner_object_id: str | None = None
+```
+
+The audit step in P65-3 will reveal whether additional fields are needed. Do
+not add fields speculatively; derive them from the handler audit.
+
+### P65-6 Design Note (domain events vs direct AS2 construction)
+
+Before implementing P65-6, consider drafting a note or ADR covering:
+- Which events should be defined in `core/models/` (e.g. `CaseCreatedEvent`)
+- Whether the outbound serializer in `wire/as2/serializer.py` converts events
+  to AS2 one-to-one or goes through a more general mapping table
+- How domain events interplay with the future outbox pipeline (OUTBOX-1)
+- Consider whether `notes/domain-model-separation.md` already covers this
+
+### P65-1 / P70-1 overlap
+
+P65-1 is identical to the former P70-1 (move `DataLayer` Protocol to
+`core/ports/`). P70-1 in the task list is superseded and struck out.
+After P65-1 the `TinyDbDataLayer` stays in `api/v2/datalayer/` until
+P70 completes the full DataLayer relocation to `adapters/driven/`.
+
+### Ideas.md items (for awareness)
+
+`plan/IDEAS.md` notes that `api/v2/backend/handlers/` are really ports/use
+cases (should live in `core/`), and that `api/v1` is a thin adapter talking
+near-directly to the DataLayer port. These are addressed by P65 and P70
+collectively; the `api/v1` point will need its own task when P70 is tackled.
+
+---
+
+
 ## 2026-03-10 — SC-PRE-2 complete: actor_participant_index
 
 ### Design
