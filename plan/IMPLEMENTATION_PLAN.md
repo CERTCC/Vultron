@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-10 (gap analysis refresh #21, PRIORITY-50 complete; ARCH-CLEANUP and PRIORITY-60 phases added)
+**Last Updated**: 2026-03-10 (P60-1 complete: vultron/as_vocab moved to vultron/wire/as2/vocab)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 824 passing, 5581 subtests, 0 xfailed (2026-03-10)
+**Test suite**: 822 passing, 5581 subtests, 0 xfailed (2026-03-10, after P60-1)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -198,16 +198,13 @@ The goal is to relocate packages into the `wire/`, `core/`, and `adapters/`
 layer structure defined in `notes/architecture-ports-and-adapters.md`. Work
 incrementally — each task must leave tests passing.
 
-- [ ] **P60-1**: Move `vultron/as_vocab/` into the wire layer. Relocate
+- [x] **P60-1**: Move `vultron/as_vocab/` into the wire layer. Relocate
   `vultron/as_vocab/` to `vultron/wire/as2/vocab/` (keeping base types, objects,
   activities, and examples sub-packages). Provide a backward-compat shim at
   `vultron/as_vocab/` re-exporting from the new location. Update all direct
   imports in `vultron/behaviors/`, `vultron/api/`, `test/`, and `vultron/demo/`.
   Remove the shim once all callers are updated. Done when `vultron/as_vocab/` is
   gone and tests pass.
-
-  **Note**: This is the largest single task in P60. Consider splitting into a
-  shim-in-place step followed by a caller-update sweep.
 
 - [ ] **P60-2**: Move `vultron/behaviors/` to `vultron/core/behaviors/`. Relocate
   all BT bridge, helper, and tree modules. Provide a compatibility shim at

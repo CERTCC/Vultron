@@ -1,10 +1,26 @@
-# Implementation Notes
+## Implementation Notes
 
 Longer-term notes can be found in `/notes/*.md`. This file is ephemeral
 and will be reset periodically, so it's meant to capture more immediate
 insights, issues, and learnings during the implementation process.
 
 Add new items below this line
+
+---
+
+## 2026-03-10 — P60-1 complete: vultron/as_vocab moved to vultron/wire/as2/vocab
+
+### What changed
+
+- Copied entire `vultron/as_vocab/` tree to `vultron/wire/as2/vocab/` (keeping
+  all sub-packages: `base/`, `objects/`, `activities/`, `examples/`, plus
+  `errors.py`, `type_helpers.py`).
+- Updated all internal imports within the moved files from `vultron.as_vocab.*`
+  to `vultron.wire.as2.vocab.*`.
+- Updated ~90 external callers across `vultron/api/`, `vultron/behaviors/`,
+  `vultron/demo/`, `vultron/wire/as2/`, and `test/`.
+- Deleted `vultron/as_vocab/` entirely (no shim left behind).
+- 822 tests pass.
 
 ---
 
