@@ -18,10 +18,11 @@ Provides an EmbargoPolicy object for the Vultron ActivityStreams Vocabulary.
 
 from typing import TypeAlias
 
-from pydantic import Field, field_validator
+from pydantic import Field
 
 from vultron.as_vocab.base.links import ActivityStreamRef
 from vultron.as_vocab.base.registry import activitystreams_object
+from vultron.as_vocab.base.types import NonEmptyString, OptionalNonEmptyString
 from vultron.as_vocab.objects.base import VultronObject
 from vultron.enums import VultronObjectType as VO_type
 
@@ -51,11 +52,11 @@ class EmbargoPolicy(VultronObject):
 
     as_type: VO_type = Field(default=VO_type.EMBARGO_POLICY, alias="type")
 
-    actor_id: str = Field(
+    actor_id: NonEmptyString = Field(
         ...,
         description="Full URI of the Actor to which this policy applies",
     )
-    inbox: str = Field(
+    inbox: NonEmptyString = Field(
         ...,
         description="URL of the Actor's ActivityPub inbox",
     )
@@ -74,31 +75,10 @@ class EmbargoPolicy(VultronObject):
         description="Maximum acceptable embargo duration in days",
         ge=0,
     )
-    notes: str | None = Field(
+    notes: OptionalNonEmptyString = Field(
         default=None,
         description="Free-text description of the Actor's embargo preferences",
     )
-
-    @field_validator("actor_id")
-    @classmethod
-    def validate_actor_id_not_empty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("actor_id must be a non-empty string")
-        return v
-
-    @field_validator("inbox")
-    @classmethod
-    def validate_inbox_not_empty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("inbox must be a non-empty string")
-        return v
-
-    @field_validator("notes")
-    @classmethod
-    def validate_notes_not_empty(cls, v: str | None) -> str | None:
-        if v is not None and not v.strip():
-            raise ValueError("notes must be either None or a non-empty string")
-        return v
 
 
 EmbargoPolicyRef: TypeAlias = ActivityStreamRef[EmbargoPolicy]

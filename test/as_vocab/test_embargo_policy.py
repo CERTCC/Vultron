@@ -98,22 +98,22 @@ class TestEmbargoPolicyValidation(unittest.TestCase):
     def test_actor_id_empty_string_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
             self._make(actor_id="")
-        assert "actor_id must be a non-empty string" in str(exc_info.value)
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_actor_id_whitespace_only_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
             self._make(actor_id="   ")
-        assert "actor_id must be a non-empty string" in str(exc_info.value)
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_inbox_empty_string_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
             self._make(inbox="")
-        assert "inbox must be a non-empty string" in str(exc_info.value)
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_inbox_whitespace_only_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
             self._make(inbox="   ")
-        assert "inbox must be a non-empty string" in str(exc_info.value)
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_preferred_duration_days_negative_rejected(self):
         with pytest.raises(ValidationError):
@@ -138,16 +138,12 @@ class TestEmbargoPolicyValidation(unittest.TestCase):
     def test_notes_empty_string_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
             self._make(notes="")
-        assert "notes must be either None or a non-empty string" in str(
-            exc_info.value
-        )
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_notes_whitespace_only_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
             self._make(notes="   ")
-        assert "notes must be either None or a non-empty string" in str(
-            exc_info.value
-        )
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_minimum_duration_days_none_accepted(self):
         p = self._make(minimum_duration_days=None)

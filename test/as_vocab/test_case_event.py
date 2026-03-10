@@ -119,6 +119,16 @@ class TestCaseEventSerialization(unittest.TestCase):
             evt.received_at,
         )
 
+    def test_received_at_z_suffix_parses_correctly(self):
+        ts_str = "2026-03-06T20:00:00Z"
+        evt = CaseEvent(
+            object_id=OBJ_ID, event_type=EVENT_TYPE, received_at=ts_str
+        )
+        self.assertEqual(
+            datetime(2026, 3, 6, 20, 0, 0, tzinfo=timezone.utc),
+            evt.received_at,
+        )
+
 
 class TestVulnerabilityCaseEventsField(unittest.TestCase):
     """Test VulnerabilityCase.events field (SC-PRE-1)."""

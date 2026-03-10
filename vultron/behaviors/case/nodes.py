@@ -332,13 +332,13 @@ class CreateInitialVendorParticipant(DataLayerAction):
                 attributed_to=self.actor_id,
                 context=self.case_obj.as_id,
             )
-            try:
+            if self.datalayer.read(participant.as_id) is None:
                 self.datalayer.create(participant)
                 self.logger.info(
                     f"{self.name}: Created VendorParticipant"
                     f" {participant.as_id} for actor {self.actor_id}"
                 )
-            except ValueError:
+            else:
                 self.logger.debug(
                     f"{self.name}: VendorParticipant {participant.as_id}"
                     " already exists — skipping creation"
