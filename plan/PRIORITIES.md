@@ -52,6 +52,20 @@ injection in a way that is consistent with the hexagonal architecture.
 This will entail some refactoring of the code base to reorganize modules and 
 split out responsibilities more cleanly.
 
+## Priority 60: Continue hexagonal architecture refactor
+
+The hexagonal architecture refactor is a large task that will require multiple
+iterations to fully implement. Some basics are in place (core and wire 
+packages exist but are not fully populated). Some other packages just need 
+to be relocated (e.g., `vultron/as_vocab` to `wire/as2`, `vultron/behaviors` 
+to `core/behaviors`, etc.) but splitting `vultron/api` into adapters will 
+take a little more finesse. The API layer has a lot of domain logic mixed in 
+with routing and request handling, which properly belong in ports or adapters. 
+`vultron/enums.py` needs to be split across core, ports, and adapters as 
+well. The focus here should be on separating concerns and moving towards a 
+cleaner architecture overall, starting to put the pieces in place to avoid 
+large refactors later.
+
 ## Priority 100: Actor independence
 
 Each actor exists in its own behavior tree domain. So Actor A and Actor B
