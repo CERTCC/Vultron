@@ -331,7 +331,7 @@ def serialize_event(event: CaseEvent, signing_key: ...) -> AS2Activity:
 # core/services/case.py
 from vultron.core.models.case import Case, CaseActor
 from vultron.core.models.events import SemanticIntent, CaseEvent
-from vultron.core.ports.delivery_queue import DeliveryQueue
+from vultron.core.use_cases.delivery_queue import DeliveryQueue
 
 
 async def handle_report_offer(payload: InboundPayload,

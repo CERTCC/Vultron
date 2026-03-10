@@ -446,3 +446,37 @@ ARCH-1.4 provide all the raw material for the ADR.
 - 822 tests pass.
 
 ---
+
+## Problem on the horizon: defining incoming "ports" as use cases
+
+There are a lot of handlers that are built around specific message semantics,
+and these are in fact natural use cases that the system needs to support. 
+For example, "SubmitReport", "DeferCase", "TerminateEmbargo" etc. These are 
+all things that carry semantic meaning in the domain and represent key 
+business logic level operations (some of which have behavior trees that 
+implement them). However, as we are in the process of refactoring towards a 
+cleaner hexagonal architecture, it's clear that we will rapidly find that 
+there's a gap between the semantic routing and what the core is exporting. 
+This is one of the places where the overlap between the AS2 vocabulary and 
+the domain model was so close that we didn't really notice the distinction, 
+but now that we're thinking architecturally we will need to have some way 
+for the core to export these use cases so that the adapters can invoke them 
+independently of the AS2 semantics (again, even though the semantics are 
+still a 1:1 mapping to the use cases). This may require some tasks to be 
+inserted into the plan to create these use cases as explicit invokable 
+entities in the core. Whether they're a class that gets instantiated or just 
+functions to be called is left as a decision to be made at implementation 
+time, but the key point is that we need to have a peering structure between 
+the adapters and the core that allows adapters to invoke these use cases 
+without necessarily relying on the wire format (AS2) to be the thing that 
+the core is built around. `vultron/wire/as2/vocab/examples.py` is also a 
+good example of a list of primitives (use cases) that the core needs to be 
+able to understand. (The examples produce these things as AS2 messages, but 
+we need the thing those messages get routed *to* to be the core use case, 
+not the AS2 syntax itself).
+
+This might also extend toward the core needing to have an internal 
+representation of all the AS2 semantics but maybe without the AS2 
+syntax.
+
+---
