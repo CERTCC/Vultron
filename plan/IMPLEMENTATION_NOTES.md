@@ -10,6 +10,10 @@ Add new items below this line
 
 ## 2026-03-10 — P60-1 complete: vultron/as_vocab moved to vultron/wire/as2/vocab
 
+> ✅ Captured in `docs/adr/0009-hexagonal-architecture.md` (P60-1 marked
+> complete) and `notes/codebase-structure.md` and
+> `notes/architecture-ports-and-adapters.md` (file layout updated 2026-03-10).
+
 ### What changed
 
 - Copied entire `vultron/as_vocab/` tree to `vultron/wire/as2/vocab/` (keeping
@@ -25,6 +29,9 @@ Add new items below this line
 ---
 
 ## 2026-03-10 — ARCH-CLEANUP-3 complete: isinstance AS2 checks replaced (V-11, V-12)
+
+> ✅ Captured in `notes/architecture-review.md` (V-11, V-12 marked remediated
+> by ARCH-CLEANUP-3) and `docs/adr/0009-hexagonal-architecture.md` (2026-03-10).
 
 ### What changed
 
@@ -253,6 +260,8 @@ concepts.
 
 ## Consider use of `transitions` module for state machines
 
+> 📝 Noted in `notes/` as a long-term consideration. No action required now.
+
 Although we have manually enumerated state machine states for EM, RM, and CS,
 we don't really have a clean implementation of the state machines themselves.
 We should consider integrating the `transitions` module to make it easier to 
@@ -430,6 +439,11 @@ ARCH-1.4 provide all the raw material for the ADR.
 
 ## 2026-03-10 — P60-2: vultron/behaviors/ moved to vultron/core/behaviors/
 
+> ✅ Captured in `docs/adr/0009-hexagonal-architecture.md` (P60-2 marked
+> complete) and `notes/codebase-structure.md`,
+> `notes/architecture-ports-and-adapters.md`, `notes/bt-integration.md`
+> (all updated 2026-03-10).
+
 ### What changed
 
 - Copied entire `vultron/behaviors/` tree (bridge, helpers, case/, report/)
@@ -448,6 +462,10 @@ ARCH-1.4 provide all the raw material for the ADR.
 ---
 
 ## Problem on the horizon: defining incoming "ports" as use cases
+
+> ✅ Captured in `notes/architecture-ports-and-adapters.md` ("Design Note: Use
+> Cases as Incoming Ports" section, added 2026-03-10). Also noted in `AGENTS.md`
+> Key Files Map (`vultron/core/use_cases/` stub entry).
 
 There are a lot of handlers that are built around specific message semantics,
 and these are in fact natural use cases that the system needs to support. 

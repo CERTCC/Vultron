@@ -8,14 +8,14 @@
 ## Context
 
 A federated, open-source, containerized coordination service for multiparty case
-handling (e.g., cross-vendor vulnerability tracking). Each organization runs 
+handling (e.g., cross-vendor vulnerability tracking). Each organization runs
 their own
 instance, which acts as a gateway between their proprietary internal tracker and
 a shared coordination protocol based on Activity Streams 2.0. Organizations
 don't need to know anything about each other's internal systems — only how to
 speak the shared protocol.
 
-The model is closer to **email federation** (SMTP) or **Matrix homeservers** 
+The model is closer to **email federation** (SMTP) or **Matrix homeservers**
 than
 to Mastodon-style public ActivityPub. Federation is bilateral/multilateral
 between known, trusted peers, not open-web broadcast.
@@ -118,12 +118,12 @@ CaseActor  (is a full AS2 "Service" Actor)
 - Participants cannot message each other directly within a case — all
   communication routes through CaseActor.
 - This means:
-    - CaseActor can enforce authorization (Participant role controls what
+  - CaseActor can enforce authorization (Participant role controls what
       actions are permitted).
-    - CaseActor attests to ordering and delivery.
-    - Participants cannot spoof messages to each other.
-    - CaseActor must relay messages to participants (e.g., by `Announce`ing 
-      them to the participant Actors as DMs), which adds a slight delay but 
+  - CaseActor attests to ordering and delivery.
+  - Participants cannot spoof messages to each other.
+  - CaseActor must relay messages to participants (e.g., by `Announce`ing
+      them to the participant Actors as DMs), which adds a slight delay but
       ensures consistency.
 
 ### 7. Relay Pattern (Announce Extension)
@@ -180,16 +180,16 @@ The CaseActor maintains two distinct collections, exposed as AS2 named streams:
 
 **Delivery Log** (`/streams/delivery`)
 
-- Contains *Relay* (`Announce`) activities — the record of what was sent to 
+- Contains *Relay* (`Announce`) activities — the record of what was sent to
   whom and when.
 - Useful for debugging, retry tracking, and delivery receipt verification.
 - **Not** part of the sync protocol; not included in on-demand reconciliation.
 - Can be pruned or archived without affecting case integrity.
-- Delivery Log will have a lot of noise compared to the Case Journal, 
-  because the delivery log includes every relay to every participant, for 
-  example, one 
-  `Create(Note)` to 20 participants will be 1 `Create(Note)` Journal entry 
-  but 1 `Create(Note)` followed by 20 `Announce(Create(Note))` Delivery Log 
+- Delivery Log will have a lot of noise compared to the Case Journal,
+  because the delivery log includes every relay to every participant, for
+  example, one
+  `Create(Note)` to 20 participants will be 1 `Create(Note)` Journal entry
+  but 1 `Create(Note)` followed by 20 `Announce(Create(Note))` Delivery Log
   entries.
 
 ### 9. Mirror Consistency Protocol
@@ -197,15 +197,15 @@ The CaseActor maintains two distinct collections, exposed as AS2 named streams:
 - **Push by default**: CaseActor DMs all relevant Journal activities to
   participants as they occur, with `journalSeq` and `journalPrev` fields
   enabling immediate local ordering.
-- **Non-repudiation**; Because each Journal entry contains `JournalPrev` 
-  (hash of previous entry) and is signed by CaseActor, participants can 
+- **Non-repudiation**; Because each Journal entry contains `JournalPrev`
+  (hash of previous entry) and is signed by CaseActor, participants can
   verify the integrity and authenticity of the Journal stream as it arrives.
-- **Gap detection**: participants track received sequence numbers (provided 
+- **Gap detection**: participants track received sequence numbers (provided
   by `journalSeq`) and detect gaps (e.g., received seq 1,2,3,5 → seq 4 is missing → trigger pull
   reconciliation).
 - **Pull reconciliation**: participants can fetch the CaseActor's `/outbox` (AS2
   `OrderedCollection`, paginated) to resync at any time. This is the fallback,
-  not the primary path. CaseActor will need to enforce that only active 
+  not the primary path. CaseActor will need to enforce that only active
   participants can fetch the Journal.
 
 ### 10. Instance Federation Model
@@ -216,7 +216,7 @@ The CaseActor maintains two distinct collections, exposed as AS2 named streams:
 - Instances communicate via HTTPS with authenticated transport.
 - **Preferred transport auth**: mTLS (mutual TLS) between instances, handling
   authentication at the transport layer without per-message overhead.
-- **Message-level authentication**: activities are signed with instance/actor 
+- **Message-level authentication**: activities are signed with instance/actor
   keypairs for non-repudiation independent of transport.
 
 ### 11. Instance Identity and Trust
@@ -262,7 +262,7 @@ Proposed DNS-anchored trust model (analogous to DKIM + MX for email):
 - **Per-instance deduplication**: when CaseActor fans out to multiple
   participants on the same peer instance, delivery is deduplicated — one POST to
   the peer instance's shared inbox, not one per participant.
-- In the prototype, delivery queue can be stubbed with synchronous delivery 
+- In the prototype, delivery queue can be stubbed with synchronous delivery
   underneath, but the architecture should allow for async delivery with retries in production.
 - Each instance exposes a **shared case inbox** (analogous to ActivityPub's
   `sharedInbox`) that receives activities on behalf of any local actor and
@@ -289,77 +289,75 @@ When case ownership transfers, the CaseActor needs to move to (or be re-homed
 at) the new owning instance. Options:
 
 - **Migrate**: CaseActor URI changes, all participants notified of new address.
-  Clean but complex. Requires careful handling of in-flight messages during 
-  the transition, and participants need to update their mirrors to point to 
+  Clean but complex. Requires careful handling of in-flight messages during
+  the transition, and participants need to update their mirrors to point to
   the new CaseActor URI.
 - **Proxy**: Old instance forwards to new CaseActor. Simple but creates ongoing
-  dependency on old instance. Not recommended because it can create a 
+  dependency on old instance. Not recommended because it can create a
   fragile chain of dependencies if ownership transfers multiple times.
 - **HTTP redirect + AS2 Move**: CaseActor URI stays canonical, new instance
   handles it, old instance returns HTTP 301. Borrows from ActivityPub actor
   migration. Probably most pragmatic.
 - **New CaseActor**: New instance creates a new CaseActor, old one is frozen.
-  Clean but loses continuity in the CaseActor's identity and history. 
-  CaseActor key material would need to be regenerated, which could 
+  Clean but loses continuity in the CaseActor's identity and history.
+  CaseActor key material would need to be regenerated, which could
   complicate signature verification across the ownership transfer.
-
-
 
 ### Participant Activity Routing / Filtering
 
 The Participant wrapper's role metadata should control which Journal activities
 each participant receives. The routing rules (e.g., observers get fewer updates
 than assignees) need to be formally specified. Where does this logic live — in
-the Participant object itself, or in CaseActor policy? It would be more 
-consistent if the CaseActor had a role-based rule set that it applies when 
-deciding which activities to relay to which participants. Stubbing this out 
-in the prototype with a simple rule (e.g., all participants get all 
-activities) is fine, but the architecture should allow for more complex 
-rules in the future. At one level, the CaseActor just needs a consistent 
-`for participant in participants: send_to_participant(participant,activity)` 
+the Participant object itself, or in CaseActor policy? It would be more
+consistent if the CaseActor had a role-based rule set that it applies when
+deciding which activities to relay to which participants. Stubbing this out
+in the prototype with a simple rule (e.g., all participants get all
+activities) is fine, but the architecture should allow for more complex
+rules in the future. At one level, the CaseActor just needs a consistent
+`for participant in participants: send_to_participant(participant,activity)`
 and it's really internal to `send_to_participant()` how it decides whether
-to actually send the activity or not based on the participant's role and the 
+to actually send the activity or not based on the participant's role and the
 activity type.
 
 ### Report Object Model
 
-Reports are distinct from Cases. They are the object of the initial Offer 
+Reports are distinct from Cases. They are the object of the initial Offer
 that starts the process, and a Case is only created when the Offer is accepted.
-Two potential formats are already known: plain text and CSAF-formatted JSON. 
+Two potential formats are already known: plain text and CSAF-formatted JSON.
 Other formats may be added in the future.
 
-Unclear how to resolve when a Report is `Offer`ed to multiple recipients 
-simultaneously. Presumably in this situation each recipient could choose to 
-`Accept` then create a new Case from the same Report. This could be awkard 
-for the reporter, but it's a bit of an *own-goal* on the recipient's side to 
-submit the same Report to multiple recipients without receiving any feedback 
-from the first one. The protocol should allow for this to happen, but it is 
-expected to be rare in practice because it's not a great look for the 
-recipient to be doing this. (Instead, they should probably create their own 
-Case and invite multiple vendors to it, with the option to transfer case 
-ownership to one of the vendors in the future if they want to delegate the 
+Unclear how to resolve when a Report is `Offer`ed to multiple recipients
+simultaneously. Presumably in this situation each recipient could choose to
+`Accept` then create a new Case from the same Report. This could be awkard
+for the reporter, but it's a bit of an *own-goal* on the recipient's side to
+submit the same Report to multiple recipients without receiving any feedback
+from the first one. The protocol should allow for this to happen, but it is
+expected to be rare in practice because it's not a great look for the
+recipient to be doing this. (Instead, they should probably create their own
+Case and invite multiple vendors to it, with the option to transfer case
+ownership to one of the vendors in the future if they want to delegate the
 coordination role.)
 
 However,
-the multiple Offers from one report scenario does raise the question of 
+the multiple Offers from one report scenario does raise the question of
 how things
-should work when a reporter makes an `Offer` that is unresponded to for a 
-period of time, and then the reporter decides to submit an `Offer` of the 
-same Report (should probably be a new `Offer` ID, so the "Offer ID" should 
-be unique to the report/recipient pair at least, if not just unique every 
-time it's submitted). The "vendor didn't respond, so I'll try asking a 
-coordinator for help" scenario is rather common in practice, much moreso 
+should work when a reporter makes an `Offer` that is unresponded to for a
+period of time, and then the reporter decides to submit an `Offer` of the
+same Report (should probably be a new `Offer` ID, so the "Offer ID" should
+be unique to the report/recipient pair at least, if not just unique every
+time it's submitted). The "vendor didn't respond, so I'll try asking a
+coordinator for help" scenario is rather common in practice, much moreso
 than "I'll ask multiple vendors to coordinate this at the same time".
 
-A case 
-merge mechanism might be a way to resolve this. If the second offer is 
-accepted followed by the first offer being accepted, then one of the cases 
-could be merged into the other. We would need to design exactly how one case 
-merges into another -- do they reconcile journals (this seems complex), or does 
-one case just get frozen into a read-only section of the other case and 
-perhaps leave some breadcrumb redirects behind to cause access to the frozen 
-case to be redirected to the merged case? The second option seems more 
-practical, but more specification will be necessary. 
+A case
+merge mechanism might be a way to resolve this. If the second offer is
+accepted followed by the first offer being accepted, then one of the cases
+could be merged into the other. We would need to design exactly how one case
+merges into another -- do they reconcile journals (this seems complex), or does
+one case just get frozen into a read-only section of the other case and
+perhaps leave some breadcrumb redirects behind to cause access to the frozen
+case to be redirected to the merged case? The second option seems more
+practical, but more specification will be necessary.
 
 ### Directory Service
 
@@ -388,26 +386,25 @@ different orders temporarily. Is eventual consistency acceptable, or does the
 protocol need stronger ordering guarantees for multi-party coordination
 correctness?
 
-Eventual consistency seems fine for now and we should probably make sure 
-that things work without requiring strong arrival ordering guarantees. 
-Note that the `journalSeq` fields permit participants to recognize that 
-they might be missing data if they observe discontinuities in the sequence, 
+Eventual consistency seems fine for now and we should probably make sure
+that things work without requiring strong arrival ordering guarantees.
+Note that the `journalSeq` fields permit participants to recognize that
+they might be missing data if they observe discontinuities in the sequence,
 so they can trigger a pull sync to fill in the gaps.
-
 
 ### Delivery Receipts
 
 Should participants send acknowledgment activities back to CaseActor on receipt?
 This would allow CaseActor's Delivery Log to record confirmed delivery vs.
 best-effort delivery, and enable smarter retry logic. Cost: additional message
-volume. It seems like Receipts should probably be optional (MAY or SHOULD, not 
+volume. It seems like Receipts should probably be optional (MAY or SHOULD, not
 MUST). In the prototype, we can skip implementing Receipts and just log delivery
 attempts in the Delivery Log, but the architecture should allow for Receipts to be
-added in the future without breaking the core protocol. Possible receipt 
-activity types: `Read` might be too strong (implies the participant actually 
-processed the activity), but a `Receive` or `Ack` activity could be a 
-lightweight confirmation that the activity was delivered to the 
-participant's inbox. 
+added in the future without breaking the core protocol. Possible receipt
+activity types: `Read` might be too strong (implies the participant actually
+processed the activity), but a `Receive` or `Ack` activity could be a
+lightweight confirmation that the activity was delivered to the
+participant's inbox.
 
 ---
 
@@ -429,5 +426,5 @@ Candidate packages for implementation (not yet decided):
 
 Full ActivityPub server libraries (`bovine`, `pyfed`) are likely too opinionated
 for this use case. The above is a composable stack built around AS2 as a
-*vocabulary* rather than full ActivityPub as a protocol, although some core 
+*vocabulary* rather than full ActivityPub as a protocol, although some core
 concepts from ActivityPub (actors, inboxes, outboxes) are still adopted as primitives.
