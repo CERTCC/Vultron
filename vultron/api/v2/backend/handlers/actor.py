@@ -346,7 +346,10 @@ def accept_invite_actor_to_case(
             (p.as_id if hasattr(p, "as_id") else p)
             for p in case.case_participants
         ]
-        if invitee_id in existing_ids:
+        if (
+            invitee_id in case.actor_participant_index
+            or invitee_id in existing_ids
+        ):
             logger.info(
                 "Actor '%s' already participant in case '%s' — skipping (idempotent)",
                 invitee_id,
@@ -361,7 +364,7 @@ def accept_invite_actor_to_case(
         )
         dl.create(participant)
 
-        case.case_participants.append(participant.as_id)
+        case.add_participant(participant)
         dl.update(case_id, object_to_record(case))
 
         logger.info(

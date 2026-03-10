@@ -388,6 +388,96 @@ class TestInviteActorHandlers:
         )
         assert result is None
 
+    def test_add_case_participant_updates_index(self, monkeypatch):
+        """add_case_participant_to_case updates actor_participant_index (SC-PRE-2)."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Add,
+        )
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        actor_id = "https://example.org/users/coordinator"
+        case = VulnerabilityCase(
+            id="https://example.org/cases/caseAP1",
+            name="TEST-ADD-INDEX",
+        )
+        participant = CaseParticipant(
+            id="https://example.org/cases/caseAP1/participants/coord",
+            attributed_to=actor_id,
+            context=case.as_id,
+        )
+        dl.create(case)
+        dl.create(participant)
+
+        add_activity = as_Add(
+            actor="https://example.org/users/owner",
+            object=participant,
+            target=case,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE
+        )
+        mock_dispatchable.payload = _make_payload(add_activity)
+
+        handlers.add_case_participant_to_case(mock_dispatchable, dl)
+
+        assert actor_id in case.actor_participant_index
+        assert case.actor_participant_index[actor_id] == participant.as_id
+
+    def test_remove_case_participant_clears_index(self, monkeypatch):
+        """remove_case_participant_from_case clears actor_participant_index (SC-PRE-2)."""
+        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Remove,
+        )
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        actor_id = "https://example.org/users/coordinator"
+        case = VulnerabilityCase(
+            id="https://example.org/cases/caseRM1",
+            name="TEST-REMOVE-INDEX",
+        )
+        participant = CaseParticipant(
+            id="https://example.org/cases/caseRM1/participants/coord",
+            attributed_to=actor_id,
+            context=case.as_id,
+        )
+        case.add_participant(participant)
+        dl.create(case)
+        dl.create(participant)
+
+        assert actor_id in case.actor_participant_index
+
+        remove_activity = as_Remove(
+            actor="https://example.org/users/owner",
+            object=participant,
+            target=case,
+        )
+
+        mock_dispatchable = MagicMock(spec=DispatchActivity)
+        mock_dispatchable.semantic_type = (
+            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
+        )
+        mock_dispatchable.payload = _make_payload(remove_activity)
+
+        handlers.remove_case_participant_from_case(mock_dispatchable, dl)
+
+        assert actor_id not in case.actor_participant_index
+
 
 class TestEmbargoHandlers:
     """Tests for embargo management handlers."""

@@ -96,7 +96,7 @@ def add_case_participant_to_case(
             )
             return None
 
-        case.case_participants.append(participant_id)
+        case.add_participant(participant)
         dl.update(case_id, object_to_record(case))
 
         logger.info(
@@ -149,11 +149,7 @@ def remove_case_participant_from_case(
             )
             return None
 
-        case.case_participants = [
-            p
-            for p in case.case_participants
-            if (p.as_id if hasattr(p, "as_id") else p) != participant_id
-        ]
+        case.remove_participant(participant_id)
         dl.update(case_id, object_to_record(case))
 
         logger.info(
