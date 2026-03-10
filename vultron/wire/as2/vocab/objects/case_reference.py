@@ -22,6 +22,10 @@ from pydantic import Field, field_validator
 
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import activitystreams_object
+from vultron.wire.as2.vocab.base.types import (
+    NonEmptyString,
+    OptionalNonEmptyString,
+)
 from vultron.wire.as2.vocab.objects.base import VultronObject
 from vultron.enums import VultronObjectType as VO_type
 
@@ -68,11 +72,11 @@ class CaseReference(VultronObject):
 
     as_type: VO_type = Field(default=VO_type.CASE_REFERENCE, alias="type")
 
-    url: str = Field(
+    url: NonEmptyString = Field(
         ...,
         description="URL reference for the external resource",
     )
-    name: str | None = Field(
+    name: OptionalNonEmptyString = Field(
         default=None,
         description="Human-readable title for the reference",
     )
@@ -80,20 +84,6 @@ class CaseReference(VultronObject):
         default=None,
         description="Type descriptors from CVE JSON schema vocabulary",
     )
-
-    @field_validator("url")
-    @classmethod
-    def validate_url_not_empty(cls, v):
-        if not isinstance(v, str) or not v.strip():
-            raise ValueError("url must be a non-empty string")
-        return v
-
-    @field_validator("name")
-    @classmethod
-    def validate_name_not_empty(cls, v):
-        if v is not None and (not isinstance(v, str) or not v.strip()):
-            raise ValueError("name must be either None or a non-empty string")
-        return v
 
     @field_validator("tags")
     @classmethod

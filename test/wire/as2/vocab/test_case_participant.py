@@ -17,6 +17,9 @@
 
 import unittest
 
+import pytest
+from pydantic import ValidationError
+
 from vultron.api.v2.datalayer.db_record import (
     object_to_record,
     record_to_object,
@@ -133,6 +136,70 @@ class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
         self.assertEqual(
             vendor.accepted_embargo_ids, restored.accepted_embargo_ids
         )
+
+
+class TestCaseParticipantNameField(unittest.TestCase):
+    """Tests for CaseParticipant.name field empty-string validation (CS-08-001)."""
+
+    def setUp(self):
+        self.actor_id = "https://example.org/actors/alice"
+        self.case_id = "https://example.org/cases/case-001"
+
+    def test_name_none_accepted(self):
+        """name=None is valid when attributed_to is also not set."""
+        participant = CaseParticipant(context=self.case_id, name=None)
+        self.assertIsNone(participant.name)
+
+    def test_name_non_empty_accepted(self):
+        """name with a non-empty string is valid."""
+        participant = CaseParticipant(
+            attributed_to=self.actor_id, context=self.case_id, name="Alice"
+        )
+        self.assertEqual("Alice", participant.name)
+
+    def test_name_empty_string_rejected(self):
+        """name must not be an empty string (CS-08-001)."""
+        with pytest.raises(ValidationError) as exc_info:
+            CaseParticipant(
+                attributed_to=self.actor_id, context=self.case_id, name=""
+            )
+        assert "must be a non-empty string" in str(exc_info.value)
+
+    def test_name_whitespace_only_rejected(self):
+        """name must not be whitespace-only (CS-08-001)."""
+        with pytest.raises(ValidationError) as exc_info:
+            CaseParticipant(
+                attributed_to=self.actor_id, context=self.case_id, name="   "
+            )
+        assert "must be a non-empty string" in str(exc_info.value)
+
+    def test_participant_case_name_none_accepted(self):
+        """participant_case_name=None is valid."""
+        participant = CaseParticipant(
+            attributed_to=self.actor_id,
+            context=self.case_id,
+            participant_case_name=None,
+        )
+        self.assertIsNone(participant.participant_case_name)
+
+    def test_participant_case_name_non_empty_accepted(self):
+        """participant_case_name with a non-empty string is valid."""
+        participant = CaseParticipant(
+            attributed_to=self.actor_id,
+            context=self.case_id,
+            participant_case_name="My Case",
+        )
+        self.assertEqual("My Case", participant.participant_case_name)
+
+    def test_participant_case_name_empty_string_rejected(self):
+        """participant_case_name must not be an empty string (CS-08-001)."""
+        with pytest.raises(ValidationError) as exc_info:
+            CaseParticipant(
+                attributed_to=self.actor_id,
+                context=self.case_id,
+                participant_case_name="",
+            )
+        assert "must be a non-empty string" in str(exc_info.value)
 
 
 if __name__ == "__main__":

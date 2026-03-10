@@ -51,7 +51,7 @@ class TestCaseReference(unittest.TestCase):
         with pytest.raises(ValidationError) as exc_info:
             cr.CaseReference(url="")
 
-        assert "url must be a non-empty string" in str(exc_info.value)
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_case_reference_url_only(self):
         """Test CaseReference with only url field."""
@@ -70,9 +70,7 @@ class TestCaseReference(unittest.TestCase):
         with pytest.raises(ValidationError) as exc_info:
             cr.CaseReference(url="https://example.org/", name="")
 
-        assert "name must be either None or a non-empty string" in str(
-            exc_info.value
-        )
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_case_reference_name_with_url(self):
         """Test CaseReference with name."""

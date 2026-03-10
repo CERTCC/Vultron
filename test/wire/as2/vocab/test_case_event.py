@@ -67,22 +67,22 @@ class TestCaseEventCreation(unittest.TestCase):
     def test_object_id_empty_string_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
             CaseEvent(object_id="", event_type=EVENT_TYPE)
-        assert "object_id must be a non-empty string" in str(exc_info.value)
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_object_id_whitespace_only_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
             CaseEvent(object_id="   ", event_type=EVENT_TYPE)
-        assert "object_id must be a non-empty string" in str(exc_info.value)
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_event_type_empty_string_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
             CaseEvent(object_id=OBJ_ID, event_type="")
-        assert "event_type must be a non-empty string" in str(exc_info.value)
+        assert "must be a non-empty string" in str(exc_info.value)
 
     def test_event_type_whitespace_only_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
             CaseEvent(object_id=OBJ_ID, event_type="   ")
-        assert "event_type must be a non-empty string" in str(exc_info.value)
+        assert "must be a non-empty string" in str(exc_info.value)
 
 
 class TestCaseEventSerialization(unittest.TestCase):

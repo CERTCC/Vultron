@@ -22,7 +22,10 @@ from pydantic import Field
 
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import activitystreams_object
-from vultron.wire.as2.vocab.base.types import NonEmptyString, OptionalNonEmptyString
+from vultron.wire.as2.vocab.base.types import (
+    NonEmptyString,
+    OptionalNonEmptyString,
+)
 from vultron.wire.as2.vocab.objects.base import VultronObject
 from vultron.enums import VultronObjectType as VO_type
 

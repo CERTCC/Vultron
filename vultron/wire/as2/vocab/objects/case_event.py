@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field, field_serializer, field_validator
 
 from vultron.wire.as2.vocab.base.dt_utils import now_utc
+from vultron.wire.as2.vocab.base.types import NonEmptyString
 
 
 def _now_utc() -> datetime:
@@ -46,11 +47,11 @@ class CaseEvent(BaseModel):
     plan/IMPLEMENTATION_PLAN.md SC-PRE-1.
     """
 
-    object_id: str = Field(
+    object_id: NonEmptyString = Field(
         ...,
         description="Full URI of the object being acted upon",
     )
-    event_type: str = Field(
+    event_type: NonEmptyString = Field(
         ...,
         description="Short descriptor of the event kind",
     )
@@ -58,20 +59,6 @@ class CaseEvent(BaseModel):
         default_factory=_now_utc,
         description="Server-generated TZ-aware UTC timestamp set at receipt",
     )
-
-    @field_validator("object_id")
-    @classmethod
-    def validate_object_id_not_empty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("object_id must be a non-empty string")
-        return v
-
-    @field_validator("event_type")
-    @classmethod
-    def validate_event_type_not_empty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("event_type must be a non-empty string")
-        return v
 
     @field_validator("received_at", mode="before")
     @classmethod

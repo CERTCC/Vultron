@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-10 (TECHDEBT-11 complete: test dirs relocated to mirror source layout)
+**Last Updated**: 2026-03-10 (TECHDEBT-9/7 complete: NonEmptyString/OptionalNonEmptyString applied across objects)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 841 passing, 5581 subtests, 0 xfailed (2026-03-10, after SC-3.3)
+**Test suite**: 860 passing, 5581 subtests, 0 xfailed (2026-03-10, after TECHDEBT-9/7)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -112,10 +112,11 @@ Blocked by OUTBOX-1.
 checks participant embargo acceptance and logs a WARNING (CM-10-004); full
 enforcement deferred to PRIORITY-200.
 
-### ❌ CS-08-001 — Optional string fields allow empty strings (TECHDEBT-7/9)
+### ✅ CS-08-001 — Optional string fields reject empty strings (TECHDEBT-7/9 DONE)
 
-No Pydantic validators enforce "if present, then non-empty" on `Optional[str]`
-fields across `vultron/wire/as2/vocab/objects/` models.
+`NonEmptyString` and `OptionalNonEmptyString` type aliases applied across
+all `Optional[str]` fields in `vultron/wire/as2/vocab/objects/`. Per-field
+empty-string validators replaced with shared types. ✅ 2026-03-10
 
 ### ❌ Pyright static type checking not configured (TECHDEBT-8)
 
@@ -280,14 +281,14 @@ incrementally — each task must leave tests passing.
   `_helpers.py`). Done when no `DeprecationWarning` for this constant appears in
   test output. ✅ 2026-03-10
 
-- [ ] **TECHDEBT-9**: Introduce `NonEmptyString` and `OptionalNonEmptyString` type
+- [x] **TECHDEBT-9**: Introduce `NonEmptyString` and `OptionalNonEmptyString` type
   aliases in `vultron/wire/as2/vocab/base/` (CS-08-001, CS-08-002). Replace existing
   per-field empty-string validators with the shared type. **Combine with
-  TECHDEBT-7** in one agent cycle.
+  TECHDEBT-7** in one agent cycle. ✅ 2026-03-10
 
-- [ ] **TECHDEBT-7**: Add Pydantic validators rejecting empty strings in all
+- [x] **TECHDEBT-7**: Add Pydantic validators rejecting empty strings in all
   remaining `Optional[str]` fields across `vultron/wire/as2/vocab/objects/` models
-  (CS-08-001). Done when all fields reject empty strings and tests pass.
+  (CS-08-001). Done when all fields reject empty strings and tests pass. ✅ 2026-03-10
 
 - [ ] **TECHDEBT-10**: Backfill pre-case events into the case event log at case
   creation (CM-02-009). `create_case` BT SHOULD call `record_event()` for the

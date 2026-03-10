@@ -23,6 +23,7 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 from vultron.wire.as2.vocab.base.links import as_Link, ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import activitystreams_object
+from vultron.wire.as2.vocab.base.types import OptionalNonEmptyString
 from vultron.wire.as2.vocab.objects.base import VultronObject
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
@@ -38,7 +39,7 @@ class CaseStatus(VultronObject):
 
     as_type: VO_type = Field(default=VO_type.CASE_STATUS, alias="type")
 
-    context: str | None = None  # Case ID goes here
+    context: OptionalNonEmptyString = None  # Case ID goes here
     em_state: EM = EM.NO_EMBARGO
     pxa_state: CS_pxa = CS_pxa.pxa
 
@@ -88,7 +89,7 @@ class ParticipantStatus(VultronObject):
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True
     embargo_adherence: bool = True
-    tracking_id: str | None = None
+    tracking_id: OptionalNonEmptyString = None
     case_status: CaseStatus | None = None
 
     @field_serializer("rm_state")
