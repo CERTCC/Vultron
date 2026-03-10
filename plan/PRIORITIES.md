@@ -66,6 +66,19 @@ well. The focus here should be on separating concerns and moving towards a
 cleaner architecture overall, starting to put the pieces in place to avoid 
 large refactors later.
 
+## Priority 65: Address all outstanding architecture violations in `notes/architecture-review.md`
+
+Following an architecture review of the codebase, we have identified a 
+number of architecture violations that need to be addressed. These are 
+documented in `notes/architecture-review.md`. Addressing these violations is 
+important so that we can move forward with a clean architecture that 
+properly separates concerns from the front-end (driving adapters), wire, 
+core (use cases, etc.), and back-end layers (driven ports and adapters). 
+This continues Priority 50 and 60, and pre-empts or blends in with Priority 70 
+below. Use the architecture review notes as a checklist to identify and 
+address each violation, ensuring that tasks are grouped appropriately in 
+`plan/IMPLEMENTATION_PLAN.md` to avoid excessive fragmentation of related work.
+
 ## Priority 70: DataLayer refactor into ports and adapters
 
 The DataLayer implementation should be refactored to become a port (Protocol), 
