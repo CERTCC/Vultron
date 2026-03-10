@@ -8,7 +8,31 @@ Add new items below this line
 
 ---
 
-## 2026-03-10 — ARCH-CLEANUP-1 complete: Backward-compat shims deleted
+## 2026-03-10 — ARCH-CLEANUP-3 complete: isinstance AS2 checks replaced (V-11, V-12)
+
+### What changed
+
+- **`handlers/report.py`**: `create_report` and `submit_report` now check
+  `dispatchable.payload.object_type != "VulnerabilityReport"` instead of
+  `isinstance`. `validate_report` uses `getattr(accepted_report, "as_type", None)`.
+  Local `VulnerabilityReport` imports removed from all three handlers.
+- **`handlers/case.py`**: `update_case` uses `getattr(incoming, "as_type", None) ==
+  "VulnerabilityCase"`. Local `VulnerabilityCase` import removed.
+- **`trigger_services/report.py`**: `_resolve_offer_and_report` uses `getattr`
+  as_type check. `VulnerabilityReport` module-level import removed.
+- **`trigger_services/_helpers.py`**: `resolve_case` and
+  `update_participant_rm_state` use `getattr` as_type checks. `VulnerabilityCase`
+  import retained for the `-> VulnerabilityCase` return type annotation.
+- **`test/test_behavior_dispatcher.py`**: Removed `as_TransitiveActivityType` and
+  `VulnerabilityReport` imports. `as_type` assertion uses string `"Create"`.
+  Dispatch test uses `MagicMock` for `raw_activity` instead of full AS2 construction.
+- **`test/api/test_reporting_workflow.py`**: `_call_handler` now populates
+  `InboundPayload.object_type` from `activity.as_object.as_type` (mirrors
+  `prepare_for_dispatch`), so handler type guards work correctly in tests.
+
+822 tests pass.
+
+
 
 ### What changed
 

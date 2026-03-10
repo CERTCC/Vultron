@@ -172,7 +172,7 @@ Four discrete cleanup tasks complete the PRIORITY-50 work. Work in order.
   and `VultronObjectType` (plus the `MessageSemantics` re-export). Done when no
   AS2 structural enums remain in `vultron/enums.py` and tests pass.
 
-- [ ] **ARCH-CLEANUP-3**: Replace `isinstance(x, AS2Type)` checks in handler files
+- [x] **ARCH-CLEANUP-3**: Replace `isinstance(x, AS2Type)` checks in handler files
   (`vultron/api/v2/backend/handlers/report.py`, `handlers/case.py`) and trigger
   services (`trigger_services/report.py`, `trigger_services/_helpers.py`) with
   `InboundPayload.object_type` string comparisons (V-11). Update
