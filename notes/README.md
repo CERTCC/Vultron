@@ -29,6 +29,7 @@ Explanation) and an implementation workflow for authoring technical docs.
 | `encryption.md` | Encryption implementation notes: public-key discovery, decryption placement, outgoing strategies, key rotation, and implementation guidance |
 | `federation_ideas.md` | Federation design: AS2 as vocabulary (not full ActivityPub), actor/inbox/outbox model, case object model, ownership, relay pattern, journal vs. delivery log, mirror consistency, instance trust, peering handshake, delivery architecture, connector plugins, open questions |
 | `triggerable-behaviors.md` | Design notes for PRIORITY 30 triggerable behaviors: trigger scope, endpoint schema, candidate behaviors (RM/EM), relationship to actor independence; resolved design decisions on `RedactedVulnerabilityCase`, per-participant embargo acceptance, and `reject-report` note requirement |
+| `use-case-behavior-trees.md` | Relationship between use cases, domain logic, and behavior trees; proposed module layout; conceptual layering (Driver → Dispatcher → Use Case → BT → Domain Model); protocol activity-to-use-case mapping |
 
 ## Conventions
 

@@ -131,6 +131,36 @@ Consider creating an ADR to record the decision formally before implementation.
 
 ---
 
+## DataLayer as a Port, TinyDB as a Driven Adapter
+
+Independently of per-actor isolation, the `DataLayer` interface
+(`vultron/api/v2/datalayer/abc.py`) should be treated as a **port** in the
+hexagonal architecture sense, and the `TinyDbDataLayer` implementation as a
+**driven adapter** that satisfies the port.
+
+This distinction matters even now, before per-actor isolation is implemented:
+
+- The port (Protocol interface) defines what the domain needs from persistence.
+- The adapter (TinyDB) provides a concrete implementation behind that interface.
+- A future MongoDB adapter would implement the same Protocol without requiring
+  core domain changes.
+
+**Current state**: The `DataLayer` Protocol already exists and handlers receive
+it via dependency injection (achieved in ARCH-1.4). The main remaining step is
+to ensure the TinyDB backend file location and `get_datalayer()` factory reflect
+their adapter-layer status in the hexagonal architecture.
+
+**Action (post-P60)**: When the `adapters/` package is stubbed (P60-3), the
+`TinyDbDataLayer` and `get_datalayer()` factory should be relocated from
+`vultron/api/v2/datalayer/` to `vultron/adapters/driven/activity_store.py` (or
+equivalent). The port Protocol remains in `vultron/core/ports/`.
+
+**Design Decision**: (blocks ACT-1) The DataLayer relocation into the adapter
+layer SHOULD be planned together with PRIORITY 100 (actor independence) and
+the potential MongoDB switch. See the per-actor isolation options below.
+
+---
+
 ## Per-Actor DataLayer Isolation Options
 
 All actors currently share a singleton `TinyDbDataLayer` backed by a single

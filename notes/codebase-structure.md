@@ -18,22 +18,39 @@ hexagonal architecture refactoring.
   `vultron/wire/as2/enums.py` (ARCH-CLEANUP-2)
 - `MessageSemantics` — moved to `vultron/core/models/events.py` (ARCH-1.1)
 
-**Still at top level (intentionally):**
+**Still at top level (pending future relocation):**
 
-- `vultron/behavior_dispatcher.py` — core dispatch logic; no wire imports
+- `vultron/behavior_dispatcher.py` — core dispatch logic; no wire imports.
+  Belongs in `vultron/core/` once circular import constraints are resolved.
 - `vultron/dispatcher_errors.py` — kept at top level to avoid circular imports;
-  see `specs/code-style.md` CS-05-001
-- `vultron/enums.py` — now only re-exports `MessageSemantics`,
-  `OfferStatusEnum`, and `VultronObjectType` for backward compatibility
+  see `specs/code-style.md` CS-05-001. Belongs in `vultron/core/` alongside
+  the dispatcher.
+- `vultron/enums.py` — backward-compat re-export shim only; should be deleted
+  once all callers import from `vultron/core/models/events.py` (for
+  `MessageSemantics`) and `vultron/wire/as2/enums.py` (for AS2 structural
+  enums) directly.
 - `vultron/errors.py` — top-level error base; submodule errors exist at
   `vultron/api/v2/errors.py`
 - `vultron/types.py` — shared type aliases; neutral module used to break
-  circular import chains
+  circular import chains. Contents should be migrated into
+  `vultron/core/types.py` or `vultron/wire/types.py` as appropriate once
+  circular imports are resolved.
 
 **Constraint**: `dispatcher_errors.py` and `types.py` MUST remain accessible
 to both core dispatch modules and `api/v2/` without creating circular imports.
 Any reorganization MUST preserve this constraint. See `AGENTS.md` "Circular
 Imports" section for the import chain rules.
+
+**Future cleanup tasks (post-P60)**:
+
+1. Move `vultron/behavior_dispatcher.py` to `vultron/core/`
+2. Move `vultron/dispatcher_errors.py` to `vultron/core/` alongside the
+   dispatcher
+3. Delete `vultron/enums.py` once all callers have been updated to import
+   from the canonical locations (`vultron/core/models/events.py` and
+   `vultron/wire/as2/enums.py`)
+4. Audit `vultron/types.py` and migrate contents to `vultron/core/types.py`
+   or `vultron/wire/types.py` as appropriate
 
 ---
 
@@ -68,6 +85,27 @@ submodules grouped by domain:
 
 This would improve discoverability and allow a unified review of redundant or
 unused enums. Not a high priority for the prototype.
+
+---
+
+## State Machine Library Consideration
+
+The RM, EM, and CS state machines are currently implemented as manually-defined
+enums with no formal state machine enforcement. The
+[`transitions`](https://github.com/pytransitions/transitions) Python library
+provides a clean, declarative way to define state machines with guards,
+callbacks, and transition tables.
+
+**Long-term consideration**: Integrating `transitions` would make it easier to
+define and maintain the RM/EM/CS state machines, enforce valid state transitions
+at runtime, and generate transition diagrams for documentation. This is not a
+high priority for the prototype, but may become valuable as the state machines
+grow more complex or when implementing actor independence (PRIORITY 100).
+
+**Open Question**: Should `transitions` (or an equivalent) be adopted before or
+after the domain model separation (see `notes/domain-model-separation.md`)? The
+state machines are a core domain concept; their implementation should live in
+`vultron/core/` regardless of which library is used.
 
 ---
 
