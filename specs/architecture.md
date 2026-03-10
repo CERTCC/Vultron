@@ -13,7 +13,8 @@ core through defined **ports**, via thin **adapters**.
 **Cross-references**: `code-style.md` CS-05-001 (circular import
 prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
 `notes/domain-model-separation.md` (wire/domain/persistence separation),
-`notes/architecture-review.md` (current violation inventory)
+`notes/architecture-review.md` (violation inventory and remediation history),
+`docs/adr/0009-hexagonal-architecture.md` (decision rationale)
 
 ---
 
@@ -25,13 +26,17 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     connector libraries, AS2 libraries (`pyld`, `rdflib`, JSON-LD tooling)
   - **Rationale**: Keeps domain logic replaceable without touching the wire
     or transport layer
-  - **Current state**: Deferred to post-prototype; see PROTO-06-001
+  - **Current state**: Partially achieved. `vultron/core/` has no wire/framework
+    imports; `vultron/api/` still uses FastAPI and imports from `vultron/wire/`.
+    Full isolation deferred to post-prototype; see PROTO-06-001
 - `ARCH-01-002` Core functions MUST accept and return domain types only
   - Raw dicts, AS2 types, JSON strings, and framework objects MUST NOT
     enter the domain
   - The inbound pipeline MUST complete parse → extract steps before calling
     into core
-  - **Current state**: Deferred to post-prototype; see PROTO-06-001
+  - **Current state**: `InboundPayload` domain type introduced (ARCH-1.2);
+    parse → extract pipeline stages in `vultron/wire/as2/`. Full core isolation
+    deferred to post-prototype; see PROTO-06-001
 - `ARCH-01-003` The `wire/` layer (AS2 parser, semantic extractor) MUST NOT
   contain handler logic, case management, or journal management
   - **Rationale**: Wire format concerns are structurally distinct from
@@ -45,8 +50,9 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     in the system, as the domain understands it
   - Wire layer pattern maps are an implementation detail of the extractor,
     not part of the domain definition
-  - **Current location**: `vultron/enums.py` (mixed with AS2 structural
-    enums — see `notes/architecture-review.md` V-01 for remediation plan)
+  - **Current location**: `vultron/core/models/events.py` (remediated in
+    ARCH-1.1); re-exported from `vultron/enums.py` for compatibility. AS2
+    structural enums moved to `vultron/wire/as2/enums.py` (ARCH-CLEANUP-2).
 
 ## Semantic Extractor (MUST)
 
@@ -56,9 +62,9 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
   - Handler code MUST NOT inspect AS2 types to infer message meaning
   - **Rationale**: Isolates the single seam where wire format changes are
     absorbed
-  - **Current state**: Extraction is split across `semantic_map.py` and
-    `activity_patterns.py`; see `notes/architecture-review.md` V-04, V-05
-    for remediation plan
+  - **Current state**: ✅ Achieved. `vultron/wire/as2/extractor.py` is the
+    sole location of AS2-to-domain vocabulary mapping (ARCH-1.3,
+    ARCH-CLEANUP-1). Handler code no longer inspects AS2 types (ARCH-CLEANUP-3).
 
 ## Driven Adapter Injection (MUST)
 
@@ -68,8 +74,9 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     directly
   - **Rationale**: Enables testing core logic with in-memory ports and
     swapping production backends without touching domain code
-  - **Current state**: Handlers call `get_datalayer()` directly; see
-    `notes/architecture-review.md` V-10 for remediation plan
+  - **Current state**: ✅ Achieved. All handlers receive `dl: DataLayer` via
+    parameter injection (ARCH-1.4). `get_datalayer()` is no longer called
+    inside handler bodies.
 
 ## Connector Plugins (MUST)
 
@@ -85,8 +92,9 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
   unit without touching the core or adapter layers
   - If a change to the wire format requires changes in the core, a
     boundary has been violated
-  - **Current state**: Not yet achieved; AS2 types currently present in
-    `DispatchActivity.payload` (see `notes/architecture-review.md` V-02)
+  - **Current state**: Substantially achieved. `DispatchActivity.payload` is
+    now typed as `InboundPayload` (domain type), not `as_Activity` (ARCH-1.2).
+    Full wire replaceability requires completing P60-3 (adapters package).
 
 ## Handler Isolation (MUST)
 
@@ -95,8 +103,9 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     wrapper (`DispatchActivity.semantic_type`)
   - Semantic verification decorators MUST compare `dispatchable.semantic_type`
     directly, not re-run pattern matching
-  - **Current state**: `verify_semantics` decorator re-invokes
-    `find_matching_semantics`; see `notes/architecture-review.md` V-04
+  - **Current state**: ✅ Achieved. `verify_semantics` decorator now compares
+    `dispatchable.semantic_type` directly (ARCH-1.2/ARCH-1.3); no second
+    invocation of `find_matching_semantics`.
 
 ## Driving Adapter Boundary (MUST)
 
@@ -106,8 +115,9 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     not responsibilities of the driving adapter itself
   - **Rationale**: Any driving adapter that needs to ingest AS2 can reuse
     the wire pipeline; there is no duplication
-  - **Current state**: `parse_activity` lives in the router
-    (`api/v2/routers/actors.py`); see `notes/architecture-review.md` V-06
+  - **Current state**: ✅ Achieved. `parse_activity()` is in
+    `vultron/wire/as2/parser.py`; the router calls it as a thin wrapper
+    (ARCH-1.3).
 
 ---
 
@@ -148,23 +158,33 @@ Use this checklist during code review to catch boundary violations.
 
 ---
 
-## Deferred to Post-Prototype
+## Remediation Status
 
-The following architectural rules are aspirational targets. Achieving them
-requires a refactoring effort documented in
-`notes/architecture-review.md`. The prototype MAY violate these rules while
-the refactoring is in progress:
+The following architectural requirements had known violations that have been
+remediated through incremental refactoring (ARCH-1.1 through ARCH-CLEANUP-3).
+See `docs/adr/0009-hexagonal-architecture.md` for full violation inventory.
 
-- ARCH-01-001, ARCH-01-002 (core isolation from wire/framework) — see
-  PROTO-06-001
-- ARCH-03-001 (extractor as sole mapping point) — partial: extraction
-  logic is split but not duplicated in handler business logic
-- ARCH-04-001 (adapter injection) — all handlers call `get_datalayer()`
-  directly; injection is deferred
-- ARCH-06-001 (wire replaceability) — not yet achieved
-- ARCH-07-001 (no re-invocation in handlers) — `verify_semantics`
-  currently re-runs extraction; a one-line fix (compare
-  `dispatchable.semantic_type` directly) is the intended resolution
+**Remediated (ARCH-1.x and ARCH-CLEANUP-x):**
 
-See `notes/architecture-review.md` for the full violation inventory and
-remediation plan (R-01 to R-06).
+- ARCH-02-001 (`MessageSemantics` in core) — ✅ ARCH-1.1
+- ARCH-03-001 (sole mapping point) — ✅ ARCH-1.3, ARCH-CLEANUP-1
+- ARCH-04-001 (adapter injection) — ✅ ARCH-1.4
+- ARCH-06-001 (wire replaceability) — ✅ substantially achieved (ARCH-1.2)
+- ARCH-07-001 (no re-invocation) — ✅ ARCH-1.2/1.3
+- ARCH-08-001 (parse in wire layer) — ✅ ARCH-1.3
+
+**Partially deferred (PROTO-06-001):**
+
+- ARCH-01-001, ARCH-01-002 (full core isolation from wire/framework) —
+  `vultron/core/` is clean; `vultron/api/` imports from `vultron/wire/` as
+  expected for an adapter. Full isolation of all existing domain objects from
+  AS2 base types is deferred to post-prototype; see PROTO-06-001 and
+  `notes/domain-model-separation.md`.
+
+**Not yet started (PRIORITY-60):**
+
+- P60-3: `vultron/adapters/` package structure stub — see
+  `plan/IMPLEMENTATION_PLAN.md`
+
+See `notes/architecture-review.md` for full violation inventory and
+remediation history (R-01 to R-06).

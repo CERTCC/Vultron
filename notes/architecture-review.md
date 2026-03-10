@@ -2,37 +2,41 @@
 
 Review against `notes/architecture-ports-and-adapters.md`.
 
+> **Status (2026-03-10):** All 12 violations identified in this review have
+> been remediated through incremental refactoring (ARCH-1.1–ARCH-1.4 and
+> ARCH-CLEANUP-1 through ARCH-CLEANUP-3). See
+> `docs/adr/0009-hexagonal-architecture.md` for the full remediation inventory.
+> The violation descriptions below are preserved for historical reference.
+> The remediation plan items (R-01 through R-06) in Section 2 are now
+> complete; they are kept for record.
+
 ---
 
-## 1. Violations
+## 1. Violations (Historical — All Remediated)
 
 ### V-01 — `vultron/enums.py`, entire file
 
 **Rule:** Rule 3 (SemanticIntent is a domain type, defined in core)  
-**Severity:** Major
+**Severity:** Major  
+**Remediated by:** ARCH-1.1 + ARCH-CLEANUP-2
 
-`MessageSemantics` is a domain enum and must live in `core/models/events.py`. It
-currently shares a file with AS2 structural enums (`as_ObjectType`,
-`as_TransitiveActivityType`, `as_IntransitiveActivityType`, `as_ActorType`,
-`as_AllObjectTypes`, and the merge helper). Placing domain vocabulary alongside
-wire-format vocabulary in the same module allows any importer to access both
-without noticing the layer crossing, and it signals to future maintainers that
-these concerns are interchangeable.
+`MessageSemantics` now lives in `vultron/core/models/events.py` (moved in
+ARCH-1.1). AS2 structural enums (`as_ObjectType`, `as_TransitiveActivityType`,
+etc.) moved to `vultron/wire/as2/enums.py` (ARCH-CLEANUP-2). `vultron/enums.py`
+re-exports only `MessageSemantics`, `OfferStatusEnum`, and `VultronObjectType`
+for backward compatibility.
 
 ---
 
 ### V-02 — `vultron/types.py`, `DispatchActivity.payload: as_Activity`
 
 **Rule:** Rule 5 (core functions take and return domain types)  
-**Severity:** Critical
+**Severity:** Critical  
+**Remediated by:** ARCH-1.2
 
-`DispatchActivity` is the data carrier passed from the extractor into the
-dispatcher and then into every handler. Its `payload` field is typed as
-`as_Activity` — an AS2 structural type from `vultron.as_vocab`. This means the
-entire dispatch chain, including all handler functions, is contractually required
-to receive and inspect an AS2 object. The architecture requires that the inbound
-pipeline complete its work (parse → extract) before core is invoked. Because
-`payload` carries an AS2 type, that handoff never actually happens.
+`DispatchActivity.payload` is now typed as `InboundPayload` (a domain type
+defined in `vultron/core/models/events.py`). The extractor stage populates it
+from an `as_Activity`; no AS2 types flow past the wire/core boundary.
 
 ---
 
@@ -40,20 +44,12 @@ pipeline complete its work (parse → extract) before core is invoked. Because
 
 **Rules:** Rule 1 (core has no wire format imports), Rule 5 (core takes domain
 types)  
-**Severity:** Critical
+**Severity:** Critical  
+**Remediated by:** ARCH-1.2
 
-`behavior_dispatcher.py` is positioned as a core module — it houses the
-`ActivityDispatcher` Protocol and the `DispatcherBase` class — but it imports
-directly from the wire layer:
-
-```python
-from vultron.as_vocab.base.objects.activities.base import as_Activity
-```
-
-`prepare_for_dispatch(activity: as_Activity)` accepts an AS2 structural type,
-meaning the dispatcher's entry point is defined in terms of the wire format.
-A future wire format replacement would require changes to this core module,
-which Rule 8 explicitly prohibits.
+`behavior_dispatcher.py` previously imported `as_Activity` directly and accepted
+it in `prepare_for_dispatch`. After ARCH-1.2, the dispatcher accepts
+`InboundPayload` (a domain type); no AS2 import remains in the core dispatcher.
 
 ---
 
@@ -61,90 +57,63 @@ which Rule 8 explicitly prohibits.
 
 **Rule:** Rule 4 (the semantic extractor is the only AS2-to-domain mapping
 point)  
-**Severity:** Major
+**Severity:** Major  
+**Remediated by:** ARCH-1.3
 
-`find_matching_semantics` is the semantic extraction function. The architecture
-requires it to be called exactly once per inbound activity, as stage 3 of the
-pipeline. Instead, it is called twice:
-
-1. In `behavior_dispatcher.prepare_for_dispatch` (the intended location).
-2. In `handlers/_base.py`'s `verify_semantics` decorator (line 30):
-   `computed = find_matching_semantics(dispatchable.payload)`.
-
-The second call re-runs AS2 pattern matching against the AS2 payload inside a
-function decorated onto domain handler code. This means handler code depends on
-the AS2 vocabulary even for internal validation, creating a second
-AS2-to-domain coupling point that violates Rule 4's isolation guarantee.
+`find_matching_semantics` was called twice per activity: once in
+`prepare_for_dispatch` and once in the `verify_semantics` decorator. The
+decorator now compares `dispatchable.semantic_type` directly without
+re-invoking the extractor.
 
 ---
 
 ### V-05 — `vultron/activity_patterns.py`, `ActivityPattern.match()` method
 
 **Rule:** Rule 4 (extractor is the only AS2-to-domain mapping point)  
-**Severity:** Major
+**Severity:** Major  
+**Remediated by:** ARCH-1.3, ARCH-CLEANUP-1
 
-`activity_patterns.py` defines `ActivityPattern.match(activity: as_Activity)`
-which inspects `activity.as_type` and nested `as_type` fields to determine
-whether an activity matches a pattern. This is AS2 structural inspection and
-belongs in the extractor (`wire/as2/extractor.py`). It currently lives in a
-separate top-level module, and `find_matching_semantics` (the nominal extractor)
-delegates to it. The mapping logic is therefore split across two files
-(`activity_patterns.py` and `semantic_map.py`) rather than consolidated in one
-extractor, as Rule 4 requires.
+`ActivityPattern.match()` and `find_matching_semantics` were split across
+`activity_patterns.py` and `semantic_map.py`. Both were consolidated into
+`vultron/wire/as2/extractor.py`. The old shim files were deleted in
+ARCH-CLEANUP-1.
 
 ---
 
 ### V-06 — `vultron/api/v2/routers/actors.py`, `parse_activity()` function (lines 138–168)
 
 **Rule:** Rule 4 (extractor is the only AS2-to-domain mapping point)  
-**Severity:** Major
+**Severity:** Major  
+**Remediated by:** ARCH-1.3
 
-`parse_activity` performs AS2 structural parsing inline inside the HTTP driving
-adapter. It inspects the raw `dict` for `"type"`, looks up the class in
-`VOCABULARY.activities`, and calls `model_validate`. Per the architecture, this
-is stage 2 of the inbound pipeline (AS2 Parser) and must live in
-`wire/as2/parser.py`. Having it in the router means the HTTP adapter performs
-wire-format work directly, and any other driving adapter (CLI, MCP server) that
-needs to ingest AS2 would have to duplicate or depend on this router code.
+`parse_activity` was moved from the HTTP router to `vultron/wire/as2/parser.py`.
+The router now calls `parser.parse_activity(body)` as a thin wrapper.
 
 ---
 
 ### V-07 — `vultron/api/v2/backend/inbox_handler.py`, `raise_if_not_valid_activity()` and module-level import
 
 **Rule:** Rule 1 (core has no wire format imports)  
-**Severity:** Major
+**Severity:** Major  
+**Remediated by:** ARCH-1.3
 
-`inbox_handler.py` imports `from vultron.as_vocab import VOCABULARY` at module
-level (line 26), then uses it in `raise_if_not_valid_activity` (line 48) to
-check `obj.as_type not in VOCABULARY.activities`. This AS2 vocabulary inspection
-belongs in the wire layer (stage 2 or 3), not in the backend handler that
-should be operating on already-validated, already-semantically-labelled
-activities. The backend is the wrong place to detect that something isn't a
-valid AS2 activity type.
+`inbox_handler.py` previously imported `VOCABULARY` from `vultron.as_vocab`
+and used it in `raise_if_not_valid_activity`. After ARCH-1.3, structural AS2
+validation happens in the wire layer (parser/extractor); the backend handler
+no longer imports AS2 vocabulary.
 
 ---
 
 ### V-08 — `vultron/api/v2/backend/inbox_handler.py`, `handle_inbox_item()` collapses three pipeline stages
 
 **Rule:** Rule 4 (parse → extract → dispatch are distinct stages)  
-**Severity:** Critical
+**Severity:** Critical  
+**Remediated by:** ARCH-1.3
 
-`handle_inbox_item` (lines 68–92) performs all three pipeline stages in a single
-function:
-
-- **Stage 3 check** — `raise_if_not_valid_activity(obj)` re-validates AS2
-  structural type.
-- **Stage 3 (extraction)** — `prepare_for_dispatch(activity=obj)` maps AS2 to
-  `DispatchActivity`.
-- **Stage 4 (dispatch)** — `dispatch(dispatchable=dispatchable)` invokes the
-  handler.
-
-The architecture calls for these to be separate stages: parse → extract →
-dispatch. The parse stage is not represented here at all (it was done upstream
-in `parse_activity` in the router), and the remaining two stages are collapsed
-together with an extra AS2 validation check mixed in. There is no clean seam
-between the wire layer finishing its work and the domain layer beginning its
-work.
+`handle_inbox_item` collapsed parse, extract, and dispatch. After ARCH-1.3,
+the router performs parse (via `wire/as2/parser.py`) and extract (via
+`wire/as2/extractor.py`) before the dispatcher stage; the stages are now
+clearly separated.
 
 ---
 
@@ -152,48 +121,39 @@ work.
 
 **Rule:** Rule 2 (core has no framework imports), Rule 6 (driven adapters
 injected via ports)  
-**Severity:** Major
+**Severity:** Major  
+**Remediated by:** ARCH-1.4, ARCH-CLEANUP-1
 
-`semantic_handler_map.py` is a top-level `vultron/` module that maps
-`MessageSemantics` (a domain enum) to handler functions. Handler functions live
-in `vultron.api.v2.backend.handlers`, which is an application-layer module. The
-mapping file therefore creates a dependency from a domain-level concern onto the
-application adapter layer. The lazy import (line 25: `from vultron.api.v2.backend
-import handlers as h`) masks a circular import that is itself a symptom of this
-layering problem. Per AGENTS.md, lazy imports are a code smell that SHOULD be
-refactored.
+`semantic_handler_map.py` (top-level) was deleted in ARCH-CLEANUP-1. The
+handler map now lives in `vultron/api/v2/backend/handler_map.py` (adapter
+layer), removing the domain→adapter dependency.
 
 ---
 
 ### V-10 — All handler files in `vultron/api/v2/backend/handlers/`, direct datalayer instantiation
 
 **Rule:** Rule 6 (driven adapters injected via ports)  
-**Severity:** Major
+**Severity:** Major  
+**Remediated by:** ARCH-1.4
 
-Every handler function calls `dl = get_datalayer()` directly inside the function
-body via a lazy import. Examples: `report.py` lines 49, 108, 195, 301, 358;
-`case.py` line 43; and similar patterns throughout all handler files. The
-architecture requires core services to receive port implementations via
-dependency injection, never instantiate them directly. Handler functions are the
-closest thing to "core services" in the current layout, and they all bypass the
-port abstraction by calling the concrete TinyDB factory directly.
+All handler functions now receive `dl: DataLayer` via parameter injection.
+`get_datalayer()` is no longer called inside handler bodies.
 
 ---
 
 ### V-11 — Handler files use `isinstance` checks against AS2 types
 
 **Rule:** Rule 5 (core functions take and return domain types)  
-**Severity:** Major
+**Severity:** Major  
+**Remediated by:** ARCH-CLEANUP-3
 
-Handler functions check `isinstance(created_obj, VulnerabilityReport)` (e.g.,
+Handler functions checked `isinstance(created_obj, VulnerabilityReport)` (e.g.,
 `report.py` lines 33, 93) and `isinstance(accepted_report, VulnerabilityReport)`
-(line 170) where `VulnerabilityReport` is imported from
-`vultron.as_vocab.objects.vulnerability_report`. These checks are inside handler
-functions — nominally domain logic — but they operate on AS2 structural types
-rather than domain types. If the wire format changed, these checks would break.
-The correct behaviour would be for the payload type to already guarantee what
-kind of object is present, via a domain-typed `InboundPayload` produced by the
-extractor.
+(line 170) where `VulnerabilityReport` was imported from
+`vultron.as_vocab.objects.vulnerability_report`. These checks were inside handler
+functions — nominally domain logic — but they operated on AS2 structural types
+rather than domain types. Remediated by completing `InboundPayload` adoption
+so the payload type now guarantees what kind of object is present.
 
 ---
 
@@ -201,18 +161,17 @@ extractor.
 
 **Rule:** Tests section — "core tests should call service functions directly
 with domain Pydantic objects"  
-**Severity:** Minor
+**Severity:** Minor  
+**Remediated by:** ARCH-CLEANUP-3
 
-`test_behavior_dispatcher.py` imports `as_Create`, `VulnerabilityReport`, and
-`as_TransitiveActivityType` from `vultron.as_vocab` to construct test inputs for
-`prepare_for_dispatch` and `DirectActivityDispatcher.dispatch`. The dispatcher is
-a core component; its tests should not require AS2 construction. The test is
-testing core behaviour through the wire format, which means it would break if
-the wire format changed even though the dispatch logic had not changed.
+`test_behavior_dispatcher.py` previously imported `as_Create`, `VulnerabilityReport`,
+and `as_TransitiveActivityType` from `vultron.as_vocab` to construct test inputs
+for `prepare_for_dispatch` and `DirectActivityDispatcher.dispatch`. Updated to
+use domain types from `vultron.core.models.events`.
 
 ---
 
-## 2. Remediation Plan
+## 2. Remediation Plan (Completed)
 
 ### R-01: Separate `MessageSemantics` from AS2 enums (addresses V-01)
 

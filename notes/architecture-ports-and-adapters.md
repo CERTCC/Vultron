@@ -4,7 +4,7 @@
 
 This project follows **Hexagonal Architecture** (also called Ports and
 Adapters). The core domain logic is completely isolated from the outside world.
-All external systems interact with the core through defined boundaries called 
+All external systems interact with the core through defined boundaries called
 **ports**, via thin translation layers called **adapters**.
 
 Additionally, this project has a **wire format layer** that sits outside the
@@ -22,13 +22,13 @@ The case management domain was designed first, with its own semantic
 vocabulary (cases open, participants join, ownership transfers, etc.). When
 looking for a wire format for federation, Activity Streams 2.0 was found to have
 a **1:1 semantic match** with the domain vocabulary. AS2 was adopted as the wire
-format on that basis. 
+format on that basis.
 
 This is important context: AS2 was chosen *because* it matched the domain, not
 the other way around. The domain does not depend on AS2. AS2 is a wire format
 that happens to express the same concepts.
 
-See `notes/federation_ideas.md` for more on the 
+See `notes/federation_ideas.md` for more on the
 distinction between the use of AS2 vocabulary and ActivityPub the protocol.
 
 ### Why the boundary still matters
@@ -56,7 +56,7 @@ boundary.
 
 ### Inbound
 
-```
+```text
 1. AS2 JSON (wire)
         ↓
 2. AS2 Parser
@@ -79,7 +79,7 @@ boundary.
 
 ### Outbound
 
-```
+```text
 1. Domain Logic
    Operates on Case, CaseActor, Participant, etc.
    Emits domain events.
@@ -94,11 +94,11 @@ boundary.
 
 ### The MessageSemantics enum
 
-`MessageSemantics` (`vultron.enums.MessageSemantics`) is a **domain type**, not a 
+`MessageSemantics` (`vultron.enums.MessageSemantics`) is a **domain type**, not a
 wire type. Its values are the
 authoritative vocabulary of what can happen in the system, expressed as the
 domain understands them. The fact that each value maps
-(`vultron.semantic_map.SEMANTICS_ACTIVITY_PATTERNS`) to an AS2 pattern 
+(`vultron.semantic_map.SEMANTICS_ACTIVITY_PATTERNS`) to an AS2 pattern
 (`vultron.activity_patterns.ActivityPattern`) is an
 implementation detail of the semantic extractor, not part of the domain
 definition.
@@ -111,7 +111,7 @@ where wire format changes would be absorbed.
 
 ## The Hexagon
 
-```
+```text
                          ┌──────────────────────────────────────────┐
                          │                                          │
   [CLI]  ───────────────►│                                          │──────────► [Activity Store]
@@ -156,7 +156,7 @@ parser and semantic extractor inline before handing off to the core. See
 - **Activity store** — PostgreSQL/JSONB or EventStoreDB
 - **Delivery queue** — NATS JetStream or Celery+Redis
 - **Outbound HTTP** — HTTPS POST to peer instance inboxes (httpx, mTLS)
-- **DNS resolver** — (Potential future, not needed in prototype and as yet 
+- **DNS resolver** — (Potential future, not needed in prototype and as yet
   undecided in PROD) DNS TXT lookup for instance trust anchors
 
 ### Connector adapters (bidirectional — tracker plugins)
@@ -177,10 +177,17 @@ pipeline.
 
 ## File Layout
 
-This is a proposed file layout that reflects the architecture. Since we are 
-starting from a codebase not originally laid out this way, some refactoring 
-will be needed to achieve this structure. Key principles to follow during 
-that refactoring:
+This layout describes the target architecture after hexagonal refactoring.
+The following structural moves are complete (as of P60-1 and P60-2):
+
+- `vultron/as_vocab/` → `vultron/wire/as2/vocab/` ✅ (P60-1)
+- `vultron/behaviors/` → `vultron/core/behaviors/` ✅ (P60-2)
+
+The following move is still pending:
+
+- `vultron/adapters/` package structure stub (P60-3)
+
+Key principles in force during further refactoring:
 
 - The `core/` package contains only domain logic and types. No AS2 imports, no
   framework imports, no external system imports.
@@ -189,22 +196,29 @@ that refactoring:
 - The `adapters/` package contains only thin translation layers. No domain  
   logic, no AS2 parsing, no semantic extraction. Just translation and dispatch.
 
-```
+```text
 vultron/
 ├── core/
 │   ├── models/
 │   │   ├── case.py             # Case, CaseActor, Participant, JournalEntry
-│   │   ├── events.py           # SemanticIntent enum, CaseEvent types
+│   │   ├── events.py           # MessageSemantics enum, InboundPayload, domain event types
 │   │   ├── federation.py       # Instance, PeeringRecord
 │   │   └── primitives.py       # Shared value types
+│   │
+│   ├── behaviors/              # ✅ Moved from vultron/behaviors/ (P60-2)
+│   │   ├── bridge.py           # Handler-to-BT execution adapter
+│   │   ├── helpers.py          # DataLayer-aware BT nodes
+│   │   ├── report/             # Report validation tree and nodes
+│   │   └── case/               # Case creation tree and nodes
+│   │
+│   ├── use_cases/              # (stub — P60-3 extension point)
+│   │   └── __init__.py         # Incoming port: domain use-case callables
 │   │
 │   ├── services/
 │   │   ├── case.py             # Case lifecycle: open, transfer, resolve
 │   │   ├── journal.py          # Append, hash chaining, sequence management
 │   │   ├── relay.py            # Fan-out logic, relay construction (domain side)
-│   │   ├── mirror.py           # Mirror consistency, gap detection
-│   │   ├── peering.py          # Instance trust, handshake logic
-│   │   └── signing.py          # Signing and verification (domain logic)
+│   │   └── peering.py          # Instance trust, handshake logic
 │   │
 │   ├── ports/
 │   │   ├── activity_store.py   # Abstract interface: store/fetch events
@@ -214,17 +228,18 @@ vultron/
 │   └── errors.py           # CaseNotFound, UnauthorizedParticipant, etc.
 │
 ├── wire/
-│   ├── as_vocab/
-│   │   ├── types.py            # AS2 Pydantic types (structural, no domain logic)
-│   │   ├── parser.py           # Deserialize AS2 JSON → AS2 types
-│   │   ├── extractor.py        # AS2 types → SemanticIntent (the mapping seam)
-│   │   └── serializer.py       # Domain events → AS2 types → JSON
+│   └── as2/                    # ✅ as_vocab moved here (P60-1)
+│       ├── vocab/              # AS2 Pydantic types (structural, no domain logic)
+│       ├── enums.py            # AS2 structural enums
+│       ├── parser.py           # Deserialize AS2 JSON → AS2 types
+│       ├── extractor.py        # AS2 types → MessageSemantics + InboundPayload
+│       └── serializer.py       # Domain events → AS2 types → JSON
 │   └── (future_protocol)/      # Placeholder: alternative wire formats slot in here
 │
-├── adapters/
+├── adapters/                   # (stub pending — P60-3)
 │   ├── driving/
 │   │   ├── cli.py
-│   │   ├── mcp_server.py
+│   │   ├── mcp_server.py       # MCP server adapter for AI agent tool calls
 │   │   ├── http_inbox.py       # FastAPI endpoint → wire/as2 pipeline → core
 │   │   └── shared_inbox.py
 │   │
@@ -253,12 +268,34 @@ its status as a distinct layer, not an adapter of a particular external system.
 
 ---
 
+## Design Note: Use Cases as Incoming Ports
+
+The handler functions in `vultron/api/v2/backend/handlers/` (e.g.,
+`create_report`, `submit_report`, `engage_case`, `defer_case`, `accept_invite`)
+are the natural "use cases" of the hexagonal architecture — they represent
+the domain's incoming ports. Currently they are defined in the adapter layer
+(`api/v2/`), which couples them to the HTTP/AS2 delivery mechanism.
+
+The `vultron/core/use_cases/` stub package is reserved for the future move of
+these callables into the core, so that any driving adapter (HTTP inbox, CLI,
+MCP server) can invoke them without depending on the wire format or HTTP
+framework. The key design challenge is that each use case will need to be
+expressible independently of `MessageSemantics` (which is the AS2-derived
+routing key), so that adapters can call use cases directly with domain
+arguments.
+
+**Current state:** `vultron/core/use_cases/__init__.py` is an empty stub.
+Use cases still live in `vultron/api/v2/backend/handlers/`. The migration to
+`core/use_cases/` is a P60-3+ task.
+
+---
+
 ## Code Patterns
 
 Following are notional examples of how the layers interact, to clarify the  
-patterns and boundaries. Note that these examples do not necessarily reflect 
-the implemented codebase or the correct internal logic for individual 
-functions and methods. They are just meant to illustrate architectural 
+patterns and boundaries. Note that these examples do not necessarily reflect
+the implemented codebase or the correct internal logic for individual
+functions and methods. They are just meant to illustrate architectural
 patterns like import boundaries.
 
 ### Inbound pipeline (HTTP inbox → core)
@@ -425,7 +462,7 @@ in `core/`, a boundary has been violated.
 - [ ] Plugins translate only — no business logic
 - [ ] Discovered via entry points, not hardcoded imports
 
-**Tests**
+**Tests** <!-- markdownlint-disable-line MD036 -->
 
 - [ ] Core tests use domain types directly — no AS2, no HTTP
 - [ ] Wire tests verify parsing and extraction independently of domain logic

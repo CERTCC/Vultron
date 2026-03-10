@@ -152,17 +152,22 @@ Shims left at `vultron/activity_patterns.py`, `vultron/semantic_map.py`, and
 ARCH-CLEANUP-1. AS2 structural enums were moved from `vultron/enums.py` to
 `vultron/wire/as2/enums.py` in ARCH-CLEANUP-2.
 
-### Remaining (PRIORITY-60 package relocation)
+### Completed (PRIORITY-60 package relocation)
 
-The following structural moves are deferred to PRIORITY-60 and are tracked
+Package relocations that have been completed as part of PRIORITY-60:
+
+- **P60-1** ✅: `vultron/as_vocab/` moved to `vultron/wire/as2/vocab/`. All
+  internal and external imports updated; old `vultron/as_vocab/` deleted.
+- **P60-2** ✅: `vultron/behaviors/` moved to `vultron/core/behaviors/`. All
+  internal and external imports updated; old `vultron/behaviors/` deleted.
+
+### Remaining (PRIORITY-60 — in progress)
+
+The following structural move is deferred to PRIORITY-60 and is tracked
 in `plan/IMPLEMENTATION_PLAN.md`:
 
-- **P60-1**: Move `vultron/as_vocab/` → `vultron/wire/as2/vocab/`.
-- **P60-2**: Move `vultron/behaviors/` → `vultron/core/behaviors/`.
-- **P60-3**: Stub `vultron/adapters/` driving/driven/connectors package tree.
-
-Until these moves land, `vultron/as_vocab/` and `vultron/behaviors/` remain
-in place and backward-compat shims will be provided during the transition.
+- **P60-3**: Stub the `vultron/adapters/` package per the target layout in
+  `notes/architecture-ports-and-adapters.md`.
 
 ## Pros and Cons of the Options
 
