@@ -76,5 +76,16 @@ and Python stack candidates.
     (`from_activitystreams`, `to_activitystreams`) at the protocol boundary
   - PROTO-06-001 constrains CM-08-001
   - PROTO-06-001 constrains CM-08-002
-  - See `notes/domain-model-separation.md` for design rationale, known constraints of the current approach, and recommended migration steps
+  - See `notes/domain-model-separation.md` for design rationale, known
+    constraints of the current approach, and recommended migration steps
+
+  **Design Note**: As the hexagonal architecture refactor progresses, the
+  boundary between AS2 wire types and core domain types is becoming more
+  concrete. The emerging use-cases-as-core-ports pattern (see
+  `notes/use-case-behavior-trees.md` and
+  `notes/architecture-ports-and-adapters.md`) may make full AS2 inheritance
+  in domain objects untenable sooner than originally anticipated.
+  If a `core/use_cases/` layer is formalized (post-P60), it will likely
+  require domain objects free of AS2 inheritance. This shortcut SHOULD be
+  revisited when stubbing `core/use_cases/` in P60-3.
 

@@ -167,6 +167,7 @@ is reserved for `testability.md`).
 | `IMPL-TS` | `tech-stack.md` |
 | `MV` | `message-validation.md` |
 | `OB` | `observability.md` |
+| `OID` | `object-ids.md` |
 | `OX` | `outbox.md` |
 | `PD` | `project-documentation.md` |
 | `PROTO` | `prototype-shortcuts.md` |
@@ -220,7 +221,7 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-03-09)**:
+**Summary (2026-03-10)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer
@@ -232,16 +233,23 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
   `plan/IMPLEMENTATION_PLAN.md`
 - ✅ **Unified demo CLI complete** (`vultron-demo`): See `specs/demo-cli.md`
   and `plan/IMPLEMENTATION_PLAN.md` (Phase DEMO-4)
-- ✅ **TECHDEBT-6 complete**: `vultron/scripts/vocab_examples.py` shim removed
+- ✅ **Triggerable behaviors fully implemented** (PRIORITY 30 complete):
+  All 9 trigger endpoints (`validate-report`, `invalidate-report`,
+  `reject-report`, `engage-case`, `defer-case`, `close-report`,
+  `propose-embargo`, `evaluate-embargo`, `terminate-embargo`)
+- ✅ **Hexagonal architecture Phase 1 complete** (PRIORITY 50 + ARCH-CLEANUP):
+  `MessageSemantics` in core, `InboundPayload` domain type, wire/as2
+  extractor and parser, handler map in adapter layer, AS2 enums in wire
+  layer, shims deleted, `isinstance` AS2 checks removed (V-01 through V-12)
+- ✅ **Package relocation P60-1, P60-2 complete**: `vultron/as_vocab/` →
+  `vultron/wire/as2/vocab/`; `vultron/behaviors/` → `vultron/core/behaviors/`
 - ✅ **Object model gap closed**: `VulnerabilityRecord`, `CaseReference`,
   `EmbargoPolicy`, `VultronActorMixin` models added (SC-1.1, SC-1.2, EP-1.1,
   EP-1.2)
-- ✅ **736 tests passing**, 0 xfailed (2026-03-06)
+- ✅ **822 tests passing**, 0 xfailed (2026-03-10)
 - ⚠️ **Production readiness partial**: Request validation, error responses
   need work
-- ⚠️ **Triggerable behaviors partially implemented**: P30-1 through P30-3
-  complete (`validate-report`, `invalidate-report`, `reject-report`,
-  `engage-case`, `defer-case`); P30-4 through P30-6 remain
+- ❌ **P60-3 not started**: `vultron/adapters/` package stub pending
 - ❌ **Response generation not started**: See `response-format.md`
 - ❌ **Outbox delivery not implemented**: See `outbox.md` OX-03, OX-04
 

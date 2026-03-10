@@ -100,15 +100,21 @@ Vultron core to AI agent tool calls. Like the CLI and HTTP inbox, the MCP
 server translates external requests into domain use-case invocations without
 containing domain logic.
 
-- `AR-09-001` `PROD_ONLY` A local MCP server adapter MAY be provided at
+**Note**: These requirements are later-prototype items, not production-only.
+They become relevant once `vultron/core/use_cases/` is formalized (P60-3+).
+They are not tagged `PROD_ONLY` because the MCP adapter is a natural extension
+of the hexagonal architecture that will be valuable even in prototype-stage
+multi-actor scenarios.
+
+- `AR-09-001` A local MCP server adapter MAY be provided at
   `vultron/adapters/driving/mcp_server.py`, exposing Vultron use cases as MCP
   tools
-- `AR-09-002` `PROD_ONLY` Each MCP tool MUST map 1:1 to a domain use case in
+- `AR-09-002` Each MCP tool MUST map 1:1 to a domain use case in
   `vultron/core/use_cases/`, with no business logic in the adapter itself
 - `AR-09-003` `PROD_ONLY` The MCP server MUST authenticate tool calls using the
   same actor identity model as the HTTP inbox
-- `AR-09-004` `PROD_ONLY` MCP tool responses MUST use the same structured JSON
-  format as CLI `--output json` responses, enabling consistent AI agent parsing
+- `AR-09-004` MCP tool responses MUST use the same structured JSON format as
+  CLI `--output json` responses, enabling consistent AI agent parsing
 
 The MCP adapter is architecturally equivalent to the CLI adapter: both are
 driving adapters that invoke the same core use cases. The MCP server allows AI
