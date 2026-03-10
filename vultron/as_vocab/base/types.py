@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 """
-Vultron API v2 Routers
+Shared Pydantic type aliases for the Vultron ActivityStreams vocabulary.
+
+Per specs/code-style.md CS-08-002: non-empty string validation SHOULD be
+consolidated into shared type aliases rather than duplicated per-field
+validators.
 """
 
-#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -12,35 +16,20 @@ Vultron API v2 Routers
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from fastapi import APIRouter, Request
+from typing import Annotated, Optional
 
-from vultron.api.v2.routers import (
-    actors,
-    examples,
-    datalayer,
-    health,
-    triggers,
-)
-
-router = APIRouter()
+from pydantic import AfterValidator
 
 
-@router.get("/version", tags=["Version"])
-def get_version(request: Request):
-    """Returns the current version of the Vultron API."""
-    return {"version": request.app.version}
+def _non_empty(v: str) -> str:
+    if not v.strip():
+        raise ValueError("must be a non-empty string")
+    return v
 
 
-router.include_router(actors.router)
-
-router.include_router(datalayer.router)
-
-router.include_router(examples.router)
-
-router.include_router(health.router)
-
-router.include_router(triggers.router)
+NonEmptyString = Annotated[str, AfterValidator(_non_empty)]
+OptionalNonEmptyString = Optional[NonEmptyString]

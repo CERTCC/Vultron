@@ -34,6 +34,24 @@ Reference docs:
 - `docs/topics/behavior_logic/em_propose_bt.md`
 
 
+## Priority 50: Shift toward hexagonal architecture and port/adapter design sooner than later
+
+Closely related to the Actor independence priority that follows, we want to 
+shift towards a cleaner implementation of hexagonal architecture and port/adapter design. 
+This will require some refactoring of the existing codebase to separate 
+concerns more clearly, see `notes/architecture-ports-and-adapters.md` and  
+`specs/architecture.md` for details. This will also enable the future demo 
+scenarios to be more cleanly implemented. A number of implementations of the 
+triggerable behaviors in `vultron/api/v2/routers/triggers.py` (which is too 
+large and also needs to be split) wound up being procedural and mixed domain logic in 
+with router code. Rather than merely splitting the large file, we need to refactor this code to 
+separate concerns and move towards a cleaner architecture at the same time. 
+Also, the datalayer implementation has 
+similar problems where it would be cleaner if we were doing dependency 
+injection in a way that is consistent with the hexagonal architecture.
+This will entail some refactoring of the code base to reorganize modules and 
+split out responsibilities more cleanly.
+
 ## Priority 100: Actor independence
 
 Each actor exists in its own behavior tree domain. So Actor A and Actor B
@@ -41,6 +59,7 @@ cannot see each other's Behavior Tree blackboard at all. They can only interact
 through the Vultron Protocol through passing ActivityStreams messages with
 defined semantics. This allows us to have a clean model of individual
 actors making independent decisions based on their own internal state.
+
 
 ## Priority 200: Case Actor as source of truth for case state
 
@@ -62,15 +81,22 @@ activities to the case owner, such as closing the case or transferring ownership
 These details are defined in the `vultron_as:CaseOwnerActivity`
 in `ontology/vultron_activitystreams.ttl`.
 
-## Priority 300: Demo ideas currently in IDEAS.md
+## Priority 300: Multi-Actor Demo Scenarios
 
-There are a few extended demo ideas in `plan/IDEAS.md` that are currently just
-notes and need to be implemented. These demos will be important for showcasing
-the capabilities of the Vultron Protocol and the behavior tree implementation,
-and for demonstrating how the various components of the system work together
-in practice. Implementing these demos will also help to identify any gaps or
-issues in the current implementation and provide a basis for further  
-development and refinement.
+Extended multi-actor demo scenarios are documented in
+`notes/demo-future-ideas.md`. These demos — Two-Actor (Finder + Vendor),
+Three-Actor (Finder + Vendor + Coordinator), and MultiParty (with ownership
+transfer and expanded participants) — are important for showcasing the
+capabilities of the Vultron Protocol and demonstrating how components work
+together. Implementing these demos will help identify gaps in the current
+implementation and provide a basis for further development and refinement.
+Each scenario requires actors running in independent containers communicating
+via the Vultron Protocol, with CaseActor managing case state.
+
+See `notes/demo-future-ideas.md` for the full scenario descriptions.
+
+
+
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
@@ -101,9 +127,10 @@ humans.
 We want to support agentic AI agents interacting with cases as well on the
 backend (i.e., not as ActivityPub Actors, but as API or command
 line clients.) We may have local agents that interact directly with
-the behavior trees or other internal system components either via a command line
-or API calls. These agents would not be ActivityPub Actors and would not directly
-participate in cases, but would instead be more like assistants to human participants
+the behavior trees or other internal system components via MCP. This would 
+be an adapter that parallels the API and CLI adapters in the hexagonal 
+architecture. These agents would not be ActivityPub Actors and would not 
+directly participate in cases, but would instead be more like assistants to human participants
 who are directing them to perform specific tasks.
 
 We will need to design the system in a way that allows for either of these

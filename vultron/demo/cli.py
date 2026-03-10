@@ -42,6 +42,7 @@ import vultron.demo.receive_report_demo as receive_report_demo
 import vultron.demo.status_updates_demo as status_updates_demo
 import vultron.demo.suggest_actor_demo as suggest_actor_demo
 import vultron.demo.transfer_ownership_demo as transfer_ownership_demo
+import vultron.demo.trigger_demo as trigger_demo
 import vultron.bt.base.demo.pacman as pacman_demo
 import vultron.bt.base.demo.robot as robot_demo
 import vultron.demo.vultrabot as cvd_vultrabot_demo
@@ -61,6 +62,7 @@ DEMOS = [
     ("manage-case", manage_case_demo),
     ("manage-embargo", manage_embargo_demo),
     ("manage-participants", manage_participants_demo),
+    ("trigger", trigger_demo),
 ]
 
 

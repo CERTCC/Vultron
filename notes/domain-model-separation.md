@@ -163,14 +163,42 @@ resistance to production readiness.
 A dict-backed DataLayer scoped per actor. Good for tests; insufficient for
 production or Docker demos where state must survive restarts.
 
-**Implementation note**: The `BackgroundTasks` inbox handler must resolve
-the correct per-actor DataLayer instance from the `actor_id` route parameter.
-Whichever option is chosen, the `get_datalayer` FastAPI dependency MUST
-accept an `actor_id` argument and return an isolated instance.
+### Production Path: MongoDB Community Edition
 
-**Dependencies**: Triggerable behavior endpoints (PRIORITY 30) also need
-per-actor DataLayer resolution. Design both features to share the same
-dependency injection mechanism.
+When implementing PRIORITY 100 (actor independence), the recommended
+production-grade approach is to **replace TinyDB with MongoDB Community
+Edition** running in Docker. This is separate from the namespace prefix
+decision for the TinyDB prototype but should be done in tandem with
+actor independence work, for two reasons:
 
-**See**: `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-100,
+1. **Demonstration credibility**: Showing each actor running in its own
+   container with its own MongoDB-backed DataLayer instance is a much
+   stronger demonstration of true actor independence than a shared TinyDB
+   file with namespace prefixes.
+2. **Docker Compose readiness**: Standardized MongoDB community images
+   and Docker Compose dependency patterns make multi-actor demos
+   straightforward to configure. This is significantly easier than
+   continuing to extend TinyDB for multi-actor scenarios.
+
+**Recommended approach**: Implement Option B (TinyDB namespace prefix)
+as a near-term bridge to make PRIORITY 30 (triggerable behaviors) and
+PRIORITY 100 (actor independence) work without requiring a full database
+swap. Then replace TinyDB with MongoDB as a concurrent or follow-on step
+when building the multi-actor Docker demos in PRIORITY 300.
+
+**Design Decision**: (blocks ACT-1) The MongoDB switch and the
+per-actor namespace isolation SHOULD be implemented together in the same
+phase as PRIORITY 100. The DataLayer interface (`vultron/api/v2/datalayer/
+abc.py`) is already an abstraction layer; the MongoDB backend can be
+implemented as a new concrete implementation behind the same interface.
+
+**See**: `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-100 (ACT-1/ACT-2/ACT-3),
+`notes/demo-future-ideas.md` (multi-actor demo scenarios requiring MongoDB
+or equivalent for PRIORITY 300),
 `notes/triggerable-behaviors.md` "Relationship to Actor Independence".
+
+**Implementation note**: Whichever backing store is chosen, the `BackgroundTasks`
+inbox handler MUST resolve the correct per-actor DataLayer instance from the
+`actor_id` route parameter. The `get_datalayer` FastAPI dependency MUST accept
+an `actor_id` argument and return an isolated instance. Triggerable behavior
+endpoints (PRIORITY 30) share the same dependency injection mechanism.

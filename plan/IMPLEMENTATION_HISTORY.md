@@ -194,6 +194,90 @@ All 19 tasks completed. Key achievements:
 
 ---
 
+## Phase BUGFIX-1 — Pytest Logging Noise (COMPLETE 2026-02-27)
+
+- Root-logger side effect in `app.py` fixed (BUGFIX-1.1)
+- Spurious `print()` calls replaced in four test files (BUGFIX-1.2)
+- Test output clean under `uv run pytest`
+
+---
+
+## Phase REFACTOR-1 — CM-03-006 Status History Renames (COMPLETE 2026-02-27)
+
+- `VulnerabilityCase.case_status` (list) → `case_statuses`; `case_status` added
+  as read-only property (REFACTOR-1.1)
+- `CaseParticipant.participant_status` (list) → `participant_statuses`;
+  `participant_status` added as read-only property (REFACTOR-1.2)
+- All references in handlers, behaviors, and tests updated (REFACTOR-1.3)
+
+---
+
+## Phase TECHDEBT-1, TECHDEBT-5, TECHDEBT-6 (COMPLETE 2026-02-27 / 2026-03-06)
+
+- **TECHDEBT-1**: Handlers split into `vultron/api/v2/backend/handlers/` submodule
+  package with 8 files; `__init__.py` ~100 LOC; full test suite passes.
+- **TECHDEBT-5**: `vultron/scripts/vocab_examples.py` → `vultron/as_vocab/examples/`
+  package; split into 8 submodules (`_base`, `actor`, `case`, `embargo`, `note`,
+  `participant`, `report`, `status`); compatibility shim provided.
+- **TECHDEBT-6**: Shim `vultron/scripts/vocab_examples.py` removed (commit 29005e4);
+  all callers updated to import directly from `vultron.as_vocab.examples`.
+
+---
+
+## Phase SPEC-COMPLIANCE-1 — Object Model Gaps (COMPLETE 2026-03-06)
+
+- **SC-1.1**: `VulnerabilityRecord` Pydantic model added
+  (`vultron/as_vocab/objects/vulnerability_record.py`); unit tests added.
+- **SC-1.2**: `CaseReference` Pydantic model added
+  (`vultron/as_vocab/objects/case_reference.py`); unit tests added.
+  (Previously named `Publication`; renamed per commit ad46802.)
+- **SC-1.3**: `create_case` BT verified to record vendor as initial
+  `CaseParticipant`; `SetCaseAttributedTo` and `CreateInitialVendorParticipant`
+  BT nodes added to `vultron/behaviors/case/nodes.py`.
+
+---
+
+## Phase SPEC-COMPLIANCE-2 — Embargo Policy Model (COMPLETE 2026-03-06)
+
+- **EP-1.1**: `EmbargoPolicy` Pydantic model added
+  (`vultron/as_vocab/objects/embargo_policy.py`).
+- **EP-1.2**: `VultronActorMixin` + `VultronPerson`, `VultronOrganization`,
+  `VultronService` subclasses added (`vultron/as_vocab/objects/vultron_actor.py`);
+  16 new tests; actor AS types preserved.
+
+---
+
+## Phase SPEC-COMPLIANCE-3 partial — SC-3.1 + SC-PRE-1 (COMPLETE 2026-03-06)
+
+- **SC-3.1**: `accepted_embargo_ids: list[str]` field added to `CaseParticipant`
+  (CM-10-001, CM-10-003); serialization round-trip tests pass.
+- **SC-PRE-1**: `CaseEvent` plain Pydantic model added
+  (`vultron/as_vocab/objects/case_event.py`); `VulnerabilityCase.events:
+  list[CaseEvent]` field and `record_event()` append-only helper added;
+  19 tests in `test/as_vocab/test_case_event.py`. Key invariant: `received_at`
+  is always set via `now_utc()` — callers MUST NOT pass `received_at` from
+  an incoming activity payload.
+
+---
+
+## Phase PRIORITY-30 partial — P30-1 through P30-3 (COMPLETE 2026-03-06)
+
+- **P30-1**: `vultron/api/v2/routers/triggers.py` created; `validate-report`
+  endpoint with `ValidateReportRequest` model (extra="ignore"); structured 404
+  helpers; outbox-diff strategy to retrieve resulting activity; registered in
+  `v2_router.py`; 9 tests in `test/api/v2/routers/test_triggers.py`. 702 tests
+  passing at completion.
+- **P30-2**: `invalidate-report` and `reject-report` endpoints added; procedural
+  implementation emitting `RmInvalidateReport` (TentativeReject) and
+  `RmCloseReport` (Reject) respectively; empty `note` on `reject-report` logs
+  WARNING per TB-03-004; 17 new tests; 719 tests passing.
+- **P30-3**: `engage-case` and `defer-case` endpoints added; procedural
+  implementation emitting `RmEngageCase` (Join) and `RmDeferCase` (Ignore);
+  `CaseTriggerRequest` model; `_resolve_case` and `_update_participant_rm_state`
+  helpers; 17 new tests; 736 tests passing.
+
+---
+
 ## Resolved Design Decisions
 
 | # | Question | Decision |

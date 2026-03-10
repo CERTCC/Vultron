@@ -55,7 +55,6 @@ from vultron.as_vocab.base.objects.actors import as_Actor
 from vultron.as_vocab.objects.case_participant import (
     CoordinatorParticipant,
     FinderReporterParticipant,
-    VendorParticipant,
 )
 from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
@@ -84,6 +83,9 @@ def setup_case_precondition(
     """
     Sets up the precondition for the demo: a case owned by the vendor with
     a validated report and vendor as the only participant.
+
+    The vendor participant is created automatically by the create_case BT
+    (CM-02-008), so no explicit VendorParticipant creation is needed here.
 
     Returns:
         Tuple of (report, case) for use in the demo workflow.
@@ -120,24 +122,6 @@ def setup_case_precondition(
         as_object=case,
     )
     post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
-
-    vendor_participant = VendorParticipant(
-        attributed_to=vendor.as_id,
-        context=case.as_id,
-    )
-    create_vendor_participant = CreateParticipant(
-        actor=vendor.as_id,
-        as_object=vendor_participant,
-        context=case.as_id,
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, create_vendor_participant)
-
-    add_vendor_participant = AddParticipantToCase(
-        actor=vendor.as_id,
-        as_object=vendor_participant.as_id,
-        target=case.as_id,
-    )
-    post_to_inbox_and_wait(client, vendor.as_id, add_vendor_participant)
 
     add_report_activity = AddReportToCase(
         actor=vendor.as_id,

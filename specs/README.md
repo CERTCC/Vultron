@@ -14,6 +14,13 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Core Architecture
 
+**System Architecture**:
+
+- **`architecture.md`** - Hexagonal architecture (Ports and Adapters): layer
+  separation rules, SemanticIntent placement, extractor isolation, adapter
+  injection, connector plugins, wire replaceability, review checklist
+  (ARCH-01 through ARCH-08)
+
 **Handler Pipeline** (message processing flow):
 
 1. **`inbox-endpoint.md`** - FastAPI HTTP endpoint accepting ActivityStreams activities
@@ -84,7 +91,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 ### Code Standards
 
 - **`code-style.md`** - Python formatting, import organization, circular import
-  prevention, optional-field non-emptiness (CS-08-001)
+  prevention, optional-field non-emptiness (CS-08-001), code reuse (CS-09-001)
 - **`tech-stack.md`** - Normative technology constraints: runtime, persistence,
   tooling, and code quality tooling (including pyright gradual adoption, IMPL-TS-*)
 - **`meta-specifications.md`** - How to write and maintain specifications
@@ -138,7 +145,36 @@ Example: `HP-04-002` = Handler Protocol, category 4 (Payload Access), requiremen
 
 **Note**: The `HP-` prefix is reserved for `handler-protocol.md`. The
 `http-protocol.md` file uses the `HTTP-` prefix to avoid ambiguity. The
-`diataxis-requirements.md` file uses the `DF-` prefix.
+`diataxis-requirements.md` file uses the `DF-` prefix. The
+`triggerable-behaviors.md` file uses the `TRIG-` prefix (not `TB-`, which
+is reserved for `testability.md`).
+
+### Prefix Registry
+
+| Prefix | Specification file |
+|--------|--------------------|
+| `ARCH` | `architecture.md` |
+| `AR` | `agentic-readiness.md` |
+| `BT` | `behavior-tree-integration.md` |
+| `CM` | `case-management.md` |
+| `CS` | `code-style.md` |
+| `DF` | `diataxis-requirements.md` |
+| `EH` | `error-handling.md` |
+| `EP` | `embargo-policy.md` |
+| `HP` | `handler-protocol.md` |
+| `HTTP` | `http-protocol.md` |
+| `IE` | `inbox-endpoint.md` |
+| `IMPL-TS` | `tech-stack.md` |
+| `MV` | `message-validation.md` |
+| `OB` | `observability.md` |
+| `OX` | `outbox.md` |
+| `PD` | `project-documentation.md` |
+| `PROTO` | `prototype-shortcuts.md` |
+| `RF` | `response-format.md` |
+| `SE` | `semantic-extraction.md` |
+| `SL` | `structured-logging.md` |
+| `TB` | `testability.md` |
+| `TRIG` | `triggerable-behaviors.md` |
 
 ## Requirement Tags
 
@@ -184,7 +220,7 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-03-04)**:
+**Summary (2026-03-09)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer
@@ -197,11 +233,15 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
 - ✅ **Unified demo CLI complete** (`vultron-demo`): See `specs/demo-cli.md`
   and `plan/IMPLEMENTATION_PLAN.md` (Phase DEMO-4)
 - ✅ **TECHDEBT-6 complete**: `vultron/scripts/vocab_examples.py` shim removed
-- ✅ **592 tests passing**, 0 xfailed (2026-03-03)
+- ✅ **Object model gap closed**: `VulnerabilityRecord`, `CaseReference`,
+  `EmbargoPolicy`, `VultronActorMixin` models added (SC-1.1, SC-1.2, EP-1.1,
+  EP-1.2)
+- ✅ **736 tests passing**, 0 xfailed (2026-03-06)
 - ⚠️ **Production readiness partial**: Request validation, error responses
   need work
-- ❌ **Triggerable behaviors not implemented**: See `triggerable-behaviors.md`
-  (PRIORITY 30, highest current priority)
+- ⚠️ **Triggerable behaviors partially implemented**: P30-1 through P30-3
+  complete (`validate-report`, `invalidate-report`, `reject-report`,
+  `engage-case`, `defer-case`); P30-4 through P30-6 remain
 - ❌ **Response generation not started**: See `response-format.md`
 - ❌ **Outbox delivery not implemented**: See `outbox.md` OX-03, OX-04
 
@@ -223,8 +263,8 @@ When updating specifications:
 ## Related Documentation
 
 - **Implementation Plan**: `plan/IMPLEMENTATION_PLAN.md`
-- **Implementation Notes**: `plan/IMPLEMENTATION_NOTES.md`
 - **Architecture Decisions**: `docs/adr/*.md`
+- **Design Insights**: `notes/` — durable design insights and lessons learned
 - **ActivityPub Workflows**: `docs/howto/activitypub/activities/*.md`
 - **Agent Instructions**: `AGENTS.md` (AI coding agent guidance)
 - **Copilot Instructions**: Embedded in system context (development guidance)

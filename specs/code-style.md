@@ -134,3 +134,36 @@ def extract_id_segment(url: str) -> str:
   - **Rationale**: Distinguishes "not provided" from "provided but blank",
     preventing ambiguous database states and simplifying downstream
     validation logic
+- `CS-08-002` Non-empty string validation SHOULD be consolidated into a
+  shared type alias rather than duplicated per-field validators
+  - Define a `NonEmptyString` type (e.g., `Annotated[str, Field(min_length=1)]`)
+    in a shared base module (e.g., `vultron/as_vocab/base/`)
+  - Define an `OptionalNonEmptyString` type alias
+    (e.g., `Optional[NonEmptyString]`) for nullable fields that follow CS-08-001
+  - Replace per-field `@field_validator` stubs that only check `if not v` or
+    `if not v.strip()` with the shared type
+  - **Rationale**: Eliminates boilerplate across many object models; makes the
+    empty-string invariant visible in the field type signature rather than
+    buried in a validator; aligns with Python/Pydantic idioms for reusable
+    constraints
+  - CS-08-002 refines CS-08-001
+
+## Code Reuse (SHOULD)
+
+- `CS-09-001` New code SHOULD NOT duplicate logic already present elsewhere;
+  prefer extracting shared logic into reusable helpers, base classes, or type
+  aliases
+  - Before creating a new function, class, or Pydantic model, check whether
+    an existing one can be reused or extended
+  - When a pattern repeats across three or more call sites, extract it into a
+    shared helper
+  - **Rationale**: Duplication inflates maintenance cost and allows bug fixes
+    to be applied inconsistently
+- `CS-09-002` Pydantic request and response models for API endpoints SHOULD be
+  reused or inherited rather than duplicated
+  - If two request models are structurally identical, define one and alias or
+    inherit the other
+  - If a new request model adds one field to an existing model, subclass the
+    existing model
+  - **Rationale**: Duplicated models diverge silently over time; a hierarchy
+    makes the relationship explicit and reduces boilerplate

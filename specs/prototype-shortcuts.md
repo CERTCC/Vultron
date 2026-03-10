@@ -23,6 +23,13 @@ during the prototype stage.
 - `PROTO-02-002` Post direct messages to an actor's inbox without federation
   or cross-server routing.
 
+**Note**: The intended production federation model uses AS2 as a vocabulary
+(not full ActivityPub), with bilateral/multilateral trust between known peer
+instances, mTLS transport, actor/inbox/outbox model, per-case CaseActors,
+journal + delivery log, and connector plugins. See
+`notes/federation_ideas.md` for the full federation design, open questions,
+and Python stack candidates.
+
 ## Performance (SHOULD)
 
 - `PROTO-03-001` Avoid algorithms with exponential or worse time complexity.

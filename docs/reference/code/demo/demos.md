@@ -76,6 +76,12 @@ standalone via `python -m vultron.demo.<script>` or through the unified CLI
     options:
         heading_level: 3
 
+## trigger
+
+::: vultron.demo.trigger_demo
+    options:
+        heading_level: 3
+
 ## vultrabot (CVD BT Demo)
 
 ::: vultron.demo.vultrabot

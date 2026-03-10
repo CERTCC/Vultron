@@ -203,6 +203,28 @@ before general ones.
 See `specs/dispatch-routing.md`, `specs/semantic-extraction.md`, and ADR-0007
 for complete architecture details.
 
+### Hexagonal Architecture (Ports and Adapters)
+
+The target architecture is **Hexagonal** (Ports and Adapters). The core domain
+is isolated from external systems; adapters translate between external protocols
+and domain types. Rules:
+
+- **Core has no wire format imports**: no AS2, `pyld`, `rdflib`, JSON-LD
+- **Core has no framework imports**: no `fastapi`, `httpx`, `celery`, `nats`
+- **`MessageSemantics` is a domain type**: defined in core, not in the wire
+  layer
+- **Extractor is the only AS2→domain mapping point**: handlers never inspect
+  AS2 types
+- **Core functions take domain types**: the inbound pipeline finishes
+  parse → extract before calling into core
+- **Driven adapters injected via ports**: handlers do not call `get_datalayer()`
+  directly (deferred in prototype — see PROTO-06-001)
+
+See `notes/architecture-ports-and-adapters.md` for the full architecture
+specification and code patterns. See `notes/architecture-review.md` for the
+current violation inventory (V-01 to V-12) and remediation plan. See
+`specs/architecture.md` for the formal requirements (ARCH-01 to ARCH-08).
+
 ### Protocol Activity Model
 
 Vultron activities are **state-change notifications**, not commands.
@@ -359,10 +381,14 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - Use Protocol for interface definitions
 - Avoid global mutable state
 - **Optional string fields MUST follow "if present, then non-empty"**:
-  `Optional[str]` fields MUST reject empty strings. Use a Pydantic validator
-  that raises `ValueError` for `""`. This pattern also applies to JSON Schemas
-  derived from Pydantic models (`minLength: 1`). See `specs/code-style.md`
-  CS-08-001.
+  `Optional[str]` fields MUST reject empty strings. Use the shared
+  `NonEmptyString` or `OptionalNonEmptyString` type alias from
+  `vultron/as_vocab/base/` when it exists (CS-08-002), or a field validator
+  that raises `ValueError` for `""` if the type alias is not yet available.
+  This pattern also applies to JSON Schemas derived from Pydantic models
+  (`minLength: 1`). See `specs/code-style.md` CS-08-001, CS-08-002.
+  **Do NOT** add a new per-field `@field_validator` stub for empty-string
+  rejection; instead, use or extend the shared type alias.
 
 ### Decorator Usage
 
@@ -555,6 +581,9 @@ behavior across backends (in-memory / tinydb) where reasonable.
   mapping
 - **Dispatcher**: `vultron/behavior_dispatcher.py` - Dispatch logic
 - **Inbox**: `vultron/api/v2/routers/actors.py` - Endpoint implementation
+- **Triggers**: `vultron/api/v2/routers/triggers.py` - Triggerable behavior
+  endpoints (`POST /actors/{id}/trigger/{behavior-name}`); see
+  `specs/triggerable-behaviors.md`
 - **Errors**: `vultron/errors.py`, `vultron/api/v2/errors.py` - Exception
   hierarchy
 - **Data Layer**: `vultron/api/v2/datalayer/abc.py` - Persistence abstraction
@@ -566,6 +595,9 @@ behavior across backends (in-memory / tinydb) where reasonable.
 - **BT Prioritize**: `vultron/behaviors/report/prioritize_tree.py` -
   engage_case/defer_case trees
 - **BT Case**: `vultron/behaviors/case/` - Case creation tree and nodes
+- **Case Event Log**: `vultron/as_vocab/objects/case_event.py` -
+  `CaseEvent` Pydantic model for trusted-timestamp event logging; use
+  `VulnerabilityCase.record_event(object_id, event_type)` to append entries
 - **Vocabulary Examples**: `vultron/as_vocab/examples/` - Canonical
   ActivityStreams activity examples (split into submodules by topic:
   `actor.py`, `case.py`, `embargo.py`, `note.py`, `participant.py`,
@@ -816,6 +848,20 @@ Not all handlers need BT execution. Use this guide when deciding:
 - Logging-only or passthrough operations
 
 **Uncertain?** Start procedural; refactor to BT if branching complexity grows.
+
+**Trigger behavior logic belongs outside the API router**: Triggerable
+behavior implementations (BT or procedural) MUST live in separate modules
+that can be called from both API endpoints and CLI commands. API routers
+handle only request parsing, validation, and response formatting — they
+delegate immediately to the behavior implementation. This supports the
+hexagonal architecture goal of keeping business logic independent of the
+transport layer. See `specs/architecture.md` ARCH-08-001.
+
+**Reuse request/response models before creating new ones**: Before adding a
+new Pydantic request or response model to a router, check whether an existing
+model can be reused or subclassed. If two models are structurally identical,
+define one and reuse it. If a new model adds one field to an existing model,
+subclass the existing model. See `specs/code-style.md` CS-09-002.
 
 **`EvaluateCasePriority` is outgoing-only**: This BT node (in
 `vultron/behaviors/report/nodes.py`) is for the **local actor deciding** to
@@ -1081,6 +1127,34 @@ this rename has not yet landed in the code.
 
 **See also**: `notes/case-state-model.md` "CaseStatus and ParticipantStatus as
 Append-Only History", CM-03-006.
+
+---
+
+### CaseEvent Trusted Timestamps: Use `record_event()`, Never Copy Activity Timestamps
+
+**Symptom**: Case event log entries have incorrect ordering or show timestamps
+that differ across actor copies of the same case.
+
+**Cause**: Handler copies the `published` or `updated` timestamp from the
+incoming ActivityStreams activity into the event log entry, rather than
+using the server clock.
+
+**Fix**: Always record case events via `VulnerabilityCase.record_event()`:
+
+```python
+case.record_event(object_id=embargo.as_id, event_type="embargo_accepted")
+```
+
+`record_event()` sets `received_at` to `now_utc()` internally. **Never
+pass `received_at` as an argument** — the helper intentionally omits that
+parameter to enforce the invariant.
+
+**Rationale**: The CaseActor's clock is the only trusted source of event
+ordering within a case. Using participant-supplied timestamps would allow
+different actor copies of a case to disagree on ordering.
+
+See `specs/case-management.md` CM-02-009; `notes/case-state-model.md`
+"CaseEvent Model for Trusted Timestamps".
 
 ---
 

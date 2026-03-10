@@ -179,8 +179,9 @@ Content-Type: application/json
 }
 ```
 
-A formal spec SHOULD be drafted (see `plan/IMPLEMENTATION_PLAN.md` P30-1)
-before implementing.
+The formal spec is `specs/triggerable-behaviors.md` (TRIG-01 through
+TRIG-07). See `plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-30 for
+implementation status.
 
 ---
 
@@ -527,3 +528,84 @@ with embargoes.
 
 This is a PRIORITY 300 item (related to `notes/do-work-behaviors.md`
 "Reporting Behavior as Central Coordination").
+
+---
+
+## Resolved Design Decisions: Trigger Implementation (P30-1 through P30-3)
+
+These decisions were reached during initial implementation of the trigger
+endpoints in `vultron/api/v2/routers/triggers.py`.
+
+### P30-1: Outbox Diff Strategy for Retrieving the Resulting Activity
+
+`trigger_validate_report` (and similar BT-backed triggers) needs to return
+the resulting ActivityStreams activity in the response body (TRIG-04-001).
+The BT writes the new activity ID to `actor.outbox.items` via the
+`UpdateActorOutbox` node.
+
+**Design decision**: Snapshot the actor's outbox ID set before BT execution,
+then subtract after execution to find newly added activity IDs. The diff is a
+set subtraction on string IDs.
+
+**Rationale**: Avoids modifying the bridge layer or BT nodes for a specific
+trigger use case. Concurrency-safe as long as each BT execution produces a
+distinct UUID-based activity ID (guaranteed by existing BT node
+implementations).
+
+**Implication**: This approach couples the trigger endpoint to the outbox
+data model. If the outbox model changes (e.g., moving to a separate outbox
+collection), the snapshot/diff logic must also be updated.
+
+### P30-2: Report Triggers are Procedural (invalidate-report, reject-report)
+
+`invalidate-report` and `reject-report` are implemented procedurally, not
+as BT trees. Per AGENTS.md guidance, simple linear workflows with no
+branching SHOULD use procedural code.
+
+- `invalidate-report`: Creates `RmInvalidateReport` (TentativeReject) directly.
+- `reject-report`: Creates `RmCloseReport` (Reject) directly; requires a
+  non-empty `note` field (TRIG-03-004).
+
+**Shared helper**: `_add_activity_to_outbox()` was extracted to DRY up the
+outbox-append pattern across multiple trigger endpoints (avoids repeating the
+same DataLayer read → append → write sequence).
+
+**`reject-report` `note` field semantics**: The spec says the value SHOULD be
+non-empty (not MUST). An empty `note` string logs a WARNING but is accepted.
+This is enforced via a `@field_validator` on `RejectReportRequest.note` rather
+than a `NonEmptyString` type, because the rule is advisory (SHOULD), not
+mandatory (MUST).
+
+### P30-3: Case Triggers are Procedural (engage-case, defer-case)
+
+`engage-case` and `defer-case` are also implemented procedurally. Key pattern
+differences from report triggers:
+
+- **`_resolve_case()` helper**: Reads the case from the DataLayer and returns
+  HTTP 404 if absent or HTTP 422 if the resolved object is not a
+  `VulnerabilityCase`. Shared across case-scoped trigger endpoints.
+- **`_update_participant_rm_state()` helper**: Locates the actor's own
+  `CaseParticipant` record in the DataLayer (participants are stored as ID
+  strings in `case.case_participants`, so each must be fetched individually)
+  and updates `participant_statuses`. If no participant record exists for the
+  actor, a WARNING is logged and the endpoint still returns 202 (non-blocking).
+- **State update target**: The participant document is updated directly, not
+  the case document, consistent with existing BT node patterns.
+- **Relationship to receive-side BTs**: `EngageCaseBT`/`DeferCaseBT` handle
+  the *inbound* case — recording another actor's already-made decision.
+  The trigger endpoints handle the *outbound* case — the local actor deciding
+  to engage or defer. The `EvaluateCasePriority` BT node is
+  **outgoing-only** and does NOT appear in the receive-side trees.
+
+### Request Model DRY Pattern
+
+When implementing trigger request models, check existing models first:
+
+- `ValidateReportRequest` and `InvalidateReportRequest` are identical;
+  prefer a shared base class over two independent models.
+- `RejectReportRequest` extends the base by adding a required `note` field.
+- All request models SHOULD use `model_config = ConfigDict(extra="ignore")`
+  for forward-compatibility (TRIG-03-002).
+
+**See also**: `specs/triggerable-behaviors.md`, `AGENTS.md`
+"When to Use Behavior Trees".

@@ -25,7 +25,7 @@ class MyTestCase(unittest.TestCase):
         node.bb = ActorState()
 
         self.assertIn("q_rm", node.name)
-        self.assertIn(state.name, node.name)
+        self.assertIn(state.value, node.name)
 
         for rm_state in RM:
             node.bb.q_rm = rm_state

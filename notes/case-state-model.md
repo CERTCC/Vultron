@@ -277,6 +277,14 @@ auditability and the single-source-of-truth guarantee provided by CM-02-002.
 Directly setting `.em_state` on the `case_status` list attribute is a bug
 (lists do not support arbitrary attribute assignment).
 
+**Trusted timestamp implementation note**: When the spec says the CaseActor
+must timestamp state-changing events on receipt, this does NOT mean modifying
+the `updated_at` field on the receiving or participating object. It means the
+CaseActor records the event to an **append-only event log on the case**
+(see "CaseEvent Model" below). The distinction matters: modifying an existing
+object's timestamp would break the append-only history invariant and allow
+event-ordering disagreements across actor copies.
+
 **Cross-reference**: `vultron/as_vocab/objects/vulnerability_case.py` (the
 `current_status` property), `vultron/as_vocab/objects/case_status.py`.
 
@@ -307,6 +315,110 @@ Pending)"; `specs/case-management.md` CM-03-006.
 
 ---
 
+## CaseEvent Model for Trusted Timestamps (SC-PRE-1) ✅ Implemented
+
+The `CaseEvent` model is implemented in
+`vultron/as_vocab/objects/case_event.py`. `VulnerabilityCase` has an
+`events: list[CaseEvent]` field and a `record_event(object_id, event_type)`
+append-only helper. Tests in `test/as_vocab/test_case_event.py` (19 tests)
+cover creation, serialization, and round-trip through TinyDB.
+
+The design is described below for reference. The key invariant is
+**`received_at` is always set by the server clock** via `now_utc()`
+inside `record_event()` — callers MUST NOT pass `received_at` from
+an incoming activity payload.
+
+### CaseEvent Model Fields
+
+- `object_id: str` — ID of the object being acted upon
+- `event_type: str` — short descriptor (e.g., `"embargo_accepted"`,
+  `"participant_joined"`, `"note_added"`, `"status_updated"`)
+- `received_at: datetime` — server-generated TZ-aware UTC timestamp;
+  defaults to `now_utc()` (microseconds stripped); serializes to
+  ISO 8601 UTC string; `field_validator` accepts ISO 8601 strings
+  on deserialization
+
+### How to record an event
+
+```python
+case.record_event(object_id=embargo.as_id, event_type="embargo_accepted")
+```
+
+Do NOT pass `received_at` — let it default to `now_utc()`.
+
+### Remaining work
+
+SC-PRE-1 provides the model and helper. Handlers have not yet been
+updated to call `record_event()` — that is tracked in SC-3.2.
+Pre-case event backfill at case creation is tracked in TECHDEBT-10.
+
+**Design Decision**: `received_at` is set by the handler (server clock),
+never copied from the incoming activity's own timestamp fields. This is
+the invariant that makes the CaseActor the sole trusted source of event
+ordering within a case.
+
+**Cross-reference**: `specs/case-management.md` CM-02-009, CM-10-002;
+`plan/IMPLEMENTATION_PLAN.md` SC-PRE-1, TECHDEBT-10.
+
+---
+
+## Actor-to-Participant Index (SC-PRE-2)
+
+Several handlers (including `accept_invite_to_embargo_on_case` and
+`accept_invite_actor_to_case`) need to resolve an **Actor ID → CaseParticipant
+ID** mapping within the context of a specific case. Without a fast lookup,
+handlers must iterate all participants, which is fragile and error-prone.
+
+### Design
+
+Add `actor_participant_index: dict[str, str] = Field(default_factory=dict)`
+to `VulnerabilityCase`:
+
+- Key: `actor_id` string (full URI)
+- Value: `participant_id` string (full URI of the `CaseParticipant` object)
+- This field is a **derived index** — it MUST be excluded from
+  ActivityStreams serialization (use `exclude=True` in the field definition
+  or an equivalent Pydantic v2 pattern) because it is not protocol data
+
+### Participant Management Methods
+
+Add two methods to `VulnerabilityCase`:
+
+- `add_participant(participant: CaseParticipant)`: appends
+  `participant.as_id` to `case_participants`; records
+  `actor_id → participant.as_id` in `actor_participant_index`; raises
+  (or no-ops) if the actor is already registered — choose one behavior
+  and enforce it consistently
+- `remove_participant(participant_id: str)`: removes from
+  `case_participants`; removes the corresponding actor key from
+  `actor_participant_index`
+
+### Handler Updates
+
+All handlers that currently write to `case.case_participants` directly MUST
+be updated to call `case.add_participant()` or `case.remove_participant()`:
+
+- `accept_invite_actor_to_case` (actor handler)
+- `create_case` BT node `CreateInitialVendorParticipant`
+  (`behaviors/case/nodes.py`)
+- `remove_case_participant_from_case` (participant handler)
+- Any other handler that appends or removes participants
+
+**Invariant**: The index MUST always reflect the contents of
+`case_participants`. Out-of-sync states MUST NOT be possible via normal
+code paths.
+
+**Open Question**: (blocks SC-PRE-2) Whether to raise or silently no-op on
+duplicate `add_participant()` calls. Recommend raise for correctness;
+handlers should guard with an existence check before calling
+`add_participant()` to keep idempotency logic explicit.
+
+**Cross-reference**: `specs/case-management.md` CM-10-002, CM-10-001;
+`plan/IMPLEMENTATION_PLAN.md` SC-PRE-2; `AGENTS.md` "Cases should have
+participant-to-actor and vice versa indexes".
+
+---
+
 ## RM and EM State Machines (Cross-Reference)
 
 Case State (CS) is one of three interacting state machines:
@@ -325,3 +437,52 @@ See `docs/topics/process_models/rm/`, `docs/topics/process_models/em/`, and
 `docs/topics/process_models/cs/` for process model documentation. See
 `docs/reference/formal_protocol/` for formal state machine definitions with
 transition rules.
+
+---
+
+## Pre-Case Event Backfill on Case Creation
+
+When a new case is created, several events have already occurred that should
+be recorded in the case log:
+
+- The initial `Offer(Report)` from the reporter
+- Any pre-case messages exchanged between recipient and reporter (if any)
+- Acknowledgment of the Offer (if any)
+- Acceptance of the Offer
+- Case creation itself
+- Initial participant creation and add events
+
+**Design decision**: Events like "add participant" can be captured at the
+add-participant step as part of normal case flow. Events that predate the
+case (Offer, pre-case messages, Accept) need to be backfilled at case
+creation time.
+
+**Open question**: The backfill mechanism could be an event-logger decorator
+that captures timestamps on activities as they occur. This would avoid
+duplicating backfill logic across case creation steps.
+
+**See**: `specs/case-management.md` for case creation requirements;
+`notes/activitystreams-semantics.md` for the case activity log constraints.
+
+---
+
+## Multi-Vendor Case State Action Rules
+
+When implementing the case state action rules (see `specs/agentic-readiness.md`
+and `specs/case-management.md`), the rules must distinguish two perspectives:
+
+1. **Participant-specific rules**: Evaluated against a single participant's
+   RM/VFD state (applies to each vendor independently).
+2. **Case-level rules (CaseActor/Case Owner perspective)**: Must aggregate
+   across all relevant participants. For example, an `EMBARGO_END` trigger
+   MUST NOT be based on a single vendor reaching `FIX_READY` when other
+   vendors have not.
+
+**Design decision**: (open) Threshold heuristics for multi-vendor rules
+(e.g., "all engaged vendors in FIX_READY", "≥X% of vendors with FIX_READY")
+need to be formally specified. A cognitive agent delegating the judgment
+call is an alternative to fixed heuristics.
+
+**See**: `specs/agentic-readiness.md` and `specs/case-management.md` for
+the CVD action rules; `notes/bt-fuzzer-nodes.md` for related external
+touchpoints.

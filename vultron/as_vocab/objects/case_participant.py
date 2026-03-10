@@ -66,6 +66,7 @@ class CaseParticipant(VultronObject):
     name: str | None = None
     case_roles: list[CVDRole] = Field(default_factory=list)
     participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
+    accepted_embargo_ids: list[str] = Field(default_factory=list)
     participant_case_name: str | None = Field(default=None, exclude=True)
     context: as_Link | str | None = Field(default=None, repr=True)
 

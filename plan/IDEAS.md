@@ -1,24 +1,10 @@
 # Project Ideas
 
-## ~~Add pyright for linting and type checking~~
+## Add MCP to `specs/agentic-readiness.md`
 
-> **Captured in**: `specs/tech-stack.md` `IMPL-TS-07-002`
-
-~~We'd like to start using pyright for static type checking and linting (in~~
-~~addition to black for formatting). This will help us catch type errors and~~
-~~enforce consistent type annotations across the codebase. However, since this~~
-~~is a new requirement, we should make a gradual transition to it rather than~~
-~~enforcing it immediately on all code. What this might look like in practice~~
-~~is that we add pyright to the project and run it on all the existing code,~~
-~~noting any critical errors as technical debt to be addressed over time, then~~
-~~enforce it on all new and modified source going forward. We might also~~
-~~leverage the pyright configuration to allow for gradual adoption, such as by~~
-~~setting a higher error threshold for existing code and a stricter threshold~~
-~~for new code or ignoring less critical errors in legacy code while enforcing~~
-~~all errors in new code. It is possible that we might want to use different~~
-~~configuration files depending on which folder we are in, or based on whether~~
-~~we're checking old code vs new code. Use expert knowledge of pyright~~
-~~configuration to design an effective strategy for this transition and ensure~~
-~~that it is captured as part of the specs and implementation plan for the~~
-~~project.~~
-
+We are going to want to allow for a local MCP server to access triggerable 
+behaviors and interact with the system in a way that parallels the API and 
+CLI adapters in the hexagonal architecture. We will need incorporate this 
+into `specs/agentic-readiness.md` to ensure that the necessary specifications 
+are in place to support this type of integration in the future without requiring
+major refactoring.
