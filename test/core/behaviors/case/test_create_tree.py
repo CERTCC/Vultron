@@ -27,10 +27,10 @@ import pytest
 from py_trees.common import Status
 
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+from vultron.core.models.vultron_types import (
+    VultronCase,
+    VultronCaseActor,
+    VultronReport,
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.case.create_tree import create_create_case_tree
@@ -48,14 +48,14 @@ def actor_id():
 
 @pytest.fixture
 def actor(datalayer, actor_id):
-    obj = as_Service(as_id=actor_id, name="Vendor Co")
+    obj = VultronCaseActor(as_id=actor_id, name="Vendor Co")
     datalayer.create(obj)
     return obj
 
 
 @pytest.fixture
 def report(datalayer):
-    obj = VulnerabilityReport(
+    obj = VultronReport(
         as_id="https://example.org/reports/CVE-2024-001",
         name="Test Vulnerability Report",
         content="Buffer overflow in component X",
@@ -66,10 +66,10 @@ def report(datalayer):
 
 @pytest.fixture
 def case_obj(report):
-    return VulnerabilityCase(
+    return VultronCase(
         as_id="https://example.org/cases/case-001",
         name="Test Case",
-        vulnerability_reports=[report],
+        vulnerability_reports=[report.as_id],
     )
 
 
@@ -131,8 +131,6 @@ def test_create_case_tree_creates_case_actor(
 ):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
     bridge.execute_with_setup(tree=tree, actor_id=actor.as_id, activity=None)
-    from vultron.wire.as2.vocab.objects.case_actor import CaseActor
-
     all_objects = datalayer.get_all("Service")
     case_actors = [
         r
@@ -213,9 +211,6 @@ def test_create_case_tree_creates_vendor_participant(
     datalayer, actor, case_obj, bridge
 ):
     """A VendorParticipant SHOULD be created and added to case_participants (CM-02-008)."""
-    from vultron.wire.as2.vocab.objects.case_participant import (
-        VendorParticipant,
-    )
     from vultron.bt.roles.states import CVDRoles as CVDRole
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
@@ -282,12 +277,12 @@ def test_create_case_tree_records_offer_received_event_when_present(
     datalayer, actor, case_obj, bridge
 ):
     """If the triggering activity has in_reply_to, an offer_received event MUST be recorded (CM-02-009)."""
-    from vultron.wire.as2.vocab.base.objects.base import as_Base
+    from vultron.core.models.vultron_types import VultronOffer
 
     offer_id = "https://example.org/activities/offer-001"
 
     class FakeActivity:
-        in_reply_to = as_Base(as_id=offer_id)
+        in_reply_to = VultronOffer(as_id=offer_id)
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
     bridge.execute_with_setup(
@@ -323,12 +318,12 @@ def test_create_case_tree_offer_received_before_case_created(
     datalayer, actor, case_obj, bridge
 ):
     """offer_received event MUST appear before case_created in the event log."""
-    from vultron.wire.as2.vocab.base.objects.base import as_Base
+    from vultron.core.models.vultron_types import VultronOffer
 
     offer_id = "https://example.org/activities/offer-002"
 
     class FakeActivity:
-        in_reply_to = as_Base(as_id=offer_id)
+        in_reply_to = VultronOffer(as_id=offer_id)
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
     bridge.execute_with_setup(

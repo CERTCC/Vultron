@@ -25,11 +25,11 @@ import pytest
 from py_trees.common import Status
 
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+from vultron.core.models.vultron_types import (
+    VultronCase,
+    VultronCaseActor,
+    VultronParticipant,
+    VultronReport,
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.prioritize_tree import (
@@ -51,14 +51,14 @@ def actor_id():
 
 @pytest.fixture
 def actor(datalayer, actor_id):
-    obj = as_Service(as_id=actor_id, name="Vendor Co")
+    obj = VultronCaseActor(as_id=actor_id, name="Vendor Co")
     datalayer.create(obj)
     return obj
 
 
 @pytest.fixture
 def report(datalayer):
-    obj = VulnerabilityReport(
+    obj = VultronReport(
         as_id="https://example.org/reports/CVE-2024-001",
         name="Test Report",
         content="Buffer overflow",
@@ -70,15 +70,15 @@ def report(datalayer):
 @pytest.fixture
 def case_with_participant(datalayer, actor_id, actor, report):
     """Case with the test actor as a CaseParticipant."""
-    participant = CaseParticipant(
+    participant = VultronParticipant(
         as_id="https://example.org/participants/vendor-cp-001",
         attributed_to=actor_id,
         context="https://example.org/cases/case-001",
     )
-    case = VulnerabilityCase(
+    case = VultronCase(
         as_id="https://example.org/cases/case-001",
         name="Test Case",
-        vulnerability_reports=[report],
+        vulnerability_reports=[report.as_id],
         case_participants=[participant],
     )
     datalayer.create(case)
@@ -88,10 +88,10 @@ def case_with_participant(datalayer, actor_id, actor, report):
 @pytest.fixture
 def case_without_participant(datalayer, report):
     """Case with no participants."""
-    case = VulnerabilityCase(
+    case = VultronCase(
         as_id="https://example.org/cases/case-002",
         name="Test Case No Participants",
-        vulnerability_reports=[report],
+        vulnerability_reports=[report.as_id],
         case_participants=[],
     )
     datalayer.create(case)
@@ -246,20 +246,20 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
     actor_a = "https://example.org/actors/vendor-a"
     actor_b = "https://example.org/actors/vendor-b"
 
-    participant_a = CaseParticipant(
+    participant_a = VultronParticipant(
         as_id="https://example.org/participants/cp-a",
         attributed_to=actor_a,
         context="https://example.org/cases/case-multi",
     )
-    participant_b = CaseParticipant(
+    participant_b = VultronParticipant(
         as_id="https://example.org/participants/cp-b",
         attributed_to=actor_b,
         context="https://example.org/cases/case-multi",
     )
-    case = VulnerabilityCase(
+    case = VultronCase(
         as_id="https://example.org/cases/case-multi",
         name="Multi-participant case",
-        vulnerability_reports=[report],
+        vulnerability_reports=[report.as_id],
         case_participants=[participant_a, participant_b],
     )
     datalayer.create(case)

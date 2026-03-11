@@ -29,10 +29,10 @@ from vultron.api.v2.data.status import (
     set_status,
 )
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+from vultron.core.models.vultron_types import (
+    VultronCaseActor,
+    VultronOffer,
+    VultronReport,
 )
 from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
@@ -58,9 +58,8 @@ def datalayer():
 @pytest.fixture
 def actor(datalayer):
     """Create test actor."""
-    actor = as_Service(
+    actor = VultronCaseActor(
         name="Test Actor",
-        url="https://example.org/actor",
     )
     datalayer.create(actor)
     return actor
@@ -69,7 +68,7 @@ def actor(datalayer):
 @pytest.fixture
 def report(datalayer):
     """Create test report."""
-    report = VulnerabilityReport(
+    report = VultronReport(
         name="TEST-001",
         content="Test vulnerability report",
     )
@@ -80,7 +79,7 @@ def report(datalayer):
 @pytest.fixture
 def offer(datalayer, report, actor):
     """Create test offer activity."""
-    offer = as_Offer(actor=actor.as_id, object=report)
+    offer = VultronOffer(actor=actor.as_id, object=report.as_id)
     datalayer.create(offer)
     return offer
 

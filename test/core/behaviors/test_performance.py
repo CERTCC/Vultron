@@ -30,10 +30,12 @@ import pytest
 from py_trees.common import Status
 
 from vultron.api.v2.datalayer.abc import DataLayer
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Accept
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+from vultron.core.models.vultron_types import (
+    VultronAccept,
+    VultronCase,
+    VultronCaseActor,
+    VultronOffer,
+    VultronReport,
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
@@ -74,31 +76,21 @@ def mock_datalayer():
     # Mock read() for nodes that use TinyDB-specific method
     def mock_read(id_, raise_on_missing=False):
         if "report" in id_:
-            report = VulnerabilityReport(
-                name="TEST-REPORT", content="Test vulnerability report"
+            return VultronReport(
+                as_id=id_,
+                name="TEST-REPORT",
+                content="Test vulnerability report",
             )
-            report.as_id = id_  # Override ID
-            return report
         elif "offer" in id_:
-            return as_Offer(
+            return VultronOffer(
+                as_id=id_,
                 actor="https://example.org/finder",
-                as_object="test-report-123",
+                object="test-report-123",
             )
         elif "case" in id_:
-            from vultron.wire.as2.vocab.objects.vulnerability_case import (
-                VulnerabilityCase,
-            )
-
-            case = VulnerabilityCase(name="Test Case")
-            case.as_id = id_
-            return case
-        elif id_.startswith("https://example.org/"):  # Actor IDs
-            from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-
-            actor = as_Actor()
-            actor.as_id = id_
-            actor.name = "Test Actor"
-            return actor
+            return VultronCase(as_id=id_, name="Test Case")
+        elif id_.startswith("https://example.org/"):
+            return VultronCaseActor(as_id=id_, name="Test Actor")
         if raise_on_missing:
             raise ValueError(f"Object not found: {id_}")
         return None
@@ -114,19 +106,19 @@ def mock_datalayer():
 @pytest.fixture
 def sample_activity():
     """Sample validation activity for testing."""
-    report = VulnerabilityReport(
+    report = VultronReport(
         name="TEST-PERF-001",
         content="Performance test report",
     )
 
-    offer = as_Offer(
+    offer = VultronOffer(
         actor="https://example.org/finder",
-        as_object=report,
+        object=report.as_id,
     )
 
-    return as_Accept(
+    return VultronAccept(
         actor="https://example.org/vendor",
-        as_object=offer,
+        object=offer.as_id,
     )
 
 

@@ -141,12 +141,19 @@ class VultronParticipant(BaseModel):
         return value
 
 
+class VultronOutbox(BaseModel):
+    """Minimal outbox representation for domain actor types."""
+
+    items: list[str] = Field(default_factory=list)
+
+
 class VultronCaseActor(BaseModel):
     """Domain representation of a CaseActor service.
 
     Mirrors the Vultron-specific fields of ``CaseActor`` (which inherits
-    ``as_Service``).  AS2 actor fields (``inbox``, ``outbox``, etc.) are
-    omitted.
+    ``as_Service``).  The ``outbox`` field carries the actor's outgoing
+    activity IDs and is required so that ``UpdateActorOutbox`` can append
+    to it via ``save_to_datalayer``.
     ``as_type`` is ``"Service"`` to match ``CaseActor``'s wire value.
     """
 
@@ -155,6 +162,35 @@ class VultronCaseActor(BaseModel):
     name: str | None = None
     attributed_to: Any | None = None
     context: Any | None = None
+    outbox: VultronOutbox = Field(default_factory=VultronOutbox)
+
+
+class VultronOffer(BaseModel):
+    """Domain representation of an Offer activity.
+
+    Mirrors the essential fields of ``as_Offer``.
+    ``as_type`` is ``"Offer"`` to match the wire value.
+    """
+
+    as_id: str = Field(default_factory=_new_urn)
+    as_type: str = "Offer"
+    actor: str | None = None
+    object: Any | None = None
+    to: Any | None = None
+    target: Any | None = None
+
+
+class VultronAccept(BaseModel):
+    """Domain representation of an Accept activity.
+
+    Mirrors the essential fields of ``as_Accept``.
+    ``as_type`` is ``"Accept"`` to match the wire value.
+    """
+
+    as_id: str = Field(default_factory=_new_urn)
+    as_type: str = "Accept"
+    actor: str | None = None
+    object: Any | None = None
 
 
 class VultronCreateCaseActivity(BaseModel):
@@ -206,7 +242,9 @@ class VultronCase(BaseModel):
     name: str | None = None
     context: Any | None = None
     attributed_to: Any | None = None
-    case_participants: list[str] = Field(default_factory=list)
+    case_participants: list[str | VultronParticipant] = Field(
+        default_factory=list
+    )
     actor_participant_index: dict[str, str] = Field(default_factory=dict)
     vulnerability_reports: list[str] = Field(default_factory=list)
     case_statuses: list[str | VultronCaseStatus] = Field(default_factory=list)
@@ -221,11 +259,14 @@ class VultronCase(BaseModel):
 
 
 __all__ = [
+    "VultronAccept",
     "VultronCase",
     "VultronCaseActor",
     "VultronCaseEvent",
     "VultronCaseStatus",
     "VultronCreateCaseActivity",
+    "VultronOffer",
+    "VultronOutbox",
     "VultronParticipant",
     "VultronParticipantStatus",
     "VultronReport",

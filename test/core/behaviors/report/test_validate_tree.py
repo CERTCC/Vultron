@@ -31,10 +31,10 @@ from vultron.api.v2.data.status import (
     set_status,
 )
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
+from vultron.core.models.vultron_types import (
+    VultronCaseActor,
+    VultronOffer,
+    VultronReport,
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
@@ -58,7 +58,7 @@ def actor_id():
 @pytest.fixture
 def report(datalayer, actor_id):
     """Create test VulnerabilityReport."""
-    report_obj = VulnerabilityReport(
+    report_obj = VultronReport(
         as_id="https://example.org/reports/CVE-2024-001",
         name="Test Vulnerability Report",
         content="Test vulnerability description",
@@ -70,7 +70,7 @@ def report(datalayer, actor_id):
 @pytest.fixture
 def offer(datalayer, report, actor_id):
     """Create test Offer activity."""
-    offer_obj = as_Offer(
+    offer_obj = VultronOffer(
         as_id="https://example.org/activities/offer-123",
         actor=actor_id,
         object=report.as_id,
@@ -83,7 +83,7 @@ def offer(datalayer, report, actor_id):
 @pytest.fixture
 def actor(datalayer, actor_id):
     """Create test actor."""
-    actor_obj = as_Service(
+    actor_obj = VultronCaseActor(
         as_id=actor_id,
         name="Vendor Co",
     )
@@ -459,7 +459,7 @@ def test_tree_execution_actor_isolation(
 
     # Create both actors
     for aid in [actor_a, actor_b]:
-        actor_obj = as_Service(as_id=aid, name=f"Actor {aid}")
+        actor_obj = VultronCaseActor(as_id=aid, name=f"Actor {aid}")
         datalayer.create(actor_obj)
 
     # Set both actors to RECEIVED state
