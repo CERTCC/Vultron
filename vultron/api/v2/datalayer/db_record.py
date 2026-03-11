@@ -21,7 +21,7 @@ Provides a Record model for document database storage.
 
 from pydantic import BaseModel
 
-from vultron.core.ports.activity_store import StorableRecord
+from vultron.core.ports.datalayer import StorableRecord
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 

@@ -22,14 +22,14 @@ from vultron.api.v2.backend import handlers  # noqa: F401
 from vultron.api.v2.backend.handler_map import SEMANTICS_HANDLERS
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.data.rehydration import rehydrate
-from vultron.core.ports.activity_store import DataLayer
-from vultron.wire.as2.extractor import extract_intent
-from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.behavior_dispatcher import (
     ActivityDispatcher,
     get_dispatcher,
 )
+from vultron.core.ports.datalayer import DataLayer
 from vultron.types import DispatchActivity
+from vultron.wire.as2.extractor import extract_intent
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
 

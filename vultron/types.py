@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol, TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
 from vultron.core.models.events import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
-    from vultron.core.ports.activity_store import DataLayer
+    from vultron.core.ports.datalayer import DataLayer
 
 
 class DispatchActivity(BaseModel):

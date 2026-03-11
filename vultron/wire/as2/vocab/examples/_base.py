@@ -14,7 +14,7 @@
 import random
 from uuid import uuid4
 
-from vultron.core.ports.activity_store import DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Organization,

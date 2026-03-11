@@ -23,7 +23,7 @@ there directly.  This shim will be removed once all callers are updated
 (see plan task P70-5).
 """
 
-from vultron.adapters.driven.activity_store import (
+from vultron.adapters.driven.datalayer_tinydb import (
     TinyDbDataLayer,
     get_datalayer,
     reset_datalayer,

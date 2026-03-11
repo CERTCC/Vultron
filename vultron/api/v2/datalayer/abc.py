@@ -21,6 +21,6 @@ New code should import from there directly.  This shim will be removed once
 all callers outside ``api/v2/`` have been updated.
 """
 
-from vultron.core.ports.activity_store import DataLayer
+from vultron.core.ports.datalayer import DataLayer
 
 __all__ = ["DataLayer"]

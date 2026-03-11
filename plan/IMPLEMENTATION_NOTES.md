@@ -64,3 +64,15 @@ stub docstring but contains no implementations. Driving adapter stubs
 future home for use-case callables. No actionable task yet — this will come
 with the hexagonal architecture maturing (PRIORITY 70+).
 
+## Renamed activity_store
+
+`core/ports/activity_store.py` was renamed to `core/ports/datalayer.py` to  
+reflect the broader scope of the port.
+
+`adapters/driven/activity_store.py` was renamed to 
+`adapters/driven/datalayer-tinydb.py` to reflect the specific  
+implementation and avoid confusion with the port. (Eventually when we get to 
+having a mongo-db implementation we will want to make 
+`adapters/driven/datalayer` into a package with `tinydb.py` and `mongodb.py` 
+as modules.)
+

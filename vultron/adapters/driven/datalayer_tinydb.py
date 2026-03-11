@@ -27,18 +27,18 @@ are updated to import from this module directly.
 from typing import TypeVar
 
 from pydantic import BaseModel
-from tinydb import TinyDB, Query
+from tinydb import Query, TinyDB
 from tinydb.queries import QueryInstance
 from tinydb.storages import MemoryStorage
 from tinydb.table import Table
 
-from vultron.api.v2.data.utils import _UUID_RE, _URN_UUID_PREFIX
+from vultron.api.v2.data.utils import _URN_UUID_PREFIX, _UUID_RE
 from vultron.api.v2.datalayer.db_record import (
     Record,
     object_to_record,
     record_to_object,
 )
-from vultron.core.ports.activity_store import DataLayer, StorableRecord
+from vultron.core.ports.datalayer import DataLayer, StorableRecord
 
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
 

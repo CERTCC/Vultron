@@ -3,14 +3,14 @@ Provides a behavior dispatcher for Vultron
 """
 
 import logging
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol, TYPE_CHECKING
 
-from vultron.dispatcher_errors import VultronApiHandlerNotFoundError
 from vultron.core.models.events import MessageSemantics
+from vultron.dispatcher_errors import VultronApiHandlerNotFoundError
 from vultron.types import BehaviorHandler, DispatchActivity
 
 if TYPE_CHECKING:
-    from vultron.core.ports.activity_store import DataLayer
+    from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
 

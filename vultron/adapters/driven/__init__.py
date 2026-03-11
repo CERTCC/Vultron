@@ -8,7 +8,7 @@ implementation.
 
 Modules:
 
-- ``activity_store.py``  — Concrete activity persistence (e.g., TinyDB).
+- ``datalayer.py``  — Concrete activity persistence (e.g., TinyDB).
 - ``delivery_queue.py``  — Outbound activity queue implementation.
 - ``http_delivery.py``   — HTTP transport for outbound ActivityStreams
                            payloads (transport only — receives serialized
