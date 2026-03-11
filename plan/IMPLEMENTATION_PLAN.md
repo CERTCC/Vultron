@@ -169,7 +169,7 @@ See `plan/IMPLEMENTATION_HISTORY.md`.
 
 **Priority**: High (docs correctness)
 
-- [ ] **ARCH-DOCS-1**: Update `notes/architecture-review.md` to mark V-03-R
+- [x] **ARCH-DOCS-1**: Update `notes/architecture-review.md` to mark V-03-R
   (P65-4), V-15/16/17/18/19 (P65-6b), and V-22/23 (P65-7) as fully resolved.
   Update the status header block at the top of the file to reflect the current
   state: all violations V-01 through V-23 resolved. Done when the file
