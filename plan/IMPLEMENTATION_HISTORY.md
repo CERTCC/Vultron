@@ -797,3 +797,44 @@ subclasses in `core/models/events/`.
 payload; extractor now returns discriminated subclasses).
 
 **Result**: 880 tests pass, 0 regressions.
+
+---
+
+## P65-6b — Remove AS2 wire imports from core/behaviors/ (R-09 part 2)
+
+**Files created**:
+
+- `vultron/core/models/vultron_types.py`: Rich domain types — `VultronCase`,
+  `VultronReport`, `VultronCaseActor`, `VultronParticipant`,
+  `VultronCreateCaseActivity`, `VultronParticipantStatus`, `VultronCaseStatus`,
+  `VultronCaseEvent`. Each mirrors the Vultron-specific fields of its wire
+  counterpart, using `str` IDs for cross-references and clean Python enums.
+  `as_type` strings match wire values for DataLayer round-trip compatibility.
+- `vultron/wire/as2/serializer.py`: Outbound serializer converting domain →
+  wire types for adapter-layer use. Core BT nodes do NOT import this.
+
+**Files modified**:
+
+- `vultron/core/behaviors/case/nodes.py`: Wire imports replaced with domain
+  types; `CVDRoles.VENDOR` role set explicitly on `VultronParticipant`.
+- `vultron/core/behaviors/case/create_tree.py`: `VulnerabilityCase` →
+  `VultronCase` type annotation.
+- `vultron/core/behaviors/report/nodes.py`: Wire imports replaced; field name
+  `actor` → `attributed_to` in `VultronParticipantStatus` construction.
+- `vultron/core/behaviors/report/policy.py`: Wire imports fully replaced with
+  `VultronCase`/`VultronReport`.
+
+**Key decisions**:
+
+- Domain types are rich (mirror Vultron-specific fields), not thin stubs.
+- `CVDRoles` serialization uses `@field_serializer` returning `.name` strings,
+  matching the wire `CaseParticipant` convention.
+- `VultronParticipantStatus` appended to wire `CaseParticipant.participant_statuses`
+  works via Pydantic v2 duck-typing (list.append bypasses field validation;
+  round-trip through `model_dump(mode="json")` + `model_validate` succeeds).
+- `_now_utc()` uses stdlib `datetime.now(timezone.utc)` to avoid importing
+  `now_utc` from the wire layer.
+
+**Violations addressed**: V-15 (full), V-17, V-18 (full), V-19.
+
+**Result**: 880 tests pass, 0 regressions.

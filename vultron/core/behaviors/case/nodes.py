@@ -30,10 +30,13 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
-from vultron.wire.as2.vocab.activities.case import CreateCase as as_CreateCase
-from vultron.wire.as2.vocab.objects.case_actor import CaseActor
-from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.core.models.vultron_types import (
+    VultronCase,
+    VultronCaseActor,
+    VultronCreateCaseActivity,
+    VultronParticipant,
+)
+from vultron.bt.roles.states import CVDRoles
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,
@@ -96,7 +99,7 @@ class ValidateCaseObject(DataLayerCondition):
     Returns FAILURE if required fields are missing.
     """
 
-    def __init__(self, case_obj: VulnerabilityCase, name: str | None = None):
+    def __init__(self, case_obj: VultronCase, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
 
@@ -135,7 +138,7 @@ class PersistCase(DataLayerAction):
     Per specs/case-management.md CM-02-001.
     """
 
-    def __init__(self, case_obj: VulnerabilityCase, name: str | None = None):
+    def __init__(self, case_obj: VultronCase, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
 
@@ -195,7 +198,7 @@ class CreateCaseActorNode(DataLayerAction):
             return Status.FAILURE
 
         try:
-            case_actor = CaseActor(
+            case_actor = VultronCaseActor(
                 name=f"CaseActor for {self.case_id}",
                 attributed_to=self.actor_id,
                 context=self.case_id,
@@ -252,7 +255,7 @@ class EmitCreateCaseActivity(DataLayerAction):
                 )
                 return Status.FAILURE
 
-            activity = as_CreateCase(
+            activity = VultronCreateCaseActivity(
                 actor=self.actor_id,
                 object=case_id,
             )
@@ -292,7 +295,7 @@ class SetCaseAttributedTo(DataLayerAction):
     Per specs/case-management.md CM-02-008.
     """
 
-    def __init__(self, case_obj: VulnerabilityCase, name: str | None = None):
+    def __init__(self, case_obj: VultronCase, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
 
@@ -319,7 +322,7 @@ class CreateInitialVendorParticipant(DataLayerAction):
     Per specs/case-management.md CM-02-008 (SHOULD).
     """
 
-    def __init__(self, case_obj: VulnerabilityCase, name: str | None = None):
+    def __init__(self, case_obj: VultronCase, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
 
@@ -331,9 +334,10 @@ class CreateInitialVendorParticipant(DataLayerAction):
             return Status.FAILURE
 
         try:
-            participant = VendorParticipant(
+            participant = VultronParticipant(
                 attributed_to=self.actor_id,
                 context=self.case_obj.as_id,
+                case_roles=[CVDRoles.VENDOR],
             )
             if self.datalayer.read(participant.as_id) is None:
                 self.datalayer.create(participant)
@@ -391,7 +395,7 @@ class RecordCaseCreationEvents(DataLayerAction):
     Per specs/case-management.md CM-02-009.
     """
 
-    def __init__(self, case_obj: VulnerabilityCase, name: str | None = None):
+    def __init__(self, case_obj: VultronCase, name: str | None = None):
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
 

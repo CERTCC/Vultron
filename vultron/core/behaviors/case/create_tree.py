@@ -41,7 +41,7 @@ import logging
 
 import py_trees
 
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.core.models.vultron_types import VultronCase
 from vultron.core.behaviors.case.nodes import (
     CheckCaseAlreadyExists,
     CreateCaseActorNode,
@@ -58,7 +58,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_create_case_tree(
-    case_obj: VulnerabilityCase,
+    case_obj: VultronCase,
     actor_id: str,
 ) -> py_trees.behaviour.Behaviour:
     """
@@ -72,7 +72,7 @@ def create_create_case_tree(
     succeeds immediately (idempotency per ID-04-004).
 
     Args:
-        case_obj: VulnerabilityCase object extracted from the inbound
+        case_obj: Case domain object extracted from the inbound
                   Create activity payload
         actor_id: ID of the receiving actor (case owner)
 

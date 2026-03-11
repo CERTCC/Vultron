@@ -90,7 +90,7 @@ V-22 partially resolved (test no longer uses `raw_activity`; `as_Create` import
 remains for `prepare_for_dispatch` test — will be moved with P65-4).
 V-23 (core BT test files use AS2 fixtures) deferred to P65-7.
 
-**Remaining P65 tasks: P65-6b, P65-7.**
+**Remaining P65 tasks: P65-7.**
 
 ### ✅ Package relocation Phase 1 complete (PRIORITY 60 — P60-1, P60-2, and P60-3 DONE)
 
@@ -307,7 +307,7 @@ P65-7 closes out the test regressions last (requires P65-4, P65-6a, and P65-6b).
   `test_reporting_workflow.py` to use the new API. 880 tests pass.
   **Depends on P65-3 (done).** See `notes/domain-model-separation.md`.
 
-- [ ] **P65-6b** (R-09 part 2): Replace AS2 wire types in core BT nodes and
+- [x] **P65-6b** (R-09 part 2): Replace AS2 wire types in core BT nodes and
   policy with domain types. Using the outbound-event domain types defined in
   P65-6a (or new `FooTriggerEvent` types in `core/models/events/`), replace
   direct construction of `CreateCase`, `VulnerabilityCase`, `CaseActor`,

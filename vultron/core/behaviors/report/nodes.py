@@ -35,8 +35,11 @@ from vultron.core.models.status import (
     get_status_layer,
     set_status,
 )
-from vultron.wire.as2.vocab.activities.case import CreateCase as as_CreateCase
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.core.models.vultron_types import (
+    VultronCase,
+    VultronCreateCaseActivity,
+    VultronParticipantStatus,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,
@@ -362,10 +365,15 @@ class CreateCaseNode(DataLayerAction):
                 self.report_id, raise_on_missing=True
             )
 
-            # Create VulnerabilityCase
-            case = VulnerabilityCase(
+            # Create VulnerabilityCase domain object
+            report_id_ref = (
+                report_obj.as_id
+                if hasattr(report_obj, "as_id")
+                else self.report_id
+            )
+            case = VultronCase(
                 name=f"Case for Report {self.report_id}",
-                vulnerability_reports=[report_obj],
+                vulnerability_reports=[report_id_ref],
                 attributed_to=self.actor_id,
             )
 
@@ -474,9 +482,9 @@ class CreateCaseActivity(DataLayerAction):
                 f"{self.name}: Notifying addressees: {addressees}"
             )
 
-            # Create CreateCase activity
-            create_case_activity = as_CreateCase(
-                actor=self.actor_id, object=case_id, to=addressees
+            # Create CreateCase activity domain object
+            create_case_activity = VultronCreateCaseActivity(
+                actor=self.actor_id, object=case_id
             )
 
             # Store activity in DataLayer
@@ -744,8 +752,6 @@ def _find_and_update_participant_rm(
 
     Returns SUCCESS on success, FAILURE on error or missing participant.
     """
-    from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-
     try:
         case_obj = datalayer.read(case_id, raise_on_missing=True)
 
@@ -767,8 +773,8 @@ def _find_and_update_participant_rm(
                             f"{new_rm_state} in case {case_id} (idempotent)"
                         )
                         return Status.SUCCESS
-                new_status = ParticipantStatus(
-                    actor=actor_id,
+                new_status = VultronParticipantStatus(
+                    attributed_to=actor_id,
                     context=case_id,
                     rm_state=new_rm_state,
                 )

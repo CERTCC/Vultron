@@ -33,10 +33,7 @@ Extension Points:
 
 import logging
 
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.wire.as2.vocab.objects.vulnerability_report import (
-    VulnerabilityReport,
-)
+from vultron.core.models.vultron_types import VultronCase, VultronReport
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +48,7 @@ class ValidationPolicy:
     This class defines the interface for pluggable policy implementations.
     """
 
-    def is_credible(self, report: VulnerabilityReport) -> bool:
+    def is_credible(self, report: VultronReport) -> bool:
         """
         Evaluate whether report source is credible.
 
@@ -59,20 +56,14 @@ class ValidationPolicy:
         the report appears legitimate (not spam, not malicious).
 
         Args:
-            report: VulnerabilityReport object to evaluate
+            report: report domain object to evaluate
 
         Returns:
             True if report source is credible, False otherwise
-
-        Example:
-            >>> policy = ValidationPolicy()
-            >>> report = VulnerabilityReport(name="CVE-2024-001", content="...")
-            >>> policy.is_credible(report)
-            NotImplementedError
         """
         raise NotImplementedError("Subclasses must implement is_credible()")
 
-    def is_valid(self, report: VulnerabilityReport) -> bool:
+    def is_valid(self, report: VultronReport) -> bool:
         """
         Evaluate whether report content is technically valid.
 
@@ -81,16 +72,10 @@ class ValidationPolicy:
         assessment.
 
         Args:
-            report: VulnerabilityReport object to evaluate
+            report: report domain object to evaluate
 
         Returns:
             True if report content is valid, False otherwise
-
-        Example:
-            >>> policy = ValidationPolicy()
-            >>> report = VulnerabilityReport(name="CVE-2024-001", content="...")
-            >>> policy.is_valid(report)
-            NotImplementedError
         """
         raise NotImplementedError("Subclasses must implement is_valid()")
 
@@ -113,29 +98,16 @@ class AlwaysAcceptPolicy(ValidationPolicy):
     - Metadata-based filtering
     - Integration with external validation services
     - Reputation-based scoring
-
-    Example:
-        >>> from vultron.wire.as2.vocab.objects.vulnerability_report import VulnerabilityReport
-        >>> policy = AlwaysAcceptPolicy()
-        >>> report = VulnerabilityReport(
-        ...     as_id="https://example.org/reports/CVE-2024-001",
-        ...     name="CVE-2024-001",
-        ...     content="Buffer overflow in parse_input()"
-        ... )
-        >>> policy.is_credible(report)
-        True
-        >>> policy.is_valid(report)
-        True
     """
 
-    def is_credible(self, report: VulnerabilityReport) -> bool:
+    def is_credible(self, report: VultronReport) -> bool:
         """
         Accept report as credible (always returns True).
 
         Logs acceptance decision at INFO level for observability.
 
         Args:
-            report: VulnerabilityReport object to evaluate
+            report: report domain object to evaluate
 
         Returns:
             True (always accepts)
@@ -145,14 +117,14 @@ class AlwaysAcceptPolicy(ValidationPolicy):
         )
         return True
 
-    def is_valid(self, report: VulnerabilityReport) -> bool:
+    def is_valid(self, report: VultronReport) -> bool:
         """
         Accept report as valid (always returns True).
 
         Logs acceptance decision at INFO level for observability.
 
         Args:
-            report: VulnerabilityReport object to evaluate
+            report: report domain object to evaluate
 
         Returns:
             True (always accepts)
@@ -175,12 +147,12 @@ class PrioritizationPolicy:
     PROTO-05-001 for the deferral policy on SSVC integration.
     """
 
-    def should_engage(self, case: VulnerabilityCase) -> bool:
+    def should_engage(self, case: VultronCase) -> bool:
         """
         Evaluate whether the case should be engaged (accepted for active work).
 
         Args:
-            case: VulnerabilityCase to evaluate
+            case: case domain object to evaluate
 
         Returns:
             True to engage (RM.ACCEPTED), False to defer (RM.DEFERRED)
@@ -196,20 +168,14 @@ class AlwaysPrioritizePolicy(PrioritizationPolicy):
     case. Suitable for prototype and trusted-coordinator scenarios.
 
     Future: Replace with SSVC-based evaluation (see PROTO-05-001).
-
-    Example:
-        >>> policy = AlwaysPrioritizePolicy()
-        >>> case = VulnerabilityCase(name="Test Case")
-        >>> policy.should_engage(case)
-        True
     """
 
-    def should_engage(self, case: VulnerabilityCase) -> bool:
+    def should_engage(self, case: VultronCase) -> bool:
         """
         Always engage the case (returns True).
 
         Args:
-            case: VulnerabilityCase to evaluate (unused in this stub)
+            case: case domain object to evaluate (unused in this stub)
 
         Returns:
             True (always engages)
