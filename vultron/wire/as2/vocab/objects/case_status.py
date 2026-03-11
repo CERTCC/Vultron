@@ -28,7 +28,7 @@ from vultron.wire.as2.vocab.objects.base import VultronObject
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
 from vultron.case_states.states import CS_pxa, CS_vfd
-from vultron.enums import VultronObjectType as VO_type
+from vultron.core.models.enums import VultronObjectType as VO_type
 
 
 @activitystreams_object

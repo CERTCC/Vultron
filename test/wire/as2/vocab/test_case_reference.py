@@ -17,7 +17,7 @@ import pytest
 from pydantic import ValidationError
 
 import vultron.wire.as2.vocab.objects.case_reference as cr
-from vultron.enums import VultronObjectType as VO_type
+from vultron.core.models.enums import VultronObjectType as VO_type
 
 
 class TestCaseReference(unittest.TestCase):

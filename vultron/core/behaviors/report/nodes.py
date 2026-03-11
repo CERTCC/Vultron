@@ -46,7 +46,7 @@ from vultron.core.behaviors.helpers import (
     save_to_datalayer,
 )
 from vultron.bt.report_management.states import RM
-from vultron.enums import OfferStatusEnum
+from vultron.core.models.status import OfferStatusEnum
 
 logger = logging.getLogger(__name__)
 

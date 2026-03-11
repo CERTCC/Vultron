@@ -46,7 +46,7 @@ from vultron.core.behaviors.report.nodes import (
     UpdateActorOutbox,
 )
 from vultron.bt.report_management.states import RM
-from vultron.enums import OfferStatusEnum
+from vultron.core.models.status import OfferStatusEnum
 
 
 @pytest.fixture

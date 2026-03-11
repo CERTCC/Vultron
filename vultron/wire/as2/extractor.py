@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.core.models.events import MessageSemantics
-from vultron.enums import VultronObjectType as VOtype
+from vultron.core.models.enums import VultronObjectType as VOtype
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType as IAtype,
     as_ObjectType as AOtype,

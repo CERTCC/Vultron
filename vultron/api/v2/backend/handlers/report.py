@@ -198,7 +198,7 @@ def invalidate_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
         set_status,
     )
     from vultron.bt.report_management.states import RM
-    from vultron.enums import OfferStatusEnum
+    from vultron.core.models.status import OfferStatusEnum
 
     payload = dispatchable.payload
 
@@ -321,7 +321,7 @@ def close_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
         set_status,
     )
     from vultron.bt.report_management.states import RM
-    from vultron.enums import OfferStatusEnum
+    from vultron.core.models.status import OfferStatusEnum
 
     payload = dispatchable.payload
 

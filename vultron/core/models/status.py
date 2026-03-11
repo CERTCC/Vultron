@@ -18,10 +18,21 @@ defined these models in ``api/v2/data/status`` now re-exports from here.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from enum import StrEnum
+
 from pydantic import BaseModel, Field
 
 from vultron.bt.report_management.states import RM
-from vultron.enums import OfferStatusEnum
+
+
+class OfferStatusEnum(StrEnum):
+    """Enumeration of Offer Statuses"""
+
+    RECEIVED = "RECEIVED"
+    ACCEPTED = "ACCEPTED"
+    TENTATIVELY_REJECTED = "TENTATIVELY_REJECTED"
+    REJECTED = "REJECTED"
+
 
 STATUS: dict[str, dict] = dict()
 

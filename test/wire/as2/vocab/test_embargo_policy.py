@@ -23,7 +23,7 @@ from pydantic import ValidationError
 import vultron.wire.as2.vocab.objects.embargo_policy as ep_module
 from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-from vultron.enums import VultronObjectType as VO_type
+from vultron.core.models.enums import VultronObjectType as VO_type
 
 ACTOR_ID = "https://example.org/actors/vendor"
 INBOX = "https://example.org/actors/vendor/inbox"

@@ -29,7 +29,7 @@ from vultron.wire.as2.vocab.objects.base import VultronObject
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.bt.report_management.states import RM
 from vultron.bt.roles.states import CVDRoles as CVDRole
-from vultron.enums import VultronObjectType as VO_type
+from vultron.core.models.enums import VultronObjectType as VO_type
 
 
 @activitystreams_object
