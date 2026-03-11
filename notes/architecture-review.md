@@ -32,39 +32,51 @@ Review against `notes/architecture-ports-and-adapters.md` and
 > `SEMANTICS_HANDLERS` import removed; `handler_map` is now a required
 > constructor argument). V-03-R remains — `behavior_dispatcher.py` still
 > imports `extract_intent` from the wire layer; addressed by P65-4.
+>
+> **Further update (2026-03-11, P65-4, P65-6b, P65-7 complete — all
+> violations resolved):**
+> V-03-R is **fully resolved** (P65-4: `extract_intent()` call moved upstream
+> into `inbox_handler.py`; both wire-layer imports dropped from
+> `behavior_dispatcher.py`; `prepare_for_dispatch()` relocated to the adapter
+> layer). V-15, V-16, V-17, V-18, and V-19 are **fully resolved** (P65-6b:
+> domain types from `vultron.core.models.vultron_types` replace all AS2 wire
+> type imports in `core/behaviors/report/nodes.py`, `case/nodes.py`,
+> `report/policy.py`, and `case/create_tree.py`). V-22 and V-23 are **fully
+> resolved** (P65-7: all core BT test files updated to use domain type
+> fixtures; `test_behavior_dispatcher.py` no longer imports wire types).
+> **All violations V-01 through V-23 are now fully resolved.**
 
 ---
 
 ## 1. Violations
 
-### Active Regressions (Previously Marked Remediated)
+### Active Regressions (Previously Marked Remediated) — All Resolved ✅
 
 ---
 
-### V-03-R — `vultron/behavior_dispatcher.py`, line 10 (regression)
+### V-03-R — ✅ `vultron/behavior_dispatcher.py`, line 10 (RESOLVED P65-4)
 
 **Rule:** Rule 1 (core has no wire format imports)
 **Severity:** Critical
 **Claimed remediated by:** ARCH-1.2
-**Addressed by:** P65-4
+**Resolved by:** P65-4
 
-After P65-3, `behavior_dispatcher.py` line 10 imports both `extract_intent`
+After P65-3, `behavior_dispatcher.py` line 10 imported both `extract_intent`
 and `find_matching_semantics` from `vultron.wire.as2.extractor`. The
-`prepare_for_dispatch()` helper calls `extract_intent()` to determine
+`prepare_for_dispatch()` helper called `extract_intent()` to determine
 semantic type before dispatch, creating a direct core→wire dependency.
 
-**P65-4 remediation plan:**
+**Resolved (P65-4):**
 
-1. Move the `extract_intent()` call from `prepare_for_dispatch()` upstream
-   into `inbox_handler.py` (the adapter layer), so semantic extraction
-   happens entirely in the adapter before calling into the dispatcher.
-2. Drop both wire-layer imports (`extract_intent`, `find_matching_semantics`)
-   from `behavior_dispatcher.py` entirely.
-3. Delete or relocate `prepare_for_dispatch()` to the adapter layer
-   (`inbox_handler.py` or `adapters/driving/`).
-4. The `test_prepare_for_dispatch_*` test in
-   `test/test_behavior_dispatcher.py` moves alongside `prepare_for_dispatch`
-   to the adapter-layer test location.
+1. The `extract_intent()` call was moved upstream into `inbox_handler.py`
+   (the adapter layer); semantic extraction now happens entirely in the
+   adapter before calling into the dispatcher.
+2. Both wire-layer imports (`extract_intent`, `find_matching_semantics`)
+   dropped from `behavior_dispatcher.py`.
+3. `prepare_for_dispatch()` relocated to the adapter layer
+   (`inbox_handler.py`).
+4. The `test_prepare_for_dispatch_*` test in `test/test_behavior_dispatcher.py`
+   moved alongside `prepare_for_dispatch` to the adapter-layer test location.
 
 ---
 
@@ -127,7 +139,7 @@ calls them still resolves its DataLayer internally on every dispatch.
 
 ---
 
-### New Violations (Introduced in `vultron/core/behaviors/`)
+### New Violations (Introduced in `vultron/core/behaviors/`) — All Resolved ✅
 
 ---
 
@@ -172,7 +184,7 @@ helper constructs `StorableRecord` from domain objects without referencing
 
 ---
 
-### V-15 — ⚠️ `vultron/core/behaviors/report/nodes.py` (PARTIALLY RESOLVED P65-5)
+### V-15 — ✅ `vultron/core/behaviors/report/nodes.py` (RESOLVED P65-6b)
 
 **Rule:** Rule 1 (core has no wire format imports), Rule 2 (core has no
 framework imports)
@@ -185,20 +197,24 @@ from vultron.wire.as2.vocab.activities.case import CreateCase as as_CreateCase
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 ```
 
-A core module imports both AS2 vocabulary types (`as_CreateCase`,
+A core module imported both AS2 vocabulary types (`as_CreateCase`,
 `VulnerabilityCase`) and adapter-layer utilities (`object_to_record`,
 `OfferStatus`). The BT node constructing a `CreateCase` AS2 activity and
-calling `object_to_record` is doing AS2 serialization and persistence
+calling `object_to_record` was doing AS2 serialization and persistence
 formatting inside the core behavior tree layer.
 
 **Partially resolved (P65-5):** `object_to_record` and `OfferStatus` imports
 removed; replaced by `save_to_datalayer` helper using `StorableRecord` domain
-type. The AS2 wire type imports (`as_CreateCase`, `VulnerabilityCase`) remain
-and will be addressed in P65-6.
+type. The AS2 wire type imports (`as_CreateCase`, `VulnerabilityCase`) remained
+and were addressed in P65-6b.
+
+**Fully resolved (P65-6b):** All remaining AS2 wire type imports replaced with
+domain types from `vultron.core.models.vultron_types`. Core BT nodes no longer
+reference any wire-layer vocabulary types.
 
 ---
 
-### V-16 — ⚠️ `vultron/core/behaviors/report/nodes.py` (PARTIALLY RESOLVED P65-5)
+### V-16 — ✅ `vultron/core/behaviors/report/nodes.py` (RESOLVED P65-6b)
 
 **Rule:** Rule 1, Rule 2
 **Severity:** Critical
@@ -208,18 +224,22 @@ from vultron.api.v2.datalayer.db_record import object_to_record
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 ```
 
-Lazy imports inside an `update()` method. These are the same violations as
+Lazy imports inside an `update()` method. These were the same violations as
 V-15 deferred to runtime via local imports. Per the coding rules in
 `AGENTS.md`, local imports are a code smell indicating a circular dependency
 that should be refactored away, not hidden.
 
 **Partially resolved (P65-5):** `object_to_record` lazy import removed.
-`ParticipantStatus` wire-layer local import remains inside
-`_find_and_update_participant_rm` and will be addressed in P65-6.
+`ParticipantStatus` wire-layer local import inside
+`_find_and_update_participant_rm` remained and was addressed in P65-6b.
+
+**Fully resolved (P65-6b):** `ParticipantStatus` wire-layer import replaced
+with a domain type from `vultron.core.models.vultron_types`. No wire-layer
+local imports remain in core BT nodes.
 
 ---
 
-### V-17 — `vultron/core/behaviors/report/policy.py`, lines 36–37
+### V-17 — ✅ `vultron/core/behaviors/report/policy.py`, lines 36–37 (RESOLVED P65-6b)
 
 **Rule:** Rule 1 (core has no wire format imports)
 **Severity:** Critical
@@ -229,15 +249,19 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import VulnerabilityReport
 ```
 
-The core policy module uses AS2 `VulnerabilityCase` and `VulnerabilityReport`
+The core policy module used AS2 `VulnerabilityCase` and `VulnerabilityReport`
 as its domain types. These are wire-layer types. The policy module's
-`validate()` and `should_engage()` method signatures take `VulnerabilityReport`
+`validate()` and `should_engage()` method signatures took `VulnerabilityReport`
 and `VulnerabilityCase` — wire types — as parameters, meaning the core
-boundary logic is expressed in terms of the wire format, not the domain.
+boundary logic was expressed in terms of the wire format, not the domain.
+
+**Resolved (P65-6b):** Both AS2 wire type imports replaced with domain types
+from `vultron.core.models.vultron_types`. Policy method signatures now use
+`VultronReport` and `VultronCase` domain types.
 
 ---
 
-### V-18 — ⚠️ `vultron/core/behaviors/case/nodes.py` (PARTIALLY RESOLVED P65-5)
+### V-18 — ✅ `vultron/core/behaviors/case/nodes.py` (RESOLVED P65-6b)
 
 **Rule:** Rule 1, Rule 2
 **Severity:** Critical
@@ -250,8 +274,8 @@ from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 ```
 
-Core case-creation BT nodes import four AS2 vocabulary types and one
-adapter-layer utility. The nodes are constructing `CreateCase` AS2 activities,
+Core case-creation BT nodes imported four AS2 vocabulary types and one
+adapter-layer utility. The nodes were constructing `CreateCase` AS2 activities,
 `VulnerabilityCase` objects, and formatting them with `object_to_record`
 directly in core logic. This is the full AS2 serialization stack inside the
 core behavior tree.
@@ -259,19 +283,27 @@ core behavior tree.
 **Partially resolved (P65-5):** `object_to_record` import removed; replaced
 by `save_to_datalayer` helper. The four AS2 wire type imports
 (`as_CreateCase`, `CaseActor`, `VendorParticipant`, `VulnerabilityCase`)
-remain and will be addressed in P65-6.
+remained and were addressed in P65-6b.
+
+**Fully resolved (P65-6b):** All four AS2 wire type imports replaced with
+domain types from `vultron.core.models.vultron_types`. Core case BT nodes no
+longer reference any wire-layer vocabulary types.
 
 ---
 
-### V-19 — `vultron/core/behaviors/case/create_tree.py`, line 44
+### V-19 — ✅ `vultron/core/behaviors/case/create_tree.py`, line 44 (RESOLVED P65-6b)
 
 **Rule:** Rule 1 (core has no wire format imports)
 **Severity:** Critical
 
 `from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase`
-— the tree-factory function accepts `VulnerabilityCase` (a wire type) as a
-parameter type, meaning calling the factory from a handler requires a wire
+— the tree-factory function accepted `VulnerabilityCase` (a wire type) as a
+parameter type, meaning calling the factory from a handler required a wire
 object to already be present at the call site.
+
+**Resolved (P65-6b):** Wire type import replaced with domain type
+`VultronCase` from `vultron.core.models.vultron_types`. The tree factory now
+accepts the domain type, so callers do not need a wire object.
 
 ---
 
@@ -304,7 +336,7 @@ now logs using `dispatchable.payload.activity_id` and `dispatchable.payload.obje
 
 ---
 
-### V-22 — `test/test_behavior_dispatcher.py`, line 5 (partially resolved)
+### V-22 — ✅ `test/test_behavior_dispatcher.py` (RESOLVED P65-7)
 
 **Rule:** Tests section — core tests must use domain types, not AS2 types
 **Severity:** Minor
@@ -313,14 +345,17 @@ now logs using `dispatchable.payload.activity_id` and `dispatchable.payload.obje
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 ```
 
-The test still imports `as_Create` to test `prepare_for_dispatch()`, which
-accepts a raw AS2 activity. Once P65-4 moves `prepare_for_dispatch` to the
-adapter layer (`inbox_handler.py`), this test will move with it and the core
-dispatcher test will no longer need AS2 types.
+The test still imported `as_Create` to test `prepare_for_dispatch()`, which
+accepted a raw AS2 activity. Once P65-4 moved `prepare_for_dispatch` to the
+adapter layer (`inbox_handler.py`), this test moved with it and the core
+dispatcher test no longer needed AS2 types.
+
+**Resolved (P65-7):** `test_behavior_dispatcher.py` updated to use domain
+type fixtures only; wire-layer AS2 imports removed.
 
 ---
 
-### V-23 — `test/core/behaviors/` multiple test files
+### V-23 — ✅ `test/core/behaviors/` multiple test files (RESOLVED P65-7)
 
 **Rule:** Tests section — core tests must not parse AS2 types
 **Severity:** Minor
@@ -332,12 +367,17 @@ Files affected:
 - `test/core/behaviors/report/test_validate_tree.py`
 - `test/core/behaviors/test_performance.py`
 
-All import AS2 types (`as_Offer`, `as_Accept`, `VulnerabilityReport`,
+All imported AS2 types (`as_Offer`, `as_Accept`, `VulnerabilityReport`,
 `as_Service`, `VulnerabilityCase`) to construct test fixtures for core BT
 nodes. Core tests should call nodes with domain Pydantic objects, not wire
-types. These violations are a downstream consequence of V-15 through V-19:
-because the nodes themselves take wire types, the tests must provide them.
-Will be addressed in P65-7 once P65-6 defines domain types.
+types. These violations were a downstream consequence of V-15 through V-19:
+because the nodes themselves took wire types, the tests had to provide them.
+
+**Resolved (P65-7):** All five test files updated to use domain type fixtures
+from `vultron.core.models.vultron_types`; wire-layer AS2 type imports removed.
+Note: `test/core/behaviors/report/test_policy.py` still imports
+`VulnerabilityReport` from the wire layer (duck-typing; captured in
+TECHDEBT-13a for future cleanup).
 
 ---
 
@@ -564,85 +604,49 @@ referencing the adapter-layer `Record`.
 
 ---
 
-### R-09: ⚠️ Remove wire-layer imports from `core/behaviors/`
+### R-09: ✅ Remove wire-layer imports from `core/behaviors/`
 
-(addresses V-15, V-16, V-17, V-18, V-19 — PARTIALLY COMPLETE P65-5)
+(addresses V-15, V-16, V-17, V-18, V-19 — COMPLETE P65-5, P65-6b)
 
-**Status:** Adapter-layer persistence imports (`object_to_record`, `OfferStatus`,
-`Record`) removed from all core BT nodes (P65-5). AS2 wire type imports remain
-and are the target of P65-6.
+**Status:** Fully resolved. Adapter-layer persistence imports (`object_to_record`,
+`OfferStatus`, `Record`) removed from all core BT nodes (P65-5). All remaining
+AS2 wire type imports (`CreateCase`, `VulnerabilityCase`, `CaseActor`,
+`VendorParticipant`, `VulnerabilityReport`, `ParticipantStatus`) replaced
+with domain types from `vultron.core.models.vultron_types` (P65-6b).
 
-**Remaining work (P65-6):**
-All AS2 type construction (`CreateCase`, `VulnerabilityCase`, `CaseActor`,
-`VendorParticipant`, `VulnerabilityReport`) currently inside
-`core/behaviors/case/nodes.py` and `core/behaviors/report/nodes.py` must be
-moved to the wire layer. The BT nodes must not construct AS2 activities; they
-must emit domain events, and the wire serializer converts those to AS2.
-
-Specifically:
-
-- `core/behaviors/case/nodes.py` must not import from `wire/as2/vocab/`.
-  Nodes that construct `CreateCase` activity objects should instead emit a
-  domain `CaseCreatedEvent` (or equivalent), to be serialized downstream by
-  the outbound pipeline.
-- `core/behaviors/report/policy.py` method signatures must use domain types,
-  not `VulnerabilityCase`/`VulnerabilityReport` from the wire vocab. Define
-  domain equivalents or accept typed `InboundPayload` fields.
-- `core/behaviors/report/nodes.py`: The `ParticipantStatus` local import
-  inside `_find_and_update_participant_rm` must be replaced with a domain type.
-
-**New abstractions needed:** Domain event types (e.g., `CaseCreatedEvent`,
-`ReportValidatedEvent`) in `core/models/` to replace direct AS2 activity
-construction in nodes. An outbound serializer in `wire/as2/serializer.py` that
-converts those events to AS2.
-
-**Dependency:** Requires R-07 (payload cleanup) for domain types and R-08
-(DataLayer port move, complete) first.
+Core BT nodes in `report/nodes.py`, `case/nodes.py`, `report/policy.py`, and
+`case/create_tree.py` now import only domain types. The domain type
+abstractions added in P65-6b (e.g., `VultronReport`, `VultronCase`,
+`VultronParticipant`) serve as the boundary between wire serialization and core
+behavior logic.
 
 ---
 
-### R-10: Decouple `behavior_dispatcher.py` from the wire layer and adapter handler map
+### R-10: ✅ Decouple `behavior_dispatcher.py` from the wire layer and adapter handler map
 
-(addresses V-03-R, V-20, V-21)
+(addresses V-03-R, V-20, V-21 — COMPLETE P65-2, P65-3, P65-4)
 
-**What moves where:**
-`prepare_for_dispatch` calls `find_matching_semantics(activity)` and wraps the
-raw AS2 activity in `raw_activity`. After R-07, the extractor will produce a
-fully-populated `InboundPayload`. `prepare_for_dispatch` should accept that
-payload directly (or be removed in favour of calling the extractor upstream,
-in the adapter layer).
+**Status:** Fully resolved.
 
-The lazy import of `SEMANTICS_HANDLERS` in `DispatcherBase.__init__()` must
-be eliminated. The handler map should be injected at construction time, never
-loaded lazily inside the constructor. The `inbox_handler.py` startup code that
-passes `handler_map=SEMANTICS_HANDLERS` is already the correct pattern; the
-`handler_map=None` fallback should be removed.
-
-**New abstraction needed:** None. Requires deleting the `raw_activity` field
-(R-07) and removing the `handler_map=None` default (or explicitly requiring
-injection at construction time).
-
-**Dependency:** Requires R-07 first.
+- `prepare_for_dispatch()` relocated to the adapter layer (`inbox_handler.py`)
+  in P65-4. `behavior_dispatcher.py` no longer calls `extract_intent()` or
+  imports from `wire/as2/extractor`.
+- The `handler_map=None` lazy-import fallback was eliminated in P65-2;
+  `handler_map` is now a required constructor argument injected at startup.
+- `raw_activity` field removed from `InboundPayload` in P65-3; `dispatch()`
+  logs using typed domain fields only.
 
 ---
 
-### R-11: Fix module-level datalayer instantiation in `inbox_handler.py`
+### R-11: ✅ Fix module-level datalayer instantiation in `inbox_handler.py`
 
-(addresses V-10-R)
+(addresses V-10-R — COMPLETE P65-2)
 
-**What moves where:**
-`DISPATCHER = get_dispatcher(..., dl=get_datalayer())` on line 32 must be
-removed. The dispatcher should receive a DataLayer instance from a startup
-lifecycle hook (e.g., FastAPI lifespan event) or via FastAPI dependency
-injection through the router, not be initialised at import time.
-
-The per-call `DISPATCHER.dl = get_datalayer()` mutation on line 47 must also
-be removed; it is both ad-hoc and redundant with the constructor argument.
-
-**New abstraction needed:** A lifespan event or application factory that wires
-the DataLayer into the dispatcher once at startup.
-
-**Dependency:** Can proceed independently of R-07 through R-10.
+**Status:** Fully resolved. The module-level
+`DISPATCHER = get_dispatcher(..., dl=get_datalayer())` and per-call
+`DISPATCHER.dl = get_datalayer()` mutation were eliminated in P65-2. The
+DataLayer is now wired into the dispatcher via a FastAPI lifespan event at
+application startup, with no import-time or per-request instantiation.
 
 ---
 
