@@ -46,15 +46,25 @@ Review against `notes/architecture-ports-and-adapters.md` and
 **Rule:** Rule 1 (core has no wire format imports)
 **Severity:** Critical
 **Claimed remediated by:** ARCH-1.2
+**Addressed by:** P65-4
 
-`prepare_for_dispatch` calls
-`find_matching_semantics(activity=activity)` (line 45), which means the
-core dispatcher module must import the wire-layer extractor. Line 10 reads
-`from vultron.wire.as2.extractor import find_matching_semantics`. The
-ARCH-1.2 claim that "no AS2 import remains in the core dispatcher" is
-incorrect — this import is still present. The dispatcher is a core-adjacent
-module (it sits at `vultron/behavior_dispatcher.py`) and calls a wire-layer
-function to compute the semantic type, creating a direct core→wire dependency.
+After P65-3, `behavior_dispatcher.py` line 10 imports both `extract_intent`
+and `find_matching_semantics` from `vultron.wire.as2.extractor`. The
+`prepare_for_dispatch()` helper calls `extract_intent()` to determine
+semantic type before dispatch, creating a direct core→wire dependency.
+
+**P65-4 remediation plan:**
+
+1. Move the `extract_intent()` call from `prepare_for_dispatch()` upstream
+   into `inbox_handler.py` (the adapter layer), so semantic extraction
+   happens entirely in the adapter before calling into the dispatcher.
+2. Drop both wire-layer imports (`extract_intent`, `find_matching_semantics`)
+   from `behavior_dispatcher.py` entirely.
+3. Delete or relocate `prepare_for_dispatch()` to the adapter layer
+   (`inbox_handler.py` or `adapters/driving/`).
+4. The `test_prepare_for_dispatch_*` test in
+   `test/test_behavior_dispatcher.py` moves alongside `prepare_for_dispatch`
+   to the adapter-layer test location.
 
 ---
 

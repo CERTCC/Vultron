@@ -75,16 +75,78 @@ Enums are currently organized across multiple locations in the codebase:
 - `vultron/wire/as2/vocab/` — vocabulary-level type enums (moved from
   `vultron/as_vocab/`)
 
-**Proposed future reorganization**: Consider a `vultron/enums/` package with
-submodules grouped by domain:
+**Target organization**: Each level of the package hierarchy SHOULD have a
+dedicated `enums.py` module (or `enums/` subpackage if there are many enums)
+so that enums are easy to find and manage. For example:
 
-- `vultron/enums/message_semantics.py`
-- `vultron/enums/case_states.py`
-- `vultron/enums/vocabulary.py`
-- etc.
+- `vultron/core/models/events/enums.py` — `MessageSemantics` (moving from
+  `events.py` base)
+- `vultron/core/models/enums/` — enums shared across core models (e.g.,
+  `CVDRole`, state machine enums migrated from `vultron/bt` and
+  `vultron/case_states`)
+- `vultron/wire/as2/enums.py` — AS2 structural enums (already in place)
 
-This would improve discoverability and allow a unified review of redundant or
-unused enums. Not a high priority for the prototype.
+Enums imported from outside `core` that are used in `core` are candidates
+for relocation into `core` (refactoring from their original location as
+needed). In particular:
+
+- Enums in `vultron/bt/` and `vultron/case_states/` that represent domain
+  concepts (not BT-engine internals) SHOULD migrate to `core/models/enums/`.
+- If a given area has many enums, split them into an `enums/` subpackage
+  with multiple files rather than one large `enums.py`.
+
+**Not a high priority for the prototype**, but each new enum SHOULD be
+placed at the correct layer from the start to avoid accumulating more
+technical debt.
+
+---
+
+## Core Object Modules: Split `vultron_types.py`
+
+`vultron/core/models/vultron_types.py` currently bundles multiple core object
+types into a single file. These SHOULD be split into individual modules for
+better organization, following the same pattern used in `vultron/wire/as2/vocab/objects/`:
+
+- Each core domain object class gets its own module
+  (e.g., `vultron/core/models/report.py`, `vultron/core/models/case.py`)
+- `vultron/core/models/__init__.py` or a thin re-export module can re-export
+  all types for callers that import from `vultron.core.models`
+
+This makes individual classes easier to find, reduces merge conflicts, and
+matches the source layout pattern already established in the wire layer.
+
+---
+
+## `CVDRoles` Design Decision: StrEnum List, Not Flag
+
+The `CVDRoles` enum in `vultron/bt/roles/states.py` uses bitwise `Flag`
+semantics. This design is acceptable within `vultron/bt/` (the legacy BT
+simulator) but MUST NOT be used elsewhere.
+
+**For all new code in `core` and `wire`**, represent CVD roles as a
+`list[CVDRole]` where `CVDRole` is a `StrEnum`:
+
+```python
+# vultron/core/models/enums/cvd_role.py  (proposed location)
+from enum import StrEnum
+
+class CVDRole(StrEnum):
+    FINDER = "finder"
+    REPORTER = "reporter"
+    VENDOR = "vendor"
+    COORDINATOR = "coordinator"
+    OTHER = "other"
+```
+
+When roles appear on case objects or participant objects, the field type
+SHOULD be `list[CVDRole]`. This is easier to work with than bitwise flags:
+membership checks use `if CVDRole.VENDOR in participant.roles` instead of
+bitwise tests.
+
+The old `CVDRoles` `Flag` class can be renamed `CVDRoleFlags` and left in
+`vultron/bt/roles/states.py` as long as the legacy BT simulator still uses it.
+When the BT simulator is eventually retired or migrated, `CVDRoleFlags` can be
+removed.
 
 ---
 

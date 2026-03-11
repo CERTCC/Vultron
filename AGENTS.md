@@ -380,7 +380,12 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 ### Naming Conventions
 
 - **ActivityStreams types**: Use `as_` prefix (e.g., `as_Activity`, `as_Actor`,
-  `as_type`)
+  `as_type`) — in the wire layer (`vultron/wire/as2/`) only
+- **Core domain models**: Do NOT use `as_` prefix; for reserved-word field
+  name conflicts use a trailing underscore + Pydantic alias
+  (e.g., `object_: str = Field(alias="object")`). See CS-07-002.
+- **Domain class names**: Use CVD-domain vocabulary, not wire-format parallels
+  (e.g., `CaseTransferOffer` not `VultronOffer`). See CS-12-001.
 - **Vulnerability**: Abbreviated as `vul` (not `vuln`)
 - **Handler functions**: Named after semantic action (e.g., `create_report`,
   `accept_invite_actor_to_case`)
@@ -389,7 +394,7 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 
 ### Validation and Type Safety
 
-- Prefer explicit types over inference
+- Prefer explicit types over inference; avoid `Any` (see CS-11-001)
 - Use `pydantic.BaseModel` (v2 style) for all structured data
 - Never bypass validation for convenience
 - Use Protocol for interface definitions

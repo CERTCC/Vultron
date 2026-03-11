@@ -66,7 +66,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Quality Attributes**:
 
 - **`idempotency.md`** - Duplicate detection and idempotent processing
-- **`testability.md`** - Test coverage requirements and test organization
+- **`testability.md`** - Test coverage requirements, test organization,
+  architecture boundary tests (TB-10, `PROD_ONLY`)
 
 ### Response Generation
 
@@ -93,7 +94,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`code-style.md`** - Python formatting, import organization, circular import
   prevention, optional-field non-emptiness (CS-08-001), code reuse (CS-09-001),
   typed port/adapter interfaces (CS-10-001), domain event naming convention
-  (`FooActivity` vs `FooEvent`, CS-10-002)
+  (`FooActivity` vs `FooEvent`, CS-10-002), type annotation strictness
+  (no `Any`, CS-11-001), domain-centric class naming (CS-12-001)
 - **`tech-stack.md`** - Normative technology constraints: runtime, persistence,
   tooling, and code quality tooling (including pyright gradual adoption, IMPL-TS-*)
 - **`meta-specifications.md`** - How to write and maintain specifications
@@ -107,7 +109,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 - **`project-documentation.md`** - Documentation file structure and purpose
 - **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage,
-  including domain model separation deferral (PROTO-06)
+  including domain model separation deferral (PROTO-06) and performance
+  testing deferral (PROTO-07)
 - **`agentic-readiness.md`** - API and CLI requirements for automated agent integration
 
 ---

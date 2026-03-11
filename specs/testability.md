@@ -100,6 +100,25 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 - `TB-09-002` Test duplication SHOULD be avoided via fixtures and helpers
 - `TB-09-003` Tests MUST be refactored along with production code
 
+## Architecture Boundary Tests (SHOULD)
+
+- `TB-10-001` `PROD_ONLY` Once the `core` and `wire` packages are fully
+  separated (see `specs/architecture.md` and `notes/architecture-review.md`),
+  architecture boundary tests SHOULD be added to enforce layer separation rules
+  - Tests SHOULD verify that `vultron/core/` does not import from
+    `vultron/wire/` or `vultron/api/`
+  - Tests SHOULD verify that `vultron/wire/` does not import from
+    `vultron/api/`
+  - Implementation: use `pytest` + `ast` or an import-linting tool
+    (e.g., `import-linter`) to detect boundary violations automatically
+  - **Rationale**: As the codebase grows, accidental cross-layer imports are
+    easy to introduce. Automated boundary tests catch violations earlier than
+    code review and enforce the architectural rules documented in
+    `notes/architecture-ports-and-adapters.md`
+  - **Timing**: Add these tests once the P65-x violation remediation series
+    is complete and all active violations in `notes/architecture-review.md`
+    are resolved
+
 ## Verification
 
 ### TB-01-001, TB-01-002 Verification

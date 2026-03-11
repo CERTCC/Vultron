@@ -120,10 +120,25 @@ def extract_id_segment(url: str) -> str:
 
 ## `as_` Field Prefix Policy (SHOULD)
 
-- `CS-07-001` Use `as_` prefix on Pydantic fields only when the plain name
-  would collide with a Python reserved word
-  - Use `as_object` instead of `object` (reserved keyword)
-  - Otherwise use plain field names: `actor`, not `as_actor`
+- `CS-07-001` Use the `as_` prefix on Pydantic fields **only in the wire layer**
+  (`vultron/wire/as2/vocab/`) where it is part of the established AS2
+  vocabulary convention
+- `CS-07-002` In **core** (`vultron/core/`) domain model classes, do NOT use
+  the `as_` prefix
+  - The `as_` prefix on core fields is a relic of the original wire/core
+    blending and SHOULD be removed as core models are refactored
+  - For fields whose plain name collides with a Python reserved word (e.g.,
+    `object`, `type`, `id`), use a trailing underscore: `object_`, `type_`,
+    `id_`
+  - Define a Pydantic field alias so that serialized JSON uses the clean
+    name without the trailing underscore:
+    ```python
+    object_: str = Field(alias="object")
+    ```
+  - **Rationale**: The `as_` prefix leaks wire-format concerns into the
+    domain layer. Trailing underscore + alias is the idiomatic Python pattern
+    for reserved-word field names; it keeps core models readable and decoupled
+    from AS2 naming conventions.
 
 ## Optional Field Non-Emptiness (MUST)
 
@@ -202,3 +217,32 @@ def extract_id_segment(url: str) -> str:
     prevents accidental coupling between layers, and makes the translation
     point explicit. See `notes/domain-model-separation.md` for the full
     design rationale.
+
+## Type Annotations (MUST)
+
+- `CS-11-001` Code MUST NOT use `Any` in type hints when the type can be
+  determined
+  - If a type is complex, define a Pydantic model or a type alias rather than
+    using `Any`
+  - Use `Any` only as a last resort when the type is genuinely unknown or
+    when interfacing with untyped third-party code that cannot be typed otherwise
+  - When you find yourself reaching for `Any`, treat it as a signal to
+    refactor: the type structure may need to be made more explicit
+  - **Rationale**: `Any` defeats static type checking, obscures API
+    contracts, and hides bugs at the boundary between typed and untyped code
+
+## Domain Model Naming (SHOULD)
+
+- `CS-12-001` Core domain model class names SHOULD reflect the domain concept
+  they represent, not a parallel to a wire-format class name
+  - Instead of `VultronOffer` (a parallel to the AS2 `Offer` activity),
+    use a name that reflects the use case:
+    `CaseTransferOffer`, `ReportSubmissionOffer`, `EmbargoInvitation`, etc.
+  - Instead of `VultronEvent`, use a name that reflects the specific
+    semantic: `ReportSubmittedEvent`, `CaseCreatedEvent`, etc.
+  - **Rationale**: Generic wire-mirroring names obscure what an object
+    actually represents in the CVD domain. Domain-centric names make the
+    code self-documenting and reduce reliance on comments to explain intent.
+  - **Scope**: Applies to new classes in `vultron/core/` and to existing
+    classes when they are refactored; do not rename existing classes
+    incidentally while working on unrelated changes

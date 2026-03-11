@@ -89,3 +89,18 @@ and Python stack candidates.
   require domain objects free of AS2 inheritance. This shortcut SHOULD be
   revisited when stubbing `core/use_cases/` in P60-3.
 
+## Performance Testing (MAY)
+
+- `PROTO-07-001` `PROD_ONLY` Performance tests and performance assertions MAY
+  be skipped or marked as expected failures during the prototype stage
+  - The project is currently in the "make it work" and "make it work right"
+    phases; performance optimization is premature
+  - Existing tests that include performance assertions SHOULD be marked
+    `@pytest.mark.skip` or `@pytest.mark.xfail` if they risk false failures
+    without being critical for correctness verification
+  - All performance requirements in other specs MUST carry the `PROD_ONLY`
+    tag; do not add new performance requirements without this tag during the
+    prototype stage
+  - **Rationale**: Premature performance work distracts from correctness
+    and architectural clarity; defer until exiting the prototype phase
+

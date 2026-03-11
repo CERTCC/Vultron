@@ -201,6 +201,27 @@ The migration path is:
 4. Update the extractor to produce specific subclasses instead of a generic
    payload (P65-3b).
 
+### P65-6a: `extract_intent()` Should Return a Discriminated Union
+
+Once per-semantic subclasses are defined (step 4 above), `extract_intent()` in
+`wire/as2/extractor.py` SHOULD return a discriminated union of `VultronEvent`
+subclasses rather than the flat `InboundPayload`. This allows the adapter layer
+to pass a strongly-typed domain event directly to the dispatcher; the
+`@verify_semantics` decorator continues to operate based on
+`dispatchable.payload.semantic_type` without change.
+
+**Implementation notes (P65-6a)**:
+
+- `VultronEvent` base class lives in `core/models/events/base.py` with
+  `semantic_type: MessageSemantics` as the discriminator field.
+- Per-semantic subclasses live in `core/models/events/` grouped by category
+  (`report.py`, `case.py`, `embargo.py`, etc.) following the `FooReceivedEvent`
+  suffix convention for inbound handler-side events (see CS-10-002).
+- Do **not** add fields speculatively — include only what handler code actually
+  needs after the P65-3 audit.
+- The wire layer adapter populates the correct subclass from the raw AS2
+  activity; core handlers never see AS2 types.
+
 ### Outbound Event Design Questions (P65-6 Considerations)
 
 Before implementing the outbound path (domain event → AS2 activity), consider:
