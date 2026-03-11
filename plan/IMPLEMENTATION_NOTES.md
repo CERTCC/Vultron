@@ -104,3 +104,23 @@ avoid naming conflicts between wire models and python keywords (`as_object`,
 `as_type`) or to indicate that a field contained AS2-specific data. Now that 
 core and wire are more clearly separated, we should remove the `as_` prefix from
 core models where it still exists. 
+
+## 2026-03-11 Performance tests are premature
+
+We are still in the "make it work" and "make it work right" phases of the 
+prototype, we do not need to worry about performance testing or performance 
+requirements yet. Any such requirements should be marked as `PROD_ONLY` and 
+deferred until we exit the prototoype phase and are ready to work on 
+productionizing the code. Existing tests that are focused on performance or 
+have performance assertions can be kept as long as they pass, but we should 
+mark them as ok to skip or ok to fail if they are not critical to verifying 
+correctness of the code.
+
+## 2026-03-11 Add architecture tests once we have separated core and wire
+
+Once we have a clear separation between core and wire, we should add tests that
+verify the architectural boundaries and enforce the rules we've established 
+(e.g, that core does not import from wire, etc.) This will help us to detect 
+and avoid any accidental leaks of implementation details across the boundaries.
+
+
