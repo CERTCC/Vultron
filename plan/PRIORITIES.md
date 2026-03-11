@@ -79,6 +79,10 @@ below. Use the architecture review notes as a checklist to identify and
 address each violation, ensuring that tasks are grouped appropriately in 
 `plan/IMPLEMENTATION_PLAN.md` to avoid excessive fragmentation of related work.
 
+Note that the conversion to 'VultronEvent' domain events is considered a key 
+part of this priority, as it must be addressed before we can fully separate 
+the driving adapters from the core use cases (events).
+
 ## Priority 70: DataLayer refactor into ports and adapters
 
 The DataLayer implementation should be refactored to become a port (Protocol), 
