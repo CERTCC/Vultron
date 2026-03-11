@@ -123,4 +123,17 @@ verify the architectural boundaries and enforce the rules we've established
 (e.g, that core does not import from wire, etc.) This will help us to detect 
 and avoid any accidental leaks of implementation details across the boundaries.
 
+## 2026-03-11 Classes like `VultronOffer` should be more use-case centric names
+
+`VultronOffer` is a parallel name to the `Offer` activity, but it should 
+really be more focused on the use case it supports ... is it 
+`CaseTransferOffer`? `ReportSubmissionOffer`? `EmbargoInvitation`? etc. The 
+name should reflect the domain vocabulary so it is obvious what the object 
+represents semantically rather than just being a parallel to a wire model 
+name. This applies to more than just `VultronOffer` — any core model that is 
+closely tied to a specific use case or domain concept should be named 
+accordingly rather than using a more generic (wire-like) name that does not 
+convey the domain meaning as clearly.
+
+
 
