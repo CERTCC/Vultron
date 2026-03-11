@@ -5,6 +5,34 @@ from unittest.mock import Mock, MagicMock
 import pytest
 
 from vultron.api.v2.backend import inbox_handler as ih
+from vultron.core.models.events import InboundPayload, MessageSemantics
+
+
+def test_prepare_for_dispatch_parses_activity_and_constructs_dispatchactivity(
+    monkeypatch,
+):
+    """prepare_for_dispatch should parse the passed activity and let pydantic construct the payload model."""
+    from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+        as_Create,
+    )
+
+    import vultron.wire.as2.extractor as extractor_mod
+
+    monkeypatch.setattr(
+        extractor_mod,
+        "find_matching_semantics",
+        lambda activity: MessageSemantics.UNKNOWN,
+    )
+
+    mapping_activity = as_Create(
+        as_id="act-123", actor="actor-1", object="obj-1"
+    )
+    dispatch_msg = ih.prepare_for_dispatch(mapping_activity)
+
+    assert dispatch_msg.semantic_type == MessageSemantics.UNKNOWN
+    assert dispatch_msg.activity_id == "act-123"
+    assert isinstance(dispatch_msg.payload, InboundPayload)
+    assert dispatch_msg.payload.activity_id == "act-123"
 
 
 def test_handle_inbox_item_dispatches(monkeypatch):

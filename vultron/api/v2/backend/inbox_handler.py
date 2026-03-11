@@ -23,15 +23,45 @@ from vultron.api.v2.backend.handler_map import SEMANTICS_HANDLERS
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.data.rehydration import rehydrate
 from vultron.core.ports.activity_store import DataLayer
+from vultron.wire.as2.extractor import extract_intent
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.behavior_dispatcher import (
     ActivityDispatcher,
     get_dispatcher,
-    prepare_for_dispatch,
 )
 from vultron.types import DispatchActivity
 
 logger = logging.getLogger(__name__)
+
+
+def prepare_for_dispatch(activity: as_Activity) -> DispatchActivity:
+    """
+    Prepares an activity for dispatch by extracting its message semantics and packaging it into a DispatchActivity.
+    """
+    logger.debug(
+        f"Preparing activity '{activity.as_id}' of type '{activity.as_type}' for dispatch."
+    )
+
+    semantics, payload = extract_intent(activity)
+
+    # For CREATE-type activities, the object may be inline (not yet in DataLayer)
+    obj = getattr(activity, "as_object", None)
+    wire_object = (
+        obj if (obj is not None and not isinstance(obj, str)) else None
+    )
+
+    dispatch_msg = DispatchActivity(
+        semantic_type=semantics,
+        activity_id=activity.as_id,
+        payload=payload,
+        wire_activity=activity,
+        wire_object=wire_object,
+    )
+    logger.debug(
+        f"Prepared dispatch message with semantics '{dispatch_msg.semantic_type}' for activity '{dispatch_msg.payload.activity_id}'"
+    )
+    return dispatch_msg
+
 
 _DISPATCHER: ActivityDispatcher | None = None
 

@@ -733,3 +733,22 @@ Updated all 7 handler files (`report.py`, `case.py`, `actor.py`, `embargo.py`,
 
 **Violations addressed**: V-02-R, V-11-R.  
 **Result**: 880 tests pass, 0 regressions.
+
+---
+
+## P65-4 — Decouple `behavior_dispatcher.py` from the wire layer (2026-03-11)
+
+Moved `prepare_for_dispatch()` from `vultron/behavior_dispatcher.py` to the
+adapter layer (`vultron/api/v2/backend/inbox_handler.py`). The wire-layer
+imports (`find_matching_semantics`, `extract_intent`) and the `Any` typing
+import were removed from `behavior_dispatcher.py`. The `extract_intent` import
+now lives in `inbox_handler.py`, the single adapter-layer entry point.
+
+Moved the `test_prepare_for_dispatch_*` test from
+`test/test_behavior_dispatcher.py` to
+`test/api/v2/backend/test_inbox_handler.py` (adapter layer). Removed the
+`as_Create` wire import and redundant `MessageSemantics = bd.MessageSemantics`
+re-assignment from `test_behavior_dispatcher.py`.
+
+**Violations addressed**: V-03-R.  
+**Result**: 880 tests pass, 0 regressions.

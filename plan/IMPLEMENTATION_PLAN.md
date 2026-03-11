@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-11 (P65-3 complete: InboundPayload enriched; raw_activity eliminated)
+**Last Updated**: 2026-03-11 (P65-4 complete: behavior_dispatcher.py decoupled from wire layer)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 880 passing, 5581 subtests, 0 xfailed (2026-03-11, after P65-3)
+**Test suite**: 880 passing, 5581 subtests, 0 xfailed (2026-03-11, after P65-4)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -267,7 +267,7 @@ closes out the test regressions last (requires P65-4, P65-6a, and P65-6b).
   fields — no `raw_activity` references remain. (6) Removed `.model_dump_json()`
   call on raw activity from `dispatch()`. Addresses V-02-R, V-11-R, V-21.
 
-- [ ] **P65-4** (R-10): Decouple `behavior_dispatcher.py` from the wire layer.
+- [x] **P65-4** (R-10): Decouple `behavior_dispatcher.py` from the wire layer.
   Move the `extract_intent()` call (currently in `prepare_for_dispatch` at
   `behavior_dispatcher.py` line 27) upstream into the adapter-layer inbox handler
   (`vultron/api/v2/backend/inbox_handler.py`), which should call `extract_intent()`

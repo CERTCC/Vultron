@@ -3,46 +3,16 @@ Provides a behavior dispatcher for Vultron
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from vultron.dispatcher_errors import VultronApiHandlerNotFoundError
 from vultron.core.models.events import MessageSemantics
-from vultron.wire.as2.extractor import find_matching_semantics, extract_intent
 from vultron.types import BehaviorHandler, DispatchActivity
 
 if TYPE_CHECKING:
     from vultron.api.v2.datalayer.abc import DataLayer
 
 logger = logging.getLogger(__name__)
-
-
-def prepare_for_dispatch(activity: Any) -> DispatchActivity:
-    """
-    Prepares an activity for dispatch by extracting its message semantics and packaging it into a DispatchActivity.
-    """
-    logger.debug(
-        f"Preparing activity '{activity.as_id}' of type '{activity.as_type}' for dispatch."
-    )
-
-    semantics, payload = extract_intent(activity)
-
-    # For CREATE-type activities, the object may be inline (not yet in DataLayer)
-    obj = getattr(activity, "as_object", None)
-    wire_object = (
-        obj if (obj is not None and not isinstance(obj, str)) else None
-    )
-
-    dispatch_msg = DispatchActivity(
-        semantic_type=semantics,
-        activity_id=activity.as_id,
-        payload=payload,
-        wire_activity=activity,
-        wire_object=wire_object,
-    )
-    logger.debug(
-        f"Prepared dispatch message with semantics '{dispatch_msg.semantic_type}' for activity '{dispatch_msg.payload.activity_id}'"
-    )
-    return dispatch_msg
 
 
 class ActivityDispatcher(Protocol):
