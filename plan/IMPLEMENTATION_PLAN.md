@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-11 (refresh #26: P70-2 complete)
+**Last Updated**: 2026-03-11 (refresh #27: P70-4 complete)
 
 ## Overview
 
@@ -267,7 +267,7 @@ resolved. See `plan/IMPLEMENTATION_HISTORY.md` for full task details.
   both files exist in `core/ports/` and the driven adapter stubs can import from
   them without errors.
 
-- [ ] **P70-4**: Move `vultron/api/v2/datalayer/tinydb.py` (the TinyDB
+- [x] **P70-4**: Move `vultron/api/v2/datalayer/tinydb_backend.py` (the TinyDB
   implementation) to `vultron/adapters/driven/activity_store.py`. Leave a
   backward-compat re-export shim at the old path. Update `api/v2/datalayer/abc.py`
   shim to re-export from the new location. Done when `TinyDbDataLayer` lives in

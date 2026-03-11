@@ -1149,3 +1149,28 @@ Updated 13 caller files across `vultron/wire/as2/`, `vultron/api/v2/`,
 `vultron/core/`, and `test/`.
 
 **Result**: 880 tests pass, 0 regressions. No `vultron.enums` imports remain.
+
+---
+
+## P70-4 — Move TinyDbDataLayer to adapters/driven/ (2026-03-11)
+
+**Task**: Move `vultron/api/v2/datalayer/tinydb_backend.py` (the TinyDB
+implementation) to `vultron/adapters/driven/activity_store.py` and leave
+a backward-compat re-export shim at the old path.
+
+**What was done**:
+
+- Populated `vultron/adapters/driven/activity_store.py` (formerly a stub
+  docstring) with the full `TinyDbDataLayer` class, `get_datalayer()`, and
+  `reset_datalayer()`. Updated the `DataLayer` import to reference
+  `vultron.core.ports.activity_store` directly instead of the `abc.py` shim.
+- Replaced `vultron/api/v2/datalayer/tinydb_backend.py` with a one-file
+  backward-compat shim that re-exports `TinyDbDataLayer`, `get_datalayer`,
+  and `reset_datalayer` from `vultron.adapters.driven.activity_store`.
+- All existing callers of the old path continue to work via the shim; no
+  other files were modified.
+
+**Result**: 880 tests pass, 0 regressions.
+
+**Next**: P70-5 — remove shims and update all remaining callers to import
+from `adapters/driven/` directly.
