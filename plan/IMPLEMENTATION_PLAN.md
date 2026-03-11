@@ -88,9 +88,9 @@ Remaining new violations introduced in `vultron/core/behaviors/` by P60-2:
 
 V-22 partially resolved (test no longer uses `raw_activity`; `as_Create` import
 remains for `prepare_for_dispatch` test — will be moved with P65-4).
-V-23 (core BT test files use AS2 fixtures) deferred to P65-7.
+V-23 resolved by P65-7 ✅ (core BT test files now use domain type fixtures).
 
-**Remaining P65 tasks: P65-7.**
+**All P65 tasks complete. ✅**
 
 ### ✅ Package relocation Phase 1 complete (PRIORITY 60 — P60-1, P60-2, and P60-3 DONE)
 
@@ -322,7 +322,7 @@ P65-7 closes out the test regressions last (requires P65-4, P65-6a, and P65-6b).
   tests pass. Addresses V-15 full, V-17, V-18 full, V-19.
   **Depends on P65-5 (done), P65-6a.**
 
-- [ ] **P65-7**: Fix test regressions. Update
+- [x] **P65-7**: Fix test regressions. Update
   `test/test_behavior_dispatcher.py` to remove the `as_Create` wire import —
   the `prepare_for_dispatch` test will move to the adapter layer with P65-4.
   Update `test/core/behaviors/report/test_nodes.py`,

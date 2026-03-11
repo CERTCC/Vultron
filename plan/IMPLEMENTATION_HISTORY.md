@@ -1022,3 +1022,32 @@ payload; extractor now returns discriminated subclasses).
 **Violations addressed**: V-15 (full), V-17, V-18 (full), V-19.
 
 **Result**: 880 tests pass, 0 regressions.
+
+---
+
+## P65-7 — Remove wire AS2 imports from core BT test files (commit 59e85ca)
+
+**Goal**: No `core/behaviors/` test file imports wire-layer AS2 types.
+
+**Changes**:
+
+- `vultron/core/models/vultron_types.py`: Added `VultronOffer`, `VultronAccept`,
+  `VultronOutbox` domain types. Added `outbox: VultronOutbox` field to
+  `VultronCaseActor` (required for `UpdateActorOutbox` BT node's
+  `save_to_datalayer` call). Widened `VultronCase.case_participants` to
+  `list[str | VultronParticipant]`.
+- `test/core/behaviors/report/test_nodes.py`: Replaced `as_Service`,
+  `VulnerabilityReport`, `as_Offer` with domain equivalents.
+- `test/core/behaviors/report/test_validate_tree.py`: Same substitutions.
+- `test/core/behaviors/report/test_prioritize_tree.py`: Replaced
+  `VulnerabilityCase`, `CaseParticipant`, `VulnerabilityReport`, `as_Service`.
+- `test/core/behaviors/case/test_create_tree.py`: Replaced all wire imports;
+  removed unused `CaseActor`/`VendorParticipant` imports.
+- `test/core/behaviors/test_performance.py`: Replaced all top-level wire
+  imports; `mock_read` returns `VultronCaseActor` for actor IDs (previously
+  `MagicMock`, which broke `model_dump()` in `save_to_datalayer`).
+
+**Violations addressed**: V-22 (partial → complete resolution pending P65-4),
+V-23 (full).
+
+**Result**: 880 tests pass, 0 regressions.
