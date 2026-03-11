@@ -244,7 +244,7 @@ and P65-5; P65-7 closes out the test regressions last.
   injection). Done when no `get_datalayer()` call appears at module level or
   inside `dispatch()`, and tests pass. Addresses V-10-R.
 
-- [ ] **P65-3** (R-07): Enrich `InboundPayload`; eliminate `raw_activity`. This
+- [x] **P65-3** (R-07): Enrich `InboundPayload`; eliminate `raw_activity`. This
   is the largest P65 task. Steps: (1) Audit every handler in
   `vultron/api/v2/backend/handlers/*.py` and document all fields read from
   `raw_activity` (`.as_object`, `.as_id`, `.as_type`, `.actor`, nested objects).

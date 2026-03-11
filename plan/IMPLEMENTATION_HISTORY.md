@@ -706,3 +706,30 @@ references a wire-layer type that will be addressed in P65-6).
   from the adapter layer.
 - V-18 partial: Adapter-level `object_to_record` removed from core BT nodes.
 
+
+## P65-3: Enrich InboundPayload; Eliminate raw_activity
+
+**Completed**: hexagonal-refactor branch
+
+### Summary
+
+Removed `raw_activity: Any` from `InboundPayload` (core domain type) and
+replaced it with 13 typed domain fields (all `str | None`):
+`activity_type`, `target_id`, `target_type`, `context_id`, `context_type`,
+`origin_id`, `origin_type`, `inner_object_id`, `inner_object_type`,
+`inner_target_id`, `inner_target_type`, `inner_context_id`, `inner_context_type`.
+
+Added `wire_activity: Any` and `wire_object: Any` to `DispatchActivity` (adapter
+layer) so handlers that persist AS2 objects can still do so without polluting the
+core domain.
+
+Added `extract_intent()` to `vultron/wire/as2/extractor.py` — the sole
+AS2→domain mapping point — which returns `(MessageSemantics, InboundPayload)`
+with all fields populated from the AS2 object graph.
+
+Updated all 7 handler files (`report.py`, `case.py`, `actor.py`, `embargo.py`,
+`note.py`, `participant.py`, `status.py`) to read exclusively from
+`InboundPayload` fields and `dispatchable.wire_activity`/`wire_object`.
+
+**Violations addressed**: V-02-R, V-11-R.  
+**Result**: 880 tests pass, 0 regressions.
