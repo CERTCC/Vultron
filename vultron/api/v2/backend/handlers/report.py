@@ -27,12 +27,6 @@ def create_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
 
     # Extract the created report
     created_obj = dispatchable.wire_object
-    if payload.object_type != "VulnerabilityReport":
-        logger.error(
-            "Expected VulnerabilityReport in create_report, got %s",
-            payload.object_type,
-        )
-        return None
 
     logger.info(
         "Actor '%s' creates VulnerabilityReport '%s' (ID: %s)",
@@ -82,12 +76,6 @@ def submit_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
 
     # Extract the offered report
     offered_obj = dispatchable.wire_object
-    if payload.object_type != "VulnerabilityReport":
-        logger.error(
-            "Expected VulnerabilityReport in submit_report, got %s",
-            payload.object_type,
-        )
-        return None
 
     logger.info(
         "Actor '%s' submits VulnerabilityReport '%s' (ID: %s)",
@@ -142,14 +130,6 @@ def validate_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     )
 
     payload = dispatchable.payload
-
-    # Verify we have a VulnerabilityReport via domain type string
-    if payload.inner_object_type != "VulnerabilityReport":
-        logger.error(
-            "Expected VulnerabilityReport in validate_report, got %s",
-            payload.inner_object_type,
-        )
-        return None
 
     actor_id = payload.actor_id
 

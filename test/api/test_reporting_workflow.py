@@ -79,10 +79,10 @@ def _call_handler(
     from vultron.wire.as2.extractor import extract_intent
     from vultron.types import DispatchActivity
 
-    semantics, payload = extract_intent(activity)
+    event = extract_intent(activity)
 
-    assert semantics != MessageSemantics.UNKNOWN
-    assert semantics in MessageSemantics
+    assert event.semantic_type != MessageSemantics.UNKNOWN
+    assert event.semantic_type in MessageSemantics
 
     obj = getattr(activity, "as_object", None)
     wire_object = (
@@ -90,9 +90,9 @@ def _call_handler(
     )
 
     dispatchable = DispatchActivity(
-        semantic_type=semantics,
+        semantic_type=event.semantic_type,
         activity_id=activity.as_id,
-        payload=payload,
+        payload=event,
         wire_activity=activity,
         wire_object=wire_object,
     )

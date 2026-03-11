@@ -1,7 +1,8 @@
-"""Domain event vocabulary for the Vultron Protocol.
+"""Base domain event types for the Vultron Protocol.
 
-Defines the authoritative vocabulary of semantic intents that can occur
-in the system, as understood by the domain layer.
+Defines the core vocabulary of semantic intents (MessageSemantics) and the
+VultronEvent base class that all per-semantic inbound domain event types
+inherit from.
 """
 
 from enum import auto, StrEnum
@@ -75,13 +76,17 @@ class MessageSemantics(StrEnum):
     UNKNOWN = auto()
 
 
-class InboundPayload(BaseModel):
-    """Domain-level wrapper around an inbound wire-format activity.
+class VultronEvent(BaseModel):
+    """Base domain event produced from an inbound wire-format activity.
 
     Produced by extract_intent() in the wire layer before dispatch.
     All fields are plain domain types (strings); no AS2 wire types are present.
+
+    Concrete per-semantic subclasses set semantic_type as a Literal to enable
+    type-safe handler dispatch and Pydantic discriminated-union reconstruction.
     """
 
+    semantic_type: MessageSemantics
     activity_id: NonEmptyString
     activity_type: OptionalNonEmptyString = None
     actor_id: NonEmptyString

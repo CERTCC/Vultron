@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from vultron.core.models.events import InboundPayload, MessageSemantics
+from vultron.core.models.events import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
     from vultron.api.v2.datalayer.abc import DataLayer
@@ -24,7 +24,7 @@ class DispatchActivity(BaseModel):
 
     semantic_type: MessageSemantics
     activity_id: str
-    payload: InboundPayload
+    payload: VultronEvent
     wire_activity: Any = (
         None  # opaque AS2 activity for adapter-layer persistence
     )

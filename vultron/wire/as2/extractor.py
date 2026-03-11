@@ -326,20 +326,20 @@ SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
 
 def extract_intent(
     activity: as_Activity,
-) -> tuple[MessageSemantics, "InboundPayload"]:
+) -> "VultronEvent":
     """Extract semantic intent and domain fields from an AS2 activity.
 
-    Returns both the matched MessageSemantics and a fully-populated InboundPayload
-    with all relevant IDs and types extracted from the AS2 object graph.
+    Returns a fully-populated per-semantic VultronEvent subclass with all
+    relevant IDs and types extracted from the AS2 object graph.
     This is the sole point where AS2 wire types are translated to domain concepts.
 
     Args:
         activity: The AS2 activity to classify and extract from.
 
     Returns:
-        Tuple of (MessageSemantics, InboundPayload).
+        A concrete VultronEvent subclass discriminated by MessageSemantics.
     """
-    from vultron.core.models.events import InboundPayload
+    from vultron.core.models.events import EVENT_CLASS_MAP, VultronEvent
 
     semantics = find_matching_semantics(activity)
 
@@ -371,7 +371,11 @@ def extract_intent(
         inner_target = getattr(obj, "target", None)
         inner_context = getattr(obj, "context", None)
 
-    payload = InboundPayload(
+    event_class: type[VultronEvent] = EVENT_CLASS_MAP.get(
+        semantics, EVENT_CLASS_MAP[MessageSemantics.UNKNOWN]
+    )
+    return event_class(
+        semantic_type=semantics,
         activity_id=activity.as_id,
         activity_type=str(activity.as_type) if activity.as_type else None,
         actor_id=actor_id,
@@ -390,7 +394,6 @@ def extract_intent(
         inner_context_id=_get_id(inner_context),
         inner_context_type=_get_type(inner_context),
     )
-    return semantics, payload
 
 
 def find_matching_semantics(activity: as_Activity) -> MessageSemantics:

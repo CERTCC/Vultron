@@ -22,12 +22,18 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.core.models.events import InboundPayload, MessageSemantics
+from vultron.core.models.events import (
+    EVENT_CLASS_MAP,
+    InboundPayload,
+    MessageSemantics,
+    VultronEvent,
+)
 from vultron.types import DispatchActivity
+from vultron.wire.as2.extractor import find_matching_semantics
 
 
-def _make_payload(activity, **extra_fields):
-    """Wrap an AS2 activity in InboundPayload for use in tests."""
+def _make_payload(activity, **extra_fields) -> VultronEvent:
+    """Wrap an AS2 activity in the appropriate typed VultronEvent for use in tests."""
     obj = getattr(activity, "as_object", None)
     actor = getattr(activity, "actor", None)
     actor_id = (
@@ -61,7 +67,13 @@ def _make_payload(activity, **extra_fields):
         inner_target = getattr(obj, "target", None)
         inner_context = getattr(obj, "context", None)
 
+    # Derive semantic_type from the activity unless an override is provided
+    semantic_type = extra_fields.pop(
+        "semantic_type", find_matching_semantics(activity)
+    )
+
     fields = dict(
+        semantic_type=semantic_type,
         activity_id=getattr(activity, "as_id", "") or "urn:uuid:test-activity",
         actor_id=actor_id,
         activity_type=(
@@ -85,7 +97,10 @@ def _make_payload(activity, **extra_fields):
         inner_context_type=_get_type(inner_context),
     )
     fields.update(extra_fields)
-    return InboundPayload(**fields)
+    event_class = EVENT_CLASS_MAP.get(
+        semantic_type, EVENT_CLASS_MAP[MessageSemantics.UNKNOWN]
+    )
+    return event_class(**fields)
 
 
 def _make_dispatchable(activity, semantic_type, **payload_overrides):

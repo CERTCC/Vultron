@@ -2,7 +2,10 @@ import logging
 from unittest.mock import MagicMock
 
 from vultron import behavior_dispatcher as bd
-from vultron.core.models.events import InboundPayload, MessageSemantics
+from vultron.core.models.events import (
+    CreateReportReceivedEvent,
+    MessageSemantics,
+)
 
 
 def test_get_dispatcher_returns_local_dispatcher():
@@ -24,11 +27,11 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
         handler_map={MessageSemantics.CREATE_REPORT: MagicMock()}, dl=mock_dl
     )
 
-    # Construct a DispatchActivity directly with InboundPayload (no AS2 construction needed)
+    # Construct a DispatchActivity directly with a typed domain event (no AS2 construction needed)
     dispatchable = bd.DispatchActivity(
         semantic_type=MessageSemantics.CREATE_REPORT,
         activity_id="act-xyz",
-        payload=InboundPayload(
+        payload=CreateReportReceivedEvent(
             activity_id="act-xyz",
             actor_id="https://example.org/users/tester",
             object_type="VulnerabilityReport",

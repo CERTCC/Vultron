@@ -42,7 +42,7 @@ def prepare_for_dispatch(activity: as_Activity) -> DispatchActivity:
         f"Preparing activity '{activity.as_id}' of type '{activity.as_type}' for dispatch."
     )
 
-    semantics, payload = extract_intent(activity)
+    event = extract_intent(activity)
 
     # For CREATE-type activities, the object may be inline (not yet in DataLayer)
     obj = getattr(activity, "as_object", None)
@@ -51,9 +51,9 @@ def prepare_for_dispatch(activity: as_Activity) -> DispatchActivity:
     )
 
     dispatch_msg = DispatchActivity(
-        semantic_type=semantics,
+        semantic_type=event.semantic_type,
         activity_id=activity.as_id,
-        payload=payload,
+        payload=event,
         wire_activity=activity,
         wire_object=wire_object,
     )

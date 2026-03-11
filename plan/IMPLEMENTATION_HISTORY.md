@@ -752,3 +752,48 @@ re-assignment from `test_behavior_dispatcher.py`.
 
 **Violations addressed**: V-03-R.  
 **Result**: 880 tests pass, 0 regressions.
+
+---
+
+## P65-6a — VultronEvent typed event hierarchy (2026-03-11)
+
+**Task**: Define `VultronEvent` base class and per-semantic inbound domain event
+subclasses in `core/models/events/`.
+
+**What was done**:
+
+- Converted `vultron/core/models/events.py` to a package (`events/`) with the
+  following structure:
+  - `base.py`: `MessageSemantics` enum, `NonEmptyString`/`OptionalNonEmptyString`
+    helpers, and the `VultronEvent` Pydantic base class (same 17 fields as the
+    former `InboundPayload` plus the required `semantic_type: MessageSemantics`
+    discriminator field).
+  - `report.py`, `case.py`, `actor.py`, `case_participant.py`, `embargo.py`,
+    `note.py`, `status.py`, `unknown.py`: per-semantic `FooReceivedEvent`
+    subclasses, each setting `semantic_type: Literal[MessageSemantics.X]`.
+    Covers all 38 semantics + `UNKNOWN`.
+  - `__init__.py`: exports all types, `EVENT_CLASS_MAP` (dict mapping each
+    `MessageSemantics` to its concrete class), and the backward-compat alias
+    `InboundPayload = VultronEvent`.
+- Updated `extract_intent()` in `wire/as2/extractor.py` to return a single
+  typed `VultronEvent` subclass (not a `(MessageSemantics, InboundPayload)`
+  tuple). Uses `EVENT_CLASS_MAP` to construct the correct subclass.
+- Updated `DispatchActivity.payload` type in `vultron/types.py` from
+  `InboundPayload` to `VultronEvent`.
+- Updated `prepare_for_dispatch()` in `inbox_handler.py` to unpack
+  `event = extract_intent(activity)` and read `event.semantic_type`.
+- Removed redundant `object_type` string guards from `create_report`,
+  `submit_report`, and `validate_report` handlers (guaranteed by semantic
+  pattern matching).
+- Updated `test_behavior_dispatcher.py` to use `CreateReportReceivedEvent`
+  instead of `InboundPayload`.
+- Updated `_make_payload` in `test_handlers.py` to auto-derive `semantic_type`
+  via `find_matching_semantics()` and return the correctly typed subclass via
+  `EVENT_CLASS_MAP`.
+- Updated `_call_handler` in `test_reporting_workflow.py` to use the new
+  single-value `extract_intent()` return.
+
+**Violations addressed**: V-02-R follow-on (typed domain events replace generic
+payload; extractor now returns discriminated subclasses).
+
+**Result**: 880 tests pass, 0 regressions.

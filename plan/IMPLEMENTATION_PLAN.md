@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-11 (P65-4 complete: behavior_dispatcher.py decoupled from wire layer)
+**Last Updated**: 2026-03-11 (P65-6a complete: VultronEvent hierarchy; extract_intent() returns typed subclasses)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 880 passing, 5581 subtests, 0 xfailed (2026-03-11, after P65-4)
+**Test suite**: 880 passing, 5581 subtests, 0 xfailed (2026-03-11, after P65-6a)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -90,7 +90,7 @@ V-22 partially resolved (test no longer uses `raw_activity`; `as_Create` import
 remains for `prepare_for_dispatch` test — will be moved with P65-4).
 V-23 (core BT test files use AS2 fixtures) deferred to P65-7.
 
-**Remaining P65 tasks: P65-4, P65-6a, P65-6b, P65-7.**
+**Remaining P65 tasks: P65-6b, P65-7.**
 
 ### ✅ Package relocation Phase 1 complete (PRIORITY 60 — P60-1, P60-2, and P60-3 DONE)
 
@@ -115,8 +115,7 @@ P65-1, P65-2, P65-3, P65-5 complete. V-02-R and V-11-R resolved (P65-3);
 V-03-R remains (P65-4). V-13/V-14 resolved (P65-1); V-15/V-16/V-18 partially
 resolved (P65-5); V-17/V-19 and full V-15/V-18 deferred to P65-6b.
 V-20/V-21 resolved as side effects of P65-2/P65-3.
-Phase PRIORITY-65 remaining tasks: P65-4, P65-6a (VultronEvent hierarchy),
-P65-6b (core BT node AS2 removal), P65-7 (test regressions).
+Phase PRIORITY-65 remaining tasks: P65-6b (core BT node AS2 removal), P65-7 (test regressions).
 **P65-1 replaces P70-1.**
 
 ### ❌ DataLayer not yet relocated to adapters layer (PRIORITY 70)
@@ -224,14 +223,13 @@ TECHDEBT-12 all done. TECHDEBT-4 superseded. See `plan/IMPLEMENTATION_HISTORY.md
 **Reference**: `plan/PRIORITIES.md` PRIORITY 65, `notes/architecture-review.md`
 V-02-R, V-03-R, V-10-R, V-11-R, V-13 through V-23; R-07 through R-11
 
-**Note**: P65-1 replaces P70-1 (same work). P65-1 through P65-3 and P65-5
-are complete. Remaining work: P65-4 → P65-6a → P65-6b → P65-7 (in dependency
-order; P65-4 and P65-6a are independent of each other).
+**Note**: P65-1 replaces P70-1 (same work). P65-1 through P65-5 and P65-6a
+are complete. Remaining work: P65-6b → P65-7 (in dependency order).
 
 Work in dependency order: P65-1 and P65-2 are independent (both done); P65-3
-is the largest task (done); P65-4 depends on P65-3; P65-5 requires P65-1
-(done); P65-6a requires P65-3; P65-6b requires P65-5 and P65-6a; P65-7
-closes out the test regressions last (requires P65-4, P65-6a, and P65-6b).
+is the largest task (done); P65-4 depends on P65-3 (done); P65-5 requires
+P65-1 (done); P65-6a requires P65-3 (done); P65-6b requires P65-5 and P65-6a;
+P65-7 closes out the test regressions last (requires P65-4, P65-6a, and P65-6b).
 
 - [x] **P65-1** (R-08): Move `DataLayer` Protocol from
   `vultron/api/v2/datalayer/abc.py` to `vultron/core/ports/activity_store.py`.
@@ -294,26 +292,19 @@ closes out the test regressions last (requires P65-4, P65-6a, and P65-6b).
   and tests pass. Addresses V-14 (Record), V-15 partial, V-16, V-18 partial.
   **Depends on P65-1.**
 
-- [ ] **P65-6a**: Define `VultronEvent` base class and per-semantic inbound
-  domain event subclasses in `core/models/events/`. Steps: (1) Review
-  `notes/domain-model-separation.md` "Discriminated Event Hierarchy" and
-  `specs/code-style.md` CS-10-002 (`FooEvent` naming convention) before
-  starting. (2) Create `core/models/events/base.py` with `VultronEvent`
-  base class (fields: `semantic_type`, `activity_id`, `actor_id`,
-  `object_id/type`, `target_id/type`, plus semantic-specific extras). (3) Add
-  per-semantic `FooReceivedEvent` subclasses to `core/models/events/` submodules
-  grouped by category (`report.py`, `case.py`, `embargo.py`, etc.) — mirror
-  the `wire/as2/vocab/activities/` structure. Cover only semantics that have
-  handlers (all 38). (4) Update `extract_intent()` in `wire/as2/extractor.py`
-  to return the specific `VultronEvent` subclass (discriminated on
-  `MessageSemantics`) instead of the generic `InboundPayload`. Update
-  `InboundPayload` to be an alias or thin wrapper if retained for backward
-  compat, or replace it with the typed hierarchy. (5) Update
-  `DispatchActivity.payload` type to `VultronEvent` (was `InboundPayload`).
-  (6) Update all 7 handler files to accept the typed `VultronEvent` subclass
-  via `dispatchable.payload` — remove `payload.object_type` string checks
-  where a typed subclass makes them redundant. Done when `extract_intent()`
-  returns typed subclasses, handlers use typed events, all tests pass.
+- [x] **P65-6a**: Define `VultronEvent` base class and per-semantic inbound
+  domain event subclasses in `core/models/events/`. Converted `events.py`
+  to a package (`events/`) with `base.py` (VultronEvent + MessageSemantics),
+  category submodules (`report.py`, `case.py`, `actor.py`, `case_participant.py`,
+  `embargo.py`, `note.py`, `status.py`, `unknown.py`) each containing
+  `FooReceivedEvent` classes with `semantic_type: Literal[...]` discriminators,
+  `__init__.py` exporting all types plus `EVENT_CLASS_MAP` and backward-compat
+  `InboundPayload = VultronEvent` alias. Updated `extract_intent()` to return
+  the concrete typed subclass (not a tuple). Updated `DispatchActivity.payload`
+  type to `VultronEvent`. Removed redundant `object_type` string guards from
+  `create_report`, `submit_report`, and `validate_report` handlers. Updated
+  `inbox_handler.py`, `test_behavior_dispatcher.py`, `test_handlers.py`, and
+  `test_reporting_workflow.py` to use the new API. 880 tests pass.
   **Depends on P65-3 (done).** See `notes/domain-model-separation.md`.
 
 - [ ] **P65-6b** (R-09 part 2): Replace AS2 wire types in core BT nodes and
