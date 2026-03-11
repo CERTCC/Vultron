@@ -24,26 +24,24 @@ def create_case_status(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     Args:
         dispatchable: DispatchActivity containing the Create(CaseStatus)
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        status = activity.as_object
-
-        existing = dl.get(status.as_type.value, status.as_id)
+        existing = dl.get(payload.object_type, payload.object_id)
         if existing is not None:
             logger.info(
                 "CaseStatus '%s' already stored — skipping (idempotent)",
-                status.as_id,
+                payload.object_id,
             )
             return None
 
-        dl.create(status)
-        logger.info("Stored CaseStatus '%s'", status.as_id)
+        dl.create(dispatchable.wire_object)
+        logger.info("Stored CaseStatus '%s'", payload.object_id)
 
     except Exception as e:
         logger.error(
             "Error in create_case_status for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -66,13 +64,13 @@ def add_case_status_to_case(
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        status = rehydrate(obj=activity.as_object)
-        case = rehydrate(obj=activity.target)
-        status_id = status.as_id if hasattr(status, "as_id") else str(status)
-        case_id = case.as_id
+        status = rehydrate(payload.object_id)
+        case = rehydrate(payload.target_id)
+        status_id = payload.object_id
+        case_id = payload.target_id
 
         existing_ids = [
             (s.as_id if hasattr(s, "as_id") else s) for s in case.case_statuses
@@ -92,7 +90,7 @@ def add_case_status_to_case(
     except Exception as e:
         logger.error(
             "Error in add_case_status_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -111,26 +109,24 @@ def create_participant_status(
     Args:
         dispatchable: DispatchActivity containing the Create(ParticipantStatus)
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        status = activity.as_object
-
-        existing = dl.get(status.as_type.value, status.as_id)
+        existing = dl.get(payload.object_type, payload.object_id)
         if existing is not None:
             logger.info(
                 "ParticipantStatus '%s' already stored — skipping (idempotent)",
-                status.as_id,
+                payload.object_id,
             )
             return None
 
-        dl.create(status)
-        logger.info("Stored ParticipantStatus '%s'", status.as_id)
+        dl.create(dispatchable.wire_object)
+        logger.info("Stored ParticipantStatus '%s'", payload.object_id)
 
     except Exception as e:
         logger.error(
             "Error in create_participant_status for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -154,13 +150,13 @@ def add_participant_status_to_participant(
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        status = rehydrate(obj=activity.as_object)
-        participant = rehydrate(obj=activity.target)
-        status_id = status.as_id if hasattr(status, "as_id") else str(status)
-        participant_id = participant.as_id
+        status = rehydrate(payload.object_id)
+        participant = rehydrate(payload.target_id)
+        status_id = payload.object_id
+        participant_id = payload.target_id
 
         existing_ids = [
             (s.as_id if hasattr(s, "as_id") else s)
@@ -186,6 +182,6 @@ def add_participant_status_to_participant(
     except Exception as e:
         logger.error(
             "Error in add_participant_status_to_participant for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )

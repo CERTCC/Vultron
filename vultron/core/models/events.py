@@ -5,9 +5,19 @@ in the system, as understood by the domain layer.
 """
 
 from enum import auto, StrEnum
-from typing import Any
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AfterValidator, BaseModel
+
+
+def _non_empty(v: str) -> str:
+    if not v.strip():
+        raise ValueError("must be a non-empty string")
+    return v
+
+
+NonEmptyString = Annotated[str, AfterValidator(_non_empty)]
+OptionalNonEmptyString = Optional[NonEmptyString]
 
 
 class MessageSemantics(StrEnum):
@@ -68,14 +78,30 @@ class MessageSemantics(StrEnum):
 class InboundPayload(BaseModel):
     """Domain-level wrapper around an inbound wire-format activity.
 
-    Produced by the extractor before dispatch. The `raw_activity` field carries
-    the original wire-format object; core logic MUST NOT inspect its AS2 types.
+    Produced by extract_intent() in the wire layer before dispatch.
+    All fields are plain domain types (strings); no AS2 wire types are present.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    activity_id: NonEmptyString
+    activity_type: OptionalNonEmptyString = None
+    actor_id: NonEmptyString
 
-    activity_id: str
-    actor_id: str
-    object_type: str | None = None
-    object_id: str | None = None
-    raw_activity: Any  # the original as_Activity; opaque to core logic
+    object_id: OptionalNonEmptyString = None
+    object_type: OptionalNonEmptyString = None
+
+    target_id: OptionalNonEmptyString = None
+    target_type: OptionalNonEmptyString = None
+
+    context_id: OptionalNonEmptyString = None
+    context_type: OptionalNonEmptyString = None
+
+    origin_id: OptionalNonEmptyString = None
+    origin_type: OptionalNonEmptyString = None
+
+    # Nested fields: activity.as_object.as_object, .target, .context
+    inner_object_id: OptionalNonEmptyString = None
+    inner_object_type: OptionalNonEmptyString = None
+    inner_target_id: OptionalNonEmptyString = None
+    inner_target_type: OptionalNonEmptyString = None
+    inner_context_id: OptionalNonEmptyString = None
+    inner_context_type: OptionalNonEmptyString = None

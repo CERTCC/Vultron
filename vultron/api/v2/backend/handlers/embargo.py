@@ -26,26 +26,24 @@ def create_embargo_event(
     Args:
         dispatchable: DispatchActivity containing the Create(EmbargoEvent)
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        embargo = activity.as_object
-
-        existing = dl.get(embargo.as_type.value, embargo.as_id)
+        existing = dl.get(payload.object_type, payload.object_id)
         if existing is not None:
             logger.info(
                 "EmbargoEvent '%s' already stored — skipping (idempotent)",
-                embargo.as_id,
+                payload.object_id,
             )
             return None
 
-        dl.create(embargo)
-        logger.info("Stored EmbargoEvent '%s'", embargo.as_id)
+        dl.create(dispatchable.wire_object)
+        logger.info("Stored EmbargoEvent '%s'", payload.object_id)
 
     except Exception as e:
         logger.error(
             "Error in create_embargo_event for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -67,16 +65,13 @@ def add_embargo_event_to_case(
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        embargo = rehydrate(obj=activity.as_object)
-        case = rehydrate(obj=activity.target)
-
-        embargo_id = (
-            embargo.as_id if hasattr(embargo, "as_id") else str(embargo)
-        )
-        case_id = case.as_id if hasattr(case, "as_id") else str(case)
+        embargo = rehydrate(payload.object_id)
+        case = rehydrate(payload.target_id)
+        embargo_id = payload.object_id
+        case_id = payload.target_id
 
         current_embargo_id = (
             case.active_embargo.as_id
@@ -95,9 +90,7 @@ def add_embargo_event_to_case(
             )
             return None
 
-        case.set_embargo(
-            embargo.as_id if hasattr(embargo, "as_id") else embargo
-        )
+        case.set_embargo(payload.object_id)
         dl.update(case_id, object_to_record(case))
         logger.info(
             "Activated embargo '%s' on case '%s'",
@@ -108,7 +101,7 @@ def add_embargo_event_to_case(
     except Exception as e:
         logger.error(
             "Error in add_embargo_event_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -131,16 +124,12 @@ def remove_embargo_event_from_case(
     from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.bt.embargo_management.states import EM
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        case = rehydrate(obj=activity.origin)
-        embargo = activity.as_object
-
-        embargo_id = (
-            embargo.as_id if hasattr(embargo, "as_id") else str(embargo)
-        )
-        case_id = case.as_id
+        case = rehydrate(payload.origin_id)
+        embargo_id = payload.object_id
+        case_id = payload.origin_id
 
         current_embargo_id = (
             case.active_embargo.as_id
@@ -171,7 +160,7 @@ def remove_embargo_event_from_case(
     except Exception as e:
         logger.error(
             "Error in remove_embargo_event_from_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -189,24 +178,21 @@ def announce_embargo_event_to_case(
     Args:
         dispatchable: DispatchActivity containing the AnnounceEmbargo
     """
-    from vultron.api.v2.data.rehydration import rehydrate
-
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        case = rehydrate(obj=activity.context)
-        case_id = case.as_id
+        case_id = payload.context_id
 
         logger.info(
             "Received embargo announcement '%s' on case '%s'",
-            activity.as_id,
+            payload.activity_id,
             case_id,
         )
 
     except Exception as e:
         logger.error(
             "Error in announce_embargo_event_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -225,29 +211,29 @@ def invite_to_embargo_on_case(
     Args:
         dispatchable: DispatchActivity containing the EmProposeEmbargo
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        existing = dl.get(activity.as_type.value, activity.as_id)
+        existing = dl.get(payload.activity_type, payload.activity_id)
         if existing is not None:
             logger.info(
                 "EmProposeEmbargo '%s' already stored — skipping (idempotent)",
-                activity.as_id,
+                payload.activity_id,
             )
             return None
 
-        dl.create(activity)
+        dl.create(dispatchable.wire_activity)
         logger.info(
             "Stored embargo proposal '%s' (actor=%s, context=%s)",
-            activity.as_id,
-            activity.as_actor,
-            activity.context,
+            payload.activity_id,
+            payload.actor_id,
+            payload.context_id,
         )
 
     except Exception as e:
         logger.error(
             "Error in invite_to_embargo_on_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -270,14 +256,15 @@ def accept_invite_to_embargo_on_case(
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        proposal = rehydrate(obj=activity.as_object)
-        embargo = rehydrate(obj=proposal.as_object)
-        case = rehydrate(obj=proposal.context)
-
-        embargo_id = embargo.as_id
+        embargo_id = payload.inner_object_id
+        case = (
+            rehydrate(payload.inner_context_id)
+            if payload.inner_context_id
+            else rehydrate(dl.read(payload.object_id).context)
+        )
         case_id = case.as_id
 
         current_embargo_id = (
@@ -297,18 +284,12 @@ def accept_invite_to_embargo_on_case(
             )
             return None
 
-        case.set_embargo(
-            embargo.as_id if hasattr(embargo, "as_id") else embargo
-        )
+        case.set_embargo(embargo_id)
 
-        accepting_actor_id = (
-            activity.actor.as_id
-            if hasattr(activity.actor, "as_id")
-            else str(activity.actor)
-        )
+        accepting_actor_id = payload.actor_id
         participant_id = case.actor_participant_index.get(accepting_actor_id)
         if participant_id:
-            participant = rehydrate(obj=participant_id)
+            participant = rehydrate(participant_id)
             if embargo_id not in participant.accepted_embargo_ids:
                 participant.accepted_embargo_ids.append(embargo_id)
                 dl.update(participant_id, object_to_record(participant))
@@ -329,7 +310,7 @@ def accept_invite_to_embargo_on_case(
         dl.update(case_id, object_to_record(case))
         logger.info(
             "Accepted embargo proposal '%s'; activated embargo '%s' on case '%s'",
-            proposal.as_id,
+            payload.object_id,
             embargo_id,
             case_id,
         )
@@ -337,7 +318,7 @@ def accept_invite_to_embargo_on_case(
     except Exception as e:
         logger.error(
             "Error in accept_invite_to_embargo_on_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -355,24 +336,18 @@ def reject_invite_to_embargo_on_case(
     Args:
         dispatchable: DispatchActivity containing the EmRejectEmbargo
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        proposal_ref = activity.as_object
-        proposal_id = (
-            proposal_ref.as_id
-            if hasattr(proposal_ref, "as_id")
-            else str(proposal_ref)
-        )
         logger.info(
             "Actor '%s' rejected embargo proposal '%s'",
-            activity.as_actor,
-            proposal_id,
+            payload.actor_id,
+            payload.object_id,
         )
 
     except Exception as e:
         logger.error(
             "Error in reject_invite_to_embargo_on_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )

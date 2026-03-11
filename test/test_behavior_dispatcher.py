@@ -12,9 +12,11 @@ def test_prepare_for_dispatch_parses_activity_and_constructs_dispatchactivity(
     monkeypatch,
 ):
     """prepare_for_dispatch should parse the passed activity and let pydantic construct the payload model."""
-    # keep semantics resolution deterministic
+    # keep semantics resolution deterministic by patching at the extractor module level
+    import vultron.wire.as2.extractor as extractor_mod
+
     monkeypatch.setattr(
-        bd,
+        extractor_mod,
         "find_matching_semantics",
         lambda activity: MessageSemantics.UNKNOWN,
     )
@@ -30,9 +32,6 @@ def test_prepare_for_dispatch_parses_activity_and_constructs_dispatchactivity(
     # payload should be an InboundPayload instance
     assert isinstance(dispatch_msg.payload, InboundPayload)
     assert dispatch_msg.payload.activity_id == "act-123"
-    assert (
-        getattr(dispatch_msg.payload.raw_activity, "as_type", None) == "Create"
-    )
 
 
 def test_get_dispatcher_returns_local_dispatcher():
@@ -46,17 +45,13 @@ def test_get_dispatcher_returns_local_dispatcher():
 def test_local_dispatcher_dispatch_logs_payload(caplog):
     """
     DirectActivityDispatcher.dispatch should log an info message about dispatching and a debug
-    message containing the activity dump (ensure the activity id appears in the debug output).
+    message containing the activity id.
     """
     caplog.set_level(logging.DEBUG)
     mock_dl = MagicMock()
     dispatcher = bd.DirectActivityDispatcher(
         handler_map={MessageSemantics.CREATE_REPORT: MagicMock()}, dl=mock_dl
     )
-
-    # Use a mock raw_activity to avoid coupling this core test to AS2 types.
-    mock_activity = MagicMock()
-    mock_activity.model_dump_json.return_value = '{"id": "act-xyz"}'
 
     # Construct a DispatchActivity directly with InboundPayload (no AS2 construction needed)
     dispatchable = bd.DispatchActivity(
@@ -66,7 +61,6 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
             activity_id="act-xyz",
             actor_id="https://example.org/users/tester",
             object_type="VulnerabilityReport",
-            raw_activity=mock_activity,
         ),
     )
 
@@ -80,5 +74,5 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
     ]
 
     assert any("Dispatching activity" in m for m in info_msgs)
-    # debug should include the activity id produced by model_dump_json
+    # debug should include the activity id
     assert any("act-xyz" in m for m in debug_msgs)

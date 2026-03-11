@@ -27,24 +27,22 @@ def create_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
         dispatchable: DispatchActivity containing the as_Create with
                       VulnerabilityCase object
     """
-    from vultron.api.v2.data.rehydration import rehydrate
     from vultron.core.behaviors.bridge import BTBridge
     from vultron.core.behaviors.case.create_tree import create_create_case_tree
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        actor = rehydrate(obj=activity.actor)
-        actor_id = actor.as_id
-        case = rehydrate(obj=activity.as_object)
-        case_id = case.as_id
+        actor_id = payload.actor_id
+        case = dispatchable.wire_object
+        case_id = payload.object_id
 
         logger.info("Actor '%s' creates case '%s'", actor_id, case_id)
 
         bridge = BTBridge(datalayer=dl)
         tree = create_create_case_tree(case_obj=case, actor_id=actor_id)
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor_id, activity=activity
+            tree=tree, actor_id=actor_id, activity=dispatchable.wire_activity
         )
 
         if result.status.name != "SUCCESS":
@@ -58,7 +56,7 @@ def create_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     except Exception as e:
         logger.error(
             "Error in create_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -84,13 +82,12 @@ def engage_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
         create_engage_case_tree,
     )
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        actor = rehydrate(obj=activity.actor)
-        actor_id = actor.as_id
-        case = rehydrate(obj=activity.as_object)
-        case_id = case.as_id
+        actor_id = payload.actor_id
+        case = rehydrate(payload.object_id)
+        case_id = payload.object_id
 
         logger.info(
             "Actor '%s' engages case '%s' (RM → ACCEPTED)", actor_id, case_id
@@ -99,7 +96,7 @@ def engage_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
         bridge = BTBridge(datalayer=dl)
         tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor_id, activity=activity
+            tree=tree, actor_id=actor_id, activity=dispatchable.wire_activity
         )
 
         if result.status.name != "SUCCESS":
@@ -113,7 +110,7 @@ def engage_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     except Exception as e:
         logger.error(
             "Error in engage_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -141,13 +138,12 @@ def defer_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
         create_defer_case_tree,
     )
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        actor = rehydrate(obj=activity.actor)
-        actor_id = actor.as_id
-        case = rehydrate(obj=activity.as_object)
-        case_id = case.as_id
+        actor_id = payload.actor_id
+        case = rehydrate(payload.object_id)
+        case_id = payload.object_id
 
         logger.info(
             "Actor '%s' defers case '%s' (RM → DEFERRED)", actor_id, case_id
@@ -156,7 +152,7 @@ def defer_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
         bridge = BTBridge(datalayer=dl)
         tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
         result = bridge.execute_with_setup(
-            tree=tree, actor_id=actor_id, activity=activity
+            tree=tree, actor_id=actor_id, activity=dispatchable.wire_activity
         )
 
         if result.status.name != "SUCCESS":
@@ -170,7 +166,7 @@ def defer_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     except Exception as e:
         logger.error(
             "Error in defer_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -194,13 +190,13 @@ def add_report_to_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        report = rehydrate(obj=activity.as_object)
-        case = rehydrate(obj=activity.target)
-        report_id = report.as_id
-        case_id = case.as_id
+        report = rehydrate(payload.object_id)
+        case = rehydrate(payload.target_id)
+        report_id = payload.object_id
+        case_id = payload.target_id
 
         existing_report_ids = [
             (r.as_id if hasattr(r, "as_id") else r)
@@ -222,7 +218,7 @@ def add_report_to_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     except Exception as e:
         logger.error(
             "Error in add_report_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -243,13 +239,12 @@ def close_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.wire.as2.vocab.activities.case import RmCloseCase
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        actor = rehydrate(obj=activity.actor)
-        actor_id = actor.as_id
-        case = rehydrate(obj=activity.as_object)
-        case_id = case.as_id
+        actor_id = payload.actor_id
+        case = rehydrate(payload.object_id)
+        case_id = payload.object_id
 
         logger.info("Actor '%s' is closing case '%s'", actor_id, case_id)
 
@@ -283,7 +278,7 @@ def close_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     except Exception as e:
         logger.error(
             "Error in close_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -359,18 +354,12 @@ def update_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        actor_id = (
-            activity.actor.as_id
-            if hasattr(activity.actor, "as_id")
-            else str(activity.actor)
-        )
-        incoming = rehydrate(obj=activity.as_object)
-        case_id = (
-            incoming.as_id if hasattr(incoming, "as_id") else str(incoming)
-        )
+        actor_id = payload.actor_id
+        incoming = rehydrate(payload.object_id)
+        case_id = payload.object_id
 
         stored_case = dl.read(case_id)
         if stored_case is None:
@@ -400,7 +389,7 @@ def update_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
 
         _check_participant_embargo_acceptance(stored_case, dl, rehydrate)
 
-        if getattr(incoming, "as_type", None) == "VulnerabilityCase":
+        if payload.object_type == "VulnerabilityCase":
             for field in ("name", "summary", "content"):
                 value = getattr(incoming, field, None)
                 if value is not None:
@@ -417,6 +406,6 @@ def update_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     except Exception as e:
         logger.error(
             "Error in update_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )

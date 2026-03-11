@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from vultron.core.models.events import InboundPayload, MessageSemantics
 
@@ -13,16 +13,24 @@ if TYPE_CHECKING:
 class DispatchActivity(BaseModel):
     """
     Data model to represent a dispatchable activity with its associated message semantics as a header.
+
+    The `wire_activity` field carries the original AS2 wire object for adapter-layer
+    persistence; core logic MUST NOT inspect its AS2 types.
+    The `wire_object` field carries the inline AS2 object from activity.as_object (for
+    CREATE-type activities where the object is embedded, not yet in the DataLayer).
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     semantic_type: MessageSemantics
     activity_id: str
     payload: InboundPayload
-    # We are deliberately not including case_id or report_id here because
-    # where they are located in payload.raw_activity can vary depending on message semantics.
-    # Therefore it is better to leave it to downstream semantic-specific handlers to
-    # extract those values for logging or other purposes rather than having to build
-    # a parallel extraction logic here in the dispatcher that may not be universally applicable.
+    wire_activity: Any = (
+        None  # opaque AS2 activity for adapter-layer persistence
+    )
+    wire_object: Any = (
+        None  # opaque inline AS2 object (set for CREATE-type activities)
+    )
 
 
 class BehaviorHandler(Protocol):

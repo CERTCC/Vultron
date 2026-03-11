@@ -35,7 +35,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 from vultron.wire.as2.vocab.type_helpers import AsActivityType
 from vultron.core.models.events import MessageSemantics
-from vultron.wire.as2.extractor import find_matching_semantics
 from vultron.types import BehaviorHandler, DispatchActivity
 
 
@@ -77,27 +76,25 @@ def dl():
 def _call_handler(
     activity: AsActivityType, handler: BehaviorHandler, actor=None, dl=None
 ):
+    from vultron.wire.as2.extractor import extract_intent
+    from vultron.types import DispatchActivity
 
-    semantics = find_matching_semantics(activity)
+    semantics, payload = extract_intent(activity)
 
     assert semantics != MessageSemantics.UNKNOWN
     assert semantics in MessageSemantics
 
-    from vultron.core.models.events import InboundPayload
-
     obj = getattr(activity, "as_object", None)
-    object_type = (
-        str(getattr(obj, "as_type", None)) if obj is not None else None
-    )
-    payload = InboundPayload(
-        activity_id=activity.as_id,
-        actor_id=str(activity.actor) if activity.actor else "",
-        object_type=object_type,
-        raw_activity=activity,
+    wire_object = (
+        obj if (obj is not None and not isinstance(obj, str)) else None
     )
 
     dispatchable = DispatchActivity(
-        semantic_type=semantics, activity_id=activity.as_id, payload=payload
+        semantic_type=semantics,
+        activity_id=activity.as_id,
+        payload=payload,
+        wire_activity=activity,
+        wire_object=wire_object,
     )
 
     try:

@@ -32,13 +32,13 @@ def create_case_participant(
     """
     from vultron.api.v2.data.rehydration import rehydrate
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        participant = rehydrate(obj=activity.as_object)
-        participant_id = participant.as_id
+        participant = rehydrate(dispatchable.wire_object)
+        participant_id = payload.object_id
 
-        existing = dl.get(participant.as_type.value, participant_id)
+        existing = dl.get(payload.object_type, payload.object_id)
         if existing is not None:
             logger.info(
                 "Participant '%s' already exists — skipping (idempotent)",
@@ -52,7 +52,7 @@ def create_case_participant(
     except Exception as e:
         logger.error(
             "Error in create_case_participant for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -76,13 +76,13 @@ def add_case_participant_to_case(
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        participant = rehydrate(obj=activity.as_object)
-        case = rehydrate(obj=activity.target)
-        participant_id = participant.as_id
-        case_id = case.as_id
+        participant = rehydrate(payload.object_id)
+        case = rehydrate(payload.target_id)
+        participant_id = payload.object_id
+        case_id = payload.target_id
 
         existing_ids = [
             (p.as_id if hasattr(p, "as_id") else p)
@@ -106,7 +106,7 @@ def add_case_participant_to_case(
     except Exception as e:
         logger.error(
             "Error in add_case_participant_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -129,13 +129,12 @@ def remove_case_participant_from_case(
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        participant = rehydrate(obj=activity.as_object)
-        case = rehydrate(obj=activity.target)
-        participant_id = participant.as_id
-        case_id = case.as_id
+        participant_id = payload.object_id
+        case = rehydrate(payload.target_id)
+        case_id = payload.target_id
 
         existing_ids = [
             (p.as_id if hasattr(p, "as_id") else p)
@@ -161,6 +160,6 @@ def remove_case_participant_from_case(
     except Exception as e:
         logger.error(
             "Error in remove_case_participant_from_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )

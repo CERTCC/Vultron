@@ -26,14 +26,81 @@ from vultron.core.models.events import InboundPayload, MessageSemantics
 from vultron.types import DispatchActivity
 
 
-def _make_payload(activity):
-    """Wrap a raw activity in InboundPayload for use in tests."""
-    return InboundPayload(
-        activity_id=getattr(activity, "as_id", "") or "",
-        actor_id=(
-            str(activity.actor) if getattr(activity, "actor", None) else ""
+def _make_payload(activity, **extra_fields):
+    """Wrap an AS2 activity in InboundPayload for use in tests."""
+    obj = getattr(activity, "as_object", None)
+    actor = getattr(activity, "actor", None)
+    actor_id = (
+        getattr(actor, "as_id", str(actor))
+        if actor
+        else "https://example.org/users/tester"
+    )
+
+    def _get_id(field):
+        if field is None:
+            return None
+        if isinstance(field, str):
+            return field or None
+        return getattr(field, "as_id", None) or str(field) or None
+
+    def _get_type(field):
+        if field is None or isinstance(field, str):
+            return None
+        t = getattr(field, "as_type", None)
+        return str(t) if t is not None else None
+
+    target = getattr(activity, "target", None)
+    context = getattr(activity, "context", None)
+    origin = getattr(activity, "origin", None)
+
+    inner_obj = None
+    inner_target = None
+    inner_context = None
+    if obj is not None and not isinstance(obj, str):
+        inner_obj = getattr(obj, "as_object", None)
+        inner_target = getattr(obj, "target", None)
+        inner_context = getattr(obj, "context", None)
+
+    fields = dict(
+        activity_id=getattr(activity, "as_id", "") or "urn:uuid:test-activity",
+        actor_id=actor_id,
+        activity_type=(
+            str(activity.as_type)
+            if getattr(activity, "as_type", None)
+            else None
         ),
-        raw_activity=activity,
+        object_id=_get_id(obj),
+        object_type=_get_type(obj),
+        target_id=_get_id(target),
+        target_type=_get_type(target),
+        context_id=_get_id(context),
+        context_type=_get_type(context),
+        origin_id=_get_id(origin),
+        origin_type=_get_type(origin),
+        inner_object_id=_get_id(inner_obj),
+        inner_object_type=_get_type(inner_obj),
+        inner_target_id=_get_id(inner_target),
+        inner_target_type=_get_type(inner_target),
+        inner_context_id=_get_id(inner_context),
+        inner_context_type=_get_type(inner_context),
+    )
+    fields.update(extra_fields)
+    return InboundPayload(**fields)
+
+
+def _make_dispatchable(activity, semantic_type, **payload_overrides):
+    """Create a DispatchActivity from an AS2 activity."""
+    payload = _make_payload(activity, **payload_overrides)
+    obj = getattr(activity, "as_object", None)
+    wire_object = (
+        obj if (obj is not None and not isinstance(obj, str)) else None
+    )
+    return DispatchActivity(
+        semantic_type=semantic_type,
+        activity_id=activity.as_id,
+        payload=payload,
+        wire_activity=activity,
+        wire_object=wire_object,
     )
 
 
@@ -166,9 +233,6 @@ class TestHandlerExecution:
 
     def test_create_report_executes_with_valid_semantics(self):
         """Test create_report handler executes when semantics match."""
-        mock_activity = MagicMock(spec=DispatchActivity)
-        mock_activity.semantic_type = MessageSemantics.CREATE_REPORT
-
         # Create proper as_Create activity with VulnerabilityReport object
         report = VulnerabilityReport(
             name="TEST-002", content="Test vulnerability report"
@@ -176,19 +240,18 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=report
         )
-        mock_activity.payload = _make_payload(create_activity)
+        dispatchable = _make_dispatchable(
+            create_activity, MessageSemantics.CREATE_REPORT
+        )
 
         # Should execute without raising
         mock_dl = MagicMock()
-        result = handlers.create_report(mock_activity, mock_dl)
+        result = handlers.create_report(dispatchable, mock_dl)
         # Current stub implementation returns None
         assert result is None
 
     def test_create_case_executes_with_valid_semantics(self):
         """Test create_case handler executes when semantics match."""
-        mock_activity = MagicMock(spec=DispatchActivity)
-        mock_activity.semantic_type = MessageSemantics.CREATE_CASE
-
         # Create proper as_Create activity with VulnerabilityCase object
         case = VulnerabilityCase(
             name="TEST-CASE-002", content="Test vulnerability case"
@@ -196,11 +259,13 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=case
         )
-        mock_activity.payload = _make_payload(create_activity)
+        dispatchable = _make_dispatchable(
+            create_activity, MessageSemantics.CREATE_CASE
+        )
 
         # Should execute without raising
         mock_dl = MagicMock()
-        result = handlers.create_case(mock_activity, mock_dl)
+        result = handlers.create_case(dispatchable, mock_dl)
         assert result is None
 
     def test_handler_rejects_wrong_semantic_type(self):
@@ -231,11 +296,11 @@ class TestInviteActorHandlers:
             target="https://example.org/cases/case1",
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.INVITE_ACTOR_TO_CASE
-        mock_dispatchable.payload = _make_payload(invite)
+        dispatchable = _make_dispatchable(
+            invite, MessageSemantics.INVITE_ACTOR_TO_CASE
+        )
 
-        handlers.invite_actor_to_case(mock_dispatchable, dl)
+        handlers.invite_actor_to_case(dispatchable, dl)
 
         stored = dl.get(invite.as_type.value, invite.as_id)
         assert stored is not None
@@ -254,14 +319,12 @@ class TestInviteActorHandlers:
             target="https://example.org/cases/case1",
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.INVITE_ACTOR_TO_CASE
-        mock_dispatchable.payload = _make_payload(invite)
+        dispatchable = _make_dispatchable(
+            invite, MessageSemantics.INVITE_ACTOR_TO_CASE
+        )
 
-        handlers.invite_actor_to_case(mock_dispatchable, dl)
-        handlers.invite_actor_to_case(
-            mock_dispatchable, dl
-        )  # second call is no-op
+        handlers.invite_actor_to_case(dispatchable, dl)
+        handlers.invite_actor_to_case(dispatchable, dl)  # second call is no-op
 
         stored = dl.get(invite.as_type.value, invite.as_id)
         assert stored is not None
@@ -284,14 +347,12 @@ class TestInviteActorHandlers:
             object=invite,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE
+        dispatchable = _make_dispatchable(
+            reject, MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = _make_payload(reject)
 
         result = handlers.reject_invite_actor_to_case(
-            mock_dispatchable, MagicMock()
+            dispatchable, MagicMock()
         )
         assert result is None
 
@@ -309,6 +370,10 @@ class TestInviteActorHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case2",
@@ -330,14 +395,13 @@ class TestInviteActorHandlers:
             target=case,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
+        dispatchable = _make_dispatchable(
+            remove_activity, MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
         )
-        mock_dispatchable.payload = _make_payload(remove_activity)
 
-        handlers.remove_case_participant_from_case(mock_dispatchable, dl)
+        handlers.remove_case_participant_from_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         assert participant.as_id not in [
             (p.as_id if hasattr(p, "as_id") else p)
             for p in case.case_participants
@@ -377,15 +441,11 @@ class TestInviteActorHandlers:
             target=case,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
+        dispatchable = _make_dispatchable(
+            remove_activity, MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
         )
-        mock_dispatchable.payload = _make_payload(remove_activity)
 
-        result = handlers.remove_case_participant_from_case(
-            mock_dispatchable, dl
-        )
+        result = handlers.remove_case_participant_from_case(dispatchable, dl)
         assert result is None
 
     def test_add_case_participant_updates_index(self, monkeypatch):
@@ -402,6 +462,10 @@ class TestInviteActorHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
         actor_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
             id="https://example.org/cases/caseAP1",
@@ -421,14 +485,13 @@ class TestInviteActorHandlers:
             target=case,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE
+        dispatchable = _make_dispatchable(
+            add_activity, MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE
         )
-        mock_dispatchable.payload = _make_payload(add_activity)
 
-        handlers.add_case_participant_to_case(mock_dispatchable, dl)
+        handlers.add_case_participant_to_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         assert actor_id in case.actor_participant_index
         assert case.actor_participant_index[actor_id] == participant.as_id
 
@@ -446,6 +509,10 @@ class TestInviteActorHandlers:
         )
 
         dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
         actor_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
             id="https://example.org/cases/caseRM1",
@@ -468,14 +535,13 @@ class TestInviteActorHandlers:
             target=case,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
+        dispatchable = _make_dispatchable(
+            remove_activity, MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
         )
-        mock_dispatchable.payload = _make_payload(remove_activity)
 
-        handlers.remove_case_participant_from_case(mock_dispatchable, dl)
+        handlers.remove_case_participant_from_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         assert actor_id not in case.actor_participant_index
 
     def test_accept_invite_actor_to_case_adds_participant(self, monkeypatch):
@@ -516,14 +582,13 @@ class TestInviteActorHandlers:
             object=invite,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+        dispatchable = _make_dispatchable(
+            accept, MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = _make_payload(accept)
 
-        handlers.accept_invite_actor_to_case(mock_dispatchable, dl)
+        handlers.accept_invite_actor_to_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         assert invitee_id in case.actor_participant_index
 
     def test_accept_invite_actor_to_case_records_active_embargo(
@@ -573,14 +638,13 @@ class TestInviteActorHandlers:
             object=invite,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+        dispatchable = _make_dispatchable(
+            accept, MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = _make_payload(accept)
 
-        handlers.accept_invite_actor_to_case(mock_dispatchable, dl)
+        handlers.accept_invite_actor_to_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         participant_id = case.actor_participant_index.get(invitee_id)
         assert participant_id is not None
         participant_obj = dl.get(id_=participant_id)
@@ -625,16 +689,15 @@ class TestInviteActorHandlers:
             object=invite,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
+        dispatchable = _make_dispatchable(
+            accept, MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = _make_payload(accept)
 
         assert len(case.events) == 0
 
-        handlers.accept_invite_actor_to_case(mock_dispatchable, dl)
+        handlers.accept_invite_actor_to_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         assert len(case.events) >= 1
         event_types = [e.event_type for e in case.events]
         assert "participant_joined" in event_types
@@ -670,11 +733,11 @@ class TestEmbargoHandlers:
             context=case,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_EMBARGO_EVENT
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.CREATE_EMBARGO_EVENT
+        )
 
-        handlers.create_embargo_event(mock_dispatchable, dl)
+        handlers.create_embargo_event(dispatchable, dl)
 
         stored = dl.get(embargo.as_type.value, embargo.as_id)
         assert stored is not None
@@ -705,14 +768,12 @@ class TestEmbargoHandlers:
             object=embargo,
             context=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_EMBARGO_EVENT
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.CREATE_EMBARGO_EVENT
+        )
 
-        handlers.create_embargo_event(mock_dispatchable, dl)
-        handlers.create_embargo_event(
-            mock_dispatchable, dl
-        )  # second call no-op
+        handlers.create_embargo_event(dispatchable, dl)
+        handlers.create_embargo_event(dispatchable, dl)  # second call no-op
 
         stored = dl.get(embargo.as_type.value, embargo.as_id)
         assert stored is not None
@@ -728,6 +789,10 @@ class TestEmbargoHandlers:
         from vultron.bt.embargo_management.states import EM
 
         dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_em1",
@@ -745,14 +810,13 @@ class TestEmbargoHandlers:
             object=embargo,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.add_embargo_event_to_case(mock_dispatchable, dl)
+        handlers.add_embargo_event_to_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         assert case.active_embargo is not None
         assert case.current_status.em_state == EM.ACTIVE
 
@@ -775,13 +839,11 @@ class TestEmbargoHandlers:
             context="https://example.org/cases/case_em2",
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
+        dispatchable = _make_dispatchable(
+            proposal, MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
         )
-        mock_dispatchable.payload = _make_payload(proposal)
 
-        handlers.invite_to_embargo_on_case(mock_dispatchable, dl)
+        handlers.invite_to_embargo_on_case(dispatchable, dl)
 
         stored = dl.get(proposal.as_type.value, proposal.as_id)
         assert stored is not None
@@ -831,14 +893,13 @@ class TestEmbargoHandlers:
             object=proposal,
             context=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
+        dispatchable = _make_dispatchable(
+            accept, MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
         )
-        mock_dispatchable.payload = _make_payload(accept)
 
-        handlers.accept_invite_to_embargo_on_case(mock_dispatchable, dl)
+        handlers.accept_invite_to_embargo_on_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         assert case.active_embargo is not None
         assert case.current_status.em_state == EM.ACTIVE
 
@@ -896,13 +957,11 @@ class TestEmbargoHandlers:
             object=proposal,
             context=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
+        dispatchable = _make_dispatchable(
+            accept, MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
         )
-        mock_dispatchable.payload = _make_payload(accept)
 
-        handlers.accept_invite_to_embargo_on_case(mock_dispatchable, dl)
+        handlers.accept_invite_to_embargo_on_case(dispatchable, dl)
 
         updated_participant = dl.get(id_=participant.as_id)
         assert updated_participant is not None
@@ -949,16 +1008,15 @@ class TestEmbargoHandlers:
             object=proposal,
             context=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
+        dispatchable = _make_dispatchable(
+            accept, MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
         )
-        mock_dispatchable.payload = _make_payload(accept)
 
         assert len(case.events) == 0
 
-        handlers.accept_invite_to_embargo_on_case(mock_dispatchable, dl)
+        handlers.accept_invite_to_embargo_on_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         assert len(case.events) >= 1
         event_types = [e.event_type for e in case.events]
         assert "embargo_accepted" in event_types
@@ -987,14 +1045,12 @@ class TestEmbargoHandlers:
             context="https://example.org/cases/case_em4",
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE
+        dispatchable = _make_dispatchable(
+            reject, MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE
         )
-        mock_dispatchable.payload = _make_payload(reject)
 
         result = handlers.reject_invite_to_embargo_on_case(
-            mock_dispatchable, MagicMock()
+            dispatchable, MagicMock()
         )
         assert result is None
 
@@ -1021,11 +1077,11 @@ class TestNoteHandlers:
             object=note,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_NOTE
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.CREATE_NOTE
+        )
 
-        handlers.create_note(mock_dispatchable, dl)
+        handlers.create_note(dispatchable, dl)
 
         stored = dl.get(note.as_type.value, note.as_id)
         assert stored is not None
@@ -1048,12 +1104,12 @@ class TestNoteHandlers:
             actor="https://example.org/users/finder",
             object=note,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_NOTE
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.CREATE_NOTE
+        )
 
         dl.create(note)
-        handlers.create_note(mock_dispatchable, dl)
+        handlers.create_note(dispatchable, dl)
 
         stored = dl.get(note.as_type.value, note.as_id)
         assert stored is not None
@@ -1089,12 +1145,13 @@ class TestNoteHandlers:
             object=note,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.ADD_NOTE_TO_CASE
+        )
 
-        handlers.add_note_to_case(mock_dispatchable, dl)
+        handlers.add_note_to_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         assert note.as_id in case.notes
 
     def test_add_note_to_case_idempotent(self, monkeypatch):
@@ -1129,11 +1186,11 @@ class TestNoteHandlers:
             object=note,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.ADD_NOTE_TO_CASE
+        )
 
-        handlers.add_note_to_case(mock_dispatchable, dl)
+        handlers.add_note_to_case(dispatchable, dl)
 
         assert case.notes.count(note.as_id) == 1
 
@@ -1171,14 +1228,13 @@ class TestNoteHandlers:
             object=note,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REMOVE_NOTE_FROM_CASE
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.REMOVE_NOTE_FROM_CASE
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.remove_note_from_case(mock_dispatchable, dl)
+        handlers.remove_note_from_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         assert note.as_id not in case.notes
 
     def test_remove_note_from_case_idempotent(self, monkeypatch):
@@ -1214,13 +1270,11 @@ class TestNoteHandlers:
             object=note,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REMOVE_NOTE_FROM_CASE
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.REMOVE_NOTE_FROM_CASE
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
-        result = handlers.remove_note_from_case(mock_dispatchable, dl)
+        result = handlers.remove_note_from_case(dispatchable, dl)
         assert result is None
 
 
@@ -1252,11 +1306,11 @@ class TestStatusHandlers:
             context=case.as_id,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_CASE_STATUS
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.CREATE_CASE_STATUS
+        )
 
-        handlers.create_case_status(mock_dispatchable, dl)
+        handlers.create_case_status(dispatchable, dl)
 
         stored = dl.get(status.as_type.value, status.as_id)
         assert stored is not None
@@ -1287,11 +1341,11 @@ class TestStatusHandlers:
             object=status,
             context=case.as_id,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_CASE_STATUS
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.CREATE_CASE_STATUS
+        )
 
-        handlers.create_case_status(mock_dispatchable, dl)
+        handlers.create_case_status(dispatchable, dl)
 
         stored = dl.get(status.as_type.value, status.as_id)
         assert stored is not None
@@ -1327,14 +1381,13 @@ class TestStatusHandlers:
             object=status,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ADD_CASE_STATUS_TO_CASE
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.ADD_CASE_STATUS_TO_CASE
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.add_case_status_to_case(mock_dispatchable, dl)
+        handlers.add_case_status_to_case(dispatchable, dl)
 
+        case = dl.read(case.as_id)
         status_ids = [
             (s.as_id if hasattr(s, "as_id") else s) for s in case.case_statuses
         ]
@@ -1370,13 +1423,11 @@ class TestStatusHandlers:
             context=case_ps1,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.CREATE_PARTICIPANT_STATUS
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.CREATE_PARTICIPANT_STATUS
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.create_participant_status(mock_dispatchable, dl)
+        handlers.create_participant_status(dispatchable, dl)
 
         stored = dl.get(pstatus.as_type.value, pstatus.as_id)
         assert stored is not None
@@ -1428,14 +1479,13 @@ class TestStatusHandlers:
             target=participant,
             context=case_ps2,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.add_participant_status_to_participant(mock_dispatchable, dl)
+        handlers.add_participant_status_to_participant(dispatchable, dl)
 
+        participant = dl.read(participant.as_id)
         status_ids = [
             (s.as_id if hasattr(s, "as_id") else s)
             for s in participant.participant_statuses
@@ -1466,13 +1516,11 @@ class TestSuggestActorHandlers:
             to="https://example.org/users/vendor",
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.SUGGEST_ACTOR_TO_CASE
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.SUGGEST_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.suggest_actor_to_case(mock_dispatchable, dl)
+        handlers.suggest_actor_to_case(dispatchable, dl)
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
@@ -1495,14 +1543,12 @@ class TestSuggestActorHandlers:
             object=coordinator,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.SUGGEST_ACTOR_TO_CASE
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.SUGGEST_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.suggest_actor_to_case(mock_dispatchable, dl)
-        handlers.suggest_actor_to_case(mock_dispatchable, dl)
+        handlers.suggest_actor_to_case(dispatchable, dl)
+        handlers.suggest_actor_to_case(dispatchable, dl)
 
         # Second call should be a no-op; record is still present (not duplicated)
         stored = dl.get(activity.as_type.value, activity.as_id)
@@ -1536,13 +1582,11 @@ class TestSuggestActorHandlers:
             object=recommendation,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.accept_suggest_actor_to_case(mock_dispatchable, dl)
+        handlers.accept_suggest_actor_to_case(dispatchable, dl)
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
@@ -1574,16 +1618,12 @@ class TestSuggestActorHandlers:
             object=recommendation,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            handlers.reject_suggest_actor_to_case(
-                mock_dispatchable, MagicMock()
-            )
+            handlers.reject_suggest_actor_to_case(dispatchable, MagicMock())
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
 
@@ -1609,13 +1649,11 @@ class TestOwnershipTransferHandlers:
             object=case,
             target="https://example.org/users/coordinator",
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.offer_case_ownership_transfer(mock_dispatchable, dl)
+        handlers.offer_case_ownership_transfer(dispatchable, dl)
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
@@ -1655,13 +1693,11 @@ class TestOwnershipTransferHandlers:
             actor="https://example.org/users/coordinator",
             object=offer,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
-        handlers.accept_case_ownership_transfer(mock_dispatchable, dl)
+        handlers.accept_case_ownership_transfer(dispatchable, dl)
 
         updated_record = dl.get(case.as_type.value, case.as_id)
         assert updated_record is not None
@@ -1696,16 +1732,12 @@ class TestOwnershipTransferHandlers:
             actor="https://example.org/users/coordinator",
             object=offer,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER
         )
-        mock_dispatchable.payload = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            handlers.reject_case_ownership_transfer(
-                mock_dispatchable, MagicMock()
-            )
+            handlers.reject_case_ownership_transfer(dispatchable, MagicMock())
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
 
@@ -1744,12 +1776,24 @@ class TestUpdateCaseHandler:
             actor=owner_id,
             object=updated_case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.UPDATE_CASE
+        )
+
+        from vultron.api.v2.data.rehydration import rehydrate as real_rehydrate
+
+        def _mock_rehydrate(obj, **kwargs):
+            if obj == case.as_id:
+                return updated_case
+            return real_rehydrate(obj, **kwargs)
+
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.rehydrate",
+            _mock_rehydrate,
+        )
 
         with caplog.at_level(logging.INFO):
-            handlers.update_case(mock_dispatchable, dl)
+            handlers.update_case(dispatchable, dl)
 
         stored = dl.read(case.as_id)
         assert stored is not None
@@ -1787,12 +1831,12 @@ class TestUpdateCaseHandler:
             actor=non_owner_id,
             object=updated_case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.UPDATE_CASE
+        )
 
         with caplog.at_level(logging.WARNING):
-            handlers.update_case(mock_dispatchable, dl)
+            handlers.update_case(dispatchable, dl)
 
         stored = dl.read(case.as_id)
         assert stored is not None
@@ -1827,12 +1871,24 @@ class TestUpdateCaseHandler:
             actor=owner_id,
             object=updated_case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.UPDATE_CASE
+        )
 
-        handlers.update_case(mock_dispatchable, dl)
-        handlers.update_case(mock_dispatchable, dl)
+        from vultron.api.v2.data.rehydration import rehydrate as real_rehydrate
+
+        def _mock_rehydrate(obj, **kwargs):
+            if obj == case.as_id:
+                return updated_case
+            return real_rehydrate(obj, **kwargs)
+
+        monkeypatch.setattr(
+            "vultron.api.v2.data.rehydration.rehydrate",
+            _mock_rehydrate,
+        )
+
+        handlers.update_case(dispatchable, dl)
+        handlers.update_case(dispatchable, dl)
 
         stored = dl.read(case.as_id)
         assert stored is not None
@@ -1885,12 +1941,12 @@ class TestUpdateCaseHandler:
             attributed_to=owner_id,
         )
         activity = UpdateCase(actor=owner_id, object=updated_case)
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.UPDATE_CASE
+        )
 
         with caplog.at_level(logging.WARNING):
-            handlers.update_case(mock_dispatchable, dl)
+            handlers.update_case(dispatchable, dl)
 
         assert any(
             "has not accepted" in r.message and "CM-10-004" in r.message
@@ -1944,12 +2000,12 @@ class TestUpdateCaseHandler:
             attributed_to=owner_id,
         )
         activity = UpdateCase(actor=owner_id, object=updated_case)
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.UPDATE_CASE
+        )
 
         with caplog.at_level(logging.WARNING):
-            handlers.update_case(mock_dispatchable, dl)
+            handlers.update_case(dispatchable, dl)
 
         assert not any("has not accepted" in r.message for r in caplog.records)
 
@@ -1997,11 +2053,11 @@ class TestUpdateCaseHandler:
             attributed_to=owner_id,
         )
         activity = UpdateCase(actor=owner_id, object=updated_case)
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = _make_payload(activity)
+        dispatchable = _make_dispatchable(
+            activity, MessageSemantics.UPDATE_CASE
+        )
 
         with caplog.at_level(logging.WARNING):
-            handlers.update_case(mock_dispatchable, dl)
+            handlers.update_case(dispatchable, dl)
 
         assert not any("has not accepted" in r.message for r in caplog.records)

@@ -25,25 +25,24 @@ def create_note(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     Args:
         dispatchable: DispatchActivity containing the Create(Note)
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        note = activity.as_object
-
-        existing = dl.get(note.as_type.value, note.as_id)
+        existing = dl.get(payload.object_type, payload.object_id)
         if existing is not None:
             logger.info(
-                "Note '%s' already stored — skipping (idempotent)", note.as_id
+                "Note '%s' already stored — skipping (idempotent)",
+                payload.object_id,
             )
             return None
 
-        dl.create(note)
-        logger.info("Stored Note '%s'", note.as_id)
+        dl.create(dispatchable.wire_object)
+        logger.info("Stored Note '%s'", payload.object_id)
 
     except Exception as e:
         logger.error(
             "Error in create_note for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -63,13 +62,12 @@ def add_note_to_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        note = rehydrate(obj=activity.as_object)
-        case = rehydrate(obj=activity.target)
-        note_id = note.as_id if hasattr(note, "as_id") else str(note)
-        case_id = case.as_id
+        note_id = payload.object_id
+        case = rehydrate(payload.target_id)
+        case_id = payload.target_id
 
         existing_ids = [
             (n.as_id if hasattr(n, "as_id") else n) for n in case.notes
@@ -89,7 +87,7 @@ def add_note_to_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
     except Exception as e:
         logger.error(
             "Error in add_note_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -111,13 +109,12 @@ def remove_note_from_case(
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        note = rehydrate(obj=activity.as_object)
-        case = rehydrate(obj=activity.target)
-        note_id = note.as_id if hasattr(note, "as_id") else str(note)
-        case_id = case.as_id
+        note_id = payload.object_id
+        case = rehydrate(payload.target_id)
+        case_id = payload.target_id
 
         existing_ids = [
             (n.as_id if hasattr(n, "as_id") else n) for n in case.notes
@@ -141,6 +138,6 @@ def remove_note_from_case(
     except Exception as e:
         logger.error(
             "Error in remove_note_from_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )

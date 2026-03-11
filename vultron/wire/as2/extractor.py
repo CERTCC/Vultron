@@ -324,6 +324,75 @@ SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
 }
 
 
+def extract_intent(
+    activity: as_Activity,
+) -> tuple[MessageSemantics, "InboundPayload"]:
+    """Extract semantic intent and domain fields from an AS2 activity.
+
+    Returns both the matched MessageSemantics and a fully-populated InboundPayload
+    with all relevant IDs and types extracted from the AS2 object graph.
+    This is the sole point where AS2 wire types are translated to domain concepts.
+
+    Args:
+        activity: The AS2 activity to classify and extract from.
+
+    Returns:
+        Tuple of (MessageSemantics, InboundPayload).
+    """
+    from vultron.core.models.events import InboundPayload
+
+    semantics = find_matching_semantics(activity)
+
+    def _get_id(field) -> str | None:
+        if field is None:
+            return None
+        if isinstance(field, str):
+            return field
+        return getattr(field, "as_id", str(field)) or None
+
+    def _get_type(field) -> str | None:
+        if field is None or isinstance(field, str):
+            return None
+        t = getattr(field, "as_type", None)
+        return str(t) if t is not None else None
+
+    actor_id = _get_id(getattr(activity, "actor", None)) or ""
+    obj = getattr(activity, "as_object", None)
+    target = getattr(activity, "target", None)
+    context = getattr(activity, "context", None)
+    origin = getattr(activity, "origin", None)
+
+    # Nested fields from activity.as_object (for Accept/Reject wrapping another activity)
+    inner_obj = None
+    inner_target = None
+    inner_context = None
+    if obj is not None and not isinstance(obj, str):
+        inner_obj = getattr(obj, "as_object", None)
+        inner_target = getattr(obj, "target", None)
+        inner_context = getattr(obj, "context", None)
+
+    payload = InboundPayload(
+        activity_id=activity.as_id,
+        activity_type=str(activity.as_type) if activity.as_type else None,
+        actor_id=actor_id,
+        object_id=_get_id(obj),
+        object_type=_get_type(obj),
+        target_id=_get_id(target),
+        target_type=_get_type(target),
+        context_id=_get_id(context),
+        context_type=_get_type(context),
+        origin_id=_get_id(origin),
+        origin_type=_get_type(origin),
+        inner_object_id=_get_id(inner_obj),
+        inner_object_type=_get_type(inner_obj),
+        inner_target_id=_get_id(inner_target),
+        inner_target_type=_get_type(inner_target),
+        inner_context_id=_get_id(inner_context),
+        inner_context_type=_get_type(inner_context),
+    )
+    return semantics, payload
+
+
 def find_matching_semantics(activity: as_Activity) -> MessageSemantics:
     """Find the MessageSemantics for the given AS2 activity.
 

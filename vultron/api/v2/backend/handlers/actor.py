@@ -27,30 +27,30 @@ def suggest_actor_to_case(
     Args:
         dispatchable: DispatchActivity containing the RecommendActor
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        existing = dl.get(activity.as_type.value, activity.as_id)
+        existing = dl.get(payload.activity_type, payload.activity_id)
         if existing is not None:
             logger.info(
                 "RecommendActor '%s' already stored — skipping (idempotent)",
-                activity.as_id,
+                payload.activity_id,
             )
             return None
 
-        dl.create(activity)
+        dl.create(dispatchable.wire_activity)
         logger.info(
             "Stored actor recommendation '%s' (actor=%s, object=%s, target=%s)",
-            activity.as_id,
-            activity.actor,
-            activity.as_object,
-            activity.target,
+            payload.activity_id,
+            payload.actor_id,
+            payload.object_id,
+            payload.target_id,
         )
 
     except Exception as e:
         logger.error(
             "Error in suggest_actor_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -70,30 +70,30 @@ def accept_suggest_actor_to_case(
     Args:
         dispatchable: DispatchActivity containing the AcceptActorRecommendation
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        existing = dl.get(activity.as_type.value, activity.as_id)
+        existing = dl.get(payload.activity_type, payload.activity_id)
         if existing is not None:
             logger.info(
                 "AcceptActorRecommendation '%s' already stored — skipping (idempotent)",
-                activity.as_id,
+                payload.activity_id,
             )
             return None
 
-        dl.create(activity)
+        dl.create(dispatchable.wire_activity)
         logger.info(
             "Stored acceptance of actor recommendation '%s' (actor=%s, object=%s, target=%s)",
-            activity.as_id,
-            activity.actor,
-            activity.as_object,
-            activity.target,
+            payload.activity_id,
+            payload.actor_id,
+            payload.object_id,
+            payload.target_id,
         )
 
     except Exception as e:
         logger.error(
             "Error in accept_suggest_actor_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -111,25 +111,19 @@ def reject_suggest_actor_to_case(
     Args:
         dispatchable: DispatchActivity containing the RejectActorRecommendation
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        object_ref = activity.as_object
-        object_id = (
-            object_ref.as_id
-            if hasattr(object_ref, "as_id")
-            else str(object_ref)
-        )
         logger.info(
             "Actor '%s' rejected recommendation to add actor '%s' to case",
-            activity.actor,
-            object_id,
+            payload.actor_id,
+            payload.object_id,
         )
 
     except Exception as e:
         logger.error(
             "Error in reject_suggest_actor_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -148,29 +142,29 @@ def offer_case_ownership_transfer(
     Args:
         dispatchable: DispatchActivity containing the OfferCaseOwnershipTransfer
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        existing = dl.get(activity.as_type.value, activity.as_id)
+        existing = dl.get(payload.activity_type, payload.activity_id)
         if existing is not None:
             logger.info(
                 "OfferCaseOwnershipTransfer '%s' already stored — skipping (idempotent)",
-                activity.as_id,
+                payload.activity_id,
             )
             return None
 
-        dl.create(activity)
+        dl.create(dispatchable.wire_activity)
         logger.info(
             "Stored ownership transfer offer '%s' (actor=%s, target=%s)",
-            activity.as_id,
-            activity.actor,
-            activity.target,
+            payload.activity_id,
+            payload.actor_id,
+            payload.target_id,
         )
 
     except Exception as e:
         logger.error(
             "Error in offer_case_ownership_transfer for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -193,18 +187,12 @@ def accept_case_ownership_transfer(
     from vultron.api.v2.data.rehydration import rehydrate
     from vultron.api.v2.datalayer.db_record import object_to_record
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        offer = rehydrate(obj=activity.as_object)
-        case = rehydrate(obj=offer.as_object)
-
-        new_owner_id = (
-            activity.actor.as_id
-            if hasattr(activity.actor, "as_id")
-            else str(activity.actor)
-        )
-        case_id = case.as_id
+        case = rehydrate(payload.inner_object_id)
+        new_owner_id = payload.actor_id
+        case_id = payload.inner_object_id
 
         current_owner_id = (
             case.attributed_to.as_id
@@ -231,7 +219,7 @@ def accept_case_ownership_transfer(
     except Exception as e:
         logger.error(
             "Error in accept_case_ownership_transfer for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -249,23 +237,19 @@ def reject_case_ownership_transfer(
     Args:
         dispatchable: DispatchActivity containing the RejectCaseOwnershipTransfer
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        offer_ref = activity.as_object
-        offer_id = (
-            offer_ref.as_id if hasattr(offer_ref, "as_id") else str(offer_ref)
-        )
         logger.info(
             "Actor '%s' rejected ownership transfer offer '%s' — ownership unchanged",
-            activity.actor,
-            offer_id,
+            payload.actor_id,
+            payload.object_id,
         )
 
     except Exception as e:
         logger.error(
             "Error in reject_case_ownership_transfer for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -283,29 +267,29 @@ def invite_actor_to_case(
     Args:
         dispatchable: DispatchActivity containing the RmInviteToCase activity
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        existing = dl.get(activity.as_type.value, activity.as_id)
+        existing = dl.get(payload.activity_type, payload.activity_id)
         if existing is not None:
             logger.info(
                 "Invite '%s' already stored — skipping (idempotent)",
-                activity.as_id,
+                payload.activity_id,
             )
             return None
 
-        dl.create(activity)
+        dl.create(dispatchable.wire_activity)
         logger.info(
             "Stored invite '%s' (actor=%s, target=%s)",
-            activity.as_id,
-            activity.as_actor,
-            activity.target,
+            payload.activity_id,
+            payload.actor_id,
+            payload.target_id,
         )
 
     except Exception as e:
         logger.error(
             "Error in invite_actor_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -329,18 +313,12 @@ def accept_invite_actor_to_case(
     from vultron.api.v2.datalayer.db_record import object_to_record
     from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        invite = rehydrate(obj=activity.as_object)
-        case = rehydrate(obj=invite.target)
-        invitee_ref = invite.as_object
-        invitee_id = (
-            invitee_ref.as_id
-            if hasattr(invitee_ref, "as_id")
-            else str(invitee_ref)
-        )
-        case_id = case.as_id
+        case = rehydrate(payload.inner_target_id)
+        invitee_id = payload.inner_object_id
+        case_id = payload.inner_target_id
 
         existing_ids = [
             (p.as_id if hasattr(p, "as_id") else p)
@@ -391,7 +369,7 @@ def accept_invite_actor_to_case(
     except Exception as e:
         logger.error(
             "Error in accept_invite_actor_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
 
@@ -409,24 +387,18 @@ def reject_invite_actor_to_case(
     Args:
         dispatchable: DispatchActivity containing the RmRejectInviteToCase
     """
-    activity = dispatchable.payload.raw_activity
+    payload = dispatchable.payload
 
     try:
-        invite_ref = activity.as_object
-        invite_id = (
-            invite_ref.as_id
-            if hasattr(invite_ref, "as_id")
-            else str(invite_ref)
-        )
         logger.info(
             "Actor '%s' rejected invitation '%s'",
-            activity.as_actor,
-            invite_id,
+            payload.actor_id,
+            payload.object_id,
         )
 
     except Exception as e:
         logger.error(
             "Error in reject_invite_actor_to_case for activity %s: %s",
-            activity.as_id,
+            payload.activity_id,
             str(e),
         )
