@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from vultron.core.models.events import MessageSemantics, VultronEvent
 
 if TYPE_CHECKING:
-    from vultron.api.v2.datalayer.abc import DataLayer
+    from vultron.core.ports.activity_store import DataLayer
 
 
 class DispatchActivity(BaseModel):

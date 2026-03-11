@@ -1080,3 +1080,34 @@ fully resolved.
 - R-11: updated to ✅ COMPLETE inline (previously had no status marker).
 
 **Result**: 880 tests pass, 0 regressions. No code changes — documentation only.
+
+---
+
+## TECHDEBT-13a — Wire-boundary cleanup: test_policy.py (COMPLETE 2026-03-11)
+
+Replaced `VulnerabilityReport` import (from `vultron.wire.as2.vocab.objects`)
+with `VultronReport` (from `vultron.core.models.vultron_types`) in
+`test/core/behaviors/report/test_policy.py`. This eliminates the residual V-23
+violation where a core-layer test imported a wire-layer type. Tests pass via
+duck-typing since `VultronReport` has the same fields (`as_id`, `name`,
+`content`) as the wire-layer type the policy module already expects.
+
+**Result**: 880 tests pass, 0 regressions. No production code changes.
+
+---
+
+## TECHDEBT-13b/c — Wire-boundary cleanup: _base.py and TYPE_CHECKING imports (COMPLETE 2026-03-11)
+
+**TECHDEBT-13b**: Updated `vultron/wire/as2/vocab/examples/_base.py` to remove
+all adapter-layer imports. The module-level `DataLayer` annotation now imports
+from `vultron.core.ports.activity_store`; `initialize_examples()` requires an
+explicit `DataLayer` argument (removed `None` default, `get_datalayer()`
+fallback, and `Record.from_obj()` usage). Objects are passed directly to
+`datalayer.create()` since the `DataLayer` protocol accepts `BaseModel`.
+
+**TECHDEBT-13c**: Updated `TYPE_CHECKING` guard imports in `vultron/types.py`
+and `vultron/behavior_dispatcher.py` to reference
+`vultron.core.ports.activity_store.DataLayer` directly instead of the
+`vultron.api.v2.datalayer.abc` shim.
+
+**Result**: 880 tests pass, 0 regressions. V-24 fully resolved.

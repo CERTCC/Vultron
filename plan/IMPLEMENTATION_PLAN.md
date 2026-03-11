@@ -182,18 +182,18 @@ See `plan/IMPLEMENTATION_HISTORY.md`.
 
 **Priority**: Medium (architecture hygiene)
 
-- [ ] **TECHDEBT-13a**: Update `test/core/behaviors/report/test_policy.py` to
+- [x] **TECHDEBT-13a**: Update `test/core/behaviors/report/test_policy.py` to
   replace the `VulnerabilityReport` import from `vultron.wire.as2.vocab.objects`
   with `VultronReport` from `vultron.core.models.vultron_types`. Done when no
   core test imports wire-layer AS2 vocabulary types and tests pass. (Residual
   V-23 cleanup.)
-- [ ] **TECHDEBT-13b**: Fix V-24 — update `vultron/wire/as2/vocab/examples/_base.py`
+- [x] **TECHDEBT-13b**: Fix V-24 — update `vultron/wire/as2/vocab/examples/_base.py`
   to eliminate adapter-layer imports. The `DataLayer` annotation should use the
   core port (`vultron.core.ports.activity_store.DataLayer`); the `initialize_examples()`
   function should accept a `DataLayer` argument only (removing the `get_datalayer()`
   fallback and `Record` import). Done when `_base.py` has no imports from
   `vultron.api.v2.datalayer.*` and tests pass.
-- [ ] **TECHDEBT-13c**: Update `TYPE_CHECKING` imports in `vultron/types.py` and
+- [x] **TECHDEBT-13c**: Update `TYPE_CHECKING` imports in `vultron/types.py` and
   `vultron/behavior_dispatcher.py` to reference `vultron.core.ports.activity_store.DataLayer`
   directly instead of `vultron.api.v2.datalayer.abc.DataLayer` (the shim).
   Done when no `core/` or top-level module imports from `api/v2/datalayer/abc`

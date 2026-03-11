@@ -10,7 +10,7 @@ from vultron.core.models.events import MessageSemantics
 from vultron.types import BehaviorHandler, DispatchActivity
 
 if TYPE_CHECKING:
-    from vultron.api.v2.datalayer.abc import DataLayer
+    from vultron.core.ports.activity_store import DataLayer
 
 logger = logging.getLogger(__name__)
 

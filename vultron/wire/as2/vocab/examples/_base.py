@@ -14,7 +14,7 @@
 import random
 from uuid import uuid4
 
-from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.core.ports.activity_store import DataLayer
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Organization,
@@ -109,14 +109,9 @@ def gen_report() -> VulnerabilityReport:
     return _REPORT
 
 
-def initialize_examples(datalayer: DataLayer | None = None) -> None:
-    from vultron.api.v2.datalayer.db_record import Record
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-
-    dl = datalayer if datalayer is not None else get_datalayer()
+def initialize_examples(datalayer: DataLayer) -> None:
     for obj in [_FINDER, _VENDOR, _COORDINATOR, _REPORT]:
-        record = Record.from_obj(obj)
-        dl.create(record)
+        datalayer.create(obj)
 
 
 def _strip_published_udpated(obj: as_Base) -> as_Base:
