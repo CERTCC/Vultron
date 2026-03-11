@@ -348,3 +348,361 @@ remain. New violations V-13 through V-23 introduced in P60-2. See
 - [x] **TECHDEBT-11**: Test layout mirrored to match source after P60-1/P60-2. ✅
 - [x] **TECHDEBT-12**: Deprecated `HTTP_422_UNPROCESSABLE_ENTITY` replaced. ✅
 
+## 2026-03-10 — P60-1 complete: vultron/as_vocab moved to vultron/wire/as2/vocab
+
+> ✅ Captured in `docs/adr/0009-hexagonal-architecture.md` (P60-1 marked
+> complete) and `notes/codebase-structure.md` and
+> `notes/architecture-ports-and-adapters.md` (file layout updated 2026-03-10).
+
+### What changed
+
+- Copied entire `vultron/as_vocab/` tree to `vultron/wire/as2/vocab/` (keeping
+  all sub-packages: `base/`, `objects/`, `activities/`, `examples/`, plus
+  `errors.py`, `type_helpers.py`).
+- Updated all internal imports within the moved files from `vultron.as_vocab.*`
+  to `vultron.wire.as2.vocab.*`.
+- Updated ~90 external callers across `vultron/api/`, `vultron/behaviors/`,
+  `vultron/demo/`, `vultron/wire/as2/`, and `test/`.
+- Deleted `vultron/as_vocab/` entirely (no shim left behind).
+- 822 tests pass.
+
+---
+
+## 2026-03-10 — ARCH-CLEANUP-3 complete: isinstance AS2 checks replaced (V-11, V-12)
+
+> ✅ Captured in `notes/architecture-review.md` (V-11, V-12 marked remediated
+> by ARCH-CLEANUP-3) and `docs/adr/0009-hexagonal-architecture.md` (2026-03-10).
+
+### What changed
+
+- **`handlers/report.py`**: `create_report` and `submit_report` now check
+  `dispatchable.payload.object_type != "VulnerabilityReport"` instead of
+  `isinstance`. `validate_report` uses `getattr(accepted_report, "as_type", None)`.
+  Local `VulnerabilityReport` imports removed from all three handlers.
+- **`handlers/case.py`**: `update_case` uses `getattr(incoming, "as_type", None) ==
+  "VulnerabilityCase"`. Local `VulnerabilityCase` import removed.
+- **`trigger_services/report.py`**: `_resolve_offer_and_report` uses `getattr`
+  as_type check. `VulnerabilityReport` module-level import removed.
+- **`trigger_services/_helpers.py`**: `resolve_case` and
+  `update_participant_rm_state` use `getattr` as_type checks. `VulnerabilityCase`
+  import retained for the `-> VulnerabilityCase` return type annotation.
+- **`test/test_behavior_dispatcher.py`**: Removed `as_TransitiveActivityType` and
+  `VulnerabilityReport` imports. `as_type` assertion uses string `"Create"`.
+  Dispatch test uses `MagicMock` for `raw_activity` instead of full AS2 construction.
+- **`test/api/test_reporting_workflow.py`**: `_call_handler` now populates
+  `InboundPayload.object_type` from `activity.as_object.as_type` (mirrors
+  `prepare_for_dispatch`), so handler type guards work correctly in tests.
+
+822 tests pass.
+
+
+
+### What changed
+
+- Deleted `vultron/activity_patterns.py`, `vultron/semantic_map.py`, and
+  `vultron/semantic_handler_map.py` (all were pure re-export shims).
+- Updated all callers to import from canonical locations:
+  - `test/test_semantic_activity_patterns.py`: `ActivityPattern` and
+    `SEMANTICS_ACTIVITY_PATTERNS` now imported from `vultron.wire.as2.extractor`.
+  - `test/api/test_reporting_workflow.py`: `find_matching_semantics` now imported
+    from `vultron.wire.as2.extractor`.
+  - `test/test_semantic_handler_map.py`: Shim-specific tests removed; test now
+    uses `SEMANTICS_HANDLERS` from `vultron.api.v2.backend.handler_map` directly.
+- 822 tests pass.
+
+---
+
+
+
+### What changed
+
+- **`vultron/api/v2/backend/handler_map.py`** (new): Module-level handler registry in
+  the adapter layer. `SEMANTICS_HANDLERS` dict maps `MessageSemantics` → handler
+  functions with plain module-level imports (no lazy imports needed since this file
+  is already in the adapter layer). This addresses V-09.
+
+- **`vultron/semantic_handler_map.py`**: Converted to a backward-compat shim that
+  re-exports `SEMANTICS_HANDLERS` and a `get_semantics_handlers()` wrapper from
+  the new location. Can be deleted once all callers are updated.
+
+- **`vultron/behavior_dispatcher.py`**: `DispatcherBase` now accepts `dl: DataLayer`
+  and `handler_map: dict[MessageSemantics, BehaviorHandler]` in its constructor.
+  `_handle()` passes `dl=self.dl` to each handler. `_get_handler_for_semantics()`
+  uses `self._handler_map` directly (no lazy import). `get_dispatcher()` updated to
+  accept `dl` and `handler_map` parameters.
+
+- **`vultron/api/v2/backend/inbox_handler.py`**: Module-level `DISPATCHER` now
+  constructed with `get_datalayer()` + `SEMANTICS_HANDLERS` injected. The lazy
+  import in `_get_handler_for_semantics` is gone; the coupling to the handler map
+  now lives in the adapter layer only.
+
+- **All handler files** (`report.py`, `case.py`, `embargo.py`, `actor.py`, `note.py`,
+  `participant.py`, `status.py`, `unknown.py`): Each handler function signature
+  updated to `(dispatchable: DispatchActivity, dl: DataLayer) -> None`. All
+  `from vultron.api.v2.datalayer.tinydb_backend import get_datalayer` lazy imports
+  and `dl = get_datalayer()` calls removed. `DataLayer` imported at module level from
+  `vultron.api.v2.datalayer.abc`. This addresses V-10.
+
+- **`vultron/types.py`**: `BehaviorHandler` Protocol updated to
+  `__call__(self, dispatchable: DispatchActivity, dl: DataLayer) -> None`.
+
+- **`vultron/api/v2/backend/handlers/_base.py`**: `verify_semantics` wrapper updated
+  to accept and forward `dl: DataLayer`.
+
+- **Tests**: All `@patch("vultron.api.v2.datalayer.tinydb_backend.get_datalayer")`
+  patches in `test_handlers.py` replaced with direct `mock_dl` argument passing.
+  `test_behavior_dispatcher.py` updated to construct dispatcher with injected DL
+  and handler map. 824 tests pass (up from 822).
+
+### Phase PRIORITY-50 is now complete (ARCH-1.1 through ARCH-1.4)
+
+All four ARCH-1.x tasks are done. The hexagonal architecture violations V-01 through
+V-10 have been remediated. The remaining violations in the inventory (V-11, V-12)
+are lower severity and can be addressed as part of subsequent work.
+
+## 2026-03-09 — P30-6 complete: trigger sub-command in vultron-demo CLI
+
+Added `vultron-demo trigger` sub-command backed by `vultron/demo/trigger_demo.py`.
+
+Two end-to-end demo workflows are implemented:
+- **Demo 1 (validate and engage)**: finder submits report via inbox → vendor
+  calls `POST .../trigger/validate-report` → vendor calls
+  `POST .../trigger/engage-case`.
+- **Demo 2 (invalidate and close)**: finder submits report via inbox → vendor
+  calls `POST .../trigger/invalidate-report` → vendor calls
+  `POST .../trigger/close-report`.
+
+Supporting changes:
+- Added `post_to_trigger()` helper to `vultron/demo/utils.py`.
+- Added `trigger` demo to `DEMOS` list in `vultron/demo/cli.py`; it now runs
+  as part of `vultron-demo all`.
+- Updated `docs/reference/code/demo/demos.md` and `cli.md` with new entries.
+
+Phase PRIORITY-30 is now fully complete (P30-1 through P30-6).
+
+---
+
+## 2026-03-09 — ARCH-1.1 complete: MessageSemantics moved to vultron/core/models/events.py
+
+Created `vultron/core/` package with `models/events.py` containing only
+`MessageSemantics`. Removed the definition from `vultron/enums.py` (which
+now re-exports it for backward compatibility). Updated all 17 direct import
+sites across `vultron/` and `test/`. 815 tests pass.
+
+The compatibility re-export in `vultron/enums.py` may be removed once ARCH-1.3
+consolidates the extractor and the AS2 structural enums move to
+`vultron/wire/as2/enums.py` (R-04).
+
+
+---
+
+## 2026-03-09 — ARCH-1.2 complete: InboundPayload introduced; AS2 type removed from DispatchActivity
+
+Added `InboundPayload` to `vultron/core/models/events.py` with fields
+`activity_id`, `actor_id`, `object_type`, `object_id`, and `raw_activity: Any`.
+`DispatchActivity.payload` now types as `InboundPayload` instead of `as_Activity`,
+removing the AS2 import from `vultron/types.py` (V-02) and from
+`behavior_dispatcher.py` (V-03). All 38 handler functions updated to
+`activity = dispatchable.payload.raw_activity`. `verify_semantics` decorator
+updated to compare `dispatchable.semantic_type` directly (ARCH-07-001), removing
+the second `find_matching_semantics` call. 815 tests pass.
+
+---
+
+## 2026-03-09 — ARCH-1.3 complete: wire/as2/parser.py and wire/as2/extractor.py created
+
+### What moved
+
+- **`vultron/wire/as2/parser.py`** (new): `parse_activity()` extracted from
+  `vultron/api/v2/routers/actors.py`. Raises domain exceptions (`VultronParseError`
+  hierarchy defined in `vultron/wire/as2/errors.py` and `vultron/wire/errors.py`)
+  instead of `HTTPException`. The router now has a thin HTTP adapter wrapper that
+  catches these and maps to 400/422 responses (R-03, V-06, ARCH-08-001).
+
+- **`vultron/wire/as2/extractor.py`** (new): Consolidates `ActivityPattern` class,
+  all 37 pattern instances, `SEMANTICS_ACTIVITY_PATTERNS` dict, and
+  `find_matching_semantics()` from the former `vultron/activity_patterns.py` and
+  `vultron/semantic_map.py`. This is now the sole location for AS2-to-domain
+  semantic mapping (R-04, V-05, ARCH-03-001).
+
+- **`vultron/wire/errors.py`** (new): `VultronWireError(VultronError)` base.
+- **`vultron/wire/as2/errors.py`** (new): `VultronParseError`, subtypes for missing
+  type, unknown type, and validation failure.
+
+### Backward-compat shims retained
+
+`vultron/activity_patterns.py` and `vultron/semantic_map.py` converted to
+re-export shims so any external code importing from the old locations continues
+to work. These can be deleted once confirmed no external callers remain.
+
+### What else changed
+
+- `vultron/behavior_dispatcher.py`: import `find_matching_semantics` from
+  `vultron.wire.as2.extractor` (no longer `vultron.semantic_map`).
+- `vultron/api/v2/backend/inbox_handler.py`: removed `raise_if_not_valid_activity`
+  (V-07) and the `VOCABULARY` import; activity type validation now happens
+  entirely in the wire parser layer before the item reaches the inbox handler.
+- Tests: `test_raise_if_not_valid_activity_raises` deleted; 7 new wire layer tests
+  added in `test/wire/as2/`. 822 tests pass (up from 815).
+
+## 2026-03-10 — P60-2: vultron/behaviors/ moved to vultron/core/behaviors/
+
+> ✅ Captured in `docs/adr/0009-hexagonal-architecture.md` (P60-2 marked
+> complete) and `notes/codebase-structure.md`,
+> `notes/architecture-ports-and-adapters.md`, `notes/bt-integration.md`
+> (all updated 2026-03-10).
+
+### What changed
+
+- Copied entire `vultron/behaviors/` tree (bridge, helpers, case/, report/)
+  to `vultron/core/behaviors/`.
+- Updated all internal imports within the moved files from
+  `vultron.behaviors.*` to `vultron.core.behaviors.*`.
+- Updated all external callers:
+  - `vultron/api/v2/backend/handlers/report.py` (lazy imports)
+  - `vultron/api/v2/backend/handlers/case.py` (lazy imports)
+  - `vultron/api/v2/backend/trigger_services/report.py`
+  - 8 test files under `test/behaviors/`
+- Deleted `vultron/behaviors/` entirely (no shim retained; all callers
+  updated in the same step).
+- 822 tests pass.
+
+---
+
+
+
+
+## TECHDEBT-9/7 — NonEmptyString type alias rollout (2026-03-10)
+
+`NonEmptyString` and `OptionalNonEmptyString` were already defined in
+`vultron/wire/as2/vocab/base/types.py` and partially applied. This task
+completed the rollout across all remaining `Optional[str]` fields in
+`vultron/wire/as2/vocab/objects/`:
+
+- **`case_event.py`**: Replaced per-field `@field_validator` on `object_id`
+  and `event_type` with `NonEmptyString` type annotations; removed validators.
+- **`case_reference.py`**: Replaced per-field validators for `url` and `name`
+  with `NonEmptyString` and `OptionalNonEmptyString`; removed validators.
+- **`vulnerability_record.py`**: Changed `url: str | None` to
+  `OptionalNonEmptyString`.
+- **`case_participant.py`**: Changed `name` and `participant_case_name` from
+  `str | None` to `OptionalNonEmptyString`.
+- **`case_status.py`**: Changed `CaseStatus.context` and
+  `ParticipantStatus.tracking_id` from `str | None` to `OptionalNonEmptyString`.
+
+Error message updated: tests that previously asserted field-prefixed messages
+(e.g., "object_id must be a non-empty string") now assert the shared message
+"must be a non-empty string" (which the `AfterValidator` in `_non_empty` raises).
+
+New tests added: `test_case_status.py`, extended `test_case_participant.py`,
+extended `test_vulnerability_record.py`. 860 tests pass.
+
+Note: `CaseParticipant.set_name_if_empty` model validator automatically
+populates `name` from `attributed_to` when `name=None`; tests for `name=None`
+must omit `attributed_to` to observe the None value.
+
+## TECHDEBT-10 — Backfill pre-case events in create_case BT (2026-03-10)
+
+**Task**: Backfill pre-case events into the case event log at case creation
+(CM-02-009).
+
+**Implementation**:
+
+- Added `RecordCaseCreationEvents` node to
+  `vultron/core/behaviors/case/nodes.py`. The node runs after `PersistCase` in
+  the `CreateCaseFlow` sequence.
+- The node records two events using `case.record_event()`:
+  1. `"offer_received"` — only when the triggering activity has an
+     `in_reply_to` reference (the originating Offer that led to case
+     creation). The `object_id` is set to the Offer's `as_id`.
+  2. `"case_created"` — always recorded; `object_id` is set to the case ID.
+- The node reads `activity` from the global py_trees blackboard storage
+  (`Blackboard.storage.get("/activity", None)`) rather than registering it as
+  a required key. This avoids a `KeyError` when the tree is invoked without an
+  inbound activity (e.g. in tests that pass `activity=None`).
+- `create_tree.py` updated to import and include `RecordCaseCreationEvents` in
+  the sequence.
+- 6 new tests added to `test/core/behaviors/case/test_create_tree.py`.
+
+**Key design note**: `received_at` in `CaseEvent` is set by
+`default_factory=_now_utc`, satisfying CM-02-009's trusted-timestamp
+requirement automatically. The node never copies a timestamp from the
+incoming activity.
+
+**866 tests pass.**
+
+## TECHDEBT-8 — Pyright gradual static type checking (2026-03-10)
+
+**Task**: Configure pyright for gradual static type checking (IMPL-TS-07-002).
+
+**Implementation**:
+
+- Added `pyright` to `[dependency-groups].dev` in `pyproject.toml`.
+- Created `pyrightconfig.json` at the repo root with `typeCheckingMode: "basic"`,
+  targeting `vultron/` and `test/`, Python 3.12, `reportMissingImports: true`,
+  `reportMissingTypeStubs: false`.
+- Added `pyright` target to `Makefile` (`uv run pyright`).
+
+**Baseline error count (2026-03-10, pyright 1.1.408, basic mode)**:
+
+```
+811 errors, 7 warnings, 0 informations
+```
+
+These errors are pre-existing technical debt and are NOT blocking. They will
+be resolved incrementally as part of ongoing development. New and modified
+code should be made clean under pyright basic mode before merging.
+
+**Key error categories observed**:
+- `reportInvalidTypeArguments`: `Optional[str]` spelled as `str | None` used
+  as type argument (Pydantic `Annotated` patterns) — widespread across
+  `wire/as2/vocab/objects/`.
+- `reportAttributeAccessIssue` / `reportOptionalMemberAccess`: Union types
+  narrowed incorrectly in property implementations.
+- `reportGeneralTypeIssues`: Field override without default value.
+
+---
+## 2026-03-10 — P65-2 complete (marked; done in P65-1 commit)
+
+P65-2 was implemented in the same commit as P65-1. The `inbox_handler.py`
+already used `_DISPATCHER: ActivityDispatcher | None = None` at module level,
+`init_dispatcher(dl)` for lifespan injection, and both `main.py` and `app.py`
+call `init_dispatcher(dl=get_datalayer())` in their lifespan contexts.
+No `get_datalayer()` call appears at module level or inside `dispatch()`.
+
+## 2026-03-10 — P65-5 complete
+
+### What was done
+
+- Created `vultron/core/models/status.py` containing `ObjectStatus`,
+  `OfferStatus`, `ReportStatus`, `STATUS`, `set_status`, `get_status_layer`,
+  and `status_to_record_dict`. These were previously defined in the
+  adapter-layer `api/v2/data/status.py`.
+- Replaced `vultron/api/v2/data/status.py` with a backward-compat re-export
+  shim pointing to `core/models/status`.
+- Added `save_to_datalayer(dl, obj)` helper to `core/behaviors/helpers.py`.
+  This constructs a `StorableRecord` from `obj.as_id`, `obj.as_type`, and
+  `obj.model_dump(mode="json")` then calls `dl.update()`. Avoids importing
+  the adapter-layer `Record`/`object_to_record` in core BT nodes.
+- Updated `core/behaviors/report/nodes.py`: replaced `api/v2/data/status`
+  and `api/v2/datalayer/db_record` imports with `core/models/status` and
+  `core/behaviors/helpers`; replaced all `object_to_record` calls with
+  `save_to_datalayer`; removed lazy imports at old lines 744–745.
+- Updated `core/behaviors/case/nodes.py`: same pattern for `object_to_record`.
+
+### What was NOT done (deferred to P65-6)
+
+AS2 wire type imports (`VulnerabilityCase`, `CreateCase`, `CaseActor`,
+`VendorParticipant`) remain in the core BT nodes — their removal requires
+defining domain event types and an outbound serialiser (P65-6). The `ParticipantStatus`
+lazy import was converted to a local import inside `_find_and_update_participant_rm`
+(still a local import, but now the only remaining local import, and it
+references a wire-layer type that will be addressed in P65-6).
+
+### Violations addressed
+
+- V-14 (Record): No core BT node imports `Record` or `object_to_record`.
+- V-16: `core/behaviors/report/nodes.py` no longer imports `OfferStatus`
+  from the adapter layer.
+- V-18 partial: Adapter-level `object_to_record` removed from core BT nodes.
+
