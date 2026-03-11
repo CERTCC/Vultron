@@ -170,9 +170,9 @@ Handler functions process DispatchActivity objects and implement protocol busine
 
 ## Related
 
-- Implementation: `vultron/api/v2/backend/handlers.py`
-- Implementation: `vultron/api/v2/backend/behavior_dispatcher.py`
-- Implementation: `vultron/api/v2/backend/semantic_handler_map.py`
+- Implementation: `vultron/api/v2/backend/handlers/` (handler modules)
+- Implementation: `vultron/behavior_dispatcher.py`
+- Implementation: `vultron/api/v2/backend/handler_map.py` (`SEMANTICS_HANDLERS` registry)
 - Tests: `test/api/v2/backend/test_handlers.py`
 - Related Spec: [dispatch-routing.md](dispatch-routing.md)
 - Related Spec: [semantic-extraction.md](semantic-extraction.md)

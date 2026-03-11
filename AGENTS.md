@@ -314,8 +314,10 @@ When adding new message types:
   immediately to backend
 - **Backend** (`vultron/api/v2/backend/`): Business logic; no direct HTTP
   concerns
-- **Data Layer** (`vultron/api/v2/datalayer/`): Persistence abstraction; use
-  Protocol interface
+- **Data Layer port** (`vultron/core/ports/activity_store.py`): `DataLayer`
+  Protocol definition; use this for imports in core and handlers
+- **Data Layer adapter** (`vultron/api/v2/datalayer/`): TinyDB implementation;
+  `abc.py` is a backward-compat shim re-exporting from `core/ports/`
 
 Never bypass layer boundaries. Routers should never directly access data layer;
 always go through backend.
@@ -606,7 +608,8 @@ behavior across backends (in-memory / tinydb) where reasonable.
   service layer for trigger endpoints
 - **Errors**: `vultron/errors.py`, `vultron/api/v2/errors.py` - Exception
   hierarchy
-- **Data Layer**: `vultron/api/v2/datalayer/abc.py` - Persistence abstraction
+- **Data Layer**: `vultron/core/ports/activity_store.py` - `DataLayer` Protocol
+  (port); `vultron/api/v2/datalayer/abc.py` is a backward-compat re-export shim
 - **TinyDB Backend**: `vultron/api/v2/datalayer/tinydb.py` - TinyDB
   implementation
 - **BT Bridge**: `vultron/core/behaviors/bridge.py` - Handler-to-BT execution

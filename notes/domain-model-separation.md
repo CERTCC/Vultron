@@ -118,6 +118,34 @@ constrain refactoring, specifically:
 be prioritized before the internal data model grows significantly more complex.
 Consider creating an ADR to record the decision formally before implementation.
 
+## Domain Events as the Bridge Between Core and Wire
+
+When removing AS2 wire types from `core/behaviors/` (P65-6), the recommended
+pattern is **per-semantic domain event types** rather than a single generic
+`VultronEvent` class that mirrors the AS2 structure.
+
+The key insight: domain events only need to be defined for the things that
+are represented by use cases — items corresponding to `MessageSemantics`
+values or triggerable behaviors. Define specific named event classes such as
+`ReportSubmittedEvent`, `CaseCreatedEvent`, `EmbargoAcceptedEvent` rather
+than one large generic type. Each event class carries exactly the fields
+needed for its specific use case.
+
+This approach:
+
+- Makes the translation point (wire → domain, domain → wire) explicit per
+  semantic type, rather than generic
+- Supports the use-case-as-port pattern: adapters translate from AS2 activity
+  to a specific domain event, and from a domain event back to AS2 for outbound
+- Avoids duplicating the full AS2 structure in the core while still retaining
+  rich semantic information
+- Aligns the domain model with the `MessageSemantics` vocabulary, making the
+  relationship between wire format and domain intent explicit
+
+These domain event types belong in `core/models/` alongside `MessageSemantics`.
+The outbound serializer in `wire/as2/serializer.py` will map each domain event
+type to the appropriate AS2 activity type.
+
 ## Cross-References
 
 - `specs/case-management.md` CM-03-006 — `case_statuses` rename requirement
@@ -133,10 +161,9 @@ Consider creating an ADR to record the decision formally before implementation.
 
 ## DataLayer as a Port, TinyDB as a Driven Adapter
 
-Independently of per-actor isolation, the `DataLayer` interface
-(`vultron/api/v2/datalayer/abc.py`) should be treated as a **port** in the
-hexagonal architecture sense, and the `TinyDbDataLayer` implementation as a
-**driven adapter** that satisfies the port.
+Independently of per-actor isolation, the `DataLayer` interface is treated as
+a **port** in the hexagonal architecture sense, and the `TinyDbDataLayer`
+implementation as a **driven adapter** that satisfies the port.
 
 This distinction matters even now, before per-actor isolation is implemented:
 
@@ -145,19 +172,20 @@ This distinction matters even now, before per-actor isolation is implemented:
 - A future MongoDB adapter would implement the same Protocol without requiring
   core domain changes.
 
-**Current state**: The `DataLayer` Protocol already exists and handlers receive
-it via dependency injection (achieved in ARCH-1.4). The main remaining step is
-to ensure the TinyDB backend file location and `get_datalayer()` factory reflect
-their adapter-layer status in the hexagonal architecture.
+**Current state (P65-1 complete)**: The `DataLayer` Protocol is defined in
+`vultron/core/ports/activity_store.py`. The old location
+(`vultron/api/v2/datalayer/abc.py`) is a backward-compat re-export shim. All
+core BT nodes import `DataLayer` from `core/ports/`. Handlers receive the
+`DataLayer` via dependency injection (achieved in ARCH-1.4).
 
-**Action (post-P60)**: When the `adapters/` package is stubbed (P60-3), the
-`TinyDbDataLayer` and `get_datalayer()` factory should be relocated from
-`vultron/api/v2/datalayer/` to `vultron/adapters/driven/activity_store.py` (or
-equivalent). The port Protocol remains in `vultron/core/ports/`.
+**Remaining step (P70)**: Relocate the `TinyDbDataLayer` implementation and
+`get_datalayer()` factory from `vultron/api/v2/datalayer/` to
+`vultron/adapters/driven/activity_store.py` (or equivalent) when P60-3
+(adapters package stub) is complete.
 
-**Design Decision**: (blocks ACT-1) The DataLayer relocation into the adapter
-layer SHOULD be planned together with PRIORITY 100 (actor independence) and
-the potential MongoDB switch. See the per-actor isolation options below.
+**Design Decision**: The DataLayer relocation into the adapter layer SHOULD
+be planned together with PRIORITY 100 (actor independence) and the potential
+MongoDB switch. See the per-actor isolation options below.
 
 ---
 

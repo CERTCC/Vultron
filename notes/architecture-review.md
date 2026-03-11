@@ -3,7 +3,7 @@
 Review against `notes/architecture-ports-and-adapters.md` and
 `specs/architecture.md`.
 
-> **Status (2026-03-10, updated):** The original 12 violations (V-01 through
+> **Status (2026-03-11, updated):** The original 12 violations (V-01 through
 > V-12) were claimed as fully remediated through ARCH-1.1–ARCH-1.4 and
 > ARCH-CLEANUP-1 through ARCH-CLEANUP-3. However, a fresh review of the
 > current codebase reveals that several remediations are **incomplete or
@@ -11,6 +11,14 @@ Review against `notes/architecture-ports-and-adapters.md` and
 > `vultron/core/behaviors/` package added as part of the same refactoring.
 > Violations V-03, V-02/V-11 (generalised), and V-10 have active regressions.
 > New violations V-13 through V-21 are documented below.
+>
+> **Further update (2026-03-11, P65-1, P65-2, P65-5 complete):**
+> V-13 and V-14 are **fully resolved** (P65-1: `DataLayer` moved to
+> `core/ports/activity_store.py`). V-10-R is **fully resolved** (P65-2:
+> lifespan-managed DataLayer injection in `inbox_handler.py`). V-15, V-16,
+> and V-18 are **partially resolved** (P65-5: `object_to_record` and
+> adapter-layer `OfferStatus` imports removed from core BT nodes; AS2 wire
+> type imports remain — addressed in P65-6). R-08 is complete.
 
 ---
 
@@ -100,7 +108,7 @@ calls them still resolves its DataLayer internally on every dispatch.
 
 ---
 
-### V-13 — `vultron/core/behaviors/bridge.py`, line 42
+### V-13 — ✅ `vultron/core/behaviors/bridge.py` (RESOLVED P65-1)
 
 **Rule:** Rule 2 (core has no framework imports)
 **Severity:** Critical
@@ -112,9 +120,13 @@ interface; by architecture it should be defined in `core/ports/` (as
 makes the core depend on the adapter package tree, violating the principle that
 the core knows nothing about adapters.
 
+**Resolved:** `DataLayer` Protocol moved to `vultron/core/ports/activity_store.py`
+(P65-1). `bridge.py` now imports from `core/ports/`. The old location
+(`api/v2/datalayer/abc.py`) is a backward-compat re-export shim.
+
 ---
 
-### V-14 — `vultron/core/behaviors/helpers.py`, lines 34–35
+### V-14 — ✅ `vultron/core/behaviors/helpers.py` (RESOLVED P65-1)
 
 **Rule:** Rule 2 (core has no framework imports)
 **Severity:** Critical
@@ -129,9 +141,15 @@ persistence-layer data type specific to the TinyDB backend adapter. `Record`
 is not a domain abstraction; it is an adapter implementation detail. Core
 BT helper nodes should not reference persistence record formats.
 
+**Resolved:** Both imports removed (P65-1/P65-5). `helpers.py` now imports
+`DataLayer` from `core/ports/activity_store` and uses a `StorableRecord`
+domain type instead of the adapter-layer `Record`. The `save_to_datalayer`
+helper constructs `StorableRecord` from domain objects without referencing
+`object_to_record`.
+
 ---
 
-### V-15 — `vultron/core/behaviors/report/nodes.py`, lines 32, 38–40
+### V-15 — ⚠️ `vultron/core/behaviors/report/nodes.py` (PARTIALLY RESOLVED P65-5)
 
 **Rule:** Rule 1 (core has no wire format imports), Rule 2 (core has no
 framework imports)
@@ -150,9 +168,14 @@ A core module imports both AS2 vocabulary types (`as_CreateCase`,
 calling `object_to_record` is doing AS2 serialization and persistence
 formatting inside the core behavior tree layer.
 
+**Partially resolved (P65-5):** `object_to_record` and `OfferStatus` imports
+removed; replaced by `save_to_datalayer` helper using `StorableRecord` domain
+type. The AS2 wire type imports (`as_CreateCase`, `VulnerabilityCase`) remain
+and will be addressed in P65-6.
+
 ---
 
-### V-16 — `vultron/core/behaviors/report/nodes.py`, lines 744–745 (lazy imports)
+### V-16 — ⚠️ `vultron/core/behaviors/report/nodes.py` (PARTIALLY RESOLVED P65-5)
 
 **Rule:** Rule 1, Rule 2
 **Severity:** Critical
@@ -166,6 +189,10 @@ Lazy imports inside an `update()` method. These are the same violations as
 V-15 deferred to runtime via local imports. Per the coding rules in
 `AGENTS.md`, local imports are a code smell indicating a circular dependency
 that should be refactored away, not hidden.
+
+**Partially resolved (P65-5):** `object_to_record` lazy import removed.
+`ParticipantStatus` wire-layer local import remains inside
+`_find_and_update_participant_rm` and will be addressed in P65-6.
 
 ---
 
@@ -187,7 +214,7 @@ boundary logic is expressed in terms of the wire format, not the domain.
 
 ---
 
-### V-18 — `vultron/core/behaviors/case/nodes.py`, lines 33–37
+### V-18 — ⚠️ `vultron/core/behaviors/case/nodes.py` (PARTIALLY RESOLVED P65-5)
 
 **Rule:** Rule 1, Rule 2
 **Severity:** Critical
@@ -205,6 +232,11 @@ adapter-layer utility. The nodes are constructing `CreateCase` AS2 activities,
 `VulnerabilityCase` objects, and formatting them with `object_to_record`
 directly in core logic. This is the full AS2 serialization stack inside the
 core behavior tree.
+
+**Partially resolved (P65-5):** `object_to_record` import removed; replaced
+by `save_to_datalayer` helper. The four AS2 wire type imports
+(`as_CreateCase`, `CaseActor`, `VendorParticipant`, `VulnerabilityCase`)
+remain and will be addressed in P65-6.
 
 ---
 
@@ -451,6 +483,7 @@ test assertion.
 ## 2. Remediation Plan
 
 ### R-07: Remove `raw_activity` from `InboundPayload`; complete AS2 extraction in the wire layer
+
 (addresses V-02-R, V-11-R, V-21)
 
 **What moves where:**
@@ -492,34 +525,33 @@ handler has been audited and the extractor updated.
 
 ---
 
-### R-08: Move `DataLayer` port definition into `core/ports/`
-(addresses V-13, V-14)
+### R-08: ✅ Move `DataLayer` port definition into `core/ports/`
 
-**What moves where:**
-`DataLayer` is currently defined in `vultron/api/v2/datalayer/abc.py`. It
-is the port interface — it belongs in `vultron/core/ports/activity_store.py`
-(or a similarly named file in `core/ports/`). The TinyDB implementation in
+(addresses V-13, V-14 — COMPLETE P65-1)
+
+**What was done:**
+`DataLayer` Protocol moved from `vultron/api/v2/datalayer/abc.py` to
+`vultron/core/ports/activity_store.py`. The TinyDB implementation in
 `vultron/api/v2/datalayer/tinydb_backend.py` stays in the adapter layer and
-imports from `core/ports/`.
+imports from `core/ports/`. The old location (`api/v2/datalayer/abc.py`) is
+now a backward-compat re-export shim.
 
-`Record` (currently in `vultron/api/v2/datalayer/db_record.py`) is a
-persistence-layer data type. Core BT nodes must not reference it. If nodes need
-to pass structured data to the DataLayer, that contract should be expressed in
-terms of domain Pydantic models (let the port/adapter handle the conversion to
-`Record`).
-
-**New abstraction needed:** `vultron/core/ports/activity_store.py` containing
-the `DataLayer` Protocol.
-
-**Dependency:** Must happen before R-09 (core behaviors cleanup), because fixing
-the behaviors requires a core-side `DataLayer` definition to import from.
+`Record` imports removed from all core BT nodes (P65-5). Core BT nodes now
+use a `StorableRecord` domain type and the `save_to_datalayer` helper in
+`core/behaviors/helpers.py`, which constructs `StorableRecord` without
+referencing the adapter-layer `Record`.
 
 ---
 
-### R-09: Remove wire-layer imports from `core/behaviors/`
-(addresses V-15, V-16, V-17, V-18, V-19)
+### R-09: ⚠️ Remove wire-layer imports from `core/behaviors/`
 
-**What moves where:**
+(addresses V-15, V-16, V-17, V-18, V-19 — PARTIALLY COMPLETE P65-5)
+
+**Status:** Adapter-layer persistence imports (`object_to_record`, `OfferStatus`,
+`Record`) removed from all core BT nodes (P65-5). AS2 wire type imports remain
+and are the target of P65-6.
+
+**Remaining work (P65-6):**
 All AS2 type construction (`CreateCase`, `VulnerabilityCase`, `CaseActor`,
 `VendorParticipant`, `VulnerabilityReport`) currently inside
 `core/behaviors/case/nodes.py` and `core/behaviors/report/nodes.py` must be
@@ -527,6 +559,7 @@ moved to the wire layer. The BT nodes must not construct AS2 activities; they
 must emit domain events, and the wire serializer converts those to AS2.
 
 Specifically:
+
 - `core/behaviors/case/nodes.py` must not import from `wire/as2/vocab/`.
   Nodes that construct `CreateCase` activity objects should instead emit a
   domain `CaseCreatedEvent` (or equivalent), to be serialized downstream by
@@ -534,20 +567,21 @@ Specifically:
 - `core/behaviors/report/policy.py` method signatures must use domain types,
   not `VulnerabilityCase`/`VulnerabilityReport` from the wire vocab. Define
   domain equivalents or accept typed `InboundPayload` fields.
-- `object_to_record()` calls inside core BT nodes must be removed. Persistence
-  record construction is an adapter-layer concern.
+- `core/behaviors/report/nodes.py`: The `ParticipantStatus` local import
+  inside `_find_and_update_participant_rm` must be replaced with a domain type.
 
-**New abstraction needed:** Domain event types (e.g., `CaseCreatedEvent`,
+**New abstractions needed:** Domain event types (e.g., `CaseCreatedEvent`,
 `ReportValidatedEvent`) in `core/models/` to replace direct AS2 activity
 construction in nodes. An outbound serializer in `wire/as2/serializer.py` that
 converts those events to AS2.
 
-**Dependency:** Requires R-07 (payload cleanup) and R-08 (DataLayer port move)
-first, as they resolve the other import chains these files participate in.
+**Dependency:** Requires R-07 (payload cleanup) for domain types and R-08
+(DataLayer port move, complete) first.
 
 ---
 
 ### R-10: Decouple `behavior_dispatcher.py` from the wire layer and adapter handler map
+
 (addresses V-03-R, V-20, V-21)
 
 **What moves where:**
@@ -572,6 +606,7 @@ injection at construction time).
 ---
 
 ### R-11: Fix module-level datalayer instantiation in `inbox_handler.py`
+
 (addresses V-10-R)
 
 **What moves where:**

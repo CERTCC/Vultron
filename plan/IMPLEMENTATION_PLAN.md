@@ -100,18 +100,17 @@ V-22/23 are test-level regressions (tests use AS2 types for core fixtures).
 `test/core/behaviors/` relocated to mirror the new source layout. Old directories
 removed. 841 tests pass. ✅ 2026-03-10
 
-### ❌ Deprecated FastAPI status constant in trigger services
+### ✅ Deprecated FastAPI status constant in trigger services (TECHDEBT-12 DONE)
 
-`HTTP_422_UNPROCESSABLE_ENTITY` (deprecated in recent starlette) is used in 7
-places across `trigger_services/`. The replacement constant is
-`HTTP_422_UNPROCESSABLE_CONTENT`. This generates a `DeprecationWarning` in the
-test output. See TECHDEBT-12.
+All `HTTP_422_UNPROCESSABLE_ENTITY` usages replaced with
+`HTTP_422_UNPROCESSABLE_CONTENT` across `trigger_services/`. ✅ 2026-03-10
 
-### ❌ Architecture violations not yet remediated (PRIORITY 65)
+### ⚠️ Architecture violations partially remediated (PRIORITY 65)
 
-Active regressions V-02-R, V-03-R, V-10-R, V-11-R plus new violations
-V-13 through V-23 (detailed above). Phase PRIORITY-65 tracks remediation tasks
-P65-1 through P65-7. **P65-1 replaces P70-1.**
+Active regressions V-02-R, V-03-R, V-11-R remain. V-10-R resolved (P65-2),
+V-13/V-14 resolved (P65-1), V-15/V-16/V-18 partially resolved (P65-5).
+Phase PRIORITY-65 tracks remediation tasks P65-1 through P65-7. **P65-1
+replaces P70-1.** P65-1, P65-2, P65-5 complete.
 
 ### ❌ DataLayer not yet relocated to adapters layer (PRIORITY 70)
 
