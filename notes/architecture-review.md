@@ -19,6 +19,19 @@ Review against `notes/architecture-ports-and-adapters.md` and
 > and V-18 are **partially resolved** (P65-5: `object_to_record` and
 > adapter-layer `OfferStatus` imports removed from core BT nodes; AS2 wire
 > type imports remain — addressed in P65-6). R-08 is complete.
+>
+> **Further update (2026-03-11, P65-3 complete):**
+> V-02-R and V-11-R are **fully resolved** (P65-3: `raw_activity: Any` removed
+> from `InboundPayload`; 13 typed domain string fields added; `extract_intent()`
+> added to `wire/as2/extractor.py` as the sole AS2→domain mapping point; all
+> 7 handler files updated to read from `InboundPayload` fields only; opaque
+> `wire_activity`/`wire_object` fields added to `DispatchActivity` for
+> adapter-layer AS2 object persistence). V-21 is **fully resolved** as a side
+> effect of P65-3 (`.model_dump_json()` on `raw_activity` in `dispatch()`
+> removed). V-20 is **fully resolved** as a side effect of P65-2 (lazy
+> `SEMANTICS_HANDLERS` import removed; `handler_map` is now a required
+> constructor argument). V-03-R remains — `behavior_dispatcher.py` still
+> imports `extract_intent` from the wire layer; addressed by P65-4.
 
 ---
 
@@ -45,7 +58,7 @@ function to compute the semantic type, creating a direct core→wire dependency.
 
 ---
 
-### V-02-R — `vultron/core/models/events.py`, `InboundPayload.raw_activity` (regression)
+### V-02-R — ✅ `vultron/core/models/events.py`, `InboundPayload.raw_activity` (RESOLVED P65-3)
 
 **Rule:** Rule 5 (core functions take and return domain types)
 **Severity:** Critical
@@ -53,32 +66,32 @@ function to compute the semantic type, creating a direct core→wire dependency.
 
 The ARCH-1.2 remediation introduced `InboundPayload` as a domain type to
 replace `as_Activity` in `DispatchActivity.payload`. However,
-`InboundPayload` includes a `raw_activity: Any` field (line 67 of
-`core/models/events.py`) that carries the original `as_Activity` wire object
-verbatim into the domain layer. Every handler in
-`vultron/api/v2/backend/handlers/` starts with
-`activity = dispatchable.payload.raw_activity` and then accesses AS2-specific
-attributes (`.as_object`, `.as_id`, `.as_type`, `.actor`) directly. The
-`raw_activity` escape hatch reproduces the original V-02 violation: an AS2
-type enters domain-adjacent code. The fix addressed the type annotation but
-not the runtime behaviour.
+`InboundPayload` included a `raw_activity: Any` field that carried the original
+`as_Activity` wire object verbatim into the domain layer. Every handler
+accessed AS2-specific attributes (`.as_object`, `.as_id`, `.as_type`, `.actor`)
+via this field.
+
+**Resolved (P65-3):** `raw_activity` removed from `InboundPayload`. 13 typed
+domain string fields added. `extract_intent()` in `wire/as2/extractor.py`
+populates all fields. Opaque `wire_activity`/`wire_object` fields added to
+`DispatchActivity` (adapter-layer type, not `InboundPayload`) for persistence
+use only.
 
 ---
 
-### V-11-R — All handlers in `vultron/api/v2/backend/handlers/*.py` (regression)
+### V-11-R — ✅ All handlers in `vultron/api/v2/backend/handlers/*.py` (RESOLVED P65-3)
 
 **Rule:** Rule 5 (core functions take and return domain types)
 **Severity:** Major
 **Claimed remediated by:** ARCH-CLEANUP-3
 
-ARCH-CLEANUP-3 removed `isinstance` checks against AS2 types. However, every
-handler still unpacks `dispatchable.payload.raw_activity` and inspects AS2
-attributes on the result — e.g., `case.py` lines 39, 92, 149, 200;
-`report.py` lines 29, 81, 143, 245, 259; `embargo.py` lines 29, 79, 134,
-194, 228, 273; `participant.py` lines 35, 79, 132. The specific `isinstance`
-calls were removed but the underlying pattern (handler logic that navigates
-AS2 object graphs) is unchanged. Accessing `.as_object`, `.as_type`, and
-`.as_id` on `raw_activity` is semantically the same violation.
+ARCH-CLEANUP-3 removed `isinstance` checks but handlers still unpacked
+`dispatchable.payload.raw_activity` and inspected AS2 attributes on the result.
+
+**Resolved (P65-3):** All 7 handler files updated to read from `InboundPayload`
+domain fields only. `wire_activity`/`wire_object` fields on `DispatchActivity`
+are opaque adapter-layer fields; handlers access them only for AS2 object
+persistence (not for domain logic decisions).
 
 ---
 
@@ -252,46 +265,36 @@ object to already be present at the call site.
 
 ---
 
-### V-20 — `vultron/behavior_dispatcher.py`, `DispatcherBase.__init__()`, lines 75–77
+### V-20 — ✅ `vultron/behavior_dispatcher.py`, `DispatcherBase.__init__()` (RESOLVED P65-2)
 
 **Rule:** Rule 2 (core has no framework imports)
 **Severity:** Major
 
-```python
-from vultron.api.v2.backend.handler_map import SEMANTICS_HANDLERS
-```
+The lazy import `from vultron.api.v2.backend.handler_map import SEMANTICS_HANDLERS`
+inside `DispatcherBase.__init__()` with `handler_map=None` was the violation.
 
-This lazy import inside `DispatcherBase.__init__()` means the core dispatcher
-directly loads the adapter-layer handler map at runtime whenever a dispatcher
-is created with `handler_map=None`. The previous review (V-09) claimed that
-moving the handler map to `api/v2/backend/handler_map.py` fixed this. It does
-not: the dispatcher still reaches into the adapter package to load the map.
-The handler map should be injected at startup, never imported inside a
-constructor.
+**Resolved (P65-2):** `handler_map` is now a required parameter in
+`DispatcherBase.__init__(self, handler_map: dict, ...)`. The `None` default
+was removed. The adapter layer (`inbox_handler.py`) injects `SEMANTICS_HANDLERS`
+at startup via the lifespan event; no lazy import occurs.
 
 ---
 
-### V-21 — `vultron/behavior_dispatcher.py`, `DispatcherBase.dispatch()`, lines 83–89
+### V-21 — ✅ `vultron/behavior_dispatcher.py`, `DispatcherBase.dispatch()` (RESOLVED P65-3)
 
 **Rule:** Rule 1 (core has no wire format imports)
 **Severity:** Major
 
-```python
-activity = dispatchable.payload.raw_activity
-...
-logger.debug(f"Activity payload: {activity.model_dump_json(indent=2)}")
-```
+`dispatch()` used to call `.model_dump_json()` on `raw_activity` from
+`dispatchable.payload`.
 
-The dispatcher unpacks the raw AS2 activity from the domain payload and calls
-`.model_dump_json()` on it. `model_dump_json()` is a Pydantic method present
-on AS2 types; calling it from the dispatcher means the dispatcher assumes the
-payload carries a Pydantic model with this specific serialization API. This
-is domain code operating on a wire-format object through a nominally opaque
-field.
+**Resolved (P65-3):** `raw_activity` removed from `InboundPayload`. `dispatch()`
+now logs using `dispatchable.payload.activity_id` and `dispatchable.payload.object_type`
+— plain domain string fields.
 
 ---
 
-### V-22 — `test/test_behavior_dispatcher.py`, line 5
+### V-22 — `test/test_behavior_dispatcher.py`, line 5 (partially resolved)
 
 **Rule:** Tests section — core tests must use domain types, not AS2 types
 **Severity:** Minor
@@ -300,23 +303,31 @@ field.
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 ```
 
-The test file for the core behavior dispatcher constructs its test input using
-a wire-format AS2 type. The test confirms the AS2 attribute `as_type` is
-present on `raw_activity` (line 33), which validates the V-02-R regression
-rather than testing domain behaviour.
+The test still imports `as_Create` to test `prepare_for_dispatch()`, which
+accepts a raw AS2 activity. Once P65-4 moves `prepare_for_dispatch` to the
+adapter layer (`inbox_handler.py`), this test will move with it and the core
+dispatcher test will no longer need AS2 types.
 
 ---
 
-### V-23 — `test/core/behaviors/report/test_nodes.py` and `test/core/behaviors/case/test_create_tree.py`
+### V-23 — `test/core/behaviors/` multiple test files
 
 **Rule:** Tests section — core tests must not parse AS2 types
 **Severity:** Minor
 
-Both test files import AS2 types (`as_Offer`, `VulnerabilityReport`,
+Files affected:
+- `test/core/behaviors/case/test_create_tree.py`
+- `test/core/behaviors/report/test_nodes.py`
+- `test/core/behaviors/report/test_prioritize_tree.py`
+- `test/core/behaviors/report/test_validate_tree.py`
+- `test/core/behaviors/test_performance.py`
+
+All import AS2 types (`as_Offer`, `as_Accept`, `VulnerabilityReport`,
 `as_Service`, `VulnerabilityCase`) to construct test fixtures for core BT
 nodes. Core tests should call nodes with domain Pydantic objects, not wire
 types. These violations are a downstream consequence of V-15 through V-19:
 because the nodes themselves take wire types, the tests must provide them.
+Will be addressed in P65-7 once P65-6 defines domain types.
 
 ---
 

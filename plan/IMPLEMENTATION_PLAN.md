@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-10 (Priority 65 added: architecture violation remediation plan)
+**Last Updated**: 2026-03-11 (P65-3 complete: InboundPayload enriched; raw_activity eliminated)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 878 passing, 5581 subtests, 0 xfailed (2026-03-10, after TECHDEBT-3)
+**Test suite**: 880 passing, 5581 subtests, 0 xfailed (2026-03-11, after P65-3)
 
 **All 38 handlers implemented** (including `unknown`):
 create_report, submit_report, validate_report (BT), invalidate_report, ack_report,
@@ -41,7 +41,7 @@ reject_case_ownership_transfer, update_case
 
 ---
 
-## Gap Analysis (2026-03-10, refresh #22)
+## Gap Analysis (2026-03-11, refresh #23)
 
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
@@ -61,32 +61,36 @@ All 9 trigger endpoints in split router files. P30-1 through P30-6 complete.
 
 ### ⚠️ Hexagonal architecture has active regressions (PRIORITY 50 / PRIORITY 65)
 
-A fresh review of the codebase (2026-03-10) reveals that ARCH-1.x remediations
-are **incomplete or regressed**:
+A review of the codebase (2026-03-10) revealed that ARCH-1.x remediations
+were **incomplete or regressed**. The following violations have since been
+addressed through P65-1 through P65-3 and P65-5:
 
-- **V-02-R / V-11-R**: `InboundPayload.raw_activity: Any` carries the original
-  `as_Activity` wire object into domain code. All handlers access AS2 attributes
-  (`.as_object`, `.as_id`, `.as_type`) via this field. The type annotation was
-  fixed but runtime behaviour was not.
+- **V-02-R / V-11-R** ✅ **(P65-3)**: `InboundPayload.raw_activity: Any` removed.
+  `InboundPayload` now carries 13 typed domain fields. Handlers read exclusively
+  from `dispatchable.payload` and `dispatchable.wire_activity` / `wire_object`
+  (opaque adapter-layer fields). `extract_intent()` in `wire/as2/extractor.py`
+  is the sole AS2→domain mapping point.
 - **V-03-R**: `behavior_dispatcher.py` still imports
-  `from vultron.wire.as2.extractor import find_matching_semantics` (line 10) —
-  a core→wire dependency that ARCH-1.2 was claimed to fix.
-- **V-10-R**: `inbox_handler.py` instantiates `TinyDbDataLayer` at module import
-  time. Per-call `DISPATCHER.dl = get_datalayer()` mutation remains.
+  `from vultron.wire.as2.extractor import find_matching_semantics, extract_intent`
+  (line 10) — the `extract_intent` call must move to the adapter layer (P65-4).
+- **V-10-R** ✅ **(P65-2)**: `inbox_handler.py` lifespan-managed DataLayer injection
+  implemented; module-level instantiation and per-call mutation removed.
+- **V-20 / V-21** ✅ **(P65-2 / P65-3)**: Lazy `SEMANTICS_HANDLERS` import in
+  `DispatcherBase.__init__()` removed; `handler_map` is now required at
+  construction. `.model_dump_json()` on `raw_activity` removed from `dispatch()`.
 
-Additionally, V-13 through V-21 are **new violations** introduced in
-`vultron/core/behaviors/` by P60-2:
+Remaining new violations introduced in `vultron/core/behaviors/` by P60-2:
 
-- V-13/14: `core/behaviors/bridge.py` and `helpers.py` import `DataLayer` from
-  `api/v2/datalayer/abc.py` (adapter layer, not `core/ports/`).
-- V-15/16/17/18/19: Core BT nodes import AS2 wire types (`VulnerabilityCase`,
-  `CreateCase`, etc.) and adapter utilities (`object_to_record`, `OfferStatus`).
-- V-20/21: Dispatcher lazy-imports adapter handler map; accesses
-  `.model_dump_json()` on raw AS2 activity.
+- V-13/14 ✅ **(P65-1)**: Resolved — `DataLayer` moved to `core/ports/`.
+- V-15/16/17/18/19: Core BT nodes still import AS2 wire types (`VulnerabilityCase`,
+  `CreateCase`, etc.) and `ParticipantStatus`; V-16/V-18 partial resolved (P65-5).
+  Full resolution deferred to P65-6.
 
-V-22/23 are test-level regressions (tests use AS2 types for core fixtures).
+V-22 partially resolved (test no longer uses `raw_activity`; `as_Create` import
+remains for `prepare_for_dispatch` test — will be moved with P65-4).
+V-23 (core BT test files use AS2 fixtures) deferred to P65-7.
 
-**All violations are addressed in Phase PRIORITY-65 below.**
+**Remaining P65 tasks: P65-4, P65-6a, P65-6b, P65-7.**
 
 ### ✅ Package relocation Phase 1 complete (PRIORITY 60 — P60-1, P60-2, and P60-3 DONE)
 
@@ -107,10 +111,13 @@ All `HTTP_422_UNPROCESSABLE_ENTITY` usages replaced with
 
 ### ⚠️ Architecture violations partially remediated (PRIORITY 65)
 
-Active regressions V-02-R, V-03-R, V-11-R remain. V-10-R resolved (P65-2),
-V-13/V-14 resolved (P65-1), V-15/V-16/V-18 partially resolved (P65-5).
-Phase PRIORITY-65 tracks remediation tasks P65-1 through P65-7. **P65-1
-replaces P70-1.** P65-1, P65-2, P65-5 complete.
+P65-1, P65-2, P65-3, P65-5 complete. V-02-R and V-11-R resolved (P65-3);
+V-03-R remains (P65-4). V-13/V-14 resolved (P65-1); V-15/V-16/V-18 partially
+resolved (P65-5); V-17/V-19 and full V-15/V-18 deferred to P65-6b.
+V-20/V-21 resolved as side effects of P65-2/P65-3.
+Phase PRIORITY-65 remaining tasks: P65-4, P65-6a (VultronEvent hierarchy),
+P65-6b (core BT node AS2 removal), P65-7 (test regressions).
+**P65-1 replaces P70-1.**
 
 ### ❌ DataLayer not yet relocated to adapters layer (PRIORITY 70)
 
@@ -217,12 +224,14 @@ TECHDEBT-12 all done. TECHDEBT-4 superseded. See `plan/IMPLEMENTATION_HISTORY.md
 **Reference**: `plan/PRIORITIES.md` PRIORITY 65, `notes/architecture-review.md`
 V-02-R, V-03-R, V-10-R, V-11-R, V-13 through V-23; R-07 through R-11
 
-**Note**: P65-1 replaces P70-1 (same work). P65-2 and P65-4 are independent of
-each other but must each land before downstream phases.
+**Note**: P65-1 replaces P70-1 (same work). P65-1 through P65-3 and P65-5
+are complete. Remaining work: P65-4 → P65-6a → P65-6b → P65-7 (in dependency
+order; P65-4 and P65-6a are independent of each other).
 
-Work in dependency order: P65-1 and P65-2 are independent; P65-3 is the
-largest task and must precede P65-4; P65-5 requires P65-1; P65-6 requires P65-3
-and P65-5; P65-7 closes out the test regressions last.
+Work in dependency order: P65-1 and P65-2 are independent (both done); P65-3
+is the largest task (done); P65-4 depends on P65-3; P65-5 requires P65-1
+(done); P65-6a requires P65-3; P65-6b requires P65-5 and P65-6a; P65-7
+closes out the test regressions last (requires P65-4, P65-6a, and P65-6b).
 
 - [x] **P65-1** (R-08): Move `DataLayer` Protocol from
   `vultron/api/v2/datalayer/abc.py` to `vultron/core/ports/activity_store.py`.
@@ -242,35 +251,37 @@ and P65-5; P65-7 closes out the test regressions last.
   Remove the per-call `DISPATCHER.dl = get_datalayer()` mutation. Remove the
   `handler_map=None` default from `DispatcherBase.__init__()` (require explicit
   injection). Done when no `get_datalayer()` call appears at module level or
-  inside `dispatch()`, and tests pass. Addresses V-10-R.
+  inside `dispatch()`, and tests pass. Addresses V-10-R, V-20.
 
-- [x] **P65-3** (R-07): Enrich `InboundPayload`; eliminate `raw_activity`. This
-  is the largest P65 task. Steps: (1) Audit every handler in
-  `vultron/api/v2/backend/handlers/*.py` and document all fields read from
-  `raw_activity` (`.as_object`, `.as_id`, `.as_type`, `.actor`, nested objects).
-  (2) Add typed domain fields to `InboundPayload` in `core/models/events.py`:
-  `activity_id`, `actor_id`, `object_type`, `object_id`, `target_type`,
-  `target_id`, `inner_object_type`, `inner_object_id` (no AS2 types; plain
-  strings or domain Pydantic types). (3) Extend `wire/as2/extractor.py` with an
-  `extract_intent()` function (or extend `find_matching_semantics`) that returns
-  `(MessageSemantics, InboundPayload)` with all domain fields populated from the
-  AS2 object graph. (4) Update every handler to read exclusively from
-  `InboundPayload` fields — no `.raw_activity`, no `.as_object`, no `.as_type`
-  references. (5) Remove `raw_activity: Any` from `InboundPayload`. Done when no
-  handler references `raw_activity` or any AS2 attribute, and tests pass.
-  Addresses V-02-R, V-11-R.
+- [x] **P65-3** (R-07): Enrich `InboundPayload`; eliminate `raw_activity`. Steps
+  completed: (1) Audited all handler files for `raw_activity` field accesses.
+  (2) Added 13 typed domain string fields to `InboundPayload` in
+  `core/models/events.py` (activity_type, target_id/type, context_id/type,
+  origin_id/type, inner_object/target/context id/type). (3) Added
+  `extract_intent()` to `wire/as2/extractor.py` returning
+  `(MessageSemantics, InboundPayload)` with all fields populated from the AS2
+  object graph. (4) Added `wire_activity: Any` and `wire_object: Any` to
+  `DispatchActivity` (adapter-layer) for handler persistence; handlers read
+  domain data from `payload` and use these for AS2 object storage only.
+  (5) Updated all 7 handler files to read exclusively from `InboundPayload`
+  fields — no `raw_activity` references remain. (6) Removed `.model_dump_json()`
+  call on raw activity from `dispatch()`. Addresses V-02-R, V-11-R, V-21.
 
 - [ ] **P65-4** (R-10): Decouple `behavior_dispatcher.py` from the wire layer.
-  Move the `find_matching_semantics` call (currently in `prepare_for_dispatch`)
-  upstream into the adapter-layer inbox handler, which should call
-  `extract_intent()` (from P65-3) to produce a fully-populated `InboundPayload`
-  before handing it to the dispatcher. Remove
-  `from vultron.wire.as2.extractor import find_matching_semantics` from
-  `behavior_dispatcher.py`. Remove the `.model_dump_json()` call on `raw_activity`
-  in `DispatcherBase.dispatch()`. Done when `behavior_dispatcher.py` contains no
-  wire-layer imports, `prepare_for_dispatch` accepts a pre-populated
-  `InboundPayload`, and tests pass. Addresses V-03-R, V-20, V-21.
-  **Depends on P65-3.**
+  Move the `extract_intent()` call (currently in `prepare_for_dispatch` at
+  `behavior_dispatcher.py` line 27) upstream into the adapter-layer inbox handler
+  (`vultron/api/v2/backend/inbox_handler.py`), which should call `extract_intent()`
+  directly and construct a fully-populated `DispatchActivity` before passing it
+  to the dispatcher. Remove `from vultron.wire.as2.extractor import
+  find_matching_semantics, extract_intent` from `behavior_dispatcher.py`.
+  Remove or relocate `prepare_for_dispatch()` to the adapter layer
+  (`inbox_handler.py` or a new `adapters/driving/` module). Done when
+  `behavior_dispatcher.py` contains no wire-layer imports, and tests pass.
+  Addresses V-03-R. **Depends on P65-3 (done).**
+
+  Note: V-20 (lazy handler map import) and V-21 (`.model_dump_json()` on
+  `raw_activity`) were resolved as side effects of P65-2 and P65-3
+  respectively. P65-4 scope is now V-03-R only.
 
 - [x] **P65-5** (R-09 part 1): Remove adapter-layer persistence calls from core
   BT nodes. In `core/behaviors/report/nodes.py` and
@@ -283,10 +294,32 @@ and P65-5; P65-7 closes out the test regressions last.
   and tests pass. Addresses V-14 (Record), V-15 partial, V-16, V-18 partial.
   **Depends on P65-1.**
 
-- [ ] **P65-6** (R-09 part 2): Replace AS2 wire types in core BT nodes and
-  policy with domain types. Define domain event types (e.g.
-  `CaseCreatedEvent`, `ReportEngagedEvent`) in `core/models/` to replace direct
-  construction of `CreateCase`, `VulnerabilityCase`, `CaseActor`,
+- [ ] **P65-6a**: Define `VultronEvent` base class and per-semantic inbound
+  domain event subclasses in `core/models/events/`. Steps: (1) Review
+  `notes/domain-model-separation.md` "Discriminated Event Hierarchy" and
+  `specs/code-style.md` CS-10-002 (`FooEvent` naming convention) before
+  starting. (2) Create `core/models/events/base.py` with `VultronEvent`
+  base class (fields: `semantic_type`, `activity_id`, `actor_id`,
+  `object_id/type`, `target_id/type`, plus semantic-specific extras). (3) Add
+  per-semantic `FooReceivedEvent` subclasses to `core/models/events/` submodules
+  grouped by category (`report.py`, `case.py`, `embargo.py`, etc.) — mirror
+  the `wire/as2/vocab/activities/` structure. Cover only semantics that have
+  handlers (all 38). (4) Update `extract_intent()` in `wire/as2/extractor.py`
+  to return the specific `VultronEvent` subclass (discriminated on
+  `MessageSemantics`) instead of the generic `InboundPayload`. Update
+  `InboundPayload` to be an alias or thin wrapper if retained for backward
+  compat, or replace it with the typed hierarchy. (5) Update
+  `DispatchActivity.payload` type to `VultronEvent` (was `InboundPayload`).
+  (6) Update all 7 handler files to accept the typed `VultronEvent` subclass
+  via `dispatchable.payload` — remove `payload.object_type` string checks
+  where a typed subclass makes them redundant. Done when `extract_intent()`
+  returns typed subclasses, handlers use typed events, all tests pass.
+  **Depends on P65-3 (done).** See `notes/domain-model-separation.md`.
+
+- [ ] **P65-6b** (R-09 part 2): Replace AS2 wire types in core BT nodes and
+  policy with domain types. Using the outbound-event domain types defined in
+  P65-6a (or new `FooTriggerEvent` types in `core/models/events/`), replace
+  direct construction of `CreateCase`, `VulnerabilityCase`, `CaseActor`,
   `VendorParticipant` inside `core/behaviors/case/nodes.py` and
   `core/behaviors/report/nodes.py`. Add an outbound serializer in
   `wire/as2/serializer.py` that converts domain events to AS2 wire format
@@ -294,20 +327,22 @@ and P65-5; P65-7 closes out the test regressions last.
   method signatures to take domain Pydantic types instead of
   `VulnerabilityCase`/`VulnerabilityReport` wire types. Update
   `core/behaviors/case/create_tree.py` factory to accept domain types.
-  This task SHOULD include an ADR or note in `notes/` covering the domain
-  event design before implementation begins. Done when no `core/behaviors/`
-  module imports from `wire/as2/vocab/`, and tests pass. Addresses V-15 full,
-  V-17, V-18 full, V-19. **Depends on P65-3, P65-5.**
+  Done when no `core/behaviors/` module imports from `wire/as2/vocab/`, and
+  tests pass. Addresses V-15 full, V-17, V-18 full, V-19.
+  **Depends on P65-5 (done), P65-6a.**
 
 - [ ] **P65-7**: Fix test regressions. Update
-  `test/test_behavior_dispatcher.py` to construct `InboundPayload` using
-  domain types only — remove the `as_Create` import and replace with a
-  domain fixture. Update `test/core/behaviors/report/test_nodes.py` and
-  `test/core/behaviors/case/test_create_tree.py` to use domain objects as
-  fixtures rather than AS2 wire types (`as_Offer`, `VulnerabilityReport`,
-  `as_Service`, `VulnerabilityCase`). Done when no core test imports wire-layer
+  `test/test_behavior_dispatcher.py` to remove the `as_Create` wire import —
+  the `prepare_for_dispatch` test will move to the adapter layer with P65-4.
+  Update `test/core/behaviors/report/test_nodes.py`,
+  `test/core/behaviors/report/test_prioritize_tree.py`,
+  `test/core/behaviors/report/test_validate_tree.py`,
+  `test/core/behaviors/case/test_create_tree.py`, and
+  `test/core/behaviors/test_performance.py` to use domain objects as fixtures
+  rather than AS2 wire types (`as_Offer`, `VulnerabilityReport`, `as_Service`,
+  `VulnerabilityCase`, `as_Accept`). Done when no core test imports wire-layer
   AS2 types, and tests pass. Addresses V-22, V-23.
-  **Depends on P65-3 and P65-6.**
+  **Depends on P65-4, P65-6a, and P65-6b.**
 
 ---
 

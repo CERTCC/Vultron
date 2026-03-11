@@ -8,6 +8,45 @@ Add new items below this line
 
 ---
 
+## 2026-03-11 — P65-4 scope narrowed after P65-3
+
+V-20 and V-21 were resolved as side effects of P65-2 and P65-3 respectively.
+P65-4 scope is now **V-03-R only**:
+
+- `behavior_dispatcher.py` line 10 imports `extract_intent` (and redundantly
+  `find_matching_semantics`) from `vultron.wire.as2.extractor`.
+- Fix: move `extract_intent()` call from `prepare_for_dispatch()` upstream
+  into `inbox_handler.py`. After that, drop the wire import from
+  `behavior_dispatcher.py` entirely.
+- `prepare_for_dispatch()` should be deleted or relocated to the adapter
+  layer (`inbox_handler.py` or `adapters/driving/`).
+- The `test_prepare_for_dispatch_*` test in `test/test_behavior_dispatcher.py`
+  will move alongside `prepare_for_dispatch`.
+
+---
+
+## 2026-03-11 — P65-6a: VultronEvent design notes
+
+P65-6a introduces the typed domain event hierarchy (VultronEvent). Key
+design decisions are captured in `notes/domain-model-separation.md`
+"Discriminated Event Hierarchy" section. Summary for the implementing agent:
+
+- `VultronEvent` base class lives in `core/models/events/base.py` with a
+  `semantic_type: MessageSemantics` discriminator and shared ID fields.
+- Per-semantic subclasses in `core/models/events/` grouped by category
+  (`report.py`, `case.py`, `embargo.py`, etc.) following the naming convention
+  `FooReceivedEvent` for inbound (handler-side) events.
+- `extract_intent()` in `wire/as2/extractor.py` should return a discriminated
+  union of `VultronEvent` subclasses rather than the flat `InboundPayload`.
+- Handlers receive the typed event via `dispatchable.payload`; the
+  `@verify_semantics` decorator continues to work based on `semantic_type`.
+- Do **not** add fields speculatively — only include what handler code
+  actually needs after the P65-3 audit (already complete).
+- See `specs/code-style.md` CS-10-002 for the `FooActivity` vs `FooEvent`
+  naming convention.
+
+---
+
 ## ~~General guidance: Use typed objects (pydantic basemodels) instead dicts when interfacing ports and adapters~~
 
 > *Captured in `specs/code-style.md` CS-10-001.*
