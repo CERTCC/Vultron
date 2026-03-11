@@ -152,6 +152,16 @@ numbers, but they are actually more like **distinct layers**:
 | Backend services layer | `vultron/api/v2/backend/` | Business logic, handlers, triggerable behaviors, DataLayer |
 | Examples layer | `vultron/api/v1/` | Canned example responses; not an active coordination layer |
 
+**Key distinction**: `vultron/api/v2/` is driven by AS2 messages arriving in
+inboxes (semantic, protocol-level); `vultron/api/v1/` is essentially a **direct
+DataLayer access** backend for prototype visibility and management purposes
+(administrative, near-direct port access). `api/v1` is still an adapter layer
+in the hexagonal sense — it just happens to interface almost directly with the
+DataLayer port rather than routing through full semantic handling. It SHOULD be
+refactored to fit the port-and-adapter design when `api/v2/` has been fully
+cleaned up. There may be a very thin core use-case layer it interfaces with,
+or it may talk directly to the DataLayer port.
+
 **Proposed future reorganization**: Rename to reflect layer semantics rather
 than version numbers, e.g.:
 
@@ -287,6 +297,40 @@ base64url encoding).
 - Demo scripts and tests that assert on `as_id` format
 - `/datalayer/{key}` route in `vultron/api/v2/routers/datalayer.py`
 - Any handler that constructs participant or case IDs inline
+
+---
+
+## Technical Debt: Test Directory Layout Mismatch (TECHDEBT-11)
+
+After P60-1 and P60-2 (package relocations), the test directories
+`test/as_vocab/` and `test/behaviors/` remain at their old locations.
+All tests already import from the new canonical paths
+(`vultron.wire.as2.vocab.*` and `vultron.core.behaviors.*`), so tests pass.
+The directory structure does not mirror the source layout yet.
+
+**Target moves**:
+
+- `test/as_vocab/` → `test/wire/as2/vocab/`
+- `test/behaviors/` → `test/core/behaviors/`
+
+Both moves are mechanical: create the new directories, move files, update
+`conftest.py` and `__init__.py`, delete old directories. No import changes
+are needed (they are already correct).
+
+---
+
+## Technical Debt: Deprecated HTTP Status Constant (TECHDEBT-12)
+
+`starlette.status.HTTP_422_UNPROCESSABLE_ENTITY` is deprecated in favour
+of `HTTP_422_UNPROCESSABLE_CONTENT`. Usages remain in trigger service files:
+
+- `vultron/api/v2/backend/trigger_services/embargo.py`
+- `vultron/api/v2/backend/trigger_services/report.py`
+- `vultron/api/v2/backend/trigger_services/_helpers.py`
+
+This generates a `DeprecationWarning` in test output. Fix is a simple
+string replacement: `HTTP_422_UNPROCESSABLE_ENTITY` →
+`HTTP_422_UNPROCESSABLE_CONTENT`.
 
 ---
 

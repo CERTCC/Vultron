@@ -171,3 +171,34 @@ def extract_id_segment(url: str) -> str:
     existing model
   - **Rationale**: Duplicated models diverge silently over time; a hierarchy
     makes the relationship explicit and reduces boilerplate
+
+## Port and Adapter Data Exchange (MUST)
+
+- `CS-10-001` Data passed across port/adapter boundaries MUST use Pydantic
+  `BaseModel`-derived classes rather than plain `dict`s
+  - When a type is shared between a driving adapter and a driven adapter,
+    define a shared base model in `vultron/core/models/` that both sides
+    can import or extend
+  - Adapters may add adapter-specific fields by subclassing the shared model
+  - **Rationale**: `dict`s discard type information at the boundary, suppress
+    validation, and make interfaces ambiguous. Pydantic models preserve
+    validation, IDE support, and documentation at every layer crossing.
+
+## Domain Event and Wire Activity Naming (SHOULD)
+
+- `CS-10-002` Wire-level ActivityStreams payload classes SHOULD carry the
+  `Activity` suffix; domain event classes SHOULD carry the `Event` suffix
+  - **Wire layer** (`vultron/wire/as2/vocab/activities/`): classes named
+    `FooActivity` (e.g., `ReportSubmitActivity`) represent structured payloads
+    recognized by the semantic extractor
+  - **Domain layer** (`vultron/core/models/events/`): classes named `FooEvent`
+    (e.g., `ReportSubmittedEvent`) represent typed domain events consumed by
+    handlers and use cases
+  - Domain events that originate from received wire messages SHOULD use the
+    `FooReceivedEvent` subtype suffix (e.g., `ReportSubmittedReceivedEvent`)
+  - Domain events that originate from local actor-initiated triggers SHOULD
+    use the `FooTriggerEvent` subtype suffix (e.g., `ValidateReportTriggerEvent`)
+  - **Rationale**: Distinguishes wire representation from domain intent,
+    prevents accidental coupling between layers, and makes the translation
+    point explicit. See `notes/domain-model-separation.md` for the full
+    design rationale.

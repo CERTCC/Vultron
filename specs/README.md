@@ -91,7 +91,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 ### Code Standards
 
 - **`code-style.md`** - Python formatting, import organization, circular import
-  prevention, optional-field non-emptiness (CS-08-001), code reuse (CS-09-001)
+  prevention, optional-field non-emptiness (CS-08-001), code reuse (CS-09-001),
+  typed port/adapter interfaces (CS-10-001), domain event naming convention
+  (`FooActivity` vs `FooEvent`, CS-10-002)
 - **`tech-stack.md`** - Normative technology constraints: runtime, persistence,
   tooling, and code quality tooling (including pyright gradual adoption, IMPL-TS-*)
 - **`meta-specifications.md`** - How to write and maintain specifications

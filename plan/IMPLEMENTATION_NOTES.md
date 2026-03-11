@@ -8,50 +8,55 @@ Add new items below this line
 
 ---
 
-## General guidance: Use typed objects (pydantic basemodels) instead dicts when interfacing ports and adapters
+## ~~General guidance: Use typed objects (pydantic basemodels) instead dicts when interfacing ports and adapters~~
 
-Avoid using plain `dict`s as interfaces between the core and adapter layers.
-Instead, define Pydantic `BaseModel`-derived classes that represent the data 
-structures being passed between layers. When an object in a driving adapter 
+> *Captured in `specs/code-style.md` CS-10-001.*
+
+~~Avoid using plain `dict`s as interfaces between the core and adapter layers.
+Instead, define Pydantic `BaseModel`-derived classes that represent the data
+structures being passed between layers. When an object in a driving adapter
 is paralleled in a driven adapter, create a shared model in `core/models/`
-that both can import or inherit from to customize. This allows us to retain the 
-benefits of Pydantic's validation and type safety across the architecture, 
+that both can import or inherit from to customize. This allows us to retain the
+benefits of Pydantic's validation and type safety across the architecture,
 while still decoupling the core from adapter-specific types. The core can define
 its own domain models that are independent of the wire format, and adapters can
-handle conversion to and from those models as needed.
+handle conversion to and from those models as needed.~~
 
-## P65-3 Pre-implementation notes
+## ~~P65-3 Pre-implementation notes~~
 
-There is a gap in the code where many core domain-level objects use AS2 
-vocab  objects because they were semantically 
-identical. This is a case where we might need to build parallel core objects 
-to correspond to the semantically-identical AS2 vocab objects, but the core 
-objects don't need to be fully AS2-compliant. This is likely to become 
-apparent when addressing P56-3.
+> *Captured in `notes/domain-model-separation.md` (Discriminated Event
+> Hierarchy / P65-3 Design section and Naming Convention section).*
 
-P65-3 carries a risk of information loss depending on how `InboundPayload` 
-ends up being enriched. We probably want to define a core Pydantic model 
-that is something like a `VultronEvent` that carries all the relevant domain 
-information extracted from the AS2 activity. Structurally, a `VultronEvent` 
-would be nearly identical to the AS2 activity/object/target/origin/etc 
-structure but just not dependent on AS2-specific types. This would finally 
-address the decoupling of the core from the AS2 wire formats while still 
-retaining the rich semantic information needed for Vultron to operate on. 
-`VultronEvent` is a domain event, but it carries the same information as the 
-AS2 activity (who did what to what, when, how, etc.) but it's a core domain 
-type that can evolve independently of the AS2 wire format. This looks like 
-duplication on the surface, but it's actually important for the separation 
-between wire format and domain model.
+~~There is a gap in the code where many core domain-level objects use AS2
+vocab  objects because they were semantically
+identical. This is a case where we might need to build parallel core objects
+to correspond to the semantically-identical AS2 vocab objects, but the core
+objects don't need to be fully AS2-compliant. This is likely to become
+apparent when addressing P56-3.~~
 
-We only really need to build core `VultronEvents` to match up to the things 
-that are represented by use cases (hint: things corresponding to 
-MessageSemantics items or triggerable behaviors), so the VultronEvents could 
-be data classes that specifically map to those particular semantics as 
-things come in (e.g. `ReportSubmittedEvent`, `CaseUpdatedEvent`, etc.) rather than 
+~~P65-3 carries a risk of information loss depending on how `InboundPayload`
+ends up being enriched. We probably want to define a core Pydantic model
+that is something like a `VultronEvent` that carries all the relevant domain
+information extracted from the AS2 activity. Structurally, a `VultronEvent`
+would be nearly identical to the AS2 activity/object/target/origin/etc
+structure but just not dependent on AS2-specific types. This would finally
+address the decoupling of the core from the AS2 wire formats while still
+retaining the rich semantic information needed for Vultron to operate on.
+`VultronEvent` is a domain event, but it carries the same information as the
+AS2 activity (who did what to what, when, how, etc.) but it's a core domain
+type that can evolve independently of the AS2 wire format. This looks like
+duplication on the surface, but it's actually important for the separation
+between wire format and domain model.~~
+
+~~We only really need to build core `VultronEvents` to match up to the things
+that are represented by use cases (hint: things corresponding to
+MessageSemantics items or triggerable behaviors), so the VultronEvents could
+be data classes that specifically map to those particular semantics as
+things come in (e.g. `ReportSubmittedEvent`, `CaseUpdatedEvent`, etc.) rather than
 a single generic `VultronEvent` that tries to mirror the AS2 structure.
-This can help with the use-case-as-port pattern too, making it a bit clearer 
-in an adapter when you're translating from an AS2 activity to a specific 
-domain event.
+This can help with the use-case-as-port pattern too, making it a bit clearer
+in an adapter when you're translating from an AS2 activity to a specific
+domain event.~~
 
 ## 2026-03-10 — P65-1 complete
 
@@ -153,14 +158,17 @@ class InboundPayload(BaseModel):
 The audit step in P65-3 will reveal whether additional fields are needed. Do
 not add fields speculatively; derive them from the handler audit.
 
-### P65-6 Design Note (domain events vs direct AS2 construction)
+### ~~P65-6 Design Note (domain events vs direct AS2 construction)~~
 
-Before implementing P65-6, consider drafting a note or ADR covering:
-- Which events should be defined in `core/models/` (e.g. `CaseCreatedEvent`)
-- Whether the outbound serializer in `wire/as2/serializer.py` converts events
-  to AS2 one-to-one or goes through a more general mapping table
-- How domain events interplay with the future outbox pipeline (OUTBOX-1)
-- Consider whether `notes/domain-model-separation.md` already covers this
+> *Captured in `notes/domain-model-separation.md` (Outbound Event Design
+> Questions / P65-6 Considerations section).*
+
+~~Before implementing P65-6, consider drafting a note or ADR covering:~~
+~~- Which events should be defined in `core/models/` (e.g. `CaseCreatedEvent`)~~
+~~- Whether the outbound serializer in `wire/as2/serializer.py` converts events
+  to AS2 one-to-one or goes through a more general mapping table~~
+~~- How domain events interplay with the future outbox pipeline (OUTBOX-1)~~
+~~- Consider whether `notes/domain-model-separation.md` already covers this~~
 
 ### P65-1 / P70-1 overlap
 
@@ -169,12 +177,15 @@ P65-1 is identical to the former P70-1 (move `DataLayer` Protocol to
 After P65-1 the `TinyDbDataLayer` stays in `api/v2/datalayer/` until
 P70 completes the full DataLayer relocation to `adapters/driven/`.
 
-### Ideas.md items (for awareness)
+### ~~Ideas.md items (for awareness)~~
 
-`plan/IDEAS.md` notes that `api/v2/backend/handlers/` are really ports/use
+> *Captured in `notes/codebase-structure.md` (API Layer Architecture) and
+> `notes/architecture-ports-and-adapters.md`.*
+
+~~`plan/IDEAS.md` notes that `api/v2/backend/handlers/` are really ports/use
 cases (should live in `core/`), and that `api/v1` is a thin adapter talking
 near-directly to the DataLayer port. These are addressed by P65 and P70
-collectively; the `api/v1` point will need its own task when P70 is tackled.
+collectively; the `api/v1` point will need its own task when P70 is tackled.~~
 
 ---
 
@@ -221,31 +232,37 @@ the outbox delivery pipeline is implemented.
 
 ## 2026-03-10 — Gap analysis refresh #22: new gaps identified
 
-### Test directory layout mismatch (TECHDEBT-11)
+### ~~Test directory layout mismatch (TECHDEBT-11)~~
 
-After P60-1 and P60-2, the test directories `test/as_vocab/` and `test/behaviors/`
+> *Captured in `notes/codebase-structure.md` (Technical Debt: Test Directory
+> Layout Mismatch section).*
+
+~~After P60-1 and P60-2, the test directories `test/as_vocab/` and `test/behaviors/`
 remain at their old locations. All tests already import from the new canonical
 paths (`vultron.wire.as2.vocab.*` and `vultron.core.behaviors.*`), so tests pass.
-The directory structure just does not mirror the source layout yet.
+The directory structure just does not mirror the source layout yet.~~
 
-Target moves:
-- `test/as_vocab/` → `test/wire/as2/vocab/`
-- `test/behaviors/` → `test/core/behaviors/`
+~~Target moves:~~
+~~- `test/as_vocab/` → `test/wire/as2/vocab/`~~
+~~- `test/behaviors/` → `test/core/behaviors/`~~
 
-Both moves are mechanical: create `test/wire/as2/vocab/` and `test/core/behaviors/`
+~~Both moves are mechanical: create `test/wire/as2/vocab/` and `test/core/behaviors/`
 directories, move files, update `conftest.py` and `__init__.py`, delete old dirs.
-No import changes are needed (they're already correct).
+No import changes are needed (they're already correct).~~
 
-### Deprecated HTTP status constant (TECHDEBT-12)
+### ~~Deprecated HTTP status constant (TECHDEBT-12)~~
 
-`starlette.status.HTTP_422_UNPROCESSABLE_ENTITY` is deprecated in favor of
-`HTTP_422_UNPROCESSABLE_CONTENT`. Seven usages remain in trigger service files:
-- `vultron/api/v2/backend/trigger_services/embargo.py` (3 usages)
-- `vultron/api/v2/backend/trigger_services/report.py` (2 usages)
-- `vultron/api/v2/backend/trigger_services/_helpers.py` (2 usages)
+> *Captured in `notes/codebase-structure.md` (Technical Debt: Deprecated HTTP
+> Status Constant section).*
 
-This generates a `DeprecationWarning` in the test suite output. The fix is a
-simple string replacement; the new constant name is `HTTP_422_UNPROCESSABLE_CONTENT`.
+~~`starlette.status.HTTP_422_UNPROCESSABLE_ENTITY` is deprecated in favor of
+`HTTP_422_UNPROCESSABLE_CONTENT`. Seven usages remain in trigger service files:~~
+~~- `vultron/api/v2/backend/trigger_services/embargo.py` (3 usages)~~
+~~- `vultron/api/v2/backend/trigger_services/report.py` (2 usages)~~
+~~- `vultron/api/v2/backend/trigger_services/_helpers.py` (2 usages)~~
+
+~~This generates a `DeprecationWarning` in the test suite output. The fix is a
+simple string replacement; the new constant name is `HTTP_422_UNPROCESSABLE_CONTENT`.~~
 
 ### P70 DataLayer refactor — when to plan
 
@@ -387,44 +404,51 @@ in cleaner BT node names (e.g., `q_rm_in_CLOSED` instead of
 
 ---
 
-## Triggerable behaviors should start to live in `vultron/core/` and respect the architecture
+## ~~Triggerable behaviors should start to live in `vultron/core/` and respect the architecture~~
 
-The `triggers.py` module currently has a mix of architectural violations, including
-including directly invoking domain logic in the routers. We should start 
-separating these concerns as soon as practical in preparation for the 
-architecture refactor. It would be better to start moving towards the 
-cleaner architecture where we can now than to continue building out more 
-things that will have to be refactored later. We know the direction we are 
-going with the architecture, so we should start moving in that direction now 
-when we can.
+> *Captured in `AGENTS.md` ("Trigger behavior logic belongs outside the API
+> router") and `specs/architecture.md` ARCH-08-001.*
 
-This idea generalizes too. When you're modifying or adding new router code, 
-consider the architectural intent and whether the code you're writing 
-respects the intended separation of concerns. Try to avoid mixing domain 
+~~The `triggers.py` module currently has a mix of architectural violations, including
+including directly invoking domain logic in the routers. We should start
+separating these concerns as soon as practical in preparation for the
+architecture refactor. It would be better to start moving towards the
+cleaner architecture where we can now than to continue building out more
+things that will have to be refactored later. We know the direction we are
+going with the architecture, so we should start moving in that direction now
+when we can.~~
+
+~~This idea generalizes too. When you're modifying or adding new router code,
+consider the architectural intent and whether the code you're writing
+respects the intended separation of concerns. Try to avoid mixing domain
 logic directly into the routers, and instead think about how to structure the
-code so that the ports and adapters model is cleaner even before the full 
-refactor.
+code so that the ports and adapters model is cleaner even before the full
+refactor.~~
 
-Fix what you can as you go, and add items you observe as technical debt to 
-the implementation notes for anything you notice but can't fix immediately.
+~~Fix what you can as you go, and add items you observe as technical debt to
+the implementation notes for anything you notice but can't fix immediately.~~
 
-Technical debt: Refactor triggers.py to respect the hexagonal architecture 
-concepts.
+~~Technical debt: Refactor triggers.py to respect the hexagonal architecture
+concepts.~~
 
 
 ---
 
-## Many of the workflows, triggerable behaviors, and demo scenarios map to use cases
+## ~~Many of the workflows, triggerable behaviors, and demo scenarios map to use cases~~
 
-In a Hexagonal Architecure, the core domain logic is organized around use 
-cases that represent the key actions or operations that the system performs. 
-These use cases are then invoked by the ports (e.g., API endpoints, CLI 
-commands) and implemented by the adapters. As you review the codebase, many 
-of the message semantics, behaviors, workflows, triggers, and demo scenarios 
-map onto specific 
-use cases indicated in their names. For example "PrioritizeCase", 
-"ProposeEmbargo", "DeferCase" etc. Keep this in mind when deciding how to 
-refactor the codebase into the hexagonal architecture.
+> *Captured in `notes/use-case-behavior-trees.md` (Mapping Protocol Activities
+> section) and `notes/architecture-ports-and-adapters.md` (Design Note: Use
+> Cases as Incoming Ports).*
+
+~~In a Hexagonal Architecure, the core domain logic is organized around use
+cases that represent the key actions or operations that the system performs.
+These use cases are then invoked by the ports (e.g., API endpoints, CLI
+commands) and implemented by the adapters. As you review the codebase, many
+of the message semantics, behaviors, workflows, triggers, and demo scenarios
+map onto specific
+use cases indicated in their names. For example "PrioritizeCase",
+"ProposeEmbargo", "DeferCase" etc. Keep this in mind when deciding how to
+refactor the codebase into the hexagonal architecture.~~
 
 ---
 

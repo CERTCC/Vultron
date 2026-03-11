@@ -146,13 +146,88 @@ These domain event types belong in `core/models/` alongside `MessageSemantics`.
 The outbound serializer in `wire/as2/serializer.py` will map each domain event
 type to the appropriate AS2 activity type.
 
+### Naming Convention
+
+Wire-level and domain-level types MUST use distinct suffixes to prevent
+accidental coupling (see `specs/code-style.md` CS-10-002):
+
+- Wire layer (`vultron/wire/as2/vocab/activities/`): `FooActivity` — the
+  structured AS2 payload the extractor recognizes (e.g., `ReportSubmitActivity`)
+- Domain layer (`vultron/core/models/events/`): `FooEvent` — the typed
+  domain event handlers and use cases consume (e.g., `ReportSubmittedEvent`)
+  - Received-message flavour: `FooReceivedEvent` (remote actor did something)
+  - Trigger flavour: `FooTriggerEvent` (local actor initiated an action)
+
+The `events/` directory structure under `core/models/` SHOULD mirror the
+`activities/` directory structure under `wire/as2/vocab/`, with submodules
+grouped by semantic category (`report.py`, `case.py`, `embargo.py`, etc.).
+
+### Discriminated Event Hierarchy (P65-3 Design)
+
+To support type-safe handler dispatch, the domain event base class (`VultronEvent`
+or equivalent) SHOULD carry a discriminator field based on `MessageSemantics`:
+
+```python
+# core/models/events/base.py
+from vultron.core.models.events import MessageSemantics
+from pydantic import BaseModel
+
+class VultronEvent(BaseModel):
+    semantic_type: MessageSemantics  # discriminator field
+    activity_id: str
+    actor_id: str
+    object_type: str | None = None
+    object_id: str | None = None
+    target_type: str | None = None
+    target_id: str | None = None
+    inner_object_type: str | None = None
+    inner_object_id: str | None = None
+```
+
+Specific event subclasses extend this base with fields relevant to their
+use case. Pydantic's discriminated union functionality then allows the correct
+subclass to be reconstructed from the generic base automatically.
+
+**Design principle**: Do not add fields speculatively. Derive the required fields
+from a full audit of handler code (P65-3 task) to see exactly which AS2 fields
+each handler accesses on `raw_activity`. Add only what the handlers actually need.
+
+The current `InboundPayload` model is the immediate precursor to this design.
+The migration path is:
+
+1. Audit all `raw_activity` accesses across handler files (P65-3 audit step).
+2. Enrich `InboundPayload` with the fields needed (replacing `raw_activity: Any`).
+3. Define per-semantic subclasses and migrate handlers to use them (P65-3a).
+4. Update the extractor to produce specific subclasses instead of a generic
+   payload (P65-3b).
+
+### Outbound Event Design Questions (P65-6 Considerations)
+
+Before implementing the outbound path (domain event → AS2 activity), consider:
+
+- **Which events go in `core/models/`?** Domain events corresponding to
+  outbound activities (e.g., `CaseCreatedEvent`, `EmbargoProposedEvent`).
+  These are distinct from inbound received events.
+- **Outbound serializer mapping**: Should `wire/as2/serializer.py` map each
+  domain event type to AS2 one-to-one, or via a generic mapping table?
+  One-to-one is safer for type checking; a table is more compact.
+- **Interplay with the outbox pipeline**: Domain events emitted by handlers
+  must eventually become AS2 activities written to the actor outbox. The
+  serializer is the seam between these two concerns (see `specs/outbox.md`).
+- **ADR**: Consider drafting an ADR for the domain/wire separation decision
+  before implementation, to record the rationale. See `docs/adr/_adr-template.md`.
+
 ## Cross-References
 
 - `specs/case-management.md` CM-03-006 — `case_statuses` rename requirement
+- `specs/code-style.md` CS-10-001 — typed Pydantic objects at port/adapter boundaries
+- `specs/code-style.md` CS-10-002 — `FooActivity` vs `FooEvent` naming convention
 - `notes/case-state-model.md` — CaseStatus/ParticipantStatus append-only
   history model
 - `notes/activitystreams-semantics.md` — `case_activity` type limitation,
   Accept/Reject `object` field patterns
+- `notes/use-case-behavior-trees.md` — use case/BT layering and mapping from
+  protocol activities to use cases
 - `AGENTS.md` — pitfalls for `case_activity`, `active_embargo`,
   and `case_status` (singular) field
 - `docs/adr/_adr-template.md` — template for future ADR on this separation
