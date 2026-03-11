@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-11 (refresh #24: P65 fully complete; new cleanup tasks ARCH-DOCS-1, TECHDEBT-13/14)
+**Last Updated**: 2026-03-11 (refresh #25: P70-3 complete)
 
 ## Overview
 
@@ -259,7 +259,7 @@ resolved. See `plan/IMPLEMENTATION_HISTORY.md` for full task details.
   callers (about 13 files import from `vultron.enums`). Done when no
   `vultron.enums` imports remain and tests pass.
 
-- [ ] **P70-3**: Add `vultron/core/ports/delivery_queue.py` and
+- [x] **P70-3**: Add `vultron/core/ports/delivery_queue.py` and
   `vultron/core/ports/dns_resolver.py` Protocol stub files. The stubs in
   `vultron/adapters/driven/delivery_queue.py` and `dns_resolver.py` already
   reference these as their port interfaces but the files do not yet exist.

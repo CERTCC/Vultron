@@ -1111,3 +1111,21 @@ and `vultron/behavior_dispatcher.py` to reference
 `vultron.api.v2.datalayer.abc` shim.
 
 **Result**: 880 tests pass, 0 regressions. V-24 fully resolved.
+
+---
+
+## P70-3 — Add core/ports/delivery_queue.py and dns_resolver.py Protocol stubs (COMPLETE 2026-03-11)
+
+Added two Protocol stub files to `vultron/core/ports/`:
+
+- **`delivery_queue.py`**: `DeliveryQueue` Protocol with `enqueue(activity_id, recipient_id) -> None`
+  and `drain() -> int`. Mirrors the outbound delivery contract referenced by
+  `vultron/adapters/driven/delivery_queue.py`.
+- **`dns_resolver.py`**: `DnsResolver` Protocol with `resolve_txt(domain) -> list[str]`.
+  Mirrors the trust-discovery contract referenced by
+  `vultron/adapters/driven/dns_resolver.py`.
+
+Both files contain only `Protocol` class definitions with no adapter-layer imports,
+following the pattern established by `vultron/core/ports/activity_store.py`.
+
+**Result**: 880 tests pass, 0 regressions. Both driven adapter stubs import cleanly.
