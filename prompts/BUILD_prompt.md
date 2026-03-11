@@ -5,7 +5,7 @@ Objective: Complete the highest-priority pending implementation task.
    - plan/PRIORITIES.md — current implementation priorities.
    - specs/*.md (start with specs/README.md) — authoritative requirements.
    - plan/IMPLEMENTATION_PLAN.md — current tasks and status.
-   - plan/IMPLEMENTATION_NOTES.md — implementation notes and constraints.
+   - plan/IMPLEMENTATION_NOTES.md — lessons learned and constraints (not implementation history).
    - notes/*.md (start with notes/README.md) — relevant lessons learned.
 
 2. Select Work
@@ -44,7 +44,7 @@ Objective: Complete the highest-priority pending implementation task.
 5. If Validation Succeeds
 
    - Mark the task complete in plan/IMPLEMENTATION_PLAN.md.
-   - Update plan/IMPLEMENTATION_NOTES.md with relevant implementation details.
+   - Append a 'what was done' summary to plan/IMPLEMENTATION_HISTORY.md; record any lessons learned or constraints in plan/IMPLEMENTATION_NOTES.md.
    - `git add` modified files and commit with a clear, specific message.
 
 6. Exit. Only one task should be completed per run.

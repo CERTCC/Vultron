@@ -163,6 +163,8 @@ history from implementation work.
 - Quick reference information (belongs in AGENTS.md)
 - Future planning (belongs in IMPLEMENTATION_PLAN.md)
 - Coding how-tos (belongs in AGENTS.md)
+- Implementation history or 'what was done' summaries from build cycles
+  (belongs in IMPLEMENTATION_HISTORY.md)
 
 **Maintenance**:
 
@@ -194,7 +196,7 @@ history from implementation work.
 - Detailed debugging history (belongs in IMPLEMENTATION_NOTES.md)
 - Lessons learned (belongs in IMPLEMENTATION_NOTES.md)
 - Technical how-tos (belongs in AGENTS.md)
-- Completed work details (summarize and move to IMPLEMENTATION_NOTES.md)
+- Completed work details (summarize and move to IMPLEMENTATION_HISTORY.md)
 
 **Maintenance**:
 
@@ -265,6 +267,7 @@ history from implementation work.
 **Scope** (MUST contain):
 
 - Completed implementation phases with details on what was done, when, and how
+- Per-build 'what was done' summaries appended after each implementation cycle
 - Deferred future work that was deprioritized (with rationale and context)
 - Commit references where relevant pointing to completed work
 
@@ -282,7 +285,7 @@ history from implementation work.
 When refactoring documentation:
 
 1. **Status updates** → Move to IMPLEMENTATION_NOTES.md with date
-2. **Completed phases** → Move to IMPLEMENTATION_HISTORY.md with date and summary
+2. **Completed phases / 'what was done' summaries** → Append to IMPLEMENTATION_HISTORY.md
 3. **Lessons learned** → Move to IMPLEMENTATION_NOTES.md under relevant date
 4. **Future priorities** → Move to IMPLEMENTATION_PLAN.md
 5. **Technical gotchas** → Keep in AGENTS.md Common Pitfalls
