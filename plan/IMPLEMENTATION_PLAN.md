@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-11 (refresh #25: P70-3 complete)
+**Last Updated**: 2026-03-11 (refresh #26: P70-2 complete)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 880 passing, 5581 subtests, 0 xfailed (2026-03-11, after P65-7; all P65 complete)
+**Test suite**: 880 passing, 5581 subtests, 0 xfailed (2026-03-11, after P70-2)
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -253,7 +253,7 @@ resolved. See `plan/IMPLEMENTATION_HISTORY.md` for full task details.
 **P70-1 SUPERSEDED by P65-1** — DataLayer Protocol move to `core/ports/` done.
 **Must precede**: PRIORITY-100 (actor independence uses the new layer structure).
 
-- [ ] **P70-2**: Move `OfferStatusEnum` and `VultronObjectType` from
+- [x] **P70-2**: Move `OfferStatusEnum` and `VultronObjectType` from
   `vultron/enums.py` to their correct architectural homes (`core/models/` and
   `wire/as2/enums.py` respectively). Delete `vultron/enums.py`. Update all
   callers (about 13 files import from `vultron.enums`). Done when no

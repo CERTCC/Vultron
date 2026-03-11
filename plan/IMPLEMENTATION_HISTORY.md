@@ -1129,3 +1129,23 @@ Both files contain only `Protocol` class definitions with no adapter-layer impor
 following the pattern established by `vultron/core/ports/activity_store.py`.
 
 **Result**: 880 tests pass, 0 regressions. Both driven adapter stubs import cleanly.
+
+---
+
+## P70-2 — Relocate OfferStatusEnum and VultronObjectType to core (COMPLETE 2026-03-11)
+
+Moved both domain-boundary enums out of `vultron/enums.py` into their correct
+architectural homes and deleted the now-empty shim:
+
+- **`OfferStatusEnum`** → `vultron/core/models/status.py` (defined before
+  `ObjectStatus` which uses it; removed separate import)
+- **`VultronObjectType`** → new `vultron/core/models/enums.py` (wire layer
+  must import from core, not define its own parallel enum)
+- **`vultron/enums.py`** deleted (all three symbols now imported directly from
+  their canonical locations; `MessageSemantics` was already imported directly
+  from `vultron.core.models.events` by all callers)
+
+Updated 13 caller files across `vultron/wire/as2/`, `vultron/api/v2/`,
+`vultron/core/`, and `test/`.
+
+**Result**: 880 tests pass, 0 regressions. No `vultron.enums` imports remain.
