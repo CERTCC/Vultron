@@ -81,3 +81,9 @@ as modules.)
 `docker/README.md` is out of date and needs to be updated to reflect the 
 currently available services and how to run them.
 
+## Previous refactors broke documentation generation
+
+There are python inline code blocks in `docs/` that broke when the 
+`as_vocab` modules got moved into `wire/as2/vocab/`.
+These need to be updated to reflect the new paths. By building the site 
+using `mkdocs build` to detect errors.
