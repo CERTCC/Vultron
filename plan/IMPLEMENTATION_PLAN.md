@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-12 (refresh #28: P70-5 complete)
+**Last Updated**: 2026-03-12 (refresh #29: P75-1 verified complete)
 
 ## Overview
 
@@ -290,7 +290,7 @@ resolved. See `plan/IMPLEMENTATION_HISTORY.md` for full task details.
 **Blocked by**: PRIORITY-70 (use cases call core ports; DataLayer must be
 fully relocated first).
 
-- [ ] **P75-1**: Define the `VultronEvent` domain event base type and initial
+- [x] **P75-1**: Define the `VultronEvent` domain event base type and initial
   subclasses (e.g., `ReportCreatedEvent`, `CaseEngagedEvent`, `EmbargoInvitedEvent`)
   in `vultron/core/models/events.py`. These replace `DispatchActivity` as the
   input type for use-case callables. Done when domain event types cover the

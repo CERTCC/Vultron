@@ -1200,3 +1200,28 @@ update all callers to import from canonical locations.
 **Result**: 880 tests pass, 0 regressions.
 
 **Next**: P75-1 — define `VultronEvent` domain event types in `core/models/events.py`.
+
+---
+
+## P75-1 — VultronEvent domain event types (verified complete 2026-03-12)
+
+**Task**: Define `VultronEvent` domain event base type and all 38 per-semantic
+concrete subclasses in `vultron/core/models/events/`, with no wire or adapter
+imports.
+
+**What was done** (completed as part of P65-6a, verified now):
+
+- `vultron/core/models/events/` package exists with:
+  - `base.py`: `MessageSemantics` (39 values), `VultronEvent` base class,
+    `NonEmptyString`, `OptionalNonEmptyString`
+  - Per-category modules: `actor.py`, `case.py`, `case_participant.py`,
+    `embargo.py`, `note.py`, `report.py`, `status.py`, `unknown.py`
+  - `__init__.py`: `EVENT_CLASS_MAP` (all 39 semantics mapped), `InboundPayload`
+    backward-compat alias for `VultronEvent`
+- No wire-layer or adapter-layer imports anywhere in `core/models/events/`
+- All 39 `MessageSemantics` values covered by the `EVENT_CLASS_MAP`
+
+**Result**: 880 tests pass, 0 regressions.
+
+**Next**: P75-2 — extract handler business logic from
+`vultron/api/v2/backend/handlers/` into `vultron/core/use_cases/`.
