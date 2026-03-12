@@ -25,8 +25,8 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 from vultron.api.v2.data.actor_io import init_actor_io
-from vultron.api.v2.datalayer.db_record import object_to_record
-from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.api.v2.routers import trigger_embargo as trigger_embargo_router
 from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargo
 from vultron.wire.as2.vocab.base.objects.actors import as_Service

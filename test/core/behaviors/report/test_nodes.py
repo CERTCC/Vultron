@@ -28,7 +28,7 @@ from vultron.api.v2.data.status import (
     get_status_layer,
     set_status,
 )
-from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
     VultronOffer,

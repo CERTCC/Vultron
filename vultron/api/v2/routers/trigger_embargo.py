@@ -32,8 +32,8 @@ from vultron.api.v2.backend.trigger_services.embargo import (
     svc_propose_embargo,
     svc_terminate_embargo,
 )
-from vultron.api.v2.datalayer.abc import DataLayer
-from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+from vultron.core.ports.datalayer import DataLayer
+from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
 

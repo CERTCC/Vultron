@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-11 (refresh #27: P70-4 complete)
+**Last Updated**: 2026-03-12 (refresh #28: P70-5 complete)
 
 ## Overview
 
@@ -63,14 +63,13 @@ V-22–23 as open/partial. ARCH-DOCS-1 task added to update these markers.
 - `vultron/behaviors/` → `vultron/core/behaviors/` (P60-2 ✅)
 - `vultron/adapters/` package stub created (P60-3 ✅)
 
-### ❌ DataLayer not yet relocated to adapters layer (PRIORITY 70)
+### ❌ DataLayer shims removed (PRIORITY 70 — Phase 1 COMPLETE ✅)
 
-`vultron/api/v2/datalayer/` TinyDB implementation should move to
-`vultron/adapters/driven/`. The `DataLayer` Protocol already lives in
-`vultron/core/ports/activity_store.py` (P65-1 ✅). The `abc.py` shim remains
-as a backward-compat re-export. See Phase PRIORITY-70. Tasks P70-2 and P70-3
-are planned; P70-4 (relocate TinyDB) and P70-5 (remove shims) are not yet
-captured.
+`vultron/api/v2/datalayer/abc.py`, `tinydb_backend.py`, and `db_record.py` have been
+removed. All callers now import `DataLayer` from `vultron.core.ports.datalayer`,
+`TinyDbDataLayer`/`get_datalayer`/`reset_datalayer` from
+`vultron.adapters.driven.datalayer_tinydb`, and `Record`/`object_to_record` from
+`vultron.adapters.driven.db_record`. P70-2 through P70-5 complete.
 
 ### ❌ Handlers and trigger services not yet extracted to core/use_cases/ (PRIORITY 75)
 
@@ -273,7 +272,7 @@ resolved. See `plan/IMPLEMENTATION_HISTORY.md` for full task details.
   shim to re-export from the new location. Done when `TinyDbDataLayer` lives in
   `adapters/driven/`, all imports resolve, and tests pass.
 
-- [ ] **P70-5**: Remove shims and update all remaining callers to import
+- [x] **P70-5**: Remove shims and update all remaining callers to import
   `TinyDbDataLayer` from `adapters/driven/` and `DataLayer` from
   `core/ports/activity_store`. Delete `api/v2/datalayer/abc.py` and the
   `api/v2/datalayer/tinydb.py` re-export shim. Done when no module imports from

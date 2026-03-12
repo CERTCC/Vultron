@@ -13,7 +13,7 @@
 
 from fastapi import status
 
-from vultron.api.v2.datalayer.db_record import object_to_record
+from vultron.adapters.driven.db_record import object_to_record
 
 
 def test_get_offers_returns_empty_dict_when_no_offers(client_datalayer):

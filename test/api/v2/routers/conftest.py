@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from vultron.api.v2.data.actor_io import init_actor_io
-from vultron.api.v2.datalayer.db_record import object_to_record
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.api.v2.routers import actors as actors_router
 from vultron.api.v2.routers import datalayer as datalayer_router
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -42,7 +42,7 @@ def dl(datalayer):
 # TestClient for datalayer router
 @pytest.fixture
 def client_datalayer(dl):
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 
     app = FastAPI()
     app.include_router(datalayer_router.router)
@@ -56,7 +56,7 @@ def client_datalayer(dl):
 # TestClient for actors router
 @pytest.fixture
 def client_actors(dl):
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 
     app = FastAPI()
     app.include_router(actors_router.router)

@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 import pytest
 from py_trees.common import Status
 
-from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.core.models.vultron_types import (
     VultronAccept,
     VultronCase,

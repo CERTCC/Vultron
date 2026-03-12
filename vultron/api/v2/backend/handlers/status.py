@@ -8,7 +8,7 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
-from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ def add_case_status_to_case(
                       target=VulnerabilityCase)
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.adapters.driven.db_record import object_to_record
 
     payload = dispatchable.payload
 
@@ -148,7 +148,7 @@ def add_participant_status_to_participant(
                       Add(ParticipantStatus, target=CaseParticipant)
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.adapters.driven.db_record import object_to_record
 
     payload = dispatchable.payload
 

@@ -17,8 +17,8 @@ import pytest
 from tinydb.queries import QueryInstance
 from tinydb.table import Table
 
-from vultron.api.v2.datalayer.db_record import Record
-from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+from vultron.adapters.driven.db_record import Record
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 
 
 # Fixtures

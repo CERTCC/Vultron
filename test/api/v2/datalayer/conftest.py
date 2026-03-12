@@ -13,8 +13,8 @@
 
 import pytest
 
-from vultron.api.v2.datalayer.db_record import Record
-from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+from vultron.adapters.driven.db_record import Record
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 
 
 @pytest.fixture

@@ -8,7 +8,7 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
-from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ def add_embargo_event_to_case(
         dispatchable: DispatchActivity containing the Add/ActivateEmbargo
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.adapters.driven.db_record import object_to_record
 
     payload = dispatchable.payload
 
@@ -121,7 +121,7 @@ def remove_embargo_event_from_case(
         dispatchable: DispatchActivity containing the RemoveEmbargoFromCase
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.adapters.driven.db_record import object_to_record
     from vultron.bt.embargo_management.states import EM
 
     payload = dispatchable.payload
@@ -254,7 +254,7 @@ def accept_invite_to_embargo_on_case(
         dispatchable: DispatchActivity containing the EmAcceptEmbargo
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.adapters.driven.db_record import object_to_record
 
     payload = dispatchable.payload
 

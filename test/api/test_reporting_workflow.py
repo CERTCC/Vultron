@@ -19,7 +19,7 @@ Test the reporting workflow
 import pytest
 
 from vultron.api.v2.backend import handlers as h
-from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Offer,

@@ -33,8 +33,8 @@ from vultron.api.v2.backend.trigger_services._helpers import (
     resolve_actor,
     resolve_case,
 )
-from vultron.api.v2.datalayer.abc import DataLayer
-from vultron.api.v2.datalayer.db_record import object_to_record
+from vultron.core.ports.datalayer import DataLayer
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.wire.as2.vocab.activities.embargo import (
     AnnounceEmbargo,
     EmAcceptEmbargo,

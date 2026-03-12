@@ -23,8 +23,8 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from vultron.api.v2.datalayer.db_record import object_to_record
-from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.wire.as2.vocab.objects.case_event import CaseEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 

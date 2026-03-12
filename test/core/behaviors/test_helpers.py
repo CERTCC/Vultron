@@ -27,8 +27,8 @@ from vultron.core.behaviors.helpers import (
     CreateObject,
 )
 from vultron.core.behaviors.bridge import BTBridge
-from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-from vultron.api.v2.datalayer.db_record import Record
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.adapters.driven.db_record import Record
 
 # Test implementation of abstract base classes
 

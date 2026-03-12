@@ -38,7 +38,7 @@ from vultron.api.v2.data.status import (
     get_status_layer,
     set_status,
 )
-from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.activities.report import (
     RmCloseReport,
     RmInvalidateReport,

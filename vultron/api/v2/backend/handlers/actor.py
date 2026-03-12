@@ -8,7 +8,7 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
-from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +185,7 @@ def accept_case_ownership_transfer(
         dispatchable: DispatchActivity containing the AcceptCaseOwnershipTransfer
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.adapters.driven.db_record import object_to_record
 
     payload = dispatchable.payload
 
@@ -310,7 +310,7 @@ def accept_invite_actor_to_case(
         dispatchable: DispatchActivity containing the RmAcceptInviteToCase
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.adapters.driven.db_record import object_to_record
     from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 
     payload = dispatchable.payload

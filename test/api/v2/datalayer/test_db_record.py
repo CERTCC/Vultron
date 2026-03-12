@@ -13,7 +13,7 @@
 
 import pytest
 
-from vultron.api.v2.datalayer.db_record import (
+from vultron.adapters.driven.db_record import (
     Record,
     object_to_record,
     record_to_object,

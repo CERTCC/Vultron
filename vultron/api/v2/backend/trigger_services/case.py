@@ -29,7 +29,7 @@ from vultron.api.v2.backend.trigger_services._helpers import (
     resolve_case,
     update_participant_rm_state,
 )
-from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.activities.case import RmDeferCase, RmEngageCase
 from vultron.bt.report_management.states import RM
 

@@ -24,7 +24,7 @@ participant-specific nature of the RM state machine.
 import pytest
 from py_trees.common import Status
 
-from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,

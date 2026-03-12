@@ -23,7 +23,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from vultron.api.main import app
-from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,

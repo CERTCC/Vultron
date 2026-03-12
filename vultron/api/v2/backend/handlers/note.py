@@ -8,7 +8,7 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
-from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ def add_note_to_case(dispatchable: DispatchActivity, dl: DataLayer) -> None:
         dispatchable: DispatchActivity containing the Add(Note, target=case)
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.adapters.driven.db_record import object_to_record
 
     payload = dispatchable.payload
 
@@ -107,7 +107,7 @@ def remove_note_from_case(
         dispatchable: DispatchActivity containing the Remove(Note, target=case)
     """
     from vultron.api.v2.data.rehydration import rehydrate
-    from vultron.api.v2.datalayer.db_record import object_to_record
+    from vultron.adapters.driven.db_record import object_to_record
 
     payload = dispatchable.payload
 

@@ -25,9 +25,9 @@ from vultron.api.v2.backend.inbox_handler import (
 )
 from vultron.api.v2.backend.outbox_handler import outbox_handler
 from vultron.api.v2.data.actor_io import get_actor_io
-from vultron.api.v2.datalayer.abc import DataLayer
-from vultron.api.v2.datalayer.db_record import object_to_record
-from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+from vultron.core.ports.datalayer import DataLayer
+from vultron.adapters.driven.db_record import object_to_record
+from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import (

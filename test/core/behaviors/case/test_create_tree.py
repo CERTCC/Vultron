@@ -26,7 +26,7 @@ CM-02, and specs/idempotency.md ID-04-004.
 import pytest
 from py_trees.common import Status
 
-from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,

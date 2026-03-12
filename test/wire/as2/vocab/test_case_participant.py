@@ -20,7 +20,7 @@ import unittest
 import pytest
 from pydantic import ValidationError
 
-from vultron.api.v2.datalayer.db_record import (
+from vultron.adapters.driven.db_record import (
     object_to_record,
     record_to_object,
 )

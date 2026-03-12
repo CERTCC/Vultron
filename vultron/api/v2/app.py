@@ -43,7 +43,7 @@ def configure_logging() -> None:
 async def lifespan(application: FastAPI):
     configure_logging()
     from vultron.api.v2.backend.inbox_handler import init_dispatcher
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 
     init_dispatcher(dl=get_datalayer())
     yield

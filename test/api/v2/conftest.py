@@ -23,7 +23,7 @@ from vultron.api.v2.app import app_v2 as app
 
 @pytest.fixture
 def client(datalayer):
-    from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
+    from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 
     app.dependency_overrides = {}
     app.dependency_overrides[get_datalayer] = lambda: datalayer
@@ -34,7 +34,7 @@ def client(datalayer):
 
 @pytest.fixture
 def datalayer():
-    from vultron.api.v2.datalayer.tinydb_backend import (
+    from vultron.adapters.driven.datalayer_tinydb import (
         get_datalayer,
         reset_datalayer,
     )

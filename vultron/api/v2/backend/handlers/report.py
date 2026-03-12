@@ -8,7 +8,7 @@ from vultron.api.v2.backend.handlers._base import verify_semantics
 from vultron.core.models.events import MessageSemantics
 from vultron.types import DispatchActivity
 
-from vultron.api.v2.datalayer.abc import DataLayer
+from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
 

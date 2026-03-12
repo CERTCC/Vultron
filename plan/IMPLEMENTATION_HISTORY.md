@@ -1174,3 +1174,29 @@ a backward-compat re-export shim at the old path.
 
 **Next**: P70-5 — remove shims and update all remaining callers to import
 from `adapters/driven/` directly.
+
+---
+
+### P70-5 — Remove DataLayer shims (2026-03-12)
+
+**Task**: Remove backward-compat shims `api/v2/datalayer/abc.py`,
+`api/v2/datalayer/tinydb_backend.py`, and `api/v2/datalayer/db_record.py`;
+update all callers to import from canonical locations.
+
+**What was done**:
+
+- Moved `vultron/api/v2/datalayer/db_record.py` to
+  `vultron/adapters/driven/db_record.py`.
+- Updated `vultron/adapters/driven/datalayer_tinydb.py` to import `Record`,
+  `object_to_record`, and `record_to_object` from the new local path.
+- Bulk-updated all `vultron/` and `test/` files (≈50 files) with `sed`:
+  - `vultron.api.v2.datalayer.abc.DataLayer` → `vultron.core.ports.datalayer.DataLayer`
+  - `vultron.api.v2.datalayer.tinydb_backend.*` → `vultron.adapters.driven.datalayer_tinydb.*`
+  - `vultron.api.v2.datalayer.db_record.*` → `vultron.adapters.driven.db_record.*`
+- Deleted `abc.py`, `tinydb_backend.py`, and `db_record.py` from
+  `vultron/api/v2/datalayer/`.
+- No module now imports from `vultron.api.v2.datalayer.*`.
+
+**Result**: 880 tests pass, 0 regressions.
+
+**Next**: P75-1 — define `VultronEvent` domain event types in `core/models/events.py`.

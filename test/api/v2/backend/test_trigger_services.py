@@ -42,7 +42,7 @@ from vultron.api.v2.backend.trigger_services.report import (
 )
 from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.api.v2.data.status import ReportStatus, set_status
-from vultron.api.v2.datalayer.db_record import object_to_record
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargo
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
