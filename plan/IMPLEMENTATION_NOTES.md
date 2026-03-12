@@ -87,3 +87,22 @@ There are python inline code blocks in `docs/` that broke when the
 `as_vocab` modules got moved into `wire/as2/vocab/`.
 These need to be updated to reflect the new paths. By building the site 
 using `mkdocs build` to detect errors.
+
+## Core models must not be less rich than wire models
+
+Because we have been in the process of separating core models from the wire 
+models (they're semantically identical but we need to maintain the 
+separation to maintain architectural integrity), we're frequently running 
+into situations where the core model is less rich than the wire model, and 
+so we're piecemeal adding features to core models to reflect things we left 
+out of the translation from wire to core models. This is a code smell that 
+suggests we need to invert our thinking here: the core models need to be the 
+rich, fully featured models that capture all the domain semantics, and the 
+wire models should ensure translation from/to syntax to/from the core models.
+This is a recurring problem in recent implementation steps, and it would be 
+better if we resolve it once by enriching the core models, then refactoring 
+the wire models to provide the necessary syntactic translation, rather than 
+continuing to add individual features to the core models as we encounter 
+them. This should be captured as a technical debt item to be resolved as 
+soon as possible as it will head off a lot of future code-level challenges.
+
