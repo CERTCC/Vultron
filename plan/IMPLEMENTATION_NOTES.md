@@ -76,3 +76,8 @@ having a mongo-db implementation we will want to make
 `adapters/driven/datalayer` into a package with `tinydb.py` and `mongodb.py` 
 as modules.)
 
+## docker README out of date
+
+`docker/README.md` is out of date and needs to be updated to reflect the 
+currently available services and how to run them.
+
