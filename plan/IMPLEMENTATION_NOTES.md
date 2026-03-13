@@ -202,3 +202,14 @@ module-level singleton.
 `SEMANTICS_ACTIVITY_PATTERNS` in `extractor.py` have names like `CreateReport`,
 `EngageCase` — identical to Activity and Event class names. Add `Pattern` suffix
 (`CreateReportPattern`, etc.) in P75-2c.
+
+## Separation of responsibilities
+
+Core receives semantically meaningful events via use case callables, which 
+are exposed via driving ports. Driving adapters are responsible for 
+translating their specific input syntax into core domain events and calling 
+the appropriate use case. Core processes the event, performs domain logic, and
+emits semantically meaningful events via the emitter port. Driven adapters are
+responsible for translating the emitted domain events into the appropriate output
+syntax and delivering them to the appropriate recipients.
+
