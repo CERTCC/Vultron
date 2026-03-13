@@ -392,7 +392,7 @@ fully relocated first).
     pattern objects use `Pattern` suffix, and tests pass.
   **Depends on P75-2b.**
 
-- [ ] **P75-3**: Migrate trigger-service logic from
+- [x] **P75-3**: Migrate trigger-service logic from
   `vultron/api/v2/backend/trigger_services/` to `vultron/core/use_cases/`.
   The trigger router stays in `api/v2/routers/trigger_*.py`; the service layer
   moves to `core/use_cases/` as callable functions accepting domain types + a

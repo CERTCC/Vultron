@@ -1417,3 +1417,38 @@ Nine handler shim modules removed (logic now lives in `core/use_cases/`):
 ### Test Result
 
 887 passed, 0 failed (pre-existing flaky `test_remove_embargo` passed this run)
+
+---
+
+## P75-3: Migrate trigger-service logic to core use cases
+
+**Completed:** 2026
+
+**Summary:** Moved all domain logic from `vultron/api/v2/backend/trigger_services/`
+into `vultron/core/use_cases/triggers/`. The adapter layer is now reduced to thin
+delegates that translate domain exceptions to `HTTPException`.
+
+**Files created:**
+- `vultron/core/use_cases/triggers/__init__.py` — exports all 9 `svc_*` functions
+- `vultron/core/use_cases/triggers/_helpers.py` — domain helpers (resolve_actor,
+  resolve_case, update_participant_rm_state, add_activity_to_outbox, outbox_ids,
+  find_embargo_proposal) — raises domain exceptions, no FastAPI
+- `vultron/core/use_cases/triggers/report.py` — svc_validate_report, svc_invalidate_report,
+  svc_reject_report, svc_close_report
+- `vultron/core/use_cases/triggers/case.py` — svc_engage_case, svc_defer_case
+- `vultron/core/use_cases/triggers/embargo.py` — svc_propose_embargo, svc_evaluate_embargo,
+  svc_terminate_embargo
+
+**Files modified (reduced to thin delegates):**
+- `vultron/api/v2/backend/trigger_services/_helpers.py` — HTTP error translation +
+  re-exports from core helpers
+- `vultron/api/v2/backend/trigger_services/report.py` — thin delegate
+- `vultron/api/v2/backend/trigger_services/case.py` — thin delegate
+- `vultron/api/v2/backend/trigger_services/embargo.py` — thin delegate
+- `vultron/errors.py` — added VultronNotFoundError, VultronConflictError,
+  VultronValidationError
+
+**Domain exceptions added:** `VultronNotFoundError` (→ HTTP 404),
+`VultronConflictError` (→ HTTP 409), `VultronValidationError` (→ HTTP 422)
+
+**Test results:** 887 passed, 0 failed

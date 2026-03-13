@@ -14,36 +14,24 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Domain service functions for embargo-level trigger behaviors.
+Thin adapter delegates for embargo-level trigger service functions.
 
-Each function accepts domain parameters and a DataLayer instance (injected
-from the router via Depends).  No HTTP routing or request parsing belongs
-here.
+Delegates to ``vultron.core.use_cases.triggers.embargo`` and translates
+domain exceptions to FastAPI ``HTTPException`` responses.
 """
 
-import logging
 from datetime import datetime
 
-from fastapi import HTTPException, status
-
 from vultron.api.v2.backend.trigger_services._helpers import (
-    add_activity_to_outbox,
-    find_embargo_proposal,
-    not_found,
-    resolve_actor,
-    resolve_case,
+    translate_domain_errors,
 )
 from vultron.core.ports.datalayer import DataLayer
-from vultron.adapters.driven.db_record import object_to_record
-from vultron.wire.as2.vocab.activities.embargo import (
-    AnnounceEmbargoActivity,
-    EmAcceptEmbargoActivity,
-    EmProposeEmbargoActivity,
+from vultron.core.use_cases.triggers.embargo import (
+    svc_evaluate_embargo as _svc_evaluate_embargo,
+    svc_propose_embargo as _svc_propose_embargo,
+    svc_terminate_embargo as _svc_terminate_embargo,
 )
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.bt.embargo_management.states import EM
-
-logger = logging.getLogger(__name__)
+from vultron.errors import VultronError
 
 
 def svc_propose_embargo(
@@ -53,97 +41,10 @@ def svc_propose_embargo(
     end_time: datetime | None,
     dl: DataLayer,
 ) -> dict:
-    """
-    Propose an embargo on a case.
-
-    Creates a new EmbargoEvent and emits EmProposeEmbargoActivity
-    (Invite(EmbargoEvent)).  EM state transitions:
-    - EM.N → EM.P (new proposal; emits EP)
-    - EM.A → EM.R (revision proposal; emits EV)
-    - EM.P or EM.R: counter-proposal; no state change
-
-    Returns HTTP 409 if EM state is EXITED.
-
-    Implements: TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001,
-        TB-03-002, TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
-    """
-    actor = resolve_actor(actor_id, dl)
-    actor_id = actor.as_id
-
-    case = resolve_case(case_id, dl)
-
-    em_state = case.current_status.em_state
-
-    if em_state == EM.EXITED:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "status": 409,
-                "error": "Conflict",
-                "message": (
-                    f"Cannot propose embargo: case '{case.as_id}' EM state "
-                    f"is EXITED."
-                ),
-                "activity_id": None,
-            },
-        )
-
-    embargo_kwargs: dict = {"context": case.as_id}
-    if end_time is not None:
-        embargo_kwargs["end_time"] = end_time
-
-    embargo = EmbargoEvent(**embargo_kwargs)
-
     try:
-        dl.create(embargo)
-    except ValueError:
-        logger.warning("EmbargoEvent '%s' already exists", embargo.as_id)
-
-    proposal = EmProposeEmbargoActivity(
-        actor=actor_id,
-        object=embargo.as_id,
-        context=case.as_id,
-    )
-
-    try:
-        dl.create(proposal)
-    except ValueError:
-        logger.warning(
-            "EmProposeEmbargoActivity '%s' already exists", proposal.as_id
-        )
-
-    if em_state == EM.NO_EMBARGO:
-        case.current_status.em_state = EM.PROPOSED
-        logger.info(
-            "Actor '%s' proposed embargo '%s' on case '%s' (EM N → P)",
-            actor_id,
-            embargo.as_id,
-            case.as_id,
-        )
-    elif em_state == EM.ACTIVE:
-        case.current_status.em_state = EM.REVISE
-        logger.info(
-            "Actor '%s' proposed embargo revision '%s' on case '%s' (EM A → R)",
-            actor_id,
-            embargo.as_id,
-            case.as_id,
-        )
-    else:
-        logger.info(
-            "Actor '%s' counter-proposed embargo '%s' on case '%s' (EM %s, no state change)",
-            actor_id,
-            embargo.as_id,
-            case.as_id,
-            em_state,
-        )
-
-    case.proposed_embargoes.append(embargo.as_id)
-    dl.update(case.as_id, object_to_record(case))
-
-    add_activity_to_outbox(actor_id, proposal.as_id, dl)
-
-    activity = proposal.model_dump(by_alias=True, exclude_none=True)
-    return {"activity": activity}
+        return _svc_propose_embargo(actor_id, case_id, note, end_time, dl)
+    except VultronError as e:
+        raise translate_domain_errors(e)
 
 
 def svc_evaluate_embargo(
@@ -152,177 +53,14 @@ def svc_evaluate_embargo(
     proposal_id: str | None,
     dl: DataLayer,
 ) -> dict:
-    """
-    Accept an embargo proposal (evaluate-embargo).
-
-    Emits EmAcceptEmbargoActivity (Accept(EmProposeEmbargoActivity)), activates the embargo
-    on the case (EM → ACTIVE), and adds to actor outbox.
-
-    If proposal_id is None, the first pending EmProposeEmbargoActivity for the case
-    is used.  Returns 404 if no proposal is found.
-
-    Implements: TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001,
-        TB-03-002, TB-04-001, TB-06-001, TB-06-002, TB-07-001
-    """
-    actor = resolve_actor(actor_id, dl)
-    actor_id = actor.as_id
-
-    case = resolve_case(case_id, dl)
-
-    if proposal_id:
-        proposal_raw = dl.read(proposal_id)
-        if proposal_raw is None:
-            raise not_found("EmbargoProposal", proposal_id)
-        proposal = proposal_raw
-    else:
-        proposal = find_embargo_proposal(case.as_id, dl)
-        if proposal is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail={
-                    "status": 404,
-                    "error": "NotFound",
-                    "message": (
-                        f"No pending embargo proposal found for case "
-                        f"'{case.as_id}'."
-                    ),
-                    "activity_id": None,
-                },
-            )
-
-    if str(getattr(proposal, "as_type", "")) != "Invite":
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "status": 422,
-                "error": "ValidationError",
-                "message": (
-                    f"Expected an Invite (embargo proposal), got "
-                    f"{type(proposal).__name__}."
-                ),
-                "activity_id": None,
-            },
-        )
-
-    embargo_ref = getattr(proposal, "as_object", None)
-    embargo_id = (
-        embargo_ref
-        if isinstance(embargo_ref, str)
-        else getattr(embargo_ref, "as_id", None)
-    )
-    if not embargo_id:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "status": 422,
-                "error": "ValidationError",
-                "message": "Proposal is missing an embargo event reference.",
-                "activity_id": None,
-            },
-        )
-    embargo = dl.read(embargo_id)
-    if embargo is None or str(getattr(embargo, "as_type", "")) != "Event":
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "status": 422,
-                "error": "ValidationError",
-                "message": f"Could not resolve EmbargoEvent '{embargo_id}'.",
-                "activity_id": None,
-            },
-        )
-
-    accept = EmAcceptEmbargoActivity(
-        actor=actor_id,
-        object=proposal.as_id,
-        context=case.as_id,
-    )
-
     try:
-        dl.create(accept)
-    except ValueError:
-        logger.warning(
-            "EmAcceptEmbargoActivity '%s' already exists", accept.as_id
-        )
-
-    case.set_embargo(embargo_id)
-    dl.update(case.as_id, object_to_record(case))
-
-    add_activity_to_outbox(actor_id, accept.as_id, dl)
-
-    logger.info(
-        "Actor '%s' accepted embargo proposal '%s'; activated embargo '%s' "
-        "on case '%s' (EM → ACTIVE)",
-        actor_id,
-        proposal.as_id,
-        embargo_id,
-        case.as_id,
-    )
-
-    activity = accept.model_dump(by_alias=True, exclude_none=True)
-    return {"activity": activity}
+        return _svc_evaluate_embargo(actor_id, case_id, proposal_id, dl)
+    except VultronError as e:
+        raise translate_domain_errors(e)
 
 
 def svc_terminate_embargo(actor_id: str, case_id: str, dl: DataLayer) -> dict:
-    """
-    Terminate the active embargo on a case.
-
-    Emits AnnounceEmbargoActivity (ET message), sets case EM state to EXITED, clears
-    the active embargo, and adds to actor outbox.  Returns 409 if the case
-    has no active embargo.
-
-    Implements: TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001,
-        TB-03-002, TB-04-001, TB-06-001, TB-06-002, TB-07-001
-    """
-    actor = resolve_actor(actor_id, dl)
-    actor_id = actor.as_id
-
-    case = resolve_case(case_id, dl)
-
-    if case.active_embargo is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "status": 409,
-                "error": "Conflict",
-                "message": (
-                    f"Case '{case.as_id}' has no active embargo to terminate."
-                ),
-                "activity_id": None,
-            },
-        )
-
-    embargo_id = (
-        case.active_embargo
-        if isinstance(case.active_embargo, str)
-        else case.active_embargo.as_id
-    )
-
-    announce = AnnounceEmbargoActivity(
-        actor=actor_id,
-        object=embargo_id,
-        context=case.as_id,
-    )
-
     try:
-        dl.create(announce)
-    except ValueError:
-        logger.warning(
-            "AnnounceEmbargoActivity '%s' already exists", announce.as_id
-        )
-
-    case.current_status.em_state = EM.EXITED
-    case.active_embargo = None
-    dl.update(case.as_id, object_to_record(case))
-
-    add_activity_to_outbox(actor_id, announce.as_id, dl)
-
-    logger.info(
-        "Actor '%s' terminated embargo '%s' on case '%s' (EM → EXITED)",
-        actor_id,
-        embargo_id,
-        case.as_id,
-    )
-
-    activity = announce.model_dump(by_alias=True, exclude_none=True)
-    return {"activity": activity}
+        return _svc_terminate_embargo(actor_id, case_id, dl)
+    except VultronError as e:
+        raise translate_domain_errors(e)

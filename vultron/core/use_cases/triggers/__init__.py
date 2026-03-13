@@ -14,32 +14,38 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Thin adapter delegates for case-level trigger service functions.
+Core trigger use-case functions.
 
-Delegates to ``vultron.core.use_cases.triggers.case`` and translates
-domain exceptions to FastAPI ``HTTPException`` responses.
+Provides domain-layer callable functions for actor-initiated behaviors.
+No HTTP framework imports.  Raises domain exceptions
+(``VultronNotFoundError``, ``VultronConflictError``, ``VultronValidationError``)
+that callers in the adapter layer should catch and translate.
 """
 
-from vultron.api.v2.backend.trigger_services._helpers import (
-    translate_domain_errors,
-)
-from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers.case import (
-    svc_defer_case as _svc_defer_case,
-    svc_engage_case as _svc_engage_case,
+    svc_defer_case,
+    svc_engage_case,
 )
-from vultron.errors import VultronError
+from vultron.core.use_cases.triggers.embargo import (
+    svc_evaluate_embargo,
+    svc_propose_embargo,
+    svc_terminate_embargo,
+)
+from vultron.core.use_cases.triggers.report import (
+    svc_close_report,
+    svc_invalidate_report,
+    svc_reject_report,
+    svc_validate_report,
+)
 
-
-def svc_engage_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
-    try:
-        return _svc_engage_case(actor_id, case_id, dl)
-    except VultronError as e:
-        raise translate_domain_errors(e)
-
-
-def svc_defer_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
-    try:
-        return _svc_defer_case(actor_id, case_id, dl)
-    except VultronError as e:
-        raise translate_domain_errors(e)
+__all__ = [
+    "svc_validate_report",
+    "svc_invalidate_report",
+    "svc_reject_report",
+    "svc_close_report",
+    "svc_engage_case",
+    "svc_defer_case",
+    "svc_propose_embargo",
+    "svc_evaluate_embargo",
+    "svc_terminate_embargo",
+]
