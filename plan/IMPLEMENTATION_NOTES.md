@@ -229,3 +229,17 @@ class hierarchy in the wire layer where there is an `as_Base` -> `as_Object`
 -> `as_Activity` etc. hierarchy. This parallel is deliberate, as the Vultron 
 object and event models are meant to be rich domain data models that can be 
 expressed in the wire layer with the appropriate syntactic translation.
+
+## Flaky test is technical debt
+
+The test `test/wire/as2/vocab/test_vocab_examples.
+py::TestVocabExamples::test_remove_embargo` has been identified as flaky. 
+This is a technical debt item that should be resolved as soon as possible as 
+we must not have flaky tests in our suite. The test should be inspected to 
+determine the root cause of the flakiness, and refactored to be reliable.
+Add new TECHDEBT item to capture this, prioritize its resolution accordingly,
+and add an item in `specs/testability.md` requiring that all tests must be 
+reliable and consistent.
+
+
+
