@@ -213,3 +213,19 @@ emits semantically meaningful events via the emitter port. Driven adapters are
 responsible for translating the emitted domain events into the appropriate output
 syntax and delivering them to the appropriate recipients.
 
+## DRY up vultron.core.models.vultron_types and vultron.core.models.events
+
+There is some redundancy between the domain models in `vultron.core.models.vultron_types`
+and the domain event models in `vultron.core.models.events`. This really 
+should be a single class hierarchy that captures common fields in a 
+`VultronObject` base class that `VultronEvent` can inherit from, and the 
+other models in `vultron_types` can also inherit from `VultronObject`. In 
+general, we shouldn't have a lot of direct inheritance from `pydantic.
+BaseModel` in our domain models, instead we should have our own base class 
+or classes that inherit from `BaseModel` and capture all the common fields 
+so that our domain models can inherit from those and just have their 
+specific details and fields where needed. This is very much parallel to the 
+class hierarchy in the wire layer where there is an `as_Base` -> `as_Object` 
+-> `as_Activity` etc. hierarchy. This parallel is deliberate, as the Vultron 
+object and event models are meant to be rich domain data models that can be 
+expressed in the wire layer with the appropriate syntactic translation.
