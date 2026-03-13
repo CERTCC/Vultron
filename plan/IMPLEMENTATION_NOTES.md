@@ -112,7 +112,34 @@ soon as possible as it will head off a lot of future code-level challenges.
 The expectation here is that `vultron.api.v2.backend.inbox_handler.
 inbox_handler()` would lookup the use case function to call in the 
 dispatcher and call use case objects directly. Right now 
-So for example,
-on 
-receipt of an `AddNoteToCaseActivity`, the inbox handler would know to 
-create an `AddNoteToCaseReceivedEvent`
+So for example, on receipt of an `AddNoteToCaseActivity`, the inbox  handler 
+would know to create an `AddNoteToCaseReceivedEvent`. It seems like this 
+hinges on `prepare_for_dispatch()`, and the DispatchActivity class. Ideally, 
+instead of passing wire activity and wire object into the dispatch message, 
+the DispatchActivity would be constructing a core event object. Consider 
+renaming DispatchActivity to DispatchEvent to make it clear that it carries 
+a core event model, not a wire activity model. We should be careful in our 
+naming to be consistent that "Activity" is a wire-level concept and "Event" 
+is a core-level concept. (There is some tension with "EmbargoEvent" being an 
+object based on an "Event" object in the AS2 vocabulary), but we just need 
+to be careful around that naming where it matters.
+
+This may require changes to `extract_intent()` or at how it is used in 
+`prepare_for_dispatch()`. Part of the problem here seems to be that we 
+created the dispatcher before we really understood the wire vs domain model 
+separation, so it seems as if there is some extra complexity in the dispatch 
+message construction because of this. With the previous note about core 
+models needing to be the rich models, it seems like there is a more direct 
+way for DispatchActivity objects to be constructed with core object events 
+not really needing the wire objects at all (this means that we really need 
+to ensure that the core models capture the full content of what's coming in 
+from the wire models, even if we're not yet using all the features in the 
+wire models yet. Consider: any activity or object can have a "content" field 
+that we might not show being used in our examples yet, but we need to make 
+sure it gets passed through from wire to core.)
+
+
+Implications: 
+- the pattern objects in extractor.py should be suffixed with 
+Pattern to clarify their purpose and distinguish them from similarly named 
+Activity and Event objects.
