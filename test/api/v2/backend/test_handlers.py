@@ -21,7 +21,7 @@ from vultron.core.models.events import (
     MessageSemantics,
     VultronEvent,
 )
-from vultron.types import DispatchActivity
+from vultron.types import DispatchEvent
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -45,18 +45,12 @@ def _make_payload(activity, **extra_fields) -> VultronEvent:
 
 
 def _make_dispatchable(activity, semantic_type, **payload_overrides):
-    """Create a DispatchActivity from an AS2 activity."""
+    """Create a DispatchEvent from an AS2 activity."""
     payload = _make_payload(activity, **payload_overrides)
-    obj = getattr(activity, "as_object", None)
-    wire_object = (
-        obj if (obj is not None and not isinstance(obj, str)) else None
-    )
-    return DispatchActivity(
+    return DispatchEvent(
         semantic_type=semantic_type,
         activity_id=activity.as_id,
         payload=payload,
-        wire_activity=activity,
-        wire_object=wire_object,
     )
 
 
@@ -68,11 +62,11 @@ class TestVerifySemanticsDecorator:
 
         # Create a test handler decorated with verify_semantics
         @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity, dl=None) -> str:
+        def test_handler(dispatchable: DispatchEvent, dl=None) -> str:
             return "success"
 
-        # Create a mock DispatchActivity with matching semantics
-        mock_activity = MagicMock(spec=DispatchActivity)
+        # Create a mock DispatchEvent with matching semantics
+        mock_activity = MagicMock(spec=DispatchEvent)
         mock_activity.semantic_type = MessageSemantics.CREATE_REPORT
 
         # Create proper as_Create activity with VulnerabilityReport object
@@ -92,11 +86,11 @@ class TestVerifySemanticsDecorator:
         """Test that decorator raises error when semantic_type is None."""
 
         @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity, dl=None) -> str:
+        def test_handler(dispatchable: DispatchEvent, dl=None) -> str:
             return "success"
 
         # Create mock with None semantic_type
-        mock_activity = MagicMock(spec=DispatchActivity)
+        mock_activity = MagicMock(spec=DispatchEvent)
         mock_activity.semantic_type = None
 
         # Should raise VultronApiHandlerMissingSemanticError
@@ -107,11 +101,11 @@ class TestVerifySemanticsDecorator:
         """Test that decorator raises error when semantic types don't match."""
 
         @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity, dl=None) -> str:
+        def test_handler(dispatchable: DispatchEvent, dl=None) -> str:
             return "success"
 
         # Create mock with wrong semantic_type (handler expects CREATE_REPORT)
-        mock_activity = MagicMock(spec=DispatchActivity)
+        mock_activity = MagicMock(spec=DispatchEvent)
         mock_activity.semantic_type = MessageSemantics.CREATE_CASE
 
         # Should raise VultronApiHandlerSemanticMismatchError
@@ -122,7 +116,7 @@ class TestVerifySemanticsDecorator:
         """Test that decorator preserves the wrapped function's __name__."""
 
         @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity, dl=None) -> str:
+        def test_handler(dispatchable: DispatchEvent, dl=None) -> str:
             return "success"
 
         # Decorator should preserve function name via @wraps
@@ -226,7 +220,7 @@ class TestHandlerExecution:
 
     def test_handler_rejects_wrong_semantic_type(self):
         """Test handler rejects activity with wrong semantic type."""
-        mock_activity = MagicMock(spec=DispatchActivity)
+        mock_activity = MagicMock(spec=DispatchEvent)
         mock_activity.semantic_type = MessageSemantics.CREATE_CASE
 
         # Should raise semantic mismatch error (handler expects CREATE_REPORT)

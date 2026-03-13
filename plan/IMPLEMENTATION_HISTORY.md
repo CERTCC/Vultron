@@ -1296,3 +1296,45 @@ wire-to-domain round-trips for each new field category.
 
 **Next**: P75-2b — remove wire coupling from dispatch envelope, rename
 `DispatchActivity` → `DispatchEvent`.
+
+---
+
+## P75-2b — Remove wire coupling from dispatch envelope (2026-03-13)
+
+**Task**: Rename `DispatchActivity` → `DispatchEvent`, remove `wire_activity`
+and `wire_object` fields from the dispatch envelope, and eliminate wire-object
+pass-through parameters from all use case functions.
+
+**Changes**:
+
+- `vultron/types.py`: Renamed `DispatchActivity` → `DispatchEvent`, removed
+  `wire_activity: Any` and `wire_object: Any` fields, removed
+  `ConfigDict(arbitrary_types_allowed=True)`, updated `BehaviorHandler`
+  Protocol; added backward-compat alias `DispatchActivity = DispatchEvent`.
+- `vultron/behavior_dispatcher.py`: Updated 3 references.
+- `vultron/api/v2/backend/inbox_handler.py`: Removed `wire_object` extraction,
+  updated `DispatchEvent()` constructor.
+- All 8 handler files: Updated imports and annotations.
+- All 6 use case files: Removed `wire_object`/`wire_activity` params; replaced
+  fallback logic with direct `event.X` access.
+- `vultron/wire/as2/extractor.py`: Fixed `isinstance(obj, WireType)` checks
+  in `_build_domain_kwargs()` — replaced with `as_type` string comparisons
+  (`_obj_type == str(VOtype.X)`) because the wire parser deserializes nested
+  objects as `as_Object` base class, causing `isinstance` checks against
+  Vultron subtypes to always fail.
+- `vultron/core/use_cases/status.py`: Fixed `add_case_status_to_case` and
+  `add_participant_status_to_participant` to fall back to `event.status` when
+  `dl.read(status_id)` returns a non-model (raw TinyDB Document).
+- `vultron/core/models/vultron_types.py`: Added `field_serializer` for
+  `pxa_state` on `VultronCaseStatus` and `vfd_state` on
+  `VultronParticipantStatus` to serialize as `.name` strings (matching wire
+  type serialization), fixing `[0,0,0]` round-trip failures.
+- Test files: Updated for `DispatchEvent` rename.
+- `specs/dispatch-routing.md`, `specs/handler-protocol.md`,
+  `specs/code-style.md`, `specs/architecture.md`, `specs/README.md`,
+  `AGENTS.md`, `docs/adr/0009-hexagonal-architecture.md`,
+  `docs/reference/inbox_handler.md`: Updated `DispatchActivity` → `DispatchEvent`.
+
+**Result**: 888 tests pass, 0 regressions.
+
+**Next**: P75-2c — model dispatcher as formal driving port.

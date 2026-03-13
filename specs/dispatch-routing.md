@@ -2,7 +2,7 @@
 
 ## Overview
 
-After semantic extraction, the dispatcher routes DispatchActivity objects to appropriate handler functions. The dispatcher may execute handlers synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
+After semantic extraction, the dispatcher routes DispatchEvent objects to appropriate handler functions. The dispatcher may execute handlers synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
 
 **Source**: Design documents, handler protocol requirements
 
@@ -11,7 +11,7 @@ After semantic extraction, the dispatcher routes DispatchActivity objects to app
 ## Dispatcher Protocol (MUST)
 
 - `DR-01-001` All dispatcher implementations MUST implement ActivityDispatcher protocol
-- `DR-01-002` Dispatchers MUST pass complete DispatchActivity objects when invoking handlers
+- `DR-01-002` Dispatchers MUST pass complete DispatchEvent objects when invoking handlers
 - `DR-01-003` Dispatchers MUST invoke `verify_semantics` decorator checks during handler execution
 
 ## Handler Lookup (MUST)
@@ -37,7 +37,7 @@ After semantic extraction, the dispatcher routes DispatchActivity objects to app
 ### DR-01-001, DR-01-002, DR-01-003 Verification
 
 - Unit test: Verify DirectActivityDispatcher implements ActivityDispatcher protocol
-- Unit test: Verify dispatcher passes complete DispatchActivity to handlers
+- Unit test: Verify dispatcher passes complete DispatchEvent to handlers
 - Unit test: Verify decorator validation occurs during dispatch
 
 ### DR-02-001, DR-02-002 Verification

@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_case_participant(
-    event: CreateCaseParticipantReceivedEvent, dl: DataLayer, wire_object=None
+    event: CreateCaseParticipantReceivedEvent, dl: DataLayer
 ) -> None:
     try:
         existing = dl.get(event.object_type, event.object_id)
@@ -26,9 +26,7 @@ def create_case_participant(
             )
             return
 
-        obj_to_store = (
-            wire_object if wire_object is not None else event.participant
-        )
+        obj_to_store = event.participant
         if obj_to_store is not None:
             dl.create(obj_to_store)
             logger.info("Created participant '%s'", event.object_id)

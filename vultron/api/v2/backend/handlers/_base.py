@@ -11,7 +11,7 @@ from vultron.api.v2.errors import (
     VultronApiHandlerSemanticMismatchError,
 )
 from vultron.core.models.events import MessageSemantics
-from vultron.types import DispatchActivity
+from vultron.types import DispatchEvent
 
 if TYPE_CHECKING:
     from vultron.core.ports.datalayer import DataLayer
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 def verify_semantics(expected_semantic_type: MessageSemantics):
     def decorator(func):
         @wraps(func)
-        def wrapper(dispatchable: DispatchActivity, dl: "DataLayer"):
+        def wrapper(dispatchable: DispatchEvent, dl: "DataLayer"):
             if not dispatchable.semantic_type:
                 logger.error(
                     "Dispatchable activity %s is missing semantic_type",

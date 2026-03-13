@@ -2,7 +2,7 @@
 
 ## Overview
 
-Handler functions process DispatchActivity objects and implement protocol business logic. All handlers follow a common contract defined by the HandlerProtocol and enforced by the verify_semantics decorator.
+Handler functions process DispatchEvent objects and implement protocol business logic. All handlers follow a common contract defined by the HandlerProtocol and enforced by the verify_semantics decorator.
 
 **Source**: Protocol design, dispatcher architecture
 
@@ -17,7 +17,7 @@ Handler functions process DispatchActivity objects and implement protocol busine
 
 ## Handler Signature (MUST)
 
-- `HP-01-001` All handler functions MUST accept a single DispatchActivity parameter
+- `HP-01-001` All handler functions MUST accept a single DispatchEvent parameter
 - `HP-01-002` Handler functions MAY return None or HandlerResult
 
 ## Semantic Verification (MUST)
@@ -110,7 +110,7 @@ Handler functions process DispatchActivity objects and implement protocol busine
 
 ### HP-01-001, HP-01-002 Verification
 
-- Unit test: Handler accepts DispatchActivity parameter
+- Unit test: Handler accepts DispatchEvent parameter
 - Unit test: Handler returns None or HandlerResult
 - Type check: Handler signature matches HandlerProtocol
 

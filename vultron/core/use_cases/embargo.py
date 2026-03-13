@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_embargo_event(
-    event: CreateEmbargoEventReceivedEvent, dl: DataLayer, wire_object=None
+    event: CreateEmbargoEventReceivedEvent, dl: DataLayer
 ) -> None:
     try:
         existing = dl.get(event.object_type, event.object_id)
@@ -31,9 +31,7 @@ def create_embargo_event(
             )
             return
 
-        obj_to_store = (
-            wire_object if wire_object is not None else event.embargo
-        )
+        obj_to_store = event.embargo
         if obj_to_store is not None:
             dl.create(obj_to_store)
             logger.info("Stored EmbargoEvent '%s'", event.object_id)
@@ -158,7 +156,6 @@ def announce_embargo_event_to_case(
 def invite_to_embargo_on_case(
     event: InviteToEmbargoOnCaseReceivedEvent,
     dl: DataLayer,
-    wire_activity=None,
 ) -> None:
     try:
         existing = dl.get(event.activity_type, event.activity_id)
@@ -169,9 +166,7 @@ def invite_to_embargo_on_case(
             )
             return
 
-        obj_to_store = (
-            wire_activity if wire_activity is not None else event.activity
-        )
+        obj_to_store = event.activity
         if obj_to_store is not None:
             dl.create(obj_to_store)
             logger.info(

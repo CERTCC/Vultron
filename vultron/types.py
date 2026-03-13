@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Protocol, TYPE_CHECKING
+from typing import Protocol, TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from vultron.core.models.events import MessageSemantics, VultronEvent
 
@@ -10,34 +10,26 @@ if TYPE_CHECKING:
     from vultron.core.ports.datalayer import DataLayer
 
 
-class DispatchActivity(BaseModel):
-    """
-    Data model to represent a dispatchable activity with its associated message semantics as a header.
+class DispatchEvent(BaseModel):
+    """Data model representing a domain event ready for dispatch.
 
-    The `wire_activity` field carries the original AS2 wire object for adapter-layer
-    persistence; core logic MUST NOT inspect its AS2 types.
-    The `wire_object` field carries the inline AS2 object from activity.as_object (for
-    CREATE-type activities where the object is embedded, not yet in the DataLayer).
+    Wraps a ``VultronEvent`` payload with routing metadata (semantic type and
+    activity ID).  This is a pure domain object — it carries no wire-layer
+    (AS2) fields.
     """
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     semantic_type: MessageSemantics
     activity_id: str
     payload: VultronEvent
-    wire_activity: Any = (
-        None  # opaque AS2 activity for adapter-layer persistence
-    )
-    wire_object: Any = (
-        None  # opaque inline AS2 object (set for CREATE-type activities)
-    )
+
+
+# Backward-compat alias — will be removed once P75-2c flattens the handler layer.
+DispatchActivity = DispatchEvent
 
 
 class BehaviorHandler(Protocol):
-    """
-    Protocol for behavior handler functions.
-    """
+    """Protocol for behavior handler functions."""
 
     def __call__(
-        self, dispatchable: DispatchActivity, dl: "DataLayer"
+        self, dispatchable: DispatchEvent, dl: "DataLayer"
     ) -> None: ...

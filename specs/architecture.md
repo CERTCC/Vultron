@@ -92,7 +92,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
   unit without touching the core or adapter layers
   - If a change to the wire format requires changes in the core, a
     boundary has been violated
-  - **Current state**: Substantially achieved. `DispatchActivity.payload` is
+  - **Current state**: Substantially achieved. `DispatchEvent.payload` is
     now typed as `InboundPayload` (domain type), not `as_Activity` (ARCH-1.2).
     Full wire replaceability requires completing P60-3 (adapters package).
 
@@ -100,7 +100,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
 
 - `ARCH-07-001` Handler functions MUST NOT re-invoke semantic extraction
   - The semantic type MUST be pre-computed and carried in the dispatch
-    wrapper (`DispatchActivity.semantic_type`)
+    wrapper (`DispatchEvent.semantic_type`)
   - Semantic verification decorators MUST compare `dispatchable.semantic_type`
     directly, not re-run pattern matching
   - **Current state**: ✅ Achieved. `verify_semantics` decorator now compares

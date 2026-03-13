@@ -38,7 +38,7 @@ to guide remediation and prevent the same violations from re-accumulating.
   (persistence, delivery) must be injectable to support testing and alternate
   backends.
 - **Alignment with existing clean points**: Several existing patterns are
-  already architecturally sound (the `DataLayer` Protocol, `DispatchActivity`
+  already architecturally sound (the `DataLayer` Protocol, `DispatchEvent`
   wrapper, `MessageSemantics` enum vocabulary, FastAPI 202 + BackgroundTasks)
   and should be preserved.
 
@@ -135,7 +135,7 @@ to a remediation task.
 | ID   | Severity | Summary                                                 | Addressed by      |
 |------|----------|---------------------------------------------------------|-------------------|
 | V-01 | Major    | `MessageSemantics` co-located with AS2 enums in `enums.py` | ARCH-1.1, ARCH-CLEANUP-2 |
-| V-02 | Critical | `DispatchActivity.payload` typed as `as_Activity`       | ARCH-1.2          |
+| V-02 | Critical | `DispatchEvent.payload` typed as `as_Activity`       | ARCH-1.2          |
 | V-03 | Critical | `behavior_dispatcher.py` imports AS2 type directly      | ARCH-1.2          |
 | V-04 | Major    | `find_matching_semantics` called twice (extractor + decorator) | ARCH-1.3   |
 | V-05 | Major    | Pattern matching logic split across `activity_patterns.py` and `semantic_map.py` | ARCH-1.3 |
@@ -215,5 +215,5 @@ in `plan/IMPLEMENTATION_PLAN.md`:
   - [ADR-0005](0005-activitystreams-vocabulary-as-vultron-message-format.md)
     — rationale for choosing AS2 as wire format.
   - [ADR-0007](0007-use-behavior-dispatcher.md) — introduces the
-    `DispatchActivity` wrapper and `ActivityDispatcher` Protocol that this
+    `DispatchEvent` wrapper and `ActivityDispatcher` Protocol that this
     architecture refines.

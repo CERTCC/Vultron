@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-13 (refresh #32: P75-2a complete)
+**Last Updated**: 2026-03-13 (refresh #33: P75-2b complete)
 
 ## Overview
 
@@ -331,7 +331,7 @@ fully relocated first).
   makes sense once domain models contain all the data use cases need.
   **Depends on P75-1, P75-2.**
 
-- [ ] **P75-2b** — Remove wire coupling from the dispatch envelope and rename
+- [x] **P75-2b** — Remove wire coupling from the dispatch envelope and rename
   `DispatchActivity` → `DispatchEvent`:
   - Rename `DispatchActivity` to `DispatchEvent` in `vultron/types.py`. "Activity"
     is a wire-layer concept; "Event" is a domain-layer concept. Update all

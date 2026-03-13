@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def suggest_actor_to_case(
-    event: SuggestActorToCaseReceivedEvent, dl: DataLayer, wire_activity=None
+    event: SuggestActorToCaseReceivedEvent, dl: DataLayer
 ) -> None:
     try:
         existing = dl.get(event.activity_type, event.activity_id)
@@ -33,9 +33,7 @@ def suggest_actor_to_case(
             )
             return
 
-        obj_to_store = (
-            wire_activity if wire_activity is not None else event.activity
-        )
+        obj_to_store = event.activity
         if obj_to_store is not None:
             dl.create(obj_to_store)
             logger.info(
@@ -56,7 +54,6 @@ def suggest_actor_to_case(
 def accept_suggest_actor_to_case(
     event: AcceptSuggestActorToCaseReceivedEvent,
     dl: DataLayer,
-    wire_activity=None,
 ) -> None:
     try:
         existing = dl.get(event.activity_type, event.activity_id)
@@ -67,9 +64,7 @@ def accept_suggest_actor_to_case(
             )
             return
 
-        obj_to_store = (
-            wire_activity if wire_activity is not None else event.activity
-        )
+        obj_to_store = event.activity
         if obj_to_store is not None:
             dl.create(obj_to_store)
             logger.info(
@@ -107,7 +102,6 @@ def reject_suggest_actor_to_case(
 def offer_case_ownership_transfer(
     event: OfferCaseOwnershipTransferReceivedEvent,
     dl: DataLayer,
-    wire_activity=None,
 ) -> None:
     try:
         existing = dl.get(event.activity_type, event.activity_id)
@@ -118,9 +112,7 @@ def offer_case_ownership_transfer(
             )
             return
 
-        obj_to_store = (
-            wire_activity if wire_activity is not None else event.activity
-        )
+        obj_to_store = event.activity
         if obj_to_store is not None:
             dl.create(obj_to_store)
             logger.info(
@@ -199,7 +191,7 @@ def reject_case_ownership_transfer(
 
 
 def invite_actor_to_case(
-    event: InviteActorToCaseReceivedEvent, dl: DataLayer, wire_activity=None
+    event: InviteActorToCaseReceivedEvent, dl: DataLayer
 ) -> None:
     try:
         existing = dl.get(event.activity_type, event.activity_id)
@@ -210,9 +202,7 @@ def invite_actor_to_case(
             )
             return
 
-        obj_to_store = (
-            wire_activity if wire_activity is not None else event.activity
-        )
+        obj_to_store = event.activity
         if obj_to_store is not None:
             dl.create(obj_to_store)
             logger.info(

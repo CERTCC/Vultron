@@ -37,7 +37,7 @@ Defines code formatting and import organization standards for Python code.
 
 ```python
 # Public API - comprehensive docstring
-def validate_report(dispatchable: DispatchActivity) -> None:
+def validate_report(dispatchable: DispatchEvent) -> None:
     """Validate vulnerability report and create case on acceptance.
     
     Args:

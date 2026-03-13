@@ -22,10 +22,8 @@ from vultron.bt.report_management.states import RM
 logger = logging.getLogger(__name__)
 
 
-def create_report(
-    event: CreateReportReceivedEvent, dl: DataLayer, wire_object=None
-) -> None:
-    obj_to_store = wire_object if wire_object is not None else event.report
+def create_report(event: CreateReportReceivedEvent, dl: DataLayer) -> None:
+    obj_to_store = event.report
     if obj_to_store is not None:
         try:
             dl.create(obj_to_store)
@@ -51,10 +49,8 @@ def create_report(
             )
 
 
-def submit_report(
-    event: SubmitReportReceivedEvent, dl: DataLayer, wire_object=None
-) -> None:
-    obj_to_store = wire_object if wire_object is not None else event.report
+def submit_report(event: SubmitReportReceivedEvent, dl: DataLayer) -> None:
+    obj_to_store = event.report
     if obj_to_store is not None:
         try:
             dl.create(obj_to_store)

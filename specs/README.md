@@ -26,7 +26,7 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 1. **`inbox-endpoint.md`** - FastAPI HTTP endpoint accepting ActivityStreams activities
 2. **`message-validation.md`** - ActivityStreams 2.0 structure and semantic validation
 3. **`semantic-extraction.md`** - Pattern matching to determine message semantics
-4. **`dispatch-routing.md`** - Routing DispatchActivity to handler functions
+4. **`dispatch-routing.md`** - Routing DispatchEvent to handler functions
 5. **`handler-protocol.md`** - Handler function contract and implementation patterns
 
 **Behavior Tree Integration** (optional for complex workflows):

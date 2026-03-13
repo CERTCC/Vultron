@@ -14,9 +14,7 @@ from vultron.core.use_cases._types import CaseModel
 logger = logging.getLogger(__name__)
 
 
-def create_note(
-    event: CreateNoteReceivedEvent, dl: DataLayer, wire_object=None
-) -> None:
+def create_note(event: CreateNoteReceivedEvent, dl: DataLayer) -> None:
     try:
         existing = dl.get(event.object_type, event.object_id)
         if existing is not None:
@@ -26,7 +24,7 @@ def create_note(
             )
             return
 
-        obj_to_store = wire_object if wire_object is not None else event.note
+        obj_to_store = event.note
         if obj_to_store is not None:
             dl.create(obj_to_store)
             logger.info("Stored Note '%s'", event.object_id)

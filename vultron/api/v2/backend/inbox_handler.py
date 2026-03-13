@@ -27,16 +27,16 @@ from vultron.behavior_dispatcher import (
     get_dispatcher,
 )
 from vultron.core.ports.datalayer import DataLayer
-from vultron.types import DispatchActivity
+from vultron.types import DispatchEvent
 from vultron.wire.as2.extractor import extract_intent
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
 
 
-def prepare_for_dispatch(activity: as_Activity) -> DispatchActivity:
+def prepare_for_dispatch(activity: as_Activity) -> DispatchEvent:
     """
-    Prepares an activity for dispatch by extracting its message semantics and packaging it into a DispatchActivity.
+    Prepares an activity for dispatch by extracting its message semantics and packaging it into a DispatchEvent.
     """
     logger.debug(
         f"Preparing activity '{activity.as_id}' of type '{activity.as_type}' for dispatch."
@@ -44,18 +44,10 @@ def prepare_for_dispatch(activity: as_Activity) -> DispatchActivity:
 
     event = extract_intent(activity)
 
-    # For CREATE-type activities, the object may be inline (not yet in DataLayer)
-    obj = getattr(activity, "as_object", None)
-    wire_object = (
-        obj if (obj is not None and not isinstance(obj, str)) else None
-    )
-
-    dispatch_msg = DispatchActivity(
+    dispatch_msg = DispatchEvent(
         semantic_type=event.semantic_type,
         activity_id=activity.as_id,
         payload=event,
-        wire_activity=activity,
-        wire_object=wire_object,
     )
     logger.debug(
         f"Prepared dispatch message with semantics '{dispatch_msg.semantic_type}' for activity '{dispatch_msg.payload.activity_id}'"
@@ -81,12 +73,12 @@ def init_dispatcher(dl: DataLayer) -> None:
     logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
 
 
-def dispatch(dispatchable: DispatchActivity) -> None:
+def dispatch(dispatchable: DispatchEvent) -> None:
     """
-    Dispatches the given activity using the module-level dispatcher.
+    Dispatches the given event using the module-level dispatcher.
 
     Args:
-        dispatchable: The DispatchActivity to dispatch.
+        dispatchable: The DispatchEvent to dispatch.
     Raises:
         RuntimeError: If the dispatcher has not been initialised via
             :func:`init_dispatcher`.

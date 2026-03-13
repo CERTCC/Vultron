@@ -27,8 +27,8 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
         handler_map={MessageSemantics.CREATE_REPORT: MagicMock()}, dl=mock_dl
     )
 
-    # Construct a DispatchActivity directly with a typed domain event (no AS2 construction needed)
-    dispatchable = bd.DispatchActivity(
+    # Construct a DispatchEvent directly with a typed domain event (no AS2 construction needed)
+    dispatchable = bd.DispatchEvent(
         semantic_type=MessageSemantics.CREATE_REPORT,
         activity_id="act-xyz",
         payload=CreateReportReceivedEvent(

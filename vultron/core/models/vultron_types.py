@@ -93,6 +93,10 @@ class VultronCaseStatus(BaseModel):
     em_state: EM = EM.EMBARGO_MANAGEMENT_NONE
     pxa_state: CS_pxa = CS_pxa.pxa
 
+    @field_serializer("pxa_state")
+    def _serialize_pxa_state(self, v: CS_pxa) -> str:
+        return v.name
+
 
 class VultronParticipantStatus(BaseModel):
     """Domain representation of a participant RM-state status record.
@@ -114,6 +118,10 @@ class VultronParticipantStatus(BaseModel):
     embargo_adherence: bool = True
     tracking_id: str | None = None
     case_status: str | None = None
+
+    @field_serializer("vfd_state")
+    def _serialize_vfd_state(self, v: CS_vfd) -> str:
+        return v.name
 
 
 class VultronParticipant(BaseModel):

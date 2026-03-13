@@ -7,7 +7,7 @@ from typing import Protocol, TYPE_CHECKING
 
 from vultron.core.models.events import MessageSemantics
 from vultron.dispatcher_errors import VultronApiHandlerNotFoundError
-from vultron.types import BehaviorHandler, DispatchActivity
+from vultron.types import BehaviorHandler, DispatchEvent
 
 if TYPE_CHECKING:
     from vultron.core.ports.datalayer import DataLayer
@@ -20,7 +20,7 @@ class ActivityDispatcher(Protocol):
     Protocol for dispatching activities to their corresponding _old_handlers based on message semantics.
     """
 
-    def dispatch(self, dispatchable: DispatchActivity) -> None:
+    def dispatch(self, dispatchable: DispatchEvent) -> None:
         """Dispatches an activity to the appropriate handler based on its semantic type."""
         ...
 
@@ -34,7 +34,7 @@ class DispatcherBase(ActivityDispatcher):
         self._handler_map = handler_map
         self.dl = dl
 
-    def dispatch(self, dispatchable: DispatchActivity) -> None:
+    def dispatch(self, dispatchable: DispatchEvent) -> None:
         semantic_type = dispatchable.semantic_type
 
         logger.info(
@@ -47,7 +47,7 @@ class DispatcherBase(ActivityDispatcher):
         )
         self._handle(dispatchable)
 
-    def _handle(self, dispatchable: DispatchActivity) -> None:
+    def _handle(self, dispatchable: DispatchEvent) -> None:
         """
         Internal method to route the dispatchable activity to the correct handler based on its semantics.
         """

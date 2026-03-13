@@ -28,7 +28,7 @@ quickly in this repo.
   (`vultron/wire/as2/extractor.py`) → behavior dispatcher
   (`vultron/behavior_dispatcher.py`) → registered handler
   (`vultron/api/v2/backend/handlers/`).
-- Follow the Handler Protocol: handlers accept `dispatchable: DispatchActivity`
+- Follow the Handler Protocol: handlers accept `dispatchable: DispatchEvent`
   and `dl: DataLayer`, use `@verify_semantics(...)`, and read
   `dispatchable.payload` (an `InboundPayload` domain type).
 
@@ -85,7 +85,7 @@ Examples (handler & datalayer):
 
 ```python
 @verify_semantics(MessageSemantics.CREATE_REPORT)
-def create_report(dispatchable: DispatchActivity) -> None:
+def create_report(dispatchable: DispatchEvent) -> None:
     payload = dispatchable.payload
     # rehydrate nested refs, validate, persist via datalayer.update(id, record)
 ```
@@ -265,7 +265,7 @@ See `notes/activitystreams-semantics.md` for detailed discussion.
 
 All handler functions MUST:
 
-- Accept `dispatchable: DispatchActivity` and `dl: DataLayer` parameters
+- Accept `dispatchable: DispatchEvent` and `dl: DataLayer` parameters
 - Use `@verify_semantics(MessageSemantics.X)` decorator
 - Be registered in `SEMANTICS_HANDLERS` (in
   `vultron/api/v2/backend/handler_map.py`)
@@ -277,7 +277,7 @@ Example:
 
 ```python
 @verify_semantics(MessageSemantics.CREATE_REPORT)
-def create_report(dispatchable: DispatchActivity, dl: DataLayer) -> None:
+def create_report(dispatchable: DispatchEvent, dl: DataLayer) -> None:
     payload = dispatchable.payload
     # Access validated activity data from payload
     # Use dl for persistence operations
@@ -582,7 +582,7 @@ behavior across backends (in-memory / tinydb) where reasonable.
    `vultron/wire/as2/extractor.py` (order matters!)
 4. Implement handler function in `vultron/api/v2/backend/handlers/`:
    - Use `@verify_semantics(MessageSemantics.NEW_TYPE)` decorator
-   - Accept `dispatchable: DispatchActivity` and `dl: DataLayer` parameters
+   - Accept `dispatchable: DispatchEvent` and `dl: DataLayer` parameters
    - Access data via `dispatchable.payload` (`InboundPayload`)
 5. Register in `SEMANTICS_HANDLERS` in
    `vultron/api/v2/backend/handler_map.py`
@@ -846,7 +846,7 @@ See `specs/semantic-extraction.md` SE-01-002 and
 
 ```python
 activity = as_Create(actor="alice", object="report-1")  # Bad: strings
-dispatchable = DispatchActivity(semantic_type=MessageSemantics.UNKNOWN, ...)  # Bad: wrong semantic
+dispatchable = DispatchEvent(semantic_type=MessageSemantics.UNKNOWN, ...)  # Bad: wrong semantic
 ```
 
 **Best practice**:
@@ -854,7 +854,7 @@ dispatchable = DispatchActivity(semantic_type=MessageSemantics.UNKNOWN, ...)  # 
 ```python
 report = VulnerabilityReport(name="TEST-001", content="...")  # Good: proper object
 activity = as_Create(actor="https://example.org/alice", object=report)  # Good: full structure
-dispatchable = DispatchActivity(semantic_type=MessageSemantics.CREATE_REPORT, ...)  # Good: matches structure
+dispatchable = DispatchEvent(semantic_type=MessageSemantics.CREATE_REPORT, ...)  # Good: matches structure
 ```
 
 See `specs/testability.md` TB-05-004, TB-05-005 for requirements.

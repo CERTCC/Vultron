@@ -386,21 +386,12 @@ def extract_intent(
             VultronCaseStatus,
             VultronReport,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_report import (
-            VulnerabilityReport,
-        )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-        from vultron.wire.as2.vocab.objects.case_status import (
-            CaseStatus,
-            ParticipantStatus,
-        )
+
+        # Use as_type string comparison because the wire parser returns
+        # as_Object (base class) for nested objects; isinstance checks against
+        # Vultron subtypes (EmbargoEvent, CaseParticipant, etc.) would always
+        # fail. Match on as_type string, consistent with ActivityPattern._match_field.
+        _obj_type = str(getattr(obj, "as_type", "")) if obj is not None else ""
 
         kw: dict = {}
         activity_type = (
@@ -433,7 +424,7 @@ def extract_intent(
                 in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
             )
 
-        if isinstance(obj, VulnerabilityReport):
+        if _obj_type == str(VOtype.VULNERABILITY_REPORT):
             kw["report"] = VultronReport(
                 as_id=obj.as_id,
                 as_type=str(obj.as_type),
@@ -447,7 +438,7 @@ def extract_intent(
                 published=getattr(obj, "published", None),
                 updated=getattr(obj, "updated", None),
             )
-        elif isinstance(obj, VulnerabilityCase):
+        elif _obj_type == str(VOtype.VULNERABILITY_CASE):
             kw["case"] = VultronCase(
                 as_id=obj.as_id,
                 as_type=str(obj.as_type),
@@ -459,7 +450,7 @@ def extract_intent(
                 published=getattr(obj, "published", None),
                 updated=getattr(obj, "updated", None),
             )
-        elif isinstance(obj, EmbargoEvent):
+        elif _obj_type == str(AOtype.EVENT):
             kw["embargo"] = VultronEmbargoEvent(
                 as_id=obj.as_id,
                 as_type=str(obj.as_type),
@@ -470,7 +461,7 @@ def extract_intent(
                 updated=getattr(obj, "updated", None),
                 context=_get_id(getattr(obj, "context", None)),
             )
-        elif isinstance(obj, CaseParticipant):
+        elif _obj_type == str(VOtype.CASE_PARTICIPANT):
             kw["participant"] = VultronParticipant(
                 as_id=obj.as_id,
                 as_type=str(obj.as_type),
@@ -482,7 +473,7 @@ def extract_intent(
                     obj, "participant_case_name", None
                 ),
             )
-        elif isinstance(obj, as_Note):
+        elif _obj_type == str(AOtype.NOTE):
             kw["note"] = VultronNote(
                 as_id=obj.as_id,
                 name=getattr(obj, "name", None),
@@ -492,7 +483,7 @@ def extract_intent(
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 context=_get_id(getattr(obj, "context", None)),
             )
-        elif isinstance(obj, CaseStatus):
+        elif _obj_type == str(VOtype.CASE_STATUS):
             kw["status"] = VultronCaseStatus(
                 as_id=obj.as_id,
                 name=getattr(obj, "name", None),
@@ -503,7 +494,7 @@ def extract_intent(
                 pxa_state=getattr(obj, "pxa_state", None)
                 or VultronCaseStatus.model_fields["pxa_state"].default,
             )
-        elif isinstance(obj, ParticipantStatus):
+        elif _obj_type == str(VOtype.PARTICIPANT_STATUS):
             ctx = _get_id(getattr(obj, "context", None)) or ""
             wire_case_status = getattr(obj, "case_status", None)
             kw["status"] = VultronParticipantStatus(
