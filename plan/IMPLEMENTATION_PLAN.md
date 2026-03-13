@@ -204,7 +204,7 @@ See `plan/IMPLEMENTATION_HISTORY.md`.
 
 **Priority**: Low (organizational)
 
-- [ ] **TECHDEBT-14**: Split `vultron/core/models/vultron_types.py` (273 lines,
+- [x] **TECHDEBT-14**: Split `vultron/core/models/vultron_types.py` (273 lines,
   11 classes) into individual modules following the `wire/as2/vocab/objects/`
   pattern (e.g., `core/models/report.py`, `core/models/case.py`). Add a
   re-export shim at `vultron/core/models/vultron_types.py` for backward compat
