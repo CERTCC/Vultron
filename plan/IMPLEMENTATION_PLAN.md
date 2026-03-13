@@ -355,7 +355,7 @@ fully relocated first).
     wire-layer fields, and no use case function accepts wire objects. Tests pass.
   **Depends on P75-2a.**
 
-- [ ] **P75-2c** — Model dispatcher as formal driving port, flatten the handler
+- [x] **P75-2c** — Model dispatcher as formal driving port, flatten the handler
   adapter layer, and rename pattern objects:
   - **Driving port**: Move the `ActivityDispatcher` Protocol from `vultron/types.py`
     to `vultron/core/ports/dispatcher.py`. A driving port is an interface the core

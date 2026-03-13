@@ -18,67 +18,60 @@ Vultron Actor Inbox Handler
 
 import logging
 
-from vultron.api.v2.backend import handlers  # noqa: F401
-from vultron.api.v2.backend.handler_map import SEMANTICS_HANDLERS
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.api.v2.data.rehydration import rehydrate
-from vultron.behavior_dispatcher import (
-    ActivityDispatcher,
-    get_dispatcher,
-)
+from vultron.core.dispatcher import get_dispatcher
+from vultron.core.models.events import VultronEvent
 from vultron.core.ports.datalayer import DataLayer
-from vultron.types import DispatchEvent
+from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.use_cases.use_case_map import USE_CASE_MAP
 from vultron.wire.as2.extractor import extract_intent
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
 
 
-def prepare_for_dispatch(activity: as_Activity) -> DispatchEvent:
-    """
-    Prepares an activity for dispatch by extracting its message semantics and packaging it into a DispatchEvent.
-    """
+def prepare_for_dispatch(activity: as_Activity) -> VultronEvent:
+    """Extract domain event from an AS2 activity, ready for dispatch."""
     logger.debug(
-        f"Preparing activity '{activity.as_id}' of type '{activity.as_type}' for dispatch."
+        "Preparing activity '%s' of type '%s' for dispatch.",
+        activity.as_id,
+        activity.as_type,
     )
-
     event = extract_intent(activity)
-
-    dispatch_msg = DispatchEvent(
-        semantic_type=event.semantic_type,
-        activity_id=activity.as_id,
-        payload=event,
-    )
     logger.debug(
-        f"Prepared dispatch message with semantics '{dispatch_msg.semantic_type}' for activity '{dispatch_msg.payload.activity_id}'"
+        "Prepared event with semantics '%s' for activity '%s'",
+        event.semantic_type,
+        event.activity_id,
     )
-    return dispatch_msg
+    return event
 
 
 _DISPATCHER: ActivityDispatcher | None = None
 
 
-def init_dispatcher(dl: DataLayer) -> None:
-    """Initialise the module-level dispatcher with an injected DataLayer.
+def init_dispatcher(dl: DataLayer | None = None) -> None:
+    """Initialise the module-level dispatcher.
 
     Must be called once during application startup (e.g. from the FastAPI
     lifespan event) before any inbox items are processed.  Calling it more
     than once (e.g. in tests) is allowed — the dispatcher is simply replaced.
 
     Args:
-        dl: The DataLayer instance to inject into the dispatcher.
+        dl: Unused; retained for backward compatibility. DataLayer is now
+            passed at dispatch time via :func:`dispatch`.
     """
     global _DISPATCHER
-    _DISPATCHER = get_dispatcher(handler_map=SEMANTICS_HANDLERS, dl=dl)
+    _DISPATCHER = get_dispatcher(use_case_map=USE_CASE_MAP)
     logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
 
 
-def dispatch(dispatchable: DispatchEvent) -> None:
-    """
-    Dispatches the given event using the module-level dispatcher.
+def dispatch(event: VultronEvent, dl: DataLayer) -> None:
+    """Dispatch the given domain event using the module-level dispatcher.
 
     Args:
-        dispatchable: The DispatchEvent to dispatch.
+        event: The domain event to dispatch.
+        dl: The DataLayer instance scoped to the current actor.
     Raises:
         RuntimeError: If the dispatcher has not been initialised via
             :func:`init_dispatcher`.
@@ -89,51 +82,42 @@ def dispatch(dispatchable: DispatchEvent) -> None:
             "Call init_dispatcher() during application startup."
         )
     logger.debug(
-        f"Dispatching activity '{dispatchable.activity_id}' with semantics '{dispatchable.semantic_type}'"
+        "Dispatching activity '%s' with semantics '%s'",
+        event.activity_id,
+        event.semantic_type,
     )
-    _DISPATCHER.dispatch(dispatchable)
+    _DISPATCHER.dispatch(event, dl)
 
 
-def handle_inbox_item(actor_id: str, obj: as_Activity) -> None:
-    """
-    Handle a single item in the Actor's inbox.
+def handle_inbox_item(actor_id: str, obj: as_Activity, dl: DataLayer) -> None:
+    """Handle a single item in the Actor's inbox.
 
     Args:
         actor_id: The ID of the Actor whose inbox is being processed.
-        obj: The Activity item to process. This should be an instance of as_Activity,
-             and will be rehydrated to its specific subclass.
-
-    Returns:
-        None
-    Raises:
-        ValueError: If the object type is invalid for the inbox.
-
+        obj: The Activity item to process.
+        dl: The DataLayer instance scoped to the current actor.
     """
-    logger.info(f"Processing item '{obj.name}' for actor '{actor_id}'")
-
+    logger.info("Processing item '%s' for actor '%s'", obj.name, actor_id)
     logger.debug(
-        f"Validated object:\n{obj.model_dump_json(indent=2,exclude_none=True)}"
+        "Validated object:\n%s",
+        obj.model_dump_json(indent=2, exclude_none=True),
     )
-
-    dispatchable = prepare_for_dispatch(activity=obj)
-    dispatch(dispatchable=dispatchable)
+    event = prepare_for_dispatch(activity=obj)
+    dispatch(event=event, dl=dl)
 
 
 async def inbox_handler(actor_id: str, dl: DataLayer) -> None:
-    """
-    Process the inbox for the given actor.
+    """Process the inbox for the given actor.
 
     Args:
         actor_id: The ID of the Actor whose inbox is being processed.
         dl: The DataLayer instance to use for persistence operations.
-    Returns:
-        None
     """
     actor = dl.read(actor_id)
     if actor is None:
-        logger.warning(f"Actor {actor_id} not found in inbox_handler.")
+        logger.warning("Actor %s not found in inbox_handler.", actor_id)
 
-    logger.info(f"Processing inbox for actor {actor_id}")
+    logger.info("Processing inbox for actor %s", actor_id)
 
     err_count = 0
 
@@ -144,26 +128,28 @@ async def inbox_handler(actor_id: str, dl: DataLayer) -> None:
 
         item = rehydrate(item)
 
-        logger.debug(f"Rehydrated item from inbox: {item.as_type}")
+        logger.debug("Rehydrated item from inbox: %s", item.as_type)
         if hasattr(item, "as_object"):
             logger.debug(
-                f"Item has transitive object of type: {item.as_object.as_type}"
+                "Item has transitive object of type: %s",
+                item.as_object.as_type,
             )
 
         try:
-            handle_inbox_item(actor_id=actor_id, obj=item)
+            handle_inbox_item(actor_id=actor_id, obj=item, dl=dl)
         except Exception as e:
             logger.error(
-                f"Error processing inbox item for actor {actor_id}: {e}"
+                "Error processing inbox item for actor %s: %s", actor_id, e
             )
             logger.debug(
-                f"Item causing error: {item.model_dump_json(indent=2, exclude_none=True)}"
+                "Item causing error: %s",
+                item.model_dump_json(indent=2, exclude_none=True),
             )
-            # put the item back in the inbox for retry
             actor_io.inbox.items.insert(0, item)
             err_count += 1
             if err_count > 3:
                 logger.error(
-                    f"Too many errors processing inbox for actor {actor_id}, aborting."
+                    "Too many errors processing inbox for actor %s, aborting.",
+                    actor_id,
                 )
                 break

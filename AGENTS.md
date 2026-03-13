@@ -26,11 +26,13 @@ quickly in this repo.
 - Key architecture: FastAPI inbox → AS2 parser
   (`vultron/wire/as2/parser.py`) → semantic extraction
   (`vultron/wire/as2/extractor.py`) → behavior dispatcher
-  (`vultron/behavior_dispatcher.py`) → registered handler
-  (`vultron/api/v2/backend/handlers/`).
-- Follow the Handler Protocol: handlers accept `dispatchable: DispatchEvent`
-  and `dl: DataLayer`, use `@verify_semantics(...)`, and read
-  `dispatchable.payload` (an `InboundPayload` domain type).
+  (`vultron/core/dispatcher.py`) → use-case callable
+  (`vultron/core/use_cases/`).
+- Follow the Use-Case Protocol: use-case functions accept
+  `event: VultronEvent` and `dl: DataLayer`.  The routing table
+  (`vultron/core/use_cases/use_case_map.py`) maps `MessageSemantics` →
+  callable; semantic type validation is enforced by the dispatcher key lookup,
+  not by a per-handler decorator.
 
 Checklist (edit → validate → commit):
 
@@ -198,9 +200,10 @@ pipeline:
    deserialization of AS2 JSON
 3. **Semantic Extraction** (`vultron/wire/as2/extractor.py`): Pattern matching
    on (Activity Type, Object Type) to determine `MessageSemantics`
-4. **Behavior Dispatch** (`vultron/behavior_dispatcher.py`): Routes to
-   semantic-specific handler functions via `SEMANTICS_HANDLERS`
-   (`vultron/api/v2/backend/handler_map.py`)
+4. **Behavior Dispatch** (`vultron/core/dispatcher.py`): Routes to
+   semantic-specific use-case callables via `USE_CASE_MAP`
+   (`vultron/core/use_cases/use_case_map.py`); the `dl: DataLayer` is passed
+   at dispatch time, not at construction time.
 
 **Key constraint:** Semantic extraction uses **ordered pattern matching**. When
 adding patterns to `SEMANTICS_ACTIVITY_PATTERNS` in
@@ -261,25 +264,21 @@ See `notes/activitystreams-semantics.md` for detailed discussion.
 
 ---
 
-### Handler Protocol (MANDATORY)
+### Use-Case Protocol (MANDATORY)
 
-All handler functions MUST:
+All use-case functions MUST:
 
-- Accept `dispatchable: DispatchEvent` and `dl: DataLayer` parameters
-- Use `@verify_semantics(MessageSemantics.X)` decorator
-- Be registered in `SEMANTICS_HANDLERS` (in
-  `vultron/api/v2/backend/handler_map.py`)
-- Access activity data via `dispatchable.payload` (an `InboundPayload`)
-- Use Pydantic models for type-safe access
+- Accept `(event: VultronEvent, dl: DataLayer) -> None` — no decorator required
+- Be registered in `USE_CASE_MAP` (in
+  `vultron/core/use_cases/use_case_map.py`)
+- Use Pydantic models for type-safe access to event fields
 - Follow idempotency best practices
 
 Example:
 
 ```python
-@verify_semantics(MessageSemantics.CREATE_REPORT)
-def create_report(dispatchable: DispatchEvent, dl: DataLayer) -> None:
-    payload = dispatchable.payload
-    # Access validated activity data from payload
+def create_report(event: CreateReportReceivedEvent, dl: DataLayer) -> None:
+    # Access validated event fields directly
     # Use dl for persistence operations
     # Log state transitions
 ```
@@ -291,22 +290,25 @@ verification criteria.
 
 The system uses two key registries that MUST stay synchronized:
 
-- `SEMANTICS_HANDLERS` (in `vultron/api/v2/backend/handler_map.py`): Maps
-  `MessageSemantics` → handler functions (adapter layer)
+- `USE_CASE_MAP` (in `vultron/core/use_cases/use_case_map.py`): Maps
+  `MessageSemantics` → use-case callables (domain layer); also re-exported as
+  `SEMANTICS_HANDLERS` via `vultron/api/v2/backend/handler_map.py` for
+  backward compatibility
 - `SEMANTICS_ACTIVITY_PATTERNS` (in `vultron/wire/as2/extractor.py`): Maps
-  `MessageSemantics` → `ActivityPattern` objects (wire layer)
+  `MessageSemantics` → `ActivityPattern` objects (wire layer); all pattern
+  objects are named with a `Pattern` suffix (e.g. `CreateReportPattern`)
 
 When adding new message types:
 
 1. Add enum value to `MessageSemantics` in `vultron/core/models/events.py`
    (re-exported via `vultron/enums.py` for compatibility)
-2. Define `ActivityPattern` in `vultron/wire/as2/extractor.py`
+2. Define `ActivityPattern` named `<Type>Pattern` in `vultron/wire/as2/extractor.py`
 3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in correct order (specific
    before general)
-4. Implement handler in `vultron/api/v2/backend/handlers/`
-5. Register handler in `SEMANTICS_HANDLERS` in
-   `vultron/api/v2/backend/handler_map.py`
-6. Add tests verifying pattern matching and handler invocation
+4. Implement use-case function in `vultron/core/use_cases/`
+5. Register use case in `USE_CASE_MAP` in
+   `vultron/core/use_cases/use_case_map.py`
+6. Add tests verifying pattern matching and use-case invocation
 
 ### Layer Separation (MUST)
 
@@ -577,19 +579,19 @@ behavior across backends (in-memory / tinydb) where reasonable.
 ### Adding a New Message Type
 
 1. Add `MessageSemantics` enum value in `vultron/core/models/events.py`
-2. Define `ActivityPattern` in `vultron/wire/as2/extractor.py`
+2. Define an `ActivityPattern` named `<TypeName>Pattern` in
+   `vultron/wire/as2/extractor.py`
 3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in
-   `vultron/wire/as2/extractor.py` (order matters!)
-4. Implement handler function in `vultron/api/v2/backend/handlers/`:
-   - Use `@verify_semantics(MessageSemantics.NEW_TYPE)` decorator
-   - Accept `dispatchable: DispatchEvent` and `dl: DataLayer` parameters
-   - Access data via `dispatchable.payload` (`InboundPayload`)
-5. Register in `SEMANTICS_HANDLERS` in
-   `vultron/api/v2/backend/handler_map.py`
+   `vultron/wire/as2/extractor.py` (order matters — specific before general)
+4. Implement a use-case function in `vultron/core/use_cases/`:
+   - Accept `(event: VultronEvent, dl: DataLayer) -> None`
+   - No decorator required; semantic checking is in the dispatcher
+5. Register in `USE_CASE_MAP` in
+   `vultron/core/use_cases/use_case_map.py`
 6. Add tests:
    - Pattern matching in `test/test_semantic_activity_patterns.py`
-   - Handler registration in `test/test_semantic_handler_map.py`
-   - Handler behavior in `test/api/v2/backend/test_handlers.py`
+   - Routing coverage in `test/test_semantic_handler_map.py`
+   - Use-case logic in `test/core/use_cases/` or `test/api/v2/backend/test_handlers.py`
 
 ### Key Files Map
 
@@ -597,13 +599,23 @@ behavior across backends (in-memory / tinydb) where reasonable.
   `OfferStatusEnum`, `VultronObjectType`; `MessageSemantics` is defined in
   `vultron/core/models/events.py`
 - **Patterns**: `vultron/wire/as2/extractor.py` - `ActivityPattern`
-  definitions and `SEMANTICS_ACTIVITY_PATTERNS` dict (sole AS2→domain
-  mapping point)
+  definitions (all named `*Pattern`) and `SEMANTICS_ACTIVITY_PATTERNS` dict
+  (sole AS2→domain mapping point)
 - **Pattern Map**: `vultron/wire/as2/extractor.py` - `find_matching_semantics()`
-- **Handlers**: `vultron/api/v2/backend/handlers/` - Handler implementations
-- **Handler Map**: `vultron/api/v2/backend/handler_map.py` - `SEMANTICS_HANDLERS`
-  dict mapping `MessageSemantics` → handler functions
-- **Dispatcher**: `vultron/behavior_dispatcher.py` - Dispatch logic
+- **Use Cases**: `vultron/core/use_cases/` - Domain use-case callables;
+  accept `(event: VultronEvent, dl: DataLayer) -> None`
+- **Use-Case Map**: `vultron/core/use_cases/use_case_map.py` - `USE_CASE_MAP`
+  authoritative routing table `MessageSemantics` → use-case callable
+- **Dispatcher Port**: `vultron/core/ports/dispatcher.py` - `ActivityDispatcher`
+  Protocol (dispatch signature: `dispatch(event, dl)`)
+- **Dispatcher**: `vultron/core/dispatcher.py` - `DispatcherBase`,
+  `DirectActivityDispatcher`, `get_dispatcher` factory
+- **Dispatcher shim**: `vultron/behavior_dispatcher.py` - backward-compat
+  re-export shim
+- **Handler Map shim**: `vultron/api/v2/backend/handler_map.py` -
+  `SEMANTICS_HANDLERS` alias for `USE_CASE_MAP` (backward compat)
+- **Handler shims**: `vultron/api/v2/backend/handlers/` - backward-compat
+  wrappers that unwrap `DispatchEvent` and delegate to `core/use_cases/*`;
 - **Inbox**: `vultron/api/v2/routers/actors.py` - Endpoint implementation
 - **Triggers**: `vultron/api/v2/routers/trigger_report.py`,
   `trigger_case.py`, `trigger_embargo.py` - Triggerable behavior endpoints

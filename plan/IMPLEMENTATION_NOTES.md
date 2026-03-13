@@ -241,5 +241,19 @@ Add new TECHDEBT item to capture this, prioritize its resolution accordingly,
 and add an item in `specs/testability.md` requiring that all tests must be 
 reliable and consistent.
 
+## Avoid "connectors" as adapters, keep clean driving vs driven adapter separation
 
+Avoid using `vultron.adapters.connector` as a dumping ground for 
+code that doesn't fit neatly into the driving vs driven adapter categories. 
+Driving is for incoming data and events, driven is for outgoing data and 
+events. Some integrations will of course require bi-directional flow. If both 
+are needed 
+for a 
+particular integration, that's fine, 
+but we 
+should avoid blending the two in a single module or class. Instead, just 
+have a `vultron.adapters.driving.foo` and a `vultron.adapters.driven.foo` 
+module for that integration, and keep the directionality cleanly separated. 
+This will help maintain architectural integrity and keep the code 
+well-organized. 
 

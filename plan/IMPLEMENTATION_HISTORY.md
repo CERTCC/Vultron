@@ -1363,3 +1363,57 @@ All existing callers continue to work without modification. 887 tests pass.
 
 Note: `test_remove_embargo` is a pre-existing flaky test (py_trees blackboard
 global state) that passes in isolation but occasionally fails in full suite.
+
+## P75-2c — Dispatcher driving port, flatten handler layer, rename patterns
+
+**Status:** Complete  
+**Branch:** `hexagonal-refactor`
+
+### Summary
+
+Completed the P75-2c architectural task: modelled the dispatcher as a formal
+driving port, flattened the handler adapter layer, and renamed all
+`ActivityPattern` instances with a `Pattern` suffix.
+
+### Files Created
+
+- `vultron/core/ports/dispatcher.py` — `ActivityDispatcher` Protocol with
+  `dispatch(event: VultronEvent, dl: DataLayer) -> None` signature
+- `vultron/core/use_cases/use_case_map.py` — `USE_CASE_MAP` authoritative
+  routing table mapping all 39 `MessageSemantics` → use-case callables
+- `vultron/core/dispatcher.py` — `DispatcherBase`, `DirectActivityDispatcher`,
+  `get_dispatcher` factory (dl passed at dispatch time, not construction time)
+- `vultron/api/v2/backend/handlers/_shim.py` — no-op `verify_semantics`
+  backward-compat stub
+
+### Files Modified
+
+- `vultron/behavior_dispatcher.py` — backward-compat shim re-exporting from
+  `vultron.core.dispatcher` and `vultron.core.ports.dispatcher`
+- `vultron/api/v2/backend/handler_map.py` — re-exports `USE_CASE_MAP` as
+  `SEMANTICS_HANDLERS` alias
+- `vultron/api/v2/backend/inbox_handler.py` — updated to new dispatch signature
+  (`dispatch(event, dl)`, `handle_inbox_item(actor_id, obj, dl)`)
+- `vultron/api/v2/backend/handlers/__init__.py` — shim wrappers that unwrap
+  `DispatchEvent` and delegate to core use cases (backward compat for tests)
+- `vultron/wire/as2/extractor.py` — all `ActivityPattern` instances renamed
+  with `Pattern` suffix
+- `vultron/types.py` — updated `BehaviorHandler` Protocol signature
+- `AGENTS.md` — updated quickstart, pipeline description, Registry Pattern,
+  Use-Case Protocol, Adding a New Message Type, and Key Files Map sections
+- `test/test_behavior_dispatcher.py` — updated for new dispatcher API
+- `test/api/v2/backend/test_inbox_handler.py` — updated for new `handle_inbox_item` API
+- `test/api/v2/backend/test_handlers.py` — updated `TestVerifySemanticsDecorator`
+  to reflect no-op decorator; updated `TestHandlerExecution` to drop removed
+  mismatch-raise test
+
+### Files Deleted
+
+Nine handler shim modules removed (logic now lives in `core/use_cases/`):
+`handlers/report.py`, `handlers/case.py`, `handlers/embargo.py`,
+`handlers/actor.py`, `handlers/note.py`, `handlers/status.py`,
+`handlers/unknown.py`, `handlers/_base.py`, `handlers/participant.py`
+
+### Test Result
+
+887 passed, 0 failed (pre-existing flaky `test_remove_embargo` passed this run)

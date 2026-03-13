@@ -16,6 +16,12 @@ class DispatchEvent(BaseModel):
     Wraps a ``VultronEvent`` payload with routing metadata (semantic type and
     activity ID).  This is a pure domain object — it carries no wire-layer
     (AS2) fields.
+
+    .. deprecated::
+        ``DispatchEvent`` is retained for backward compatibility.  The
+        dispatcher now accepts ``VultronEvent`` directly (P75-2c).  New code
+        should use ``VultronEvent`` and pass ``DataLayer`` as a separate
+        argument to ``dispatch()``.
     """
 
     semantic_type: MessageSemantics
@@ -23,13 +29,16 @@ class DispatchEvent(BaseModel):
     payload: VultronEvent
 
 
-# Backward-compat alias — will be removed once P75-2c flattens the handler layer.
+# Backward-compat alias — retained for test compatibility.
 DispatchActivity = DispatchEvent
 
 
 class BehaviorHandler(Protocol):
-    """Protocol for behavior handler functions."""
+    """Protocol for use-case callable functions.
 
-    def __call__(
-        self, dispatchable: DispatchEvent, dl: "DataLayer"
-    ) -> None: ...
+    Use-case functions accept a ``VultronEvent`` subclass and a ``DataLayer``
+    instance.  The ``dispatchable`` parameter name is retained for backward
+    compatibility with any code that passes it as a keyword argument.
+    """
+
+    def __call__(self, event: VultronEvent, dl: "DataLayer") -> None: ...

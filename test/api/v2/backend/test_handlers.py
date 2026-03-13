@@ -1,11 +1,10 @@
 """
-Unit tests for handler functions and the verify_semantics decorator.
+Unit tests for handler shim functions and use-case routing.
 
-Tests ensure that:
-- HP-02-001: All handlers have @verify_semantics decorator
-- HP-02-002: Decorator validates semantic type matches
-- HP-02-003: Decorator raises errors for mismatched semantics
-- HP-02-004: Decorator raises errors for missing semantics
+As of P75-2c the ``@verify_semantics`` decorator is a no-op shim; semantic
+type validation now happens at dispatcher routing-table level. Tests that
+previously tested the decorator's error-raising behaviour have been updated to
+reflect the current semantics.
 """
 
 from unittest.mock import MagicMock
@@ -13,10 +12,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from vultron.api.v2.backend import handlers
-from vultron.api.v2.errors import (
-    VultronApiHandlerMissingSemanticError,
-    VultronApiHandlerSemanticMismatchError,
-)
 from vultron.core.models.events import (
     MessageSemantics,
     VultronEvent,
@@ -55,21 +50,23 @@ def _make_dispatchable(activity, semantic_type, **payload_overrides):
 
 
 class TestVerifySemanticsDecorator:
-    """Test the verify_semantics decorator validation logic."""
+    """Test the verify_semantics no-op shim decorator.
 
-    def test_decorator_validates_matching_semantics(self):
-        """Test that decorator allows through activities with matching semantics."""
+    As of P75-2c, ``@verify_semantics`` is a no-op; semantic type validation
+    is now enforced at dispatcher routing-table level (key lookup by
+    ``event.semantic_type``).  These tests verify backward-compat behaviour.
+    """
 
-        # Create a test handler decorated with verify_semantics
+    def test_decorator_allows_through_any_call(self):
+        """No-op decorator should always execute the wrapped function."""
+
         @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
         def test_handler(dispatchable: DispatchEvent, dl=None) -> str:
             return "success"
 
-        # Create a mock DispatchEvent with matching semantics
         mock_activity = MagicMock(spec=DispatchEvent)
         mock_activity.semantic_type = MessageSemantics.CREATE_REPORT
 
-        # Create proper as_Create activity with VulnerabilityReport object
         report = VulnerabilityReport(
             name="TEST-001", content="Test vulnerability report"
         )
@@ -78,48 +75,33 @@ class TestVerifySemanticsDecorator:
         )
         mock_activity.payload = _make_payload(create_activity)
 
-        # Should execute successfully
         result = test_handler(mock_activity, None)
         assert result == "success"
 
-    def test_decorator_raises_error_for_missing_semantic_type(self):
-        """Test that decorator raises error when semantic_type is None."""
+    def test_decorator_is_no_op_for_mismatched_semantics(self):
+        """No-op decorator does not raise on semantic mismatch.
+
+        Semantic validation now occurs in the dispatcher routing table.
+        """
 
         @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
         def test_handler(dispatchable: DispatchEvent, dl=None) -> str:
             return "success"
 
-        # Create mock with None semantic_type
-        mock_activity = MagicMock(spec=DispatchEvent)
-        mock_activity.semantic_type = None
-
-        # Should raise VultronApiHandlerMissingSemanticError
-        with pytest.raises(VultronApiHandlerMissingSemanticError):
-            test_handler(mock_activity, None)
-
-    def test_decorator_raises_error_for_semantic_mismatch(self):
-        """Test that decorator raises error when semantic types don't match."""
-
-        @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchEvent, dl=None) -> str:
-            return "success"
-
-        # Create mock with wrong semantic_type (handler expects CREATE_REPORT)
         mock_activity = MagicMock(spec=DispatchEvent)
         mock_activity.semantic_type = MessageSemantics.CREATE_CASE
 
-        # Should raise VultronApiHandlerSemanticMismatchError
-        with pytest.raises(VultronApiHandlerSemanticMismatchError):
-            test_handler(mock_activity, None)
+        # No exception — no-op shim always calls through
+        result = test_handler(mock_activity, None)
+        assert result == "success"
 
     def test_decorator_preserves_function_name(self):
-        """Test that decorator preserves the wrapped function's __name__."""
+        """Decorator preserves the wrapped function's __name__ via @wraps."""
 
         @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
         def test_handler(dispatchable: DispatchEvent, dl=None) -> str:
             return "success"
 
-        # Decorator should preserve function name via @wraps
         assert test_handler.__name__ == "test_handler"
 
 
@@ -218,14 +200,23 @@ class TestHandlerExecution:
         result = handlers.create_case(dispatchable, mock_dl)
         assert result is None
 
-    def test_handler_rejects_wrong_semantic_type(self):
-        """Test handler rejects activity with wrong semantic type."""
-        mock_activity = MagicMock(spec=DispatchEvent)
-        mock_activity.semantic_type = MessageSemantics.CREATE_CASE
+    def test_handler_shim_delegates_to_use_case(self):
+        """Handler shim delegates to the use case; semantic checking is in the dispatcher."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 
-        # Should raise semantic mismatch error (handler expects CREATE_REPORT)
-        with pytest.raises(VultronApiHandlerSemanticMismatchError):
-            handlers.create_report(mock_activity, None)
+        dl = TinyDbDataLayer(db_path=None)
+        report = VulnerabilityReport(
+            name="TEST-003", content="Test report for shim delegation"
+        )
+        create_activity = as_Create(
+            actor="https://example.org/users/tester", object=report
+        )
+        dispatchable = _make_dispatchable(
+            create_activity, MessageSemantics.CREATE_REPORT
+        )
+        # Shim delegate should not raise
+        result = handlers.create_report(dispatchable, dl)
+        assert result is None
 
 
 class TestInviteActorHandlers:
