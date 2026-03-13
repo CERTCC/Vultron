@@ -3,6 +3,10 @@
 from typing import Literal
 
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.vultron_types import (
+    VultronActivity,
+    VultronEmbargoEvent,
+)
 
 
 class CreateEmbargoEventReceivedEvent(VultronEvent):
@@ -11,6 +15,7 @@ class CreateEmbargoEventReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_EMBARGO_EVENT] = (
         MessageSemantics.CREATE_EMBARGO_EVENT
     )
+    embargo: VultronEmbargoEvent | None = None
 
 
 class AddEmbargoEventToCaseReceivedEvent(VultronEvent):
@@ -43,6 +48,7 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.INVITE_TO_EMBARGO_ON_CASE] = (
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
     )
+    activity: VultronActivity | None = None
 
 
 class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):

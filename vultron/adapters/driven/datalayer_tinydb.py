@@ -199,6 +199,22 @@ class TinyDbDataLayer(DataLayer):
         updated = tbl.update(rec.model_dump(), self._id_query(id_))
         return len(updated) > 0
 
+    def save(self, obj: BaseModel) -> None:
+        """Persist a domain object to the DataLayer, overwriting any existing record.
+
+        Unlike ``create()``, ``save()`` does not raise if the object already exists.
+        Use this for update operations where the caller owns the ID.
+
+        Args:
+            obj: Any Pydantic BaseModel with ``as_id`` and ``as_type`` fields.
+        """
+        rec = object_to_record(obj)
+        tbl = self._table(rec.type_)
+        if tbl.contains(self._id_query(rec.id_)):
+            tbl.update(rec.model_dump(), self._id_query(rec.id_))
+        else:
+            tbl.insert(rec.model_dump())
+
     def delete(self, table: str, id_: str) -> bool:
         """
         Deletes a record by id from the specified table.

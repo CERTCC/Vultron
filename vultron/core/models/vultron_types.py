@@ -45,7 +45,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, Field, field_serializer, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    field_serializer,
+    field_validator,
+)
 
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
@@ -223,6 +228,10 @@ class VultronReport(BaseModel):
     context: Any | None = None
 
 
+def _init_case_statuses() -> list:
+    return [VultronCaseStatus()]
+
+
 class VultronCase(BaseModel):
     """Domain representation of a vulnerability case.
 
@@ -240,6 +249,8 @@ class VultronCase(BaseModel):
     as_id: str = Field(default_factory=_new_urn)
     as_type: str = "VulnerabilityCase"
     name: str | None = None
+    summary: str | None = None
+    content: str | None = None
     context: Any | None = None
     attributed_to: Any | None = None
     case_participants: list[str | VultronParticipant] = Field(
@@ -258,13 +269,66 @@ class VultronCase(BaseModel):
     sibling_cases: list[str] = Field(default_factory=list)
 
 
+class VultronActivity(BaseModel):
+    """Domain representation of an AS2 activity for DataLayer storage.
+
+    ``as_type`` is required and must be set to the actual activity type
+    (e.g. ``"Offer"``, ``"Accept"``, ``"Invite"``, ``"Leave"``, ``"Read"``).
+
+    Field names match the wire-layer ``as_Activity`` internal names so that
+    a stored ``VultronActivity`` can be round-tripped through
+    ``record_to_object`` and deserialized as the appropriate AS2 activity
+    subclass.
+    """
+
+    as_id: str = Field(default_factory=_new_urn)
+    as_type: str
+    actor: str | None = None
+    as_object: str | None = None
+    target: str | None = None
+    context: str | None = None
+    in_reply_to: str | None = None
+
+
+class VultronNote(BaseModel):
+    """Domain representation of a Note.
+
+    ``as_type`` is ``"Note"`` to match the wire value.
+    """
+
+    as_id: str = Field(default_factory=_new_urn)
+    as_type: str = "Note"
+    name: str | None = None
+    content: str | None = None
+    attributed_to: str | None = None
+    context: str | None = None
+
+
+class VultronEmbargoEvent(BaseModel):
+    """Domain representation of an EmbargoEvent.
+
+    ``as_type`` is ``"Event"`` to match the wire value (EmbargoEvent inherits
+    as_Event and does not override as_type).
+    """
+
+    as_id: str = Field(default_factory=_new_urn)
+    as_type: str = "Event"
+    name: str | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    context: str | None = None
+
+
 __all__ = [
     "VultronAccept",
+    "VultronActivity",
     "VultronCase",
     "VultronCaseActor",
     "VultronCaseEvent",
     "VultronCaseStatus",
     "VultronCreateCaseActivity",
+    "VultronEmbargoEvent",
+    "VultronNote",
     "VultronOffer",
     "VultronOutbox",
     "VultronParticipant",

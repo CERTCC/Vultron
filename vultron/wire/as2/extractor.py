@@ -374,6 +374,128 @@ def extract_intent(
     event_class: type[VultronEvent] = EVENT_CLASS_MAP.get(
         semantics, EVENT_CLASS_MAP[MessageSemantics.UNKNOWN]
     )
+
+    def _build_domain_kwargs() -> dict:
+        from vultron.core.models.vultron_types import (
+            VultronActivity,
+            VultronCase,
+            VultronEmbargoEvent,
+            VultronNote,
+            VultronParticipant,
+            VultronParticipantStatus,
+            VultronCaseStatus,
+            VultronReport,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_report import (
+            VulnerabilityReport,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.objects.case_status import (
+            CaseStatus,
+            ParticipantStatus,
+        )
+
+        kw: dict = {}
+        activity_type = (
+            str(activity.as_type) if activity.as_type else "Activity"
+        )
+
+        _ACTIVITY_SEMANTICS = {
+            MessageSemantics.CREATE_REPORT,
+            MessageSemantics.SUBMIT_REPORT,
+            MessageSemantics.VALIDATE_REPORT,
+            MessageSemantics.INVALIDATE_REPORT,
+            MessageSemantics.ACK_REPORT,
+            MessageSemantics.CLOSE_REPORT,
+            MessageSemantics.SUGGEST_ACTOR_TO_CASE,
+            MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE,
+            MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER,
+            MessageSemantics.INVITE_ACTOR_TO_CASE,
+            MessageSemantics.INVITE_TO_EMBARGO_ON_CASE,
+            MessageSemantics.CREATE_CASE,
+        }
+        if semantics in _ACTIVITY_SEMANTICS:
+            kw["activity"] = VultronActivity(
+                as_id=activity.as_id,
+                as_type=activity_type,
+                actor=actor_id,
+                as_object=_get_id(obj),
+                target=_get_id(target),
+                context=_get_id(context),
+                in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
+            )
+
+        if isinstance(obj, VulnerabilityReport):
+            kw["report"] = VultronReport(
+                as_id=obj.as_id,
+                as_type=str(obj.as_type),
+                name=obj.name,
+                content=obj.content,
+                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                context=_get_id(getattr(obj, "context", None)),
+            )
+        elif isinstance(obj, VulnerabilityCase):
+            kw["case"] = VultronCase(
+                as_id=obj.as_id,
+                as_type=str(obj.as_type),
+                name=getattr(obj, "name", None),
+                summary=getattr(obj, "summary", None),
+                content=getattr(obj, "content", None),
+                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+            )
+        elif isinstance(obj, EmbargoEvent):
+            kw["embargo"] = VultronEmbargoEvent(
+                as_id=obj.as_id,
+                as_type=str(obj.as_type),
+                name=getattr(obj, "name", None),
+                start_time=getattr(obj, "start_time", None),
+                end_time=getattr(obj, "end_time", None),
+                context=_get_id(getattr(obj, "context", None)),
+            )
+        elif isinstance(obj, CaseParticipant):
+            kw["participant"] = VultronParticipant(
+                as_id=obj.as_id,
+                as_type=str(obj.as_type),
+                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                context=_get_id(getattr(obj, "context", None)),
+            )
+        elif isinstance(obj, as_Note):
+            kw["note"] = VultronNote(
+                as_id=obj.as_id,
+                name=getattr(obj, "name", None),
+                content=getattr(obj, "content", None),
+                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                context=_get_id(getattr(obj, "context", None)),
+            )
+        elif isinstance(obj, CaseStatus):
+            kw["status"] = VultronCaseStatus(
+                as_id=obj.as_id,
+                context=_get_id(getattr(obj, "context", None)),
+                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                em_state=getattr(obj, "em_state", None)
+                or VultronCaseStatus.model_fields["em_state"].default,
+                pxa_state=getattr(obj, "pxa_state", None)
+                or VultronCaseStatus.model_fields["pxa_state"].default,
+            )
+        elif isinstance(obj, ParticipantStatus):
+            ctx = _get_id(getattr(obj, "context", None)) or ""
+            kw["status"] = VultronParticipantStatus(
+                as_id=obj.as_id,
+                context=ctx,
+                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                rm_state=getattr(obj, "rm_state", None)
+                or VultronParticipantStatus.model_fields["rm_state"].default,
+            )
+        return kw
+
+    extra_kwargs = _build_domain_kwargs()
     return event_class(
         semantic_type=semantics,
         activity_id=activity.as_id,
@@ -393,6 +515,7 @@ def extract_intent(
         inner_target_type=_get_type(inner_target),
         inner_context_id=_get_id(inner_context),
         inner_context_type=_get_type(inner_context),
+        **extra_kwargs,
     )
 
 

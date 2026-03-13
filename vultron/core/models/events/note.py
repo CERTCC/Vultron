@@ -3,6 +3,7 @@
 from typing import Literal
 
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.vultron_types import VultronNote
 
 
 class CreateNoteReceivedEvent(VultronEvent):
@@ -11,6 +12,7 @@ class CreateNoteReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_NOTE] = (
         MessageSemantics.CREATE_NOTE
     )
+    note: VultronNote | None = None
 
 
 class AddNoteToCaseReceivedEvent(VultronEvent):

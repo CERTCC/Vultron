@@ -33,74 +33,18 @@ from vultron.wire.as2.extractor import find_matching_semantics
 
 
 def _make_payload(activity, **extra_fields) -> VultronEvent:
-    """Wrap an AS2 activity in the appropriate typed VultronEvent for use in tests."""
-    obj = getattr(activity, "as_object", None)
-    actor = getattr(activity, "actor", None)
-    actor_id = (
-        getattr(actor, "as_id", str(actor))
-        if actor
-        else "https://example.org/users/tester"
-    )
+    """Wrap an AS2 activity in the appropriate typed VultronEvent for use in tests.
 
-    def _get_id(field):
-        if field is None:
-            return None
-        if isinstance(field, str):
-            return field or None
-        return getattr(field, "as_id", None) or str(field) or None
+    Delegates to ``extract_intent()`` so that domain object fields (``activity``,
+    ``report``, ``case``, etc.) are populated exactly as they would be in production.
+    ``extra_fields`` can override any field (e.g. ``semantic_type``) after extraction.
+    """
+    from vultron.wire.as2.extractor import extract_intent
 
-    def _get_type(field):
-        if field is None or isinstance(field, str):
-            return None
-        t = getattr(field, "as_type", None)
-        return str(t) if t is not None else None
-
-    target = getattr(activity, "target", None)
-    context = getattr(activity, "context", None)
-    origin = getattr(activity, "origin", None)
-
-    inner_obj = None
-    inner_target = None
-    inner_context = None
-    if obj is not None and not isinstance(obj, str):
-        inner_obj = getattr(obj, "as_object", None)
-        inner_target = getattr(obj, "target", None)
-        inner_context = getattr(obj, "context", None)
-
-    # Derive semantic_type from the activity unless an override is provided
-    semantic_type = extra_fields.pop(
-        "semantic_type", find_matching_semantics(activity)
-    )
-
-    fields = dict(
-        semantic_type=semantic_type,
-        activity_id=getattr(activity, "as_id", "") or "urn:uuid:test-activity",
-        actor_id=actor_id,
-        activity_type=(
-            str(activity.as_type)
-            if getattr(activity, "as_type", None)
-            else None
-        ),
-        object_id=_get_id(obj),
-        object_type=_get_type(obj),
-        target_id=_get_id(target),
-        target_type=_get_type(target),
-        context_id=_get_id(context),
-        context_type=_get_type(context),
-        origin_id=_get_id(origin),
-        origin_type=_get_type(origin),
-        inner_object_id=_get_id(inner_obj),
-        inner_object_type=_get_type(inner_obj),
-        inner_target_id=_get_id(inner_target),
-        inner_target_type=_get_type(inner_target),
-        inner_context_id=_get_id(inner_context),
-        inner_context_type=_get_type(inner_context),
-    )
-    fields.update(extra_fields)
-    event_class = EVENT_CLASS_MAP.get(
-        semantic_type, EVENT_CLASS_MAP[MessageSemantics.UNKNOWN]
-    )
-    return event_class(**fields)
+    event = extract_intent(activity)
+    if extra_fields:
+        return event.model_copy(update=extra_fields)
+    return event
 
 
 def _make_dispatchable(activity, semantic_type, **payload_overrides):

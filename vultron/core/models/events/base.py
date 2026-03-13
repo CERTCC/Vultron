@@ -103,6 +103,8 @@ class VultronEvent(BaseModel):
     origin_id: OptionalNonEmptyString = None
     origin_type: OptionalNonEmptyString = None
 
+    in_reply_to: OptionalNonEmptyString = None
+
     # Nested fields: activity.as_object.as_object, .target, .context
     inner_object_id: OptionalNonEmptyString = None
     inner_object_type: OptionalNonEmptyString = None
@@ -110,3 +112,7 @@ class VultronEvent(BaseModel):
     inner_target_type: OptionalNonEmptyString = None
     inner_context_id: OptionalNonEmptyString = None
     inner_context_type: OptionalNonEmptyString = None
+
+    @property
+    def as_id(self) -> str:
+        return self.activity_id

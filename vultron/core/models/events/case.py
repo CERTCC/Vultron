@@ -3,6 +3,7 @@
 from typing import Literal
 
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
+from vultron.core.models.vultron_types import VultronActivity, VultronCase
 
 
 class CreateCaseReceivedEvent(VultronEvent):
@@ -11,6 +12,8 @@ class CreateCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_CASE] = (
         MessageSemantics.CREATE_CASE
     )
+    case: VultronCase | None = None
+    activity: VultronActivity | None = None
 
 
 class UpdateCaseReceivedEvent(VultronEvent):
@@ -19,6 +22,7 @@ class UpdateCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.UPDATE_CASE] = (
         MessageSemantics.UPDATE_CASE
     )
+    case: VultronCase | None = None
 
 
 class EngageCaseReceivedEvent(VultronEvent):
