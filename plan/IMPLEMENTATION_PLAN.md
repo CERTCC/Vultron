@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-13 (refresh #31: P75-2a/b/c tasks inserted before P75-3)
+**Last Updated**: 2026-03-13 (refresh #32: P75-2a complete)
 
 ## Overview
 
@@ -311,7 +311,7 @@ fully relocated first).
   > modelled as a formal driving port. P75-2a–2c resolve these before
   > trigger-service extraction adds more code on top.
 
-- [ ] **P75-2a** — Core domain model audit and enrichment: Audit every `Vultron*`
+- [x] **P75-2a** — Core domain model audit and enrichment: Audit every `Vultron*`
   domain type in `vultron/core/models/vultron_types.py` against its wire
   counterpart — `VultronReport` vs `VulnerabilityReport`, `VultronCase` vs
   `VulnerabilityCase`, `VultronEmbargoEvent` vs `EmbargoEvent`,

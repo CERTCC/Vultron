@@ -1258,3 +1258,41 @@ imports.
 **Result**: 880 tests pass, 0 regressions.
 
 **Next**: P75-3 — migrate trigger-service logic to `vultron/core/use_cases/`.
+
+---
+
+## P75-2a — Core Domain Model Audit and Enrichment (2026-03-13)
+
+**Task**: Audit every `Vultron*` domain type in `vultron/core/models/vultron_types.py`
+against its wire counterpart, add missing semantically relevant fields, update
+`extract_intent()` to populate them, and add round-trip tests.
+
+**Fields added per domain type**:
+- `VultronCaseStatus`: `name`
+- `VultronParticipantStatus`: `name`, `case_status` (case status ID ref); `vfd_state`
+  was already present in the domain model but not populated by `extract_intent()` —
+  that gap was also fixed.
+- `VultronReport`: `summary`, `url`, `media_type`, `published`, `updated`
+- `VultronCase`: `url`, `published`, `updated`
+- `VultronActivity`: `origin`
+- `VultronNote`: `summary`, `url`
+- `VultronEmbargoEvent`: `published`, `updated`
+
+**extract_intent() changes**: All new fields are now populated. Additionally,
+`VultronParticipant` extraction was extended to populate `case_roles` and
+`participant_case_name` from the incoming wire `CaseParticipant` (these fields were
+already in the domain model but not wired up). `VultronActivity.origin` is now
+populated from the wire activity's `origin` field.
+
+**Tests**: 8 new tests added to `test/wire/as2/test_extractor.py` verifying
+wire-to-domain round-trips for each new field category.
+
+**Intentionally excluded** (AS2 boilerplate not relevant for domain logic):
+`as_context`, `preview`, `replies`, `generator`, `icon`, `image`, `attachment`,
+`location`, `to`, `cc`, `bto`, `bcc`, `audience`, `duration`, `tag`, `in_reply_to`
+(except where already present), `instrument`, `result`.
+
+**Result**: 888 tests pass (880 prior + 8 new), 0 regressions.
+
+**Next**: P75-2b — remove wire coupling from dispatch envelope, rename
+`DispatchActivity` → `DispatchEvent`.

@@ -87,6 +87,7 @@ class VultronCaseStatus(BaseModel):
 
     as_id: str = Field(default_factory=_new_urn)
     as_type: str = "CaseStatus"
+    name: str | None = None
     context: str | None = None
     attributed_to: Any | None = None
     em_state: EM = EM.EMBARGO_MANAGEMENT_NONE
@@ -104,6 +105,7 @@ class VultronParticipantStatus(BaseModel):
 
     as_id: str = Field(default_factory=_new_urn)
     as_type: str = "ParticipantStatus"
+    name: str | None = None
     context: str
     attributed_to: Any | None = None
     rm_state: RM = RM.START
@@ -111,6 +113,7 @@ class VultronParticipantStatus(BaseModel):
     case_engagement: bool = True
     embargo_adherence: bool = True
     tracking_id: str | None = None
+    case_status: str | None = None
 
 
 class VultronParticipant(BaseModel):
@@ -223,9 +226,14 @@ class VultronReport(BaseModel):
     as_id: str = Field(default_factory=_new_urn)
     as_type: str = "VulnerabilityReport"
     name: str | None = None
+    summary: str | None = None
     content: Any | None = None
+    url: str | None = None
+    media_type: str | None = None
     attributed_to: Any | None = None
     context: Any | None = None
+    published: datetime | None = None
+    updated: datetime | None = None
 
 
 def _init_case_statuses() -> list:
@@ -251,8 +259,11 @@ class VultronCase(BaseModel):
     name: str | None = None
     summary: str | None = None
     content: str | None = None
+    url: str | None = None
     context: Any | None = None
     attributed_to: Any | None = None
+    published: datetime | None = None
+    updated: datetime | None = None
     case_participants: list[str | VultronParticipant] = Field(
         default_factory=list
     )
@@ -286,6 +297,7 @@ class VultronActivity(BaseModel):
     actor: str | None = None
     as_object: str | None = None
     target: str | None = None
+    origin: str | None = None
     context: str | None = None
     in_reply_to: str | None = None
 
@@ -299,7 +311,9 @@ class VultronNote(BaseModel):
     as_id: str = Field(default_factory=_new_urn)
     as_type: str = "Note"
     name: str | None = None
+    summary: str | None = None
     content: str | None = None
+    url: str | None = None
     attributed_to: str | None = None
     context: str | None = None
 
@@ -316,6 +330,8 @@ class VultronEmbargoEvent(BaseModel):
     name: str | None = None
     start_time: datetime | None = None
     end_time: datetime | None = None
+    published: datetime | None = None
+    updated: datetime | None = None
     context: str | None = None
 
 

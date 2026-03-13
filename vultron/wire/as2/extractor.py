@@ -428,6 +428,7 @@ def extract_intent(
                 actor=actor_id,
                 as_object=_get_id(obj),
                 target=_get_id(target),
+                origin=_get_id(origin),
                 context=_get_id(context),
                 in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
             )
@@ -437,9 +438,14 @@ def extract_intent(
                 as_id=obj.as_id,
                 as_type=str(obj.as_type),
                 name=obj.name,
+                summary=getattr(obj, "summary", None),
                 content=obj.content,
+                url=_get_id(getattr(obj, "url", None)),
+                media_type=getattr(obj, "media_type", None),
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 context=_get_id(getattr(obj, "context", None)),
+                published=getattr(obj, "published", None),
+                updated=getattr(obj, "updated", None),
             )
         elif isinstance(obj, VulnerabilityCase):
             kw["case"] = VultronCase(
@@ -448,7 +454,10 @@ def extract_intent(
                 name=getattr(obj, "name", None),
                 summary=getattr(obj, "summary", None),
                 content=getattr(obj, "content", None),
+                url=_get_id(getattr(obj, "url", None)),
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                published=getattr(obj, "published", None),
+                updated=getattr(obj, "updated", None),
             )
         elif isinstance(obj, EmbargoEvent):
             kw["embargo"] = VultronEmbargoEvent(
@@ -457,26 +466,36 @@ def extract_intent(
                 name=getattr(obj, "name", None),
                 start_time=getattr(obj, "start_time", None),
                 end_time=getattr(obj, "end_time", None),
+                published=getattr(obj, "published", None),
+                updated=getattr(obj, "updated", None),
                 context=_get_id(getattr(obj, "context", None)),
             )
         elif isinstance(obj, CaseParticipant):
             kw["participant"] = VultronParticipant(
                 as_id=obj.as_id,
                 as_type=str(obj.as_type),
+                name=getattr(obj, "name", None),
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 context=_get_id(getattr(obj, "context", None)),
+                case_roles=list(getattr(obj, "case_roles", []) or []),
+                participant_case_name=getattr(
+                    obj, "participant_case_name", None
+                ),
             )
         elif isinstance(obj, as_Note):
             kw["note"] = VultronNote(
                 as_id=obj.as_id,
                 name=getattr(obj, "name", None),
+                summary=getattr(obj, "summary", None),
                 content=getattr(obj, "content", None),
+                url=_get_id(getattr(obj, "url", None)),
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 context=_get_id(getattr(obj, "context", None)),
             )
         elif isinstance(obj, CaseStatus):
             kw["status"] = VultronCaseStatus(
                 as_id=obj.as_id,
+                name=getattr(obj, "name", None),
                 context=_get_id(getattr(obj, "context", None)),
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 em_state=getattr(obj, "em_state", None)
@@ -486,12 +505,21 @@ def extract_intent(
             )
         elif isinstance(obj, ParticipantStatus):
             ctx = _get_id(getattr(obj, "context", None)) or ""
+            wire_case_status = getattr(obj, "case_status", None)
             kw["status"] = VultronParticipantStatus(
                 as_id=obj.as_id,
+                name=getattr(obj, "name", None),
                 context=ctx,
                 attributed_to=_get_id(getattr(obj, "attributed_to", None)),
                 rm_state=getattr(obj, "rm_state", None)
                 or VultronParticipantStatus.model_fields["rm_state"].default,
+                vfd_state=getattr(obj, "vfd_state", None)
+                or VultronParticipantStatus.model_fields["vfd_state"].default,
+                case_status=(
+                    _get_id(wire_case_status)
+                    if wire_case_status is not None
+                    else None
+                ),
             )
         return kw
 
