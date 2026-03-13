@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-12 (refresh #29: P75-1 verified complete)
+**Last Updated**: 2026-03-13 (refresh #30: P75-2 complete)
 
 ## Overview
 
@@ -296,7 +296,7 @@ fully relocated first).
   input type for use-case callables. Done when domain event types cover the
   38 handler semantics, have no wire or adapter imports, and pass type checks.
 
-- [ ] **P75-2**: Extract handler business logic from
+- [x] **P75-2**: Extract handler business logic from
   `vultron/api/v2/backend/handlers/*.py` into `vultron/core/use_cases/`. Each
   handler file (`report.py`, `case.py`, `embargo.py`, `participant.py`, etc.)
   gets a matching module in `core/use_cases/` containing plain callables that
