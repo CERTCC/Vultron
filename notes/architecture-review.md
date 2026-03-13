@@ -361,6 +361,7 @@ type fixtures only; wire-layer AS2 imports removed.
 **Severity:** Minor
 
 Files affected:
+
 - `test/core/behaviors/case/test_create_tree.py`
 - `test/core/behaviors/report/test_nodes.py`
 - `test/core/behaviors/report/test_prioritize_tree.py`

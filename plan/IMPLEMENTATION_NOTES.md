@@ -257,3 +257,11 @@ module for that integration, and keep the directionality cleanly separated.
 This will help maintain architectural integrity and keep the code 
 well-organized. 
 
+## Markdownlint errors must be resolved
+
+Markdownlint errors in `notes/`, `specs/`, `plan/` must be resolved. Also 
+note that the `ignore` directives in `.markdownlintignore` and `.
+markdownlint-cli2.yaml` have been modified to no longer ignore these 
+directories. Adjust guidelines in `AGENTS.md` and elsewhere to reflect the 
+change.
+

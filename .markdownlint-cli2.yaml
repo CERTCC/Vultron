@@ -30,8 +30,6 @@ config:
   # 060 - Table column style
   "MD060": false
 ignores:
-  - "plan/**"
-  - "specs/**"
   - "wip_notes/**"
   - "AGENTS.md"
   - "node_modules/**"
