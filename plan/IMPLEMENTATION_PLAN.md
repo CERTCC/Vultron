@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-13 (refresh #30: P75-2 complete)
+**Last Updated**: 2026-03-13 (refresh #31: P75-2a/b/c tasks inserted before P75-3)
 
 ## Overview
 
@@ -304,6 +304,93 @@ fully relocated first).
   becomes a thin delegate: verifies semantics, builds the domain event, calls
   the use case. Done when `core/use_cases/` covers all 38 use cases, handlers
   import from `core/use_cases/`, and tests pass. **Depends on P75-1.**
+
+  > ⚠️ **Post-P75-2 architecture tangles** (resolve before P75-3):
+  > The dispatch pipeline has residual wire coupling, vestigial handler delegates,
+  > naming inconsistency (Activity vs Event), and the dispatcher has not yet been
+  > modelled as a formal driving port. P75-2a–2c resolve these before
+  > trigger-service extraction adds more code on top.
+
+- [ ] **P75-2a** — Core domain model audit and enrichment: Audit every `Vultron*`
+  domain type in `vultron/core/models/vultron_types.py` against its wire
+  counterpart — `VultronReport` vs `VulnerabilityReport`, `VultronCase` vs
+  `VulnerabilityCase`, `VultronEmbargoEvent` vs `EmbargoEvent`,
+  `VultronParticipant` vs `CaseParticipant`, `VultronNote` vs `as_Note`,
+  `VultronCaseStatus` vs `CaseStatus`, `VultronParticipantStatus` vs
+  `ParticipantStatus`, `VultronActivity` vs `as_Activity`. For each pair,
+  identify every field present in the wire model but absent from the domain
+  model — especially pass-through fields (`content`, `summary`, `url`, `tag`,
+  `media_type`, `context`, etc.) that may appear in real activities but are not
+  yet represented. Add the missing fields to the domain models. Update
+  `extract_intent()` in `vultron/wire/as2/extractor.py` to populate all new
+  fields during wire-to-domain translation. Add or update tests that verify the
+  new fields survive the wire-to-domain round-trip. Done when every semantically
+  relevant wire-model field is captured in the corresponding domain model or
+  documented as intentionally excluded, and tests pass.
+  **Must precede P75-2b** — removing `wire_object` pass-through (P75-2b) only
+  makes sense once domain models contain all the data use cases need.
+  **Depends on P75-1, P75-2.**
+
+- [ ] **P75-2b** — Remove wire coupling from the dispatch envelope and rename
+  `DispatchActivity` → `DispatchEvent`:
+  - Rename `DispatchActivity` to `DispatchEvent` in `vultron/types.py`. "Activity"
+    is a wire-layer concept; "Event" is a domain-layer concept. Update all
+    references (dispatcher, inbox handler, handler files, tests, specs, AGENTS.md).
+    Note: `EmbargoEvent` is an AS2 object type, not a `VultronEvent` subclass —
+    take care with naming in that vicinity.
+  - Remove `wire_activity: Any` and `wire_object: Any` from `DispatchEvent`.
+    These opaque wire fields leak the wire layer into the dispatch envelope.
+    Once domain models are enriched (P75-2a), the `VultronEvent` payload carries
+    all data use cases need.
+  - Remove `wire_object` and `wire_activity` keyword parameters from every use
+    case function in `vultron/core/use_cases/`. Use cases must operate on
+    `VultronEvent` + `DataLayer` only.
+  - Update `prepare_for_dispatch()` in `inbox_handler.py` to not carry wire
+    objects into the envelope.
+  - Update the `BehaviorHandler` Protocol in `vultron/types.py` (or wherever it
+    lands after P75-2c) to use `DispatchEvent`.
+  - Update `specs/dispatch-routing.md` and `specs/handler-protocol.md` to reflect
+    the rename and the removal of wire fields.
+  - Done when `DispatchActivity` is fully renamed to `DispatchEvent`, it has no
+    wire-layer fields, and no use case function accepts wire objects. Tests pass.
+  **Depends on P75-2a.**
+
+- [ ] **P75-2c** — Model dispatcher as formal driving port, flatten the handler
+  adapter layer, and rename pattern objects:
+  - **Driving port**: Move the `ActivityDispatcher` Protocol from `vultron/types.py`
+    to `vultron/core/ports/dispatcher.py`. A driving port is an interface the core
+    *exposes* for adapters to call into it; defining it in `core/ports/` alongside
+    `DataLayer` makes this role explicit and makes the concrete dispatcher
+    injectable (e.g., in tests). Signature: `dispatch(event: VultronEvent, dl:
+    DataLayer) -> None` (after P75-2b removes wire fields from `DispatchEvent`).
+  - **Routing table to core**: Move `SEMANTICS_HANDLERS` from
+    `vultron/api/v2/backend/handler_map.py` to `vultron/core/use_cases/use_case_map.py`.
+    This mapping from `MessageSemantics` (domain) to use case callables (domain)
+    is domain knowledge, not adapter configuration. The driving-adapter inbox
+    handler just calls the port; it need not know which use case handles which
+    semantic.
+  - **Dispatcher implementation**: Move `DispatcherBase` / `DirectActivityDispatcher`
+    from `vultron/behavior_dispatcher.py` to `vultron/core/` (e.g.,
+    `vultron/core/dispatcher.py`) or to `vultron/adapters/driving/dispatcher.py`.
+    Document the choice. The inbox adapter instantiates the concrete dispatcher
+    and injects it (removing the module-level singleton pattern).
+  - **Flatten handler layer**: Update `SEMANTICS_HANDLERS` (now in
+    `core/use_cases/use_case_map.py`) to map `MessageSemantics` directly to use
+    case callables. The `vultron/api/v2/backend/handlers/` shim modules become
+    dead code; delete them. Confirm the `@verify_semantics` guard is either
+    absorbed into the dispatcher (type assertion before invoking use case) or
+    replaced by static type checking (mypy/pyright).
+  - **Pattern naming**: Rename every `ActivityPattern` instance in
+    `SEMANTICS_ACTIVITY_PATTERNS` in `vultron/wire/as2/extractor.py` to use a
+    `Pattern` suffix (e.g., `CreateReport` → `CreateReportPattern`,
+    `EngageCase` → `EngageCasePattern`). This distinguishes pattern-matching
+    objects from similarly-named `Activity` and `Event` types.
+  - Update AGENTS.md, specs, and inline documentation to reflect the new
+    driving-port model and the absence of the handler shim layer.
+  - Done when `ActivityDispatcher` is defined in `core/ports/`, routing table is
+    in `core/use_cases/use_case_map.py`, handler shim modules are deleted, all
+    pattern objects use `Pattern` suffix, and tests pass.
+  **Depends on P75-2b.**
 
 - [ ] **P75-3**: Migrate trigger-service logic from
   `vultron/api/v2/backend/trigger_services/` to `vultron/core/use_cases/`.

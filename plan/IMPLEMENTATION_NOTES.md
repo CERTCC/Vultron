@@ -140,6 +140,65 @@ sure it gets passed through from wire to core.)
 
 
 Implications: 
-- the pattern objects in extractor.py should be suffixed with 
+- the pattern objects in `extractor.py` should be suffixed with 
 Pattern to clarify their purpose and distinguish them from similarly named 
 Activity and Event objects.
+
+---
+
+## 2026-03-13 — Dispatch/Emit architecture clarification (refresh #31)
+
+### Dispatch vs Emit terminology
+
+Two distinct port concepts exist for activity flow:
+
+- **Dispatch** = inbound: wire activity received → core use case invoked.
+  This is a **driving port** — the core *exposes* an interface that adapters
+  (HTTP inbox, CLI, MCP) call into. The `ActivityDispatcher` Protocol should
+  live in `core/ports/dispatcher.py` alongside `DataLayer`.
+
+- **Emit** = outbound: core action → wire object sent to recipient(s).
+  This is a **driven port** — the core calls *out* to an external system that
+  delivers the activity. A future `ActivityEmitter` Protocol belongs in
+  `core/ports/emitter.py` (or similar). The delivery-queue adapter would
+  implement it. This is distinct from, but complementary to, the
+  `delivery_queue.py` port already sketched — the emitter port is the
+  use-case-facing interface; delivery queue is the transport implementation.
+
+Keep these terms consistent throughout code, comments, specs, and docs:
+"dispatch" for inbound routing into use cases, "emit" for outbound sending.
+
+### Post-P75-2 architecture findings (context for P75-2a/b/c)
+
+**DispatchActivity carries wire objects**: `DispatchActivity` in `vultron/types.py`
+has `wire_activity: Any` and `wire_object: Any` fields. These leak wire types into
+the dispatch envelope and into use case signatures. Use cases in
+`core/use_cases/` still accept `wire_object=None` kwargs. This is resolved by
+P75-2a (enrich domain models) + P75-2b (remove wire fields).
+
+**DispatchActivity → DispatchEvent rename**: "Activity" is a wire concept;
+the dispatch envelope carries a `VultronEvent` domain payload. Rename to
+`DispatchEvent` in P75-2b. Be careful around `EmbargoEvent` (an AS2 object
+type, not a `VultronEvent` subclass) — the naming is coincidental and should
+be clearly distinguished in documentation.
+
+**Handler layer is vestigial after P75-2**: The 2–3-line delegate functions in
+`vultron/api/v2/backend/handlers/` are the only remaining purpose of that
+layer (plus `@verify_semantics`). Eliminate in P75-2c by mapping
+`SEMANTICS_HANDLERS` directly to use case callables.
+
+**SEMANTICS_HANDLERS belongs in core**: The routing table maps domain concepts
+(`MessageSemantics`) to domain callables (`core/use_cases/`). It is domain
+knowledge, not adapter configuration. Move to `core/use_cases/use_case_map.py`
+as part of P75-2c.
+
+**ActivityDispatcher as driving port**: Move Protocol from `vultron/types.py`
+to `core/ports/dispatcher.py`. This makes the inbound dispatch interface
+explicit and injectable (for testing). Concrete implementation moves to core
+(or a driving adapter); the inbox handler injects it rather than using the
+module-level singleton.
+
+**Pattern naming inconsistency**: `ActivityPattern` instances in
+`SEMANTICS_ACTIVITY_PATTERNS` in `extractor.py` have names like `CreateReport`,
+`EngageCase` — identical to Activity and Event class names. Add `Pattern` suffix
+(`CreateReportPattern`, etc.) in P75-2c.
