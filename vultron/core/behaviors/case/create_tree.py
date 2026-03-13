@@ -33,7 +33,7 @@ Structure:
        ├─ RecordCaseCreationEvents     # Backfill offer_received + case_created events (CM-02-009)
        ├─ CreateInitialVendorParticipant  # Add vendor as initial participant (CM-02-008)
        ├─ CreateCaseActorNode          # Create CaseActor service (CM-02-001)
-       ├─ EmitCreateCaseActivity       # Generate CreateCase activity
+       ├─ EmitCreateCaseActivity       # Generate CreateCaseActivity activity
        └─ UpdateActorOutbox            # Append activity to actor outbox
 """
 
@@ -64,9 +64,9 @@ def create_create_case_tree(
     """
     Create behavior tree for the create_case workflow.
 
-    Handles receipt of CreateCase (Create(VulnerabilityCase)): persists
+    Handles receipt of CreateCaseActivity (Create(VulnerabilityCase)): persists
     the case to the DataLayer, creates the associated CaseActor, and
-    emits a CreateCase activity to the actor outbox.
+    emits a CreateCaseActivity activity to the actor outbox.
 
     The root is a Selector so that if the case already exists the tree
     succeeds immediately (idempotency per ID-04-004).

@@ -490,10 +490,12 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertEqual(activity.context, case.as_id)
 
-        # as_object is now the RecommendActor offer, not the coordinator ID
-        from vultron.wire.as2.vocab.activities.actor import RecommendActor
+        # as_object is now the RecommendActorActivity offer, not the coordinator ID
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
 
-        self.assertIsInstance(activity.as_object, RecommendActor)
+        self.assertIsInstance(activity.as_object, RecommendActorActivity)
         self.assertEqual(activity.target, case.as_id)
         self.assertEqual(activity.to, finder.as_id)
 
@@ -510,10 +512,12 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertEqual(activity.context, case.as_id)
 
-        # as_object is now the RecommendActor offer, not the coordinator ID
-        from vultron.wire.as2.vocab.activities.actor import RecommendActor
+        # as_object is now the RecommendActorActivity offer, not the coordinator ID
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
 
-        self.assertIsInstance(activity.as_object, RecommendActor)
+        self.assertIsInstance(activity.as_object, RecommendActorActivity)
         self.assertEqual(activity.target, case.as_id)
         self.assertEqual(activity.to, finder.as_id)
 

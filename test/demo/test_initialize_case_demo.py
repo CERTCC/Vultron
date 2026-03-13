@@ -41,11 +41,11 @@ def test_demo(demo_env, caplog):
 
     Verifies the full case initialization sequence:
     - Report submitted and validated
-    - Case created with CreateCase
+    - Case created with CreateCaseActivity
     - Vendor (case creator) added as VendorParticipant before finder
-    - Report linked via AddReportToCase
-    - Finder participant created via CreateParticipant
-    - Finder participant added via AddParticipantToCase
+    - Report linked via AddReportToCaseActivity
+    - Finder participant created via CreateParticipantActivity
+    - Finder participant added via AddParticipantToCaseActivity
     - No errors logged during execution
     """
     import logging

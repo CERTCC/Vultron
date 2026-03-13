@@ -40,8 +40,8 @@ from vultron.api.v2.data.status import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.activities.report import (
-    RmCloseReport,
-    RmInvalidateReport,
+    RmCloseReportActivity,
+    RmInvalidateReportActivity,
 )
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
@@ -141,7 +141,7 @@ def svc_invalidate_report(
     actor_id: str, offer_id: str, note: str | None, dl: DataLayer
 ) -> dict:
     """
-    Emit RmInvalidateReport (TentativeReject) for the given offer.
+    Emit RmInvalidateReportActivity (TentativeReject) for the given offer.
 
     Updates offer status to TENTATIVELY_REJECTED and report status to INVALID.
 
@@ -153,7 +153,7 @@ def svc_invalidate_report(
 
     offer, report = _resolve_offer_and_report(offer_id, dl)
 
-    invalidate_activity = RmInvalidateReport(
+    invalidate_activity = RmInvalidateReportActivity(
         actor=actor_id,
         object=offer.as_id,
     )
@@ -200,7 +200,7 @@ def svc_reject_report(
     actor_id: str, offer_id: str, note: str, dl: DataLayer
 ) -> dict:
     """
-    Hard-close a report offer by emitting RmCloseReport (Reject).
+    Hard-close a report offer by emitting RmCloseReportActivity (Reject).
 
     Updates offer status to REJECTED and report status to CLOSED.
 
@@ -212,7 +212,7 @@ def svc_reject_report(
 
     offer, report = _resolve_offer_and_report(offer_id, dl)
 
-    reject_activity = RmCloseReport(
+    reject_activity = RmCloseReportActivity(
         actor=actor_id,
         object=offer.as_id,
     )
@@ -261,7 +261,7 @@ def svc_close_report(
     """
     Close a report via the RM lifecycle (RM → C transition).
 
-    Emits RmCloseReport (Reject).  Returns 409 if report is already CLOSED.
+    Emits RmCloseReportActivity (Reject).  Returns 409 if report is already CLOSED.
     Updates offer status to REJECTED and report status to CLOSED.
 
     Distinction from reject_report: close_report closes a report that has
@@ -293,7 +293,7 @@ def svc_close_report(
             },
         )
 
-    close_activity = RmCloseReport(
+    close_activity = RmCloseReportActivity(
         actor=actor_id,
         object=offer.as_id,
     )

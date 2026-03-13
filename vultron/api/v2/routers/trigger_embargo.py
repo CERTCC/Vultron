@@ -44,7 +44,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
     summary="Trigger an embargo proposal.",
     description=(
         "Triggers the propose-embargo behavior for the given actor. "
-        "Creates a new EmbargoEvent and emits an EmProposeEmbargo "
+        "Creates a new EmbargoEvent and emits an EmProposeEmbargoActivity "
         "(Invite(EmbargoEvent)) activity. "
         "EM state transitions: N → P (new proposal) or A → R (revision). "
         "Returns the resulting activity in the response body (TB-04-001)."
@@ -74,7 +74,7 @@ def trigger_propose_embargo(
     description=(
         "Triggers the evaluate-embargo behavior for the given actor. "
         "Accepts the current (or specified) embargo proposal by emitting "
-        "an EmAcceptEmbargo activity. Activates the embargo on the case "
+        "an EmAcceptEmbargoActivity activity. Activates the embargo on the case "
         "(EM state → ACTIVE). "
         "Returns the resulting activity in the response body (TB-04-001)."
     ),
@@ -101,7 +101,7 @@ def trigger_evaluate_embargo(
     description=(
         "Triggers the terminate-embargo behavior for the given actor. "
         "Announces the end of the active embargo by emitting an "
-        "AnnounceEmbargo activity. Updates the case EM state to EXITED "
+        "AnnounceEmbargoActivity activity. Updates the case EM state to EXITED "
         "and clears the active embargo. "
         "Returns HTTP 409 if no active embargo exists. "
         "Returns the resulting activity in the response body (TB-04-001)."

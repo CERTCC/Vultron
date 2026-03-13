@@ -30,7 +30,10 @@ from vultron.api.v2.backend.trigger_services._helpers import (
     update_participant_rm_state,
 )
 from vultron.core.ports.datalayer import DataLayer
-from vultron.wire.as2.vocab.activities.case import RmDeferCase, RmEngageCase
+from vultron.wire.as2.vocab.activities.case import (
+    RmDeferCaseActivity,
+    RmEngageCaseActivity,
+)
 from vultron.bt.report_management.states import RM
 
 logger = logging.getLogger(__name__)
@@ -40,7 +43,7 @@ def svc_engage_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
     """
     Engage a case (RM → ACCEPTED).
 
-    Emits RmEngageCase (Join(VulnerabilityCase)), updates the actor's own
+    Emits RmEngageCaseActivity (Join(VulnerabilityCase)), updates the actor's own
     CaseParticipant RM state, adds to actor outbox, and returns
     {"activity": {...}}.
 
@@ -52,7 +55,7 @@ def svc_engage_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
 
     case = resolve_case(case_id, dl)
 
-    engage_activity = RmEngageCase(
+    engage_activity = RmEngageCaseActivity(
         actor=actor_id,
         object=case.as_id,
     )
@@ -82,7 +85,7 @@ def svc_defer_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
     """
     Defer a case (RM → DEFERRED).
 
-    Emits RmDeferCase (Ignore(VulnerabilityCase)), updates the actor's own
+    Emits RmDeferCaseActivity (Ignore(VulnerabilityCase)), updates the actor's own
     CaseParticipant RM state, adds to actor outbox, and returns
     {"activity": {...}}.
 
@@ -94,7 +97,7 @@ def svc_defer_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
 
     case = resolve_case(case_id, dl)
 
-    defer_activity = RmDeferCase(
+    defer_activity = RmDeferCaseActivity(
         actor=actor_id,
         object=case.as_id,
     )

@@ -41,13 +41,13 @@ ACTOR_CLASSES = [
 
 class MyTestCase(unittest.TestCase):
     def test_recommend_actor(self):
-        cls = actor.RecommendActor
+        cls = actor.RecommendActorActivity
         expect_class = as_Offer
         expect_type = "Offer"
         self._test_base_actor_activity(cls, expect_class, expect_type)
 
     def test_accept_actor_recommendation(self):
-        cls = actor.AcceptActorRecommendation
+        cls = actor.AcceptActorRecommendationActivity
         expect_class = as_Accept
         expect_type = "Accept"
         self._test_accept_reject_actor_recommendation(
@@ -55,7 +55,7 @@ class MyTestCase(unittest.TestCase):
         )
 
     def test_reject_actor_recommendation(self):
-        cls = actor.RejectActorRecommendation
+        cls = actor.RejectActorRecommendationActivity
         expect_class = as_Reject
         expect_type = "Reject"
         self._test_accept_reject_actor_recommendation(
@@ -71,7 +71,7 @@ class MyTestCase(unittest.TestCase):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
             _case = VulnerabilityCase(name=f"{actor_class.__name__} Case")
-            _recommendation = actor.RecommendActor(
+            _recommendation = actor.RecommendActorActivity(
                 actor=_actor, object=_actor, target=_case
             )
             _object = cls(actor=_actor, object=_recommendation, target=_case)
@@ -81,7 +81,9 @@ class MyTestCase(unittest.TestCase):
             self.assertIsInstance(_object, expect_class)
             self.assertIsInstance(_object, cls)
             # check the _object of the activity is a RecommendActor
-            self.assertIsInstance(_object.as_object, actor.RecommendActor)
+            self.assertIsInstance(
+                _object.as_object, actor.RecommendActorActivity
+            )
             # check the target of the activity is correct instance
             self.assertEqual(_object.target, _case)
             # check the actor of the activity is correct instance

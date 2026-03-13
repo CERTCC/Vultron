@@ -17,8 +17,8 @@
 Case prioritization behavior tree composition.
 
 This module composes the engage_case and defer_case workflows as behavior
-trees. These handle the receive-side of RmEngageCase (Join(VulnerabilityCase))
-and RmDeferCase (Ignore(VulnerabilityCase)) activities.
+trees. These handle the receive-side of RmEngageCaseActivity (Join(VulnerabilityCase))
+and RmDeferCaseActivity (Ignore(VulnerabilityCase)) activities.
 
 Background: RM is a participant-specific state machine. Each CaseParticipant
 wraps an Actor within a case and carries its own RM state via
@@ -62,7 +62,7 @@ def create_engage_case_tree(
     """
     Create behavior tree for the engage_case workflow.
 
-    Handles receipt of RmEngageCase (Join(VulnerabilityCase)): the sending
+    Handles receipt of RmEngageCaseActivity (Join(VulnerabilityCase)): the sending
     actor has decided to engage the case, so we record their RM state
     transition to ACCEPTED in their CaseParticipant.participant_status.
 
@@ -95,7 +95,7 @@ def create_defer_case_tree(
     """
     Create behavior tree for the defer_case workflow.
 
-    Handles receipt of RmDeferCase (Ignore(VulnerabilityCase)): the sending
+    Handles receipt of RmDeferCaseActivity (Ignore(VulnerabilityCase)): the sending
     actor has decided to defer the case, so we record their RM state
     transition to DEFERRED in their CaseParticipant.participant_status.
 

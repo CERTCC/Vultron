@@ -331,7 +331,7 @@ class CreateCaseNode(DataLayerAction):
 
     This node implements case creation from the validate_report handler.
 
-    Note: Named CreateCaseNode (not CreateCase) to avoid conflict with
+    Note: Named CreateCaseNode (not CreateCaseActivity) to avoid conflict with
     as_CreateCase activity class.
     """
 
@@ -404,9 +404,9 @@ class CreateCaseNode(DataLayerAction):
 
 class CreateCaseActivity(DataLayerAction):
     """
-    Create CreateCase activity for case creation notification.
+    Create CreateCaseActivity activity for case creation notification.
 
-    Generates a CreateCase activity to notify relevant actors about the new case.
+    Generates a CreateCaseActivity activity to notify relevant actors about the new case.
     Collects addressees from actor, report.attributed_to, and offer.to fields.
 
     This node implements activity generation from the validate_report handler.
@@ -435,7 +435,7 @@ class CreateCaseActivity(DataLayerAction):
 
     def update(self) -> Status:
         """
-        Create CreateCase activity and persist to DataLayer.
+        Create CreateCaseActivity activity and persist to DataLayer.
 
         Returns:
             SUCCESS if activity created, FAILURE on error
@@ -482,7 +482,7 @@ class CreateCaseActivity(DataLayerAction):
                 f"{self.name}: Notifying addressees: {addressees}"
             )
 
-            # Create CreateCase activity domain object
+            # Create CreateCaseActivity activity domain object
             create_case_activity = VultronCreateCaseActivity(
                 actor=self.actor_id, object=case_id
             )
@@ -491,11 +491,11 @@ class CreateCaseActivity(DataLayerAction):
             try:
                 self.datalayer.create(create_case_activity)
                 self.logger.info(
-                    f"{self.name}: Created CreateCase activity: {create_case_activity.as_id}"
+                    f"{self.name}: Created CreateCaseActivity activity: {create_case_activity.as_id}"
                 )
             except ValueError as e:
                 self.logger.warning(
-                    f"{self.name}: CreateCase activity {create_case_activity.as_id} already exists: {e}"
+                    f"{self.name}: CreateCaseActivity activity {create_case_activity.as_id} already exists: {e}"
                 )
 
             # Store activity_id in blackboard for UpdateActorOutbox node
@@ -508,7 +508,7 @@ class CreateCaseActivity(DataLayerAction):
 
         except Exception as e:
             self.logger.error(
-                f"{self.name}: Error creating CreateCase activity: {e}"
+                f"{self.name}: Error creating CreateCaseActivity activity: {e}"
             )
             return Status.FAILURE
 
@@ -517,7 +517,7 @@ class UpdateActorOutbox(DataLayerAction):
     """
     Update actor's outbox with new activity.
 
-    Appends the CreateCase activity ID to the actor's outbox.items list and
+    Appends the CreateCaseActivity activity ID to the actor's outbox.items list and
     persists the updated actor to the DataLayer.
 
     This node implements the outbox update from the validate_report handler.
@@ -803,7 +803,7 @@ class TransitionParticipantRMtoAccepted(DataLayerAction):
     new ParticipantStatus with rm_state=RM.ACCEPTED, and persists the
     updated case to the DataLayer.
 
-    Called when an actor engages a case (receives RmEngageCase /
+    Called when an actor engages a case (receives RmEngageCaseActivity /
     Join(VulnerabilityCase)).
     """
 
@@ -850,7 +850,7 @@ class TransitionParticipantRMtoDeferred(DataLayerAction):
     new ParticipantStatus with rm_state=RM.DEFERRED, and persists the
     updated case to the DataLayer.
 
-    Called when an actor defers a case (receives RmDeferCase /
+    Called when an actor defers a case (receives RmDeferCaseActivity /
     Ignore(VulnerabilityCase)).
     """
 
@@ -897,7 +897,7 @@ class EvaluateCasePriority(DataLayerCondition):
     Future: Plug in SSVC or other priority framework via PrioritizationPolicy.
 
     This node is used when the local actor is DECIDING whether to engage or
-    defer (i.e., generating an outgoing RmEngageCase or RmDeferCase message),
+    defer (i.e., generating an outgoing RmEngageCaseActivity or RmDeferCaseActivity message),
     as opposed to the receive-side nodes above which record a decision already
     made by the sending actor.
 

@@ -17,19 +17,16 @@ from vultron.api.v2.errors import (
     VultronApiHandlerMissingSemanticError,
     VultronApiHandlerSemanticMismatchError,
 )
+from vultron.core.models.events import (
+    MessageSemantics,
+    VultronEvent,
+)
+from vultron.types import DispatchActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.core.models.events import (
-    EVENT_CLASS_MAP,
-    InboundPayload,
-    MessageSemantics,
-    VultronEvent,
-)
-from vultron.types import DispatchActivity
-from vultron.wire.as2.extractor import find_matching_semantics
 
 
 def _make_payload(activity, **extra_fields) -> VultronEvent:
@@ -244,11 +241,13 @@ class TestInviteActorHandlers:
     def test_invite_actor_to_case_stores_invite(self, monkeypatch):
         """invite_actor_to_case persists the Invite activity to the DataLayer."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import RmInviteToCase
+        from vultron.wire.as2.vocab.activities.case import (
+            RmInviteToCaseActivity,
+        )
 
         dl = TinyDbDataLayer(db_path=None)
 
-        invite = RmInviteToCase(
+        invite = RmInviteToCaseActivity(
             id="https://example.org/cases/case1/invitations/1",
             actor="https://example.org/users/owner",
             object="https://example.org/users/coordinator",
@@ -267,11 +266,13 @@ class TestInviteActorHandlers:
     def test_invite_actor_to_case_idempotent(self, monkeypatch):
         """invite_actor_to_case skips storing a duplicate Invite."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import RmInviteToCase
+        from vultron.wire.as2.vocab.activities.case import (
+            RmInviteToCaseActivity,
+        )
 
         dl = TinyDbDataLayer(db_path=None)
 
-        invite = RmInviteToCase(
+        invite = RmInviteToCaseActivity(
             id="https://example.org/cases/case1/invitations/2",
             actor="https://example.org/users/owner",
             object="https://example.org/users/coordinator",
@@ -291,17 +292,17 @@ class TestInviteActorHandlers:
     def test_reject_invite_actor_to_case_logs_rejection(self):
         """reject_invite_actor_to_case logs without raising."""
         from vultron.wire.as2.vocab.activities.case import (
-            RmInviteToCase,
-            RmRejectInviteToCase,
+            RmInviteToCaseActivity,
+            RmRejectInviteToCaseActivity,
         )
 
-        invite = RmInviteToCase(
+        invite = RmInviteToCaseActivity(
             id="https://example.org/cases/case1/invitations/3",
             actor="https://example.org/users/owner",
             object="https://example.org/users/coordinator",
             target="https://example.org/cases/case1",
         )
-        reject = RmRejectInviteToCase(
+        reject = RmRejectInviteToCaseActivity(
             actor="https://example.org/users/coordinator",
             object=invite,
         )
@@ -507,10 +508,13 @@ class TestInviteActorHandlers:
         """accept_invite_actor_to_case creates a CaseParticipant and adds them to the case."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case import (
-            RmAcceptInviteToCase,
-            RmInviteToCase,
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
         )
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
@@ -527,7 +531,7 @@ class TestInviteActorHandlers:
             id="https://example.org/cases/caseIA1",
             name="TEST-ACCEPT-INVITE",
         )
-        invite = RmInviteToCase(
+        invite = RmInviteToCaseActivity(
             id="https://example.org/cases/caseIA1/invitations/1",
             actor="https://example.org/users/owner",
             object=invitee,
@@ -536,7 +540,7 @@ class TestInviteActorHandlers:
         dl.create(case)
         dl.create(invite)
 
-        accept = RmAcceptInviteToCase(
+        accept = RmAcceptInviteToCaseActivity(
             actor=invitee_id,
             object=invite,
         )
@@ -556,8 +560,8 @@ class TestInviteActorHandlers:
         """accept_invite_actor_to_case records the active embargo ID on the new participant (CM-10-001, CM-10-003)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case import (
-            RmAcceptInviteToCase,
-            RmInviteToCase,
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
         )
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
@@ -582,7 +586,7 @@ class TestInviteActorHandlers:
             name="TEST-ACCEPT-INVITE-EMBARGO",
         )
         case.active_embargo = embargo.as_id
-        invite = RmInviteToCase(
+        invite = RmInviteToCaseActivity(
             id="https://example.org/cases/caseIA2/invitations/1",
             actor="https://example.org/users/owner",
             object=invitee,
@@ -592,7 +596,7 @@ class TestInviteActorHandlers:
         dl.create(embargo)
         dl.create(invite)
 
-        accept = RmAcceptInviteToCase(
+        accept = RmAcceptInviteToCaseActivity(
             actor=invitee_id,
             object=invite,
         )
@@ -614,8 +618,8 @@ class TestInviteActorHandlers:
         """accept_invite_actor_to_case appends a trusted-timestamp event to case.events (CM-02-009)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case import (
-            RmAcceptInviteToCase,
-            RmInviteToCase,
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
         )
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -634,7 +638,7 @@ class TestInviteActorHandlers:
             id="https://example.org/cases/caseIA3",
             name="TEST-ACCEPT-INVITE-EVENT",
         )
-        invite = RmInviteToCase(
+        invite = RmInviteToCaseActivity(
             id="https://example.org/cases/caseIA3/invitations/1",
             actor="https://example.org/users/owner",
             object=invitee,
@@ -643,7 +647,7 @@ class TestInviteActorHandlers:
         dl.create(case)
         dl.create(invite)
 
-        accept = RmAcceptInviteToCase(
+        accept = RmAcceptInviteToCaseActivity(
             actor=invitee_id,
             object=invite,
         )
@@ -740,7 +744,9 @@ class TestEmbargoHandlers:
     def test_add_embargo_event_to_case_activates_embargo(self, monkeypatch):
         """add_embargo_event_to_case sets the active embargo on the case."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import AddEmbargoToCase
+        from vultron.wire.as2.vocab.activities.embargo import (
+            AddEmbargoToCaseActivity,
+        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -764,7 +770,7 @@ class TestEmbargoHandlers:
         dl.create(case)
         dl.create(embargo)
 
-        activity = AddEmbargoToCase(
+        activity = AddEmbargoToCaseActivity(
             actor="https://example.org/users/vendor",
             object=embargo,
             target=case,
@@ -780,9 +786,11 @@ class TestEmbargoHandlers:
         assert case.current_status.em_state == EM.ACTIVE
 
     def test_invite_to_embargo_on_case_stores_proposal(self, monkeypatch):
-        """invite_to_embargo_on_case persists the EmProposeEmbargo activity."""
+        """invite_to_embargo_on_case persists the EmProposeEmbargoActivity activity."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargo
+        from vultron.wire.as2.vocab.activities.embargo import (
+            EmProposeEmbargoActivity,
+        )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
         dl = TinyDbDataLayer(db_path=None)
@@ -791,7 +799,7 @@ class TestEmbargoHandlers:
             id="https://example.org/cases/case_em2/embargo_events/e2",
             content="Proposed embargo",
         )
-        proposal = EmProposeEmbargo(
+        proposal = EmProposeEmbargoActivity(
             id="https://example.org/cases/case_em2/embargo_proposals/1",
             actor="https://example.org/users/vendor",
             object=embargo,
@@ -813,8 +821,8 @@ class TestEmbargoHandlers:
         """accept_invite_to_embargo_on_case activates the embargo on the case."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
-            EmAcceptEmbargo,
-            EmProposeEmbargo,
+            EmAcceptEmbargoActivity,
+            EmProposeEmbargoActivity,
         )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -837,7 +845,7 @@ class TestEmbargoHandlers:
             content="Embargo",
         )
         # Use inline objects (not string IDs) so rehydration skips DataLayer lookup
-        proposal = EmProposeEmbargo(
+        proposal = EmProposeEmbargoActivity(
             id="https://example.org/cases/case_em3/embargo_proposals/1",
             actor="https://example.org/users/vendor",
             object=embargo,
@@ -847,7 +855,7 @@ class TestEmbargoHandlers:
         dl.create(embargo)
         dl.create(proposal)
 
-        accept = EmAcceptEmbargo(
+        accept = EmAcceptEmbargoActivity(
             actor="https://example.org/users/coordinator",
             object=proposal,
             context=case,
@@ -868,8 +876,8 @@ class TestEmbargoHandlers:
         """accept_invite_to_embargo_on_case records embargo ID in participant.accepted_embargo_ids (CM-10-002, CM-10-003)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
-            EmAcceptEmbargo,
-            EmProposeEmbargo,
+            EmAcceptEmbargoActivity,
+            EmProposeEmbargoActivity,
         )
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
@@ -900,7 +908,7 @@ class TestEmbargoHandlers:
             context=case.as_id,
         )
         case.add_participant(participant)
-        proposal = EmProposeEmbargo(
+        proposal = EmProposeEmbargoActivity(
             id="https://example.org/cases/case_em5/embargo_proposals/1",
             actor="https://example.org/users/vendor",
             object=embargo,
@@ -911,7 +919,7 @@ class TestEmbargoHandlers:
         dl.create(participant)
         dl.create(proposal)
 
-        accept = EmAcceptEmbargo(
+        accept = EmAcceptEmbargoActivity(
             actor=coordinator_id,
             object=proposal,
             context=case,
@@ -930,8 +938,8 @@ class TestEmbargoHandlers:
         """accept_invite_to_embargo_on_case appends a trusted-timestamp event to case.events (CM-02-009)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
-            EmAcceptEmbargo,
-            EmProposeEmbargo,
+            EmAcceptEmbargoActivity,
+            EmProposeEmbargoActivity,
         )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
@@ -952,7 +960,7 @@ class TestEmbargoHandlers:
             id="https://example.org/cases/case_em6/embargo_events/e6",
             content="Embargo",
         )
-        proposal = EmProposeEmbargo(
+        proposal = EmProposeEmbargoActivity(
             id="https://example.org/cases/case_em6/embargo_proposals/1",
             actor="https://example.org/users/vendor",
             object=embargo,
@@ -962,7 +970,7 @@ class TestEmbargoHandlers:
         dl.create(embargo)
         dl.create(proposal)
 
-        accept = EmAcceptEmbargo(
+        accept = EmAcceptEmbargoActivity(
             actor="https://example.org/users/coordinator",
             object=proposal,
             context=case,
@@ -983,8 +991,8 @@ class TestEmbargoHandlers:
     def test_reject_invite_to_embargo_on_case_logs_rejection(self):
         """reject_invite_to_embargo_on_case logs without raising."""
         from vultron.wire.as2.vocab.activities.embargo import (
-            EmProposeEmbargo,
-            EmRejectEmbargo,
+            EmProposeEmbargoActivity,
+            EmRejectEmbargoActivity,
         )
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
@@ -992,13 +1000,13 @@ class TestEmbargoHandlers:
             id="https://example.org/cases/case_em4/embargo_events/e4",
             content="Embargo",
         )
-        proposal = EmProposeEmbargo(
+        proposal = EmProposeEmbargoActivity(
             id="https://example.org/cases/case_em4/embargo_proposals/1",
             actor="https://example.org/users/vendor",
             object=embargo,
             context="https://example.org/cases/case_em4",
         )
-        reject = EmRejectEmbargo(
+        reject = EmRejectEmbargoActivity(
             actor="https://example.org/users/coordinator",
             object=proposal,
             context="https://example.org/cases/case_em4",
@@ -1076,7 +1084,9 @@ class TestNoteHandlers:
     def test_add_note_to_case_appends_note(self, monkeypatch):
         """add_note_to_case appends note ID to case.notes and persists."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import AddNoteToCase
+        from vultron.wire.as2.vocab.activities.case import (
+            AddNoteToCaseActivity,
+        )
         from vultron.wire.as2.vocab.base.objects.object_types import as_Note
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -1099,7 +1109,7 @@ class TestNoteHandlers:
         dl.create(case)
         dl.create(note)
 
-        activity = AddNoteToCase(
+        activity = AddNoteToCaseActivity(
             actor="https://example.org/users/finder",
             object=note,
             target=case,
@@ -1116,7 +1126,9 @@ class TestNoteHandlers:
     def test_add_note_to_case_idempotent(self, monkeypatch):
         """add_note_to_case skips adding a note already in the case."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import AddNoteToCase
+        from vultron.wire.as2.vocab.activities.case import (
+            AddNoteToCaseActivity,
+        )
         from vultron.wire.as2.vocab.base.objects.object_types import as_Note
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -1140,7 +1152,7 @@ class TestNoteHandlers:
         dl.create(case)
         dl.create(note)
 
-        activity = AddNoteToCase(
+        activity = AddNoteToCaseActivity(
             actor="https://example.org/users/finder",
             object=note,
             target=case,
@@ -1243,7 +1255,9 @@ class TestStatusHandlers:
     def test_create_case_status_stores_status(self, monkeypatch):
         """create_case_status persists the CaseStatus to the DataLayer."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import CreateCaseStatus
+        from vultron.wire.as2.vocab.activities.case import (
+            CreateCaseStatusActivity,
+        )
         from vultron.wire.as2.vocab.objects.case_status import CaseStatus
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -1259,7 +1273,7 @@ class TestStatusHandlers:
             id="https://example.org/cases/case_cs1/statuses/s1",
             context=case.as_id,
         )
-        activity = CreateCaseStatus(
+        activity = CreateCaseStatusActivity(
             actor="https://example.org/users/vendor",
             object=status,
             context=case.as_id,
@@ -1277,7 +1291,9 @@ class TestStatusHandlers:
     def test_create_case_status_idempotent(self, monkeypatch):
         """create_case_status skips storing a duplicate CaseStatus."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import CreateCaseStatus
+        from vultron.wire.as2.vocab.activities.case import (
+            CreateCaseStatusActivity,
+        )
         from vultron.wire.as2.vocab.objects.case_status import CaseStatus
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -1295,7 +1311,7 @@ class TestStatusHandlers:
         )
         dl.create(status)
 
-        activity = CreateCaseStatus(
+        activity = CreateCaseStatusActivity(
             actor="https://example.org/users/vendor",
             object=status,
             context=case.as_id,
@@ -1312,7 +1328,9 @@ class TestStatusHandlers:
     def test_add_case_status_to_case_appends_status(self, monkeypatch):
         """add_case_status_to_case appends status ID to case.case_statuses."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import AddStatusToCase
+        from vultron.wire.as2.vocab.activities.case import (
+            AddStatusToCaseActivity,
+        )
         from vultron.wire.as2.vocab.objects.case_status import CaseStatus
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
@@ -1335,7 +1353,7 @@ class TestStatusHandlers:
         dl.create(case)
         dl.create(status)
 
-        activity = AddStatusToCase(
+        activity = AddStatusToCaseActivity(
             actor="https://example.org/users/vendor",
             object=status,
             target=case,
@@ -1356,7 +1374,7 @@ class TestStatusHandlers:
         """create_participant_status persists the ParticipantStatus."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case_participant import (
-            CreateStatusForParticipant,
+            CreateStatusForParticipantActivity,
         )
         from vultron.wire.as2.vocab.objects.case_status import (
             ParticipantStatus,
@@ -1376,7 +1394,7 @@ class TestStatusHandlers:
             id="https://example.org/cases/case_ps1",
             name="PS Case 1",
         )
-        activity = CreateStatusForParticipant(
+        activity = CreateStatusForParticipantActivity(
             actor="https://example.org/users/vendor",
             object=pstatus,
             context=case_ps1,
@@ -1397,7 +1415,7 @@ class TestStatusHandlers:
         """add_participant_status_to_participant appends status to participant."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case_participant import (
-            AddStatusToParticipant,
+            AddStatusToParticipantActivity,
         )
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
@@ -1432,7 +1450,7 @@ class TestStatusHandlers:
         dl.create(participant)
         dl.create(pstatus)
 
-        activity = AddStatusToParticipant(
+        activity = AddStatusToParticipantActivity(
             actor="https://example.org/users/vendor",
             object=pstatus,
             target=participant,
@@ -1458,8 +1476,11 @@ class TestSuggestActorHandlers:
     def test_suggest_actor_to_case_persists_recommendation(self, monkeypatch):
         """suggest_actor_to_case persists the RecommendActor offer."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.actor import RecommendActor
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -1468,7 +1489,7 @@ class TestSuggestActorHandlers:
             id="https://example.org/cases/case_sa1",
             name="SA Case 1",
         )
-        activity = RecommendActor(
+        activity = RecommendActorActivity(
             actor="https://example.org/users/finder",
             object=coordinator,
             target=case,
@@ -1487,7 +1508,10 @@ class TestSuggestActorHandlers:
     def test_suggest_actor_to_case_idempotent(self, monkeypatch):
         """suggest_actor_to_case is idempotent — second call is a no-op."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.actor import RecommendActor
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
+
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         dl = TinyDbDataLayer(db_path=None)
@@ -1497,7 +1521,7 @@ class TestSuggestActorHandlers:
             id="https://example.org/cases/case_sa2",
             name="SA Case 2",
         )
-        activity = RecommendActor(
+        activity = RecommendActorActivity(
             actor="https://example.org/users/finder",
             object=coordinator,
             target=case,
@@ -1519,8 +1543,8 @@ class TestSuggestActorHandlers:
         """accept_suggest_actor_to_case persists the AcceptActorRecommendation."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.actor import (
-            AcceptActorRecommendation,
-            RecommendActor,
+            AcceptActorRecommendationActivity,
+            RecommendActorActivity,
         )
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
@@ -1531,12 +1555,12 @@ class TestSuggestActorHandlers:
             id="https://example.org/cases/case_sa3",
             name="SA Case 3",
         )
-        recommendation = RecommendActor(
+        recommendation = RecommendActorActivity(
             actor="https://example.org/users/finder",
             object=coordinator,
             target=case,
         )
-        activity = AcceptActorRecommendation(
+        activity = AcceptActorRecommendationActivity(
             actor="https://example.org/users/vendor",
             object=recommendation,
             target=case,
@@ -1557,8 +1581,8 @@ class TestSuggestActorHandlers:
         import logging
 
         from vultron.wire.as2.vocab.activities.actor import (
-            RecommendActor,
-            RejectActorRecommendation,
+            RecommendActorActivity,
+            RejectActorRecommendationActivity,
         )
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
@@ -1567,12 +1591,12 @@ class TestSuggestActorHandlers:
             id="https://example.org/cases/case_sa4",
             name="SA Case 4",
         )
-        recommendation = RecommendActor(
+        recommendation = RecommendActorActivity(
             actor="https://example.org/users/finder",
             object=coordinator,
             target=case,
         )
-        activity = RejectActorRecommendation(
+        activity = RejectActorRecommendationActivity(
             actor="https://example.org/users/vendor",
             object=recommendation,
             target=case,
@@ -1594,7 +1618,7 @@ class TestOwnershipTransferHandlers:
         """offer_case_ownership_transfer persists the offer."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case import (
-            OfferCaseOwnershipTransfer,
+            OfferCaseOwnershipTransferActivity,
         )
 
         dl = TinyDbDataLayer(db_path=None)
@@ -1603,7 +1627,7 @@ class TestOwnershipTransferHandlers:
             id="https://example.org/cases/case_ot1",
             name="OT Case 1",
         )
-        activity = OfferCaseOwnershipTransfer(
+        activity = OfferCaseOwnershipTransferActivity(
             actor="https://example.org/users/vendor",
             object=case,
             target="https://example.org/users/coordinator",
@@ -1623,8 +1647,8 @@ class TestOwnershipTransferHandlers:
         """accept_case_ownership_transfer updates case.attributed_to to new owner."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case import (
-            AcceptCaseOwnershipTransfer,
-            OfferCaseOwnershipTransfer,
+            AcceptCaseOwnershipTransferActivity,
+            OfferCaseOwnershipTransferActivity,
         )
 
         dl = TinyDbDataLayer(db_path=None)
@@ -1640,7 +1664,7 @@ class TestOwnershipTransferHandlers:
         )
         dl.create(case)
 
-        offer = OfferCaseOwnershipTransfer(
+        offer = OfferCaseOwnershipTransferActivity(
             id="https://example.org/activities/offer_ot2",
             actor="https://example.org/users/vendor",
             object=case,
@@ -1648,7 +1672,7 @@ class TestOwnershipTransferHandlers:
         )
         dl.create(offer)
 
-        activity = AcceptCaseOwnershipTransfer(
+        activity = AcceptCaseOwnershipTransferActivity(
             actor="https://example.org/users/coordinator",
             object=offer,
         )
@@ -1673,21 +1697,21 @@ class TestOwnershipTransferHandlers:
         import logging
 
         from vultron.wire.as2.vocab.activities.case import (
-            OfferCaseOwnershipTransfer,
-            RejectCaseOwnershipTransfer,
+            OfferCaseOwnershipTransferActivity,
+            RejectCaseOwnershipTransferActivity,
         )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_ot3",
             name="OT Case 3",
         )
-        offer = OfferCaseOwnershipTransfer(
+        offer = OfferCaseOwnershipTransferActivity(
             id="https://example.org/activities/offer_ot3",
             actor="https://example.org/users/vendor",
             object=case,
             target="https://example.org/users/coordinator",
         )
-        activity = RejectCaseOwnershipTransfer(
+        activity = RejectCaseOwnershipTransferActivity(
             actor="https://example.org/users/coordinator",
             object=offer,
         )
@@ -1709,7 +1733,7 @@ class TestUpdateCaseHandler:
         import logging
 
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -1731,7 +1755,7 @@ class TestUpdateCaseHandler:
             content="New content",
             attributed_to=owner_id,
         )
-        activity = UpdateCase(
+        activity = UpdateCaseActivity(
             actor=owner_id,
             object=updated_case,
         )
@@ -1764,7 +1788,7 @@ class TestUpdateCaseHandler:
         import logging
 
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -1786,7 +1810,7 @@ class TestUpdateCaseHandler:
             name="Hijacked Name",
             attributed_to=owner_id,
         )
-        activity = UpdateCase(
+        activity = UpdateCaseActivity(
             actor=non_owner_id,
             object=updated_case,
         )
@@ -1805,7 +1829,7 @@ class TestUpdateCaseHandler:
     def test_update_case_idempotent(self, monkeypatch):
         """update_case with same data produces the same result (last-write-wins)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -1826,7 +1850,7 @@ class TestUpdateCaseHandler:
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCase(
+        activity = UpdateCaseActivity(
             actor=owner_id,
             object=updated_case,
         )
@@ -1860,7 +1884,7 @@ class TestUpdateCaseHandler:
         import logging
 
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -1899,7 +1923,7 @@ class TestUpdateCaseHandler:
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCase(actor=owner_id, object=updated_case)
+        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
         dispatchable = _make_dispatchable(
             activity, MessageSemantics.UPDATE_CASE
         )
@@ -1919,7 +1943,7 @@ class TestUpdateCaseHandler:
         import logging
 
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -1958,7 +1982,7 @@ class TestUpdateCaseHandler:
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCase(actor=owner_id, object=updated_case)
+        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
         dispatchable = _make_dispatchable(
             activity, MessageSemantics.UPDATE_CASE
         )
@@ -1975,7 +1999,7 @@ class TestUpdateCaseHandler:
         import logging
 
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCase
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
         from vultron.wire.as2.vocab.objects.case_participant import (
             CaseParticipant,
         )
@@ -2011,7 +2035,7 @@ class TestUpdateCaseHandler:
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCase(actor=owner_id, object=updated_case)
+        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
         dispatchable = _make_dispatchable(
             activity, MessageSemantics.UPDATE_CASE
         )

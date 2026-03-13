@@ -120,7 +120,7 @@ InviteToEmbargoOnCase = ActivityPattern(
         "Propose an embargo on a vulnerability case. "
         "This is observed as an INVITE activity where the object is an "
         "EmbargoEvent and the context is the VulnerabilityCase. "
-        "Corresponds to EmProposeEmbargo."
+        "Corresponds to EmProposeEmbargoActivity."
     ),
     activity_=TAtype.INVITE,
     object_=AOtype.EVENT,
@@ -165,10 +165,10 @@ InvalidateReport = ActivityPattern(
 CloseReport = ActivityPattern(
     activity_=TAtype.REJECT, object_=ReportSubmission
 )
-CreateCase = ActivityPattern(
+CreateCaseActivity = ActivityPattern(
     activity_=TAtype.CREATE, object_=VOtype.VULNERABILITY_CASE
 )
-UpdateCase = ActivityPattern(
+UpdateCaseActivity = ActivityPattern(
     activity_=TAtype.UPDATE, object_=VOtype.VULNERABILITY_CASE
 )
 EngageCase = ActivityPattern(
@@ -187,7 +187,7 @@ DeferCase = ActivityPattern(
     activity_=TAtype.IGNORE,
     object_=VOtype.VULNERABILITY_CASE,
 )
-AddReportToCase = ActivityPattern(
+AddReportToCaseActivity = ActivityPattern(
     activity_=TAtype.ADD,
     object_=VOtype.VULNERABILITY_REPORT,
     target_=VOtype.VULNERABILITY_CASE,
@@ -203,14 +203,14 @@ AcceptSuggestActorToCase = ActivityPattern(
 RejectSuggestActorToCase = ActivityPattern(
     activity_=TAtype.REJECT, object_=SuggestActorToCase
 )
-OfferCaseOwnershipTransfer = ActivityPattern(
+OfferCaseOwnershipTransferActivity = ActivityPattern(
     activity_=TAtype.OFFER, object_=VOtype.VULNERABILITY_CASE
 )
-AcceptCaseOwnershipTransfer = ActivityPattern(
-    activity_=TAtype.ACCEPT, object_=OfferCaseOwnershipTransfer
+AcceptCaseOwnershipTransferActivity = ActivityPattern(
+    activity_=TAtype.ACCEPT, object_=OfferCaseOwnershipTransferActivity
 )
-RejectCaseOwnershipTransfer = ActivityPattern(
-    activity_=TAtype.REJECT, object_=OfferCaseOwnershipTransfer
+RejectCaseOwnershipTransferActivity = ActivityPattern(
+    activity_=TAtype.REJECT, object_=OfferCaseOwnershipTransferActivity
 )
 InviteActorToCase = ActivityPattern(
     activity_=TAtype.INVITE,
@@ -231,7 +231,7 @@ CreateNote = ActivityPattern(
     activity_=TAtype.CREATE,
     object_=AOtype.NOTE,
 )
-AddNoteToCase = ActivityPattern(
+AddNoteToCaseActivity = ActivityPattern(
     activity_=TAtype.ADD,
     object_=AOtype.NOTE,
     target_=VOtype.VULNERABILITY_CASE,
@@ -256,7 +256,7 @@ RemoveCaseParticipantFromCase = ActivityPattern(
     object_=VOtype.CASE_PARTICIPANT,
     target_=VOtype.VULNERABILITY_CASE,
 )
-CreateCaseStatus = ActivityPattern(
+CreateCaseStatusActivity = ActivityPattern(
     activity_=TAtype.CREATE,
     object_=VOtype.CASE_STATUS,
     context_=VOtype.VULNERABILITY_CASE,
@@ -289,17 +289,17 @@ SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
     MessageSemantics.VALIDATE_REPORT: ValidateReport,
     MessageSemantics.INVALIDATE_REPORT: InvalidateReport,
     MessageSemantics.CLOSE_REPORT: CloseReport,
-    MessageSemantics.CREATE_CASE: CreateCase,
-    MessageSemantics.UPDATE_CASE: UpdateCase,
+    MessageSemantics.CREATE_CASE: CreateCaseActivity,
+    MessageSemantics.UPDATE_CASE: UpdateCaseActivity,
     MessageSemantics.ENGAGE_CASE: EngageCase,
     MessageSemantics.DEFER_CASE: DeferCase,
-    MessageSemantics.ADD_REPORT_TO_CASE: AddReportToCase,
+    MessageSemantics.ADD_REPORT_TO_CASE: AddReportToCaseActivity,
     MessageSemantics.SUGGEST_ACTOR_TO_CASE: SuggestActorToCase,
     MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE: AcceptSuggestActorToCase,
     MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE: RejectSuggestActorToCase,
-    MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER: OfferCaseOwnershipTransfer,
-    MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER: AcceptCaseOwnershipTransfer,
-    MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER: RejectCaseOwnershipTransfer,
+    MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER: OfferCaseOwnershipTransferActivity,
+    MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER: AcceptCaseOwnershipTransferActivity,
+    MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER: RejectCaseOwnershipTransferActivity,
     MessageSemantics.INVITE_ACTOR_TO_CASE: InviteActorToCase,
     MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE: AcceptInviteActorToCase,
     MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE: RejectInviteActorToCase,
@@ -315,9 +315,9 @@ SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
     MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE: AddCaseParticipantToCase,
     MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE: RemoveCaseParticipantFromCase,
     MessageSemantics.CREATE_NOTE: CreateNote,
-    MessageSemantics.ADD_NOTE_TO_CASE: AddNoteToCase,
+    MessageSemantics.ADD_NOTE_TO_CASE: AddNoteToCaseActivity,
     MessageSemantics.REMOVE_NOTE_FROM_CASE: RemoveNoteFromCase,
-    MessageSemantics.CREATE_CASE_STATUS: CreateCaseStatus,
+    MessageSemantics.CREATE_CASE_STATUS: CreateCaseStatusActivity,
     MessageSemantics.ADD_CASE_STATUS_TO_CASE: AddCaseStatusToCase,
     MessageSemantics.CREATE_PARTICIPANT_STATUS: CreateParticipantStatus,
     MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT: AddParticipantStatusToParticipant,

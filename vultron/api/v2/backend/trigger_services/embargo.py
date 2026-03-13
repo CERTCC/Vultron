@@ -36,9 +36,9 @@ from vultron.api.v2.backend.trigger_services._helpers import (
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.wire.as2.vocab.activities.embargo import (
-    AnnounceEmbargo,
-    EmAcceptEmbargo,
-    EmProposeEmbargo,
+    AnnounceEmbargoActivity,
+    EmAcceptEmbargoActivity,
+    EmProposeEmbargoActivity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.bt.embargo_management.states import EM
@@ -56,7 +56,7 @@ def svc_propose_embargo(
     """
     Propose an embargo on a case.
 
-    Creates a new EmbargoEvent and emits EmProposeEmbargo
+    Creates a new EmbargoEvent and emits EmProposeEmbargoActivity
     (Invite(EmbargoEvent)).  EM state transitions:
     - EM.N → EM.P (new proposal; emits EP)
     - EM.A → EM.R (revision proposal; emits EV)
@@ -99,7 +99,7 @@ def svc_propose_embargo(
     except ValueError:
         logger.warning("EmbargoEvent '%s' already exists", embargo.as_id)
 
-    proposal = EmProposeEmbargo(
+    proposal = EmProposeEmbargoActivity(
         actor=actor_id,
         object=embargo.as_id,
         context=case.as_id,
@@ -108,7 +108,9 @@ def svc_propose_embargo(
     try:
         dl.create(proposal)
     except ValueError:
-        logger.warning("EmProposeEmbargo '%s' already exists", proposal.as_id)
+        logger.warning(
+            "EmProposeEmbargoActivity '%s' already exists", proposal.as_id
+        )
 
     if em_state == EM.NO_EMBARGO:
         case.current_status.em_state = EM.PROPOSED
@@ -153,10 +155,10 @@ def svc_evaluate_embargo(
     """
     Accept an embargo proposal (evaluate-embargo).
 
-    Emits EmAcceptEmbargo (Accept(EmProposeEmbargo)), activates the embargo
+    Emits EmAcceptEmbargoActivity (Accept(EmProposeEmbargoActivity)), activates the embargo
     on the case (EM → ACTIVE), and adds to actor outbox.
 
-    If proposal_id is None, the first pending EmProposeEmbargo for the case
+    If proposal_id is None, the first pending EmProposeEmbargoActivity for the case
     is used.  Returns 404 if no proposal is found.
 
     Implements: TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001,
@@ -230,7 +232,7 @@ def svc_evaluate_embargo(
             },
         )
 
-    accept = EmAcceptEmbargo(
+    accept = EmAcceptEmbargoActivity(
         actor=actor_id,
         object=proposal.as_id,
         context=case.as_id,
@@ -239,7 +241,9 @@ def svc_evaluate_embargo(
     try:
         dl.create(accept)
     except ValueError:
-        logger.warning("EmAcceptEmbargo '%s' already exists", accept.as_id)
+        logger.warning(
+            "EmAcceptEmbargoActivity '%s' already exists", accept.as_id
+        )
 
     case.set_embargo(embargo_id)
     dl.update(case.as_id, object_to_record(case))
@@ -263,7 +267,7 @@ def svc_terminate_embargo(actor_id: str, case_id: str, dl: DataLayer) -> dict:
     """
     Terminate the active embargo on a case.
 
-    Emits AnnounceEmbargo (ET message), sets case EM state to EXITED, clears
+    Emits AnnounceEmbargoActivity (ET message), sets case EM state to EXITED, clears
     the active embargo, and adds to actor outbox.  Returns 409 if the case
     has no active embargo.
 
@@ -294,7 +298,7 @@ def svc_terminate_embargo(actor_id: str, case_id: str, dl: DataLayer) -> dict:
         else case.active_embargo.as_id
     )
 
-    announce = AnnounceEmbargo(
+    announce = AnnounceEmbargoActivity(
         actor=actor_id,
         object=embargo_id,
         context=case.as_id,
@@ -303,7 +307,9 @@ def svc_terminate_embargo(actor_id: str, case_id: str, dl: DataLayer) -> dict:
     try:
         dl.create(announce)
     except ValueError:
-        logger.warning("AnnounceEmbargo '%s' already exists", announce.as_id)
+        logger.warning(
+            "AnnounceEmbargoActivity '%s' already exists", announce.as_id
+        )
 
     case.current_status.em_state = EM.EXITED
     case.active_embargo = None

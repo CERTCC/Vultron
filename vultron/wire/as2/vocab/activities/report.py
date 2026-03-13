@@ -36,23 +36,23 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 OfferRef: TypeAlias = ActivityStreamRef[as_Offer]
 
 
-class RmCreateReport(as_Create):
+class RmCreateReportActivity(as_Create):
     """The actor is creating a report."""
 
     as_object: VulnerabilityReportRef = Field(default=None, alias="object")
 
 
-class RmSubmitReport(as_Offer):
+class RmSubmitReportActivity(as_Offer):
     """The actor is submitting a report to another actor
     This corresponds to the Vultron RS message type when no case exists.
-    See also RmInviteToCase for the scenario when a case already exists.
+    See also RmInviteToCaseActivity for the scenario when a case already exists.
     as_object: VulnerabilityReport
     """
 
     as_object: VulnerabilityReportRef = Field(default=None, alias="object")
 
 
-class RmReadReport(as_Read):
+class RmReadReportActivity(as_Read):
     """The actor has read a report.
     This corresponds to the Vultron Message Type RK when no case exists.
     as_object: VulnerabilityReport
@@ -61,7 +61,7 @@ class RmReadReport(as_Read):
     as_object: VulnerabilityReportRef = Field(default=None, alias="object")
 
 
-class RmValidateReport(as_Accept):
+class RmValidateReportActivity(as_Accept):
     """The actor has validated a report.
     Corresponds to the Vultron Message Type RV when no case exists.
     This should be followed by a Create(VulnerabilityCase) activity.
@@ -71,21 +71,21 @@ class RmValidateReport(as_Accept):
     as_object: OfferRef = Field(default=None, alias="object")
 
 
-class RmInvalidateReport(as_TentativeReject):
+class RmInvalidateReportActivity(as_TentativeReject):
     """The actor has invalidated a report.
     Corresponds to the Vultron Message Type RI when no case exists.
-    See also RmRejectInviteToCase for the scenario when a case already exists.
+    See also RmRejectInviteToCaseActivity for the scenario when a case already exists.
     as_object: an as_Offer wrapping a VulnerabilityReport
     """
 
     as_object: OfferRef = Field(default=None, alias="object")
 
 
-class RmCloseReport(as_Reject):
+class RmCloseReportActivity(as_Reject):
     """The actor is closing the report.
     This corresponds to the Vultron Message Type RC when no case exists.
     It can only be emitted when the report is in the RM.INVALID state, because anything past that will
-    have an associated VulnerabilityCase object, and closure of the case falls to the RmCloseCase activity.
+    have an associated VulnerabilityCase object, and closure of the case falls to the RmCloseCaseActivity activity.
     as_object: an as_Offer wrapping a VulnerabilityReport
     """
 

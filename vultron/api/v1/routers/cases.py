@@ -19,24 +19,24 @@ Vultron API Case Routers
 from fastapi import APIRouter
 
 from vultron.wire.as2.vocab.activities.actor import (
-    RecommendActor,
-    AcceptActorRecommendation,
-    RejectActorRecommendation,
+    RecommendActorActivity,
+    AcceptActorRecommendationActivity,
+    RejectActorRecommendationActivity,
 )
 from vultron.wire.as2.vocab.activities.case import (
-    CreateCase,
-    AddReportToCase,
-    RmEngageCase,
-    RmCloseCase,
-    RmDeferCase,
-    AddNoteToCase,
-    UpdateCase,
-    RmAcceptInviteToCase,
-    RmRejectInviteToCase,
-    CreateCaseStatus,
-    AcceptCaseOwnershipTransfer,
-    RejectCaseOwnershipTransfer,
-    AddStatusToCase,
+    CreateCaseActivity,
+    AddReportToCaseActivity,
+    RmEngageCaseActivity,
+    RmCloseCaseActivity,
+    RmDeferCaseActivity,
+    AddNoteToCaseActivity,
+    UpdateCaseActivity,
+    RmAcceptInviteToCaseActivity,
+    RmRejectInviteToCaseActivity,
+    CreateCaseStatusActivity,
+    AcceptCaseOwnershipTransferActivity,
+    RejectCaseOwnershipTransferActivity,
+    AddStatusToCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Undo,
@@ -70,12 +70,12 @@ async def get_cases() -> list[VulnerabilityCase]:
 
 @router.post(
     "/",
-    response_model=CreateCase,
+    response_model=CreateCaseActivity,
     response_model_exclude_none=True,
     description="Create a new Vulnerability Case object. (This is a stub implementation.)",
     tags=["Cases"],
 )
-async def create_case(case: VulnerabilityCase) -> CreateCase:
+async def create_case(case: VulnerabilityCase) -> CreateCaseActivity:
     """Creates a VulnerabilityCase object."""
     return vocab_examples.create_case()
 
@@ -85,12 +85,14 @@ async def create_case(case: VulnerabilityCase) -> CreateCase:
 
 @case_router.put(
     "/",
-    response_model=UpdateCase,
+    response_model=UpdateCaseActivity,
     response_model_exclude_none=True,
     description="Update a Vulnerability Case. (This is a stub implementation.)",
     tags=["Cases"],
 )
-async def update_case(case_id: str, case: VulnerabilityCase) -> UpdateCase:
+async def update_case(
+    case_id: str, case: VulnerabilityCase
+) -> UpdateCaseActivity:
     """Update a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.update_case()
 
@@ -98,26 +100,26 @@ async def update_case(case_id: str, case: VulnerabilityCase) -> UpdateCase:
 # TODO move to reports router?
 @case_router.post(
     "/reports",
-    response_model=AddReportToCase,
+    response_model=AddReportToCaseActivity,
     response_model_exclude_none=True,
     description="Add a new report to an existing Vulnerability Case. (This is a stub implementation.)",
     tags=["Cases", "Reports"],
 )
 async def post_report_to_case(
     case_id: str, report: VulnerabilityReport
-) -> AddReportToCase:
+) -> AddReportToCaseActivity:
     """Adds a new report to an existing VulnerabilityCase object."""
     return vocab_examples.add_report_to_case()
 
 
 @case_router.post(
     "/engage",
-    response_model=RmEngageCase,
+    response_model=RmEngageCaseActivity,
     response_model_exclude_none=True,
     description="Engage a Vulnerability Case by ID. (This is a stub implementation.)",
     tags=["Cases"],
 )
-async def engage_case_by_id(case_id: str) -> RmEngageCase:
+async def engage_case_by_id(case_id: str) -> RmEngageCaseActivity:
     """Engage a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and engage the case from a database.
     return vocab_examples.engage_case()
@@ -125,12 +127,12 @@ async def engage_case_by_id(case_id: str) -> RmEngageCase:
 
 @case_router.post(
     "/close",
-    response_model=RmCloseCase,
+    response_model=RmCloseCaseActivity,
     response_model_exclude_none=True,
     description="Close a Vulnerability Case by ID. (This is a stub implementation.)",
     tags=["Cases"],
 )
-async def close_case_by_id(case_id: str) -> RmCloseCase:
+async def close_case_by_id(case_id: str) -> RmCloseCaseActivity:
     """Close a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and close the case from a database.
     return vocab_examples.close_case()
@@ -138,12 +140,12 @@ async def close_case_by_id(case_id: str) -> RmCloseCase:
 
 @case_router.post(
     "/defer",
-    response_model=RmDeferCase,
+    response_model=RmDeferCaseActivity,
     response_model_exclude_none=True,
     description="Defer a Vulnerability Case by ID. (This is a stub implementation.)",
     tags=["Cases"],
 )
-async def defer_case_by_id(case_id: str) -> RmDeferCase:
+async def defer_case_by_id(case_id: str) -> RmDeferCaseActivity:
     """Defer a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and defer the case from a database.
     return vocab_examples.defer_case()
@@ -164,12 +166,14 @@ async def reengage_case_by_id(case_id: str) -> as_Undo:
 
 @case_router.post(
     "/reports/{report_id}",
-    response_model=AddReportToCase,
+    response_model=AddReportToCaseActivity,
     response_model_exclude_none=True,
     description="Associate an existing report to an existing Vulnerability Case. (This is a stub implementation.)",
     tags=["Cases", "Reports"],
 )
-async def add_report_to_case(case_id: str, report_id: str) -> AddReportToCase:
+async def add_report_to_case(
+    case_id: str, report_id: str
+) -> AddReportToCaseActivity:
     """Adds a report to an existing VulnerabilityCase object."""
     return vocab_examples.add_report_to_case()
 
@@ -188,14 +192,14 @@ async def add_note_to_case(case_id: str):
 
 @router.post(
     "/{case_id}/notes/{note_id}",
-    response_model=AddNoteToCase,
+    response_model=AddNoteToCaseActivity,
     response_model_exclude_none=True,
     description="Associate an existing note to a case. (This is a stub implementation.)",
     tags=["Cases", "Notes"],
 )
 async def add_existing_note_to_case(
     case_id: str, note_id: str
-) -> AddNoteToCase:
+) -> AddNoteToCaseActivity:
     """Stub for associating an existing note to a case."""
     return vocab_examples.add_note_to_case()
 
@@ -205,42 +209,42 @@ async def add_existing_note_to_case(
 
 @router.post(
     "/{case_id}/recommendations",
-    response_model=RecommendActor,
+    response_model=RecommendActorActivity,
     response_model_exclude_none=True,
     description="Recommend an Actor for a Vulnerability Case. (This is a stub implementation.)",
     tags=["Cases", "Actors", "Recommend Actors"],
 )
 async def recommend_actor_for_case(
     case_id: str, actor_id: str
-) -> RecommendActor:
+) -> RecommendActorActivity:
     """Recommend an Actor for a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.recommend_actor()
 
 
 @router.post(
     "/{case_id}/recommendations/{recommendation_id}/accept",
-    response_model=AcceptActorRecommendation,
+    response_model=AcceptActorRecommendationActivity,
     response_model_exclude_none=True,
     description="Accept an Actor recommendation for a Vulnerability Case. (This is a stub implementation.)",
     tags=["Recommend Actors"],
 )
 async def accept_actor_recommendation_for_case(
     case_id: str, recommendation_id: str
-) -> AcceptActorRecommendation:
+) -> AcceptActorRecommendationActivity:
     """Accept an Actor recommendation for a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.accept_actor_recommendation()
 
 
 @router.post(
     "/{case_id}/recommendations/{recommendation_id}/reject",
-    response_model=RejectActorRecommendation,
+    response_model=RejectActorRecommendationActivity,
     response_model_exclude_none=True,
     description="Reject an Actor recommendation for a Vulnerability Case. (This is a stub implementation.)",
     tags=["Recommend Actors"],
 )
 async def reject_actor_recommendation_for_case(
     case_id: str, recommendation_id: str
-) -> RejectActorRecommendation:
+) -> RejectActorRecommendationActivity:
     """Reject an Actor recommendation for a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.reject_actor_recommendation()
 
@@ -248,7 +252,7 @@ async def reject_actor_recommendation_for_case(
 # Offer methods
 @router.post(
     "/{case_id}/offers/{offer_id}/accept",
-    response_model=AcceptCaseOwnershipTransfer,
+    response_model=AcceptCaseOwnershipTransferActivity,
     response_model_exclude_none=True,
     summary="Accept Case Offer",
     description="Accepts a case offer by an actor.",
@@ -256,7 +260,9 @@ async def reject_actor_recommendation_for_case(
         "Case Ownership Transfers",
     ],
 )
-def accept_case_offer(id: str, offer_id: str) -> AcceptCaseOwnershipTransfer:
+def accept_case_offer(
+    id: str, offer_id: str
+) -> AcceptCaseOwnershipTransferActivity:
     """Accepts a case offer by an actor."""
     return vocab_examples.accept_case_ownership_transfer()
 
@@ -264,7 +270,7 @@ def accept_case_offer(id: str, offer_id: str) -> AcceptCaseOwnershipTransfer:
 # reject a case offer by an actor
 @router.post(
     "/{case_id}/offers/{offer_id}/reject",
-    response_model=RejectCaseOwnershipTransfer,
+    response_model=RejectCaseOwnershipTransferActivity,
     response_model_exclude_none=True,
     summary="Reject Case Offer",
     description="Rejects a case offer by an actor.",
@@ -272,7 +278,9 @@ def accept_case_offer(id: str, offer_id: str) -> AcceptCaseOwnershipTransfer:
         "Case Ownership Transfers",
     ],
 )
-def reject_case_offer(id: str, offer_id: str) -> RejectCaseOwnershipTransfer:
+def reject_case_offer(
+    id: str, offer_id: str
+) -> RejectCaseOwnershipTransferActivity:
     """Rejects a case offer by an actor."""
     return vocab_examples.reject_case_ownership_transfer()
 
@@ -282,7 +290,7 @@ def reject_case_offer(id: str, offer_id: str) -> RejectCaseOwnershipTransfer:
 
 @router.post(
     "/{case_id}/invitations/{invitation_id}/accept",
-    response_model=RmAcceptInviteToCase,
+    response_model=RmAcceptInviteToCaseActivity,
     response_model_exclude_none=True,
     description="Accept an invitation to a Vulnerability Case. (This is a stub implementation.)",
     summary="Accept Invitation to Case",
@@ -290,14 +298,14 @@ def reject_case_offer(id: str, offer_id: str) -> RejectCaseOwnershipTransfer:
 )
 async def accept_invitation_to_case(
     case_id: str, invitation_id: str
-) -> RmAcceptInviteToCase:
+) -> RmAcceptInviteToCaseActivity:
     """Accept an invitation to a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.accept_invite_to_case()
 
 
 @router.post(
     "/{case_id}/invitations/{invitation_id}/reject",
-    response_model=RmRejectInviteToCase,
+    response_model=RmRejectInviteToCaseActivity,
     response_model_exclude_none=True,
     description="Reject an invitation to a Vulnerability Case. (This is a stub implementation.)",
     summary="Reject Invitation to Case",
@@ -305,7 +313,7 @@ async def accept_invitation_to_case(
 )
 async def reject_invitation_to_case(
     case_id: str, invitation_id: str
-) -> RmRejectInviteToCase:
+) -> RmRejectInviteToCaseActivity:
     """Reject an invitation to a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.reject_invite_to_case()
 
@@ -329,25 +337,27 @@ async def get_case_statuses(case_id: str) -> list[CaseStatus]:
 
 @router.post(
     "/{case_id}/statuses",
-    response_model=CreateCaseStatus,
+    response_model=CreateCaseStatusActivity,
     response_model_exclude_none=True,
     description="Create a new Case Status for a Vulnerability Case. (This is a stub implementation.)",
     tags=["Statuses"],
 )
 async def create_case_status(
     case_id: str, status: CaseStatus
-) -> CreateCaseStatus:
+) -> CreateCaseStatusActivity:
     """Creates a new CaseStatus for a VulnerabilityCase."""
     return vocab_examples.create_case_status()
 
 
 @router.post(
     "/{case_id}/statuses/{status_id}",
-    response_model=AddStatusToCase,
+    response_model=AddStatusToCaseActivity,
     response_model_exclude_none=True,
     description="Add an existing status to a Vulnerability Case. (This is a stub implementation)",
     tags=["Statuses"],
 )
-async def add_status_to_case(case_id: str, status_id: str) -> AddStatusToCase:
+async def add_status_to_case(
+    case_id: str, status_id: str
+) -> AddStatusToCaseActivity:
     """Adds an existing status to a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.add_status_to_case()

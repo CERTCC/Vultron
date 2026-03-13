@@ -20,10 +20,10 @@ import random
 from fastapi import APIRouter
 
 from vultron.wire.as2.vocab.activities.case_participant import (
-    RemoveParticipantFromCase,
-    AddStatusToParticipant,
-    CreateParticipant,
-    AddParticipantToCase,
+    RemoveParticipantFromCaseActivity,
+    AddStatusToParticipantActivity,
+    CreateParticipantActivity,
+    AddParticipantToCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
@@ -43,28 +43,28 @@ cp_router = APIRouter(
 
 @cp_router.post(
     "/",
-    response_model=CreateParticipant,
+    response_model=CreateParticipantActivity,
     response_model_exclude_none=True,
     description="Add a new participant to an existing Vulnerability Case. (This is a stub implementation.)",
     tags=["Cases", "Participants"],
 )
 async def add_actor_to_case_as_participant(
     case_id: str, actor: as_Actor, case_roles: list[CVDRoles]
-) -> CreateParticipant:
+) -> CreateParticipantActivity:
     """Adds a participant to an existing VulnerabilityCase object."""
     return vocab_examples.create_participant()
 
 
 @cp_router.post(
     "/{participant_id}",
-    response_model=AddParticipantToCase,
+    response_model=AddParticipantToCaseActivity,
     response_model_exclude_none=True,
     description="Associate an actor to an existing Vulnerability Case as a participant. (This is a stub implementation.)",
     tags=["Cases", "Participants", "Actors"],
 )
 async def add_existing_participant_to_case(
     case_id: str, participant_id: str
-) -> AddParticipantToCase:
+) -> AddParticipantToCaseActivity:
     """Adds a participant to an existing VulnerabilityCase object."""
     options = [
         add_vendor_participant_to_case,
@@ -77,14 +77,14 @@ async def add_existing_participant_to_case(
 
 @cp_router.delete(
     "/{participant_id}",
-    response_model=RemoveParticipantFromCase,
+    response_model=RemoveParticipantFromCaseActivity,
     response_model_exclude_none=True,
     description="Remove a participant from a Vulnerability Case. (This is a stub implementation.)",
     tags=["Cases", "Participants"],
 )
 async def remove_participant_from_case(
     case_id: str, participant_id: str
-) -> RemoveParticipantFromCase:
+) -> RemoveParticipantFromCaseActivity:
     """Removes a participant from a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.remove_participant_from_case()
 
@@ -107,13 +107,13 @@ async def get_participant_statuses(
 
 @cp_router.post(
     path="/{participant_id}/statuses",
-    response_model=AddStatusToParticipant,
+    response_model=AddStatusToParticipantActivity,
     response_model_exclude_none=True,
     description="Add a new status to a participant in a Vulnerability Case. (This is a stub implementation.)",
     tags=["Statuses", "Participants"],
 )
 async def add_status_to_participant(
     case_id: str, participant_id: str, status: ParticipantStatus
-) -> AddStatusToParticipant:
+) -> AddStatusToParticipantActivity:
     """Adds a new status to a participant in a VulnerabilityCase."""
     return vocab_examples.add_status_to_participant()

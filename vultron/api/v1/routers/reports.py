@@ -18,12 +18,12 @@ Vultron API Report Routers
 from fastapi import APIRouter
 
 from vultron.wire.as2.vocab.activities.report import (
-    RmCloseReport,
-    RmInvalidateReport,
-    RmValidateReport,
-    RmReadReport,
-    RmSubmitReport,
-    RmCreateReport,
+    RmCloseReportActivity,
+    RmInvalidateReportActivity,
+    RmValidateReportActivity,
+    RmReadReportActivity,
+    RmSubmitReportActivity,
+    RmCreateReportActivity,
 )
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -48,7 +48,7 @@ def get_reports() -> list[VulnerabilityReport]:
     "/",
     description="Create a new Vulnerability Report object. (This is a stub implementation.)",
 )
-def create_report(report: VulnerabilityReport) -> RmCreateReport:
+def create_report(report: VulnerabilityReport) -> RmCreateReportActivity:
     """Creates a VulnerabilityReport object."""
     return vocab_examples.create_report()
 
@@ -57,11 +57,11 @@ def create_report(report: VulnerabilityReport) -> RmCreateReport:
 # Answer: No, because this represents an Offer(Report) activity vs a Create(Report) activity
 @router.post(
     "/submit",
-    response_model=RmSubmitReport,
+    response_model=RmSubmitReportActivity,
     response_model_exclude_none=True,
     description="Submit a Vulnerability Report. (This is a stub implementation.)",
 )
-async def submit_report(report: VulnerabilityReport) -> RmSubmitReport:
+async def submit_report(report: VulnerabilityReport) -> RmSubmitReportActivity:
     """Submit a new VulnerabilityCase object."""
     # In a real implementation, you would save the case to a database or perform other actions.
     return vocab_examples.submit_report()
@@ -69,11 +69,11 @@ async def submit_report(report: VulnerabilityReport) -> RmSubmitReport:
 
 @router.put(
     "/{report_id}/read",
-    response_model=RmReadReport,
+    response_model=RmReadReportActivity,
     response_model_exclude_none=True,
     description="Acknowledge a report has been read. (This is a stub implementation.)",
 )
-async def read_case(id: str) -> RmReadReport:
+async def read_case(id: str) -> RmReadReportActivity:
     """Read a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve the case from a database.
     return vocab_examples.read_report()
@@ -81,11 +81,11 @@ async def read_case(id: str) -> RmReadReport:
 
 @router.put(
     "/{report_id}/valid",
-    response_model=RmValidateReport,
+    response_model=RmValidateReportActivity,
     response_model_exclude_none=True,
     description="Validate a Vulnerability Case by ID. (This is a stub implementation.)",
 )
-async def validate_case_by_id(id: str) -> RmValidateReport:
+async def validate_case_by_id(id: str) -> RmValidateReportActivity:
     """Validate a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and validate the case from a database.
     return vocab_examples.validate_report(verbose=True)
@@ -93,11 +93,11 @@ async def validate_case_by_id(id: str) -> RmValidateReport:
 
 @router.put(
     "/{report_id}/invalid",
-    response_model=RmInvalidateReport,
+    response_model=RmInvalidateReportActivity,
     response_model_exclude_none=True,
     description="Invalidate a Vulnerability Case by ID. (This is a stub implementation.)",
 )
-async def invalidate_case_by_id(id: str) -> RmInvalidateReport:
+async def invalidate_case_by_id(id: str) -> RmInvalidateReportActivity:
     """Invalidate a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and invalidate the case from a database.
     return vocab_examples.invalidate_report(verbose=True)
@@ -105,11 +105,11 @@ async def invalidate_case_by_id(id: str) -> RmInvalidateReport:
 
 @router.put(
     "/{report_id}/close",
-    response_model=RmCloseReport,
+    response_model=RmCloseReportActivity,
     response_model_exclude_none=True,
     description="Close a Vulnerability Case by ID. (This is a stub implementation.)",
 )
-async def close_case_by_id(id: str) -> RmCloseReport:
+async def close_case_by_id(id: str) -> RmCloseReportActivity:
     """Close a VulnerabilityCase by ID. (This is a stub implementation.)"""
     # In a real implementation, you would retrieve and close the case from a database.
     return vocab_examples.close_report(verbose=True)

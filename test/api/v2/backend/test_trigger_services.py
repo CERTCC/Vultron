@@ -43,7 +43,7 @@ from vultron.api.v2.backend.trigger_services.report import (
 from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.api.v2.data.status import ReportStatus, set_status
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargo
+from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -168,7 +168,7 @@ def case_with_proposal(dl, actor):
     case_obj = VulnerabilityCase(name="PROPOSAL-CASE-001")
     embargo = EmbargoEvent(context=case_obj.as_id)
     dl.create(embargo)
-    proposal = EmProposeEmbargo(
+    proposal = EmProposeEmbargoActivity(
         actor=actor.as_id,
         object=embargo.as_id,
         context=case_obj.as_id,

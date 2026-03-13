@@ -106,3 +106,13 @@ continuing to add individual features to the core models as we encounter
 them. This should be captured as a technical debt item to be resolved as 
 soon as possible as it will head off a lot of future code-level challenges.
 
+## Important notes after P75-2 and bfore P75-3
+
+`vultron/api/v2/backend/handlers` is no longer serving much of a purpose. 
+The expectation here is that `vultron.api.v2.backend.inbox_handler.
+inbox_handler()` would lookup the use case function to call in the 
+dispatcher and call use case objects directly. Right now 
+So for example,
+on 
+receipt of an `AddNoteToCaseActivity`, the inbox handler would know to 
+create an `AddNoteToCaseReceivedEvent`

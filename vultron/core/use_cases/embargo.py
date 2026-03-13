@@ -164,7 +164,7 @@ def invite_to_embargo_on_case(
         existing = dl.get(event.activity_type, event.activity_id)
         if existing is not None:
             logger.info(
-                "EmProposeEmbargo '%s' already stored — skipping (idempotent)",
+                "EmProposeEmbargoActivity '%s' already stored — skipping (idempotent)",
                 event.activity_id,
             )
             return

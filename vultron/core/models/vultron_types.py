@@ -16,7 +16,7 @@
 """Domain Pydantic types used by core/behaviors/ BT nodes.
 
 These types replace direct AS2 wire imports (VulnerabilityCase, CaseActor,
-VendorParticipant, CreateCase, ParticipantStatus, VulnerabilityReport) in
+VendorParticipant, CreateCaseActivity, ParticipantStatus, VulnerabilityReport) in
 the core behavior-tree layer.
 
 Each type carries:

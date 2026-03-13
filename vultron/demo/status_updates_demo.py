@@ -42,20 +42,20 @@ import sys
 from typing import Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.activities.case import (
-    AddNoteToCase,
-    AddReportToCase,
-    AddStatusToCase,
-    CreateCase,
-    CreateCaseStatus,
+    AddNoteToCaseActivity,
+    AddReportToCaseActivity,
+    AddStatusToCaseActivity,
+    CreateCaseActivity,
+    CreateCaseStatusActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCase,
-    AddStatusToParticipant,
-    CreateStatusForParticipant,
+    AddParticipantToCaseActivity,
+    AddStatusToParticipantActivity,
+    CreateStatusForParticipantActivity,
 )
 from vultron.wire.as2.vocab.activities.report import (
-    RmSubmitReport,
-    RmValidateReport,
+    RmSubmitReportActivity,
+    RmValidateReportActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -117,7 +117,7 @@ def _setup_initialized_case(
         content="A heap buffer overflow in the image parsing library.",
         name="Heap Buffer Overflow in Image Parser",
     )
-    report_offer = RmSubmitReport(
+    report_offer = RmSubmitReportActivity(
         actor=finder.as_id,
         as_object=report,
         to=[vendor.as_id],
@@ -126,7 +126,7 @@ def _setup_initialized_case(
     verify_object_stored(client, report.as_id)
 
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
-    validate_activity = RmValidateReport(
+    validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
         object=offer.as_id,
         content="Confirmed — heap buffer overflow via malformed image input.",
@@ -138,14 +138,14 @@ def _setup_initialized_case(
         name="Heap Overflow Case — Image Parser",
         content="Tracking the heap buffer overflow in the image parsing library.",
     )
-    create_case_activity = CreateCase(
+    create_case_activity = CreateCaseActivity(
         actor=vendor.as_id,
         as_object=case,
     )
     post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
     verify_object_stored(client, case.as_id)
 
-    add_report_activity = AddReportToCase(
+    add_report_activity = AddReportToCaseActivity(
         actor=vendor.as_id,
         as_object=report.as_id,
         target=case.as_id,
@@ -164,7 +164,7 @@ def _setup_initialized_case(
     post_to_inbox_and_wait(client, vendor.as_id, create_participant_activity)
     verify_object_stored(client, participant.as_id)
 
-    add_participant_activity = AddParticipantToCase(
+    add_participant_activity = AddParticipantToCaseActivity(
         actor=vendor.as_id,
         as_object=participant.as_id,
         target=case.as_id,
@@ -215,7 +215,7 @@ def demo_notes_workflow(
             verify_object_stored(client, note.as_id)
 
     with demo_step("Step 2: Vendor adds note to case"):
-        add_note_activity = AddNoteToCase(
+        add_note_activity = AddNoteToCaseActivity(
             actor=vendor.as_id,
             object=note,
             target=case.as_id,
@@ -223,7 +223,7 @@ def demo_notes_workflow(
         post_to_inbox_and_wait(client, vendor.as_id, add_note_activity)
         with demo_check("Note present in case"):
             updated_case = log_case_state(
-                client, case.as_id, "after AddNoteToCase"
+                client, case.as_id, "after AddNoteToCaseActivity"
             )
             if updated_case:
                 note_ids = [
@@ -232,7 +232,7 @@ def demo_notes_workflow(
                 ]
                 if note.as_id not in note_ids:
                     raise ValueError(
-                        f"Note '{note.as_id}' not found in case after AddNoteToCase"
+                        f"Note '{note.as_id}' not found in case after AddNoteToCaseActivity"
                     )
 
     with demo_step("Step 3: Vendor removes note from case"):
@@ -285,7 +285,7 @@ def demo_status_workflow(
             em_state=EM.NO_EMBARGO,
             pxa_state=CS_pxa.pxa,
         )
-        create_status_activity = CreateCaseStatus(
+        create_status_activity = CreateCaseStatusActivity(
             actor=vendor.as_id,
             object=case_status,
             context=case.as_id,
@@ -295,7 +295,7 @@ def demo_status_workflow(
             verify_object_stored(client, case_status.as_id)
 
     with demo_step("Step 2: Vendor adds CaseStatus to case"):
-        add_status_activity = AddStatusToCase(
+        add_status_activity = AddStatusToCaseActivity(
             actor=vendor.as_id,
             object=case_status,
             target=case.as_id,
@@ -303,7 +303,7 @@ def demo_status_workflow(
         post_to_inbox_and_wait(client, vendor.as_id, add_status_activity)
         with demo_check("CaseStatus present in case"):
             updated_case = log_case_state(
-                client, case.as_id, "after AddStatusToCase"
+                client, case.as_id, "after AddStatusToCaseActivity"
             )
             if updated_case:
                 status_ids = [
@@ -313,7 +313,7 @@ def demo_status_workflow(
                 if case_status.as_id not in status_ids:
                     raise ValueError(
                         f"CaseStatus '{case_status.as_id}' not found in case "
-                        "after AddStatusToCase"
+                        "after AddStatusToCaseActivity"
                     )
 
     with demo_step("Step 3: Vendor creates ParticipantStatus"):
@@ -324,7 +324,7 @@ def demo_status_workflow(
             attributed_to=finder.as_id,
             case_status=case_status,
         )
-        create_pstatus_activity = CreateStatusForParticipant(
+        create_pstatus_activity = CreateStatusForParticipantActivity(
             actor=vendor.as_id,
             object=participant_status,
         )
@@ -333,7 +333,7 @@ def demo_status_workflow(
             verify_object_stored(client, participant_status.as_id)
 
     with demo_step("Step 4: Vendor adds ParticipantStatus to participant"):
-        add_pstatus_activity = AddStatusToParticipant(
+        add_pstatus_activity = AddStatusToParticipantActivity(
             actor=vendor.as_id,
             object=participant_status,
             target=participant.as_id,

@@ -19,8 +19,8 @@ Vultron API Routers
 from fastapi import APIRouter
 
 from vultron.wire.as2.vocab.activities.case import (
-    OfferCaseOwnershipTransfer,
-    RmInviteToCase,
+    OfferCaseOwnershipTransferActivity,
+    RmInviteToCaseActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
@@ -45,7 +45,7 @@ def get_actors() -> as_Actor:
 
 @router.post(
     "/{actor_id}/cases/offers",
-    response_model=OfferCaseOwnershipTransfer,
+    response_model=OfferCaseOwnershipTransferActivity,
     response_model_exclude_none=True,
     summary="Offer Case to Actor",
     description="Offers a Vulnerability Case to an Actor.",
@@ -53,19 +53,21 @@ def get_actors() -> as_Actor:
 )
 def offer_case_to_actor(
     id: str, case: VulnerabilityCase
-) -> OfferCaseOwnershipTransfer:
+) -> OfferCaseOwnershipTransferActivity:
     """Offers a Vulnerability Case to an Actor."""
     return vocab_examples.offer_case_ownership_transfer()
 
 
 @router.post(
     "/{actor_id}/cases/invitations",
-    response_model=RmInviteToCase,
+    response_model=RmInviteToCaseActivity,
     response_model_exclude_none=True,
     summary="Invite Actor to Case",
     description="Invites an Actor to a Vulnerability Case.",
     tags=["Invite Actor to Case", "Cases"],
 )
-def invite_actor_to_case(id: str, case: VulnerabilityCase) -> RmInviteToCase:
+def invite_actor_to_case(
+    id: str, case: VulnerabilityCase
+) -> RmInviteToCaseActivity:
     """Invites an Actor to a Vulnerability Case."""
     return vocab_examples.invite_to_case()

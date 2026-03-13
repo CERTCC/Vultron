@@ -50,18 +50,18 @@ from typing import Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.wire.as2.vocab.activities.case import (
-    AcceptCaseOwnershipTransfer,
-    AddReportToCase,
-    CreateCase,
-    OfferCaseOwnershipTransfer,
-    RejectCaseOwnershipTransfer,
+    AcceptCaseOwnershipTransferActivity,
+    AddReportToCaseActivity,
+    CreateCaseActivity,
+    OfferCaseOwnershipTransferActivity,
+    RejectCaseOwnershipTransferActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCase,
+    AddParticipantToCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.report import (
-    RmSubmitReport,
-    RmValidateReport,
+    RmSubmitReportActivity,
+    RmValidateReportActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -104,7 +104,7 @@ def _setup_initialized_case(
         content="A remote code execution vulnerability in the web framework.",
         name="Remote Code Execution Vulnerability",
     )
-    report_offer = RmSubmitReport(
+    report_offer = RmSubmitReportActivity(
         actor=finder.as_id,
         as_object=report,
         to=[vendor.as_id],
@@ -113,7 +113,7 @@ def _setup_initialized_case(
     verify_object_stored(client, report.as_id)
 
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
-    validate_activity = RmValidateReport(
+    validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
         object=offer.as_id,
         content="Confirmed — remote code execution via unsanitized input.",
@@ -125,14 +125,14 @@ def _setup_initialized_case(
         name="RCE Case — Web Framework",
         content="Tracking the RCE vulnerability in the web framework.",
     )
-    create_case_activity = CreateCase(
+    create_case_activity = CreateCaseActivity(
         actor=vendor.as_id,
         as_object=case,
     )
     post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
     verify_object_stored(client, case.as_id)
 
-    add_report_activity = AddReportToCase(
+    add_report_activity = AddReportToCaseActivity(
         actor=vendor.as_id,
         as_object=report.as_id,
         target=case.as_id,
@@ -151,7 +151,7 @@ def _setup_initialized_case(
     post_to_inbox_and_wait(client, vendor.as_id, create_participant_activity)
     verify_object_stored(client, participant.as_id)
 
-    add_participant_activity = AddParticipantToCase(
+    add_participant_activity = AddParticipantToCaseActivity(
         actor=vendor.as_id,
         as_object=participant.as_id,
         target=case.as_id,
@@ -176,8 +176,8 @@ def demo_transfer_ownership_accept(
     1. Setup: initialize case (report submitted + validated, case created,
        finder participant added)
     2. Vendor offers case ownership to coordinator
-       (OfferCaseOwnershipTransfer → coordinator inbox)
-    3. Coordinator accepts (AcceptCaseOwnershipTransfer → vendor inbox)
+       (OfferCaseOwnershipTransferActivity → coordinator inbox)
+    3. Coordinator accepts (AcceptCaseOwnershipTransferActivity → vendor inbox)
     4. Verify case.attributed_to is updated to coordinator
 
     This follows the accept branch in
@@ -196,7 +196,7 @@ def demo_transfer_ownership_accept(
     logger.info(f"Initial owner: {initial_case.attributed_to}")
 
     with demo_step("Step 2: Vendor offers case ownership to coordinator"):
-        offer = OfferCaseOwnershipTransfer(
+        offer = OfferCaseOwnershipTransferActivity(
             actor=vendor.as_id,
             as_object=case.as_id,
             to=[coordinator.as_id],
@@ -208,7 +208,7 @@ def demo_transfer_ownership_accept(
             verify_object_stored(client, offer.as_id)
 
     with demo_step("Step 3: Coordinator accepts ownership transfer"):
-        accept = AcceptCaseOwnershipTransfer(
+        accept = AcceptCaseOwnershipTransferActivity(
             actor=coordinator.as_id,
             as_object=offer.as_id,
             to=[vendor.as_id],
@@ -247,8 +247,8 @@ def demo_transfer_ownership_reject(
     1. Setup: initialize case (report submitted + validated, case created,
        finder participant added)
     2. Vendor offers case ownership to coordinator
-       (OfferCaseOwnershipTransfer → coordinator inbox)
-    3. Coordinator rejects (RejectCaseOwnershipTransfer → vendor inbox)
+       (OfferCaseOwnershipTransferActivity → coordinator inbox)
+    3. Coordinator rejects (RejectCaseOwnershipTransferActivity → vendor inbox)
     4. Verify case.attributed_to remains with vendor
 
     This follows the reject branch in
@@ -267,7 +267,7 @@ def demo_transfer_ownership_reject(
     logger.info(f"Initial owner: {original_owner}")
 
     with demo_step("Step 2: Vendor offers case ownership to coordinator"):
-        offer = OfferCaseOwnershipTransfer(
+        offer = OfferCaseOwnershipTransferActivity(
             actor=vendor.as_id,
             as_object=case.as_id,
             to=[coordinator.as_id],
@@ -279,7 +279,7 @@ def demo_transfer_ownership_reject(
             verify_object_stored(client, offer.as_id)
 
     with demo_step("Step 3: Coordinator rejects ownership transfer"):
-        reject = RejectCaseOwnershipTransfer(
+        reject = RejectCaseOwnershipTransferActivity(
             actor=coordinator.as_id,
             as_object=offer.as_id,
             to=[vendor.as_id],

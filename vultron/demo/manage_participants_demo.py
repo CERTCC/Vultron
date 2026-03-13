@@ -44,22 +44,25 @@ import logging
 import sys
 from typing import Optional, Sequence, Tuple
 
-from vultron.wire.as2.vocab.activities.case import AddReportToCase, CreateCase
+from vultron.wire.as2.vocab.activities.case import (
+    AddReportToCaseActivity,
+    CreateCaseActivity,
+)
 from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCase,
-    AddStatusToParticipant,
-    CreateParticipant,
-    CreateStatusForParticipant,
-    RemoveParticipantFromCase,
+    AddParticipantToCaseActivity,
+    AddStatusToParticipantActivity,
+    CreateParticipantActivity,
+    CreateStatusForParticipantActivity,
+    RemoveParticipantFromCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.case import (
-    RmAcceptInviteToCase,
-    RmInviteToCase,
-    RmRejectInviteToCase,
+    RmAcceptInviteToCaseActivity,
+    RmInviteToCaseActivity,
+    RmRejectInviteToCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.report import (
-    RmSubmitReport,
-    RmValidateReport,
+    RmSubmitReportActivity,
+    RmValidateReportActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
@@ -113,7 +116,7 @@ def _setup_case_with_vendor(
         content="A use-after-free vulnerability in the memory allocator.",
         name="Use-After-Free in Memory Allocator",
     )
-    report_offer = RmSubmitReport(
+    report_offer = RmSubmitReportActivity(
         actor=finder.as_id,
         as_object=report,
         to=[vendor.as_id],
@@ -122,7 +125,7 @@ def _setup_case_with_vendor(
     verify_object_stored(client, report.as_id)
 
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
-    validate_activity = RmValidateReport(
+    validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
         object=offer.as_id,
         content="Confirmed — use-after-free via crafted allocation sequence.",
@@ -134,7 +137,7 @@ def _setup_case_with_vendor(
         name="UAF Case — Memory Allocator",
         content="Tracking the use-after-free in the memory allocator.",
     )
-    create_case_activity = CreateCase(
+    create_case_activity = CreateCaseActivity(
         actor=vendor.as_id,
         as_object=case,
     )
@@ -145,21 +148,21 @@ def _setup_case_with_vendor(
         attributed_to=vendor.as_id,
         context=case.as_id,
     )
-    create_vendor_participant = CreateParticipant(
+    create_vendor_participant = CreateParticipantActivity(
         actor=vendor.as_id,
         as_object=vendor_participant,
         context=case.as_id,
     )
     post_to_inbox_and_wait(client, vendor.as_id, create_vendor_participant)
 
-    add_vendor_participant = AddParticipantToCase(
+    add_vendor_participant = AddParticipantToCaseActivity(
         actor=vendor.as_id,
         as_object=vendor_participant.as_id,
         target=case.as_id,
     )
     post_to_inbox_and_wait(client, vendor.as_id, add_vendor_participant)
 
-    add_report_activity = AddReportToCase(
+    add_report_activity = AddReportToCaseActivity(
         actor=vendor.as_id,
         as_object=report.as_id,
         target=case.as_id,
@@ -183,13 +186,13 @@ def demo_manage_participants_accept(
     Steps:
     1. Setup: initialize case (report submitted + validated, case created,
        vendor participant added)
-    2. Vendor invites coordinator to case (RmInviteToCase)
-    3. Coordinator accepts invitation (RmAcceptInviteToCase)
-    4. Vendor creates coordinator participant (CreateParticipant)
-    5. Vendor adds coordinator participant to case (AddParticipantToCase)
-    6. Coordinator creates a ParticipantStatus (CreateStatusForParticipant)
-    7. Coordinator adds the status to their participant (AddStatusToParticipant)
-    8. Vendor removes coordinator participant from case (RemoveParticipantFromCase)
+    2. Vendor invites coordinator to case (RmInviteToCaseActivity)
+    3. Coordinator accepts invitation (RmAcceptInviteToCaseActivity)
+    4. Vendor creates coordinator participant (CreateParticipantActivity)
+    5. Vendor adds coordinator participant to case (AddParticipantToCaseActivity)
+    6. Coordinator creates a ParticipantStatus (CreateStatusForParticipantActivity)
+    7. Coordinator adds the status to their participant (AddStatusToParticipantActivity)
+    8. Vendor removes coordinator participant from case (RemoveParticipantFromCaseActivity)
     9. Verify coordinator no longer in case participant list
 
     This follows the accept branch in
@@ -202,7 +205,7 @@ def demo_manage_participants_accept(
     case = _setup_case_with_vendor(client, finder, vendor)
 
     with demo_step("Step 2: Vendor invites coordinator to case"):
-        invite = RmInviteToCase(
+        invite = RmInviteToCaseActivity(
             actor=vendor.as_id,
             object=coordinator.as_id,
             target=case.as_id,
@@ -213,7 +216,7 @@ def demo_manage_participants_accept(
         post_to_inbox_and_wait(client, coordinator.as_id, invite)
 
     with demo_step("Step 3: Coordinator accepts invitation"):
-        accept = RmAcceptInviteToCase(
+        accept = RmAcceptInviteToCaseActivity(
             actor=coordinator.as_id,
             object=invite.as_id,
             to=[vendor.as_id],
@@ -227,7 +230,7 @@ def demo_manage_participants_accept(
             attributed_to=coordinator.as_id,
             context=case.as_id,
         )
-        create_participant = CreateParticipant(
+        create_participant = CreateParticipantActivity(
             actor=vendor.as_id,
             as_object=coordinator_participant,
             context=case.as_id,
@@ -237,7 +240,7 @@ def demo_manage_participants_accept(
             verify_object_stored(client, coordinator_participant.as_id)
 
     with demo_step("Step 5: Vendor adds coordinator participant to case"):
-        add_participant = AddParticipantToCase(
+        add_participant = AddParticipantToCaseActivity(
             actor=vendor.as_id,
             as_object=coordinator_participant.as_id,
             target=case.as_id,
@@ -245,7 +248,7 @@ def demo_manage_participants_accept(
         post_to_inbox_and_wait(client, vendor.as_id, add_participant)
         with demo_check("Coordinator in case participant list"):
             updated_case = log_case_state(
-                client, case.as_id, "after AddParticipantToCase"
+                client, case.as_id, "after AddParticipantToCaseActivity"
             )
             if updated_case is None:
                 raise ValueError(
@@ -268,7 +271,7 @@ def demo_manage_participants_accept(
             vfd_state=CS_vfd.vfd,
             attributed_to=coordinator.as_id,
         )
-        create_status = CreateStatusForParticipant(
+        create_status = CreateStatusForParticipantActivity(
             actor=coordinator.as_id,
             object=participant_status,
             target=coordinator_participant.as_id,
@@ -280,17 +283,19 @@ def demo_manage_participants_accept(
     with demo_step(
         "Step 7: Coordinator adds ParticipantStatus to their participant"
     ):
-        add_status = AddStatusToParticipant(
+        add_status = AddStatusToParticipantActivity(
             actor=coordinator.as_id,
             object=participant_status,
             target=coordinator_participant.as_id,
         )
         post_to_inbox_and_wait(client, coordinator.as_id, add_status)
         with demo_check("Case state after status update"):
-            log_case_state(client, case.as_id, "after AddStatusToParticipant")
+            log_case_state(
+                client, case.as_id, "after AddStatusToParticipantActivity"
+            )
 
     with demo_step("Step 8: Vendor removes coordinator from case"):
-        remove_participant = RemoveParticipantFromCase(
+        remove_participant = RemoveParticipantFromCaseActivity(
             actor=vendor.as_id,
             as_object=coordinator_participant.as_id,
             target=case.as_id,
@@ -300,7 +305,7 @@ def demo_manage_participants_accept(
     with demo_step("Step 9: Verify coordinator no longer in case"):
         with demo_check("Coordinator absent from case participant list"):
             final_case = log_case_state(
-                client, case.as_id, "after RemoveParticipantFromCase"
+                client, case.as_id, "after RemoveParticipantFromCaseActivity"
             )
             if final_case is None:
                 raise ValueError("Could not retrieve case after remove")
@@ -335,8 +340,8 @@ def demo_manage_participants_reject(
     Steps:
     1. Setup: initialize case (report submitted + validated, case created,
        vendor participant added)
-    2. Vendor invites coordinator to case (RmInviteToCase)
-    3. Coordinator rejects invitation (RmRejectInviteToCase)
+    2. Vendor invites coordinator to case (RmInviteToCaseActivity)
+    3. Coordinator rejects invitation (RmRejectInviteToCaseActivity)
     4. Verify coordinator does NOT appear in case participant list
 
     This follows the reject branch in
@@ -352,7 +357,7 @@ def demo_manage_participants_reject(
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
     with demo_step("Step 2: Vendor invites coordinator to case"):
-        invite = RmInviteToCase(
+        invite = RmInviteToCaseActivity(
             actor=vendor.as_id,
             object=coordinator.as_id,
             target=case.as_id,
@@ -363,7 +368,7 @@ def demo_manage_participants_reject(
         post_to_inbox_and_wait(client, coordinator.as_id, invite)
 
     with demo_step("Step 3: Coordinator rejects invitation"):
-        reject = RmRejectInviteToCase(
+        reject = RmRejectInviteToCaseActivity(
             actor=coordinator.as_id,
             object=invite.as_id,
             to=[vendor.as_id],

@@ -224,10 +224,10 @@ class CreateCaseActorNode(DataLayerAction):
 
 class EmitCreateCaseActivity(DataLayerAction):
     """
-    Generate a CreateCase activity and persist it to the DataLayer.
+    Generate a CreateCaseActivity activity and persist it to the DataLayer.
 
     Reads case_id from the blackboard (set by PersistCase), creates a
-    CreateCase activity, and stores the activity_id in the blackboard for
+    CreateCaseActivity activity, and stores the activity_id in the blackboard for
     UpdateActorOutbox.
     """
 
@@ -262,12 +262,12 @@ class EmitCreateCaseActivity(DataLayerAction):
             try:
                 self.datalayer.create(activity)
                 self.logger.info(
-                    f"{self.name}: Created CreateCase activity"
+                    f"{self.name}: Created CreateCaseActivity activity"
                     f" {activity.as_id}"
                 )
             except ValueError as e:
                 self.logger.warning(
-                    f"{self.name}: CreateCase activity {activity.as_id}"
+                    f"{self.name}: CreateCaseActivity activity {activity.as_id}"
                     f" already exists: {e}"
                 )
 
@@ -280,7 +280,7 @@ class EmitCreateCaseActivity(DataLayerAction):
 
         except Exception as e:
             self.logger.error(
-                f"{self.name}: Error creating CreateCase activity: {e}"
+                f"{self.name}: Error creating CreateCaseActivity activity: {e}"
             )
             return Status.FAILURE
 
@@ -465,7 +465,7 @@ class RecordCaseCreationEvents(DataLayerAction):
 
 class UpdateActorOutbox(DataLayerAction):
     """
-    Append the CreateCase activity to the actor's outbox.
+    Append the CreateCaseActivity activity to the actor's outbox.
 
     Reads activity_id from blackboard (set by EmitCreateCaseActivity) and
     appends it to the actor's outbox.items list.

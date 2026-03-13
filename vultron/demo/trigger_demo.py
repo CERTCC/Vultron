@@ -42,7 +42,7 @@ import logging
 import sys
 from typing import Optional, Sequence, Tuple
 
-from vultron.wire.as2.vocab.activities.report import RmSubmitReport
+from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -85,7 +85,7 @@ def _submit_report(
         name=name,
         content=content,
     )
-    offer = RmSubmitReport(
+    offer = RmSubmitReportActivity(
         actor=finder.as_id,
         as_object=report,
         to=[vendor.as_id],

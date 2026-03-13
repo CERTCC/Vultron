@@ -18,13 +18,13 @@ Vultron API Routers
 from fastapi import APIRouter
 
 from vultron.wire.as2.vocab.activities.embargo import (
-    EmProposeEmbargo,
-    RemoveEmbargoFromCase,
-    AnnounceEmbargo,
-    ActivateEmbargo,
-    AddEmbargoToCase,
-    EmRejectEmbargo,
-    EmAcceptEmbargo,
+    EmProposeEmbargoActivity,
+    RemoveEmbargoFromCaseActivity,
+    AnnounceEmbargoActivity,
+    ActivateEmbargoActivity,
+    AddEmbargoToCaseActivity,
+    EmRejectEmbargoActivity,
+    EmAcceptEmbargoActivity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.examples import vocab_examples
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/cases/{case_id}/embargoes", tags=["Embargoes"])
 
 @router.post(
     "/",
-    response_model=AddEmbargoToCase,
+    response_model=AddEmbargoToCaseActivity,
     response_model_exclude_none=True,
     summary="Add Embargo to Case (Case Owners Only)",
     description="Add an embargo to a Vulnerability Case. (This is a stub implementation)",
@@ -42,14 +42,14 @@ router = APIRouter(prefix="/cases/{case_id}/embargoes", tags=["Embargoes"])
 )
 async def add_embargo_to_case(
     case_id: str, embargo: EmbargoEvent
-) -> AddEmbargoToCase:
+) -> AddEmbargoToCaseActivity:
     """Add an embargo to a VulnerabilityCase. This endpoint is available to case owners only. (This is a stub implementation.)"""
     return vocab_examples.add_embargo_to_case()
 
 
 @router.post(
     "/propose",
-    response_model=EmProposeEmbargo,
+    response_model=EmProposeEmbargoActivity,
     response_model_exclude_none=True,
     summary="Propose Embargo for Case (Any Case Participant)",
     description="Propose an embargo for a Vulnerability Case. (This is a stub implementation)",
@@ -57,7 +57,7 @@ async def add_embargo_to_case(
 )
 async def propose_embargo_for_case(
     case_id: str, embargo: EmbargoEvent
-) -> EmProposeEmbargo:
+) -> EmProposeEmbargoActivity:
     """Propose an embargo for a VulnerabilityCase. This endpoint is available to any case participant. (This is a stub implementation.)"""
     return vocab_examples.propose_embargo()
 
@@ -68,14 +68,14 @@ async def propose_embargo_for_case(
 # accept embargo
 @router.post(
     "/{embargo_id}/accept",
-    response_model=EmAcceptEmbargo,
+    response_model=EmAcceptEmbargoActivity,
     response_model_exclude_none=True,
     description="Accept an embargo for a Vulnerability Case. (This is a stub implementation)",
     tags=["Embargoes"],
 )
 async def accept_embargo_for_case(
     case_id: str, embargo_id: str
-) -> EmAcceptEmbargo:
+) -> EmAcceptEmbargoActivity:
     """Accept an embargo for a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.accept_embargo()
 
@@ -83,14 +83,14 @@ async def accept_embargo_for_case(
 # reject embargo
 @router.post(
     "/{embargo_id}/reject",
-    response_model=EmRejectEmbargo,
+    response_model=EmRejectEmbargoActivity,
     response_model_exclude_none=True,
     description="Reject an embargo for a Vulnerability Case. (This is a stub implementation)",
     tags=["Embargoes"],
 )
 async def reject_embargo_for_case(
     case_id: str, embargo_id: str
-) -> EmRejectEmbargo:
+) -> EmRejectEmbargoActivity:
     """Reject an embargo for a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.reject_embargo()
 
@@ -98,14 +98,14 @@ async def reject_embargo_for_case(
 # activate embargo
 @router.post(
     "/{embargo_id}/activate",
-    response_model=ActivateEmbargo,
+    response_model=ActivateEmbargoActivity,
     response_model_exclude_none=True,
     description="Activate an embargo for a Vulnerability Case. (This is a stub implementation)",
     tags=["Embargoes"],
 )
 async def activate_embargo_for_case(
     case_id: str, embargo_id: str
-) -> ActivateEmbargo:
+) -> ActivateEmbargoActivity:
     """Activate an embargo for a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.activate_embargo()
 
@@ -113,14 +113,14 @@ async def activate_embargo_for_case(
 # announce embargo
 @router.post(
     "/announce",
-    response_model=AnnounceEmbargo,
+    response_model=AnnounceEmbargoActivity,
     response_model_exclude_none=True,
     description="Announce the active embargo for a Vulnerability Case. (This is a stub implementation)",
     tags=["Embargoes"],
 )
 async def announce_embargo_for_case(
     case_id: str, embargo_id: str
-) -> AnnounceEmbargo:
+) -> AnnounceEmbargoActivity:
     """Announce an embargo for a VulnerabilityCase. (This is a stub implementation.)"""
     return vocab_examples.announce_embargo()
 
@@ -128,7 +128,7 @@ async def announce_embargo_for_case(
 # remove embargo from case
 @router.delete(
     "/{embargo_id}",
-    response_model=RemoveEmbargoFromCase,
+    response_model=RemoveEmbargoFromCaseActivity,
     response_model_exclude_none=True,
     summary="Remove Embargo from Case (Case Owners Only)",
     description="Remove an embargo from a Vulnerability Case. (This is a stub implementation)",
@@ -136,6 +136,6 @@ async def announce_embargo_for_case(
 )
 async def remove_embargo_from_case(
     case_id: str, embargo_id: str
-) -> RemoveEmbargoFromCase:
+) -> RemoveEmbargoFromCaseActivity:
     """Remove an embargo from a VulnerabilityCase. This endpoint is available to case owners only. (This is a stub implementation.)"""
     return vocab_examples.remove_embargo()

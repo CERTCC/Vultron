@@ -12,9 +12,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.wire.as2.vocab.activities.actor import (
-    AcceptActorRecommendation,
-    RecommendActor,
-    RejectActorRecommendation,
+    AcceptActorRecommendationActivity,
+    RecommendActorActivity,
+    RejectActorRecommendationActivity,
 )
 from vultron.wire.as2.vocab.examples._base import (
     _CASE,
@@ -27,12 +27,12 @@ from vultron.wire.as2.vocab.examples._base import (
 )
 
 
-def recommend_actor() -> RecommendActor:
+def recommend_actor() -> RecommendActorActivity:
     _case = case()
     _finder = finder()
     _vendor = vendor()
     _coordinator = _COORDINATOR
-    _activity = RecommendActor(
+    _activity = RecommendActorActivity(
         actor=_finder.as_id,
         object=_coordinator.as_id,
         context=_case.as_id,
@@ -43,13 +43,13 @@ def recommend_actor() -> RecommendActor:
     return _activity
 
 
-def accept_actor_recommendation() -> AcceptActorRecommendation:
+def accept_actor_recommendation() -> AcceptActorRecommendationActivity:
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _finder = finder()
     _case = case()
     _recommendation = recommend_actor()
-    _activity = AcceptActorRecommendation(
+    _activity = AcceptActorRecommendationActivity(
         actor=_vendor.as_id,
         object=_recommendation,
         context=_case.as_id,
@@ -61,13 +61,13 @@ def accept_actor_recommendation() -> AcceptActorRecommendation:
     return _activity
 
 
-def reject_actor_recommendation() -> RejectActorRecommendation:
+def reject_actor_recommendation() -> RejectActorRecommendationActivity:
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _finder = finder()
     _case = case()
     _recommendation = recommend_actor()
-    _activity = RejectActorRecommendation(
+    _activity = RejectActorRecommendationActivity(
         actor=_vendor.as_id,
         object=_recommendation,
         context=_case.as_id,

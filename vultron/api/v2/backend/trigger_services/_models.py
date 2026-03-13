@@ -124,7 +124,7 @@ class EvaluateEmbargoRequest(BaseModel):
 
     TB-03-001: Must include case_id to identify the target case.
     TB-03-002: Unknown fields are silently ignored (extra="ignore").
-    Optional proposal_id identifies the specific EmProposeEmbargo to accept;
+    Optional proposal_id identifies the specific EmProposeEmbargoActivity to accept;
     if omitted, the first pending proposal for the case is used.
     """
 

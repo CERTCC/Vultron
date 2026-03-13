@@ -28,7 +28,7 @@ from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.api.v2.routers import trigger_embargo as trigger_embargo_router
-from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargo
+from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
@@ -83,11 +83,11 @@ def case_with_embargo(dl, actor):
 
 @pytest.fixture
 def case_with_proposal(dl, actor):
-    """A VulnerabilityCase with a pending EmProposeEmbargo in EM.PROPOSED state."""
+    """A VulnerabilityCase with a pending EmProposeEmbargoActivity in EM.PROPOSED state."""
     case_obj = VulnerabilityCase(name="PROPOSAL-CASE-001")
     embargo = EmbargoEvent(context=case_obj.as_id)
     dl.create(embargo)
-    proposal = EmProposeEmbargo(
+    proposal = EmProposeEmbargoActivity(
         actor=actor.as_id,
         object=embargo.as_id,
         context=case_obj.as_id,

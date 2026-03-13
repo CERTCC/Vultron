@@ -32,7 +32,7 @@ Structure (Phase 1 - Minimal Match to Procedural Handler):
        └─ ValidationActions (Sequence)
           ├─ TransitionRMtoValid         # Update statuses
           ├─ CreateCaseNode              # Create case object
-          ├─ CreateCaseActivity          # Generate CreateCase activity
+          ├─ CreateCaseActivity          # Generate CreateCaseActivity activity
           └─ UpdateActorOutbox           # Add to outbox
 
 Phase 1 simplifications:

@@ -28,33 +28,38 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 )
 
 
-class RecommendActor(as_Offer):
+class RecommendActorActivity(as_Offer):
     """The actor is recommending another actor to a case."""
 
     as_object: as_ActorRef = Field(default=None, alias="object")
     target: VulnerabilityCaseRef = None
 
 
-class AcceptActorRecommendation(as_Accept):
+class AcceptActorRecommendationActivity(as_Accept):
     """The case owner is accepting a recommendation to add an actor to the case.
 
-    - as_object: the RecommendActor offer being accepted
-    Should be followed by an RmInviteToCase activity targeted at the recommended actor.
+    - as_object: the RecommendActorActivity offer being accepted
+    Should be followed by an RmInviteToCaseActivity activity targeted at the recommended actor.
     """
 
-    as_object: "RecommendActor | str | None" = Field(
+    as_object: "RecommendActorActivity | str | None" = Field(
         default=None, alias="object"
     )
     target: VulnerabilityCaseRef = None
 
 
-class RejectActorRecommendation(as_Reject):
+class RejectActorRecommendationActivity(as_Reject):
     """The case owner is rejecting a recommendation to add an actor to the case.
 
-    - as_object: the RecommendActor offer being rejected
+    - as_object: the RecommendActorActivity offer being rejected
     """
 
-    as_object: "RecommendActor | str | None" = Field(
+    as_object: "RecommendActorActivity | str | None" = Field(
         default=None, alias="object"
     )
     target: VulnerabilityCaseRef = None
+
+
+# NOTE: Old non-suffixed names were removed intentionally. Use the
+# RecommendActorActivity / AcceptActorRecommendationActivity /
+# RejectActorRecommendationActivity class names.

@@ -36,7 +36,9 @@ from vultron.core.models.vultron_types import (
     VultronParticipantStatus,
     VultronReport,
 )
-from vultron.wire.as2.vocab.activities.case import CreateCase as as_CreateCase
+from vultron.wire.as2.vocab.activities.case import (
+    CreateCaseActivity as as_CreateCase,
+)
 from vultron.wire.as2.vocab.objects.case_actor import CaseActor
 from vultron.wire.as2.vocab.objects.case_participant import VendorParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -92,7 +94,7 @@ def domain_participant_to_wire(
 def domain_create_case_activity_to_wire(
     domain: VultronCreateCaseActivity,
 ) -> as_CreateCase:
-    """Convert a ``VultronCreateCaseActivity`` domain object to a ``CreateCase`` wire activity."""
+    """Convert a ``VultronCreateCaseActivity`` domain object to a ``CreateCaseActivity`` wire activity."""
     return as_CreateCase(
         as_id=domain.as_id,
         actor=domain.actor,

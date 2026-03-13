@@ -48,25 +48,25 @@ from datetime import datetime, timedelta
 from typing import Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.activities.case import (
-    AddReportToCase,
-    CreateCase,
-    RmAcceptInviteToCase,
-    RmInviteToCase,
+    AddReportToCaseActivity,
+    CreateCaseActivity,
+    RmAcceptInviteToCaseActivity,
+    RmInviteToCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
-    AddParticipantToCase,
+    AddParticipantToCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.embargo import (
-    ActivateEmbargo,
-    AnnounceEmbargo,
-    EmAcceptEmbargo,
-    EmProposeEmbargo,
-    EmRejectEmbargo,
-    RemoveEmbargoFromCase,
+    ActivateEmbargoActivity,
+    AnnounceEmbargoActivity,
+    EmAcceptEmbargoActivity,
+    EmProposeEmbargoActivity,
+    EmRejectEmbargoActivity,
+    RemoveEmbargoFromCaseActivity,
 )
 from vultron.wire.as2.vocab.activities.report import (
-    RmSubmitReport,
-    RmValidateReport,
+    RmSubmitReportActivity,
+    RmValidateReportActivity,
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -139,7 +139,7 @@ def _setup_two_participant_case(
         content="A heap-overflow vulnerability in the authentication library.",
         name="Heap Overflow in Auth Library",
     )
-    report_offer = RmSubmitReport(
+    report_offer = RmSubmitReportActivity(
         actor=finder.as_id,
         as_object=report,
         to=[vendor.as_id],
@@ -148,7 +148,7 @@ def _setup_two_participant_case(
     verify_object_stored(client, report.as_id)
 
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
-    validate_activity = RmValidateReport(
+    validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
         object=offer.as_id,
         content="Confirmed — heap overflow via malformed auth token.",
@@ -160,14 +160,14 @@ def _setup_two_participant_case(
         name="Heap Overflow — Auth Library",
         content="Tracking the heap-overflow vulnerability in the auth library.",
     )
-    create_case_activity = CreateCase(
+    create_case_activity = CreateCaseActivity(
         actor=vendor.as_id,
         as_object=case,
     )
     post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
     verify_object_stored(client, case.as_id)
 
-    add_report_activity = AddReportToCase(
+    add_report_activity = AddReportToCaseActivity(
         actor=vendor.as_id,
         as_object=report.as_id,
         target=case.as_id,
@@ -186,14 +186,14 @@ def _setup_two_participant_case(
     post_to_inbox_and_wait(client, vendor.as_id, create_participant_activity)
     verify_object_stored(client, participant.as_id)
 
-    add_participant_activity = AddParticipantToCase(
+    add_participant_activity = AddParticipantToCaseActivity(
         actor=vendor.as_id,
         as_object=participant.as_id,
         target=case.as_id,
     )
     post_to_inbox_and_wait(client, vendor.as_id, add_participant_activity)
 
-    invite = RmInviteToCase(
+    invite = RmInviteToCaseActivity(
         actor=vendor.as_id,
         object=coordinator.as_id,
         target=case.as_id,
@@ -202,7 +202,7 @@ def _setup_two_participant_case(
     )
     post_to_inbox_and_wait(client, coordinator.as_id, invite)
 
-    accept = RmAcceptInviteToCase(
+    accept = RmAcceptInviteToCaseActivity(
         actor=coordinator.as_id,
         object=invite.as_id,
         to=[vendor.as_id],
@@ -228,12 +228,12 @@ def demo_activate_then_terminate(
 
     Steps:
     1. Setup: initialize case with two participants (vendor + coordinator)
-    2. Coordinator proposes embargo (EmProposeEmbargo → vendor inbox)
-    3. Vendor accepts embargo (EmAcceptEmbargo → coordinator inbox)
-    4. Vendor activates embargo on case (ActivateEmbargo → vendor inbox)
+    2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
+    3. Vendor accepts embargo (EmAcceptEmbargoActivity → coordinator inbox)
+    4. Vendor activates embargo on case (ActivateEmbargoActivity → vendor inbox)
     5. Vendor announces embargo to participants
     6. Verify case has active embargo
-    7. Vendor terminates (removes) the embargo (RemoveEmbargoFromCase)
+    7. Vendor terminates (removes) the embargo (RemoveEmbargoFromCaseActivity)
     8. Verify case has no active embargo
 
     This follows the activate → terminate branch in
@@ -254,7 +254,7 @@ def demo_activate_then_terminate(
         )
         post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
 
-        proposal = EmProposeEmbargo(
+        proposal = EmProposeEmbargoActivity(
             id=f"{case.as_id}/embargo_proposals/activate-1",
             actor=coordinator.as_id,
             object=embargo,
@@ -266,7 +266,7 @@ def demo_activate_then_terminate(
         post_to_inbox_and_wait(client, vendor.as_id, proposal)
 
     with demo_step("Step 3: Vendor accepts embargo proposal"):
-        accept = EmAcceptEmbargo(
+        accept = EmAcceptEmbargoActivity(
             actor=vendor.as_id,
             object=proposal.as_id,
             context=case.as_id,
@@ -277,7 +277,7 @@ def demo_activate_then_terminate(
         post_to_inbox_and_wait(client, coordinator.as_id, accept)
 
     with demo_step("Step 4: Vendor activates embargo on case"):
-        activate = ActivateEmbargo(
+        activate = ActivateEmbargoActivity(
             actor=vendor.as_id,
             object=embargo.as_id,
             target=case.as_id,
@@ -288,7 +288,7 @@ def demo_activate_then_terminate(
         post_to_inbox_and_wait(client, vendor.as_id, activate)
 
     with demo_step("Step 5: Vendor announces embargo to participants"):
-        announce = AnnounceEmbargo(
+        announce = AnnounceEmbargoActivity(
             actor=vendor.as_id,
             object=embargo.as_id,
             context=case.as_id,
@@ -314,7 +314,7 @@ def demo_activate_then_terminate(
                 )
 
     with demo_step("Step 7: Vendor terminates (removes) the active embargo"):
-        remove = RemoveEmbargoFromCase(
+        remove = RemoveEmbargoFromCaseActivity(
             actor=vendor.as_id,
             object=embargo.as_id,
             origin=case.as_id,
@@ -385,7 +385,7 @@ def demo_reject_then_repropose(
         )
         post_to_inbox_and_wait(client, vendor.as_id, create_embargo_v1)
 
-        proposal_v1 = EmProposeEmbargo(
+        proposal_v1 = EmProposeEmbargoActivity(
             id=f"{case.as_id}/embargo_proposals/reject-1",
             actor=coordinator.as_id,
             object=embargo_v1,
@@ -397,7 +397,7 @@ def demo_reject_then_repropose(
         post_to_inbox_and_wait(client, vendor.as_id, proposal_v1)
 
     with demo_step("Step 3: Vendor rejects first embargo proposal"):
-        reject = EmRejectEmbargo(
+        reject = EmRejectEmbargoActivity(
             actor=vendor.as_id,
             object=proposal_v1.as_id,
             context=case.as_id,
@@ -437,7 +437,7 @@ def demo_reject_then_repropose(
         )
         post_to_inbox_and_wait(client, vendor.as_id, create_embargo_v2)
 
-        proposal_v2 = EmProposeEmbargo(
+        proposal_v2 = EmProposeEmbargoActivity(
             id=f"{case.as_id}/embargo_proposals/reject-2",
             actor=coordinator.as_id,
             object=embargo_v2,
@@ -449,7 +449,7 @@ def demo_reject_then_repropose(
         post_to_inbox_and_wait(client, vendor.as_id, proposal_v2)
 
     with demo_step("Step 6: Vendor accepts revised embargo proposal"):
-        accept_v2 = EmAcceptEmbargo(
+        accept_v2 = EmAcceptEmbargoActivity(
             actor=vendor.as_id,
             object=proposal_v2.as_id,
             context=case.as_id,
@@ -460,7 +460,7 @@ def demo_reject_then_repropose(
         post_to_inbox_and_wait(client, coordinator.as_id, accept_v2)
 
     with demo_step("Step 7: Vendor activates revised embargo"):
-        activate_v2 = ActivateEmbargo(
+        activate_v2 = ActivateEmbargoActivity(
             actor=vendor.as_id,
             object=embargo_v2.as_id,
             target=case.as_id,

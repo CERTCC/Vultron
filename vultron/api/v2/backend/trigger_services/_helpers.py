@@ -178,7 +178,7 @@ def add_activity_to_outbox(
 
 def find_embargo_proposal(case_id: str, dl: DataLayer):
     """
-    Find the first stored EmProposeEmbargo activity for the given case.
+    Find the first stored EmProposeEmbargoActivity activity for the given case.
 
     Scans all Invite-typed objects in the DataLayer and returns the first
     whose context matches case_id and whose object is an EmbargoEvent.

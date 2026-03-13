@@ -16,19 +16,19 @@
 """
 Demonstrates the acknowledgement workflow for vulnerability reports via the Vultron API.
 
-This demo script showcases the RmReadReport (as:Read) acknowledgement mechanism:
+This demo script showcases the RmReadReportActivity (as:Read) acknowledgement mechanism:
 
-1. Acknowledge Only: submit → ack (RmReadReport) → notify finder
+1. Acknowledge Only: submit → ack (RmReadReportActivity) → notify finder
 2. Acknowledge then Validate: submit → ack → validate → notify finder
 3. Acknowledge then Invalidate: submit → ack → invalidate → notify finder
 
 The acknowledge workflow corresponds to:
     docs/howto/activitypub/activities/acknowledge.md
 
-As described in that document, RmReadReport acknowledges receipt without
+As described in that document, RmReadReportActivity acknowledges receipt without
 committing to an outcome. The receiver can subsequently validate or invalidate
-the report. Sending RmValidateReport or RmInvalidateReport already implies that
-the report was read, so a separate RmReadReport is optional but demonstrates
+the report. Sending RmValidateReportActivity or RmInvalidateReportActivity already implies that
+the report was read, so a separate RmReadReportActivity is optional but demonstrates
 good protocol hygiene.
 
 When run as a script, this module will:
@@ -36,9 +36,9 @@ When run as a script, this module will:
 2. Reset the data layer to a clean state
 3. Discover actors (finder, vendor, coordinator) via the API
 4. Run three separate demo workflows, each with a unique report:
-   - demo_acknowledge_only: Submit → RmReadReport → notify finder
-   - demo_acknowledge_then_validate: Submit → RmReadReport → Validate → notify finder
-   - demo_acknowledge_then_invalidate: Submit → RmReadReport → Invalidate → notify finder
+   - demo_acknowledge_only: Submit → RmReadReportActivity → notify finder
+   - demo_acknowledge_then_validate: Submit → RmReadReportActivity → Validate → notify finder
+   - demo_acknowledge_then_invalidate: Submit → RmReadReportActivity → Invalidate → notify finder
 5. Verify side effects in the data layer and finder's inbox for each workflow
 """
 
@@ -50,10 +50,10 @@ from typing import Optional, Sequence, Tuple
 # Vultron imports
 from vultron.api.v2.data.utils import parse_id
 from vultron.wire.as2.vocab.activities.report import (
-    RmInvalidateReport,
-    RmReadReport,
-    RmSubmitReport,
-    RmValidateReport,
+    RmInvalidateReportActivity,
+    RmReadReportActivity,
+    RmSubmitReportActivity,
+    RmValidateReportActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -132,12 +132,12 @@ def demo_acknowledge_only(
 
     Workflow:
       1. Finder submits report to vendor
-      2. Vendor sends RmReadReport (as:Read) back to their own inbox
-      3. Vendor notifies finder with an RmReadReport
+      2. Vendor sends RmReadReportActivity (as:Read) back to their own inbox
+      3. Vendor notifies finder with an RmReadReportActivity
       4. Verify ack stored and delivered to finder
     """
     logger.info("=" * 80)
-    logger.info("DEMO 1: Acknowledge Only (RmReadReport)")
+    logger.info("DEMO 1: Acknowledge Only (RmReadReportActivity)")
     logger.info("=" * 80)
 
     with demo_step("Step 1: Finder submits vulnerability report to vendor"):
@@ -147,7 +147,7 @@ def demo_acknowledge_only(
             name="Network Parser Integer Overflow",
         )
         logger.info(f"Created report: {logfmt(report)}")
-        offer = RmSubmitReport(
+        offer = RmSubmitReportActivity(
             actor=finder.as_id,
             as_object=report,
             to=[vendor.as_id],
@@ -158,34 +158,34 @@ def demo_acknowledge_only(
             verify_object_stored(client=client, obj_id=report.as_id)
 
     with demo_step(
-        "Step 2: Vendor acknowledges report (RmReadReport to own inbox)"
+        "Step 2: Vendor acknowledges report (RmReadReportActivity to own inbox)"
     ):
         stored_offer = get_offer_from_datalayer(
             client, vendor.as_id, offer.as_id
         )
-        ack = RmReadReport(
+        ack = RmReadReportActivity(
             actor=vendor.as_id,
             as_object=stored_offer.as_id,
             content="We have received your report and will review it shortly.",
         )
         post_to_inbox_and_wait(client, vendor.as_id, ack)
-        with demo_check("RmReadReport activity stored"):
+        with demo_check("RmReadReportActivity activity stored"):
             verify_object_stored(client=client, obj_id=ack.as_id)
 
     with demo_step("Step 3: Vendor notifies finder of acknowledgement"):
-        ack_to_finder = RmReadReport(
+        ack_to_finder = RmReadReportActivity(
             actor=vendor.as_id,
             as_object=stored_offer.as_id,
             to=[finder.as_id],
             content="We have received your report and will review it shortly.",
         )
         post_to_inbox_and_wait(client, finder.as_id, ack_to_finder)
-        with demo_check("RmReadReport notification in finder's inbox"):
+        with demo_check("RmReadReportActivity notification in finder's inbox"):
             if not verify_activity_in_inbox(
                 client, finder.as_id, ack_to_finder.as_id
             ):
                 raise ValueError(
-                    "RmReadReport notification not found in finder's inbox."
+                    "RmReadReportActivity notification not found in finder's inbox."
                 )
 
     logger.info("✅ DEMO 1 COMPLETE: Report acknowledged (read-only).")
@@ -199,8 +199,8 @@ def demo_acknowledge_then_validate(
 
     Workflow:
       1. Finder submits report to vendor
-      2. Vendor sends RmReadReport (as:Read)
-      3. Vendor then sends RmValidateReport (as:Accept)
+      2. Vendor sends RmReadReportActivity (as:Read)
+      3. Vendor then sends RmValidateReportActivity (as:Accept)
       4. Verify both activities stored; verify validate notification to finder
     """
     logger.info("=" * 80)
@@ -216,7 +216,7 @@ def demo_acknowledge_then_validate(
             name="Admin Login SQL Injection",
         )
         logger.info(f"Created report: {logfmt(report)}")
-        offer = RmSubmitReport(
+        offer = RmSubmitReportActivity(
             actor=finder.as_id,
             as_object=report,
             to=[vendor.as_id],
@@ -226,43 +226,49 @@ def demo_acknowledge_then_validate(
             verify_object_stored(client=client, obj_id=offer.as_id)
             verify_object_stored(client=client, obj_id=report.as_id)
 
-    with demo_step("Step 2: Vendor acknowledges report (RmReadReport)"):
+    with demo_step(
+        "Step 2: Vendor acknowledges report (RmReadReportActivity)"
+    ):
         stored_offer = get_offer_from_datalayer(
             client, vendor.as_id, offer.as_id
         )
-        ack = RmReadReport(
+        ack = RmReadReportActivity(
             actor=vendor.as_id,
             as_object=stored_offer.as_id,
             content="Report received — under review.",
         )
         post_to_inbox_and_wait(client, vendor.as_id, ack)
-        with demo_check("RmReadReport activity stored"):
+        with demo_check("RmReadReportActivity activity stored"):
             verify_object_stored(client=client, obj_id=ack.as_id)
 
-    with demo_step("Step 3: Vendor validates report (RmValidateReport)"):
-        validate = RmValidateReport(
+    with demo_step(
+        "Step 3: Vendor validates report (RmValidateReportActivity)"
+    ):
+        validate = RmValidateReportActivity(
             actor=vendor.as_id,
             object=stored_offer.as_id,
             content="Confirmed SQL injection. Creating a case.",
         )
         post_to_inbox_and_wait(client, vendor.as_id, validate)
-        with demo_check("RmValidateReport activity stored"):
+        with demo_check("RmValidateReportActivity activity stored"):
             verify_object_stored(client=client, obj_id=validate.as_id)
 
     with demo_step("Step 4: Vendor notifies finder of validation"):
-        validate_to_finder = RmValidateReport(
+        validate_to_finder = RmValidateReportActivity(
             actor=vendor.as_id,
             object=stored_offer.as_id,
             to=[finder.as_id],
             content="Your report has been validated. A case has been created.",
         )
         post_to_inbox_and_wait(client, finder.as_id, validate_to_finder)
-        with demo_check("RmValidateReport notification in finder's inbox"):
+        with demo_check(
+            "RmValidateReportActivity notification in finder's inbox"
+        ):
             if not verify_activity_in_inbox(
                 client, finder.as_id, validate_to_finder.as_id
             ):
                 raise ValueError(
-                    "RmValidateReport notification not found in finder's inbox."
+                    "RmValidateReportActivity notification not found in finder's inbox."
                 )
 
     logger.info(
@@ -278,8 +284,8 @@ def demo_acknowledge_then_invalidate(
 
     Workflow:
       1. Finder submits report to vendor
-      2. Vendor sends RmReadReport (as:Read)
-      3. Vendor sends RmInvalidateReport (as:TentativeReject)
+      2. Vendor sends RmReadReportActivity (as:Read)
+      3. Vendor sends RmInvalidateReportActivity (as:TentativeReject)
       4. Vendor notifies finder of the invalidation
       5. Verify activities stored and invalidation in finder's inbox
     """
@@ -296,7 +302,7 @@ def demo_acknowledge_then_invalidate(
             name="Empty Form Submission Crash",
         )
         logger.info(f"Created report: {logfmt(report)}")
-        offer = RmSubmitReport(
+        offer = RmSubmitReportActivity(
             actor=finder.as_id,
             as_object=report,
             to=[vendor.as_id],
@@ -306,21 +312,25 @@ def demo_acknowledge_then_invalidate(
             verify_object_stored(client=client, obj_id=offer.as_id)
             verify_object_stored(client=client, obj_id=report.as_id)
 
-    with demo_step("Step 2: Vendor acknowledges report (RmReadReport)"):
+    with demo_step(
+        "Step 2: Vendor acknowledges report (RmReadReportActivity)"
+    ):
         stored_offer = get_offer_from_datalayer(
             client, vendor.as_id, offer.as_id
         )
-        ack = RmReadReport(
+        ack = RmReadReportActivity(
             actor=vendor.as_id,
             as_object=stored_offer.as_id,
             content="Report received — under review.",
         )
         post_to_inbox_and_wait(client, vendor.as_id, ack)
-        with demo_check("RmReadReport activity stored"):
+        with demo_check("RmReadReportActivity activity stored"):
             verify_object_stored(client=client, obj_id=ack.as_id)
 
-    with demo_step("Step 3: Vendor invalidates report (RmInvalidateReport)"):
-        invalidate = RmInvalidateReport(
+    with demo_step(
+        "Step 3: Vendor invalidates report (RmInvalidateReportActivity)"
+    ):
+        invalidate = RmInvalidateReportActivity(
             actor=vendor.as_id,
             object=stored_offer.as_id,
             content=(
@@ -329,11 +339,11 @@ def demo_acknowledge_then_invalidate(
             ),
         )
         post_to_inbox_and_wait(client, vendor.as_id, invalidate)
-        with demo_check("RmInvalidateReport activity stored"):
+        with demo_check("RmInvalidateReportActivity activity stored"):
             verify_object_stored(client=client, obj_id=invalidate.as_id)
 
     with demo_step("Step 4: Vendor notifies finder of invalidation"):
-        invalidate_to_finder = RmInvalidateReport(
+        invalidate_to_finder = RmInvalidateReportActivity(
             actor=vendor.as_id,
             object=stored_offer.as_id,
             to=[finder.as_id],
@@ -342,12 +352,14 @@ def demo_acknowledge_then_invalidate(
             ),
         )
         post_to_inbox_and_wait(client, finder.as_id, invalidate_to_finder)
-        with demo_check("RmInvalidateReport notification in finder's inbox"):
+        with demo_check(
+            "RmInvalidateReportActivity notification in finder's inbox"
+        ):
             if not verify_activity_in_inbox(
                 client, finder.as_id, invalidate_to_finder.as_id
             ):
                 raise ValueError(
-                    "RmInvalidateReport notification not found in finder's inbox."
+                    "RmInvalidateReportActivity notification not found in finder's inbox."
                 )
 
     logger.info(

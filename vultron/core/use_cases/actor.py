@@ -113,7 +113,7 @@ def offer_case_ownership_transfer(
         existing = dl.get(event.activity_type, event.activity_id)
         if existing is not None:
             logger.info(
-                "OfferCaseOwnershipTransfer '%s' already stored — skipping (idempotent)",
+                "OfferCaseOwnershipTransferActivity '%s' already stored — skipping (idempotent)",
                 event.activity_id,
             )
             return

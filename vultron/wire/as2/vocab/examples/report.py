@@ -12,45 +12,45 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.wire.as2.vocab.activities.report import (
-    RmCloseReport,
-    RmCreateReport,
-    RmInvalidateReport,
-    RmReadReport,
-    RmSubmitReport,
-    RmValidateReport,
+    RmCloseReportActivity,
+    RmCreateReportActivity,
+    RmInvalidateReportActivity,
+    RmReadReportActivity,
+    RmSubmitReportActivity,
+    RmValidateReportActivity,
 )
 from vultron.wire.as2.vocab.examples._base import _FINDER, _REPORT, _VENDOR
 
 
-def create_report() -> RmCreateReport:
+def create_report() -> RmCreateReportActivity:
     """
     In this example, a finder creates a vulnerability report.
 
     Example:
-          >>> RmCreateReport(actor=finder.as_id, id=gen_report)
+          >>> RmCreateReportActivity(actor=finder.as_id, id=gen_report)
     """
-    activity = RmCreateReport(actor=_FINDER.as_id, object=_REPORT)
+    activity = RmCreateReportActivity(actor=_FINDER.as_id, object=_REPORT)
     return activity
 
 
-def submit_report(verbose=False) -> RmSubmitReport:
+def submit_report(verbose=False) -> RmSubmitReportActivity:
     if verbose:
-        activity = RmSubmitReport(
+        activity = RmSubmitReportActivity(
             actor=_FINDER,
             object=_REPORT,
             to=_VENDOR,
         )
     else:
-        activity = RmSubmitReport(
+        activity = RmSubmitReportActivity(
             actor=_FINDER.as_id, object=_REPORT, to=_VENDOR.as_id
         )
 
     return activity
 
 
-def read_report() -> RmReadReport:
+def read_report() -> RmReadReportActivity:
     # TODO this should probably change to Read(Offer(Report)) to match the other activities
-    activity = RmReadReport(
+    activity = RmReadReportActivity(
         actor=_VENDOR.as_id,
         object=_REPORT.as_id,
         content="We've read the report. We'll get back to you soon.",
@@ -58,18 +58,18 @@ def read_report() -> RmReadReport:
     return activity
 
 
-def validate_report(verbose: bool = False) -> RmValidateReport:
+def validate_report(verbose: bool = False) -> RmValidateReportActivity:
     _offer = submit_report(verbose=verbose)
     # Note: you accept the Offer activity that contains the Report, not the Report itself
 
     if verbose:
-        activity = RmValidateReport(
+        activity = RmValidateReportActivity(
             actor=_VENDOR,
             object=_offer,
             content="We've validated the report. We'll be creating a case shortly.",
         )
     else:
-        activity = RmValidateReport(
+        activity = RmValidateReportActivity(
             actor=_VENDOR.as_id,
             object=_offer.as_id,
             content="We've validated the report. We'll be creating a case shortly.",
@@ -77,18 +77,18 @@ def validate_report(verbose: bool = False) -> RmValidateReport:
     return activity
 
 
-def invalidate_report(verbose: bool = False) -> RmInvalidateReport:
+def invalidate_report(verbose: bool = False) -> RmInvalidateReportActivity:
     _offer = submit_report(verbose=verbose)
     # Note: you tentative reject the Offer activity that contains the Report, not the Report itself
 
     if verbose:
-        activity = RmInvalidateReport(
+        activity = RmInvalidateReportActivity(
             actor=_VENDOR,
             object=_offer,
             content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
         )
     else:
-        activity = RmInvalidateReport(
+        activity = RmInvalidateReportActivity(
             actor=_VENDOR.as_id,
             object=_offer.as_id,
             content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
@@ -96,17 +96,17 @@ def invalidate_report(verbose: bool = False) -> RmInvalidateReport:
     return activity
 
 
-def close_report(verbose: bool = False) -> RmCloseReport:
+def close_report(verbose: bool = False) -> RmCloseReportActivity:
     # Note: you reject the Offer activity that contains the Report, not the Report itself
     _offer = submit_report(verbose=verbose)
     if verbose:
-        activity = RmCloseReport(
+        activity = RmCloseReportActivity(
             actor=_VENDOR,
             object=_offer,
             content="We're closing this report.",
         )
     else:
-        activity = RmCloseReport(
+        activity = RmCloseReportActivity(
             actor=_VENDOR.as_id,
             object=_offer.as_id,
             content="We're closing this report.",

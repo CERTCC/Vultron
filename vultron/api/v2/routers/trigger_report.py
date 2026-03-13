@@ -72,7 +72,7 @@ def trigger_validate_report(
     description=(
         "Triggers the invalidate-report behavior for the given actor. "
         "Emits a TentativeReject(Offer(VulnerabilityReport)) activity "
-        "(RmInvalidateReport) and returns it in the response body (TB-04-001). "
+        "(RmInvalidateReportActivity) and returns it in the response body (TB-04-001). "
         "Updates the offer status to TENTATIVELY_REJECTED and the report "
         "status to INVALID."
     ),
@@ -98,7 +98,7 @@ def trigger_invalidate_report(
     summary="Trigger hard-close of a report.",
     description=(
         "Triggers the reject-report behavior for the given actor. "
-        "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReport) "
+        "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) "
         "and returns it in the response body (TB-04-001). "
         "A non-empty note is required (TB-03-004). "
         "Updates the offer status to REJECTED and the report status to CLOSED."
@@ -125,7 +125,7 @@ def trigger_reject_report(
     summary="Trigger RM lifecycle closure of a report.",
     description=(
         "Triggers the close-report behavior for the given actor. "
-        "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReport) "
+        "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) "
         "representing the RM → C (CLOSED) transition, and returns it in the "
         "response body (TB-04-001). "
         "Updates the offer status to REJECTED and the report status to CLOSED. "

@@ -12,12 +12,12 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from vultron.wire.as2.vocab.activities.case import (
-    AddStatusToCase,
-    CreateCaseStatus,
+    AddStatusToCaseActivity,
+    CreateCaseStatusActivity,
 )
 from vultron.wire.as2.vocab.activities.case_participant import (
-    AddStatusToParticipant,
-    CreateStatusForParticipant,
+    AddStatusToParticipantActivity,
+    CreateStatusForParticipantActivity,
 )
 from vultron.wire.as2.vocab.examples._base import _VENDOR, case, vendor
 from vultron.wire.as2.vocab.objects.case_status import (
@@ -44,7 +44,7 @@ def create_case_status():
     status = case_status()
     _case = case()
 
-    activity = CreateCaseStatus(
+    activity = CreateCaseStatusActivity(
         actor=actor.as_id,
         object=status,
         context=_case.as_id,
@@ -52,11 +52,11 @@ def create_case_status():
     return activity
 
 
-def add_status_to_case() -> AddStatusToCase:
+def add_status_to_case() -> AddStatusToCaseActivity:
     _vendor = vendor()
     _case = case()
     _status = case_status()
-    activity = AddStatusToCase(
+    activity = AddStatusToCaseActivity(
         actor=_vendor.as_id,
         object=_status,
         target=_case.as_id,
@@ -80,18 +80,18 @@ def create_participant_status() -> ParticipantStatus:
     pstatus = participant_status()
     _vendor = vendor()
 
-    activity = CreateStatusForParticipant(
+    activity = CreateStatusForParticipantActivity(
         actor=_vendor.as_id,
         object=pstatus,
     )
     return activity
 
 
-def add_status_to_participant() -> AddStatusToParticipant:
+def add_status_to_participant() -> AddStatusToParticipantActivity:
     _vendor = vendor()
     pstatus = participant_status()
 
-    activity = AddStatusToParticipant(
+    activity = AddStatusToParticipantActivity(
         actor=_vendor.as_id,
         object=pstatus,
         target="https://vultron.example/cases/1/participants/vendor",
