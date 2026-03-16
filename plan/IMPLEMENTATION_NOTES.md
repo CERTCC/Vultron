@@ -35,3 +35,18 @@ port ("Emit") counterpart to the inbound driving port `core/ports/dispatcher.py`
 **Docs gaps confirmed**: `docker/README.md` lists obsolete individual demo
 services (DOCS-1). `docs/reference/code/as_vocab/` references old
 `vultron.as_vocab.*` paths (DOCS-2). Both captured as actionable tasks.
+
+---
+
+### 2026-03-16 — P75-4-pre complete
+
+**UseCase Protocol now defined**: `UseCase[Req, Res]` lives in
+`vultron/core/ports/use_case.py`. `UnknownUseCase` is the reference
+implementation; the old function wrapper delegates to it.
+
+**CRITICAL constraint for P75-4**: P75-4 MUST refactor every use case it
+touches to the class interface (`__init__(self, dl: DataLayer)` +
+`execute(self, request) -> result`). Do NOT leave behind a mix of old-style
+`fn(event, dl)` callables alongside new class-based use cases within a single
+migration batch. The old-style callable wrapper on `unknown` is a temporary
+bridge; it must be removed once the dispatcher supports class-based use cases.

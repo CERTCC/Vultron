@@ -1452,3 +1452,23 @@ delegates that translate domain exceptions to `HTTPException`.
 `VultronConflictError` (→ HTTP 409), `VultronValidationError` (→ HTTP 422)
 
 **Test results:** 887 passed, 0 failed
+
+---
+
+## P75-4-pre — Standardize UseCase Interface (2026-03-16)
+
+**What was done:**
+
+- Created `vultron/core/ports/use_case.py` — defines the `UseCase[Req, Res]`
+  Protocol with a single `execute(request: Req) -> Res` method.  This is the
+  standard interface all class-based use cases must implement going forward.
+- Refactored `vultron/core/use_cases/unknown.py` — introduced `UnknownUseCase`
+  as the reference implementation (`__init__` receives `DataLayer`; `execute`
+  contains the logic).  The old `unknown(event, dl)` function is kept as a
+  thin backward-compat wrapper so the existing dispatcher routing table and
+  tests are unaffected.
+- Added `test/core/ports/` package with `test_use_case.py` — 8 new tests
+  covering Protocol structural check, `UnknownUseCase` construction, logging
+  behaviour, and backward-compat wrapper.
+
+**Test results:** 895 passed, 0 failed

@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-16 (refresh #34: P75-2c, P75-3, TECHDEBT-13/14, ARCH-DOCS-1 complete)
+**Last Updated**: 2026-03-16 (refresh #35: P75-4-pre complete)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 887 passing, 5581 subtests, 5 warnings (2026-03-16, after P75-3)
+**Test suite**: 895 passing, 5581 subtests, 5 warnings (2026-03-16, after P75-4-pre)
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -31,7 +31,7 @@ TECHDEBT-11, TECHDEBT-12, SC-PRE-2, SC-3.2, SC-3.3,
 P65-1, P65-2, P65-3, P65-4, P65-5, P65-6a, P65-6b, P65-7,
 ARCH-DOCS-1, TECHDEBT-13a, TECHDEBT-13b, TECHDEBT-13c, TECHDEBT-14,
 P70-2, P70-3, P70-4, P70-5,
-P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3.
+P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -71,12 +71,12 @@ All 38 handler use cases and 9 trigger-service use cases now live in
 table (`USE_CASE_MAP`) lives in `core/use_cases/use_case_map.py`. Pattern
 objects in `extractor.py` use the `Pattern` suffix. P75-4 and P75-5 remain.
 
-### ❌ UseCase interface not yet standardized (P75-4-pre — new gap)
+### ✅ UseCase interface standardized (P75-4-pre — complete)
 
-`core/use_cases/` callables have heterogeneous signatures. Per
-`notes/use-case-behavior-trees.md` "Standardized Use Case Interface", a
-`UseCase[Req, Res]` protocol with a consistent `execute(request) -> response`
-method should be defined before P75-4 to simplify adapter integration.
+`UseCase[Req, Res]` Protocol defined in `vultron/core/ports/use_case.py`.
+`UnknownUseCase` in `vultron/core/use_cases/unknown.py` is the reference
+implementation; the old callable wrapper delegates to it for backward compat.
+P75-4 MUST refactor every use case it touches to the class interface.
 
 ### ❌ api/v1 disposition not planned (P75-5)
 
@@ -185,13 +185,9 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details.
 
 #### Remaining P75 tasks
 
-- [ ] **P75-4-pre**: Standardize use-case interface: define a `UseCase[Req, Res]`
-  Protocol in `vultron/core/use_cases/_types.py` (or `vultron/core/ports/use_case.py`)
-  with a consistent `execute(request: Req) -> Res` method. Per
-  `notes/use-case-behavior-trees.md` "Standardized Use Case Interface", this
-  should happen BEFORE P75-4 to simplify adapter integration. Done when the
-  Protocol is defined, at least one use case is refactored to implement it, and
-  tests pass. **Must precede P75-4.**
+- [x] **P75-4-pre**: Standardize use-case interface: `UseCase[Req, Res]` Protocol
+  defined in `vultron/core/ports/use_case.py`. `UnknownUseCase` is the reference
+  implementation. Old callable wrapper kept for backward compat. **COMPLETE.**
 
 - [ ] **P75-4**: Update driving adapter stubs (`vultron/adapters/driving/cli.py`,
   `vultron/adapters/driving/mcp_server.py`) to call `core/use_cases/` callables
@@ -303,12 +299,12 @@ P70-2 through P70-5 all complete. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
-### PRIORITY-75 Complete (P75-1/2/3) ✅ — Business Logic in core/use_cases/
+### PRIORITY-75 Complete (P75-1/2/3/4-pre) ✅ — Business Logic in core/use_cases/
 
-P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3 all complete.
+P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre all complete.
 See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
 
-- [ ] **P75-4-pre**: Standardize use-case interface (see above)
+- [x] **P75-4-pre**: Standardize use-case interface (**COMPLETE**)
 - [ ] **P75-4**: Update driving adapter stubs (see above; **depends on P75-4-pre**)
 - [ ] **P75-5**: Decide disposition of `vultron/api/v1/` (see above)
 
