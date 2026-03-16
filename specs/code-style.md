@@ -132,9 +132,11 @@ def extract_id_segment(url: str) -> str:
     `id_`
   - Define a Pydantic field alias so that serialized JSON uses the clean
     name without the trailing underscore:
+
     ```python
     object_: str = Field(alias="object")
     ```
+
   - **Rationale**: The `as_` prefix leaks wire-format concerns into the
     domain layer. Trailing underscore + alias is the idiomatic Python pattern
     for reserved-word field names; it keeps core models readable and decoupled

@@ -98,7 +98,7 @@ Handler functions process DispatchEvent objects and implement protocol business 
   - HP-08-005 depends-on CM-03-006
 - `HP-08-006` The `AddNoteToCase` handler MUST persist a Note object and append its ID as a `as_NoteRef` to `VulnerabilityCase.notes`.
   - **Rationale**: Ensures notes are fully persisted and linked to cases, consistent with the case management data model
-  - (VulnerabilityCase.notes is conceptually a "join table" linking cases to 
+  - (VulnerabilityCase.notes is conceptually a "join table" linking cases to
     notes)
 
 ## Verification

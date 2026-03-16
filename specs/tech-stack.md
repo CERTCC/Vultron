@@ -16,10 +16,10 @@ This specification defines the normative technology constraints and implementati
 - `IMPL-TS-01-003` The backend API MUST expose an OpenAPI specification.
 - `IMPL-TS-01-004` The system MUST use Pydantic for data validation and data modeling.
 - `IMPL-TS-01-005` The application MUST use Python’s standard logging framework for structured logging.
-- `IMPL-TS-01-006` The behavior tree engine MUST be implemented using py_trees. 
+- `IMPL-TS-01-006` The behavior tree engine MUST be implemented using py_trees.
   - exceptions:
-    - The system MAY use custom behavior tree implementations for specific 
-      use cases like the original protocol simulation in `vultron/bt` and 
+    - The system MAY use custom behavior tree implementations for specific
+      use cases like the original protocol simulation in `vultron/bt` and
       the `vultrabot.py` demo.
 
 ---

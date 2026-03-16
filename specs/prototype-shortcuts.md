@@ -103,4 +103,3 @@ and Python stack candidates.
     prototype stage
   - **Rationale**: Premature performance work distracts from correctness
     and architectural clarity; defer until exiting the prototype phase
-
