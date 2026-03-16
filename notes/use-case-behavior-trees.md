@@ -323,14 +323,16 @@ events (CS-10-002) and makes the origin unambiguous at a glance. See
 
 ### UseCaseRequest Envelope (Future Direction)
 
-Design Decision: When the system matures, the `execute()` method parameter
-SHOULD be a structured `UseCaseRequest` Pydantic model rather than a raw domain
-event. Benefits:
+Design Decision: The `UseCase` protocol and object should be defined to 
+include a `UseCaseRequest` parameter in the `__init__()` constructor, so 
+that the use case class can validate that it has what it needs before  
+`execute()` is called. Benefits of this approach include:
 
 * Validation of required fields occurs at construction time — if a `UseCase`
   instance exists, it is valid and ready to execute.
 * Fields that are optional in general but required by a specific use case can be
-  enforced by subclassing `UseCaseRequest` with tighter field constraints.
+  enforced by subclassing `UseCaseRequest` with tighter field constraints 
+  that are reinforced by the use case constructor validation.
 * The adapter layer needs only to know how to construct a `UseCaseRequest`, not
   the internals of every use case.
 
@@ -341,8 +343,11 @@ domain-specific parameters.
 
 Open Question: Whether to introduce `UseCaseRequest` now or defer until the
 existing naming and Protocol-base work (TECHDEBT-21, TECHDEBT-22) is complete
-to avoid another large rename cycle. Recommendation: define the base class and
-align the interface after TECHDEBT-21/22.
+to avoid another large rename cycle. Recommendation: Getting the UseCase 
+protocol and naming convention in place first will save significant 
+refactors later, so it should be given similar priority to TECHDEBT-21 and 
+TECHDEBT-22, these items could be batched into a single refactor.
+
 
 ### SEMANTICS_HANDLERS Migration
 
