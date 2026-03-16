@@ -193,3 +193,24 @@ structural subtyping.
 | 7 | Normalise BT status comparisons | Defer to after P75-4 |
 | 8 | `CloseCaseUseCase` wire-type construction | Defer until OX-1.0 emitter port |
 | 9 | UseCase Protocol generic enforcement | Defer to P75-4 |
+
+
+## UseCase interface should always be instantiated with a UseCaseRequest object
+
+Instead of passing request parameters directly to the `execute()` method, we 
+should define a `UseCaseRequest` Pydantic model that encapsulates all input  
+parameters for a use case. The `UseCase` Protocol would then be defined as  
+`UseCase[Request, Response]` where `Request` is the request model and 
+`Response` is the response model. This approach has several benefits:
+1. It provides a consistent and structured way to pass parameters to use cases, 
+   improving readability and maintainability.
+2. It allows for better type checking and validation of input parameters, as the
+   `UseCaseRequest` model can enforce required fields and types at the point 
+   of instantiation. The `UseCase` class can also enforce validation prior 
+   to `execute()` logic.
+3. It future-proofs the interface, allowing for more complex use cases that 
+   may require multiple input parameters or nested data structures without  
+   needing to refactor the method signature again.
+4. It aligns with common design patterns in clean architecture, where use cases
+   typically accept a single request object and return a single response object,
+   encapsulating all necessary data for the operation.
