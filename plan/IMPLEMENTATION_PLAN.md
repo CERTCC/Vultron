@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-16 (refresh #37: P75-4 complete)
+**Last Updated**: 2026-03-16 (refresh #38: TECHDEBT-17 through TECHDEBT-26 added)
 
 ## Overview
 
@@ -236,6 +236,172 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details.
 
 ---
 
+### TECHDEBT-17 — Delete dead functions in `core/use_cases/embargo.py`
+
+**Priority**: High (dead code, discovered in 2026-03-16 code review)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 1
+
+- [ ] **TECHDEBT-17**: Delete bare function implementations (`create_embargo_event`,
+  `add_embargo_event_to_case`, etc.) from `vultron/core/use_cases/embargo.py`
+  starting at the line after `RejectInviteToEmbargoOnCaseUseCase`. These are
+  pre-refactor function stubs that duplicate the class-based implementations above
+  them and are not referenced anywhere. Done when all dead bare-function definitions
+  are removed, no import or call sites reference them, and the test suite passes.
+
+---
+
+### TECHDEBT-18 — Delete dead duplicate block in `triggers/report.py`
+
+**Priority**: High (dead code, discovered in 2026-03-16 code review)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 2
+
+- [ ] **TECHDEBT-18**: Delete the duplicate import block and second definition of
+  `_resolve_offer_and_report` from `vultron/core/use_cases/triggers/report.py`
+  (the block starting with a bare `import logging` after `SvcCloseReportUseCase`).
+  Done when no duplicate imports or function definitions remain, and the test suite
+  passes.
+
+---
+
+### TECHDEBT-19 — Remove `api.v2.*` imports from `triggers/report.py`
+
+**Priority**: High (ARCH-05 / CS-05-001 violation, discovered in 2026-03-16 code review)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 3
+
+- [ ] **TECHDEBT-19**: Remove imports of `rehydrate` from
+  `vultron.api.v2.data.rehydration` and `OfferStatus`, `ReportStatus`,
+  `get_status_layer`, `set_status` from `vultron.api.v2.data.status` in
+  `vultron/core/use_cases/triggers/report.py`. Core modules MUST NOT import from
+  the application adapter layer. Move `rehydration.py` and/or `status.py` (or
+  the relevant functions/types) to a neutral location in `vultron/core/` or
+  promote them to the `DataLayer` port so core can use them without crossing
+  the adapter boundary. Done when `triggers/report.py` has no imports from
+  `vultron.api.v2.*`, the functionality is accessible from a core or shared
+  location, and the test suite passes.
+
+---
+
+### TECHDEBT-20 — Delete dead import block in `triggers/embargo.py`
+
+**Priority**: High (dead code, discovered in 2026-03-16 code review)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 10
+
+- [ ] **TECHDEBT-20**: Delete the duplicate import block from
+  `vultron/core/use_cases/triggers/embargo.py` that starts with a bare
+  `import logging` after `SvcTerminateEmbargoUseCase` and ends with a
+  duplicate `logger = logging.getLogger(__name__)`. Done when all duplicated
+  imports and logger assignments are removed and the test suite passes.
+
+---
+
+### TECHDEBT-21 — Rename handler use cases with `Received` suffix
+
+**Priority**: High (naming convention, discovered in 2026-03-16 code review)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 11;
+`specs/code-style.md` CS-12-002
+
+- [ ] **TECHDEBT-21**: Rename all handler use cases (those in `core/use_cases/`
+  top-level modules: `actor.py`, `case.py`, `case_participant.py`, `embargo.py`,
+  `note.py`, `report.py`, `status.py`) to append the `Received` suffix
+  (e.g., `CreateReportUseCase` → `CreateReportReceivedUseCase`). Update
+  `USE_CASE_MAP` in `core/use_cases/use_case_map.py` and all import sites and
+  tests in the same commit. This is a mechanical rename with no behaviour change.
+  Done when all ~32 handler use cases carry the `Received` suffix, the
+  `USE_CASE_MAP` is updated, and the test suite passes.
+
+---
+
+### TECHDEBT-22 — Declare `UseCase[Req, Res]` Protocol base on every use case class
+
+**Priority**: Medium (type safety, discovered in 2026-03-16 code review)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 12
+
+- [ ] **TECHDEBT-22**: Add `UseCase[RequestType, ResponseType]` as the explicit
+  Protocol base for every use case class in `core/use_cases/`. Handler use cases
+  return `None`; trigger use cases return `dict`. Example:
+
+  ```python
+  class CreateReportReceivedUseCase(UseCase["CreateReportReceivedEvent", None]):
+      ...
+  ```
+
+  Done when every use case class explicitly inherits from the
+  `UseCase` Protocol, mypy confirms structural conformance, and tests pass.
+  **Depends on TECHDEBT-21** (rename must be done first for consistency).
+
+---
+
+### TECHDEBT-23 — Extract `TriggerRequest` base class in `triggers/requests.py`
+
+**Priority**: Low (DRY, discovered in 2026-03-16 code review)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 13
+
+- [ ] **TECHDEBT-23**: Add a `TriggerRequest` base class in
+  `vultron/core/use_cases/triggers/requests.py` with `model_config = ConfigDict(extra="ignore")`
+  and `actor_id: NonEmptyString`. Have all 8 concrete trigger request models
+  subclass `TriggerRequest` and remove the duplicated `model_config` and
+  `actor_id` fields from each. Done when the base class is defined, all
+  subclasses inherit it, the duplicate fields are removed, and tests pass.
+
+---
+
+### TECHDEBT-24 — Remove wire-layer imports from core use cases
+
+**Files**: `core/use_cases/case.py` and `triggers/_helpers.py`
+
+**Priority**: Medium (ARCH-06 violation, discovered in 2026-03-16 code review)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 4
+
+- [ ] **TECHDEBT-24**: Remove lazy import of `VulnerabilityCase` from
+  `vultron.wire.as2.vocab.objects.vulnerability_case` in
+  `core/use_cases/case.py`, and `VulnerabilityCase` / `ParticipantStatus`
+  imports from the wire layer in `triggers/_helpers.py`. Replace with domain
+  Protocol types from `core/use_cases/_types.py` or introduce a thin domain
+  factory that core can call without importing wire types. Done when
+  `core/use_cases/case.py` and `core/use_cases/triggers/_helpers.py` have no
+  imports from `vultron.wire.*`, equivalent functionality is provided through
+  domain interfaces, and tests pass.
+
+---
+
+### TECHDEBT-25 — Extract `_as_id()` helper to eliminate repeated pattern
+
+**Priority**: Low (DRY, discovered in 2026-03-16 code review)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 5
+
+- [ ] **TECHDEBT-25**: Extract a private helper function `_as_id(obj) -> str | None`
+  (implementing `obj.as_id if hasattr(obj, "as_id") else str(obj) if obj is not None else None`)
+  into `vultron/core/use_cases/_helpers.py` and replace all ~7 call sites in
+  `case.py`, `actor.py`, `embargo.py`, and `case_participant.py`. Done when the
+  helper exists, all repetitions are replaced, and tests pass.
+
+---
+
+### TECHDEBT-26 — Replace `OptionalNonEmptyString` alias with `NonEmptyString | None`
+
+**Priority**: Low (cleanup, raised in `plan/IDEAS.md`)
+
+**Source**: `plan/IDEAS.md` "Most strings in Pydantic objects should be NonEmptyStrings";
+`specs/code-style.md` CS-08-002
+
+- [ ] **TECHDEBT-26**: Remove the `OptionalNonEmptyString` type alias from
+  `vultron/wire/as2/vocab/base/types.py` and `vultron/core/models/events/base.py`,
+  replacing all usages with the equivalent inline form `NonEmptyString | None`.
+  Update `specs/code-style.md` CS-08-002 accordingly once usages are removed.
+  Done when `OptionalNonEmptyString` no longer appears anywhere in the codebase
+  and tests pass.
+
+---
+
 ### DOCS-1 — Update `docker/README.md`
 
 **Priority**: Medium (docs correctness, `notes/codebase-structure.md`)
@@ -368,6 +534,30 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
 
 ## Deferred (Per PRIORITIES.md)
 
+- **Use case error handling standardization** — Remove silent `except Exception`
+  swallowers in use cases; let domain exceptions propagate and be caught at the
+  dispatcher boundary. Defer until after P75-4 so error handling can be
+  tested end-to-end. (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 6)
+- **BT status comparison normalization** — Replace `result.status.name != "SUCCESS"`
+  string comparisons with `result.status == Status.SUCCESS` enum comparisons in
+  `EngageCaseUseCase`, `DeferCaseUseCase`, `CreateCaseUseCase`. (Source:
+  `plan/IMPLEMENTATION_NOTES.md` code-review item 7)
+- **`CloseCaseUseCase` wire-type construction** — Replace direct construction of
+  `VultronActivity(as_type="Leave")` in `CloseCaseUseCase` with domain event emission
+  through the `ActivityEmitter` port (OX-1.0). Defer until OX-1.0 is implemented.
+  (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 8)
+- **Idempotent-create helper** — Extract `_idempotent_create()` private helper to
+  eliminate ~40 repeated lines across `CreateEmbargoEventUseCase`,
+  `CreateNoteUseCase`, `CreateCaseParticipantUseCase`, etc. Defer to after P75-4.
+  (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 14)
+- **Remove meaningless try/except from stub use cases** — Stub use cases
+  (`RejectSuggestActorToCaseUseCase`, `RejectCaseOwnershipTransferUseCase`, etc.)
+  wrap a `logger.info()` call in `try/except Exception`, which can never raise.
+  Remove the dead guard. Defer to the error-handling pass. (Source:
+  `plan/IMPLEMENTATION_NOTES.md` code-review item 15)
+- **UseCase Protocol generic enforcement** — Decide on a consistent
+  `UseCaseResult` Pydantic return envelope; enforce via mypy. Defer to after
+  TECHDEBT-21/22. (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 9)
 - **Production readiness** (request validation, health check readiness,
   idempotency, structured logging) — all `PROD_ONLY` or low-priority
 - **Response generation** — See `specs/response-format.md` and history
