@@ -121,3 +121,23 @@ Options to fully resolve (TECHDEBT-24 remaining item):
   before persisting.
 - (c) Add an empty-list guard to `VulnerabilityCase.current_status` (smallest
   change, but treats the symptom not the root cause).
+
+## `vultron/api/v2/backend/handlers/__init__.py` is pointless?
+
+The handlers `__init__.py` currently contains a bunch of functions that are 
+basically just compatibility shims from a previous refactor. It seems like 
+these could be removed and their callers could just call the use cases 
+directly. For example:
+
+```python
+def create_report(dispatchable, dl=None):
+    return _uc_report.CreateReportReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
+```
+
+Also consider whether the `dispatchable` unwrapping logic is something that
+is still needed or if it is a relic of the pre-refactor architecture. If 
+it's not needed, then that would be another reason to remove these shims and 
+revise the code to interact directly with the use case ports.
+
