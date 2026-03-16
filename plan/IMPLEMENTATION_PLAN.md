@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-13 (refresh #33: P75-2b complete)
+**Last Updated**: 2026-03-16 (refresh #34: P75-2c, P75-3, TECHDEBT-13/14, ARCH-DOCS-1 complete)
 
 ## Overview
 
@@ -9,15 +9,16 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 880 passing, 5581 subtests, 0 xfailed (2026-03-11, after P70-2)
+**Test suite**: 887 passing, 5581 subtests, 5 warnings (2026-03-16, after P75-3)
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
-all dockerized in `docker-compose.yml`.
+all dockerized in `docker-compose.yml`. **P75 phase**: P75-1 through P75-3 complete;
+handler and trigger-service domain logic now lives in `vultron/core/use_cases/`.
 
 ---
 
-## Gap Analysis (2026-03-11, refresh #24)
+## Gap Analysis (2026-03-16, refresh #34)
 
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
@@ -27,35 +28,26 @@ P30-2, P30-3, P30-4, P30-5, P30-6, P50-0, ARCH-1.1, ARCH-1.2, ARCH-1.3,
 ARCH-1.4, ARCH-CLEANUP-1, ARCH-CLEANUP-2, ARCH-CLEANUP-3, ARCH-ADR-9, P60-1,
 P60-2, P60-3, TECHDEBT-3, TECHDEBT-7, TECHDEBT-8, TECHDEBT-9, TECHDEBT-10,
 TECHDEBT-11, TECHDEBT-12, SC-PRE-2, SC-3.2, SC-3.3,
-P65-1, P65-2, P65-3, P65-4, P65-5, P65-6a, P65-6b, P65-7.
+P65-1, P65-2, P65-3, P65-4, P65-5, P65-6a, P65-6b, P65-7,
+ARCH-DOCS-1, TECHDEBT-13a, TECHDEBT-13b, TECHDEBT-13c, TECHDEBT-14,
+P70-2, P70-3, P70-4, P70-5,
+P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
 `actor_io.py` stub logs placeholder messages (OX-03-001, OX-04-001, OX-04-002).
+`core/ports/emitter.py` Protocol stub not yet created (see `notes/architecture-ports-and-adapters.md`
+"Dispatch vs Emit Terminology"). Needed before OUTBOX-1 implementation.
 
 ### ✅ Triggerable behaviors fully implemented (PRIORITY 30 — COMPLETE)
 
 All 9 trigger endpoints in split router files. P30-1 through P30-6 complete.
 
-### ✅ Hexagonal architecture violations remediated (PRIORITY 65 — ALL COMPLETE)
+### ✅ Hexagonal architecture violations remediated (PRIORITIES 65/75 — ALL COMPLETE)
 
-All P65 tasks (P65-1 through P65-7) are complete. All violations V-01 through
-V-23 are resolved:
-
-- **V-03-R ✅ (P65-4)**: `behavior_dispatcher.py` has no runtime wire imports;
-  `extract_intent()` moved to adapter layer in `inbox_handler.py`.
-- **V-15/16/17/18/19 ✅ (P65-6b)**: Core BT nodes (`report/nodes.py`,
-  `case/nodes.py`, `report/policy.py`, `case/create_tree.py`) use domain types
-  from `vultron.core.models.vultron_types`; no wire-layer AS2 imports remain.
-- **V-22/23 ✅ (P65-7)**: All core BT test files use domain type fixtures;
-  `test_behavior_dispatcher.py` no longer imports wire types.
-
-**⚠️ Stale docs**: `notes/architecture-review.md` still shows V-03-R, V-15–19,
-V-22–23 as open/partial. ARCH-DOCS-1 task added to update these markers.
-
-**Residual**: `test/core/behaviors/report/test_policy.py` still imports
-`VulnerabilityReport` from `vultron.wire.as2.vocab.objects.vulnerability_report`
-(policy tests pass via duck-typing). Captured in TECHDEBT-13.
+All P65 and P75 architecture tasks complete. All violations V-01 through V-24
+and TECHDEBT-13a–c are fully resolved. `notes/architecture-review.md` is
+up to date.
 
 ### ✅ Package relocation Phase 1 complete (PRIORITY 60 — COMPLETE)
 
@@ -63,38 +55,41 @@ V-22–23 as open/partial. ARCH-DOCS-1 task added to update these markers.
 - `vultron/behaviors/` → `vultron/core/behaviors/` (P60-2 ✅)
 - `vultron/adapters/` package stub created (P60-3 ✅)
 
-### ❌ DataLayer shims removed (PRIORITY 70 — Phase 1 COMPLETE ✅)
+### ✅ DataLayer refactor into ports and adapters (PRIORITY 70 — COMPLETE)
 
-`vultron/api/v2/datalayer/abc.py`, `tinydb_backend.py`, and `db_record.py` have been
-removed. All callers now import `DataLayer` from `vultron.core.ports.datalayer`,
-`TinyDbDataLayer`/`get_datalayer`/`reset_datalayer` from
-`vultron.adapters.driven.datalayer_tinydb`, and `Record`/`object_to_record` from
-`vultron.adapters.driven.db_record`. P70-2 through P70-5 complete.
+P70-2 through P70-5 all complete. All callers import `DataLayer` from
+`vultron.core.ports.datalayer`, `TinyDbDataLayer`/`get_datalayer` from
+`vultron.adapters.driven.datalayer_tinydb`, and `Record`/`object_to_record`
+from `vultron.adapters.driven.db_record`.
 
-### ❌ Handlers and trigger services not yet extracted to core/use_cases/ (PRIORITY 75)
+### ✅ Handler and trigger-service logic in core/use_cases/ (PRIORITY 75 — P75-1/2/3 COMPLETE)
 
-`vultron/api/v2/backend/handlers/` (2223 lines, 38 handlers) and
-`vultron/api/v2/backend/trigger_services/` (1188 lines) contain domain
-business logic that belongs in `vultron/core/use_cases/`. The
-`vultron/core/use_cases/__init__.py` stub exists but is empty. Once extracted,
-handlers and trigger-service functions become thin driving-adapter delegates
-that call into core use cases. This also enables `adapters/driving/cli.py`
-and `adapters/driving/mcp_server.py` to call the same use cases without going
-through HTTP. See Phase PRIORITY-75.
+All 38 handler use cases and 9 trigger-service use cases now live in
+`vultron/core/use_cases/`. The handler adapter layer is reduced to
+`handlers/_shim.py`. The dispatcher is modelled as a formal driving port
+(`core/ports/dispatcher.py`) backed by `core/dispatcher.py`. The routing
+table (`USE_CASE_MAP`) lives in `core/use_cases/use_case_map.py`. Pattern
+objects in `extractor.py` use the `Pattern` suffix. P75-4 and P75-5 remain.
 
-### ❌ api/v1 disposition not planned
+### ❌ UseCase interface not yet standardized (P75-4-pre — new gap)
 
-`vultron/api/v1/` is a vocabulary-examples HTTP adapter (returns `vocab_examples.*`
-results; no real business logic). It is already architecturally compliant —
-thin routers over `wire/as2/vocab/examples/`. No migration is needed.
-Decision required: keep as-is, formally deprecate, or remove. Captured as P75-5.
+`core/use_cases/` callables have heterogeneous signatures. Per
+`notes/use-case-behavior-trees.md` "Standardized Use Case Interface", a
+`UseCase[Req, Res]` protocol with a consistent `execute(request) -> response`
+method should be defined before P75-4 to simplify adapter integration.
+
+### ❌ api/v1 disposition not planned (P75-5)
+
+`vultron/api/v1/` is a vocabulary-examples HTTP adapter (thin routers over
+`wire/as2/vocab/examples/`; no business logic). Decision required: keep
+as-is, formally deprecate, or remove. Captured as P75-5.
 
 ### ❌ Actor independence not implemented (PRIORITY 100)
 
 All actors share a singleton `TinyDbDataLayer` instance. PRIORITY 100 requires
 per-actor isolated state. Options documented in `notes/domain-model-separation.md`
 (Option B: TinyDB namespace prefix; MongoDB community edition for production).
-Blocked by PRIORITY-70 (DataLayer relocation).
+Blocked by PRIORITY-70 (complete ✅).
 
 ### ❌ CaseActor broadcast not implemented (PRIORITY 200)
 
@@ -107,26 +102,33 @@ Blocked by OUTBOX-1.
 checks participant embargo acceptance and logs a WARNING (CM-10-004); full
 enforcement deferred to PRIORITY-200.
 
-### ❌ `vultron/enums.py` backward-compat shim still present (TECHDEBT-4 / P70-2)
+### ❌ Flaky test not yet fixed (TECHDEBT-15 — new gap)
 
-`vultron/enums.py` remains as a backward-compat re-export shim for `MessageSemantics`
-plus defines `OfferStatusEnum` and `VultronObjectType`. These two domain-boundary
-enums should eventually be relocated (`OfferStatusEnum` → `core/models/`,
-`VultronObjectType` → `wire/as2/enums.py` or `core/models/`). `vultron/enums.py`
-can then be deleted. Depends on completing PRIORITY-70. See P70-2.
+`test_remove_embargo` in `test/wire/as2/vocab/test_vocab_examples.py:819`
+occasionally fails due to py_trees blackboard global state shared across tests.
+`specs/testability.md` TB-06-006 mandates all tests be deterministic. Fix:
+add `autouse` fixture in `test/wire/as2/vocab/conftest.py` to clear the
+blackboard before each test.
 
-### ❌ `vultron/core/ports/` missing delivery_queue and dns_resolver stubs (P70-3)
+### ❌ DRY core domain models (TECHDEBT-16 — new gap)
 
-`vultron/adapters/driven/delivery_queue.py` and `dns_resolver.py` reference
-`core/ports/delivery_queue.py` and `core/ports/dns_resolver.py` as their port
-interfaces, but those Protocol stub files do not exist yet. P70-3 must add them.
+`vultron/core/models/` domain classes independently repeat common fields
+(`id`, `name`, timestamps). Per `notes/domain-model-separation.md` "DRY Core
+Domain Models", a `VultronObject` base class should capture these fields;
+`VultronEvent` and domain model classes should inherit from it.
 
-### ❌ New violation V-24: `wire/as2/vocab/examples/_base.py` imports from adapter layer
+### ❌ `docker/README.md` out of date (DOCS-1 — new gap)
 
-`vultron/wire/as2/vocab/examples/_base.py` imports `DataLayer` from
-`vultron.api.v2.datalayer.abc` at module level and `Record`, `get_datalayer` from
-`api/v2/datalayer/` inside `initialize_examples()`. Wire layer must not import
-from the adapter layer. Captured in TECHDEBT-13.
+`docker/README.md` lists individual per-demo services that no longer exist
+in `docker-compose.yml` (now consolidated into a unified `demo` service).
+Captured in `notes/codebase-structure.md`. Needs update to describe `api-dev`,
+`demo`, `test`, `docs`, and `vultrabot-demo` services.
+
+### ❌ Broken inline code examples in `docs/` (DOCS-2 — new gap)
+
+`docs/reference/code/as_vocab/*.md` reference old `vultron.as_vocab.*` module
+paths that moved to `vultron.wire.as2.vocab.*` during P60-1. Running
+`mkdocs build` surfaces these errors. Captured in `notes/codebase-structure.md`.
 
 ### ❌ Multi-actor demos not yet started (PRIORITY 300)
 
@@ -146,7 +148,7 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details.
 ### Phase PRIORITY-50/60/65 — Hexagonal Architecture (ALL COMPLETE ✅)
 
 P50-0, ARCH-1.1–1.4, ARCH-CLEANUP-1/2/3, P60-1/2/3, P65-1–7 all complete.
-V-01 through V-23 resolved. See `plan/IMPLEMENTATION_HISTORY.md` for details.
+V-01 through V-24 resolved. See `plan/IMPLEMENTATION_HISTORY.md` for details.
 
 ---
 
@@ -156,67 +158,110 @@ SC-PRE-2, SC-3.2, SC-3.3 all complete. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
-### Technical Debt (housekeeping) — all complete ✅
+### Technical Debt (housekeeping) — batches 1–14 complete ✅
 
 TECHDEBT-3, TECHDEBT-7, TECHDEBT-8, TECHDEBT-9, TECHDEBT-10, TECHDEBT-11,
-TECHDEBT-12 all done. TECHDEBT-4 superseded by P70-2.
+TECHDEBT-12, TECHDEBT-13a/b/c, TECHDEBT-14 all done. TECHDEBT-4 superseded
+by P70-2. See `plan/IMPLEMENTATION_HISTORY.md`.
+
+---
+
+### ARCH-DOCS-1 — Update architecture-review.md violation status markers (COMPLETE ✅)
+
 See `plan/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
-### ARCH-DOCS-1 — Update architecture-review.md violation status markers
+### Phase PRIORITY-70 — DataLayer Refactor into Ports and Adapters (COMPLETE ✅)
 
-**Priority**: High (docs correctness)
-
-- [x] **ARCH-DOCS-1**: Update `notes/architecture-review.md` to mark V-03-R
-  (P65-4), V-15/16/17/18/19 (P65-6b), and V-22/23 (P65-7) as fully resolved.
-  Update the status header block at the top of the file to reflect the current
-  state: all violations V-01 through V-23 resolved. Done when the file
-  accurately reflects the post-P65-7 state and no violation is misrepresented
-  as open or partial.
+P70-2 through P70-5 all complete. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
-### TECHDEBT-13 — Minor wire-boundary cleanup items
+### Phase PRIORITY-75 — api/v2 Business Logic → core/use_cases/ (P75-1/2/3 COMPLETE ✅)
 
-**Priority**: Medium (architecture hygiene)
+P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3 all complete.
+See `plan/IMPLEMENTATION_HISTORY.md` for details.
 
-- [x] **TECHDEBT-13a**: Update `test/core/behaviors/report/test_policy.py` to
-  replace the `VulnerabilityReport` import from `vultron.wire.as2.vocab.objects`
-  with `VultronReport` from `vultron.core.models.vultron_types`. Done when no
-  core test imports wire-layer AS2 vocabulary types and tests pass. (Residual
-  V-23 cleanup.)
-- [x] **TECHDEBT-13b**: Fix V-24 — update `vultron/wire/as2/vocab/examples/_base.py`
-  to eliminate adapter-layer imports. The `DataLayer` annotation should use the
-  core port (`vultron.core.ports.activity_store.DataLayer`); the `initialize_examples()`
-  function should accept a `DataLayer` argument only (removing the `get_datalayer()`
-  fallback and `Record` import). Done when `_base.py` has no imports from
-  `vultron.api.v2.datalayer.*` and tests pass.
-- [x] **TECHDEBT-13c**: Update `TYPE_CHECKING` imports in `vultron/types.py` and
-  `vultron/behavior_dispatcher.py` to reference `vultron.core.ports.activity_store.DataLayer`
-  directly instead of `vultron.api.v2.datalayer.abc.DataLayer` (the shim).
-  Done when no `core/` or top-level module imports from `api/v2/datalayer/abc`
-  at type-check time.
+#### Remaining P75 tasks
 
----
+- [ ] **P75-4-pre**: Standardize use-case interface: define a `UseCase[Req, Res]`
+  Protocol in `vultron/core/use_cases/_types.py` (or `vultron/core/ports/use_case.py`)
+  with a consistent `execute(request: Req) -> Res` method. Per
+  `notes/use-case-behavior-trees.md` "Standardized Use Case Interface", this
+  should happen BEFORE P75-4 to simplify adapter integration. Done when the
+  Protocol is defined, at least one use case is refactored to implement it, and
+  tests pass. **Must precede P75-4.**
 
-### TECHDEBT-14 — Split `vultron/core/models/vultron_types.py` into per-type modules
+- [ ] **P75-4**: Update driving adapter stubs (`vultron/adapters/driving/cli.py`,
+  `vultron/adapters/driving/mcp_server.py`) to call `core/use_cases/` callables
+  directly with an injected `DataLayer`, without going through HTTP. Done when
+  the CLI and MCP adapters exercise the same code paths as the HTTP inbox adapter.
+  **Depends on P75-4-pre, P75-2, P75-3.**
 
-**Priority**: Low (organizational)
-
-- [x] **TECHDEBT-14**: Split `vultron/core/models/vultron_types.py` (273 lines,
-  11 classes) into individual modules following the `wire/as2/vocab/objects/`
-  pattern (e.g., `core/models/report.py`, `core/models/case.py`). Add a
-  re-export shim at `vultron/core/models/vultron_types.py` for backward compat
-  (similar to `api/v2/datalayer/abc.py`). Done when each type has its own
-  module, re-exports work for existing callers, and tests pass.
+- [ ] **P75-5**: Decide disposition of `vultron/api/v1/`. The v1 API is a
+  vocabulary-examples HTTP adapter (thin routers over `wire/as2/vocab/examples/`;
+  no business logic). Options: (a) keep as-is with a clear "vocabulary showcase"
+  label, (b) merge into `api/v2` as a `/examples/` subrouter, or (c) deprecate
+  and remove. Done when a decision is recorded in an ADR or issue and the code
+  reflects the decision.
 
 ---
 
-### Phase PRIORITY-65 — Address Architecture Violations (ALL COMPLETE ✅)
+### TECHDEBT-15 — Fix flaky `test_remove_embargo` test
 
-All P65 tasks (P65-1 through P65-7) complete. All violations V-01 through V-23
-resolved. See `plan/IMPLEMENTATION_HISTORY.md` for full task details.
+**Priority**: High (spec TB-06-006 — all tests MUST be deterministic)
+
+- [ ] **TECHDEBT-15**: Fix `test_remove_embargo` in
+  `test/wire/as2/vocab/test_vocab_examples.py:819`. The test fails
+  non-deterministically due to py_trees blackboard global state leaking between
+  tests. Fix: add an `autouse` fixture in
+  `test/wire/as2/vocab/conftest.py` that clears
+  `py_trees.blackboard.Blackboard.storage` before and after each test (see
+  AGENTS.md "py_trees Blackboard Global State" section). Done when
+  `test_remove_embargo` passes reliably in the full test suite across multiple
+  runs and no other tests in the file are affected.
+
+---
+
+### TECHDEBT-16 — DRY core domain models (VultronObject base class)
+
+**Priority**: Low (organizational, `notes/domain-model-separation.md`)
+
+- [ ] **TECHDEBT-16**: Add a `VultronObject` base class in `vultron/core/models/`
+  capturing common fields shared by all domain objects (e.g., `id`, `name`,
+  `created_at`, `updated_at`). Have `VultronEvent` and other domain model classes
+  inherit from `VultronObject` rather than directly from `BaseModel`. Mirrors
+  the wire-layer class hierarchy at the domain level. Done when the base class
+  is defined, all domain model classes inherit from it, repeated field
+  definitions are removed, and tests pass.
+
+---
+
+### DOCS-1 — Update `docker/README.md`
+
+**Priority**: Medium (docs correctness, `notes/codebase-structure.md`)
+
+- [ ] **DOCS-1**: Update `docker/README.md` to accurately describe the current
+  `docker-compose.yml` services: `api-dev` (API server), `demo` (unified demo
+  runner for all demo scripts), `test` (pytest), `docs` (MkDocs), and
+  `vultrabot-demo`. Remove references to individual per-demo service containers
+  (e.g., `receive-report-demo`, `initialize-case-demo`, etc.) that have been
+  consolidated into the `demo` service. Done when the README accurately reflects
+  the current services and how to run them.
+
+---
+
+### DOCS-2 — Fix broken inline code examples in `docs/`
+
+**Priority**: Medium (docs correctness, `notes/codebase-structure.md`)
+
+- [ ] **DOCS-2**: Update `docs/reference/code/as_vocab/*.md` files that reference
+  old `vultron.as_vocab.*` module paths (moved to `vultron.wire.as2.vocab.*`
+  during P60-1). Run `mkdocs build` to surface all broken references, then update
+  the affected code blocks and `:::: module.path` autodoc directives to use the
+  new paths. Done when `mkdocs build` succeeds without module-not-found errors
+  in `docs/reference/code/as_vocab/`.
 
 ---
 
@@ -233,8 +278,17 @@ resolved. See `plan/IMPLEMENTATION_HISTORY.md` for full task details.
 
 **Reference**: `specs/outbox.md` OX-03, OX-04
 
+**Note**: Before OX-1.1, add `vultron/core/ports/emitter.py` — the
+`ActivityEmitter` Protocol that driven delivery adapters implement.
+Per `notes/architecture-ports-and-adapters.md` "Dispatch vs Emit Terminology",
+this is the outbound counterpart to `core/ports/dispatcher.py`.
+
+- [ ] **OX-1.0**: Add `vultron/core/ports/emitter.py` — `ActivityEmitter`
+  Protocol stub (outbound counterpart to `core/ports/dispatcher.py`). Done when
+  the Protocol is defined with at least an `emit(activity, recipients)` method
+  and `adapters/driven/delivery_queue.py` references it as the port interface.
 - [ ] **OX-1.1**: Implement local delivery: write activity from actor outbox to
-  recipient actor's inbox in DataLayer (OX-04-001, OX-04-002)
+  recipient actor's inbox in DataLayer (OX-04-001, OX-04-002). **Depends on OX-1.0.**
 - [ ] **OX-1.2**: Integrate delivery as background task after handler completion
   (OX-03-002, OX-03-003); must not block HTTP response
 - [ ] **OX-1.3**: Add idempotency check — delivering same activity twice MUST NOT
@@ -243,175 +297,20 @@ resolved. See `plan/IMPLEMENTATION_HISTORY.md` for full task details.
 
 ---
 
-### Phase PRIORITY-70 — DataLayer Refactor into Ports and Adapters
+### PRIORITY-70 Complete ✅ — DataLayer in Ports and Adapters
 
-**Reference**: `plan/PRIORITIES.md` PRIORITY 70,
-`notes/domain-model-separation.md` (Per-Actor DataLayer Isolation Options),
-`notes/architecture-ports-and-adapters.md`
-
-**P70-1 SUPERSEDED by P65-1** — DataLayer Protocol move to `core/ports/` done.
-**Must precede**: PRIORITY-100 (actor independence uses the new layer structure).
-
-- [x] **P70-2**: Move `OfferStatusEnum` and `VultronObjectType` from
-  `vultron/enums.py` to their correct architectural homes (`core/models/` and
-  `wire/as2/enums.py` respectively). Delete `vultron/enums.py`. Update all
-  callers (about 13 files import from `vultron.enums`). Done when no
-  `vultron.enums` imports remain and tests pass.
-
-- [x] **P70-3**: Add `vultron/core/ports/delivery_queue.py` and
-  `vultron/core/ports/dns_resolver.py` Protocol stub files. The stubs in
-  `vultron/adapters/driven/delivery_queue.py` and `dns_resolver.py` already
-  reference these as their port interfaces but the files do not yet exist.
-  No implementation logic required — Protocol class definitions only. Done when
-  both files exist in `core/ports/` and the driven adapter stubs can import from
-  them without errors.
-
-- [x] **P70-4**: Move `vultron/api/v2/datalayer/tinydb_backend.py` (the TinyDB
-  implementation) to `vultron/adapters/driven/activity_store.py`. Leave a
-  backward-compat re-export shim at the old path. Update `api/v2/datalayer/abc.py`
-  shim to re-export from the new location. Done when `TinyDbDataLayer` lives in
-  `adapters/driven/`, all imports resolve, and tests pass.
-
-- [x] **P70-5**: Remove shims and update all remaining callers to import
-  `TinyDbDataLayer` from `adapters/driven/` and `DataLayer` from
-  `core/ports/activity_store`. Delete `api/v2/datalayer/abc.py` and the
-  `api/v2/datalayer/tinydb.py` re-export shim. Done when no module imports from
-  `vultron.api.v2.datalayer.*` and tests pass. **Depends on P70-4.**
+P70-2 through P70-5 all complete. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
-### Phase PRIORITY-75 — api/v2 Business Logic → core/use_cases/
+### PRIORITY-75 Complete (P75-1/2/3) ✅ — Business Logic in core/use_cases/
 
-**Reference**: `plan/PRIORITIES.md` PRIORITY 60/65 ("continue hex arch refactor"),
-`notes/architecture-ports-and-adapters.md`,
-`vultron/core/use_cases/__init__.py` (stub docstring)
+P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3 all complete.
+See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
 
-**Must precede**: PRIORITY-100 (driving adapters need clean use-case interface).
-**Blocked by**: PRIORITY-70 (use cases call core ports; DataLayer must be
-fully relocated first).
-
-- [x] **P75-1**: Define the `VultronEvent` domain event base type and initial
-  subclasses (e.g., `ReportCreatedEvent`, `CaseEngagedEvent`, `EmbargoInvitedEvent`)
-  in `vultron/core/models/events.py`. These replace `DispatchActivity` as the
-  input type for use-case callables. Done when domain event types cover the
-  38 handler semantics, have no wire or adapter imports, and pass type checks.
-
-- [x] **P75-2**: Extract handler business logic from
-  `vultron/api/v2/backend/handlers/*.py` into `vultron/core/use_cases/`. Each
-  handler file (`report.py`, `case.py`, `embargo.py`, `participant.py`, etc.)
-  gets a matching module in `core/use_cases/` containing plain callables that
-  accept a `VultronEvent` and a `DataLayer` port. The adapter-layer handler
-  becomes a thin delegate: verifies semantics, builds the domain event, calls
-  the use case. Done when `core/use_cases/` covers all 38 use cases, handlers
-  import from `core/use_cases/`, and tests pass. **Depends on P75-1.**
-
-  > ⚠️ **Post-P75-2 architecture tangles** (resolve before P75-3):
-  > The dispatch pipeline has residual wire coupling, vestigial handler delegates,
-  > naming inconsistency (Activity vs Event), and the dispatcher has not yet been
-  > modelled as a formal driving port. P75-2a–2c resolve these before
-  > trigger-service extraction adds more code on top.
-
-- [x] **P75-2a** — Core domain model audit and enrichment: Audit every `Vultron*`
-  domain type in `vultron/core/models/vultron_types.py` against its wire
-  counterpart — `VultronReport` vs `VulnerabilityReport`, `VultronCase` vs
-  `VulnerabilityCase`, `VultronEmbargoEvent` vs `EmbargoEvent`,
-  `VultronParticipant` vs `CaseParticipant`, `VultronNote` vs `as_Note`,
-  `VultronCaseStatus` vs `CaseStatus`, `VultronParticipantStatus` vs
-  `ParticipantStatus`, `VultronActivity` vs `as_Activity`. For each pair,
-  identify every field present in the wire model but absent from the domain
-  model — especially pass-through fields (`content`, `summary`, `url`, `tag`,
-  `media_type`, `context`, etc.) that may appear in real activities but are not
-  yet represented. Add the missing fields to the domain models. Update
-  `extract_intent()` in `vultron/wire/as2/extractor.py` to populate all new
-  fields during wire-to-domain translation. Add or update tests that verify the
-  new fields survive the wire-to-domain round-trip. Done when every semantically
-  relevant wire-model field is captured in the corresponding domain model or
-  documented as intentionally excluded, and tests pass.
-  **Must precede P75-2b** — removing `wire_object` pass-through (P75-2b) only
-  makes sense once domain models contain all the data use cases need.
-  **Depends on P75-1, P75-2.**
-
-- [x] **P75-2b** — Remove wire coupling from the dispatch envelope and rename
-  `DispatchActivity` → `DispatchEvent`:
-  - Rename `DispatchActivity` to `DispatchEvent` in `vultron/types.py`. "Activity"
-    is a wire-layer concept; "Event" is a domain-layer concept. Update all
-    references (dispatcher, inbox handler, handler files, tests, specs, AGENTS.md).
-    Note: `EmbargoEvent` is an AS2 object type, not a `VultronEvent` subclass —
-    take care with naming in that vicinity.
-  - Remove `wire_activity: Any` and `wire_object: Any` from `DispatchEvent`.
-    These opaque wire fields leak the wire layer into the dispatch envelope.
-    Once domain models are enriched (P75-2a), the `VultronEvent` payload carries
-    all data use cases need.
-  - Remove `wire_object` and `wire_activity` keyword parameters from every use
-    case function in `vultron/core/use_cases/`. Use cases must operate on
-    `VultronEvent` + `DataLayer` only.
-  - Update `prepare_for_dispatch()` in `inbox_handler.py` to not carry wire
-    objects into the envelope.
-  - Update the `BehaviorHandler` Protocol in `vultron/types.py` (or wherever it
-    lands after P75-2c) to use `DispatchEvent`.
-  - Update `specs/dispatch-routing.md` and `specs/handler-protocol.md` to reflect
-    the rename and the removal of wire fields.
-  - Done when `DispatchActivity` is fully renamed to `DispatchEvent`, it has no
-    wire-layer fields, and no use case function accepts wire objects. Tests pass.
-  **Depends on P75-2a.**
-
-- [x] **P75-2c** — Model dispatcher as formal driving port, flatten the handler
-  adapter layer, and rename pattern objects:
-  - **Driving port**: Move the `ActivityDispatcher` Protocol from `vultron/types.py`
-    to `vultron/core/ports/dispatcher.py`. A driving port is an interface the core
-    *exposes* for adapters to call into it; defining it in `core/ports/` alongside
-    `DataLayer` makes this role explicit and makes the concrete dispatcher
-    injectable (e.g., in tests). Signature: `dispatch(event: VultronEvent, dl:
-    DataLayer) -> None` (after P75-2b removes wire fields from `DispatchEvent`).
-  - **Routing table to core**: Move `SEMANTICS_HANDLERS` from
-    `vultron/api/v2/backend/handler_map.py` to `vultron/core/use_cases/use_case_map.py`.
-    This mapping from `MessageSemantics` (domain) to use case callables (domain)
-    is domain knowledge, not adapter configuration. The driving-adapter inbox
-    handler just calls the port; it need not know which use case handles which
-    semantic.
-  - **Dispatcher implementation**: Move `DispatcherBase` / `DirectActivityDispatcher`
-    from `vultron/behavior_dispatcher.py` to `vultron/core/` (e.g.,
-    `vultron/core/dispatcher.py`) or to `vultron/adapters/driving/dispatcher.py`.
-    Document the choice. The inbox adapter instantiates the concrete dispatcher
-    and injects it (removing the module-level singleton pattern).
-  - **Flatten handler layer**: Update `SEMANTICS_HANDLERS` (now in
-    `core/use_cases/use_case_map.py`) to map `MessageSemantics` directly to use
-    case callables. The `vultron/api/v2/backend/handlers/` shim modules become
-    dead code; delete them. Confirm the `@verify_semantics` guard is either
-    absorbed into the dispatcher (type assertion before invoking use case) or
-    replaced by static type checking (mypy/pyright).
-  - **Pattern naming**: Rename every `ActivityPattern` instance in
-    `SEMANTICS_ACTIVITY_PATTERNS` in `vultron/wire/as2/extractor.py` to use a
-    `Pattern` suffix (e.g., `CreateReport` → `CreateReportPattern`,
-    `EngageCase` → `EngageCasePattern`). This distinguishes pattern-matching
-    objects from similarly-named `Activity` and `Event` types.
-  - Update AGENTS.md, specs, and inline documentation to reflect the new
-    driving-port model and the absence of the handler shim layer.
-  - Done when `ActivityDispatcher` is defined in `core/ports/`, routing table is
-    in `core/use_cases/use_case_map.py`, handler shim modules are deleted, all
-    pattern objects use `Pattern` suffix, and tests pass.
-  **Depends on P75-2b.**
-
-- [x] **P75-3**: Migrate trigger-service logic from
-  `vultron/api/v2/backend/trigger_services/` to `vultron/core/use_cases/`.
-  The trigger router stays in `api/v2/routers/trigger_*.py`; the service layer
-  moves to `core/use_cases/` as callable functions accepting domain types + a
-  `DataLayer` port. Done when trigger services in `api/v2/backend/trigger_services/`
-  are either deleted or reduced to thin delegates, and tests pass.
-  **Depends on P75-1, P75-2.**
-
-- [ ] **P75-4**: Update driving adapter stubs (`vultron/adapters/driving/cli.py`,
-  `vultron/adapters/driving/mcp_server.py`) to call `core/use_cases/` callables
-  directly with an injected `DataLayer`, without going through HTTP. Done when
-  the CLI and MCP adapters exercise the same code paths as the HTTP inbox adapter.
-  **Depends on P75-2, P75-3.**
-
-- [ ] **P75-5**: Decide disposition of `vultron/api/v1/`. The v1 API is a
-  vocabulary-examples HTTP adapter (thin routers over `wire/as2/vocab/examples/`;
-  no business logic). Options: (a) keep as-is with a clear "vocabulary showcase"
-  label, (b) merge into `api/v2` as a `/examples/` subrouter, or (c) deprecate
-  and remove. Done when a decision is recorded in an ADR or issue and the code
-  reflects the decision.
+- [ ] **P75-4-pre**: Standardize use-case interface (see above)
+- [ ] **P75-4**: Update driving adapter stubs (see above; **depends on P75-4-pre**)
+- [ ] **P75-5**: Decide disposition of `vultron/api/v1/` (see above)
 
 ---
 
@@ -421,7 +320,7 @@ fully relocated first).
 `specs/case-management.md` CM-01,
 `notes/domain-model-separation.md` (Per-Actor DataLayer Isolation Options)
 
-**Blocked by**: PRIORITY-70
+**Blocked by**: PRIORITY-70 (complete ✅)
 
 - [ ] **ACT-1**: Draft ADR for per-actor DataLayer isolation — document options
   (Option B: TinyDB namespace prefix; MongoDB community for production),
