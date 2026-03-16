@@ -337,7 +337,6 @@ the outbox delivery pipeline is implemented.
 
 ## 2026-03-10 — Gap analysis refresh #22: new gaps identified
 
-
 ### P70 DataLayer refactor — when to plan
 
 `notes/domain-model-separation.md` says the DataLayer relocation SHOULD be planned
@@ -351,6 +350,7 @@ moves there).
 
 TECHDEBT-4 ("reorganize top-level modules `activity_patterns`, `semantic_map`,
 `enums`") is largely complete:
+
 - `vultron/activity_patterns.py` and `vultron/semantic_map.py` deleted in
   ARCH-CLEANUP-1.
 - AS2 structural enums moved from `vultron/enums.py` to `vultron/wire/as2/enums.py`
@@ -371,7 +371,6 @@ as the starting point is now the top priority. The plan has been updated accordi
 `Phase ARCH-1` is renamed to `Phase PRIORITY-50` and moved to be the immediate next
 phase after PRIORITY-30 (now complete). The old "PRIORITY 150" label in the plan was
 incorrect; PRIORITIES.md has always listed this as Priority 50.
-
 
 ---
 
@@ -415,7 +414,6 @@ in cleaner BT node names (e.g., `q_rm_in_CLOSED` instead of
 
 ---
 
-
 `specs/architecture.md` and `notes/architecture-review.md` were added since the
 last plan refresh. The review identifies 11 violations (V-01 to V-11) and a
 remediation plan (R-01 to R-06). The most impactful violations are:
@@ -428,8 +426,6 @@ remediation plan (R-01 to R-06). The most impactful violations are:
 Phase ARCH-1 now tracks this work. ARCH-1.1 (R-01) must be done before ARCH-1.2
 (R-02), which must precede ARCH-1.3 (R-03/R-04).
 
-
-
 ### Approach for P50-0: Extract service layer from `triggers.py` — **COMPLETE**
 
 `triggers.py` is 1274 lines with all nine trigger endpoint functions each containing
@@ -437,6 +433,7 @@ inline domain logic (data lookups, state transitions, activity construction, out
 updates). The fix is a two-step operation within one agent cycle:
 
 **Step 1 — Create `vultron/api/v2/backend/trigger_services/` package** ✓:
+
 - `report.py` — service functions for `validate_report`, `invalidate_report`,
   `reject_report`, `close_report`
 - `case.py` — service functions for `engage_case`, `defer_case`
@@ -444,20 +441,24 @@ updates). The fix is a two-step operation within one agent cycle:
   `terminate_embargo`
 
 Each service function signature:
+
 ```python
 def svc_validate_report(actor_id: str, offer_id: str, note: str | None, dl: DataLayer) -> dict:
     ...
 ```
+
 The `DataLayer` is passed in from the router (via `Depends(get_datalayer)`), not
 fetched inside the service.
 
 **Step 2 — Thin-ify and split the router** ✓:
+
 - Split `triggers.py` into `trigger_report.py`, `trigger_case.py`,
   `trigger_embargo.py` in `vultron/api/v2/routers/`
 - Each router function: validate request → call service → return response
 - `triggers.py` deleted ✓
 
 **Additional cleanup** ✓:
+
 - Consolidated `ValidateReportRequest`, `InvalidateReportRequest`, and
   `CloseReportRequest` (structurally identical — CS-09-002) into shared base
   `ReportTriggerRequest` in `_models.py`
@@ -477,7 +478,6 @@ generalize to the rest of the codebase.
 
 ARCH-1.1 and ARCH-1.2 remain prerequisites for ARCH-1.3 and ARCH-1.4 as documented
 in `notes/architecture-review.md`.
-
 
 ## Phase PRIORITY-50 — Hexagonal Architecture (archived 2026-03-10)
 
@@ -579,8 +579,6 @@ remain. New violations V-13 through V-23 introduced in P60-2. See
 
 822 tests pass.
 
-
-
 ### What changed
 
 - Deleted `vultron/activity_patterns.py`, `vultron/semantic_map.py`, and
@@ -595,8 +593,6 @@ remain. New violations V-13 through V-23 introduced in P60-2. See
 - 822 tests pass.
 
 ---
-
-
 
 ### What changed
 
@@ -649,6 +645,7 @@ are lower severity and can be addressed as part of subsequent work.
 Added `vultron-demo trigger` sub-command backed by `vultron/demo/trigger_demo.py`.
 
 Two end-to-end demo workflows are implemented:
+
 - **Demo 1 (validate and engage)**: finder submits report via inbox → vendor
   calls `POST .../trigger/validate-report` → vendor calls
   `POST .../trigger/engage-case`.
@@ -657,6 +654,7 @@ Two end-to-end demo workflows are implemented:
   `POST .../trigger/close-report`.
 
 Supporting changes:
+
 - Added `post_to_trigger()` helper to `vultron/demo/utils.py`.
 - Added `trigger` demo to `DEMOS` list in `vultron/demo/cli.py`; it now runs
   as part of `vultron-demo all`.
@@ -676,7 +674,6 @@ sites across `vultron/` and `test/`. 815 tests pass.
 The compatibility re-export in `vultron/enums.py` may be removed once ARCH-1.3
 consolidates the extractor and the AS2 structural enums move to
 `vultron/wire/as2/enums.py` (R-04).
-
 
 ---
 
@@ -752,9 +749,6 @@ to work. These can be deleted once confirmed no external callers remain.
 - 822 tests pass.
 
 ---
-
-
-
 
 ## TECHDEBT-9/7 — NonEmptyString type alias rollout (2026-03-10)
 
@@ -838,6 +832,7 @@ be resolved incrementally as part of ongoing development. New and modified
 code should be made clean under pyright basic mode before merging.
 
 **Key error categories observed**:
+
 - `reportInvalidTypeArguments`: `Optional[str]` spelled as `str | None` used
   as type argument (Pydantic `Annotated` patterns) — widespread across
   `wire/as2/vocab/objects/`.
@@ -846,6 +841,7 @@ code should be made clean under pyright basic mode before merging.
 - `reportGeneralTypeIssues`: Field override without default value.
 
 ---
+
 ## 2026-03-10 — P65-2 complete (marked; done in P65-1 commit)
 
 P65-2 was implemented in the same commit as P65-1. The `inbox_handler.py`
@@ -889,7 +885,6 @@ references a wire-layer type that will be addressed in P65-6).
 - V-16: `core/behaviors/report/nodes.py` no longer imports `OfferStatus`
   from the adapter layer.
 - V-18 partial: Adapter-level `object_to_record` removed from core BT nodes.
-
 
 ## P65-3: Enrich InboundPayload; Eliminate raw_activity
 
@@ -1064,6 +1059,7 @@ state of the codebase. All violations V-01 through V-23 are now marked as
 fully resolved.
 
 **Changes made**:
+
 - Status header block: added new paragraph summarising P65-4, P65-6b, and P65-7
   completions; declared all V-01–V-23 resolved.
 - Section headers for "Active Regressions" and "New Violations" updated with
@@ -1238,6 +1234,7 @@ imports.
 `uc.func(dispatchable.payload, dl)`.
 
 **Supporting changes**:
+
 - Added `VultronActivity`, `VultronNote`, `VultronEmbargoEvent` domain
   types to `vultron/core/models/vultron_types.py`
 - Enriched all `VultronEvent` subclasses with optional typed domain-object
@@ -1268,6 +1265,7 @@ against its wire counterpart, add missing semantically relevant fields, update
 `extract_intent()` to populate them, and add round-trip tests.
 
 **Fields added per domain type**:
+
 - `VultronCaseStatus`: `name`
 - `VultronParticipantStatus`: `name`, `case_status` (case status ID ref); `vfd_state`
   was already present in the domain model but not populated by `extract_intent()` —
@@ -1429,6 +1427,7 @@ into `vultron/core/use_cases/triggers/`. The adapter layer is now reduced to thi
 delegates that translate domain exceptions to `HTTPException`.
 
 **Files created:**
+
 - `vultron/core/use_cases/triggers/__init__.py` — exports all 9 `svc_*` functions
 - `vultron/core/use_cases/triggers/_helpers.py` — domain helpers (resolve_actor,
   resolve_case, update_participant_rm_state, add_activity_to_outbox, outbox_ids,
@@ -1440,6 +1439,7 @@ delegates that translate domain exceptions to `HTTPException`.
   svc_terminate_embargo
 
 **Files modified (reduced to thin delegates):**
+
 - `vultron/api/v2/backend/trigger_services/_helpers.py` — HTTP error translation +
   re-exports from core helpers
 - `vultron/api/v2/backend/trigger_services/report.py` — thin delegate
