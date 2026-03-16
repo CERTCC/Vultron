@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-16 (refresh #40: TECHDEBT-21 complete)
+**Last Updated**: 2026-03-16 (refresh #41: TECHDEBT-24 complete)
 
 ## Overview
 
@@ -38,7 +38,7 @@ P65-1, P65-2, P65-3, P65-4, P65-5, P65-6a, P65-6b, P65-7,
 ARCH-DOCS-1, TECHDEBT-13a, TECHDEBT-13b, TECHDEBT-13c, TECHDEBT-14,
 P70-2, P70-3, P70-4, P70-5,
 P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre,
-TECHDEBT-15, TECHDEBT-21.
+TECHDEBT-15, TECHDEBT-21, TECHDEBT-24.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -397,17 +397,13 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
   `append_rm_state(rm_state, actor, context)` method was added to both
   `CaseParticipant` (wire) and `ParticipantModel` (Protocol), eliminating
   the need to instantiate `ParticipantStatus` in the helper.
-- [ ] **TECHDEBT-24** (remaining — `case.py`): The lazy import of
-  `VulnerabilityCase` in `core/use_cases/case.py::CreateCaseUseCase.execute`
-  cannot be trivially removed because `VulnerabilityCase` uses
-  `default_factory=init_case_status` to initialize `case_statuses = [CaseStatus()]`.
-  Passing a bare `VultronCase` (which initialises `case_statuses = []`) causes
-  `VulnerabilityCase.current_status` (`max()`) to fail after the round-trip
-  through TinyDB. Fix requires either (a) giving `VultronCase` an equivalent
-  `case_statuses` initializer, (b) having `PersistCase` BT node convert the
-  domain object to a proper `VulnerabilityCase`, or (c) making `current_status`
-  guard for empty. Done when `case.py` has no imports from `vultron.wire.*`
-  and the full test suite passes.
+- [x] **TECHDEBT-24** (remaining — `case.py`): Resolved using option (a):
+  `VultronCase.case_statuses` now initialises with `[VultronCaseStatus()]` via a
+  `default_factory` lambda, matching `VulnerabilityCase.init_case_status()`. The
+  lazy import of `VulnerabilityCase` in `CreateCaseReceivedUseCase.execute` was
+  removed; `request.case` (already a `VultronCase`) is passed directly to
+  `create_create_case_tree`. `case.py` has no imports from `vultron.wire.*` and
+  893 tests pass.
 
 ---
 

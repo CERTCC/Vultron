@@ -55,7 +55,9 @@ class VultronCase(BaseModel):
     )
     actor_participant_index: dict[str, str] = Field(default_factory=dict)
     vulnerability_reports: list[str] = Field(default_factory=list)
-    case_statuses: list[str | VultronCaseStatus] = Field(default_factory=list)
+    case_statuses: list[str | VultronCaseStatus] = Field(
+        default_factory=lambda: [VultronCaseStatus()]
+    )
     notes: list[str] = Field(default_factory=list)
     active_embargo: str | None = None
     proposed_embargoes: list[str] = Field(default_factory=list)

@@ -59,9 +59,6 @@ class CreateCaseReceivedUseCase:
         from vultron.core.behaviors.case.create_tree import (
             create_create_case_tree,
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
 
         try:
             actor_id = request.actor_id
@@ -76,15 +73,9 @@ class CreateCaseReceivedUseCase:
 
             logger.info("Actor '%s' creates case '%s'", actor_id, case_id)
 
-            case_wire = VulnerabilityCase(
-                id=request.case.as_id,
-                name=request.case.name,
-                attributed_to=request.case.attributed_to,
-            )
-
             bridge = BTBridge(datalayer=self._dl)
             tree = create_create_case_tree(
-                case_obj=case_wire, actor_id=actor_id
+                case_obj=request.case, actor_id=actor_id
             )
             result = bridge.execute_with_setup(
                 tree=tree, actor_id=actor_id, activity=request
