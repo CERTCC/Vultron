@@ -1524,3 +1524,25 @@ adapters that exercise the same code paths as the HTTP inbox adapter.
 
 **Test results:** 893 passed, 0 failed (2 fewer than baseline: `TestUnknownFunction`
 tests for the removed `unknown()` wrapper were intentionally deleted).
+
+## TECHDEBT-17, TECHDEBT-18, TECHDEBT-20 — Batch 80a: Dead code removal (2026-03-16)
+
+**Tasks**: TECHDEBT-17, TECHDEBT-18, TECHDEBT-20
+
+- **TECHDEBT-17**: Deleted 279 lines of pre-refactor bare function stubs
+  (`create_embargo_event`, `add_embargo_event_to_case`,
+  `remove_embargo_event_from_case`, `announce_embargo_event_to_case`,
+  `invite_to_embargo_on_case`, `accept_invite_to_embargo_on_case`,
+  `reject_invite_to_embargo_on_case`) from `vultron/core/use_cases/embargo.py`
+  that duplicated the class-based use cases above them and were not called
+  anywhere (shim layer already delegated to class-based versions).
+- **TECHDEBT-18**: Deleted 53 lines — a duplicate import block and second
+  definition of `_resolve_offer_and_report` from
+  `vultron/core/use_cases/triggers/report.py` (block starting with bare
+  `import logging` after `SvcCloseReportUseCase`).
+- **TECHDEBT-20**: Deleted 25 lines — a duplicate import block ending with
+  `logger = logging.getLogger(__name__)` from
+  `vultron/core/use_cases/triggers/embargo.py` (block after
+  `SvcTerminateEmbargoUseCase`).
+
+**Test results:** 893 passed, 0 failed (unchanged from baseline).

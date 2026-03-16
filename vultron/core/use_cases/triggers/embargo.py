@@ -274,30 +274,3 @@ class SvcTerminateEmbargoUseCase:
 
         activity = announce.model_dump(by_alias=True, exclude_none=True)
         return {"activity": activity}
-
-
-import logging
-from datetime import datetime
-
-from vultron.adapters.driven.db_record import object_to_record
-from vultron.bt.embargo_management.states import EM
-from vultron.core.ports.datalayer import DataLayer
-from vultron.core.use_cases.triggers._helpers import (
-    add_activity_to_outbox,
-    find_embargo_proposal,
-    resolve_actor,
-    resolve_case,
-)
-from vultron.errors import (
-    VultronConflictError,
-    VultronNotFoundError,
-    VultronValidationError,
-)
-from vultron.wire.as2.vocab.activities.embargo import (
-    AnnounceEmbargoActivity,
-    EmAcceptEmbargoActivity,
-    EmProposeEmbargoActivity,
-)
-from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-
-logger = logging.getLogger(__name__)

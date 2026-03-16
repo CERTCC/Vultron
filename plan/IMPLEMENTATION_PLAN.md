@@ -277,7 +277,7 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 1
 
-- [ ] **TECHDEBT-17**: Delete bare function implementations (`create_embargo_event`,
+- [x] **TECHDEBT-17**: Delete bare function implementations (`create_embargo_event`,
   `add_embargo_event_to_case`, etc.) from `vultron/core/use_cases/embargo.py`
   starting at the line after `RejectInviteToEmbargoOnCaseUseCase`. These are
   pre-refactor function stubs that duplicate the class-based implementations above
@@ -292,7 +292,7 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 2
 
-- [ ] **TECHDEBT-18**: Delete the duplicate import block and second definition of
+- [x] **TECHDEBT-18**: Delete the duplicate import block and second definition of
   `_resolve_offer_and_report` from `vultron/core/use_cases/triggers/report.py`
   (the block starting with a bare `import logging` after `SvcCloseReportUseCase`).
   Done when no duplicate imports or function definitions remain, and the test suite
@@ -325,7 +325,7 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 10
 
-- [ ] **TECHDEBT-20**: Delete the duplicate import block from
+- [x] **TECHDEBT-20**: Delete the duplicate import block from
   `vultron/core/use_cases/triggers/embargo.py` that starts with a bare
   `import logging` after `SvcTerminateEmbargoUseCase` and ends with a
   duplicate `logger = logging.getLogger(__name__)`. Done when all duplicated
