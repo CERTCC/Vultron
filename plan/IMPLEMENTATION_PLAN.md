@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-16 (refresh #35: P75-4-pre complete)
+**Last Updated**: 2026-03-16 (refresh #36: TECHDEBT-15 complete)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 895 passing, 5581 subtests, 5 warnings (2026-03-16, after P75-4-pre)
+**Test suite**: 895 passing, 5581 subtests, 5 warnings (2026-03-16, after TECHDEBT-15)
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -31,7 +31,8 @@ TECHDEBT-11, TECHDEBT-12, SC-PRE-2, SC-3.2, SC-3.3,
 P65-1, P65-2, P65-3, P65-4, P65-5, P65-6a, P65-6b, P65-7,
 ARCH-DOCS-1, TECHDEBT-13a, TECHDEBT-13b, TECHDEBT-13c, TECHDEBT-14,
 P70-2, P70-3, P70-4, P70-5,
-P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre.
+P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre,
+TECHDEBT-15.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -208,7 +209,7 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details.
 
 **Priority**: High (spec TB-06-006 — all tests MUST be deterministic)
 
-- [ ] **TECHDEBT-15**: Fix `test_remove_embargo` in
+- [x] **TECHDEBT-15**: Fix `test_remove_embargo` in
   `test/wire/as2/vocab/test_vocab_examples.py:819`. The test fails
   non-deterministically due to py_trees blackboard global state leaking between
   tests. Fix: add an `autouse` fixture in
