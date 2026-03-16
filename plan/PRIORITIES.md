@@ -8,81 +8,6 @@ allow for space between to add new priorities in the future if needed. The
 priority numbers themselves do not have any inherent meaning beyond their
 relative order.
 
-## PRIORITY 30: Implement triggerable behaviors
-
-Existing demos have primarily focused on updating local state based on receipt
-of ActivityStreams activity messages. However, the Vultron Protocol also defines
-a set of triggerable behaviors that are initiated by an actor based on their
-internal state and decision-making processes, rather than being solely reactive to
-external messages. Implementing demos that showcase these triggerable behaviors
-will be important for demonstrating the full capabilities of the Vultron Protocol
-and the behavior tree implementation. Many of the behavior patterns are
-already present in the demo scripts, but they might not be fully exposed as
-triggerable behaviors. These triggerable behaviors will become an important
-part of the application API and will need to be implemented and demonstrated
-in some way. Details will need to be worked out as part of the design and
-planning process.
-
-Reference docs:
-
-- `docs/topics/behavior_logic/rm_bt.md`
-- `docs/topics/behavior_logic/rm_validation_bt.md`
-- `docs/topics/behavior_logic/rm_prioritization_bt.md`
-- `docs/topics/behavior_logic/rm_closure_bt.md`
-- `docs/topics/behavior_logic/em_bt.md`
-- `docs/topics/behavior_logic/em_eval_bt.md`
-- `docs/topics/behavior_logic/em_propose_bt.md`
-- `docs/topics/behavior_logic/em_propose_bt.md`
-
-## Priority 50: Shift toward hexagonal architecture and port/adapter design sooner than later
-
-Closely related to the Actor independence priority that follows, we want to
-shift towards a cleaner implementation of hexagonal architecture and port/adapter design.
-This will require some refactoring of the existing codebase to separate
-concerns more clearly, see `notes/architecture-ports-and-adapters.md` and  
-`specs/architecture.md` for details. This will also enable the future demo
-scenarios to be more cleanly implemented. A number of implementations of the
-triggerable behaviors in `vultron/api/v2/routers/triggers.py` (which is too
-large and also needs to be split) wound up being procedural and mixed domain logic in
-with router code. Rather than merely splitting the large file, we need to refactor this code to
-separate concerns and move towards a cleaner architecture at the same time.
-Also, the datalayer implementation has
-similar problems where it would be cleaner if we were doing dependency
-injection in a way that is consistent with the hexagonal architecture.
-This will entail some refactoring of the code base to reorganize modules and
-split out responsibilities more cleanly.
-
-## Priority 60: Continue hexagonal architecture refactor
-
-The hexagonal architecture refactor is a large task that will require multiple
-iterations to fully implement. Some basics are in place (core and wire
-packages exist but are not fully populated). Some other packages just need
-to be relocated (e.g., `vultron/as_vocab` to `wire/as2`, `vultron/behaviors`
-to `core/behaviors`, etc.) but splitting `vultron/api` into adapters will
-take a little more finesse. The API layer has a lot of domain logic mixed in
-with routing and request handling, which properly belong in ports or adapters.
-`vultron/enums.py` needs to be split across core, ports, and adapters as
-well. The focus here should be on separating concerns and moving towards a
-cleaner architecture overall, starting to put the pieces in place to avoid
-large refactors later.
-
-## Priority 65: Address all outstanding architecture violations in `notes/architecture-review.md`
-
-Following an architecture review of the codebase, we have identified a
-number of architecture violations that need to be addressed. These are
-documented in `notes/architecture-review.md`. Addressing these violations is
-important so that we can move forward with a clean architecture that
-properly separates concerns from the front-end (driving adapters), wire,
-core (use cases, etc.), and back-end layers (driven ports and adapters).
-This continues Priority 50 and 60, and pre-empts or blends in with Priority 70
-below. Use the architecture review notes as a checklist to identify and
-address each violation, ensuring that tasks are grouped appropriately in
-`plan/IMPLEMENTATION_PLAN.md` to avoid excessive fragmentation of related work.
-
-Note that the conversion to 'VultronEvent' domain events is considered a key
-part of this priority, as it must be addressed before we can fully separate
-the driving adapters from the core use cases (events).
-
 ## Priority 70: DataLayer refactor into ports and adapters
 
 The DataLayer implementation should be refactored to become a port (Protocol),
@@ -93,6 +18,19 @@ logic. (That part is mostly already true since the DataLayer is reasonably
 well abstracted already, but we still need to make sure the files and their
 contents are
 organized to reflect the architecture.)
+
+## Priority 80: Resolve technical debt and ensure Hexagonal Architecture is fully realized
+
+Once we are past P75 tasks in the implementation plan, we need to clean up 
+all the technical debt that we accumulated during the hexagonal architecture 
+refactor. This includes things like ensuring that core, adapters, and wire 
+are appropriately separated, that there is not architectural leakage from 
+the "outer" layers into core, that error handling is consistent, 
+hierarchical, well-defined, and not overly generalized (e.g., don't 
+blindly catch `Exception`) Getting the architecture solid is important for 
+the remainder of the implementation to go smoothly and for us to be able to 
+parallelize work on different components without running into merge conflicts or
+other issues caused by architectural inconsistencies.
 
 ## Priority 100: Actor independence
 
