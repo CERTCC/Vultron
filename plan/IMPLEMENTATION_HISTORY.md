@@ -1627,3 +1627,23 @@ preferable to guarding symptoms in the wire type. The domain object should
 always initialise to a valid state.
 
 **Test results:** 893 passed, 0 failed (unchanged from baseline).
+
+---
+
+## TECHDEBT-22 — UseCase[Req, Res] Protocol base on all use case classes (2026-03-16)
+
+**What was done**: Added explicit `UseCase[RequestType, ResponseType]` inheritance
+to all 47 use case classes across 11 files in `core/use_cases/` and
+`core/use_cases/triggers/`. Handler use cases inherit from
+`UseCase[XxxReceivedEvent, None]`; trigger use cases inherit from
+`UseCase[XxxTriggerRequest, dict]`. Added `from vultron.core.ports.use_case
+import UseCase` import to each file. Fixed two edge cases where the import
+insertion script placed the new import inside a multi-line import block in
+`triggers/case.py` and `triggers/report.py`.
+
+**Lessons learned**: When inserting imports after the last import line, a line
+scan looking for `from ` / `import ` prefixes can land on the first line of a
+multi-line import block. Must verify the located line is not inside an unclosed
+parenthesis.
+
+**Test results:** 893 passed, 0 failed (unchanged from baseline).

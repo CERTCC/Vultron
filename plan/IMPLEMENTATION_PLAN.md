@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-16 (refresh #41: TECHDEBT-24 complete)
+**Last Updated**: 2026-03-16 (refresh #42: TECHDEBT-22 complete)
 
 ## Overview
 
@@ -38,7 +38,7 @@ P65-1, P65-2, P65-3, P65-4, P65-5, P65-6a, P65-6b, P65-7,
 ARCH-DOCS-1, TECHDEBT-13a, TECHDEBT-13b, TECHDEBT-13c, TECHDEBT-14,
 P70-2, P70-3, P70-4, P70-5,
 P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre,
-TECHDEBT-15, TECHDEBT-21, TECHDEBT-24.
+TECHDEBT-15, TECHDEBT-21, TECHDEBT-22, TECHDEBT-24.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -353,18 +353,10 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 12
 
-- [ ] **TECHDEBT-22**: Add `UseCase[RequestType, ResponseType]` as the explicit
+- [x] **TECHDEBT-22**: Add `UseCase[RequestType, ResponseType]` as the explicit
   Protocol base for every use case class in `core/use_cases/`. Handler use cases
-  return `None`; trigger use cases return `dict`. Example:
-
-  ```python
-  class CreateReportReceivedUseCase(UseCase["CreateReportReceivedEvent", None]):
-      ...
-  ```
-
-  Done when every use case class explicitly inherits from the
-  `UseCase` Protocol, mypy confirms structural conformance, and tests pass.
-  **Depends on TECHDEBT-21** (rename must be done first for consistency).
+  return `None`; trigger use cases return `dict`. All 47 use case classes updated
+  across 11 files. 893 tests pass.
 
 ---
 
