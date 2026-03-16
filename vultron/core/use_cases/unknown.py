@@ -21,13 +21,3 @@ class UnknownUseCase:
 
     def execute(self, request: UnknownReceivedEvent) -> None:
         logger.warning("unknown use case called for event: %s", request)
-
-
-def unknown(event: UnknownReceivedEvent, dl: DataLayer) -> None:
-    """Backward-compatible callable wrapper used by the current dispatcher.
-
-    Delegates to ``UnknownUseCase`` so the class remains the single source
-    of logic while the routing table continues to hold plain callables until
-    P75-4 migrates all use cases to the class interface.
-    """
-    UnknownUseCase(dl).execute(event)

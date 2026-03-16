@@ -21,7 +21,7 @@ import pytest
 
 from vultron.core.models.events.unknown import UnknownReceivedEvent
 from vultron.core.ports.use_case import UseCase
-from vultron.core.use_cases.unknown import UnknownUseCase, unknown
+from vultron.core.use_cases.unknown import UnknownUseCase
 
 
 @pytest.fixture
@@ -68,20 +68,3 @@ class TestUnknownUseCase:
     def test_dl_injected_via_constructor(self, mock_dl):
         use_case = UnknownUseCase(mock_dl)
         assert use_case._dl is mock_dl
-
-
-class TestUnknownFunction:
-    def test_backward_compat_wrapper_calls_use_case(
-        self, mock_dl, unknown_event, caplog
-    ):
-        import logging
-
-        with caplog.at_level(logging.WARNING):
-            unknown(unknown_event, mock_dl)
-        assert any("unknown use case" in r.message for r in caplog.records)
-
-    def test_backward_compat_wrapper_does_not_raise(
-        self, mock_dl, unknown_event
-    ):
-        result = unknown(unknown_event, mock_dl)
-        assert result is None

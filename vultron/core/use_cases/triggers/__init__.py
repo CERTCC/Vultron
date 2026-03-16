@@ -14,38 +14,38 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Core trigger use-case functions.
+Core trigger use-case classes.
 
-Provides domain-layer callable functions for actor-initiated behaviors.
+Provides class-based domain use cases for actor-initiated behaviors.
 No HTTP framework imports.  Raises domain exceptions
 (``VultronNotFoundError``, ``VultronConflictError``, ``VultronValidationError``)
 that callers in the adapter layer should catch and translate.
 """
 
 from vultron.core.use_cases.triggers.case import (
-    svc_defer_case,
-    svc_engage_case,
+    SvcDeferCaseUseCase,
+    SvcEngageCaseUseCase,
 )
 from vultron.core.use_cases.triggers.embargo import (
-    svc_evaluate_embargo,
-    svc_propose_embargo,
-    svc_terminate_embargo,
+    SvcEvaluateEmbargoUseCase,
+    SvcProposeEmbargoUseCase,
+    SvcTerminateEmbargoUseCase,
 )
 from vultron.core.use_cases.triggers.report import (
-    svc_close_report,
-    svc_invalidate_report,
-    svc_reject_report,
-    svc_validate_report,
+    SvcCloseReportUseCase,
+    SvcInvalidateReportUseCase,
+    SvcRejectReportUseCase,
+    SvcValidateReportUseCase,
 )
 
 __all__ = [
-    "svc_validate_report",
-    "svc_invalidate_report",
-    "svc_reject_report",
-    "svc_close_report",
-    "svc_engage_case",
-    "svc_defer_case",
-    "svc_propose_embargo",
-    "svc_evaluate_embargo",
-    "svc_terminate_embargo",
+    "SvcValidateReportUseCase",
+    "SvcInvalidateReportUseCase",
+    "SvcRejectReportUseCase",
+    "SvcCloseReportUseCase",
+    "SvcEngageCaseUseCase",
+    "SvcDeferCaseUseCase",
+    "SvcProposeEmbargoUseCase",
+    "SvcEvaluateEmbargoUseCase",
+    "SvcTerminateEmbargoUseCase",
 ]

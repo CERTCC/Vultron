@@ -16,8 +16,8 @@
 """
 Thin adapter delegates for case-level trigger service functions.
 
-Delegates to ``vultron.core.use_cases.triggers.case`` and translates
-domain exceptions to FastAPI ``HTTPException`` responses.
+Builds domain request models, instantiates core use-case classes, and
+translates domain exceptions to FastAPI ``HTTPException`` responses.
 """
 
 from vultron.api.v2.backend.trigger_services._helpers import (
@@ -25,21 +25,27 @@ from vultron.api.v2.backend.trigger_services._helpers import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers.case import (
-    svc_defer_case as _svc_defer_case,
-    svc_engage_case as _svc_engage_case,
+    SvcDeferCaseUseCase,
+    SvcEngageCaseUseCase,
+)
+from vultron.core.use_cases.triggers.requests import (
+    DeferCaseTriggerRequest,
+    EngageCaseTriggerRequest,
 )
 from vultron.errors import VultronError
 
 
 def svc_engage_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
     try:
-        return _svc_engage_case(actor_id, case_id, dl)
+        request = EngageCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
+        return SvcEngageCaseUseCase(dl).execute(request)
     except VultronError as e:
         raise translate_domain_errors(e)
 
 
 def svc_defer_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
     try:
-        return _svc_defer_case(actor_id, case_id, dl)
+        request = DeferCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
+        return SvcDeferCaseUseCase(dl).execute(request)
     except VultronError as e:
         raise translate_domain_errors(e)

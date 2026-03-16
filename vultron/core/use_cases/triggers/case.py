@@ -14,7 +14,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Domain use-case functions for case-level trigger behaviors.
+Class-based use cases for case-level trigger behaviors.
 
 No HTTP framework imports permitted here.
 """
@@ -29,6 +29,10 @@ from vultron.core.use_cases.triggers._helpers import (
     resolve_case,
     update_participant_rm_state,
 )
+from vultron.core.use_cases.triggers.requests import (
+    DeferCaseTriggerRequest,
+    EngageCaseTriggerRequest,
+)
 from vultron.wire.as2.vocab.activities.case import (
     RmDeferCaseActivity,
     RmEngageCaseActivity,
@@ -37,77 +41,87 @@ from vultron.wire.as2.vocab.activities.case import (
 logger = logging.getLogger(__name__)
 
 
-def svc_engage_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
-    """
-    Engage a case (RM → ACCEPTED).
+class SvcEngageCaseUseCase:
+    """Engage a case (RM → ACCEPTED)."""
 
-    Raises:
-        VultronNotFoundError: if actor or case cannot be resolved.
-    """
-    actor = resolve_actor(actor_id, dl)
-    actor_id = actor.as_id
+    def __init__(self, dl: DataLayer) -> None:
+        self._dl = dl
 
-    case = resolve_case(case_id, dl)
+    def execute(self, request: EngageCaseTriggerRequest) -> dict:
+        actor_id = request.actor_id
+        case_id = request.case_id
+        dl = self._dl
 
-    engage_activity = RmEngageCaseActivity(
-        actor=actor_id,
-        object=case.as_id,
-    )
+        actor = resolve_actor(actor_id, dl)
+        actor_id = actor.as_id
 
-    try:
-        dl.create(engage_activity)
-    except ValueError:
-        logger.warning(
-            "EngageCase activity '%s' already exists", engage_activity.as_id
+        case = resolve_case(case_id, dl)
+
+        engage_activity = RmEngageCaseActivity(
+            actor=actor_id,
+            object=case.as_id,
         )
 
-    update_participant_rm_state(case.as_id, actor_id, RM.ACCEPTED, dl)
+        try:
+            dl.create(engage_activity)
+        except ValueError:
+            logger.warning(
+                "EngageCase activity '%s' already exists",
+                engage_activity.as_id,
+            )
 
-    add_activity_to_outbox(actor_id, engage_activity.as_id, dl)
+        update_participant_rm_state(case.as_id, actor_id, RM.ACCEPTED, dl)
 
-    logger.info(
-        "Actor '%s' engaged case '%s' (RM → ACCEPTED)",
-        actor_id,
-        case.as_id,
-    )
+        add_activity_to_outbox(actor_id, engage_activity.as_id, dl)
 
-    activity = engage_activity.model_dump(by_alias=True, exclude_none=True)
-    return {"activity": activity}
-
-
-def svc_defer_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
-    """
-    Defer a case (RM → DEFERRED).
-
-    Raises:
-        VultronNotFoundError: if actor or case cannot be resolved.
-    """
-    actor = resolve_actor(actor_id, dl)
-    actor_id = actor.as_id
-
-    case = resolve_case(case_id, dl)
-
-    defer_activity = RmDeferCaseActivity(
-        actor=actor_id,
-        object=case.as_id,
-    )
-
-    try:
-        dl.create(defer_activity)
-    except ValueError:
-        logger.warning(
-            "DeferCase activity '%s' already exists", defer_activity.as_id
+        logger.info(
+            "Actor '%s' engaged case '%s' (RM → ACCEPTED)",
+            actor_id,
+            case.as_id,
         )
 
-    update_participant_rm_state(case.as_id, actor_id, RM.DEFERRED, dl)
+        activity = engage_activity.model_dump(by_alias=True, exclude_none=True)
+        return {"activity": activity}
 
-    add_activity_to_outbox(actor_id, defer_activity.as_id, dl)
 
-    logger.info(
-        "Actor '%s' deferred case '%s' (RM → DEFERRED)",
-        actor_id,
-        case.as_id,
-    )
+class SvcDeferCaseUseCase:
+    """Defer a case (RM → DEFERRED)."""
 
-    activity = defer_activity.model_dump(by_alias=True, exclude_none=True)
-    return {"activity": activity}
+    def __init__(self, dl: DataLayer) -> None:
+        self._dl = dl
+
+    def execute(self, request: DeferCaseTriggerRequest) -> dict:
+        actor_id = request.actor_id
+        case_id = request.case_id
+        dl = self._dl
+
+        actor = resolve_actor(actor_id, dl)
+        actor_id = actor.as_id
+
+        case = resolve_case(case_id, dl)
+
+        defer_activity = RmDeferCaseActivity(
+            actor=actor_id,
+            object=case.as_id,
+        )
+
+        try:
+            dl.create(defer_activity)
+        except ValueError:
+            logger.warning(
+                "DeferCase activity '%s' already exists",
+                defer_activity.as_id,
+            )
+
+        update_participant_rm_state(case.as_id, actor_id, RM.DEFERRED, dl)
+
+        add_activity_to_outbox(actor_id, defer_activity.as_id, dl)
+
+        logger.info(
+            "Actor '%s' deferred case '%s' (RM → DEFERRED)",
+            actor_id,
+            case.as_id,
+        )
+
+        activity = defer_activity.model_dump(by_alias=True, exclude_none=True)
+        return {"activity": activity}

@@ -16,8 +16,8 @@
 """
 Thin adapter delegates for embargo-level trigger service functions.
 
-Delegates to ``vultron.core.use_cases.triggers.embargo`` and translates
-domain exceptions to FastAPI ``HTTPException`` responses.
+Builds domain request models, instantiates core use-case classes, and
+translates domain exceptions to FastAPI ``HTTPException`` responses.
 """
 
 from datetime import datetime
@@ -27,9 +27,14 @@ from vultron.api.v2.backend.trigger_services._helpers import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers.embargo import (
-    svc_evaluate_embargo as _svc_evaluate_embargo,
-    svc_propose_embargo as _svc_propose_embargo,
-    svc_terminate_embargo as _svc_terminate_embargo,
+    SvcEvaluateEmbargoUseCase,
+    SvcProposeEmbargoUseCase,
+    SvcTerminateEmbargoUseCase,
+)
+from vultron.core.use_cases.triggers.requests import (
+    EvaluateEmbargoTriggerRequest,
+    ProposeEmbargoTriggerRequest,
+    TerminateEmbargoTriggerRequest,
 )
 from vultron.errors import VultronError
 
@@ -42,7 +47,10 @@ def svc_propose_embargo(
     dl: DataLayer,
 ) -> dict:
     try:
-        return _svc_propose_embargo(actor_id, case_id, note, end_time, dl)
+        request = ProposeEmbargoTriggerRequest(
+            actor_id=actor_id, case_id=case_id, note=note, end_time=end_time
+        )
+        return SvcProposeEmbargoUseCase(dl).execute(request)
     except VultronError as e:
         raise translate_domain_errors(e)
 
@@ -54,13 +62,19 @@ def svc_evaluate_embargo(
     dl: DataLayer,
 ) -> dict:
     try:
-        return _svc_evaluate_embargo(actor_id, case_id, proposal_id, dl)
+        request = EvaluateEmbargoTriggerRequest(
+            actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
+        )
+        return SvcEvaluateEmbargoUseCase(dl).execute(request)
     except VultronError as e:
         raise translate_domain_errors(e)
 
 
 def svc_terminate_embargo(actor_id: str, case_id: str, dl: DataLayer) -> dict:
     try:
-        return _svc_terminate_embargo(actor_id, case_id, dl)
+        request = TerminateEmbargoTriggerRequest(
+            actor_id=actor_id, case_id=case_id
+        )
+        return SvcTerminateEmbargoUseCase(dl).execute(request)
     except VultronError as e:
         raise translate_domain_errors(e)

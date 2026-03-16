@@ -16,9 +16,9 @@
 """
 Thin adapter delegates for report-level trigger service functions.
 
-Each function delegates to the domain use-case implementation in
-``vultron.core.use_cases.triggers.report`` and translates domain exceptions
-into FastAPI ``HTTPException`` responses.
+Each function keeps the same external signature used by the HTTP router, builds
+a domain request model (adding ``actor_id``), instantiates the core use-case
+class, and delegates to ``execute()``.
 
 Domain logic must not be added here.  See
 ``vultron/core/use_cases/triggers/report.py`` for implementation.
@@ -29,10 +29,16 @@ from vultron.api.v2.backend.trigger_services._helpers import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers.report import (
-    svc_close_report as _svc_close_report,
-    svc_invalidate_report as _svc_invalidate_report,
-    svc_reject_report as _svc_reject_report,
-    svc_validate_report as _svc_validate_report,
+    SvcCloseReportUseCase,
+    SvcInvalidateReportUseCase,
+    SvcRejectReportUseCase,
+    SvcValidateReportUseCase,
+)
+from vultron.core.use_cases.triggers.requests import (
+    CloseReportTriggerRequest,
+    InvalidateReportTriggerRequest,
+    RejectReportTriggerRequest,
+    ValidateReportTriggerRequest,
 )
 from vultron.errors import VultronError
 
@@ -41,7 +47,10 @@ def svc_validate_report(
     actor_id: str, offer_id: str, note: str | None, dl: DataLayer
 ) -> dict:
     try:
-        return _svc_validate_report(actor_id, offer_id, note, dl)
+        request = ValidateReportTriggerRequest(
+            actor_id=actor_id, offer_id=offer_id, note=note
+        )
+        return SvcValidateReportUseCase(dl).execute(request)
     except VultronError as e:
         raise translate_domain_errors(e)
 
@@ -50,7 +59,10 @@ def svc_invalidate_report(
     actor_id: str, offer_id: str, note: str | None, dl: DataLayer
 ) -> dict:
     try:
-        return _svc_invalidate_report(actor_id, offer_id, note, dl)
+        request = InvalidateReportTriggerRequest(
+            actor_id=actor_id, offer_id=offer_id, note=note
+        )
+        return SvcInvalidateReportUseCase(dl).execute(request)
     except VultronError as e:
         raise translate_domain_errors(e)
 
@@ -59,7 +71,10 @@ def svc_reject_report(
     actor_id: str, offer_id: str, note: str, dl: DataLayer
 ) -> dict:
     try:
-        return _svc_reject_report(actor_id, offer_id, note, dl)
+        request = RejectReportTriggerRequest(
+            actor_id=actor_id, offer_id=offer_id, note=note
+        )
+        return SvcRejectReportUseCase(dl).execute(request)
     except VultronError as e:
         raise translate_domain_errors(e)
 
@@ -68,6 +83,9 @@ def svc_close_report(
     actor_id: str, offer_id: str, note: str | None, dl: DataLayer
 ) -> dict:
     try:
-        return _svc_close_report(actor_id, offer_id, note, dl)
+        request = CloseReportTriggerRequest(
+            actor_id=actor_id, offer_id=offer_id, note=note
+        )
+        return SvcCloseReportUseCase(dl).execute(request)
     except VultronError as e:
         raise translate_domain_errors(e)

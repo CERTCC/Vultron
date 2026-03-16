@@ -24,7 +24,7 @@ The ``get_dispatcher`` factory function is provided for adapter convenience.
 """
 
 import logging
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.dispatcher import ActivityDispatcher
@@ -40,11 +40,12 @@ logger = logging.getLogger(__name__)
 class DispatcherBase:
     """Base dispatcher implementation.
 
-    Looks up the use case callable for the event's ``semantic_type`` from the
-    supplied routing table and invokes it with ``(event, dl)``.
+    Looks up the use case class for the event's ``semantic_type`` from the
+    supplied routing table, instantiates it with ``dl``, and calls
+    ``execute(event)``.
     """
 
-    def __init__(self, use_case_map: dict[MessageSemantics, Callable]):
+    def __init__(self, use_case_map: dict[MessageSemantics, type]):
         self._use_case_map = use_case_map
 
     def dispatch(self, event: "VultronEvent", dl: "DataLayer") -> None:
@@ -62,17 +63,17 @@ class DispatcherBase:
         self._handle(event, dl)
 
     def _handle(self, event: "VultronEvent", dl: "DataLayer") -> None:
-        use_case = self._get_use_case(event.semantic_type)
-        use_case(event, dl)
+        use_case_class = self._get_use_case(event.semantic_type)
+        use_case_class(dl).execute(event)
 
-    def _get_use_case(self, semantics: MessageSemantics) -> Callable:
-        use_case = self._use_case_map.get(semantics)
-        if use_case is None:
+    def _get_use_case(self, semantics: MessageSemantics) -> type:
+        use_case_class = self._use_case_map.get(semantics)
+        if use_case_class is None:
             logger.error("No use case found for semantics '%s'", semantics)
             raise VultronApiHandlerNotFoundError(
                 f"No use case found for semantics '{semantics}'"
             )
-        return use_case
+        return use_case_class
 
 
 class DirectActivityDispatcher(DispatcherBase):
@@ -80,7 +81,7 @@ class DirectActivityDispatcher(DispatcherBase):
 
 
 def get_dispatcher(
-    use_case_map: dict[MessageSemantics, Callable],
+    use_case_map: dict[MessageSemantics, type],
 ) -> ActivityDispatcher:
     """Factory: return a ``DirectActivityDispatcher`` for the given routing table."""
     return DirectActivityDispatcher(use_case_map=use_case_map)
