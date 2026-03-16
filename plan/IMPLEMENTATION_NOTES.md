@@ -93,3 +93,10 @@ shims that just add to the maintenance burden. If you're going to refactor,
 finish the job while you're already in the middle of the code and have the 
 context fresh to understand what needs to be changed. Don't leave it for 
 later.
+
+## TECHDEBT-24 note
+
+See `notes/architecture-ports-and-adapters.md` regarding richness of core 
+objects for vs wire objects. Use that to reason about the correct solution 
+to TECHDEBT-24.
+
