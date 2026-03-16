@@ -50,3 +50,10 @@ touches to the class interface (`__init__(self, dl: DataLayer)` +
 `fn(event, dl)` callables alongside new class-based use cases within a single
 migration batch. The old-style callable wrapper on `unknown` is a temporary
 bridge; it must be removed once the dispatcher supports class-based use cases.
+
+If necessary, expand `Req` and `Res` type variables to be a consistent 
+Pydantic model envelope (e.g., `UseCaseRequest` and `UseCaseResponse`) to  
+accommodate the fact that some use cases may require multiple input 
+parameters or multiple output values. This will future-proof the interface  
+and ensure it can handle more complex use cases without needing another 
+refactor. 
