@@ -1,7 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-16 (refresh #39: Priority 80 phase identified; TECHDEBT-27/28 promoted
-from deferred; execution groupings added)
+**Last Updated**: 2026-03-16 (refresh #40: TECHDEBT-21 complete)
 
 ## Overview
 
@@ -39,7 +38,7 @@ P65-1, P65-2, P65-3, P65-4, P65-5, P65-6a, P65-6b, P65-7,
 ARCH-DOCS-1, TECHDEBT-13a, TECHDEBT-13b, TECHDEBT-13c, TECHDEBT-14,
 P70-2, P70-3, P70-4, P70-5,
 P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre,
-TECHDEBT-15.
+TECHDEBT-15, TECHDEBT-21.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -338,14 +337,13 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 11;
 `specs/code-style.md` CS-12-002
 
-- [ ] **TECHDEBT-21**: Rename all handler use cases (those in `core/use_cases/`
-  top-level modules: `actor.py`, `case.py`, `case_participant.py`, `embargo.py`,
+- [x] **TECHDEBT-21**: Renamed all 38 handler use cases in the 7 top-level
+  modules (`actor.py`, `case.py`, `case_participant.py`, `embargo.py`,
   `note.py`, `report.py`, `status.py`) to append the `Received` suffix
-  (e.g., `CreateReportUseCase` → `CreateReportReceivedUseCase`). Update
-  `USE_CASE_MAP` in `core/use_cases/use_case_map.py` and all import sites and
-  tests in the same commit. This is a mechanical rename with no behaviour change.
-  Done when all ~32 handler use cases carry the `Received` suffix, the
-  `USE_CASE_MAP` is updated, and the test suite passes.
+  (e.g., `CreateReportUseCase` → `CreateReportReceivedUseCase`). Updated
+  `USE_CASE_MAP` in `core/use_cases/use_case_map.py` and the shim layer in
+  `vultron/api/v2/backend/handlers/__init__.py`. Pure mechanical rename, no
+  behaviour change. 893 tests pass.
 
 ---
 
