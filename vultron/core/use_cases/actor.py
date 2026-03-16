@@ -17,11 +17,14 @@ from vultron.core.models.events.actor import (
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._types import CaseModel
+from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class SuggestActorToCaseReceivedUseCase:
+class SuggestActorToCaseReceivedUseCase(
+    UseCase[SuggestActorToCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -53,7 +56,9 @@ class SuggestActorToCaseReceivedUseCase:
             )
 
 
-class AcceptSuggestActorToCaseReceivedUseCase:
+class AcceptSuggestActorToCaseReceivedUseCase(
+    UseCase[AcceptSuggestActorToCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -85,7 +90,9 @@ class AcceptSuggestActorToCaseReceivedUseCase:
             )
 
 
-class RejectSuggestActorToCaseReceivedUseCase:
+class RejectSuggestActorToCaseReceivedUseCase(
+    UseCase[RejectSuggestActorToCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -104,7 +111,9 @@ class RejectSuggestActorToCaseReceivedUseCase:
             )
 
 
-class OfferCaseOwnershipTransferReceivedUseCase:
+class OfferCaseOwnershipTransferReceivedUseCase(
+    UseCase[OfferCaseOwnershipTransferReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -137,7 +146,9 @@ class OfferCaseOwnershipTransferReceivedUseCase:
             )
 
 
-class AcceptCaseOwnershipTransferReceivedUseCase:
+class AcceptCaseOwnershipTransferReceivedUseCase(
+    UseCase[AcceptCaseOwnershipTransferReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -186,7 +197,9 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
             )
 
 
-class RejectCaseOwnershipTransferReceivedUseCase:
+class RejectCaseOwnershipTransferReceivedUseCase(
+    UseCase[RejectCaseOwnershipTransferReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -207,7 +220,9 @@ class RejectCaseOwnershipTransferReceivedUseCase:
             )
 
 
-class InviteActorToCaseReceivedUseCase:
+class InviteActorToCaseReceivedUseCase(
+    UseCase[InviteActorToCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -238,7 +253,9 @@ class InviteActorToCaseReceivedUseCase:
             )
 
 
-class AcceptInviteActorToCaseReceivedUseCase:
+class AcceptInviteActorToCaseReceivedUseCase(
+    UseCase[AcceptInviteActorToCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -310,7 +327,9 @@ class AcceptInviteActorToCaseReceivedUseCase:
             )
 
 
-class RejectInviteActorToCaseReceivedUseCase:
+class RejectInviteActorToCaseReceivedUseCase(
+    UseCase[RejectInviteActorToCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 

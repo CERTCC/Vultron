@@ -33,6 +33,7 @@ from vultron.core.use_cases.triggers.requests import (
     DeferCaseTriggerRequest,
     EngageCaseTriggerRequest,
 )
+from vultron.core.ports.use_case import UseCase
 from vultron.wire.as2.vocab.activities.case import (
     RmDeferCaseActivity,
     RmEngageCaseActivity,
@@ -41,7 +42,7 @@ from vultron.wire.as2.vocab.activities.case import (
 logger = logging.getLogger(__name__)
 
 
-class SvcEngageCaseUseCase:
+class SvcEngageCaseUseCase(UseCase[EngageCaseTriggerRequest, dict]):
     """Engage a case (RM → ACCEPTED)."""
 
     def __init__(self, dl: DataLayer) -> None:
@@ -84,7 +85,7 @@ class SvcEngageCaseUseCase:
         return {"activity": activity}
 
 
-class SvcDeferCaseUseCase:
+class SvcDeferCaseUseCase(UseCase[DeferCaseTriggerRequest, dict]):
     """Defer a case (RM → DEFERRED)."""
 
     def __init__(self, dl: DataLayer) -> None:

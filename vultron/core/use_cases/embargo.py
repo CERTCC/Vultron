@@ -15,11 +15,14 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._types import CaseModel, ParticipantModel
+from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class CreateEmbargoEventReceivedUseCase:
+class CreateEmbargoEventReceivedUseCase(
+    UseCase[CreateEmbargoEventReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -51,7 +54,9 @@ class CreateEmbargoEventReceivedUseCase:
             )
 
 
-class AddEmbargoEventToCaseReceivedUseCase:
+class AddEmbargoEventToCaseReceivedUseCase(
+    UseCase[AddEmbargoEventToCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -98,7 +103,9 @@ class AddEmbargoEventToCaseReceivedUseCase:
             )
 
 
-class RemoveEmbargoEventFromCaseReceivedUseCase:
+class RemoveEmbargoEventFromCaseReceivedUseCase(
+    UseCase[RemoveEmbargoEventFromCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -149,7 +156,9 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             )
 
 
-class AnnounceEmbargoEventToCaseReceivedUseCase:
+class AnnounceEmbargoEventToCaseReceivedUseCase(
+    UseCase[AnnounceEmbargoEventToCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -170,7 +179,9 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
             )
 
 
-class InviteToEmbargoOnCaseReceivedUseCase:
+class InviteToEmbargoOnCaseReceivedUseCase(
+    UseCase[InviteToEmbargoOnCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -207,7 +218,9 @@ class InviteToEmbargoOnCaseReceivedUseCase:
             )
 
 
-class AcceptInviteToEmbargoOnCaseReceivedUseCase:
+class AcceptInviteToEmbargoOnCaseReceivedUseCase(
+    UseCase[AcceptInviteToEmbargoOnCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -311,7 +324,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             )
 
 
-class RejectInviteToEmbargoOnCaseReceivedUseCase:
+class RejectInviteToEmbargoOnCaseReceivedUseCase(
+    UseCase[RejectInviteToEmbargoOnCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 

@@ -4,11 +4,12 @@ import logging
 
 from vultron.core.models.events.unknown import UnknownReceivedEvent
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class UnknownUseCase:
+class UnknownUseCase(UseCase[UnknownReceivedEvent, None]):
     """Reference implementation of ``UseCase[UnknownReceivedEvent, None]``.
 
     Logs a warning for any activity that could not be matched to a known

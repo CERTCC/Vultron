@@ -55,6 +55,7 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
 )
+from vultron.core.ports.use_case import UseCase
 from vultron.wire.as2.vocab.activities.report import (
     RmCloseReportActivity,
     RmInvalidateReportActivity,
@@ -84,7 +85,7 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
     return offer, report
 
 
-class SvcValidateReportUseCase:
+class SvcValidateReportUseCase(UseCase[ValidateReportTriggerRequest, dict]):
     """Validate a report offer using the ValidateReportBT behavior tree."""
 
     def __init__(self, dl: DataLayer) -> None:
@@ -132,7 +133,9 @@ class SvcValidateReportUseCase:
         return {"activity": activity}
 
 
-class SvcInvalidateReportUseCase:
+class SvcInvalidateReportUseCase(
+    UseCase[InvalidateReportTriggerRequest, dict]
+):
     """Emit RmInvalidateReportActivity (TentativeReject) for the given offer."""
 
     def __init__(self, dl: DataLayer) -> None:
@@ -193,7 +196,7 @@ class SvcInvalidateReportUseCase:
         return {"activity": activity}
 
 
-class SvcRejectReportUseCase:
+class SvcRejectReportUseCase(UseCase[RejectReportTriggerRequest, dict]):
     """Hard-close a report offer by emitting RmCloseReportActivity (Reject)."""
 
     def __init__(self, dl: DataLayer) -> None:
@@ -254,7 +257,7 @@ class SvcRejectReportUseCase:
         return {"activity": activity}
 
 
-class SvcCloseReportUseCase:
+class SvcCloseReportUseCase(UseCase[CloseReportTriggerRequest, dict]):
     """Close a report via the RM lifecycle (RM → C transition)."""
 
     def __init__(self, dl: DataLayer) -> None:

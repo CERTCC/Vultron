@@ -10,11 +10,14 @@ from vultron.core.models.events.case_participant import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._types import CaseModel
+from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class CreateCaseParticipantReceivedUseCase:
+class CreateCaseParticipantReceivedUseCase(
+    UseCase[CreateCaseParticipantReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -46,7 +49,9 @@ class CreateCaseParticipantReceivedUseCase:
             )
 
 
-class AddCaseParticipantToCaseReceivedUseCase:
+class AddCaseParticipantToCaseReceivedUseCase(
+    UseCase[AddCaseParticipantToCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -101,7 +106,9 @@ class AddCaseParticipantToCaseReceivedUseCase:
             )
 
 
-class RemoveCaseParticipantFromCaseReceivedUseCase:
+class RemoveCaseParticipantFromCaseReceivedUseCase(
+    UseCase[RemoveCaseParticipantFromCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 

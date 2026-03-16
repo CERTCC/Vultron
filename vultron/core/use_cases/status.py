@@ -11,11 +11,14 @@ from vultron.core.models.events.status import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._types import CaseModel, ParticipantModel
+from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class CreateCaseStatusReceivedUseCase:
+class CreateCaseStatusReceivedUseCase(
+    UseCase[CreateCaseStatusReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -47,7 +50,9 @@ class CreateCaseStatusReceivedUseCase:
             )
 
 
-class AddCaseStatusToCaseReceivedUseCase:
+class AddCaseStatusToCaseReceivedUseCase(
+    UseCase[AddCaseStatusToCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -96,7 +101,9 @@ class AddCaseStatusToCaseReceivedUseCase:
             )
 
 
-class CreateParticipantStatusReceivedUseCase:
+class CreateParticipantStatusReceivedUseCase(
+    UseCase[CreateParticipantStatusReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -128,7 +135,9 @@ class CreateParticipantStatusReceivedUseCase:
             )
 
 
-class AddParticipantStatusToParticipantReceivedUseCase:
+class AddParticipantStatusToParticipantReceivedUseCase(
+    UseCase[AddParticipantStatusToParticipantReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 

@@ -47,11 +47,12 @@ from vultron.wire.as2.vocab.activities.embargo import (
     EmProposeEmbargoActivity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class SvcProposeEmbargoUseCase:
+class SvcProposeEmbargoUseCase(UseCase[ProposeEmbargoTriggerRequest, dict]):
     """Propose an embargo on a case."""
 
     def __init__(self, dl: DataLayer) -> None:
@@ -135,7 +136,7 @@ class SvcProposeEmbargoUseCase:
         return {"activity": activity}
 
 
-class SvcEvaluateEmbargoUseCase:
+class SvcEvaluateEmbargoUseCase(UseCase[EvaluateEmbargoTriggerRequest, dict]):
     """Accept an embargo proposal (evaluate-embargo)."""
 
     def __init__(self, dl: DataLayer) -> None:
@@ -219,7 +220,9 @@ class SvcEvaluateEmbargoUseCase:
         return {"activity": activity}
 
 
-class SvcTerminateEmbargoUseCase:
+class SvcTerminateEmbargoUseCase(
+    UseCase[TerminateEmbargoTriggerRequest, dict]
+):
     """Terminate the active embargo on a case."""
 
     def __init__(self, dl: DataLayer) -> None:

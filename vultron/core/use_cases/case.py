@@ -14,6 +14,7 @@ from vultron.core.models.events.case import (
 from vultron.core.models.vultron_types import VultronActivity
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._types import CaseModel
+from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ def _check_participant_embargo_acceptance(
             )
 
 
-class CreateCaseReceivedUseCase:
+class CreateCaseReceivedUseCase(UseCase[CreateCaseReceivedEvent, None]):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -96,7 +97,7 @@ class CreateCaseReceivedUseCase:
             )
 
 
-class UpdateCaseReceivedUseCase:
+class UpdateCaseReceivedUseCase(UseCase[UpdateCaseReceivedEvent, None]):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -156,7 +157,7 @@ class UpdateCaseReceivedUseCase:
             )
 
 
-class EngageCaseReceivedUseCase:
+class EngageCaseReceivedUseCase(UseCase[EngageCaseReceivedEvent, None]):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -197,7 +198,7 @@ class EngageCaseReceivedUseCase:
             )
 
 
-class DeferCaseReceivedUseCase:
+class DeferCaseReceivedUseCase(UseCase[DeferCaseReceivedEvent, None]):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -238,7 +239,9 @@ class DeferCaseReceivedUseCase:
             )
 
 
-class AddReportToCaseReceivedUseCase:
+class AddReportToCaseReceivedUseCase(
+    UseCase[AddReportToCaseReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -278,7 +281,7 @@ class AddReportToCaseReceivedUseCase:
             )
 
 
-class CloseCaseReceivedUseCase:
+class CloseCaseReceivedUseCase(UseCase[CloseCaseReceivedEvent, None]):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 

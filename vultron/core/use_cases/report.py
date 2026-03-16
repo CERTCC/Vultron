@@ -18,11 +18,12 @@ from vultron.core.models.status import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.bt.report_management.states import RM
+from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class CreateReportReceivedUseCase:
+class CreateReportReceivedUseCase(UseCase[CreateReportReceivedEvent, None]):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -56,7 +57,7 @@ class CreateReportReceivedUseCase:
                 )
 
 
-class SubmitReportReceivedUseCase:
+class SubmitReportReceivedUseCase(UseCase[SubmitReportReceivedEvent, None]):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -90,7 +91,9 @@ class SubmitReportReceivedUseCase:
                 )
 
 
-class ValidateReportReceivedUseCase:
+class ValidateReportReceivedUseCase(
+    UseCase[ValidateReportReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -137,7 +140,9 @@ class ValidateReportReceivedUseCase:
             )
 
 
-class InvalidateReportReceivedUseCase:
+class InvalidateReportReceivedUseCase(
+    UseCase[InvalidateReportReceivedEvent, None]
+):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -188,7 +193,7 @@ class InvalidateReportReceivedUseCase:
             )
 
 
-class AckReportReceivedUseCase:
+class AckReportReceivedUseCase(UseCase[AckReportReceivedEvent, None]):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -221,7 +226,7 @@ class AckReportReceivedUseCase:
             )
 
 
-class CloseReportReceivedUseCase:
+class CloseReportReceivedUseCase(UseCase[CloseReportReceivedEvent, None]):
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
