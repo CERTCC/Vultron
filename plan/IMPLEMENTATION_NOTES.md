@@ -214,3 +214,140 @@ parameters for a use case. The `UseCase` Protocol would then be defined as
 4. It aligns with common design patterns in clean architecture, where use cases
    typically accept a single request object and return a single response object,
    encapsulating all necessary data for the operation.
+
+---
+
+### 2026-03-16 — Second code-review pass: additional findings
+
+**Scope**: Follow-up critical review of `vultron/core/use_cases/` against
+DRY, naming conventions, architecture constraints, and code quality.
+Previously captured items (FIX BEFORE P75-4 #1–9) remain outstanding and
+are not repeated here.
+
+#### 10. Dead import block in `triggers/embargo.py` — FIX BEFORE P75-4
+
+Lines 279–303 of `triggers/embargo.py` are an **exact duplicate** of the
+module-level imports, identical to the dead-code pattern already identified
+in `triggers/report.py`. The block begins with a bare `import logging` after
+the `SvcTerminateEmbargoUseCase` class definition and ends with a duplicate
+`logger = logging.getLogger(__name__)`.
+
+**Action**: Delete lines 279–303 from `triggers/embargo.py`.
+
+#### 11. Handler use cases lack `Received` suffix — FIX BEFORE P75-4
+
+All use cases in the top-level `use_cases/` modules (`actor.py`, `case.py`,
+`case_participant.py`, `embargo.py`, `note.py`, `report.py`, `status.py`)
+represent **messages received from another party**. Their current names
+(e.g. `RemoveEmbargoEventFromCaseUseCase`, `AcceptInviteActorToCaseUseCase`)
+do not distinguish them from trigger (outgoing-action) use cases. The trigger
+use cases already use the `Svc` prefix (`SvcEngageCaseUseCase`, etc.),
+establishing a precedent for semantic disambiguation in names.
+
+All handler use cases should be renamed to include a `Received` suffix, e.g.:
+
+| Current name | Proposed name |
+|---|---|
+| `RemoveEmbargoEventFromCaseUseCase` | `RemoveEmbargoEventFromCaseReceivedUseCase` |
+| `AcceptInviteActorToCaseUseCase` | `AcceptInviteActorToCaseReceivedUseCase` |
+| `CreateReportUseCase` | `CreateReportReceivedUseCase` |
+| (…all ~32 handler use cases) | (add `Received` suffix) |
+
+The `USE_CASE_MAP` in `use_case_map.py` must be updated in the same commit.
+Tests that import use-case class names must also be updated. This rename
+should be done **before** P75-4 adds new use cases so that the naming
+pattern is consistent from the start. It is a mechanical rename with no
+behaviour change.
+
+#### 12. `UseCase` Protocol not explicitly declared — FIX BEFORE P75-4
+
+`core/ports/use_case.py` defines `UseCase[Req, Res]` but none of the
+concrete use-case classes declare it as their Protocol base. Without the
+explicit inheritance, mypy cannot verify structural conformance and there
+is no static guarantee that a class satisfies the protocol contract.
+
+**Action**: Add `UseCase[RequestType, ResponseType]` as the base Protocol
+for every use case class, e.g.:
+
+```python
+from vultron.core.ports.use_case import UseCase
+
+class CreateReportReceivedUseCase(UseCase["CreateReportReceivedEvent", None]):
+    ...
+```
+
+For trigger use cases that return `dict`, use `UseCase[TriggerRequest, dict]`.
+This is a low-risk addition that makes the design intent explicit and
+enables future mypy enforcement.
+
+#### 13. `triggers/requests.py` DRY violation — do soon (low-risk)
+
+All 8 trigger request models repeat `model_config = ConfigDict(extra="ignore")`
+and all 8 include `actor_id: str`. Extract a base class:
+
+```python
+class TriggerRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    actor_id: str
+```
+
+Each concrete model then subclasses `TriggerRequest` and adds only its
+domain-specific fields. This eliminates 8 × 2 lines of repeated code with
+zero behaviour change.
+
+#### 14. Idempotent-create boilerplate repeated ~6 times — defer
+
+`CreateEmbargoEventUseCase`, `CreateNoteUseCase`, `CreateCaseParticipantUseCase`,
+`CreateCaseStatusUseCase`, `CreateParticipantStatusUseCase`, and
+`SuggestActorToCaseUseCase` (plus `AcceptSuggestActorToCaseUseCase`,
+`InviteToEmbargoOnCaseUseCase`) all follow the same pattern:
+
+```python
+existing = self._dl.get(request.object_type, request.object_id)
+if existing is not None:
+    logger.info("... already stored — skipping (idempotent)", ...)
+    return
+obj = request.<domain_field>
+if obj is not None:
+    self._dl.create(obj)
+    logger.info("Stored ...", ...)
+else:
+    logger.warning("... no object for event ...", ...)
+```
+
+A private helper `_idempotent_create(self, object_type, object_id, obj,
+label)` in a shared base class or module-level function would eliminate ~40
+lines of repeated code across these classes. Defer until after P75-4 to
+avoid conflicts with in-flight work.
+
+#### 15. Stub-only use cases wrap `logger.info()` in `try/except Exception`
+
+`RejectSuggestActorToCaseUseCase`, `RejectCaseOwnershipTransferUseCase`,
+`RejectInviteActorToCaseUseCase`, `RejectInviteToEmbargoOnCaseUseCase`, and
+`AnnounceEmbargoEventToCaseUseCase` all wrap a single `logger.info()` call
+in a `try/except Exception as e: logger.error(...)`. Since `logger.info()`
+cannot raise a checked domain exception, the guard is dead code that creates
+false safety and adds noise.
+
+This is related to finding #6 (error handling standardization) which is
+already deferred. When that work begins, these stubs should be the first
+targets — simply remove the `try/except` wrapper entirely.
+
+#### 16. Pending items from previous review still outstanding
+
+Items 1–5 from the previous review section above (dead functions in
+`embargo.py`, dead code in `triggers/report.py`, `api.v2.*` imports in
+`triggers/report.py`, `_as_id()` helper extraction) are **confirmed still
+present** in the code as of this review pass. They remain FIX BEFORE P75-4
+unless P75-4 is explicitly scoped to not touch the affected files.
+
+#### Summary: new items by priority
+
+| # | Item | Priority |
+|---|------|----------|
+| 10 | Delete dead import block from `triggers/embargo.py` (lines 279–303) | FIX BEFORE P75-4 |
+| 11 | Rename handler use cases with `Received` suffix | FIX BEFORE P75-4 |
+| 12 | Declare `UseCase[Req, Res]` Protocol on every use case class | FIX BEFORE P75-4 |
+| 13 | Extract `TriggerRequest` base class in `triggers/requests.py` | Soon (low-risk) |
+| 14 | Extract idempotent-create helper | Defer to after P75-4 |
+| 15 | Remove meaningless `try/except` from stub-only use cases | Defer (part of error-handling pass) |
