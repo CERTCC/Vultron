@@ -40,132 +40,150 @@ def _unwrap(dispatchable):
 
 
 def create_report(dispatchable, dl=None):
-    return _uc_report.CreateReportUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_report.CreateReportReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
 
 
 def submit_report(dispatchable, dl=None):
-    return _uc_report.SubmitReportUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_report.SubmitReportReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
 
 
 def validate_report(dispatchable, dl=None):
-    return _uc_report.ValidateReportUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_report.ValidateReportReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
 
 
 def invalidate_report(dispatchable, dl=None):
-    return _uc_report.InvalidateReportUseCase(dl).execute(
+    return _uc_report.InvalidateReportReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def ack_report(dispatchable, dl=None):
-    return _uc_report.AckReportUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_report.AckReportReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
 
 
 def close_report(dispatchable, dl=None):
-    return _uc_report.CloseReportUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_report.CloseReportReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
 
 
 # ---- case handlers ---------------------------------------------------------
 
 
 def create_case(dispatchable, dl=None):
-    return _uc_case.CreateCaseUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_case.CreateCaseReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
 
 
 def engage_case(dispatchable, dl=None):
-    return _uc_case.EngageCaseUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_case.EngageCaseReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
 
 
 def defer_case(dispatchable, dl=None):
-    return _uc_case.DeferCaseUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_case.DeferCaseReceivedUseCase(dl).execute(_unwrap(dispatchable))
 
 
 def add_report_to_case(dispatchable, dl=None):
-    return _uc_case.AddReportToCaseUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_case.AddReportToCaseReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
 
 
 def close_case(dispatchable, dl=None):
-    return _uc_case.CloseCaseUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_case.CloseCaseReceivedUseCase(dl).execute(_unwrap(dispatchable))
 
 
 def update_case(dispatchable, dl=None):
-    return _uc_case.UpdateCaseUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_case.UpdateCaseReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
 
 
 # ---- case participant handlers ---------------------------------------------
 
 
 def create_case_participant(dispatchable, dl=None):
-    return _uc_participant.CreateCaseParticipantUseCase(dl).execute(
+    return _uc_participant.CreateCaseParticipantReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def add_case_participant_to_case(dispatchable, dl=None):
-    return _uc_participant.AddCaseParticipantToCaseUseCase(dl).execute(
+    return _uc_participant.AddCaseParticipantToCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def remove_case_participant_from_case(dispatchable, dl=None):
-    return _uc_participant.RemoveCaseParticipantFromCaseUseCase(dl).execute(
-        _unwrap(dispatchable)
-    )
+    return _uc_participant.RemoveCaseParticipantFromCaseReceivedUseCase(
+        dl
+    ).execute(_unwrap(dispatchable))
 
 
 # ---- actor handlers --------------------------------------------------------
 
 
 def suggest_actor_to_case(dispatchable, dl=None):
-    return _uc_actor.SuggestActorToCaseUseCase(dl).execute(
+    return _uc_actor.SuggestActorToCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def accept_suggest_actor_to_case(dispatchable, dl=None):
-    return _uc_actor.AcceptSuggestActorToCaseUseCase(dl).execute(
+    return _uc_actor.AcceptSuggestActorToCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def reject_suggest_actor_to_case(dispatchable, dl=None):
-    return _uc_actor.RejectSuggestActorToCaseUseCase(dl).execute(
+    return _uc_actor.RejectSuggestActorToCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def offer_case_ownership_transfer(dispatchable, dl=None):
-    return _uc_actor.OfferCaseOwnershipTransferUseCase(dl).execute(
+    return _uc_actor.OfferCaseOwnershipTransferReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def accept_case_ownership_transfer(dispatchable, dl=None):
-    return _uc_actor.AcceptCaseOwnershipTransferUseCase(dl).execute(
+    return _uc_actor.AcceptCaseOwnershipTransferReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def reject_case_ownership_transfer(dispatchable, dl=None):
-    return _uc_actor.RejectCaseOwnershipTransferUseCase(dl).execute(
+    return _uc_actor.RejectCaseOwnershipTransferReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def invite_actor_to_case(dispatchable, dl=None):
-    return _uc_actor.InviteActorToCaseUseCase(dl).execute(
+    return _uc_actor.InviteActorToCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def accept_invite_actor_to_case(dispatchable, dl=None):
-    return _uc_actor.AcceptInviteActorToCaseUseCase(dl).execute(
+    return _uc_actor.AcceptInviteActorToCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def reject_invite_actor_to_case(dispatchable, dl=None):
-    return _uc_actor.RejectInviteActorToCaseUseCase(dl).execute(
+    return _uc_actor.RejectInviteActorToCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
@@ -174,43 +192,43 @@ def reject_invite_actor_to_case(dispatchable, dl=None):
 
 
 def create_embargo_event(dispatchable, dl=None):
-    return _uc_embargo.CreateEmbargoEventUseCase(dl).execute(
+    return _uc_embargo.CreateEmbargoEventReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def add_embargo_event_to_case(dispatchable, dl=None):
-    return _uc_embargo.AddEmbargoEventToCaseUseCase(dl).execute(
+    return _uc_embargo.AddEmbargoEventToCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def remove_embargo_event_from_case(dispatchable, dl=None):
-    return _uc_embargo.RemoveEmbargoEventFromCaseUseCase(dl).execute(
+    return _uc_embargo.RemoveEmbargoEventFromCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def announce_embargo_event_to_case(dispatchable, dl=None):
-    return _uc_embargo.AnnounceEmbargoEventToCaseUseCase(dl).execute(
+    return _uc_embargo.AnnounceEmbargoEventToCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def invite_to_embargo_on_case(dispatchable, dl=None):
-    return _uc_embargo.InviteToEmbargoOnCaseUseCase(dl).execute(
+    return _uc_embargo.InviteToEmbargoOnCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def accept_invite_to_embargo_on_case(dispatchable, dl=None):
-    return _uc_embargo.AcceptInviteToEmbargoOnCaseUseCase(dl).execute(
+    return _uc_embargo.AcceptInviteToEmbargoOnCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def reject_invite_to_embargo_on_case(dispatchable, dl=None):
-    return _uc_embargo.RejectInviteToEmbargoOnCaseUseCase(dl).execute(
+    return _uc_embargo.RejectInviteToEmbargoOnCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
@@ -219,15 +237,19 @@ def reject_invite_to_embargo_on_case(dispatchable, dl=None):
 
 
 def create_note(dispatchable, dl=None):
-    return _uc_note.CreateNoteUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_note.CreateNoteReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
 
 
 def add_note_to_case(dispatchable, dl=None):
-    return _uc_note.AddNoteToCaseUseCase(dl).execute(_unwrap(dispatchable))
+    return _uc_note.AddNoteToCaseReceivedUseCase(dl).execute(
+        _unwrap(dispatchable)
+    )
 
 
 def remove_note_from_case(dispatchable, dl=None):
-    return _uc_note.RemoveNoteFromCaseUseCase(dl).execute(
+    return _uc_note.RemoveNoteFromCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
@@ -236,27 +258,27 @@ def remove_note_from_case(dispatchable, dl=None):
 
 
 def create_case_status(dispatchable, dl=None):
-    return _uc_status.CreateCaseStatusUseCase(dl).execute(
+    return _uc_status.CreateCaseStatusReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def add_case_status_to_case(dispatchable, dl=None):
-    return _uc_status.AddCaseStatusToCaseUseCase(dl).execute(
+    return _uc_status.AddCaseStatusToCaseReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def create_participant_status(dispatchable, dl=None):
-    return _uc_status.CreateParticipantStatusUseCase(dl).execute(
+    return _uc_status.CreateParticipantStatusReceivedUseCase(dl).execute(
         _unwrap(dispatchable)
     )
 
 
 def add_participant_status_to_participant(dispatchable, dl=None):
-    return _uc_status.AddParticipantStatusToParticipantUseCase(dl).execute(
-        _unwrap(dispatchable)
-    )
+    return _uc_status.AddParticipantStatusToParticipantReceivedUseCase(
+        dl
+    ).execute(_unwrap(dispatchable))
 
 
 # ---- unknown handler -------------------------------------------------------

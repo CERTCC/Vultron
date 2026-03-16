@@ -19,7 +19,7 @@ from vultron.core.use_cases._types import CaseModel, ParticipantModel
 logger = logging.getLogger(__name__)
 
 
-class CreateEmbargoEventUseCase:
+class CreateEmbargoEventReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -51,7 +51,7 @@ class CreateEmbargoEventUseCase:
             )
 
 
-class AddEmbargoEventToCaseUseCase:
+class AddEmbargoEventToCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -98,7 +98,7 @@ class AddEmbargoEventToCaseUseCase:
             )
 
 
-class RemoveEmbargoEventFromCaseUseCase:
+class RemoveEmbargoEventFromCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -149,7 +149,7 @@ class RemoveEmbargoEventFromCaseUseCase:
             )
 
 
-class AnnounceEmbargoEventToCaseUseCase:
+class AnnounceEmbargoEventToCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -170,7 +170,7 @@ class AnnounceEmbargoEventToCaseUseCase:
             )
 
 
-class InviteToEmbargoOnCaseUseCase:
+class InviteToEmbargoOnCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -207,7 +207,7 @@ class InviteToEmbargoOnCaseUseCase:
             )
 
 
-class AcceptInviteToEmbargoOnCaseUseCase:
+class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -311,7 +311,7 @@ class AcceptInviteToEmbargoOnCaseUseCase:
             )
 
 
-class RejectInviteToEmbargoOnCaseUseCase:
+class RejectInviteToEmbargoOnCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 

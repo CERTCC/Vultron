@@ -15,7 +15,7 @@ from vultron.core.use_cases._types import CaseModel, ParticipantModel
 logger = logging.getLogger(__name__)
 
 
-class CreateCaseStatusUseCase:
+class CreateCaseStatusReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -47,7 +47,7 @@ class CreateCaseStatusUseCase:
             )
 
 
-class AddCaseStatusToCaseUseCase:
+class AddCaseStatusToCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -96,7 +96,7 @@ class AddCaseStatusToCaseUseCase:
             )
 
 
-class CreateParticipantStatusUseCase:
+class CreateParticipantStatusReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -128,7 +128,7 @@ class CreateParticipantStatusUseCase:
             )
 
 
-class AddParticipantStatusToParticipantUseCase:
+class AddParticipantStatusToParticipantReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 

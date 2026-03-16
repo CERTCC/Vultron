@@ -21,7 +21,7 @@ from vultron.core.use_cases._types import CaseModel
 logger = logging.getLogger(__name__)
 
 
-class SuggestActorToCaseUseCase:
+class SuggestActorToCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -53,7 +53,7 @@ class SuggestActorToCaseUseCase:
             )
 
 
-class AcceptSuggestActorToCaseUseCase:
+class AcceptSuggestActorToCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -85,7 +85,7 @@ class AcceptSuggestActorToCaseUseCase:
             )
 
 
-class RejectSuggestActorToCaseUseCase:
+class RejectSuggestActorToCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -104,7 +104,7 @@ class RejectSuggestActorToCaseUseCase:
             )
 
 
-class OfferCaseOwnershipTransferUseCase:
+class OfferCaseOwnershipTransferReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -137,7 +137,7 @@ class OfferCaseOwnershipTransferUseCase:
             )
 
 
-class AcceptCaseOwnershipTransferUseCase:
+class AcceptCaseOwnershipTransferReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -186,7 +186,7 @@ class AcceptCaseOwnershipTransferUseCase:
             )
 
 
-class RejectCaseOwnershipTransferUseCase:
+class RejectCaseOwnershipTransferReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -207,7 +207,7 @@ class RejectCaseOwnershipTransferUseCase:
             )
 
 
-class InviteActorToCaseUseCase:
+class InviteActorToCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -238,7 +238,7 @@ class InviteActorToCaseUseCase:
             )
 
 
-class AcceptInviteActorToCaseUseCase:
+class AcceptInviteActorToCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -310,7 +310,7 @@ class AcceptInviteActorToCaseUseCase:
             )
 
 
-class RejectInviteActorToCaseUseCase:
+class RejectInviteActorToCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 

@@ -22,7 +22,7 @@ from vultron.bt.report_management.states import RM
 logger = logging.getLogger(__name__)
 
 
-class CreateReportUseCase:
+class CreateReportReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -56,7 +56,7 @@ class CreateReportUseCase:
                 )
 
 
-class SubmitReportUseCase:
+class SubmitReportReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -90,7 +90,7 @@ class SubmitReportUseCase:
                 )
 
 
-class ValidateReportUseCase:
+class ValidateReportReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -137,7 +137,7 @@ class ValidateReportUseCase:
             )
 
 
-class InvalidateReportUseCase:
+class InvalidateReportReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -188,7 +188,7 @@ class InvalidateReportUseCase:
             )
 
 
-class AckReportUseCase:
+class AckReportReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -221,7 +221,7 @@ class AckReportUseCase:
             )
 
 
-class CloseReportUseCase:
+class CloseReportReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 

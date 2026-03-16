@@ -50,7 +50,7 @@ def _check_participant_embargo_acceptance(
             )
 
 
-class CreateCaseUseCase:
+class CreateCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -105,7 +105,7 @@ class CreateCaseUseCase:
             )
 
 
-class UpdateCaseUseCase:
+class UpdateCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -165,7 +165,7 @@ class UpdateCaseUseCase:
             )
 
 
-class EngageCaseUseCase:
+class EngageCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -206,7 +206,7 @@ class EngageCaseUseCase:
             )
 
 
-class DeferCaseUseCase:
+class DeferCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -247,7 +247,7 @@ class DeferCaseUseCase:
             )
 
 
-class AddReportToCaseUseCase:
+class AddReportToCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
@@ -287,7 +287,7 @@ class AddReportToCaseUseCase:
             )
 
 
-class CloseCaseUseCase:
+class CloseCaseReceivedUseCase:
     def __init__(self, dl: DataLayer) -> None:
         self._dl = dl
 
