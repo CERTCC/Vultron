@@ -248,3 +248,22 @@ def extract_id_segment(url: str) -> str:
   - **Scope**: Applies to new classes in `vultron/core/` and to existing
     classes when they are refactored; do not rename existing classes
     incidentally while working on unrelated changes
+
+## Use Case Naming (SHOULD)
+
+- `CS-12-002` Use case class names SHOULD carry a suffix that reflects their
+  origin (received message vs. local trigger):
+  - **Handler use cases** (processing messages received from another party, in
+    `core/use_cases/<domain>.py`) SHOULD carry the `Received` suffix:
+    `CreateReportReceivedUseCase`, `AcceptInviteActorToCaseReceivedUseCase`, etc.
+  - **Trigger use cases** (executing actor-initiated behaviors, in
+    `core/use_cases/triggers/`) SHOULD carry the `Svc` prefix:
+    `SvcEngageCaseUseCase`, `SvcProposeEmbargoUseCase`, etc.
+  - The `USE_CASE_MAP` in `core/use_cases/use_case_map.py` MUST be updated in
+    the same commit as any rename
+  - **Rationale**: Distinguishes messages received from external parties from
+    actions the local actor has decided to take. This distinction is fundamental
+    to the Vultron protocol model (see `notes/activitystreams-semantics.md`)
+    and prevents accidentally treating incoming messages as local commands.
+  - **See also**: TECHDEBT-21 for the rename task; CS-10-002 for the parallel
+    `FooReceivedEvent` / `FooTriggerEvent` domain event convention

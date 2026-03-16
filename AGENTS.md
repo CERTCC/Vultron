@@ -178,7 +178,7 @@ include migration/compatibility notes and tests.
 
 ---
 
-# Agent Guidance for Vultron Implementation
+## Agent Guidance for Vultron Implementation
 
 This document provides guidance to AI agents working on the Vultron codebase.
 It supplements the Copilot instructions with implementation-specific advice.
@@ -391,6 +391,10 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - **Vulnerability**: Abbreviated as `vul` (not `vuln`)
 - **Handler functions**: Named after semantic action (e.g., `create_report`,
   `accept_invite_actor_to_case`)
+- **Handler use cases** (processing received messages): Use `Received` suffix
+  (e.g., `CreateReportReceivedUseCase`). See CS-12-002.
+- **Trigger use cases** (actor-initiated actions): Use `Svc` prefix
+  (e.g., `SvcEngageCaseUseCase`). See CS-12-002.
 - **Pattern objects**: Descriptive CamelCase (e.g., `CreateReport`,
   `AcceptInviteToEmbargoOnCase`)
 
@@ -430,7 +434,7 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - Exceptions: Tables, code blocks, long URLs, or other formatting that requires
   it
 - Use `markdownlint-cli2` for linting markdown files; see Miscellaneous tips
-  for the correct commands 
+  for the correct commands
 - Break long sentences at natural points (after commas, conjunctions, etc.)
 - Keep list items and paragraphs readable and well-formatted
 
@@ -987,6 +991,7 @@ start, not application readiness
 **Solutions**:
 
 1. Add health check to API service in docker-compose.yml:
+
    ```yaml
    api-dev:
      healthcheck:
@@ -995,14 +1000,18 @@ start, not application readiness
        timeout: 5s
        retries: 15
    ```
+
 2. Update dependent service to use `condition: service_healthy`:
+
    ```yaml
    demo:
      depends_on:
        api-dev:
          condition: service_healthy
    ```
+
 3. Implement retry logic in client code (defense in depth):
+
    ```python
    def check_server_availability(url, max_retries=30, retry_delay=1.0):
        for attempt in range(max_retries):

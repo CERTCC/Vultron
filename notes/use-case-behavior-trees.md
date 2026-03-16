@@ -312,6 +312,38 @@ The use-case interface standardization SHOULD be implemented **before**
 P75-4 (refactoring driving adapters to call use cases directly). A
 consistent `execute()` interface makes P75-4 significantly simpler.
 
+### Use Case Naming Convention
+
+Handler use cases (processing incoming messages from another party) SHOULD carry
+a `Received` suffix: `CreateReportReceivedUseCase`. Trigger use cases
+(actor-initiated actions) SHOULD carry a `Svc` prefix: `SvcEngageCaseUseCase`.
+This mirrors the `FooReceivedEvent` / `FooTriggerEvent` convention for domain
+events (CS-10-002) and makes the origin unambiguous at a glance. See
+`specs/code-style.md` CS-12-002 and TECHDEBT-21.
+
+### UseCaseRequest Envelope (Future Direction)
+
+Design Decision: When the system matures, the `execute()` method parameter
+SHOULD be a structured `UseCaseRequest` Pydantic model rather than a raw domain
+event. Benefits:
+
+* Validation of required fields occurs at construction time — if a `UseCase`
+  instance exists, it is valid and ready to execute.
+* Fields that are optional in general but required by a specific use case can be
+  enforced by subclassing `UseCaseRequest` with tighter field constraints.
+* The adapter layer needs only to know how to construct a `UseCaseRequest`, not
+  the internals of every use case.
+
+A `UseCaseRequest` base class with optional fields and a set of concrete
+subclasses (one per use case that needs additional fields) would allow most
+handler use cases to share a common base while trigger use cases add their
+domain-specific parameters.
+
+Open Question: Whether to introduce `UseCaseRequest` now or defer until the
+existing naming and Protocol-base work (TECHDEBT-21, TECHDEBT-22) is complete
+to avoid another large rename cycle. Recommendation: define the base class and
+align the interface after TECHDEBT-21/22.
+
 ### SEMANTICS_HANDLERS Migration
 
 `SEMANTICS_HANDLERS` in `vultron/api/v2/backend/handler_map.py` maps

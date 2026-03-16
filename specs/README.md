@@ -228,7 +228,7 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-03-10)**:
+**Summary (2026-03-16)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer
@@ -244,21 +244,24 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
   All 9 trigger endpoints (`validate-report`, `invalidate-report`,
   `reject-report`, `engage-case`, `defer-case`, `close-report`,
   `propose-embargo`, `evaluate-embargo`, `terminate-embargo`)
-- ✅ **Hexagonal architecture Phase 1 complete** (PRIORITY 50 + ARCH-CLEANUP):
+- ✅ **Hexagonal architecture Phases 50/60/65 complete** (ARCH-CLEANUP):
   `MessageSemantics` in core, `InboundPayload` domain type, wire/as2
   extractor and parser, handler map in adapter layer, AS2 enums in wire
-  layer, shims deleted, `isinstance` AS2 checks removed (V-01 through V-12)
+  layer, shims deleted, `isinstance` AS2 checks removed (V-01 through V-24)
 - ✅ **Package relocation P60-1, P60-2 complete**: `vultron/as_vocab/` →
   `vultron/wire/as2/vocab/`; `vultron/behaviors/` → `vultron/core/behaviors/`
-- ✅ **Object model gap closed**: `VulnerabilityRecord`, `CaseReference`,
-  `EmbargoPolicy`, `VultronActorMixin` models added (SC-1.1, SC-1.2, EP-1.1,
-  EP-1.2)
-- ✅ **822 tests passing**, 0 xfailed (2026-03-10)
+- ✅ **DataLayer refactor P70 complete**: `DataLayer` as port in
+  `vultron/core/ports/datalayer.py`; TinyDB as driven adapter
+- ✅ **Business logic in core/use_cases/ (P75-1–P75-4 complete)**:
+  All 38 handler use cases and 9 trigger use cases in `vultron/core/use_cases/`;
+  `UseCase[Req, Res]` Protocol defined; CLI and MCP adapters implemented
+- ✅ **893 tests passing** (2026-03-16)
 - ⚠️ **Production readiness partial**: Request validation, error responses
   need work
-- ❌ **P60-3 not started**: `vultron/adapters/` package stub pending
+- ❌ **P75-5 not decided**: `vultron/api/v1/` disposition pending
 - ❌ **Response generation not started**: See `response-format.md`
 - ❌ **Outbox delivery not implemented**: See `outbox.md` OX-03, OX-04
+- ❌ **Technical debt**: TECHDEBT-15–26; see `plan/IMPLEMENTATION_PLAN.md`
 
 ---
 
