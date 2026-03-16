@@ -1,6 +1,7 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-16 (refresh #38: TECHDEBT-17 through TECHDEBT-26 added)
+**Last Updated**: 2026-03-16 (refresh #39: Priority 80 phase identified; TECHDEBT-27/28 promoted
+from deferred; execution groupings added)
 
 ## Overview
 
@@ -13,12 +14,18 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
-all dockerized in `docker-compose.yml`. **P75 phase**: P75-1 through P75-3 complete;
-handler and trigger-service domain logic now lives in `vultron/core/use_cases/`.
+all dockerized in `docker-compose.yml`. **P75 phase**: ALL COMPLETE (P75-1 through
+P75-4). All 38 handler use cases and 9 trigger use cases are class-based. CLI
+(`vultron/adapters/driving/cli.py`) and MCP
+(`vultron/adapters/driving/mcp_server.py`) driving adapters implemented.
+
+**Active phase**: **PRIORITY-80** — technical debt cleanup and full hexagonal
+architecture realization. TECHDEBT-17 through TECHDEBT-28 are the active tasks,
+ordered by impact and dependency; see the Priority-80 section below.
 
 ---
 
-## Gap Analysis (2026-03-16, refresh #34)
+## Gap Analysis (2026-03-16, refresh #39)
 
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
@@ -203,6 +210,34 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details.
   label, (b) merge into `api/v2` as a `/examples/` subrouter, or (c) deprecate
   and remove. Done when a decision is recorded in an ADR or issue and the code
   reflects the decision.
+
+---
+
+### Phase PRIORITY-80 — Technical Debt and Architecture Cleanup
+
+**Reference**: `plan/PRIORITIES.md` PRIORITY 80
+
+All P75 tasks are complete. This phase addresses accumulated technical debt and
+ensures the hexagonal architecture is fully realized before moving to PRIORITY-100.
+
+**Recommended execution order** (batching guidance):
+
+- **Batch 80a** (dead code, quick wins — batch TECHDEBT-17 + 18 + 20 together):
+  TECHDEBT-17, TECHDEBT-18, TECHDEBT-20 are independent dead-code deletions with
+  no behaviour change. Run one commit for all three.
+- **Batch 80b** (architecture violations — TECHDEBT-19 + 24 share context):
+  Both remove wrong-layer imports from core. TECHDEBT-24 (`VulnerabilityCase`
+  and `ParticipantStatus` imports from wire layer in `triggers/_helpers.py` and
+  `case.py`) may be partially resolved by TECHDEBT-19 (moving `rehydrate` /
+  status helpers out of `api.v2`). Attempt together.
+- **Batch 80c** (naming + Protocol base — TECHDEBT-21 then 22):
+  TECHDEBT-21 must complete before TECHDEBT-22; both can ship in one PR.
+- **Batch 80d** (error handling — TECHDEBT-27 + 28 + related deferred items):
+  TECHDEBT-27 (error handling standardization) and TECHDEBT-28
+  (idempotent-create helper) are newly un-deferred now that P75-4 is done.
+  Group with the stub `try/except` cleanup from the Deferred section.
+- **Batch 80e** (DRY / cleanup — low-risk, low-priority):
+  TECHDEBT-16, TECHDEBT-23, TECHDEBT-25, TECHDEBT-26 in any order.
 
 ---
 
@@ -402,6 +437,45 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details.
 
 ---
 
+### TECHDEBT-27 — Standardize error handling in use cases
+
+**Priority**: Medium (un-deferred now that P75-4 is complete)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` code-review item 6 (deferred); promoted
+from Deferred section after P75-4 completion.
+
+- [ ] **TECHDEBT-27**: Remove silent `except Exception` swallowers from use cases;
+  let domain exceptions propagate and be caught at the dispatcher boundary. Also
+  remove the meaningless `try/except Exception` wrappers from stub-only use cases
+  (`RejectSuggestActorToCaseUseCase`, `RejectCaseOwnershipTransferUseCase`,
+  `RejectInviteActorToCaseUseCase`, `RejectInviteToEmbargoOnCaseUseCase`,
+  `AnnounceEmbargoEventToCaseUseCase`) that wrap a `logger.info()` call which
+  can never raise. Ensure the dispatcher logs unexpected exceptions at ERROR level
+  with full context before re-raising. Done when no use case contains a bare
+  `except Exception` swallower, all domain exceptions propagate to the dispatcher,
+  and the test suite passes.
+
+---
+
+### TECHDEBT-28 — Extract idempotent-create helper
+
+**Priority**: Low (un-deferred now that P75-4 is complete)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` code-review item 14 (deferred); promoted
+from Deferred section after P75-4 completion.
+
+- [ ] **TECHDEBT-28**: Extract a private helper `_idempotent_create(self, object_type,
+  object_id, obj, label)` into a shared base class or module-level function in
+  `vultron/core/use_cases/_helpers.py` (alongside the `_as_id()` helper from
+  TECHDEBT-25). Replace the ~6 repetitions of the same idempotency guard pattern
+  across `CreateEmbargoEventUseCase`, `CreateNoteUseCase`,
+  `CreateCaseParticipantUseCase`, `CreateCaseStatusUseCase`,
+  `CreateParticipantStatusUseCase`, and `SuggestActorToCaseUseCase`. Done when
+  the helper exists, all repetitions are replaced, and tests pass.
+  **Batch with TECHDEBT-25** (both add helpers to `_helpers.py`).
+
+---
+
 ### DOCS-1 — Update `docker/README.md`
 
 **Priority**: Medium (docs correctness, `notes/codebase-structure.md`)
@@ -534,10 +608,6 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
 
 ## Deferred (Per PRIORITIES.md)
 
-- **Use case error handling standardization** — Remove silent `except Exception`
-  swallowers in use cases; let domain exceptions propagate and be caught at the
-  dispatcher boundary. Defer until after P75-4 so error handling can be
-  tested end-to-end. (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 6)
 - **BT status comparison normalization** — Replace `result.status.name != "SUCCESS"`
   string comparisons with `result.status == Status.SUCCESS` enum comparisons in
   `EngageCaseUseCase`, `DeferCaseUseCase`, `CreateCaseUseCase`. (Source:
@@ -546,15 +616,6 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
   `VultronActivity(as_type="Leave")` in `CloseCaseUseCase` with domain event emission
   through the `ActivityEmitter` port (OX-1.0). Defer until OX-1.0 is implemented.
   (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 8)
-- **Idempotent-create helper** — Extract `_idempotent_create()` private helper to
-  eliminate ~40 repeated lines across `CreateEmbargoEventUseCase`,
-  `CreateNoteUseCase`, `CreateCaseParticipantUseCase`, etc. Defer to after P75-4.
-  (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 14)
-- **Remove meaningless try/except from stub use cases** — Stub use cases
-  (`RejectSuggestActorToCaseUseCase`, `RejectCaseOwnershipTransferUseCase`, etc.)
-  wrap a `logger.info()` call in `try/except Exception`, which can never raise.
-  Remove the dead guard. Defer to the error-handling pass. (Source:
-  `plan/IMPLEMENTATION_NOTES.md` code-review item 15)
 - **UseCase Protocol generic enforcement** — Decide on a consistent
   `UseCaseResult` Pydantic return envelope; enforce via mypy. Defer to after
   TECHDEBT-21/22. (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 9)
