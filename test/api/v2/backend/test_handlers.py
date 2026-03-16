@@ -316,7 +316,7 @@ class TestInviteActorHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -408,7 +408,7 @@ class TestInviteActorHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
         actor_id = "https://example.org/users/coordinator"
@@ -455,7 +455,7 @@ class TestInviteActorHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
         actor_id = "https://example.org/users/coordinator"
@@ -506,7 +506,7 @@ class TestInviteActorHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -556,7 +556,7 @@ class TestInviteActorHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -613,7 +613,7 @@ class TestInviteActorHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -740,7 +740,7 @@ class TestEmbargoHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -817,7 +817,7 @@ class TestEmbargoHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -874,7 +874,7 @@ class TestEmbargoHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -933,7 +933,7 @@ class TestEmbargoHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1079,7 +1079,7 @@ class TestNoteHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1121,7 +1121,7 @@ class TestNoteHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1163,7 +1163,7 @@ class TestNoteHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1206,7 +1206,7 @@ class TestNoteHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1323,7 +1323,7 @@ class TestStatusHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1411,7 +1411,7 @@ class TestStatusHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1638,7 +1638,7 @@ class TestOwnershipTransferHandlers:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1722,7 +1722,7 @@ class TestUpdateCaseHandler:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1748,7 +1748,7 @@ class TestUpdateCaseHandler:
             activity, MessageSemantics.UPDATE_CASE
         )
 
-        from vultron.api.v2.data.rehydration import rehydrate as real_rehydrate
+        from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 
         def _mock_rehydrate(obj, **kwargs):
             if obj == case.as_id:
@@ -1756,7 +1756,7 @@ class TestUpdateCaseHandler:
             return real_rehydrate(obj, **kwargs)
 
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.rehydrate",
+            "vultron.wire.as2.rehydration.rehydrate",
             _mock_rehydrate,
         )
 
@@ -1777,7 +1777,7 @@ class TestUpdateCaseHandler:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1818,7 +1818,7 @@ class TestUpdateCaseHandler:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1843,7 +1843,7 @@ class TestUpdateCaseHandler:
             activity, MessageSemantics.UPDATE_CASE
         )
 
-        from vultron.api.v2.data.rehydration import rehydrate as real_rehydrate
+        from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 
         def _mock_rehydrate(obj, **kwargs):
             if obj == case.as_id:
@@ -1851,7 +1851,7 @@ class TestUpdateCaseHandler:
             return real_rehydrate(obj, **kwargs)
 
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.rehydrate",
+            "vultron.wire.as2.rehydration.rehydrate",
             _mock_rehydrate,
         )
 
@@ -1877,7 +1877,7 @@ class TestUpdateCaseHandler:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1936,7 +1936,7 @@ class TestUpdateCaseHandler:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1991,7 +1991,7 @@ class TestUpdateCaseHandler:
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 

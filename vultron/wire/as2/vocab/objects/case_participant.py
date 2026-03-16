@@ -137,6 +137,12 @@ class CaseParticipant(VultronObject):
             key=lambda ps: ps.updated or ps.published or ps.as_id,
         )
 
+    def append_rm_state(self, rm_state: RM, actor: str, context: str) -> None:
+        """Append a new ParticipantStatus with the given RM state."""
+        self.participant_statuses.append(
+            ParticipantStatus(actor=actor, context=context, rm_state=rm_state)
+        )
+
     def add_role(self, role: CVDRole, reset=False):
         if reset:
             self.case_roles = []

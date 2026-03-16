@@ -171,14 +171,14 @@ receive fully expanded objects. However, when calling `find_matching_semantics`
 outside of the dispatch pipeline, call `rehydrate()` explicitly:
 
 ```python
-from vultron.api.v2.data.rehydration import rehydrate
+from vultron.wire.as2.rehydration import rehydrate
 
 activity = rehydrate(activity)
 semantic = find_matching_semantics(activity)
 ```
 
 **References**: `specs/semantic-extraction.md` SE-01-002,
-`vultron/api/v2/data/rehydration.py`.
+`vultron/wire/as2/rehydration.py`.
 
 ---
 

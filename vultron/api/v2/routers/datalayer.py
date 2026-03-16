@@ -20,7 +20,7 @@ from copy import deepcopy
 
 from fastapi import APIRouter, Depends, status, HTTPException
 
-from vultron.api.v2.data.rehydration import rehydrate
+from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.wire.as2.vocab.base.base import as_Base

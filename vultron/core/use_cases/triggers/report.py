@@ -25,13 +25,13 @@ No HTTP framework imports (FastAPI, Starlette) are permitted here.
 
 import logging
 
-from vultron.api.v2.data.rehydration import rehydrate
-from vultron.api.v2.data.status import (
+from vultron.core.models.status import (
     OfferStatus,
     ReportStatus,
     get_status_layer,
     set_status,
 )
+from vultron.wire.as2.rehydration import rehydrate
 from vultron.bt.report_management.states import RM
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
@@ -70,8 +70,8 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
         raise VultronNotFoundError("Offer", offer_id)
 
     try:
-        offer = rehydrate(offer_raw)
-        report = rehydrate(offer.as_object)
+        offer = rehydrate(offer_raw, dl=dl)
+        report = rehydrate(offer.as_object, dl=dl)
     except (ValueError, KeyError, AttributeError) as e:
         raise VultronValidationError(str(e)) from e
 

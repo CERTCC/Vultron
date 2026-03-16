@@ -100,3 +100,24 @@ See `notes/architecture-ports-and-adapters.md` regarding richness of core
 objects for vs wire objects. Use that to reason about the correct solution 
 to TECHDEBT-24.
 
+
+---
+
+### 2026-03-16 — TECHDEBT-24 case.py constraint
+
+`CreateCaseUseCase.execute` in `core/use_cases/case.py` retains a lazy import
+of `VulnerabilityCase`. The reason: `VulnerabilityCase` uses
+`default_factory=init_case_status` to seed `case_statuses = [CaseStatus()]`.
+A bare `VultronCase` has `case_statuses = []`; after TinyDB round-trip
+(`record_to_object` reconstitutes via `VulnerabilityCase.model_validate`),
+`case_statuses` remains empty, and `VulnerabilityCase.current_status`
+(which calls `max(self.case_statuses, ...)` without an empty-list guard)
+raises `max() iterable argument is empty`.
+
+Options to fully resolve (TECHDEBT-24 remaining item):
+- (a) Add an `init_case_status`-equivalent `default_factory` to
+  `VultronCase.case_statuses` using a `VultronCaseStatus` initializer.
+- (b) Have the `PersistCase` BT node convert `VultronCase` → `VulnerabilityCase`
+  before persisting.
+- (c) Add an empty-list guard to `VulnerabilityCase.current_status` (smallest
+  change, but treats the symptom not the root cause).

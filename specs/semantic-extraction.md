@@ -95,7 +95,7 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 - Implementation: `vultron/wire/as2/extractor.py` (patterns and
   `find_matching_semantics`; sole AS2→domain mapping point)
 - Implementation: `vultron/behavior_dispatcher.py`
-- Implementation: `vultron/api/v2/data/rehydration.py` (object rehydration)
+- Implementation: `vultron/wire/as2/rehydration.py` (object rehydration)
 - Implementation: `vultron/api/v2/backend/inbox_handler.py` (rehydration before dispatch)
 - Implementation: `vultron/core/models/events.py` (`MessageSemantics` enum)
 - Tests: `test/test_semantic_activity_patterns.py`

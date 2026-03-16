@@ -24,11 +24,10 @@ framework imports allowed here.
 import logging
 
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.core.ports.datalayer import DataLayer
-from vultron.errors import VultronNotFoundError, VultronValidationError
-from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.bt.report_management.states import RM
+from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases._types import CaseModel
+from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ def resolve_actor(actor_id: str, dl: DataLayer):
     return actor
 
 
-def resolve_case(case_id: str, dl: DataLayer) -> VulnerabilityCase:
+def resolve_case(case_id: str, dl: DataLayer) -> CaseModel:
     """Resolve a VulnerabilityCase by ID; raise domain error if absent or wrong type."""
     case_raw = dl.read(case_id)
     if case_raw is None:
@@ -101,12 +100,9 @@ def update_participant_rm_state(
                         case_id,
                     )
                     return
-            new_status = ParticipantStatus(
-                actor=actor_id,
-                context=case_id,
-                rm_state=new_rm_state,
+            participant.append_rm_state(
+                rm_state=new_rm_state, actor=actor_id, context=case_id
             )
-            participant.participant_statuses.append(new_status)
             dl.update(participant.as_id, object_to_record(participant))
             logger.info(
                 "Set participant '%s' RM state to %s in case '%s'",

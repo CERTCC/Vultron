@@ -306,16 +306,14 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 3
 
-- [ ] **TECHDEBT-19**: Remove imports of `rehydrate` from
-  `vultron.api.v2.data.rehydration` and `OfferStatus`, `ReportStatus`,
-  `get_status_layer`, `set_status` from `vultron.api.v2.data.status` in
-  `vultron/core/use_cases/triggers/report.py`. Core modules MUST NOT import from
-  the application adapter layer. Move `rehydration.py` and/or `status.py` (or
-  the relevant functions/types) to a neutral location in `vultron/core/` or
-  promote them to the `DataLayer` port so core can use them without crossing
-  the adapter boundary. Done when `triggers/report.py` has no imports from
-  `vultron.api.v2.*`, the functionality is accessible from a core or shared
-  location, and the test suite passes.
+- [x] **TECHDEBT-19**: Moved `rehydrate` to `vultron/wire/as2/rehydration.py`
+  (with `dl: DataLayer | None = None` parameter to eliminate the adapter-layer
+  `get_datalayer()` fallback for callers that already hold a DataLayer). Deleted
+  `vultron/api/v2/data/rehydration.py`. Updated all callers
+  (`triggers/report.py`, `inbox_handler.py`, `cli.py`, `routers/datalayer.py`,
+  and all tests) to import from `vultron.wire.as2.rehydration` directly.
+  Changed `triggers/report.py` status imports from `api.v2.data.status` to
+  `vultron.core.models.status` (which was already the authoritative location).
 
 ---
 
@@ -395,15 +393,23 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 4
 
-- [ ] **TECHDEBT-24**: Remove lazy import of `VulnerabilityCase` from
-  `vultron.wire.as2.vocab.objects.vulnerability_case` in
-  `core/use_cases/case.py`, and `VulnerabilityCase` / `ParticipantStatus`
-  imports from the wire layer in `triggers/_helpers.py`. Replace with domain
-  Protocol types from `core/use_cases/_types.py` or introduce a thin domain
-  factory that core can call without importing wire types. Done when
-  `core/use_cases/case.py` and `core/use_cases/triggers/_helpers.py` have no
-  imports from `vultron.wire.*`, equivalent functionality is provided through
-  domain interfaces, and tests pass.
+- [x] **TECHDEBT-24** (partial — `triggers/_helpers.py` done): Removed
+  `VulnerabilityCase` and `ParticipantStatus` imports from
+  `triggers/_helpers.py`. `resolve_case` now returns `CaseModel`; a new
+  `append_rm_state(rm_state, actor, context)` method was added to both
+  `CaseParticipant` (wire) and `ParticipantModel` (Protocol), eliminating
+  the need to instantiate `ParticipantStatus` in the helper.
+- [ ] **TECHDEBT-24** (remaining — `case.py`): The lazy import of
+  `VulnerabilityCase` in `core/use_cases/case.py::CreateCaseUseCase.execute`
+  cannot be trivially removed because `VulnerabilityCase` uses
+  `default_factory=init_case_status` to initialize `case_statuses = [CaseStatus()]`.
+  Passing a bare `VultronCase` (which initialises `case_statuses = []`) causes
+  `VulnerabilityCase.current_status` (`max()`) to fail after the round-trip
+  through TinyDB. Fix requires either (a) giving `VultronCase` an equivalent
+  `case_statuses` initializer, (b) having `PersistCase` BT node convert the
+  domain object to a proper `VulnerabilityCase`, or (c) making `current_status`
+  guard for empty. Done when `case.py` has no imports from `vultron.wire.*`
+  and the full test suite passes.
 
 ---
 

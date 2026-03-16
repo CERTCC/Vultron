@@ -834,7 +834,7 @@ See `specs/code-style.md` CS-05-* for requirements.
 **Primary Solution**: Use rehydration before pattern matching:
 
 ```python
-from vultron.api.v2.data.rehydration import rehydrate
+from vultron.wire.as2.rehydration import rehydrate
 
 # Rehydrate converts string URIs to full objects from data layer
 activity = rehydrate(activity)
@@ -854,7 +854,7 @@ return pattern == getattr(field, "as_type", None)
 dispatching, so handlers receive fully expanded objects.
 
 See `specs/semantic-extraction.md` SE-01-002 and
-`vultron/api/v2/data/rehydration.py` for details.
+`vultron/wire/as2/rehydration.py` for details.
 
 ### Test Data Quality
 

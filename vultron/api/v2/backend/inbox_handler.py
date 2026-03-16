@@ -19,7 +19,7 @@ Vultron Actor Inbox Handler
 import logging
 
 from vultron.api.v2.data.actor_io import get_actor_io
-from vultron.api.v2.data.rehydration import rehydrate
+from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.dispatcher import get_dispatcher
 from vultron.core.models.events import VultronEvent
 from vultron.core.ports.datalayer import DataLayer

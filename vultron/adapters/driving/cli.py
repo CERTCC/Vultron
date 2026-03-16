@@ -21,7 +21,7 @@ from vultron.api.v2.backend.inbox_handler import (
     handle_inbox_item,
     init_dispatcher,
 )
-from vultron.api.v2.data.rehydration import rehydrate
+from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.parser import parse_activity
 
 logger = logging.getLogger(__name__)

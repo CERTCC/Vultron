@@ -7,6 +7,8 @@ methods on DataLayer results without importing wire-layer classes.
 
 from typing import Protocol
 
+from vultron.bt.report_management.states import RM
+
 
 class CaseModel(Protocol):
     as_id: str
@@ -35,3 +37,7 @@ class ParticipantModel(Protocol):
     accepted_embargo_ids: list
     participant_statuses: list
     attributed_to: object
+
+    def append_rm_state(
+        self, rm_state: RM, actor: str, context: str
+    ) -> None: ...
