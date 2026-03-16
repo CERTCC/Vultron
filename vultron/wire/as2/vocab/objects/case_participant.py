@@ -24,7 +24,7 @@ from pydantic import Field, field_validator, field_serializer, model_validator
 
 from vultron.wire.as2.vocab.base.links import as_Link, ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import activitystreams_object
-from vultron.wire.as2.vocab.base.types import OptionalNonEmptyString
+from vultron.wire.as2.vocab.base.types import NonEmptyString
 from vultron.wire.as2.vocab.objects.base import VultronObject
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.bt.report_management.states import RM
@@ -64,11 +64,11 @@ class CaseParticipant(VultronObject):
 
     as_type: VO_type = Field(default=VO_type.CASE_PARTICIPANT, alias="type")
 
-    name: OptionalNonEmptyString = None
+    name: NonEmptyString | None = None
     case_roles: list[CVDRole] = Field(default_factory=list)
     participant_statuses: list[ParticipantStatus] = Field(default_factory=list)
     accepted_embargo_ids: list[str] = Field(default_factory=list)
-    participant_case_name: OptionalNonEmptyString = Field(
+    participant_case_name: NonEmptyString | None = Field(
         default=None, exclude=True
     )
     context: as_Link | str | None = Field(default=None, repr=True)

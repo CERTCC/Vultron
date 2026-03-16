@@ -10,72 +10,59 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from vultron.core.models.events.base import NonEmptyString
 
-class ValidateReportTriggerRequest(BaseModel):
+
+class TriggerRequest(BaseModel):
+    """Base class for all trigger use-case request models.
+
+    Provides shared ``model_config`` (extras ignored) and ``actor_id``
+    so concrete subclasses only need to declare their own additional fields.
+    """
+
     model_config = ConfigDict(extra="ignore")
 
-    actor_id: str
+    actor_id: NonEmptyString
+
+
+class ValidateReportTriggerRequest(TriggerRequest):
     offer_id: str
     note: str | None = None
 
 
-class InvalidateReportTriggerRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    actor_id: str
+class InvalidateReportTriggerRequest(TriggerRequest):
     offer_id: str
     note: str | None = None
 
 
-class RejectReportTriggerRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    actor_id: str
+class RejectReportTriggerRequest(TriggerRequest):
     offer_id: str
     note: str
 
 
-class CloseReportTriggerRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    actor_id: str
+class CloseReportTriggerRequest(TriggerRequest):
     offer_id: str
     note: str | None = None
 
 
-class EngageCaseTriggerRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    actor_id: str
+class EngageCaseTriggerRequest(TriggerRequest):
     case_id: str
 
 
-class DeferCaseTriggerRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    actor_id: str
+class DeferCaseTriggerRequest(TriggerRequest):
     case_id: str
 
 
-class ProposeEmbargoTriggerRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    actor_id: str
+class ProposeEmbargoTriggerRequest(TriggerRequest):
     case_id: str
     note: str | None = None
     end_time: datetime | None = None
 
 
-class EvaluateEmbargoTriggerRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    actor_id: str
+class EvaluateEmbargoTriggerRequest(TriggerRequest):
     case_id: str
     proposal_id: str | None = None
 
 
-class TerminateEmbargoTriggerRequest(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    actor_id: str
+class TerminateEmbargoTriggerRequest(TriggerRequest):
     case_id: str

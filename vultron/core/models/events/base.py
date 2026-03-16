@@ -6,7 +6,7 @@ inherit from.
 """
 
 from enum import auto, StrEnum
-from typing import Annotated, Optional
+from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel
 
@@ -18,7 +18,6 @@ def _non_empty(v: str) -> str:
 
 
 NonEmptyString = Annotated[str, AfterValidator(_non_empty)]
-OptionalNonEmptyString = Optional[NonEmptyString]
 
 
 class MessageSemantics(StrEnum):
@@ -88,30 +87,30 @@ class VultronEvent(BaseModel):
 
     semantic_type: MessageSemantics
     activity_id: NonEmptyString
-    activity_type: OptionalNonEmptyString = None
+    activity_type: NonEmptyString | None = None
     actor_id: NonEmptyString
 
-    object_id: OptionalNonEmptyString = None
-    object_type: OptionalNonEmptyString = None
+    object_id: NonEmptyString | None = None
+    object_type: NonEmptyString | None = None
 
-    target_id: OptionalNonEmptyString = None
-    target_type: OptionalNonEmptyString = None
+    target_id: NonEmptyString | None = None
+    target_type: NonEmptyString | None = None
 
-    context_id: OptionalNonEmptyString = None
-    context_type: OptionalNonEmptyString = None
+    context_id: NonEmptyString | None = None
+    context_type: NonEmptyString | None = None
 
-    origin_id: OptionalNonEmptyString = None
-    origin_type: OptionalNonEmptyString = None
+    origin_id: NonEmptyString | None = None
+    origin_type: NonEmptyString | None = None
 
-    in_reply_to: OptionalNonEmptyString = None
+    in_reply_to: NonEmptyString | None = None
 
     # Nested fields: activity.as_object.as_object, .target, .context
-    inner_object_id: OptionalNonEmptyString = None
-    inner_object_type: OptionalNonEmptyString = None
-    inner_target_id: OptionalNonEmptyString = None
-    inner_target_type: OptionalNonEmptyString = None
-    inner_context_id: OptionalNonEmptyString = None
-    inner_context_type: OptionalNonEmptyString = None
+    inner_object_id: NonEmptyString | None = None
+    inner_object_type: NonEmptyString | None = None
+    inner_target_id: NonEmptyString | None = None
+    inner_target_type: NonEmptyString | None = None
+    inner_context_id: NonEmptyString | None = None
+    inner_context_type: NonEmptyString | None = None
 
     @property
     def as_id(self) -> str:

@@ -10,6 +10,7 @@ from vultron.core.models.events.status import (
     CreateParticipantStatusReceivedEvent,
 )
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.use_cases._types import CaseModel, ParticipantModel
 from vultron.core.ports.use_case import UseCase
 
@@ -24,23 +25,15 @@ class CreateCaseStatusReceivedUseCase(
 
     def execute(self, request: CreateCaseStatusReceivedEvent) -> None:
         try:
-            existing = self._dl.get(request.object_type, request.object_id)
-            if existing is not None:
-                logger.info(
-                    "CaseStatus '%s' already stored — skipping (idempotent)",
-                    request.object_id,
-                )
+            if _idempotent_create(
+                self._dl,
+                request.object_type,
+                request.object_id,
+                request.status,
+                "CaseStatus",
+                request.activity_id,
+            ):
                 return
-
-            obj_to_store = request.status
-            if obj_to_store is not None:
-                self._dl.create(obj_to_store)
-                logger.info("Stored CaseStatus '%s'", request.object_id)
-            else:
-                logger.warning(
-                    "create_case_status: no status object for event '%s'",
-                    request.activity_id,
-                )
 
         except Exception as e:
             logger.error(
@@ -68,10 +61,7 @@ class AddCaseStatusToCaseReceivedUseCase(
                 )
                 return
 
-            existing_ids = [
-                (s.as_id if hasattr(s, "as_id") else s)
-                for s in case.case_statuses
-            ]
+            existing_ids = [_as_id(s) for s in case.case_statuses]
             if status_id in existing_ids:
                 logger.info(
                     "CaseStatus '%s' already in case '%s' — skipping (idempotent)",
@@ -109,23 +99,15 @@ class CreateParticipantStatusReceivedUseCase(
 
     def execute(self, request: CreateParticipantStatusReceivedEvent) -> None:
         try:
-            existing = self._dl.get(request.object_type, request.object_id)
-            if existing is not None:
-                logger.info(
-                    "ParticipantStatus '%s' already stored — skipping (idempotent)",
-                    request.object_id,
-                )
+            if _idempotent_create(
+                self._dl,
+                request.object_type,
+                request.object_id,
+                request.status,
+                "ParticipantStatus",
+                request.activity_id,
+            ):
                 return
-
-            obj_to_store = request.status
-            if obj_to_store is not None:
-                self._dl.create(obj_to_store)
-                logger.info("Stored ParticipantStatus '%s'", request.object_id)
-            else:
-                logger.warning(
-                    "create_participant_status: no status object for event '%s'",
-                    request.activity_id,
-                )
 
         except Exception as e:
             logger.error(
@@ -157,8 +139,7 @@ class AddParticipantStatusToParticipantReceivedUseCase(
                 return
 
             existing_ids = [
-                (s.as_id if hasattr(s, "as_id") else s)
-                for s in participant.participant_statuses
+                _as_id(s) for s in participant.participant_statuses
             ]
             if status_id in existing_ids:
                 logger.info(

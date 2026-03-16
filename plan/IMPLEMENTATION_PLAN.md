@@ -366,12 +366,11 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 13
 
-- [ ] **TECHDEBT-23**: Add a `TriggerRequest` base class in
+- [x] **TECHDEBT-23**: Added `TriggerRequest` base class in
   `vultron/core/use_cases/triggers/requests.py` with `model_config = ConfigDict(extra="ignore")`
-  and `actor_id: NonEmptyString`. Have all 8 concrete trigger request models
-  subclass `TriggerRequest` and remove the duplicated `model_config` and
-  `actor_id` fields from each. Done when the base class is defined, all
-  subclasses inherit it, the duplicate fields are removed, and tests pass.
+  and `actor_id: NonEmptyString`. All 9 concrete trigger request models
+  subclass `TriggerRequest` with the duplicated `model_config` and
+  `actor_id` fields removed from each. 893 tests pass.
 
 ---
 
@@ -405,11 +404,10 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "2026-03-16 code-review findings" item 5
 
-- [ ] **TECHDEBT-25**: Extract a private helper function `_as_id(obj) -> str | None`
-  (implementing `obj.as_id if hasattr(obj, "as_id") else str(obj) if obj is not None else None`)
-  into `vultron/core/use_cases/_helpers.py` and replace all ~7 call sites in
-  `case.py`, `actor.py`, `embargo.py`, and `case_participant.py`. Done when the
-  helper exists, all repetitions are replaced, and tests pass.
+- [x] **TECHDEBT-25**: Created `vultron/core/use_cases/_helpers.py` with
+  `_as_id(obj) -> str | None` helper. Replaced all ~15 call sites in
+  `case.py`, `actor.py`, `embargo.py`, `case_participant.py`, `note.py`,
+  and `status.py`. 893 tests pass.
 
 ---
 
@@ -420,12 +418,13 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 **Source**: `plan/IDEAS.md` "Most strings in Pydantic objects should be NonEmptyStrings";
 `specs/code-style.md` CS-08-002
 
-- [ ] **TECHDEBT-26**: Remove the `OptionalNonEmptyString` type alias from
-  `vultron/wire/as2/vocab/base/types.py` and `vultron/core/models/events/base.py`,
-  replacing all usages with the equivalent inline form `NonEmptyString | None`.
-  Update `specs/code-style.md` CS-08-002 accordingly once usages are removed.
-  Done when `OptionalNonEmptyString` no longer appears anywhere in the codebase
-  and tests pass.
+- [x] **TECHDEBT-26**: Removed `OptionalNonEmptyString` type alias from
+  `vultron/wire/as2/vocab/base/types.py` and `vultron/core/models/events/base.py`.
+  Replaced all usages with the inline form `NonEmptyString | None` across
+  `base.py`, `case_reference.py`, `embargo_policy.py`, `vulnerability_record.py`,
+  `case_participant.py`, and `case_status.py`. Removed re-export from
+  `core/models/events/__init__.py`. Updated `specs/code-style.md` CS-08-002.
+  893 tests pass.
 
 ---
 
@@ -456,15 +455,15 @@ from Deferred section after P75-4 completion.
 **Source**: `plan/IMPLEMENTATION_NOTES.md` code-review item 14 (deferred); promoted
 from Deferred section after P75-4 completion.
 
-- [ ] **TECHDEBT-28**: Extract a private helper `_idempotent_create(self, object_type,
-  object_id, obj, label)` into a shared base class or module-level function in
-  `vultron/core/use_cases/_helpers.py` (alongside the `_as_id()` helper from
-  TECHDEBT-25). Replace the ~6 repetitions of the same idempotency guard pattern
-  across `CreateEmbargoEventUseCase`, `CreateNoteUseCase`,
-  `CreateCaseParticipantUseCase`, `CreateCaseStatusUseCase`,
-  `CreateParticipantStatusUseCase`, and `SuggestActorToCaseUseCase`. Done when
-  the helper exists, all repetitions are replaced, and tests pass.
-  **Batch with TECHDEBT-25** (both add helpers to `_helpers.py`).
+- [x] **TECHDEBT-28**: Added `_idempotent_create(dl, type_key, id_key, obj, label,
+  activity_id)` module-level function to `vultron/core/use_cases/_helpers.py`
+  (alongside `_as_id()`). Replaced the idempotency guard pattern across
+  `CreateEmbargoEventReceivedUseCase`, `CreateNoteReceivedUseCase`,
+  `CreateCaseParticipantReceivedUseCase`, `CreateCaseStatusReceivedUseCase`,
+  `CreateParticipantStatusReceivedUseCase`, `SuggestActorToCaseReceivedUseCase`,
+  `AcceptSuggestActorToCaseReceivedUseCase`, `OfferCaseOwnershipTransferReceivedUseCase`,
+  `InviteActorToCaseReceivedUseCase`, and `InviteToEmbargoOnCaseReceivedUseCase`.
+  893 tests pass. **Batched with TECHDEBT-25**.
 
 ---
 

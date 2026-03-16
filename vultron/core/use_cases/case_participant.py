@@ -9,6 +9,7 @@ from vultron.core.models.events.case_participant import (
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.use_cases._types import CaseModel
 from vultron.core.ports.use_case import UseCase
 
@@ -23,23 +24,15 @@ class CreateCaseParticipantReceivedUseCase(
 
     def execute(self, request: CreateCaseParticipantReceivedEvent) -> None:
         try:
-            existing = self._dl.get(request.object_type, request.object_id)
-            if existing is not None:
-                logger.info(
-                    "Participant '%s' already exists — skipping (idempotent)",
-                    request.object_id,
-                )
+            if _idempotent_create(
+                self._dl,
+                request.object_type,
+                request.object_id,
+                request.participant,
+                "CaseParticipant",
+                request.activity_id,
+            ):
                 return
-
-            obj_to_store = request.participant
-            if obj_to_store is not None:
-                self._dl.create(obj_to_store)
-                logger.info("Created participant '%s'", request.object_id)
-            else:
-                logger.warning(
-                    "create_case_participant: no participant object for event '%s'",
-                    request.activity_id,
-                )
 
         except Exception as e:
             logger.error(
@@ -69,10 +62,7 @@ class AddCaseParticipantToCaseReceivedUseCase(
                 )
                 return
 
-            existing_ids = [
-                (p.as_id if hasattr(p, "as_id") else p)
-                for p in case.case_participants
-            ]
+            existing_ids = [_as_id(p) for p in case.case_participants]
             if participant_id in existing_ids:
                 logger.info(
                     "Participant '%s' already in case '%s' — skipping (idempotent)",
@@ -87,11 +77,7 @@ class AddCaseParticipantToCaseReceivedUseCase(
                 hasattr(participant, "attributed_to")
                 and participant.attributed_to is not None
             ):
-                actor_id = (
-                    participant.attributed_to.as_id
-                    if hasattr(participant.attributed_to, "as_id")
-                    else str(participant.attributed_to)
-                )
+                actor_id = _as_id(participant.attributed_to)
                 case.actor_participant_index[actor_id] = participant_id
             self._dl.save(case)
             logger.info(
@@ -127,10 +113,7 @@ class RemoveCaseParticipantFromCaseReceivedUseCase(
                 )
                 return
 
-            existing_ids = [
-                (p.as_id if hasattr(p, "as_id") else p)
-                for p in case.case_participants
-            ]
+            existing_ids = [_as_id(p) for p in case.case_participants]
             if participant_id not in existing_ids:
                 logger.info(
                     "Participant '%s' not in case '%s' — skipping (idempotent)",

@@ -24,7 +24,6 @@ from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import activitystreams_object
 from vultron.wire.as2.vocab.base.types import (
     NonEmptyString,
-    OptionalNonEmptyString,
 )
 from vultron.wire.as2.vocab.objects.base import VultronObject
 from vultron.core.models.enums import VultronObjectType as VO_type
@@ -78,7 +77,7 @@ class EmbargoPolicy(VultronObject):
         description="Maximum acceptable embargo duration in days",
         ge=0,
     )
-    notes: OptionalNonEmptyString = Field(
+    notes: NonEmptyString | None = Field(
         default=None,
         description="Free-text description of the Actor's embargo preferences",
     )

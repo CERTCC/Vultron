@@ -13,6 +13,7 @@ from vultron.core.models.events.case import (
 )
 from vultron.core.models.vultron_types import VultronActivity
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases._helpers import _as_id
 from vultron.core.use_cases._types import CaseModel
 from vultron.core.ports.use_case import UseCase
 
@@ -25,11 +26,7 @@ def _check_participant_embargo_acceptance(
     active_embargo = case.active_embargo
     if active_embargo is None:
         return
-    embargo_id = (
-        active_embargo.as_id
-        if hasattr(active_embargo, "as_id")
-        else str(active_embargo)
-    )
+    embargo_id = _as_id(active_embargo)
     for actor_id, participant_id in case.actor_participant_index.items():
         participant = dl.read(participant_id)
         if participant is None:
@@ -114,15 +111,7 @@ class UpdateCaseReceivedUseCase(UseCase[UpdateCaseReceivedEvent, None]):
                 )
                 return
 
-            owner_id = (
-                stored_case.attributed_to.as_id
-                if hasattr(stored_case.attributed_to, "as_id")
-                else (
-                    str(stored_case.attributed_to)
-                    if stored_case.attributed_to
-                    else None
-                )
-            )
+            owner_id = _as_id(stored_case.attributed_to)
             if owner_id != actor_id:
                 logger.warning(
                     "update_case: actor '%s' is not the owner of case '%s' — skipping update",
@@ -258,8 +247,7 @@ class AddReportToCaseReceivedUseCase(
                 return
 
             existing_report_ids = [
-                (r.as_id if hasattr(r, "as_id") else r)
-                for r in case.vulnerability_reports
+                _as_id(r) for r in case.vulnerability_reports
             ]
             if report_id in existing_report_ids:
                 logger.info(

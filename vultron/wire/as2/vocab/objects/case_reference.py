@@ -24,7 +24,6 @@ from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import activitystreams_object
 from vultron.wire.as2.vocab.base.types import (
     NonEmptyString,
-    OptionalNonEmptyString,
 )
 from vultron.wire.as2.vocab.objects.base import VultronObject
 from vultron.core.models.enums import VultronObjectType as VO_type
@@ -76,7 +75,7 @@ class CaseReference(VultronObject):
         ...,
         description="URL reference for the external resource",
     )
-    name: OptionalNonEmptyString = Field(
+    name: NonEmptyString | None = Field(
         default=None,
         description="Human-readable title for the reference",
     )

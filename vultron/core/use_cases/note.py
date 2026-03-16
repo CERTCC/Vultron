@@ -9,6 +9,7 @@ from vultron.core.models.events.note import (
     RemoveNoteFromCaseReceivedEvent,
 )
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.use_cases._types import CaseModel
 from vultron.core.ports.use_case import UseCase
 
@@ -21,23 +22,15 @@ class CreateNoteReceivedUseCase(UseCase[CreateNoteReceivedEvent, None]):
 
     def execute(self, request: CreateNoteReceivedEvent) -> None:
         try:
-            existing = self._dl.get(request.object_type, request.object_id)
-            if existing is not None:
-                logger.info(
-                    "Note '%s' already stored — skipping (idempotent)",
-                    request.object_id,
-                )
+            if _idempotent_create(
+                self._dl,
+                request.object_type,
+                request.object_id,
+                request.note,
+                "Note",
+                request.activity_id,
+            ):
                 return
-
-            obj_to_store = request.note
-            if obj_to_store is not None:
-                self._dl.create(obj_to_store)
-                logger.info("Stored Note '%s'", request.object_id)
-            else:
-                logger.warning(
-                    "create_note: no note object for event '%s'",
-                    request.activity_id,
-                )
 
         except Exception as e:
             logger.error(
@@ -63,9 +56,7 @@ class AddNoteToCaseReceivedUseCase(UseCase[AddNoteToCaseReceivedEvent, None]):
                 )
                 return
 
-            existing_ids = [
-                (n.as_id if hasattr(n, "as_id") else n) for n in case.notes
-            ]
+            existing_ids = [_as_id(n) for n in case.notes]
             if note_id in existing_ids:
                 logger.info(
                     "Note '%s' already in case '%s' — skipping (idempotent)",
@@ -104,9 +95,7 @@ class RemoveNoteFromCaseReceivedUseCase(
                 )
                 return
 
-            existing_ids = [
-                (n.as_id if hasattr(n, "as_id") else n) for n in case.notes
-            ]
+            existing_ids = [_as_id(n) for n in case.notes]
             if note_id not in existing_ids:
                 logger.info(
                     "Note '%s' not in case '%s' — skipping (idempotent)",
@@ -116,9 +105,7 @@ class RemoveNoteFromCaseReceivedUseCase(
                 return
 
             case.notes = [  # type: ignore[assignment]
-                n
-                for n in case.notes
-                if (n.as_id if hasattr(n, "as_id") else n) != note_id
+                n for n in case.notes if _as_id(n) != note_id
             ]
             self._dl.save(case)
             logger.info("Removed note '%s' from case '%s'", note_id, case_id)

@@ -14,7 +14,6 @@ Public surface:
 from vultron.core.models.events.base import (
     MessageSemantics,
     NonEmptyString,
-    OptionalNonEmptyString,
     VultronEvent,
 )
 from vultron.core.models.events.actor import (
@@ -122,7 +121,6 @@ EVENT_CLASS_MAP: dict[MessageSemantics, type[VultronEvent]] = {
 __all__ = [
     "MessageSemantics",
     "NonEmptyString",
-    "OptionalNonEmptyString",
     "VultronEvent",
     "InboundPayload",
     "EVENT_CLASS_MAP",

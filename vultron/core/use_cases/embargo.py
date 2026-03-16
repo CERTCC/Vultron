@@ -14,6 +14,7 @@ from vultron.core.models.events.embargo import (
     RemoveEmbargoEventFromCaseReceivedEvent,
 )
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.use_cases._types import CaseModel, ParticipantModel
 from vultron.core.ports.use_case import UseCase
 
@@ -28,23 +29,15 @@ class CreateEmbargoEventReceivedUseCase(
 
     def execute(self, request: CreateEmbargoEventReceivedEvent) -> None:
         try:
-            existing = self._dl.get(request.object_type, request.object_id)
-            if existing is not None:
-                logger.info(
-                    "EmbargoEvent '%s' already stored — skipping (idempotent)",
-                    request.object_id,
-                )
+            if _idempotent_create(
+                self._dl,
+                request.object_type,
+                request.object_id,
+                request.embargo,
+                "EmbargoEvent",
+                request.activity_id,
+            ):
                 return
-
-            obj_to_store = request.embargo
-            if obj_to_store is not None:
-                self._dl.create(obj_to_store)
-                logger.info("Stored EmbargoEvent '%s'", request.object_id)
-            else:
-                logger.warning(
-                    "create_embargo_event: no embargo object for event '%s'",
-                    request.activity_id,
-                )
 
         except Exception as e:
             logger.error(
@@ -72,15 +65,7 @@ class AddEmbargoEventToCaseReceivedUseCase(
                 )
                 return
 
-            current_embargo_id = (
-                case.active_embargo.as_id
-                if hasattr(case.active_embargo, "as_id")
-                else (
-                    str(case.active_embargo)
-                    if case.active_embargo is not None
-                    else None
-                )
-            )
+            current_embargo_id = _as_id(case.active_embargo)
             if current_embargo_id == embargo_id:
                 logger.info(
                     "Case '%s' already has embargo '%s' active — skipping (idempotent)",
@@ -124,15 +109,7 @@ class RemoveEmbargoEventFromCaseReceivedUseCase(
                 )
                 return
 
-            current_embargo_id = (
-                case.active_embargo.as_id
-                if hasattr(case.active_embargo, "as_id")
-                else (
-                    str(case.active_embargo)
-                    if case.active_embargo is not None
-                    else None
-                )
-            )
+            current_embargo_id = _as_id(case.active_embargo)
             if current_embargo_id != embargo_id:
                 logger.info(
                     "Case '%s' does not have embargo '%s' active — skipping",
@@ -187,28 +164,15 @@ class InviteToEmbargoOnCaseReceivedUseCase(
 
     def execute(self, request: InviteToEmbargoOnCaseReceivedEvent) -> None:
         try:
-            existing = self._dl.get(request.activity_type, request.activity_id)
-            if existing is not None:
-                logger.info(
-                    "EmProposeEmbargoActivity '%s' already stored — skipping (idempotent)",
-                    request.activity_id,
-                )
+            if _idempotent_create(
+                self._dl,
+                request.activity_type,
+                request.activity_id,
+                request.activity,
+                "InviteToEmbargoOnCase",
+                request.activity_id,
+            ):
                 return
-
-            obj_to_store = request.activity
-            if obj_to_store is not None:
-                self._dl.create(obj_to_store)
-                logger.info(
-                    "Stored embargo proposal '%s' (actor=%s, context=%s)",
-                    request.activity_id,
-                    request.actor_id,
-                    request.context_id,
-                )
-            else:
-                logger.warning(
-                    "invite_to_embargo_on_case: no activity object for '%s'",
-                    request.activity_id,
-                )
 
         except Exception as e:
             logger.error(
@@ -241,11 +205,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase(
                     )
                     return
                 context_id = getattr(invite, "context", None)
-                context_id = (
-                    context_id.as_id
-                    if hasattr(context_id, "as_id")
-                    else str(context_id) if context_id else None
-                )
+                context_id = _as_id(context_id)
                 if context_id is None:
                     logger.error(
                         "accept_invite_to_embargo_on_case: cannot determine case from invite '%s'",
@@ -261,15 +221,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase(
                 return
             case_id = case.as_id
 
-            current_embargo_id = (
-                case.active_embargo.as_id
-                if hasattr(case.active_embargo, "as_id")
-                else (
-                    str(case.active_embargo)
-                    if case.active_embargo is not None
-                    else None
-                )
-            )
+            current_embargo_id = _as_id(case.active_embargo)
             if current_embargo_id == embargo_id:
                 logger.info(
                     "Case '%s' already has embargo '%s' active — skipping (idempotent)",

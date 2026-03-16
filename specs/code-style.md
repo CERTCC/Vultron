@@ -159,8 +159,8 @@ def extract_id_segment(url: str) -> str:
   shared type alias rather than duplicated per-field validators
   - Define a `NonEmptyString` type (e.g., `Annotated[str, Field(min_length=1)]`)
     in a shared base module (e.g., `vultron/wire/as2/vocab/base/`)
-  - Define an `OptionalNonEmptyString` type alias
-    (e.g., `Optional[NonEmptyString]`) for nullable fields that follow CS-08-001
+  - For nullable fields that follow CS-08-001, use the inline form
+    `NonEmptyString | None` rather than a named alias
   - Replace per-field `@field_validator` stubs that only check `if not v` or
     `if not v.strip()` with the shared type
   - **Rationale**: Eliminates boilerplate across many object models; makes the

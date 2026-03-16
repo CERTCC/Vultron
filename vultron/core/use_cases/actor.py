@@ -16,6 +16,7 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.use_cases._types import CaseModel
 from vultron.core.ports.use_case import UseCase
 
@@ -30,24 +31,15 @@ class SuggestActorToCaseReceivedUseCase(
 
     def execute(self, request: SuggestActorToCaseReceivedEvent) -> None:
         try:
-            existing = self._dl.get(request.activity_type, request.activity_id)
-            if existing is not None:
-                logger.info(
-                    "RecommendActor '%s' already stored — skipping (idempotent)",
-                    request.activity_id,
-                )
+            if _idempotent_create(
+                self._dl,
+                request.activity_type,
+                request.activity_id,
+                request.activity,
+                "SuggestActorToCase",
+                request.activity_id,
+            ):
                 return
-
-            obj_to_store = request.activity
-            if obj_to_store is not None:
-                self._dl.create(obj_to_store)
-                logger.info(
-                    "Stored actor recommendation '%s' (actor=%s, object=%s, target=%s)",
-                    request.activity_id,
-                    request.actor_id,
-                    request.object_id,
-                    request.target_id,
-                )
         except Exception as e:
             logger.error(
                 "Error in suggest_actor_to_case for activity %s: %s",
@@ -64,24 +56,15 @@ class AcceptSuggestActorToCaseReceivedUseCase(
 
     def execute(self, request: AcceptSuggestActorToCaseReceivedEvent) -> None:
         try:
-            existing = self._dl.get(request.activity_type, request.activity_id)
-            if existing is not None:
-                logger.info(
-                    "AcceptActorRecommendation '%s' already stored — skipping (idempotent)",
-                    request.activity_id,
-                )
+            if _idempotent_create(
+                self._dl,
+                request.activity_type,
+                request.activity_id,
+                request.activity,
+                "AcceptSuggestActorToCase",
+                request.activity_id,
+            ):
                 return
-
-            obj_to_store = request.activity
-            if obj_to_store is not None:
-                self._dl.create(obj_to_store)
-                logger.info(
-                    "Stored acceptance of actor recommendation '%s' (actor=%s, object=%s, target=%s)",
-                    request.activity_id,
-                    request.actor_id,
-                    request.object_id,
-                    request.target_id,
-                )
         except Exception as e:
             logger.error(
                 "Error in accept_suggest_actor_to_case for activity %s: %s",
@@ -121,23 +104,15 @@ class OfferCaseOwnershipTransferReceivedUseCase(
         self, request: OfferCaseOwnershipTransferReceivedEvent
     ) -> None:
         try:
-            existing = self._dl.get(request.activity_type, request.activity_id)
-            if existing is not None:
-                logger.info(
-                    "OfferCaseOwnershipTransferActivity '%s' already stored — skipping (idempotent)",
-                    request.activity_id,
-                )
+            if _idempotent_create(
+                self._dl,
+                request.activity_type,
+                request.activity_id,
+                request.activity,
+                "OfferCaseOwnershipTransfer",
+                request.activity_id,
+            ):
                 return
-
-            obj_to_store = request.activity
-            if obj_to_store is not None:
-                self._dl.create(obj_to_store)
-                logger.info(
-                    "Stored ownership transfer offer '%s' (actor=%s, target=%s)",
-                    request.activity_id,
-                    request.actor_id,
-                    request.target_id,
-                )
         except Exception as e:
             logger.error(
                 "Error in offer_case_ownership_transfer for activity %s: %s",
@@ -167,11 +142,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase(
                 )
                 return
 
-            current_owner_id = (
-                case.attributed_to.as_id
-                if hasattr(case.attributed_to, "as_id")
-                else (str(case.attributed_to) if case.attributed_to else None)
-            )
+            current_owner_id = _as_id(case.attributed_to)
             if current_owner_id == new_owner_id:
                 logger.info(
                     "Case '%s' already owned by '%s' — skipping (idempotent)",
@@ -228,23 +199,15 @@ class InviteActorToCaseReceivedUseCase(
 
     def execute(self, request: InviteActorToCaseReceivedEvent) -> None:
         try:
-            existing = self._dl.get(request.activity_type, request.activity_id)
-            if existing is not None:
-                logger.info(
-                    "Invite '%s' already stored — skipping (idempotent)",
-                    request.activity_id,
-                )
+            if _idempotent_create(
+                self._dl,
+                request.activity_type,
+                request.activity_id,
+                request.activity,
+                "InviteActorToCase",
+                request.activity_id,
+            ):
                 return
-
-            obj_to_store = request.activity
-            if obj_to_store is not None:
-                self._dl.create(obj_to_store)
-                logger.info(
-                    "Stored invite '%s' (actor=%s, target=%s)",
-                    request.activity_id,
-                    request.actor_id,
-                    request.target_id,
-                )
         except Exception as e:
             logger.error(
                 "Error in invite_actor_to_case for activity %s: %s",
@@ -271,10 +234,7 @@ class AcceptInviteActorToCaseReceivedUseCase(
                 )
                 return
 
-            existing_ids = [
-                (p.as_id if hasattr(p, "as_id") else p)
-                for p in case.case_participants
-            ]
+            existing_ids = [_as_id(p) for p in case.case_participants]
             if (
                 invitee_id in case.actor_participant_index
                 or invitee_id in existing_ids
@@ -286,15 +246,7 @@ class AcceptInviteActorToCaseReceivedUseCase(
                 )
                 return
 
-            active_embargo_id = (
-                case.active_embargo.as_id
-                if hasattr(case.active_embargo, "as_id")
-                else (
-                    str(case.active_embargo)
-                    if case.active_embargo is not None
-                    else None
-                )
-            )
+            active_embargo_id = _as_id(case.active_embargo)
 
             participant = VultronParticipant(
                 as_id=f"{case_id}/participants/{invitee_id.split('/')[-1]}",

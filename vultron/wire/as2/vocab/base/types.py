@@ -20,7 +20,7 @@ validators.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Annotated, Optional
+from typing import Annotated
 
 from pydantic import AfterValidator
 
@@ -32,4 +32,3 @@ def _non_empty(v: str) -> str:
 
 
 NonEmptyString = Annotated[str, AfterValidator(_non_empty)]
-OptionalNonEmptyString = Optional[NonEmptyString]
