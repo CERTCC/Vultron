@@ -31,5 +31,4 @@ config:
   "MD060": false
 ignores:
   - "wip_notes/**"
-  - "AGENTS.md"
   - "node_modules/**"

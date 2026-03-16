@@ -430,7 +430,7 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - Exceptions: Tables, code blocks, long URLs, or other formatting that requires
   it
 - Use `markdownlint-cli2` for linting markdown files; see Miscellaneous tips
-  for the correct commands (default config ignores only `AGENTS.md`)
+  for the correct commands 
 - Break long sentences at natural points (after commas, conjunctions, etc.)
 - Keep list items and paragraphs readable and well-formatted
 
@@ -1247,25 +1247,9 @@ implementing.
 
 Do not use `black` to format markdown files, it is for python files only.
 Use `markdownlint-cli2` for linting markdown. The default config
-(`.markdownlint-cli2.yaml`) ignores only `AGENTS.md` and `wip_notes/**`.
+(`.markdownlint-cli2.yaml`) ignores only `wip_notes/**`.
 All other directories (`specs/`, `notes/`, `docs/`, `plan/`) are linted
-by the default config. To lint `AGENTS.md`, run markdownlint from outside
-the repo using the strict config, which has the same rules but no ignores:
-
-```bash
-# Lint docs/, specs/, notes/, plan/ with the default config
-markdownlint-cli2 "docs/**/*.md" "specs/**/*.md" "notes/**/*.md" \
-  "plan/**/*.md" --fix
-
-# Lint AGENTS.md — must run from /tmp to bypass local config discovery
-REPO=$(git rev-parse --show-toplevel)
-cd /tmp && markdownlint-cli2 \
-  --config "${REPO}/strict.markdownlint-cli2.yaml" \
-  "${REPO}/AGENTS.md" --fix
-```
-
-The `strict.markdownlint-cli2.yaml` file at the repo root contains the same
-rules as the default config with the `ignores` block removed.
+by the default config.
 
 ### Docs links must be relative
 
