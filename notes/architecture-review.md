@@ -14,7 +14,7 @@ Review against `notes/architecture-ports-and-adapters.md` and
 >
 > **Further update (2026-03-11, P65-1, P65-2, P65-5 complete):**
 > V-13 and V-14 are **fully resolved** (P65-1: `DataLayer` moved to
-> `core/ports/activity_store.py`). V-10-R is **fully resolved** (P65-2:
+> `core/ports/datalayer.py`). V-10-R is **fully resolved** (P65-2:
 > lifespan-managed DataLayer injection in `inbox_handler.py`). V-15, V-16,
 > and V-18 are **partially resolved** (P65-5: `object_to_record` and
 > adapter-layer `OfferStatus` imports removed from core BT nodes; AS2 wire
@@ -45,6 +45,16 @@ Review against `notes/architecture-ports-and-adapters.md` and
 > resolved** (P65-7: all core BT test files updated to use domain type
 > fixtures; `test_behavior_dispatcher.py` no longer imports wire types).
 > **All violations V-01 through V-23 are now fully resolved.**
+>
+> **Further update (post-P65, additional items resolved):**
+> V-24 (wire examples importing from adapter layer) is **fully resolved**:
+> `wire/as2/vocab/examples/_base.py` now imports `DataLayer` from
+> `vultron.core.ports.datalayer` (the port), not from the adapter layer.
+> TECHDEBT-13a (core test using wire type) is **resolved**: the test file
+> now uses `VultronReport` from core. TECHDEBT-13b/c (TYPE_CHECKING guards
+> pointing at adapter shims) are **resolved**: all imports now reference
+> `core/ports/datalayer` directly.
+> **All violations V-01 through V-24 and TECHDEBT-13a–c are fully resolved.**
 
 ---
 
@@ -151,11 +161,11 @@ calls them still resolves its DataLayer internally on every dispatch.
 `from vultron.api.v2.datalayer.abc import DataLayer` — a core module imports
 a type from the adapter layer (`api/v2/datalayer/`). `DataLayer` is the port
 interface; by architecture it should be defined in `core/ports/` (as
-`core/ports/activity_store.py` or equivalent). Importing it from `api/v2/`
+`core/ports/datalayer.py` or equivalent). Importing it from `api/v2/`
 makes the core depend on the adapter package tree, violating the principle that
 the core knows nothing about adapters.
 
-**Resolved:** `DataLayer` Protocol moved to `vultron/core/ports/activity_store.py`
+**Resolved:** `DataLayer` Protocol moved to `vultron/core/ports/datalayer.py`
 (P65-1). `bridge.py` now imports from `core/ports/`. The old location
 (`api/v2/datalayer/abc.py`) is a backward-compat re-export shim.
 
@@ -177,7 +187,7 @@ is not a domain abstraction; it is an adapter implementation detail. Core
 BT helper nodes should not reference persistence record formats.
 
 **Resolved:** Both imports removed (P65-1/P65-5). `helpers.py` now imports
-`DataLayer` from `core/ports/activity_store` and uses a `StorableRecord`
+`DataLayer` from `core/ports/datalayer` and uses a `StorableRecord`
 domain type instead of the adapter-layer `Record`. The `save_to_datalayer`
 helper constructs `StorableRecord` from domain objects without referencing
 `object_to_record`.
@@ -376,9 +386,43 @@ because the nodes themselves took wire types, the tests had to provide them.
 
 **Resolved (P65-7):** All five test files updated to use domain type fixtures
 from `vultron.core.models.vultron_types`; wire-layer AS2 type imports removed.
-Note: `test/core/behaviors/report/test_policy.py` still imports
-`VulnerabilityReport` from the wire layer (duck-typing; captured in
-TECHDEBT-13a for future cleanup).
+`test/core/behaviors/report/test_policy.py` was noted as a residual (TECHDEBT-13a)
+but has since been confirmed resolved: it now imports `VultronReport` from
+`vultron.core.models.vultron_types`, not from the wire layer.
+
+---
+
+### V-24 — ✅ `vultron/wire/as2/vocab/examples/_base.py` (RESOLVED)
+
+**Rule:** Rule 1 (core/wire has no adapter imports), Rule 6 (driven adapters
+injected via ports)
+**Severity:** Major
+
+`_base.py` previously imported `DataLayer` from
+`vultron.api.v2.datalayer.abc` at module scope, making the wire layer
+dependent on the adapter layer. It also imported `Record` and `get_datalayer`
+from the adapter layer inside `initialize_examples()`.
+
+**Resolved:** `_base.py` now imports `DataLayer` from
+`vultron.core.ports.datalayer` (the port definition), not from the adapter
+layer. The wire examples layer correctly depends only on the core port.
+
+---
+
+### TECHDEBT-13b — ✅ `types.py` TYPE_CHECKING guard (RESOLVED)
+
+`vultron/types.py` had a `TYPE_CHECKING` guard importing `DataLayer` from
+`vultron.api.v2.datalayer.abc` (the backward-compat shim). This has been
+corrected; `types.py` now imports from `vultron.core.ports.datalayer`
+directly, as required by the architecture.
+
+---
+
+### TECHDEBT-13c — ✅ `behavior_dispatcher.py` TYPE_CHECKING guard (RESOLVED)
+
+`vultron/behavior_dispatcher.py` no longer imports `DataLayer` from the
+adapter layer. The dispatcher accepts `DataLayer` via constructor injection
+(P65-2) with no module-level import of the concrete type.
 
 ---
 
@@ -593,7 +637,7 @@ handler has been audited and the extractor updated.
 
 **What was done:**
 `DataLayer` Protocol moved from `vultron/api/v2/datalayer/abc.py` to
-`vultron/core/ports/activity_store.py`. The TinyDB implementation in
+`vultron/core/ports/datalayer.py`. The TinyDB implementation in
 `vultron/api/v2/datalayer/tinydb_backend.py` stays in the adapter layer and
 imports from `core/ports/`. The old location (`api/v2/datalayer/abc.py`) is
 now a backward-compat re-export shim.
@@ -720,9 +764,9 @@ verbs.
 
 **`ActivityDispatcher` Protocol in `behavior_dispatcher.py`** — The
 Protocol-based dispatcher design is correct. The `dispatch` method accepts
-`DispatchActivity`, not a raw dict or HTTP request. The problem is entirely in
-`prepare_for_dispatch` (which calls the wire extractor) and the `raw_activity`
-escape hatch, not in the dispatcher abstraction itself.
+`DispatchEvent`, not a raw dict or HTTP request. The dispatcher is clean;
+`prepare_for_dispatch` lives in the adapter layer (`inbox_handler.py`) and
+the `raw_activity` escape hatch has been removed (P65-3).
 
 **`vultron/errors.py` and `VultronError` base** — Domain exception hierarchy
 with no framework or wire-format dependencies.

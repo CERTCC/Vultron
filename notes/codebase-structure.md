@@ -101,7 +101,7 @@ technical debt.
 
 ---
 
-## Core Object Modules: Split `vultron_types.py`
+## Core Object Modules: Split `vultron_types.py` (TECHDEBT-14)
 
 `vultron/core/models/vultron_types.py` currently bundles multiple core object
 types into a single file. These SHOULD be split into individual modules for
@@ -114,6 +114,11 @@ better organization, following the same pattern used in `vultron/wire/as2/vocab/
 
 This makes individual classes easier to find, reduces merge conflicts, and
 matches the source layout pattern already established in the wire layer.
+
+**Priority**: Low. No blocking impact; purely organizational.
+**Related**: `notes/domain-model-separation.md` "DRY Core Domain Models"
+proposes consolidating `vultron_types.py` and `events.py` under a shared
+`VultronObject` base class as part of this cleanup.
 
 ---
 
@@ -464,3 +469,22 @@ relative to `docs/` as the site root, with the target page title as link text:
 See [Reporting a Vulnerability](/howto/activitypub/activities/report_vulnerability.md).
 """
 ```
+
+---
+
+## Known Gap: `docker/README.md` Out of Date
+
+`docker/README.md` does not reflect the current services available in
+`docker/docker-compose.yml`. It was written before the unified `demo`
+service, health checks, and `api-dev` service were added. Update it to
+describe how to start the API server, run the demo, and any relevant
+`docker-compose` commands.
+
+---
+
+## Known Gap: Inline Code Blocks in `docs/` Reference Old Module Paths
+
+Several Python inline code examples in `docs/` reference old module paths
+(e.g., `vultron.as_vocab.*`) that were moved to `vultron.wire.as2.vocab.*`
+during the P60-1 package relocation. Run `mkdocs build` to surface errors,
+then update the affected code blocks.

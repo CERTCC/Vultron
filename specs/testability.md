@@ -79,8 +79,18 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
         """
         py_trees.blackboard.Blackboard.storage.clear()
     ```
+
   - **Rationale**: py_trees blackboard is a global singleton; without clearing,
     state from one test leaks into subsequent tests
+- `TB-06-006` All tests MUST be deterministic and produce the same result on
+  every run
+  - **Implementation**: Eliminate random seeds, time-based values, or
+    ordering dependencies from assertions
+  - **Rationale**: Flaky tests erode confidence in the test suite, mask real
+    failures, and slow development. A flaky test MUST be fixed or removed;
+    it MUST NOT be left in the suite. The test `test_remove_embargo` in
+    `test/wire/as2/vocab/test_vocab_examples.py` has been identified as
+    flaky and MUST be resolved.
 
 ## Mocking and Stubbing (MUST)
 
@@ -155,6 +165,13 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 - CI pipeline: Tests run in randomized order
 - Unit test: Test database used or database mocked
 - Integration test: State reset verified between tests
+
+### TB-06-006 Verification
+
+- CI pipeline: Run full test suite 3× in succession; all results identical
+- Code review: No use of `random` without seeding, no time-dependent
+  assertions in tests
+- Known flaky test `test_remove_embargo` addressed
 
 ### TB-07-001, TB-07-002, TB-07-003 Verification
 

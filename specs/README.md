@@ -20,6 +20,9 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   separation rules, SemanticIntent placement, extractor isolation, adapter
   injection, connector plugins, wire replaceability, review checklist
   (ARCH-01 through ARCH-08)
+- **`vultron-protocol-spec.md`** - Requirements extracted from Vultron
+  Protocol documentation: participant state tracking, RM/EM/CS messaging,
+  model interactions, and implementation guidance
 
 **Handler Pipeline** (message processing flow):
 
@@ -31,22 +34,22 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 **Behavior Tree Integration** (optional for complex workflows):
 
-6. **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
-7. **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
-   endpoint format, RM/EM candidate behaviors, request/response schema,
-   BT integration, per-actor DataLayer dependency, outbox activity requirement
+- **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
+- **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
+  endpoint format, RM/EM candidate behaviors, request/response schema,
+  BT integration, per-actor DataLayer dependency, outbox activity requirement
 
 ### Case and Actor Management
 
-8. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
-   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
-   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
-   acceptance tracking (CM-10)
+- **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
+  object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
+  broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
+  acceptance tracking (CM-10)
 
 ### Object Identifiers
 
-9. **`object-ids.md`** - Object ID format (full URI), DataLayer handling, blackboard key
-   conventions, ADR requirement
+- **`object-ids.md`** - Object ID format (full URI), DataLayer handling, blackboard key
+  conventions, ADR requirement
 
 ### Cross-Cutting Concerns
 
@@ -189,7 +192,7 @@ Some requirements carry special tags to indicate scope or applicability:
 - **`PROD_ONLY`**: Requirement may be deferred during the prototype stage.
   See `prototype-shortcuts.md` PROTO-04-001 for the deferral policy.
   Tagged requirements appear inline after the requirement ID:
-  `- `REQ-ID` `PROD_ONLY` Requirement statement`
+  `-`REQ-ID``PROD_ONLY`Requirement statement`
 
   Common categories of `PROD_ONLY` requirements include:
   - Authentication and authorization (per PROTO-01-001)
@@ -201,7 +204,6 @@ Some requirements carry special tags to indicate scope or applicability:
   - Future performance optimizations
 
 ---
-
 
 Some specifications consolidate requirements from multiple sources to create a single source of truth:
 

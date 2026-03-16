@@ -221,7 +221,7 @@ vultron/
 │   │   └── peering.py          # Instance trust, handshake logic
 │   │
 │   ├── ports/
-│   │   ├── activity_store.py   # Abstract interface: store/fetch events
+│   │   ├── datalayer.py        # Abstract interface: store/fetch events
 │   │   ├── delivery_queue.py   # Abstract interface: enqueue outbound
 │   │   └── dns_resolver.py     # Abstract interface: DNS TXT lookup
 │   │
@@ -244,7 +244,7 @@ vultron/
 │   │   └── shared_inbox.py
 │   │
 │   ├── driven/
-│   │   ├── activity_store.py
+│   │   ├── datalayer_tinydb.py
 │   │   ├── delivery_queue.py
 │   │   ├── http_delivery.py    # Transport only — receives serialized AS2 from wire layer
 │   │   └── dns_resolver.py     # Optional future adapter for DNS-based trust discovery
@@ -431,6 +431,64 @@ logic, authorization, or journal management belongs in a connector.
 `wire/as2/` should be replaceable with `wire/some_future_protocol/` without
 touching `core/` or `adapters/`. If a change to the wire format requires changes
 in `core/`, a boundary has been violated.
+
+---
+
+## Dispatch vs Emit Terminology
+
+Two distinct port concepts govern activity flow. Use these terms consistently
+across code, comments, specs, and docs:
+
+**Dispatch (inbound)** — a wire activity is received → the appropriate core
+use case is invoked. This is a **driving port**: the core *exposes* an
+interface that adapters (HTTP inbox, CLI, MCP) call into.
+The `ActivityDispatcher` Protocol lives in `core/ports/dispatcher.py`.
+
+**Emit (outbound)** — a core action is completed → a wire object is sent to
+one or more recipients. This is a **driven port**: the core calls *out* to an
+external system that delivers the activity. A future `ActivityEmitter` Protocol
+belongs in `core/ports/emitter.py`. The delivery-queue adapter implements it.
+The emitter port is the use-case-facing interface; the delivery queue adapter
+is the transport implementation.
+
+Key rules:
+
+- "Activity" is a wire-level concept; "Event" is a core-level concept.
+- The dispatch envelope (`DispatchEvent`) carries a `VultronEvent` domain
+  payload, not a raw wire activity.
+- `EmbargoEvent` is an AS2 object type — its name coincides with the
+  `VultronEvent` pattern but it is a wire-layer concept, not a domain event.
+
+---
+
+## Core Models Must Be Richer Than Wire Models
+
+A recurring problem during early development: core domain models were
+thinner than their wire equivalents, forcing piecemeal additions to core
+as handlers were implemented.
+
+**Invert this pattern**: core models are the authoritative, fully-featured
+representation. Wire models provide syntactic translation to/from core.
+
+Any field that exists in the wire model (e.g., `content`, `summary`,
+`published`) MUST be representable in the core domain model. Core models
+are not simplified views; they are richer domain representations that may
+include fields the wire format does not yet expose.
+
+---
+
+## Adapter Category Discipline
+
+**Avoid mixing driving and driven adapters** in a single module. If an
+integration needs both directions, create:
+
+- `adapters/driving/foo.py` — for inbound data and events
+- `adapters/driven/foo.py` — for outbound data and events
+
+Do not use a generic `adapters/connectors/` namespace as a dumping ground
+for code that does not fit cleanly. The `connectors/` category is reserved
+for **third-party tracker integrations** (e.g., Jira, VINCE) that translate
+between external tracker events and Vultron domain events.
 
 ---
 

@@ -8,7 +8,9 @@ Add new items below this line
 
 ---
 
-### 2026-03-11 — Refresh #24 findings
+### ~~2026-03-11 — Refresh #24 findings~~
+
+> *All V-24 and TECHDEBT-13 items captured in `notes/architecture-review.md`.*
 
 **P65 fully complete**: All tasks P65-1 through P65-7 are confirmed complete by
 code inspection. V-01 through V-23 are all resolved. See
@@ -66,7 +68,9 @@ stub docstring but contains no implementations. Driving adapter stubs
 future home for use-case callables. No actionable task yet — this will come
 with the hexagonal architecture maturing (PRIORITY 70+).
 
-## Renamed activity_store
+## ~~Renamed activity_store~~
+
+> *Captured in `AGENTS.md` Key Files Map and `notes/architecture-review.md`.*
 
 `core/ports/activity_store.py` was renamed to `core/ports/datalayer.py` to  
 reflect the broader scope of the port.
@@ -78,19 +82,25 @@ having a mongo-db implementation we will want to make
 `adapters/driven/datalayer` into a package with `tinydb.py` and `mongodb.py`
 as modules.)
 
-## docker README out of date
+## ~~docker README out of date~~
+
+> *Captured in `notes/codebase-structure.md`.*
 
 `docker/README.md` is out of date and needs to be updated to reflect the
 currently available services and how to run them.
 
-## Previous refactors broke documentation generation
+## ~~Previous refactors broke documentation generation~~
+
+> *Captured in `notes/codebase-structure.md`.*
 
 There are python inline code blocks in `docs/` that broke when the
 `as_vocab` modules got moved into `wire/as2/vocab/`.
 These need to be updated to reflect the new paths. By building the site
 using `mkdocs build` to detect errors.
 
-## Core models must not be less rich than wire models
+## ~~Core models must not be less rich than wire models~~
+
+> *Captured in `notes/architecture-ports-and-adapters.md` and `notes/domain-model-separation.md`.*
 
 Because we have been in the process of separating core models from the wire
 models (they're semantically identical but we need to maintain the
@@ -150,7 +160,9 @@ Implications:
 
 ## 2026-03-13 — Dispatch/Emit architecture clarification (refresh #31)
 
-### Dispatch vs Emit terminology
+### ~~Dispatch vs Emit terminology~~
+
+> *Captured in `notes/architecture-ports-and-adapters.md`.*
 
 Two distinct port concepts exist for activity flow:
 
@@ -170,7 +182,9 @@ Two distinct port concepts exist for activity flow:
 Keep these terms consistent throughout code, comments, specs, and docs:
 "dispatch" for inbound routing into use cases, "emit" for outbound sending.
 
-### Post-P75-2 architecture findings (context for P75-2a/b/c)
+### ~~Post-P75-2 architecture findings (context for P75-2a/b/c)~~
+
+> *Captured in `notes/domain-model-separation.md`.*
 
 **DispatchActivity carries wire objects**: `DispatchActivity` in
 `vultron/types.py`
@@ -218,7 +232,9 @@ responsible for translating the emitted domain events into the appropriate
 output
 syntax and delivering them to the appropriate recipients.
 
-## DRY up vultron.core.models.vultron_types and vultron.core.models.events
+## ~~DRY up vultron.core.models.vultron_types and vultron.core.models.events~~
+
+> *Captured in `notes/domain-model-separation.md` and `notes/codebase-structure.md`.*
 
 There is some redundancy between the domain models in
 `vultron.core.models.vultron_types`
@@ -236,7 +252,9 @@ class hierarchy in the wire layer where there is an `as_Base` -> `as_Object`
 object and event models are meant to be rich domain data models that can be
 expressed in the wire layer with the appropriate syntactic translation.
 
-## Flaky test is technical debt
+## ~~Flaky test is technical debt~~
+
+> *Captured in `specs/testability.md` (TB-06-006).*
 
 The test `test/wire/as2/vocab/test_vocab_examples.
 py::TestVocabExamples::test_remove_embargo` has been identified as flaky.
@@ -247,7 +265,9 @@ Add new TECHDEBT item to capture this, prioritize its resolution accordingly,
 and add an item in `specs/testability.md` requiring that all tests must be
 reliable and consistent.
 
-## Avoid "connectors" as adapters, keep clean driving vs driven adapter separation
+## ~~Avoid "connectors" as adapters, keep clean driving vs driven adapter separation~~
+
+> *Captured in `notes/architecture-ports-and-adapters.md`.*
 
 Avoid using `vultron.adapters.connector` as a dumping ground for
 code that doesn't fit neatly into the driving vs driven adapter categories.
@@ -263,7 +283,9 @@ module for that integration, and keep the directionality cleanly separated.
 This will help maintain architectural integrity and keep the code
 well-organized.
 
-## Markdownlint errors must be resolved
+## ~~Markdownlint errors must be resolved~~
+
+> *Captured in `AGENTS.md` Miscellaneous tips.*
 
 Markdownlint errors in `notes/`, `specs/`, `plan/` must be resolved. Also
 note that the `ignore` directives in `.markdownlintignore` and `.
@@ -271,7 +293,9 @@ markdownlint-cli2.yaml` have been modified to no longer ignore these
 directories. Adjust guidelines in `AGENTS.md` and elsewhere to reflect the
 change.
 
-## Implementation Note: Standardized Use Case Interface
+## ~~Implementation Note: Standardized Use Case Interface~~
+
+> *Captured in `notes/use-case-behavior-trees.md`.*
 
 Currently, use cases in the core are implemented as standalone functions with
 heterogeneous argument signatures. This creates coupling between adapters and
@@ -279,9 +303,9 @@ individual use cases, because each adapter must know the exact calling
 convention for every function. It also complicates future extensibility (e.g.,
 alternate invocation paths, orchestration, or tool exposure).
 
-We should standardize use cases around a consistent **protocol-based 
-interface**. This should happen BEFORE P75-4 since it will make it easier to 
-perform the refactor of the driving adapters to call use cases directly if 
+We should standardize use cases around a consistent **protocol-based
+interface**. This should happen BEFORE P75-4 since it will make it easier to
+perform the refactor of the driving adapters to call use cases directly if
 we get this consistent interface in place first.
 
 ### Proposal
@@ -301,11 +325,12 @@ class UseCase(Protocol[Req, Res]):
 
 Each use case then:
 
-* accepts **exactly one request object**
-* returns **exactly one response object**
-* implements an `execute()` method
+- accepts **exactly one request object**
+- returns **exactly one response object**
+- implements an `execute()` method
 
 Example shape:
+
 ```python
 class CreateCaseRequest(BaseModel-derived-request-class):
     reporter_id: str
@@ -328,21 +353,21 @@ class CreateCaseReceivedEvent(VultronEvent):
 
 This approach provides several advantages:
 
-* **Consistent invocation model** — all adapters call use cases the same way.
-* **Loose coupling** — adapters depend only on the protocol, not individual
+- **Consistent invocation model** — all adapters call use cases the same way.
+- **Loose coupling** — adapters depend only on the protocol, not individual
   function signatures.
-* **Stable evolution** — request/response objects allow fields to evolve without
+- **Stable evolution** — request/response objects allow fields to evolve without
   breaking adapters.
-* **Clear boundary** — the `execute()` method becomes the explicit entry point
+- **Clear boundary** — the `execute()` method becomes the explicit entry point
   into the application core.
-* **Tooling compatibility** — structured request objects are easier to
+- **Tooling compatibility** — structured request objects are easier to
   serialize, validate, log, or expose to agent/tool interfaces.
 
 Using a `Protocol` instead of a base class keeps the core lightweight and avoids
 introducing framework-style inheritance. Any class that implements the
-`execute(request) -> response` signature satisfies the interface. However, 
-the request and response types should be explicitly defined for clarity and 
-consistency, although some flexibility can be allowed  (e.g., using a common 
+`execute(request) -> response` signature satisfies the interface. However,
+the request and response types should be explicitly defined for clarity and
+consistency, although some flexibility can be allowed  (e.g., using a common
 base class with custom classes for specific use cases if needed).
 
 Overall, this change moves the architecture closer to a clean **application

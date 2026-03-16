@@ -11,11 +11,11 @@ The goal is to keep:
 
 ---
 
-# Conceptual Layering
+## Conceptual Layering
 
 The system should follow this execution flow:
 
-```
+```text
 Driver (HTTP / CLI / protocol)
         ↓
 Dispatcher
@@ -42,13 +42,13 @@ Responsibilities of each layer:
 
 ---
 
-# What a Use Case Is
+## What a Use Case Is
 
 A **use case** represents an actor goal or system capability.
 
 Examples:
 
-```
+```text
 AddParticipantToCase
 InviteActorToEmbargo
 AcceptEmbargoInvitation
@@ -83,14 +83,14 @@ A use case should **not contain complex business rules**.
 
 ---
 
-# Why Use Cases Sit Above Behavior Trees
+## Why Use Cases Sit Above Behavior Trees
 
 Use cases represent **external intentions**, while behavior trees represent *
 *internal policy decisions**.
 
 Example:
 
-```
+```text
 Actor goal:
     Invite participant
 
@@ -105,7 +105,7 @@ Those decisions belong in behavior trees.
 
 Therefore:
 
-```
+```text
 Use Case
     triggers
 Behavior Tree
@@ -119,13 +119,13 @@ This separation ensures:
 
 ---
 
-# Behavior Trees
+## Behavior Trees
 
 Behavior trees implement domain policies.
 
 Example tree:
 
-```
+```text
 EmbargoInviteTree
 
 Selector
@@ -147,20 +147,20 @@ Nodes must **not perform infrastructure work**.
 
 ---
 
-# Event-Driven Behavior
+## Event-Driven Behavior
 
 Behavior trees may also react to **domain events**.
 
 Example:
 
-```
+```text
 InvitationAccepted
     → ParticipantOnboardingTree
 ```
 
 Event-driven execution loop:
 
-```
+```text
 Domain Event
       ↓
 Behavior Engine
@@ -177,11 +177,11 @@ handlers.
 
 ---
 
-# Suggested Directory Layout
+## Suggested Directory Layout
 
 Example structure:
 
-```
+```text
 core/
 
   domain/
@@ -223,13 +223,13 @@ Guidelines:
 
 ---
 
-# Mapping Protocol Activities
+## Mapping Protocol Activities
 
 Protocol activities should map cleanly to use cases.
 
 Example:
 
-```
+```text
 Invite → InviteActorToEmbargo
 Accept → AcceptEmbargoInvitation
 Publish → PublishAdvisory
@@ -241,7 +241,7 @@ This keeps protocol concerns separate from domain behavior.
 
 ---
 
-# Design Goals
+## Design Goals
 
 This structure provides:
 
@@ -252,7 +252,7 @@ This structure provides:
 
 The system becomes:
 
-```
+```text
 protocol event
     → use case
     → behavior tree
@@ -262,3 +262,63 @@ protocol event
 
 This model is well-suited to **federated coordination systems** where many
 independent actors interact through shared protocol events.
+
+---
+
+## Standardized Use Case Interface
+
+### Problem
+
+Use cases in `core/use_cases/` are currently standalone functions with
+heterogeneous signatures. Each adapter must know the exact calling convention
+for every function, creating tight coupling and complicating future
+extensibility.
+
+### Proposed Protocol
+
+Define a generic `UseCase` protocol with explicit request and response types:
+
+```python
+from typing import Protocol, TypeVar
+
+Req = TypeVar("Req")
+Res = TypeVar("Res")
+
+
+class UseCase(Protocol[Req, Res]):
+    def execute(self, request: Req) -> Res: ...
+```
+
+Each use case:
+
+* accepts **exactly one request object** (a Pydantic model)
+* returns **exactly one response object** (a Pydantic model)
+* implements an `execute()` method
+
+### Rationale
+
+* **Consistent invocation** — all adapters call use cases the same way.
+* **Loose coupling** — adapters depend on the protocol, not individual
+  function signatures.
+* **Stable evolution** — request/response objects allow fields to evolve
+  without breaking adapters.
+* **Clear boundary** — `execute()` is the explicit entry point into core.
+* **Tooling compatibility** — structured request objects are easier to
+  serialize, validate, log, or expose to agent/tool interfaces.
+
+### Important Ordering Note
+
+The use-case interface standardization SHOULD be implemented **before**
+P75-4 (refactoring driving adapters to call use cases directly). A
+consistent `execute()` interface makes P75-4 significantly simpler.
+
+### SEMANTICS_HANDLERS Migration
+
+`SEMANTICS_HANDLERS` in `vultron/api/v2/backend/handler_map.py` maps
+`MessageSemantics` values (domain concepts) to handler callables (domain
+code). Because this mapping is domain knowledge, it belongs in
+`core/use_cases/use_case_map.py`, not in the adapter layer. This migration
+should happen as part of P75-2c.
+
+**See**: `notes/domain-model-separation.md` "Post-P75-2 Architecture
+Findings" for additional context.
