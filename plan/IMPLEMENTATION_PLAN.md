@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-16 (refresh #36: TECHDEBT-15 complete)
+**Last Updated**: 2026-03-16 (refresh #37: P75-4 complete)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 895 passing, 5581 subtests, 5 warnings (2026-03-16, after TECHDEBT-15)
+**Test suite**: 893 passing, 5581 subtests, 5 warnings (2026-03-16, after P75-4)
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -179,7 +179,7 @@ P70-2 through P70-5 all complete. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
-### Phase PRIORITY-75 — api/v2 Business Logic → core/use_cases/ (P75-1/2/3 COMPLETE ✅)
+### Phase PRIORITY-75 — api/v2 Business Logic → core/use_cases/ (ALL COMPLETE ✅)
 
 P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3 all complete.
 See `plan/IMPLEMENTATION_HISTORY.md` for details.
@@ -190,11 +190,12 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details.
   defined in `vultron/core/ports/use_case.py`. `UnknownUseCase` is the reference
   implementation. Old callable wrapper kept for backward compat. **COMPLETE.**
 
-- [ ] **P75-4**: Update driving adapter stubs (`vultron/adapters/driving/cli.py`,
-  `vultron/adapters/driving/mcp_server.py`) to call `core/use_cases/` callables
-  directly with an injected `DataLayer`, without going through HTTP. Done when
-  the CLI and MCP adapters exercise the same code paths as the HTTP inbox adapter.
-  **Depends on P75-4-pre, P75-2, P75-3.**
+- [x] **P75-4**: All 38 handler use cases and 9 trigger use cases converted to
+  `XxxUseCase` / `SvcXxxUseCase` classes. Dispatcher updated to call
+  `use_case_class(dl).execute(event)`. Trigger service adapter shims updated.
+  CLI adapter (`vultron/adapters/driving/cli.py`) implemented with `click`.
+  MCP adapter (`vultron/adapters/driving/mcp_server.py`) implemented with 9 tool
+  functions + `MCP_TOOLS` list. **COMPLETE.**
 
 - [ ] **P75-5**: Decide disposition of `vultron/api/v1/`. The v1 API is a
   vocabulary-examples HTTP adapter (thin routers over `wire/as2/vocab/examples/`;
@@ -300,13 +301,13 @@ P70-2 through P70-5 all complete. See `plan/IMPLEMENTATION_HISTORY.md`.
 
 ---
 
-### PRIORITY-75 Complete (P75-1/2/3/4-pre) ✅ — Business Logic in core/use_cases/
+### PRIORITY-75 Complete ✅ — Business Logic in core/use_cases/
 
-P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre all complete.
+P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre, P75-4 all complete.
 See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
 
 - [x] **P75-4-pre**: Standardize use-case interface (**COMPLETE**)
-- [ ] **P75-4**: Update driving adapter stubs (see above; **depends on P75-4-pre**)
+- [x] **P75-4**: Convert all use cases to class interface; implement CLI/MCP adapters (**COMPLETE**)
 - [ ] **P75-5**: Decide disposition of `vultron/api/v1/` (see above)
 
 ---

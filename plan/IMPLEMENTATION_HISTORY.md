@@ -1491,3 +1491,36 @@ directory (TB-06-006, AGENTS.md "py_trees Blackboard Global State").
 - Full test suite continues to pass (895 tests).
 
 **Test results:** 895 passed, 0 failed
+
+---
+
+## P75-4 — UseCase class interface + CLI/MCP driving adapters (2026-03-16)
+
+**Task**: Convert all 38 handler use cases and 9 trigger use cases from
+old-style `fn(event, dl)` callables to the `UseCase[Req, Res]` class
+interface defined in P75-4-pre. Implement functional CLI and MCP driving
+adapters that exercise the same code paths as the HTTP inbox adapter.
+
+**What was done:**
+
+- Converted all 38 handler use cases across `report.py`, `case.py`,
+  `actor.py`, `embargo.py`, `case_participant.py`, `note.py`, `status.py`
+  to `XxxUseCase` classes: `__init__(self, dl: DataLayer)` + `execute(self, request) -> None`.
+- Converted all 9 trigger use cases across `triggers/report.py`,
+  `triggers/case.py`, `triggers/embargo.py` to `SvcXxxUseCase` classes.
+- Added `vultron/core/use_cases/triggers/requests.py` with 9 Pydantic
+  domain request models (include `actor_id`) for trigger use cases.
+- Updated `USE_CASE_MAP` to map `MessageSemantics → class` (not callable).
+- Updated `vultron/core/dispatcher.py`: `_handle` now calls
+  `use_case_class(dl).execute(event)` — DataLayer injected at construction.
+- Updated trigger service adapter shims to instantiate classes and build
+  domain request models; HTTP router signatures unchanged.
+- Removed the temporary `unknown()` callable wrapper (now obsolete).
+- Implemented `vultron/adapters/driving/cli.py`: functional `click` CLI
+  (`vultron-cli deliver ACTOR_ID`) reusing the same
+  parse→rehydrate→dispatch pipeline as the HTTP inbox with injected DataLayer.
+- Implemented `vultron/adapters/driving/mcp_server.py`: 9 MCP tool
+  functions + `MCP_TOOLS` list, ready for MCP SDK registration (Priority 1000).
+
+**Test results:** 893 passed, 0 failed (2 fewer than baseline: `TestUnknownFunction`
+tests for the removed `unknown()` wrapper were intentionally deleted).
