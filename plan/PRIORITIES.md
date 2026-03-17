@@ -19,6 +19,11 @@ well abstracted already, but we still need to make sure the files and their
 contents are
 organized to reflect the architecture.)
 
+## Priority 75:
+
+P75 tasks take priority over P80. Verify they are all complete. P75-5 is 
+incomplete at the time of this writing.
+
 ## Priority 80: Resolve technical debt and ensure Hexagonal Architecture is fully realized
 
 Once we are past P75 tasks in the implementation plan, we need to clean up 
