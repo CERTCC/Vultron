@@ -24,23 +24,15 @@ class CreateCaseParticipantReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            if _idempotent_create(
-                self._dl,
-                request.object_type,
-                request.object_id,
-                request.participant,
-                "CaseParticipant",
-                request.activity_id,
-            ):
-                return
-
-        except Exception as e:
-            logger.error(
-                "Error in create_case_participant for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        if _idempotent_create(
+            self._dl,
+            request.object_type,
+            request.object_id,
+            request.participant,
+            "CaseParticipant",
+            request.activity_id,
+        ):
+            return
 
 
 class AddCaseParticipantToCaseReceivedUseCase:
@@ -52,47 +44,39 @@ class AddCaseParticipantToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            participant_id = request.object_id
-            case_id = request.target_id
-            participant = self._dl.read(participant_id)
-            case = cast(CaseModel, self._dl.read(case_id))
+        participant_id = request.object_id
+        case_id = request.target_id
+        participant = self._dl.read(participant_id)
+        case = cast(CaseModel, self._dl.read(case_id))
 
-            if case is None:
-                logger.warning(
-                    "add_case_participant_to_case: case '%s' not found",
-                    case_id,
-                )
-                return
+        if case is None:
+            logger.warning(
+                "add_case_participant_to_case: case '%s' not found",
+                case_id,
+            )
+            return
 
-            existing_ids = [_as_id(p) for p in case.case_participants]
-            if participant_id in existing_ids:
-                logger.info(
-                    "Participant '%s' already in case '%s' — skipping (idempotent)",
-                    participant_id,
-                    case_id,
-                )
-                return
-
-            # Use string ID to avoid wire-type serialization incompatibility
-            case.case_participants.append(participant_id)
-            if (
-                hasattr(participant, "attributed_to")
-                and participant.attributed_to is not None
-            ):
-                actor_id = _as_id(participant.attributed_to)
-                case.actor_participant_index[actor_id] = participant_id
-            self._dl.save(case)
+        existing_ids = [_as_id(p) for p in case.case_participants]
+        if participant_id in existing_ids:
             logger.info(
-                "Added participant '%s' to case '%s'", participant_id, case_id
+                "Participant '%s' already in case '%s' — skipping (idempotent)",
+                participant_id,
+                case_id,
             )
+            return
 
-        except Exception as e:
-            logger.error(
-                "Error in add_case_participant_to_case for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        # Use string ID to avoid wire-type serialization incompatibility
+        case.case_participants.append(participant_id)
+        if (
+            hasattr(participant, "attributed_to")
+            and participant.attributed_to is not None
+        ):
+            actor_id = _as_id(participant.attributed_to)
+            case.actor_participant_index[actor_id] = participant_id
+        self._dl.save(case)
+        logger.info(
+            "Added participant '%s' to case '%s'", participant_id, case_id
+        )
 
 
 class RemoveCaseParticipantFromCaseReceivedUseCase:
@@ -106,38 +90,30 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            participant_id = request.object_id
-            case_id = request.target_id
-            case = cast(CaseModel, self._dl.read(case_id))
+        participant_id = request.object_id
+        case_id = request.target_id
+        case = cast(CaseModel, self._dl.read(case_id))
 
-            if case is None:
-                logger.warning(
-                    "remove_case_participant_from_case: case '%s' not found",
-                    case_id,
-                )
-                return
+        if case is None:
+            logger.warning(
+                "remove_case_participant_from_case: case '%s' not found",
+                case_id,
+            )
+            return
 
-            existing_ids = [_as_id(p) for p in case.case_participants]
-            if participant_id not in existing_ids:
-                logger.info(
-                    "Participant '%s' not in case '%s' — skipping (idempotent)",
-                    participant_id,
-                    case_id,
-                )
-                return
-
-            case.remove_participant(participant_id)
-            self._dl.save(case)
+        existing_ids = [_as_id(p) for p in case.case_participants]
+        if participant_id not in existing_ids:
             logger.info(
-                "Removed participant '%s' from case '%s'",
+                "Participant '%s' not in case '%s' — skipping (idempotent)",
                 participant_id,
                 case_id,
             )
+            return
 
-        except Exception as e:
-            logger.error(
-                "Error in remove_case_participant_from_case for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        case.remove_participant(participant_id)
+        self._dl.save(case)
+        logger.info(
+            "Removed participant '%s' from case '%s'",
+            participant_id,
+            case_id,
+        )

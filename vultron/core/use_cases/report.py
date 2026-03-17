@@ -158,50 +158,42 @@ class InvalidateReportReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            actor_id = request.actor_id
-            logger.info(
-                "Actor '%s' tentatively rejects offer '%s' of VulnerabilityReport '%s'",
-                actor_id,
-                request.object_id,
-                request.inner_object_id,
+        actor_id = request.actor_id
+        logger.info(
+            "Actor '%s' tentatively rejects offer '%s' of VulnerabilityReport '%s'",
+            actor_id,
+            request.object_id,
+            request.inner_object_id,
+        )
+        set_status(
+            OfferStatus(
+                object_type=request.object_type or "Offer",
+                object_id=request.object_id,
+                status=OfferStatusEnum.TENTATIVELY_REJECTED,
+                actor_id=actor_id,
             )
-            set_status(
-                OfferStatus(
-                    object_type=request.object_type or "Offer",
-                    object_id=request.object_id,
-                    status=OfferStatusEnum.TENTATIVELY_REJECTED,
-                    actor_id=actor_id,
+        )
+        set_status(
+            ReportStatus(
+                object_type=request.inner_object_type or "VulnerabilityReport",
+                object_id=request.inner_object_id,
+                status=RM.INVALID,
+                actor_id=actor_id,
+            )
+        )
+        if request.activity is not None:
+            try:
+                self._dl.create(request.activity)
+                logger.info(
+                    "Stored InvalidateReport activity with ID: %s",
+                    request.activity_id,
                 )
-            )
-            set_status(
-                ReportStatus(
-                    object_type=request.inner_object_type
-                    or "VulnerabilityReport",
-                    object_id=request.inner_object_id,
-                    status=RM.INVALID,
-                    actor_id=actor_id,
+            except ValueError as e:
+                logger.warning(
+                    "InvalidateReport activity %s already exists: %s",
+                    request.activity_id,
+                    e,
                 )
-            )
-            if request.activity is not None:
-                try:
-                    self._dl.create(request.activity)
-                    logger.info(
-                        "Stored InvalidateReport activity with ID: %s",
-                        request.activity_id,
-                    )
-                except ValueError as e:
-                    logger.warning(
-                        "InvalidateReport activity %s already exists: %s",
-                        request.activity_id,
-                        e,
-                    )
-        except Exception as e:
-            logger.error(
-                "Error invalidating report in activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
 
 
 class AckReportReceivedUseCase:
@@ -211,32 +203,25 @@ class AckReportReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            logger.info(
-                "Actor '%s' acknowledges receipt of offer '%s' of VulnerabilityReport '%s'",
-                request.actor_id,
-                request.object_id,
-                request.inner_object_id,
-            )
-            if request.activity is not None:
-                try:
-                    self._dl.create(request.activity)
-                    logger.info(
-                        "Stored AckReport activity with ID: %s",
-                        request.activity_id,
-                    )
-                except ValueError as e:
-                    logger.warning(
-                        "AckReport activity %s already exists: %s",
-                        request.activity_id,
-                        e,
-                    )
-        except Exception as e:
-            logger.error(
-                "Error acknowledging report in activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        logger.info(
+            "Actor '%s' acknowledges receipt of offer '%s' of VulnerabilityReport '%s'",
+            request.actor_id,
+            request.object_id,
+            request.inner_object_id,
+        )
+        if request.activity is not None:
+            try:
+                self._dl.create(request.activity)
+                logger.info(
+                    "Stored AckReport activity with ID: %s",
+                    request.activity_id,
+                )
+            except ValueError as e:
+                logger.warning(
+                    "AckReport activity %s already exists: %s",
+                    request.activity_id,
+                    e,
+                )
 
 
 class CloseReportReceivedUseCase:
@@ -248,47 +233,39 @@ class CloseReportReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            actor_id = request.actor_id
-            logger.info(
-                "Actor '%s' rejects offer '%s' of VulnerabilityReport '%s'",
-                actor_id,
-                request.object_id,
-                request.inner_object_id,
+        actor_id = request.actor_id
+        logger.info(
+            "Actor '%s' rejects offer '%s' of VulnerabilityReport '%s'",
+            actor_id,
+            request.object_id,
+            request.inner_object_id,
+        )
+        set_status(
+            OfferStatus(
+                object_type=request.object_type or "Offer",
+                object_id=request.object_id,
+                status=OfferStatusEnum.REJECTED,
+                actor_id=actor_id,
             )
-            set_status(
-                OfferStatus(
-                    object_type=request.object_type or "Offer",
-                    object_id=request.object_id,
-                    status=OfferStatusEnum.REJECTED,
-                    actor_id=actor_id,
+        )
+        set_status(
+            ReportStatus(
+                object_type=request.inner_object_type or "VulnerabilityReport",
+                object_id=request.inner_object_id,
+                status=RM.CLOSED,
+                actor_id=actor_id,
+            )
+        )
+        if request.activity is not None:
+            try:
+                self._dl.create(request.activity)
+                logger.info(
+                    "Stored CloseReport activity with ID: %s",
+                    request.activity_id,
                 )
-            )
-            set_status(
-                ReportStatus(
-                    object_type=request.inner_object_type
-                    or "VulnerabilityReport",
-                    object_id=request.inner_object_id,
-                    status=RM.CLOSED,
-                    actor_id=actor_id,
+            except ValueError as e:
+                logger.warning(
+                    "CloseReport activity %s already exists: %s",
+                    request.activity_id,
+                    e,
                 )
-            )
-            if request.activity is not None:
-                try:
-                    self._dl.create(request.activity)
-                    logger.info(
-                        "Stored CloseReport activity with ID: %s",
-                        request.activity_id,
-                    )
-                except ValueError as e:
-                    logger.warning(
-                        "CloseReport activity %s already exists: %s",
-                        request.activity_id,
-                        e,
-                    )
-        except Exception as e:
-            logger.error(
-                "Error closing report in activity %s: %s",
-                request.activity_id,
-                str(e),
-            )

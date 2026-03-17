@@ -61,39 +61,32 @@ class CreateCaseReceivedUseCase:
             create_create_case_tree,
         )
 
-        try:
-            actor_id = request.actor_id
-            case_id = request.object_id
+        actor_id = request.actor_id
+        case_id = request.object_id
 
-            if request.case is None:
-                logger.warning(
-                    "create_case: no case domain object in event for case '%s'",
-                    case_id,
-                )
-                return
-
-            logger.info("Actor '%s' creates case '%s'", actor_id, case_id)
-
-            bridge = BTBridge(datalayer=self._dl)
-            tree = create_create_case_tree(
-                case_obj=request.case, actor_id=actor_id
+        if request.case is None:
+            logger.warning(
+                "create_case: no case domain object in event for case '%s'",
+                case_id,
             )
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=actor_id, activity=request
-            )
+            return
 
-            if result.status.name != "SUCCESS":
-                logger.warning(
-                    "CreateCaseBT did not succeed for actor '%s' / case '%s': %s",
-                    actor_id,
-                    case_id,
-                    result.feedback_message,
-                )
-        except Exception as e:
-            logger.error(
-                "Error in create_case for activity %s: %s",
-                request.activity_id,
-                str(e),
+        logger.info("Actor '%s' creates case '%s'", actor_id, case_id)
+
+        bridge = BTBridge(datalayer=self._dl)
+        tree = create_create_case_tree(
+            case_obj=request.case, actor_id=actor_id
+        )
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=request
+        )
+
+        if result.status.name != "SUCCESS":
+            logger.warning(
+                "CreateCaseBT did not succeed for actor '%s' / case '%s': %s",
+                actor_id,
+                case_id,
+                result.feedback_message,
             )
 
 
@@ -106,50 +99,42 @@ class UpdateCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            actor_id = request.actor_id
-            case_id = request.object_id
+        actor_id = request.actor_id
+        case_id = request.object_id
 
-            stored_case = cast(CaseModel, self._dl.read(case_id))
-            if stored_case is None:
-                logger.warning(
-                    "update_case: case '%s' not found in DataLayer — skipping",
-                    case_id,
-                )
-                return
+        stored_case = cast(CaseModel, self._dl.read(case_id))
+        if stored_case is None:
+            logger.warning(
+                "update_case: case '%s' not found in DataLayer — skipping",
+                case_id,
+            )
+            return
 
-            owner_id = _as_id(stored_case.attributed_to)
-            if owner_id != actor_id:
-                logger.warning(
-                    "update_case: actor '%s' is not the owner of case '%s' — skipping update",
-                    actor_id,
-                    case_id,
-                )
-                return
+        owner_id = _as_id(stored_case.attributed_to)
+        if owner_id != actor_id:
+            logger.warning(
+                "update_case: actor '%s' is not the owner of case '%s' — skipping update",
+                actor_id,
+                case_id,
+            )
+            return
 
-            _check_participant_embargo_acceptance(stored_case, self._dl)
+        _check_participant_embargo_acceptance(stored_case, self._dl)
 
-            if (
-                request.object_type == "VulnerabilityCase"
-                and request.case is not None
-            ):
-                for field in ("name", "summary", "content"):
-                    value = getattr(request.case, field, None)
-                    if value is not None:
-                        setattr(stored_case, field, value)
-                self._dl.save(stored_case)
-                logger.info("Actor '%s' updated case '%s'", actor_id, case_id)
-            else:
-                logger.info(
-                    "update_case: object for case '%s' is a reference only — no fields to apply",
-                    case_id,
-                )
-
-        except Exception as e:
-            logger.error(
-                "Error in update_case for activity %s: %s",
-                request.activity_id,
-                str(e),
+        if (
+            request.object_type == "VulnerabilityCase"
+            and request.case is not None
+        ):
+            for field in ("name", "summary", "content"):
+                value = getattr(request.case, field, None)
+                if value is not None:
+                    setattr(stored_case, field, value)
+            self._dl.save(stored_case)
+            logger.info("Actor '%s' updated case '%s'", actor_id, case_id)
+        else:
+            logger.info(
+                "update_case: object for case '%s' is a reference only — no fields to apply",
+                case_id,
             )
 
 
@@ -167,34 +152,27 @@ class EngageCaseReceivedUseCase:
             create_engage_case_tree,
         )
 
-        try:
-            actor_id = request.actor_id
-            case_id = request.object_id
+        actor_id = request.actor_id
+        case_id = request.object_id
 
-            logger.info(
-                "Actor '%s' engages case '%s' (RM → ACCEPTED)",
+        logger.info(
+            "Actor '%s' engages case '%s' (RM → ACCEPTED)",
+            actor_id,
+            case_id,
+        )
+
+        bridge = BTBridge(datalayer=self._dl)
+        tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=request
+        )
+
+        if result.status.name != "SUCCESS":
+            logger.warning(
+                "EngageCaseBT did not succeed for actor '%s' / case '%s': %s",
                 actor_id,
                 case_id,
-            )
-
-            bridge = BTBridge(datalayer=self._dl)
-            tree = create_engage_case_tree(case_id=case_id, actor_id=actor_id)
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=actor_id, activity=request
-            )
-
-            if result.status.name != "SUCCESS":
-                logger.warning(
-                    "EngageCaseBT did not succeed for actor '%s' / case '%s': %s",
-                    actor_id,
-                    case_id,
-                    result.feedback_message,
-                )
-        except Exception as e:
-            logger.error(
-                "Error in engage_case for activity %s: %s",
-                request.activity_id,
-                str(e),
+                result.feedback_message,
             )
 
 
@@ -210,34 +188,27 @@ class DeferCaseReceivedUseCase:
             create_defer_case_tree,
         )
 
-        try:
-            actor_id = request.actor_id
-            case_id = request.object_id
+        actor_id = request.actor_id
+        case_id = request.object_id
 
-            logger.info(
-                "Actor '%s' defers case '%s' (RM → DEFERRED)",
+        logger.info(
+            "Actor '%s' defers case '%s' (RM → DEFERRED)",
+            actor_id,
+            case_id,
+        )
+
+        bridge = BTBridge(datalayer=self._dl)
+        tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
+        result = bridge.execute_with_setup(
+            tree=tree, actor_id=actor_id, activity=request
+        )
+
+        if result.status.name != "SUCCESS":
+            logger.warning(
+                "DeferCaseBT did not succeed for actor '%s' / case '%s': %s",
                 actor_id,
                 case_id,
-            )
-
-            bridge = BTBridge(datalayer=self._dl)
-            tree = create_defer_case_tree(case_id=case_id, actor_id=actor_id)
-            result = bridge.execute_with_setup(
-                tree=tree, actor_id=actor_id, activity=request
-            )
-
-            if result.status.name != "SUCCESS":
-                logger.warning(
-                    "DeferCaseBT did not succeed for actor '%s' / case '%s': %s",
-                    actor_id,
-                    case_id,
-                    result.feedback_message,
-                )
-        except Exception as e:
-            logger.error(
-                "Error in defer_case for activity %s: %s",
-                request.activity_id,
-                str(e),
+                result.feedback_message,
             )
 
 
@@ -250,38 +221,26 @@ class AddReportToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            report_id = request.object_id
-            case_id = request.target_id
-            case = cast(CaseModel, self._dl.read(case_id))
+        report_id = request.object_id
+        case_id = request.target_id
+        case = cast(CaseModel, self._dl.read(case_id))
 
-            if case is None:
-                logger.warning(
-                    "add_report_to_case: case '%s' not found", case_id
-                )
-                return
+        if case is None:
+            logger.warning("add_report_to_case: case '%s' not found", case_id)
+            return
 
-            existing_report_ids = [
-                _as_id(r) for r in case.vulnerability_reports
-            ]
-            if report_id in existing_report_ids:
-                logger.info(
-                    "Report '%s' already in case '%s' — skipping (idempotent)",
-                    report_id,
-                    case_id,
-                )
-                return
-
-            case.vulnerability_reports.append(report_id)
-            self._dl.save(case)
-            logger.info("Added report '%s' to case '%s'", report_id, case_id)
-
-        except Exception as e:
-            logger.error(
-                "Error in add_report_to_case for activity %s: %s",
-                request.activity_id,
-                str(e),
+        existing_report_ids = [_as_id(r) for r in case.vulnerability_reports]
+        if report_id in existing_report_ids:
+            logger.info(
+                "Report '%s' already in case '%s' — skipping (idempotent)",
+                report_id,
+                case_id,
             )
+            return
+
+        case.vulnerability_reports.append(report_id)
+        self._dl.save(case)
+        logger.info("Added report '%s' to case '%s'", report_id, case_id)
 
 
 class CloseCaseReceivedUseCase:
@@ -291,40 +250,32 @@ class CloseCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
+        actor_id = request.actor_id
+        case_id = request.object_id
+
+        logger.info("Actor '%s' is closing case '%s'", actor_id, case_id)
+
+        close_activity = VultronActivity(
+            as_type="Leave",
+            actor=actor_id,
+            as_object=case_id,
+        )
         try:
-            actor_id = request.actor_id
-            case_id = request.object_id
-
-            logger.info("Actor '%s' is closing case '%s'", actor_id, case_id)
-
-            close_activity = VultronActivity(
-                as_type="Leave",
-                actor=actor_id,
-                as_object=case_id,
+            self._dl.create(close_activity)
+            logger.info("Created Leave activity %s", close_activity.as_id)
+        except ValueError:
+            logger.info(
+                "Leave activity for case '%s' already exists — skipping (idempotent)",
+                case_id,
             )
-            try:
-                self._dl.create(close_activity)
-                logger.info("Created Leave activity %s", close_activity.as_id)
-            except ValueError:
-                logger.info(
-                    "Leave activity for case '%s' already exists — skipping (idempotent)",
-                    case_id,
-                )
-                return
+            return
 
-            actor_obj = self._dl.read(actor_id)
-            if actor_obj is not None and hasattr(actor_obj, "outbox"):
-                actor_obj.outbox.items.append(close_activity.as_id)
-                self._dl.save(actor_obj)
-                logger.info(
-                    "Added Leave activity %s to actor %s outbox",
-                    close_activity.as_id,
-                    actor_id,
-                )
-
-        except Exception as e:
-            logger.error(
-                "Error in close_case for activity %s: %s",
-                request.activity_id,
-                str(e),
+        actor_obj = self._dl.read(actor_id)
+        if actor_obj is not None and hasattr(actor_obj, "outbox"):
+            actor_obj.outbox.items.append(close_activity.as_id)
+            self._dl.save(actor_obj)
+            logger.info(
+                "Added Leave activity %s to actor %s outbox",
+                close_activity.as_id,
+                actor_id,
             )

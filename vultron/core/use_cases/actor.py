@@ -31,22 +31,15 @@ class SuggestActorToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            if _idempotent_create(
-                self._dl,
-                request.activity_type,
-                request.activity_id,
-                request.activity,
-                "SuggestActorToCase",
-                request.activity_id,
-            ):
-                return
-        except Exception as e:
-            logger.error(
-                "Error in suggest_actor_to_case for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        if _idempotent_create(
+            self._dl,
+            request.activity_type,
+            request.activity_id,
+            request.activity,
+            "SuggestActorToCase",
+            request.activity_id,
+        ):
+            return
 
 
 class AcceptSuggestActorToCaseReceivedUseCase:
@@ -58,22 +51,15 @@ class AcceptSuggestActorToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            if _idempotent_create(
-                self._dl,
-                request.activity_type,
-                request.activity_id,
-                request.activity,
-                "AcceptSuggestActorToCase",
-                request.activity_id,
-            ):
-                return
-        except Exception as e:
-            logger.error(
-                "Error in accept_suggest_actor_to_case for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        if _idempotent_create(
+            self._dl,
+            request.activity_type,
+            request.activity_id,
+            request.activity,
+            "AcceptSuggestActorToCase",
+            request.activity_id,
+        ):
+            return
 
 
 class RejectSuggestActorToCaseReceivedUseCase:
@@ -85,18 +71,11 @@ class RejectSuggestActorToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            logger.info(
-                "Actor '%s' rejected recommendation to add actor '%s' to case",
-                request.actor_id,
-                request.object_id,
-            )
-        except Exception as e:
-            logger.error(
-                "Error in reject_suggest_actor_to_case for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        logger.info(
+            "Actor '%s' rejected recommendation to add actor '%s' to case",
+            request.actor_id,
+            request.object_id,
+        )
 
 
 class OfferCaseOwnershipTransferReceivedUseCase:
@@ -108,22 +87,15 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            if _idempotent_create(
-                self._dl,
-                request.activity_type,
-                request.activity_id,
-                request.activity,
-                "OfferCaseOwnershipTransfer",
-                request.activity_id,
-            ):
-                return
-        except Exception as e:
-            logger.error(
-                "Error in offer_case_ownership_transfer for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        if _idempotent_create(
+            self._dl,
+            request.activity_type,
+            request.activity_id,
+            request.activity,
+            "OfferCaseOwnershipTransfer",
+            request.activity_id,
+        ):
+            return
 
 
 class AcceptCaseOwnershipTransferReceivedUseCase:
@@ -135,42 +107,34 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            case_id = request.inner_object_id
-            new_owner_id = request.actor_id
-            case = cast(CaseModel, self._dl.read(case_id))
+        case_id = request.inner_object_id
+        new_owner_id = request.actor_id
+        case = cast(CaseModel, self._dl.read(case_id))
 
-            if case is None:
-                logger.warning(
-                    "accept_case_ownership_transfer: case '%s' not found",
-                    case_id,
-                )
-                return
-
-            current_owner_id = _as_id(case.attributed_to)
-            if current_owner_id == new_owner_id:
-                logger.info(
-                    "Case '%s' already owned by '%s' — skipping (idempotent)",
-                    case_id,
-                    new_owner_id,
-                )
-                return
-
-            case.attributed_to = new_owner_id  # type: ignore[assignment]
-            self._dl.save(case)
-            logger.info(
-                "Transferred ownership of case '%s' from '%s' to '%s'",
+        if case is None:
+            logger.warning(
+                "accept_case_ownership_transfer: case '%s' not found",
                 case_id,
-                current_owner_id,
+            )
+            return
+
+        current_owner_id = _as_id(case.attributed_to)
+        if current_owner_id == new_owner_id:
+            logger.info(
+                "Case '%s' already owned by '%s' — skipping (idempotent)",
+                case_id,
                 new_owner_id,
             )
+            return
 
-        except Exception as e:
-            logger.error(
-                "Error in accept_case_ownership_transfer for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        case.attributed_to = new_owner_id  # type: ignore[assignment]
+        self._dl.save(case)
+        logger.info(
+            "Transferred ownership of case '%s' from '%s' to '%s'",
+            case_id,
+            current_owner_id,
+            new_owner_id,
+        )
 
 
 class RejectCaseOwnershipTransferReceivedUseCase:
@@ -182,18 +146,11 @@ class RejectCaseOwnershipTransferReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            logger.info(
-                "Actor '%s' rejected ownership transfer offer '%s' — ownership unchanged",
-                request.actor_id,
-                request.object_id,
-            )
-        except Exception as e:
-            logger.error(
-                "Error in reject_case_ownership_transfer for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        logger.info(
+            "Actor '%s' rejected ownership transfer offer '%s' — ownership unchanged",
+            request.actor_id,
+            request.object_id,
+        )
 
 
 class InviteActorToCaseReceivedUseCase:
@@ -205,22 +162,15 @@ class InviteActorToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            if _idempotent_create(
-                self._dl,
-                request.activity_type,
-                request.activity_id,
-                request.activity,
-                "InviteActorToCase",
-                request.activity_id,
-            ):
-                return
-        except Exception as e:
-            logger.error(
-                "Error in invite_actor_to_case for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        if _idempotent_create(
+            self._dl,
+            request.activity_type,
+            request.activity_id,
+            request.activity,
+            "InviteActorToCase",
+            request.activity_id,
+        ):
+            return
 
 
 class AcceptInviteActorToCaseReceivedUseCase:
@@ -232,60 +182,52 @@ class AcceptInviteActorToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            case_id = request.inner_target_id
-            invitee_id = request.inner_object_id
-            case = cast(CaseModel, self._dl.read(case_id))
+        case_id = request.inner_target_id
+        invitee_id = request.inner_object_id
+        case = cast(CaseModel, self._dl.read(case_id))
 
-            if case is None:
-                logger.warning(
-                    "accept_invite_actor_to_case: case '%s' not found", case_id
-                )
-                return
-
-            existing_ids = [_as_id(p) for p in case.case_participants]
-            if (
-                invitee_id in case.actor_participant_index
-                or invitee_id in existing_ids
-            ):
-                logger.info(
-                    "Actor '%s' already participant in case '%s' — skipping (idempotent)",
-                    invitee_id,
-                    case_id,
-                )
-                return
-
-            active_embargo_id = _as_id(case.active_embargo)
-
-            participant = VultronParticipant(
-                as_id=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
-                attributed_to=invitee_id,
-                context=case_id,
+        if case is None:
+            logger.warning(
+                "accept_invite_actor_to_case: case '%s' not found", case_id
             )
-            if active_embargo_id:
-                participant.accepted_embargo_ids.append(active_embargo_id)
-            self._dl.create(participant)
+            return
 
-            # Use string IDs to avoid wire-type serialization incompatibility
-            case.case_participants.append(participant.as_id)
-            case.actor_participant_index[invitee_id] = participant.as_id
-            case.record_event(invitee_id, "participant_joined")
-            if active_embargo_id:
-                case.record_event(active_embargo_id, "embargo_accepted")
-            self._dl.save(case)
-
+        existing_ids = [_as_id(p) for p in case.case_participants]
+        if (
+            invitee_id in case.actor_participant_index
+            or invitee_id in existing_ids
+        ):
             logger.info(
-                "Added participant '%s' to case '%s' via accepted invite",
+                "Actor '%s' already participant in case '%s' — skipping (idempotent)",
                 invitee_id,
                 case_id,
             )
+            return
 
-        except Exception as e:
-            logger.error(
-                "Error in accept_invite_actor_to_case for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        active_embargo_id = _as_id(case.active_embargo)
+
+        participant = VultronParticipant(
+            as_id=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
+            attributed_to=invitee_id,
+            context=case_id,
+        )
+        if active_embargo_id:
+            participant.accepted_embargo_ids.append(active_embargo_id)
+        self._dl.create(participant)
+
+        # Use string IDs to avoid wire-type serialization incompatibility
+        case.case_participants.append(participant.as_id)
+        case.actor_participant_index[invitee_id] = participant.as_id
+        case.record_event(invitee_id, "participant_joined")
+        if active_embargo_id:
+            case.record_event(active_embargo_id, "embargo_accepted")
+        self._dl.save(case)
+
+        logger.info(
+            "Added participant '%s' to case '%s' via accepted invite",
+            invitee_id,
+            case_id,
+        )
 
 
 class RejectInviteActorToCaseReceivedUseCase:
@@ -297,15 +239,8 @@ class RejectInviteActorToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        try:
-            logger.info(
-                "Actor '%s' rejected invitation '%s'",
-                request.actor_id,
-                request.object_id,
-            )
-        except Exception as e:
-            logger.error(
-                "Error in reject_invite_actor_to_case for activity %s: %s",
-                request.activity_id,
-                str(e),
-            )
+        logger.info(
+            "Actor '%s' rejected invitation '%s'",
+            request.actor_id,
+            request.object_id,
+        )
