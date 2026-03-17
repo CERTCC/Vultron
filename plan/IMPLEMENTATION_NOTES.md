@@ -141,3 +141,43 @@ is still needed or if it is a relic of the pre-refactor architecture. If
 it's not needed, then that would be another reason to remove these shims and 
 revise the code to interact directly with the use case ports.
 
+## Use py_trees `Status` enum instead of string comparisons
+
+py_trees defines a `Status` enum that is used for BT node return values. Some of
+the use cases currently do string comparisons against `result.status.name` to
+check for success or failure. This is a bit brittle and also not the intended
+way to use the `Status` enum. Instead, we should import the `Status` enum from
+`py_trees` and use it for status checks. For example, instead of:
+
+```python
+if result.status.name != "SUCCESS":
+    # handle failure
+```
+
+we should do:
+
+```python
+from py_trees import Status
+if result.status != Status.SUCCESS:
+    # handle failure
+```
+
+The status enum is defined in `py_trees.common` and looks like this:
+
+```python
+class Status(enum.Enum):
+    """An enumerator representing the status of a behaviour."""
+
+    SUCCESS = "SUCCESS"
+    """Behaviour check has passed, or execution of its action has finished with a successful result."""
+    FAILURE = "FAILURE"
+    """Behaviour check has failed, or execution of its action finished with a failed result."""
+    RUNNING = "RUNNING"
+    """Behaviour is in the middle of executing some action, result still pending."""
+    INVALID = "INVALID"
+    """Behaviour is uninitialised and/or in an inactive state, i.e. not currently being ticked."""
+```
+
+---
+
+
