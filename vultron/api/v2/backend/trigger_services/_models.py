@@ -23,11 +23,14 @@ a non-optional note field.
 """
 
 import logging
-from datetime import datetime
+import re
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
 logger = logging.getLogger(__name__)
+
+_URI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+\-.]*:[^\s]")
 
 
 class ReportTriggerRequest(BaseModel):
@@ -101,6 +104,15 @@ class CaseTriggerRequest(BaseModel):
 
     case_id: str
 
+    @field_validator("case_id")
+    @classmethod
+    def case_id_must_be_uri(cls, v: str) -> str:
+        if not _URI_SCHEME_RE.match(v):
+            raise ValueError(
+                "case_id must be a URI (e.g. urn:uuid:... or https://...)"
+            )
+        return v
+
 
 class ProposeEmbargoRequest(BaseModel):
     """
@@ -109,13 +121,32 @@ class ProposeEmbargoRequest(BaseModel):
     TB-03-001: Must include case_id to identify the target case.
     TB-03-002: Unknown fields are silently ignored (extra="ignore").
     TB-03-003: Optional note field may be included.
+    end_time is required and must be timezone-aware and in the future.
     """
 
     model_config = ConfigDict(extra="ignore")
 
     case_id: str
     note: str | None = None
-    end_time: datetime | None = None
+    end_time: datetime
+
+    @field_validator("case_id")
+    @classmethod
+    def case_id_must_be_uri(cls, v: str) -> str:
+        if not _URI_SCHEME_RE.match(v):
+            raise ValueError(
+                "case_id must be a URI (e.g. urn:uuid:... or https://...)"
+            )
+        return v
+
+    @field_validator("end_time")
+    @classmethod
+    def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
+        if v.tzinfo is None or v.utcoffset() is None:
+            raise ValueError("end_time must be timezone-aware")
+        if v <= datetime.now(tz=timezone.utc):
+            raise ValueError("end_time must be in the future")
+        return v
 
 
 class EvaluateEmbargoRequest(BaseModel):
@@ -133,6 +164,15 @@ class EvaluateEmbargoRequest(BaseModel):
     case_id: str
     proposal_id: str | None = None
 
+    @field_validator("case_id")
+    @classmethod
+    def case_id_must_be_uri(cls, v: str) -> str:
+        if not _URI_SCHEME_RE.match(v):
+            raise ValueError(
+                "case_id must be a URI (e.g. urn:uuid:... or https://...)"
+            )
+        return v
+
 
 class TerminateEmbargoRequest(BaseModel):
     """
@@ -145,3 +185,12 @@ class TerminateEmbargoRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     case_id: str
+
+    @field_validator("case_id")
+    @classmethod
+    def case_id_must_be_uri(cls, v: str) -> str:
+        if not _URI_SCHEME_RE.match(v):
+            raise ValueError(
+                "case_id must be a URI (e.g. urn:uuid:... or https://...)"
+            )
+        return v

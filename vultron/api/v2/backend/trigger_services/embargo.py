@@ -22,6 +22,8 @@ translates domain exceptions to FastAPI ``HTTPException`` responses.
 
 from datetime import datetime
 
+from pydantic import ValidationError as PydanticValidationError
+
 from vultron.api.v2.backend.trigger_services._helpers import (
     translate_domain_errors,
 )
@@ -51,7 +53,7 @@ def svc_propose_embargo(
             actor_id=actor_id, case_id=case_id, note=note, end_time=end_time
         )
         return SvcProposeEmbargoUseCase(dl, request).execute()
-    except VultronError as e:
+    except (VultronError, PydanticValidationError) as e:
         raise translate_domain_errors(e)
 
 
@@ -66,7 +68,7 @@ def svc_evaluate_embargo(
             actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
         )
         return SvcEvaluateEmbargoUseCase(dl, request).execute()
-    except VultronError as e:
+    except (VultronError, PydanticValidationError) as e:
         raise translate_domain_errors(e)
 
 
@@ -76,5 +78,5 @@ def svc_terminate_embargo(actor_id: str, case_id: str, dl: DataLayer) -> dict:
             actor_id=actor_id, case_id=case_id
         )
         return SvcTerminateEmbargoUseCase(dl, request).execute()
-    except VultronError as e:
+    except (VultronError, PydanticValidationError) as e:
         raise translate_domain_errors(e)

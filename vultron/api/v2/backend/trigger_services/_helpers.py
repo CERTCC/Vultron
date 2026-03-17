@@ -21,6 +21,7 @@ FastAPI ``HTTPException`` responses.
 """
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError as PydanticValidationError
 
 from vultron.errors import (
     VultronConflictError,
@@ -51,7 +52,7 @@ def translate_domain_errors(exc: Exception) -> HTTPException:
                 "activity_id": getattr(exc, "activity_id", None),
             },
         )
-    if isinstance(exc, VultronValidationError):
+    if isinstance(exc, (VultronValidationError, PydanticValidationError)):
         return HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={

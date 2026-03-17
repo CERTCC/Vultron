@@ -20,6 +20,8 @@ Builds domain request models, instantiates core use-case classes, and
 translates domain exceptions to FastAPI ``HTTPException`` responses.
 """
 
+from pydantic import ValidationError as PydanticValidationError
+
 from vultron.api.v2.backend.trigger_services._helpers import (
     translate_domain_errors,
 )
@@ -39,7 +41,7 @@ def svc_engage_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
     try:
         request = EngageCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
         return SvcEngageCaseUseCase(dl, request).execute()
-    except VultronError as e:
+    except (VultronError, PydanticValidationError) as e:
         raise translate_domain_errors(e)
 
 
@@ -47,5 +49,5 @@ def svc_defer_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
     try:
         request = DeferCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
         return SvcDeferCaseUseCase(dl, request).execute()
-    except VultronError as e:
+    except (VultronError, PydanticValidationError) as e:
         raise translate_domain_errors(e)

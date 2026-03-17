@@ -12,11 +12,25 @@ field.  Leaf request classes subclass one of these intermediaries and only add
 fields (or override optionals to required) where the specific use case demands it.
 """
 
-from datetime import datetime
+import re
+from datetime import datetime, timezone
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic.functional_validators import AfterValidator
 
 from vultron.core.models.events.base import NonEmptyString
+
+_URI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+\-.]*:[^\s]")
+
+
+def _valid_uri(v: str) -> str:
+    if not _URI_SCHEME_RE.match(v):
+        raise ValueError("must be a URI (e.g. urn:uuid:... or https://...)")
+    return v
+
+
+CaseIdString = Annotated[NonEmptyString, AfterValidator(_valid_uri)]
 
 
 class TriggerRequest(BaseModel):
@@ -44,9 +58,9 @@ class OfferTriggerRequest(TriggerRequest):
 
 
 class CaseTriggerRequest(TriggerRequest):
-    """Trigger request that requires a ``case_id``."""
+    """Trigger request that requires a ``case_id`` in URI form."""
 
-    case_id: NonEmptyString
+    case_id: CaseIdString
 
 
 class ValidateReportTriggerRequest(OfferTriggerRequest):
@@ -78,7 +92,16 @@ class DeferCaseTriggerRequest(CaseTriggerRequest):
 
 
 class ProposeEmbargoTriggerRequest(CaseTriggerRequest):
-    pass
+    end_time: datetime
+
+    @field_validator("end_time")
+    @classmethod
+    def end_time_must_be_tz_aware_and_future(cls, v: datetime) -> datetime:
+        if v.tzinfo is None or v.utcoffset() is None:
+            raise ValueError("end_time must be timezone-aware")
+        if v <= datetime.now(tz=timezone.utc):
+            raise ValueError("end_time must be in the future")
+        return v
 
 
 class EvaluateEmbargoTriggerRequest(CaseTriggerRequest):

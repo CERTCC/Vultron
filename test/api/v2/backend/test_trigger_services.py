@@ -22,9 +22,14 @@ a DataLayer instance as an argument rather than resolving it via
 FastAPI's dependency injection.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 from fastapi import HTTPException
 
+FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
+
+from vultron.adapters.driven.db_record import object_to_record
 from vultron.api.v2.backend.trigger_services.case import (
     svc_defer_case,
     svc_engage_case,
@@ -42,7 +47,8 @@ from vultron.api.v2.backend.trigger_services.report import (
 )
 from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.api.v2.data.status import ReportStatus, set_status
-from vultron.adapters.driven.db_record import object_to_record
+from vultron.bt.embargo_management.states import EM
+from vultron.bt.report_management.states import RM
 from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
@@ -52,8 +58,6 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.bt.embargo_management.states import EM
-from vultron.bt.report_management.states import RM
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -180,6 +184,14 @@ def case_with_proposal(dl, actor):
     return case_obj, proposal, embargo
 
 
+@pytest.fixture
+def non_report_object(dl):
+    """An EmbargoEvent stored in the datalayer — not an Offer."""
+    obj = EmbargoEvent(context="urn:uuid:some-case")
+    dl.create(obj)
+    return obj
+
+
 # ===========================================================================
 # svc_validate_report
 # ===========================================================================
@@ -224,6 +236,15 @@ def test_svc_validate_report_adds_activity_to_outbox(
         item for item in actor_after.outbox.items if isinstance(item, str)
     }
     assert len(after - before) >= 1
+
+
+def test_svc_validate_report_non_report_offer_raises_422(
+    dl, actor, non_report_object
+):
+    """svc_validate_report raises 422 when offer_id is not a report Offer."""
+    with pytest.raises(HTTPException) as exc_info:
+        svc_validate_report(actor.as_id, non_report_object.as_id, None, dl)
+    assert exc_info.value.status_code == 422
 
 
 # ===========================================================================
@@ -272,6 +293,15 @@ def test_svc_invalidate_report_adds_activity_to_outbox(
     assert len(after - before) >= 1
 
 
+def test_svc_invalidate_report_non_report_offer_raises_422(
+    dl, actor, non_report_object
+):
+    """svc_invalidate_report raises 422 when offer_id is not a report Offer."""
+    with pytest.raises(HTTPException) as exc_info:
+        svc_invalidate_report(actor.as_id, non_report_object.as_id, None, dl)
+    assert exc_info.value.status_code == 422
+
+
 # ===========================================================================
 # svc_reject_report
 # ===========================================================================
@@ -318,6 +348,15 @@ def test_svc_reject_report_adds_activity_to_outbox(
     assert len(after - before) >= 1
 
 
+def test_svc_reject_report_non_report_offer_raises_422(
+    dl, actor, non_report_object
+):
+    """svc_reject_report raises 422 when offer_id is not a report Offer."""
+    with pytest.raises(HTTPException) as exc_info:
+        svc_reject_report(actor.as_id, non_report_object.as_id, "reason", dl)
+    assert exc_info.value.status_code == 422
+
+
 # ===========================================================================
 # svc_close_report
 # ===========================================================================
@@ -348,6 +387,15 @@ def test_svc_close_report_unknown_actor_raises_404(dl, offer):
     assert exc_info.value.status_code == 404
 
 
+def test_svc_close_report_non_report_offer_raises_422(
+    dl, actor, non_report_object
+):
+    """svc_close_report raises 422 when offer_id is not a report Offer."""
+    with pytest.raises(HTTPException) as exc_info:
+        svc_close_report(actor.as_id, non_report_object.as_id, None, dl)
+    assert exc_info.value.status_code == 422
+
+
 # ===========================================================================
 # svc_engage_case
 # ===========================================================================
@@ -374,6 +422,13 @@ def test_svc_engage_case_unknown_case_raises_404(dl, actor):
     with pytest.raises(HTTPException) as exc_info:
         svc_engage_case(actor.as_id, "urn:uuid:no-such-case", dl)
     assert exc_info.value.status_code == 404
+
+
+def test_svc_engage_case_invalid_case_id_raises_422(dl, actor):
+    """svc_engage_case raises 422 for a non-URI case_id."""
+    with pytest.raises(HTTPException) as exc_info:
+        svc_engage_case(actor.as_id, "not-a-uri", dl)
+    assert exc_info.value.status_code == 422
 
 
 def test_svc_engage_case_updates_participant_rm_state(
@@ -439,6 +494,13 @@ def test_svc_defer_case_unknown_actor_raises_404(dl, case_with_participant):
     assert exc_info.value.status_code == 404
 
 
+def test_svc_defer_case_invalid_case_id_raises_422(dl, actor):
+    """svc_defer_case raises 422 for a non-URI case_id."""
+    with pytest.raises(HTTPException) as exc_info:
+        svc_defer_case(actor.as_id, "not-a-uri", dl)
+    assert exc_info.value.status_code == 422
+
+
 def test_svc_defer_case_updates_participant_rm_state(
     dl, actor, case_with_participant
 ):
@@ -473,7 +535,7 @@ def test_svc_propose_embargo_returns_activity_dict(
 ):
     """svc_propose_embargo returns dict with non-None 'activity'."""
     result = svc_propose_embargo(
-        actor.as_id, case_no_participant.as_id, None, None, dl
+        actor.as_id, case_no_participant.as_id, None, FUTURE_DATETIME, dl
     )
     assert isinstance(result, dict)
     assert result["activity"] is not None
@@ -483,7 +545,9 @@ def test_svc_propose_embargo_transitions_em_state_to_proposed(
     dl, actor, case_no_participant
 ):
     """svc_propose_embargo transitions case EM state from N to P."""
-    svc_propose_embargo(actor.as_id, case_no_participant.as_id, None, None, dl)
+    svc_propose_embargo(
+        actor.as_id, case_no_participant.as_id, None, FUTURE_DATETIME, dl
+    )
     updated = dl.read(case_no_participant.as_id)
     assert updated.current_status.em_state == EM.PROPOSED
 
@@ -496,7 +560,7 @@ def test_svc_propose_embargo_exited_raises_409(dl, actor, case_no_participant):
 
     with pytest.raises(HTTPException) as exc_info:
         svc_propose_embargo(
-            actor.as_id, case_no_participant.as_id, None, None, dl
+            actor.as_id, case_no_participant.as_id, None, FUTURE_DATETIME, dl
         )
     assert exc_info.value.status_code == 409
 
@@ -505,9 +569,46 @@ def test_svc_propose_embargo_unknown_actor_raises_404(dl, case_no_participant):
     """svc_propose_embargo raises 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
         svc_propose_embargo(
-            "urn:uuid:no-such", case_no_participant.as_id, None, None, dl
+            "urn:uuid:no-such",
+            case_no_participant.as_id,
+            None,
+            FUTURE_DATETIME,
+            dl,
         )
     assert exc_info.value.status_code == 404
+
+
+def test_svc_propose_embargo_naive_end_time_raises_422(
+    dl, actor, case_no_participant
+):
+    """svc_propose_embargo raises 422 for a timezone-naive end_time."""
+    naive_dt = datetime(2099, 12, 1)
+    with pytest.raises(HTTPException) as exc_info:
+        svc_propose_embargo(
+            actor.as_id, case_no_participant.as_id, None, naive_dt, dl
+        )
+    assert exc_info.value.status_code == 422
+
+
+def test_svc_propose_embargo_past_end_time_raises_422(
+    dl, actor, case_no_participant
+):
+    """svc_propose_embargo raises 422 for a past end_time."""
+    past_dt = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    with pytest.raises(HTTPException) as exc_info:
+        svc_propose_embargo(
+            actor.as_id, case_no_participant.as_id, None, past_dt, dl
+        )
+    assert exc_info.value.status_code == 422
+
+
+def test_svc_propose_embargo_invalid_case_id_raises_422(dl, actor):
+    """svc_propose_embargo raises 422 for a non-URI case_id."""
+    with pytest.raises(HTTPException) as exc_info:
+        svc_propose_embargo(
+            actor.as_id, "not-a-uri", None, FUTURE_DATETIME, dl
+        )
+    assert exc_info.value.status_code == 422
 
 
 # ===========================================================================

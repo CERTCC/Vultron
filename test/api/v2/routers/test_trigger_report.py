@@ -141,6 +141,16 @@ def closed_report(report, actor):
     return report
 
 
+@pytest.fixture
+def non_report_object(dl):
+    """An EmbargoEvent stored in the datalayer — not an Offer."""
+    from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+
+    obj = EmbargoEvent(context="urn:uuid:some-case")
+    dl.create(obj)
+    return obj
+
+
 # ===========================================================================
 # Tests for trigger/validate-report
 # ===========================================================================
@@ -284,6 +294,17 @@ def test_trigger_validate_report_adds_activity_to_outbox(
     assert len(new_items) >= 1, "No new activity was added to the outbox"
 
 
+def test_trigger_validate_report_non_report_offer_returns_422(
+    client_triggers, actor, non_report_object
+):
+    """validate-report rejects an offer_id that is not an Offer of a report."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/validate-report",
+        json={"offer_id": non_report_object.as_id},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
 # ===========================================================================
 # Tests for trigger/invalidate-report
 # ===========================================================================
@@ -392,6 +413,17 @@ def test_trigger_invalidate_report_with_note_returns_202(
         },
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
+
+
+def test_trigger_invalidate_report_non_report_offer_returns_422(
+    client_triggers, actor, non_report_object
+):
+    """invalidate-report rejects an offer_id that is not an Offer of a report."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/invalidate-report",
+        json={"offer_id": non_report_object.as_id},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 # ===========================================================================
@@ -516,6 +548,17 @@ def test_trigger_reject_report_adds_activity_to_outbox(
     assert len(outbox_after - outbox_before) >= 1
 
 
+def test_trigger_reject_report_non_report_offer_returns_422(
+    client_triggers, actor, non_report_object
+):
+    """reject-report rejects an offer_id that is not an Offer of a report."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/reject-report",
+        json={"offer_id": non_report_object.as_id, "note": "Not a report."},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
 # ===========================================================================
 # Tests for trigger/close-report
 # ===========================================================================
@@ -634,3 +677,14 @@ def test_trigger_close_report_already_closed_returns_409(
     assert resp.status_code == status.HTTP_409_CONFLICT
     data = resp.json()
     assert data["detail"]["error"] == "Conflict"
+
+
+def test_trigger_close_report_non_report_offer_returns_422(
+    client_triggers, actor, non_report_object
+):
+    """close-report rejects an offer_id that is not an Offer of a report."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/close-report",
+        json={"offer_id": non_report_object.as_id},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT

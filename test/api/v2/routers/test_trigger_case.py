@@ -158,6 +158,17 @@ def test_trigger_engage_case_unknown_case_returns_404(client_triggers, actor):
     assert data["detail"]["error"] == "NotFound"
 
 
+def test_trigger_engage_case_invalid_case_id_returns_422(
+    client_triggers, actor
+):
+    """engage-case with a non-URI case_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/engage-case",
+        json={"case_id": "not-a-uri"},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
 def test_trigger_engage_case_adds_activity_to_outbox(
     client_triggers, dl, actor, case_with_participant
 ):
@@ -299,6 +310,17 @@ def test_trigger_defer_case_unknown_case_returns_404(client_triggers, actor):
         json={"case_id": "urn:uuid:nonexistent"},
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_trigger_defer_case_invalid_case_id_returns_422(
+    client_triggers, actor
+):
+    """defer-case with a non-URI case_id returns HTTP 422."""
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/defer-case",
+        json={"case_id": "not-a-uri"},
+    )
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_defer_case_adds_activity_to_outbox(
