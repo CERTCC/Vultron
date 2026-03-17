@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-16 (refresh #42: TECHDEBT-22 complete)
+**Last Updated**: 2026-03-17 (refresh #43: TECHDEBT-27 complete)
 
 ## Overview
 
@@ -38,7 +38,7 @@ P65-1, P65-2, P65-3, P65-4, P65-5, P65-6a, P65-6b, P65-7,
 ARCH-DOCS-1, TECHDEBT-13a, TECHDEBT-13b, TECHDEBT-13c, TECHDEBT-14,
 P70-2, P70-3, P70-4, P70-5,
 P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre,
-TECHDEBT-15, TECHDEBT-21, TECHDEBT-22, TECHDEBT-24.
+TECHDEBT-15, TECHDEBT-21, TECHDEBT-22, TECHDEBT-24, TECHDEBT-27.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -435,7 +435,7 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 **Source**: `plan/IMPLEMENTATION_NOTES.md` code-review item 6 (deferred); promoted
 from Deferred section after P75-4 completion.
 
-- [ ] **TECHDEBT-27**: Remove silent `except Exception` swallowers from use cases;
+- [x] **TECHDEBT-27**: Remove silent `except Exception` swallowers from use cases;
   let domain exceptions propagate and be caught at the dispatcher boundary. Also
   remove the meaningless `try/except Exception` wrappers from stub-only use cases
   (`RejectSuggestActorToCaseUseCase`, `RejectCaseOwnershipTransferUseCase`,
