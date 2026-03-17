@@ -395,6 +395,10 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
   (e.g., `CreateReportReceivedUseCase`). See CS-12-002.
 - **Trigger use cases** (actor-initiated actions): Use `Svc` prefix
   (e.g., `SvcEngageCaseUseCase`). See CS-12-002.
+- **Trigger service functions** in `trigger_services/`: Use a `_trigger`
+  **suffix** (not an `svc_` prefix). For example: `engage_case_trigger`
+  not `svc_engage_case`. The `Svc` prefix is reserved for use-case class
+  names only.
 - **Pattern objects**: Descriptive CamelCase (e.g., `CreateReport`,
   `AcceptInviteToEmbargoOnCase`)
 
@@ -405,6 +409,11 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - Never bypass validation for convenience
 - Use Protocol for interface definitions
 - Avoid global mutable state
+- **Fail-fast domain objects**: Domain events and models MUST validate
+  required fields at construction and fail immediately on missing invariants.
+  Fields that are required for a specific event subtype MUST NOT be typed
+  as `X | None` in that subtype. Subclasses SHOULD narrow optional parent
+  fields to required. See `specs/architecture.md` ARCH-10-001.
 - **Optional string fields MUST follow "if present, then non-empty"**:
   `Optional[str]` fields MUST reject empty strings. Use the shared
   `NonEmptyString` or `OptionalNonEmptyString` type alias from
