@@ -76,58 +76,60 @@ still needed (keep as vocabulary showcase / merge into v2 / remove).
 
 ## Avoid backwards-compatible shims in prototype
 
-As we build out the prototype, we must avoid adding backwards-compatible shims
-to support old versions of the code. We need to be able to iterate quickly 
-and make changes to code without worrying about maintaining backwards 
-compatibility. Nobody outside of this project is dependent on the code as it 
-currently exists, and shims create technical debt that we have to clean up 
-later anyway. When we are refactoring something, a shim is appropriate to 
-confirm changes are working as expected during a test run, but they should 
-be removed immediately after the test run confirms the change works as 
-expected. Going back through the code and replacing calls to the old code 
-with calls to the new code is critical at these moments to avoid 
-accumulating technical debt for abandoned interfaces. This is not to say 
-that we should break existing code: it's saying that we should go all the 
-way with refactors to eradicate the old code and not leave it around with 
-shims that just add to the maintenance burden. If you're going to refactor, 
-finish the job while you're already in the middle of the code and have the 
-context fresh to understand what needs to be changed. Don't leave it for 
-later.
+~~As we build out the prototype, we must avoid adding backwards-compatible shims~~
+~~to support old versions of the code. We need to be able to iterate quickly~~
+~~and make changes to code without worrying about maintaining backwards~~
+~~compatibility. Nobody outside of this project is dependent on the code as it~~
+~~currently exists, and shims create technical debt that we have to clean up~~
+~~later anyway. When we are refactoring something, a shim is appropriate to~~
+~~confirm changes are working as expected during a test run, but they should~~
+~~be removed immediately after the test run confirms the change works as~~
+~~expected. Going back through the code and replacing calls to the old code~~
+~~with calls to the new code is critical at these moments to avoid~~
+~~accumulating technical debt for abandoned interfaces. This is not to say~~
+~~that we should break existing code: it's saying that we should go all the~~
+~~way with refactors to eradicate the old code and not leave it around with~~
+~~shims that just add to the maintenance burden. If you're going to refactor,~~
+~~finish the job while you're already in the middle of the code and have the~~
+~~context fresh to understand what needs to be changed. Don't leave it for~~
+~~later.~~
+→ captured in AGENTS.md
 
 ## TECHDEBT-24 note
 
-See `notes/architecture-ports-and-adapters.md` regarding richness of core 
-objects for vs wire objects. Use that to reason about the correct solution 
-to TECHDEBT-24.
-
+~~See `notes/architecture-ports-and-adapters.md` regarding richness of core~~
+~~objects for vs wire objects. Use that to reason about the correct solution~~
+~~to TECHDEBT-24.~~
+→ TECHDEBT-24 is complete. See `plan/IMPLEMENTATION_PLAN.md`.
 
 ---
 
 ### 2026-03-16 — TECHDEBT-24 case.py constraint
 
-`CreateCaseUseCase.execute` in `core/use_cases/case.py` retains a lazy import
-of `VulnerabilityCase`. The reason: `VulnerabilityCase` uses
-`default_factory=init_case_status` to seed `case_statuses = [CaseStatus()]`.
-A bare `VultronCase` has `case_statuses = []`; after TinyDB round-trip
-(`record_to_object` reconstitutes via `VulnerabilityCase.model_validate`),
-`case_statuses` remains empty, and `VulnerabilityCase.current_status`
-(which calls `max(self.case_statuses, ...)` without an empty-list guard)
-raises `max() iterable argument is empty`.
+~~`CreateCaseUseCase.execute` in `core/use_cases/case.py` retains a lazy import~~
+~~of `VulnerabilityCase`. The reason: `VulnerabilityCase` uses~~
+~~`default_factory=init_case_status` to seed `case_statuses = [CaseStatus()]`.~~
+~~A bare `VultronCase` has `case_statuses = []`; after TinyDB round-trip~~
+~~(`record_to_object` reconstitutes via `VulnerabilityCase.model_validate`),~~
+~~`case_statuses` remains empty, and `VulnerabilityCase.current_status`~~
+~~(which calls `max(self.case_statuses, ...)` without an empty-list guard)~~
+~~raises `max() iterable argument is empty`.~~
 
-Options to fully resolve (TECHDEBT-24 remaining item):
-- (a) Add an `init_case_status`-equivalent `default_factory` to
-  `VultronCase.case_statuses` using a `VultronCaseStatus` initializer.
-- (b) Have the `PersistCase` BT node convert `VultronCase` → `VulnerabilityCase`
-  before persisting.
-- (c) Add an empty-list guard to `VulnerabilityCase.current_status` (smallest
-  change, but treats the symptom not the root cause).
+~~Options to fully resolve (TECHDEBT-24 remaining item):~~
+~~- (a) Add an `init_case_status`-equivalent `default_factory` to~~
+~~  `VultronCase.case_statuses` using a `VultronCaseStatus` initializer.~~
+~~- (b) Have the `PersistCase` BT node convert `VultronCase` → `VulnerabilityCase`~~
+~~  before persisting.~~
+~~- (c) Add an empty-list guard to `VulnerabilityCase.current_status` (smallest~~
+~~  change, but treats the symptom not the root cause).~~
+→ TECHDEBT-24 complete (option a chosen). See `plan/IMPLEMENTATION_PLAN.md`.
 
 ## `vultron/api/v2/backend/handlers/__init__.py` is pointless?
 
-The handlers `__init__.py` currently contains a bunch of functions that are 
-basically just compatibility shims from a previous refactor. It seems like 
-these could be removed and their callers could just call the use cases 
-directly. For example:
+~~The handlers `__init__.py` currently contains a bunch of functions that are~~
+~~basically just compatibility shims from a previous refactor. It seems like~~
+~~these could be removed and their callers could just call the use cases~~
+~~directly. For example:~~
 
 ```python
 def create_report(dispatchable, dl=None):
@@ -136,25 +138,26 @@ def create_report(dispatchable, dl=None):
     )
 ```
 
-Also consider whether the `dispatchable` unwrapping logic is something that
-is still needed or if it is a relic of the pre-refactor architecture. If 
-it's not needed, then that would be another reason to remove these shims and 
-revise the code to interact directly with the use case ports.
+~~Also consider whether the `dispatchable` unwrapping logic is something that~~
+~~is still needed or if it is a relic of the pre-refactor architecture. If~~
+~~it's not needed, then that would be another reason to remove these shims and~~
+~~revise the code to interact directly with the use case ports.~~
+→ captured in `plan/IMPLEMENTATION_PLAN.md` as PREPX-2.
 
 ## Use py_trees `Status` enum instead of string comparisons
 
-py_trees defines a `Status` enum that is used for BT node return values. Some of
-the use cases currently do string comparisons against `result.status.name` to
-check for success or failure. This is a bit brittle and also not the intended
-way to use the `Status` enum. Instead, we should import the `Status` enum from
-`py_trees` and use it for status checks. For example, instead of:
+~~py_trees defines a `Status` enum that is used for BT node return values. Some of~~
+~~the use cases currently do string comparisons against `result.status.name` to~~
+~~check for success or failure. This is a bit brittle and also not the intended~~
+~~way to use the `Status` enum. Instead, we should import the `Status` enum from~~
+~~`py_trees` and use it for status checks. For example, instead of:~~
 
 ```python
 if result.status.name != "SUCCESS":
     # handle failure
 ```
 
-we should do:
+~~we should do:~~
 
 ```python
 from py_trees import Status
@@ -162,7 +165,7 @@ if result.status != Status.SUCCESS:
     # handle failure
 ```
 
-The status enum is defined in `py_trees.common` and looks like this:
+~~The status enum is defined in `py_trees.common` and looks like this:~~
 
 ```python
 class Status(enum.Enum):
@@ -178,6 +181,4 @@ class Status(enum.Enum):
     """Behaviour is uninitialised and/or in an inactive state, i.e. not currently being ticked."""
 ```
 
----
-
-
+→ captured in `plan/IMPLEMENTATION_PLAN.md` as PREPX-1.
