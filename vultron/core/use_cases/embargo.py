@@ -16,18 +16,19 @@ from vultron.core.models.events.embargo import (
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.use_cases._types import CaseModel, ParticipantModel
-from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class CreateEmbargoEventReceivedUseCase(
-    UseCase[CreateEmbargoEventReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class CreateEmbargoEventReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CreateEmbargoEventReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: CreateEmbargoEventReceivedEvent = request
 
-    def execute(self, request: CreateEmbargoEventReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             if _idempotent_create(
                 self._dl,
@@ -47,13 +48,15 @@ class CreateEmbargoEventReceivedUseCase(
             )
 
 
-class AddEmbargoEventToCaseReceivedUseCase(
-    UseCase[AddEmbargoEventToCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class AddEmbargoEventToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: AddEmbargoEventToCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: AddEmbargoEventToCaseReceivedEvent = request
 
-    def execute(self, request: AddEmbargoEventToCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             embargo_id = request.object_id
             case_id = request.target_id
@@ -88,15 +91,15 @@ class AddEmbargoEventToCaseReceivedUseCase(
             )
 
 
-class RemoveEmbargoEventFromCaseReceivedUseCase(
-    UseCase[RemoveEmbargoEventFromCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
-        self._dl = dl
-
-    def execute(
-        self, request: RemoveEmbargoEventFromCaseReceivedEvent
+class RemoveEmbargoEventFromCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: RemoveEmbargoEventFromCaseReceivedEvent
     ) -> None:
+        self._dl = dl
+        self._request: RemoveEmbargoEventFromCaseReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
         try:
             embargo_id = request.object_id
             case_id = request.origin_id
@@ -133,15 +136,15 @@ class RemoveEmbargoEventFromCaseReceivedUseCase(
             )
 
 
-class AnnounceEmbargoEventToCaseReceivedUseCase(
-    UseCase[AnnounceEmbargoEventToCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
-        self._dl = dl
-
-    def execute(
-        self, request: AnnounceEmbargoEventToCaseReceivedEvent
+class AnnounceEmbargoEventToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: AnnounceEmbargoEventToCaseReceivedEvent
     ) -> None:
+        self._dl = dl
+        self._request: AnnounceEmbargoEventToCaseReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
         try:
             logger.info(
                 "Received embargo announcement '%s' on case '%s'",
@@ -156,13 +159,15 @@ class AnnounceEmbargoEventToCaseReceivedUseCase(
             )
 
 
-class InviteToEmbargoOnCaseReceivedUseCase(
-    UseCase[InviteToEmbargoOnCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class InviteToEmbargoOnCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: InviteToEmbargoOnCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: InviteToEmbargoOnCaseReceivedEvent = request
 
-    def execute(self, request: InviteToEmbargoOnCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             if _idempotent_create(
                 self._dl,
@@ -182,15 +187,15 @@ class InviteToEmbargoOnCaseReceivedUseCase(
             )
 
 
-class AcceptInviteToEmbargoOnCaseReceivedUseCase(
-    UseCase[AcceptInviteToEmbargoOnCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
-        self._dl = dl
-
-    def execute(
-        self, request: AcceptInviteToEmbargoOnCaseReceivedEvent
+class AcceptInviteToEmbargoOnCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: AcceptInviteToEmbargoOnCaseReceivedEvent
     ) -> None:
+        self._dl = dl
+        self._request: AcceptInviteToEmbargoOnCaseReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
         try:
             embargo_id = request.inner_object_id
 
@@ -276,15 +281,15 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase(
             )
 
 
-class RejectInviteToEmbargoOnCaseReceivedUseCase(
-    UseCase[RejectInviteToEmbargoOnCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
-        self._dl = dl
-
-    def execute(
-        self, request: RejectInviteToEmbargoOnCaseReceivedEvent
+class RejectInviteToEmbargoOnCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: RejectInviteToEmbargoOnCaseReceivedEvent
     ) -> None:
+        self._dl = dl
+        self._request: RejectInviteToEmbargoOnCaseReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
         try:
             logger.info(
                 "Actor '%s' rejected embargo proposal '%s'",

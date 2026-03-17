@@ -50,7 +50,7 @@ def svc_validate_report(
         request = ValidateReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note
         )
-        return SvcValidateReportUseCase(dl).execute(request)
+        return SvcValidateReportUseCase(dl, request).execute()
     except VultronError as e:
         raise translate_domain_errors(e)
 
@@ -62,7 +62,7 @@ def svc_invalidate_report(
         request = InvalidateReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note
         )
-        return SvcInvalidateReportUseCase(dl).execute(request)
+        return SvcInvalidateReportUseCase(dl, request).execute()
     except VultronError as e:
         raise translate_domain_errors(e)
 
@@ -72,9 +72,9 @@ def svc_reject_report(
 ) -> dict:
     try:
         request = RejectReportTriggerRequest(
-            actor_id=actor_id, offer_id=offer_id, note=note
+            actor_id=actor_id, offer_id=offer_id, note=note or None
         )
-        return SvcRejectReportUseCase(dl).execute(request)
+        return SvcRejectReportUseCase(dl, request).execute()
     except VultronError as e:
         raise translate_domain_errors(e)
 
@@ -86,6 +86,6 @@ def svc_close_report(
         request = CloseReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note
         )
-        return SvcCloseReportUseCase(dl).execute(request)
+        return SvcCloseReportUseCase(dl, request).execute()
     except VultronError as e:
         raise translate_domain_errors(e)

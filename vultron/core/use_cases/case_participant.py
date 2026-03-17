@@ -11,18 +11,19 @@ from vultron.core.models.events.case_participant import (
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.use_cases._types import CaseModel
-from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class CreateCaseParticipantReceivedUseCase(
-    UseCase[CreateCaseParticipantReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class CreateCaseParticipantReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CreateCaseParticipantReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: CreateCaseParticipantReceivedEvent = request
 
-    def execute(self, request: CreateCaseParticipantReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             if _idempotent_create(
                 self._dl,
@@ -42,13 +43,15 @@ class CreateCaseParticipantReceivedUseCase(
             )
 
 
-class AddCaseParticipantToCaseReceivedUseCase(
-    UseCase[AddCaseParticipantToCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class AddCaseParticipantToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: AddCaseParticipantToCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: AddCaseParticipantToCaseReceivedEvent = request
 
-    def execute(self, request: AddCaseParticipantToCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             participant_id = request.object_id
             case_id = request.target_id
@@ -92,15 +95,17 @@ class AddCaseParticipantToCaseReceivedUseCase(
             )
 
 
-class RemoveCaseParticipantFromCaseReceivedUseCase(
-    UseCase[RemoveCaseParticipantFromCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
-        self._dl = dl
-
-    def execute(
-        self, request: RemoveCaseParticipantFromCaseReceivedEvent
+class RemoveCaseParticipantFromCaseReceivedUseCase:
+    def __init__(
+        self,
+        dl: DataLayer,
+        request: RemoveCaseParticipantFromCaseReceivedEvent,
     ) -> None:
+        self._dl = dl
+        self._request: RemoveCaseParticipantFromCaseReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
         try:
             participant_id = request.object_id
             case_id = request.target_id

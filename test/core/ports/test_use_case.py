@@ -38,16 +38,19 @@ def unknown_event():
 
 
 class TestUseCaseProtocol:
-    def test_protocol_is_generic(self):
-        assert hasattr(UseCase, "__class_getitem__")
+    def test_protocol_is_non_generic(self):
+        from typing import get_args
 
-    def test_unknown_use_case_satisfies_protocol(self, mock_dl):
-        use_case = UnknownUseCase(mock_dl)
+        # The new UseCase is non-generic: no type parameters
+        assert get_args(UseCase) == ()
+
+    def test_unknown_use_case_satisfies_protocol(self, mock_dl, unknown_event):
+        use_case = UnknownUseCase(mock_dl, unknown_event)
         assert hasattr(use_case, "execute")
         assert callable(use_case.execute)
 
-    def test_protocol_structural_check(self, mock_dl):
-        use_case: UseCase = UnknownUseCase(mock_dl)
+    def test_protocol_structural_check(self, mock_dl, unknown_event):
+        use_case: UseCase = UnknownUseCase(mock_dl, unknown_event)
         assert use_case is not None
 
 
@@ -55,16 +58,20 @@ class TestUnknownUseCase:
     def test_execute_logs_warning(self, mock_dl, unknown_event, caplog):
         import logging
 
-        use_case = UnknownUseCase(mock_dl)
+        use_case = UnknownUseCase(mock_dl, unknown_event)
         with caplog.at_level(logging.WARNING):
-            use_case.execute(unknown_event)
+            use_case.execute()
         assert any("unknown use case" in r.message for r in caplog.records)
 
     def test_execute_does_not_raise(self, mock_dl, unknown_event):
-        use_case = UnknownUseCase(mock_dl)
-        result = use_case.execute(unknown_event)
+        use_case = UnknownUseCase(mock_dl, unknown_event)
+        result = use_case.execute()
         assert result is None
 
-    def test_dl_injected_via_constructor(self, mock_dl):
-        use_case = UnknownUseCase(mock_dl)
+    def test_dl_injected_via_constructor(self, mock_dl, unknown_event):
+        use_case = UnknownUseCase(mock_dl, unknown_event)
         assert use_case._dl is mock_dl
+
+    def test_request_injected_via_constructor(self, mock_dl, unknown_event):
+        use_case = UnknownUseCase(mock_dl, unknown_event)
+        assert use_case._request is unknown_event

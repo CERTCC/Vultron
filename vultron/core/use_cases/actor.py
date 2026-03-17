@@ -18,18 +18,19 @@ from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.use_cases._types import CaseModel
-from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class SuggestActorToCaseReceivedUseCase(
-    UseCase[SuggestActorToCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class SuggestActorToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: SuggestActorToCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: SuggestActorToCaseReceivedEvent = request
 
-    def execute(self, request: SuggestActorToCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             if _idempotent_create(
                 self._dl,
@@ -48,13 +49,15 @@ class SuggestActorToCaseReceivedUseCase(
             )
 
 
-class AcceptSuggestActorToCaseReceivedUseCase(
-    UseCase[AcceptSuggestActorToCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class AcceptSuggestActorToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: AcceptSuggestActorToCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: AcceptSuggestActorToCaseReceivedEvent = request
 
-    def execute(self, request: AcceptSuggestActorToCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             if _idempotent_create(
                 self._dl,
@@ -73,13 +76,15 @@ class AcceptSuggestActorToCaseReceivedUseCase(
             )
 
 
-class RejectSuggestActorToCaseReceivedUseCase(
-    UseCase[RejectSuggestActorToCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class RejectSuggestActorToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: RejectSuggestActorToCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: RejectSuggestActorToCaseReceivedEvent = request
 
-    def execute(self, request: RejectSuggestActorToCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             logger.info(
                 "Actor '%s' rejected recommendation to add actor '%s' to case",
@@ -94,15 +99,15 @@ class RejectSuggestActorToCaseReceivedUseCase(
             )
 
 
-class OfferCaseOwnershipTransferReceivedUseCase(
-    UseCase[OfferCaseOwnershipTransferReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
-        self._dl = dl
-
-    def execute(
-        self, request: OfferCaseOwnershipTransferReceivedEvent
+class OfferCaseOwnershipTransferReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: OfferCaseOwnershipTransferReceivedEvent
     ) -> None:
+        self._dl = dl
+        self._request: OfferCaseOwnershipTransferReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
         try:
             if _idempotent_create(
                 self._dl,
@@ -121,15 +126,15 @@ class OfferCaseOwnershipTransferReceivedUseCase(
             )
 
 
-class AcceptCaseOwnershipTransferReceivedUseCase(
-    UseCase[AcceptCaseOwnershipTransferReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
-        self._dl = dl
-
-    def execute(
-        self, request: AcceptCaseOwnershipTransferReceivedEvent
+class AcceptCaseOwnershipTransferReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: AcceptCaseOwnershipTransferReceivedEvent
     ) -> None:
+        self._dl = dl
+        self._request: AcceptCaseOwnershipTransferReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
         try:
             case_id = request.inner_object_id
             new_owner_id = request.actor_id
@@ -168,15 +173,15 @@ class AcceptCaseOwnershipTransferReceivedUseCase(
             )
 
 
-class RejectCaseOwnershipTransferReceivedUseCase(
-    UseCase[RejectCaseOwnershipTransferReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
-        self._dl = dl
-
-    def execute(
-        self, request: RejectCaseOwnershipTransferReceivedEvent
+class RejectCaseOwnershipTransferReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: RejectCaseOwnershipTransferReceivedEvent
     ) -> None:
+        self._dl = dl
+        self._request: RejectCaseOwnershipTransferReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
         try:
             logger.info(
                 "Actor '%s' rejected ownership transfer offer '%s' — ownership unchanged",
@@ -191,13 +196,15 @@ class RejectCaseOwnershipTransferReceivedUseCase(
             )
 
 
-class InviteActorToCaseReceivedUseCase(
-    UseCase[InviteActorToCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class InviteActorToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: InviteActorToCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: InviteActorToCaseReceivedEvent = request
 
-    def execute(self, request: InviteActorToCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             if _idempotent_create(
                 self._dl,
@@ -216,13 +223,15 @@ class InviteActorToCaseReceivedUseCase(
             )
 
 
-class AcceptInviteActorToCaseReceivedUseCase(
-    UseCase[AcceptInviteActorToCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class AcceptInviteActorToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: AcceptInviteActorToCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: AcceptInviteActorToCaseReceivedEvent = request
 
-    def execute(self, request: AcceptInviteActorToCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             case_id = request.inner_target_id
             invitee_id = request.inner_object_id
@@ -279,13 +288,15 @@ class AcceptInviteActorToCaseReceivedUseCase(
             )
 
 
-class RejectInviteActorToCaseReceivedUseCase(
-    UseCase[RejectInviteActorToCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class RejectInviteActorToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: RejectInviteActorToCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: RejectInviteActorToCaseReceivedEvent = request
 
-    def execute(self, request: RejectInviteActorToCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             logger.info(
                 "Actor '%s' rejected invitation '%s'",

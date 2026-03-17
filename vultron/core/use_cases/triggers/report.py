@@ -16,9 +16,10 @@
 """
 Class-based use cases for report-level trigger behaviors.
 
-Each class accepts a ``DataLayer`` at construction time and exposes a single
-``execute(request)`` method.  Helper function ``_resolve_offer_and_report``
-is kept at module level because it may be shared by multiple classes.
+Each class accepts a ``DataLayer`` and ``request`` at construction time and
+exposes a single ``execute()`` method.  Helper function
+``_resolve_offer_and_report`` is kept at module level because it may be
+shared by multiple classes.
 
 No HTTP framework imports (FastAPI, Starlette) are permitted here.
 """
@@ -55,7 +56,6 @@ from vultron.errors import (
     VultronNotFoundError,
     VultronValidationError,
 )
-from vultron.core.ports.use_case import UseCase
 from vultron.wire.as2.vocab.activities.report import (
     RmCloseReportActivity,
     RmInvalidateReportActivity,
@@ -85,13 +85,17 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
     return offer, report
 
 
-class SvcValidateReportUseCase(UseCase[ValidateReportTriggerRequest, dict]):
+class SvcValidateReportUseCase:
     """Validate a report offer using the ValidateReportBT behavior tree."""
 
-    def __init__(self, dl: DataLayer) -> None:
+    def __init__(
+        self, dl: DataLayer, request: ValidateReportTriggerRequest
+    ) -> None:
         self._dl = dl
+        self._request: ValidateReportTriggerRequest = request
 
-    def execute(self, request: ValidateReportTriggerRequest) -> dict:
+    def execute(self) -> dict:
+        request = self._request
         actor_id = request.actor_id
         offer_id = request.offer_id
         note = request.note
@@ -133,15 +137,17 @@ class SvcValidateReportUseCase(UseCase[ValidateReportTriggerRequest, dict]):
         return {"activity": activity}
 
 
-class SvcInvalidateReportUseCase(
-    UseCase[InvalidateReportTriggerRequest, dict]
-):
+class SvcInvalidateReportUseCase:
     """Emit RmInvalidateReportActivity (TentativeReject) for the given offer."""
 
-    def __init__(self, dl: DataLayer) -> None:
+    def __init__(
+        self, dl: DataLayer, request: InvalidateReportTriggerRequest
+    ) -> None:
         self._dl = dl
+        self._request: InvalidateReportTriggerRequest = request
 
-    def execute(self, request: InvalidateReportTriggerRequest) -> dict:
+    def execute(self) -> dict:
+        request = self._request
         actor_id = request.actor_id
         offer_id = request.offer_id
         dl = self._dl
@@ -196,13 +202,17 @@ class SvcInvalidateReportUseCase(
         return {"activity": activity}
 
 
-class SvcRejectReportUseCase(UseCase[RejectReportTriggerRequest, dict]):
+class SvcRejectReportUseCase:
     """Hard-close a report offer by emitting RmCloseReportActivity (Reject)."""
 
-    def __init__(self, dl: DataLayer) -> None:
+    def __init__(
+        self, dl: DataLayer, request: RejectReportTriggerRequest
+    ) -> None:
         self._dl = dl
+        self._request: RejectReportTriggerRequest = request
 
-    def execute(self, request: RejectReportTriggerRequest) -> dict:
+    def execute(self) -> dict:
+        request = self._request
         actor_id = request.actor_id
         offer_id = request.offer_id
         note = request.note
@@ -257,13 +267,17 @@ class SvcRejectReportUseCase(UseCase[RejectReportTriggerRequest, dict]):
         return {"activity": activity}
 
 
-class SvcCloseReportUseCase(UseCase[CloseReportTriggerRequest, dict]):
+class SvcCloseReportUseCase:
     """Close a report via the RM lifecycle (RM → C transition)."""
 
-    def __init__(self, dl: DataLayer) -> None:
+    def __init__(
+        self, dl: DataLayer, request: CloseReportTriggerRequest
+    ) -> None:
         self._dl = dl
+        self._request: CloseReportTriggerRequest = request
 
-    def execute(self, request: CloseReportTriggerRequest) -> dict:
+    def execute(self) -> dict:
+        request = self._request
         actor_id = request.actor_id
         offer_id = request.offer_id
         note = request.note

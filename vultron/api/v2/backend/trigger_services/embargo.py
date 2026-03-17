@@ -50,7 +50,7 @@ def svc_propose_embargo(
         request = ProposeEmbargoTriggerRequest(
             actor_id=actor_id, case_id=case_id, note=note, end_time=end_time
         )
-        return SvcProposeEmbargoUseCase(dl).execute(request)
+        return SvcProposeEmbargoUseCase(dl, request).execute()
     except VultronError as e:
         raise translate_domain_errors(e)
 
@@ -65,7 +65,7 @@ def svc_evaluate_embargo(
         request = EvaluateEmbargoTriggerRequest(
             actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
         )
-        return SvcEvaluateEmbargoUseCase(dl).execute(request)
+        return SvcEvaluateEmbargoUseCase(dl, request).execute()
     except VultronError as e:
         raise translate_domain_errors(e)
 
@@ -75,6 +75,6 @@ def svc_terminate_embargo(actor_id: str, case_id: str, dl: DataLayer) -> dict:
         request = TerminateEmbargoTriggerRequest(
             actor_id=actor_id, case_id=case_id
         )
-        return SvcTerminateEmbargoUseCase(dl).execute(request)
+        return SvcTerminateEmbargoUseCase(dl, request).execute()
     except VultronError as e:
         raise translate_domain_errors(e)

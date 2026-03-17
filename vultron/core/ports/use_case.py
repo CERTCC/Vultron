@@ -13,44 +13,32 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Generic ``UseCase`` protocol for core domain use cases.
+"""Core UseCase protocol for domain use cases.
 
-``UseCase[Req, Res]`` is the standard interface all use-case classes implement.
-Each use case:
+A UseCase encapsulates a single business operation. The DataLayer and
+request object are supplied at construction time; the request is validated
+during ``__init__`` so that ``execute()`` can focus entirely on business logic.
 
-* accepts **exactly one request object** (typically a ``VultronEvent`` subclass
-  or a trigger-specific request model)
-* returns **exactly one response object** (or ``None`` for fire-and-forget cases)
-* exposes a single ``execute(request)`` entry point
+Usage::
 
-The ``DataLayer`` instance required by most use cases is supplied at
-construction time so that adapters interact with use cases through a uniform
-``execute()`` call regardless of their internal dependencies.
-
-See ``notes/use-case-behavior-trees.md`` "Standardized Use Case Interface" for
-the rationale and migration guidance.  P75-4 MUST convert every use case it
-touches to this class interface — do not leave behind any mix of old-style
-``fn(event, dl)`` callables alongside the new class-based ones within a single
-migration batch.
+    use_case = SomeUseCase(dl=data_layer, request=some_request)
+    result = use_case.execute()
 """
 
-from typing import Generic, Protocol, TypeVar
-
-Req = TypeVar("Req")
-Res = TypeVar("Res")
+from typing import Any, Protocol
 
 
-class UseCase(Protocol[Req, Res]):
+class UseCase(Protocol):
     """Driving port for a single core domain use case.
 
-    Adapters obtain a ``UseCase`` instance (with ``DataLayer`` already
-    injected) and call ``execute(request)`` without knowing the concrete
-    implementation.
+    Concrete implementations must:
 
-    Type parameters:
-
-    * ``Req`` — the request type (a domain event or trigger request model)
-    * ``Res`` — the response type; use ``None`` for fire-and-forget cases
+    * Accept ``dl`` (a ``DataLayer``) and ``request`` (a domain event or
+      trigger request model) in ``__init__`` and validate the request there.
+    * Return the result from ``execute()``; use ``None`` for fire-and-forget
+      cases.
     """
 
-    def execute(self, request: Req) -> Res: ...
+    def __init__(self, dl: Any, request: Any) -> None: ...
+
+    def execute(self) -> Any: ...

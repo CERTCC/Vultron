@@ -64,7 +64,7 @@ class DispatcherBase:
 
     def _handle(self, event: "VultronEvent", dl: "DataLayer") -> None:
         use_case_class = self._get_use_case(event.semantic_type)
-        use_case_class(dl).execute(event)
+        use_case_class(dl, event).execute()
 
     def _get_use_case(self, semantics: MessageSemantics) -> type:
         use_case_class = self._use_case_map.get(semantics)

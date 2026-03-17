@@ -12,18 +12,19 @@ from vultron.core.models.events.status import (
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.use_cases._types import CaseModel, ParticipantModel
-from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class CreateCaseStatusReceivedUseCase(
-    UseCase[CreateCaseStatusReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class CreateCaseStatusReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CreateCaseStatusReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: CreateCaseStatusReceivedEvent = request
 
-    def execute(self, request: CreateCaseStatusReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             if _idempotent_create(
                 self._dl,
@@ -43,13 +44,15 @@ class CreateCaseStatusReceivedUseCase(
             )
 
 
-class AddCaseStatusToCaseReceivedUseCase(
-    UseCase[AddCaseStatusToCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class AddCaseStatusToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: AddCaseStatusToCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: AddCaseStatusToCaseReceivedEvent = request
 
-    def execute(self, request: AddCaseStatusToCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             status_id = request.object_id
             case_id = request.target_id
@@ -91,13 +94,15 @@ class AddCaseStatusToCaseReceivedUseCase(
             )
 
 
-class CreateParticipantStatusReceivedUseCase(
-    UseCase[CreateParticipantStatusReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class CreateParticipantStatusReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CreateParticipantStatusReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: CreateParticipantStatusReceivedEvent = request
 
-    def execute(self, request: CreateParticipantStatusReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             if _idempotent_create(
                 self._dl,
@@ -117,15 +122,17 @@ class CreateParticipantStatusReceivedUseCase(
             )
 
 
-class AddParticipantStatusToParticipantReceivedUseCase(
-    UseCase[AddParticipantStatusToParticipantReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
-        self._dl = dl
-
-    def execute(
-        self, request: AddParticipantStatusToParticipantReceivedEvent
+class AddParticipantStatusToParticipantReceivedUseCase:
+    def __init__(
+        self,
+        dl: DataLayer,
+        request: AddParticipantStatusToParticipantReceivedEvent,
     ) -> None:
+        self._dl = dl
+        self._request: AddParticipantStatusToParticipantReceivedEvent = request
+
+    def execute(self) -> None:
+        request = self._request
         try:
             status_id = request.object_id
             participant_id = request.target_id

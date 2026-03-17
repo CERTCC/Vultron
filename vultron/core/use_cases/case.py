@@ -15,7 +15,6 @@ from vultron.core.models.vultron_types import VultronActivity
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import _as_id
 from vultron.core.use_cases._types import CaseModel
-from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +47,15 @@ def _check_participant_embargo_acceptance(
             )
 
 
-class CreateCaseReceivedUseCase(UseCase[CreateCaseReceivedEvent, None]):
-    def __init__(self, dl: DataLayer) -> None:
+class CreateCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CreateCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: CreateCaseReceivedEvent = request
 
-    def execute(self, request: CreateCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.case.create_tree import (
             create_create_case_tree,
@@ -94,11 +97,15 @@ class CreateCaseReceivedUseCase(UseCase[CreateCaseReceivedEvent, None]):
             )
 
 
-class UpdateCaseReceivedUseCase(UseCase[UpdateCaseReceivedEvent, None]):
-    def __init__(self, dl: DataLayer) -> None:
+class UpdateCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: UpdateCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: UpdateCaseReceivedEvent = request
 
-    def execute(self, request: UpdateCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             actor_id = request.actor_id
             case_id = request.object_id
@@ -146,11 +153,15 @@ class UpdateCaseReceivedUseCase(UseCase[UpdateCaseReceivedEvent, None]):
             )
 
 
-class EngageCaseReceivedUseCase(UseCase[EngageCaseReceivedEvent, None]):
-    def __init__(self, dl: DataLayer) -> None:
+class EngageCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: EngageCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: EngageCaseReceivedEvent = request
 
-    def execute(self, request: EngageCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.report.prioritize_tree import (
             create_engage_case_tree,
@@ -187,11 +198,13 @@ class EngageCaseReceivedUseCase(UseCase[EngageCaseReceivedEvent, None]):
             )
 
 
-class DeferCaseReceivedUseCase(UseCase[DeferCaseReceivedEvent, None]):
-    def __init__(self, dl: DataLayer) -> None:
+class DeferCaseReceivedUseCase:
+    def __init__(self, dl: DataLayer, request: DeferCaseReceivedEvent) -> None:
         self._dl = dl
+        self._request: DeferCaseReceivedEvent = request
 
-    def execute(self, request: DeferCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.report.prioritize_tree import (
             create_defer_case_tree,
@@ -228,13 +241,15 @@ class DeferCaseReceivedUseCase(UseCase[DeferCaseReceivedEvent, None]):
             )
 
 
-class AddReportToCaseReceivedUseCase(
-    UseCase[AddReportToCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class AddReportToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: AddReportToCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: AddReportToCaseReceivedEvent = request
 
-    def execute(self, request: AddReportToCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             report_id = request.object_id
             case_id = request.target_id
@@ -269,11 +284,13 @@ class AddReportToCaseReceivedUseCase(
             )
 
 
-class CloseCaseReceivedUseCase(UseCase[CloseCaseReceivedEvent, None]):
-    def __init__(self, dl: DataLayer) -> None:
+class CloseCaseReceivedUseCase:
+    def __init__(self, dl: DataLayer, request: CloseCaseReceivedEvent) -> None:
         self._dl = dl
+        self._request: CloseCaseReceivedEvent = request
 
-    def execute(self, request: CloseCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             actor_id = request.actor_id
             case_id = request.object_id

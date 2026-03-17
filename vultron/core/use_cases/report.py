@@ -18,16 +18,19 @@ from vultron.core.models.status import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.bt.report_management.states import RM
-from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class CreateReportReceivedUseCase(UseCase[CreateReportReceivedEvent, None]):
-    def __init__(self, dl: DataLayer) -> None:
+class CreateReportReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CreateReportReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: CreateReportReceivedEvent = request
 
-    def execute(self, request: CreateReportReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         obj_to_store = request.report
         if obj_to_store is not None:
             try:
@@ -57,11 +60,15 @@ class CreateReportReceivedUseCase(UseCase[CreateReportReceivedEvent, None]):
                 )
 
 
-class SubmitReportReceivedUseCase(UseCase[SubmitReportReceivedEvent, None]):
-    def __init__(self, dl: DataLayer) -> None:
+class SubmitReportReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: SubmitReportReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: SubmitReportReceivedEvent = request
 
-    def execute(self, request: SubmitReportReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         obj_to_store = request.report
         if obj_to_store is not None:
             try:
@@ -91,13 +98,15 @@ class SubmitReportReceivedUseCase(UseCase[SubmitReportReceivedEvent, None]):
                 )
 
 
-class ValidateReportReceivedUseCase(
-    UseCase[ValidateReportReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class ValidateReportReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: ValidateReportReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: ValidateReportReceivedEvent = request
 
-    def execute(self, request: ValidateReportReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         from py_trees.common import Status
         from vultron.core.behaviors.bridge import BTBridge
         from vultron.core.behaviors.report.validate_tree import (
@@ -140,13 +149,15 @@ class ValidateReportReceivedUseCase(
             )
 
 
-class InvalidateReportReceivedUseCase(
-    UseCase[InvalidateReportReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class InvalidateReportReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: InvalidateReportReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: InvalidateReportReceivedEvent = request
 
-    def execute(self, request: InvalidateReportReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             actor_id = request.actor_id
             logger.info(
@@ -193,11 +204,13 @@ class InvalidateReportReceivedUseCase(
             )
 
 
-class AckReportReceivedUseCase(UseCase[AckReportReceivedEvent, None]):
-    def __init__(self, dl: DataLayer) -> None:
+class AckReportReceivedUseCase:
+    def __init__(self, dl: DataLayer, request: AckReportReceivedEvent) -> None:
         self._dl = dl
+        self._request: AckReportReceivedEvent = request
 
-    def execute(self, request: AckReportReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             logger.info(
                 "Actor '%s' acknowledges receipt of offer '%s' of VulnerabilityReport '%s'",
@@ -226,11 +239,15 @@ class AckReportReceivedUseCase(UseCase[AckReportReceivedEvent, None]):
             )
 
 
-class CloseReportReceivedUseCase(UseCase[CloseReportReceivedEvent, None]):
-    def __init__(self, dl: DataLayer) -> None:
+class CloseReportReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CloseReportReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: CloseReportReceivedEvent = request
 
-    def execute(self, request: CloseReportReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             actor_id = request.actor_id
             logger.info(

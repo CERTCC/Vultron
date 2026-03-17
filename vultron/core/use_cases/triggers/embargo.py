@@ -47,18 +47,21 @@ from vultron.wire.as2.vocab.activities.embargo import (
     EmProposeEmbargoActivity,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class SvcProposeEmbargoUseCase(UseCase[ProposeEmbargoTriggerRequest, dict]):
+class SvcProposeEmbargoUseCase:
     """Propose an embargo on a case."""
 
-    def __init__(self, dl: DataLayer) -> None:
+    def __init__(
+        self, dl: DataLayer, request: ProposeEmbargoTriggerRequest
+    ) -> None:
         self._dl = dl
+        self._request: ProposeEmbargoTriggerRequest = request
 
-    def execute(self, request: ProposeEmbargoTriggerRequest) -> dict:
+    def execute(self) -> dict:
+        request = self._request
         actor_id = request.actor_id
         case_id = request.case_id
         note = request.note
@@ -136,13 +139,17 @@ class SvcProposeEmbargoUseCase(UseCase[ProposeEmbargoTriggerRequest, dict]):
         return {"activity": activity}
 
 
-class SvcEvaluateEmbargoUseCase(UseCase[EvaluateEmbargoTriggerRequest, dict]):
+class SvcEvaluateEmbargoUseCase:
     """Accept an embargo proposal (evaluate-embargo)."""
 
-    def __init__(self, dl: DataLayer) -> None:
+    def __init__(
+        self, dl: DataLayer, request: EvaluateEmbargoTriggerRequest
+    ) -> None:
         self._dl = dl
+        self._request: EvaluateEmbargoTriggerRequest = request
 
-    def execute(self, request: EvaluateEmbargoTriggerRequest) -> dict:
+    def execute(self) -> dict:
+        request = self._request
         actor_id = request.actor_id
         case_id = request.case_id
         proposal_id = request.proposal_id
@@ -220,15 +227,17 @@ class SvcEvaluateEmbargoUseCase(UseCase[EvaluateEmbargoTriggerRequest, dict]):
         return {"activity": activity}
 
 
-class SvcTerminateEmbargoUseCase(
-    UseCase[TerminateEmbargoTriggerRequest, dict]
-):
+class SvcTerminateEmbargoUseCase:
     """Terminate the active embargo on a case."""
 
-    def __init__(self, dl: DataLayer) -> None:
+    def __init__(
+        self, dl: DataLayer, request: TerminateEmbargoTriggerRequest
+    ) -> None:
         self._dl = dl
+        self._request: TerminateEmbargoTriggerRequest = request
 
-    def execute(self, request: TerminateEmbargoTriggerRequest) -> dict:
+    def execute(self) -> dict:
+        request = self._request
         actor_id = request.actor_id
         case_id = request.case_id
         dl = self._dl

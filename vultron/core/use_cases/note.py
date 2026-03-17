@@ -11,16 +11,19 @@ from vultron.core.models.events.note import (
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.use_cases._types import CaseModel
-from vultron.core.ports.use_case import UseCase
 
 logger = logging.getLogger(__name__)
 
 
-class CreateNoteReceivedUseCase(UseCase[CreateNoteReceivedEvent, None]):
-    def __init__(self, dl: DataLayer) -> None:
+class CreateNoteReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CreateNoteReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: CreateNoteReceivedEvent = request
 
-    def execute(self, request: CreateNoteReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             if _idempotent_create(
                 self._dl,
@@ -40,11 +43,15 @@ class CreateNoteReceivedUseCase(UseCase[CreateNoteReceivedEvent, None]):
             )
 
 
-class AddNoteToCaseReceivedUseCase(UseCase[AddNoteToCaseReceivedEvent, None]):
-    def __init__(self, dl: DataLayer) -> None:
+class AddNoteToCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: AddNoteToCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: AddNoteToCaseReceivedEvent = request
 
-    def execute(self, request: AddNoteToCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             note_id = request.object_id
             case_id = request.target_id
@@ -77,13 +84,15 @@ class AddNoteToCaseReceivedUseCase(UseCase[AddNoteToCaseReceivedEvent, None]):
             )
 
 
-class RemoveNoteFromCaseReceivedUseCase(
-    UseCase[RemoveNoteFromCaseReceivedEvent, None]
-):
-    def __init__(self, dl: DataLayer) -> None:
+class RemoveNoteFromCaseReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: RemoveNoteFromCaseReceivedEvent
+    ) -> None:
         self._dl = dl
+        self._request: RemoveNoteFromCaseReceivedEvent = request
 
-    def execute(self, request: RemoveNoteFromCaseReceivedEvent) -> None:
+    def execute(self) -> None:
+        request = self._request
         try:
             note_id = request.object_id
             case_id = request.target_id
