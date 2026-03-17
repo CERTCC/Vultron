@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-17 (refresh #44: P75-5 complete)
+**Last Updated**: 2026-03-17 (refresh #45: IDEAS.md migration complete, VCR-0317 tasks captured)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 893 passing, 5581 subtests, 5 warnings (2026-03-16, after P75-4)
+**Test suite**: 913 passing, 5581 subtests, 5 warnings (2026-03-17, after P75-5)
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -501,7 +501,169 @@ from Deferred section after P75-4 completion.
 
 ---
 
-### Phase OUTBOX-1 — Outbox Local Delivery (lower priority)
+### Phase VCR-0317 — Architecture Consolidation (2026-03-17 Code Review)
+
+**Source**: `plan/IDEAS.md` VCR-0317 code review items (March 17, 2026).
+Organized into batches by concern. These tasks are part of PRIORITY-80.
+
+#### Batch VCR-A — Dead code and shim removal
+
+All items in this batch are pure deletions with no behaviour change.
+Batch together where possible.
+
+- [ ] **VCR-001**: Delete `vultron/adapters/driven/dns_resolver.py` stub —
+  DNS resolution is an adapter-level detail with no current callers; the file
+  is a placeholder with no implementation.
+- [ ] **VCR-006**: Delete `vultron/api/v2/backend/handler_map.py` — this is a
+  shim that re-exports `USE_CASE_MAP` as `SEMANTICS_HANDLERS`. Verify no callers
+  remain, then delete. Update any imports to use `USE_CASE_MAP` directly from
+  `vultron.core.use_cases.use_case_map`. (Depends on PREPX-2.)
+- [ ] **VCR-015a**: Delete `vultron/api/v2/data/status.py` — this is a shim
+  re-exporting status helpers. Update callers to import directly from the
+  canonical source (`vultron.core.models.status`).
+- [ ] **VCR-015b**: Delete `vultron/api/v2/data/types.py` if it has no active
+  callers — confirm via search before deleting.
+- [ ] **VCR-024**: Delete `vultron/core/ports/dns_resolver.py` — DNS resolution
+  is an adapter concern; no port interface is needed. Verify no callers, then
+  delete.
+- [ ] **VCR-030**: Delete `vultron/sim/` module — it is no longer needed.
+  Verify no callers, then delete the directory.
+- [ ] **VCR-031**: Delete `vultron/behavior_dispatcher.py` — backward-compat
+  shim. Update all callers to import from the correct location before deleting.
+  Verify via grep, then delete.
+- [ ] **VCR-032**: Merge `vultron/dispatcher_errors.py` into `vultron/errors.py`
+  or `vultron/core/errors.py` as appropriate. Verify no circular imports, update
+  callers, then delete the old file.
+
+#### Batch VCR-B — API v2 → adapters consolidation
+
+These tasks consolidate `vultron/api/v2/` into `vultron/adapters/driving/fastapi/`.
+They are larger structural changes; plan as a single coordinated PR.
+
+- [ ] **VCR-003/004/007/008/009/017/018**: Create `vultron/adapters/driving/fastapi/`
+  subpackage. Move:
+
+  - `vultron/api/v2/routers/` → `vultron/adapters/driving/fastapi/routers/`
+  - `vultron/api/app.py` → `vultron/adapters/driving/fastapi/app.py`
+  - `vultron/api/v2/backend/inbox_handler.py` → consolidate with
+    `vultron/adapters/driving/http_inbox.py` (evaluate duplication first)
+  - `vultron/api/v2/outbox_handler.py` → consolidate with
+    `vultron/adapters/driven/http_delivery.py` (evaluate duplication first)
+
+  The API is an adapter. After consolidation, `vultron/api/` should contain
+  only backward-compat shims (or be deleted entirely). Update `pyproject.toml`
+  entry points, demo scripts, and project documentation accordingly.
+  Do NOT leave compatibility shims behind after the move is verified.
+
+- [ ] **VCR-016**: Evaluate `vultron/api/v2/data/utils.py` — determine whether
+  utilities belong in `core/` (if core has duplicative needs) or in adapters
+  (if adapter-only). Move to the correct location and update callers.
+
+#### Batch VCR-C — Core models and port cleanup
+
+- [ ] **VCR-014**: Remove `vultron/api/v2/data/actor_io.py` after the role of
+  in-memory inbox/outbox is resolved per ACT-1 ADR design decision. This file
+  predates the DataLayer port abstraction and is not per-actor isolated.
+  Resolution may be migration into DataLayer or formalization as a queue adapter.
+
+- [ ] **VCR-019a**: Move enums and state machine definitions from
+  `vultron/case_states/` into `vultron/core/`. Integrate the error hierarchy
+  from `case_states/` into the core error hierarchy. Do not leave compatibility
+  shims behind.
+
+- [ ] **VCR-019b**: Move `states.py` enums from each `vultron/bt/**/` submodule
+  (embargo management, report management, messaging, bt top-level) into
+  `vultron/core/`. Update all imports in `vultron/bt/`. Do not leave shims.
+
+- [ ] **VCR-019c**: Study task — identify which enums across `case_states/` and
+  `bt/**/states.py` can be consolidated. Be conservative: do NOT add or remove
+  RM, EM, or CS model states. Document findings before implementing.
+
+- [ ] **VCR-019d** (future): Consider using the `transitions` module to model
+  RM/EM/CS state machines once enum consolidation is complete. Defer until after
+  VCR-019a/b/c are done.
+
+- [ ] **VCR-019e**: Convert older non-StrEnum Enums to `StrEnum` where semantically
+  appropriate (i.e., where string representation is the primary use). Apply
+  selectively based on VCR-019c study results; do not blindly convert all enums.
+
+- [ ] **VCR-020**: Ensure `VultronEvent.activity` is required (not `| None`) in
+  the base class or narrow it to required in every concrete subclass that always
+  carries an activity. Aligns with the fail-fast design constraint (ARCH-10-001).
+
+- [ ] **VCR-021a**: Clarify whether `VultronActivity` (in
+  `vultron/core/models/activity`) and `VultronEvent` (in
+  `vultron/core/models/events/base.py`) are the same concept or distinct.
+  If distinct, document the distinction clearly. If equivalent, consolidate.
+
+- [ ] **VCR-021b**: Make core event model fields non-optional where the field is
+  always present for that semantic type (e.g., `report` in
+  `CreateReportReceivedEvent`, `case` in `CreateCaseReceivedEvent`).
+  Fields typed as `X | None` that are never `None` in practice MUST be
+  narrowed in the subclass. Batch with VCR-020.
+
+- [ ] **VCR-022**: This is equivalent to **TECHDEBT-16** — add a `VultronObject`
+  base class in `vultron/core/models/` so all domain model classes inherit from a
+  single root rather than directly from `BaseModel`. The base class should capture
+  common fields (`id`, `name`, `created_at`, `updated_at`, etc.) matching
+  ActivityStreams object fields where appropriate. See TECHDEBT-16 entry above.
+
+- [ ] **VCR-023**: Update `notes/architecture-ports-and-adapters.md` references
+  to `delivery_queue.py` to reflect that the delivery-queue concept has been
+  superseded by the emitter. Delete `vultron/core/ports/delivery_queue.py` after
+  confirming no callers; `core/ports/emitter.py` (OX-1.0) is the correct
+  replacement. Also update any code examples in the notes that reference
+  `DeliveryQueue`.
+
+- [ ] **VCR-025**: Evaluate whether `vultron/core/ports/dispatcher.py`
+  (`ActivityDispatcher` Protocol) is still needed, or whether the `UseCase` port
+  fully covers the dispatch contract. Do not remove without a validated migration
+  plan and passing tests. Document the decision in AGENTS.md or an ADR.
+
+- [ ] **VCR-026**: Ensure all port files in `core/ports/` are clearly labelled
+  as inbound or outbound in their module docstrings. Remove ports that no longer
+  correspond to active interfaces (see VCR-024, VCR-025).
+  Cross-reference: `specs/architecture.md` ARCH-11-001.
+
+- [ ] **VCR-027**: Evaluate `vultron/core/use_cases/_types.py` — determine
+  whether the Protocol types defined there (`CaseModel`, `ParticipantModel`, etc.)
+  belong in `vultron/core/models/` instead. If so, move them and update callers.
+  This supports the goal of a clean domain model hierarchy (VCR-022/TECHDEBT-16).
+
+- [ ] **VCR-028**: Remove unnecessary `if _idempotent_create(...): return` guard
+  patterns in use cases where the method return value already handles early exit.
+  Verify logic is unchanged, then simplify.
+
+- [ ] **VCR-029**: Equivalent to VCR-021b — make required fields on core event
+  models non-optional. Captured in VCR-021b above.
+
+#### Batch VCR-D — Trigger service cleanup
+
+- [ ] **VCR-010**: Rename trigger service functions in
+  `vultron/api/v2/backend/trigger_services/` from `svc_xxx` prefix to `xxx_trigger`
+  suffix (e.g., `svc_engage_case` → `engage_case_trigger`). Update all callers.
+  The `Svc` prefix is reserved for use-case class names only.
+
+- [ ] **VCR-011**: Abstract the repeated `try: ... except VultronError: ...` pattern
+  in `trigger_services/embargo.py`, `trigger_services/report.py`, and
+  `trigger_services/case.py` into a shared decorator or context manager. Apply
+  consistently across all trigger service functions.
+
+- [ ] **VCR-012**: Review `vultron/api/v2/backend/trigger_services/_models.py` for
+  models that duplicate or overlap with `vultron/core/models/` or
+  `vultron/core/use_cases/_types.py`. Move duplicates to core and update callers.
+  Most trigger request models should ultimately live in core.
+
+#### Batch VCR-E — New feature: actor discovery endpoint
+
+- [ ] **VCR-005**: Add `GET /actors/{actor_id}/profile` endpoint returning an
+  ActivityStreams-style actor profile (inbox URL, outbox URL, profile fields) for
+  actor discovery. This is required for multi-server discovery (PRIORITY-300).
+  Add to the appropriate router in `adapters/driving/fastapi/` (or `api/v2/routers/`
+  before the consolidation). Add tests. Document in `specs/agentic-readiness.md`
+  or create a new spec if needed.
+
+---
 
 **Reference**: `specs/outbox.md` OX-03, OX-04
 
@@ -541,25 +703,87 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
 
 ---
 
+### Pre-P100 Prerequisite Tasks
+
+These tasks MUST be completed before the first P100 (ACT-2) commit lands.
+They are extracted from the 2026-03-17 Priority-100 readiness review.
+
+**Source**: `plan/IDEAS.md` "Priority 100 pre-implementation Review" section.
+
+#### PREPX-1 — Fix BT status string comparisons in `core/use_cases/case.py`
+
+**Priority**: High (promoted from Deferred; brittle pattern in core P100 path)
+
+- [ ] **PREPX-1**: Replace `result.status.name != "SUCCESS"` string comparisons
+  with `result.status != Status.SUCCESS` enum comparisons in
+  `EngageCaseReceivedUseCase`, `DeferCaseReceivedUseCase`, and
+  `CreateCaseReceivedUseCase` in `vultron/core/use_cases/case.py` (3 sites at
+  approx. lines 84, 170, 206). Import `from py_trees.common import Status`.
+  No logic change. Done when all three comparisons use the enum and tests pass.
+
+#### PREPX-2 — Remove `handlers/__init__.py` backward-compat shim layer
+
+**Priority**: High (architectural layer that P100 handler changes must thread through)
+
+- [ ] **PREPX-2**: Delete `vultron/api/v2/backend/handlers/__init__.py` and
+  `handlers/_shim.py` (the compatibility wrappers that re-export every use case
+  as a thin wrapper around `XxxReceivedUseCase(dl).execute()`). Update
+  `test/api/v2/backend/test_handlers.py` and `test/api/v2/test_reporting_workflow.py`
+  to call use-case classes directly with `VultronEvent` objects. Done when the
+  shim files are deleted, tests call use cases directly, and the test suite passes.
+
+#### PREPX-3 — Remove `DispatchEvent` and `InboundPayload` deprecated aliases
+
+**Priority**: High (deprecated API in active test use — must follow PREPX-2)
+
+- [ ] **PREPX-3**: Remove the `DispatchEvent` deprecated wrapper from
+  `vultron/types.py` (P75-2c) and the `InboundPayload` backward-compat alias
+  from `vultron/core/models/events/__init__.py`. These are consumed only by the
+  test files addressed in PREPX-2. Do after PREPX-2. Done when neither alias
+  exists in the codebase, all tests pass, and no imports reference them.
+  **Depends on PREPX-2.**
+
+---
+
 ### Phase PRIORITY-100 — Actor Independence (PRIORITY 100)
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 100,
 `specs/case-management.md` CM-01,
 `notes/domain-model-separation.md` (Per-Actor DataLayer Isolation Options)
 
-**Blocked by**: PRIORITY-70 (complete ✅)
+**Blocked by**: PRIORITY-70 (complete ✅), PREPX-1, PREPX-2, PREPX-3
 
 - [ ] **ACT-1**: Draft ADR for per-actor DataLayer isolation — document options
   (Option B: TinyDB namespace prefix; MongoDB community for production),
   trade-offs, and migration path. The MongoDB approach is recommended for
   production-grade isolation; implement Option B first as an incremental step.
 
+  **ACT-1 ADR MUST address the following design decisions** (added 2026-03-17):
+
+  - **`get_datalayer` FastAPI DI strategy**: The current `get_datalayer()` is a
+    zero-argument singleton factory injected via `Depends(get_datalayer)`. P100
+    requires it to accept `actor_id`. Options: (1) closure lambda — preferred;
+    (2) custom dependency class; (3) explicit parameter threading. Option 1 is
+    simplest and supports future dynamic actor instantiation. The ADR must
+    explicitly choose and document the pattern so ACT-2 applies it consistently
+    across all route files and trigger endpoints.
+
+  - **`actor_io.py` inbox/outbox ownership**: `vultron/api/v2/data/actor_io.py`
+    is an in-memory inbox/outbox store predating the DataLayer port abstraction.
+    P100 must resolve whether to migrate it into the per-actor DataLayer (actor
+    inbox/outbox as first-class TinyDB collections) or formalize it as a separate
+    in-process queue adapter wired to the `ActivityEmitter` port (OX-1.0/1.1).
+    This decision directly affects ACT-2 scope.
+
+  - **OUTBOX-1 scope boundary**: Determine whether OUTBOX-1 delivery is in-scope
+    for P100 or deferred until per-actor DataLayer isolation is proved out.
+
 - [ ] **ACT-2**: Implement per-actor DataLayer isolation per chosen design. Done
   when Actor A's DataLayer operations do not affect Actor B's state and tests
-  confirm isolation.
+  confirm isolation. **Depends on ACT-1.**
 
 - [ ] **ACT-3**: Update `get_datalayer` dependency and all handler tests to use
-  per-actor DataLayer fixtures.
+  per-actor DataLayer fixtures. **Depends on ACT-2.**
 
 ---
 
@@ -597,10 +821,11 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
 
 ## Deferred (Per PRIORITIES.md)
 
-- **BT status comparison normalization** — Replace `result.status.name != "SUCCESS"`
-  string comparisons with `result.status == Status.SUCCESS` enum comparisons in
-  `EngageCaseUseCase`, `DeferCaseUseCase`, `CreateCaseUseCase`. (Source:
-  `plan/IMPLEMENTATION_NOTES.md` code-review item 7)
+- **BT status comparison normalization** — ~~Deferred~~ **Promoted to
+  PREPX-1** (see pre-P100 section below). Replace `result.status.name !=
+  "SUCCESS"` string comparisons with `result.status == Status.SUCCESS` enum
+  comparisons in `EngageCaseReceivedUseCase`, `DeferCaseReceivedUseCase`,
+  `CreateCaseReceivedUseCase`. (Source: `plan/IMPLEMENTATION_NOTES.md` item 7)
 - **`CloseCaseUseCase` wire-type construction** — Replace direct construction of
   `VultronActivity(as_type="Leave")` in `CloseCaseUseCase` with domain event emission
   through the `ActivityEmitter` port (OX-1.0). Defer until OX-1.0 is implemented.
