@@ -37,6 +37,23 @@ the remainder of the implementation to go smoothly and for us to be able to
 parallelize work on different components without running into merge conflicts or
 other issues caused by architectural inconsistencies.
 
+## Priority 85: Capture all tasks and requirements in IDEAS.md
+
+IDEAS.md contains a significant number of ideas and tasks resulting from 
+multiple recent code reviews. Each of these needs to be fully captured and 
+reflected in `specs/`, `notes/` and `plan/` documents as appropriate. Tasks 
+that are not already in `plan/IMPLEMENTATION_PLAN.md` should be added there  
+with a clear description and any relevant details. Requirements that are not 
+already in `specs/` should be added there with a clear requirement id,  
+description, and any relevant details. Design ideas and research that are 
+not  already in `notes/` should be added there with a clear description and  
+any relevant details. These updates are critical to ensure we are ready to 
+move forward with the upcoming phase 100 tasks. Some items might expand or 
+contradict existing notes, specs, or tasks. In those cases, whatever is in 
+IDEAS.md should be considered the source of truth, and the existing notes,  
+specs, or tasks should be updated to reflect the new information from IDEAS.
+md. 
+
 ## Priority 100: Actor independence
 
 Each actor exists in its own behavior tree domain. So Actor A and Actor B
