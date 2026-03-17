@@ -119,6 +119,48 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     `vultron/wire/as2/parser.py`; the router calls it as a thin wrapper
     (ARCH-1.3).
 
+## Core Model Richness (MUST)
+
+- `ARCH-09-001` Core domain models MUST be as rich as or richer than their
+  wire-layer counterparts
+  - Wire models are projections of core models — not simplified views and
+    not independent representations
+  - Any field present in a wire model MUST be representable in the
+    corresponding core domain model
+  - **Rationale**: A thinner core model forces piecemeal additions as
+    handlers are implemented, causing boundary leakage and implementation
+    drift
+  - **Cross-reference**: `notes/architecture-ports-and-adapters.md`
+    "Core Models Must Be Richer Than Wire Models"
+
+## Fail-Fast Domain Objects (MUST)
+
+- `ARCH-10-001` Domain events and domain models MUST validate required
+  fields at construction time and fail immediately if required invariants
+  are not satisfied
+  - Fields that are required for a specific event subtype MUST NOT be
+    typed as `Field | None` in that subtype
+  - Parent classes MAY use `Field | None` for fields that are genuinely
+    optional at the parent level; subclasses MUST narrow optional parent
+    fields to required when the field is always present for that subtype
+  - **Rationale**: Late validation masks missing data and makes debugging
+    harder; fail-fast ensures errors surface at the point of construction
+  - **Cross-reference**: `notes/architecture-ports-and-adapters.md`
+    "Design Constraints and Invariants" invariant 2
+
+## Port Inbound/Outbound Discrimination (SHOULD)
+
+- `ARCH-11-001` Core ports SHOULD be organized into inbound (driving)
+  and outbound (driven) categories
+  - **Inbound ports (driving)**: interfaces that external adapters call
+    into core (e.g., `UseCase`, `ActivityDispatcher`)
+  - **Outbound ports (driven)**: interfaces that core calls out to external
+    systems through (e.g., `DataLayer`, `ActivityEmitter`)
+  - Port files in `core/ports/` that no longer correspond to active
+    interfaces SHOULD be removed rather than left as stubs
+  - **Cross-reference**: `notes/architecture-ports-and-adapters.md`
+    "Core Port Taxonomy: Inbound vs Outbound"
+
 ---
 
 ## Review Checklist

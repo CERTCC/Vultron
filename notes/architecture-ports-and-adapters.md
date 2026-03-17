@@ -525,3 +525,122 @@ between external tracker events and Vultron domain events.
 - [ ] Core tests use domain types directly — no AS2, no HTTP
 - [ ] Wire tests verify parsing and extraction independently of domain logic
 - [ ] Adapter tests mock ports, not external systems
+
+---
+
+## Design Constraints and Invariants
+
+The following constraints are extracted from architecture review sessions
+and apply to all implementation work. They are strict requirements, not
+recommendations.
+
+1. **Core ≥ Wire**: Core models MUST be as rich as or richer than wire
+   models. Wire models are projections of core models only. Any field
+   present in the wire model MUST be representable in the core domain
+   model. See also: "Core Models Must Be Richer Than Wire Models" section
+   above.
+
+2. **Fail-fast models**: Domain events and models MUST validate required
+   fields on construction and fail immediately if required invariants are
+   missing. Fields that are required for a specific event subtype MUST
+   NOT be typed as `X | None` in that subtype — use `| None` only in
+   the parent class when the field is genuinely optional. Subclasses
+   SHOULD narrow optional parent fields to required. This applies to
+   `VultronEvent` subclasses, which should never carry `activity: ... | None`
+   when the activity is always present for that semantic type.
+
+3. **ActivityStreams alignment**: Actor profiles and any protocol-exposed
+   objects MUST follow ActivityStreams semantics where specified
+   (discovery endpoint, actor profiles, reply activity formats).
+
+4. **Adapter/Core boundary**: Adapters own transport concerns and
+   instantiate wire objects. Adapters MUST provide domain-ready data
+   objects to core. No transport logic belongs in core.
+
+5. **Non-breaking BT migration**: Changes to Behavior Trees MUST be
+   initially import-layer refactors and non-breaking at runtime. Do not
+   change BT node semantics and file locations in the same commit.
+
+6. **Dispatcher port preservation**: Do not remove the dispatcher port
+   without a validated migration plan. Its removal is uncertain and must
+   be justified with tests confirming the use-case port fully covers all
+   dispatch scenarios.
+
+---
+
+## Core Port Taxonomy: Inbound vs Outbound
+
+Core ports should be discriminated into two categories for clarity:
+
+**Inbound ports (driving)** — external adapters call into core:
+
+- `UseCase` Protocol (`core/ports/use_case.py`) — the primary inbound port
+- `ActivityDispatcher` Protocol (`core/ports/dispatcher.py`) — may be
+  subsumed by the use-case port; evaluate before P100 work
+
+**Outbound ports (driven)** — core calls out to external systems:
+
+- `DataLayer` Protocol (`core/ports/datalayer.py`) — persistence
+- `ActivityEmitter` Protocol (`core/ports/emitter.py`, to be created) —
+  outbound activity delivery; replaces the delivery-queue concept
+
+**Ports that should be removed** (implementation detail, not port boundary):
+
+- `core/ports/dns_resolver.py` — no longer needed; DNS resolution is an
+  adapter-level concern
+- `core/ports/dispatcher.py` — may be replaced entirely by the `UseCase`
+  port; evaluate during Priority-80 cleanup
+- `core/ports/delivery_queue.py` — the delivery-queue concept was replaced
+  by the emitter; this file should be removed after `emitter.py` is created
+
+When naming ports, prefer the domain concept over the implementation
+mechanism: `ActivityEmitter` (not `DeliveryQueue`), `DataLayer` (not
+`TinyDbAdapter`).
+
+---
+
+## Server-Level Inbox: Deferred Design Decision
+
+A **per-server inbox** (buffering all inbound activities before routing
+to actor inboxes) is recognized as a future architectural option but is
+**not part of the current model**.
+
+| Approach | Advantage | Cost |
+|----------|-----------|------|
+| Direct-to-Actor Inbox | Immediate semantic validation feedback | No durable pre-validation buffer |
+| Server-Level Inbox | Durable buffering, centralized routing | Cannot perform actor-specific validation at ingest |
+
+**Current decision**: Maintain direct delivery service → actor inbox (HTTP).
+All messages are effectively DMs; actor-level validation is more valuable
+than buffering at the current prototype stage.
+
+**Future option**: A server-level inbox may later act as a durable ingress
+queue or routing layer for local actors, but would require clear handling
+of deferred validation failures and possibly new Event types for
+rejection/acknowledgment.
+
+---
+
+## Outbound Delivery Invariants
+
+These invariants govern the outbox-based delivery model:
+
+1. **Event purity in core**: No leakage of ActivityStreams types into core.
+   Core produces `VultronEvent` objects, not AS2 activities.
+
+2. **Deterministic mapping**: Event ⇄ Activity transformation is lossless
+   and mechanical. No enrichment, no recipient injection, no semantic
+   alteration occurs at the mapping layer.
+
+3. **Explicit addressing**: Recipients originate from domain logic (e.g.,
+   case participation records), not from infrastructure. The `recipients`
+   field is part of the event model, not injected by the delivery service.
+
+4. **Delivery decoupling**: Emission ≠ delivery ≠ acceptance. Core emitting
+   an event does not guarantee delivery or acceptance by the recipient actor.
+
+5. **Validation split**: Transport validation (is this a valid Activity?
+   is the recipient local?) occurs at the adapter boundary and results in
+   immediate HTTP rejection. Semantic validation (is this transition
+   allowed? is the sender authorized?) occurs in core after delivery and
+   may produce compensating events (rejection, error signaling).
