@@ -1702,3 +1702,24 @@ Inner `try/except ValueError` idempotency guards in `report.py` and `case.py`
 (`CloseCaseReceivedUseCase`) were preserved unchanged.
 
 **Test results:** 913 passed, 0 failed.
+
+---
+
+## P75-5 — Remove api/v1 and consolidate vocabulary examples into api/v2 (2026-03-17)
+
+Decided to remove `vultron/api/v1/` entirely (Option B from ADR-0011).
+The v1 package was ~1 100 lines of stub endpoints that returned `vocab_examples`
+objects with no business logic. All protocol work lives in v2.
+
+Changes:
+- Created `docs/adr/0011-remove-api-v1.md` recording the decision.
+- Expanded `vultron/api/v2/routers/examples.py` to include vocabulary-showcase
+  endpoints for `reports`, `cases`, `cases/statuses`, `cases/participants`,
+  `cases/participants/statuses`, and `cases/embargoes` (migrated from
+  `vultron/api/v1/routers/examples.py`).
+- Updated the v2 app's `Examples` tag description.
+- Removed `from vultron.api.v1 import app_v1` and `/api/v1` mount from
+  `vultron/api/main.py`. Updated landing page to link only to v2 docs.
+- Deleted `vultron/api/v1/` directory (all 7 files).
+
+**Test results:** 913 passed, 0 failed (no regressions).

@@ -21,6 +21,16 @@ from fastapi import APIRouter
 
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import (
+    CaseStatus,
+    ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.wire.as2.vocab.examples import vocab_examples
 
 router = APIRouter(
@@ -57,6 +67,144 @@ def get_example_actor() -> as_Actor:
 def validate_actor(actor: as_Actor) -> as_Actor:
     """Validates an Actor object."""
     return actor
+
+
+@router.get(
+    "/reports",
+    response_model=VulnerabilityReport,
+    response_model_exclude_none=True,
+    description="Get an example Vulnerability Report object.",
+)
+def get_example_report() -> VulnerabilityReport:
+    """Returns an example VulnerabilityReport object."""
+    return vocab_examples.gen_report()
+
+
+@router.post(
+    "/reports",
+    response_model=VulnerabilityReport,
+    response_model_exclude_none=True,
+    summary="Validate Report object format",
+    description="Validates a Vulnerability Report object.",
+)
+def validate_report(report: VulnerabilityReport) -> VulnerabilityReport:
+    """Validates a VulnerabilityReport object."""
+    return report
+
+
+@router.get(
+    "/cases",
+    response_model=VulnerabilityCase,
+    response_model_exclude_none=True,
+    description="Get an example Vulnerability Case object.",
+)
+def get_example_case() -> VulnerabilityCase:
+    """Returns an example VulnerabilityCase object."""
+    return vocab_examples.case()
+
+
+@router.post(
+    "/cases",
+    response_model=VulnerabilityCase,
+    response_model_exclude_none=True,
+    summary="Validate Case object format",
+    description="Validates a Vulnerability Case object.",
+)
+def validate_case(case: VulnerabilityCase) -> VulnerabilityCase:
+    """Validates a VulnerabilityCase object."""
+    return case
+
+
+@router.get(
+    "/cases/statuses",
+    response_model=CaseStatus,
+    response_model_exclude_none=True,
+    description="Get an example Case Status object.",
+)
+def get_example_case_status() -> CaseStatus:
+    """Returns an example CaseStatus object."""
+    return vocab_examples.case_status()
+
+
+@router.post(
+    "/cases/statuses",
+    response_model=CaseStatus,
+    response_model_exclude_none=True,
+    description="Validates a CaseStatus object.",
+)
+def validate_case_status(case_status: CaseStatus) -> CaseStatus:
+    """Validates a CaseStatus object."""
+    return case_status
+
+
+@router.get(
+    "/cases/participants",
+    response_model=CaseParticipant,
+    response_model_exclude_none=True,
+    description="Get an example Case Participant object.",
+)
+def get_example_participant() -> CaseParticipant:
+    """Returns an example CaseParticipant object."""
+    return vocab_examples.case_participant()
+
+
+@router.post(
+    "/cases/participants",
+    response_model=CaseParticipant,
+    response_model_exclude_none=True,
+    summary="Validate Case Participant object format",
+    description="Validates a Case Participant object.",
+)
+def validate_participant(participant: CaseParticipant) -> CaseParticipant:
+    """Validates a CaseParticipant object."""
+    return participant
+
+
+@router.get(
+    "/cases/participants/statuses",
+    response_model=ParticipantStatus,
+    response_model_exclude_none=True,
+    description="Get an example Participant Status object.",
+)
+def get_example_participant_status() -> ParticipantStatus:
+    """Returns an example ParticipantStatus object."""
+    return vocab_examples.participant_status()
+
+
+@router.post(
+    "/cases/participants/statuses",
+    response_model=ParticipantStatus,
+    response_model_exclude_none=True,
+    description="Validates a ParticipantStatus object.",
+)
+def validate_participant_status(
+    status: ParticipantStatus,
+) -> ParticipantStatus:
+    """Validates a ParticipantStatus object."""
+    return status
+
+
+@router.get(
+    "/cases/embargoes",
+    response_model=EmbargoEvent,
+    response_model_exclude_none=True,
+    description="Get an example Embargo Event object.",
+)
+def get_example_embargo() -> EmbargoEvent:
+    """Returns an example EmbargoEvent object."""
+    return vocab_examples.embargo_event()
+
+
+@router.post(
+    "/cases/embargoes",
+    response_model=EmbargoEvent,
+    response_model_exclude_none=True,
+    summary="Validate Embargo Event object format",
+    description="Validates an EmbargoEvent object.",
+)
+def validate_embargo(embargo: EmbargoEvent) -> EmbargoEvent:
+    """Validates an EmbargoEvent object."""
+    return embargo
 
 
 @router.get(

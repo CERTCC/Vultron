@@ -52,9 +52,10 @@ async def lifespan(application: FastAPI):
 tags_metadata = [
     {
         "name": "Examples",
-        "description": """Actors have inboxes. You can get an example Actor object or validate one.
-For convenience, we also provide an example Note object and validation endpoint.
-        
+        "description": """Vocabulary showcase endpoints. Each object type has a GET endpoint
+that returns a sample instance and a POST endpoint that validates a submitted
+object through the Pydantic model.
+
 - `GET` to see a sample object.
 - `POST` an object to run it through the pydantic model validation.
 """,

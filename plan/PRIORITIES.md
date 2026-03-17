@@ -26,7 +26,7 @@ incomplete at the time of this writing.
 
 ## Priority 80: Resolve technical debt and ensure Hexagonal Architecture is fully realized
 
-Once we are past P75 tasks in the implementation plan, we need to clean up 
+We need to clean up 
 all the technical debt that we accumulated during the hexagonal architecture 
 refactor. This includes things like ensuring that core, adapters, and wire 
 are appropriately separated, that there is not architectural leakage from 

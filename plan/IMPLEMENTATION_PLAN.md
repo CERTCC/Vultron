@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-17 (refresh #43: TECHDEBT-27 complete)
+**Last Updated**: 2026-03-17 (refresh #44: P75-5 complete)
 
 ## Overview
 
@@ -14,8 +14,9 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
 all dockerized in `docker-compose.yml`. **P75 phase**: ALL COMPLETE (P75-1 through
-P75-4). All 38 handler use cases and 9 trigger use cases are class-based. CLI
-(`vultron/adapters/driving/cli.py`) and MCP
+P75-5). `api/v1` removed; vocabulary examples consolidated into
+`api/v2/routers/examples.py` (ADR-0011). All 38 handler use cases and 9 trigger
+use cases are class-based. CLI (`vultron/adapters/driving/cli.py`) and MCP
 (`vultron/adapters/driving/mcp_server.py`) driving adapters implemented.
 
 **Active phase**: **PRIORITY-80** — technical debt cleanup and full hexagonal
@@ -38,7 +39,7 @@ P65-1, P65-2, P65-3, P65-4, P65-5, P65-6a, P65-6b, P65-7,
 ARCH-DOCS-1, TECHDEBT-13a, TECHDEBT-13b, TECHDEBT-13c, TECHDEBT-14,
 P70-2, P70-3, P70-4, P70-5,
 P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre,
-TECHDEBT-15, TECHDEBT-21, TECHDEBT-22, TECHDEBT-24, TECHDEBT-27.
+TECHDEBT-15, TECHDEBT-21, TECHDEBT-22, TECHDEBT-24, TECHDEBT-27, P75-5.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -76,7 +77,7 @@ All 38 handler use cases and 9 trigger-service use cases now live in
 `handlers/_shim.py`. The dispatcher is modelled as a formal driving port
 (`core/ports/dispatcher.py`) backed by `core/dispatcher.py`. The routing
 table (`USE_CASE_MAP`) lives in `core/use_cases/use_case_map.py`. Pattern
-objects in `extractor.py` use the `Pattern` suffix. P75-4 and P75-5 remain.
+objects in `extractor.py` use the `Pattern` suffix. P75-4 and P75-5 complete.
 
 ### ✅ UseCase interface standardized (P75-4-pre — complete)
 
@@ -85,11 +86,10 @@ objects in `extractor.py` use the `Pattern` suffix. P75-4 and P75-5 remain.
 implementation; the old callable wrapper delegates to it for backward compat.
 P75-4 MUST refactor every use case it touches to the class interface.
 
-### ❌ api/v1 disposition not planned (P75-5)
+### ✅ api/v1 removed (P75-5 — COMPLETE)
 
-`vultron/api/v1/` is a vocabulary-examples HTTP adapter (thin routers over
-`wire/as2/vocab/examples/`; no business logic). Decision required: keep
-as-is, formally deprecate, or remove. Captured as P75-5.
+`vultron/api/v1/` removed. Vocabulary-example endpoints migrated to
+`api/v2/routers/examples.py`. Decision recorded in ADR-0011.
 
 ### ❌ Actor independence not implemented (PRIORITY 100)
 
@@ -203,12 +203,10 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details.
   MCP adapter (`vultron/adapters/driving/mcp_server.py`) implemented with 9 tool
   functions + `MCP_TOOLS` list. **COMPLETE.**
 
-- [ ] **P75-5**: Decide disposition of `vultron/api/v1/`. The v1 API is a
-  vocabulary-examples HTTP adapter (thin routers over `wire/as2/vocab/examples/`;
-  no business logic). Options: (a) keep as-is with a clear "vocabulary showcase"
-  label, (b) merge into `api/v2` as a `/examples/` subrouter, or (c) deprecate
-  and remove. Done when a decision is recorded in an ADR or issue and the code
-  reflects the decision.
+- [x] **P75-5**: Removed `vultron/api/v1/`. Vocabulary-example endpoints
+  (reports, cases, participants, embargoes) migrated to
+  `api/v2/routers/examples.py`. Decision recorded in `docs/adr/0011-remove-api-v1.md`.
+  **COMPLETE.**
 
 ---
 
@@ -216,7 +214,7 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details.
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 80
 
-All P75 tasks are complete. This phase addresses accumulated technical debt and
+This phase addresses accumulated technical debt and
 ensures the hexagonal architecture is fully realized before moving to PRIORITY-100.
 
 **Recommended execution order** (batching guidance):
@@ -539,7 +537,7 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
 
 - [x] **P75-4-pre**: Standardize use-case interface (**COMPLETE**)
 - [x] **P75-4**: Convert all use cases to class interface; implement CLI/MCP adapters (**COMPLETE**)
-- [ ] **P75-5**: Decide disposition of `vultron/api/v1/` (see above)
+- [x] **P75-5**: Removed `api/v1`; examples migrated to v2 (ADR-0011) (**COMPLETE**)
 
 ---
 
