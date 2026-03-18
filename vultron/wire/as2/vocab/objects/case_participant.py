@@ -24,7 +24,7 @@ from pydantic import Field, field_validator, field_serializer, model_validator
 
 from vultron.wire.as2.vocab.base.links import as_Link, ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import activitystreams_object
-from vultron.wire.as2.vocab.base.types import NonEmptyString
+from vultron.core.models.events.base import NonEmptyString
 from vultron.wire.as2.vocab.objects.base import VultronObject
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.bt.report_management.states import RM

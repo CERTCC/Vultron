@@ -20,13 +20,11 @@ from typing import TypeAlias
 
 from pydantic import Field
 
+from vultron.core.models.enums import VultronObjectType as VO_type
+from vultron.core.models.events import NonEmptyString
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef
 from vultron.wire.as2.vocab.base.registry import activitystreams_object
-from vultron.wire.as2.vocab.base.types import (
-    NonEmptyString,
-)
 from vultron.wire.as2.vocab.objects.base import VultronObject
-from vultron.core.models.enums import VultronObjectType as VO_type
 
 
 @activitystreams_object

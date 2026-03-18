@@ -23,7 +23,7 @@ from pydantic import Field, field_serializer, field_validator, model_validator
 from vultron.wire.as2.vocab.base.links import as_Link, ActivityStreamRef
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import activitystreams_object
-from vultron.wire.as2.vocab.base.types import NonEmptyString
+from vultron.core.models.events.base import NonEmptyString
 from vultron.wire.as2.vocab.objects.base import VultronObject
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
