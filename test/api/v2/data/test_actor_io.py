@@ -14,7 +14,7 @@
 import pytest
 
 from vultron.api.v2.data import actor_io
-from vultron.api.v2.data.utils import parse_id
+from vultron.adapters.utils import parse_id
 
 
 def test_actor_io_store_initially_empty():

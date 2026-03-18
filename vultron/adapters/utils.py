@@ -9,12 +9,17 @@
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""
-Provides TODO writeme
+"""Adapter-layer utilities for ActivityStreams object ID generation and parsing.
+
+These utilities are used by driven adapters (e.g., TinyDB DataLayer) and
+driving adapters (e.g., demo scripts) to create and inspect URL- and
+URN-based object IDs.  They do not belong in the core domain layer because
+they depend on the wire-format ID conventions (HTTP URLs and ``urn:uuid:``
+URNs) rather than on domain concepts.
 """
 
 import os

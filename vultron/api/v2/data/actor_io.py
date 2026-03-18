@@ -24,7 +24,7 @@ import sys
 
 from pydantic import BaseModel, Field
 
-from vultron.api.v2.data.utils import parse_id
+from vultron.adapters.utils import parse_id
 
 logger = logging.getLogger(__name__)
 

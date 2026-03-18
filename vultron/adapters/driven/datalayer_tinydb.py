@@ -32,7 +32,7 @@ from tinydb.queries import QueryInstance
 from tinydb.storages import MemoryStorage
 from tinydb.table import Table
 
-from vultron.api.v2.data.utils import _URN_UUID_PREFIX, _UUID_RE
+from vultron.adapters.utils import _URN_UUID_PREFIX, _UUID_RE
 from vultron.adapters.driven.db_record import (
     Record,
     object_to_record,

@@ -48,7 +48,7 @@ import sys
 from typing import Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.api.v2.data.utils import parse_id
+from vultron.adapters.utils import parse_id
 from vultron.wire.as2.vocab.activities.report import (
     RmInvalidateReportActivity,
     RmReadReportActivity,

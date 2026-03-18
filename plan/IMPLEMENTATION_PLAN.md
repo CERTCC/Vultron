@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-18 (VCR-028: remove unnecessary _idempotent_create guard patterns)
+**Last Updated**: 2026-03-18 (VCR-016: move adapter-layer utils to vultron/adapters/utils.py)
 
 ## Overview
 
@@ -562,9 +562,14 @@ They are larger structural changes; plan as a single coordinated PR.
   entry points, demo scripts, and project documentation accordingly.
   Do NOT leave compatibility shims behind after the move is verified.
 
-- [ ] **VCR-016**: Evaluate `vultron/api/v2/data/utils.py` — determine whether
+- [x] **VCR-016**: Evaluate `vultron/api/v2/data/utils.py` — determine whether
   utilities belong in `core/` (if core has duplicative needs) or in adapters
   (if adapter-only). Move to the correct location and update callers.
+  All callers are adapter/demo layer (no core callers); moved to
+  `vultron/adapters/utils.py`. Updated callers in `adapters/driven/datalayer_tinydb.py`,
+  `api/v2/data/actor_io.py`, `demo/utils.py`, `demo/acknowledge_demo.py`,
+  `demo/receive_report_demo.py`, and tests. Moved test to `test/adapters/test_utils.py`.
+  981 tests pass.
 
 #### Batch VCR-C — Core models and port cleanup
 
