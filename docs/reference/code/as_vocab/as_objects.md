@@ -1,11 +1,11 @@
 # ActivityStreams Vocabulary Objects
 
-::: vultron.as_vocab.base.objects
+::: vultron.wire.as2.vocab.base.objects
 
-::: vultron.as_vocab.base.objects.base
+::: vultron.wire.as2.vocab.base.objects.base
 
-::: vultron.as_vocab.base.objects.actors
+::: vultron.wire.as2.vocab.base.objects.actors
 
-::: vultron.as_vocab.base.objects.object_types
+::: vultron.wire.as2.vocab.base.objects.object_types
 
-::: vultron.as_vocab.base.objects.collections
+::: vultron.wire.as2.vocab.base.objects.collections

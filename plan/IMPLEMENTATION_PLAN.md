@@ -137,7 +137,7 @@ in `docker-compose.yml` (now consolidated into a unified `demo` service).
 Captured in `notes/codebase-structure.md`. Needs update to describe `api-dev`,
 `demo`, `test`, `docs`, and `vultrabot-demo` services.
 
-### ❌ Broken inline code examples in `docs/` (DOCS-2 — new gap)
+### ✅ Broken inline code examples in `docs/` (DOCS-2 — resolved)
 
 `docs/reference/code/as_vocab/*.md` reference old `vultron.as_vocab.*` module
 paths that moved to `vultron.wire.as2.vocab.*` during P60-1. Running
@@ -489,7 +489,7 @@ from Deferred section after P75-4 completion.
 
 **Priority**: 85 (docs correctness, `notes/codebase-structure.md`)
 
-- [ ] **DOCS-2**: Update `docs/reference/code/as_vocab/*.md` files that reference
+- [x] **DOCS-2**: Update `docs/reference/code/as_vocab/*.md` files that reference
   old `vultron.as_vocab.*` module paths (moved to `vultron.wire.as2.vocab.*`
   during P60-1). Run `mkdocs build` to surface all broken references, then update
   the affected code blocks and `:::: module.path` autodoc directives to use the

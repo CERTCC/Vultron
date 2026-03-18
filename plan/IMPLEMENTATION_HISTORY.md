@@ -2067,3 +2067,19 @@ Relocated `vultron/case_states/` into `vultron/core/` with no compatibility shim
 ### Test results
 
 981 passed, 5581 subtests (unchanged from baseline).
+
+---
+
+## DOCS-2 — Fix broken inline code examples in `docs/` (2026-03-18)
+
+Updated `docs/reference/code/as_vocab/*.md` to replace all `vultron.as_vocab.*`
+autodoc directives with the correct `vultron.wire.as2.vocab.*` paths that were
+introduced in P60-1. Affected files: `index.md`, `as_base.md`, `as_activities.md`,
+`as_links.md`, `as_objects.md`, `v_activities.md`, `v_objects.md`.
+
+`mkdocs build` succeeds with no module-not-found errors in
+`docs/reference/code/as_vocab/`.
+
+### Test results
+
+982 passed, 5581 subtests (unchanged from baseline).
