@@ -18,8 +18,6 @@ Test the reporting workflow
 
 import pytest
 
-from vultron.api.v2.backend import handlers as h
-from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Offer,
@@ -35,7 +33,15 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 from vultron.wire.as2.vocab.type_helpers import AsActivityType
 from vultron.core.models.events import MessageSemantics
-from vultron.types import BehaviorHandler, DispatchEvent
+from vultron.core.use_cases.report import (
+    CreateReportReceivedUseCase,
+    SubmitReportReceivedUseCase,
+    ValidateReportReceivedUseCase,
+    InvalidateReportReceivedUseCase,
+    AckReportReceivedUseCase,
+    CloseReportReceivedUseCase,
+)
+from vultron.core.use_cases.case import CreateCaseReceivedUseCase
 
 
 # Fixtures
@@ -68,32 +74,25 @@ def case(report):
 
 @pytest.fixture
 def dl():
+    from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+
     dl = TinyDbDataLayer(db_path=None)
     yield dl
     dl.clear_all()
 
 
-def _call_handler(
-    activity: AsActivityType, handler: BehaviorHandler, actor=None, dl=None
-):
+def _call_use_case(activity: AsActivityType, use_case_class, dl=None):
     from vultron.wire.as2.extractor import extract_intent
-    from vultron.types import DispatchEvent
 
     event = extract_intent(activity)
 
     assert event.semantic_type != MessageSemantics.UNKNOWN
     assert event.semantic_type in MessageSemantics
 
-    dispatchable = DispatchEvent(
-        semantic_type=event.semantic_type,
-        activity_id=activity.as_id,
-        payload=event,
-    )
-
     try:
-        result = handler(dispatchable=dispatchable, dl=dl)
+        result = use_case_class(dl, event).execute()
     except Exception as e:
-        pytest.fail(f"Handler raised an exception: {e}")
+        pytest.fail(f"Use case raised an exception: {e}")
     assert result is None
 
 
@@ -103,12 +102,12 @@ def _call_handler(
 # Tests
 def test_create_report_handler_returns_none(reporter, report, dl):
     activity = as_Create(actor=reporter, object=report)
-    _call_handler(activity, h.create_report, dl=dl)
+    _call_use_case(activity, CreateReportReceivedUseCase, dl=dl)
 
 
 def test_submit_report_persists_activity_and_report(reporter, report, dl):
     activity = as_Offer(actor=reporter, object=report)
-    _call_handler(activity, h.submit_report, dl=dl)
+    _call_use_case(activity, SubmitReportReceivedUseCase, dl=dl)
 
     # check side effects
     assert dl.read(activity.as_id) is not None
@@ -119,19 +118,19 @@ def test_read_activity_handler_noop_returns_none(reporter, report, dl):
     activity = as_Read(
         actor=reporter, object=as_Offer(actor=reporter, object=report)
     )
-    _call_handler(activity, h.ack_report, dl=dl)
+    _call_use_case(activity, AckReportReceivedUseCase, dl=dl)
 
 
 def test_accept_offer(reporter, report, dl):
     offer = as_Offer(actor=reporter, object=report)
     activity = as_Accept(actor=reporter, object=offer)
-    _call_handler(activity, h.validate_report, dl=dl)
+    _call_use_case(activity, ValidateReportReceivedUseCase, dl=dl)
 
 
 def test_tentative_reject_triggers_invalidation(reporter, report, dl):
     offer = as_Offer(actor=reporter, object=report)
     activity = as_TentativeReject(actor=reporter, object=offer)
-    _call_handler(activity, h.invalidate_report, dl=dl)
+    _call_use_case(activity, InvalidateReportReceivedUseCase, dl=dl)
 
     # check side effects
     assert dl.read(activity.as_id) is not None
@@ -139,13 +138,13 @@ def test_tentative_reject_triggers_invalidation(reporter, report, dl):
 
 def test_create_case_handler_returns_none(coordinator, case, dl):
     activity = as_Create(actor=coordinator, object=case)
-    _call_handler(activity, h.create_case, coordinator, dl=dl)
+    _call_use_case(activity, CreateCaseReceivedUseCase, dl=dl)
 
 
 def test_reject_offer_triggers_close_report(reporter, report, dl):
     offer = as_Offer(actor=reporter, object=report)
     activity = as_Reject(actor=reporter, object=offer)
-    _call_handler(activity, h.close_report, dl=dl)
+    _call_use_case(activity, CloseReportReceivedUseCase, dl=dl)
 
     # check side effects
     assert dl.read(activity.as_id) is not None

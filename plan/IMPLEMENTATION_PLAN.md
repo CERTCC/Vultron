@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-18 (PREPX-1: fix BT status string comparisons)
+**Last Updated**: 2026-03-18 (PREPX-2: remove handlers shim layer)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 966 passing, 5581 subtests, 5 warnings (2026-03-18, after VCR-A batch)
+**Test suite**: 961 passing, 5581 subtests, 5 warnings (2026-03-18, after PREPX-2)
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -23,7 +23,7 @@ use cases are class-based. CLI (`vultron/adapters/driving/cli.py`) and MCP
 
 **Active phase**: **PRIORITY-80** — technical debt cleanup and full hexagonal
 architecture realization. TECHDEBT-16 through TECHDEBT-28 are complete; VCR-A
-batch (6/8 tasks) complete. VCR-006 blocked on PREPX-2; VCR-030 blocked on
+batch (6/8 tasks) complete. VCR-006 unblocked (PREPX-2 complete); VCR-030 blocked on
 removing `vultron.sim` callers in `vultron/bt/`.
 
 ---
@@ -733,12 +733,13 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 
 **Priority**: High (architectural layer that P100 handler changes must thread through)
 
-- [ ] **PREPX-2**: Delete `vultron/api/v2/backend/handlers/__init__.py` and
+- [x] **PREPX-2**: Delete `vultron/api/v2/backend/handlers/__init__.py` and
   `handlers/_shim.py` (the compatibility wrappers that re-export every use case
-  as a thin wrapper around `XxxReceivedUseCase(dl).execute()`). Update
-  `test/api/v2/backend/test_handlers.py` and `test/api/v2/test_reporting_workflow.py`
+  as a thin wrapper around `XxxReceivedUseCase(dl).execute()`). Updated
+  `test/api/v2/backend/test_handlers.py` and `test/api/test_reporting_workflow.py`
   to call use-case classes directly with `VultronEvent` objects. Done when the
   shim files are deleted, tests call use cases directly, and the test suite passes.
+  **COMPLETE.**
 
 #### PREPX-3 — Remove `DispatchEvent` and `InboundPayload` deprecated aliases
 

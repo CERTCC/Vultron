@@ -1,27 +1,78 @@
 """
-Unit tests for handler shim functions and use-case routing.
+Unit tests for use-case classes (handler layer removed, PREPX-2).
 
-As of P75-2c the ``@verify_semantics`` decorator is a no-op shim; semantic
-type validation now happens at dispatcher routing-table level. Tests that
-previously tested the decorator's error-raising behaviour have been updated to
-reflect the current semantics.
+As of PREPX-2 the handler shim layer (``vultron.api.v2.backend.handlers``)
+has been deleted. Tests call use-case classes directly with ``VultronEvent``
+objects (e.g., ``CreateReportReceivedUseCase(dl, event).execute()``).
 """
 
 from unittest.mock import MagicMock
 
 import pytest
 
-from vultron.api.v2.backend import handlers
 from vultron.core.models.events import (
     MessageSemantics,
     VultronEvent,
 )
-from vultron.types import DispatchEvent
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
+
+from vultron.core.use_cases.report import (
+    CreateReportReceivedUseCase,
+    SubmitReportReceivedUseCase,
+    ValidateReportReceivedUseCase,
+    InvalidateReportReceivedUseCase,
+    AckReportReceivedUseCase,
+    CloseReportReceivedUseCase,
+)
+from vultron.core.use_cases.case import (
+    CreateCaseReceivedUseCase,
+    EngageCaseReceivedUseCase,
+    DeferCaseReceivedUseCase,
+    AddReportToCaseReceivedUseCase,
+    CloseCaseReceivedUseCase,
+    UpdateCaseReceivedUseCase,
+)
+from vultron.core.use_cases.case_participant import (
+    CreateCaseParticipantReceivedUseCase,
+    AddCaseParticipantToCaseReceivedUseCase,
+    RemoveCaseParticipantFromCaseReceivedUseCase,
+)
+from vultron.core.use_cases.actor import (
+    SuggestActorToCaseReceivedUseCase,
+    AcceptSuggestActorToCaseReceivedUseCase,
+    RejectSuggestActorToCaseReceivedUseCase,
+    OfferCaseOwnershipTransferReceivedUseCase,
+    AcceptCaseOwnershipTransferReceivedUseCase,
+    RejectCaseOwnershipTransferReceivedUseCase,
+    InviteActorToCaseReceivedUseCase,
+    AcceptInviteActorToCaseReceivedUseCase,
+    RejectInviteActorToCaseReceivedUseCase,
+)
+from vultron.core.use_cases.embargo import (
+    CreateEmbargoEventReceivedUseCase,
+    AddEmbargoEventToCaseReceivedUseCase,
+    RemoveEmbargoEventFromCaseReceivedUseCase,
+    AnnounceEmbargoEventToCaseReceivedUseCase,
+    InviteToEmbargoOnCaseReceivedUseCase,
+    AcceptInviteToEmbargoOnCaseReceivedUseCase,
+    RejectInviteToEmbargoOnCaseReceivedUseCase,
+)
+from vultron.core.use_cases.note import (
+    CreateNoteReceivedUseCase,
+    AddNoteToCaseReceivedUseCase,
+    RemoveNoteFromCaseReceivedUseCase,
+)
+from vultron.core.use_cases.status import (
+    CreateCaseStatusReceivedUseCase,
+    AddCaseStatusToCaseReceivedUseCase,
+    CreateParticipantStatusReceivedUseCase,
+    AddParticipantStatusToParticipantReceivedUseCase,
+)
+from vultron.core.use_cases.unknown import UnknownUseCase
 
 
 def _make_payload(activity, **extra_fields) -> VultronEvent:
@@ -39,127 +90,6 @@ def _make_payload(activity, **extra_fields) -> VultronEvent:
     return event
 
 
-def _make_dispatchable(activity, semantic_type, **payload_overrides):
-    """Create a DispatchEvent from an AS2 activity."""
-    payload = _make_payload(activity, **payload_overrides)
-    return DispatchEvent(
-        semantic_type=semantic_type,
-        activity_id=activity.as_id,
-        payload=payload,
-    )
-
-
-class TestVerifySemanticsDecorator:
-    """Test the verify_semantics no-op shim decorator.
-
-    As of P75-2c, ``@verify_semantics`` is a no-op; semantic type validation
-    is now enforced at dispatcher routing-table level (key lookup by
-    ``event.semantic_type``).  These tests verify backward-compat behaviour.
-    """
-
-    def test_decorator_allows_through_any_call(self):
-        """No-op decorator should always execute the wrapped function."""
-
-        @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchEvent, dl=None) -> str:
-            return "success"
-
-        mock_activity = MagicMock(spec=DispatchEvent)
-        mock_activity.semantic_type = MessageSemantics.CREATE_REPORT
-
-        report = VulnerabilityReport(
-            name="TEST-001", content="Test vulnerability report"
-        )
-        create_activity = as_Create(
-            actor="https://example.org/users/tester", object=report
-        )
-        mock_activity.payload = _make_payload(create_activity)
-
-        result = test_handler(mock_activity, None)
-        assert result == "success"
-
-    def test_decorator_is_no_op_for_mismatched_semantics(self):
-        """No-op decorator does not raise on semantic mismatch.
-
-        Semantic validation now occurs in the dispatcher routing table.
-        """
-
-        @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchEvent, dl=None) -> str:
-            return "success"
-
-        mock_activity = MagicMock(spec=DispatchEvent)
-        mock_activity.semantic_type = MessageSemantics.CREATE_CASE
-
-        # No exception — no-op shim always calls through
-        result = test_handler(mock_activity, None)
-        assert result == "success"
-
-    def test_decorator_preserves_function_name(self):
-        """Decorator preserves the wrapped function's __name__ via @wraps."""
-
-        @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchEvent, dl=None) -> str:
-            return "success"
-
-        assert test_handler.__name__ == "test_handler"
-
-
-class TestHandlerDecoratorPresence:
-    """Test that all handler functions have the @verify_semantics decorator."""
-
-    def test_create_report_has_decorator(self):
-        """Test create_report handler has verify_semantics decorator."""
-        # Function should be callable (not None) - this was the bug!
-        assert callable(handlers.create_report)
-        assert handlers.create_report.__name__ == "create_report"
-
-    def test_all_handlers_are_callable(self):
-        """Test that all 47 handler functions are callable (regression test for decorator bug)."""
-        handler_list = [
-            handlers.create_report,
-            handlers.submit_report,
-            handlers.validate_report,
-            handlers.invalidate_report,
-            handlers.ack_report,
-            handlers.close_report,
-            handlers.create_case,
-            handlers.add_report_to_case,
-            handlers.suggest_actor_to_case,
-            handlers.accept_suggest_actor_to_case,
-            handlers.reject_suggest_actor_to_case,
-            handlers.offer_case_ownership_transfer,
-            handlers.accept_case_ownership_transfer,
-            handlers.reject_case_ownership_transfer,
-            handlers.invite_actor_to_case,
-            handlers.accept_invite_actor_to_case,
-            handlers.reject_invite_actor_to_case,
-            handlers.create_embargo_event,
-            handlers.add_embargo_event_to_case,
-            handlers.remove_embargo_event_from_case,
-            handlers.announce_embargo_event_to_case,
-            handlers.invite_to_embargo_on_case,
-            handlers.accept_invite_to_embargo_on_case,
-            handlers.reject_invite_to_embargo_on_case,
-            handlers.close_case,
-            handlers.create_case_participant,
-            handlers.add_case_participant_to_case,
-            handlers.remove_case_participant_from_case,
-            handlers.create_note,
-            handlers.add_note_to_case,
-            handlers.remove_note_from_case,
-            handlers.create_case_status,
-            handlers.add_case_status_to_case,
-            handlers.create_participant_status,
-            handlers.add_participant_status_to_participant,
-            handlers.unknown,
-        ]
-
-        # Before the bug fix, missing 'return wrapper' made all these None
-        for handler in handler_list:
-            assert callable(handler), f"{handler} is not callable"
-
-
 class TestHandlerExecution:
     """Test that handlers execute with valid semantics."""
 
@@ -172,13 +102,11 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=report
         )
-        dispatchable = _make_dispatchable(
-            create_activity, MessageSemantics.CREATE_REPORT
-        )
+        event = _make_payload(create_activity)
 
         # Should execute without raising
         mock_dl = MagicMock()
-        result = handlers.create_report(dispatchable, mock_dl)
+        result = CreateReportReceivedUseCase(mock_dl, event).execute()
         # Current stub implementation returns None
         assert result is None
 
@@ -191,17 +119,15 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=case
         )
-        dispatchable = _make_dispatchable(
-            create_activity, MessageSemantics.CREATE_CASE
-        )
+        event = _make_payload(create_activity)
 
         # Should execute without raising
         mock_dl = MagicMock()
-        result = handlers.create_case(dispatchable, mock_dl)
+        result = CreateCaseReceivedUseCase(mock_dl, event).execute()
         assert result is None
 
-    def test_handler_shim_delegates_to_use_case(self):
-        """Handler shim delegates to the use case; semantic checking is in the dispatcher."""
+    def test_use_case_executes_with_real_datalayer(self):
+        """Use case executes without raising on real DataLayer."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 
         dl = TinyDbDataLayer(db_path=None)
@@ -211,11 +137,9 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=report
         )
-        dispatchable = _make_dispatchable(
-            create_activity, MessageSemantics.CREATE_REPORT
-        )
-        # Shim delegate should not raise
-        result = handlers.create_report(dispatchable, dl)
+        event = _make_payload(create_activity)
+        # Use case should not raise
+        result = CreateReportReceivedUseCase(dl, event).execute()
         assert result is None
 
 
@@ -239,11 +163,9 @@ class TestInviteActorHandlers:
             target="https://example.org/cases/case1",
         )
 
-        dispatchable = _make_dispatchable(
-            invite, MessageSemantics.INVITE_ACTOR_TO_CASE
-        )
+        event = _make_payload(invite)
 
-        handlers.invite_actor_to_case(dispatchable, dl)
+        InviteActorToCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.get(invite.as_type.value, invite.as_id)
         assert stored is not None
@@ -264,12 +186,12 @@ class TestInviteActorHandlers:
             target="https://example.org/cases/case1",
         )
 
-        dispatchable = _make_dispatchable(
-            invite, MessageSemantics.INVITE_ACTOR_TO_CASE
-        )
+        event = _make_payload(invite)
 
-        handlers.invite_actor_to_case(dispatchable, dl)
-        handlers.invite_actor_to_case(dispatchable, dl)  # second call is no-op
+        InviteActorToCaseReceivedUseCase(dl, event).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl, event
+        ).execute()  # second call is no-op
 
         stored = dl.get(invite.as_type.value, invite.as_id)
         assert stored is not None
@@ -292,13 +214,11 @@ class TestInviteActorHandlers:
             object=invite,
         )
 
-        dispatchable = _make_dispatchable(
-            reject, MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE
-        )
+        event = _make_payload(reject)
 
-        result = handlers.reject_invite_actor_to_case(
-            dispatchable, MagicMock()
-        )
+        result = RejectInviteActorToCaseReceivedUseCase(
+            MagicMock(), event
+        ).execute()
         assert result is None
 
     def test_remove_case_participant_from_case(self, monkeypatch):
@@ -340,11 +260,9 @@ class TestInviteActorHandlers:
             target=case,
         )
 
-        dispatchable = _make_dispatchable(
-            remove_activity, MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
-        )
+        event = _make_payload(remove_activity)
 
-        handlers.remove_case_participant_from_case(dispatchable, dl)
+        RemoveCaseParticipantFromCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert participant.as_id not in [
@@ -386,11 +304,11 @@ class TestInviteActorHandlers:
             target=case,
         )
 
-        dispatchable = _make_dispatchable(
-            remove_activity, MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
-        )
+        event = _make_payload(remove_activity)
 
-        result = handlers.remove_case_participant_from_case(dispatchable, dl)
+        result = RemoveCaseParticipantFromCaseReceivedUseCase(
+            dl, event
+        ).execute()
         assert result is None
 
     def test_add_case_participant_updates_index(self, monkeypatch):
@@ -430,11 +348,9 @@ class TestInviteActorHandlers:
             target=case,
         )
 
-        dispatchable = _make_dispatchable(
-            add_activity, MessageSemantics.ADD_CASE_PARTICIPANT_TO_CASE
-        )
+        event = _make_payload(add_activity)
 
-        handlers.add_case_participant_to_case(dispatchable, dl)
+        AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert actor_id in case.actor_participant_index
@@ -480,11 +396,9 @@ class TestInviteActorHandlers:
             target=case,
         )
 
-        dispatchable = _make_dispatchable(
-            remove_activity, MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
-        )
+        event = _make_payload(remove_activity)
 
-        handlers.remove_case_participant_from_case(dispatchable, dl)
+        RemoveCaseParticipantFromCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert actor_id not in case.actor_participant_index
@@ -530,11 +444,9 @@ class TestInviteActorHandlers:
             object=invite,
         )
 
-        dispatchable = _make_dispatchable(
-            accept, MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
-        )
+        event = _make_payload(accept)
 
-        handlers.accept_invite_actor_to_case(dispatchable, dl)
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert invitee_id in case.actor_participant_index
@@ -586,11 +498,9 @@ class TestInviteActorHandlers:
             object=invite,
         )
 
-        dispatchable = _make_dispatchable(
-            accept, MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
-        )
+        event = _make_payload(accept)
 
-        handlers.accept_invite_actor_to_case(dispatchable, dl)
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         participant_id = case.actor_participant_index.get(invitee_id)
@@ -637,13 +547,11 @@ class TestInviteActorHandlers:
             object=invite,
         )
 
-        dispatchable = _make_dispatchable(
-            accept, MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE
-        )
+        event = _make_payload(accept)
 
         assert len(case.events) == 0
 
-        handlers.accept_invite_actor_to_case(dispatchable, dl)
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert len(case.events) >= 1
@@ -681,11 +589,9 @@ class TestEmbargoHandlers:
             context=case,
         )
 
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.CREATE_EMBARGO_EVENT
-        )
+        event = _make_payload(activity)
 
-        handlers.create_embargo_event(dispatchable, dl)
+        CreateEmbargoEventReceivedUseCase(dl, event).execute()
 
         stored = dl.get(embargo.as_type.value, embargo.as_id)
         assert stored is not None
@@ -716,12 +622,12 @@ class TestEmbargoHandlers:
             object=embargo,
             context=case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.CREATE_EMBARGO_EVENT
-        )
+        event = _make_payload(activity)
 
-        handlers.create_embargo_event(dispatchable, dl)
-        handlers.create_embargo_event(dispatchable, dl)  # second call no-op
+        CreateEmbargoEventReceivedUseCase(dl, event).execute()
+        CreateEmbargoEventReceivedUseCase(
+            dl, event
+        ).execute()  # second call no-op
 
         stored = dl.get(embargo.as_type.value, embargo.as_id)
         assert stored is not None
@@ -760,11 +666,9 @@ class TestEmbargoHandlers:
             object=embargo,
             target=case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE
-        )
+        event = _make_payload(activity)
 
-        handlers.add_embargo_event_to_case(dispatchable, dl)
+        AddEmbargoEventToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert case.active_embargo is not None
@@ -791,11 +695,9 @@ class TestEmbargoHandlers:
             context="https://example.org/cases/case_em2",
         )
 
-        dispatchable = _make_dispatchable(
-            proposal, MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
-        )
+        event = _make_payload(proposal)
 
-        handlers.invite_to_embargo_on_case(dispatchable, dl)
+        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.get(proposal.as_type.value, proposal.as_id)
         assert stored is not None
@@ -845,11 +747,9 @@ class TestEmbargoHandlers:
             object=proposal,
             context=case,
         )
-        dispatchable = _make_dispatchable(
-            accept, MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
-        )
+        event = _make_payload(accept)
 
-        handlers.accept_invite_to_embargo_on_case(dispatchable, dl)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert case.active_embargo is not None
@@ -909,11 +809,9 @@ class TestEmbargoHandlers:
             object=proposal,
             context=case,
         )
-        dispatchable = _make_dispatchable(
-            accept, MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
-        )
+        event = _make_payload(accept)
 
-        handlers.accept_invite_to_embargo_on_case(dispatchable, dl)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         updated_participant = dl.get(id_=participant.as_id)
         assert updated_participant is not None
@@ -960,13 +858,11 @@ class TestEmbargoHandlers:
             object=proposal,
             context=case,
         )
-        dispatchable = _make_dispatchable(
-            accept, MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
-        )
+        event = _make_payload(accept)
 
         assert len(case.events) == 0
 
-        handlers.accept_invite_to_embargo_on_case(dispatchable, dl)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert len(case.events) >= 1
@@ -997,13 +893,11 @@ class TestEmbargoHandlers:
             context="https://example.org/cases/case_em4",
         )
 
-        dispatchable = _make_dispatchable(
-            reject, MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE
-        )
+        event = _make_payload(reject)
 
-        result = handlers.reject_invite_to_embargo_on_case(
-            dispatchable, MagicMock()
-        )
+        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+            MagicMock(), event
+        ).execute()
         assert result is None
 
 
@@ -1029,11 +923,9 @@ class TestNoteHandlers:
             object=note,
         )
 
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.CREATE_NOTE
-        )
+        event = _make_payload(activity)
 
-        handlers.create_note(dispatchable, dl)
+        CreateNoteReceivedUseCase(dl, event).execute()
 
         stored = dl.get(note.as_type.value, note.as_id)
         assert stored is not None
@@ -1056,12 +948,10 @@ class TestNoteHandlers:
             actor="https://example.org/users/finder",
             object=note,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.CREATE_NOTE
-        )
+        event = _make_payload(activity)
 
         dl.create(note)
-        handlers.create_note(dispatchable, dl)
+        CreateNoteReceivedUseCase(dl, event).execute()
 
         stored = dl.get(note.as_type.value, note.as_id)
         assert stored is not None
@@ -1099,11 +989,9 @@ class TestNoteHandlers:
             object=note,
             target=case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.ADD_NOTE_TO_CASE
-        )
+        event = _make_payload(activity)
 
-        handlers.add_note_to_case(dispatchable, dl)
+        AddNoteToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert note.as_id in case.notes
@@ -1142,11 +1030,9 @@ class TestNoteHandlers:
             object=note,
             target=case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.ADD_NOTE_TO_CASE
-        )
+        event = _make_payload(activity)
 
-        handlers.add_note_to_case(dispatchable, dl)
+        AddNoteToCaseReceivedUseCase(dl, event).execute()
 
         assert case.notes.count(note.as_id) == 1
 
@@ -1184,11 +1070,9 @@ class TestNoteHandlers:
             object=note,
             target=case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.REMOVE_NOTE_FROM_CASE
-        )
+        event = _make_payload(activity)
 
-        handlers.remove_note_from_case(dispatchable, dl)
+        RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert note.as_id not in case.notes
@@ -1226,11 +1110,9 @@ class TestNoteHandlers:
             object=note,
             target=case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.REMOVE_NOTE_FROM_CASE
-        )
+        event = _make_payload(activity)
 
-        result = handlers.remove_note_from_case(dispatchable, dl)
+        result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
         assert result is None
 
 
@@ -1264,11 +1146,9 @@ class TestStatusHandlers:
             context=case.as_id,
         )
 
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.CREATE_CASE_STATUS
-        )
+        event = _make_payload(activity)
 
-        handlers.create_case_status(dispatchable, dl)
+        CreateCaseStatusReceivedUseCase(dl, event).execute()
 
         stored = dl.get(status.as_type.value, status.as_id)
         assert stored is not None
@@ -1301,11 +1181,9 @@ class TestStatusHandlers:
             object=status,
             context=case.as_id,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.CREATE_CASE_STATUS
-        )
+        event = _make_payload(activity)
 
-        handlers.create_case_status(dispatchable, dl)
+        CreateCaseStatusReceivedUseCase(dl, event).execute()
 
         stored = dl.get(status.as_type.value, status.as_id)
         assert stored is not None
@@ -1343,11 +1221,9 @@ class TestStatusHandlers:
             object=status,
             target=case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.ADD_CASE_STATUS_TO_CASE
-        )
+        event = _make_payload(activity)
 
-        handlers.add_case_status_to_case(dispatchable, dl)
+        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         status_ids = [
@@ -1385,11 +1261,9 @@ class TestStatusHandlers:
             context=case_ps1,
         )
 
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.CREATE_PARTICIPANT_STATUS
-        )
+        event = _make_payload(activity)
 
-        handlers.create_participant_status(dispatchable, dl)
+        CreateParticipantStatusReceivedUseCase(dl, event).execute()
 
         stored = dl.get(pstatus.as_type.value, pstatus.as_id)
         assert stored is not None
@@ -1441,11 +1315,9 @@ class TestStatusHandlers:
             target=participant,
             context=case_ps2,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
-        )
+        event = _make_payload(activity)
 
-        handlers.add_participant_status_to_participant(dispatchable, dl)
+        AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
 
         participant = dl.read(participant.as_id)
         status_ids = [
@@ -1481,11 +1353,9 @@ class TestSuggestActorHandlers:
             to="https://example.org/users/vendor",
         )
 
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.SUGGEST_ACTOR_TO_CASE
-        )
+        event = _make_payload(activity)
 
-        handlers.suggest_actor_to_case(dispatchable, dl)
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
@@ -1511,12 +1381,10 @@ class TestSuggestActorHandlers:
             object=coordinator,
             target=case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.SUGGEST_ACTOR_TO_CASE
-        )
+        event = _make_payload(activity)
 
-        handlers.suggest_actor_to_case(dispatchable, dl)
-        handlers.suggest_actor_to_case(dispatchable, dl)
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
 
         # Second call should be a no-op; record is still present (not duplicated)
         stored = dl.get(activity.as_type.value, activity.as_id)
@@ -1550,11 +1418,9 @@ class TestSuggestActorHandlers:
             object=recommendation,
             target=case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE
-        )
+        event = _make_payload(activity)
 
-        handlers.accept_suggest_actor_to_case(dispatchable, dl)
+        AcceptSuggestActorToCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
@@ -1586,12 +1452,12 @@ class TestSuggestActorHandlers:
             object=recommendation,
             target=case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE
-        )
+        event = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            handlers.reject_suggest_actor_to_case(dispatchable, MagicMock())
+            RejectSuggestActorToCaseReceivedUseCase(
+                MagicMock(), event
+            ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
 
@@ -1617,11 +1483,9 @@ class TestOwnershipTransferHandlers:
             object=case,
             target="https://example.org/users/coordinator",
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
-        )
+        event = _make_payload(activity)
 
-        handlers.offer_case_ownership_transfer(dispatchable, dl)
+        OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
@@ -1661,11 +1525,9 @@ class TestOwnershipTransferHandlers:
             actor="https://example.org/users/coordinator",
             object=offer,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER
-        )
+        event = _make_payload(activity)
 
-        handlers.accept_case_ownership_transfer(dispatchable, dl)
+        AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
         updated_record = dl.get(case.as_type.value, case.as_id)
         assert updated_record is not None
@@ -1700,12 +1562,12 @@ class TestOwnershipTransferHandlers:
             actor="https://example.org/users/coordinator",
             object=offer,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER
-        )
+        event = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            handlers.reject_case_ownership_transfer(dispatchable, MagicMock())
+            RejectCaseOwnershipTransferReceivedUseCase(
+                MagicMock(), event
+            ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
 
@@ -1744,9 +1606,7 @@ class TestUpdateCaseHandler:
             actor=owner_id,
             object=updated_case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.UPDATE_CASE
-        )
+        event = _make_payload(activity)
 
         from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 
@@ -1761,7 +1621,7 @@ class TestUpdateCaseHandler:
         )
 
         with caplog.at_level(logging.INFO):
-            handlers.update_case(dispatchable, dl)
+            UpdateCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(case.as_id)
         assert stored is not None
@@ -1799,12 +1659,10 @@ class TestUpdateCaseHandler:
             actor=non_owner_id,
             object=updated_case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.UPDATE_CASE
-        )
+        event = _make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
-            handlers.update_case(dispatchable, dl)
+            UpdateCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(case.as_id)
         assert stored is not None
@@ -1839,9 +1697,7 @@ class TestUpdateCaseHandler:
             actor=owner_id,
             object=updated_case,
         )
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.UPDATE_CASE
-        )
+        event = _make_payload(activity)
 
         from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 
@@ -1855,8 +1711,8 @@ class TestUpdateCaseHandler:
             _mock_rehydrate,
         )
 
-        handlers.update_case(dispatchable, dl)
-        handlers.update_case(dispatchable, dl)
+        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(case.as_id)
         assert stored is not None
@@ -1909,12 +1765,10 @@ class TestUpdateCaseHandler:
             attributed_to=owner_id,
         )
         activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.UPDATE_CASE
-        )
+        event = _make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
-            handlers.update_case(dispatchable, dl)
+            UpdateCaseReceivedUseCase(dl, event).execute()
 
         assert any(
             "has not accepted" in r.message and "CM-10-004" in r.message
@@ -1968,12 +1822,10 @@ class TestUpdateCaseHandler:
             attributed_to=owner_id,
         )
         activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.UPDATE_CASE
-        )
+        event = _make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
-            handlers.update_case(dispatchable, dl)
+            UpdateCaseReceivedUseCase(dl, event).execute()
 
         assert not any("has not accepted" in r.message for r in caplog.records)
 
@@ -2021,11 +1873,9 @@ class TestUpdateCaseHandler:
             attributed_to=owner_id,
         )
         activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
-        dispatchable = _make_dispatchable(
-            activity, MessageSemantics.UPDATE_CASE
-        )
+        event = _make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
-            handlers.update_case(dispatchable, dl)
+            UpdateCaseReceivedUseCase(dl, event).execute()
 
         assert not any("has not accepted" in r.message for r in caplog.records)
