@@ -44,7 +44,7 @@ between known, trusted peers, not open-web broadcast.
 
 ### 3. Case Object Model
 
-```
+```text
 Actor (global, instance-scoped)
   └── referenced by → Participant (case-scoped wrapper)
                            ├── roles (can have multiple: reporter, finder, 
@@ -83,7 +83,7 @@ CaseActor  (is a full AS2 "Service" Actor)
 
 ### 5. Report → Case Lifecycle
 
-```
+```text
 1. REPORT PHASE
    Alice (VendorA) POSTs Offer{object: Report} to VendorB's instance inbox.
    This is the only "cold contact" — no case exists yet.

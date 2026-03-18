@@ -579,7 +579,7 @@ remain. New violations V-13 through V-23 introduced in P60-2. See
 
 822 tests pass.
 
-### What changed
+### Shim modules deleted
 
 - Deleted `vultron/activity_patterns.py`, `vultron/semantic_map.py`, and
   `vultron/semantic_handler_map.py` (all were pure re-export shims).
@@ -594,7 +594,7 @@ remain. New violations V-13 through V-23 introduced in P60-2. See
 
 ---
 
-### What changed
+### Handler registry added
 
 - **`vultron/api/v2/backend/handler_map.py`** (new): Module-level handler registry in
   the adapter layer. `SEMANTICS_HANDLERS` dict maps `MessageSemantics` → handler
@@ -823,7 +823,7 @@ incoming activity.
 
 **Baseline error count (2026-03-10, pyright 1.1.408, basic mode)**:
 
-```
+```text
 811 errors, 7 warnings, 0 informations
 ```
 

@@ -10,33 +10,34 @@ relative order.
 
 ## Priority 80: Resolve technical debt and ensure Hexagonal Architecture is fully realized
 
-We need to clean up 
-all the technical debt that we accumulated during the hexagonal architecture 
-refactor. This includes things like ensuring that core, adapters, and wire 
-are appropriately separated, that there is not architectural leakage from 
-the "outer" layers into core, that error handling is consistent, 
-hierarchical, well-defined, and not overly generalized (e.g., don't 
-blindly catch `Exception`) Getting the architecture solid is important for 
-the remainder of the implementation to go smoothly and for us to be able to 
+We need to clean up
+all the technical debt that we accumulated during the hexagonal architecture
+refactor. This includes things like ensuring that core, adapters, and wire
+are appropriately separated, that there is not architectural leakage from
+the "outer" layers into core, that error handling is consistent,
+hierarchical, well-defined, and not overly generalized (e.g., don't
+blindly catch `Exception`) Getting the architecture solid is important for
+the remainder of the implementation to go smoothly and for us to be able to
 parallelize work on different components without running into merge conflicts or
 other issues caused by architectural inconsistencies.
 
 ## Priority 85: Capture all tasks and requirements in IDEAS.md
 
-IDEAS.md contains a significant number of ideas and tasks resulting from 
-multiple recent code reviews. Each of these needs to be fully captured and 
-reflected in `specs/`, `notes/` and `plan/` documents as appropriate. Tasks 
+IDEAS.md contains a significant number of ideas and tasks resulting from
+multiple recent code reviews. Each of these needs to be fully captured and
+reflected in `specs/`, `notes/` and `plan/` documents as appropriate. Tasks
 that are not already in `plan/IMPLEMENTATION_PLAN.md` should be added there  
-with a clear description and any relevant details. Requirements that are not 
+with a clear description and any relevant details. Requirements that are not
 already in `specs/` should be added there with a clear requirement id,  
-description, and any relevant details. Design ideas and research that are 
+description, and any relevant details. Design ideas and research that are
 not  already in `notes/` should be added there with a clear description and  
-any relevant details. These updates are critical to ensure we are ready to 
-move forward with the upcoming phase 100 tasks. Some items might expand or 
-contradict existing notes, specs, or tasks. In those cases, whatever is in 
+any relevant details. These updates are critical to ensure we are ready to
+move forward with the upcoming phase 100 tasks. Some items might expand or
+contradict existing notes, specs, or tasks. In those cases, whatever is in
 IDEAS.md should be considered the source of truth, and the existing notes,  
 specs, or tasks should be updated to reflect the new information from IDEAS.
-md. 
+md. DOCS-2 is required at this stage so we can merge a clean PR with all
+github action CI tasks passing.
 
 ## Priority 100: Actor independence
 
@@ -69,12 +70,6 @@ it is stored in the VulnerabilityCase itself. The CaseActor must restrict certai
 activities to the case owner, such as closing the case or transferring ownership.
 These details are defined in the `vultron_as:CaseOwnerActivity`
 in `ontology/vultron_activitystreams.ttl`.
-
-## Priority 250: DOCS-1 and DOCS-2
-
-The documentation updates outlined in DOCS-1 and DOCS-2 are important for
-ensuring that the project is well-documented and that new contributors can 
-easily understand the architecture, design, and implementation of the system.
 
 ## Priority 300: Multi-Actor Demo Scenarios
 

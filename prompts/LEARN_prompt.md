@@ -110,19 +110,19 @@ When applicable, indicate dependencies:
 - `Design Decision: (blocks ITEM-ID)`
 - `Open Question: (blocked-by ITEM-ID)`
 
-5. Update `notes/README.md` when files are added, removed, or reorganized.
+1. Update `notes/README.md` when files are added, removed, or reorganized.
 
 ---
 
 ### 5. Capture specific implementation plan tasks
 
-If specific implementation tasks are identified that are not already 
+If specific implementation tasks are identified that are not already
 captured in `plan/IMPLEMENTATION_PLAN.md`:
 
-1. Add them to `plan/IMPLEMENTATION_PLAN.md` with a clear description  and 
+1. Add them to `plan/IMPLEMENTATION_PLAN.md` with a clear description  and
    any relevant details, creating new sections if needed.
 2. Ensure they are appropriately prioritized relative to existing tasks.
-3. Do **not** add implementation tasks that are too vague or high-level; 
+3. Do **not** add implementation tasks that are too vague or high-level;
    they must be specific enough to be actionable and testable.
 4. `IMPLEMENTATION_PLAN.md` is for **implementation tasks only** (the *how*);
    do not add design insights, open questions, or general notes to this file.
@@ -156,11 +156,11 @@ that have been captured elsewhere:
 2. Immediately add a short note referencing where the material now lives.
 
 Example:
+
 ```markdown
 ~~Original idea text~~
 → captured in specs/foo.md
 ```
-
 
 Rules:
 

@@ -1,7 +1,7 @@
 You are reviewing this codebase for adherence to the architecture described in
-`notes/architecture-ports-and-adapters.md`, as refined in 
-`specs/architecture.md`. Additional notes from a previous review are found 
-in `notes/architecture-review.md`. Read those document in full 
+`notes/architecture-ports-and-adapters.md`, as refined in
+`specs/architecture.md`. Additional notes from a previous review are found
+in `notes/architecture-review.md`. Read those document in full
 before examining any code. Use it as your ground truth throughout.
 
 ### Context to hold in mind
@@ -27,7 +27,7 @@ The architecture defines three distinct concerns that must not be mixed:
 ### What to look for
 
 Source code is in `vultron/`. Note that `vultron/core`, `vultron/wire`, and  
-`vultron/adapters` are partially populated, so you will first need to identify 
+`vultron/adapters` are partially populated, so you will first need to identify
 how existing files will map in to the new structure.
 
 **In `core/` files:**
@@ -93,23 +93,23 @@ separated.
 
 ### Output format
 
-Output your findings into `notes/architecture-review.md`, updating the 
-existing content to reflect your current findings. You can remove prior 
-findings that have been addressed, but do not remove prior findings that are 
+Output your findings into `notes/architecture-review.md`, updating the
+existing content to reflect your current findings. You can remove prior
+findings that have been addressed, but do not remove prior findings that are
 not yet addressed in the code. Produce your findings in three sections:
 
-**1. Violations**
+#### 1. Violations
 
 For each violation:
 
 - File and function/line
-- Which rule it breaks (by number, from 
+- Which rule it breaks (by number, from
   `notes/architecture-ports-and-adapters.md` and `specs/architecture.md`)
 - Severity: Critical (core depends on wire format or framework), Major (logic in
   wrong layer), Minor (convention or organisation)
 - One sentence explaining why it is a violation
 
-**2. Remediation Plan**
+#### 2. Remediation Plan
 
 For each Critical or Major violation:
 
@@ -118,7 +118,7 @@ For each Critical or Major violation:
 - Rough sketch of corrected code if helpful
 - Dependencies between remediations — if B requires A first, say so explicitly
 
-**3. What Is Already Clean**
+#### 3. What Is Already Clean
 
 Note code that already follows the architecture correctly. Establishes which
 patterns to replicate and confirms the review is balanced.
@@ -131,5 +131,5 @@ which is Rule 4 violation" is useful. If something is ambiguous — genuinely
 unclear whether it belongs in the wire layer or the domain — say so and explain
 the ambiguity rather than guessing.
 
-DO NOT MODIFY ANY CODE. This is a review, not a refactor. Your job is to 
+DO NOT MODIFY ANY CODE. This is a review, not a refactor. Your job is to
 identify what's wrong, not to fix it.

@@ -13,7 +13,7 @@ Files should be largely independent, each focusing on a specific topic of concer
 Requirements should be grouped by **category** and **priority** within each file.
 Avoid extraneous maintenance overhead by avoiding boilerplate like counts or sources per requirement.
 
-```
+```markdown
 # Specification Title
 
 ## Overview
@@ -49,7 +49,7 @@ Use priority **only in section headers**:
 
 Format:
 
-```
+```markdown
 ## Category (MUST)
 ```
 
@@ -61,7 +61,7 @@ Format:
 * Single-sentence, imperative style
 * IDs required
 
-```
+```markdown
 - `IMPL-01-001` Use Python 3.13+
 ```
 

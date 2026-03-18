@@ -167,32 +167,32 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
 
 Use this checklist during code review to catch boundary violations.
 
-**Core / domain layer**
+### Core / domain layer
 
 - [ ] No imports from `wire/`, `adapters/`, or any framework
 - [ ] `MessageSemantics` enum defined here, not in the wire layer
 - [ ] All service functions take domain types, not AS2 types or raw dicts
 - [ ] No direct instantiation of DB, HTTP, or queue clients
 
-**Wire layer**
+### Wire layer
 
 - [ ] Structural AS2 types contain no domain logic
 - [ ] Extractor is the sole location of AS2-to-domain vocabulary mapping
 - [ ] Serializer is the sole location of domain-to-AS2 translation
 - [ ] No handler logic or case management in the wire layer
 
-**Adapters**
+### Adapters
 
 - [ ] Inbound adapters invoke the wire pipeline before calling core
 - [ ] Outbound adapters receive serialized wire objects — no AS2 construction
 - [ ] Each adapter function is thin — translation and dispatch only
 
-**Connectors**
+### Connectors
 
 - [ ] Plugins translate only — no business logic
 - [ ] Discovered via entry points, not hardcoded imports
 
-**Tests**
+### Tests
 
 - [ ] Core tests use domain types directly — no AS2, no HTTP
 - [ ] Wire tests verify parsing and extraction independently of domain logic
