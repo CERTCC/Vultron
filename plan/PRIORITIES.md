@@ -8,22 +8,6 @@ allow for space between to add new priorities in the future if needed. The
 priority numbers themselves do not have any inherent meaning beyond their
 relative order.
 
-## Priority 70: DataLayer refactor into ports and adapters
-
-The DataLayer implementation should be refactored to become a port (Protocol),
-with the TinyDB implementation as a (driven) adapter that implements it.
-Move files around as needed to fit the new structure cleanly. This sets us
-up for adding new db backends in the future without needing to change core
-logic. (That part is mostly already true since the DataLayer is reasonably
-well abstracted already, but we still need to make sure the files and their
-contents are
-organized to reflect the architecture.)
-
-## Priority 75:
-
-P75 tasks take priority over P80. Verify they are all complete. P75-5 is 
-incomplete at the time of this writing.
-
 ## Priority 80: Resolve technical debt and ensure Hexagonal Architecture is fully realized
 
 We need to clean up 
