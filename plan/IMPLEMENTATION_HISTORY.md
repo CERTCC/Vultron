@@ -2083,3 +2083,24 @@ introduced in P60-1. Affected files: `index.md`, `as_base.md`, `as_activities.md
 ### Test results
 
 982 passed, 5581 subtests (unchanged from baseline).
+
+---
+
+## VCR-030 — Delete `vultron/sim/`, relocate `Message` (2026-03-18)
+
+`vultron/sim/` contained only `__init__.py` and `messages.py`. The `Message`
+class in `messages.py` was the sole dependency, imported by 4 files in
+`vultron/bt/`:
+
+- `vultron/bt/states.py`
+- `vultron/bt/messaging/outbound/behaviors.py`
+- `vultron/bt/messaging/inbound/fuzzer.py`
+- `vultron/bt/report_management/_behaviors/report_to_others.py`
+
+`Message` was moved to `vultron/bt/messaging/message.py` (new module), which is
+a more appropriate location since it is only used by the bt simulator. All 4
+callers updated to import from the new location. `vultron/sim/` deleted.
+
+### Test results
+
+982 passed, 5581 subtests (unchanged from baseline).

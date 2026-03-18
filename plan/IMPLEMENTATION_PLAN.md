@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-19 (VCR-019a: move case_states/ into vultron/core/ complete)
+**Last Updated**: 2026-03-18 (VCR-030: delete vultron/sim/, relocate Message)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 981 passing, 5581 subtests, 5 warnings (2026-03-18, after VCR-006)
+**Test suite**: 982 passing, 5581 subtests, 5 warnings (2026-03-18, after VCR-030)
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -23,8 +23,7 @@ use cases are class-based. CLI (`vultron/adapters/driving/cli.py`) and MCP
 
 **Active phase**: **PRIORITY-80** — technical debt cleanup and full hexagonal
 architecture realization. TECHDEBT-16 through TECHDEBT-28 are complete; VCR-A
-batch (7/8 tasks) complete. VCR-030 blocked on
-removing `vultron.sim` callers in `vultron/bt/`. VCR-B batch complete.
+batch (8/8 tasks) complete. VCR-B batch complete.
 VCR-019c study complete. VCR-019a complete — `vultron/case_states/` moved into
 `vultron/core/` (states, scoring, case_states packages); errors merged into
 `vultron/errors.py`.
@@ -532,11 +531,9 @@ Batch together where possible.
 - [x] **VCR-024**: Delete `vultron/core/ports/dns_resolver.py` — DNS resolution
   is an adapter concern; no port interface is needed. Verified no callers, then
   deleted.
-- [ ] **VCR-030**: Delete `vultron/sim/` module — blocked: `vultron/bt/states.py`,
-  `vultron/bt/messaging/outbound/behaviors.py`, `vultron/bt/messaging/inbound/fuzzer.py`,
-  and `vultron/bt/report_management/_behaviors/report_to_others.py` all import
-  `vultron.sim.messages.Message`. Update these callers before deleting.
-  (auto-added prerequisite: relocate or replace `vultron.sim.messages.Message`)
+- [x] **VCR-030**: Delete `vultron/sim/` module — moved `Message` class to
+  `vultron/bt/messaging/message.py`; updated all 4 callers in `vultron/bt/` to
+  import from the new location; deleted `vultron/sim/`. 982 tests pass.
 - [x] **VCR-031**: Delete `vultron/behavior_dispatcher.py` — updated
   `test/test_behavior_dispatcher.py` to import from canonical locations
   (`vultron.core.dispatcher`, `vultron.core.ports.dispatcher`), then deleted shim.
