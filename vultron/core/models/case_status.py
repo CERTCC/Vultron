@@ -21,7 +21,7 @@ from pydantic import field_serializer
 
 from vultron.bt.embargo_management.states import EM
 from vultron.case_states.states import CS_pxa
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import NonEmptyString, VultronObject
 
 
 class VultronCaseStatus(VultronObject):
@@ -32,8 +32,8 @@ class VultronCaseStatus(VultronObject):
     """
 
     as_type: str = "CaseStatus"
-    context: str | None = None
-    attributed_to: Any | None = None
+    context: NonEmptyString
+    attributed_to: Any
     em_state: EM = EM.EMBARGO_MANAGEMENT_NONE
     pxa_state: CS_pxa = CS_pxa.pxa
 

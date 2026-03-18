@@ -15,13 +15,13 @@
 
 """Domain representation of a participant RM-state status record."""
 
-from typing import Any
+from typing import Literal
 
-from pydantic import Field, field_serializer
+from pydantic import field_serializer
 
 from vultron.bt.report_management.states import RM
 from vultron.case_states.states import CS_vfd
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import NonEmptyString, VultronObject
 
 
 class VultronParticipantStatus(VultronObject):
@@ -33,15 +33,14 @@ class VultronParticipantStatus(VultronObject):
     ``context`` (case ID) is required, matching the wire type's constraint.
     """
 
-    as_type: str = "ParticipantStatus"
-    context: str
-    attributed_to: Any | None = None
+    as_type: Literal["ParticipantStatus"] = "ParticipantStatus"
+    context: NonEmptyString
     rm_state: RM = RM.START
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True
     embargo_adherence: bool = True
-    tracking_id: str | None = None
-    case_status: str | None = None
+    tracking_id: NonEmptyString | None = None
+    case_status: NonEmptyString | None = None
 
     @field_serializer("vfd_state")
     def _serialize_vfd_state(self, v: CS_vfd) -> str:

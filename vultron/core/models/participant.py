@@ -15,12 +15,10 @@
 
 """Domain representation of a case participant."""
 
-from typing import Any
-
 from pydantic import Field, field_serializer, field_validator
 
 from vultron.bt.roles.states import CVDRoles
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import NonEmptyString, VultronObject
 from vultron.core.models.participant_status import VultronParticipantStatus
 
 
@@ -34,14 +32,14 @@ class VultronParticipant(VultronObject):
     """
 
     as_type: str = "CaseParticipant"
-    attributed_to: Any | None = None
-    context: str | None = None
+    attributed_to: NonEmptyString
+    context: NonEmptyString
     case_roles: list[CVDRoles] = Field(default_factory=list)
     participant_statuses: list[VultronParticipantStatus] = Field(
         default_factory=list
     )
-    accepted_embargo_ids: list[str] = Field(default_factory=list)
-    participant_case_name: str | None = None
+    accepted_embargo_ids: list[NonEmptyString] = Field(default_factory=list)
+    participant_case_name: NonEmptyString | None = None
 
     @field_serializer("case_roles")
     def _serialize_case_roles(self, value: list[CVDRoles]) -> list[str]:

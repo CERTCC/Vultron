@@ -12,8 +12,8 @@ class CreateCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_CASE] = (
         MessageSemantics.CREATE_CASE
     )
-    case: VultronCase | None = None
-    activity: VultronActivity | None = None
+    case: VultronCase
+    activity: VultronActivity
 
 
 class UpdateCaseReceivedEvent(VultronEvent):
@@ -22,7 +22,7 @@ class UpdateCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.UPDATE_CASE] = (
         MessageSemantics.UPDATE_CASE
     )
-    case: VultronCase | None = None
+    case: VultronCase
 
 
 class EngageCaseReceivedEvent(VultronEvent):

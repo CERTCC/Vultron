@@ -15,8 +15,7 @@
 
 """Domain representation of a vulnerability report."""
 
-from datetime import datetime
-from typing import Any
+from typing import Literal
 
 from vultron.core.models.base import VultronObject
 
@@ -30,12 +29,4 @@ class VultronReport(VultronObject):
     ``as_type`` is ``"VulnerabilityReport"`` to match the wire value.
     """
 
-    as_type: str = "VulnerabilityReport"
-    summary: str | None = None
-    content: Any | None = None
-    url: str | None = None
-    media_type: str | None = None
-    attributed_to: Any | None = None
-    context: Any | None = None
-    published: datetime | None = None
-    updated: datetime | None = None
+    as_type: Literal["VulnerabilityReport"] = "VulnerabilityReport"

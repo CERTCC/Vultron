@@ -2,11 +2,13 @@ import logging
 from unittest.mock import MagicMock
 
 from vultron import behavior_dispatcher as bd
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import (
     CreateReportReceivedEvent,
     MessageSemantics,
     VultronEvent,
 )
+from vultron.core.models.report import VultronReport
 
 
 def test_get_dispatcher_returns_local_dispatcher():
@@ -27,6 +29,8 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
         activity_id="act-xyz",
         actor_id="https://example.org/users/tester",
         object_type="VulnerabilityReport",
+        report=VultronReport(),
+        activity=VultronActivity(as_type="Create"),
     )
 
     dispatcher.dispatch(event, mock_dl)

@@ -12,7 +12,7 @@ class CreateCaseParticipantReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_CASE_PARTICIPANT] = (
         MessageSemantics.CREATE_CASE_PARTICIPANT
     )
-    participant: VultronParticipant | None = None
+    participant: VultronParticipant
 
 
 class AddCaseParticipantToCaseReceivedEvent(VultronEvent):

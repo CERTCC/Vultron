@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field, field_serializer, field_validator
 
-from vultron.core.models.events.base import NonEmptyString
+from vultron.core.models.base import NonEmptyString
 from vultron.wire.as2.vocab.base.dt_utils import now_utc
 
 

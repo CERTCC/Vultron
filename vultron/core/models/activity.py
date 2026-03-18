@@ -15,9 +15,11 @@
 
 """Domain representations of AS2 activity types used in the core layer."""
 
-from typing import Any
+from typing import Any, Literal
 
-from vultron.core.models.base import VultronObject
+from pydantic import Field
+
+from vultron.core.models.base import NonEmptyString, VultronObject
 
 
 class VultronActivity(VultronObject):
@@ -29,50 +31,43 @@ class VultronActivity(VultronObject):
     Field names match the wire-layer ``as_Activity`` internal names so that
     a stored ``VultronActivity`` can be round-tripped through
     ``record_to_object`` and deserialized as the appropriate AS2 activity
-    subclass.
+    subclass.  ``as_object`` uses alias ``"object"`` to match the AS2 wire
+    field name; callers may pass either ``as_object=`` or ``object=`` thanks
+    to ``populate_by_name=True`` on ``VultronBase``.
     """
 
-    actor: str | None = None
-    as_object: str | None = None
-    target: str | None = None
-    origin: str | None = None
-    context: str | None = None
-    in_reply_to: str | None = None
+    as_type: NonEmptyString = Field(alias="type")
+    actor: NonEmptyString | None = None
+    as_object: Any | None = Field(default=None, alias="object")
+    target: NonEmptyString | None = None
+    origin: NonEmptyString | None = None
 
 
-class VultronOffer(VultronObject):
+class VultronOffer(VultronActivity):
     """Domain representation of an Offer activity.
 
     Mirrors the essential fields of ``as_Offer``.
     ``as_type`` is ``"Offer"`` to match the wire value.
     """
 
-    as_type: str = "Offer"
-    actor: str | None = None
-    object: Any | None = None
-    to: Any | None = None
-    target: Any | None = None
+    as_type: Literal["Offer"] = "Offer"
 
 
-class VultronAccept(VultronObject):
+class VultronAccept(VultronActivity):
     """Domain representation of an Accept activity.
 
     Mirrors the essential fields of ``as_Accept``.
     ``as_type`` is ``"Accept"`` to match the wire value.
     """
 
-    as_type: str = "Accept"
-    actor: str | None = None
-    object: Any | None = None
+    as_type: Literal["Accept"] = "Accept"
 
 
-class VultronCreateCaseActivity(VultronObject):
+class VultronCreateCaseActivity(VultronActivity):
     """Domain representation of a Create(Case) activity.
 
     Mirrors the essential fields of ``as_CreateCase``.
     ``as_type`` is ``"Create"`` to match the wire value.
     """
 
-    as_type: str = "Create"
-    actor: str | None = None
-    object: str | None = None
+    as_type: Literal["Create"] = "Create"

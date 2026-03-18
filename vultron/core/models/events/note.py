@@ -12,7 +12,7 @@ class CreateNoteReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_NOTE] = (
         MessageSemantics.CREATE_NOTE
     )
-    note: VultronNote | None = None
+    note: VultronNote
 
 
 class AddNoteToCaseReceivedEvent(VultronEvent):

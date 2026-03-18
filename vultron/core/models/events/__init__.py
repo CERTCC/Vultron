@@ -11,11 +11,6 @@ Public surface:
 - Per-semantic *ReceivedEvent classes imported from category submodules
 """
 
-from vultron.core.models.events.base import (
-    MessageSemantics,
-    NonEmptyString,
-    VultronEvent,
-)
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
     AcceptInviteActorToCaseReceivedEvent,
@@ -26,6 +21,10 @@ from vultron.core.models.events.actor import (
     RejectInviteActorToCaseReceivedEvent,
     RejectSuggestActorToCaseReceivedEvent,
     SuggestActorToCaseReceivedEvent,
+)
+from vultron.core.models.events.base import (
+    MessageSemantics,
+    VultronEvent,
 )
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
@@ -120,7 +119,6 @@ EVENT_CLASS_MAP: dict[MessageSemantics, type[VultronEvent]] = {
 
 __all__ = [
     "MessageSemantics",
-    "NonEmptyString",
     "VultronEvent",
     "InboundPayload",
     "EVENT_CLASS_MAP",

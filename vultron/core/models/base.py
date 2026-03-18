@@ -15,12 +15,33 @@
 
 """Base class for Vultron Protocol core domain object models."""
 
-from pydantic import BaseModel, Field
+from datetime import datetime, timedelta
+from typing import Annotated, Any
+
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from vultron.core.models._helpers import _new_urn
 
 
-class VultronObject(BaseModel):
+def _non_empty(v: str) -> str:
+    if not v.strip():
+        raise ValueError("must be a non-empty string")
+    return v
+
+
+NonEmptyString = Annotated[str, AfterValidator(_non_empty)]
+
+
+class VultronBase(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    as_id: NonEmptyString = Field(default_factory=_new_urn)
+    as_type: NonEmptyString = Field(default=None, alias="type")
+    name: NonEmptyString | None = None
+    preview: NonEmptyString | None = None
+    media_type: NonEmptyString | None = None
+
+
+class VultronObject(VultronBase):
     """Base class for core domain object models.
 
     Captures the common ``as_id``, ``as_type``, and ``name`` fields shared by
@@ -29,6 +50,29 @@ class VultronObject(BaseModel):
     this base rather than directly from ``BaseModel``.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
-    as_type: str
-    name: str | None = None
+    replies: Any | None = None
+    url: NonEmptyString | None = None
+    generator: Any | None = None
+    context: NonEmptyString | None = None
+    tag: Any | None = None
+    in_reply_to: NonEmptyString | None = None
+
+    duration: timedelta | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    published: datetime | None = None
+    updated: datetime | None = None
+
+    # content
+    content: Any | None = None
+    summary: NonEmptyString | None = None
+    icon: Any | None = None
+    image: Any | None = None
+    attachment: Any | None = None
+    location: Any | None = None
+    to: Any | None = None
+    cc: Any | None = None
+    bto: Any | None = None
+    bcc: Any | None = None
+    audience: Any | None = None
+    attributed_to: NonEmptyString | None = None

@@ -17,7 +17,7 @@
 
 from datetime import datetime
 
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import NonEmptyString, VultronObject
 
 
 class VultronEmbargoEvent(VultronObject):
@@ -28,8 +28,5 @@ class VultronEmbargoEvent(VultronObject):
     """
 
     as_type: str = "Event"
-    start_time: datetime | None = None
-    end_time: datetime | None = None
-    published: datetime | None = None
-    updated: datetime | None = None
-    context: str | None = None
+    end_time: datetime
+    context: NonEmptyString

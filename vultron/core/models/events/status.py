@@ -15,7 +15,7 @@ class CreateCaseStatusReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_CASE_STATUS] = (
         MessageSemantics.CREATE_CASE_STATUS
     )
-    status: VultronCaseStatus | None = None
+    status: VultronCaseStatus
 
 
 class AddCaseStatusToCaseReceivedEvent(VultronEvent):
@@ -32,7 +32,7 @@ class CreateParticipantStatusReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_PARTICIPANT_STATUS] = (
         MessageSemantics.CREATE_PARTICIPANT_STATUS
     )
-    status: VultronParticipantStatus | None = None
+    status: VultronParticipantStatus
 
 
 class AddParticipantStatusToParticipantReceivedEvent(VultronEvent):

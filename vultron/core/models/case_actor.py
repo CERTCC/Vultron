@@ -15,7 +15,7 @@
 
 """Domain representations for CaseActor and its outbox."""
 
-from typing import Any
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -38,7 +38,5 @@ class VultronCaseActor(VultronObject):
     ``as_type`` is ``"Service"`` to match ``CaseActor``'s wire value.
     """
 
-    as_type: str = "Service"
-    attributed_to: Any | None = None
-    context: Any | None = None
+    as_type: Literal["Service"] = "Service"
     outbox: VultronOutbox = Field(default_factory=VultronOutbox)

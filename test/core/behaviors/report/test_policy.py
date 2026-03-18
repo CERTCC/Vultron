@@ -174,8 +174,8 @@ class TestAlwaysAcceptPolicy:
             ),
             VultronReport(
                 as_id="https://example.org/reports/r2",
-                name="",  # Empty name
-                content="",  # Empty content
+                name=None,
+                content=None,
             ),
             VultronReport(
                 as_id="https://example.org/reports/r3",

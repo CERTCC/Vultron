@@ -5,19 +5,11 @@ VultronEvent base class that all per-semantic inbound domain event types
 inherit from.
 """
 
-from enum import auto, StrEnum
-from typing import Annotated
+from enum import StrEnum, auto
 
-from pydantic import AfterValidator, BaseModel
+from pydantic import BaseModel
 
-
-def _non_empty(v: str) -> str:
-    if not v.strip():
-        raise ValueError("must be a non-empty string")
-    return v
-
-
-NonEmptyString = Annotated[str, AfterValidator(_non_empty)]
+from vultron.core.models.base import NonEmptyString
 
 
 class MessageSemantics(StrEnum):

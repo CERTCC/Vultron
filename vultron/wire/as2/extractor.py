@@ -461,7 +461,9 @@ def extract_intent(
                 end_time=getattr(obj, "end_time", None),
                 published=getattr(obj, "published", None),
                 updated=getattr(obj, "updated", None),
-                context=_get_id(getattr(obj, "context", None)),
+                context=_get_id(getattr(obj, "context", None))
+                or _get_id(context)
+                or _get_id(target),
             )
         elif _obj_type == str(VOtype.CASE_PARTICIPANT):
             kw["participant"] = VultronParticipant(

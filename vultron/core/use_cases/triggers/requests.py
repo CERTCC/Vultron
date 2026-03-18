@@ -19,7 +19,7 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic.functional_validators import AfterValidator
 
-from vultron.core.models.events.base import NonEmptyString
+from vultron.core.models.base import NonEmptyString
 
 _URI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+\-.]*:[^\s]")
 

@@ -15,7 +15,7 @@ class SuggestActorToCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.SUGGEST_ACTOR_TO_CASE] = (
         MessageSemantics.SUGGEST_ACTOR_TO_CASE
     )
-    activity: VultronActivity | None = None
+    activity: VultronActivity
 
 
 class AcceptSuggestActorToCaseReceivedEvent(VultronEvent):
@@ -24,7 +24,7 @@ class AcceptSuggestActorToCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE] = (
         MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE
     )
-    activity: VultronActivity | None = None
+    activity: VultronActivity
 
 
 class RejectSuggestActorToCaseReceivedEvent(VultronEvent):
@@ -41,7 +41,7 @@ class OfferCaseOwnershipTransferReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER] = (
         MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
     )
-    activity: VultronActivity | None = None
+    activity: VultronActivity
 
 
 class AcceptCaseOwnershipTransferReceivedEvent(VultronEvent):
@@ -66,7 +66,7 @@ class InviteActorToCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.INVITE_ACTOR_TO_CASE] = (
         MessageSemantics.INVITE_ACTOR_TO_CASE
     )
-    activity: VultronActivity | None = None
+    activity: VultronActivity
 
 
 class AcceptInviteActorToCaseReceivedEvent(VultronEvent):

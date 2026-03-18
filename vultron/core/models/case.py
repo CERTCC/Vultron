@@ -15,10 +15,9 @@
 
 """Domain representation of a vulnerability case."""
 
-from datetime import datetime
-from typing import Any
+from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from vultron.core.models.base import VultronObject
 from vultron.core.models.case_event import VultronCaseEvent
@@ -38,24 +37,20 @@ class VultronCase(VultronObject):
     ``as_type`` is ``"VulnerabilityCase"`` so that TinyDB stores this in the
     same table as wire-created cases and ``record_to_object`` can round-trip
     it via the wire vocabulary registry.
+
+    When first created with an ``attributed_to`` actor and an empty
+    ``case_statuses`` list, an initial ``VultronCaseStatus`` is appended
+    automatically so that ``current_status`` (on the wire
+    ``VulnerabilityCase``) never encounters an empty history list.
     """
 
-    as_type: str = "VulnerabilityCase"
-    summary: str | None = None
-    content: str | None = None
-    url: str | None = None
-    context: Any | None = None
-    attributed_to: Any | None = None
-    published: datetime | None = None
-    updated: datetime | None = None
+    as_type: Literal["VulnerabilityCase"] = "VulnerabilityCase"
     case_participants: list[str | VultronParticipant] = Field(
         default_factory=list
     )
     actor_participant_index: dict[str, str] = Field(default_factory=dict)
     vulnerability_reports: list[str] = Field(default_factory=list)
-    case_statuses: list[str | VultronCaseStatus] = Field(
-        default_factory=lambda: [VultronCaseStatus()]
-    )
+    case_statuses: list[str | VultronCaseStatus] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
     active_embargo: str | None = None
     proposed_embargoes: list[str] = Field(default_factory=list)
@@ -64,3 +59,14 @@ class VultronCase(VultronObject):
     parent_cases: list[str] = Field(default_factory=list)
     child_cases: list[str] = Field(default_factory=list)
     sibling_cases: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def init_case_statuses(self) -> "VultronCase":
+        if not self.case_statuses and self.attributed_to:
+            self.case_statuses = [
+                VultronCaseStatus(
+                    context=self.as_id,
+                    attributed_to=self.attributed_to,
+                )
+            ]
+        return self

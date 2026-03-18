@@ -15,7 +15,7 @@
 
 """Domain representation of a Note."""
 
-from vultron.core.models.base import VultronObject
+from vultron.core.models.base import NonEmptyString, VultronObject
 
 
 class VultronNote(VultronObject):
@@ -25,8 +25,4 @@ class VultronNote(VultronObject):
     """
 
     as_type: str = "Note"
-    summary: str | None = None
-    content: str | None = None
-    url: str | None = None
-    attributed_to: str | None = None
-    context: str | None = None
+    content: NonEmptyString

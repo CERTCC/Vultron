@@ -15,7 +15,7 @@ class CreateEmbargoEventReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_EMBARGO_EVENT] = (
         MessageSemantics.CREATE_EMBARGO_EVENT
     )
-    embargo: VultronEmbargoEvent | None = None
+    embargo: VultronEmbargoEvent
 
 
 class AddEmbargoEventToCaseReceivedEvent(VultronEvent):
@@ -48,7 +48,7 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.INVITE_TO_EMBARGO_ON_CASE] = (
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
     )
-    activity: VultronActivity | None = None
+    activity: VultronActivity
 
 
 class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
