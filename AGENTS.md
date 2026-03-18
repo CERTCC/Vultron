@@ -67,10 +67,16 @@ Quick pointers and gotchas:
 Examples (handler & datalayer):
 
 ```python
-@verify_semantics(MessageSemantics.CREATE_REPORT)
-def create_report(dispatchable: DispatchEvent) -> None:
-    payload = dispatchable.payload
-    # rehydrate nested refs, validate, persist via datalayer.update(id, record)
+class CreateReportReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CreateReportReceivedEvent
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> None:
+        # rehydrate nested refs, validate, persist via datalayer.update(id, record)
+        ...
 ```
 
 If making non-trivial architectural changes, draft an ADR in
@@ -247,9 +253,11 @@ See `notes/activitystreams-semantics.md` for detailed discussion.
 
 ### Use-Case Protocol (MANDATORY)
 
-All use-case functions MUST:
+All use-case classes MUST:
 
-- Accept `(event: VultronEvent, dl: DataLayer) -> None` — no decorator required
+- Follow the `UseCase[Req, Res]` Protocol (`vultron/core/ports/use_case.py`)
+- Accept `(dl: DataLayer, request: XxxReceivedEvent)` in `__init__`
+- Implement `execute() -> None` (or `dict` for trigger use cases)
 - Be registered in `USE_CASE_MAP` (in
   `vultron/core/use_cases/use_case_map.py`)
 - Use Pydantic models for type-safe access to event fields
@@ -258,10 +266,18 @@ All use-case functions MUST:
 Example:
 
 ```python
-def create_report(event: CreateReportReceivedEvent, dl: DataLayer) -> None:
-    # Access validated event fields directly
-    # Use dl for persistence operations
-    # Log state transitions
+class CreateReportReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CreateReportReceivedEvent
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> None:
+        # Access validated event fields via self._request
+        # Use self._dl for persistence operations
+        # Log state transitions
+        ...
 ```
 
 Reference: `specs/handler-protocol.md` for complete requirements and
@@ -272,9 +288,7 @@ verification criteria.
 The system uses two key registries that MUST stay synchronized:
 
 - `USE_CASE_MAP` (in `vultron/core/use_cases/use_case_map.py`): Maps
-  `MessageSemantics` → use-case callables (domain layer); also re-exported as
-  `SEMANTICS_HANDLERS` via `vultron/api/v2/backend/handler_map.py` for
-  backward compatibility
+  `MessageSemantics` → use-case classes (domain layer)
 - `SEMANTICS_ACTIVITY_PATTERNS` (in `vultron/wire/as2/extractor.py`): Maps
   `MessageSemantics` → `ActivityPattern` objects (wire layer); all pattern
   objects are named with a `Pattern` suffix (e.g. `CreateReportPattern`)
@@ -286,7 +300,7 @@ When adding new message types:
 2. Define `ActivityPattern` named `<Type>Pattern` in `vultron/wire/as2/extractor.py`
 3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in correct order (specific
    before general)
-4. Implement use-case function in `vultron/core/use_cases/`
+4. Implement use-case class in `vultron/core/use_cases/`
 5. Register use case in `USE_CASE_MAP` in
    `vultron/core/use_cases/use_case_map.py`
 6. Add tests verifying pattern matching and use-case invocation
@@ -407,9 +421,9 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 
 ### Decorator Usage
 
-- Handler functions MUST use `@verify_semantics(MessageSemantics.X)`
-- Decorator verifies semantic type matches actual activity structure
-- Raises `VultronApiHandlerSemanticMismatchError` on mismatch
+- Semantic type validation is performed at dispatch time by the `USE_CASE_MAP`
+  key lookup in `vultron/core/dispatcher.py`
+- Unrecognised semantic types raise `VultronApiHandlerNotFoundError`
 
 ### Code Organization
 
@@ -554,8 +568,8 @@ don't exercise the actual code paths.
 
 When implementing handler business logic, tests MUST verify:
 
-- Correct semantic type validation via decorator
-- Payload access via `dispatchable.payload`
+- Correct semantic type validation at dispatch time via `USE_CASE_MAP` key lookup
+- Payload access via `request` parameter on the use-case class
 - State transitions persisted correctly
 - Response activities generated (when implemented)
 - Error conditions handled appropriately
@@ -577,9 +591,9 @@ behavior across backends (in-memory / tinydb) where reasonable.
    `vultron/wire/as2/extractor.py`
 3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in
    `vultron/wire/as2/extractor.py` (order matters — specific before general)
-4. Implement a use-case function in `vultron/core/use_cases/`:
-   - Accept `(event: VultronEvent, dl: DataLayer) -> None`
-   - No decorator required; semantic checking is in the dispatcher
+4. Implement a use-case class in `vultron/core/use_cases/`:
+   - Follow `UseCase[Req, Res]` Protocol; accept `(dl, request)` in `__init__`
+   - Implement `execute() -> None`
 5. Register in `USE_CASE_MAP` in
    `vultron/core/use_cases/use_case_map.py`
 6. Add tests:
@@ -604,12 +618,7 @@ behavior across backends (in-memory / tinydb) where reasonable.
   Protocol (dispatch signature: `dispatch(event, dl)`)
 - **Dispatcher**: `vultron/core/dispatcher.py` - `DispatcherBase`,
   `DirectActivityDispatcher`, `get_dispatcher` factory
-- **Dispatcher shim**: `vultron/behavior_dispatcher.py` - backward-compat
-  re-export shim
-- **Handler Map shim**: `vultron/api/v2/backend/handler_map.py` -
-  `SEMANTICS_HANDLERS` alias for `USE_CASE_MAP` (backward compat)
-- **Handler shims**: `vultron/api/v2/backend/handlers/` - backward-compat
-  wrappers that unwrap `DispatchEvent` and delegate to `core/use_cases/*`;
+- **Handler shims**: `vultron/api/v2/backend/handlers/` - removed in PREPX-2;
 - **Inbox**: `vultron/api/v2/routers/actors.py` - Endpoint implementation
 - **Triggers**: `vultron/api/v2/routers/trigger_report.py`,
   `trigger_case.py`, `trigger_embargo.py` - Triggerable behavior endpoints
@@ -848,7 +857,7 @@ See `specs/semantic-extraction.md` SE-01-002 and
 
 ```python
 activity = as_Create(actor="alice", object="report-1")  # Bad: strings
-dispatchable = DispatchEvent(semantic_type=MessageSemantics.UNKNOWN, ...)  # Bad: wrong semantic
+event = CreateReportReceivedEvent(semantic_type=MessageSemantics.UNKNOWN, ...)  # Bad: wrong semantic
 ```
 
 **Best practice**:
@@ -856,7 +865,7 @@ dispatchable = DispatchEvent(semantic_type=MessageSemantics.UNKNOWN, ...)  # Bad
 ```python
 report = VulnerabilityReport(name="TEST-001", content="...")  # Good: proper object
 activity = as_Create(actor="https://example.org/alice", object=report)  # Good: full structure
-dispatchable = DispatchEvent(semantic_type=MessageSemantics.CREATE_REPORT, ...)  # Good: matches structure
+event = CreateReportReceivedEvent(semantic_type=MessageSemantics.CREATE_REPORT, ...)  # Good: matches structure
 ```
 
 See `specs/testability.md` TB-05-004, TB-05-005 for requirements.

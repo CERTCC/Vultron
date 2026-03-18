@@ -6,7 +6,6 @@ in the system, as understood by the domain layer.
 Public surface:
 - MessageSemantics — enum of all recognised semantic types
 - VultronEvent — base class for all per-semantic inbound domain events
-- InboundPayload — backward-compat alias for VultronEvent
 - EVENT_CLASS_MAP — mapping from MessageSemantics to its concrete event class
 - Per-semantic *ReceivedEvent classes imported from category submodules
 """
@@ -69,10 +68,6 @@ from vultron.core.models.events.status import (
 )
 from vultron.core.models.events.unknown import UnknownReceivedEvent
 
-# Backward-compat alias: code that imports InboundPayload continues to work.
-# New code should prefer VultronEvent or the concrete per-semantic subclasses.
-InboundPayload = VultronEvent
-
 # Maps each MessageSemantics value to its concrete VultronEvent subclass.
 # Used by extract_intent() in the wire layer to construct the right domain event.
 EVENT_CLASS_MAP: dict[MessageSemantics, type[VultronEvent]] = {
@@ -120,7 +115,6 @@ EVENT_CLASS_MAP: dict[MessageSemantics, type[VultronEvent]] = {
 __all__ = [
     "MessageSemantics",
     "VultronEvent",
-    "InboundPayload",
     "EVENT_CLASS_MAP",
     # report
     "CreateReportReceivedEvent",

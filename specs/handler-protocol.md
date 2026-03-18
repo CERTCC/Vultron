@@ -2,7 +2,9 @@
 
 ## Overview
 
-Handler functions process DispatchEvent objects and implement protocol business logic. All handlers follow a common contract defined by the HandlerProtocol and enforced by the verify_semantics decorator.
+Handler use-case classes process `VultronEvent` domain objects and implement
+protocol business logic. All handlers follow a common contract defined by the
+`UseCase` Protocol.
 
 **Source**: Protocol design, dispatcher architecture
 
@@ -17,13 +19,15 @@ Handler functions process DispatchEvent objects and implement protocol business 
 
 ## Handler Signature (MUST)
 
-- `HP-01-001` All handler functions MUST accept a single DispatchEvent parameter
-- `HP-01-002` Handler functions MAY return None or HandlerResult
+- `HP-01-001` All handler use-case classes MUST accept `(event: VultronEvent,
+  dl: DataLayer)` — either as `__init__` parameters or as `execute` parameters
+- `HP-01-002` Handler use-case `execute` methods MAY return None or HandlerResult
 
 ## Semantic Verification (MUST)
 
 - `HP-02-001` All handlers MUST have semantic type verification before execution
-  - **Implementation**: Uses `@verify_semantics` decorator with MessageSemantics enum value
+  - **Implementation**: Semantic type is checked at dispatcher lookup time using
+    the `USE_CASE_MAP` key; mismatched events raise `VultronApiHandlerNotFoundError`
 - `HP-02-002` The verification mechanism MUST check that the activity's semantic type matches the handler's expected type
   - **Rationale**: Prevents routing errors where wrong handler processes an activity
 
@@ -110,15 +114,15 @@ Handler functions process DispatchEvent objects and implement protocol business 
 
 ### HP-01-001, HP-01-002 Verification
 
-- Unit test: Handler accepts DispatchEvent parameter
+- Unit test: Handler use-case class accepts `VultronEvent` and `DataLayer`
 - Unit test: Handler returns None or HandlerResult
-- Type check: Handler signature matches HandlerProtocol
+- Type check: Handler signature matches `UseCase` Protocol
 
 ### HP-02-001, HP-02-002 Verification
 
-- Unit test: Verify decorator present on all handlers
-- Unit test: Decorator validates correct semantic type
-- Unit test: Decorator raises error for mismatched semantic type
+- Unit test: Verify dispatcher uses `USE_CASE_MAP` for lookups
+- Unit test: Verify `VultronApiHandlerNotFoundError` raised for unrecognised
+  semantic types
 
 ### HP-03-001, HP-03-002 Verification
 

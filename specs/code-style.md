@@ -37,22 +37,27 @@ Defines code formatting and import organization standards for Python code.
 
 ```python
 # Public API - comprehensive docstring
-def validate_report(dispatchable: DispatchEvent) -> None:
-    """Validate vulnerability report and create case on acceptance.
-    
-    Args:
-        dispatchable: Activity dispatch wrapper containing report offer
-        
-    Raises:
-        VultronApiError: If report validation fails
-        DataLayerError: If case creation fails
-        
-    Side Effects:
-        - Updates report status to VALID or INVALID
-        - Creates VulnerabilityCase on validation success
-        - Adds CreateCase activity to actor outbox
-    """
-    ...
+class ValidateReportReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: ValidateReportReceivedEvent
+    ) -> None:
+        """Validate vulnerability report and create case on acceptance.
+
+        Args:
+            dl: DataLayer instance for persistence operations
+            request: Domain event carrying the validation activity
+
+        Raises:
+            VultronApiError: If report validation fails
+            DataLayerError: If case creation fails
+
+        Side Effects:
+            - Updates report status to VALID or INVALID
+            - Creates VulnerabilityCase on validation success
+            - Adds CreateCase activity to actor outbox
+        """
+        self._dl = dl
+        self._request = request
 
 # Simple utility - brief docstring
 def extract_id_segment(url: str) -> str:

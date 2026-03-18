@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-18 (PREPX-2: remove handlers shim layer)
+**Last Updated**: 2026-03-18 (PREPX-3: remove DispatchEvent and InboundPayload aliases)
 
 ## Overview
 
@@ -745,12 +745,12 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 
 **Priority**: High (deprecated API in active test use — must follow PREPX-2)
 
-- [ ] **PREPX-3**: Remove the `DispatchEvent` deprecated wrapper from
+- [x] **PREPX-3**: Remove the `DispatchEvent` deprecated wrapper from
   `vultron/types.py` (P75-2c) and the `InboundPayload` backward-compat alias
   from `vultron/core/models/events/__init__.py`. These are consumed only by the
   test files addressed in PREPX-2. Do after PREPX-2. Done when neither alias
   exists in the codebase, all tests pass, and no imports reference them.
-  **Depends on PREPX-2.**
+  **Depends on PREPX-2.** **COMPLETE.**
 
 ---
 

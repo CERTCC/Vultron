@@ -2,7 +2,9 @@
 
 ## Overview
 
-After semantic extraction, the dispatcher routes DispatchEvent objects to appropriate handler functions. The dispatcher may execute handlers synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
+After semantic extraction, the dispatcher routes `VultronEvent` domain objects
+to the appropriate use-case class. The dispatcher may execute use cases
+synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
 
 **Source**: Design documents, handler protocol requirements
 
@@ -11,7 +13,8 @@ After semantic extraction, the dispatcher routes DispatchEvent objects to approp
 ## Dispatcher Protocol (MUST)
 
 - `DR-01-001` All dispatcher implementations MUST implement ActivityDispatcher protocol
-- `DR-01-002` Dispatchers MUST pass complete DispatchEvent objects when invoking handlers
+- `DR-01-002` Dispatchers MUST pass the complete `VultronEvent` and `DataLayer`
+  to use-case `execute()` calls
 - `DR-01-003` Dispatchers MUST invoke `verify_semantics` decorator checks during handler execution
 
 ## Handler Lookup (MUST)
@@ -37,14 +40,14 @@ After semantic extraction, the dispatcher routes DispatchEvent objects to approp
 ### DR-01-001, DR-01-002, DR-01-003 Verification
 
 - Unit test: Verify DirectActivityDispatcher implements ActivityDispatcher protocol
-- Unit test: Verify dispatcher passes complete DispatchEvent to handlers
-- Unit test: Verify decorator validation occurs during dispatch
+- Unit test: Verify dispatcher passes `VultronEvent` and `DataLayer` to use-case
+- Unit test: Verify semantic type validation occurs at dispatch time
 
 ### DR-02-001, DR-02-002 Verification
 
-- Unit test: Verify dispatcher uses SEMANTIC_HANDLER_MAP for lookups
-- Unit test: Verify all MessageSemantics enum values have handler entries
-- Unit test: Verify KeyError raised for missing semantic types
+- Unit test: Verify dispatcher uses `USE_CASE_MAP` for lookups
+- Unit test: Verify all MessageSemantics enum values have use-case entries
+- Unit test: Verify `VultronApiHandlerNotFoundError` raised for missing semantic types
 
 ### DR-03-001, DR-03-002 Verification
 
@@ -59,8 +62,8 @@ After semantic extraction, the dispatcher routes DispatchEvent objects to approp
 
 ## Related
 
-- Implementation: `vultron/behavior_dispatcher.py`
-- Implementation: `vultron/api/v2/backend/handler_map.py` (`SEMANTICS_HANDLERS` registry)
+- Implementation: `vultron/core/dispatcher.py`
+- Implementation: `vultron/core/use_cases/use_case_map.py` (`USE_CASE_MAP` registry)
 - Tests: `test/api/v2/backend/test_dispatch_routing.py`
 - Related Spec: [semantic-extraction.md](semantic-extraction.md)
 - Related Spec: [handler-protocol.md](handler-protocol.md)
