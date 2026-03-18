@@ -50,7 +50,13 @@ REQUIRED_KWARGS: dict[type, dict] = {
         "context": "urn:uuid:case-123",
         "end_time": _FUTURE_DT,
     },
-    VultronActivity: {"as_type": "Announce"},
+    VultronActivity: {
+        "as_type": "Announce",
+        "actor": "https://example.org/actors/test",
+    },
+    VultronOffer: {"actor": "https://example.org/actors/test"},
+    VultronAccept: {"actor": "https://example.org/actors/test"},
+    VultronCreateCaseActivity: {"actor": "https://example.org/actors/test"},
 }
 
 
@@ -99,7 +105,9 @@ def test_vultron_participant_status_context_required():
 def test_vultron_activity_as_type_required():
     with pytest.raises(Exception):
         VultronActivity()
-    act = VultronActivity(as_type="Offer")
+    act = VultronActivity(
+        as_type="Offer", actor="https://example.org/actors/test"
+    )
     assert act.as_type == "Offer"
 
 
@@ -130,9 +138,10 @@ def test_domain_object_expected_as_types():
         == "Event"
     )
     assert VultronCaseActor().as_type == "Service"
-    assert VultronOffer().as_type == "Offer"
-    assert VultronAccept().as_type == "Accept"
-    assert VultronCreateCaseActivity().as_type == "Create"
+    _test_actor = "https://example.org/actors/test"
+    assert VultronOffer(actor=_test_actor).as_type == "Offer"
+    assert VultronAccept(actor=_test_actor).as_type == "Accept"
+    assert VultronCreateCaseActivity(actor=_test_actor).as_type == "Create"
 
 
 def test_vultron_note_content_required():

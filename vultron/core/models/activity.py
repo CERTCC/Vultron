@@ -37,7 +37,7 @@ class VultronActivity(VultronObject):
     """
 
     as_type: NonEmptyString = Field(alias="type")
-    actor: NonEmptyString | None = None
+    actor: NonEmptyString  # non-optional because every activity must have an actor
     as_object: Any | None = Field(default=None, alias="object")
     target: NonEmptyString | None = None
     origin: NonEmptyString | None = None

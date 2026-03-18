@@ -274,7 +274,7 @@ def test_create_case_tree_case_created_event_uses_case_id(
 
 
 def test_create_case_tree_records_offer_received_event_when_present(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, actor_id, case_obj, bridge
 ):
     """If the triggering activity has in_reply_to, an offer_received event MUST be recorded (CM-02-009)."""
     from vultron.core.models.vultron_types import VultronOffer
@@ -282,7 +282,7 @@ def test_create_case_tree_records_offer_received_event_when_present(
     offer_id = "https://example.org/activities/offer-001"
 
     class FakeActivity:
-        in_reply_to = VultronOffer(as_id=offer_id)
+        in_reply_to = VultronOffer(as_id=offer_id, actor=actor_id)
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
     bridge.execute_with_setup(
@@ -315,7 +315,7 @@ def test_create_case_tree_no_offer_received_event_without_in_reply_to(
 
 
 def test_create_case_tree_offer_received_before_case_created(
-    datalayer, actor, case_obj, bridge
+    datalayer, actor, actor_id, case_obj, bridge
 ):
     """offer_received event MUST appear before case_created in the event log."""
     from vultron.core.models.vultron_types import VultronOffer
@@ -323,7 +323,7 @@ def test_create_case_tree_offer_received_before_case_created(
     offer_id = "https://example.org/activities/offer-002"
 
     class FakeActivity:
-        in_reply_to = VultronOffer(as_id=offer_id)
+        in_reply_to = VultronOffer(as_id=offer_id, actor=actor_id)
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
     bridge.execute_with_setup(

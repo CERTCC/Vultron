@@ -8,6 +8,34 @@ Add new items below this line
 
 ---
 
+### 2026-03-18: VultronActivity.actor now required — test fixture update
+
+**Issue**: `VultronActivity.actor` was changed from `Optional[NonEmptyString]`
+to required `NonEmptyString`. This caused 17 test failures because tests
+instantiated `VultronActivity`, `VultronOffer`, `VultronAccept`, and
+`VultronCreateCaseActivity` without providing `actor`.
+
+**Root cause**: Every AS2 Activity MUST have an actor (the agent performing the
+activity). Making `actor` required enforces this protocol invariant at the
+model layer.
+
+**Fix**: Updated test fixtures in three files to supply a valid `actor` URL:
+- `test/core/models/test_base.py`: Added `actor` to `REQUIRED_KWARGS` for all
+  four activity classes; updated `test_vultron_activity_as_type_required` and
+  `test_domain_object_expected_as_types` inline instantiations.
+- `test/test_behavior_dispatcher.py`: Added `actor` to `VultronActivity()`
+  call.
+- `test/core/behaviors/case/test_create_tree.py`: Added `actor` to
+  `VultronOffer()` calls inside `FakeActivity` class bodies; also added
+  `actor_id` as an explicit fixture parameter to both affected test functions.
+  **Gotcha**: Python class bodies do NOT receive pytest fixture values from
+  their enclosing function scope — the name `actor_id` at class-body level
+  resolves to the fixture *function* object, not the string value, causing a
+  Pydantic `ValidationError`. The fix is to add `actor_id` as a named
+  parameter on the test function so pytest injects the string value into the
+  function's local scope, making it accessible inside the class body.
+
+
 ## `wire` needs pydantic field aliases, `core` does not
 
 The field aliases found in `BaseModel`-derived classes in `vultron/wire/as2` 
