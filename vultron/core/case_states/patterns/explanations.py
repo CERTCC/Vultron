@@ -15,10 +15,10 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from vultron.case_states.enums.explanations import Explanation
-from vultron.case_states.enums.utils import unique_enum_list
-from vultron.case_states.patterns.base import compile_patterns
-from vultron.case_states.validations import ensure_valid_pattern
+from vultron.core.scoring.explanations import Explanation
+from vultron.core.scoring.utils import unique_enum_list
+from vultron.core.case_states.patterns.base import compile_patterns
+from vultron.core.case_states.validations import ensure_valid_pattern
 
 _EXPLANATION_PATTERNS = {
     "v.....": (Explanation.VENDOR_IS_UNAWARE_OF_VULNERABILITY,),

@@ -261,7 +261,7 @@ def test_extract_intent_participant_status_vfd_state():
         as_Create,
     )
     from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
-    from vultron.case_states.states import CS_vfd
+    from vultron.core.states.cs import CS_vfd
 
     ps = ParticipantStatus(
         context="https://example.org/cases/1",

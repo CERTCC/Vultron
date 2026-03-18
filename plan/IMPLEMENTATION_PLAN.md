@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-18 (VCR-019c: enum/state consolidation study complete)
+**Last Updated**: 2026-03-19 (VCR-019a: move case_states/ into vultron/core/ complete)
 
 ## Overview
 
@@ -25,7 +25,9 @@ use cases are class-based. CLI (`vultron/adapters/driving/cli.py`) and MCP
 architecture realization. TECHDEBT-16 through TECHDEBT-28 are complete; VCR-A
 batch (7/8 tasks) complete. VCR-030 blocked on
 removing `vultron.sim` callers in `vultron/bt/`. VCR-B batch complete.
-VCR-019c study complete — implementation guidance in `plan/IMPLEMENTATION_NOTES.md`.
+VCR-019c study complete. VCR-019a complete — `vultron/case_states/` moved into
+`vultron/core/` (states, scoring, case_states packages); errors merged into
+`vultron/errors.py`.
 
 ---
 
@@ -591,7 +593,7 @@ They are larger structural changes; plan as a single coordinated PR.
   `core/states/`); `MessageTypes`, `CapabilityFlag`, `ActorState` are
   Group D (stay in bt/). See notes for full detail.
 
-- [ ] **VCR-019a**: Move enums and state machine definitions from
+- [x] **VCR-019a**: Move enums and state machine definitions from
   `vultron/case_states/` into `vultron/core/`. Integrate the error hierarchy
   from `case_states/` into the core error hierarchy. Do not leave compatibility
   shims behind. **Prerequisite: VCR-019c (done)** — see notes for

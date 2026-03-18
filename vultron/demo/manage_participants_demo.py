@@ -75,7 +75,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 from vultron.bt.report_management.states import RM
-from vultron.case_states.states import CS_vfd
+from vultron.core.states.cs import CS_vfd
 from vultron.demo.utils import (
     BASE_URL,
     DataLayerClient,

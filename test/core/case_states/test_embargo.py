@@ -14,9 +14,9 @@
 
 import unittest
 
-import vultron.case_states.hypercube as sg
-import vultron.case_states.patterns.embargo as mb
-from vultron.case_states.errors import StateValidationError
+import vultron.core.case_states.hypercube as sg
+import vultron.core.case_states.patterns.embargo as mb
+from vultron.errors import StateValidationError
 
 
 class MyTestCase(unittest.TestCase):

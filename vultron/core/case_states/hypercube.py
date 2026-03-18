@@ -13,7 +13,7 @@
 
 # !/usr/bin/env python
 """
-The `vultron.case_states.hypercube` module contains the CVDmodel class, which represents the state graph of a Coordinated Vulnerability Disclosure case.
+The `vultron.core.case_states.hypercube` module contains the CVDmodel class, which represents the state graph of a Coordinated Vulnerability Disclosure case.
 
 Based on
 Householder, A. D., and Jonathan Spring.
@@ -31,7 +31,7 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
-from vultron.case_states.errors import (
+from vultron.errors import (
     CVDmodelError,
     HistoryValidationError,
     PatternValidationError,
@@ -39,19 +39,19 @@ from vultron.case_states.errors import (
     StateValidationError,
     TransitionValidationError,
 )
-from vultron.case_states.patterns.embargo import (
+from vultron.core.case_states.patterns.embargo import (
     can_start_embargo,
     embargo_viable,
 )
-from vultron.case_states.patterns.explanations import explain
-from vultron.case_states.patterns.info import info
-from vultron.case_states.patterns.potential_actions import action
-from vultron.case_states.patterns.zerodays import zeroday_type
-from vultron.case_states.states import pxa, vfd
-from vultron.case_states.validations import (
+from vultron.core.case_states.patterns.explanations import explain
+from vultron.core.case_states.patterns.info import info
+from vultron.core.case_states.patterns.potential_actions import action
+from vultron.core.case_states.patterns.zerodays import zeroday_type
+from vultron.core.states.cs import pxa, vfd
+from vultron.core.case_states.validations import (
     ensure_valid_state_method_wrapper as ensure_valid_state,
 )
-from vultron.case_states.validations import (
+from vultron.core.case_states.validations import (
     is_valid_history,
     is_valid_pattern,
     is_valid_state,

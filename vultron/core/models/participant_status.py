@@ -20,7 +20,7 @@ from typing import Literal
 from pydantic import field_serializer
 
 from vultron.bt.report_management.states import RM
-from vultron.case_states.states import CS_vfd
+from vultron.core.states.cs import CS_vfd
 from vultron.core.models.base import NonEmptyString, VultronObject
 
 

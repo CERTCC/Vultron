@@ -13,7 +13,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-The `vultron.case_states.states` module implements the CVD Case State Model enums.
+The `vultron.core.states.cs` module implements the CVD Case State Model enums.
 
 It also provides functions for converting between state strings and enums.
 """
@@ -21,7 +21,7 @@ It also provides functions for converting between state strings and enums.
 from enum import Enum, IntEnum
 from typing import NamedTuple, Tuple
 
-from vultron.case_states.validations import ensure_valid_state
+from vultron.core.case_states.validations import ensure_valid_state
 
 
 class VendorAwareness(IntEnum):

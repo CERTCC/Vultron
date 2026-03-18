@@ -18,8 +18,8 @@
 import os
 import re
 
-from vultron.case_states.hypercube import CVDmodel
-from vultron.case_states.patterns.explanations import explain
+from vultron.core.case_states.hypercube import CVDmodel
+from vultron.core.case_states.patterns.explanations import explain
 
 _DISCLAIMER = "This file is auto-generated. Do not edit."
 

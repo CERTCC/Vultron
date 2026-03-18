@@ -15,7 +15,7 @@
 import unittest
 from itertools import product
 
-import vultron.case_states.states as s
+import vultron.core.states.cs as s
 
 
 class MyTestCase(unittest.TestCase):

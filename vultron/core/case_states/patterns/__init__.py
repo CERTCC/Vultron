@@ -10,41 +10,6 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-
 """
-`vultron.case_states.errors` provides error classes for the CVD State Model.
+The `vultron.core.case_states.patterns` package implements state patterns in support of the CVD Case State Model.
 """
-
-from vultron.errors import VultronError
-
-
-class CvdStateModelError(VultronError):
-    """Base class for errors in the `vultron.case_states` module."""
-
-
-class CVDmodelError(CvdStateModelError):
-    pass
-
-
-class ScoringError(CvdStateModelError):
-    pass
-
-
-class ValidationError(CvdStateModelError):
-    pass
-
-
-class PatternValidationError(ValidationError):
-    pass
-
-
-class StateValidationError(ValidationError):
-    pass
-
-
-class HistoryValidationError(ValidationError):
-    pass
-
-
-class TransitionValidationError(ValidationError):
-    pass

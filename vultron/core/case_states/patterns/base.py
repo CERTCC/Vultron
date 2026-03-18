@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-"""This module provides case state patterns mapped to vep enums"""
-
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -14,28 +12,25 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import re
 
-from vultron.case_states.enums.utils import unique_enum_list
-from vultron.case_states.enums.vep import VEP
-from vultron.case_states.patterns.base import compile_patterns
-from vultron.case_states.validations import (
-    ensure_valid_state,
-)
-
-_VEP = {
-    "V.....": (VEP.NOT_APPLICABLE,),
-    "...P..": (VEP.NOT_APPLICABLE,),
-    "....X.": (VEP.NOT_APPLICABLE,),
-    "vfdpx.": (VEP.TENABLE,),
-}
-
-VEP_ = compile_patterns(_VEP)
+from vultron.core.case_states.type_hints import EnumTuple
+from vultron.core.case_states.validations import is_valid_pattern
 
 
-@ensure_valid_state
-def vep(state):
-    information = []
-    for _re, info in VEP_.items():
-        if _re.match(state):
-            information.extend(info)
-    return unique_enum_list(information)
+def compile_patterns(
+    dict_of_patterns: dict[str, EnumTuple],
+) -> dict[re.Pattern, EnumTuple]:
+    """Compile the patterns in the dictionary keys to regex patterns
+    Args:
+        dict_of_patterns: A dictionary with string patterns as keys and
+            associated information as values
+    Returns:
+        A dictionary with compiled regex patterns as keys and associated
+        information as values
+    """
+    # check that all the patterns are valid
+    for pattern in dict_of_patterns.keys():
+        is_valid_pattern(pattern)
+
+    return {re.compile(k): v for k, v in dict_of_patterns.items()}

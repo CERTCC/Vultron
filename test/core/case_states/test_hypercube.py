@@ -14,9 +14,9 @@
 import unittest
 from itertools import product
 
-import vultron.case_states.hypercube as hc
-from vultron.case_states.errors import TransitionValidationError
-from vultron.case_states.validations import is_valid_transition
+import vultron.core.case_states.hypercube as hc
+from vultron.errors import TransitionValidationError
+from vultron.core.case_states.validations import is_valid_transition
 
 
 class MyTestCase(unittest.TestCase):

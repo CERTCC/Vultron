@@ -20,7 +20,7 @@ from typing import Any
 from pydantic import field_serializer
 
 from vultron.bt.embargo_management.states import EM
-from vultron.case_states.states import CS_pxa
+from vultron.core.states.cs import CS_pxa
 from vultron.core.models.base import NonEmptyString, VultronObject
 
 

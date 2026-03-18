@@ -14,15 +14,15 @@
 
 import unittest
 
-from vultron.case_states.enums.ssvc_2 import (
+from vultron.core.scoring.ssvc_2 import (
     SSVC_2_Enum,
     SSVC_2_Exploitation,
     SSVC_2_Report_Public,
     SSVC_2_Supplier_Contacted,
 )
-from vultron.case_states.enums.utils import enum_item_in_list
-from vultron.case_states.hypercube import CVDmodel
-from vultron.case_states.patterns.ssvc import (
+from vultron.core.scoring.utils import enum_item_in_list
+from vultron.core.case_states.hypercube import CVDmodel
+from vultron.core.case_states.patterns.ssvc import (
     ssvc,
 )
 

@@ -196,3 +196,24 @@ All import `vultron.sim.messages.Message`. VCR-030 can be resolved by moving
 the `Message` class into `vultron/bt/messaging/message.py` (create as new
 module). This is a more appropriate location for `Message` anyway as it is
 only relevant to the older `vultron/bt` simulator anyway.
+
+---
+
+## VCR-019a — Lessons Learned
+
+**Sed-based bulk replacement works cleanly** for this type of module-rename
+refactoring: `sed -i '' 's/old\.path/new\.path/g'` applied to each file is
+faster and less error-prone than editing files individually.
+
+**Test directory must mirror source directory.** Moving `test/case_states/`
+to `test/core/case_states/` (with a `__init__.py`) ensures pytest discovers
+tests under the new paths and that the test layout mirrors the source layout
+per project conventions.
+
+**No shims = immediate confidence.** With no compatibility re-exports left
+behind, a clean test run proves all callers were updated correctly. Any missed
+import site causes an immediate `ImportError` rather than a silent passthrough.
+
+**`vultron.case_states.enums.*` files had no cross-imports** within the enums
+package itself, so copying to `vultron/core/scoring/` required no import
+updates inside those files — only in their callers.

@@ -19,10 +19,10 @@ import re
 from enum import Enum
 from typing import List
 
-from vultron.case_states.enums.cvss_31 import CVSS_31_E, CVSS_31_RL
-from vultron.case_states.patterns.base import compile_patterns
-from vultron.case_states.type_hints import EnumTuple
-from vultron.case_states.validations import (
+from vultron.core.scoring.cvss_31 import CVSS_31_E, CVSS_31_RL
+from vultron.core.case_states.patterns.base import compile_patterns
+from vultron.core.case_states.type_hints import EnumTuple
+from vultron.core.case_states.validations import (
     ensure_valid_state,
 )
 

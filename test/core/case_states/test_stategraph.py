@@ -16,9 +16,9 @@ import unittest
 
 import networkx as nx
 
-import vultron.case_states.errors as err
-import vultron.case_states.hypercube as sg
-import vultron.case_states.validations as val
+import vultron.errors as err
+import vultron.core.case_states.hypercube as sg
+import vultron.core.case_states.validations as val
 
 
 class TestStategraph(unittest.TestCase):

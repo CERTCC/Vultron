@@ -10,6 +10,31 @@
 #  (“Third Party Software”). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
-"""
-The `vultron.case_states.patterns` package implements state patterns in support of the CVD Case State Model.
-"""
+
+
+import unittest
+
+import vultron.core.scoring.vep
+from vultron.core.case_states.hypercube import CVDmodel
+from vultron.core.case_states.patterns import vep
+
+
+class MyTestCase(unittest.TestCase):
+    def setUp(self):
+        self.model = CVDmodel()
+
+    def tearDown(self):
+        pass
+
+    def test_vep(self):
+        for state in self.model.states:
+            result = vep.vep(state)
+            # result should always be a list of non-zero length of strings of non-zero length
+            self.assertIsInstance(result, list)
+            self.assertGreater(len(result), 0)
+            for item in result:
+                self.assertIsInstance(item, vultron.core.scoring.vep.VEP)
+
+
+if __name__ == "__main__":
+    unittest.main()

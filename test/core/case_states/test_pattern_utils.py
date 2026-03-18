@@ -15,7 +15,7 @@
 import unittest
 from enum import IntEnum
 
-from vultron.case_states.enums.utils import (
+from vultron.core.scoring.utils import (
     enum_item_in_list,
     enum_list_to_string_list,
     uniq_enum_iter,

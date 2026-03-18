@@ -14,8 +14,8 @@
 
 import unittest
 
-import vultron.case_states.patterns.zerodays as zd
-from vultron.case_states.hypercube import CVDmodel
+import vultron.core.case_states.patterns.zerodays as zd
+from vultron.core.case_states.hypercube import CVDmodel
 
 not_zero_day_states = [
     "Vfdpxa",

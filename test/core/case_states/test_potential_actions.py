@@ -14,8 +14,8 @@
 
 import unittest
 
-from vultron.case_states.hypercube import CVDmodel
-from vultron.case_states.patterns import potential_actions as pa
+from vultron.core.case_states.hypercube import CVDmodel
+from vultron.core.case_states.patterns import potential_actions as pa
 
 
 class MyTestCase(unittest.TestCase):

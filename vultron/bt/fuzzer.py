@@ -19,7 +19,7 @@ import random
 
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM_UNCLOSED
-from vultron.case_states.states import all_states
+from vultron.core.states.cs import all_states
 
 
 def random_state():

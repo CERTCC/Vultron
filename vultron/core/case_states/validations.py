@@ -19,7 +19,7 @@ import re
 from functools import wraps
 from typing import Callable, TypeVar, Any
 
-from vultron.case_states.errors import (
+from vultron.errors import (
     HistoryValidationError,
     PatternValidationError,
     StateValidationError,

@@ -14,10 +14,10 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from vultron.case_states.enums.utils import enum2title, unique_enum_list
-from vultron.case_states.enums.zerodays import ZeroDayType
-from vultron.case_states.patterns.base import compile_patterns
-from vultron.case_states.validations import ensure_valid_state
+from vultron.core.scoring.utils import enum2title, unique_enum_list
+from vultron.core.scoring.zerodays import ZeroDayType
+from vultron.core.case_states.patterns.base import compile_patterns
+from vultron.core.case_states.validations import ensure_valid_state
 
 _ZERODAYS = {
     "v..p..": (ZeroDayType.ZERO_DAY_VULNERABILITY_TYPE_1,),

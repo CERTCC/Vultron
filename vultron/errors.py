@@ -48,3 +48,35 @@ class VultronValidationError(VultronError):
 
 class VultronApiHandlerNotFoundError(VultronError, KeyError):
     """Raised when no handler is found for a given activity type."""
+
+
+class CvdStateModelError(VultronError):
+    """Base class for errors in the CVD state model."""
+
+
+class CVDmodelError(CvdStateModelError):
+    pass
+
+
+class ScoringError(CvdStateModelError):
+    pass
+
+
+class ValidationError(CvdStateModelError):
+    pass
+
+
+class PatternValidationError(ValidationError):
+    pass
+
+
+class StateValidationError(ValidationError):
+    pass
+
+
+class HistoryValidationError(ValidationError):
+    pass
+
+
+class TransitionValidationError(ValidationError):
+    pass

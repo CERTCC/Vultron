@@ -42,7 +42,7 @@ from vultron.wire.as2.vocab.objects.case_participant import (
 )
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
 from vultron.bt.report_management.states import RM
-from vultron.case_states.states import CS_vfd
+from vultron.core.states.cs import CS_vfd
 
 
 def add_vendor_participant_to_case() -> AddParticipantToCaseActivity:

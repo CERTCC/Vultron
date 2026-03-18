@@ -1,4 +1,7 @@
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#!/usr/bin/env python
+"""This module provides case state patterns mapped to vep enums"""
+
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -12,29 +15,27 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-import unittest
+from vultron.core.scoring.utils import unique_enum_list
+from vultron.core.scoring.vep import VEP
+from vultron.core.case_states.patterns.base import compile_patterns
+from vultron.core.case_states.validations import (
+    ensure_valid_state,
+)
 
-import vultron.case_states.enums.vep
-from vultron.case_states.hypercube import CVDmodel
-from vultron.case_states.patterns import vep
+_VEP = {
+    "V.....": (VEP.NOT_APPLICABLE,),
+    "...P..": (VEP.NOT_APPLICABLE,),
+    "....X.": (VEP.NOT_APPLICABLE,),
+    "vfdpx.": (VEP.TENABLE,),
+}
 
-
-class MyTestCase(unittest.TestCase):
-    def setUp(self):
-        self.model = CVDmodel()
-
-    def tearDown(self):
-        pass
-
-    def test_vep(self):
-        for state in self.model.states:
-            result = vep.vep(state)
-            # result should always be a list of non-zero length of strings of non-zero length
-            self.assertIsInstance(result, list)
-            self.assertGreater(len(result), 0)
-            for item in result:
-                self.assertIsInstance(item, vultron.case_states.enums.vep.VEP)
+VEP_ = compile_patterns(_VEP)
 
 
-if __name__ == "__main__":
-    unittest.main()
+@ensure_valid_state
+def vep(state):
+    information = []
+    for _re, info in VEP_.items():
+        if _re.match(state):
+            information.extend(info)
+    return unique_enum_list(information)

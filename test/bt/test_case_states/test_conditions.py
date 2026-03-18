@@ -16,7 +16,7 @@ import unittest
 import vultron.bt.case_state.conditions as csc
 from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.states import ActorState
-from vultron.case_states.states import CS
+from vultron.core.states.cs import CS
 
 
 def all_casings(input_string):

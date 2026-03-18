@@ -17,9 +17,9 @@ import string
 import unittest
 from itertools import permutations, product
 
-import vultron.case_states.errors as err
-import vultron.case_states.validations as v
-from vultron.case_states.hypercube import CVDmodel
+import vultron.errors as err
+import vultron.core.case_states.validations as v
+from vultron.core.case_states.hypercube import CVDmodel
 
 alpha = string.ascii_lowercase
 

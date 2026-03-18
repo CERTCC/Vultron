@@ -15,9 +15,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from vultron.case_states.enums.potential_actions import Actions
-from vultron.case_states.enums.utils import unique_enum_list
-from vultron.case_states.patterns.base import compile_patterns
+from vultron.core.scoring.potential_actions import Actions
+from vultron.core.scoring.utils import unique_enum_list
+from vultron.core.case_states.patterns.base import compile_patterns
 
 # things you COULD do, not necessarily things you SHOULD do
 _ACTIONS = {
@@ -106,8 +106,8 @@ def action(state):
 
 
 def main():
-    from vultron.case_states.hypercube import CVDmodel
-    from vultron.case_states.enums.utils import enum2title
+    from vultron.core.case_states.hypercube import CVDmodel
+    from vultron.core.scoring.utils import enum2title
 
     model = CVDmodel()
     for state in model.states:

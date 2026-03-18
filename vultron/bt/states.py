@@ -28,7 +28,7 @@ from vultron.bt.report_management.report_priority_states import (
 )
 from vultron.bt.report_management.states import RM
 from vultron.bt.roles.states import CVDRoles
-from vultron.case_states.states import CS
+from vultron.core.states.cs import CS
 from vultron.sim.messages import Message
 
 

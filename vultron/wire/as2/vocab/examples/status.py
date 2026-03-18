@@ -26,7 +26,7 @@ from vultron.wire.as2.vocab.objects.case_status import (
 )
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
-from vultron.case_states.states import CS_pxa, CS_vfd
+from vultron.core.states.cs import CS_pxa, CS_vfd
 
 
 def case_status() -> CaseStatus:
