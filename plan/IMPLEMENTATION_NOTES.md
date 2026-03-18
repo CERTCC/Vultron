@@ -77,3 +77,9 @@ datalayer may be necessary to resolve this issue.
 
 ---
 
+## Refactor large tests
+
+`test/api/v2/backend/test_handlers.py` is far too large and it no longer 
+maps to the current code structure. Refactor it to be more modular and 
+reflect the move from api/v2/backend to adapters.
+
