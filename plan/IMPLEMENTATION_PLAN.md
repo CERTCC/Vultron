@@ -471,7 +471,7 @@ from Deferred section after P75-4 completion.
 
 ### DOCS-1 — Update `docker/README.md`
 
-**Priority**: Medium (docs correctness, `notes/codebase-structure.md`)
+**Priority**: 95 (docs correctness, `notes/codebase-structure.md`)
 
 - [ ] **DOCS-1**: Update `docker/README.md` to accurately describe the current
   `docker-compose.yml` services: `api-dev` (API server), `demo` (unified demo
@@ -485,7 +485,7 @@ from Deferred section after P75-4 completion.
 
 ### DOCS-2 — Fix broken inline code examples in `docs/`
 
-**Priority**: Medium (docs correctness, `notes/codebase-structure.md`)
+**Priority**: 85 (docs correctness, `notes/codebase-structure.md`)
 
 - [ ] **DOCS-2**: Update `docs/reference/code/as_vocab/*.md` files that reference
   old `vultron.as_vocab.*` module paths (moved to `vultron.wire.as2.vocab.*`
