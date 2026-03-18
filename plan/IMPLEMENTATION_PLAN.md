@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-18 (PREPX-3: remove DispatchEvent and InboundPayload aliases)
+**Last Updated**: 2026-03-18 (VCR-028: remove unnecessary _idempotent_create guard patterns)
 
 ## Overview
 
@@ -637,9 +637,12 @@ They are larger structural changes; plan as a single coordinated PR.
   belong in `vultron/core/models/` instead. If so, move them and update callers.
   This supports the goal of a clean domain model hierarchy (VCR-022/TECHDEBT-16).
 
-- [ ] **VCR-028**: Remove unnecessary `if _idempotent_create(...): return` guard
+- [x] **VCR-028**: Remove unnecessary `if _idempotent_create(...): return` guard
   patterns in use cases where the method return value already handles early exit.
-  Verify logic is unchanged, then simplify.
+  Changed `_idempotent_create` return type from `bool` to `None`; replaced
+  all 10 `if _idempotent_create(...): return` guards in `actor.py` (4),
+  `case_participant.py` (1), `embargo.py` (2), `note.py` (1), `status.py` (2)
+  with direct calls. 981 tests pass.
 
 - [ ] **VCR-029**: Equivalent to VCR-021b — make required fields on core event
   models non-optional. Captured in VCR-021b above.

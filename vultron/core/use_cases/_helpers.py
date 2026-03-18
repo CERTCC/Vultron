@@ -36,12 +36,12 @@ def _idempotent_create(
     obj: Any,
     label: str,
     activity_id: str | None = None,
-) -> bool:
+) -> None:
     """Guard against duplicate object creation.
 
-    Returns ``True`` if *id_key* is already present in the DataLayer and the
-    caller should return early.  Otherwise stores *obj* (if not ``None``) via
-    ``dl.create`` and returns ``False``.
+    Checks whether *id_key* is already present in the DataLayer.  If so, logs
+    and returns without storing.  Otherwise stores *obj* (if not ``None``) via
+    ``dl.create``.
 
     Args:
         dl: The DataLayer to read/write.
@@ -52,13 +52,12 @@ def _idempotent_create(
         activity_id: Activity ID used in warning log when *obj* is ``None``.
     """
     if not type_key or not id_key:
-        return False
+        return
     if dl.get(type_key, id_key) is not None:
         logger.info("'%s' already stored — skipping (idempotent)", id_key)
-        return True
+        return
     if obj is not None:
         dl.create(obj)
         logger.info("Stored %s '%s'", label, id_key)
     else:
         logger.warning("no %s object for event '%s'", label, activity_id)
-    return False

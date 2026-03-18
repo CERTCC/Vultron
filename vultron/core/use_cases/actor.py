@@ -31,15 +31,14 @@ class SuggestActorToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        if _idempotent_create(
+        _idempotent_create(
             self._dl,
             request.activity_type,
             request.activity_id,
             request.activity,
             "SuggestActorToCase",
             request.activity_id,
-        ):
-            return
+        )
 
 
 class AcceptSuggestActorToCaseReceivedUseCase:
@@ -51,15 +50,14 @@ class AcceptSuggestActorToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        if _idempotent_create(
+        _idempotent_create(
             self._dl,
             request.activity_type,
             request.activity_id,
             request.activity,
             "AcceptSuggestActorToCase",
             request.activity_id,
-        ):
-            return
+        )
 
 
 class RejectSuggestActorToCaseReceivedUseCase:
@@ -87,15 +85,14 @@ class OfferCaseOwnershipTransferReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        if _idempotent_create(
+        _idempotent_create(
             self._dl,
             request.activity_type,
             request.activity_id,
             request.activity,
             "OfferCaseOwnershipTransfer",
             request.activity_id,
-        ):
-            return
+        )
 
 
 class AcceptCaseOwnershipTransferReceivedUseCase:
@@ -162,15 +159,14 @@ class InviteActorToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        if _idempotent_create(
+        _idempotent_create(
             self._dl,
             request.activity_type,
             request.activity_id,
             request.activity,
             "InviteActorToCase",
             request.activity_id,
-        ):
-            return
+        )
 
 
 class AcceptInviteActorToCaseReceivedUseCase:

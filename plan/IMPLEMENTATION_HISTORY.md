@@ -1890,3 +1890,33 @@ definition file after PREPX-2 removed the handler shim layer.
 ### Test results
 
 981 passed, 5581 subtests, 5 warnings.
+
+---
+
+## VCR-028 — Remove unnecessary `_idempotent_create` guard patterns (2026-03-18)
+
+**Task**: Remove `if _idempotent_create(...): return` guard patterns in use
+cases where the guard is the complete `execute()` body.
+
+### What was done
+
+- Changed `_idempotent_create` return type from `-> bool` to `-> None` in
+  `vultron/core/use_cases/_helpers.py`. The return value was only ever used
+  as a guard (`if ...: return`) and never inspected further.
+- Replaced all 10 `if _idempotent_create(...): return` guards with direct
+  calls to `_idempotent_create(...)` in:
+  - `actor.py` (4 sites: `SuggestActorToCase`, `AcceptSuggestActorToCase`,
+    `OfferCaseOwnershipTransfer`, `InviteActorToCase`)
+  - `case_participant.py` (1 site: `CreateCaseParticipant`)
+  - `embargo.py` (2 sites: `CreateEmbargoEvent`, `InviteToEmbargoOnCase`)
+  - `note.py` (1 site: `CreateNote`)
+  - `status.py` (2 sites: `CreateCaseStatus`, `CreateParticipantStatus`)
+
+No behaviour change. The `_idempotent_create` helper already handles all
+logic internally (existence check, creation, logging). The `if ...: return`
+was redundant because there was no code after the guard in any of these
+`execute()` methods.
+
+### Test results
+
+981 passed, 5581 subtests, 5 warnings.

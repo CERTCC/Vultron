@@ -29,15 +29,14 @@ class CreateEmbargoEventReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        if _idempotent_create(
+        _idempotent_create(
             self._dl,
             request.object_type,
             request.object_id,
             request.embargo,
             "EmbargoEvent",
             request.activity_id,
-        ):
-            return
+        )
 
 
 class AddEmbargoEventToCaseReceivedUseCase:
@@ -133,15 +132,14 @@ class InviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        if _idempotent_create(
+        _idempotent_create(
             self._dl,
             request.activity_type,
             request.activity_id,
             request.activity,
             "InviteToEmbargoOnCase",
             request.activity_id,
-        ):
-            return
+        )
 
 
 class AcceptInviteToEmbargoOnCaseReceivedUseCase:

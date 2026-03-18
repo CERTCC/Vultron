@@ -24,15 +24,14 @@ class CreateNoteReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        if _idempotent_create(
+        _idempotent_create(
             self._dl,
             request.object_type,
             request.object_id,
             request.note,
             "Note",
             request.activity_id,
-        ):
-            return
+        )
 
 
 class AddNoteToCaseReceivedUseCase:

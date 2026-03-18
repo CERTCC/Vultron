@@ -25,15 +25,14 @@ class CreateCaseStatusReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        if _idempotent_create(
+        _idempotent_create(
             self._dl,
             request.object_type,
             request.object_id,
             request.status,
             "CaseStatus",
             request.activity_id,
-        ):
-            return
+        )
 
 
 class AddCaseStatusToCaseReceivedUseCase:
@@ -85,15 +84,14 @@ class CreateParticipantStatusReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        if _idempotent_create(
+        _idempotent_create(
             self._dl,
             request.object_type,
             request.object_id,
             request.status,
             "ParticipantStatus",
             request.activity_id,
-        ):
-            return
+        )
 
 
 class AddParticipantStatusToParticipantReceivedUseCase:
