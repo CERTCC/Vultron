@@ -18,7 +18,7 @@ Provides pytest fixtures for testing the FastAPI v2 application.
 import pytest
 from fastapi.testclient import TestClient
 
-from vultron.api.v2.app import app_v2 as app
+from vultron.adapters.driving.fastapi.app import app_v2 as app
 
 
 @pytest.fixture

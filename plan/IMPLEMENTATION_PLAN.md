@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-18 (VCR-016: move adapter-layer utils to vultron/adapters/utils.py)
+**Last Updated**: 2026-03-18 (VCR-B: move FastAPI adapter to vultron/adapters/driving/fastapi/)
 
 ## Overview
 
@@ -547,20 +547,21 @@ Batch together where possible.
 These tasks consolidate `vultron/api/v2/` into `vultron/adapters/driving/fastapi/`.
 They are larger structural changes; plan as a single coordinated PR.
 
-- [ ] **VCR-003/004/007/008/009/017/018**: Create `vultron/adapters/driving/fastapi/`
-  subpackage. Move:
+- [x] **VCR-003/004/007/008/009/017/018**: Created `vultron/adapters/driving/fastapi/`
+  subpackage. Moved:
 
   - `vultron/api/v2/routers/` → `vultron/adapters/driving/fastapi/routers/`
-  - `vultron/api/app.py` → `vultron/adapters/driving/fastapi/app.py`
-  - `vultron/api/v2/backend/inbox_handler.py` → consolidate with
-    `vultron/adapters/driving/http_inbox.py` (evaluate duplication first)
-  - `vultron/api/v2/outbox_handler.py` → consolidate with
-    `vultron/adapters/driven/http_delivery.py` (evaluate duplication first)
+  - `vultron/api/v2/app.py` + `vultron/api/main.py` → `vultron/adapters/driving/fastapi/app.py`
+    and `vultron/adapters/driving/fastapi/main.py`
+  - `vultron/api/v2/backend/inbox_handler.py` → `vultron/adapters/driving/fastapi/inbox_handler.py`
+    (replaced `vultron/adapters/driving/http_inbox.py` stub)
+  - `vultron/api/v2/backend/outbox_handler.py` → `vultron/adapters/driving/fastapi/outbox_handler.py`
+  - `vultron/api/v2/errors.py` → `vultron/adapters/driving/fastapi/errors.py`
+  - `vultron/api/v2/backend/helpers.py` → `vultron/adapters/driving/fastapi/helpers.py`
 
-  The API is an adapter. After consolidation, `vultron/api/` should contain
-  only backward-compat shims (or be deleted entirely). Update `pyproject.toml`
-  entry points, demo scripts, and project documentation accordingly.
-  Do NOT leave compatibility shims behind after the move is verified.
+  No backward-compat shims. Updated cli.py, Dockerfile, and 9 test files.
+  `vultron/api/` retains only `actor_io.py` (VCR-014), `trigger_services/` (VCR-D),
+  and `datalayer/` package stub. 981 tests pass.
 
 - [x] **VCR-016**: Evaluate `vultron/api/v2/data/utils.py` — determine whether
   utilities belong in `core/` (if core has duplicative needs) or in adapters

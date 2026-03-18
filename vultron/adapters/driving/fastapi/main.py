@@ -22,7 +22,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.responses import RedirectResponse
 
-from vultron.api.v2 import app_v2
+from vultron.adapters.driving.fastapi.app import app_v2
 
 #
 # from api.v2.app import app_v2
@@ -38,7 +38,7 @@ async def lifespan(application: FastAPI):
     ``app_v2`` lifespan (which fires when that sub-app is used directly,
     e.g. in unit tests targeting ``app_v2`` directly).
     """
-    from vultron.api.v2.backend.inbox_handler import init_dispatcher
+    from vultron.adapters.driving.fastapi.inbox_handler import init_dispatcher
     from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 
     init_dispatcher(dl=get_datalayer())

@@ -20,10 +20,10 @@ import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 
-from vultron.api.v2.backend.inbox_handler import (
+from vultron.adapters.driving.fastapi.inbox_handler import (
     inbox_handler,
 )
-from vultron.api.v2.backend.outbox_handler import outbox_handler
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.db_record import object_to_record

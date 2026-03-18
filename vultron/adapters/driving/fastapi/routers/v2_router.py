@@ -18,7 +18,7 @@ Vultron API v2 Routers
 
 from fastapi import APIRouter, Request
 
-from vultron.api.v2.routers import (
+from vultron.adapters.driving.fastapi.routers import (
     actors,
     datalayer,
     examples,

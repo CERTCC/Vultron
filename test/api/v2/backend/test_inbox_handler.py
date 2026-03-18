@@ -4,7 +4,7 @@ from unittest.mock import Mock, MagicMock
 
 import pytest
 
-from vultron.api.v2.backend import inbox_handler as ih
+from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.core.models.events import MessageSemantics, VultronEvent
 
 

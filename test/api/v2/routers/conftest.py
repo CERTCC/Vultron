@@ -17,8 +17,10 @@ from fastapi.testclient import TestClient
 
 from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.api.v2.routers import actors as actors_router
-from vultron.api.v2.routers import datalayer as datalayer_router
+from vultron.adapters.driving.fastapi.routers import actors as actors_router
+from vultron.adapters.driving.fastapi.routers import (
+    datalayer as datalayer_router,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import (
     as_Actor,

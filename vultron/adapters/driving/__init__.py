@@ -8,7 +8,7 @@ about them.
 Modules:
 
 - ``cli.py``        — Command-line interface adapter.
-- ``http_inbox.py`` — FastAPI endpoint → wire/as2 pipeline → core.
+- ``fastapi/``      — FastAPI HTTP adapter (routers, inbox/outbox handlers, app).
 - ``mcp_server.py`` — MCP server adapter for AI agent tool calls.
 - ``shared_inbox.py`` — Shared-inbox endpoint for federated delivery.
 """

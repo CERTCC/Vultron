@@ -15,7 +15,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from vultron.api.v2.routers import health as health_router
+from vultron.adapters.driving.fastapi.routers import health as health_router
 
 
 @pytest.fixture
