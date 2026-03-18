@@ -1800,3 +1800,17 @@ reflect the blocked status and the prerequisite work needed.
 ### Test results
 
 966 passed, 5581 subtests, 5 warnings (up from 961 before this batch).
+
+---
+
+## PREPX-1 — Fix BT status string comparisons (2026-03-18)
+
+Replaced three `result.status.name != "SUCCESS"` string comparisons with
+`result.status != Status.SUCCESS` enum comparisons in
+`vultron/core/use_cases/case.py` (`CreateCaseReceivedUseCase`,
+`EngageCaseReceivedUseCase`, `DeferCaseReceivedUseCase`).
+Added `from py_trees.common import Status` import. No logic change.
+
+### Test results
+
+966 passed, 5581 subtests, 5 warnings (unchanged).

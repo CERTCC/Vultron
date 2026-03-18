@@ -3,6 +3,8 @@
 import logging
 from typing import cast
 
+from py_trees.common import Status
+
 from vultron.core.models.events.case import (
     AddReportToCaseReceivedEvent,
     CloseCaseReceivedEvent,
@@ -81,7 +83,7 @@ class CreateCaseReceivedUseCase:
             tree=tree, actor_id=actor_id, activity=request
         )
 
-        if result.status.name != "SUCCESS":
+        if result.status != Status.SUCCESS:
             logger.warning(
                 "CreateCaseBT did not succeed for actor '%s' / case '%s': %s",
                 actor_id,
@@ -167,7 +169,7 @@ class EngageCaseReceivedUseCase:
             tree=tree, actor_id=actor_id, activity=request
         )
 
-        if result.status.name != "SUCCESS":
+        if result.status != Status.SUCCESS:
             logger.warning(
                 "EngageCaseBT did not succeed for actor '%s' / case '%s': %s",
                 actor_id,
@@ -203,7 +205,7 @@ class DeferCaseReceivedUseCase:
             tree=tree, actor_id=actor_id, activity=request
         )
 
-        if result.status.name != "SUCCESS":
+        if result.status != Status.SUCCESS:
             logger.warning(
                 "DeferCaseBT did not succeed for actor '%s' / case '%s': %s",
                 actor_id,

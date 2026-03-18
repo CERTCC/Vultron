@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-18 (TECHDEBT-16: VultronObject base class added)
+**Last Updated**: 2026-03-18 (PREPX-1: fix BT status string comparisons)
 
 ## Overview
 
@@ -721,12 +721,13 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 
 **Priority**: High (promoted from Deferred; brittle pattern in core P100 path)
 
-- [ ] **PREPX-1**: Replace `result.status.name != "SUCCESS"` string comparisons
+- [x] **PREPX-1**: Replace `result.status.name != "SUCCESS"` string comparisons
   with `result.status != Status.SUCCESS` enum comparisons in
   `EngageCaseReceivedUseCase`, `DeferCaseReceivedUseCase`, and
   `CreateCaseReceivedUseCase` in `vultron/core/use_cases/case.py` (3 sites at
   approx. lines 84, 170, 206). Import `from py_trees.common import Status`.
   No logic change. Done when all three comparisons use the enum and tests pass.
+  **COMPLETE.**
 
 #### PREPX-2 — Remove `handlers/__init__.py` backward-compat shim layer
 
