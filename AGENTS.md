@@ -42,35 +42,16 @@ Checklist (edit → validate → commit):
 
 Essential commands (run in zsh):
 
-```bash
-# Format code (pre-commit enforces Black)
-black vultron/ test/
-
-# ⚠️  Run full test-suite — EXACTLY this command, EXACTLY ONCE per cycle
-uv run pytest --tb=short 2>&1 | tail -5
-# The last 5 lines always contain the summary AND any short failure tracebacks.
-# Read the tail output directly. Do NOT re-run with grep, -q, or tail -3/-15.
-
-# Run a specific test file
-uv run pytest test/test_semantic_activity_patterns.py -v
-# (patterns now live in vultron/wire/as2/extractor.py)
-
-# Run the demo server locally (development/demo)
-uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
-```
+See `.github/skills/format-code-run-tests/SKILL.md` for the canonical
+Black and pytest invocation commands (this file contains the exact
+invocation semantics, environment notes, and examples you must follow).
 
 > ⚠️ **STOP — Full test-suite rule (MUST follow)**
 >
-> Run `uv run pytest --tb=short 2>&1 | tail -5` **exactly once** per
-> validation cycle and read its output. Do NOT:
->
-> - Re-run pytest a second time to grep for counts or check pass/fail
-> - Use the `-q` flag (suppresses the summary line in some configurations)
-> - Change `tail -5` to `tail -3` or `tail -15`
-> - Pipe to `grep -E "passed|failed|error"` (the tail already shows this)
->
-> The summary line (`N passed in Xs`) is **always** in the last
-> 5 lines. One run is sufficient for all information you need.
+> Follow the instructions in `.github/skills/format-code-run-tests/SKILL.md`
+> for running the full test-suite exactly once per validation cycle and
+> reading its output. The skill file documents the required single-run
+> invocation and the rationale for the one-run rule.
 
 Quick pointers and gotchas:
 
@@ -706,22 +687,18 @@ to relevant tests and design notes.
 
 ### Commit Workflow
 
-**BEFORE committing**, agents MUST run Black then the full test suite exactly
-once, in this order:
-
-```bash
-black vultron/ test/
-uv run pytest --tb=short 2>&1 | tail -5
-git add -A && git commit -m "..."
-```
+**BEFORE committing**, agents MUST follow the procedure documented in
+`.github/skills/format-code-run-tests/SKILL.md` (format first, then run the
+test-suite exactly once, then commit). The skill file contains the exact
+commands and the required invocation order.
 
 **Why this order matters**:
 
 1. Black formatting is enforced by pre-commit hooks — format first to avoid a
    failed commit → re-stage → re-commit cycle.
-2. The test suite must pass before committing — read the `tail -5` output
-   directly for the summary line (e.g. `486 passed in 35s`).
-   Do NOT re-run pytest to grep for counts. Run it **once** and read the tail.
+2. The test suite must pass before committing — read the single-run test
+   output as documented in the skill file (the skill explains how to capture
+   the summary line and why you must not re-run pytest to grep for counts).
 
 **When to run Black**:
 
