@@ -79,3 +79,24 @@ def test_post_non_activity_to_actor_inbox_returns_422(
             f"/actors/{actor.as_id}/inbox/", json=payload
         )
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_get_actors_does_not_log_raw_records_at_info_level(
+    client_actors, created_actors, caplog
+):
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="uvicorn.error"):
+        resp = client_actors.get("/actors/")
+
+    assert resp.status_code == status.HTTP_200_OK
+
+    info_messages = [
+        r.message for r in caplog.records if r.levelno == logging.INFO
+    ]
+    raw_dumps = [
+        m for m in info_messages if m.startswith(("results:", "rec:"))
+    ]
+    assert (
+        not raw_dumps
+    ), f"Raw DB record dumps should not be logged at INFO level; found: {raw_dumps}"

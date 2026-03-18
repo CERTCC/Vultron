@@ -8,6 +8,32 @@ Add new items below this line
 
 ---
 
+### 2026-03-18: Logging Error fix — `actors.py` verbose INFO logs
+
+**Issue**: `ValueError: I/O operation on closed file` appeared in PyCharm
+when running tests. The error originated in
+`vultron/adapters/driving/fastapi/routers/actors.py` at lines 71 and 75
+where `logger.info(f"results: {results}")` and `logger.info(f"rec: {rec}")`
+dumped full raw database records.
+
+**Root cause**: FastAPI runs sync route handlers in an anyio thread pool.
+pytest captures log output via a `StreamHandler` whose underlying stream is
+closed after each test. If the anyio thread logs after test teardown, Python's
+logging system throws `ValueError: I/O operation on closed file`. The
+immediate trigger was two unnecessary `logger.info()` calls that dumped
+enormous raw DB record representations.
+
+**Resolution**: Removed the two verbose `logger.info()` calls and replaced
+them with a single `logger.debug()` message logging only the record count.
+Added a regression test
+(`test_get_actors_does_not_log_raw_records_at_info_level`) that uses `caplog`
+to assert no INFO-level messages starting with `"results:"` or `"rec:"` are
+emitted by the endpoint.
+
+**Architectural note**: Per project logging guidelines, raw payload/object
+dumps belong at DEBUG level at most. INFO-level logs should record lifecycle
+events (e.g., "fetched N actors"), not full data representations.
+
 ### 2026-03-18: VCR-019c — Enum/state consolidation study
 
 **Task**: VCR-019c — Study which enums across `case_states/` and

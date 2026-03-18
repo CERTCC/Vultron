@@ -68,11 +68,10 @@ def get_actors(
     for t in types:
         results.extend(datalayer.get_all(t))
 
-    logger.info(f"results: {results}")
+    logger.debug(f"get_actors: found {len(results)} actor records")
 
     objects = []
     for rec in results:
-        logger.info(f"rec: {rec}")
         cls = find_in_vocabulary(rec["type_"])
         obj = cls.model_validate(rec["data_"])
         objects.append(obj)
