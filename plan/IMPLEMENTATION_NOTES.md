@@ -83,3 +83,15 @@ datalayer may be necessary to resolve this issue.
 maps to the current code structure. Refactor it to be more modular and 
 reflect the move from api/v2/backend to adapters.
 
+## Unblocking VCR-030
+
+VCR-030 (delete `vultron/sim/`) was found to have callers in `vultron/bt/`:
+- `vultron/bt/states.py`
+- `vultron/bt/messaging/outbound/behaviors.py`
+- `vultron/bt/messaging/inbound/fuzzer.py`
+- `vultron/bt/report_management/_behaviors/report_to_others.py`
+
+All import `vultron.sim.messages.Message`. VCR-030 can be resolved by moving 
+the `Message` class into `vultron/bt/messaging/message.py` (create as new 
+module). This is a more appropriate location for `Message` anyway as it is 
+only relevant to the older `vultron/bt` simulator anyway.

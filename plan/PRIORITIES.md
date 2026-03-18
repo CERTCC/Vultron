@@ -86,6 +86,12 @@ activities to the case owner, such as closing the case or transferring ownership
 These details are defined in the `vultron_as:CaseOwnerActivity`
 in `ontology/vultron_activitystreams.ttl`.
 
+## Priority 250: DOCS-1 and DOCS-2
+
+The documentation updates outlined in DOCS-1 and DOCS-2 are important for
+ensuring that the project is well-documented and that new contributors can 
+easily understand the architecture, design, and implementation of the system.
+
 ## Priority 300: Multi-Actor Demo Scenarios
 
 Extended multi-actor demo scenarios are documented in
