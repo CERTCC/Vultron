@@ -17,23 +17,21 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import field_serializer
 
 from vultron.bt.embargo_management.states import EM
 from vultron.case_states.states import CS_pxa
-from vultron.core.models._helpers import _new_urn
+from vultron.core.models.base import VultronObject
 
 
-class VultronCaseStatus(BaseModel):
+class VultronCaseStatus(VultronObject):
     """Domain representation of a case status snapshot.
 
     Mirrors the Vultron-specific fields of ``CaseStatus``.
     ``as_type`` is ``"CaseStatus"`` to match the wire value.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
     as_type: str = "CaseStatus"
-    name: str | None = None
     context: str | None = None
     attributed_to: Any | None = None
     em_state: EM = EM.EMBARGO_MANAGEMENT_NONE

@@ -13,23 +13,22 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Domain representation of an EmbargoEvent."""
+"""Base class for Vultron Protocol core domain object models."""
 
-from datetime import datetime
+from pydantic import BaseModel, Field
 
-from vultron.core.models.base import VultronObject
+from vultron.core.models._helpers import _new_urn
 
 
-class VultronEmbargoEvent(VultronObject):
-    """Domain representation of an EmbargoEvent.
+class VultronObject(BaseModel):
+    """Base class for core domain object models.
 
-    ``as_type`` is ``"Event"`` to match the wire value (EmbargoEvent inherits
-    as_Event and does not override as_type).
+    Captures the common ``as_id``, ``as_type``, and ``name`` fields shared by
+    all domain object types, mirroring the ``as_Base``/``as_Object`` class
+    hierarchy in the wire layer.  Concrete domain object classes inherit from
+    this base rather than directly from ``BaseModel``.
     """
 
-    as_type: str = "Event"
-    start_time: datetime | None = None
-    end_time: datetime | None = None
-    published: datetime | None = None
-    updated: datetime | None = None
-    context: str | None = None
+    as_id: str = Field(default_factory=_new_urn)
+    as_type: str
+    name: str | None = None

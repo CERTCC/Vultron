@@ -15,20 +15,16 @@
 
 """Domain representation of a Note."""
 
-from pydantic import BaseModel, Field
-
-from vultron.core.models._helpers import _new_urn
+from vultron.core.models.base import VultronObject
 
 
-class VultronNote(BaseModel):
+class VultronNote(VultronObject):
     """Domain representation of a Note.
 
     ``as_type`` is ``"Note"`` to match the wire value.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
     as_type: str = "Note"
-    name: str | None = None
     summary: str | None = None
     content: str | None = None
     url: str | None = None

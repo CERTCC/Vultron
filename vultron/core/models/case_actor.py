@@ -19,7 +19,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from vultron.core.models._helpers import _new_urn
+from vultron.core.models.base import VultronObject
 
 
 class VultronOutbox(BaseModel):
@@ -28,7 +28,7 @@ class VultronOutbox(BaseModel):
     items: list[str] = Field(default_factory=list)
 
 
-class VultronCaseActor(BaseModel):
+class VultronCaseActor(VultronObject):
     """Domain representation of a CaseActor service.
 
     Mirrors the Vultron-specific fields of ``CaseActor`` (which inherits
@@ -38,9 +38,7 @@ class VultronCaseActor(BaseModel):
     ``as_type`` is ``"Service"`` to match ``CaseActor``'s wire value.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
     as_type: str = "Service"
-    name: str | None = None
     attributed_to: Any | None = None
     context: Any | None = None
     outbox: VultronOutbox = Field(default_factory=VultronOutbox)

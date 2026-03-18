@@ -17,14 +17,14 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_serializer
+from pydantic import Field, field_serializer
 
 from vultron.bt.report_management.states import RM
 from vultron.case_states.states import CS_vfd
-from vultron.core.models._helpers import _new_urn
+from vultron.core.models.base import VultronObject
 
 
-class VultronParticipantStatus(BaseModel):
+class VultronParticipantStatus(VultronObject):
     """Domain representation of a participant RM-state status record.
 
     Mirrors the Vultron-specific fields of ``ParticipantStatus``.
@@ -33,9 +33,7 @@ class VultronParticipantStatus(BaseModel):
     ``context`` (case ID) is required, matching the wire type's constraint.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
     as_type: str = "ParticipantStatus"
-    name: str | None = None
     context: str
     attributed_to: Any | None = None
     rm_state: RM = RM.START

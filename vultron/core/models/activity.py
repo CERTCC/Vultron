@@ -17,12 +17,10 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field
-
-from vultron.core.models._helpers import _new_urn
+from vultron.core.models.base import VultronObject
 
 
-class VultronActivity(BaseModel):
+class VultronActivity(VultronObject):
     """Domain representation of an AS2 activity for DataLayer storage.
 
     ``as_type`` is required and must be set to the actual activity type
@@ -34,8 +32,6 @@ class VultronActivity(BaseModel):
     subclass.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
-    as_type: str
     actor: str | None = None
     as_object: str | None = None
     target: str | None = None
@@ -44,14 +40,13 @@ class VultronActivity(BaseModel):
     in_reply_to: str | None = None
 
 
-class VultronOffer(BaseModel):
+class VultronOffer(VultronObject):
     """Domain representation of an Offer activity.
 
     Mirrors the essential fields of ``as_Offer``.
     ``as_type`` is ``"Offer"`` to match the wire value.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
     as_type: str = "Offer"
     actor: str | None = None
     object: Any | None = None
@@ -59,27 +54,25 @@ class VultronOffer(BaseModel):
     target: Any | None = None
 
 
-class VultronAccept(BaseModel):
+class VultronAccept(VultronObject):
     """Domain representation of an Accept activity.
 
     Mirrors the essential fields of ``as_Accept``.
     ``as_type`` is ``"Accept"`` to match the wire value.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
     as_type: str = "Accept"
     actor: str | None = None
     object: Any | None = None
 
 
-class VultronCreateCaseActivity(BaseModel):
+class VultronCreateCaseActivity(VultronObject):
     """Domain representation of a Create(Case) activity.
 
     Mirrors the essential fields of ``as_CreateCase``.
     ``as_type`` is ``"Create"`` to match the wire value.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
     as_type: str = "Create"
     actor: str | None = None
     object: str | None = None

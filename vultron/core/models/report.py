@@ -18,12 +18,10 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
-
-from vultron.core.models._helpers import _new_urn
+from vultron.core.models.base import VultronObject
 
 
-class VultronReport(BaseModel):
+class VultronReport(VultronObject):
     """Domain representation of a vulnerability report.
 
     Mirrors the Vultron-specific fields of ``VulnerabilityReport``.
@@ -32,9 +30,7 @@ class VultronReport(BaseModel):
     ``as_type`` is ``"VulnerabilityReport"`` to match the wire value.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
     as_type: str = "VulnerabilityReport"
-    name: str | None = None
     summary: str | None = None
     content: Any | None = None
     url: str | None = None

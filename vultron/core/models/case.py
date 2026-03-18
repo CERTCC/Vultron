@@ -18,15 +18,15 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from vultron.core.models._helpers import _new_urn
+from vultron.core.models.base import VultronObject
 from vultron.core.models.case_event import VultronCaseEvent
 from vultron.core.models.case_status import VultronCaseStatus
 from vultron.core.models.participant import VultronParticipant
 
 
-class VultronCase(BaseModel):
+class VultronCase(VultronObject):
     """Domain representation of a vulnerability case.
 
     Mirrors the Vultron-specific fields of ``VulnerabilityCase``.  Cross-
@@ -40,9 +40,7 @@ class VultronCase(BaseModel):
     it via the wire vocabulary registry.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
     as_type: str = "VulnerabilityCase"
-    name: str | None = None
     summary: str | None = None
     content: str | None = None
     url: str | None = None

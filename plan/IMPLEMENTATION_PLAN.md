@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-17 (refresh #45: IDEAS.md migration complete, VCR-0317 tasks captured)
+**Last Updated**: 2026-03-18 (TECHDEBT-16: VultronObject base class added)
 
 ## Overview
 
@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 913 passing, 5581 subtests, 5 warnings (2026-03-17, after P75-5)
+**Test suite**: 961 passing, 5581 subtests, 5 warnings (2026-03-18, after TECHDEBT-16)
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -18,10 +18,12 @@ P75-5). `api/v1` removed; vocabulary examples consolidated into
 `api/v2/routers/examples.py` (ADR-0011). All 38 handler use cases and 9 trigger
 use cases are class-based. CLI (`vultron/adapters/driving/cli.py`) and MCP
 (`vultron/adapters/driving/mcp_server.py`) driving adapters implemented.
+**TECHDEBT-16 complete**: `VultronObject` base class defined in
+`vultron/core/models/base.py`; all 12 domain object models inherit from it.
 
 **Active phase**: **PRIORITY-80** — technical debt cleanup and full hexagonal
-architecture realization. TECHDEBT-17 through TECHDEBT-28 are the active tasks,
-ordered by impact and dependency; see the Priority-80 section below.
+architecture realization. TECHDEBT-16 through TECHDEBT-28 are complete; VCR-0317
+tasks are next.
 
 ---
 
@@ -117,12 +119,12 @@ occasionally fails due to py_trees blackboard global state shared across tests.
 add `autouse` fixture in `test/wire/as2/vocab/conftest.py` to clear the
 blackboard before each test.
 
-### ❌ DRY core domain models (TECHDEBT-16 — new gap)
+### ✅ DRY core domain models (TECHDEBT-16 — complete)
 
-`vultron/core/models/` domain classes independently repeat common fields
-(`id`, `name`, timestamps). Per `notes/domain-model-separation.md` "DRY Core
-Domain Models", a `VultronObject` base class should capture these fields;
-`VultronEvent` and domain model classes should inherit from it.
+`VultronObject` base class added in `vultron/core/models/base.py`. All 12 domain
+object model classes now inherit from `VultronObject` (which provides `as_id`,
+`as_type`, `name`). Repeated field definitions removed. 48 new tests added in
+`test/core/models/test_base.py`. 961 tests pass.
 
 ### ❌ `docker/README.md` out of date (DOCS-1 — new gap)
 
@@ -258,7 +260,7 @@ ensures the hexagonal architecture is fully realized before moving to PRIORITY-1
 
 **Priority**: Low (organizational, `notes/domain-model-separation.md`)
 
-- [ ] **TECHDEBT-16**: Add a `VultronObject` base class in `vultron/core/models/`
+- [x] **TECHDEBT-16**: Add a `VultronObject` base class in `vultron/core/models/`
   capturing common fields shared by all domain objects (e.g., `id`, `name`,
   `created_at`, `updated_at`). Have `VultronEvent` and other domain model classes
   inherit from `VultronObject` rather than directly from `BaseModel`. Mirrors

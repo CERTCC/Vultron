@@ -17,14 +17,14 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_serializer, field_validator
+from pydantic import Field, field_serializer, field_validator
 
 from vultron.bt.roles.states import CVDRoles
-from vultron.core.models._helpers import _new_urn
+from vultron.core.models.base import VultronObject
 from vultron.core.models.participant_status import VultronParticipantStatus
 
 
-class VultronParticipant(BaseModel):
+class VultronParticipant(VultronObject):
     """Domain representation of a case participant.
 
     Mirrors the Vultron-specific fields of ``CaseParticipant`` and its
@@ -33,9 +33,7 @@ class VultronParticipant(BaseModel):
     ``CaseParticipant`` subclasses.
     """
 
-    as_id: str = Field(default_factory=_new_urn)
     as_type: str = "CaseParticipant"
-    name: str | None = None
     attributed_to: Any | None = None
     context: str | None = None
     case_roles: list[CVDRoles] = Field(default_factory=list)
