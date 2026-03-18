@@ -49,7 +49,7 @@ from vultron.bt.report_management.fuzzer.report_to_others import (
 )
 from vultron.core.states.cs import CS
 from vultron.errors import VultronError
-from vultron.sim.messages import Message
+from vultron.bt.messaging.message import Message
 
 # from vultron.sim.communications import Message
 

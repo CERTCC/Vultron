@@ -22,7 +22,7 @@ import random
 from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.states import RM
 from vultron.bt.states import ActorState
-from vultron.sim.messages import Message
+from vultron.bt.messaging.message import Message
 
 
 def _message_gen(msg_type: MessageTypes) -> Message:

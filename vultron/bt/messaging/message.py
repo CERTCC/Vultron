@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#  Copyright (c) 2023 Carnegie Mellon University and Contributors.
+#  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
 #  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
@@ -8,9 +8,23 @@
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """
-Provides classes to facilitate Vultron behavior simulation.
+Provides a basic message class for use in a Vultron simulation.
 """
+
+from pydantic import BaseModel
+
+from vultron.bt.messaging.states import MessageTypes
+
+
+class Message(BaseModel):
+    """
+    Represents a message with a sender and body and optional message type.
+    """
+
+    sender: str
+    body: str
+    msg_type: MessageTypes = MessageTypes.GI
