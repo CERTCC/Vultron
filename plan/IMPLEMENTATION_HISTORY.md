@@ -1591,6 +1591,7 @@ received ActivityStreams messages) should carry a `Received` suffix to
 distinguish them from trigger (Svc-prefixed) use cases.
 
 **What was done**:
+
 - Renamed all 38 handler use case classes across 7 source files in
   `vultron/core/use_cases/` to insert `Received` before `UseCase`
   (e.g., `CreateReportUseCase` → `CreateReportReceivedUseCase`).
@@ -1609,6 +1610,7 @@ distinguish them from trigger (Svc-prefixed) use cases.
 **Task**: Remove lazy `VulnerabilityCase` import from `CreateCaseReceivedUseCase.execute`
 
 **What was done**:
+
 - In `vultron/core/models/case.py`: changed `VultronCase.case_statuses`
   `default_factory` from `list` (empty) to `lambda: [VultronCaseStatus()]`,
   giving the domain model the same initial case status as
@@ -1642,7 +1644,7 @@ insertion script placed the new import inside a multi-line import block in
 `triggers/case.py` and `triggers/report.py`.
 
 **Lessons learned**: When inserting imports after the last import line, a line
-scan looking for `from ` / `import ` prefixes can land on the first line of a
+scan looking for `from` / `import` prefixes can land on the first line of a
 multi-line import block. Must verify the located line is not inside an unclosed
 parenthesis.
 
@@ -1712,6 +1714,7 @@ The v1 package was ~1 100 lines of stub endpoints that returned `vocab_examples`
 objects with no business logic. All protocol work lives in v2.
 
 Changes:
+
 - Created `docs/adr/0011-remove-api-v1.md` recording the decision.
 - Expanded `vultron/api/v2/routers/examples.py` to include vocabulary-showcase
   endpoints for `reports`, `cases`, `cases/statuses`, `cases/participants`,
@@ -1789,6 +1792,7 @@ New tests added in `test/core/models/test_base.py` verifying inheritance,
 ### VCR-030 blocked
 
 VCR-030 (delete `vultron/sim/`) was found to have callers in `vultron/bt/`:
+
 - `vultron/bt/states.py`
 - `vultron/bt/messaging/outbound/behaviors.py`
 - `vultron/bt/messaging/inbound/fuzzer.py`
@@ -1820,12 +1824,14 @@ Added `from py_trees.common import Status` import. No logic change.
 ## PREPX-2 — Remove handlers shim layer (2026-03-18)
 
 Deleted the backward-compatibility shim layer:
+
 - `vultron/api/v2/backend/handlers/__init__.py` (re-exported all 38 use cases
   as thin wrapper functions with `_unwrap` helper)
 - `vultron/api/v2/backend/handlers/_shim.py` (no-op `verify_semantics` decorator)
 
 Updated two test files to call use-case classes directly with `VultronEvent`
 objects instead of going through the shim:
+
 - `test/api/v2/backend/test_handlers.py`: removed `DispatchEvent` usage,
   `_make_dispatchable()` helper, and obsolete shim test classes
   (`TestVerifySemanticsDecorator`, `TestHandlerDecoratorPresence`); updated all
@@ -1986,3 +1992,38 @@ Remaining in `vultron/api/`: `actor_io.py` (VCR-014), `trigger_services/` (VCR-D
 ### Test results
 
 981 passed, 5581 subtests, 5 warnings.
+
+---
+
+## VCR-019c — Enum/state consolidation study (2026-03-18)
+
+**Task**: Study task — identify which enums across `vultron/case_states/` and
+`vultron/bt/**/states.py` can be consolidated before implementing VCR-019a/b.
+
+**What was done**: Inventoried all state/enum definitions across both packages
+and analysed cross-layer import patterns to determine correct relocation targets
+for VCR-019a/b. Documented findings in `plan/IMPLEMENTATION_NOTES.md`.
+
+**Key findings**:
+
+- No duplicates exist between `case_states/` enums and `bt/**/states.py` enums.
+- Enums categorised into four groups:
+  - **Group A** (move to `vultron/core/states/`): `RM`, `EM`, `CS`/`CS_vfd`/
+    `CS_pxa`/component IntEnums/helper functions, `CVDRoles`
+  - **Group B** (merge into `vultron/errors.py`): `CvdStateModelError`
+    hierarchy
+  - **Group C** (move with `case_states/` as `vultron/core/case_states/`):
+    `EmbargoViability`, SSVC-2, CVSS-3.1, `Actions`, VEP, zero-day enums
+  - **Group D** (stay in `vultron/bt/`): `MessageTypes`, `CapabilityFlag`,
+    `ActorState`
+- VCR-019a/b plan updated with prerequisite notes and clarified scope (019b
+  scope narrowed: only Group A enums move; `ActorState` stays in bt/).
+- 60+ import sites in `vultron/` and 21+ in `test/` will need updating in
+  VCR-019a/b.
+
+**Lessons learned**: The plan listed 019c after 019a/b; in practice it is a
+prerequisite. Updated plan task ordering to reflect this dependency.
+
+### Test results
+
+No code changes; test suite unchanged at 981 passed, 5581 subtests.

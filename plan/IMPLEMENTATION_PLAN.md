@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-18 (VCR-B: move FastAPI adapter to vultron/adapters/driving/fastapi/)
+**Last Updated**: 2026-03-18 (VCR-019c: enum/state consolidation study complete)
 
 ## Overview
 
@@ -24,7 +24,8 @@ use cases are class-based. CLI (`vultron/adapters/driving/cli.py`) and MCP
 **Active phase**: **PRIORITY-80** — technical debt cleanup and full hexagonal
 architecture realization. TECHDEBT-16 through TECHDEBT-28 are complete; VCR-A
 batch (7/8 tasks) complete. VCR-030 blocked on
-removing `vultron.sim` callers in `vultron/bt/`.
+removing `vultron.sim` callers in `vultron/bt/`. VCR-B batch complete.
+VCR-019c study complete — implementation guidance in `plan/IMPLEMENTATION_NOTES.md`.
 
 ---
 
@@ -579,18 +580,28 @@ They are larger structural changes; plan as a single coordinated PR.
   predates the DataLayer port abstraction and is not per-actor isolated.
   Resolution may be migration into DataLayer or formalization as a queue adapter.
 
+- [x] **VCR-019c**: Study task — identify which enums across `case_states/` and
+  `bt/**/states.py` can be consolidated. Be conservative: do NOT add or remove
+  RM, EM, or CS model states. Document findings before implementing.
+  **Done**: findings documented in `plan/IMPLEMENTATION_NOTES.md` (2026-03-18).
+  Summary: no duplicates found; `RM`, `EM`, `CS`/sub-enums, `CVDRoles` are
+  Group A (move to `vultron/core/states/`); `CvdStateModelError` hierarchy is
+  Group B (merge into `vultron/errors.py`); scoring enums (`EmbargoViability`,
+  SSVC, CVSS, etc.) are Group C (move with case_states/ but not to
+  `core/states/`); `MessageTypes`, `CapabilityFlag`, `ActorState` are
+  Group D (stay in bt/). See notes for full detail.
+
 - [ ] **VCR-019a**: Move enums and state machine definitions from
   `vultron/case_states/` into `vultron/core/`. Integrate the error hierarchy
   from `case_states/` into the core error hierarchy. Do not leave compatibility
-  shims behind.
+  shims behind. **Prerequisite: VCR-019c (done)** — see notes for
+  implementation guidance and recommended target structure.
 
 - [ ] **VCR-019b**: Move `states.py` enums from each `vultron/bt/**/` submodule
-  (embargo management, report management, messaging, bt top-level) into
-  `vultron/core/`. Update all imports in `vultron/bt/`. Do not leave shims.
-
-- [ ] **VCR-019c**: Study task — identify which enums across `case_states/` and
-  `bt/**/states.py` can be consolidated. Be conservative: do NOT add or remove
-  RM, EM, or CS model states. Document findings before implementing.
+  (embargo management, report management, roles) into `vultron/core/states/`.
+  Update all imports in `vultron/bt/`. Do not leave shims. `MessageTypes`,
+  `CapabilityFlag`, and `ActorState` stay in bt/ (Group D per VCR-019c study).
+  **Prerequisite: VCR-019c (done)** — see notes for implementation guidance.
 
 - [ ] **VCR-019d** (future): Consider using the `transitions` module to model
   RM/EM/CS state machines once enum consolidation is complete. Defer until after
