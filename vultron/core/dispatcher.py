@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 
 from vultron.core.models.events import MessageSemantics
 from vultron.core.ports.dispatcher import ActivityDispatcher
-from vultron.dispatcher_errors import VultronApiHandlerNotFoundError
+from vultron.errors import VultronApiHandlerNotFoundError
 
 if TYPE_CHECKING:
     from vultron.core.models.events import VultronEvent

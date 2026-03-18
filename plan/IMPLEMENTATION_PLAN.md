@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 961 passing, 5581 subtests, 5 warnings (2026-03-18, after TECHDEBT-16)
+**Test suite**: 966 passing, 5581 subtests, 5 warnings (2026-03-18, after VCR-A batch)
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -22,8 +22,9 @@ use cases are class-based. CLI (`vultron/adapters/driving/cli.py`) and MCP
 `vultron/core/models/base.py`; all 12 domain object models inherit from it.
 
 **Active phase**: **PRIORITY-80** — technical debt cleanup and full hexagonal
-architecture realization. TECHDEBT-16 through TECHDEBT-28 are complete; VCR-0317
-tasks are next.
+architecture realization. TECHDEBT-16 through TECHDEBT-28 are complete; VCR-A
+batch (6/8 tasks) complete. VCR-006 blocked on PREPX-2; VCR-030 blocked on
+removing `vultron.sim` callers in `vultron/bt/`.
 
 ---
 
@@ -513,29 +514,33 @@ Organized into batches by concern. These tasks are part of PRIORITY-80.
 All items in this batch are pure deletions with no behaviour change.
 Batch together where possible.
 
-- [ ] **VCR-001**: Delete `vultron/adapters/driven/dns_resolver.py` stub —
+- [x] **VCR-001**: Delete `vultron/adapters/driven/dns_resolver.py` stub —
   DNS resolution is an adapter-level detail with no current callers; the file
   is a placeholder with no implementation.
 - [ ] **VCR-006**: Delete `vultron/api/v2/backend/handler_map.py` — this is a
   shim that re-exports `USE_CASE_MAP` as `SEMANTICS_HANDLERS`. Verify no callers
   remain, then delete. Update any imports to use `USE_CASE_MAP` directly from
   `vultron.core.use_cases.use_case_map`. (Depends on PREPX-2.)
-- [ ] **VCR-015a**: Delete `vultron/api/v2/data/status.py` — this is a shim
+- [x] **VCR-015a**: Delete `vultron/api/v2/data/status.py` — this is a shim
   re-exporting status helpers. Update callers to import directly from the
   canonical source (`vultron.core.models.status`).
-- [ ] **VCR-015b**: Delete `vultron/api/v2/data/types.py` if it has no active
-  callers — confirm via search before deleting.
-- [ ] **VCR-024**: Delete `vultron/core/ports/dns_resolver.py` — DNS resolution
-  is an adapter concern; no port interface is needed. Verify no callers, then
-  delete.
-- [ ] **VCR-030**: Delete `vultron/sim/` module — it is no longer needed.
-  Verify no callers, then delete the directory.
-- [ ] **VCR-031**: Delete `vultron/behavior_dispatcher.py` — backward-compat
-  shim. Update all callers to import from the correct location before deleting.
-  Verify via grep, then delete.
-- [ ] **VCR-032**: Merge `vultron/dispatcher_errors.py` into `vultron/errors.py`
-  or `vultron/core/errors.py` as appropriate. Verify no circular imports, update
-  callers, then delete the old file.
+- [x] **VCR-015b**: Delete `vultron/api/v2/data/types.py` — confirmed no active
+  callers; deleted.
+- [x] **VCR-024**: Delete `vultron/core/ports/dns_resolver.py` — DNS resolution
+  is an adapter concern; no port interface is needed. Verified no callers, then
+  deleted.
+- [ ] **VCR-030**: Delete `vultron/sim/` module — blocked: `vultron/bt/states.py`,
+  `vultron/bt/messaging/outbound/behaviors.py`, `vultron/bt/messaging/inbound/fuzzer.py`,
+  and `vultron/bt/report_management/_behaviors/report_to_others.py` all import
+  `vultron.sim.messages.Message`. Update these callers before deleting.
+  (auto-added prerequisite: relocate or replace `vultron.sim.messages.Message`)
+- [x] **VCR-031**: Delete `vultron/behavior_dispatcher.py` — updated
+  `test/test_behavior_dispatcher.py` to import from canonical locations
+  (`vultron.core.dispatcher`, `vultron.core.ports.dispatcher`), then deleted shim.
+- [x] **VCR-032**: Merged `vultron/dispatcher_errors.py` into `vultron/errors.py`.
+  Moved `VultronApiHandlerNotFoundError` to `vultron/errors.py`. Updated
+  `vultron/core/dispatcher.py` and `vultron/api/v2/errors.py` to import from
+  `vultron.errors`. Deleted `vultron/dispatcher_errors.py`.
 
 #### Batch VCR-B — API v2 → adapters consolidation
 

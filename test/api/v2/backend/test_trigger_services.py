@@ -46,7 +46,7 @@ from vultron.api.v2.backend.trigger_services.report import (
     svc_validate_report,
 )
 from vultron.api.v2.data.actor_io import init_actor_io
-from vultron.api.v2.data.status import ReportStatus, set_status
+from vultron.core.models.status import ReportStatus, set_status
 from vultron.bt.embargo_management.states import EM
 from vultron.bt.report_management.states import RM
 from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity

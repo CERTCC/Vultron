@@ -1,7 +1,7 @@
 import logging
 from unittest.mock import MagicMock
 
-from vultron import behavior_dispatcher as bd
+from vultron.core.dispatcher import DirectActivityDispatcher, get_dispatcher
 from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import (
     CreateReportReceivedEvent,
@@ -13,7 +13,7 @@ from vultron.core.models.report import VultronReport
 
 def test_get_dispatcher_returns_local_dispatcher():
     """get_dispatcher should return an object implementing dispatch()."""
-    dispatcher = bd.get_dispatcher(use_case_map={})
+    dispatcher = get_dispatcher(use_case_map={})
     assert hasattr(dispatcher, "dispatch") and callable(dispatcher.dispatch)
 
 
@@ -21,7 +21,7 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
     """DirectActivityDispatcher.dispatch should log info + debug messages."""
     caplog.set_level(logging.DEBUG)
     mock_dl = MagicMock()
-    dispatcher = bd.DirectActivityDispatcher(
+    dispatcher = DirectActivityDispatcher(
         use_case_map={MessageSemantics.CREATE_REPORT: MagicMock()}
     )
 

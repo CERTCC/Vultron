@@ -25,7 +25,7 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 from vultron.api.v2.data.actor_io import init_actor_io
-from vultron.api.v2.data.status import ReportStatus, set_status
+from vultron.core.models.status import ReportStatus, set_status
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.api.v2.routers import trigger_report as trigger_report_router

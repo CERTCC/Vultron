@@ -13,5 +13,5 @@ Modules:
 - ``http_delivery.py``   — HTTP transport for outbound ActivityStreams
                            payloads (transport only — receives serialized
                            AS2 from the wire layer).
-- ``dns_resolver.py``    — Optional DNS TXT lookup for trust discovery.
+
 """

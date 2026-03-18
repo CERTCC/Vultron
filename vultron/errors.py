@@ -44,3 +44,7 @@ class VultronValidationError(VultronError):
     def __init__(self, message: str, activity_id: str | None = None):
         self.activity_id = activity_id
         super().__init__(message)
+
+
+class VultronApiHandlerNotFoundError(VultronError, KeyError):
+    """Raised when no handler is found for a given activity type."""

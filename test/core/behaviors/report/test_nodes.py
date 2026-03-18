@@ -22,7 +22,7 @@ import pytest
 from py_trees.blackboard import Client as BlackboardClient
 from py_trees.common import Status
 
-from vultron.api.v2.data.status import (
+from vultron.core.models.status import (
     OfferStatus,
     ReportStatus,
     get_status_layer,

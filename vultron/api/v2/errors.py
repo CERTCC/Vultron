@@ -1,11 +1,7 @@
-from vultron.errors import VultronError
-
-# Re-export from dispatcher_errors to maintain backward compatibility
-# This error is used by the core behavior_dispatcher and needs to be
-# available without triggering api.v2 module initialization
-from vultron.dispatcher_errors import (  # noqa: F401
+from vultron.errors import (
     VultronApiHandlerNotFoundError,
-)
+    VultronError,
+)  # noqa: F401
 
 
 class VultronApiError(VultronError):

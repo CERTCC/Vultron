@@ -25,7 +25,7 @@ Per specs/behavior-tree-integration.md BT-06 and testability.md requirements.
 import pytest
 from py_trees.common import Status
 
-from vultron.api.v2.data.status import (
+from vultron.core.models.status import (
     ReportStatus,
     get_status_layer,
     set_status,
