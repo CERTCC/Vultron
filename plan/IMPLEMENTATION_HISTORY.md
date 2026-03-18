@@ -1840,3 +1840,21 @@ PREPX-3 (remove `DispatchEvent` and `InboundPayload` aliases) is now unblocked.
 ### Test results
 
 961 passed, 5581 subtests, 5 warnings (5 fewer due to removed shim-specific tests).
+
+---
+
+## VCR-006 — Delete `handler_map.py` shim (2026-03-18)
+
+**Task**: Delete `vultron/api/v2/backend/handler_map.py`, the backward-compat
+shim that re-exported `USE_CASE_MAP` as `SEMANTICS_HANDLERS`.
+
+**What was done**:
+
+- Updated `test/test_semantic_handler_map.py` to import `USE_CASE_MAP` directly
+  from `vultron.core.use_cases.use_case_map` and use it in place of
+  `SEMANTICS_HANDLERS`.
+- Deleted `vultron/api/v2/backend/handler_map.py`.
+
+### Test results
+
+981 passed, 5581 subtests, 5 warnings.

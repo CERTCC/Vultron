@@ -9,7 +9,7 @@ Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
 ### Current Status Summary
 
-**Test suite**: 961 passing, 5581 subtests, 5 warnings (2026-03-18, after PREPX-2)
+**Test suite**: 981 passing, 5581 subtests, 5 warnings (2026-03-18, after VCR-006)
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -23,7 +23,7 @@ use cases are class-based. CLI (`vultron/adapters/driving/cli.py`) and MCP
 
 **Active phase**: **PRIORITY-80** — technical debt cleanup and full hexagonal
 architecture realization. TECHDEBT-16 through TECHDEBT-28 are complete; VCR-A
-batch (6/8 tasks) complete. VCR-006 unblocked (PREPX-2 complete); VCR-030 blocked on
+batch (7/8 tasks) complete. VCR-030 blocked on
 removing `vultron.sim` callers in `vultron/bt/`.
 
 ---
@@ -517,10 +517,10 @@ Batch together where possible.
 - [x] **VCR-001**: Delete `vultron/adapters/driven/dns_resolver.py` stub —
   DNS resolution is an adapter-level detail with no current callers; the file
   is a placeholder with no implementation.
-- [ ] **VCR-006**: Delete `vultron/api/v2/backend/handler_map.py` — this is a
-  shim that re-exports `USE_CASE_MAP` as `SEMANTICS_HANDLERS`. Verify no callers
-  remain, then delete. Update any imports to use `USE_CASE_MAP` directly from
-  `vultron.core.use_cases.use_case_map`. (Depends on PREPX-2.)
+- [x] **VCR-006**: Delete `vultron/api/v2/backend/handler_map.py` — this is a
+  shim that re-exports `USE_CASE_MAP` as `SEMANTICS_HANDLERS`. Verified no
+  callers remained (only `test/test_semantic_handler_map.py`, updated to import
+  `USE_CASE_MAP` directly). 981 tests pass.
 - [x] **VCR-015a**: Delete `vultron/api/v2/data/status.py` — this is a shim
   re-exporting status helpers. Update callers to import directly from the
   canonical source (`vultron.core.models.status`).
