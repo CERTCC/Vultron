@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-19 (OX-1.0: ActivityEmitter port stub)
+**Last Updated**: 2026-03-19 (ACT-1: ADR-0012 per-actor DataLayer isolation)
 
 ## Overview
 
@@ -812,30 +812,14 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 
 **Blocked by**: PRIORITY-70 (complete ✅), PREPX-1, PREPX-2, PREPX-3
 
-- [ ] **ACT-1**: Draft ADR for per-actor DataLayer isolation — document options
+- [x] **ACT-1**: Draft ADR for per-actor DataLayer isolation — document options
   (Option B: TinyDB namespace prefix; MongoDB community for production),
-  trade-offs, and migration path. The MongoDB approach is recommended for
-  production-grade isolation; implement Option B first as an incremental step.
-
-  **ACT-1 ADR MUST address the following design decisions** (added 2026-03-17):
-
-  - **`get_datalayer` FastAPI DI strategy**: The current `get_datalayer()` is a
-    zero-argument singleton factory injected via `Depends(get_datalayer)`. P100
-    requires it to accept `actor_id`. Options: (1) closure lambda — preferred;
-    (2) custom dependency class; (3) explicit parameter threading. Option 1 is
-    simplest and supports future dynamic actor instantiation. The ADR must
-    explicitly choose and document the pattern so ACT-2 applies it consistently
-    across all route files and trigger endpoints.
-
-  - **`actor_io.py` inbox/outbox ownership**: `vultron/api/v2/data/actor_io.py`
-    is an in-memory inbox/outbox store predating the DataLayer port abstraction.
-    P100 must resolve whether to migrate it into the per-actor DataLayer (actor
-    inbox/outbox as first-class TinyDB collections) or formalize it as a separate
-    in-process queue adapter wired to the `ActivityEmitter` port (OX-1.0/1.1).
-    This decision directly affects ACT-2 scope.
-
-  - **OUTBOX-1 scope boundary**: Determine whether OUTBOX-1 delivery is in-scope
-    for P100 or deferred until per-actor DataLayer isolation is proved out.
+  trade-offs, and migration path. **COMPLETE**: `docs/adr/0012-per-actor-datalayer-isolation.md`
+  documents all four design decisions: isolation strategy (Option B — TinyDB
+  namespace prefix, with concurrent MongoDB), DI pattern (closure lambda),
+  `actor_io.py` ownership (migrate into DataLayer as inbox/outbox collections;
+  remove `actor_io.py` after ACT-2), and OUTBOX-1 scope (defer until ACT-3
+  complete). ADR-0012 status: accepted.
 
 - [ ] **ACT-2**: Implement per-actor DataLayer isolation per chosen design. Done
   when Actor A's DataLayer operations do not affect Actor B's state and tests

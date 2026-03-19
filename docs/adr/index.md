@@ -34,6 +34,8 @@ General information about architectural decision records is available at <https:
 - [ADR-0008 Use py_trees for Handler BT Integration](0008-use-py-trees-for-handler-bt-integration.md)
 - [ADR-0009 Adopt Hexagonal Architecture (Ports and Adapters)](0009-hexagonal-architecture.md)
 - [ADR-0010 Standardize Object IDs to URI Form](0010-standardize-object-ids.md)
+- [ADR-0011 Remove API v1 and consolidate vocabulary examples into API v2](0011-remove-api-v1.md)
+- [ADR-0012 Per-Actor DataLayer Isolation](0012-per-actor-datalayer-isolation.md)
 
 ## Proposed ADRs
 

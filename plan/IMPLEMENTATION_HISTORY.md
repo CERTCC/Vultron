@@ -2442,3 +2442,31 @@ docker-compose services.
 
 **Result**: 984 tests pass (no regressions). OX-1.1 (local delivery
 implementation) is now unblocked.
+
+## ACT-1 — ADR for per-actor DataLayer isolation (2026-03-19)
+
+**Task**: Draft ADR-0012 for per-actor DataLayer isolation, resolving four
+design decisions required before ACT-2 implementation can begin.
+
+**What was done**:
+
+- Created `docs/adr/0012-per-actor-datalayer-isolation.md` (status: accepted).
+- Added ADR-0011 and ADR-0012 entries to `docs/adr/index.md` (ADR-0011 was
+  previously missing from the index).
+- Marked ACT-1 complete in `plan/IMPLEMENTATION_PLAN.md`.
+
+**Decisions recorded**:
+
+1. **DataLayer isolation strategy**: Option B — TinyDB namespace prefix (one
+   table per `actor_id`) as the near-term prototype implementation, with
+   MongoDB Community Edition as the concurrent production-grade target.
+2. **`get_datalayer` FastAPI DI strategy**: Closure lambda —
+   `Depends(lambda actor_id=Path(...): get_datalayer(actor_id))` — applied
+   uniformly across all route files in ACT-3.
+3. **`actor_io.py` inbox/outbox ownership**: Migrate inbox/outbox into the
+   per-actor DataLayer as TinyDB collections (`{actor_id}_inbox`,
+   `{actor_id}_outbox`); remove `actor_io.py` after ACT-2 (unblocks VCR-014).
+4. **OUTBOX-1 scope boundary**: Defer OX-1.1–OX-1.4 until ACT-3 is complete
+   to avoid implementing delivery against a still-changing DataLayer.
+
+**Result**: 984 tests pass (no regressions; docs-only change).
