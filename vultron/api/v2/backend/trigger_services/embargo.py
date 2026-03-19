@@ -22,10 +22,8 @@ translates domain exceptions to FastAPI ``HTTPException`` responses.
 
 from datetime import datetime
 
-from pydantic import ValidationError as PydanticValidationError
-
 from vultron.api.v2.backend.trigger_services._helpers import (
-    translate_domain_errors,
+    domain_error_translation,
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers.embargo import (
@@ -38,7 +36,6 @@ from vultron.core.use_cases.triggers.requests import (
     ProposeEmbargoTriggerRequest,
     TerminateEmbargoTriggerRequest,
 )
-from vultron.errors import VultronError
 
 
 def propose_embargo_trigger(
@@ -48,13 +45,11 @@ def propose_embargo_trigger(
     end_time: datetime | None,
     dl: DataLayer,
 ) -> dict:
-    try:
+    with domain_error_translation():
         request = ProposeEmbargoTriggerRequest(
             actor_id=actor_id, case_id=case_id, note=note, end_time=end_time
         )
         return SvcProposeEmbargoUseCase(dl, request).execute()
-    except (VultronError, PydanticValidationError) as e:
-        raise translate_domain_errors(e)
 
 
 def evaluate_embargo_trigger(
@@ -63,22 +58,18 @@ def evaluate_embargo_trigger(
     proposal_id: str | None,
     dl: DataLayer,
 ) -> dict:
-    try:
+    with domain_error_translation():
         request = EvaluateEmbargoTriggerRequest(
             actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
         )
         return SvcEvaluateEmbargoUseCase(dl, request).execute()
-    except (VultronError, PydanticValidationError) as e:
-        raise translate_domain_errors(e)
 
 
 def terminate_embargo_trigger(
     actor_id: str, case_id: str, dl: DataLayer
 ) -> dict:
-    try:
+    with domain_error_translation():
         request = TerminateEmbargoTriggerRequest(
             actor_id=actor_id, case_id=case_id
         )
         return SvcTerminateEmbargoUseCase(dl, request).execute()
-    except (VultronError, PydanticValidationError) as e:
-        raise translate_domain_errors(e)

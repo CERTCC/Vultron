@@ -2320,3 +2320,29 @@ concrete domain models in `vultron/core/models/`.
 - Deleted `vultron/core/use_cases/_types.py`.
 
 **Result**: 982 tests pass, 5 warnings unchanged.
+
+---
+
+## VCR-011 — Abstract trigger service error-handling pattern (2026-03-19)
+
+**Task**: Abstract the repeated `try: ... except (VultronError, PydanticValidationError)
+as e: raise translate_domain_errors(e)` block in trigger service adapter modules
+into a shared `domain_error_translation()` context manager.
+
+**What was done**:
+- Added `domain_error_translation()` `@contextmanager` to
+  `vultron/api/v2/backend/trigger_services/_helpers.py`. It catches both
+  `VultronError` and `PydanticValidationError` and raises the result of
+  `translate_domain_errors(e)`.
+- Added `VultronError` to the `vultron.errors` import in `_helpers.py`
+  (previously only subclasses were imported).
+- Replaced the `try/except` boilerplate in all 9 trigger functions across
+  `embargo.py` (3 functions), `report.py` (4 functions), and `case.py`
+  (2 functions) with `with domain_error_translation():`.
+- Removed now-redundant direct imports of `translate_domain_errors`,
+  `VultronError`, and `PydanticValidationError` from the three callers.
+- Fixed a pre-existing inconsistency: `report.py` only caught `VultronError`
+  (not `PydanticValidationError`). The context manager now handles both
+  consistently across all three files.
+
+**Result**: 982 tests pass, 5 warnings unchanged.

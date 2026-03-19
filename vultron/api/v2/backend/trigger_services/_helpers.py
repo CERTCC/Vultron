@@ -20,14 +20,27 @@ Translates domain exceptions from ``vultron.core.use_cases.triggers`` into
 FastAPI ``HTTPException`` responses.
 """
 
+from contextlib import contextmanager
+from typing import Generator
+
 from fastapi import HTTPException, status
 from pydantic import ValidationError as PydanticValidationError
 
 from vultron.errors import (
     VultronConflictError,
+    VultronError,
     VultronNotFoundError,
     VultronValidationError,
 )
+
+
+@contextmanager
+def domain_error_translation() -> Generator[None, None, None]:
+    """Context manager that translates domain exceptions to HTTPExceptions."""
+    try:
+        yield
+    except (VultronError, PydanticValidationError) as e:
+        raise translate_domain_errors(e)
 
 
 def translate_domain_errors(exc: Exception) -> HTTPException:

@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-19 (VCR-027: move CaseModel/ParticipantModel to core/models/protocols.py)
+**Last Updated**: 2026-03-19 (VCR-011: domain_error_translation context manager)
 
 ## Overview
 
@@ -692,7 +692,7 @@ They are larger structural changes; plan as a single coordinated PR.
   `adapters/driving/fastapi/routers/` and `test/api/v2/backend/test_trigger_services.py`.
   982 tests pass.
 
-- [ ] **VCR-011**: Abstract the repeated `try: ... except VultronError: ...` pattern
+- [x] **VCR-011**: Abstract the repeated `try: ... except VultronError: ...` pattern
   in `trigger_services/embargo.py`, `trigger_services/report.py`, and
   `trigger_services/case.py` into a shared decorator or context manager. Apply
   consistently across all trigger service functions.

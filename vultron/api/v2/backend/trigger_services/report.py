@@ -25,7 +25,7 @@ Domain logic must not be added here.  See
 """
 
 from vultron.api.v2.backend.trigger_services._helpers import (
-    translate_domain_errors,
+    domain_error_translation,
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers.report import (
@@ -40,52 +40,43 @@ from vultron.core.use_cases.triggers.requests import (
     RejectReportTriggerRequest,
     ValidateReportTriggerRequest,
 )
-from vultron.errors import VultronError
 
 
 def validate_report_trigger(
     actor_id: str, offer_id: str, note: str | None, dl: DataLayer
 ) -> dict:
-    try:
+    with domain_error_translation():
         request = ValidateReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note
         )
         return SvcValidateReportUseCase(dl, request).execute()
-    except VultronError as e:
-        raise translate_domain_errors(e)
 
 
 def invalidate_report_trigger(
     actor_id: str, offer_id: str, note: str | None, dl: DataLayer
 ) -> dict:
-    try:
+    with domain_error_translation():
         request = InvalidateReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note
         )
         return SvcInvalidateReportUseCase(dl, request).execute()
-    except VultronError as e:
-        raise translate_domain_errors(e)
 
 
 def reject_report_trigger(
     actor_id: str, offer_id: str, note: str, dl: DataLayer
 ) -> dict:
-    try:
+    with domain_error_translation():
         request = RejectReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note or None
         )
         return SvcRejectReportUseCase(dl, request).execute()
-    except VultronError as e:
-        raise translate_domain_errors(e)
 
 
 def close_report_trigger(
     actor_id: str, offer_id: str, note: str | None, dl: DataLayer
 ) -> dict:
-    try:
+    with domain_error_translation():
         request = CloseReportTriggerRequest(
             actor_id=actor_id, offer_id=offer_id, note=note
         )
         return SvcCloseReportUseCase(dl, request).execute()
-    except VultronError as e:
-        raise translate_domain_errors(e)
