@@ -222,8 +222,7 @@ vultron/
 │   │
 │   ├── ports/
 │   │   ├── datalayer.py        # Abstract interface: store/fetch events
-│   │   ├── delivery_queue.py   # Abstract interface: enqueue outbound
-│   │   └── dns_resolver.py     # Abstract interface: DNS TXT lookup
+│   │   └── dispatcher.py       # ActivityDispatcher Protocol (evaluate for removal — VCR-025)
 │   │
 │   └── errors.py           # CaseNotFound, UnauthorizedParticipant, etc.
 │
@@ -245,9 +244,7 @@ vultron/
 │   │
 │   ├── driven/
 │   │   ├── datalayer_tinydb.py
-│   │   ├── delivery_queue.py
-│   │   ├── http_delivery.py    # Transport only — receives serialized AS2 from wire layer
-│   │   └── dns_resolver.py     # Optional future adapter for DNS-based trust discovery
+│   │   └── http_delivery.py    # Transport only — receives serialized AS2 from wire layer
 │   │
 │   └── connectors/
 │       ├── base.py             # ConnectorPlugin Protocol class(es)
@@ -365,22 +362,20 @@ def serialize_event(event: CaseEvent, signing_key: ...) -> AS2Activity:
 ### Core service (no wire awareness)
 
 ```python
-# core/services/case.py
-from vultron.core.models.case import Case, CaseActor
-from vultron.core.models.events import SemanticIntent, CaseEvent
-from vultron.core.use_cases.delivery_queue import DeliveryQueue
+# core/use_cases/report.py  (illustrative — actual implementation uses UseCase protocol)
+from vultron.core.models.case import Case
+from vultron.core.models.events import InboundPayload
+from vultron.core.ports.datalayer import DataLayer
 
 
-async def handle_report_offer(payload: InboundPayload,
-                              queue: DeliveryQueue) -> None:
+def handle_report_offer(payload: InboundPayload, dl: DataLayer) -> None:
     """
     Pure domain logic. Knows nothing about AS2.
     Called by the handler dispatcher after semantic extraction.
+    Outbound delivery will use the ActivityEmitter port (OX-1.0).
     """
     case = Case.open_from_report(payload)
-    events = case.accept_report()
-    for event in events:
-        await queue.enqueue(event)
+    dl.update(case.as_id, case)
 ```
 
 ---
@@ -581,17 +576,20 @@ Core ports should be discriminated into two categories for clarity:
 **Outbound ports (driven)** — core calls out to external systems:
 
 - `DataLayer` Protocol (`core/ports/datalayer.py`) — persistence
-- `ActivityEmitter` Protocol (`core/ports/emitter.py`, to be created) —
-  outbound activity delivery; replaces the delivery-queue concept
+- `ActivityEmitter` Protocol (`core/ports/emitter.py`, to be created in
+  OX-1.0) — outbound activity delivery
 
-**Ports that should be removed** (implementation detail, not port boundary):
+**Ports that have been removed** (confirmed no callers):
 
-- `core/ports/dns_resolver.py` — no longer needed; DNS resolution is an
+- `core/ports/dns_resolver.py` — deleted (VCR-024); DNS resolution is an
   adapter-level concern
+- `core/ports/delivery_queue.py` — deleted (VCR-023); superseded by
+  the upcoming `ActivityEmitter` port (OX-1.0)
+
+**Ports to evaluate for removal**:
+
 - `core/ports/dispatcher.py` — may be replaced entirely by the `UseCase`
-  port; evaluate during Priority-80 cleanup
-- `core/ports/delivery_queue.py` — the delivery-queue concept was replaced
-  by the emitter; this file should be removed after `emitter.py` is created
+  port; evaluate during Priority-80 cleanup (VCR-025)
 
 When naming ports, prefer the domain concept over the implementation
 mechanism: `ActivityEmitter` (not `DeliveryQueue`), `DataLayer` (not
