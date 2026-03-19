@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-18 (VCR-030: delete vultron/sim/, relocate Message)
+**Last Updated**: 2026-03-19 (VCR-019b: move RM/EM/CVDRoles enums to vultron/core/states/)
 
 ## Overview
 
@@ -596,11 +596,11 @@ They are larger structural changes; plan as a single coordinated PR.
   shims behind. **Prerequisite: VCR-019c (done)** — see notes for
   implementation guidance and recommended target structure.
 
-- [ ] **VCR-019b**: Move `states.py` enums from each `vultron/bt/**/` submodule
+- [x] **VCR-019b**: Move `states.py` enums from each `vultron/bt/**/` submodule
   (embargo management, report management, roles) into `vultron/core/states/`.
-  Update all imports in `vultron/bt/`. Do not leave shims. `MessageTypes`,
-  `CapabilityFlag`, and `ActorState` stay in bt/ (Group D per VCR-019c study).
-  **Prerequisite: VCR-019c (done)** — see notes for implementation guidance.
+  Created `rm.py` (RM, RM_CLOSABLE, RM_UNCLOSED, RM_ACTIVE), `em.py` (EM),
+  `roles.py` (CVDRoles, add_role). Updated `__init__.py` and all 59 callers.
+  Deleted original `states.py` files. No shims. 982 tests pass.
 
 - [ ] **VCR-019d** (future): Consider using the `transitions` module to model
   RM/EM/CS state machines once enum consolidation is complete. Defer until after
