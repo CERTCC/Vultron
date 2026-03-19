@@ -8,7 +8,7 @@
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """
@@ -83,22 +83,3 @@ RM_ACTIVE = (
     RM.VALID,
     RM.ACCEPTED,
 )
-
-
-def main():
-    rootlogger = logging.getLogger()
-    rootlogger.setLevel(logging.DEBUG)
-    hdlr = logging.StreamHandler()
-    rootlogger.addHandler(hdlr)
-
-    logger.debug("Available Report Management States:")
-    for k, v in RM.__members__.items():
-        logger.debug(f"state: {k} -> value: {v.value}")
-
-    logger.debug(f"RMclosable = {RM_CLOSABLE}")
-    logger.debug(f"RMunclosed = {RM_UNCLOSED}")
-    logger.debug(f"RMactive = {RM_ACTIVE}")
-
-
-if __name__ == "__main__":
-    main()

@@ -22,3 +22,6 @@ from vultron.core.states.cs import (
     state_string_to_enums,
     vfd,
 )
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM, RM_ACTIVE, RM_CLOSABLE, RM_UNCLOSED
+from vultron.core.states.roles import CVDRoles, add_role

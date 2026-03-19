@@ -25,7 +25,7 @@ from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.embargo_management.behaviors import EmbargoManagementBt
 from vultron.bt.messaging.inbound.behaviors import ReceiveMessagesBt
 from vultron.bt.report_management.behaviors import ReportManagementBt
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 from vultron.bt.states import ActorState
 from vultron.bt.vul_discovery.behaviors import DiscoverVulnerabilityBt
 

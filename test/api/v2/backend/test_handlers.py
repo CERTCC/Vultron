@@ -642,7 +642,7 @@ class TestEmbargoHandlers:
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
-        from vultron.bt.embargo_management.states import EM
+        from vultron.core.states.em import EM
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -715,7 +715,7 @@ class TestEmbargoHandlers:
         from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
-        from vultron.bt.embargo_management.states import EM
+        from vultron.core.states.em import EM
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(

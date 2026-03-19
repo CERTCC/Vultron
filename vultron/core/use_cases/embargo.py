@@ -3,7 +3,7 @@
 import logging
 from typing import cast
 
-from vultron.bt.embargo_management.states import EM
+from vultron.core.states.em import EM
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     AddEmbargoEventToCaseReceivedEvent,

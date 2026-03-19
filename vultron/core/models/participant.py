@@ -17,7 +17,7 @@
 
 from pydantic import Field, field_serializer, field_validator
 
-from vultron.bt.roles.states import CVDRoles
+from vultron.core.states.roles import CVDRoles
 from vultron.core.models.base import NonEmptyString, VultronObject
 from vultron.core.models.participant_status import VultronParticipantStatus
 

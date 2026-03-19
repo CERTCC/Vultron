@@ -23,7 +23,7 @@ import logging
 from datetime import datetime
 
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.bt.embargo_management.states import EM
+from vultron.core.states.em import EM
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,

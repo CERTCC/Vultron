@@ -45,7 +45,7 @@ from vultron.core.behaviors.helpers import (
     DataLayerCondition,
     save_to_datalayer,
 )
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 from vultron.core.models.status import OfferStatusEnum
 
 logger = logging.getLogger(__name__)
@@ -831,7 +831,7 @@ class TransitionParticipantRMtoAccepted(DataLayerAction):
             self.logger.error(f"{self.name}: DataLayer not available")
             return Status.FAILURE
 
-        from vultron.bt.report_management.states import RM
+        from vultron.core.states.rm import RM
 
         return _find_and_update_participant_rm(
             self.datalayer,
@@ -878,7 +878,7 @@ class TransitionParticipantRMtoDeferred(DataLayerAction):
             self.logger.error(f"{self.name}: DataLayer not available")
             return Status.FAILURE
 
-        from vultron.bt.report_management.states import RM
+        from vultron.core.states.rm import RM
 
         return _find_and_update_participant_rm(
             self.datalayer,

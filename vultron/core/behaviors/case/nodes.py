@@ -36,7 +36,7 @@ from vultron.core.models.vultron_types import (
     VultronCreateCaseActivity,
     VultronParticipant,
 )
-from vultron.bt.roles.states import CVDRoles
+from vultron.core.states.roles import CVDRoles
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,

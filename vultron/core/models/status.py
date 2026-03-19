@@ -22,7 +22,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 
 
 class OfferStatusEnum(StrEnum):

@@ -36,7 +36,7 @@ from vultron.core.behaviors.report.prioritize_tree import (
     create_defer_case_tree,
     create_engage_case_tree,
 )
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 
 
 @pytest.fixture

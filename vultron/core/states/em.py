@@ -10,7 +10,7 @@
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
@@ -46,14 +46,3 @@ class EM(StrEnum):
     A = EMBARGO_MANAGEMENT_ACTIVE
     R = EMBARGO_MANAGEMENT_REVISE
     X = EMBARGO_MANAGEMENT_EXITED
-
-
-def main():
-    print("EM states:")
-    print("----------")
-    for x in EM:
-        print(x.name, x.value)
-
-
-if __name__ == "__main__":
-    main()

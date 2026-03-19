@@ -8,7 +8,7 @@
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Provides CVD Role states"""
@@ -68,12 +68,3 @@ class CVDRoles(Flag):
 
 def add_role(old_role, new_role):
     return old_role | new_role
-
-
-def main():
-    for x in CVDRoles.__members__:
-        print("\t".join([x, str(CVDRoles[x]), str(CVDRoles[x].value)]))
-
-
-if __name__ == "__main__":
-    main()

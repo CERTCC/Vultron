@@ -7,7 +7,7 @@ methods on DataLayer results without importing wire-layer classes.
 
 from typing import Protocol
 
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 
 
 class CaseModel(Protocol):

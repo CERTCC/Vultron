@@ -211,7 +211,7 @@ def test_create_case_tree_creates_vendor_participant(
     datalayer, actor, case_obj, bridge
 ):
     """A VendorParticipant SHOULD be created and added to case_participants (CM-02-008)."""
-    from vultron.bt.roles.states import CVDRoles as CVDRole
+    from vultron.core.states.roles import CVDRoles as CVDRole
 
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
     bridge.execute_with_setup(tree=tree, actor_id=actor.as_id, activity=None)

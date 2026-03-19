@@ -24,8 +24,8 @@ from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
     ParticipantStatus,
 )
-from vultron.bt.embargo_management.states import EM
-from vultron.bt.report_management.states import RM
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
 
 

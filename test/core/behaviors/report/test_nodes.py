@@ -45,7 +45,7 @@ from vultron.core.behaviors.report.nodes import (
     TransitionRMtoValid,
     UpdateActorOutbox,
 )
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 from vultron.core.models.status import OfferStatusEnum
 
 

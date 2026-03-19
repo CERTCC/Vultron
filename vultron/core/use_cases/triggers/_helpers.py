@@ -24,7 +24,7 @@ framework imports allowed here.
 import logging
 
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._types import CaseModel
 from vultron.errors import VultronNotFoundError, VultronValidationError

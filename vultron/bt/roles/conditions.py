@@ -17,7 +17,7 @@
 
 from vultron.bt.base.bt_node import BtNode
 from vultron.bt.base.factory import condition_check, invert
-from vultron.bt.roles.states import CVDRoles
+from vultron.core.states.roles import CVDRoles
 
 
 def role_is_vendor(obj: BtNode) -> bool:

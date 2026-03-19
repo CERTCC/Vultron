@@ -34,7 +34,7 @@ from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.bt.embargo_management.states import EM
+from vultron.core.states.em import EM
 
 FUTURE_END_TIME = "2099-12-01T00:00:00Z"
 

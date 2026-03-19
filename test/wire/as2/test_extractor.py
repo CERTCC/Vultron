@@ -214,7 +214,7 @@ def test_extract_intent_participant_case_roles():
     from vultron.wire.as2.vocab.objects.case_participant import (
         CaseParticipant,
     )
-    from vultron.bt.roles.states import CVDRoles
+    from vultron.core.states.roles import CVDRoles
 
     participant = CaseParticipant(
         attributed_to="https://example.org/alice",

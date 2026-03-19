@@ -15,7 +15,7 @@ import unittest
 
 import vultron.bt.report_management.transitions as rmt
 from vultron.bt.base.node_status import NodeStatus
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 
 
 class MockActorState:

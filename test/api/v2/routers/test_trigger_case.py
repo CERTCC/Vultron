@@ -33,7 +33,7 @@ from vultron.adapters.driving.fastapi.routers import (
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 
 # ---------------------------------------------------------------------------
 # Fixtures

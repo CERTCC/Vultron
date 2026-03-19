@@ -20,8 +20,8 @@ from typing import TypeAlias
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
-from vultron.bt.embargo_management.states import EM
-from vultron.bt.report_management.states import RM
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type

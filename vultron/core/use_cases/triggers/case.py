@@ -21,7 +21,7 @@ No HTTP framework imports permitted here.
 
 import logging
 
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,

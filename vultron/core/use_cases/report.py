@@ -17,7 +17,7 @@ from vultron.core.models.status import (
     set_status,
 )
 from vultron.core.ports.datalayer import DataLayer
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 
 logger = logging.getLogger(__name__)
 

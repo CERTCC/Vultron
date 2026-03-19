@@ -47,8 +47,8 @@ from vultron.api.v2.backend.trigger_services.report import (
 )
 from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.core.models.status import ReportStatus, set_status
-from vultron.bt.embargo_management.states import EM
-from vultron.bt.report_management.states import RM
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Service

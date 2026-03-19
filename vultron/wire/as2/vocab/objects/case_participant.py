@@ -22,8 +22,8 @@ from typing import TypeAlias
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
-from vultron.bt.report_management.states import RM
-from vultron.bt.roles.states import CVDRoles as CVDRole
+from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRoles as CVDRole
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
 from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
