@@ -330,4 +330,11 @@ This would eliminate the
 duplication and make the 
 implementation a bit cleaner than the original design docs had it.
 
+## Resolve VCR-022 vs TECHDEBT-16 once and for all
+
+On your next evaluation pass, actually confirm whether VCR-022 is really 
+identical to TECHDEBT-16 and whether it should be marked complete or clarify 
+what is left to be completed. Do not accept assertions that they are 
+equivalent tasks without explicitly evaluating them against the codebase.
+
 
