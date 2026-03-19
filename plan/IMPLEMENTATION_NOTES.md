@@ -337,4 +337,13 @@ identical to TECHDEBT-16 and whether it should be marked complete or clarify
 what is left to be completed. Do not accept assertions that they are 
 equivalent tasks without explicitly evaluating them against the codebase.
 
+## Prefer `TypeHint | None` over `Optional[TypeHint]`
+
+Style recommendation (SHOULD): use `TypeHint | None` instead of `Optional
+[TypeHint]` for optional type hints. This is consistent with modern Python 
+syntax for union types and is more concise. Clean up the `Optional[TypeHint]
+` usage when you encounter it during refactoring, but no need for a bulk 
+search-and-replace.
+
+
 
