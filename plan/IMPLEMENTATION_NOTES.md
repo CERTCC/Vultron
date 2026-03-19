@@ -359,5 +359,20 @@ might be to return the contents of the collection (which is not what we want).
 This clarification should be made in the specs but also enforced with one or 
 more tests and potentially object validation in the code.
 
+## Resolve ambiguity of BT-* vs OX-* vs ACT-* tasks
+
+1. In the next LEARN or PLAN phase, we need to resolve the priority ambiguity 
+around BT-* vs OX-* vs ACT-* tasks. Information in plan/PRIORITIES.md takes 
+precedent over currently labeled priorities in plan/IMPLEMENTATION_PLAN.md.
+2. Generalizing from this, we need to capture that PRIORITIES.md takes 
+   precedence and may change over time relative to what is captured in 
+   IMPLEMENTATION_PLAN.md. As a corollary to this point, the order of tasks 
+   in IMPLEMENTATION_PLAN.md reflects groupings of related tasks but does 
+   not reflect their priority. Tasks should note prerequisites or blockers 
+   but conflict between task order and stated priorities should be resolved 
+   in favor of stated priorities. This should be captured in the 
+   documentation to avoid confusion in the future.
+
+
 
 
