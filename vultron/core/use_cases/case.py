@@ -16,7 +16,7 @@ from vultron.core.models.events.case import (
 from vultron.core.models.vultron_types import VultronActivity
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import _as_id
-from vultron.core.use_cases._types import CaseModel
+from vultron.core.models.protocols import CaseModel
 
 logger = logging.getLogger(__name__)
 

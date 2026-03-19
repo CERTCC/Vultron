@@ -26,7 +26,7 @@ import logging
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.states.rm import RM
 from vultron.core.ports.datalayer import DataLayer
-from vultron.core.use_cases._types import CaseModel
+from vultron.core.models.protocols import CaseModel
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)

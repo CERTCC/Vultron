@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-19 (VCR-020/021a/021b/022/029: activity field and docstrings)
+**Last Updated**: 2026-03-19 (VCR-027: move CaseModel/ParticipantModel to core/models/protocols.py)
 
 ## Overview
 
@@ -668,10 +668,11 @@ They are larger structural changes; plan as a single coordinated PR.
   and VCR-023 already handled removals; VCR-025 confirmed `ActivityDispatcher`
   is retained). 982 tests pass.
 
-- [ ] **VCR-027**: Evaluate `vultron/core/use_cases/_types.py` — determine
-  whether the Protocol types defined there (`CaseModel`, `ParticipantModel`, etc.)
-  belong in `vultron/core/models/` instead. If so, move them and update callers.
-  This supports the goal of a clean domain model hierarchy (VCR-022/TECHDEBT-16).
+- [x] **VCR-027**: Moved `CaseModel` and `ParticipantModel` Protocol types from
+  `vultron/core/use_cases/_types.py` to `vultron/core/models/protocols.py`.
+  Updated all 7 callers (`triggers/_helpers.py`, `case_participant.py`,
+  `embargo.py`, `case.py`, `actor.py`, `note.py`, `status.py`) to import from
+  `vultron.core.models.protocols`. Deleted `_types.py`. 982 tests pass.
 
 - [x] **VCR-028**: Remove unnecessary `if _idempotent_create(...): return` guard
   patterns in use cases where the method return value already handles early exit.

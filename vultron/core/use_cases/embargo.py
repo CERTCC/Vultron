@@ -15,7 +15,7 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
-from vultron.core.use_cases._types import CaseModel, ParticipantModel
+from vultron.core.models.protocols import CaseModel, ParticipantModel
 
 logger = logging.getLogger(__name__)
 

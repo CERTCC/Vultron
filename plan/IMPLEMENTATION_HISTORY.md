@@ -2299,3 +2299,24 @@ code changes required for these two tasks.
 10 domain object model classes inherit from it.
 
 **Result**: 982 tests pass, 5 warnings unchanged.
+
+---
+
+## VCR-027 — Move Protocol types to core/models/protocols.py (2026-03-19)
+
+**Task**: Evaluate whether `CaseModel` and `ParticipantModel` Protocol types in
+`vultron/core/use_cases/_types.py` belong in `vultron/core/models/`.
+
+**Decision**: Yes — these protocols define the structural interface of domain
+model objects (VultronCase, VultronParticipant) and belong alongside the
+concrete domain models in `vultron/core/models/`.
+
+**What was done**:
+- Created `vultron/core/models/protocols.py` with `CaseModel` and
+  `ParticipantModel` Protocol definitions (moved verbatim from `_types.py`).
+- Updated 7 callers to import from `vultron.core.models.protocols`:
+  `triggers/_helpers.py`, `case_participant.py`, `embargo.py`, `case.py`,
+  `actor.py`, `note.py`, `status.py`.
+- Deleted `vultron/core/use_cases/_types.py`.
+
+**Result**: 982 tests pass, 5 warnings unchanged.
