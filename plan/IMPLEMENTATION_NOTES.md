@@ -243,3 +243,33 @@ import site causes an immediate `ImportError` rather than a silent passthrough.
 **`vultron.case_states.enums.*` files had no cross-imports** within the enums
 package itself, so copying to `vultron/core/scoring/` required no import
 updates inside those files — only in their callers.
+
+---
+
+## vultron.api.v2.backend.trigger_services should go away
+
+The code in `vultron.api.v2.backend.trigger_services` is a thin residual 
+layer that has been mostly obsoleted in concept by the `vultron.adapters.
+driven` and `vultron.core.use_cases` packages. This isn't a straight 
+replacement though, there is a need to study the trigger_services modules 
+compared to `vultron.adapters` and `vultron.core` and 
+determine a specific refactoring plan to merge `trigger_services` into them. 
+
+`vultron.api.v2.backend.trigger_services._helper.py` consists of a backwards 
+compatibility shim import block that should be refactored out by direct 
+imports, plus a `translate_domain_errors` function that belongs somewhere 
+near `vultron.adapters.driving.fastapi` because it's directly relevant to 
+the http api provided by that package.
+
+`vultron.api.v2.backend.trigger_services._models.py` might belong in 
+`vultron.core.models` if appropriate, or if they are more like 
+adapter-specific models then maybe they belong in `vultron.adapters` somewhere.
+This decision needs to be part of the evaluation.
+
+The other modules in `vultron.api.v2.backend.trigger_services` (`case.py`, 
+`embargo.py`, and `report.py`) might be thin adapters that might be used by 
+multiple driving adapters later (fastapi, cli, etc.) so they might belong in 
+a `vultron.adapters.driving.common` package or something like that. They 
+don't seem like they belong in `vultron.core`.
+
+---
