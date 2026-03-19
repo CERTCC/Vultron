@@ -24,8 +24,8 @@ from fastapi import APIRouter, Depends, status
 
 from vultron.api.v2.backend.trigger_services._models import CaseTriggerRequest
 from vultron.api.v2.backend.trigger_services.case import (
-    svc_defer_case,
-    svc_engage_case,
+    defer_case_trigger,
+    engage_case_trigger,
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
@@ -56,7 +56,7 @@ def trigger_engage_case(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return svc_engage_case(actor_id, body.case_id, dl)
+    return engage_case_trigger(actor_id, body.case_id, dl)
 
 
 @router.post(
@@ -82,4 +82,4 @@ def trigger_defer_case(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return svc_defer_case(actor_id, body.case_id, dl)
+    return defer_case_trigger(actor_id, body.case_id, dl)

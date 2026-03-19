@@ -37,7 +37,7 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.errors import VultronError
 
 
-def svc_engage_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
+def engage_case_trigger(actor_id: str, case_id: str, dl: DataLayer) -> dict:
     try:
         request = EngageCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
         return SvcEngageCaseUseCase(dl, request).execute()
@@ -45,7 +45,7 @@ def svc_engage_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
         raise translate_domain_errors(e)
 
 
-def svc_defer_case(actor_id: str, case_id: str, dl: DataLayer) -> dict:
+def defer_case_trigger(actor_id: str, case_id: str, dl: DataLayer) -> dict:
     try:
         request = DeferCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
         return SvcDeferCaseUseCase(dl, request).execute()

@@ -22,29 +22,29 @@ here; conversely, no DataLayer lookups belong in the router layer.
 """
 
 from vultron.api.v2.backend.trigger_services.case import (
-    svc_defer_case,
-    svc_engage_case,
+    defer_case_trigger,
+    engage_case_trigger,
 )
 from vultron.api.v2.backend.trigger_services.embargo import (
-    svc_evaluate_embargo,
-    svc_propose_embargo,
-    svc_terminate_embargo,
+    evaluate_embargo_trigger,
+    propose_embargo_trigger,
+    terminate_embargo_trigger,
 )
 from vultron.api.v2.backend.trigger_services.report import (
-    svc_close_report,
-    svc_invalidate_report,
-    svc_reject_report,
-    svc_validate_report,
+    close_report_trigger,
+    invalidate_report_trigger,
+    reject_report_trigger,
+    validate_report_trigger,
 )
 
 __all__ = [
-    "svc_validate_report",
-    "svc_invalidate_report",
-    "svc_reject_report",
-    "svc_close_report",
-    "svc_engage_case",
-    "svc_defer_case",
-    "svc_propose_embargo",
-    "svc_evaluate_embargo",
-    "svc_terminate_embargo",
+    "validate_report_trigger",
+    "invalidate_report_trigger",
+    "reject_report_trigger",
+    "close_report_trigger",
+    "engage_case_trigger",
+    "defer_case_trigger",
+    "propose_embargo_trigger",
+    "evaluate_embargo_trigger",
+    "terminate_embargo_trigger",
 ]

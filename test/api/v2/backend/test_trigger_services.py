@@ -31,19 +31,19 @@ FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
 
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.api.v2.backend.trigger_services.case import (
-    svc_defer_case,
-    svc_engage_case,
+    defer_case_trigger,
+    engage_case_trigger,
 )
 from vultron.api.v2.backend.trigger_services.embargo import (
-    svc_evaluate_embargo,
-    svc_propose_embargo,
-    svc_terminate_embargo,
+    evaluate_embargo_trigger,
+    propose_embargo_trigger,
+    terminate_embargo_trigger,
 )
 from vultron.api.v2.backend.trigger_services.report import (
-    svc_close_report,
-    svc_invalidate_report,
-    svc_reject_report,
-    svc_validate_report,
+    close_report_trigger,
+    invalidate_report_trigger,
+    reject_report_trigger,
+    validate_report_trigger,
 )
 from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.core.models.status import ReportStatus, set_status
@@ -193,43 +193,47 @@ def non_report_object(dl):
 
 
 # ===========================================================================
-# svc_validate_report
+# validate_report_trigger
 # ===========================================================================
 
 
-def test_svc_validate_report_returns_activity_dict(
+def test_validate_report_trigger_returns_activity_dict(
     dl, actor, offer, received_report
 ):
-    """svc_validate_report returns dict with 'activity' key."""
-    result = svc_validate_report(actor.as_id, offer.as_id, None, dl)
+    """validate_report_trigger returns dict with 'activity' key."""
+    result = validate_report_trigger(actor.as_id, offer.as_id, None, dl)
     assert isinstance(result, dict)
     assert "activity" in result
 
 
-def test_svc_validate_report_unknown_actor_raises_404(dl, offer):
-    """svc_validate_report raises HTTPException 404 for unknown actor."""
+def test_validate_report_trigger_unknown_actor_raises_404(dl, offer):
+    """validate_report_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_validate_report("urn:uuid:no-such-actor", offer.as_id, None, dl)
+        validate_report_trigger(
+            "urn:uuid:no-such-actor", offer.as_id, None, dl
+        )
     assert exc_info.value.status_code == 404
 
 
-def test_svc_validate_report_unknown_offer_raises_404(dl, actor):
-    """svc_validate_report raises HTTPException 404 for unknown offer."""
+def test_validate_report_trigger_unknown_offer_raises_404(dl, actor):
+    """validate_report_trigger raises HTTPException 404 for unknown offer."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_validate_report(actor.as_id, "urn:uuid:no-such-offer", None, dl)
+        validate_report_trigger(
+            actor.as_id, "urn:uuid:no-such-offer", None, dl
+        )
     assert exc_info.value.status_code == 404
 
 
-def test_svc_validate_report_adds_activity_to_outbox(
+def test_validate_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
-    """svc_validate_report adds a new activity to the actor's outbox."""
+    """validate_report_trigger adds a new activity to the actor's outbox."""
     actor_before = dl.read(actor.as_id)
     before = {
         item for item in actor_before.outbox.items if isinstance(item, str)
     }
 
-    svc_validate_report(actor.as_id, offer.as_id, None, dl)
+    validate_report_trigger(actor.as_id, offer.as_id, None, dl)
 
     actor_after = dl.read(actor.as_id)
     after = {
@@ -238,53 +242,53 @@ def test_svc_validate_report_adds_activity_to_outbox(
     assert len(after - before) >= 1
 
 
-def test_svc_validate_report_non_report_offer_raises_422(
+def test_validate_report_trigger_non_report_offer_raises_422(
     dl, actor, non_report_object
 ):
-    """svc_validate_report raises 422 when offer_id is not a report Offer."""
+    """validate_report_trigger raises 422 when offer_id is not a report Offer."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_validate_report(actor.as_id, non_report_object.as_id, None, dl)
+        validate_report_trigger(actor.as_id, non_report_object.as_id, None, dl)
     assert exc_info.value.status_code == 422
 
 
 # ===========================================================================
-# svc_invalidate_report
+# invalidate_report_trigger
 # ===========================================================================
 
 
-def test_svc_invalidate_report_returns_activity_dict(
+def test_invalidate_report_trigger_returns_activity_dict(
     dl, actor, offer, received_report
 ):
-    """svc_invalidate_report returns dict with non-None 'activity'."""
-    result = svc_invalidate_report(actor.as_id, offer.as_id, None, dl)
+    """invalidate_report_trigger returns dict with non-None 'activity'."""
+    result = invalidate_report_trigger(actor.as_id, offer.as_id, None, dl)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
 
-def test_svc_invalidate_report_unknown_actor_raises_404(dl, offer):
-    """svc_invalidate_report raises HTTPException 404 for unknown actor."""
+def test_invalidate_report_trigger_unknown_actor_raises_404(dl, offer):
+    """invalidate_report_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_invalidate_report("urn:uuid:no-such", offer.as_id, None, dl)
+        invalidate_report_trigger("urn:uuid:no-such", offer.as_id, None, dl)
     assert exc_info.value.status_code == 404
 
 
-def test_svc_invalidate_report_unknown_offer_raises_404(dl, actor):
-    """svc_invalidate_report raises HTTPException 404 for unknown offer."""
+def test_invalidate_report_trigger_unknown_offer_raises_404(dl, actor):
+    """invalidate_report_trigger raises HTTPException 404 for unknown offer."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_invalidate_report(actor.as_id, "urn:uuid:no-such", None, dl)
+        invalidate_report_trigger(actor.as_id, "urn:uuid:no-such", None, dl)
     assert exc_info.value.status_code == 404
 
 
-def test_svc_invalidate_report_adds_activity_to_outbox(
+def test_invalidate_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
-    """svc_invalidate_report adds a new activity to the actor's outbox."""
+    """invalidate_report_trigger adds a new activity to the actor's outbox."""
     actor_before = dl.read(actor.as_id)
     before = {
         item for item in actor_before.outbox.items if isinstance(item, str)
     }
 
-    svc_invalidate_report(actor.as_id, offer.as_id, None, dl)
+    invalidate_report_trigger(actor.as_id, offer.as_id, None, dl)
 
     actor_after = dl.read(actor.as_id)
     after = {
@@ -293,53 +297,57 @@ def test_svc_invalidate_report_adds_activity_to_outbox(
     assert len(after - before) >= 1
 
 
-def test_svc_invalidate_report_non_report_offer_raises_422(
+def test_invalidate_report_trigger_non_report_offer_raises_422(
     dl, actor, non_report_object
 ):
-    """svc_invalidate_report raises 422 when offer_id is not a report Offer."""
+    """invalidate_report_trigger raises 422 when offer_id is not a report Offer."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_invalidate_report(actor.as_id, non_report_object.as_id, None, dl)
+        invalidate_report_trigger(
+            actor.as_id, non_report_object.as_id, None, dl
+        )
     assert exc_info.value.status_code == 422
 
 
 # ===========================================================================
-# svc_reject_report
+# reject_report_trigger
 # ===========================================================================
 
 
-def test_svc_reject_report_returns_activity_dict(
+def test_reject_report_trigger_returns_activity_dict(
     dl, actor, offer, received_report
 ):
-    """svc_reject_report returns dict with non-None 'activity'."""
-    result = svc_reject_report(actor.as_id, offer.as_id, "Out of scope.", dl)
+    """reject_report_trigger returns dict with non-None 'activity'."""
+    result = reject_report_trigger(
+        actor.as_id, offer.as_id, "Out of scope.", dl
+    )
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
 
-def test_svc_reject_report_unknown_actor_raises_404(dl, offer):
-    """svc_reject_report raises HTTPException 404 for unknown actor."""
+def test_reject_report_trigger_unknown_actor_raises_404(dl, offer):
+    """reject_report_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_reject_report("urn:uuid:no-such", offer.as_id, "Reason.", dl)
+        reject_report_trigger("urn:uuid:no-such", offer.as_id, "Reason.", dl)
     assert exc_info.value.status_code == 404
 
 
-def test_svc_reject_report_unknown_offer_raises_404(dl, actor):
-    """svc_reject_report raises HTTPException 404 for unknown offer."""
+def test_reject_report_trigger_unknown_offer_raises_404(dl, actor):
+    """reject_report_trigger raises HTTPException 404 for unknown offer."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_reject_report(actor.as_id, "urn:uuid:no-such", "Reason.", dl)
+        reject_report_trigger(actor.as_id, "urn:uuid:no-such", "Reason.", dl)
     assert exc_info.value.status_code == 404
 
 
-def test_svc_reject_report_adds_activity_to_outbox(
+def test_reject_report_trigger_adds_activity_to_outbox(
     dl, actor, offer, received_report
 ):
-    """svc_reject_report adds a new activity to the actor's outbox."""
+    """reject_report_trigger adds a new activity to the actor's outbox."""
     actor_before = dl.read(actor.as_id)
     before = {
         item for item in actor_before.outbox.items if isinstance(item, str)
     }
 
-    svc_reject_report(actor.as_id, offer.as_id, "Reason.", dl)
+    reject_report_trigger(actor.as_id, offer.as_id, "Reason.", dl)
 
     actor_after = dl.read(actor.as_id)
     after = {
@@ -348,94 +356,100 @@ def test_svc_reject_report_adds_activity_to_outbox(
     assert len(after - before) >= 1
 
 
-def test_svc_reject_report_non_report_offer_raises_422(
+def test_reject_report_trigger_non_report_offer_raises_422(
     dl, actor, non_report_object
 ):
-    """svc_reject_report raises 422 when offer_id is not a report Offer."""
+    """reject_report_trigger raises 422 when offer_id is not a report Offer."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_reject_report(actor.as_id, non_report_object.as_id, "reason", dl)
+        reject_report_trigger(
+            actor.as_id, non_report_object.as_id, "reason", dl
+        )
     assert exc_info.value.status_code == 422
 
 
 # ===========================================================================
-# svc_close_report
+# close_report_trigger
 # ===========================================================================
 
 
-def test_svc_close_report_returns_activity_dict(
+def test_close_report_trigger_returns_activity_dict(
     dl, actor, offer, accepted_report
 ):
-    """svc_close_report returns dict with non-None 'activity'."""
-    result = svc_close_report(actor.as_id, offer.as_id, None, dl)
+    """close_report_trigger returns dict with non-None 'activity'."""
+    result = close_report_trigger(actor.as_id, offer.as_id, None, dl)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
 
-def test_svc_close_report_already_closed_raises_409(
+def test_close_report_trigger_already_closed_raises_409(
     dl, actor, offer, closed_report
 ):
-    """svc_close_report raises HTTPException 409 when report is CLOSED."""
+    """close_report_trigger raises HTTPException 409 when report is CLOSED."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_close_report(actor.as_id, offer.as_id, None, dl)
+        close_report_trigger(actor.as_id, offer.as_id, None, dl)
     assert exc_info.value.status_code == 409
 
 
-def test_svc_close_report_unknown_actor_raises_404(dl, offer):
-    """svc_close_report raises HTTPException 404 for unknown actor."""
+def test_close_report_trigger_unknown_actor_raises_404(dl, offer):
+    """close_report_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_close_report("urn:uuid:no-such", offer.as_id, None, dl)
+        close_report_trigger("urn:uuid:no-such", offer.as_id, None, dl)
     assert exc_info.value.status_code == 404
 
 
-def test_svc_close_report_non_report_offer_raises_422(
+def test_close_report_trigger_non_report_offer_raises_422(
     dl, actor, non_report_object
 ):
-    """svc_close_report raises 422 when offer_id is not a report Offer."""
+    """close_report_trigger raises 422 when offer_id is not a report Offer."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_close_report(actor.as_id, non_report_object.as_id, None, dl)
+        close_report_trigger(actor.as_id, non_report_object.as_id, None, dl)
     assert exc_info.value.status_code == 422
 
 
 # ===========================================================================
-# svc_engage_case
+# engage_case_trigger
 # ===========================================================================
 
 
-def test_svc_engage_case_returns_activity_dict(
+def test_engage_case_trigger_returns_activity_dict(
     dl, actor, case_with_participant
 ):
-    """svc_engage_case returns dict with non-None 'activity'."""
-    result = svc_engage_case(actor.as_id, case_with_participant.as_id, dl)
+    """engage_case_trigger returns dict with non-None 'activity'."""
+    result = engage_case_trigger(actor.as_id, case_with_participant.as_id, dl)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
 
-def test_svc_engage_case_unknown_actor_raises_404(dl, case_with_participant):
-    """svc_engage_case raises HTTPException 404 for unknown actor."""
+def test_engage_case_trigger_unknown_actor_raises_404(
+    dl, case_with_participant
+):
+    """engage_case_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_engage_case("urn:uuid:no-such", case_with_participant.as_id, dl)
+        engage_case_trigger(
+            "urn:uuid:no-such", case_with_participant.as_id, dl
+        )
     assert exc_info.value.status_code == 404
 
 
-def test_svc_engage_case_unknown_case_raises_404(dl, actor):
-    """svc_engage_case raises HTTPException 404 for unknown case."""
+def test_engage_case_trigger_unknown_case_raises_404(dl, actor):
+    """engage_case_trigger raises HTTPException 404 for unknown case."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_engage_case(actor.as_id, "urn:uuid:no-such-case", dl)
+        engage_case_trigger(actor.as_id, "urn:uuid:no-such-case", dl)
     assert exc_info.value.status_code == 404
 
 
-def test_svc_engage_case_invalid_case_id_raises_422(dl, actor):
-    """svc_engage_case raises 422 for a non-URI case_id."""
+def test_engage_case_trigger_invalid_case_id_raises_422(dl, actor):
+    """engage_case_trigger raises 422 for a non-URI case_id."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_engage_case(actor.as_id, "not-a-uri", dl)
+        engage_case_trigger(actor.as_id, "not-a-uri", dl)
     assert exc_info.value.status_code == 422
 
 
-def test_svc_engage_case_updates_participant_rm_state(
+def test_engage_case_trigger_updates_participant_rm_state(
     dl, actor, case_with_participant
 ):
-    """svc_engage_case transitions actor's CaseParticipant RM state to ACCEPTED."""
-    svc_engage_case(actor.as_id, case_with_participant.as_id, dl)
+    """engage_case_trigger transitions actor's CaseParticipant RM state to ACCEPTED."""
+    engage_case_trigger(actor.as_id, case_with_participant.as_id, dl)
 
     updated_case = dl.read(case_with_participant.as_id)
     for p_ref in updated_case.case_participants:
@@ -455,16 +469,16 @@ def test_svc_engage_case_updates_participant_rm_state(
     pytest.fail("Participant RM state was not updated to ACCEPTED")
 
 
-def test_svc_engage_case_adds_activity_to_outbox(
+def test_engage_case_trigger_adds_activity_to_outbox(
     dl, actor, case_with_participant
 ):
-    """svc_engage_case adds a new activity to the actor's outbox."""
+    """engage_case_trigger adds a new activity to the actor's outbox."""
     actor_before = dl.read(actor.as_id)
     before = {
         item for item in actor_before.outbox.items if isinstance(item, str)
     }
 
-    svc_engage_case(actor.as_id, case_with_participant.as_id, dl)
+    engage_case_trigger(actor.as_id, case_with_participant.as_id, dl)
 
     actor_after = dl.read(actor.as_id)
     after = {
@@ -474,38 +488,40 @@ def test_svc_engage_case_adds_activity_to_outbox(
 
 
 # ===========================================================================
-# svc_defer_case
+# defer_case_trigger
 # ===========================================================================
 
 
-def test_svc_defer_case_returns_activity_dict(
+def test_defer_case_trigger_returns_activity_dict(
     dl, actor, case_with_participant
 ):
-    """svc_defer_case returns dict with non-None 'activity'."""
-    result = svc_defer_case(actor.as_id, case_with_participant.as_id, dl)
+    """defer_case_trigger returns dict with non-None 'activity'."""
+    result = defer_case_trigger(actor.as_id, case_with_participant.as_id, dl)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
 
-def test_svc_defer_case_unknown_actor_raises_404(dl, case_with_participant):
-    """svc_defer_case raises HTTPException 404 for unknown actor."""
+def test_defer_case_trigger_unknown_actor_raises_404(
+    dl, case_with_participant
+):
+    """defer_case_trigger raises HTTPException 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_defer_case("urn:uuid:no-such", case_with_participant.as_id, dl)
+        defer_case_trigger("urn:uuid:no-such", case_with_participant.as_id, dl)
     assert exc_info.value.status_code == 404
 
 
-def test_svc_defer_case_invalid_case_id_raises_422(dl, actor):
-    """svc_defer_case raises 422 for a non-URI case_id."""
+def test_defer_case_trigger_invalid_case_id_raises_422(dl, actor):
+    """defer_case_trigger raises 422 for a non-URI case_id."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_defer_case(actor.as_id, "not-a-uri", dl)
+        defer_case_trigger(actor.as_id, "not-a-uri", dl)
     assert exc_info.value.status_code == 422
 
 
-def test_svc_defer_case_updates_participant_rm_state(
+def test_defer_case_trigger_updates_participant_rm_state(
     dl, actor, case_with_participant
 ):
-    """svc_defer_case transitions actor's CaseParticipant RM state to DEFERRED."""
-    svc_defer_case(actor.as_id, case_with_participant.as_id, dl)
+    """defer_case_trigger transitions actor's CaseParticipant RM state to DEFERRED."""
+    defer_case_trigger(actor.as_id, case_with_participant.as_id, dl)
 
     updated_case = dl.read(case_with_participant.as_id)
     for p_ref in updated_case.case_participants:
@@ -526,49 +542,53 @@ def test_svc_defer_case_updates_participant_rm_state(
 
 
 # ===========================================================================
-# svc_propose_embargo
+# propose_embargo_trigger
 # ===========================================================================
 
 
-def test_svc_propose_embargo_returns_activity_dict(
+def test_propose_embargo_trigger_returns_activity_dict(
     dl, actor, case_no_participant
 ):
-    """svc_propose_embargo returns dict with non-None 'activity'."""
-    result = svc_propose_embargo(
+    """propose_embargo_trigger returns dict with non-None 'activity'."""
+    result = propose_embargo_trigger(
         actor.as_id, case_no_participant.as_id, None, FUTURE_DATETIME, dl
     )
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
 
-def test_svc_propose_embargo_transitions_em_state_to_proposed(
+def test_propose_embargo_trigger_transitions_em_state_to_proposed(
     dl, actor, case_no_participant
 ):
-    """svc_propose_embargo transitions case EM state from N to P."""
-    svc_propose_embargo(
+    """propose_embargo_trigger transitions case EM state from N to P."""
+    propose_embargo_trigger(
         actor.as_id, case_no_participant.as_id, None, FUTURE_DATETIME, dl
     )
     updated = dl.read(case_no_participant.as_id)
     assert updated.current_status.em_state == EM.PROPOSED
 
 
-def test_svc_propose_embargo_exited_raises_409(dl, actor, case_no_participant):
-    """svc_propose_embargo raises 409 when EM state is EXITED."""
+def test_propose_embargo_trigger_exited_raises_409(
+    dl, actor, case_no_participant
+):
+    """propose_embargo_trigger raises 409 when EM state is EXITED."""
     case_obj = dl.read(case_no_participant.as_id)
     case_obj.current_status.em_state = EM.EXITED
     dl.update(case_obj.as_id, object_to_record(case_obj))
 
     with pytest.raises(HTTPException) as exc_info:
-        svc_propose_embargo(
+        propose_embargo_trigger(
             actor.as_id, case_no_participant.as_id, None, FUTURE_DATETIME, dl
         )
     assert exc_info.value.status_code == 409
 
 
-def test_svc_propose_embargo_unknown_actor_raises_404(dl, case_no_participant):
-    """svc_propose_embargo raises 404 for unknown actor."""
+def test_propose_embargo_trigger_unknown_actor_raises_404(
+    dl, case_no_participant
+):
+    """propose_embargo_trigger raises 404 for unknown actor."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_propose_embargo(
+        propose_embargo_trigger(
             "urn:uuid:no-such",
             case_no_participant.as_id,
             None,
@@ -578,91 +598,95 @@ def test_svc_propose_embargo_unknown_actor_raises_404(dl, case_no_participant):
     assert exc_info.value.status_code == 404
 
 
-def test_svc_propose_embargo_naive_end_time_raises_422(
+def test_propose_embargo_trigger_naive_end_time_raises_422(
     dl, actor, case_no_participant
 ):
-    """svc_propose_embargo raises 422 for a timezone-naive end_time."""
+    """propose_embargo_trigger raises 422 for a timezone-naive end_time."""
     naive_dt = datetime(2099, 12, 1)
     with pytest.raises(HTTPException) as exc_info:
-        svc_propose_embargo(
+        propose_embargo_trigger(
             actor.as_id, case_no_participant.as_id, None, naive_dt, dl
         )
     assert exc_info.value.status_code == 422
 
 
-def test_svc_propose_embargo_past_end_time_raises_422(
+def test_propose_embargo_trigger_past_end_time_raises_422(
     dl, actor, case_no_participant
 ):
-    """svc_propose_embargo raises 422 for a past end_time."""
+    """propose_embargo_trigger raises 422 for a past end_time."""
     past_dt = datetime(2020, 1, 1, tzinfo=timezone.utc)
     with pytest.raises(HTTPException) as exc_info:
-        svc_propose_embargo(
+        propose_embargo_trigger(
             actor.as_id, case_no_participant.as_id, None, past_dt, dl
         )
     assert exc_info.value.status_code == 422
 
 
-def test_svc_propose_embargo_invalid_case_id_raises_422(dl, actor):
-    """svc_propose_embargo raises 422 for a non-URI case_id."""
+def test_propose_embargo_trigger_invalid_case_id_raises_422(dl, actor):
+    """propose_embargo_trigger raises 422 for a non-URI case_id."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_propose_embargo(
+        propose_embargo_trigger(
             actor.as_id, "not-a-uri", None, FUTURE_DATETIME, dl
         )
     assert exc_info.value.status_code == 422
 
 
 # ===========================================================================
-# svc_evaluate_embargo
+# evaluate_embargo_trigger
 # ===========================================================================
 
 
-def test_svc_evaluate_embargo_returns_activity_dict(
+def test_evaluate_embargo_trigger_returns_activity_dict(
     dl, actor, case_with_proposal
 ):
-    """svc_evaluate_embargo returns dict with non-None 'activity'."""
+    """evaluate_embargo_trigger returns dict with non-None 'activity'."""
     case_obj, proposal, _ = case_with_proposal
-    result = svc_evaluate_embargo(
+    result = evaluate_embargo_trigger(
         actor.as_id, case_obj.as_id, proposal.as_id, dl
     )
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
 
-def test_svc_evaluate_embargo_activates_embargo(dl, actor, case_with_proposal):
-    """svc_evaluate_embargo sets EM state to ACTIVE."""
+def test_evaluate_embargo_trigger_activates_embargo(
+    dl, actor, case_with_proposal
+):
+    """evaluate_embargo_trigger sets EM state to ACTIVE."""
     case_obj, proposal, _ = case_with_proposal
-    svc_evaluate_embargo(actor.as_id, case_obj.as_id, proposal.as_id, dl)
+    evaluate_embargo_trigger(actor.as_id, case_obj.as_id, proposal.as_id, dl)
     updated = dl.read(case_obj.as_id)
     assert updated.current_status.em_state == EM.ACTIVE
     assert updated.active_embargo is not None
 
 
-def test_svc_evaluate_embargo_without_proposal_id_finds_first(
+def test_evaluate_embargo_trigger_without_proposal_id_finds_first(
     dl, actor, case_with_proposal
 ):
-    """svc_evaluate_embargo finds the first proposal when proposal_id is None."""
+    """evaluate_embargo_trigger finds the first proposal when proposal_id is None."""
     case_obj, _, _ = case_with_proposal
-    result = svc_evaluate_embargo(actor.as_id, case_obj.as_id, None, dl)
+    result = evaluate_embargo_trigger(actor.as_id, case_obj.as_id, None, dl)
     assert isinstance(result, dict)
     updated = dl.read(case_obj.as_id)
     assert updated.current_status.em_state == EM.ACTIVE
 
 
-def test_svc_evaluate_embargo_no_proposal_raises_404(
+def test_evaluate_embargo_trigger_no_proposal_raises_404(
     dl, actor, case_no_participant
 ):
-    """svc_evaluate_embargo raises 404 when no proposal is found."""
+    """evaluate_embargo_trigger raises 404 when no proposal is found."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_evaluate_embargo(actor.as_id, case_no_participant.as_id, None, dl)
+        evaluate_embargo_trigger(
+            actor.as_id, case_no_participant.as_id, None, dl
+        )
     assert exc_info.value.status_code == 404
 
 
-def test_svc_evaluate_embargo_unknown_proposal_raises_404(
+def test_evaluate_embargo_trigger_unknown_proposal_raises_404(
     dl, actor, case_no_participant
 ):
-    """svc_evaluate_embargo raises 404 when explicit proposal_id is not found."""
+    """evaluate_embargo_trigger raises 404 when explicit proposal_id is not found."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_evaluate_embargo(
+        evaluate_embargo_trigger(
             actor.as_id,
             case_no_participant.as_id,
             "urn:uuid:no-such-proposal",
@@ -672,68 +696,70 @@ def test_svc_evaluate_embargo_unknown_proposal_raises_404(
 
 
 # ===========================================================================
-# svc_terminate_embargo
+# terminate_embargo_trigger
 # ===========================================================================
 
 
-def test_svc_terminate_embargo_returns_activity_dict(
+def test_terminate_embargo_trigger_returns_activity_dict(
     dl, actor, case_with_embargo
 ):
-    """svc_terminate_embargo returns dict with non-None 'activity'."""
+    """terminate_embargo_trigger returns dict with non-None 'activity'."""
     case_obj, _ = case_with_embargo
-    result = svc_terminate_embargo(actor.as_id, case_obj.as_id, dl)
+    result = terminate_embargo_trigger(actor.as_id, case_obj.as_id, dl)
     assert isinstance(result, dict)
     assert result["activity"] is not None
 
 
-def test_svc_terminate_embargo_sets_em_state_to_exited(
+def test_terminate_embargo_trigger_sets_em_state_to_exited(
     dl, actor, case_with_embargo
 ):
-    """svc_terminate_embargo transitions case EM state to EXITED."""
+    """terminate_embargo_trigger transitions case EM state to EXITED."""
     case_obj, _ = case_with_embargo
-    svc_terminate_embargo(actor.as_id, case_obj.as_id, dl)
+    terminate_embargo_trigger(actor.as_id, case_obj.as_id, dl)
     updated = dl.read(case_obj.as_id)
     assert updated.current_status.em_state == EM.EXITED
 
 
-def test_svc_terminate_embargo_clears_active_embargo(
+def test_terminate_embargo_trigger_clears_active_embargo(
     dl, actor, case_with_embargo
 ):
-    """svc_terminate_embargo clears active_embargo on the case."""
+    """terminate_embargo_trigger clears active_embargo on the case."""
     case_obj, _ = case_with_embargo
-    svc_terminate_embargo(actor.as_id, case_obj.as_id, dl)
+    terminate_embargo_trigger(actor.as_id, case_obj.as_id, dl)
     updated = dl.read(case_obj.as_id)
     assert updated.active_embargo is None
 
 
-def test_svc_terminate_embargo_no_active_embargo_raises_409(
+def test_terminate_embargo_trigger_no_active_embargo_raises_409(
     dl, actor, case_no_participant
 ):
-    """svc_terminate_embargo raises 409 when no active embargo."""
+    """terminate_embargo_trigger raises 409 when no active embargo."""
     with pytest.raises(HTTPException) as exc_info:
-        svc_terminate_embargo(actor.as_id, case_no_participant.as_id, dl)
+        terminate_embargo_trigger(actor.as_id, case_no_participant.as_id, dl)
     assert exc_info.value.status_code == 409
 
 
-def test_svc_terminate_embargo_unknown_actor_raises_404(dl, case_with_embargo):
-    """svc_terminate_embargo raises 404 for unknown actor."""
+def test_terminate_embargo_trigger_unknown_actor_raises_404(
+    dl, case_with_embargo
+):
+    """terminate_embargo_trigger raises 404 for unknown actor."""
     case_obj, _ = case_with_embargo
     with pytest.raises(HTTPException) as exc_info:
-        svc_terminate_embargo("urn:uuid:no-such", case_obj.as_id, dl)
+        terminate_embargo_trigger("urn:uuid:no-such", case_obj.as_id, dl)
     assert exc_info.value.status_code == 404
 
 
-def test_svc_terminate_embargo_adds_activity_to_outbox(
+def test_terminate_embargo_trigger_adds_activity_to_outbox(
     dl, actor, case_with_embargo
 ):
-    """svc_terminate_embargo adds a new activity to the actor's outbox."""
+    """terminate_embargo_trigger adds a new activity to the actor's outbox."""
     case_obj, _ = case_with_embargo
     actor_before = dl.read(actor.as_id)
     before = {
         item for item in actor_before.outbox.items if isinstance(item, str)
     }
 
-    svc_terminate_embargo(actor.as_id, case_obj.as_id, dl)
+    terminate_embargo_trigger(actor.as_id, case_obj.as_id, dl)
 
     actor_after = dl.read(actor.as_id)
     after = {

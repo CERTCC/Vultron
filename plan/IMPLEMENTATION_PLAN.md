@@ -664,10 +664,11 @@ They are larger structural changes; plan as a single coordinated PR.
 
 #### Batch VCR-D — Trigger service cleanup
 
-- [ ] **VCR-010**: Rename trigger service functions in
+- [x] **VCR-010**: Renamed all 9 trigger service functions in
   `vultron/api/v2/backend/trigger_services/` from `svc_xxx` prefix to `xxx_trigger`
-  suffix (e.g., `svc_engage_case` → `engage_case_trigger`). Update all callers.
-  The `Svc` prefix is reserved for use-case class names only.
+  suffix (e.g., `svc_engage_case` → `engage_case_trigger`). Updated all callers in
+  `adapters/driving/fastapi/routers/` and `test/api/v2/backend/test_trigger_services.py`.
+  982 tests pass.
 
 - [ ] **VCR-011**: Abstract the repeated `try: ... except VultronError: ...` pattern
   in `trigger_services/embargo.py`, `trigger_services/report.py`, and

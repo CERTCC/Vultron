@@ -43,7 +43,7 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.errors import VultronError
 
 
-def svc_validate_report(
+def validate_report_trigger(
     actor_id: str, offer_id: str, note: str | None, dl: DataLayer
 ) -> dict:
     try:
@@ -55,7 +55,7 @@ def svc_validate_report(
         raise translate_domain_errors(e)
 
 
-def svc_invalidate_report(
+def invalidate_report_trigger(
     actor_id: str, offer_id: str, note: str | None, dl: DataLayer
 ) -> dict:
     try:
@@ -67,7 +67,7 @@ def svc_invalidate_report(
         raise translate_domain_errors(e)
 
 
-def svc_reject_report(
+def reject_report_trigger(
     actor_id: str, offer_id: str, note: str, dl: DataLayer
 ) -> dict:
     try:
@@ -79,7 +79,7 @@ def svc_reject_report(
         raise translate_domain_errors(e)
 
 
-def svc_close_report(
+def close_report_trigger(
     actor_id: str, offer_id: str, note: str | None, dl: DataLayer
 ) -> dict:
     try:

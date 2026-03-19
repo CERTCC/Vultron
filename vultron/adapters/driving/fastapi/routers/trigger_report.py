@@ -29,10 +29,10 @@ from vultron.api.v2.backend.trigger_services._models import (
     ValidateReportRequest,
 )
 from vultron.api.v2.backend.trigger_services.report import (
-    svc_close_report,
-    svc_invalidate_report,
-    svc_reject_report,
-    svc_validate_report,
+    close_report_trigger,
+    invalidate_report_trigger,
+    reject_report_trigger,
+    validate_report_trigger,
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
@@ -62,7 +62,7 @@ def trigger_validate_report(
         TB-01-001, TB-01-002, TB-01-003, TB-03-001, TB-03-002, TB-03-003,
         TB-04-001, TB-05-001, TB-05-002, TB-06-001, TB-06-002, TB-07-001
     """
-    return svc_validate_report(actor_id, body.offer_id, body.note, dl)
+    return validate_report_trigger(actor_id, body.offer_id, body.note, dl)
 
 
 @router.post(
@@ -89,7 +89,7 @@ def trigger_invalidate_report(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return svc_invalidate_report(actor_id, body.offer_id, body.note, dl)
+    return invalidate_report_trigger(actor_id, body.offer_id, body.note, dl)
 
 
 @router.post(
@@ -116,7 +116,7 @@ def trigger_reject_report(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-03-004, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return svc_reject_report(actor_id, body.offer_id, body.note, dl)
+    return reject_report_trigger(actor_id, body.offer_id, body.note, dl)
 
 
 @router.post(
@@ -146,4 +146,4 @@ def trigger_close_report(
         TB-01-001, TB-01-002, TB-01-003, TB-02-001, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return svc_close_report(actor_id, body.offer_id, body.note, dl)
+    return close_report_trigger(actor_id, body.offer_id, body.note, dl)

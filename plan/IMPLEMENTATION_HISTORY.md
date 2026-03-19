@@ -2160,3 +2160,35 @@ successor to `DeliveryQueue`.
 ### Test results
 
 982 passed, 5581 subtests (unchanged from baseline).
+
+---
+
+## VCR-010 — Rename trigger service functions to `_trigger` suffix
+
+**Date**: 2026-03-19
+**Phase**: PRIORITY-80 / VCR-D
+
+Renamed all 9 trigger service functions in
+`vultron/api/v2/backend/trigger_services/` from the `svc_` prefix to the
+`_trigger` suffix, per `specs/code-style.md` CS-12-002 (the `Svc` prefix is
+reserved for use-case class names only):
+
+- `svc_engage_case` → `engage_case_trigger`
+- `svc_defer_case` → `defer_case_trigger`
+- `svc_propose_embargo` → `propose_embargo_trigger`
+- `svc_evaluate_embargo` → `evaluate_embargo_trigger`
+- `svc_terminate_embargo` → `terminate_embargo_trigger`
+- `svc_validate_report` → `validate_report_trigger`
+- `svc_invalidate_report` → `invalidate_report_trigger`
+- `svc_reject_report` → `reject_report_trigger`
+- `svc_close_report` → `close_report_trigger`
+
+Updated callers in:
+- `vultron/adapters/driving/fastapi/routers/trigger_case.py`
+- `vultron/adapters/driving/fastapi/routers/trigger_embargo.py`
+- `vultron/adapters/driving/fastapi/routers/trigger_report.py`
+
+Updated test imports and test names in:
+- `test/api/v2/backend/test_trigger_services.py`
+
+Pure mechanical rename, no behaviour change. 982 tests pass.

@@ -28,9 +28,9 @@ from vultron.api.v2.backend.trigger_services._models import (
     TerminateEmbargoRequest,
 )
 from vultron.api.v2.backend.trigger_services.embargo import (
-    svc_evaluate_embargo,
-    svc_propose_embargo,
-    svc_terminate_embargo,
+    evaluate_embargo_trigger,
+    propose_embargo_trigger,
+    terminate_embargo_trigger,
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
@@ -62,7 +62,7 @@ def trigger_propose_embargo(
         TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
         TB-03-003, TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return svc_propose_embargo(
+    return propose_embargo_trigger(
         actor_id, body.case_id, body.note, body.end_time, dl
     )
 
@@ -91,7 +91,9 @@ def trigger_evaluate_embargo(
         TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return svc_evaluate_embargo(actor_id, body.case_id, body.proposal_id, dl)
+    return evaluate_embargo_trigger(
+        actor_id, body.case_id, body.proposal_id, dl
+    )
 
 
 @router.post(
@@ -119,4 +121,4 @@ def trigger_terminate_embargo(
         TB-01-001, TB-01-002, TB-01-003, TB-02-002, TB-03-001, TB-03-002,
         TB-04-001, TB-06-001, TB-06-002, TB-07-001
     """
-    return svc_terminate_embargo(actor_id, body.case_id, dl)
+    return terminate_embargo_trigger(actor_id, body.case_id, dl)

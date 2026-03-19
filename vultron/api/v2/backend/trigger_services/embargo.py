@@ -41,7 +41,7 @@ from vultron.core.use_cases.triggers.requests import (
 from vultron.errors import VultronError
 
 
-def svc_propose_embargo(
+def propose_embargo_trigger(
     actor_id: str,
     case_id: str,
     note: str | None,
@@ -57,7 +57,7 @@ def svc_propose_embargo(
         raise translate_domain_errors(e)
 
 
-def svc_evaluate_embargo(
+def evaluate_embargo_trigger(
     actor_id: str,
     case_id: str,
     proposal_id: str | None,
@@ -72,7 +72,9 @@ def svc_evaluate_embargo(
         raise translate_domain_errors(e)
 
 
-def svc_terminate_embargo(actor_id: str, case_id: str, dl: DataLayer) -> dict:
+def terminate_embargo_trigger(
+    actor_id: str, case_id: str, dl: DataLayer
+) -> dict:
     try:
         request = TerminateEmbargoTriggerRequest(
             actor_id=actor_id, case_id=case_id
