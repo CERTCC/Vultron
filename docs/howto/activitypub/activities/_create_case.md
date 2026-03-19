@@ -6,7 +6,7 @@ In practice, a case may have multiple participants and (less often) multiple rep
 See also  [Initializing a Case](./initialize_case.md).
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import create_case, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import create_case, json2md
 
 print(json2md(create_case()))
 ```

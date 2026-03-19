@@ -3,7 +3,7 @@
 The case owner announces an embargo to the case. This is meant to remind case participants of the embargo terms.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import announce_embargo, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import announce_embargo, json2md
 
 print(json2md(announce_embargo()))
 ```

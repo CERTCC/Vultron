@@ -8,6 +8,39 @@ Add new items below this line
 
 ---
 
+### 2026-03-19: mkdocs markdown_exec errors — stale import paths in docs
+
+**Issue**: `mkdocs build` reported `ModuleNotFoundError: No module named
+'vultron.scripts.vocab_examples'` in numerous documentation code blocks.
+
+**Root cause**: `vultron/scripts/vocab_examples.py` was refactored into
+`vultron/wire/as2/vocab/examples/` (split into submodules:
+`actor.py`, `case.py`, `embargo.py`, `note.py`, `participant.py`,
+`report.py`, `status.py`, with `vocab_examples.py` as the aggregating
+re-export module). The docs markdown code blocks were not updated to
+use the new import path.
+
+A secondary error was found in `docs/howto/activitypub/objects.md` where
+`_case.add_participant()` was called with a plain string URL. The
+`VulnerabilityCase.add_participant()` method now requires a full
+`CaseParticipant` object (to populate the `actor_participant_index`).
+
+**Resolution**:
+- Updated all 32 affected docs files to import from
+  `vultron.wire.as2.vocab.examples.vocab_examples`.
+- Fixed `objects.md` to use `add_vendor_participant_to_case().as_object`
+  and `add_finder_participant_to_case().as_object` for the participants.
+- Added `test/test_docs_imports.py` to catch future regressions of this
+  kind.
+
+**Architectural note**: The `vocab_examples.py` aggregation module at
+`vultron/wire/as2/vocab/examples/vocab_examples.py` serves as a stable
+public API for documentation code examples. Docs should always import
+from this single module path (not from individual submodules) to reduce
+churn when internals are reorganized.
+
+---
+
 ### 2026-03-18: Logging Error fix — `actors.py` verbose INFO logs
 
 **Issue**: `ValueError: I/O operation on closed file` appeared in PyCharm

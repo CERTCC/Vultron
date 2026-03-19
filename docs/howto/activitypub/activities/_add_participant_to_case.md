@@ -9,7 +9,7 @@ Normally, this might not be done as a separate step, but would be done as part o
 creation of the case itself.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import add_vendor_participant_to_case, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_vendor_participant_to_case, json2md
 
 print(json2md(add_vendor_participant_to_case()))
 ```
@@ -24,7 +24,7 @@ For example, if a finder reported a vulnerability that was already known to the 
 might add the finder to the case in the reporter role, but not in the finder role.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import add_finder_participant_to_case, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_finder_participant_to_case, json2md
 
 print(json2md(add_finder_participant_to_case()))
 ```

@@ -69,7 +69,7 @@ response to a status update or a comment:
 ## Create Status
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import create_case_status, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import create_case_status, json2md
 
 print(json2md(create_case_status()))
 ```
@@ -77,7 +77,7 @@ print(json2md(create_case_status()))
 ## Add Status to Case
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import add_status_to_case, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_case, json2md
 
 print(json2md(add_status_to_case()))
 ```
@@ -85,7 +85,7 @@ print(json2md(add_status_to_case()))
 ## Create Participant Status
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import create_participant_status, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import create_participant_status, json2md
 
 print(json2md(create_participant_status()))
 ```
@@ -93,7 +93,7 @@ print(json2md(create_participant_status()))
 ## Add Status to Participant
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import add_status_to_participant, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_participant, json2md
 
 print(json2md(add_status_to_participant()))
 ```
@@ -101,7 +101,7 @@ print(json2md(add_status_to_participant()))
 ## Create Note
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import create_note, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import create_note, json2md
 
 print(json2md(create_note()))
 ```
@@ -109,7 +109,7 @@ print(json2md(create_note()))
 ## Add Note to Case
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import add_note_to_case, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_note_to_case, json2md
 
 print(json2md(add_note_to_case()))
 ```

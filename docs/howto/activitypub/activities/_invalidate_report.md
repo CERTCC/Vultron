@@ -6,7 +6,7 @@ the report open for a period of time before closing it in order to allow the rep
 provide additional information that could change the vendor's decision.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import invalidate_report, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import invalidate_report, json2md
 
 print(json2md(invalidate_report()))
 ```

@@ -44,7 +44,7 @@ The current owner of a case can offer to transfer ownership of the case to
 another participant.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import offer_case_ownership_transfer, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import offer_case_ownership_transfer, json2md
 
 print(json2md(offer_case_ownership_transfer()))
 ```
@@ -55,7 +55,7 @@ The new owner of a case can accept an offer to transfer ownership of the case
 to them.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import accept_case_ownership_transfer, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import accept_case_ownership_transfer, json2md
 
 print(json2md(accept_case_ownership_transfer()))
 ```
@@ -67,7 +67,7 @@ the case to them. In this case, the case ownership transfer is cancelled, and th
 case ownership remains with the original owner.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import reject_case_ownership_transfer, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import reject_case_ownership_transfer, json2md
 
 print(json2md(reject_case_ownership_transfer()))
 ```
@@ -77,7 +77,7 @@ print(json2md(reject_case_ownership_transfer()))
 The case object is updated to reflect the new owner of the case.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import update_case, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import update_case, json2md
 
 print(json2md(update_case()))
 ```

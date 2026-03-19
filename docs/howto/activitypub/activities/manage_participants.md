@@ -72,7 +72,7 @@ flowchart TB
 The vendor actor is creating a participant status representing the vendor's status in the context of a specific case.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import create_participant_status, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import create_participant_status, json2md
 
 print(json2md(create_participant_status()))
 ```
@@ -82,7 +82,7 @@ print(json2md(create_participant_status()))
 The vendor is adding a status to their participant object in the context of the specific case.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import add_status_to_participant, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import add_status_to_participant, json2md
 
 print(json2md(add_status_to_participant()))
 ```
@@ -92,7 +92,7 @@ print(json2md(add_status_to_participant()))
 A coordinator is removing a vendor from a case.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import remove_participant_from_case, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import remove_participant_from_case, json2md
 
 print(json2md(remove_participant_from_case()))
 ```
