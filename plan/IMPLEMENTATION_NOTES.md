@@ -8,6 +8,34 @@ Add new items below this line
 
 ---
 
+### 2026-03-19: mkdocs build ERROR — stale `:::` module references in case_states docs
+
+**Issue**: `mkdocs build` failed with ERROR on `reference/code/case_states.md`
+because it referenced modules that no longer exist:
+`vultron.case_states`, `vultron.case_states.hypercube`,
+`vultron.case_states.states`, `vultron.case_states.validations`,
+`vultron.case_states.errors`.
+
+**Root cause**: Commit `134f98c` (refactor VCR-019a) moved
+`vultron/case_states/` into `vultron/core/` with the following renames:
+- `vultron.case_states` → `vultron.core.case_states`
+- `vultron.case_states.hypercube` → `vultron.core.case_states.hypercube`
+- `vultron.case_states.states` → `vultron.core.states.cs`
+- `vultron.case_states.validations` → `vultron.core.case_states.validations`
+- `vultron.case_states.errors` — deleted; errors merged into `vultron.errors`
+
+The docs file was not updated as part of that refactor.
+
+**Resolution**:
+- Updated `docs/reference/code/case_states.md` to use the new module paths.
+- Removed the reference to the deleted `errors` submodule.
+- Extended `test/test_docs_imports.py` with a new test
+  `test_mkdocstrings_module_references_are_importable` that scans all docs
+  for `:::` directives and asserts each referenced module is importable,
+  preventing this class of regression.
+
+---
+
 ### 2026-03-19: mkdocs markdown_exec errors — stale import paths in docs
 
 **Issue**: `mkdocs build` reported `ModuleNotFoundError: No module named

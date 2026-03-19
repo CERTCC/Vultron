@@ -4,7 +4,7 @@ Items in this file supersede IMPLEMENTATION_PLAN.md.
 
 ---
 
-## mkdocs build errors
+## mkdocs build errors — FIXED
 
 These failures are blocking a PR merge.
 

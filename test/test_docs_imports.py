@@ -12,11 +12,14 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests that docs markdown code blocks use current module import paths."""
 
+import importlib
 import re
 from pathlib import Path
 
 DOCS_DIR = Path(__file__).parent.parent / "docs"
 OLD_IMPORT = "vultron.scripts.vocab_examples"
+
+_MKDOCSTRINGS_RE = re.compile(r"^:::\s+([\w.]+)", re.MULTILINE)
 
 
 def _find_docs_with_old_import():
@@ -27,6 +30,41 @@ def _find_docs_with_old_import():
             if OLD_IMPORT in line:
                 results.append((md_file, lineno, line.strip()))
     return results
+
+
+def _collect_mkdocstrings_modules():
+    """Return list of (file, module_name) for all ::: directives in docs."""
+    results = []
+    for md_file in DOCS_DIR.rglob("*.md"):
+        text = md_file.read_text()
+        for match in _MKDOCSTRINGS_RE.finditer(text):
+            results.append((md_file, match.group(1)))
+    return results
+
+
+def test_mkdocstrings_module_references_are_importable():
+    """All ::: module references in docs must be importable.
+
+    mkdocstrings directives (lines starting with :::) reference Python
+    modules that must exist.  A missing module causes mkdocs build to emit
+    an ERROR and abort page generation.
+    """
+    failures = []
+    for md_file, module_name in _collect_mkdocstrings_modules():
+        try:
+            importlib.import_module(module_name)
+        except ImportError:
+            failures.append((md_file, module_name))
+
+    if failures:
+        details = "\n".join(
+            f"  {path.relative_to(DOCS_DIR.parent)}: {mod}"
+            for path, mod in failures
+        )
+        raise AssertionError(
+            f"Found {len(failures)} unresolvable mkdocstrings reference(s):\n"
+            f"{details}"
+        )
 
 
 def test_no_stale_vocab_examples_imports_in_docs():
