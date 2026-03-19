@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-19 (VCR-019b: move RM/EM/CVDRoles enums to vultron/core/states/)
+**Last Updated**: 2026-03-19 (VCR-023: delete delivery_queue.py stubs)
 
 ## Overview
 
@@ -631,12 +631,11 @@ They are larger structural changes; plan as a single coordinated PR.
   common fields (`id`, `name`, `created_at`, `updated_at`, etc.) matching
   ActivityStreams object fields where appropriate. See TECHDEBT-16 entry above.
 
-- [ ] **VCR-023**: Update `notes/architecture-ports-and-adapters.md` references
-  to `delivery_queue.py` to reflect that the delivery-queue concept has been
-  superseded by the emitter. Delete `vultron/core/ports/delivery_queue.py` after
-  confirming no callers; `core/ports/emitter.py` (OX-1.0) is the correct
-  replacement. Also update any code examples in the notes that reference
-  `DeliveryQueue`.
+- [x] **VCR-023**: Deleted `vultron/core/ports/delivery_queue.py` and
+  `vultron/adapters/driven/delivery_queue.py` (no callers). Updated
+  `notes/architecture-ports-and-adapters.md`: removed both files from tree
+  listings, replaced `DeliveryQueue` code example with `DataLayer`-based
+  example, moved removed ports to a 'removed' section. 982 tests pass.
 
 - [ ] **VCR-025**: Evaluate whether `vultron/core/ports/dispatcher.py`
   (`ActivityDispatcher` Protocol) is still needed, or whether the `UseCase` port

@@ -2130,3 +2130,33 @@ per the VCR-019c study (Group D — BT-runtime-only, no callers in core).
 ### Test results
 
 982 passed, 5581 subtests (unchanged from baseline).
+
+---
+
+## VCR-023 — Delete `delivery_queue.py` stubs, update architecture notes (2026-03-19)
+
+Confirmed no callers of `DeliveryQueue` or `delivery_queue` anywhere in
+production code or tests, then deleted:
+
+- `vultron/core/ports/delivery_queue.py` (Protocol stub)
+- `vultron/adapters/driven/delivery_queue.py` (empty stub)
+
+Updated `notes/architecture-ports-and-adapters.md`:
+
+- Removed `delivery_queue.py` and `dns_resolver.py` (already deleted in
+  VCR-024/VCR-001) from both the `ports/` and `adapters/driven/` tree listings
+- Replaced the `DeliveryQueue`-based code example with a `DataLayer`-based
+  example reflecting actual current use-case patterns
+- Reorganized the ports section: moved removed ports to a "Ports that have
+  been removed" subsection; moved `dispatcher.py` to "Ports to evaluate
+  for removal" (VCR-025)
+
+Updated `vultron/adapters/driven/__init__.py` to remove the `delivery_queue.py`
+reference from the module docstring.
+
+The `ActivityEmitter` port will be created in OX-1.0 as the correct
+successor to `DeliveryQueue`.
+
+### Test results
+
+982 passed, 5581 subtests (unchanged from baseline).
