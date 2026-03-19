@@ -26,6 +26,7 @@ A secondary error was found in `docs/howto/activitypub/objects.md` where
 `CaseParticipant` object (to populate the `actor_participant_index`).
 
 **Resolution**:
+
 - Updated all 32 affected docs files to import from
   `vultron.wire.as2.vocab.examples.vocab_examples`.
 - Fixed `objects.md` to use `add_vendor_participant_to_case().as_object`
