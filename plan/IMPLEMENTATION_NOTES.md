@@ -274,7 +274,7 @@ don't seem like they belong in `vultron.core`.
 
 ---
 
-### 2026-03-19: VCR-025 — ActivityDispatcher Protocol evaluation
+## 2026-03-19: VCR-025 — ActivityDispatcher Protocol evaluation
 
 **Decision**: Retain `ActivityDispatcher` in `vultron/core/ports/dispatcher.py`.
 
@@ -291,3 +291,43 @@ single business operation. Replacing one with the other would collapse
 two distinct abstraction levels. Retaining both is architecturally correct.
 
 No migration plan is needed; no action beyond documentation.
+
+## VCR-019e clarification
+
+Item 1: The IntEnum components in CS_*
+
+The CS_vfd and CS_pxa enums use NamedTuples so they are not candidates for 
+StrEnum. However, they are composed of the six IntEnum components  
+(VendorAwareness, FixReadiness, etc.) that do seem to potentially be 
+convertible to StrEnum with the right refactoring. Their existence as 
+IntEnums is a historical artifact of the original implementation and does 
+not necessarily represent a deliberate design choice. They carry more useful 
+meaning as StrEnum members than as IntEnum members, so converting them to 
+StrEnum and ensuring their string values are used consistently would be 
+worthwhile.
+
+The general principle is that IntEnum is likely to be a historical artifact 
+rather than intent, and we should convert to StrEnum and pay off the 
+technical debt while we're here. 
+
+
+Item 2: Message types and 'duplicates'
+
+With respect to MessageTypes, the apparent duplicate aliases for "EA", "EP", 
+and "ER" are the result of a post-design realization that revision proposal, 
+rejection, and acceptance messages are conceptually identical to the 
+existing proposal, rejection, and acceptance message types, so the same 
+codes were reused for both. EP = EV, ER = EJ, and EA = EC, and EP, ER, and 
+EA are the preferred shorthand. We don't need to perpetuate this 
+duplication forever, so as part of VCR-019e we need to re-evaluate 
+whether or not we 
+could just refactor the places where the 
+`VULTRON_MESSAGE_EMBARGO_REVISION_*` names or their aliases are used and 
+just replace them with the equivalent `VULTRON_MESSAGE_PROPOSAL_*` names or 
+their parallel aliases, with a strong preference for "yes we should do that" 
+unless there is a major reason not to. 
+This would eliminate the 
+duplication and make the 
+implementation a bit cleaner than the original design docs had it.
+
+
