@@ -345,5 +345,19 @@ syntax for union types and is more concise. Clean up the `Optional[TypeHint]
 ` usage when you encounter it during refactoring, but no need for a bulk 
 search-and-replace.
 
+## VCR-005 Follow-up
+
+This is a comment added after 486652d2d943f92a859abeaecde48a6b246e2441 was 
+committed and VCR-005 was marked complete. We need to ensure that the 
+profile endpoint only ever returns a link to the actor's inbox and outbox, 
+never the contents thereof. The line in `agentic-readiness.md` about "`inbox` 
+and 
+`outbox` MUST be 
+`OrderedCollection` objects whose `id` field is a resolvable URL" is 
+concerning in that it leaves open to misinterpretation that the requirement 
+might be to return the contents of the collection (which is not what we want).
+This clarification should be made in the specs but also enforced with one or 
+more tests and potentially object validation in the code.
+
 
 
