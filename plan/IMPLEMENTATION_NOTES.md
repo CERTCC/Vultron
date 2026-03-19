@@ -18,6 +18,7 @@ because it referenced modules that no longer exist:
 
 **Root cause**: Commit `134f98c` (refactor VCR-019a) moved
 `vultron/case_states/` into `vultron/core/` with the following renames:
+
 - `vultron.case_states` → `vultron.core.case_states`
 - `vultron.case_states.hypercube` → `vultron.core.case_states.hypercube`
 - `vultron.case_states.states` → `vultron.core.states.cs`
@@ -27,6 +28,7 @@ because it referenced modules that no longer exist:
 The docs file was not updated as part of that refactor.
 
 **Resolution**:
+
 - Updated `docs/reference/code/case_states.md` to use the new module paths.
 - Removed the reference to the deleted `errors` submodule.
 - Extended `test/test_docs_imports.py` with a new test
