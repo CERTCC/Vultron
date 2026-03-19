@@ -13,14 +13,20 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""
-DataLayer port — the storage interface used by the core domain layer.
+"""Outbound (driven) port — storage interface used by the core domain layer.
 
 Concrete implementations (e.g. ``TinyDbDataLayer``) live in the adapter
-layer at ``vultron/api/v2/datalayer/`` and import this Protocol to
+layer at ``vultron/adapters/driven/`` and import this Protocol to
 verify structural conformance.
 
+Port direction: **outbound (driven)** — core calls ``read()``,
+``create()``, ``update()``, ``delete()``, and ``list()`` to persist and
+retrieve domain objects through whatever storage backend the adapter
+provides.
+
 No adapter-layer types (``Record``, ``TinyDB``, etc.) appear here.
+
+See also: ``notes/architecture-ports-and-adapters.md`` "Core Port Taxonomy".
 """
 
 from typing import Any, Protocol

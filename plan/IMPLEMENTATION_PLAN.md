@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-19 (VCR-023: delete delivery_queue.py stubs)
+**Last Updated**: 2026-03-19 (VCR-025/026: port taxonomy labels)
 
 ## Overview
 
@@ -637,15 +637,22 @@ They are larger structural changes; plan as a single coordinated PR.
   listings, replaced `DeliveryQueue` code example with `DataLayer`-based
   example, moved removed ports to a 'removed' section. 982 tests pass.
 
-- [ ] **VCR-025**: Evaluate whether `vultron/core/ports/dispatcher.py`
-  (`ActivityDispatcher` Protocol) is still needed, or whether the `UseCase` port
-  fully covers the dispatch contract. Do not remove without a validated migration
-  plan and passing tests. Document the decision in AGENTS.md or an ADR.
+- [x] **VCR-025**: Evaluated `ActivityDispatcher` Protocol in
+  `vultron/core/ports/dispatcher.py`. **Decision: keep it.** It is actively
+  used in `vultron/core/dispatcher.py` (return type of `get_dispatcher()`) and
+  `vultron/adapters/driving/fastapi/inbox_handler.py` (module-level type
+  annotation). `ActivityDispatcher.dispatch(event, dl)` and `UseCase[Req, Res]`
+  serve distinct roles: the dispatcher routes an event to a use case; the use
+  case executes a single operation. They cannot be collapsed into one. Decision
+  documented in `plan/IMPLEMENTATION_NOTES.md`.
 
-- [ ] **VCR-026**: Ensure all port files in `core/ports/` are clearly labelled
-  as inbound or outbound in their module docstrings. Remove ports that no longer
-  correspond to active interfaces (see VCR-024, VCR-025).
-  Cross-reference: `specs/architecture.md` ARCH-11-001.
+- [x] **VCR-026**: Updated module docstrings in all four `core/ports/` files to
+  explicitly label each port as inbound (driving) or outbound (driven) per
+  `specs/architecture.md` ARCH-11-001. `dispatcher.py` and `use_case.py` are
+  **inbound (driving)**; `datalayer.py` is **outbound (driven)**. `__init__.py`
+  now lists the full port taxonomy with descriptions. No ports removed (VCR-024
+  and VCR-023 already handled removals; VCR-025 confirmed `ActivityDispatcher`
+  is retained). 982 tests pass.
 
 - [ ] **VCR-027**: Evaluate `vultron/core/use_cases/_types.py` — determine
   whether the Protocol types defined there (`CaseModel`, `ParticipantModel`, etc.)

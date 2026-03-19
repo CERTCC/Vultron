@@ -273,3 +273,21 @@ a `vultron.adapters.driving.common` package or something like that. They
 don't seem like they belong in `vultron.core`.
 
 ---
+
+### 2026-03-19: VCR-025 — ActivityDispatcher Protocol evaluation
+
+**Decision**: Retain `ActivityDispatcher` in `vultron/core/ports/dispatcher.py`.
+
+**Rationale**: The port is actively used in two places:
+1. `vultron/core/dispatcher.py` — `get_dispatcher()` returns
+   `ActivityDispatcher` as its annotated return type.
+2. `vultron/adapters/driving/fastapi/inbox_handler.py` — module-level
+   `_DISPATCHER: ActivityDispatcher | None = None` type annotation.
+
+`ActivityDispatcher.dispatch(event, dl)` and `UseCase[Req, Res].execute()`
+serve different roles in the dispatch pipeline. The dispatcher mediates
+between a driving adapter and the routing table; a use case executes a
+single business operation. Replacing one with the other would collapse
+two distinct abstraction levels. Retaining both is architecturally correct.
+
+No migration plan is needed; no action beyond documentation.

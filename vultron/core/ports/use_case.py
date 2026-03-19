@@ -13,11 +13,19 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Core UseCase protocol for domain use cases.
+"""Inbound (driving) port — use-case interface for domain operations.
 
 A UseCase encapsulates a single business operation. The DataLayer and
 request object are supplied at construction time; the request is validated
 during ``__init__`` so that ``execute()`` can focus entirely on business logic.
+
+Port direction: **inbound (driving)** — the dispatcher calls
+``execute()`` on a concrete use-case instance after routing an inbound domain
+event from a driving adapter (inbox handler, CLI, MCP server).
+
+See also: ``core/ports/dispatcher.py`` (inbound, higher-level dispatch
+contract) and ``notes/architecture-ports-and-adapters.md`` "Core Port
+Taxonomy".
 
 Usage::
 

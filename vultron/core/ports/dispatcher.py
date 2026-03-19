@@ -13,12 +13,19 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Driving port definition for the activity dispatcher.
+"""Inbound (driving) port — activity dispatcher interface.
 
 ``ActivityDispatcher`` is the interface the core exposes for driving adapters
-(e.g., the HTTP inbox handler) to call into the use-case layer.  Defining it
+(e.g., the HTTP inbox handler) to call into the use-case layer. Defining it
 here, alongside the other core ports, makes the architectural role explicit and
 allows concrete dispatcher implementations to be injected in tests.
+
+Port direction: **inbound (driving)** — external adapters call
+``dispatch(event, dl)`` to route an inbound domain event to the
+appropriate use case.
+
+See also: ``core/ports/use_case.py`` (inbound, per-use-case contract) and
+``notes/architecture-ports-and-adapters.md`` "Core Port Taxonomy".
 """
 
 from typing import TYPE_CHECKING, Protocol

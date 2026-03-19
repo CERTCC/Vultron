@@ -2192,3 +2192,33 @@ Updated test imports and test names in:
 - `test/api/v2/backend/test_trigger_services.py`
 
 Pure mechanical rename, no behaviour change. 982 tests pass.
+
+---
+
+### VCR-025 + VCR-026 — Port Taxonomy Labels (2026-03-19)
+
+**Task**: VCR-025: Evaluate ActivityDispatcher Protocol. VCR-026: Label all
+port files in `core/ports/` as inbound (driving) or outbound (driven) per
+`specs/architecture.md` ARCH-11-001.
+
+**VCR-025 evaluation result**: `ActivityDispatcher` in
+`vultron/core/ports/dispatcher.py` is still needed and retained. It is
+actively used in `vultron/core/dispatcher.py` (return type of
+`get_dispatcher()`) and `vultron/adapters/driving/fastapi/inbox_handler.py`
+(module-level type annotation). Its `dispatch(event, dl)` contract is
+distinct from `UseCase[Req, Res].execute()`: the dispatcher routes an event
+to a use case; the use case executes a single operation. They serve different
+levels of the dispatch pipeline and cannot be collapsed.
+
+**VCR-026 changes**:
+- `vultron/core/ports/dispatcher.py`: updated module docstring to say
+  "Inbound (driving) port" with description of port direction.
+- `vultron/core/ports/use_case.py`: updated module docstring to say
+  "Inbound (driving) port" with description of port direction.
+- `vultron/core/ports/datalayer.py`: updated module docstring to say
+  "Outbound (driven) port" with description of port direction.
+- `vultron/core/ports/__init__.py`: updated package docstring to list
+  the full inbound/outbound port taxonomy with file references.
+
+No ports removed (VCR-023 and VCR-024 already handled prior removals;
+VCR-025 confirmed ActivityDispatcher is retained). 982 tests pass.
