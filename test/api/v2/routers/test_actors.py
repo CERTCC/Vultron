@@ -81,6 +81,27 @@ def test_post_non_activity_to_actor_inbox_returns_422(
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
+def test_get_actor_profile_returns_discovery_fields(
+    client_actors, created_actors
+):
+    for actor in created_actors:
+        resp = client_actors.get(f"/actors/{actor.as_id}/profile")
+        assert resp.status_code == status.HTTP_200_OK
+        data = resp.json()
+        assert "id" in data
+        assert data["id"].endswith(actor.as_id)
+        assert "type" in data
+        assert "inbox" in data
+        assert "outbox" in data
+        assert data["inbox"]["type"] == "OrderedCollection"
+        assert data["outbox"]["type"] == "OrderedCollection"
+
+
+def test_get_actor_profile_not_found_returns_404(client_actors):
+    resp = client_actors.get("/actors/nonexistent-actor-id/profile")
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
 def test_get_actors_does_not_log_raw_records_at_info_level(
     client_actors, created_actors, caplog
 ):

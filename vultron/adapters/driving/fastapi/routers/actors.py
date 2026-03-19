@@ -104,6 +104,38 @@ def get_actor(
 
 
 @router.get(
+    "/{actor_id}/profile",
+    response_model=as_Actor,
+    response_model_exclude_none=True,
+    summary="Get Actor Profile",
+    description=(
+        "Returns an ActivityStreams actor profile including inbox and outbox "
+        "URLs for actor discovery and federation."
+    ),
+)
+def get_actor_profile(
+    actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
+) -> as_Actor:
+    """Returns an actor's discovery profile.
+
+    Includes actor metadata (name, type), inbox URL, outbox URL, and any
+    other ActivityStreams profile fields present on the actor.  Intended
+    for use by remote systems discovering how to interact with this actor.
+    """
+    actor = datalayer.read(actor_id)
+
+    if not actor:
+        actor = datalayer.find_actor_by_short_id(actor_id)
+
+    if not actor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
+        )
+
+    return as_Actor.model_validate(actor)
+
+
+@router.get(
     "/{actor_id}/inbox",
     response_model=as_OrderedCollection,
     response_model_exclude_none=True,

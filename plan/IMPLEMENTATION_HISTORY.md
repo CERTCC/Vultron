@@ -2397,3 +2397,26 @@ docker-compose services.
 **Result**: `docker/README.md` now accurately reflects the five services
 (`api-dev`, `demo`, `test`, `docs`, `vultrabot-demo`) in the current
 `docker-compose.yml`.
+
+---
+
+## VCR-005 — Actor Profile Discovery Endpoint (2026-03-19)
+
+**Task**: Add `GET /actors/{actor_id}/profile` endpoint for actor discovery.
+
+**What was done**:
+
+- Added `GET /actors/{actor_id}/profile` route to
+  `vultron/adapters/driving/fastapi/routers/actors.py`. Returns the actor's
+  `as_Actor` object (with `inbox`, `outbox`, `name`, `type`, and all other
+  profile fields) serialized as ActivityStreams JSON.
+- The endpoint reuses the same actor lookup pattern as `GET /actors/{actor_id}`
+  (full URI lookup, fallback to `find_actor_by_short_id`, HTTP 404 if absent).
+  No new model or DataLayer changes were needed.
+- Added two new tests to `test/api/v2/routers/test_actors.py`:
+  `test_get_actor_profile_returns_discovery_fields` and
+  `test_get_actor_profile_not_found_returns_404`.
+- Added requirements `AR-10-001` through `AR-10-003` and verification criteria
+  to `specs/agentic-readiness.md`.
+
+**Result**: 984 tests pass (2 new tests added).

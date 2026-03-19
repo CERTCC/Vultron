@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-19 (VCR-011: domain_error_translation context manager)
+**Last Updated**: 2026-03-19 (VCR-005: actor profile discovery endpoint)
 
 ## Overview
 
@@ -710,7 +710,7 @@ They are larger structural changes; plan as a single coordinated PR.
 
 #### Batch VCR-E — New feature: actor discovery endpoint
 
-- [ ] **VCR-005**: Add `GET /actors/{actor_id}/profile` endpoint returning an
+- [x] **VCR-005**: Add `GET /actors/{actor_id}/profile` endpoint returning an
   ActivityStreams-style actor profile (inbox URL, outbox URL, profile fields) for
   actor discovery. This is required for multi-server discovery (PRIORITY-300).
   Add to the appropriate router in `adapters/driving/fastapi/` (or `api/v2/routers/`

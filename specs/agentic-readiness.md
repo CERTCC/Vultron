@@ -61,6 +61,20 @@ interfaces that support agentic workflows.
 - `AR-06-001` `PROD_ONLY` Resources that agents may need to create, update, or
   delete in quantity MAY expose batch endpoints (e.g., `POST /v1/items/batch`)
 
+## Actor Discovery Profile (MUST)
+
+- `AR-10-001` The API MUST expose `GET /actors/{actor_id}/profile` returning an
+  ActivityStreams actor profile document for actor discovery and federation
+  - Response MUST include `id`, `type`, `inbox`, and `outbox` fields
+  - `inbox` and `outbox` MUST be `OrderedCollection` objects whose `id`
+    field is a resolvable URL
+  - Optional profile fields (`name`, `preferredUsername`, `url`, `icon`,
+    `image`, `summary`) SHOULD be included when present on the actor
+- `AR-10-002` The profile endpoint MUST return HTTP 404 when the actor is not
+  found
+- `AR-10-003` The profile endpoint MUST support both full actor URI and short
+  actor ID (e.g., `vendorco`) as the `actor_id` path parameter
+
 ## CVD Action Rules API (SHOULD)
 
 - `AR-07-001` The system SHOULD expose an endpoint that returns the set of
@@ -163,6 +177,14 @@ Driving Adapters) for the architecture context.
 - Integration test: `GET /actors/{case_actor_id}/action-rules?participant={id}`
   returns JSON with `role`, state fields, and `actions` list
 - Unit test: Action list changes when RM/EM state transitions occur
+
+### AR-10-001, AR-10-002, AR-10-003 Verification
+
+- Unit test: `GET /actors/{actor_id}/profile` returns 200 with `id`, `type`,
+  `inbox`, and `outbox` fields (`test_get_actor_profile_returns_discovery_fields`)
+- Unit test: `GET /actors/{nonexistent}/profile` returns 404
+  (`test_get_actor_profile_not_found_returns_404`)
+- Unit test: Short actor ID resolves to full profile via `find_actor_by_short_id`
 
 ## Related
 
