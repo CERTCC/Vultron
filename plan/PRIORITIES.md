@@ -51,6 +51,14 @@ Implementation Phase OUTBOX-1 logically falls under this priority, because
 it's part of getting messages flowing between actors. But it does not
 fully achieve this goal by itself.
 
+## Priority 150: Refactor RM, EM, and CS state models to use `transitions`
+
+This item is briefly captured in VCR-019d but it represents a larger 
+evaluation that will need to be broken into subtasks before any 
+implementation can occur. A study task should be injected to evaluate the 
+suitability of the `transitions` library to assist tracking state changes in 
+the Report and Case objects in `vultron.core`.
+
 ## Priority 200: Case Actor as source of truth for case state
 
 The CaseActor becomes a resource that can manages the VulnerabilityCase. While
