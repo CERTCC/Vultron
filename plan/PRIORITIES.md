@@ -34,9 +34,9 @@ not  already in `notes/` should be added there with a clear description and
 any relevant details. These updates are critical to ensure we are ready to
 move forward with the upcoming phase 100 tasks. Some items might expand or
 contradict existing notes, specs, or tasks. In those cases, whatever is in
-IDEAS.md should be considered the source of truth, and the existing notes,  
-specs, or tasks should be updated to reflect the new information from IDEAS.
-md. DOCS-2 is required at this stage so we can merge a clean PR with all
+IDEAS.md should be considered the source of truth, and the existing notes,
+specs, or tasks should be updated to reflect the new information from
+IDEAS.md. DOCS-2 is required at this stage so we can merge a clean PR with all
 github action CI tasks passing.
 
 ## Priority 100: Actor independence

@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 
 import pytest
+from pydantic import ValidationError
 
 from vultron.core.models.activity import (
     VultronAccept,
@@ -93,7 +94,7 @@ def test_has_name_field(cls):
 
 
 def test_vultron_participant_status_context_required():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         VultronParticipantStatus()
     ps = VultronParticipantStatus(context="urn:uuid:case-123")
     assert issubclass(VultronParticipantStatus, VultronObject)
@@ -103,7 +104,7 @@ def test_vultron_participant_status_context_required():
 
 
 def test_vultron_activity_as_type_required():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         VultronActivity()
     act = VultronActivity(
         as_type="Offer", actor="https://example.org/actors/test"

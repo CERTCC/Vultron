@@ -9,7 +9,7 @@ Commands (run in zsh, from repository root)
 Format code (pre-commit enforces Black):
 
 ```bash
-black vultron/ test/
+uv run black vultron/ test/
 ```
 
 Run the full test-suite — EXACTLY this command, EXACTLY ONCE per validation cycle:

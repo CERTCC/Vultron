@@ -14,8 +14,6 @@
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
@@ -25,19 +23,10 @@ from vultron.core.use_cases.report import CreateReportReceivedUseCase
 from vultron.core.use_cases.case import CreateCaseReceivedUseCase
 
 
-def _make_payload(activity, **extra_fields):
-    from vultron.wire.as2.extractor import extract_intent
-
-    event = extract_intent(activity)
-    if extra_fields:
-        return event.model_copy(update=extra_fields)
-    return event
-
-
-class TestHandlerExecution:
+class TestUseCaseExecution:
     """Test that use cases execute with valid semantics."""
 
-    def test_create_report_executes_with_valid_semantics(self):
+    def test_create_report_executes_with_valid_semantics(self, make_payload):
         """CreateReportReceivedUseCase executes when semantics match."""
         report = VulnerabilityReport(
             name="TEST-002", content="Test vulnerability report"
@@ -45,13 +34,13 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=report
         )
-        event = _make_payload(create_activity)
+        event = make_payload(create_activity)
 
         mock_dl = MagicMock()
         result = CreateReportReceivedUseCase(mock_dl, event).execute()
         assert result is None
 
-    def test_create_case_executes_with_valid_semantics(self):
+    def test_create_case_executes_with_valid_semantics(self, make_payload):
         """CreateCaseReceivedUseCase executes when semantics match."""
         case = VulnerabilityCase(
             name="TEST-CASE-002", content="Test vulnerability case"
@@ -59,13 +48,13 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=case
         )
-        event = _make_payload(create_activity)
+        event = make_payload(create_activity)
 
         mock_dl = MagicMock()
         result = CreateCaseReceivedUseCase(mock_dl, event).execute()
         assert result is None
 
-    def test_use_case_executes_with_real_datalayer(self):
+    def test_use_case_executes_with_real_datalayer(self, make_payload):
         """CreateReportReceivedUseCase executes without raising on real DataLayer."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 
@@ -76,6 +65,6 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=report
         )
-        event = _make_payload(create_activity)
+        event = make_payload(create_activity)
         result = CreateReportReceivedUseCase(dl, event).execute()
         assert result is None

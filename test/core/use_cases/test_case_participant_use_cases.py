@@ -12,27 +12,18 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for case participant use-case classes."""
 
-import pytest
-
 from vultron.core.use_cases.case_participant import (
     AddCaseParticipantToCaseReceivedUseCase,
     RemoveCaseParticipantFromCaseReceivedUseCase,
 )
 
 
-def _make_payload(activity, **extra_fields):
-    from vultron.wire.as2.extractor import extract_intent
-
-    event = extract_intent(activity)
-    if extra_fields:
-        return event.model_copy(update=extra_fields)
-    return event
-
-
 class TestCaseParticipantUseCases:
     """Tests for add/remove case participant use cases."""
 
-    def test_remove_case_participant_from_case(self, monkeypatch):
+    def test_remove_case_participant_from_case(
+        self, monkeypatch, make_payload
+    ):
         """RemoveCaseParticipantFromCaseReceivedUseCase removes the participant from case."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -70,7 +61,7 @@ class TestCaseParticipantUseCases:
             target=case,
         )
 
-        event = _make_payload(remove_activity)
+        event = make_payload(remove_activity)
 
         RemoveCaseParticipantFromCaseReceivedUseCase(dl, event).execute()
 
@@ -80,7 +71,9 @@ class TestCaseParticipantUseCases:
             for p in case.case_participants
         ]
 
-    def test_remove_case_participant_idempotent(self, monkeypatch):
+    def test_remove_case_participant_idempotent(
+        self, monkeypatch, make_payload
+    ):
         """RemoveCaseParticipantFromCaseReceivedUseCase is idempotent when participant absent."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -114,14 +107,16 @@ class TestCaseParticipantUseCases:
             target=case,
         )
 
-        event = _make_payload(remove_activity)
+        event = make_payload(remove_activity)
 
         result = RemoveCaseParticipantFromCaseReceivedUseCase(
             dl, event
         ).execute()
         assert result is None
 
-    def test_add_case_participant_updates_index(self, monkeypatch):
+    def test_add_case_participant_updates_index(
+        self, monkeypatch, make_payload
+    ):
         """AddCaseParticipantToCaseReceivedUseCase updates actor_participant_index (SC-PRE-2)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -158,7 +153,7 @@ class TestCaseParticipantUseCases:
             target=case,
         )
 
-        event = _make_payload(add_activity)
+        event = make_payload(add_activity)
 
         AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
 
@@ -166,7 +161,9 @@ class TestCaseParticipantUseCases:
         assert actor_id in case.actor_participant_index
         assert case.actor_participant_index[actor_id] == participant.as_id
 
-    def test_remove_case_participant_clears_index(self, monkeypatch):
+    def test_remove_case_participant_clears_index(
+        self, monkeypatch, make_payload
+    ):
         """RemoveCaseParticipantFromCaseReceivedUseCase clears actor_participant_index (SC-PRE-2)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -206,7 +203,7 @@ class TestCaseParticipantUseCases:
             target=case,
         )
 
-        event = _make_payload(remove_activity)
+        event = make_payload(remove_activity)
 
         RemoveCaseParticipantFromCaseReceivedUseCase(dl, event).execute()
 
