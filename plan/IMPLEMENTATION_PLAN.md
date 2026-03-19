@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-19 (VCR-019e: StrEnum conversion)
+**Last Updated**: 2026-03-19 (VCR-020/021a/021b/022/029: activity field and docstrings)
 
 ## Overview
 
@@ -618,26 +618,32 @@ They are larger structural changes; plan as a single coordinated PR.
   EC are now explicit aliases for EP, ER, EA). Updated `EM_MESSAGE_TYPES` to
   remove duplicate entries. Updated tests accordingly. 982 tests pass.
 
-- [ ] **VCR-020**: Ensure `VultronEvent.activity` is required (not `| None`) in
-  the base class or narrow it to required in every concrete subclass that always
-  carries an activity. Aligns with the fail-fast design constraint (ARCH-10-001).
+- [x] **VCR-020**: Added `activity: VultronActivity | None = None` to
+  `VultronEvent` base class. Subclasses that always carry an activity already
+  narrowed it to required (no default). This satisfies ARCH-10-001 (fail-fast):
+  the base permits `None` for semantics that don't use the field; subclasses
+  that always populate `activity` make it required. 982 tests pass.
 
-- [ ] **VCR-021a**: Clarify whether `VultronActivity` (in
-  `vultron/core/models/activity`) and `VultronEvent` (in
-  `vultron/core/models/events/base.py`) are the same concept or distinct.
-  If distinct, document the distinction clearly. If equivalent, consolidate.
+- [x] **VCR-021a**: `VultronActivity` and `VultronEvent` are distinct concepts.
+  Updated docstrings in `vultron/core/models/activity.py` and
+  `vultron/core/models/events/base.py` to document the distinction clearly:
+  `VultronActivity` is the domain model for DataLayer storage of AS2 activity
+  objects; `VultronEvent` is the semantic dispatch event carrying decomposed
+  ID/type fields used for handler routing. 982 tests pass.
 
-- [ ] **VCR-021b**: Make core event model fields non-optional where the field is
-  always present for that semantic type (e.g., `report` in
-  `CreateReportReceivedEvent`, `case` in `CreateCaseReceivedEvent`).
-  Fields typed as `X | None` that are never `None` in practice MUST be
-  narrowed in the subclass. Batch with VCR-020.
+- [x] **VCR-021b**: Verified all concrete domain object fields in event
+  subclasses are already non-optional where always present (`report`,
+  `case`, `embargo`, `participant`, `note`, `status`, `activity`). No
+  `X | None` fields exist in subclasses where the value is always set.
+  982 tests pass.
 
-- [ ] **VCR-022**: This is equivalent to **TECHDEBT-16** — add a `VultronObject`
-  base class in `vultron/core/models/` so all domain model classes inherit from a
-  single root rather than directly from `BaseModel`. The base class should capture
-  common fields (`id`, `name`, `created_at`, `updated_at`, etc.) matching
-  ActivityStreams object fields where appropriate. See TECHDEBT-16 entry above.
+- [x] **VCR-022**: Equivalent to **TECHDEBT-16** — already complete.
+  `VultronObject` base class is defined in `vultron/core/models/base.py`
+  and all 10 domain model classes inherit from it
+  (`VultronActivity`, `VultronCase`, `VultronCaseActor`, `VultronCaseStatus`,
+  `VultronEmbargoEvent`, `VultronNote`, `VultronParticipant`,
+  `VultronParticipantStatus`, `VultronReport`, `VultronActivity` subtypes).
+  Verified 2026-03-19; no code changes needed.
 
 - [x] **VCR-023**: Deleted `vultron/core/ports/delivery_queue.py` and
   `vultron/adapters/driven/delivery_queue.py` (no callers). Updated
@@ -674,8 +680,8 @@ They are larger structural changes; plan as a single coordinated PR.
   `case_participant.py` (1), `embargo.py` (2), `note.py` (1), `status.py` (2)
   with direct calls. 981 tests pass.
 
-- [ ] **VCR-029**: Equivalent to VCR-021b — make required fields on core event
-  models non-optional. Captured in VCR-021b above.
+- [x] **VCR-029**: Equivalent to VCR-021b — verified complete. All required
+  fields on core event models are non-optional. Captured in VCR-021b above.
 
 #### Batch VCR-D — Trigger service cleanup
 

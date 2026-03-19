@@ -9,6 +9,7 @@ from enum import StrEnum, auto
 
 from pydantic import BaseModel
 
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.base import NonEmptyString
 
 
@@ -70,11 +71,22 @@ class MessageSemantics(StrEnum):
 class VultronEvent(BaseModel):
     """Base domain event produced from an inbound wire-format activity.
 
-    Produced by extract_intent() in the wire layer before dispatch.
-    All fields are plain domain types (strings); no AS2 wire types are present.
+    ``VultronEvent`` is the semantic event type used for dispatching within
+    core. It is distinct from ``VultronActivity``, which is the domain model
+    for the AS2 activity object itself (used for DataLayer storage).
 
-    Concrete per-semantic subclasses set semantic_type as a Literal to enable
-    type-safe handler dispatch and Pydantic discriminated-union reconstruction.
+    A ``VultronEvent`` carries decomposed ID/type fields extracted from the
+    wire-format activity, plus (for some semantics) the full ``VultronActivity``
+    and/or a domain object (report, case, embargo, etc.).
+
+    Produced by ``extract_intent()`` in the wire layer before dispatch.
+    All fields are plain domain types (strings or domain models); no AS2
+    wire types are present.
+
+    Concrete per-semantic subclasses set ``semantic_type`` as a ``Literal``
+    to enable type-safe handler dispatch and Pydantic discriminated-union
+    reconstruction. Subclasses that always carry an activity MUST narrow the
+    optional ``activity`` field to required by redeclaring it without a default.
     """
 
     semantic_type: MessageSemantics
@@ -103,6 +115,10 @@ class VultronEvent(BaseModel):
     inner_target_type: NonEmptyString | None = None
     inner_context_id: NonEmptyString | None = None
     inner_context_type: NonEmptyString | None = None
+
+    # Optional at the base level; subclasses that always carry an activity
+    # MUST narrow this to required by redeclaring without a default.
+    activity: VultronActivity | None = None
 
     @property
     def as_id(self) -> str:

@@ -25,6 +25,15 @@ from vultron.core.models.base import NonEmptyString, VultronObject
 class VultronActivity(VultronObject):
     """Domain representation of an AS2 activity for DataLayer storage.
 
+    ``VultronActivity`` is the domain model for an inbound or outbound AS2
+    activity object. It is distinct from ``VultronEvent`` (defined in
+    ``vultron.core.models.events``), which is the semantic dispatch event
+    that carries decomposed ID/type fields extracted from the wire format.
+    A ``VultronEvent`` may carry a ``VultronActivity`` as its ``activity``
+    field, but the two types serve different purposes: ``VultronActivity``
+    persists activity records in the DataLayer, while ``VultronEvent`` drives
+    handler dispatch in the core.
+
     ``as_type`` is required and must be set to the actual activity type
     (e.g. ``"Offer"``, ``"Accept"``, ``"Invite"``, ``"Leave"``, ``"Read"``).
 
