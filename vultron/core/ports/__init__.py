@@ -32,6 +32,6 @@ pattern (see ``notes/architecture-ports-and-adapters.md``
 
 - ``DataLayer`` (``datalayer.py``) — persistence interface; implemented by
   ``TinyDbDataLayer`` in ``vultron/adapters/driven/``.
-- ``ActivityEmitter`` (``emitter.py``, to be added in OX-1.0) — outbound
-  activity delivery.
+- ``ActivityEmitter`` (``emitter.py``) — outbound activity delivery;
+  implemented by ``DeliveryQueueAdapter`` in ``vultron/adapters/driven/``.
 """

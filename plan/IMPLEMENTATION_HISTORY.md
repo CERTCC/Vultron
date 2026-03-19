@@ -2420,3 +2420,25 @@ docker-compose services.
   to `specs/agentic-readiness.md`.
 
 **Result**: 984 tests pass (2 new tests added).
+
+---
+
+## OX-1.0 — ActivityEmitter port stub (2026-03-19)
+
+**Task**: Add `vultron/core/ports/emitter.py` — `ActivityEmitter` Protocol
+(outbound counterpart to `core/ports/dispatcher.py`).
+
+**What was done**:
+
+- Created `vultron/core/ports/emitter.py` with the `ActivityEmitter` Protocol.
+  Defines `emit(activity: VultronActivity, recipients: list[str]) -> None` as
+  the outbound (driven) port contract for delivering activities to recipient
+  actor inboxes.
+- Created `vultron/adapters/driven/delivery_queue.py` with a stub
+  `DeliveryQueueAdapter` class that imports and implements `ActivityEmitter`.
+  The stub logs a debug message and returns; the body will be filled in OX-1.1.
+- Updated `vultron/core/ports/__init__.py` and
+  `vultron/adapters/driven/__init__.py` docstrings to reflect the new modules.
+
+**Result**: 984 tests pass (no regressions). OX-1.1 (local delivery
+implementation) is now unblocked.

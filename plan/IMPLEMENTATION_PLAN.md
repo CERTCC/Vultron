@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-19 (VCR-005: actor profile discovery endpoint)
+**Last Updated**: 2026-03-19 (OX-1.0: ActivityEmitter port stub)
 
 ## Overview
 
@@ -726,10 +726,13 @@ They are larger structural changes; plan as a single coordinated PR.
 Per `notes/architecture-ports-and-adapters.md` "Dispatch vs Emit Terminology",
 this is the outbound counterpart to `core/ports/dispatcher.py`.
 
-- [ ] **OX-1.0**: Add `vultron/core/ports/emitter.py` — `ActivityEmitter`
+- [x] **OX-1.0**: Add `vultron/core/ports/emitter.py` — `ActivityEmitter`
   Protocol stub (outbound counterpart to `core/ports/dispatcher.py`). Done when
   the Protocol is defined with at least an `emit(activity, recipients)` method
   and `adapters/driven/delivery_queue.py` references it as the port interface.
+  **COMPLETE**: `ActivityEmitter` Protocol defined in `core/ports/emitter.py`;
+  stub `DeliveryQueueAdapter` in `adapters/driven/delivery_queue.py` imports
+  and implements the Protocol. 984 tests pass.
 - [ ] **OX-1.1**: Implement local delivery: write activity from actor outbox to
   recipient actor's inbox in DataLayer (OX-04-001, OX-04-002). **Depends on OX-1.0.**
 - [ ] **OX-1.2**: Integrate delivery as background task after handler completion
