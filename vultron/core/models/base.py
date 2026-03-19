@@ -15,6 +15,7 @@
 
 """Base class for Vultron Protocol core domain object models."""
 
+import re
 from datetime import datetime, timedelta
 from typing import Annotated, Any
 
@@ -30,6 +31,17 @@ def _non_empty(v: str) -> str:
 
 
 NonEmptyString = Annotated[str, AfterValidator(_non_empty)]
+
+_URI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+\-.]*:[^\s]")
+
+
+def _valid_uri(v: str) -> str:
+    if not _URI_SCHEME_RE.match(v):
+        raise ValueError("must be a URI (e.g. urn:uuid:... or https://...)")
+    return v
+
+
+UriString = Annotated[NonEmptyString, AfterValidator(_valid_uri)]
 
 
 class VultronBase(BaseModel):

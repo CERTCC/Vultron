@@ -2346,3 +2346,31 @@ into a shared `domain_error_translation()` context manager.
   consistently across all three files.
 
 **Result**: 982 tests pass, 5 warnings unchanged.
+
+---
+
+## VCR-012 — Remove duplicated URI validation from `_models.py`
+
+**Date**: 2026-03-19
+
+**What was done**:
+
+- Reviewed `vultron/api/v2/backend/trigger_services/_models.py` per VCR-012.
+- Confirmed the core domain trigger request models already live in
+  `vultron/core/use_cases/triggers/requests.py` (completed as TECHDEBT-23).
+  `_models.py` is correctly the HTTP adapter layer (no `actor_id`; used as
+  FastAPI request body schemas).
+- Identified the real duplication: the `_URI_SCHEME_RE` pattern and
+  `case_id_must_be_uri` validator were duplicated in both `_models.py` and
+  `requests.py`.
+- Extracted `UriString = Annotated[NonEmptyString, AfterValidator(_valid_uri)]`
+  into `vultron/core/models/base.py` alongside `NonEmptyString`. This is the
+  canonical type alias for a validated URI string.
+- Updated `requests.py` to import `UriString` from `base.py`; removed its own
+  `_URI_SCHEME_RE`, `_valid_uri`, `CaseIdString`, and `import re`.
+- Updated `_models.py` to import `UriString` and `NonEmptyString` from core;
+  removed 4 duplicated `case_id_must_be_uri` validators and `_URI_SCHEME_RE`.
+  Tightened `offer_id` and `note` fields to `NonEmptyString`.
+- Updated `_models.py` docstring to clarify it is the HTTP adapter layer.
+
+**Result**: 982 tests pass.

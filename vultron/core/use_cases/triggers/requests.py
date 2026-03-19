@@ -12,25 +12,11 @@ field.  Leaf request classes subclass one of these intermediaries and only add
 fields (or override optionals to required) where the specific use case demands it.
 """
 
-import re
 from datetime import datetime, timezone
-from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, field_validator
-from pydantic.functional_validators import AfterValidator
 
-from vultron.core.models.base import NonEmptyString
-
-_URI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+\-.]*:[^\s]")
-
-
-def _valid_uri(v: str) -> str:
-    if not _URI_SCHEME_RE.match(v):
-        raise ValueError("must be a URI (e.g. urn:uuid:... or https://...)")
-    return v
-
-
-CaseIdString = Annotated[NonEmptyString, AfterValidator(_valid_uri)]
+from vultron.core.models.base import NonEmptyString, UriString
 
 
 class TriggerRequest(BaseModel):
@@ -60,7 +46,7 @@ class OfferTriggerRequest(TriggerRequest):
 class CaseTriggerRequest(TriggerRequest):
     """Trigger request that requires a ``case_id`` in URI form."""
 
-    case_id: CaseIdString
+    case_id: UriString
 
 
 class ValidateReportTriggerRequest(OfferTriggerRequest):

@@ -14,7 +14,12 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Pydantic request models for trigger endpoints.
+HTTP request body models for trigger endpoints.
+
+These are adapter-layer models used by FastAPI routers as request body schemas.
+They intentionally omit ``actor_id``, which routers obtain from the URL path.
+Domain logic lives in the core trigger use cases; see
+``vultron/core/use_cases/triggers/`` for the corresponding domain request models.
 
 CS-09-002: ValidateReportRequest, InvalidateReportRequest, and
 CloseReportRequest share a common base (ReportTriggerRequest) because they
@@ -23,14 +28,13 @@ a non-optional note field.
 """
 
 import logging
-import re
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-logger = logging.getLogger(__name__)
+from vultron.core.models.base import NonEmptyString, UriString
 
-_URI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+\-.]*:[^\s]")
+logger = logging.getLogger(__name__)
 
 
 class ReportTriggerRequest(BaseModel):
@@ -44,8 +48,8 @@ class ReportTriggerRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    offer_id: str
-    note: str | None = None
+    offer_id: NonEmptyString
+    note: NonEmptyString | None = None
 
 
 class ValidateReportRequest(ReportTriggerRequest):
@@ -78,7 +82,7 @@ class RejectReportRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    offer_id: str
+    offer_id: NonEmptyString
     note: str
 
     @field_validator("note")
@@ -102,16 +106,7 @@ class CaseTriggerRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    case_id: str
-
-    @field_validator("case_id")
-    @classmethod
-    def case_id_must_be_uri(cls, v: str) -> str:
-        if not _URI_SCHEME_RE.match(v):
-            raise ValueError(
-                "case_id must be a URI (e.g. urn:uuid:... or https://...)"
-            )
-        return v
+    case_id: UriString
 
 
 class ProposeEmbargoRequest(BaseModel):
@@ -126,18 +121,9 @@ class ProposeEmbargoRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    case_id: str
-    note: str | None = None
+    case_id: UriString
+    note: NonEmptyString | None = None
     end_time: datetime
-
-    @field_validator("case_id")
-    @classmethod
-    def case_id_must_be_uri(cls, v: str) -> str:
-        if not _URI_SCHEME_RE.match(v):
-            raise ValueError(
-                "case_id must be a URI (e.g. urn:uuid:... or https://...)"
-            )
-        return v
 
     @field_validator("end_time")
     @classmethod
@@ -161,17 +147,8 @@ class EvaluateEmbargoRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    case_id: str
-    proposal_id: str | None = None
-
-    @field_validator("case_id")
-    @classmethod
-    def case_id_must_be_uri(cls, v: str) -> str:
-        if not _URI_SCHEME_RE.match(v):
-            raise ValueError(
-                "case_id must be a URI (e.g. urn:uuid:... or https://...)"
-            )
-        return v
+    case_id: UriString
+    proposal_id: NonEmptyString | None = None
 
 
 class TerminateEmbargoRequest(BaseModel):
@@ -184,13 +161,4 @@ class TerminateEmbargoRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    case_id: str
-
-    @field_validator("case_id")
-    @classmethod
-    def case_id_must_be_uri(cls, v: str) -> str:
-        if not _URI_SCHEME_RE.match(v):
-            raise ValueError(
-                "case_id must be a URI (e.g. urn:uuid:... or https://...)"
-            )
-        return v
+    case_id: UriString

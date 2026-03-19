@@ -697,10 +697,16 @@ They are larger structural changes; plan as a single coordinated PR.
   `trigger_services/case.py` into a shared decorator or context manager. Apply
   consistently across all trigger service functions.
 
-- [ ] **VCR-012**: Review `vultron/api/v2/backend/trigger_services/_models.py` for
-  models that duplicate or overlap with `vultron/core/models/` or
-  `vultron/core/use_cases/_types.py`. Move duplicates to core and update callers.
-  Most trigger request models should ultimately live in core.
+- [x] **VCR-012**: Reviewed `vultron/api/v2/backend/trigger_services/_models.py`.
+  Core domain trigger request models already live in `vultron/core/use_cases/triggers/requests.py`
+  (completed as TECHDEBT-23); `_models.py` is correctly the HTTP adapter layer.
+  Eliminated duplicated URI validation: extracted `UriString = Annotated[NonEmptyString,
+  AfterValidator(_valid_uri)]` into `vultron/core/models/base.py` alongside `NonEmptyString`.
+  Updated `requests.py` to import `UriString` from `base.py` (removing its own
+  `_URI_SCHEME_RE`, `_valid_uri`, `CaseIdString`). Updated `_models.py` to use
+  `UriString` and `NonEmptyString` from core (removing 4 duplicated `case_id_must_be_uri`
+  validators and the `_URI_SCHEME_RE` pattern). Also tightened `offer_id` and `note`
+  fields to `NonEmptyString` in `_models.py`. 982 tests pass.
 
 #### Batch VCR-E — New feature: actor discovery endpoint
 
