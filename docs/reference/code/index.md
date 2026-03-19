@@ -4,8 +4,6 @@
 
 ::: vultron.adapters
 
-::: vultron.behaviors
-
 ::: vultron.core
 
 ::: vultron.demo
