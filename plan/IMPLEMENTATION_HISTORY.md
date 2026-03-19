@@ -2184,11 +2184,13 @@ reserved for use-case class names only):
 - `svc_close_report` → `close_report_trigger`
 
 Updated callers in:
+
 - `vultron/adapters/driving/fastapi/routers/trigger_case.py`
 - `vultron/adapters/driving/fastapi/routers/trigger_embargo.py`
 - `vultron/adapters/driving/fastapi/routers/trigger_report.py`
 
 Updated test imports and test names in:
+
 - `test/api/v2/backend/test_trigger_services.py`
 
 Pure mechanical rename, no behaviour change. 982 tests pass.
@@ -2211,6 +2213,7 @@ to a use case; the use case executes a single operation. They serve different
 levels of the dispatch pipeline and cannot be collapsed.
 
 **VCR-026 changes**:
+
 - `vultron/core/ports/dispatcher.py`: updated module docstring to say
   "Inbound (driving) port" with description of port direction.
 - `vultron/core/ports/use_case.py`: updated module docstring to say
@@ -2312,6 +2315,7 @@ model objects (VultronCase, VultronParticipant) and belong alongside the
 concrete domain models in `vultron/core/models/`.
 
 **What was done**:
+
 - Created `vultron/core/models/protocols.py` with `CaseModel` and
   `ParticipantModel` Protocol definitions (moved verbatim from `_types.py`).
 - Updated 7 callers to import from `vultron.core.models.protocols`:
@@ -2330,6 +2334,7 @@ as e: raise translate_domain_errors(e)` block in trigger service adapter modules
 into a shared `domain_error_translation()` context manager.
 
 **What was done**:
+
 - Added `domain_error_translation()` `@contextmanager` to
   `vultron/api/v2/backend/trigger_services/_helpers.py`. It catches both
   `VultronError` and `PydanticValidationError` and raises the result of

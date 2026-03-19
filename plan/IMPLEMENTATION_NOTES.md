@@ -248,28 +248,28 @@ updates inside those files — only in their callers.
 
 ## vultron.api.v2.backend.trigger_services should go away
 
-The code in `vultron.api.v2.backend.trigger_services` is a thin residual 
+The code in `vultron.api.v2.backend.trigger_services` is a thin residual
 layer that has been mostly obsoleted in concept by the `vultron.adapters.
-driven` and `vultron.core.use_cases` packages. This isn't a straight 
-replacement though, there is a need to study the trigger_services modules 
-compared to `vultron.adapters` and `vultron.core` and 
-determine a specific refactoring plan to merge `trigger_services` into them. 
+driven` and `vultron.core.use_cases` packages. This isn't a straight
+replacement though, there is a need to study the trigger_services modules
+compared to `vultron.adapters` and `vultron.core` and
+determine a specific refactoring plan to merge `trigger_services` into them.
 
-`vultron.api.v2.backend.trigger_services._helper.py` consists of a backwards 
-compatibility shim import block that should be refactored out by direct 
-imports, plus a `translate_domain_errors` function that belongs somewhere 
-near `vultron.adapters.driving.fastapi` because it's directly relevant to 
+`vultron.api.v2.backend.trigger_services._helper.py` consists of a backwards
+compatibility shim import block that should be refactored out by direct
+imports, plus a `translate_domain_errors` function that belongs somewhere
+near `vultron.adapters.driving.fastapi` because it's directly relevant to
 the http api provided by that package.
 
-`vultron.api.v2.backend.trigger_services._models.py` might belong in 
-`vultron.core.models` if appropriate, or if they are more like 
+`vultron.api.v2.backend.trigger_services._models.py` might belong in
+`vultron.core.models` if appropriate, or if they are more like
 adapter-specific models then maybe they belong in `vultron.adapters` somewhere.
 This decision needs to be part of the evaluation.
 
-The other modules in `vultron.api.v2.backend.trigger_services` (`case.py`, 
-`embargo.py`, and `report.py`) might be thin adapters that might be used by 
-multiple driving adapters later (fastapi, cli, etc.) so they might belong in 
-a `vultron.adapters.driving.common` package or something like that. They 
+The other modules in `vultron.api.v2.backend.trigger_services` (`case.py`,
+`embargo.py`, and `report.py`) might be thin adapters that might be used by
+multiple driving adapters later (fastapi, cli, etc.) so they might belong in
+a `vultron.adapters.driving.common` package or something like that. They
 don't seem like they belong in `vultron.core`.
 
 ---
@@ -279,6 +279,7 @@ don't seem like they belong in `vultron.core`.
 **Decision**: Retain `ActivityDispatcher` in `vultron/core/ports/dispatcher.py`.
 
 **Rationale**: The port is actively used in two places:
+
 1. `vultron/core/dispatcher.py` — `get_dispatcher()` returns
    `ActivityDispatcher` as its annotated return type.
 2. `vultron/adapters/driving/fastapi/inbox_handler.py` — module-level
@@ -296,83 +297,78 @@ No migration plan is needed; no action beyond documentation.
 
 Item 1: The IntEnum components in CS_*
 
-The CS_vfd and CS_pxa enums use NamedTuples so they are not candidates for 
+The CS_vfd and CS_pxa enums use NamedTuples so they are not candidates for
 StrEnum. However, they are composed of the six IntEnum components  
-(VendorAwareness, FixReadiness, etc.) that do seem to potentially be 
-convertible to StrEnum with the right refactoring. Their existence as 
-IntEnums is a historical artifact of the original implementation and does 
-not necessarily represent a deliberate design choice. They carry more useful 
-meaning as StrEnum members than as IntEnum members, so converting them to 
-StrEnum and ensuring their string values are used consistently would be 
+(VendorAwareness, FixReadiness, etc.) that do seem to potentially be
+convertible to StrEnum with the right refactoring. Their existence as
+IntEnums is a historical artifact of the original implementation and does
+not necessarily represent a deliberate design choice. They carry more useful
+meaning as StrEnum members than as IntEnum members, so converting them to
+StrEnum and ensuring their string values are used consistently would be
 worthwhile.
 
-The general principle is that IntEnum is likely to be a historical artifact 
-rather than intent, and we should convert to StrEnum and pay off the 
-technical debt while we're here. 
-
+The general principle is that IntEnum is likely to be a historical artifact
+rather than intent, and we should convert to StrEnum and pay off the
+technical debt while we're here.
 
 Item 2: Message types and 'duplicates'
 
-With respect to MessageTypes, the apparent duplicate aliases for "EA", "EP", 
-and "ER" are the result of a post-design realization that revision proposal, 
-rejection, and acceptance messages are conceptually identical to the 
-existing proposal, rejection, and acceptance message types, so the same 
-codes were reused for both. EP = EV, ER = EJ, and EA = EC, and EP, ER, and 
-EA are the preferred shorthand. We don't need to perpetuate this 
-duplication forever, so as part of VCR-019e we need to re-evaluate 
-whether or not we 
-could just refactor the places where the 
-`VULTRON_MESSAGE_EMBARGO_REVISION_*` names or their aliases are used and 
-just replace them with the equivalent `VULTRON_MESSAGE_PROPOSAL_*` names or 
-their parallel aliases, with a strong preference for "yes we should do that" 
-unless there is a major reason not to. 
-This would eliminate the 
-duplication and make the 
+With respect to MessageTypes, the apparent duplicate aliases for "EA", "EP",
+and "ER" are the result of a post-design realization that revision proposal,
+rejection, and acceptance messages are conceptually identical to the
+existing proposal, rejection, and acceptance message types, so the same
+codes were reused for both. EP = EV, ER = EJ, and EA = EC, and EP, ER, and
+EA are the preferred shorthand. We don't need to perpetuate this
+duplication forever, so as part of VCR-019e we need to re-evaluate
+whether or not we
+could just refactor the places where the
+`VULTRON_MESSAGE_EMBARGO_REVISION_*` names or their aliases are used and
+just replace them with the equivalent `VULTRON_MESSAGE_PROPOSAL_*` names or
+their parallel aliases, with a strong preference for "yes we should do that"
+unless there is a major reason not to.
+This would eliminate the
+duplication and make the
 implementation a bit cleaner than the original design docs had it.
 
 ## Resolve VCR-022 vs TECHDEBT-16 once and for all
 
-On your next evaluation pass, actually confirm whether VCR-022 is really 
-identical to TECHDEBT-16 and whether it should be marked complete or clarify 
-what is left to be completed. Do not accept assertions that they are 
+On your next evaluation pass, actually confirm whether VCR-022 is really
+identical to TECHDEBT-16 and whether it should be marked complete or clarify
+what is left to be completed. Do not accept assertions that they are
 equivalent tasks without explicitly evaluating them against the codebase.
 
 ## Prefer `TypeHint | None` over `Optional[TypeHint]`
 
 Style recommendation (SHOULD): use `TypeHint | None` instead of `Optional
-[TypeHint]` for optional type hints. This is consistent with modern Python 
+[TypeHint]` for optional type hints. This is consistent with modern Python
 syntax for union types and is more concise. Clean up the `Optional[TypeHint]
-` usage when you encounter it during refactoring, but no need for a bulk 
+` usage when you encounter it during refactoring, but no need for a bulk
 search-and-replace.
 
 ## VCR-005 Follow-up
 
-This is a comment added after 486652d2d943f92a859abeaecde48a6b246e2441 was 
-committed and VCR-005 was marked complete. We need to ensure that the 
-profile endpoint only ever returns a link to the actor's inbox and outbox, 
-never the contents thereof. The line in `agentic-readiness.md` about "`inbox` 
-and 
-`outbox` MUST be 
-`OrderedCollection` objects whose `id` field is a resolvable URL" is 
-concerning in that it leaves open to misinterpretation that the requirement 
+This is a comment added after 486652d2d943f92a859abeaecde48a6b246e2441 was
+committed and VCR-005 was marked complete. We need to ensure that the
+profile endpoint only ever returns a link to the actor's inbox and outbox,
+never the contents thereof. The line in `agentic-readiness.md` about "`inbox`
+and
+`outbox` MUST be
+`OrderedCollection` objects whose `id` field is a resolvable URL" is
+concerning in that it leaves open to misinterpretation that the requirement
 might be to return the contents of the collection (which is not what we want).
-This clarification should be made in the specs but also enforced with one or 
+This clarification should be made in the specs but also enforced with one or
 more tests and potentially object validation in the code.
 
-## Resolve ambiguity of BT-* vs OX-* vs ACT-* tasks
+## Resolve ambiguity of BT-*vs OX-* vs ACT-* tasks
 
-1. In the next LEARN or PLAN phase, we need to resolve the priority ambiguity 
-around BT-* vs OX-* vs ACT-* tasks. Information in plan/PRIORITIES.md takes 
+1. In the next LEARN or PLAN phase, we need to resolve the priority ambiguity
+around BT-*vs OX-* vs ACT-* tasks. Information in plan/PRIORITIES.md takes
 precedent over currently labeled priorities in plan/IMPLEMENTATION_PLAN.md.
-2. Generalizing from this, we need to capture that PRIORITIES.md takes 
-   precedence and may change over time relative to what is captured in 
-   IMPLEMENTATION_PLAN.md. As a corollary to this point, the order of tasks 
-   in IMPLEMENTATION_PLAN.md reflects groupings of related tasks but does 
-   not reflect their priority. Tasks should note prerequisites or blockers 
-   but conflict between task order and stated priorities should be resolved 
-   in favor of stated priorities. This should be captured in the 
+2. Generalizing from this, we need to capture that PRIORITIES.md takes
+   precedence and may change over time relative to what is captured in
+   IMPLEMENTATION_PLAN.md. As a corollary to this point, the order of tasks
+   in IMPLEMENTATION_PLAN.md reflects groupings of related tasks but does
+   not reflect their priority. Tasks should note prerequisites or blockers
+   but conflict between task order and stated priorities should be resolved
+   in favor of stated priorities. This should be captured in the
    documentation to avoid confusion in the future.
-
-
-
-

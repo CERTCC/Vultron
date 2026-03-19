@@ -53,10 +53,10 @@ fully achieve this goal by itself.
 
 ## Priority 150: Refactor RM, EM, and CS state models to use `transitions`
 
-This item is briefly captured in VCR-019d but it represents a larger 
-evaluation that will need to be broken into subtasks before any 
-implementation can occur. A study task should be injected to evaluate the 
-suitability of the `transitions` library to assist tracking state changes in 
+This item is briefly captured in VCR-019d but it represents a larger
+evaluation that will need to be broken into subtasks before any
+implementation can occur. A study task should be injected to evaluate the
+suitability of the `transitions` library to assist tracking state changes in
 the Report and Case objects in `vultron.core`.
 
 ## Priority 200: Case Actor as source of truth for case state
