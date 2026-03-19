@@ -18,19 +18,19 @@ The `vultron.core.states.cs` module implements the CVD Case State Model enums.
 It also provides functions for converting between state strings and enums.
 """
 
-from enum import Enum, IntEnum
+from enum import Enum, StrEnum
 from typing import NamedTuple, Tuple
 
 from vultron.core.case_states.validations import ensure_valid_state
 
 
-class VendorAwareness(IntEnum):
+class VendorAwareness(StrEnum):
     """
     Represents the vendor awareness state of a case.
     """
 
-    VENDOR_UNAWARE = 0
-    VENDOR_AWARE = 1
+    VENDOR_UNAWARE = "v"
+    VENDOR_AWARE = "V"
 
     NO = VENDOR_UNAWARE
     YES = VENDOR_AWARE
@@ -39,13 +39,13 @@ class VendorAwareness(IntEnum):
     V = VENDOR_AWARE
 
 
-class FixReadiness(IntEnum):
+class FixReadiness(StrEnum):
     """
     Represents the fix readiness state of a case.
     """
 
-    FIX_NOT_READY = 0
-    FIX_READY = 1
+    FIX_NOT_READY = "f"
+    FIX_READY = "F"
 
     NO = FIX_NOT_READY
     YES = FIX_READY
@@ -54,13 +54,13 @@ class FixReadiness(IntEnum):
     F = FIX_READY
 
 
-class FixDeployment(IntEnum):
+class FixDeployment(StrEnum):
     """
     Represents the fix deployment state of a case.
     """
 
-    FIX_NOT_DEPLOYED = 0
-    FIX_DEPLOYED = 1
+    FIX_NOT_DEPLOYED = "d"
+    FIX_DEPLOYED = "D"
 
     NO = FIX_NOT_DEPLOYED
     YES = FIX_DEPLOYED
@@ -69,13 +69,13 @@ class FixDeployment(IntEnum):
     D = FIX_DEPLOYED
 
 
-class PublicAwareness(IntEnum):
+class PublicAwareness(StrEnum):
     """
     Represents the public awareness state of a case.
     """
 
-    PUBLIC_UNAWARE = 0
-    PUBLIC_AWARE = 1
+    PUBLIC_UNAWARE = "p"
+    PUBLIC_AWARE = "P"
 
     NO = PUBLIC_UNAWARE
     YES = PUBLIC_AWARE
@@ -84,13 +84,13 @@ class PublicAwareness(IntEnum):
     P = PUBLIC_AWARE
 
 
-class ExploitPublication(IntEnum):
+class ExploitPublication(StrEnum):
     """
     Represents the exploit publication state of a case.
     """
 
-    NO_PUBLIC_EXPLOIT = 0
-    EXPLOIT_PUBLIC = 1
+    NO_PUBLIC_EXPLOIT = "x"
+    EXPLOIT_PUBLIC = "X"
 
     NO = NO_PUBLIC_EXPLOIT
     YES = EXPLOIT_PUBLIC
@@ -99,13 +99,13 @@ class ExploitPublication(IntEnum):
     X = EXPLOIT_PUBLIC
 
 
-class AttackObservation(IntEnum):
+class AttackObservation(StrEnum):
     """
     Represents the attack observation state of a case.
     """
 
-    NO_ATTACKS_OBSERVED = 0
-    ATTACKS_OBSERVED = 1
+    NO_ATTACKS_OBSERVED = "a"
+    ATTACKS_OBSERVED = "A"
 
     NO = NO_ATTACKS_OBSERVED
     YES = ATTACKS_OBSERVED
@@ -357,7 +357,7 @@ def state_string_to_enums(s: str) -> Tuple[CS_vfd, CS_pxa]:
 @ensure_valid_state
 def state_string_to_enum2(
     s: str,
-) -> Tuple[IntEnum, ...]:
+) -> Tuple[StrEnum, ...]:
     """
     Convert a state string to a list of enums that define the state
 

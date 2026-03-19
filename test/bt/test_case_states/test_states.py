@@ -36,13 +36,9 @@ class MyTestCase(unittest.TestCase):
     def test_state_string_to_enum2(self):
         for state_string in self.states:
             result = s.state_string_to_enum2(state_string)
-            # for each character in state string, check to see that the result is 0 if lowercase and 1 if uppercase
-            # we don't really care about the names of the enums, just that they are 0 or 1
+            # for each character in state string, check that the string value matches
             for i, c in enumerate(state_string):
-                if c.islower():
-                    self.assertEqual(0, result[i])
-                else:
-                    self.assertEqual(1, result[i])
+                self.assertEqual(c, str(result[i]))
 
     def test_CS_vfdpxa(self):
         for state_string in self.states:

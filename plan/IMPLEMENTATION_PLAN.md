@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-19 (VCR-025/026: port taxonomy labels)
+**Last Updated**: 2026-03-19 (VCR-019e: StrEnum conversion)
 
 ## Overview
 
@@ -606,9 +606,17 @@ They are larger structural changes; plan as a single coordinated PR.
   RM/EM/CS state machines once enum consolidation is complete. Defer until after
   VCR-019a/b/c are done.
 
-- [ ] **VCR-019e**: Convert older non-StrEnum Enums to `StrEnum` where semantically
+- [x] **VCR-019e**: Convert older non-StrEnum Enums to `StrEnum` where semantically
   appropriate (i.e., where string representation is the primary use). Apply
   selectively based on VCR-019c study results; do not blindly convert all enums.
+  **Done**: Converted 6 `IntEnum` components in `vultron/core/states/cs.py`
+  (`VendorAwareness`, `FixReadiness`, `FixDeployment`, `PublicAwareness`,
+  `ExploitPublication`, `AttackObservation`) from `IntEnum` to `StrEnum`
+  using single-letter values (v/V, f/F, d/D, p/P, x/X, a/A). Converted
+  `MessageTypes` in `vultron/bt/messaging/states.py` from `Enum` to `StrEnum`
+  and removed redundant `VULTRON_MESSAGE_EMBARGO_REVISION_*` entries (EV, EJ,
+  EC are now explicit aliases for EP, ER, EA). Updated `EM_MESSAGE_TYPES` to
+  remove duplicate entries. Updated tests accordingly. 982 tests pass.
 
 - [ ] **VCR-020**: Ensure `VultronEvent.activity` is required (not `| None`) in
   the base class or narrow it to required in every concrete subclass that always

@@ -15,10 +15,10 @@
 Provides Vultron Message Type Enumerations
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class MessageTypes(Enum):
+class MessageTypes(StrEnum):
     """Represents the type of a message.
     Message types are used to determine the type of a message and to determine the type of a message's response.
 
@@ -33,12 +33,9 @@ class MessageTypes(Enum):
     RK = Report Management acknowledgement (general)
     RE = Report Management error (general)
 
-    EP = Embargo Proposal
-    ER = Embargo Rejected
-    EA = Embargo Accepted
-    EV = Embargo Revision Proposal
-    EJ = Embargo Revision Rejected
-    EC = Embargo Revision Accepted
+    EP = Embargo Proposal (also used for Embargo Revision Proposal)
+    ER = Embargo Rejected (also used for Embargo Revision Rejected)
+    EA = Embargo Accepted (also used for Embargo Revision Accepted)
     ET = Embargo Terminated
     EK = Embargo Management acknowledgement (general)
     EE = Embargo Management error (general)
@@ -69,9 +66,6 @@ class MessageTypes(Enum):
     VULTRON_MESSAGE_EMBARGO_PROPOSAL = "EP"
     VULTRON_MESSAGE_EMBARGO_REJECTED = "ER"
     VULTRON_MESSAGE_EMBARGO_ACCEPTED = "EA"
-    VULTRON_MESSAGE_EMBARGO_REVISION_PROPOSAL = "EP"
-    VULTRON_MESSAGE_EMBARGO_REVISION_REJECTED = "ER"
-    VULTRON_MESSAGE_EMBARGO_REVISION_ACCEPTED = "EA"
     VULTRON_MESSAGE_EMBARGO_TERMINATED = "ET"
     VULTRON_MESSAGE_EMBARGO_MANAGEMENT_ACK = "EK"
     VULTRON_MESSAGE_EMBARGO_MANAGEMENT_ERROR = "EE"
@@ -102,9 +96,6 @@ class MessageTypes(Enum):
     EmbargoProposal = VULTRON_MESSAGE_EMBARGO_PROPOSAL
     EmbargoRejected = VULTRON_MESSAGE_EMBARGO_REJECTED
     EmbargoAccepted = VULTRON_MESSAGE_EMBARGO_ACCEPTED
-    EmbargoRevisionProposal = VULTRON_MESSAGE_EMBARGO_REVISION_PROPOSAL
-    EmbargoRevisionRejected = VULTRON_MESSAGE_EMBARGO_REVISION_REJECTED
-    EmbargoRevisionAccepted = VULTRON_MESSAGE_EMBARGO_REVISION_ACCEPTED
     EmbargoTerminated = VULTRON_MESSAGE_EMBARGO_TERMINATED
     EmbargoManagementAck = VULTRON_MESSAGE_EMBARGO_MANAGEMENT_ACK
     EmbargoManagementError = VULTRON_MESSAGE_EMBARGO_MANAGEMENT_ERROR
@@ -135,9 +126,10 @@ class MessageTypes(Enum):
     EP = VULTRON_MESSAGE_EMBARGO_PROPOSAL
     ER = VULTRON_MESSAGE_EMBARGO_REJECTED
     EA = VULTRON_MESSAGE_EMBARGO_ACCEPTED
-    EV = VULTRON_MESSAGE_EMBARGO_REVISION_PROPOSAL
-    EJ = VULTRON_MESSAGE_EMBARGO_REVISION_REJECTED
-    EC = VULTRON_MESSAGE_EMBARGO_REVISION_ACCEPTED
+    # EV, EJ, EC are aliases for EP, ER, EA — embargo revision uses the same message codes
+    EV = VULTRON_MESSAGE_EMBARGO_PROPOSAL
+    EJ = VULTRON_MESSAGE_EMBARGO_REJECTED
+    EC = VULTRON_MESSAGE_EMBARGO_ACCEPTED
     ET = VULTRON_MESSAGE_EMBARGO_TERMINATED
     EK = VULTRON_MESSAGE_EMBARGO_MANAGEMENT_ACK
     EE = VULTRON_MESSAGE_EMBARGO_MANAGEMENT_ERROR
@@ -154,9 +146,6 @@ class MessageTypes(Enum):
     GI = VULTRON_MESSAGE_GENERAL_INFORMATION_REQUEST
     GK = VULTRON_MESSAGE_GENERAL_INFORMATION_ACK
     GE = VULTRON_MESSAGE_GENERAL_INFORMATION_ERROR
-
-    def __str__(self):
-        return self.name
 
 
 # Report Management Message Types
@@ -176,9 +165,6 @@ EM_MESSAGE_TYPES = [
     MessageTypes.EP,
     MessageTypes.ER,
     MessageTypes.EA,
-    MessageTypes.EV,
-    MessageTypes.EJ,
-    MessageTypes.EC,
     MessageTypes.ET,
     MessageTypes.EK,
     MessageTypes.EE,
