@@ -13,8 +13,8 @@
 
 import pytest
 
-from vultron.api.v2.datalayer.db_record import Record
-from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
+from vultron.adapters.driven.db_record import Record
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 
 
 @pytest.fixture
@@ -62,13 +62,13 @@ def sample_record():
 
 @pytest.fixture
 def base_object():
-    from vultron.as_vocab.base.base import as_Base
+    from vultron.wire.as2.vocab.base.base import as_Base
 
     return as_Base(as_id="test-id", as_type="BaseObject", name="Test Object")
 
 
 @pytest.fixture
 def note_object():
-    from vultron.as_vocab.base.objects.object_types import as_Note
+    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
     return as_Note(content="Test Content")

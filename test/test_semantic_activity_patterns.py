@@ -1,9 +1,11 @@
 from typing import Any, Dict, Iterable
 import itertools
 
-from vultron.activity_patterns import ActivityPattern
-from vultron.enums import MessageSemantics
-from vultron.semantic_map import SEMANTICS_ACTIVITY_PATTERNS
+from vultron.core.models.events import MessageSemantics
+from vultron.wire.as2.extractor import (
+    ActivityPattern,
+    SEMANTICS_ACTIVITY_PATTERNS,
+)
 
 
 def test_all_message_semantics_have_activity_patterns():

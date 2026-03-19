@@ -42,10 +42,12 @@ import logging
 import sys
 from typing import Optional, Sequence, Tuple
 
-from vultron.as_vocab.activities.report import RmSubmitReport
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.demo.utils import (
     DataLayerClient,
     check_server_availability,
@@ -83,7 +85,7 @@ def _submit_report(
         name=name,
         content=content,
     )
-    offer = RmSubmitReport(
+    offer = RmSubmitReportActivity(
         actor=finder.as_id,
         as_object=report,
         to=[vendor.as_id],

@@ -1,6 +1,7 @@
 # Diátaxis documentation requirements
 
 ## Overview
+
 Brief requirements for organizing project documentation according to the
 Diátaxis framework.
 
@@ -10,6 +11,7 @@ Diátaxis framework.
 ---
 
 ## General architecture (SHOULD)
+
 - `DF-01-001` Organize the main documentation into the four Diátaxis
   categories: Tutorials, How-to guides, Reference, and Explanation.
   - Preserve folders where practical: `docs/tutorials`, `docs/howto`,
@@ -28,6 +30,7 @@ Diátaxis framework.
   MkDocs site defined by `mkdocs.yml`.
 
 ## Documentation maintenance (SHOULD)
+
 - `DF-02-001` Build the documentation architecture iteratively from the
   inside-out by improving pages until their Diátaxis category is clear.
 - `DF-02-002` Maintain navigation structure to avoid link breakage when
@@ -35,6 +38,7 @@ Diátaxis framework.
   - Use `mkdocs-redirects` and run a link checker after moves.
 
 ## Tutorials (MUST)
+
 - `DF-03-001` Author tutorials as practical lessons that help learners
   acquire new skills through guided, hands-on experience.
 - `DF-03-002` Require that each tutorial is an activity where the learner
@@ -58,6 +62,7 @@ Diátaxis framework.
   resources out of the tutorial body.
 
 ## How-to guides (MUST)
+
 - `DF-04-001` Present how-to guides as goal-oriented directions that
   resolve a specific real-world task or problem.
 - `DF-04-002` Assume the reader is a competent user with required basic
@@ -77,6 +82,7 @@ Diátaxis framework.
   real-world setups instead of embedding multiple alternative flows.
 
 ## Reference (MUST)
+
 - `DF-05-001` Produce reference material that is neutral, objective, and
   technical in tone.
 - `DF-05-002` Structure reference content to mirror the physical or
@@ -91,6 +97,7 @@ Diátaxis framework.
   illustrate usage, not to provide step-by-step instruction.
 
 ## Explanation (MUST)
+
 - `DF-06-001` Provide explanatory material that focuses on understanding
   and context for a topic.
 - `DF-06-002` Address "Why?" questions by discussing history, design
@@ -105,6 +112,7 @@ Diátaxis framework.
   understanding.
 
 ## Verification and checks (SHOULD)
+
 - `DF-07-001` Verify the top-level navigation contains the four
   Diátaxis categories where practical; if the site does not expose four
   primary sections, require a documented rationale and a mapping of pages to
@@ -123,6 +131,7 @@ Diátaxis framework.
   when read away from the running product.
 
 ## File metadata (SHOULD)
+
 - `DF-08-001` Name Diátaxis specification files using snake_case and
   concise topic descriptors.
 - `DF-08-002` Place cross-reference sources only in the header metadata

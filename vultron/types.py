@@ -1,35 +1,19 @@
-"""
-Shared type definitions for Vultron.
+from __future__ import annotations
 
-This module contains common types used across the codebase to avoid circular imports.
-"""
+from typing import Protocol, TYPE_CHECKING
 
-from typing import Protocol
+from vultron.core.models.events import VultronEvent
 
-from pydantic import BaseModel
-
-from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.enums import MessageSemantics
-
-
-class DispatchActivity(BaseModel):
-    """
-    Data model to represent a dispatchable activity with its associated message semantics as a header.
-    """
-
-    semantic_type: MessageSemantics
-    activity_id: str
-    payload: as_Activity
-    # We are deliberately not including case_id or report_id here because
-    # where they are located in the payload can vary depending on message semantics.
-    # Therefore it is better to leave it to downstream semantic-specific handlers to
-    # extract those values for logging or other purposes rather than having to build
-    # a parallel extraction logic here in the dispatcher that may not be universally applicable.
+if TYPE_CHECKING:
+    from vultron.core.ports.datalayer import DataLayer
 
 
 class BehaviorHandler(Protocol):
-    """
-    Protocol for behavior handler functions.
+    """Protocol for use-case callable functions.
+
+    Use-case functions accept a ``VultronEvent`` subclass and a ``DataLayer``
+    instance.  The ``dispatchable`` parameter name is retained for backward
+    compatibility with any code that passes it as a keyword argument.
     """
 
-    def __call__(self, dispatchable: DispatchActivity) -> None: ...
+    def __call__(self, event: VultronEvent, dl: "DataLayer") -> None: ...

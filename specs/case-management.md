@@ -405,5 +405,5 @@ the distinction between participant-specific and participant-agnostic state.
 - **Object IDs**: `specs/object-ids.md`
 - **Do Work Behaviors**: `notes/do-work-behaviors.md`
 - **Encryption**: `specs/encryption.md`
-- **Implementation**: `vultron/as_vocab/objects/vulnerability_case.py`
-- **Implementation**: `vultron/as_vocab/objects/case_status.py`
+- **Implementation**: `vultron/wire/as2/vocab/objects/vulnerability_case.py`
+- **Implementation**: `vultron/wire/as2/vocab/objects/case_status.py`

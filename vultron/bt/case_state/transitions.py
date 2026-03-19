@@ -22,7 +22,7 @@ from vultron.bt.case_state.conditions import (
     CSinStateVendorAware,
     CSinStateVendorAwareAndFixReady,
 )
-from vultron.case_states.states import CS
+from vultron.core.states.cs import CS
 
 
 def cs_state_change(

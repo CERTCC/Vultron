@@ -2,7 +2,9 @@
 
 ## Overview
 
-Handler functions process DispatchActivity objects and implement protocol business logic. All handlers follow a common contract defined by the HandlerProtocol and enforced by the verify_semantics decorator.
+Handler use-case classes process `VultronEvent` domain objects and implement
+protocol business logic. All handlers follow a common contract defined by the
+`UseCase` Protocol.
 
 **Source**: Protocol design, dispatcher architecture
 
@@ -17,13 +19,15 @@ Handler functions process DispatchActivity objects and implement protocol busine
 
 ## Handler Signature (MUST)
 
-- `HP-01-001` All handler functions MUST accept a single DispatchActivity parameter
-- `HP-01-002` Handler functions MAY return None or HandlerResult
+- `HP-01-001` All handler use-case classes MUST accept `(event: VultronEvent,
+  dl: DataLayer)` — either as `__init__` parameters or as `execute` parameters
+- `HP-01-002` Handler use-case `execute` methods MAY return None or HandlerResult
 
 ## Semantic Verification (MUST)
 
 - `HP-02-001` All handlers MUST have semantic type verification before execution
-  - **Implementation**: Uses `@verify_semantics` decorator with MessageSemantics enum value
+  - **Implementation**: Semantic type is checked at dispatcher lookup time using
+    the `USE_CASE_MAP` key; mismatched events raise `VultronApiHandlerNotFoundError`
 - `HP-02-002` The verification mechanism MUST check that the activity's semantic type matches the handler's expected type
   - **Rationale**: Prevents routing errors where wrong handler processes an activity
 
@@ -98,7 +102,7 @@ Handler functions process DispatchActivity objects and implement protocol busine
   - HP-08-005 depends-on CM-03-006
 - `HP-08-006` The `AddNoteToCase` handler MUST persist a Note object and append its ID as a `as_NoteRef` to `VulnerabilityCase.notes`.
   - **Rationale**: Ensures notes are fully persisted and linked to cases, consistent with the case management data model
-  - (VulnerabilityCase.notes is conceptually a "join table" linking cases to 
+  - (VulnerabilityCase.notes is conceptually a "join table" linking cases to
     notes)
 
 ## Verification
@@ -110,15 +114,15 @@ Handler functions process DispatchActivity objects and implement protocol busine
 
 ### HP-01-001, HP-01-002 Verification
 
-- Unit test: Handler accepts DispatchActivity parameter
+- Unit test: Handler use-case class accepts `VultronEvent` and `DataLayer`
 - Unit test: Handler returns None or HandlerResult
-- Type check: Handler signature matches HandlerProtocol
+- Type check: Handler signature matches `UseCase` Protocol
 
 ### HP-02-001, HP-02-002 Verification
 
-- Unit test: Verify decorator present on all handlers
-- Unit test: Decorator validates correct semantic type
-- Unit test: Decorator raises error for mismatched semantic type
+- Unit test: Verify dispatcher uses `USE_CASE_MAP` for lookups
+- Unit test: Verify `VultronApiHandlerNotFoundError` raised for unrecognised
+  semantic types
 
 ### HP-03-001, HP-03-002 Verification
 
@@ -170,9 +174,9 @@ Handler functions process DispatchActivity objects and implement protocol busine
 
 ## Related
 
-- Implementation: `vultron/api/v2/backend/handlers.py`
-- Implementation: `vultron/api/v2/backend/behavior_dispatcher.py`
-- Implementation: `vultron/api/v2/backend/semantic_handler_map.py`
+- Implementation: `vultron/api/v2/backend/handlers/` (handler modules)
+- Implementation: `vultron/behavior_dispatcher.py`
+- Implementation: `vultron/api/v2/backend/handler_map.py` (`SEMANTICS_HANDLERS` registry)
 - Tests: `test/api/v2/backend/test_handlers.py`
 - Related Spec: [dispatch-routing.md](dispatch-routing.md)
 - Related Spec: [semantic-extraction.md](semantic-extraction.md)

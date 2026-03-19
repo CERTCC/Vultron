@@ -70,8 +70,8 @@ The inbox handler process consists of the following steps:
 4. **Queue Activity**: (only if **Validate Activity** succeeds) The inbox endpoint places the activity message into an asynchronous processing call to the inbox handler function, allowing the endpoint to respond immediately while the activity is processed in the background.
 5. **Acknowledge Receipt**: The inbox endpoint responds to the POST request with a 200 OK status to acknowledge receipt of the activity message. If the validation failed, it can respond with an appropriate error status (e.g., 400 Bad Request) and log the error.
 6. **Extract Routing Information**: The inbox handler extracts key fields from the activity message (e.g., `type`, `object`, `to`, `inReplyTo`) to determine routing.
-   It creates a `DispatchActivity` header object containing the routing information and attaches the original activity message as the payload.
-7. **Dispatch Activity**: The inbox handler invokes a dispatch function that routes the `DispatchActivity` object to the appropriate handler function based on the activity's semantic type.
+   It creates a `DispatchEvent` header object containing the routing information and attaches the original activity message as the payload.
+7. **Dispatch Activity**: The inbox handler invokes a dispatch function that routes the `DispatchEvent` object to the appropriate handler function based on the activity's semantic type.
 
 ## Activity Patterns and Semantics
 
@@ -126,24 +126,24 @@ activity message, along with fields such as `object`, `to`,
 and `inReplyTo`. The dispatch function uses this information to determine
 which handler function should process the activity.
 
-!!! example "DispatchActivity Object"
+!!! example "DispatchEvent Object"
 
-    A `DispatchActivity` object encapsulates the routing information needed by the
-    dispatch function. At the time of writing, the `DispatchActivity` object is defined as:
+    A `DispatchEvent` object encapsulates the routing information needed by the
+    dispatch function. At the time of writing, the `DispatchEvent` object is defined as:
 
     ```python
     @dataclass
-    class DispatchActivity:
+    class DispatchEvent:
         semantic_type: MessageSemantics
         activity_id: str
-        payload: as_Activity
+        payload: InboundPayload
     ```
 
 ## Dispatch Function
 
-The dispatch function uses the `semantic_type` field of the `DispatchActivity`
+The dispatch function uses the `semantic_type` field of the `DispatchEvent`
 to look up the appropriate handler function from a mapping of `MessageSemantics`
-to handler functions. The handler function is then invoked with the `DispatchActivity`
+to handler functions. The handler function is then invoked with the `DispatchEvent`
 object as an argument.
 
 !!! example
@@ -157,7 +157,7 @@ object as an argument.
       Protocol for dispatching activities to their corresponding handlers based on message semantics.
       """
   
-      def dispatch(self, dispatchable: DispatchActivity) -> None:
+      def dispatch(self, dispatchable: DispatchEvent) -> None:
           """Dispatches an activity to the appropriate handler based on its semantic type."""
           ...
   ```
@@ -181,9 +181,9 @@ object as an argument.
 
 Our first dispatch function implementation uses a simple direct dispatch approach
 with a dictionary mapping from `MessageSemantics` to handler functions.
-The dispatch function looks up the `semantic_type` from the `DispatchActivity`
+The dispatch function looks up the `semantic_type` from the `DispatchEvent`
 object in the mapping and invokes the corresponding handler function with the
-`DispatchActivity` as an argument.
+`DispatchEvent` as an argument.
 
 This direct dispatch implementation is straightforward and allows us to quickly
 begin handling activities based on their semantics.
@@ -210,7 +210,7 @@ report submission, acknowledging receipt of a report, validating a report, etc.
 !!! example "Defining Handler Functions"
 
     Following is an example of how handler functions can be defined for each 
-    semantic type. Each handler function takes a `DispatchActivity` object as
+    semantic type. Each handler function takes a `DispatchEvent` object as
     an argument and contains the logic for processing that specific type of
     activity.
   
@@ -220,12 +220,12 @@ report submission, acknowledging receipt of a report, validating a report, etc.
         Protocol for behavior handler functions.
         """
     
-        def __call__(self, dispatchable: DispatchActivity) -> None: ...
+        def __call__(self, dispatchable: DispatchEvent) -> None: ...
     ```
     So a potential handler function for the `SUBMIT_REPORT` semantic type might look like this:
     
     ```python
-    def handle_submit_report(dispatchable: DispatchActivity) -> None:
+    def handle_submit_report(dispatchable: DispatchEvent) -> None:
         # logic for processing a vulnerability report submission goes here
         ...
     ```
@@ -242,8 +242,8 @@ report submission, acknowledging receipt of a report, validating a report, etc.
 
 ### Phase 2: Dispatching
 
-- [x] Implement `DispatchActivity` dataclass to encapsulate routing information (`semantic_type`, `activity_id`, `payload`) (`vultron.behavior_dispatcher.DispatchActivity`)
-- [x] Create routing logic to extract semantic information from incoming activities and construct `DispatchActivity` objects (`vultron.behavior_dispatcher.prepare_dispatch_activity`)
+- [x] Implement `DispatchEvent` dataclass to encapsulate routing information (`semantic_type`, `activity_id`, `payload`) (`vultron.behavior_dispatcher.DispatchEvent`)
+- [x] Create routing logic to extract semantic information from incoming activities and construct `DispatchEvent` objects (`vultron.behavior_dispatcher.prepare_dispatch_activity`)
 - [x] Define `ActivityDispatcher` Protocol interface for pluggable dispatch implementations (`vultron.behavior_dispatcher.ActivityDispatcher`)
 - [x] Implement direct dispatch function using dictionary mapping from `MessageSemantics` to handler functions (`vultron.behavior_dispatcher.DirectActivityDispatcher`)
 

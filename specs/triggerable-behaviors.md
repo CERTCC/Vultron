@@ -148,7 +148,7 @@ them; a complete implementation requires both reactive and triggerable sides.
   - The trigger API is the outgoing side; the BT tree is the same
     regardless of direction (inbound handler vs actor-initiated trigger)
 - `TRIG-05-002` The trigger endpoint SHOULD invoke the BT tree via the
-  bridge layer (`vultron/behaviors/bridge.py`) using the same pattern
+  bridge layer (`vultron/core/behaviors/bridge.py`) using the same pattern
   as existing BT-using handlers
   - TRIG-05-002 depends-on BT-05-001
 
@@ -212,7 +212,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 ### TRIG-05-001, TRIG-05-002 Verification
 
 - Code review: Trigger implementations call existing BT trees via
-  `vultron/behaviors/bridge.py`
+  `vultron/core/behaviors/bridge.py`
 - Unit test: BT execution result is reflected in response activity
 
 ### TRIG-06-001, TRIG-06-002 Verification

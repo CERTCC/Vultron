@@ -20,7 +20,7 @@ from typing import Type
 from vultron.bt.base.bt_node import ConditionCheck
 from vultron.bt.base.factory import fallback_node, invert
 from vultron.bt.common import state_in
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 
 
 def rm_state_in(state: RM) -> Type[ConditionCheck]:

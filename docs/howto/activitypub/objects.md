@@ -105,7 +105,7 @@ file or an embedded encoding of the binary file. However, we recommend that bina
 possible, since they can be more difficult to process automatically.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import gen_report, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import gen_report, json2md
 
 print(json2md(gen_report()))
 ```
@@ -132,12 +132,18 @@ The `VulnerabilityCase` object is intended to be consistent with the [Case Objec
     data model internally.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import case, json2md, gen_report
+from vultron.wire.as2.vocab.examples.vocab_examples import (
+    add_finder_participant_to_case,
+    add_vendor_participant_to_case,
+    case,
+    gen_report,
+    json2md,
+)
 
 _case = case()
 _case.add_report(gen_report())
-_case.add_participant("https://vultron.example/cases/1/participants/vendor")
-_case.add_participant("https://vultron.example/cases/1/participants/finder")
+_case.add_participant(add_vendor_participant_to_case().as_object)
+_case.add_participant(add_finder_participant_to_case().as_object)
 
 print(json2md(_case))
 ```
@@ -150,7 +156,7 @@ The distinction between *participant-agnostic* and *participant-specific* status
 [Global vs Local](../../topics/process_models/model_interactions/index.md) section.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import case_status, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import case_status, json2md
 
 print(json2md(case_status()))
 ```
@@ -166,7 +172,7 @@ The `CaseParticipant` object also includes a `participantStatus` property that d
 participant's status in the case as it progresses.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import case_participant, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import case_participant, json2md
 
 print(json2md(case_participant()))
 ```
@@ -179,7 +185,7 @@ As noted [above](#casestatus), see the [Global vs Local](../../topics/process_mo
 section for more information about the distinction between *participant-agnostic* and *participant-specific* status.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import participant_status, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import participant_status, json2md
 
 print(json2md(participant_status()))
 ```
@@ -201,7 +207,7 @@ An `EmbargoEvent` object is used to represent the end date and time of an embarg
 It is a specialization of the `as:Event` object.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import embargo_event, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import embargo_event, json2md
 
 print(json2md(embargo_event()))
 ```

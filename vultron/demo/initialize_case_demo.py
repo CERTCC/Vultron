@@ -47,17 +47,27 @@ import sys
 from typing import Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.as_vocab.activities.case import AddReportToCase, CreateCase
-from vultron.as_vocab.activities.case_participant import AddParticipantToCase
-from vultron.as_vocab.activities.report import RmSubmitReport, RmValidateReport
-from vultron.as_vocab.base.objects.activities.transitive import as_Create
-from vultron.as_vocab.objects.case_participant import (
+from vultron.wire.as2.vocab.activities.case import (
+    AddReportToCaseActivity,
+    CreateCaseActivity,
+)
+from vultron.wire.as2.vocab.activities.case_participant import (
+    AddParticipantToCaseActivity,
+)
+from vultron.wire.as2.vocab.activities.report import (
+    RmSubmitReportActivity,
+    RmValidateReportActivity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.objects.case_participant import (
     FinderReporterParticipant,
     VendorParticipant,
 )
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.demo.utils import (
     BASE_URL,
     DataLayerClient,
@@ -85,12 +95,12 @@ def demo_initialize_case(
 
     Steps:
     1. Finder submits a vulnerability report to vendor inbox
-    2. Vendor validates the report (RmValidateReport)
-    3. Vendor explicitly creates a VulnerabilityCase (CreateCase)
+    2. Vendor validates the report (RmValidateReportActivity)
+    3. Vendor explicitly creates a VulnerabilityCase (CreateCaseActivity)
     4. Vendor adds themselves as VendorParticipant (case creator/owner)
-    5. Vendor adds the report to the case (AddReportToCase)
+    5. Vendor adds the report to the case (AddReportToCaseActivity)
     6. Vendor creates a FinderReporterParticipant for the finder
-    7. Vendor adds the finder participant to the case (AddParticipantToCase)
+    7. Vendor adds the finder participant to the case (AddParticipantToCaseActivity)
     8. Final case state is logged
 
     This follows the workflow in docs/howto/activitypub/activities/initialize_case.md.
@@ -109,7 +119,7 @@ def demo_initialize_case(
             name="Remote Code Execution Vulnerability",
         )
         logger.info(f"Created report: {logfmt(report)}")
-        report_offer = RmSubmitReport(
+        report_offer = RmSubmitReportActivity(
             actor=finder.as_id,
             as_object=report,
             to=[vendor.as_id],
@@ -122,7 +132,7 @@ def demo_initialize_case(
         offer = get_offer_from_datalayer(
             client, vendor.as_id, report_offer.as_id
         )
-        validate_activity = RmValidateReport(
+        validate_activity = RmValidateReportActivity(
             actor=vendor.as_id,
             object=offer.as_id,
             content="Confirmed — remote code execution via unsanitized input.",
@@ -136,15 +146,15 @@ def demo_initialize_case(
             content="Tracking the RCE vulnerability in the web framework.",
         )
         logger.info(f"Created case object: {logfmt(case)}")
-        create_case_activity = CreateCase(
+        create_case_activity = CreateCaseActivity(
             actor=vendor.as_id,
             as_object=case,
         )
         post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
         with demo_check("Case stored in data layer"):
             verify_object_stored(client, case.as_id)
-        with demo_check("Case state after CreateCase"):
-            log_case_state(client, case.as_id, "after CreateCase")
+        with demo_check("Case state after CreateCaseActivity"):
+            log_case_state(client, case.as_id, "after CreateCaseActivity")
 
     with demo_step("Step 4: Vendor adds themselves as case participant"):
         vendor_participant = VendorParticipant(
@@ -165,7 +175,7 @@ def demo_initialize_case(
         with demo_check("Vendor participant stored"):
             verify_object_stored(client, vendor_participant.as_id)
 
-        add_vendor_participant_activity = AddParticipantToCase(
+        add_vendor_participant_activity = AddParticipantToCaseActivity(
             actor=vendor.as_id,
             as_object=vendor_participant.as_id,
             target=case.as_id,
@@ -175,7 +185,7 @@ def demo_initialize_case(
         )
         with demo_check("Vendor added to case participant list"):
             vendor_case = log_case_state(
-                client, case.as_id, "after vendor AddParticipantToCase"
+                client, case.as_id, "after vendor AddParticipantToCaseActivity"
             )
             if vendor_case and vendor_participant.as_id not in [
                 (p.as_id if hasattr(p, "as_id") else p)
@@ -183,12 +193,12 @@ def demo_initialize_case(
             ]:
                 raise ValueError(
                     f"Vendor participant '{vendor_participant.as_id}' not found in"
-                    " case after AddParticipantToCase"
+                    " case after AddParticipantToCaseActivity"
                 )
         logger.info("Vendor added as participant to case")
 
     with demo_step("Step 5: Vendor links report to case"):
-        add_report_activity = AddReportToCase(
+        add_report_activity = AddReportToCaseActivity(
             actor=vendor.as_id,
             as_object=report.as_id,
             target=case.as_id,
@@ -196,14 +206,14 @@ def demo_initialize_case(
         post_to_inbox_and_wait(client, vendor.as_id, add_report_activity)
         with demo_check("Report linked to case"):
             updated_case = log_case_state(
-                client, case.as_id, "after AddReportToCase"
+                client, case.as_id, "after AddReportToCaseActivity"
             )
             if updated_case and report.as_id not in [
                 (r.as_id if hasattr(r, "as_id") else r)
                 for r in updated_case.vulnerability_reports
             ]:
                 raise ValueError(
-                    f"Report '{report.as_id}' not found in case after AddReportToCase"
+                    f"Report '{report.as_id}' not found in case after AddReportToCaseActivity"
                 )
 
     with demo_step("Step 6: Vendor creates finder participant"):
@@ -224,7 +234,7 @@ def demo_initialize_case(
             verify_object_stored(client, participant.as_id)
 
     with demo_step("Step 7: Vendor adds finder participant to case"):
-        add_participant_activity = AddParticipantToCase(
+        add_participant_activity = AddParticipantToCaseActivity(
             actor=vendor.as_id,
             as_object=participant.as_id,
             target=case.as_id,
@@ -232,7 +242,7 @@ def demo_initialize_case(
         post_to_inbox_and_wait(client, vendor.as_id, add_participant_activity)
         with demo_check("Finder participant in case participant list"):
             final_case = log_case_state(
-                client, case.as_id, "after AddParticipantToCase"
+                client, case.as_id, "after AddParticipantToCaseActivity"
             )
             if final_case and participant.as_id not in [
                 (p.as_id if hasattr(p, "as_id") else p)
@@ -240,7 +250,7 @@ def demo_initialize_case(
             ]:
                 raise ValueError(
                     f"Participant '{participant.as_id}' not found in case "
-                    "after AddParticipantToCase"
+                    "after AddParticipantToCaseActivity"
                 )
 
     logger.info(

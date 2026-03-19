@@ -1,8 +1,8 @@
 # Vultron ActivityStreams Vocabulary Base Package
 
-::: vultron.as_vocab.base
+::: vultron.wire.as2.vocab.base
 
-::: vultron.as_vocab.base.base
+::: vultron.wire.as2.vocab.base.base
 
 ## Objects
 
@@ -18,24 +18,24 @@
 
 ## Utilities
 
-::: vultron.as_vocab.base.dt_utils
+::: vultron.wire.as2.vocab.base.dt_utils
     options:
         heading_level: 3
 
-::: vultron.as_vocab.base.utils
+::: vultron.wire.as2.vocab.base.utils
     options:
         heading_level: 3
 
 ## Errors
 
-::: vultron.as_vocab.base.errors
+::: vultron.wire.as2.vocab.base.errors
     options:
         heading_level: 3
 
-::: vultron.as_vocab.base.objects.errors
+::: vultron.wire.as2.vocab.base.objects.errors
     options:
         heading_level: 3
 
-::: vultron.as_vocab.base.objects.activities.errors
+::: vultron.wire.as2.vocab.base.objects.activities.errors
     options:
         heading_level: 3

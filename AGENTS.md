@@ -23,12 +23,16 @@ quickly in this repo.
 
 - Read this file and the `specs/` folder first; specs contain testable
   requirements (MUST/SHOULD/MAY).
-- Key architecture: FastAPI inbox → semantic extraction
-  (`vultron/semantic_map.py`) → behavior dispatcher
-  (`vultron/behavior_dispatcher.py`) → registered handler
-  (`vultron/api/v2/backend/handlers.py`).
-- Follow the Handler Protocol: handlers accept a single `DispatchActivity`
-  param, use `@verify_semantics(...)`, and read `dispatchable.payload`.
+- Key architecture: FastAPI inbox → AS2 parser
+  (`vultron/wire/as2/parser.py`) → semantic extraction
+  (`vultron/wire/as2/extractor.py`) → behavior dispatcher
+  (`vultron/core/dispatcher.py`) → use-case callable
+  (`vultron/core/use_cases/`).
+- Follow the Use-Case Protocol: use-case functions accept
+  `event: VultronEvent` and `dl: DataLayer`.  The routing table
+  (`vultron/core/use_cases/use_case_map.py`) maps `MessageSemantics` →
+  callable; semantic type validation is enforced by the dispatcher key lookup,
+  not by a per-handler decorator.
 
 Checklist (edit → validate → commit):
 
@@ -38,39 +42,21 @@ Checklist (edit → validate → commit):
 
 Essential commands (run in zsh):
 
-```bash
-# Format code (pre-commit enforces Black)
-black vultron/ test/
-
-# ⚠️  Run full test-suite — EXACTLY this command, EXACTLY ONCE per cycle
-uv run pytest --tb=short 2>&1 | tail -5
-# The last 5 lines always contain the summary AND any short failure tracebacks.
-# Read the tail output directly. Do NOT re-run with grep, -q, or tail -3/-15.
-
-# Run a specific test file
-uv run pytest test/test_semantic_activity_patterns.py -v
-
-# Run the demo server locally (development/demo)
-uv run uvicorn vultron.api.main:app --host localhost --port 7999 --reload
-```
+See `.github/skills/format-code-run-tests/SKILL.md` for the canonical
+Black and pytest invocation commands (this file contains the exact
+invocation semantics, environment notes, and examples you must follow).
 
 > ⚠️ **STOP — Full test-suite rule (MUST follow)**
 >
-> Run `uv run pytest --tb=short 2>&1 | tail -5` **exactly once** per
-> validation cycle and read its output. Do NOT:
->
-> - Re-run pytest a second time to grep for counts or check pass/fail
-> - Use the `-q` flag (suppresses the summary line in some configurations)
-> - Change `tail -5` to `tail -3` or `tail -15`
-> - Pipe to `grep -E "passed|failed|error"` (the tail already shows this)
->
-> The summary line (`N passed in Xs`) is **always** in the last
-> 5 lines. One run is sufficient for all information you need.
+> Follow the instructions in `.github/skills/format-code-run-tests/SKILL.md`
+> for running the full test-suite exactly once per validation cycle and
+> reading its output. The skill file documents the required single-run
+> invocation and the rationale for the one-run rule.
 
 Quick pointers and gotchas:
 
 - Order matters in `SEMANTICS_ACTIVITY_PATTERNS` (place more specific patterns
-  first).
+  first); patterns live in `vultron/wire/as2/extractor.py`.
 - Always call `rehydrate()` on incoming activities to expand URI references
   before pattern matching.
 - Use `object_to_record()` + `dl.update(id, record)` when persisting Pydantic
@@ -81,10 +67,16 @@ Quick pointers and gotchas:
 Examples (handler & datalayer):
 
 ```python
-@verify_semantics(MessageSemantics.CREATE_REPORT)
-def create_report(dispatchable: DispatchActivity) -> None:
-    payload = dispatchable.payload
-    # rehydrate nested refs, validate, persist via datalayer.update(id, record)
+class CreateReportReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CreateReportReceivedEvent
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> None:
+        # rehydrate nested refs, validate, persist via datalayer.update(id, record)
+        ...
 ```
 
 If making non-trivial architectural changes, draft an ADR in
@@ -158,11 +150,11 @@ explicit approval from the maintainers.
 - Side effects (I/O, persistence, network) MUST be isolated from pure logic
 - **Core modules MUST NOT import from application layer modules** (see
   `specs/code-style.md` CS-05-001)
-  - Core: `behavior_dispatcher.py`, `semantic_map.py`,
-    `semantic_handler_map.py`, `activity_patterns.py`
-  - Application layer: `api/v2/*`
-  - Use lazy imports or shared neutral modules (e.g., `types.py`,
-    `dispatcher_errors.py`) when dependencies exist
+  - Core: `vultron/core/`, `vultron/behavior_dispatcher.py`
+  - Wire layer: `vultron/wire/`
+  - Application layer: `vultron/api/v2/*`
+  - Use shared neutral modules (e.g., `types.py`, `dispatcher_errors.py`)
+    when cross-layer dependencies exist
 
 Avoid tight coupling between layers.
 
@@ -173,12 +165,12 @@ include migration/compatibility notes and tests.
 
 ---
 
-# Agent Guidance for Vultron Implementation
+## Agent Guidance for Vultron Implementation
 
 This document provides guidance to AI agents working on the Vultron codebase.
 It supplements the Copilot instructions with implementation-specific advice.
 
-**Last Updated:** 2026-02-20
+**Last Updated:** 2026-03-10
 
 **For durable design insights**, see the `notes/` directory.
 
@@ -186,22 +178,28 @@ It supplements the Copilot instructions with implementation-specific advice.
 
 ### Semantic Message Processing Pipeline
 
-Vultron processes inbound ActivityStreams activities through a three-stage
+Vultron processes inbound ActivityStreams activities through a four-stage
 pipeline:
 
 1. **Inbox Endpoint** (`vultron/api/v2/routers/actors.py`): FastAPI POST
-   endpoint accepting activities
-2. **Semantic Extraction** (`vultron/semantic_map.py`): Pattern matching on
-   (Activity Type, Object Type) to determine MessageSemantics
-3. **Behavior Dispatch** (`vultron/behavior_dispatcher.py`): Routes to
-   semantic-specific handler functions
+   endpoint accepting activities; returns 202 immediately
+2. **AS2 Parser** (`vultron/wire/as2/parser.py`): Structural validation and
+   deserialization of AS2 JSON
+3. **Semantic Extraction** (`vultron/wire/as2/extractor.py`): Pattern matching
+   on (Activity Type, Object Type) to determine `MessageSemantics`
+4. **Behavior Dispatch** (`vultron/core/dispatcher.py`): Routes to
+   semantic-specific use-case callables via `USE_CASE_MAP`
+   (`vultron/core/use_cases/use_case_map.py`); the `dl: DataLayer` is passed
+   at dispatch time, not at construction time.
 
 **Key constraint:** Semantic extraction uses **ordered pattern matching**. When
-adding patterns to `SEMANTICS_ACTIVITY_PATTERNS`, place more specific patterns
-before general ones.
+adding patterns to `SEMANTICS_ACTIVITY_PATTERNS` in
+`vultron/wire/as2/extractor.py`, place more specific patterns before general
+ones.
 
-See `specs/dispatch-routing.md`, `specs/semantic-extraction.md`, and ADR-0007
-for complete architecture details.
+See `specs/dispatch-routing.md`, `specs/semantic-extraction.md`,
+`docs/adr/0007-use-behavior-dispatcher.md`, and
+`docs/adr/0009-hexagonal-architecture.md` for complete architecture details.
 
 ### Hexagonal Architecture (Ports and Adapters)
 
@@ -217,13 +215,14 @@ and domain types. Rules:
   AS2 types
 - **Core functions take domain types**: the inbound pipeline finishes
   parse → extract before calling into core
-- **Driven adapters injected via ports**: handlers do not call `get_datalayer()`
-  directly (deferred in prototype — see PROTO-06-001)
+- **Driven adapters injected via ports**: handlers receive `dl: DataLayer` as
+  a parameter; they do not call `get_datalayer()` directly
 
 See `notes/architecture-ports-and-adapters.md` for the full architecture
 specification and code patterns. See `notes/architecture-review.md` for the
-current violation inventory (V-01 to V-12) and remediation plan. See
-`specs/architecture.md` for the formal requirements (ARCH-01 to ARCH-08).
+violation inventory (V-01 to V-12, all remediated as of ARCH-CLEANUP).
+See `specs/architecture.md` for formal requirements (ARCH-01 to ARCH-08) and
+`docs/adr/0009-hexagonal-architecture.md` for the decision rationale.
 
 ### Protocol Activity Model
 
@@ -252,26 +251,33 @@ See `notes/activitystreams-semantics.md` for detailed discussion.
 
 ---
 
-### Handler Protocol (MANDATORY)
+### Use-Case Protocol (MANDATORY)
 
-All handler functions MUST:
+All use-case classes MUST:
 
-- Accept single `DispatchActivity` parameter
-- Use `@verify_semantics(MessageSemantics.X)` decorator
-- Be registered in `SEMANTIC_HANDLER_MAP`
-- Access activity data via `dispatchable.payload`
-- Use Pydantic models for type-safe access
+- Follow the `UseCase[Req, Res]` Protocol (`vultron/core/ports/use_case.py`)
+- Accept `(dl: DataLayer, request: XxxReceivedEvent)` in `__init__`
+- Implement `execute() -> None` (or `dict` for trigger use cases)
+- Be registered in `USE_CASE_MAP` (in
+  `vultron/core/use_cases/use_case_map.py`)
+- Use Pydantic models for type-safe access to event fields
 - Follow idempotency best practices
 
 Example:
 
 ```python
-@verify_semantics(MessageSemantics.CREATE_REPORT)
-def create_report(dispatchable: DispatchActivity) -> None:
-    payload = dispatchable.payload
-    # Access validated activity data from payload
-    # Implement business logic
-    # Log state transitions
+class CreateReportReceivedUseCase:
+    def __init__(
+        self, dl: DataLayer, request: CreateReportReceivedEvent
+    ) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> None:
+        # Access validated event fields via self._request
+        # Use self._dl for persistence operations
+        # Log state transitions
+        ...
 ```
 
 Reference: `specs/handler-protocol.md` for complete requirements and
@@ -281,20 +287,23 @@ verification criteria.
 
 The system uses two key registries that MUST stay synchronized:
 
-- `SEMANTIC_HANDLER_MAP` (in `vultron/semantic_handler_map.py`): Maps
-  MessageSemantics → handler functions
-- `SEMANTICS_ACTIVITY_PATTERNS` (in `vultron/semantic_map.py`): Maps
-  MessageSemantics → ActivityPattern objects
+- `USE_CASE_MAP` (in `vultron/core/use_cases/use_case_map.py`): Maps
+  `MessageSemantics` → use-case classes (domain layer)
+- `SEMANTICS_ACTIVITY_PATTERNS` (in `vultron/wire/as2/extractor.py`): Maps
+  `MessageSemantics` → `ActivityPattern` objects (wire layer); all pattern
+  objects are named with a `Pattern` suffix (e.g. `CreateReportPattern`)
 
 When adding new message types:
 
-1. Add enum value to `MessageSemantics` in `vultron/enums.py`
-2. Define ActivityPattern in `vultron/activity_patterns.py`
+1. Add enum value to `MessageSemantics` in `vultron/core/models/events.py`
+   (re-exported via `vultron/enums.py` for compatibility)
+2. Define `ActivityPattern` named `<Type>Pattern` in `vultron/wire/as2/extractor.py`
 3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in correct order (specific
    before general)
-4. Implement handler in `vultron/api/v2/backend/handlers.py`
-5. Register handler in `SEMANTIC_HANDLER_MAP`
-6. Add tests verifying pattern matching and handler invocation
+4. Implement use-case class in `vultron/core/use_cases/`
+5. Register use case in `USE_CASE_MAP` in
+   `vultron/core/use_cases/use_case_map.py`
+6. Add tests verifying pattern matching and use-case invocation
 
 ### Layer Separation (MUST)
 
@@ -302,8 +311,10 @@ When adding new message types:
   immediately to backend
 - **Backend** (`vultron/api/v2/backend/`): Business logic; no direct HTTP
   concerns
-- **Data Layer** (`vultron/api/v2/datalayer/`): Persistence abstraction; use
-  Protocol interface
+- **Data Layer port** (`vultron/core/ports/datalayer.py`): `DataLayer`
+  Protocol definition; use this for imports in core and handlers
+- **Data Layer adapter** (`vultron/api/v2/datalayer/`): TinyDB implementation;
+  `abc.py` is a backward-compat shim re-exporting from `core/ports/`
 
 Never bypass layer boundaries. Routers should never directly access data layer;
 always go through backend.
@@ -366,35 +377,53 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 ### Naming Conventions
 
 - **ActivityStreams types**: Use `as_` prefix (e.g., `as_Activity`, `as_Actor`,
-  `as_type`)
+  `as_type`) — in the wire layer (`vultron/wire/as2/`) only
+- **Core domain models**: Do NOT use `as_` prefix; for reserved-word field
+  name conflicts use a trailing underscore + Pydantic alias
+  (e.g., `object_: str = Field(alias="object")`). See CS-07-002.
+- **Domain class names**: Use CVD-domain vocabulary, not wire-format parallels
+  (e.g., `CaseTransferOffer` not `VultronOffer`). See CS-12-001.
 - **Vulnerability**: Abbreviated as `vul` (not `vuln`)
 - **Handler functions**: Named after semantic action (e.g., `create_report`,
   `accept_invite_actor_to_case`)
+- **Handler use cases** (processing received messages): Use `Received` suffix
+  (e.g., `CreateReportReceivedUseCase`). See CS-12-002.
+- **Trigger use cases** (actor-initiated actions): Use `Svc` prefix
+  (e.g., `SvcEngageCaseUseCase`). See CS-12-002.
+- **Trigger service functions** in `trigger_services/`: Use a `_trigger`
+  **suffix** (not an `svc_` prefix). For example: `engage_case_trigger`
+  not `svc_engage_case`. The `Svc` prefix is reserved for use-case class
+  names only.
 - **Pattern objects**: Descriptive CamelCase (e.g., `CreateReport`,
   `AcceptInviteToEmbargoOnCase`)
 
 ### Validation and Type Safety
 
-- Prefer explicit types over inference
+- Prefer explicit types over inference; avoid `Any` (see CS-11-001)
 - Use `pydantic.BaseModel` (v2 style) for all structured data
 - Never bypass validation for convenience
 - Use Protocol for interface definitions
 - Avoid global mutable state
+- **Fail-fast domain objects**: Domain events and models MUST validate
+  required fields at construction and fail immediately on missing invariants.
+  Fields that are required for a specific event subtype MUST NOT be typed
+  as `X | None` in that subtype. Subclasses SHOULD narrow optional parent
+  fields to required. See `specs/architecture.md` ARCH-10-001.
 - **Optional string fields MUST follow "if present, then non-empty"**:
   `Optional[str]` fields MUST reject empty strings. Use the shared
   `NonEmptyString` or `OptionalNonEmptyString` type alias from
-  `vultron/as_vocab/base/` when it exists (CS-08-002), or a field validator
-  that raises `ValueError` for `""` if the type alias is not yet available.
-  This pattern also applies to JSON Schemas derived from Pydantic models
-  (`minLength: 1`). See `specs/code-style.md` CS-08-001, CS-08-002.
+  `vultron/wire/as2/vocab/base/` when it exists (CS-08-002), or a field
+  validator that raises `ValueError` for `""` if the type alias is not yet
+  available. This pattern also applies to JSON Schemas derived from Pydantic
+  models (`minLength: 1`). See `specs/code-style.md` CS-08-001, CS-08-002.
   **Do NOT** add a new per-field `@field_validator` stub for empty-string
   rejection; instead, use or extend the shared type alias.
 
 ### Decorator Usage
 
-- Handler functions MUST use `@verify_semantics(MessageSemantics.X)`
-- Decorator verifies semantic type matches actual activity structure
-- Raises `VultronApiHandlerSemanticMismatchError` on mismatch
+- Semantic type validation is performed at dispatch time by the `USE_CASE_MAP`
+  key lookup in `vultron/core/dispatcher.py`
+- Unrecognised semantic types raise `VultronApiHandlerNotFoundError`
 
 ### Code Organization
 
@@ -409,7 +438,7 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 - Exceptions: Tables, code blocks, long URLs, or other formatting that requires
   it
 - Use `markdownlint-cli2` for linting markdown files; see Miscellaneous tips
-  for the correct commands (default config ignores `AGENTS.md` and `specs/**`)
+  for the correct commands
 - Break long sentences at natural points (after commas, conjunctions, etc.)
 - Keep list items and paragraphs readable and well-formatted
 
@@ -539,8 +568,8 @@ don't exercise the actual code paths.
 
 When implementing handler business logic, tests MUST verify:
 
-- Correct semantic type validation via decorator
-- Payload access via `dispatchable.payload`
+- Correct semantic type validation at dispatch time via `USE_CASE_MAP` key lookup
+- Payload access via `request` parameter on the use-case class
 - State transitions persisted correctly
 - Response activities generated (when implemented)
 - Error conditions handled appropriately
@@ -557,48 +586,65 @@ behavior across backends (in-memory / tinydb) where reasonable.
 
 ### Adding a New Message Type
 
-1. Add `MessageSemantics` enum value in `vultron/enums.py`
-2. Define `ActivityPattern` in `vultron/activity_patterns.py`
-3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in `vultron/semantic_map.py`
-   (order matters!)
-4. Implement handler function in `vultron/api/v2/backend/handlers.py`:
-   - Use `@verify_semantics(MessageSemantics.NEW_TYPE)` decorator
-   - Accept `dispatchable: DispatchActivity` parameter
-   - Access data via `dispatchable.payload`
-5. Register in `SEMANTIC_HANDLER_MAP` in `vultron/semantic_handler_map.py`
+1. Add `MessageSemantics` enum value in `vultron/core/models/events.py`
+2. Define an `ActivityPattern` named `<TypeName>Pattern` in
+   `vultron/wire/as2/extractor.py`
+3. Add pattern to `SEMANTICS_ACTIVITY_PATTERNS` in
+   `vultron/wire/as2/extractor.py` (order matters — specific before general)
+4. Implement a use-case class in `vultron/core/use_cases/`:
+   - Follow `UseCase[Req, Res]` Protocol; accept `(dl, request)` in `__init__`
+   - Implement `execute() -> None`
+5. Register in `USE_CASE_MAP` in
+   `vultron/core/use_cases/use_case_map.py`
 6. Add tests:
    - Pattern matching in `test/test_semantic_activity_patterns.py`
-   - Handler registration in `test/test_semantic_handler_map.py`
-   - Handler behavior in `test/api/v2/backend/test_handlers.py`
+   - Routing coverage in `test/test_semantic_handler_map.py`
+   - Use-case logic in `test/core/use_cases/` or `test/api/v2/backend/test_handlers.py`
 
 ### Key Files Map
 
-- **Enums**: `vultron/enums.py` - All enum types including MessageSemantics
-- **Patterns**: `vultron/activity_patterns.py` - Pattern definitions
-- **Pattern Map**: `vultron/semantic_map.py` - Semantics → Pattern mapping
-- **Handlers**: `vultron/api/v2/backend/handlers.py` - Handler implementations
-- **Handler Map**: `vultron/semantic_handler_map.py` - Semantics → Handler
-  mapping
-- **Dispatcher**: `vultron/behavior_dispatcher.py` - Dispatch logic
+- **Enums**: `vultron/enums.py` - Re-exports `MessageSemantics` plus
+  `OfferStatusEnum`, `VultronObjectType`; `MessageSemantics` is defined in
+  `vultron/core/models/events.py`
+- **Patterns**: `vultron/wire/as2/extractor.py` - `ActivityPattern`
+  definitions (all named `*Pattern`) and `SEMANTICS_ACTIVITY_PATTERNS` dict
+  (sole AS2→domain mapping point)
+- **Pattern Map**: `vultron/wire/as2/extractor.py` - `find_matching_semantics()`
+- **Use Cases**: `vultron/core/use_cases/` - Domain use-case callables;
+  accept `(event: VultronEvent, dl: DataLayer) -> None`
+- **Use-Case Map**: `vultron/core/use_cases/use_case_map.py` - `USE_CASE_MAP`
+  authoritative routing table `MessageSemantics` → use-case callable
+- **Dispatcher Port**: `vultron/core/ports/dispatcher.py` - `ActivityDispatcher`
+  Protocol (dispatch signature: `dispatch(event, dl)`)
+- **Dispatcher**: `vultron/core/dispatcher.py` - `DispatcherBase`,
+  `DirectActivityDispatcher`, `get_dispatcher` factory
+- **Handler shims**: `vultron/api/v2/backend/handlers/` - removed in PREPX-2;
 - **Inbox**: `vultron/api/v2/routers/actors.py` - Endpoint implementation
-- **Triggers**: `vultron/api/v2/routers/triggers.py` - Triggerable behavior
-  endpoints (`POST /actors/{id}/trigger/{behavior-name}`); see
+- **Triggers**: `vultron/api/v2/routers/trigger_report.py`,
+  `trigger_case.py`, `trigger_embargo.py` - Triggerable behavior endpoints
+  (`POST /actors/{id}/trigger/{behavior-name}`); see
   `specs/triggerable-behaviors.md`
+- **Trigger Services**: `vultron/api/v2/backend/trigger_services/` - Domain
+  service layer for trigger endpoints
 - **Errors**: `vultron/errors.py`, `vultron/api/v2/errors.py` - Exception
   hierarchy
-- **Data Layer**: `vultron/api/v2/datalayer/abc.py` - Persistence abstraction
+- **Data Layer**: `vultron/core/ports/datalayer.py` - `DataLayer` Protocol
+  (port); `vultron/api/v2/datalayer/abc.py` is a backward-compat re-export shim
 - **TinyDB Backend**: `vultron/api/v2/datalayer/tinydb.py` - TinyDB
   implementation
-- **BT Bridge**: `vultron/behaviors/bridge.py` - Handler-to-BT execution adapter
-- **BT Helpers**: `vultron/behaviors/helpers.py` - DataLayer-aware BT nodes
-- **BT Report**: `vultron/behaviors/report/` - Report validation tree and nodes
-- **BT Prioritize**: `vultron/behaviors/report/prioritize_tree.py` -
+- **BT Bridge**: `vultron/core/behaviors/bridge.py` - Handler-to-BT execution
+  adapter
+- **BT Helpers**: `vultron/core/behaviors/helpers.py` - DataLayer-aware BT
+  nodes
+- **BT Report**: `vultron/core/behaviors/report/` - Report validation tree and
+  nodes
+- **BT Prioritize**: `vultron/core/behaviors/report/prioritize_tree.py` -
   engage_case/defer_case trees
-- **BT Case**: `vultron/behaviors/case/` - Case creation tree and nodes
-- **Case Event Log**: `vultron/as_vocab/objects/case_event.py` -
+- **BT Case**: `vultron/core/behaviors/case/` - Case creation tree and nodes
+- **Case Event Log**: `vultron/wire/as2/vocab/objects/case_event.py` -
   `CaseEvent` Pydantic model for trusted-timestamp event logging; use
   `VulnerabilityCase.record_event(object_id, event_type)` to append entries
-- **Vocabulary Examples**: `vultron/as_vocab/examples/` - Canonical
+- **Vocabulary Examples**: `vultron/wire/as2/vocab/examples/` - Canonical
   ActivityStreams activity examples (split into submodules by topic:
   `actor.py`, `case.py`, `embargo.py`, `note.py`, `participant.py`,
   `report.py`, `status.py`); use as reference for message semantics
@@ -650,22 +696,18 @@ to relevant tests and design notes.
 
 ### Commit Workflow
 
-**BEFORE committing**, agents MUST run Black then the full test suite exactly
-once, in this order:
-
-```bash
-black vultron/ test/
-uv run pytest --tb=short 2>&1 | tail -5
-git add -A && git commit -m "..."
-```
+**BEFORE committing**, agents MUST follow the procedure documented in
+`.github/skills/format-code-run-tests/SKILL.md` (format first, then run the
+test-suite exactly once, then commit). The skill file contains the exact
+commands and the required invocation order.
 
 **Why this order matters**:
 
 1. Black formatting is enforced by pre-commit hooks — format first to avoid a
    failed commit → re-stage → re-commit cycle.
-2. The test suite must pass before committing — read the `tail -5` output
-   directly for the summary line (e.g. `486 passed in 35s`).
-   Do NOT re-run pytest to grep for counts. Run it **once** and read the tail.
+2. The test suite must pass before committing — read the single-run test
+   output as documented in the skill file (the skill explains how to capture
+   the summary line and why you must not re-run pytest to grep for counts).
 
 **When to run Black**:
 
@@ -787,7 +829,7 @@ See `specs/code-style.md` CS-05-* for requirements.
 **Primary Solution**: Use rehydration before pattern matching:
 
 ```python
-from vultron.api.v2.data.rehydration import rehydrate
+from vultron.wire.as2.rehydration import rehydrate
 
 # Rehydrate converts string URIs to full objects from data layer
 activity = rehydrate(activity)
@@ -807,7 +849,7 @@ return pattern == getattr(field, "as_type", None)
 dispatching, so handlers receive fully expanded objects.
 
 See `specs/semantic-extraction.md` SE-01-002 and
-`vultron/api/v2/data/rehydration.py` for details.
+`vultron/wire/as2/rehydration.py` for details.
 
 ### Test Data Quality
 
@@ -815,7 +857,7 @@ See `specs/semantic-extraction.md` SE-01-002 and
 
 ```python
 activity = as_Create(actor="alice", object="report-1")  # Bad: strings
-dispatchable = DispatchActivity(semantic_type=MessageSemantics.UNKNOWN, ...)  # Bad: wrong semantic
+event = CreateReportReceivedEvent(semantic_type=MessageSemantics.UNKNOWN, ...)  # Bad: wrong semantic
 ```
 
 **Best practice**:
@@ -823,7 +865,7 @@ dispatchable = DispatchActivity(semantic_type=MessageSemantics.UNKNOWN, ...)  # 
 ```python
 report = VulnerabilityReport(name="TEST-001", content="...")  # Good: proper object
 activity = as_Create(actor="https://example.org/alice", object=report)  # Good: full structure
-dispatchable = DispatchActivity(semantic_type=MessageSemantics.CREATE_REPORT, ...)  # Good: matches structure
+event = CreateReportReceivedEvent(semantic_type=MessageSemantics.CREATE_REPORT, ...)  # Good: matches structure
 ```
 
 See `specs/testability.md` TB-05-004, TB-05-005 for requirements.
@@ -864,7 +906,7 @@ define one and reuse it. If a new model adds one field to an existing model,
 subclass the existing model. See `specs/code-style.md` CS-09-002.
 
 **`EvaluateCasePriority` is outgoing-only**: This BT node (in
-`vultron/behaviors/report/nodes.py`) is for the **local actor deciding** to
+`vultron/core/behaviors/report/nodes.py`) is for the **local actor deciding** to
 engage or defer a case. Receive-side trees (`EngageCaseBT`, `DeferCaseBT`)
 do **not** use it — they only record the **sender's already-made decision** by
 updating the sender's `CaseParticipant.participant_status[].rm_state`.
@@ -944,6 +986,7 @@ start, not application readiness
 **Solutions**:
 
 1. Add health check to API service in docker-compose.yml:
+
    ```yaml
    api-dev:
      healthcheck:
@@ -952,14 +995,18 @@ start, not application readiness
        timeout: 5s
        retries: 15
    ```
+
 2. Update dependent service to use `condition: service_healthy`:
+
    ```yaml
    demo:
      depends_on:
        api-dev:
          condition: service_healthy
    ```
+
 3. Implement retry logic in client code (defense in depth):
+
    ```python
    def check_server_availability(url, max_retries=30, retry_delay=1.0):
        for attempt in range(max_retries):
@@ -1204,24 +1251,9 @@ implementing.
 
 Do not use `black` to format markdown files, it is for python files only.
 Use `markdownlint-cli2` for linting markdown. The default config
-(`.markdownlint-cli2.yaml`) ignores `AGENTS.md` and `specs/**`. To lint those
-files, run markdownlint from outside the repo using the strict config, which
-has the same rules but no ignores:
-
-```bash
-# Lint docs/ with the default config (ignores AGENTS.md and specs/**)
-markdownlint-cli2 "docs/**/*.md" --fix
-
-# Lint AGENTS.md and specs/** — must run from /tmp to bypass local config discovery
-REPO=$(git rev-parse --show-toplevel)
-cd /tmp && markdownlint-cli2 \
-  --config "${REPO}/strict.markdownlint-cli2.yaml" \
-  "${REPO}/AGENTS.md" \
-  "${REPO}/specs/**/*.md" --fix
-```
-
-The `strict.markdownlint-cli2.yaml` file at the repo root contains the same
-rules as the default config with the `ignores` block removed.
+(`.markdownlint-cli2.yaml`) ignores only `wip_notes/**`.
+All other directories (`specs/`, `notes/`, `docs/`, `plan/`) are linted
+by the default config.
 
 ### Docs links must be relative
 

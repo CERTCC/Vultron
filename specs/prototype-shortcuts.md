@@ -56,8 +56,8 @@ and Python stack candidates.
     Vulnerability Categorization) or an equivalent tool that evaluates report
     content and context to produce an engage/defer decision.
   - The `PrioritizationPolicy` interface in
-    `vultron/behaviors/report/policy.py` and the `EvaluateCasePriority` BT
-    node in `vultron/behaviors/report/nodes.py` provide the hook point for
+    `vultron/core/behaviors/report/policy.py` and the `EvaluateCasePriority` BT
+    node in `vultron/core/behaviors/report/nodes.py` provide the hook point for
     this integration.
   - Note: RM is a **participant-specific** state machine. Each
     `CaseParticipant` (actor-in-case wrapper) carries its own RM state in
@@ -76,5 +76,30 @@ and Python stack candidates.
     (`from_activitystreams`, `to_activitystreams`) at the protocol boundary
   - PROTO-06-001 constrains CM-08-001
   - PROTO-06-001 constrains CM-08-002
-  - See `notes/domain-model-separation.md` for design rationale, known constraints of the current approach, and recommended migration steps
+  - See `notes/domain-model-separation.md` for design rationale, known
+    constraints of the current approach, and recommended migration steps
 
+  **Design Note**: As the hexagonal architecture refactor progresses, the
+  boundary between AS2 wire types and core domain types is becoming more
+  concrete. The emerging use-cases-as-core-ports pattern (see
+  `notes/use-case-behavior-trees.md` and
+  `notes/architecture-ports-and-adapters.md`) may make full AS2 inheritance
+  in domain objects untenable sooner than originally anticipated.
+  If a `core/use_cases/` layer is formalized (post-P60), it will likely
+  require domain objects free of AS2 inheritance. This shortcut SHOULD be
+  revisited when stubbing `core/use_cases/` in P60-3.
+
+## Performance Testing (MAY)
+
+- `PROTO-07-001` `PROD_ONLY` Performance tests and performance assertions MAY
+  be skipped or marked as expected failures during the prototype stage
+  - The project is currently in the "make it work" and "make it work right"
+    phases; performance optimization is premature
+  - Existing tests that include performance assertions SHOULD be marked
+    `@pytest.mark.skip` or `@pytest.mark.xfail` if they risk false failures
+    without being critical for correctness verification
+  - All performance requirements in other specs MUST carry the `PROD_ONLY`
+    tag; do not add new performance requirements without this tag during the
+    prototype stage
+  - **Rationale**: Premature performance work distracts from correctness
+    and architectural clarity; defer until exiting the prototype phase

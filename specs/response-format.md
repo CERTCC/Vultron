@@ -47,8 +47,8 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
   - RF-04-001 implements VP-06-004
 - `RF-04-002` TentativeReject responses SHOULD include reason in `content` field
 - `RF-04-003` Tentatively Rejecting an Offer of an object MUST reference the Offer activity in the `object` field of the TentativeReject response
-- `RF-04-004` When tentatively rejecting an offered object, the `object` field 
-  of the `Tentative Reject` activity MUST reference the Offer activity itself, 
+- `RF-04-004` When tentatively rejecting an offered object, the `object` field
+  of the `Tentative Reject` activity MUST reference the Offer activity itself,
   not the underlying object being offered
   - Downstream processing SHOULD rehydrate the referenced Offer to discover
     the underlying offered object
@@ -107,7 +107,6 @@ The Vultron protocol uses ActivityStreams activities for both requests and respo
 - Integration test: Reject response delivered with reason
 - Unit test: `AcceptActorRecommendation` / `RejectActorRecommendation` `object`
   references `RecommendActor` (Offer), not the actor ref itself
-
 
 ### RF-04-001, RF-04-002 Verification
 

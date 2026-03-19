@@ -14,7 +14,7 @@
 import unittest
 from typing import Sequence
 
-from vultron.bt.report_management.states import (
+from vultron.core.states.rm import (
     RM,
     RM_ACTIVE,
     RM_CLOSABLE,

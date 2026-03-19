@@ -49,9 +49,10 @@ class MyTestCase(unittest.TestCase):
         self.assertIs(MessageTypes.EP, MessageTypes.EmbargoProposal)
         self.assertIs(MessageTypes.ER, MessageTypes.EmbargoRejected)
         self.assertIs(MessageTypes.EA, MessageTypes.EmbargoAccepted)
-        self.assertIs(MessageTypes.EV, MessageTypes.EmbargoRevisionProposal)
-        self.assertIs(MessageTypes.EJ, MessageTypes.EmbargoRevisionRejected)
-        self.assertIs(MessageTypes.EC, MessageTypes.EmbargoRevisionAccepted)
+        # EV, EJ, EC are aliases for EP, ER, EA — embargo revision uses the same message codes
+        self.assertIs(MessageTypes.EV, MessageTypes.EP)
+        self.assertIs(MessageTypes.EJ, MessageTypes.ER)
+        self.assertIs(MessageTypes.EC, MessageTypes.EA)
         self.assertIs(MessageTypes.ET, MessageTypes.EmbargoTerminated)
         self.assertIs(MessageTypes.EK, MessageTypes.EmbargoManagementAck)
         self.assertIs(MessageTypes.EE, MessageTypes.EmbargoManagementError)

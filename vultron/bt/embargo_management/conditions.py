@@ -19,7 +19,7 @@ from typing import Type
 from vultron.bt.base.bt_node import ConditionCheck
 from vultron.bt.base.factory import fallback_node
 from vultron.bt.common import show_graph, state_in
-from vultron.bt.embargo_management.states import EM
+from vultron.core.states.em import EM
 
 
 def em_state_in(state: EM) -> Type[ConditionCheck]:

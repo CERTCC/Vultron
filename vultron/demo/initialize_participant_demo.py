@@ -45,19 +45,27 @@ import sys
 from typing import Optional, Sequence, Tuple
 
 # Vultron imports
-from vultron.as_vocab.activities.case import AddReportToCase, CreateCase
-from vultron.as_vocab.activities.case_participant import (
-    AddParticipantToCase,
-    CreateParticipant,
+from vultron.wire.as2.vocab.activities.case import (
+    AddReportToCaseActivity,
+    CreateCaseActivity,
 )
-from vultron.as_vocab.activities.report import RmSubmitReport, RmValidateReport
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.case_participant import (
+from vultron.wire.as2.vocab.activities.case_participant import (
+    AddParticipantToCaseActivity,
+    CreateParticipantActivity,
+)
+from vultron.wire.as2.vocab.activities.report import (
+    RmSubmitReportActivity,
+    RmValidateReportActivity,
+)
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import (
     CoordinatorParticipant,
     FinderReporterParticipant,
 )
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.demo.utils import (
     BASE_URL,
     DataLayerClient,
@@ -97,7 +105,7 @@ def setup_case_precondition(
         content="An integer overflow vulnerability in the network stack.",
         name="Integer Overflow in Network Stack",
     )
-    report_offer = RmSubmitReport(
+    report_offer = RmSubmitReportActivity(
         actor=finder.as_id,
         as_object=report,
         to=[vendor.as_id],
@@ -105,7 +113,7 @@ def setup_case_precondition(
     post_to_inbox_and_wait(client, vendor.as_id, report_offer)
 
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
-    validate_activity = RmValidateReport(
+    validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
         object=offer.as_id,
         content="Confirmed — integer overflow via crafted packet.",
@@ -117,13 +125,13 @@ def setup_case_precondition(
         name="Integer Overflow Case — Network Stack",
         content="Tracking the integer overflow vulnerability in the network stack.",
     )
-    create_case_activity = CreateCase(
+    create_case_activity = CreateCaseActivity(
         actor=vendor.as_id,
         as_object=case,
     )
     post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
 
-    add_report_activity = AddReportToCase(
+    add_report_activity = AddReportToCaseActivity(
         actor=vendor.as_id,
         as_object=report.as_id,
         target=case.as_id,
@@ -182,7 +190,7 @@ def demo_initialize_participant(
         logger.info(
             f"Created coordinator participant: {logfmt(coordinator_participant)}"
         )
-        create_coordinator_participant = CreateParticipant(
+        create_coordinator_participant = CreateParticipantActivity(
             actor=vendor.as_id,
             as_object=coordinator_participant,
             context=case.as_id,
@@ -194,7 +202,7 @@ def demo_initialize_participant(
             verify_object_stored(client, coordinator_participant.as_id)
 
     with demo_step("Step 2: Vendor adds coordinator participant to case"):
-        add_coordinator_participant = AddParticipantToCase(
+        add_coordinator_participant = AddParticipantToCaseActivity(
             actor=vendor.as_id,
             as_object=coordinator_participant.as_id,
             target=case.as_id,
@@ -204,7 +212,9 @@ def demo_initialize_participant(
         )
         with demo_check("Coordinator participant added to case"):
             updated_case = log_case_state(
-                client, case.as_id, "after coordinator AddParticipantToCase"
+                client,
+                case.as_id,
+                "after coordinator AddParticipantToCaseActivity",
             )
             if updated_case and coordinator_participant.as_id not in [
                 (p.as_id if hasattr(p, "as_id") else p)
@@ -212,7 +222,7 @@ def demo_initialize_participant(
             ]:
                 raise ValueError(
                     f"Coordinator participant '{coordinator_participant.as_id}'"
-                    " not found in case after AddParticipantToCase"
+                    " not found in case after AddParticipantToCaseActivity"
                 )
         logger.info("Coordinator added as participant to case")
 
@@ -226,7 +236,7 @@ def demo_initialize_participant(
         logger.info(
             f"Created finder participant: {logfmt(finder_participant)}"
         )
-        create_finder_participant = CreateParticipant(
+        create_finder_participant = CreateParticipantActivity(
             actor=vendor.as_id,
             as_object=finder_participant,
             context=case.as_id,
@@ -236,7 +246,7 @@ def demo_initialize_participant(
             verify_object_stored(client, finder_participant.as_id)
 
     with demo_step("Step 4: Vendor adds finder participant to case"):
-        add_finder_participant = AddParticipantToCase(
+        add_finder_participant = AddParticipantToCaseActivity(
             actor=vendor.as_id,
             as_object=finder_participant.as_id,
             target=case.as_id,
@@ -244,7 +254,7 @@ def demo_initialize_participant(
         post_to_inbox_and_wait(client, vendor.as_id, add_finder_participant)
         with demo_check("Finder participant added to case"):
             final_case = log_case_state(
-                client, case.as_id, "after finder AddParticipantToCase"
+                client, case.as_id, "after finder AddParticipantToCaseActivity"
             )
             if final_case and finder_participant.as_id not in [
                 (p.as_id if hasattr(p, "as_id") else p)
@@ -252,7 +262,7 @@ def demo_initialize_participant(
             ]:
                 raise ValueError(
                     f"Finder participant '{finder_participant.as_id}' not found"
-                    " in case after AddParticipantToCase"
+                    " in case after AddParticipantToCaseActivity"
                 )
         logger.info("Finder added as participant to case")
 

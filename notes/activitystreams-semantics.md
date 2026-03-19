@@ -125,8 +125,8 @@ The examples MUST be kept up to date as the vocabulary evolves. When adding a
 new vocabulary type or message semantic, add a corresponding example to
 `vocab_examples.py`.
 
-**Cross-references**: `vultron/activity_patterns.py`, `vultron/enums.py`,
-`vultron/as_vocab/`.
+**Cross-references**: `vultron/wire/as2/extractor.py`,
+`vultron/core/models/events.py`, `vultron/wire/as2/vocab/`.
 
 ---
 
@@ -171,14 +171,14 @@ receive fully expanded objects. However, when calling `find_matching_semantics`
 outside of the dispatch pipeline, call `rehydrate()` explicitly:
 
 ```python
-from vultron.api.v2.data.rehydration import rehydrate
+from vultron.wire.as2.rehydration import rehydrate
 
 activity = rehydrate(activity)
 semantic = find_matching_semantics(activity)
 ```
 
 **References**: `specs/semantic-extraction.md` SE-01-002,
-`vultron/api/v2/data/rehydration.py`.
+`vultron/wire/as2/rehydration.py`.
 
 ---
 

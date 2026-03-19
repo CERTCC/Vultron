@@ -61,6 +61,20 @@ interfaces that support agentic workflows.
 - `AR-06-001` `PROD_ONLY` Resources that agents may need to create, update, or
   delete in quantity MAY expose batch endpoints (e.g., `POST /v1/items/batch`)
 
+## Actor Discovery Profile (MUST)
+
+- `AR-10-001` The API MUST expose `GET /actors/{actor_id}/profile` returning an
+  ActivityStreams actor profile document for actor discovery and federation
+  - Response MUST include `id`, `type`, `inbox`, and `outbox` fields
+  - `inbox` and `outbox` MUST be `OrderedCollection` objects whose `id`
+    field is a resolvable URL
+  - Optional profile fields (`name`, `preferredUsername`, `url`, `icon`,
+    `image`, `summary`) SHOULD be included when present on the actor
+- `AR-10-002` The profile endpoint MUST return HTTP 404 when the actor is not
+  found
+- `AR-10-003` The profile endpoint MUST support both full actor URI and short
+  actor ID (e.g., `vendorco`) as the `actor_id` path parameter
+
 ## CVD Action Rules API (SHOULD)
 
 - `AR-07-001` The system SHOULD expose an endpoint that returns the set of
@@ -92,6 +106,35 @@ interfaces that support agentic workflows.
   field and `request_id` from API error responses in their JSON error output
 - `AR-08-005` `PROD_ONLY` Long-running CLI commands SHOULD support `--wait` / `--no-wait`
   flags; `--no-wait` returns the job object immediately
+
+## MCP Server Adapter (MAY)
+
+The Model Context Protocol (MCP) server is a driving adapter that exposes the
+Vultron core to AI agent tool calls. Like the CLI and HTTP inbox, the MCP
+server translates external requests into domain use-case invocations without
+containing domain logic.
+
+**Note**: These requirements are later-prototype items, not production-only.
+They become relevant once `vultron/core/use_cases/` is formalized (P60-3+).
+They are not tagged `PROD_ONLY` because the MCP adapter is a natural extension
+of the hexagonal architecture that will be valuable even in prototype-stage
+multi-actor scenarios.
+
+- `AR-09-001` A local MCP server adapter MAY be provided at
+  `vultron/adapters/driving/mcp_server.py`, exposing Vultron use cases as MCP
+  tools
+- `AR-09-002` Each MCP tool MUST map 1:1 to a domain use case in
+  `vultron/core/use_cases/`, with no business logic in the adapter itself
+- `AR-09-003` `PROD_ONLY` The MCP server MUST authenticate tool calls using the
+  same actor identity model as the HTTP inbox
+- `AR-09-004` MCP tool responses MUST use the same structured JSON format as
+  CLI `--output json` responses, enabling consistent AI agent parsing
+
+The MCP adapter is architecturally equivalent to the CLI adapter: both are
+driving adapters that invoke the same core use cases. The MCP server allows AI
+agents to use Vultron as a tool in automated vulnerability coordination
+workflows. See `notes/architecture-ports-and-adapters.md` (Adapter Categories,
+Driving Adapters) for the architecture context.
 
 ## Verification
 
@@ -134,6 +177,14 @@ interfaces that support agentic workflows.
 - Integration test: `GET /actors/{case_actor_id}/action-rules?participant={id}`
   returns JSON with `role`, state fields, and `actions` list
 - Unit test: Action list changes when RM/EM state transitions occur
+
+### AR-10-001, AR-10-002, AR-10-003 Verification
+
+- Unit test: `GET /actors/{actor_id}/profile` returns 200 with `id`, `type`,
+  `inbox`, and `outbox` fields (`test_get_actor_profile_returns_discovery_fields`)
+- Unit test: `GET /actors/{nonexistent}/profile` returns 404
+  (`test_get_actor_profile_not_found_returns_404`)
+- Unit test: Short actor ID resolves to full profile via `find_actor_by_short_id`
 
 ## Related
 

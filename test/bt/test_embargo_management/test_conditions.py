@@ -17,7 +17,7 @@ import unittest
 
 import vultron.bt.embargo_management.conditions as emc
 from vultron.bt.base.node_status import NodeStatus
-from vultron.bt.embargo_management.states import EM
+from vultron.core.states.em import EM
 
 
 class MockState:

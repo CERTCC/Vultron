@@ -25,7 +25,7 @@ from vultron.bt.behaviors import CvdProtocolBt, CvdProtocolRoot, STATELOG
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.behaviors import incoming_message
 from vultron.bt.messaging.inbound.fuzzer import generate_inbound_message
-from vultron.bt.roles.states import CVDRoles
+from vultron.core.states.roles import CVDRoles
 
 logger = logging.getLogger(__name__)
 

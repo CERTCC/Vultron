@@ -13,19 +13,7 @@
 
 import pytest
 
-from vultron.api.v2.data import utils, actor_io
-
-
-@pytest.fixture(autouse=True)
-def test_base_url(monkeypatch):
-    """
-    Provide a stable BASE_URL for tests; original tests used a fixture with
-    this name so we keep the same name to avoid changing test signatures.
-    """
-    base_url = "https://test.vultron.local/"
-    monkeypatch.setattr(utils, "BASE_URL", base_url)
-    return base_url
-
+from vultron.api.v2.data import actor_io
 
 # @pytest.fixture
 # def ds():

@@ -18,7 +18,7 @@ Provides the transitions between states in the q_rm state machine
 from typing import Sequence
 
 from vultron.bt.common import EnumStateTransition, state_change
-from vultron.bt.report_management.states import RM
+from vultron.core.states.rm import RM
 
 
 class RmTransition(EnumStateTransition):

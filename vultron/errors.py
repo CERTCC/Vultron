@@ -19,3 +19,64 @@ The `vultron.errors` module provides exceptions for Vultron
 
 class VultronError(Exception):
     """Base class for all Vultron exceptions"""
+
+
+class VultronNotFoundError(VultronError):
+    """Raised when a requested resource cannot be found."""
+
+    def __init__(self, resource_type: str, resource_id: str):
+        self.resource_type = resource_type
+        self.resource_id = resource_id
+        super().__init__(f"{resource_type} '{resource_id}' not found.")
+
+
+class VultronConflictError(VultronError):
+    """Raised when an operation conflicts with current resource state."""
+
+    def __init__(self, message: str, activity_id: str | None = None):
+        self.activity_id = activity_id
+        super().__init__(message)
+
+
+class VultronValidationError(VultronError):
+    """Raised when domain validation of a resource or request fails."""
+
+    def __init__(self, message: str, activity_id: str | None = None):
+        self.activity_id = activity_id
+        super().__init__(message)
+
+
+class VultronApiHandlerNotFoundError(VultronError, KeyError):
+    """Raised when no handler is found for a given activity type."""
+
+
+class CvdStateModelError(VultronError):
+    """Base class for errors in the CVD state model."""
+
+
+class CVDmodelError(CvdStateModelError):
+    pass
+
+
+class ScoringError(CvdStateModelError):
+    pass
+
+
+class ValidationError(CvdStateModelError):
+    pass
+
+
+class PatternValidationError(ValidationError):
+    pass
+
+
+class StateValidationError(ValidationError):
+    pass
+
+
+class HistoryValidationError(ValidationError):
+    pass
+
+
+class TransitionValidationError(ValidationError):
+    pass

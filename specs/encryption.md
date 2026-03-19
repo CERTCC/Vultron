@@ -23,7 +23,7 @@ implemented in the prototype.
 - `ENC-01-002` `PROD_ONLY` The CaseActor MUST publish its public key in its
   ActivityPub actor profile using the `publicKey` property per ActivityPub
   HTTP Signatures conventions
-  - See: https://docs.joinmastodon.org/spec/activitypub/#publicKey
+  - See: <https://docs.joinmastodon.org/spec/activitypub/#publicKey>
 - `ENC-01-003` `PROD_ONLY` The CaseActor MUST share its public key with
   each case participant when they are added to the case
 - `ENC-01-004` `PROD_ONLY` Private keys MUST be stored securely and MUST
@@ -86,5 +86,5 @@ implemented in the prototype.
 - **Error Handling**: `specs/error-handling.md`
 - **Prototype Shortcuts**: `specs/prototype-shortcuts.md` (PROTO-01-001)
 - **Case Management**: `specs/case-management.md`
-- **ActivityPub publicKey**: https://docs.joinmastodon.org/spec/activitypub/#publicKey
-- **Mastodon security spec**: https://docs.joinmastodon.org/spec/security/
+- **ActivityPub publicKey**: <https://docs.joinmastodon.org/spec/activitypub/#publicKey>
+- **Mastodon security spec**: <https://docs.joinmastodon.org/spec/security/>

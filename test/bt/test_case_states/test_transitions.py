@@ -17,7 +17,7 @@ from copy import deepcopy
 import vultron.bt.case_state.transitions as cst
 from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.states import ActorState
-from vultron.case_states.states import (
+from vultron.core.states.cs import (
     AttackObservation,
     CS,
     ExploitPublication,

@@ -1,13 +1,13 @@
 # Vultron ActivityStream Vocabulary Activities
 
-::: vultron.as_vocab.activities
+::: vultron.wire.as2.vocab.activities
 
-::: vultron.as_vocab.activities.actor
+::: vultron.wire.as2.vocab.activities.actor
 
-::: vultron.as_vocab.activities.case
+::: vultron.wire.as2.vocab.activities.case
 
-::: vultron.as_vocab.activities.case_participant
+::: vultron.wire.as2.vocab.activities.case_participant
 
-::: vultron.as_vocab.activities.embargo
+::: vultron.wire.as2.vocab.activities.embargo
 
-::: vultron.as_vocab.activities.report
+::: vultron.wire.as2.vocab.activities.report

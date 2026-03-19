@@ -1,160 +1,93 @@
 """
-Unit tests for handler functions and the verify_semantics decorator.
+Unit tests for use-case classes (handler layer removed, PREPX-2).
 
-Tests ensure that:
-- HP-02-001: All handlers have @verify_semantics decorator
-- HP-02-002: Decorator validates semantic type matches
-- HP-02-003: Decorator raises errors for mismatched semantics
-- HP-02-004: Decorator raises errors for missing semantics
+As of PREPX-2 the handler shim layer (``vultron.api.v2.backend.handlers``)
+has been deleted. Tests call use-case classes directly with ``VultronEvent``
+objects (e.g., ``CreateReportReceivedUseCase(dl, event).execute()``).
 """
 
 from unittest.mock import MagicMock
 
 import pytest
 
-from vultron.api.v2.backend import handlers
-from vultron.api.v2.errors import (
-    VultronApiHandlerMissingSemanticError,
-    VultronApiHandlerSemanticMismatchError,
+from vultron.core.models.events import (
+    MessageSemantics,
+    VultronEvent,
 )
-from vultron.as_vocab.base.objects.activities.transitive import as_Create
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.enums import MessageSemantics
-from vultron.types import DispatchActivity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
+
+from vultron.core.use_cases.report import (
+    CreateReportReceivedUseCase,
+    SubmitReportReceivedUseCase,
+    ValidateReportReceivedUseCase,
+    InvalidateReportReceivedUseCase,
+    AckReportReceivedUseCase,
+    CloseReportReceivedUseCase,
+)
+from vultron.core.use_cases.case import (
+    CreateCaseReceivedUseCase,
+    EngageCaseReceivedUseCase,
+    DeferCaseReceivedUseCase,
+    AddReportToCaseReceivedUseCase,
+    CloseCaseReceivedUseCase,
+    UpdateCaseReceivedUseCase,
+)
+from vultron.core.use_cases.case_participant import (
+    CreateCaseParticipantReceivedUseCase,
+    AddCaseParticipantToCaseReceivedUseCase,
+    RemoveCaseParticipantFromCaseReceivedUseCase,
+)
+from vultron.core.use_cases.actor import (
+    SuggestActorToCaseReceivedUseCase,
+    AcceptSuggestActorToCaseReceivedUseCase,
+    RejectSuggestActorToCaseReceivedUseCase,
+    OfferCaseOwnershipTransferReceivedUseCase,
+    AcceptCaseOwnershipTransferReceivedUseCase,
+    RejectCaseOwnershipTransferReceivedUseCase,
+    InviteActorToCaseReceivedUseCase,
+    AcceptInviteActorToCaseReceivedUseCase,
+    RejectInviteActorToCaseReceivedUseCase,
+)
+from vultron.core.use_cases.embargo import (
+    CreateEmbargoEventReceivedUseCase,
+    AddEmbargoEventToCaseReceivedUseCase,
+    RemoveEmbargoEventFromCaseReceivedUseCase,
+    AnnounceEmbargoEventToCaseReceivedUseCase,
+    InviteToEmbargoOnCaseReceivedUseCase,
+    AcceptInviteToEmbargoOnCaseReceivedUseCase,
+    RejectInviteToEmbargoOnCaseReceivedUseCase,
+)
+from vultron.core.use_cases.note import (
+    CreateNoteReceivedUseCase,
+    AddNoteToCaseReceivedUseCase,
+    RemoveNoteFromCaseReceivedUseCase,
+)
+from vultron.core.use_cases.status import (
+    CreateCaseStatusReceivedUseCase,
+    AddCaseStatusToCaseReceivedUseCase,
+    CreateParticipantStatusReceivedUseCase,
+    AddParticipantStatusToParticipantReceivedUseCase,
+)
+from vultron.core.use_cases.unknown import UnknownUseCase
 
 
-class TestVerifySemanticsDecorator:
-    """Test the verify_semantics decorator validation logic."""
+def _make_payload(activity, **extra_fields) -> VultronEvent:
+    """Wrap an AS2 activity in the appropriate typed VultronEvent for use in tests.
 
-    def test_decorator_validates_matching_semantics(self):
-        """Test that decorator allows through activities with matching semantics."""
+    Delegates to ``extract_intent()`` so that domain object fields (``activity``,
+    ``report``, ``case``, etc.) are populated exactly as they would be in production.
+    ``extra_fields`` can override any field (e.g. ``semantic_type``) after extraction.
+    """
+    from vultron.wire.as2.extractor import extract_intent
 
-        # Create a test handler decorated with verify_semantics
-        @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity) -> str:
-            return "success"
-
-        # Create a mock DispatchActivity with matching semantics
-        mock_activity = MagicMock(spec=DispatchActivity)
-        mock_activity.semantic_type = MessageSemantics.CREATE_REPORT
-
-        # Create proper as_Create activity with VulnerabilityReport object
-        report = VulnerabilityReport(
-            name="TEST-001", content="Test vulnerability report"
-        )
-        create_activity = as_Create(
-            actor="https://example.org/users/tester", object=report
-        )
-        mock_activity.payload = create_activity
-
-        # Should execute successfully
-        result = test_handler(mock_activity)
-        assert result == "success"
-
-    def test_decorator_raises_error_for_missing_semantic_type(self):
-        """Test that decorator raises error when semantic_type is None."""
-
-        @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity) -> str:
-            return "success"
-
-        # Create mock with None semantic_type
-        mock_activity = MagicMock(spec=DispatchActivity)
-        mock_activity.semantic_type = None
-
-        # Should raise VultronApiHandlerMissingSemanticError
-        with pytest.raises(VultronApiHandlerMissingSemanticError):
-            test_handler(mock_activity)
-
-    def test_decorator_raises_error_for_semantic_mismatch(self):
-        """Test that decorator raises error when semantic types don't match."""
-
-        @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity) -> str:
-            return "success"
-
-        # Create mock that claims CREATE_REPORT but payload says CREATE_CASE
-        mock_activity = MagicMock(spec=DispatchActivity)
-        mock_activity.semantic_type = MessageSemantics.CREATE_REPORT
-
-        # Create proper as_Create activity with VulnerabilityCase object (mismatched!)
-        case = VulnerabilityCase(
-            name="TEST-CASE-001", content="Test vulnerability case"
-        )
-        create_case_activity = as_Create(
-            actor="https://example.org/users/tester", object=case
-        )
-        mock_activity.payload = create_case_activity
-
-        # Should raise VultronApiHandlerSemanticMismatchError
-        with pytest.raises(VultronApiHandlerSemanticMismatchError):
-            test_handler(mock_activity)
-
-    def test_decorator_preserves_function_name(self):
-        """Test that decorator preserves the wrapped function's __name__."""
-
-        @handlers.verify_semantics(MessageSemantics.CREATE_REPORT)
-        def test_handler(dispatchable: DispatchActivity) -> str:
-            return "success"
-
-        # Decorator should preserve function name via @wraps
-        assert test_handler.__name__ == "test_handler"
-
-
-class TestHandlerDecoratorPresence:
-    """Test that all handler functions have the @verify_semantics decorator."""
-
-    def test_create_report_has_decorator(self):
-        """Test create_report handler has verify_semantics decorator."""
-        # Function should be callable (not None) - this was the bug!
-        assert callable(handlers.create_report)
-        assert handlers.create_report.__name__ == "create_report"
-
-    def test_all_handlers_are_callable(self):
-        """Test that all 47 handler functions are callable (regression test for decorator bug)."""
-        handler_list = [
-            handlers.create_report,
-            handlers.submit_report,
-            handlers.validate_report,
-            handlers.invalidate_report,
-            handlers.ack_report,
-            handlers.close_report,
-            handlers.create_case,
-            handlers.add_report_to_case,
-            handlers.suggest_actor_to_case,
-            handlers.accept_suggest_actor_to_case,
-            handlers.reject_suggest_actor_to_case,
-            handlers.offer_case_ownership_transfer,
-            handlers.accept_case_ownership_transfer,
-            handlers.reject_case_ownership_transfer,
-            handlers.invite_actor_to_case,
-            handlers.accept_invite_actor_to_case,
-            handlers.reject_invite_actor_to_case,
-            handlers.create_embargo_event,
-            handlers.add_embargo_event_to_case,
-            handlers.remove_embargo_event_from_case,
-            handlers.announce_embargo_event_to_case,
-            handlers.invite_to_embargo_on_case,
-            handlers.accept_invite_to_embargo_on_case,
-            handlers.reject_invite_to_embargo_on_case,
-            handlers.close_case,
-            handlers.create_case_participant,
-            handlers.add_case_participant_to_case,
-            handlers.remove_case_participant_from_case,
-            handlers.create_note,
-            handlers.add_note_to_case,
-            handlers.remove_note_from_case,
-            handlers.create_case_status,
-            handlers.add_case_status_to_case,
-            handlers.create_participant_status,
-            handlers.add_participant_status_to_participant,
-            handlers.unknown,
-        ]
-
-        # Before the bug fix, missing 'return wrapper' made all these None
-        for handler in handler_list:
-            assert callable(handler), f"{handler} is not callable"
+    event = extract_intent(activity)
+    if extra_fields:
+        return event.model_copy(update=extra_fields)
+    return event
 
 
 class TestHandlerExecution:
@@ -162,9 +95,6 @@ class TestHandlerExecution:
 
     def test_create_report_executes_with_valid_semantics(self):
         """Test create_report handler executes when semantics match."""
-        mock_activity = MagicMock(spec=DispatchActivity)
-        mock_activity.semantic_type = MessageSemantics.CREATE_REPORT
-
         # Create proper as_Create activity with VulnerabilityReport object
         report = VulnerabilityReport(
             name="TEST-002", content="Test vulnerability report"
@@ -172,18 +102,16 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=report
         )
-        mock_activity.payload = create_activity
+        event = _make_payload(create_activity)
 
         # Should execute without raising
-        result = handlers.create_report(mock_activity)
+        mock_dl = MagicMock()
+        result = CreateReportReceivedUseCase(mock_dl, event).execute()
         # Current stub implementation returns None
         assert result is None
 
     def test_create_case_executes_with_valid_semantics(self):
         """Test create_case handler executes when semantics match."""
-        mock_activity = MagicMock(spec=DispatchActivity)
-        mock_activity.semantic_type = MessageSemantics.CREATE_CASE
-
         # Create proper as_Create activity with VulnerabilityCase object
         case = VulnerabilityCase(
             name="TEST-CASE-002", content="Test vulnerability case"
@@ -191,30 +119,28 @@ class TestHandlerExecution:
         create_activity = as_Create(
             actor="https://example.org/users/tester", object=case
         )
-        mock_activity.payload = create_activity
+        event = _make_payload(create_activity)
 
         # Should execute without raising
-        result = handlers.create_case(mock_activity)
+        mock_dl = MagicMock()
+        result = CreateCaseReceivedUseCase(mock_dl, event).execute()
         assert result is None
 
-    def test_handler_rejects_wrong_semantic_type(self):
-        """Test handler rejects activity with wrong semantic type."""
-        mock_activity = MagicMock(spec=DispatchActivity)
-        mock_activity.semantic_type = MessageSemantics.CREATE_REPORT
+    def test_use_case_executes_with_real_datalayer(self):
+        """Use case executes without raising on real DataLayer."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 
-        # Create proper as_Create activity with VulnerabilityCase object
-        # Payload says CREATE_CASE, but handler expects CREATE_REPORT
-        case = VulnerabilityCase(
-            name="TEST-CASE-003", content="Test vulnerability case"
+        dl = TinyDbDataLayer(db_path=None)
+        report = VulnerabilityReport(
+            name="TEST-003", content="Test report for shim delegation"
         )
         create_activity = as_Create(
-            actor="https://example.org/users/tester", object=case
+            actor="https://example.org/users/tester", object=report
         )
-        mock_activity.payload = create_activity
-
-        # Should raise semantic mismatch error
-        with pytest.raises(VultronApiHandlerSemanticMismatchError):
-            handlers.create_report(mock_activity)
+        event = _make_payload(create_activity)
+        # Use case should not raise
+        result = CreateReportReceivedUseCase(dl, event).execute()
+        assert result is None
 
 
 class TestInviteActorHandlers:
@@ -223,102 +149,94 @@ class TestInviteActorHandlers:
 
     def test_invite_actor_to_case_stores_invite(self, monkeypatch):
         """invite_actor_to_case persists the Invite activity to the DataLayer."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import RmInviteToCase
-
-        dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmInviteToCaseActivity,
         )
 
-        invite = RmInviteToCase(
+        dl = TinyDbDataLayer(db_path=None)
+
+        invite = RmInviteToCaseActivity(
             id="https://example.org/cases/case1/invitations/1",
             actor="https://example.org/users/owner",
             object="https://example.org/users/coordinator",
             target="https://example.org/cases/case1",
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.INVITE_ACTOR_TO_CASE
-        mock_dispatchable.payload = invite
+        event = _make_payload(invite)
 
-        handlers.invite_actor_to_case(mock_dispatchable)
+        InviteActorToCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.get(invite.as_type.value, invite.as_id)
         assert stored is not None
 
     def test_invite_actor_to_case_idempotent(self, monkeypatch):
         """invite_actor_to_case skips storing a duplicate Invite."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import RmInviteToCase
-
-        dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmInviteToCaseActivity,
         )
 
-        invite = RmInviteToCase(
+        dl = TinyDbDataLayer(db_path=None)
+
+        invite = RmInviteToCaseActivity(
             id="https://example.org/cases/case1/invitations/2",
             actor="https://example.org/users/owner",
             object="https://example.org/users/coordinator",
             target="https://example.org/cases/case1",
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.INVITE_ACTOR_TO_CASE
-        mock_dispatchable.payload = invite
+        event = _make_payload(invite)
 
-        handlers.invite_actor_to_case(mock_dispatchable)
-        handlers.invite_actor_to_case(
-            mock_dispatchable
-        )  # second call is no-op
+        InviteActorToCaseReceivedUseCase(dl, event).execute()
+        InviteActorToCaseReceivedUseCase(
+            dl, event
+        ).execute()  # second call is no-op
 
         stored = dl.get(invite.as_type.value, invite.as_id)
         assert stored is not None
 
     def test_reject_invite_actor_to_case_logs_rejection(self):
         """reject_invite_actor_to_case logs without raising."""
-        from vultron.as_vocab.activities.case import (
-            RmInviteToCase,
-            RmRejectInviteToCase,
+        from vultron.wire.as2.vocab.activities.case import (
+            RmInviteToCaseActivity,
+            RmRejectInviteToCaseActivity,
         )
 
-        invite = RmInviteToCase(
+        invite = RmInviteToCaseActivity(
             id="https://example.org/cases/case1/invitations/3",
             actor="https://example.org/users/owner",
             object="https://example.org/users/coordinator",
             target="https://example.org/cases/case1",
         )
-        reject = RmRejectInviteToCase(
+        reject = RmRejectInviteToCaseActivity(
             actor="https://example.org/users/coordinator",
             object=invite,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE
-        )
-        mock_dispatchable.payload = reject
+        event = _make_payload(reject)
 
-        result = handlers.reject_invite_actor_to_case(mock_dispatchable)
+        result = RejectInviteActorToCaseReceivedUseCase(
+            MagicMock(), event
+        ).execute()
         assert result is None
 
     def test_remove_case_participant_from_case(self, monkeypatch):
         """remove_case_participant_from_case removes the participant from case."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
-        from vultron.as_vocab.objects.case_participant import CaseParticipant
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -342,14 +260,11 @@ class TestInviteActorHandlers:
             target=case,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
-        )
-        mock_dispatchable.payload = remove_activity
+        event = _make_payload(remove_activity)
 
-        handlers.remove_case_participant_from_case(mock_dispatchable)
+        RemoveCaseParticipantFromCaseReceivedUseCase(dl, event).execute()
 
+        case = dl.read(case.as_id)
         assert participant.as_id not in [
             (p.as_id if hasattr(p, "as_id") else p)
             for p in case.case_participants
@@ -357,20 +272,18 @@ class TestInviteActorHandlers:
 
     def test_remove_case_participant_idempotent(self, monkeypatch):
         """remove_case_participant_from_case is idempotent when participant absent."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
-        from vultron.as_vocab.objects.case_participant import CaseParticipant
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case3",
@@ -391,14 +304,259 @@ class TestInviteActorHandlers:
             target=case,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REMOVE_CASE_PARTICIPANT_FROM_CASE
-        )
-        mock_dispatchable.payload = remove_activity
+        event = _make_payload(remove_activity)
 
-        result = handlers.remove_case_participant_from_case(mock_dispatchable)
+        result = RemoveCaseParticipantFromCaseReceivedUseCase(
+            dl, event
+        ).execute()
         assert result is None
+
+    def test_add_case_participant_updates_index(self, monkeypatch):
+        """add_case_participant_to_case updates actor_participant_index (SC-PRE-2)."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Add,
+        )
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+        actor_id = "https://example.org/users/coordinator"
+        case = VulnerabilityCase(
+            id="https://example.org/cases/caseAP1",
+            name="TEST-ADD-INDEX",
+        )
+        participant = CaseParticipant(
+            id="https://example.org/cases/caseAP1/participants/coord",
+            attributed_to=actor_id,
+            context=case.as_id,
+        )
+        dl.create(case)
+        dl.create(participant)
+
+        add_activity = as_Add(
+            actor="https://example.org/users/owner",
+            object=participant,
+            target=case,
+        )
+
+        event = _make_payload(add_activity)
+
+        AddCaseParticipantToCaseReceivedUseCase(dl, event).execute()
+
+        case = dl.read(case.as_id)
+        assert actor_id in case.actor_participant_index
+        assert case.actor_participant_index[actor_id] == participant.as_id
+
+    def test_remove_case_participant_clears_index(self, monkeypatch):
+        """remove_case_participant_from_case clears actor_participant_index (SC-PRE-2)."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+            as_Remove,
+        )
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+        actor_id = "https://example.org/users/coordinator"
+        case = VulnerabilityCase(
+            id="https://example.org/cases/caseRM1",
+            name="TEST-REMOVE-INDEX",
+        )
+        participant = CaseParticipant(
+            id="https://example.org/cases/caseRM1/participants/coord",
+            attributed_to=actor_id,
+            context=case.as_id,
+        )
+        case.add_participant(participant)
+        dl.create(case)
+        dl.create(participant)
+
+        assert actor_id in case.actor_participant_index
+
+        remove_activity = as_Remove(
+            actor="https://example.org/users/owner",
+            object=participant,
+            target=case,
+        )
+
+        event = _make_payload(remove_activity)
+
+        RemoveCaseParticipantFromCaseReceivedUseCase(dl, event).execute()
+
+        case = dl.read(case.as_id)
+        assert actor_id not in case.actor_participant_index
+
+    def test_accept_invite_actor_to_case_adds_participant(self, monkeypatch):
+        """accept_invite_actor_to_case creates a CaseParticipant and adds them to the case."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        invitee_id = "https://example.org/users/coordinator"
+        invitee = as_Actor(id=invitee_id)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/caseIA1",
+            name="TEST-ACCEPT-INVITE",
+        )
+        invite = RmInviteToCaseActivity(
+            id="https://example.org/cases/caseIA1/invitations/1",
+            actor="https://example.org/users/owner",
+            object=invitee,
+            target=case,
+        )
+        dl.create(case)
+        dl.create(invite)
+
+        accept = RmAcceptInviteToCaseActivity(
+            actor=invitee_id,
+            object=invite,
+        )
+
+        event = _make_payload(accept)
+
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        case = dl.read(case.as_id)
+        assert invitee_id in case.actor_participant_index
+
+    def test_accept_invite_actor_to_case_records_active_embargo(
+        self, monkeypatch
+    ):
+        """accept_invite_actor_to_case records the active embargo ID on the new participant (CM-10-001, CM-10-003)."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        invitee_id = "https://example.org/users/coordinator"
+        invitee = as_Actor(id=invitee_id)
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/caseIA2/embargo_events/e1",
+            content="Active embargo",
+        )
+        case = VulnerabilityCase(
+            id="https://example.org/cases/caseIA2",
+            name="TEST-ACCEPT-INVITE-EMBARGO",
+        )
+        case.active_embargo = embargo.as_id
+        invite = RmInviteToCaseActivity(
+            id="https://example.org/cases/caseIA2/invitations/1",
+            actor="https://example.org/users/owner",
+            object=invitee,
+            target=case,
+        )
+        dl.create(case)
+        dl.create(embargo)
+        dl.create(invite)
+
+        accept = RmAcceptInviteToCaseActivity(
+            actor=invitee_id,
+            object=invite,
+        )
+
+        event = _make_payload(accept)
+
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        case = dl.read(case.as_id)
+        participant_id = case.actor_participant_index.get(invitee_id)
+        assert participant_id is not None
+        participant_obj = dl.get(id_=participant_id)
+        assert participant_obj is not None
+        assert embargo.as_id in participant_obj.accepted_embargo_ids
+
+    def test_accept_invite_actor_to_case_records_case_event(self, monkeypatch):
+        """accept_invite_actor_to_case appends a trusted-timestamp event to case.events (CM-02-009)."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            RmAcceptInviteToCaseActivity,
+            RmInviteToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        invitee_id = "https://example.org/users/coordinator"
+        invitee = as_Actor(id=invitee_id)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/caseIA3",
+            name="TEST-ACCEPT-INVITE-EVENT",
+        )
+        invite = RmInviteToCaseActivity(
+            id="https://example.org/cases/caseIA3/invitations/1",
+            actor="https://example.org/users/owner",
+            object=invitee,
+            target=case,
+        )
+        dl.create(case)
+        dl.create(invite)
+
+        accept = RmAcceptInviteToCaseActivity(
+            actor=invitee_id,
+            object=invite,
+        )
+
+        event = _make_payload(accept)
+
+        assert len(case.events) == 0
+
+        AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
+
+        case = dl.read(case.as_id)
+        assert len(case.events) >= 1
+        event_types = [e.event_type for e in case.events]
+        assert "participant_joined" in event_types
 
 
 class TestEmbargoHandlers:
@@ -406,20 +564,16 @@ class TestEmbargoHandlers:
 
     def test_create_embargo_event_stores_event(self, monkeypatch):
         """create_embargo_event persists the EmbargoEvent to the DataLayer."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Create,
         )
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_cem1",
@@ -435,31 +589,25 @@ class TestEmbargoHandlers:
             context=case,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_EMBARGO_EVENT
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.create_embargo_event(mock_dispatchable)
+        CreateEmbargoEventReceivedUseCase(dl, event).execute()
 
         stored = dl.get(embargo.as_type.value, embargo.as_id)
         assert stored is not None
 
     def test_create_embargo_event_idempotent(self, monkeypatch):
         """create_embargo_event skips storing a duplicate EmbargoEvent."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Create,
         )
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_cem2",
@@ -474,29 +622,31 @@ class TestEmbargoHandlers:
             object=embargo,
             context=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_EMBARGO_EVENT
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.create_embargo_event(mock_dispatchable)
-        handlers.create_embargo_event(mock_dispatchable)  # second call no-op
+        CreateEmbargoEventReceivedUseCase(dl, event).execute()
+        CreateEmbargoEventReceivedUseCase(
+            dl, event
+        ).execute()  # second call no-op
 
         stored = dl.get(embargo.as_type.value, embargo.as_id)
         assert stored is not None
 
     def test_add_embargo_event_to_case_activates_embargo(self, monkeypatch):
         """add_embargo_event_to_case sets the active embargo on the case."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.embargo import AddEmbargoToCase
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            AddEmbargoToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
-        from vultron.bt.embargo_management.states import EM
+        from vultron.core.states.em import EM
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -511,52 +661,43 @@ class TestEmbargoHandlers:
         dl.create(case)
         dl.create(embargo)
 
-        activity = AddEmbargoToCase(
+        activity = AddEmbargoToCaseActivity(
             actor="https://example.org/users/vendor",
             object=embargo,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.add_embargo_event_to_case(mock_dispatchable)
+        AddEmbargoEventToCaseReceivedUseCase(dl, event).execute()
 
+        case = dl.read(case.as_id)
         assert case.active_embargo is not None
         assert case.current_status.em_state == EM.ACTIVE
 
     def test_invite_to_embargo_on_case_stores_proposal(self, monkeypatch):
-        """invite_to_embargo_on_case persists the EmProposeEmbargo activity."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.embargo import EmProposeEmbargo
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+        """invite_to_embargo_on_case persists the EmProposeEmbargoActivity activity."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            EmProposeEmbargoActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         embargo = EmbargoEvent(
             id="https://example.org/cases/case_em2/embargo_events/e2",
             content="Proposed embargo",
         )
-        proposal = EmProposeEmbargo(
+        proposal = EmProposeEmbargoActivity(
             id="https://example.org/cases/case_em2/embargo_proposals/1",
             actor="https://example.org/users/vendor",
             object=embargo,
             context="https://example.org/cases/case_em2",
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
-        )
-        mock_dispatchable.payload = proposal
+        event = _make_payload(proposal)
 
-        handlers.invite_to_embargo_on_case(mock_dispatchable)
+        InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.get(proposal.as_type.value, proposal.as_id)
         assert stored is not None
@@ -565,24 +706,20 @@ class TestEmbargoHandlers:
         self, monkeypatch
     ):
         """accept_invite_to_embargo_on_case activates the embargo on the case."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.embargo import (
-            EmAcceptEmbargo,
-            EmProposeEmbargo,
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            EmAcceptEmbargoActivity,
+            EmProposeEmbargoActivity,
         )
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
-        from vultron.bt.embargo_management.states import EM
+        from vultron.core.states.em import EM
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
-        monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -595,7 +732,7 @@ class TestEmbargoHandlers:
             content="Embargo",
         )
         # Use inline objects (not string IDs) so rehydration skips DataLayer lookup
-        proposal = EmProposeEmbargo(
+        proposal = EmProposeEmbargoActivity(
             id="https://example.org/cases/case_em3/embargo_proposals/1",
             actor="https://example.org/users/vendor",
             object=embargo,
@@ -605,53 +742,162 @@ class TestEmbargoHandlers:
         dl.create(embargo)
         dl.create(proposal)
 
-        accept = EmAcceptEmbargo(
+        accept = EmAcceptEmbargoActivity(
             actor="https://example.org/users/coordinator",
             object=proposal,
             context=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
-        )
-        mock_dispatchable.payload = accept
+        event = _make_payload(accept)
 
-        handlers.accept_invite_to_embargo_on_case(mock_dispatchable)
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
+        case = dl.read(case.as_id)
         assert case.active_embargo is not None
         assert case.current_status.em_state == EM.ACTIVE
 
+    def test_accept_invite_to_embargo_records_embargo_on_participant(
+        self, monkeypatch
+    ):
+        """accept_invite_to_embargo_on_case records embargo ID in participant.accepted_embargo_ids (CM-10-002, CM-10-003)."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            EmAcceptEmbargoActivity,
+            EmProposeEmbargoActivity,
+        )
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        coordinator_id = "https://example.org/users/coordinator"
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em5",
+            name="EM Accept Participant Test",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_em5/embargo_events/e5",
+            content="Embargo",
+        )
+        participant = CaseParticipant(
+            id="https://example.org/cases/case_em5/participants/coord",
+            attributed_to=coordinator_id,
+            context=case.as_id,
+        )
+        case.add_participant(participant)
+        proposal = EmProposeEmbargoActivity(
+            id="https://example.org/cases/case_em5/embargo_proposals/1",
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            context=case,
+        )
+        dl.create(case)
+        dl.create(embargo)
+        dl.create(participant)
+        dl.create(proposal)
+
+        accept = EmAcceptEmbargoActivity(
+            actor=coordinator_id,
+            object=proposal,
+            context=case,
+        )
+        event = _make_payload(accept)
+
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        updated_participant = dl.get(id_=participant.as_id)
+        assert updated_participant is not None
+        assert embargo.as_id in updated_participant.accepted_embargo_ids
+
+    def test_accept_invite_to_embargo_records_case_event(self, monkeypatch):
+        """accept_invite_to_embargo_on_case appends a trusted-timestamp event to case.events (CM-02-009)."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            EmAcceptEmbargoActivity,
+            EmProposeEmbargoActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em6",
+            name="EM Accept Event Test",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_em6/embargo_events/e6",
+            content="Embargo",
+        )
+        proposal = EmProposeEmbargoActivity(
+            id="https://example.org/cases/case_em6/embargo_proposals/1",
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            context=case,
+        )
+        dl.create(case)
+        dl.create(embargo)
+        dl.create(proposal)
+
+        accept = EmAcceptEmbargoActivity(
+            actor="https://example.org/users/coordinator",
+            object=proposal,
+            context=case,
+        )
+        event = _make_payload(accept)
+
+        assert len(case.events) == 0
+
+        AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        case = dl.read(case.as_id)
+        assert len(case.events) >= 1
+        event_types = [e.event_type for e in case.events]
+        assert "embargo_accepted" in event_types
+
     def test_reject_invite_to_embargo_on_case_logs_rejection(self):
         """reject_invite_to_embargo_on_case logs without raising."""
-        from vultron.as_vocab.activities.embargo import (
-            EmProposeEmbargo,
-            EmRejectEmbargo,
+        from vultron.wire.as2.vocab.activities.embargo import (
+            EmProposeEmbargoActivity,
+            EmRejectEmbargoActivity,
         )
-        from vultron.as_vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
         embargo = EmbargoEvent(
             id="https://example.org/cases/case_em4/embargo_events/e4",
             content="Embargo",
         )
-        proposal = EmProposeEmbargo(
+        proposal = EmProposeEmbargoActivity(
             id="https://example.org/cases/case_em4/embargo_proposals/1",
             actor="https://example.org/users/vendor",
             object=embargo,
             context="https://example.org/cases/case_em4",
         )
-        reject = EmRejectEmbargo(
+        reject = EmRejectEmbargoActivity(
             actor="https://example.org/users/coordinator",
             object=proposal,
             context="https://example.org/cases/case_em4",
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REJECT_INVITE_TO_EMBARGO_ON_CASE
-        )
-        mock_dispatchable.payload = reject
+        event = _make_payload(reject)
 
-        result = handlers.reject_invite_to_embargo_on_case(mock_dispatchable)
+        result = RejectInviteToEmbargoOnCaseReceivedUseCase(
+            MagicMock(), event
+        ).execute()
         assert result is None
 
 
@@ -660,17 +906,13 @@ class TestNoteHandlers:
 
     def test_create_note_stores_note(self, monkeypatch):
         """create_note persists the Note to the DataLayer."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Create,
         )
-        from vultron.as_vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         note = as_Note(
             id="https://example.org/notes/note1",
@@ -681,28 +923,22 @@ class TestNoteHandlers:
             object=note,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_NOTE
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.create_note(mock_dispatchable)
+        CreateNoteReceivedUseCase(dl, event).execute()
 
         stored = dl.get(note.as_type.value, note.as_id)
         assert stored is not None
 
     def test_create_note_idempotent(self, monkeypatch):
         """create_note skips storing a duplicate Note."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Create,
         )
-        from vultron.as_vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         note = as_Note(
             id="https://example.org/notes/note2",
@@ -712,32 +948,28 @@ class TestNoteHandlers:
             actor="https://example.org/users/finder",
             object=note,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_NOTE
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
         dl.create(note)
-        handlers.create_note(mock_dispatchable)
+        CreateNoteReceivedUseCase(dl, event).execute()
 
         stored = dl.get(note.as_type.value, note.as_id)
         assert stored is not None
 
     def test_add_note_to_case_appends_note(self, monkeypatch):
         """add_note_to_case appends note ID to case.notes and persists."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import AddNoteToCase
-        from vultron.as_vocab.base.objects.object_types import as_Note
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            AddNoteToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
-        monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -752,35 +984,32 @@ class TestNoteHandlers:
         dl.create(case)
         dl.create(note)
 
-        activity = AddNoteToCase(
+        activity = AddNoteToCaseActivity(
             actor="https://example.org/users/finder",
             object=note,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.add_note_to_case(mock_dispatchable)
+        AddNoteToCaseReceivedUseCase(dl, event).execute()
 
+        case = dl.read(case.as_id)
         assert note.as_id in case.notes
 
     def test_add_note_to_case_idempotent(self, monkeypatch):
         """add_note_to_case skips adding a note already in the case."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import AddNoteToCase
-        from vultron.as_vocab.base.objects.object_types import as_Note
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            AddNoteToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
-        monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -796,37 +1025,31 @@ class TestNoteHandlers:
         dl.create(case)
         dl.create(note)
 
-        activity = AddNoteToCase(
+        activity = AddNoteToCaseActivity(
             actor="https://example.org/users/finder",
             object=note,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.ADD_NOTE_TO_CASE
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.add_note_to_case(mock_dispatchable)
+        AddNoteToCaseReceivedUseCase(dl, event).execute()
 
         assert case.notes.count(note.as_id) == 1
 
     def test_remove_note_from_case_removes_note(self, monkeypatch):
         """remove_note_from_case removes note ID from case.notes and persists."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
-        from vultron.as_vocab.base.objects.object_types import as_Note
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
-        monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -847,34 +1070,27 @@ class TestNoteHandlers:
             object=note,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REMOVE_NOTE_FROM_CASE
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.remove_note_from_case(mock_dispatchable)
+        RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
 
+        case = dl.read(case.as_id)
         assert note.as_id not in case.notes
 
     def test_remove_note_from_case_idempotent(self, monkeypatch):
         """remove_note_from_case is idempotent when note not in case."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.base.objects.activities.transitive import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
             as_Remove,
         )
-        from vultron.as_vocab.base.objects.object_types import as_Note
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
-        monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -894,13 +1110,9 @@ class TestNoteHandlers:
             object=note,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REMOVE_NOTE_FROM_CASE
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        result = handlers.remove_note_from_case(mock_dispatchable)
+        result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
         assert result is None
 
 
@@ -909,18 +1121,16 @@ class TestStatusHandlers:
 
     def test_create_case_status_stores_status(self, monkeypatch):
         """create_case_status persists the CaseStatus to the DataLayer."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import CreateCaseStatus
-        from vultron.as_vocab.objects.case_status import CaseStatus
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            CreateCaseStatusActivity,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_cs1",
@@ -930,35 +1140,31 @@ class TestStatusHandlers:
             id="https://example.org/cases/case_cs1/statuses/s1",
             context=case.as_id,
         )
-        activity = CreateCaseStatus(
+        activity = CreateCaseStatusActivity(
             actor="https://example.org/users/vendor",
             object=status,
             context=case.as_id,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_CASE_STATUS
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.create_case_status(mock_dispatchable)
+        CreateCaseStatusReceivedUseCase(dl, event).execute()
 
         stored = dl.get(status.as_type.value, status.as_id)
         assert stored is not None
 
     def test_create_case_status_idempotent(self, monkeypatch):
         """create_case_status skips storing a duplicate CaseStatus."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import CreateCaseStatus
-        from vultron.as_vocab.objects.case_status import CaseStatus
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            CreateCaseStatusActivity,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_cs2",
@@ -970,36 +1176,32 @@ class TestStatusHandlers:
         )
         dl.create(status)
 
-        activity = CreateCaseStatus(
+        activity = CreateCaseStatusActivity(
             actor="https://example.org/users/vendor",
             object=status,
             context=case.as_id,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.CREATE_CASE_STATUS
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.create_case_status(mock_dispatchable)
+        CreateCaseStatusReceivedUseCase(dl, event).execute()
 
         stored = dl.get(status.as_type.value, status.as_id)
         assert stored is not None
 
     def test_add_case_status_to_case_appends_status(self, monkeypatch):
         """add_case_status_to_case appends status ID to case.case_statuses."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import AddStatusToCase
-        from vultron.as_vocab.objects.case_status import CaseStatus
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            AddStatusToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
-        monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1014,19 +1216,16 @@ class TestStatusHandlers:
         dl.create(case)
         dl.create(status)
 
-        activity = AddStatusToCase(
+        activity = AddStatusToCaseActivity(
             actor="https://example.org/users/vendor",
             object=status,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ADD_CASE_STATUS_TO_CASE
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.add_case_status_to_case(mock_dispatchable)
+        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
+        case = dl.read(case.as_id)
         status_ids = [
             (s.as_id if hasattr(s, "as_id") else s) for s in case.case_statuses
         ]
@@ -1034,23 +1233,21 @@ class TestStatusHandlers:
 
     def test_create_participant_status_stores_status(self, monkeypatch):
         """create_participant_status persists the ParticipantStatus."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case_participant import (
-            CreateStatusForParticipant,
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case_participant import (
+            CreateStatusForParticipantActivity,
         )
-        from vultron.as_vocab.objects.case_status import ParticipantStatus
+        from vultron.wire.as2.vocab.objects.case_status import (
+            ParticipantStatus,
+        )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         pstatus = ParticipantStatus(
             id="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
             context="https://example.org/cases/case_ps1",
         )
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -1058,19 +1255,15 @@ class TestStatusHandlers:
             id="https://example.org/cases/case_ps1",
             name="PS Case 1",
         )
-        activity = CreateStatusForParticipant(
+        activity = CreateStatusForParticipantActivity(
             actor="https://example.org/users/vendor",
             object=pstatus,
             context=case_ps1,
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.CREATE_PARTICIPANT_STATUS
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.create_participant_status(mock_dispatchable)
+        CreateParticipantStatusReceivedUseCase(dl, event).execute()
 
         stored = dl.get(pstatus.as_type.value, pstatus.as_id)
         assert stored is not None
@@ -1079,20 +1272,20 @@ class TestStatusHandlers:
         self, monkeypatch
     ):
         """add_participant_status_to_participant appends status to participant."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case_participant import (
-            AddStatusToParticipant,
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case_participant import (
+            AddStatusToParticipantActivity,
         )
-        from vultron.as_vocab.objects.case_participant import CaseParticipant
-        from vultron.as_vocab.objects.case_status import ParticipantStatus
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import (
+            ParticipantStatus,
+        )
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
-        monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1105,7 +1298,7 @@ class TestStatusHandlers:
             id="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
             context="https://example.org/cases/case_ps2",
         )
-        from vultron.as_vocab.objects.vulnerability_case import (
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
             VulnerabilityCase,
         )
 
@@ -1116,20 +1309,17 @@ class TestStatusHandlers:
         dl.create(participant)
         dl.create(pstatus)
 
-        activity = AddStatusToParticipant(
+        activity = AddStatusToParticipantActivity(
             actor="https://example.org/users/vendor",
             object=pstatus,
             target=participant,
             context=case_ps2,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.add_participant_status_to_participant(mock_dispatchable)
+        AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
 
+        participant = dl.read(participant.as_id)
         status_ids = [
             (s.as_id if hasattr(s, "as_id") else s)
             for s in participant.participant_statuses
@@ -1142,69 +1332,59 @@ class TestSuggestActorHandlers:
 
     def test_suggest_actor_to_case_persists_recommendation(self, monkeypatch):
         """suggest_actor_to_case persists the RecommendActor offer."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.actor import RecommendActor
-        from vultron.as_vocab.base.objects.actors import as_Actor
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         coordinator = as_Actor(id="https://example.org/users/coordinator")
         case = VulnerabilityCase(
             id="https://example.org/cases/case_sa1",
             name="SA Case 1",
         )
-        activity = RecommendActor(
+        activity = RecommendActorActivity(
             actor="https://example.org/users/finder",
             object=coordinator,
             target=case,
             to="https://example.org/users/vendor",
         )
 
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.SUGGEST_ACTOR_TO_CASE
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.suggest_actor_to_case(mock_dispatchable)
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
 
     def test_suggest_actor_to_case_idempotent(self, monkeypatch):
         """suggest_actor_to_case is idempotent — second call is a no-op."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.actor import RecommendActor
-        from vultron.as_vocab.base.objects.actors import as_Actor
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+        )
+
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         coordinator = as_Actor(id="https://example.org/users/coordinator")
         case = VulnerabilityCase(
             id="https://example.org/cases/case_sa2",
             name="SA Case 2",
         )
-        activity = RecommendActor(
+        activity = RecommendActorActivity(
             actor="https://example.org/users/finder",
             object=coordinator,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.SUGGEST_ACTOR_TO_CASE
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.suggest_actor_to_case(mock_dispatchable)
-        handlers.suggest_actor_to_case(mock_dispatchable)
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
+        SuggestActorToCaseReceivedUseCase(dl, event).execute()
 
         # Second call should be a no-op; record is still present (not duplicated)
         stored = dl.get(activity.as_type.value, activity.as_id)
@@ -1214,41 +1394,33 @@ class TestSuggestActorHandlers:
         self, monkeypatch
     ):
         """accept_suggest_actor_to_case persists the AcceptActorRecommendation."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.actor import (
-            AcceptActorRecommendation,
-            RecommendActor,
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.actor import (
+            AcceptActorRecommendationActivity,
+            RecommendActorActivity,
         )
-        from vultron.as_vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         coordinator = as_Actor(id="https://example.org/users/coordinator")
         case = VulnerabilityCase(
             id="https://example.org/cases/case_sa3",
             name="SA Case 3",
         )
-        recommendation = RecommendActor(
+        recommendation = RecommendActorActivity(
             actor="https://example.org/users/finder",
             object=coordinator,
             target=case,
         )
-        activity = AcceptActorRecommendation(
+        activity = AcceptActorRecommendationActivity(
             actor="https://example.org/users/vendor",
             object=recommendation,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.accept_suggest_actor_to_case(mock_dispatchable)
+        AcceptSuggestActorToCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
@@ -1259,35 +1431,33 @@ class TestSuggestActorHandlers:
         """reject_suggest_actor_to_case logs rejection without state change."""
         import logging
 
-        from vultron.as_vocab.activities.actor import (
-            RecommendActor,
-            RejectActorRecommendation,
+        from vultron.wire.as2.vocab.activities.actor import (
+            RecommendActorActivity,
+            RejectActorRecommendationActivity,
         )
-        from vultron.as_vocab.base.objects.actors import as_Actor
+        from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 
         coordinator = as_Actor(id="https://example.org/users/coordinator")
         case = VulnerabilityCase(
             id="https://example.org/cases/case_sa4",
             name="SA Case 4",
         )
-        recommendation = RecommendActor(
+        recommendation = RecommendActorActivity(
             actor="https://example.org/users/finder",
             object=coordinator,
             target=case,
         )
-        activity = RejectActorRecommendation(
+        activity = RejectActorRecommendationActivity(
             actor="https://example.org/users/vendor",
             object=recommendation,
             target=case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            handlers.reject_suggest_actor_to_case(mock_dispatchable)
+            RejectSuggestActorToCaseReceivedUseCase(
+                MagicMock(), event
+            ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
 
@@ -1297,31 +1467,25 @@ class TestOwnershipTransferHandlers:
 
     def test_offer_case_ownership_transfer_persists_offer(self, monkeypatch):
         """offer_case_ownership_transfer persists the offer."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import OfferCaseOwnershipTransfer
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            OfferCaseOwnershipTransferActivity,
+        )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_ot1",
             name="OT Case 1",
         )
-        activity = OfferCaseOwnershipTransfer(
+        activity = OfferCaseOwnershipTransferActivity(
             actor="https://example.org/users/vendor",
             object=case,
             target="https://example.org/users/coordinator",
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.offer_case_ownership_transfer(mock_dispatchable)
+        OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
@@ -1330,19 +1494,15 @@ class TestOwnershipTransferHandlers:
         self, monkeypatch
     ):
         """accept_case_ownership_transfer updates case.attributed_to to new owner."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import (
-            AcceptCaseOwnershipTransfer,
-            OfferCaseOwnershipTransfer,
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import (
+            AcceptCaseOwnershipTransferActivity,
+            OfferCaseOwnershipTransferActivity,
         )
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
-        monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1353,7 +1513,7 @@ class TestOwnershipTransferHandlers:
         )
         dl.create(case)
 
-        offer = OfferCaseOwnershipTransfer(
+        offer = OfferCaseOwnershipTransferActivity(
             id="https://example.org/activities/offer_ot2",
             actor="https://example.org/users/vendor",
             object=case,
@@ -1361,17 +1521,13 @@ class TestOwnershipTransferHandlers:
         )
         dl.create(offer)
 
-        activity = AcceptCaseOwnershipTransfer(
+        activity = AcceptCaseOwnershipTransferActivity(
             actor="https://example.org/users/coordinator",
             object=offer,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.accept_case_ownership_transfer(mock_dispatchable)
+        AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
         updated_record = dl.get(case.as_type.value, case.as_id)
         assert updated_record is not None
@@ -1387,33 +1543,31 @@ class TestOwnershipTransferHandlers:
         """reject_case_ownership_transfer logs rejection; ownership unchanged."""
         import logging
 
-        from vultron.as_vocab.activities.case import (
-            OfferCaseOwnershipTransfer,
-            RejectCaseOwnershipTransfer,
+        from vultron.wire.as2.vocab.activities.case import (
+            OfferCaseOwnershipTransferActivity,
+            RejectCaseOwnershipTransferActivity,
         )
 
         case = VulnerabilityCase(
             id="https://example.org/cases/case_ot3",
             name="OT Case 3",
         )
-        offer = OfferCaseOwnershipTransfer(
+        offer = OfferCaseOwnershipTransferActivity(
             id="https://example.org/activities/offer_ot3",
             actor="https://example.org/users/vendor",
             object=case,
             target="https://example.org/users/coordinator",
         )
-        activity = RejectCaseOwnershipTransfer(
+        activity = RejectCaseOwnershipTransferActivity(
             actor="https://example.org/users/coordinator",
             object=offer,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = (
-            MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER
-        )
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
         with caplog.at_level(logging.INFO):
-            handlers.reject_case_ownership_transfer(mock_dispatchable)
+            RejectCaseOwnershipTransferReceivedUseCase(
+                MagicMock(), event
+            ).execute()
 
         assert any("rejected" in r.message.lower() for r in caplog.records)
 
@@ -1425,16 +1579,12 @@ class TestUpdateCaseHandler:
         """update_case applies name/summary/content updates from a full object."""
         import logging
 
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import UpdateCase
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
-        monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1452,16 +1602,26 @@ class TestUpdateCaseHandler:
             content="New content",
             attributed_to=owner_id,
         )
-        activity = UpdateCase(
+        activity = UpdateCaseActivity(
             actor=owner_id,
             object=updated_case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
+
+        from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
+
+        def _mock_rehydrate(obj, **kwargs):
+            if obj == case.as_id:
+                return updated_case
+            return real_rehydrate(obj, **kwargs)
+
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.rehydrate",
+            _mock_rehydrate,
+        )
 
         with caplog.at_level(logging.INFO):
-            handlers.update_case(mock_dispatchable)
+            UpdateCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(case.as_id)
         assert stored is not None
@@ -1472,16 +1632,12 @@ class TestUpdateCaseHandler:
         """update_case logs a warning and skips if actor is not the case owner."""
         import logging
 
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import UpdateCase
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
-        monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1499,16 +1655,14 @@ class TestUpdateCaseHandler:
             name="Hijacked Name",
             attributed_to=owner_id,
         )
-        activity = UpdateCase(
+        activity = UpdateCaseActivity(
             actor=non_owner_id,
             object=updated_case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
-            handlers.update_case(mock_dispatchable)
+            UpdateCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(case.as_id)
         assert stored is not None
@@ -1517,16 +1671,12 @@ class TestUpdateCaseHandler:
 
     def test_update_case_idempotent(self, monkeypatch):
         """update_case with same data produces the same result (last-write-wins)."""
-        from vultron.api.v2.datalayer.tinydb_backend import TinyDbDataLayer
-        from vultron.as_vocab.activities.case import UpdateCase
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
 
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
-            "vultron.api.v2.datalayer.tinydb_backend.get_datalayer",
-            lambda **_: dl,
-        )
-        monkeypatch.setattr(
-            "vultron.api.v2.data.rehydration.get_datalayer",
+            "vultron.wire.as2.rehydration.get_datalayer",
             lambda **_: dl,
         )
 
@@ -1543,17 +1693,189 @@ class TestUpdateCaseHandler:
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCase(
+        activity = UpdateCaseActivity(
             actor=owner_id,
             object=updated_case,
         )
-        mock_dispatchable = MagicMock(spec=DispatchActivity)
-        mock_dispatchable.semantic_type = MessageSemantics.UPDATE_CASE
-        mock_dispatchable.payload = activity
+        event = _make_payload(activity)
 
-        handlers.update_case(mock_dispatchable)
-        handlers.update_case(mock_dispatchable)
+        from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
+
+        def _mock_rehydrate(obj, **kwargs):
+            if obj == case.as_id:
+                return updated_case
+            return real_rehydrate(obj, **kwargs)
+
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.rehydrate",
+            _mock_rehydrate,
+        )
+
+        UpdateCaseReceivedUseCase(dl, event).execute()
+        UpdateCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(case.as_id)
         assert stored is not None
         assert stored.name == "Updated"
+
+    def test_update_case_warns_when_participant_has_not_accepted_embargo(
+        self, monkeypatch, caplog
+    ):
+        """update_case logs WARNING per CM-10-004 when a participant has not accepted the active embargo."""
+        import logging
+
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        owner_id = "https://example.org/users/owner"
+        actor_id = "https://example.org/users/alice"
+        embargo = EmbargoEvent(id="https://example.org/embargoes/em1")
+        dl.create(embargo)
+
+        participant = CaseParticipant(
+            id="https://example.org/participants/p1",
+            attributed_to=actor_id,
+            context="https://example.org/cases/uc4",
+            accepted_embargo_ids=[],
+        )
+        dl.create(participant)
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/uc4",
+            name="Original",
+            attributed_to=owner_id,
+            active_embargo=embargo.as_id,
+        )
+        case.actor_participant_index[actor_id] = participant.as_id
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case.as_id,
+            name="Updated",
+            attributed_to=owner_id,
+        )
+        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        event = _make_payload(activity)
+
+        with caplog.at_level(logging.WARNING):
+            UpdateCaseReceivedUseCase(dl, event).execute()
+
+        assert any(
+            "has not accepted" in r.message and "CM-10-004" in r.message
+            for r in caplog.records
+        )
+
+    def test_update_case_no_warning_when_all_participants_accepted_embargo(
+        self, monkeypatch, caplog
+    ):
+        """update_case does NOT warn when all participants have accepted the active embargo (CM-10-004)."""
+        import logging
+
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        owner_id = "https://example.org/users/owner"
+        actor_id = "https://example.org/users/bob"
+        embargo = EmbargoEvent(id="https://example.org/embargoes/em2")
+        dl.create(embargo)
+
+        participant = CaseParticipant(
+            id="https://example.org/participants/p2",
+            attributed_to=actor_id,
+            context="https://example.org/cases/uc5",
+            accepted_embargo_ids=[embargo.as_id],
+        )
+        dl.create(participant)
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/uc5",
+            name="Original",
+            attributed_to=owner_id,
+            active_embargo=embargo.as_id,
+        )
+        case.actor_participant_index[actor_id] = participant.as_id
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case.as_id,
+            name="Updated",
+            attributed_to=owner_id,
+        )
+        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        event = _make_payload(activity)
+
+        with caplog.at_level(logging.WARNING):
+            UpdateCaseReceivedUseCase(dl, event).execute()
+
+        assert not any("has not accepted" in r.message for r in caplog.records)
+
+    def test_update_case_no_warning_when_no_active_embargo(
+        self, monkeypatch, caplog
+    ):
+        """update_case does NOT warn when there is no active embargo (CM-10-004)."""
+        import logging
+
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
+        from vultron.wire.as2.vocab.objects.case_participant import (
+            CaseParticipant,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        owner_id = "https://example.org/users/owner"
+        actor_id = "https://example.org/users/carol"
+
+        participant = CaseParticipant(
+            id="https://example.org/participants/p3",
+            attributed_to=actor_id,
+            context="https://example.org/cases/uc6",
+            accepted_embargo_ids=[],
+        )
+        dl.create(participant)
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/uc6",
+            name="Original",
+            attributed_to=owner_id,
+            active_embargo=None,
+        )
+        case.actor_participant_index[actor_id] = participant.as_id
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case.as_id,
+            name="Updated",
+            attributed_to=owner_id,
+        )
+        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        event = _make_payload(activity)
+
+        with caplog.at_level(logging.WARNING):
+            UpdateCaseReceivedUseCase(dl, event).execute()
+
+        assert not any("has not accepted" in r.message for r in caplog.records)

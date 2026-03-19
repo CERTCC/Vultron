@@ -21,15 +21,15 @@ from typing import Any, Callable, Deque, Dict, List
 
 from pydantic import BaseModel, Field
 
-from vultron.bt.embargo_management.states import EM
+from vultron.core.states.em import EM
 from vultron.bt.messaging.states import MessageTypes
 from vultron.bt.report_management.report_priority_states import (
     ReportPriority,
 )
-from vultron.bt.report_management.states import RM
-from vultron.bt.roles.states import CVDRoles
-from vultron.case_states.states import CS
-from vultron.sim.messages import Message
+from vultron.core.states.rm import RM
+from vultron.core.states.roles import CVDRoles
+from vultron.core.states.cs import CS
+from vultron.bt.messaging.message import Message
 
 
 class CapabilityFlag(Flag):

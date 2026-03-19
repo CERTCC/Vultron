@@ -20,7 +20,7 @@ This module provides state transition definitions for the Embargo Management beh
 from typing import Sequence
 
 from vultron.bt.common import EnumStateTransition, show_graph, state_change
-from vultron.bt.embargo_management.states import EM
+from vultron.core.states.em import EM
 
 
 class EmTransition(EnumStateTransition):

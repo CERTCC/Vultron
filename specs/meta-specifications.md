@@ -13,7 +13,7 @@ Files should be largely independent, each focusing on a specific topic of concer
 Requirements should be grouped by **category** and **priority** within each file.
 Avoid extraneous maintenance overhead by avoiding boilerplate like counts or sources per requirement.
 
-```
+```markdown
 # Specification Title
 
 ## Overview
@@ -49,7 +49,7 @@ Use priority **only in section headers**:
 
 Format:
 
-```
+```markdown
 ## Category (MUST)
 ```
 
@@ -61,7 +61,7 @@ Format:
 * Single-sentence, imperative style
 * IDs required
 
-```
+```markdown
 - `IMPL-01-001` Use Python 3.13+
 ```
 
@@ -128,26 +128,26 @@ Example patterns:
 
 ## Sources and Cross-References
 
-* Cross-references between specs MUST use the format `ID-1 relationship 
-ID-2` for cross references, where `relationship` is one of the relationship 
+* Cross-references between specs MUST use the format `ID-1 relationship
+ID-2` for cross references, where `relationship` is one of the relationship
   types below
-    * e.g., `- XX-01-001 refines YY-01-002`
-    * Following is a list of relationship types : inverse relationship types
-      * refines : is-refined-by
-      * derives-from : is-derived-by
-      * implements : is-implemented-by
-      * depends-on : is-dependency-of
-      * conflicts-with : conflicts-with
-      * supersedes : is-superseded-by
-      * duplicates : is-duplicated-by
-      * verifies : is-verified-by
-      * part-of : has-part
-      * constrains : is-constrained-by
-      * extends : is-extended-by
-    * Cross references MUST be included in the requirement as a sub-bullet 
+  * e.g., `- XX-01-001 refines YY-01-002`
+  * Following is a list of relationship types : inverse relationship types
+    * refines : is-refined-by
+    * derives-from : is-derived-by
+    * implements : is-implemented-by
+    * depends-on : is-dependency-of
+    * conflicts-with : conflicts-with
+    * supersedes : is-superseded-by
+    * duplicates : is-duplicated-by
+    * verifies : is-verified-by
+    * part-of : has-part
+    * constrains : is-constrained-by
+    * extends : is-extended-by
+  * Cross references MUST be included in the requirement as a sub-bullet
       for easy extraction
-    * Cross-references SHOULD be placed in both the source and target 
-      requirements using the corresponding inverse relationship for 
+  * Cross-references SHOULD be placed in both the source and target
+      requirements using the corresponding inverse relationship for
       bidirectional traceability
 * Put sources **only in the header**, not per requirement
 * Use inline links for cross-spec references
@@ -167,7 +167,7 @@ Minor refactors do **not** require ADRs.
 ## File Naming
 
 * `kebab-case.md` for `notes/`, `specs/`, and `docs/adr/`
-* `snake_case.md` for Diátaxis documentation (Tutorials, How‑to, Reference, 
+* `snake_case.md` for Diátaxis documentation (Tutorials, How‑to, Reference,
   Explanation) and most of `docs/`
 * Descriptive, minimal
 * Pattern: `{topic}-{type}.md` or `{topic}_{type}.md` depending on directory conventions

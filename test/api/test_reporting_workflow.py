@@ -18,9 +18,7 @@ Test the reporting workflow
 
 import pytest
 
-from vultron.api.v2.backend import handlers as h
-from vultron.api.v2.datalayer.tinydb_backend import get_datalayer
-from vultron.as_vocab.base.objects.activities.transitive import (
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
     as_Offer,
     as_Read,
@@ -28,13 +26,22 @@ from vultron.as_vocab.base.objects.activities.transitive import (
     as_Reject,
     as_Accept,
 )
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
-from vultron.as_vocab.type_helpers import AsActivityType
-from vultron.enums import MessageSemantics
-from vultron.semantic_map import find_matching_semantics
-from vultron.types import BehaviorHandler, DispatchActivity
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
+from vultron.wire.as2.vocab.type_helpers import AsActivityType
+from vultron.core.models.events import MessageSemantics
+from vultron.core.use_cases.report import (
+    CreateReportReceivedUseCase,
+    SubmitReportReceivedUseCase,
+    ValidateReportReceivedUseCase,
+    InvalidateReportReceivedUseCase,
+    AckReportReceivedUseCase,
+    CloseReportReceivedUseCase,
+)
+from vultron.core.use_cases.case import CreateCaseReceivedUseCase
 
 
 # Fixtures
@@ -67,31 +74,25 @@ def case(report):
 
 @pytest.fixture
 def dl():
-    # Use default file-based storage for tests so handlers use the same instance
-    # (handlers call get_datalayer() without arguments)
-    dl = get_datalayer()
-    dl.clear_all()  # Clear before use to ensure clean state
+    from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+
+    dl = TinyDbDataLayer(db_path=None)
     yield dl
     dl.clear_all()
 
 
-def _call_handler(
-    activity: AsActivityType, handler: BehaviorHandler, actor=None
-):
+def _call_use_case(activity: AsActivityType, use_case_class, dl=None):
+    from vultron.wire.as2.extractor import extract_intent
 
-    semantics = find_matching_semantics(activity)
+    event = extract_intent(activity)
 
-    assert semantics != MessageSemantics.UNKNOWN
-    assert semantics in MessageSemantics
-
-    dispatchable = DispatchActivity(
-        semantic_type=semantics, activity_id=activity.as_id, payload=activity
-    )
+    assert event.semantic_type != MessageSemantics.UNKNOWN
+    assert event.semantic_type in MessageSemantics
 
     try:
-        result = handler(dispatchable=dispatchable)
+        result = use_case_class(dl, event).execute()
     except Exception as e:
-        pytest.fail(f"Handler raised an exception: {e}")
+        pytest.fail(f"Use case raised an exception: {e}")
     assert result is None
 
 
@@ -99,51 +100,51 @@ def _call_handler(
 
 
 # Tests
-def test_create_report_handler_returns_none(reporter, report):
+def test_create_report_handler_returns_none(reporter, report, dl):
     activity = as_Create(actor=reporter, object=report)
-    _call_handler(activity, h.create_report)
+    _call_use_case(activity, CreateReportReceivedUseCase, dl=dl)
 
 
 def test_submit_report_persists_activity_and_report(reporter, report, dl):
     activity = as_Offer(actor=reporter, object=report)
-    _call_handler(activity, h.submit_report)
+    _call_use_case(activity, SubmitReportReceivedUseCase, dl=dl)
 
     # check side effects
     assert dl.read(activity.as_id) is not None
     assert dl.read(report.as_id) is not None
 
 
-def test_read_activity_handler_noop_returns_none(reporter, report):
+def test_read_activity_handler_noop_returns_none(reporter, report, dl):
     activity = as_Read(
         actor=reporter, object=as_Offer(actor=reporter, object=report)
     )
-    _call_handler(activity, h.ack_report)  # No read handler yet
+    _call_use_case(activity, AckReportReceivedUseCase, dl=dl)
 
 
-def test_accept_offer(reporter, report):
+def test_accept_offer(reporter, report, dl):
     offer = as_Offer(actor=reporter, object=report)
     activity = as_Accept(actor=reporter, object=offer)
-    _call_handler(activity, h.validate_report)
+    _call_use_case(activity, ValidateReportReceivedUseCase, dl=dl)
 
 
 def test_tentative_reject_triggers_invalidation(reporter, report, dl):
     offer = as_Offer(actor=reporter, object=report)
     activity = as_TentativeReject(actor=reporter, object=offer)
-    _call_handler(activity, h.invalidate_report)
+    _call_use_case(activity, InvalidateReportReceivedUseCase, dl=dl)
 
     # check side effects
     assert dl.read(activity.as_id) is not None
 
 
-def test_create_case_handler_returns_none(coordinator, case):
+def test_create_case_handler_returns_none(coordinator, case, dl):
     activity = as_Create(actor=coordinator, object=case)
-    _call_handler(activity, h.create_case, coordinator)
+    _call_use_case(activity, CreateCaseReceivedUseCase, dl=dl)
 
 
 def test_reject_offer_triggers_close_report(reporter, report, dl):
     offer = as_Offer(actor=reporter, object=report)
     activity = as_Reject(actor=reporter, object=offer)
-    _call_handler(activity, h.close_report)
+    _call_use_case(activity, CloseReportReceivedUseCase, dl=dl)
 
     # check side effects
     assert dl.read(activity.as_id) is not None

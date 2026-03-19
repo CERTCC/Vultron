@@ -1,3 +1,3 @@
 # ActivityStreams Vocabulary Links
 
-::: vultron.as_vocab.base.links
+::: vultron.wire.as2.vocab.base.links

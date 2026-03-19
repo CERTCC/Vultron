@@ -28,7 +28,7 @@ from vultron.bt.messaging.outbound.behaviors import EmitCV, EmitRS
 from vultron.bt.report_management.conditions import RMnotInStateStart
 from vultron.bt.report_management.transitions import q_rm_to_R
 from vultron.bt.roles.conditions import RoleIsNotVendor
-from vultron.bt.roles.states import CVDRoles
+from vultron.core.states.roles import CVDRoles
 from vultron.bt.vul_discovery.fuzzer import (
     DiscoverVulnerability,
     HaveDiscoveryPriority,

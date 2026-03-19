@@ -76,7 +76,7 @@ is set to the `case` object. Implementations should then prompt the case owner t
 recommendation.
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import recommend_actor, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import recommend_actor, json2md
 
 print(json2md(recommend_actor()))
 ```
@@ -91,7 +91,7 @@ rather than accepting the `Offer` activity itself. Note the `target` property of
 This should be followed by the case owner [inviting the actor to the case](#invite-to-case).
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import accept_actor_recommendation, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import accept_actor_recommendation, json2md
 
 print(json2md(accept_actor_recommendation()))
 ```
@@ -102,7 +102,7 @@ The case owner can reject the recommendation by sending a `RejectActorRecommenda
 The structure of this activity is similar to the `Accept` activity [above](#accept-actor-recommendation).
 
 ```python exec="true" idprefix=""
-from vultron.scripts.vocab_examples import reject_actor_recommendation, json2md
+from vultron.wire.as2.vocab.examples.vocab_examples import reject_actor_recommendation, json2md
 
 print(json2md(reject_actor_recommendation()))
 ```

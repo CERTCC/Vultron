@@ -2,55 +2,42 @@
 
 ## Important note about priority numbers
 
-Priority numbers are ascending, so lower numbers are higher priority. 
-The scale is not linear, it's just intended to provide a rough ordering and 
+Priority numbers are ascending, so lower numbers are higher priority.
+The scale is not linear, it's just intended to provide a rough ordering and
 allow for space between to add new priorities in the future if needed. The
-priority numbers themselves do not have any inherent meaning beyond their 
+priority numbers themselves do not have any inherent meaning beyond their
 relative order.
 
-## PRIORITY 30: Implement triggerable behaviors
+## Priority 80: Resolve technical debt and ensure Hexagonal Architecture is fully realized
 
-Existing demos have primarily focused on updating local state based on receipt
-of ActivityStreams activity messages. However, the Vultron Protocol also defines
-a set of triggerable behaviors that are initiated by an actor based on their
-internal state and decision-making processes, rather than being solely reactive to
-external messages. Implementing demos that showcase these triggerable behaviors
-will be important for demonstrating the full capabilities of the Vultron Protocol 
-and the behavior tree implementation. Many of the behavior patterns are 
-already present in the demo scripts, but they might not be fully exposed as 
-triggerable behaviors. These triggerable behaviors will become an important 
-part of the application API and will need to be implemented and demonstrated 
-in some way. Details will need to be worked out as part of the design and 
-planning process. 
+We need to clean up
+all the technical debt that we accumulated during the hexagonal architecture
+refactor. This includes things like ensuring that core, adapters, and wire
+are appropriately separated, that there is not architectural leakage from
+the "outer" layers into core, that error handling is consistent,
+hierarchical, well-defined, and not overly generalized (e.g., don't
+blindly catch `Exception`) Getting the architecture solid is important for
+the remainder of the implementation to go smoothly and for us to be able to
+parallelize work on different components without running into merge conflicts or
+other issues caused by architectural inconsistencies.
 
-Reference docs:
-- `docs/topics/behavior_logic/rm_bt.md`
-- `docs/topics/behavior_logic/rm_validation_bt.md`
-- `docs/topics/behavior_logic/rm_prioritization_bt.md`
-- `docs/topics/behavior_logic/rm_closure_bt.md`
-- `docs/topics/behavior_logic/em_bt.md`
-- `docs/topics/behavior_logic/em_eval_bt.md`
-- `docs/topics/behavior_logic/em_propose_bt.md`
-- `docs/topics/behavior_logic/em_propose_bt.md`
+## Priority 85: Capture all tasks and requirements in IDEAS.md
 
-
-## Priority 50: Shift toward hexagonal architecture and port/adapter design sooner than later
-
-Closely related to the Actor independence priority that follows, we want to 
-shift towards a cleaner implementation of hexagonal architecture and port/adapter design. 
-This will require some refactoring of the existing codebase to separate 
-concerns more clearly, see `notes/architecture-ports-and-adapters.md` and  
-`specs/architecture.md` for details. This will also enable the future demo 
-scenarios to be more cleanly implemented. A number of implementations of the 
-triggerable behaviors in `vultron/api/v2/routers/triggers.py` (which is too 
-large and also needs to be split) wound up being procedural and mixed domain logic in 
-with router code. Rather than merely splitting the large file, we need to refactor this code to 
-separate concerns and move towards a cleaner architecture at the same time. 
-Also, the datalayer implementation has 
-similar problems where it would be cleaner if we were doing dependency 
-injection in a way that is consistent with the hexagonal architecture.
-This will entail some refactoring of the code base to reorganize modules and 
-split out responsibilities more cleanly.
+IDEAS.md contains a significant number of ideas and tasks resulting from
+multiple recent code reviews. Each of these needs to be fully captured and
+reflected in `specs/`, `notes/` and `plan/` documents as appropriate. Tasks
+that are not already in `plan/IMPLEMENTATION_PLAN.md` should be added there  
+with a clear description and any relevant details. Requirements that are not
+already in `specs/` should be added there with a clear requirement id,  
+description, and any relevant details. Design ideas and research that are
+not  already in `notes/` should be added there with a clear description and  
+any relevant details. These updates are critical to ensure we are ready to
+move forward with the upcoming phase 100 tasks. Some items might expand or
+contradict existing notes, specs, or tasks. In those cases, whatever is in
+IDEAS.md should be considered the source of truth, and the existing notes,
+specs, or tasks should be updated to reflect the new information from
+IDEAS.md. DOCS-2 is required at this stage so we can merge a clean PR with all
+github action CI tasks passing.
 
 ## Priority 100: Actor independence
 
@@ -60,6 +47,17 @@ through the Vultron Protocol through passing ActivityStreams messages with
 defined semantics. This allows us to have a clean model of individual
 actors making independent decisions based on their own internal state.
 
+Implementation Phase OUTBOX-1 logically falls under this priority, because
+it's part of getting messages flowing between actors. But it does not
+fully achieve this goal by itself.
+
+## Priority 150: Refactor RM, EM, and CS state models to use `transitions`
+
+This item is briefly captured in VCR-019d but it represents a larger
+evaluation that will need to be broken into subtasks before any
+implementation can occur. A study task should be injected to evaluate the
+suitability of the `transitions` library to assist tracking state changes in
+the Report and Case objects in `vultron.core`.
 
 ## Priority 200: Case Actor as source of truth for case state
 
@@ -95,57 +93,55 @@ via the Vultron Protocol, with CaseActor managing case state.
 
 See `notes/demo-future-ideas.md` for the full scenario descriptions.
 
-
-
-
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
-As we originally built out the `py_trees` implementation, we replaced 
-certain fuzzer nodes from the simulator (`vultron/bt`) with deterministic nodes 
-that simply 
-return success. While this initially allowed us to focus on the core 
-behavior tree logic, it also means that we are not able to demonstrate the 
-full range of behaviors that the Vultron Protocol is designed to support. 
+As we originally built out the `py_trees` implementation, we replaced
+certain fuzzer nodes from the simulator (`vultron/bt`) with deterministic nodes
+that simply
+return success. While this initially allowed us to focus on the core
+behavior tree logic, it also means that we are not able to demonstrate the
+full range of behaviors that the Vultron Protocol is designed to support.
 Re-implementing these nodes with more realistic behavior will be important for showcasing the
 capabilities of the system and for moving towards a production-ready implementation.
-The "fuzzer" implementation in the simulator worked well enough, so there is 
-not much need to change the overall design, but we will need to reimplement 
-it in the new codebase using `py_trees` as the foundation. The underlying 
-`vultron/bt/base/fuzzer.py` module (and all the other `fuzzer.py` modules in 
+The "fuzzer" implementation in the simulator worked well enough, so there is
+not much need to change the overall design, but we will need to reimplement
+it in the new codebase using `py_trees` as the foundation. The underlying
+`vultron/bt/base/fuzzer.py` module (and all the other `fuzzer.py` modules in
 `vultron/bt/`) can be used as a structural reference for the new implementation.
 
 ## Priority 1000: Agentic AI readiness
 
 We are going to want to allow for the possibility of agentic AI integration
 into the vultron coordination process in the future. How this will happen is
-still an open question.
-
-One possibility we can imagine coordination agents that behave as
-ActivityPub Actors and participate in cases as CaseParticipants alongside
+still an open question. One possibility we can imagine coordination agents
+that behave as ActivityPub Actors and participate in cases as CaseParticipants alongside
 humans.
 
-We want to support agentic AI agents interacting with cases as well on the
+A more likely scenario is that we want to support agentic AI agents
+interacting with cases as well on the
 backend (i.e., not as ActivityPub Actors, but as API or command
 line clients.) We may have local agents that interact directly with
-the behavior trees or other internal system components via MCP. This would 
-be an adapter that parallels the API and CLI adapters in the hexagonal 
-architecture. These agents would not be ActivityPub Actors and would not 
+the behavior trees or other internal system components via MCP. This would
+be an adapter that parallels the API and CLI adapters in the hexagonal
+architecture. These agents would not be ActivityPub Actors and would not
 directly participate in cases, but would instead be more like assistants to human participants
 who are directing them to perform specific tasks.
+
+`AR-09-001` through `AR-09-004` and similar tasks will fall here.
 
 We will need to design the system in a way that allows for either of these
 possibilities to be implemented in the future without requiring major refactoring.
 
 ## Priority 2000: Upgrade former "fuzzer" nodes to full implementations
 
-See `notes/bt-fuzzer-nodes.md` for details on a set of fuzzer nodes that 
-were implemented as placeholders in the original simulator, but that 
-represent external touchpoints for the real process. Some of these nodes can 
-be fully automated, others will require outside judgment, human input, or 
-manual work. They might rely on external tools or services that we will need 
-to integrate with. Implementing these nodes will be important for moving 
-from a prototype to a production-ready system, but they also represent a 
-number of decisions and implementation work that is not core to being able 
+See `notes/bt-fuzzer-nodes.md` for details on a set of fuzzer nodes that
+were implemented as placeholders in the original simulator, but that
+represent external touchpoints for the real process. Some of these nodes can
+be fully automated, others will require outside judgment, human input, or
+manual work. They might rely on external tools or services that we will need
+to integrate with. Implementing these nodes will be important for moving
+from a prototype to a production-ready system, but they also represent a
+number of decisions and implementation work that is not core to being able
 to demonstrate the core behavior tree and coordination logic.
 
 ## Priority 99999: Remaining Requirements and Documentation Updates

@@ -189,7 +189,7 @@ when a formal spec is drafted.
 directly or define a new Vultron-specific schema. DIOSTS is the preferred
 basis if Vultron aims for interoperability with the broader security community.
 
-**Cross-reference**: `specs/embargo-policy.md` EP-01; `vultron/as_vocab/
+**Cross-reference**: `specs/embargo-policy.md` EP-01; `vultron/wire/as2/vocab/
 objects/vultron_actor.py` (`VultronActorMixin.embargo_policy`).
 
 ---

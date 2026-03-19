@@ -19,7 +19,7 @@ from typing import Callable, Any
 import vultron.bt.messaging.inbound._behaviors.cs_messages as vmc
 from vultron.bt.base.node_status import NodeStatus
 from vultron.bt.messaging.states import MessageTypes as Mt
-from vultron.case_states.states import CS
+from vultron.core.states.cs import CS
 
 
 class MockMsg:

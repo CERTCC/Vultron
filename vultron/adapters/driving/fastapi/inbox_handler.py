@@ -1,0 +1,155 @@
+#!/usr/bin/env python
+"""
+Vultron Actor Inbox Handler
+"""
+
+#  Copyright (c) 2025-2026 Carnegie Mellon University and Contributors.
+#  - see Contributors.md for a full list of Contributors
+#  - see ContributionInstructions.md for information on how you can Contribute to this project
+#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
+#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
+#  with this Software or contact permission@sei.cmu.edu for full terms.
+#  Created, in part, with funding and support from the United States Government
+#  (see Acknowledgments file). This program may include and/or can make use of
+#  certain third party source code, object code, documentation and other files
+#  ("Third Party Software"). See LICENSE.md for more details.
+#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
+#  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+import logging
+
+from vultron.api.v2.data.actor_io import get_actor_io
+from vultron.wire.as2.rehydration import rehydrate
+from vultron.core.dispatcher import get_dispatcher
+from vultron.core.models.events import VultronEvent
+from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.dispatcher import ActivityDispatcher
+from vultron.core.use_cases.use_case_map import USE_CASE_MAP
+from vultron.wire.as2.extractor import extract_intent
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+
+logger = logging.getLogger(__name__)
+
+
+def prepare_for_dispatch(activity: as_Activity) -> VultronEvent:
+    """Extract domain event from an AS2 activity, ready for dispatch."""
+    logger.debug(
+        "Preparing activity '%s' of type '%s' for dispatch.",
+        activity.as_id,
+        activity.as_type,
+    )
+    event = extract_intent(activity)
+    logger.debug(
+        "Prepared event with semantics '%s' for activity '%s'",
+        event.semantic_type,
+        event.activity_id,
+    )
+    return event
+
+
+_DISPATCHER: ActivityDispatcher | None = None
+
+
+def init_dispatcher(dl: DataLayer | None = None) -> None:
+    """Initialise the module-level dispatcher.
+
+    Must be called once during application startup (e.g. from the FastAPI
+    lifespan event) before any inbox items are processed.  Calling it more
+    than once (e.g. in tests) is allowed — the dispatcher is simply replaced.
+
+    Args:
+        dl: Unused; retained for backward compatibility. DataLayer is now
+            passed at dispatch time via :func:`dispatch`.
+    """
+    global _DISPATCHER
+    _DISPATCHER = get_dispatcher(use_case_map=USE_CASE_MAP)
+    logger.info("Initialised inbox dispatcher: %s", type(_DISPATCHER).__name__)
+
+
+def dispatch(event: VultronEvent, dl: DataLayer) -> None:
+    """Dispatch the given domain event using the module-level dispatcher.
+
+    Args:
+        event: The domain event to dispatch.
+        dl: The DataLayer instance scoped to the current actor.
+    Raises:
+        RuntimeError: If the dispatcher has not been initialised via
+            :func:`init_dispatcher`.
+    """
+    if _DISPATCHER is None:
+        raise RuntimeError(
+            "Inbox dispatcher not initialised. "
+            "Call init_dispatcher() during application startup."
+        )
+    logger.debug(
+        "Dispatching activity '%s' with semantics '%s'",
+        event.activity_id,
+        event.semantic_type,
+    )
+    _DISPATCHER.dispatch(event, dl)
+
+
+def handle_inbox_item(actor_id: str, obj: as_Activity, dl: DataLayer) -> None:
+    """Handle a single item in the Actor's inbox.
+
+    Args:
+        actor_id: The ID of the Actor whose inbox is being processed.
+        obj: The Activity item to process.
+        dl: The DataLayer instance scoped to the current actor.
+    """
+    logger.info("Processing item '%s' for actor '%s'", obj.name, actor_id)
+    logger.debug(
+        "Validated object:\n%s",
+        obj.model_dump_json(indent=2, exclude_none=True),
+    )
+    event = prepare_for_dispatch(activity=obj)
+    dispatch(event=event, dl=dl)
+
+
+async def inbox_handler(actor_id: str, dl: DataLayer) -> None:
+    """Process the inbox for the given actor.
+
+    Args:
+        actor_id: The ID of the Actor whose inbox is being processed.
+        dl: The DataLayer instance to use for persistence operations.
+    """
+    actor = dl.read(actor_id)
+    if actor is None:
+        logger.warning("Actor %s not found in inbox_handler.", actor_id)
+
+    logger.info("Processing inbox for actor %s", actor_id)
+
+    err_count = 0
+
+    actor_io = get_actor_io(actor_id, raise_on_missing=True)
+
+    while actor_io.inbox.items:
+        item = actor_io.inbox.items.pop(0)
+
+        item = rehydrate(item)
+
+        logger.debug("Rehydrated item from inbox: %s", item.as_type)
+        if hasattr(item, "as_object"):
+            logger.debug(
+                "Item has transitive object of type: %s",
+                item.as_object.as_type,
+            )
+
+        try:
+            handle_inbox_item(actor_id=actor_id, obj=item, dl=dl)
+        except Exception as e:
+            logger.error(
+                "Error processing inbox item for actor %s: %s", actor_id, e
+            )
+            logger.debug(
+                "Item causing error: %s",
+                item.model_dump_json(indent=2, exclude_none=True),
+            )
+            actor_io.inbox.items.insert(0, item)
+            err_count += 1
+            if err_count > 3:
+                logger.error(
+                    "Too many errors processing inbox for actor %s, aborting.",
+                    actor_id,
+                )
+                break

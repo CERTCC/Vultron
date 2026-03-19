@@ -17,7 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
-from vultron.api.main import app as api_app
+from vultron.adapters.driving.fastapi.main import app as api_app
 from test.demo._helpers import (
     make_testclient_call,
 )  # noqa: F401 (re-exported for test modules)
@@ -30,5 +30,11 @@ demo_utils.DEFAULT_WAIT_SECONDS = 0.0
 
 @pytest.fixture(scope="module")
 def client():
-    """Provides a shared TestClient instance for demo tests in this module."""
-    return TestClient(api_app)
+    """Provides a shared TestClient instance for demo tests in this module.
+
+    Uses the context-manager form so the FastAPI lifespan events (startup and
+    shutdown) are triggered, which initialises the inbox dispatcher via
+    :func:`vultron.adapters.driving.fastapi.inbox_handler.init_dispatcher`.
+    """
+    with TestClient(api_app) as test_client:
+        yield test_client

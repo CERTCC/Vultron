@@ -47,30 +47,37 @@ import sys
 from datetime import datetime, timedelta
 from typing import Optional, Sequence, Tuple
 
-from vultron.as_vocab.activities.case import (
-    AddReportToCase,
-    CreateCase,
-    RmAcceptInviteToCase,
-    RmInviteToCase,
+from vultron.wire.as2.vocab.activities.case import (
+    AddReportToCaseActivity,
+    CreateCaseActivity,
+    RmAcceptInviteToCaseActivity,
+    RmInviteToCaseActivity,
 )
-from vultron.as_vocab.activities.case_participant import AddParticipantToCase
-from vultron.as_vocab.activities.embargo import (
-    ActivateEmbargo,
-    AnnounceEmbargo,
-    EmAcceptEmbargo,
-    EmProposeEmbargo,
-    EmRejectEmbargo,
+from vultron.wire.as2.vocab.activities.case_participant import (
+    AddParticipantToCaseActivity,
 )
-from vultron.as_vocab.activities.report import RmSubmitReport, RmValidateReport
-from vultron.as_vocab.base.objects.activities.transitive import as_Create
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.objects.case_participant import (
+from vultron.wire.as2.vocab.activities.embargo import (
+    ActivateEmbargoActivity,
+    AnnounceEmbargoActivity,
+    EmAcceptEmbargoActivity,
+    EmProposeEmbargoActivity,
+    EmRejectEmbargoActivity,
+)
+from vultron.wire.as2.vocab.activities.report import (
+    RmSubmitReportActivity,
+    RmValidateReportActivity,
+)
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import (
     CoordinatorParticipant,
     FinderReporterParticipant,
 )
-from vultron.as_vocab.objects.embargo_event import EmbargoEvent
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.as_vocab.objects.vulnerability_report import VulnerabilityReport
+from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.wire.as2.vocab.objects.vulnerability_report import (
+    VulnerabilityReport,
+)
 from vultron.demo.utils import (
     BASE_URL,
     DataLayerClient,
@@ -132,7 +139,7 @@ def _setup_two_participant_case(
         content="A use-after-free vulnerability in the network stack.",
         name="Use-After-Free in Network Stack",
     )
-    report_offer = RmSubmitReport(
+    report_offer = RmSubmitReportActivity(
         actor=finder.as_id,
         as_object=report,
         to=[vendor.as_id],
@@ -141,7 +148,7 @@ def _setup_two_participant_case(
     verify_object_stored(client, report.as_id)
 
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
-    validate_activity = RmValidateReport(
+    validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
         object=offer.as_id,
         content="Confirmed — use-after-free via unsanitized network input.",
@@ -153,14 +160,14 @@ def _setup_two_participant_case(
         name="UAF Case — Network Stack",
         content="Tracking the use-after-free vulnerability in the network stack.",
     )
-    create_case_activity = CreateCase(
+    create_case_activity = CreateCaseActivity(
         actor=vendor.as_id,
         as_object=case,
     )
     post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
     verify_object_stored(client, case.as_id)
 
-    add_report_activity = AddReportToCase(
+    add_report_activity = AddReportToCaseActivity(
         actor=vendor.as_id,
         as_object=report.as_id,
         target=case.as_id,
@@ -179,7 +186,7 @@ def _setup_two_participant_case(
     post_to_inbox_and_wait(client, vendor.as_id, create_participant_activity)
     verify_object_stored(client, participant.as_id)
 
-    add_participant_activity = AddParticipantToCase(
+    add_participant_activity = AddParticipantToCaseActivity(
         actor=vendor.as_id,
         as_object=participant.as_id,
         target=case.as_id,
@@ -187,7 +194,7 @@ def _setup_two_participant_case(
     post_to_inbox_and_wait(client, vendor.as_id, add_participant_activity)
 
     # Invite coordinator and have them accept
-    invite = RmInviteToCase(
+    invite = RmInviteToCaseActivity(
         actor=vendor.as_id,
         object=coordinator.as_id,
         target=case.as_id,
@@ -196,7 +203,7 @@ def _setup_two_participant_case(
     )
     post_to_inbox_and_wait(client, coordinator.as_id, invite)
 
-    accept = RmAcceptInviteToCase(
+    accept = RmAcceptInviteToCaseActivity(
         actor=coordinator.as_id,
         object=invite.as_id,
         to=[vendor.as_id],
@@ -222,9 +229,9 @@ def demo_propose_embargo_accept(
 
     Steps:
     1. Setup: initialize case with two participants (vendor + coordinator)
-    2. Coordinator proposes embargo (EmProposeEmbargo → vendor inbox)
-    3. Vendor accepts embargo (EmAcceptEmbargo → coordinator inbox, then
-       vendor activates via ActivateEmbargo → vendor's own processing)
+    2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
+    3. Vendor accepts embargo (EmAcceptEmbargoActivity → coordinator inbox, then
+       vendor activates via ActivateEmbargoActivity → vendor's own processing)
     4. Vendor announces embargo to all participants
     5. Verify case has ACTIVE embargo
 
@@ -246,7 +253,7 @@ def demo_propose_embargo_accept(
         )
         post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
 
-        proposal = EmProposeEmbargo(
+        proposal = EmProposeEmbargoActivity(
             id=f"{case.as_id}/embargo_proposals/1",
             actor=coordinator.as_id,
             object=embargo,
@@ -258,7 +265,7 @@ def demo_propose_embargo_accept(
         post_to_inbox_and_wait(client, vendor.as_id, proposal)
 
     with demo_step("Step 3: Vendor accepts embargo and activates it"):
-        accept = EmAcceptEmbargo(
+        accept = EmAcceptEmbargoActivity(
             actor=vendor.as_id,
             object=proposal.as_id,
             context=case.as_id,
@@ -268,7 +275,7 @@ def demo_propose_embargo_accept(
         logger.info(f"Sending embargo acceptance: {logfmt(accept)}")
         post_to_inbox_and_wait(client, coordinator.as_id, accept)
 
-        activate = ActivateEmbargo(
+        activate = ActivateEmbargoActivity(
             actor=vendor.as_id,
             object=embargo.as_id,
             target=case.as_id,
@@ -279,7 +286,7 @@ def demo_propose_embargo_accept(
         post_to_inbox_and_wait(client, vendor.as_id, activate)
 
     with demo_step("Step 4: Vendor announces embargo to participants"):
-        announce = AnnounceEmbargo(
+        announce = AnnounceEmbargoActivity(
             actor=vendor.as_id,
             object=embargo.as_id,
             context=case.as_id,
@@ -321,8 +328,8 @@ def demo_propose_embargo_reject(
 
     Steps:
     1. Setup: initialize case with two participants (vendor + coordinator)
-    2. Coordinator proposes embargo (EmProposeEmbargo → vendor inbox)
-    3. Vendor rejects embargo (EmRejectEmbargo → coordinator inbox)
+    2. Coordinator proposes embargo (EmProposeEmbargoActivity → vendor inbox)
+    3. Vendor rejects embargo (EmRejectEmbargoActivity → coordinator inbox)
     4. Verify case has no active embargo
 
     This follows the reject branch in
@@ -343,7 +350,7 @@ def demo_propose_embargo_reject(
         )
         post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
 
-        proposal = EmProposeEmbargo(
+        proposal = EmProposeEmbargoActivity(
             id=f"{case.as_id}/embargo_proposals/1",
             actor=coordinator.as_id,
             object=embargo,
@@ -355,7 +362,7 @@ def demo_propose_embargo_reject(
         post_to_inbox_and_wait(client, vendor.as_id, proposal)
 
     with demo_step("Step 3: Vendor rejects embargo proposal"):
-        reject = EmRejectEmbargo(
+        reject = EmRejectEmbargoActivity(
             actor=vendor.as_id,
             object=proposal.as_id,
             context=case.as_id,

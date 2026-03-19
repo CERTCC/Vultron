@@ -15,8 +15,8 @@
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
-from vultron.as_vocab.base.objects.activities.transitive import as_Create
-from vultron.as_vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 
 
 def test_created_actors_fixture_has_expected_count(created_actors):
@@ -79,3 +79,45 @@ def test_post_non_activity_to_actor_inbox_returns_422(
             f"/actors/{actor.as_id}/inbox/", json=payload
         )
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+
+def test_get_actor_profile_returns_discovery_fields(
+    client_actors, created_actors
+):
+    for actor in created_actors:
+        resp = client_actors.get(f"/actors/{actor.as_id}/profile")
+        assert resp.status_code == status.HTTP_200_OK
+        data = resp.json()
+        assert "id" in data
+        assert data["id"].endswith(actor.as_id)
+        assert "type" in data
+        assert "inbox" in data
+        assert "outbox" in data
+        assert data["inbox"]["type"] == "OrderedCollection"
+        assert data["outbox"]["type"] == "OrderedCollection"
+
+
+def test_get_actor_profile_not_found_returns_404(client_actors):
+    resp = client_actors.get("/actors/nonexistent-actor-id/profile")
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_get_actors_does_not_log_raw_records_at_info_level(
+    client_actors, created_actors, caplog
+):
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="uvicorn.error"):
+        resp = client_actors.get("/actors/")
+
+    assert resp.status_code == status.HTTP_200_OK
+
+    info_messages = [
+        r.message for r in caplog.records if r.levelno == logging.INFO
+    ]
+    raw_dumps = [
+        m for m in info_messages if m.startswith(("results:", "rec:"))
+    ]
+    assert (
+        not raw_dumps
+    ), f"Raw DB record dumps should not be logged at INFO level; found: {raw_dumps}"

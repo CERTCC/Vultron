@@ -4,12 +4,13 @@
 
 Handler functions in `vultron/api/v2/backend/handlers` MAY orchestrate
 complex workflows using the `py_trees` behavior tree library via the bridge
-layer in `vultron/behaviors/`. Simple CRUD-style handlers use procedural code
-directly.
+layer in `vultron/core/behaviors/`. Simple CRUD-style handlers use procedural
+code directly.
 
 **Key boundary**: `vultron/bt/` is the simulation BT engine (custom, do NOT
-modify or reuse for prototype handlers). `vultron/behaviors/` uses `py_trees`
-for prototype handler BTs. These coexist independently and MUST NOT be merged.
+modify or reuse for prototype handlers). `vultron/core/behaviors/` uses
+`py_trees` for prototype handler BTs. These coexist independently and MUST
+NOT be merged.
 
 ---
 
@@ -270,12 +271,12 @@ tests).
 
 ## EvaluateCasePriority: Outgoing Direction Only
 
-`EvaluateCasePriority` (in `vultron/behaviors/report/nodes.py`) is a **stub
-node for the outgoing direction** — when the local actor decides whether to
-engage or defer a case after receiving a validated report.
+`EvaluateCasePriority` (in `vultron/core/behaviors/report/nodes.py`) is a
+**stub node for the outgoing direction** — when the local actor decides whether
+to engage or defer a case after receiving a validated report.
 
 The receive-side trees (`EngageCaseBT`, `DeferCaseBT` in
-`vultron/behaviors/report/prioritize_tree.py`) do **not** use
+`vultron/core/behaviors/report/prioritize_tree.py`) do **not** use
 `EvaluateCasePriority`. They only record the **sender's already-made
 decision** by updating the sender's `CaseParticipant.participant_status[].rm_state`.
 

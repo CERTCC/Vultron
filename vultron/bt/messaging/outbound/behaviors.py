@@ -25,7 +25,7 @@ from vultron.bt.base.factory import action_node
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.behaviors import incoming_message
 from vultron.bt.messaging.states import MessageTypes, MessageTypes as MT
-from vultron.sim.messages import Message
+from vultron.bt.messaging.message import Message
 
 logger = logging.getLogger(__name__)
 

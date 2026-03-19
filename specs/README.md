@@ -20,33 +20,36 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   separation rules, SemanticIntent placement, extractor isolation, adapter
   injection, connector plugins, wire replaceability, review checklist
   (ARCH-01 through ARCH-08)
+- **`vultron-protocol-spec.md`** - Requirements extracted from Vultron
+  Protocol documentation: participant state tracking, RM/EM/CS messaging,
+  model interactions, and implementation guidance
 
 **Handler Pipeline** (message processing flow):
 
 1. **`inbox-endpoint.md`** - FastAPI HTTP endpoint accepting ActivityStreams activities
 2. **`message-validation.md`** - ActivityStreams 2.0 structure and semantic validation
 3. **`semantic-extraction.md`** - Pattern matching to determine message semantics
-4. **`dispatch-routing.md`** - Routing DispatchActivity to handler functions
+4. **`dispatch-routing.md`** - Routing DispatchEvent to handler functions
 5. **`handler-protocol.md`** - Handler function contract and implementation patterns
 
 **Behavior Tree Integration** (optional for complex workflows):
 
-6. **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
-7. **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
-   endpoint format, RM/EM candidate behaviors, request/response schema,
-   BT integration, per-actor DataLayer dependency, outbox activity requirement
+- **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
+- **`triggerable-behaviors.md`** - Trigger API for actor-initiated behaviors (PRIORITY 30):
+  endpoint format, RM/EM candidate behaviors, request/response schema,
+  BT integration, per-actor DataLayer dependency, outbox activity requirement
 
 ### Case and Actor Management
 
-8. **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
-   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
-   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
-   acceptance tracking (CM-10)
+- **`case-management.md`** - CaseActor lifecycle, actor isolation, RM/EM/CS/VFD state model,
+  object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
+  broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
+  acceptance tracking (CM-10)
 
 ### Object Identifiers
 
-9. **`object-ids.md`** - Object ID format (full URI), DataLayer handling, blackboard key
-   conventions, ADR requirement
+- **`object-ids.md`** - Object ID format (full URI), DataLayer handling, blackboard key
+  conventions, ADR requirement
 
 ### Cross-Cutting Concerns
 
@@ -66,7 +69,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 **Quality Attributes**:
 
 - **`idempotency.md`** - Duplicate detection and idempotent processing
-- **`testability.md`** - Test coverage requirements and test organization
+- **`testability.md`** - Test coverage requirements, test organization,
+  architecture boundary tests (TB-10, `PROD_ONLY`)
 
 ### Response Generation
 
@@ -91,7 +95,10 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 ### Code Standards
 
 - **`code-style.md`** - Python formatting, import organization, circular import
-  prevention, optional-field non-emptiness (CS-08-001), code reuse (CS-09-001)
+  prevention, optional-field non-emptiness (CS-08-001), code reuse (CS-09-001),
+  typed port/adapter interfaces (CS-10-001), domain event naming convention
+  (`FooActivity` vs `FooEvent`, CS-10-002), type annotation strictness
+  (no `Any`, CS-11-001), domain-centric class naming (CS-12-001)
 - **`tech-stack.md`** - Normative technology constraints: runtime, persistence,
   tooling, and code quality tooling (including pyright gradual adoption, IMPL-TS-*)
 - **`meta-specifications.md`** - How to write and maintain specifications
@@ -105,7 +112,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 - **`project-documentation.md`** - Documentation file structure and purpose
 - **`prototype-shortcuts.md`** - Permissible shortcuts for the prototype stage,
-  including domain model separation deferral (PROTO-06)
+  including domain model separation deferral (PROTO-06) and performance
+  testing deferral (PROTO-07)
 - **`agentic-readiness.md`** - API and CLI requirements for automated agent integration
 
 ---
@@ -167,6 +175,7 @@ is reserved for `testability.md`).
 | `IMPL-TS` | `tech-stack.md` |
 | `MV` | `message-validation.md` |
 | `OB` | `observability.md` |
+| `OID` | `object-ids.md` |
 | `OX` | `outbox.md` |
 | `PD` | `project-documentation.md` |
 | `PROTO` | `prototype-shortcuts.md` |
@@ -183,7 +192,7 @@ Some requirements carry special tags to indicate scope or applicability:
 - **`PROD_ONLY`**: Requirement may be deferred during the prototype stage.
   See `prototype-shortcuts.md` PROTO-04-001 for the deferral policy.
   Tagged requirements appear inline after the requirement ID:
-  `- `REQ-ID` `PROD_ONLY` Requirement statement`
+  `-`REQ-ID``PROD_ONLY`Requirement statement`
 
   Common categories of `PROD_ONLY` requirements include:
   - Authentication and authorization (per PROTO-01-001)
@@ -195,7 +204,6 @@ Some requirements carry special tags to indicate scope or applicability:
   - Future performance optimizations
 
 ---
-
 
 Some specifications consolidate requirements from multiple sources to create a single source of truth:
 
@@ -220,7 +228,7 @@ source.
 
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
 
-**Summary (2026-03-09)**:
+**Summary (2026-03-16)**:
 
 - ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
   handler protocol, data layer
@@ -232,18 +240,28 @@ See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specific
   `plan/IMPLEMENTATION_PLAN.md`
 - ✅ **Unified demo CLI complete** (`vultron-demo`): See `specs/demo-cli.md`
   and `plan/IMPLEMENTATION_PLAN.md` (Phase DEMO-4)
-- ✅ **TECHDEBT-6 complete**: `vultron/scripts/vocab_examples.py` shim removed
-- ✅ **Object model gap closed**: `VulnerabilityRecord`, `CaseReference`,
-  `EmbargoPolicy`, `VultronActorMixin` models added (SC-1.1, SC-1.2, EP-1.1,
-  EP-1.2)
-- ✅ **736 tests passing**, 0 xfailed (2026-03-06)
+- ✅ **Triggerable behaviors fully implemented** (PRIORITY 30 complete):
+  All 9 trigger endpoints (`validate-report`, `invalidate-report`,
+  `reject-report`, `engage-case`, `defer-case`, `close-report`,
+  `propose-embargo`, `evaluate-embargo`, `terminate-embargo`)
+- ✅ **Hexagonal architecture Phases 50/60/65 complete** (ARCH-CLEANUP):
+  `MessageSemantics` in core, `InboundPayload` domain type, wire/as2
+  extractor and parser, handler map in adapter layer, AS2 enums in wire
+  layer, shims deleted, `isinstance` AS2 checks removed (V-01 through V-24)
+- ✅ **Package relocation P60-1, P60-2 complete**: `vultron/as_vocab/` →
+  `vultron/wire/as2/vocab/`; `vultron/behaviors/` → `vultron/core/behaviors/`
+- ✅ **DataLayer refactor P70 complete**: `DataLayer` as port in
+  `vultron/core/ports/datalayer.py`; TinyDB as driven adapter
+- ✅ **Business logic in core/use_cases/ (P75-1–P75-4 complete)**:
+  All 38 handler use cases and 9 trigger use cases in `vultron/core/use_cases/`;
+  `UseCase[Req, Res]` Protocol defined; CLI and MCP adapters implemented
+- ✅ **893 tests passing** (2026-03-16)
 - ⚠️ **Production readiness partial**: Request validation, error responses
   need work
-- ⚠️ **Triggerable behaviors partially implemented**: P30-1 through P30-3
-  complete (`validate-report`, `invalidate-report`, `reject-report`,
-  `engage-case`, `defer-case`); P30-4 through P30-6 remain
+- ❌ **P75-5 not decided**: `vultron/api/v1/` disposition pending
 - ❌ **Response generation not started**: See `response-format.md`
 - ❌ **Outbox delivery not implemented**: See `outbox.md` OX-03, OX-04
+- ❌ **Technical debt**: TECHDEBT-15–26; see `plan/IMPLEMENTATION_PLAN.md`
 
 ---
 

@@ -163,6 +163,8 @@ history from implementation work.
 - Quick reference information (belongs in AGENTS.md)
 - Future planning (belongs in IMPLEMENTATION_PLAN.md)
 - Coding how-tos (belongs in AGENTS.md)
+- Implementation history or 'what was done' summaries from build cycles
+  (belongs in IMPLEMENTATION_HISTORY.md)
 
 **Maintenance**:
 
@@ -194,7 +196,7 @@ history from implementation work.
 - Detailed debugging history (belongs in IMPLEMENTATION_NOTES.md)
 - Lessons learned (belongs in IMPLEMENTATION_NOTES.md)
 - Technical how-tos (belongs in AGENTS.md)
-- Completed work details (summarize and move to IMPLEMENTATION_NOTES.md)
+- Completed work details (summarize and move to IMPLEMENTATION_HISTORY.md)
 
 **Maintenance**:
 
@@ -203,54 +205,54 @@ history from implementation work.
 - Implementation insights go to `plan/IMPLEMENTATION_NOTES.md` (not here)
 - Add new phases as roadmap evolves
 - Task Sizing Guidance (SHOULD)
-   - Tasks listed in `plan/IMPLEMENTATION_PLAN.md` SHOULD be sized as
+  - Tasks listed in `plan/IMPLEMENTATION_PLAN.md` SHOULD be sized as
      "meaningful chunks":
-     - Make each task large enough to produce measurable progress (for
+    - Make each task large enough to produce measurable progress (for
        example: implement a feature with tests and a minimal documentation
        note; or run a one-off migration including tests), but small enough
        to be completed in a single agent execution cycle (one agent run or
        one focused human work session).
-     - Rationale: grouping many very small plan items increases overhead
+    - Rationale: grouping many very small plan items increases overhead
        for agents and reviewers (more prompts, more context switches).
        Overly large tasks become hard to reason about, validate, and track.
        "Meaningful chunks" balance visibility, atomicity, and execution
        efficiency.
-     - When a change requires multiple distinct implementation contexts
+    - When a change requires multiple distinct implementation contexts
        (separate services or major refactors), split it into separate
        tasks. When multiple small fixes share the same implementation
        context (same module, tests, or PR), group them into one task.
-   - Minimal acceptance criteria for a task:
-     - A clear, testable definition of "done" (e.g., tests to add/modify
+  - Minimal acceptance criteria for a task:
+    - A clear, testable definition of "done" (e.g., tests to add/modify
        and expected behaviours).
-     - Any blocking dependencies (phases/tasks that must complete first).
-     - A short note about scope (one sentence) to avoid ambiguity.
-   - Examples:
-     - Anti-pattern (too tiny): `- [ ] Fix one failing assert in
+    - Any blocking dependencies (phases/tasks that must complete first).
+    - A short note about scope (one sentence) to avoid ambiguity.
+  - Examples:
+    - Anti-pattern (too tiny): `- [ ] Fix one failing assert in
        test_foo.py`
-     - Good ("meaningful chunk"): `- [ ] Fix failing test suite for module
+    - Good ("meaningful chunk"): `- [ ] Fix failing test suite for module
        foo: update validation, add edge-case tests, and document behavior in
        docs/foo.md`
-     - Anti-pattern (too large): `- [ ] Rewrite the entire data layer and
+    - Anti-pattern (too large): `- [ ] Rewrite the entire data layer and
        update all docs`
-     - Better (split by context): `- [ ] Refactor tinydb backend to
+    - Better (split by context): `- [ ] Refactor tinydb backend to
        DataLayer protocol + tests` and `- [ ] Update demo scripts and docs
        to use refactored DataLayer`
-   - Guidance for reviewers/agents:
-     - Prefer tasks that can be completed and validated in a single PR.
-     - If a proposed task will require multiple agent prompts or multiple
+  - Guidance for reviewers/agents:
+    - Prefer tasks that can be completed and validated in a single PR.
+    - If a proposed task will require multiple agent prompts or multiple
        distinct PRs, break it into smaller contextual subtasks and record
        the parent/child relationship in the plan.
 - Phases get a Unique ID tag (e.g., `DEMO-1`)
   - Steps within a phase get hierarchical tags (e.g., `DEMO-1.1`, `DEMO-1.2`)
   - Individual task items within a step get further tags (e.g., `DEMO-1.1.1`)
-    to allow precise tracking and referencing, also allowing additions or 
-    deletions of task items within a step to be less disruptive to the overall 
+    to allow precise tracking and referencing, also allowing additions or
+    deletions of task items within a step to be less disruptive to the overall
     numbering scheme
 - Mark blockers as resolved when fixed
 - `PD-02-001` Prior task history SHOULD be moved out of  
   `plan/IMPLEMENTATION_PLAN.md` into the append-only
   `plan/IMPLEMENTATION_HISTORY.md` archive to keep the active plan concise
-    - Create `plan/IMPLEMENTATION_HISTORY.md` if it does not exist
+  - Create `plan/IMPLEMENTATION_HISTORY.md` if it does not exist
 
 **Target Audience**: Agents planning next implementation steps
 
@@ -265,6 +267,7 @@ history from implementation work.
 **Scope** (MUST contain):
 
 - Completed implementation phases with details on what was done, when, and how
+- Per-build 'what was done' summaries appended after each implementation cycle
 - Deferred future work that was deprioritized (with rationale and context)
 - Commit references where relevant pointing to completed work
 
@@ -282,7 +285,7 @@ history from implementation work.
 When refactoring documentation:
 
 1. **Status updates** → Move to IMPLEMENTATION_NOTES.md with date
-2. **Completed phases** → Move to IMPLEMENTATION_HISTORY.md with date and summary
+2. **Completed phases / 'what was done' summaries** → Append to IMPLEMENTATION_HISTORY.md
 3. **Lessons learned** → Move to IMPLEMENTATION_NOTES.md under relevant date
 4. **Future priorities** → Move to IMPLEMENTATION_PLAN.md
 5. **Technical gotchas** → Keep in AGENTS.md Common Pitfalls
@@ -294,7 +297,7 @@ When refactoring documentation:
 ## File Size Guidelines
 
 - **AGENTS.md**: Target < 1000 lines; prioritize clarity and scannability
-    - Use directory-specific AGENTS.md files if needed to keep content focused
+  - Use directory-specific AGENTS.md files if needed to keep content focused
       and concise
 - **notes/*.md**: No strict limit per file; create new files for distinct topics
 - **IMPLEMENTATION_NOTES.md**: No limit (grows over time)
@@ -303,7 +306,7 @@ When refactoring documentation:
   implementation details)
 - `PD-01-001` Large modules with multiple responsibilities SHOULD be refactored
   into smaller cohesive modules
-    - When proposed refactors affect architecture, consider raising an ADR and
+  - When proposed refactors affect architecture, consider raising an ADR and
       document the change in `docs/adr/`
 
 ---
@@ -315,7 +318,7 @@ When one document references another:
 - AGENTS.md SHOULD NOT reference IMPLEMENTATION_NOTES.md for "see lessons
   learned" because the content is expected to be ephemeral and may be wiped,
   instead:
-    - AGENTS.md MAY reference notes/*.md for "see lessons learned and design
+  - AGENTS.md MAY reference notes/*.md for "see lessons learned and design
       insights"
 - notes/*.md MUST reference relevant specs and ADRs
 - IMPLEMENTATION_NOTES.md SHOULD reference relevant specs and ADRs

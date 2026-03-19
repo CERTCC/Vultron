@@ -37,7 +37,7 @@ CMD ["uv", "run", "vultrabot"]
 
 FROM dependencies AS api-dev
 ENV LOG_LEVEL=DEBUG
-CMD ["uv","run","uvicorn","vultron.api.main:app","--host","0.0.0.0","--port","7999","--reload"]
+CMD ["uv","run","uvicorn","vultron.adapters.driving.fastapi.main:app","--host","0.0.0.0","--port","7999","--reload"]
 
 FROM dependencies AS demo
 ENV PYTHONPATH=/app

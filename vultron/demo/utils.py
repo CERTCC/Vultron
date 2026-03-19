@@ -36,12 +36,12 @@ from pydantic import BaseModel
 
 # Vultron imports
 from vultron.api.v2.data.actor_io import clear_all_actor_ios, init_actor_io
-from vultron.api.v2.data.utils import parse_id
-from vultron.as_vocab.base.objects.activities.base import as_Activity
-from vultron.as_vocab.base.objects.activities.transitive import as_Offer
-from vultron.as_vocab.base.objects.actors import as_Actor
-from vultron.as_vocab.base.objects.base import as_Object
-from vultron.as_vocab.objects.vulnerability_case import VulnerabilityCase
+from vultron.adapters.utils import parse_id
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
+from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.base import as_Object
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 logger = logging.getLogger(__name__)
 

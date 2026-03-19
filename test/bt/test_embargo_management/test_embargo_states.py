@@ -15,7 +15,7 @@
 
 import unittest
 
-from vultron.bt.embargo_management.states import EM
+from vultron.core.states.em import EM
 
 
 class TestEmbargoStates(unittest.TestCase):

@@ -79,8 +79,18 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
         """
         py_trees.blackboard.Blackboard.storage.clear()
     ```
+
   - **Rationale**: py_trees blackboard is a global singleton; without clearing,
     state from one test leaks into subsequent tests
+- `TB-06-006` All tests MUST be deterministic and produce the same result on
+  every run
+  - **Implementation**: Eliminate random seeds, time-based values, or
+    ordering dependencies from assertions
+  - **Rationale**: Flaky tests erode confidence in the test suite, mask real
+    failures, and slow development. A flaky test MUST be fixed or removed;
+    it MUST NOT be left in the suite. The test `test_remove_embargo` in
+    `test/wire/as2/vocab/test_vocab_examples.py` has been identified as
+    flaky and MUST be resolved.
 
 ## Mocking and Stubbing (MUST)
 
@@ -99,6 +109,25 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 - `TB-09-001` Tests MUST be kept simple and readable
 - `TB-09-002` Test duplication SHOULD be avoided via fixtures and helpers
 - `TB-09-003` Tests MUST be refactored along with production code
+
+## Architecture Boundary Tests (SHOULD)
+
+- `TB-10-001` `PROD_ONLY` Once the `core` and `wire` packages are fully
+  separated (see `specs/architecture.md` and `notes/architecture-review.md`),
+  architecture boundary tests SHOULD be added to enforce layer separation rules
+  - Tests SHOULD verify that `vultron/core/` does not import from
+    `vultron/wire/` or `vultron/api/`
+  - Tests SHOULD verify that `vultron/wire/` does not import from
+    `vultron/api/`
+  - Implementation: use `pytest` + `ast` or an import-linting tool
+    (e.g., `import-linter`) to detect boundary violations automatically
+  - **Rationale**: As the codebase grows, accidental cross-layer imports are
+    easy to introduce. Automated boundary tests catch violations earlier than
+    code review and enforce the architectural rules documented in
+    `notes/architecture-ports-and-adapters.md`
+  - **Timing**: Add these tests once the P65-x violation remediation series
+    is complete and all active violations in `notes/architecture-review.md`
+    are resolved
 
 ## Verification
 
@@ -136,6 +165,13 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 - CI pipeline: Tests run in randomized order
 - Unit test: Test database used or database mocked
 - Integration test: State reset verified between tests
+
+### TB-06-006 Verification
+
+- CI pipeline: Run full test suite 3× in succession; all results identical
+- Code review: No use of `random` without seeding, no time-dependent
+  assertions in tests
+- Known flaky test `test_remove_embargo` addressed
 
 ### TB-07-001, TB-07-002, TB-07-003 Verification
 
