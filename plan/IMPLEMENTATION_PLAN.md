@@ -474,7 +474,7 @@ from Deferred section after P75-4 completion.
 
 **Priority**: 95 (docs correctness, `notes/codebase-structure.md`)
 
-- [ ] **DOCS-1**: Update `docker/README.md` to accurately describe the current
+- [x] **DOCS-1**: Update `docker/README.md` to accurately describe the current
   `docker-compose.yml` services: `api-dev` (API server), `demo` (unified demo
   runner for all demo scripts), `test` (pytest), `docs` (MkDocs), and
   `vultrabot-demo`. Remove references to individual per-demo service containers
