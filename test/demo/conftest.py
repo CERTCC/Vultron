@@ -34,7 +34,7 @@ def client():
 
     Uses the context-manager form so the FastAPI lifespan events (startup and
     shutdown) are triggered, which initialises the inbox dispatcher via
-    :func:`vultron.api.v2.backend.inbox_handler.init_dispatcher`.
+    :func:`vultron.adapters.driving.fastapi.inbox_handler.init_dispatcher`.
     """
     with TestClient(api_app) as test_client:
         yield test_client

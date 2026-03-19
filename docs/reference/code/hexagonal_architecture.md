@@ -36,7 +36,7 @@ In this architecture:
   external APIs). These are the exit points for the core to perform actions  
   that have side effects or require external resources.
 - The **Driven Adapters** implement the driven ports using specific technologies
-  (e.g., MongoDD for database access, Celery for task queues, etc.)
+  (e.g., MongoDB for database access, Celery for task queues, etc.)
   and
   translate calls from the core domain logic into interactions with external
   systems.
