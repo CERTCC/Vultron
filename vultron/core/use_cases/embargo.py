@@ -5,7 +5,7 @@ from typing import cast
 
 from transitions import MachineError
 
-from vultron.core.states.em import EM, create_em_machine
+from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     AddEmbargoEventToCaseReceivedEvent,
@@ -20,17 +20,6 @@ from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.models.protocols import CaseModel, ParticipantModel
 
 logger = logging.getLogger(__name__)
-
-
-class _EMAdapter:
-    """Adapter that lets the EM transitions machine operate on a plain .state attribute.
-
-    Seed with the current EM state, pass to ``machine.add_model(initial=...)``,
-    trigger the desired transition, then read back ``.state``.
-    """
-
-    def __init__(self, initial: EM) -> None:
-        self.state = initial
 
 
 class CreateEmbargoEventReceivedUseCase:
@@ -125,7 +114,7 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             return
 
         em_state = case.current_status.em_state
-        adapter = _EMAdapter(em_state)
+        adapter = EMAdapter(em_state)
         em_machine = create_em_machine()
         em_machine.add_model(adapter, initial=em_state)
 

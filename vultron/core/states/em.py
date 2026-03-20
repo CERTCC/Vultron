@@ -106,6 +106,17 @@ _transitions = [
 ]
 
 
+class EMAdapter:
+    """Adapter that lets the EM transitions machine operate on a plain .state attribute.
+
+    Seed with the current EM state, pass to ``machine.add_model(initial=...)``,
+    trigger the desired transition, then read back ``.state``.
+    """
+
+    def __init__(self, initial: EM) -> None:
+        self.state = initial
+
+
 def is_valid_em_transition(source: EM, dest: EM) -> bool:
     """Return True if (source → dest) is a valid EM state transition."""
     return any(
