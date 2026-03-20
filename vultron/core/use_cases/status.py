@@ -12,7 +12,7 @@ from vultron.core.models.events.status import (
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.states.cs import is_valid_pxa_transition
 from vultron.core.states.em import is_valid_em_transition
-from vultron.core.states.rm import RM, is_valid_rm_transition
+from vultron.core.states.rm import is_valid_rm_transition
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.models.protocols import CaseModel, ParticipantModel
 
