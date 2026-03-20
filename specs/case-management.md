@@ -140,11 +140,18 @@ the distinction between participant-specific and participant-agnostic state.
   - CM-04-004 implements VP-03-002
   - CM-04-004 implements VP-14-003
   - CM-04-004 implements VP-14-004
-- `CM-04-005` State transition handlers MUST NOT mix participant-specific and
+- `CM-04-005` Handlers that implement VFD or PXA transitions MUST validate
+  the requested transition against the authoritative current state before
+  persisting it
+  - Applies to future fix-readiness, deployment, public-disclosure, exploit,
+    and attack-observation flows
+  - The validation rule MUST be shared across code paths that persist the
+    corresponding state so invalid sequences are rejected consistently
+- `CM-04-006` State transition handlers MUST NOT mix participant-specific and
   participant-agnostic state updates
   - Updating `CaseStatus.em_state` with a participant-specific value is
     incorrect and MUST be avoided
-  - CM-04-005 implements VP-13-009
+  - CM-04-006 implements VP-13-009
 
 ## Object Model Relationships (MUST)
 

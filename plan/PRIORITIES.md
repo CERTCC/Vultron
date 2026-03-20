@@ -157,4 +157,5 @@ to demonstrate the core behavior tree and coordination logic.
 
 The project is currently in prototype development mode, therefore requirements
 that are marked as `PROD_ONLY` are temporarily a lower priority than other
-requirements.
+requirements. See `specs/prototype-shortcuts.md` for the prototype-stage
+deferral policy.

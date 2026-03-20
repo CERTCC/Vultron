@@ -102,6 +102,38 @@ constrain refactoring, specifically:
 - The `active_embargo` union type creates silent serialization failures due
   to Pydantic v2 union resolution order (see `AGENTS.md`).
 
+## Wire-Layer Mutation Helpers Belong in Core
+
+Some wire-layer vocabulary objects still expose convenience methods that mutate
+protocol state directly. `VulnerabilityCase.set_embargo()` is the clearest
+example: it changes `current_status.em_state`, which is domain behaviour rather
+than wire formatting.
+
+The durable direction is:
+
+- keep transport-only shaping, aliases, and serialization concerns in wire DTOs
+- move state-mutation helpers to core domain objects or core protocols
+- let any temporary wire helper delegate to the core implementation instead of
+  owning the state transition itself
+
+This matters directly to ADR-0013 follow-up work because helpers such as
+`CaseParticipant.append_rm_state()` sit on the boundary between persisted RM
+history and transport-layer convenience APIs.
+
+## Vocabulary Registry Coupling Across Wire, Core, and DataLayer
+
+The DataLayer and persistence translation code still rely on the
+ActivityStreams vocabulary registry to identify and reconstruct stored objects.
+That coupling is a leftover from the earlier architecture in which wire and
+core objects were effectively the same layer.
+
+Examples include record conversion and rehydration paths that need wire-type
+knowledge to rebuild objects after persistence. The long-term direction is for
+DataLayer ports to accept and return domain objects, with adapter-local
+translation handling storage records and wire projections. Registry lookups
+that exist only to recover wire types from persistence should be treated as
+adapter debt and reviewed before Priority 100 expands per-actor persistence.
+
 ## Recommended Next Steps (When Prioritized)
 
 1. Define canonical **domain model** classes that do not inherit from

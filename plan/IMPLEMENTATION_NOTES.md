@@ -423,72 +423,77 @@ might be to return the contents of the collection (which is not what we want).
 This clarification should be made in the specs but also enforced with one or
 more tests and potentially object validation in the code.
 
-## Resolve ambiguity of BT-*vs OX-* vs ACT-* tasks
+~~## Resolve ambiguity of BT-*vs OX-* vs ACT-* tasks~~
 
-1. In the next LEARN or PLAN phase, we need to resolve the priority ambiguity
-around BT-*vs OX-* vs ACT-* tasks. Information in plan/PRIORITIES.md takes
-precedent over currently labeled priorities in plan/IMPLEMENTATION_PLAN.md.
-2. Generalizing from this, we need to capture that PRIORITIES.md takes
-   precedence and may change over time relative to what is captured in
-   IMPLEMENTATION_PLAN.md. As a corollary to this point, the order of tasks
-   in IMPLEMENTATION_PLAN.md reflects groupings of related tasks but does
-   not reflect their priority. Tasks should note prerequisites or blockers
-   but conflict between task order and stated priorities should be resolved
-   in favor of stated priorities. This should be captured in the
-   documentation to avoid confusion in the future.
+~~1. In the next LEARN or PLAN phase, we need to resolve the priority ambiguity~~
+~~around BT-*vs OX-* vs ACT-* tasks. Information in plan/PRIORITIES.md takes~~
+~~precedent over currently labeled priorities in plan/IMPLEMENTATION_PLAN.md.~~
+~~2. Generalizing from this, we need to capture that PRIORITIES.md takes~~
+~~   precedence and may change over time relative to what is captured in~~
+~~   IMPLEMENTATION_PLAN.md. As a corollary to this point, the order of tasks~~
+~~   in IMPLEMENTATION_PLAN.md reflects groupings of related tasks but does~~
+~~   not reflect their priority. Tasks should note prerequisites or blockers~~
+~~   but conflict between task order and stated priorities should be resolved~~
+~~   in favor of stated priorities. This should be captured in the~~
+~~   documentation to avoid confusion in the future.~~
 
----
-
-### 2026-03-20: Wire-layer methods that should live on core domain objects
-
-**Issue:** During state-machine refactoring analysis, several methods were
-found on wire-layer objects (`vultron.wire.*`) that should rightfully belong on
-their core domain counterparts.
-
-**Known example:**
-
-- `VulnerabilityCase.set_embargo()` in
-  `vultron/wire/as2/vocab/objects/vulnerability_case.py` directly modifies
-  `current_status.em_state = EM.ACTIVE`. This is a domain state transition that
-  belongs in `vultron.core`, not in the wire layer. The wire layer was the
-  original home for these objects before the hexagonal architecture refactor
-  separated concerns; methods were left in place as a shortcut.
-
-**Pattern:** The wire-layer class (e.g. `VulnerabilityCase`, `CaseParticipant`)
-has a convenience method that mutates protocol state. The equivalent core
-domain protocol type (`CaseModel`, `ParticipantModel` in
-`vultron/core/models/protocols.py`) either lacks the method or only declares a
-stub.
-
-**Recommended sweep:** Audit all methods on wire-layer vocab objects and
-determine whether each method represents:
-
-1. Pure wire formatting (stays in wire layer), or
-2. Domain state mutation (should move to or be mirrored on a core type)
-
-For type (2), the method should be added to the relevant `Protocol` in
-`vultron/core/models/protocols.py` and implemented in the core domain models.
-The wire-layer method should then delegate to the core implementation or be
-removed.
-
-**Immediate instance to fix:** `VulnerabilityCase.set_embargo()` — tracked as
-OPP-03 in `notes/state-machine-findings.md`.
+→ captured in `specs/project-documentation.md`, `plan/IMPLEMENTATION_PLAN.md`,
+and `AGENTS.md`
 
 ---
 
-### 2026-03-20: Integrating `transitions` machines with Pydantic models
+~~### 2026-03-20: Wire-layer methods that should live on core domain objects~~
 
-**Context:** Refactoring `SvcProposeEmbargoUseCase` to use `create_em_machine()`
-(OPP-01) revealed two non-obvious constraints that apply to any future
-`transitions` machine integration in this codebase.
+~~**Issue:** During state-machine refactoring analysis, several methods were~~
+~~found on wire-layer objects (`vultron.wire.*`) that should rightfully belong on~~
+~~their core domain counterparts.~~
 
-**Lesson 1 — Pydantic models cannot be used directly as `transitions` models.**
+~~**Known example:**~~
 
-`transitions` attaches trigger callables to the model object via `setattr`.
-Pydantic v2 models reject `setattr` for unknown field names with:
-`ValueError: "ClassName" object has no field "trigger"`.
+~~- `VulnerabilityCase.set_embargo()` in~~
+~~  `vultron/wire/as2/vocab/objects/vulnerability_case.py` directly modifies~~
+~~  `current_status.em_state = EM.ACTIVE`. This is a domain state transition that~~
+~~  belongs in `vultron.core`, not in the wire layer. The wire layer was the~~
+~~  original home for these objects before the hexagonal architecture refactor~~
+~~  separated concerns; methods were left in place as a shortcut.~~
 
-**Solution:** Use a lightweight plain-Python adapter object:
+~~**Pattern:** The wire-layer class (e.g. `VulnerabilityCase`, `CaseParticipant`)~~
+~~has a convenience method that mutates protocol state. The equivalent core~~
+~~domain protocol type (`CaseModel`, `ParticipantModel` in~~
+~~`vultron/core/models/protocols.py`) either lacks the method or only declares a~~
+~~stub.~~
+
+~~**Recommended sweep:** Audit all methods on wire-layer vocab objects and~~
+~~determine whether each method represents:~~
+
+~~1. Pure wire formatting (stays in wire layer), or~~
+~~2. Domain state mutation (should move to or be mirrored on a core type)~~
+
+~~For type (2), the method should be added to the relevant `Protocol` in~~
+~~`vultron/core/models/protocols.py` and implemented in the core domain models.~~
+~~The wire-layer method should then delegate to the core implementation or be~~
+~~removed.~~
+
+~~**Immediate instance to fix:** `VulnerabilityCase.set_embargo()` — tracked as~~
+~~OPP-03 in `wip_notes/state-machine-findings.md`.~~
+
+→ captured in `notes/domain-model-separation.md`
+
+---
+
+~~### 2026-03-20: Integrating `transitions` machines with Pydantic models~~
+
+~~**Context:** Refactoring `SvcProposeEmbargoUseCase` to use `create_em_machine()`~~
+~~(OPP-01) revealed two non-obvious constraints that apply to any future~~
+~~`transitions` machine integration in this codebase.~~
+
+~~**Lesson 1 — Pydantic models cannot be used directly as `transitions` models.**~~
+
+~~`transitions` attaches trigger callables to the model object via `setattr`.~~
+~~Pydantic v2 models reject `setattr` for unknown field names with:~~
+~~`ValueError: "ClassName" object has no field "trigger"`.~~
+
+~~**Solution:** Use a lightweight plain-Python adapter object:~~
 
 ```python
 class _EMAdapter:
@@ -496,31 +501,31 @@ class _EMAdapter:
         self.state = initial
 ```
 
-Seed it from the Pydantic model's current state, pass it to
-`machine.add_model()`, trigger the desired transition, then write back the
-resulting `.state` to the Pydantic model field. This is the canonical
-pattern for all `transitions` + Pydantic integrations in this project.
+~~Seed it from the Pydantic model's current state, pass it to~~
+~~`machine.add_model()`, trigger the desired transition, then write back the~~
+~~resulting `.state` to the Pydantic model field. This is the canonical~~
+~~pattern for all `transitions` + Pydantic integrations in this project.~~
 
-**Lesson 2 — Always pass `initial=` to `machine.add_model()`.**
+~~**Lesson 2 — Always pass `initial=` to `machine.add_model()`.**~~
 
-`create_em_machine()` (and the other `create_*_machine()` factory functions)
-define `initial=EM.NONE` at the machine level. When `add_model()` is called
-without an `initial=` argument, the machine resets the adapter's `.state` to
-the machine's default initial state — discarding the current state.
+~~`create_em_machine()` (and the other `create_*_machine()` factory functions)~~
+~~define `initial=EM.NONE` at the machine level. When `add_model()` is called~~
+~~without an `initial=` argument, the machine resets the adapter's `.state` to~~
+~~the machine's default initial state — discarding the current state.~~
 
-**Always call:**
+~~**Always call:**~~
 
 ```python
 em_machine.add_model(adapter, initial=current_state)
 ```
 
-**Never call (silently wrong):**
+~~**Never call (silently wrong):**~~
 
 ```python
 em_machine.add_model(adapter)  # resets .state to machine's initial!
 ```
 
-**Pattern summary (copy-paste template):**
+~~**Pattern summary (copy-paste template):**~~
 
 ```python
 from transitions import MachineError
@@ -542,8 +547,10 @@ except MachineError:
 case.current_status.em_state = EM(adapter.state)
 ```
 
-Apply the same pattern for `create_rm_machine()` (targeting `rm_state`)
-when RM machine integration is implemented.
+~~Apply the same pattern for `create_rm_machine()` (targeting `rm_state`)~~
+~~when RM machine integration is implemented.~~
+
+→ captured in `notes/state-machine-findings.md` (OPP-06 implementation note)
 
 ## wire-layer terminology leaking into core
 

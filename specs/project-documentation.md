@@ -204,6 +204,10 @@ history from implementation work.
 - Move completed phase details to `plan/IMPLEMENTATION_HISTORY.md`
 - Implementation insights go to `plan/IMPLEMENTATION_NOTES.md` (not here)
 - Add new phases as roadmap evolves
+- `plan/PRIORITIES.md` is the authoritative source of priority ordering
+- Section order in `plan/IMPLEMENTATION_PLAN.md` MAY group related work by
+  topic or execution context and MUST NOT override `plan/PRIORITIES.md` when
+  the two conflict
 - Task Sizing Guidance (SHOULD)
   - Tasks listed in `plan/IMPLEMENTATION_PLAN.md` SHOULD be sized as
      "meaningful chunks":
@@ -321,6 +325,9 @@ When one document references another:
   - AGENTS.md MAY reference notes/*.md for "see lessons learned and design
       insights"
 - notes/*.md MUST reference relevant specs and ADRs
+- docs/adr/*.md SHOULD cite specs, notes, or implementation history for
+  durable rationale and SHOULD NOT rely on IMPLEMENTATION_NOTES.md as the only
+  long-lived reference for an architectural point
 - IMPLEMENTATION_NOTES.md SHOULD reference relevant specs and ADRs
 - IMPLEMENTATION_PLAN.md SHOULD reference spec requirements
 - All documents MAY reference specs/ for authoritative requirements

@@ -170,9 +170,17 @@ include migration/compatibility notes and tests.
 This document provides guidance to AI agents working on the Vultron codebase.
 It supplements the Copilot instructions with implementation-specific advice.
 
-**Last Updated:** 2026-03-10
+**Last Updated:** 2026-03-20
 
 **For durable design insights**, see the `notes/` directory.
+
+**Priority ordering note**: When `plan/IMPLEMENTATION_PLAN.md` grouping or
+section order conflicts with `plan/PRIORITIES.md`, follow
+`plan/PRIORITIES.md`.
+
+**Path note**: The active FastAPI adapter code now lives under
+`vultron/adapters/driving/fastapi/`. Some archived notes may still mention the
+older `vultron/api/v2/` layout.
 
 ## Vultron-Specific Architecture
 
@@ -181,7 +189,8 @@ It supplements the Copilot instructions with implementation-specific advice.
 Vultron processes inbound ActivityStreams activities through a four-stage
 pipeline:
 
-1. **Inbox Endpoint** (`vultron/api/v2/routers/actors.py`): FastAPI POST
+1. **Inbox Endpoint**
+   (`vultron/adapters/driving/fastapi/routers/actors.py`): FastAPI POST
    endpoint accepting activities; returns 202 immediately
 2. **AS2 Parser** (`vultron/wire/as2/parser.py`): Structural validation and
    deserialization of AS2 JSON
@@ -307,17 +316,21 @@ When adding new message types:
 
 ### Layer Separation (MUST)
 
-- **Routers** (`vultron/api/v2/routers/`): FastAPI endpoints only; delegate
-  immediately to backend
-- **Backend** (`vultron/api/v2/backend/`): Business logic; no direct HTTP
+- **FastAPI routers** (`vultron/adapters/driving/fastapi/routers/`):
+  FastAPI endpoints only; delegate immediately to adapter helpers or core use
+  cases
+- **FastAPI adapter helpers** (`vultron/adapters/driving/fastapi/`): HTTP and
+  transport orchestration only; no core business rules
+- **Use cases** (`vultron/core/use_cases/`): Business logic; no direct HTTP
   concerns
 - **Data Layer port** (`vultron/core/ports/datalayer.py`): `DataLayer`
   Protocol definition; use this for imports in core and handlers
-- **Data Layer adapter** (`vultron/api/v2/datalayer/`): TinyDB implementation;
-  `abc.py` is a backward-compat shim re-exporting from `core/ports/`
+- **Data Layer adapter** (`vultron/adapters/driven/datalayer_tinydb.py`):
+  TinyDB implementation
 
-Never bypass layer boundaries. Routers should never directly access data layer;
-always go through backend.
+Never bypass layer boundaries. Routers should never directly access the data
+layer or embed business logic; always go through adapter helpers and/or core
+use cases.
 
 ### Protocol-Based Design (SHOULD)
 
@@ -618,19 +631,20 @@ behavior across backends (in-memory / tinydb) where reasonable.
   Protocol (dispatch signature: `dispatch(event, dl)`)
 - **Dispatcher**: `vultron/core/dispatcher.py` - `DispatcherBase`,
   `DirectActivityDispatcher`, `get_dispatcher` factory
-- **Handler shims**: `vultron/api/v2/backend/handlers/` - removed in PREPX-2;
-- **Inbox**: `vultron/api/v2/routers/actors.py` - Endpoint implementation
-- **Triggers**: `vultron/api/v2/routers/trigger_report.py`,
+- **Handler shims**: removed in PREPX-2
+- **Inbox**: `vultron/adapters/driving/fastapi/routers/actors.py` - Endpoint
+  implementation
+- **Triggers**: `vultron/adapters/driving/fastapi/routers/trigger_report.py`,
   `trigger_case.py`, `trigger_embargo.py` - Triggerable behavior endpoints
   (`POST /actors/{id}/trigger/{behavior-name}`); see
   `specs/triggerable-behaviors.md`
-- **Trigger Services**: `vultron/api/v2/backend/trigger_services/` - Domain
-  service layer for trigger endpoints
-- **Errors**: `vultron/errors.py`, `vultron/api/v2/errors.py` - Exception
-  hierarchy
+- **Trigger Use Cases**: `vultron/core/use_cases/triggers/` - Trigger use-case
+  implementations invoked by FastAPI, CLI, and MCP adapters
+- **Errors**: `vultron/errors.py`,
+  `vultron/adapters/driving/fastapi/errors.py` - Exception hierarchy
 - **Data Layer**: `vultron/core/ports/datalayer.py` - `DataLayer` Protocol
-  (port); `vultron/api/v2/datalayer/abc.py` is a backward-compat re-export shim
-- **TinyDB Backend**: `vultron/api/v2/datalayer/tinydb.py` - TinyDB
+  (port)
+- **TinyDB Backend**: `vultron/adapters/driven/datalayer_tinydb.py` - TinyDB
   implementation
 - **BT Bridge**: `vultron/core/behaviors/bridge.py` - Handler-to-BT execution
   adapter
@@ -968,8 +982,9 @@ See `specs/behavior-tree-integration.md` BT-03-003.
 ### Health Check Readiness Gap
 
 **Known gap**: The `/health/ready` endpoint in
-`vultron/api/v2/routers/health.py` currently returns `{"status": "ok"}`
-unconditionally. It does **not** check DataLayer connectivity as required by
+`vultron/adapters/driving/fastapi/routers/health.py` currently returns
+`{"status": "ok"}` unconditionally. It does **not** check DataLayer
+connectivity as required by
 `specs/observability.md` OB-05-002.
 
 **When implementing readiness**: Add a DataLayer read probe (e.g., attempt a

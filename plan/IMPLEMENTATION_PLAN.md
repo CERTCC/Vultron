@@ -1,22 +1,29 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-19 (ACT-1: ADR-0012 per-actor DataLayer isolation)
+**Last Updated**: 2026-03-20 (docs refresh: Priority 90 capture and
+durability updates)
 
 ## Overview
 
 This plan tracks forward-looking work against `specs/*` and `plan/PRIORITIES.md`.
 Completed phase history is in `plan/IMPLEMENTATION_HISTORY.md`.
 
+**Priority ordering note:** `plan/PRIORITIES.md` is authoritative for project
+priority. Section order in this file groups related work and execution context;
+it does not override `plan/PRIORITIES.md` when the two differ.
+
 ### Current Status Summary
 
-**Test suite**: 982 passing, 5581 subtests, 5 warnings (2026-03-18, after VCR-030)
+**Test suite**: See the latest validation entry in `plan/IMPLEMENTATION_HISTORY.md`
+for the current full-suite totals.
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
-all dockerized in `docker-compose.yml`. **P75 phase**: ALL COMPLETE (P75-1 through
-P75-5). `api/v1` removed; vocabulary examples consolidated into
-`api/v2/routers/examples.py` (ADR-0011). All 38 handler use cases and 9 trigger
-use cases are class-based. CLI (`vultron/adapters/driving/cli.py`) and MCP
+all dockerized in `docker-compose.yml`. **P75 phase**: ALL COMPLETE (P75-1
+through P75-5). `api/v1` removed; vocabulary examples consolidated into
+`vultron/adapters/driving/fastapi/routers/examples.py` (ADR-0011). All 38
+handler use cases and 9 trigger use cases are class-based. CLI
+(`vultron/adapters/driving/cli.py`) and MCP
 (`vultron/adapters/driving/mcp_server.py`) driving adapters implemented.
 **TECHDEBT-16 complete**: `VultronObject` base class defined in
 `vultron/core/models/base.py`; all 12 domain object models inherit from it.
@@ -48,9 +55,9 @@ TECHDEBT-15, TECHDEBT-21, TECHDEBT-22, TECHDEBT-24, TECHDEBT-27, P75-5.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
-`actor_io.py` stub logs placeholder messages (OX-03-001, OX-04-001, OX-04-002).
-`core/ports/emitter.py` Protocol stub not yet created (see `notes/architecture-ports-and-adapters.md`
-"Dispatch vs Emit Terminology"). Needed before OUTBOX-1 implementation.
+The outbound `ActivityEmitter` port is in place, but delivery work beyond
+OX-1.0 is still pending. Local inbox/outbox delivery, background delivery
+execution, idempotent delivery, and remote delivery remain open (OX-1.1+).
 
 ### ✅ Triggerable behaviors fully implemented (PRIORITY 30 — COMPLETE)
 
@@ -75,14 +82,14 @@ P70-2 through P70-5 all complete. All callers import `DataLayer` from
 `vultron.adapters.driven.datalayer_tinydb`, and `Record`/`object_to_record`
 from `vultron.adapters.driven.db_record`.
 
-### ✅ Handler and trigger-service logic in core/use_cases/ (PRIORITY 75 — P75-1/2/3 COMPLETE)
+### ✅ Core use-case migration complete (PRIORITY 75)
 
 All 38 handler use cases and 9 trigger-service use cases now live in
-`vultron/core/use_cases/`. The handler adapter layer is reduced to
-`handlers/_shim.py`. The dispatcher is modelled as a formal driving port
-(`core/ports/dispatcher.py`) backed by `core/dispatcher.py`. The routing
-table (`USE_CASE_MAP`) lives in `core/use_cases/use_case_map.py`. Pattern
-objects in `extractor.py` use the `Pattern` suffix. P75-4 and P75-5 complete.
+`vultron/core/use_cases/`. The old handler shim layer has been removed. The
+dispatcher is modelled as a formal driving port (`core/ports/dispatcher.py`)
+backed by `core/dispatcher.py`, and the routing table (`USE_CASE_MAP`) lives
+in `core/use_cases/use_case_map.py`. Pattern objects in `extractor.py` use the
+`Pattern` suffix. P75-4 and P75-5 complete.
 
 ### ✅ UseCase interface standardized (P75-4-pre — complete)
 
@@ -94,7 +101,8 @@ P75-4 MUST refactor every use case it touches to the class interface.
 ### ✅ api/v1 removed (P75-5 — COMPLETE)
 
 `vultron/api/v1/` removed. Vocabulary-example endpoints migrated to
-`api/v2/routers/examples.py`. Decision recorded in ADR-0011.
+`vultron/adapters/driving/fastapi/routers/examples.py`. Decision recorded in
+ADR-0011.
 
 ### ❌ Actor independence not implemented (PRIORITY 100)
 
@@ -755,8 +763,36 @@ P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre, P75-4 all complete.
 See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
 
 - [x] **P75-4-pre**: Standardize use-case interface (**COMPLETE**)
-- [x] **P75-4**: Convert all use cases to class interface; implement CLI/MCP adapters (**COMPLETE**)
+- [x] **P75-4**: Convert all use cases to class interface; implement CLI/MCP
+  adapters (**COMPLETE**)
 - [x] **P75-5**: Removed `api/v1`; examples migrated to v2 (ADR-0011) (**COMPLETE**)
+
+---
+
+### Phase PRIORITY-90 — ADR-0013 and State-Machine Follow-up
+
+**Reference**: `plan/PRIORITIES.md` Priority 90,
+`docs/adr/0013-unify-rm-state-tracking.md`,
+`notes/state-machine-findings.md` (OPP-06, OPP-07, OPP-09)
+
+This phase captures the RM-state unification and state-machine follow-up work
+that must remain visible before starting PRIORITY-100. Per
+`plan/PRIORITIES.md`, Priority 90 takes precedence over later priorities even
+when related Priority 100 tasks appear nearby in this plan.
+
+- [ ] **P90-1**: Persist initial RM report-phase state in participant history.
+  Update report-receipt flows so the receiving actor records `RM.RECEIVED` in
+  persisted participant status history rather than relying on the transient
+  STATUS layer.
+- [ ] **P90-2**: Carry validated RM state into case creation. When a case is
+  created from a valid report, seed the actor's case-phase participant history
+  with `RM.VALID` rather than restarting at `RM.START`.
+- [ ] **P90-3**: Use shared transition validation for persisted RM, VFD, and
+  PXA updates. Capture OPP-07 and OPP-06 by requiring future RM/VFD/PXA writes
+  to validate against the authoritative state model before persistence.
+- [ ] **P90-4**: Remove transient STATUS-layer dependencies once persisted RM
+  history is authoritative. Delete remaining STATUS dict reads/writes only
+  after the migrated flows and guards are covered by tests.
 
 ---
 
@@ -871,13 +907,17 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
   `CreateCaseReceivedUseCase`. (Source: `plan/IMPLEMENTATION_NOTES.md` item 7)
 - **`CloseCaseUseCase` wire-type construction** — Replace direct construction of
   `VultronActivity(as_type="Leave")` in `CloseCaseUseCase` with domain event emission
-  through the `ActivityEmitter` port (OX-1.0). Defer until OX-1.0 is implemented.
-  (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 8)
+  through the `ActivityEmitter` port. Defer until outbound delivery integration
+  beyond OX-1.0 is implemented. (Source: `plan/IMPLEMENTATION_NOTES.md`
+  code-review item 8)
 - **UseCase Protocol generic enforcement** — Decide on a consistent
   `UseCaseResult` Pydantic return envelope; enforce via mypy. Defer to after
   TECHDEBT-21/22. (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 9)
 - **Production readiness** (request validation, health check readiness,
   idempotency, structured logging) — all `PROD_ONLY` or low-priority
+- **OB-05-002 readiness probe** — Implement a DataLayer connectivity check in
+  `vultron/adapters/driving/fastapi/routers/health.py` so `/health/ready`
+  returns HTTP 503 when dependencies are unavailable
 - **Response generation** — See `specs/response-format.md` and history
 - **EP-02/EP-03** — EmbargoPolicy API + compatibility evaluation (`PROD_ONLY`)
 - **AR-01-003** — Unique `operation_id` on FastAPI routes (LOW)
