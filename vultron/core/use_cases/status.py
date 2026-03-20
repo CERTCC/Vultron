@@ -10,6 +10,7 @@ from vultron.core.models.events.status import (
     CreateParticipantStatusReceivedEvent,
 )
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.models.protocols import CaseModel, ParticipantModel
 
@@ -131,6 +132,22 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         status_obj = self._dl.read(status_id)
         if not hasattr(status_obj, "as_id"):
             status_obj = request.status
+
+        new_rm_state = getattr(status_obj, "rm_state", None)
+        if new_rm_state is not None and participant.participant_statuses:
+            current_rm = participant.participant_statuses[-1].rm_state
+            if current_rm != new_rm_state and not is_valid_rm_transition(
+                current_rm, new_rm_state
+            ):
+                logger.warning(
+                    "Invalid RM transition %s → %s for participant '%s'; "
+                    "skipping status append",
+                    current_rm,
+                    new_rm_state,
+                    participant_id,
+                )
+                return
+
         participant.participant_statuses.append(status_obj)
         self._dl.save(participant)
         logger.info(

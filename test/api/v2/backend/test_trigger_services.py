@@ -144,6 +144,13 @@ def case_with_participant(dl, actor):
         attributed_to=actor.as_id,
         context=case_obj.as_id,
     )
+    # Pre-seed RM lifecycle so engage/defer (VALID→ACCEPTED/DEFERRED) are valid
+    participant.append_rm_state(
+        RM.RECEIVED, actor=actor.as_id, context=case_obj.as_id
+    )
+    participant.append_rm_state(
+        RM.VALID, actor=actor.as_id, context=case_obj.as_id
+    )
     case_obj.case_participants.append(participant.as_id)
     dl.create(case_obj)
     dl.create(participant)

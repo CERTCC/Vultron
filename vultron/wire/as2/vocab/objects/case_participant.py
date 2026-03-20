@@ -18,11 +18,12 @@ Provides various CaseParticipant objects for the Vultron ActivityStreams Vocabul
 
 from __future__ import annotations
 
+import logging
 from typing import TypeAlias
 
 from pydantic import Field, field_serializer, field_validator, model_validator
 
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.states.roles import CVDRoles as CVDRole
 from vultron.core.models.base import NonEmptyString
 from vultron.core.models.enums import VultronObjectType as VO_type
@@ -30,6 +31,8 @@ from vultron.wire.as2.vocab.base.links import ActivityStreamRef, as_Link
 from vultron.wire.as2.vocab.base.registry import activitystreams_object
 from vultron.wire.as2.vocab.objects.base import VultronObject
 from vultron.wire.as2.vocab.objects.case_status import ParticipantStatus
+
+logger = logging.getLogger(__name__)
 
 
 @activitystreams_object
@@ -137,11 +140,31 @@ class CaseParticipant(VultronObject):
             key=lambda ps: ps.updated or ps.published or ps.as_id,
         )
 
-    def append_rm_state(self, rm_state: RM, actor: str, context: str) -> None:
-        """Append a new ParticipantStatus with the given RM state."""
+    def append_rm_state(self, rm_state: RM, actor: str, context: str) -> bool:
+        """Append a new ParticipantStatus with the given RM state.
+
+        Skips the append (with a WARNING) if the transition from the current
+        RM state to rm_state is not valid according to the RM state machine.
+
+        Returns True when the status was appended, False when blocked.
+        """
+        current = (
+            self.participant_statuses[-1].rm_state
+            if self.participant_statuses
+            else RM.START
+        )
+        if not is_valid_rm_transition(current, rm_state):
+            logger.warning(
+                "Invalid RM transition %s → %s for participant %s; skipping",
+                current,
+                rm_state,
+                self.as_id,
+            )
+            return False
         self.participant_statuses.append(
             ParticipantStatus(actor=actor, context=context, rm_state=rm_state)
         )
+        return True
 
     def add_role(self, role: CVDRole, reset=False):
         if reset:

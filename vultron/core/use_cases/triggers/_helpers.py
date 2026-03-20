@@ -103,9 +103,18 @@ def update_participant_rm_state(
                         case_id,
                     )
                     return True
-            participant.append_rm_state(
+            appended = participant.append_rm_state(
                 rm_state=new_rm_state, actor=actor_id, context=case_id
             )
+            if not appended:
+                logger.warning(
+                    "update_participant_rm_state: RM transition to %s blocked "
+                    "for actor '%s' in case '%s'",
+                    new_rm_state,
+                    actor_id,
+                    case_id,
+                )
+                return False
             dl.update(participant.as_id, object_to_record(participant))
             logger.info(
                 "Set participant '%s' RM state to %s in case '%s'",

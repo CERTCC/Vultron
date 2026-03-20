@@ -153,6 +153,13 @@ _transitions = [
 ]
 
 
+def is_valid_rm_transition(source: RM, dest: RM) -> bool:
+    """Return True if (source → dest) is a valid RM state transition."""
+    return any(
+        t["source"] == source and t["dest"] == dest for t in _transitions
+    )
+
+
 def create_rm_machine() -> Machine:
     """
     Generates a new Report Management State Machine object

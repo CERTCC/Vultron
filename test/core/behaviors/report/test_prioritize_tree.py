@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -37,6 +38,34 @@ from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
 from vultron.core.states.rm import RM
+
+
+def _make_participant_in_valid_state(
+    as_id: str, attributed_to: str, context: str
+) -> VultronParticipant:
+    """Create a VultronParticipant pre-seeded with RM.VALID status.
+
+    engage_case and defer_case require the participant to be in VALID state
+    (the precondition for VALID → ACCEPTED or VALID → DEFERRED transitions).
+    """
+    participant = VultronParticipant(
+        as_id=as_id,
+        attributed_to=attributed_to,
+        context=context,
+        participant_statuses=[
+            VultronParticipantStatus(
+                attributed_to=attributed_to,
+                context=context,
+                rm_state=RM.RECEIVED,
+            ),
+            VultronParticipantStatus(
+                attributed_to=attributed_to,
+                context=context,
+                rm_state=RM.VALID,
+            ),
+        ],
+    )
+    return participant
 
 
 @pytest.fixture
@@ -69,8 +98,12 @@ def report(datalayer):
 
 @pytest.fixture
 def case_with_participant(datalayer, actor_id, actor, report):
-    """Case with the test actor as a CaseParticipant stored as a separate record."""
-    participant = VultronParticipant(
+    """Case with the test actor as a CaseParticipant stored as a separate record.
+
+    The participant is pre-seeded to RM.VALID so that engage/defer BTs can
+    apply the VALID → ACCEPTED / VALID → DEFERRED transitions.
+    """
+    participant = _make_participant_in_valid_state(
         as_id="https://example.org/participants/vendor-cp-001",
         attributed_to=actor_id,
         context="https://example.org/cases/case-001",
@@ -247,12 +280,12 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
     actor_a = "https://example.org/actors/vendor-a"
     actor_b = "https://example.org/actors/vendor-b"
 
-    participant_a = VultronParticipant(
+    participant_a = _make_participant_in_valid_state(
         as_id="https://example.org/participants/cp-a",
         attributed_to=actor_a,
         context="https://example.org/cases/case-multi",
     )
-    participant_b = VultronParticipant(
+    participant_b = _make_participant_in_valid_state(
         as_id="https://example.org/participants/cp-b",
         attributed_to=actor_b,
         context="https://example.org/cases/case-multi",

@@ -478,6 +478,20 @@ _pxa_transitions = [
 ]
 
 
+def is_valid_vfd_transition(source: CS_vfd, dest: CS_vfd) -> bool:
+    """Return True if (source → dest) is a valid VFD state transition."""
+    return any(
+        t["source"] == source and t["dest"] == dest for t in _vfd_transitions
+    )
+
+
+def is_valid_pxa_transition(source: CS_pxa, dest: CS_pxa) -> bool:
+    """Return True if (source → dest) is a valid PXA state transition."""
+    return any(
+        t["source"] == source and t["dest"] == dest for t in _pxa_transitions
+    )
+
+
 def create_vfd_machine() -> Machine:
     """
     Generates a new Case State Vendor Fix Deploy Machine object

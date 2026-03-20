@@ -106,6 +106,13 @@ _transitions = [
 ]
 
 
+def is_valid_em_transition(source: EM, dest: EM) -> bool:
+    """Return True if (source → dest) is a valid EM state transition."""
+    return any(
+        t["source"] == source and t["dest"] == dest for t in _transitions
+    )
+
+
 def create_em_machine() -> Machine:
     """
     Generates a new Embargo Management State Machine
