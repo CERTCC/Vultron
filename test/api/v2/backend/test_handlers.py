@@ -73,6 +73,7 @@ from vultron.core.use_cases.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
 )
 from vultron.core.use_cases.unknown import UnknownUseCase
+from vultron.core.states.em import EM
 
 
 def _make_payload(activity, **extra_fields) -> VultronEvent:
@@ -899,6 +900,122 @@ class TestEmbargoHandlers:
             MagicMock(), event
         ).execute()
         assert result is None
+
+    def test_remove_embargo_from_proposed_clears_proposed_list(self):
+        """remove_embargo_event removes embargo from proposed_embargoes."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            RemoveEmbargoFromCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_rem1",
+            name="Remove Embargo Proposed",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_rem1/embargo_events/e1",
+            context=case.as_id,
+        )
+        case.proposed_embargoes.append(embargo.as_id)
+        case.current_status.em_state = EM.PROPOSED
+        dl.create(case)
+
+        activity = RemoveEmbargoFromCaseActivity(
+            actor="https://example.org/users/coord",
+            object=embargo,
+            origin=case,
+        )
+        event = _make_payload(activity)
+
+        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+
+        updated = dl.read(case.as_id)
+        assert embargo.as_id not in [
+            e if isinstance(e, str) else e.as_id
+            for e in updated.proposed_embargoes
+        ]
+
+    def test_remove_active_embargo_proposed_state_transitions_to_none(self):
+        """remove_embargo_event uses REJECT machine trigger when EM is PROPOSED."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            RemoveEmbargoFromCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_rem2",
+            name="Remove Embargo PROPOSED→NONE",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_rem2/embargo_events/e2",
+            context=case.as_id,
+        )
+        case.active_embargo = embargo.as_id
+        case.current_status.em_state = EM.PROPOSED
+        dl.create(case)
+
+        activity = RemoveEmbargoFromCaseActivity(
+            actor="https://example.org/users/coord",
+            object=embargo,
+            origin=case,
+        )
+        event = _make_payload(activity)
+
+        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+
+        updated = dl.read(case.as_id)
+        assert updated.active_embargo is None
+        assert updated.current_status.em_state == EM.NONE
+
+    def test_remove_active_embargo_active_state_admin_override(self, caplog):
+        """remove_embargo_event logs WARNING when EM state is ACTIVE (admin override)."""
+        import logging
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            RemoveEmbargoFromCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_rem3",
+            name="Remove Active Embargo Admin Override",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_rem3/embargo_events/e3",
+            context=case.as_id,
+        )
+        case.active_embargo = embargo.as_id
+        case.current_status.em_state = EM.ACTIVE
+        dl.create(case)
+
+        activity = RemoveEmbargoFromCaseActivity(
+            actor="https://example.org/users/coord",
+            object=embargo,
+            origin=case,
+        )
+        event = _make_payload(activity)
+
+        with caplog.at_level(logging.WARNING):
+            RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+
+        updated = dl.read(case.as_id)
+        assert updated.active_embargo is None
+        assert updated.current_status.em_state == EM.NONE
+        assert any("Admin override" in r.message for r in caplog.records)
 
 
 class TestNoteHandlers:
