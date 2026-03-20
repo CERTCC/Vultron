@@ -22,8 +22,10 @@ No HTTP framework imports permitted here.
 import logging
 from datetime import datetime
 
+from transitions import MachineError
+
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.core.states.em import EM
+from vultron.core.states.em import EM, create_em_machine
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
@@ -51,6 +53,17 @@ from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 logger = logging.getLogger(__name__)
 
 
+class _EMAdapter:
+    """Adapter that lets the EM transitions machine operate on a plain .state attribute.
+
+    Seed with the current EM state, pass to `machine.add_model()`, trigger the
+    desired transition, then read back `.state` to obtain the new EM value.
+    """
+
+    def __init__(self, initial: EM) -> None:
+        self.state = initial
+
+
 class SvcProposeEmbargoUseCase:
     """Propose an embargo on a case."""
 
@@ -75,10 +88,19 @@ class SvcProposeEmbargoUseCase:
 
         em_state = case.current_status.em_state
 
-        if em_state == EM.EXITED:
+        adapter = _EMAdapter(em_state)
+        em_machine = create_em_machine()
+        em_machine.add_model(adapter, initial=em_state)
+
+        try:
+            adapter.propose()
+        except MachineError:
             raise VultronConflictError(
-                f"Cannot propose embargo: case '{case.as_id}' EM state is EXITED."
+                f"Cannot propose embargo: case '{case.as_id}' EM state"
+                f" '{em_state}' does not allow a PROPOSE transition."
             )
+
+        new_em_state = EM(adapter.state)
 
         embargo_kwargs: dict = {"context": case.as_id}
         if end_time is not None:
@@ -104,26 +126,20 @@ class SvcProposeEmbargoUseCase:
                 "EmProposeEmbargoActivity '%s' already exists", proposal.as_id
             )
 
-        if em_state == EM.NO_EMBARGO:
-            case.current_status.em_state = EM.PROPOSED
+        case.current_status.em_state = new_em_state
+        if new_em_state != em_state:
             logger.info(
-                "Actor '%s' proposed embargo '%s' on case '%s' (EM N → P)",
+                "Actor '%s' proposed embargo '%s' on case '%s' (EM %s → %s)",
                 actor_id,
                 embargo.as_id,
                 case.as_id,
-            )
-        elif em_state == EM.ACTIVE:
-            case.current_status.em_state = EM.REVISE
-            logger.info(
-                "Actor '%s' proposed embargo revision '%s' on case '%s' (EM A → R)",
-                actor_id,
-                embargo.as_id,
-                case.as_id,
+                em_state,
+                new_em_state,
             )
         else:
             logger.info(
-                "Actor '%s' counter-proposed embargo '%s' on case '%s' "
-                "(EM %s, no state change)",
+                "Actor '%s' counter-proposed embargo '%s' on case '%s'"
+                " (EM %s, no state change)",
                 actor_id,
                 embargo.as_id,
                 case.as_id,
