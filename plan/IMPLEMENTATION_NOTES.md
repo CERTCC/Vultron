@@ -567,7 +567,7 @@ things based on that. It seems like it might be better to have a cleaner
 separation at the datalayer port where the datalayer returns domain objects
 consistently rather than sometimes returning raw dicts or ambiguous document
 objects (which are really just a datalayer abstraction rather than a core
-abstraction). The following subsections address this issue from different 
+abstraction). The following subsections address this issue from different
 angles.
 
 ### Core should reliably get domain objects from datalayer, not raw dicts or datalayer-specific records
@@ -581,17 +581,17 @@ adapter expects, it should be able to say "Store this domain object" and
 expect that the port and adapter will handle the details on its behalf. This
 improves separation of concerns between core, port, and adapters.
 
-If a mapping layer is needed between core objects and datalayer records, 
-then that mapping layer belongs in an adapter not in core. The datalayer 
-port should really be about getting and storing domain objects, with 
-translation happening in the adapters as needed to convert between core 
-domain objects and datalayer records. That said, it may make sense for the 
-datalayer adapters to have a tiered structure where a thin adapter unifies 
-the translation (like everything is a document or key-value dicts etc. with 
-pydantic object definitions) and then storage-specific adapters decide how 
+If a mapping layer is needed between core objects and datalayer records,
+then that mapping layer belongs in an adapter not in core. The datalayer
+port should really be about getting and storing domain objects, with
+translation happening in the adapters as needed to convert between core
+domain objects and datalayer records. That said, it may make sense for the
+datalayer adapters to have a tiered structure where a thin adapter unifies
+the translation (like everything is a document or key-value dicts etc. with
+pydantic object definitions) and then storage-specific adapters decide how
 to generically persist those (into TinyDB, MongoDB, SQL, etc. as needed).
-The key point is that if core is struggling to identify what it got back 
-from the datalayer, then we haven't got the right abstractions in place at 
+The key point is that if core is struggling to identify what it got back
+from the datalayer, then we haven't got the right abstractions in place at
 the port and adapter layers yet.
 
 ## Datalayer storage records might need a rethink
@@ -604,27 +604,34 @@ core, and datalayer. Research into the codebase to understand the problem is
 needed before implementing any refactoring. Both the investigation and the
 refactoring should be tracked in the implementation plan.
 
-Core should be agnostic to datalayer's storage structure and organization, 
-not just the format. Core doesn't need to know if datalayer has separate 
-tables per type or just a giant blob of JSON records with a type field, or 
-whatever. Datalayer needs to care, but even that might be an 
-adapter-specific concern rather than a port-level concern (except insofar as 
-the port must provide sufficient abstractions to cover the core's need to do 
+Core should be agnostic to datalayer's storage structure and organization,
+not just the format. Core doesn't need to know if datalayer has separate
+tables per type or just a giant blob of JSON records with a type field, or
+whatever. Datalayer needs to care, but even that might be an
+adapter-specific concern rather than a port-level concern (except insofar as
+the port must provide sufficient abstractions to cover the core's need to do
 CRUD operations, plus find/search/query, usual database stuff.)
 
 ### Vocabulary registry entanglement across wire, core, and datalayer
 
-Thirdly, the vocabulary registry was created when wire and core were the same 
-thing 
-and datalayer was a persistence detail. So there are places where the 
-vocabulary registry is being used for lookups for things outside of wire, 
-when in fact that is an artifact of the pre-hexagonal architecture. 
+Thirdly, the vocabulary registry was created when wire and core were the same
+thing
+and datalayer was a persistence detail. So there are places where the
+vocabulary registry is being used for lookups for things outside of wire,
+when in fact that is an artifact of the pre-hexagonal architecture.
 `db_record.py` and `rehydration.py` are specific examples of this problem. We
-need to tease these apart. The interaction between core and datalayer should 
-be in terms of core domain objects without the tight coupling to wire format 
-that the vocabulary registry creates. This is not to say that the datalayer 
-should be ignorant of data types or that the vocabulary registry should be 
-abandoned, but rather that the datalayer should have its own way to 
-recognize what kinds of objects it is handling and the core should be able 
-to work with the datalayer just as robustly (with typed objects) even if the 
+need to tease these apart. The interaction between core and datalayer should
+be in terms of core domain objects without the tight coupling to wire format
+that the vocabulary registry creates. This is not to say that the datalayer
+should be ignorant of data types or that the vocabulary registry should be
+abandoned, but rather that the datalayer should have its own way to
+recognize what kinds of objects it is handling and the core should be able
+to work with the datalayer just as robustly (with typed objects) even if the
 entire wire layer were removed.
+
+## VCR-019d is largely addressed by the `transitions` refactor
+
+Although we've largely addressed VCR-019d through the `transitions` refactor,
+we should still do a sweep to identify any remaining procedural state logic that
+could benefit from using the newly created state machine factory functions
+in `vultron.core.states.{em,rm,cs}` and the state machines they enable.

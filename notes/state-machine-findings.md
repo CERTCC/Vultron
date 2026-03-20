@@ -509,6 +509,7 @@ branch. A summary of key commits:
 | `opp07-case-status-guard` | OPP-07 (complete) |
 
 **Deferred (explicit):**
+
 - OPP-06 (VFD/PXA machines) — no callers yet; left as future work.
 - Full STATUS dict deprecation (ADR-0013 steps 2–4) — complex migration;
   minimum step (seed RM.VALID at case creation) is done.
