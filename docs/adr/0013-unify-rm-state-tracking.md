@@ -53,8 +53,8 @@ This creates a situation where:
 
 ## Decision Outcome
 
-Chosen option: **Option A**, because it reuses the existing `VultronParticipant-
-Status` data model and makes the complete RM lifecycle visible in one place
+Chosen option: **Option A**, because it reuses the existing `VultronParticipantStatus`
+data model and makes the complete RM lifecycle visible in one place
 without introducing a new record type.
 
 ### Implementation steps
