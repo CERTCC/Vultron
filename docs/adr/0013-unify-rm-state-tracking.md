@@ -28,6 +28,7 @@ New participant status records are seeded with `rm_state=RM.START` rather than
 carrying forward the current `RM.VALID` state.
 
 This creates a situation where:
+
 - RM history for the pre-case phase is not queryable or auditable.
 - RM transition guards on case-engagement cannot verify that a report was truly
   valid before `ACCEPTED`/`DEFERRED` was appended.

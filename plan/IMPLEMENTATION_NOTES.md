@@ -446,6 +446,7 @@ found on wire-layer objects (`vultron.wire.*`) that should rightfully belong on
 their core domain counterparts.
 
 **Known example:**
+
 - `VulnerabilityCase.set_embargo()` in
   `vultron/wire/as2/vocab/objects/vulnerability_case.py` directly modifies
   `current_status.em_state = EM.ACTIVE`. This is a domain state transition that
@@ -461,6 +462,7 @@ stub.
 
 **Recommended sweep:** Audit all methods on wire-layer vocab objects and
 determine whether each method represents:
+
 1. Pure wire formatting (stays in wire layer), or
 2. Domain state mutation (should move to or be mirrored on a core type)
 
@@ -545,39 +547,39 @@ when RM machine integration is implemented.
 
 ## wire-layer terminology leaking into core
 
-There are use cases and triggers that use objects that have attribute names 
-like `object`, `target`, `context`, etc. that are directly mapped from the 
-AS2 spec. However, since core objects are supposed to be semantically 
-meaningful within the domain, it would be better if this interface was 
-clearer about what exactly was being passed in and what the expected types 
-were. So for example, if an Offer of a report has been received, then the 
-use case should receive something that talks about a report id rather than 
-object id. Similarly, if a note is added to a case, the use case should 
-receive something that mentions a case id rather than a generic target id. 
-This will help to make the core domain logic clearer for developers and 
+There are use cases and triggers that use objects that have attribute names
+like `object`, `target`, `context`, etc. that are directly mapped from the
+AS2 spec. However, since core objects are supposed to be semantically
+meaningful within the domain, it would be better if this interface was
+clearer about what exactly was being passed in and what the expected types
+were. So for example, if an Offer of a report has been received, then the
+use case should receive something that talks about a report id rather than
+object id. Similarly, if a note is added to a case, the use case should
+receive something that mentions a case id rather than a generic target id.
+This will help to make the core domain logic clearer for developers and
 reduce confusion about the adapter-port interface.
 
 ## lack of clean separation at the core to datalayer port and adapter boundaries
 
-We are frequently finding that core domain logic is having to figure out 
-what kind of object it got back from the datalayer and then do different 
-things based on that. It seems like it might be better to have a cleaner 
-separation at the datalayer port where the datalayer returns domain objects 
-consistently rather than sometimes returning raw dicts or ambiguous document 
-objects (which are really just a datalayer abstraction rather than a core 
-abstraction). This will likely require some refactoring of the datalayer 
-port and its implementation (TinyDB) to ensure that it reliably returns 
-domain objects so that the core domain logic can rely on that and not have 
-to do extra work to figure out what it got back. The same should be true in 
-the outbound direction from core: core should not care about what the 
-adapter expects, it should be able to say "Store this domain object" and 
-expect that the port and adapter will handle the details on its behalf. This 
+We are frequently finding that core domain logic is having to figure out
+what kind of object it got back from the datalayer and then do different
+things based on that. It seems like it might be better to have a cleaner
+separation at the datalayer port where the datalayer returns domain objects
+consistently rather than sometimes returning raw dicts or ambiguous document
+objects (which are really just a datalayer abstraction rather than a core
+abstraction). This will likely require some refactoring of the datalayer
+port and its implementation (TinyDB) to ensure that it reliably returns
+domain objects so that the core domain logic can rely on that and not have
+to do extra work to figure out what it got back. The same should be true in
+the outbound direction from core: core should not care about what the
+adapter expects, it should be able to say "Store this domain object" and
+expect that the port and adapter will handle the details on its behalf. This
 improves separation of concerns between core, port, and adapters.
 
-Secondarily, this may also mean that we can re-think the datalayer storage 
-assumptions. The Record and StorableRecord classes might need to be 
-re-evaluated to determine if they are still the right abstractions for the 
-hexagonal architecture now that we have a clear delineation between wire, 
-core, and datalayer. Research into the codebase to understand the problem is 
-needed before implementing any refactoring. Both the investigation and the 
+Secondarily, this may also mean that we can re-think the datalayer storage
+assumptions. The Record and StorableRecord classes might need to be
+re-evaluated to determine if they are still the right abstractions for the
+hexagonal architecture now that we have a clear delineation between wire,
+core, and datalayer. Research into the codebase to understand the problem is
+needed before implementing any refactoring. Both the investigation and the
 refactoring should be tracked in the implementation plan.

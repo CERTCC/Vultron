@@ -234,6 +234,7 @@ state conceptually transfers from the report to the case-participant record.
 
 This split was an early implementation shortcut ("get it working") and was
 never revised. Consequences:
+
 - No single query can retrieve the complete RM history for an actor-report pair.
 - The pivot transition (`VALID` → case creation → participant status seeded with
   `VALID`) is implicit and scattered.
@@ -248,7 +249,6 @@ actor's `VultronParticipantStatus` for that case should be **seeded with
 `rm_state=RM.VALID`** (carrying the current RM state forward), not with
 `RM.START`. Subsequent `ACCEPTED`/`DEFERRED` transitions then have a correct
 historical starting point.
-
 
 ### OPP-01 — EM machine in `SvcProposeEmbargoUseCase` (HIGH)
 
@@ -308,6 +308,7 @@ is valid.
 ### OPP-05 — Consolidate duplicate participant RM update helpers (LOW-MEDIUM)
 
 **Current:** Two near-duplicate helpers:
+
 - `_find_and_update_participant_rm()` in `behaviors/report/nodes.py`
 - `update_participant_rm_state()` in `use_cases/triggers/_helpers.py`
 
@@ -373,6 +374,7 @@ DataLayer, regardless of which code path triggers the append. The `transitions`
 machine definitions become the single authoritative source of valid sequences.
 
 **Files:**
+
 - `vultron/core/states/rm.py` — add `is_valid_rm_transition()`
 - `vultron/core/states/em.py` — add `is_valid_em_transition()`
 - `vultron/core/states/cs.py` — add `is_valid_vfd_transition()`,
@@ -404,6 +406,7 @@ only valid first write to the STATUS layer for a report (source = `RM.START`
 → dest = `RM.RECEIVED`).
 
 **Files:**
+
 - `vultron/core/use_cases/report.py` —
   `CreateReportReceivedUseCase`, `SubmitReportReceivedUseCase`,
   `AckReportReceivedUseCase`
