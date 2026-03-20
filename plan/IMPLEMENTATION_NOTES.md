@@ -436,3 +436,38 @@ precedent over currently labeled priorities in plan/IMPLEMENTATION_PLAN.md.
    but conflict between task order and stated priorities should be resolved
    in favor of stated priorities. This should be captured in the
    documentation to avoid confusion in the future.
+
+---
+
+### 2026-03-20: Wire-layer methods that should live on core domain objects
+
+**Issue:** During state-machine refactoring analysis, several methods were
+found on wire-layer objects (`vultron.wire.*`) that should rightfully belong on
+their core domain counterparts.
+
+**Known example:**
+- `VulnerabilityCase.set_embargo()` in
+  `vultron/wire/as2/vocab/objects/vulnerability_case.py` directly modifies
+  `current_status.em_state = EM.ACTIVE`. This is a domain state transition that
+  belongs in `vultron.core`, not in the wire layer. The wire layer was the
+  original home for these objects before the hexagonal architecture refactor
+  separated concerns; methods were left in place as a shortcut.
+
+**Pattern:** The wire-layer class (e.g. `VulnerabilityCase`, `CaseParticipant`)
+has a convenience method that mutates protocol state. The equivalent core
+domain protocol type (`CaseModel`, `ParticipantModel` in
+`vultron/core/models/protocols.py`) either lacks the method or only declares a
+stub.
+
+**Recommended sweep:** Audit all methods on wire-layer vocab objects and
+determine whether each method represents:
+1. Pure wire formatting (stays in wire layer), or
+2. Domain state mutation (should move to or be mirrored on a core type)
+
+For type (2), the method should be added to the relevant `Protocol` in
+`vultron/core/models/protocols.py` and implemented in the core domain models.
+The wire-layer method should then delegate to the core implementation or be
+removed.
+
+**Immediate instance to fix:** `VulnerabilityCase.set_embargo()` — tracked as
+OPP-03 in `wip_notes/state-machine-findings.md`.
