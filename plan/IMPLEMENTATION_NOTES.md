@@ -557,3 +557,27 @@ receive something that mentions a case id rather than a generic target id.
 This will help to make the core domain logic clearer for developers and 
 reduce confusion about the adapter-port interface.
 
+## lack of clean separation at the core to datalayer port and adapter boundaries
+
+We are frequently finding that core domain logic is having to figure out 
+what kind of object it got back from the datalayer and then do different 
+things based on that. It seems like it might be better to have a cleaner 
+separation at the datalayer port where the datalayer returns domain objects 
+consistently rather than sometimes returning raw dicts or ambiguous document 
+objects (which are really just a datalayer abstraction rather than a core 
+abstraction). This will likely require some refactoring of the datalayer 
+port and its implementation (TinyDB) to ensure that it reliably returns 
+domain objects so that the core domain logic can rely on that and not have 
+to do extra work to figure out what it got back. The same should be true in 
+the outbound direction from core: core should not care about what the 
+adapter expects, it should be able to say "Store this domain object" and 
+expect that the port and adapter will handle the details on its behalf. This 
+improves separation of concerns between core, port, and adapters.
+
+Secondarily, this may also mean that we can re-think the datalayer storage 
+assumptions. The Record and StorableRecord classes might need to be 
+re-evaluated to determine if they are still the right abstractions for the 
+hexagonal architecture now that we have a clear delineation between wire, 
+core, and datalayer. Research into the codebase to understand the problem is 
+needed before implementing any refactoring. Both the investigation and the 
+refactoring should be tracked in the implementation plan.
