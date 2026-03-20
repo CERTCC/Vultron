@@ -542,3 +542,18 @@ case.current_status.em_state = EM(adapter.state)
 
 Apply the same pattern for `create_rm_machine()` (targeting `rm_state`)
 when RM machine integration is implemented.
+
+## wire-layer terminology leaking into core
+
+There are use cases and triggers that use objects that have attribute names 
+like `object`, `target`, `context`, etc. that are directly mapped from the 
+AS2 spec. However, since core objects are supposed to be semantically 
+meaningful within the domain, it would be better if this interface was 
+clearer about what exactly was being passed in and what the expected types 
+were. So for example, if an Offer of a report has been received, then the 
+use case should receive something that talks about a report id rather than 
+object id. Similarly, if a note is added to a case, the use case should 
+receive something that mentions a case id rather than a generic target id. 
+This will help to make the core domain logic clearer for developers and 
+reduce confusion about the adapter-port interface.
+
