@@ -26,6 +26,7 @@ class TestEmbargoStates(unittest.TestCase):
         pass
 
     def test_embargo_states(self):
+        self.assertIs(EM.NONE, EM.NO_EMBARGO)
         self.assertIs(EM.NO_EMBARGO, EM.N)
         self.assertIs(EM.PROPOSED, EM.P)
         self.assertIs(EM.ACTIVE, EM.A)
@@ -33,11 +34,11 @@ class TestEmbargoStates(unittest.TestCase):
         self.assertIs(EM.EXITED, EM.X)
 
     def test_embargo_state_names(self):
-        self.assertEqual("EMBARGO_MANAGEMENT_NONE", EM.N.name)
-        self.assertEqual("EMBARGO_MANAGEMENT_PROPOSED", EM.P.name)
-        self.assertEqual("EMBARGO_MANAGEMENT_ACTIVE", EM.A.name)
-        self.assertEqual("EMBARGO_MANAGEMENT_REVISE", EM.R.name)
-        self.assertEqual("EMBARGO_MANAGEMENT_EXITED", EM.X.name)
+        self.assertEqual("NONE", EM.N.name)
+        self.assertEqual("PROPOSED", EM.P.name)
+        self.assertEqual("ACTIVE", EM.A.name)
+        self.assertEqual("REVISE", EM.R.name)
+        self.assertEqual("EXITED", EM.X.name)
 
 
 if __name__ == "__main__":

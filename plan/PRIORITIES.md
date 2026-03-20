@@ -39,6 +39,23 @@ specs, or tasks should be updated to reflect the new information from
 IDEAS.md. DOCS-2 is required at this stage so we can merge a clean PR with all
 github action CI tasks passing.
 
+## Priority 90: Fully address ADR-0013 and OPP-06
+
+`docs/adr/0013-unify-rm-state-tracking.md` was created to capture the decision to unify state
+tracking for the RM lifecycle. As noted in `notes/state-machine-findings.md`,
+there are a number of steps to be taken to fully implement this
+decision. We need to clearly identify and execute those steps before we
+proceed with the next priority. These need to be added to `notes/`, `specs/`,
+and `plan/IMPLEMENTATION_PLAN.md` tasks as appropriate.
+
+We should also capture references to OPP-06
+in the relevant `notes/` files, and in `specs/` and in the implementation
+plan.
+
+This priority covers both *capturing* the tasks, requirements, and notes,
+and *implementing* the changes needed to fully realize this aspect of the
+design.
+
 ## Priority 100: Actor independence
 
 Each actor exists in its own behavior tree domain. So Actor A and Actor B
@@ -50,14 +67,6 @@ actors making independent decisions based on their own internal state.
 Implementation Phase OUTBOX-1 logically falls under this priority, because
 it's part of getting messages flowing between actors. But it does not
 fully achieve this goal by itself.
-
-## Priority 150: Refactor RM, EM, and CS state models to use `transitions`
-
-This item is briefly captured in VCR-019d but it represents a larger
-evaluation that will need to be broken into subtasks before any
-implementation can occur. A study task should be injected to evaluate the
-suitability of the `transitions` library to assist tracking state changes in
-the Report and Case objects in `vultron.core`.
 
 ## Priority 200: Case Actor as source of truth for case state
 

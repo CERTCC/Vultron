@@ -73,6 +73,7 @@ from vultron.core.use_cases.status import (
     AddParticipantStatusToParticipantReceivedUseCase,
 )
 from vultron.core.use_cases.unknown import UnknownUseCase
+from vultron.core.states.em import EM
 
 
 def _make_payload(activity, **extra_fields) -> VultronEvent:
@@ -141,6 +142,123 @@ class TestHandlerExecution:
         # Use case should not raise
         result = CreateReportReceivedUseCase(dl, event).execute()
         assert result is None
+
+
+class TestReportReceiptRM:
+    """Tests that report-receipt use cases fire the RM START→RECEIVED transition."""
+
+    def setup_method(self):
+        """Clear STATUS layer before each test to avoid cross-test pollution."""
+        from vultron.core.models.status import get_status_layer
+
+        get_status_layer().clear()
+
+    def test_create_report_sets_rm_received(self):
+        """CreateReportReceivedUseCase sets RM.RECEIVED in the STATUS layer."""
+        from vultron.core.models.status import get_status_layer
+        from vultron.core.states.rm import RM
+        from vultron.core.models.events.report import CreateReportReceivedEvent
+        from vultron.core.models.report import VultronReport
+        from vultron.core.models.activity import VultronActivity
+
+        report = VultronReport(as_id="https://example.org/reports/r-create-1")
+        activity = VultronActivity(
+            id="https://example.org/activities/create-1",
+            type="Create",
+            actor="https://example.org/users/finder",
+        )
+        event = CreateReportReceivedEvent(
+            semantic_type=MessageSemantics.CREATE_REPORT,
+            activity_id="https://example.org/activities/create-1",
+            actor_id="https://example.org/users/finder",
+            object_id="https://example.org/reports/r-create-1",
+            object_type="VulnerabilityReport",
+            report=report,
+            activity=activity,
+        )
+
+        mock_dl = MagicMock()
+        CreateReportReceivedUseCase(mock_dl, event).execute()
+
+        sl = get_status_layer()
+        actor_key = "https://example.org/users/finder"
+        report_key = "https://example.org/reports/r-create-1"
+        assert report_key in sl.get("VulnerabilityReport", {})
+        assert (
+            sl["VulnerabilityReport"][report_key][actor_key]["status"]
+            == RM.RECEIVED.value
+        )
+
+    def test_submit_report_sets_rm_received(self):
+        """SubmitReportReceivedUseCase sets RM.RECEIVED in the STATUS layer."""
+        from vultron.core.models.status import get_status_layer
+        from vultron.core.states.rm import RM
+        from vultron.core.models.events.report import SubmitReportReceivedEvent
+        from vultron.core.models.report import VultronReport
+        from vultron.core.models.activity import VultronActivity
+
+        report = VultronReport(as_id="https://example.org/reports/r-submit-1")
+        activity = VultronActivity(
+            id="https://example.org/activities/submit-1",
+            type="Offer",
+            actor="https://example.org/users/finder",
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id="https://example.org/activities/submit-1",
+            actor_id="https://example.org/users/finder",
+            object_id="https://example.org/reports/r-submit-1",
+            object_type="VulnerabilityReport",
+            report=report,
+            activity=activity,
+        )
+
+        mock_dl = MagicMock()
+        SubmitReportReceivedUseCase(mock_dl, event).execute()
+
+        sl = get_status_layer()
+        actor_key = "https://example.org/users/finder"
+        report_key = "https://example.org/reports/r-submit-1"
+        assert report_key in sl.get("VulnerabilityReport", {})
+        assert (
+            sl["VulnerabilityReport"][report_key][actor_key]["status"]
+            == RM.RECEIVED.value
+        )
+
+    def test_ack_report_sets_rm_received_for_inner_report(self):
+        """AckReportReceivedUseCase sets RM.RECEIVED using inner_object_id (the report)."""
+        from vultron.core.models.status import get_status_layer
+        from vultron.core.states.rm import RM
+        from vultron.core.models.events.report import AckReportReceivedEvent
+        from vultron.core.models.activity import VultronActivity
+
+        activity = VultronActivity(
+            id="https://example.org/activities/ack-1",
+            type="Read",
+            actor="https://example.org/users/coordinator",
+        )
+        event = AckReportReceivedEvent(
+            semantic_type=MessageSemantics.ACK_REPORT,
+            activity_id="https://example.org/activities/ack-1",
+            actor_id="https://example.org/users/coordinator",
+            object_id="https://example.org/offers/offer-1",
+            object_type="Offer",
+            inner_object_id="https://example.org/reports/r-ack-1",
+            inner_object_type="VulnerabilityReport",
+            activity=activity,
+        )
+
+        mock_dl = MagicMock()
+        AckReportReceivedUseCase(mock_dl, event).execute()
+
+        sl = get_status_layer()
+        actor_key = "https://example.org/users/coordinator"
+        report_key = "https://example.org/reports/r-ack-1"
+        assert report_key in sl.get("VulnerabilityReport", {})
+        assert (
+            sl["VulnerabilityReport"][report_key][actor_key]["status"]
+            == RM.RECEIVED.value
+        )
 
 
 class TestInviteActorHandlers:
@@ -900,6 +1018,122 @@ class TestEmbargoHandlers:
         ).execute()
         assert result is None
 
+    def test_remove_embargo_from_proposed_clears_proposed_list(self):
+        """remove_embargo_event removes embargo from proposed_embargoes."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            RemoveEmbargoFromCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_rem1",
+            name="Remove Embargo Proposed",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_rem1/embargo_events/e1",
+            context=case.as_id,
+        )
+        case.proposed_embargoes.append(embargo.as_id)
+        case.current_status.em_state = EM.PROPOSED
+        dl.create(case)
+
+        activity = RemoveEmbargoFromCaseActivity(
+            actor="https://example.org/users/coord",
+            object=embargo,
+            origin=case,
+        )
+        event = _make_payload(activity)
+
+        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+
+        updated = dl.read(case.as_id)
+        assert embargo.as_id not in [
+            e if isinstance(e, str) else e.as_id
+            for e in updated.proposed_embargoes
+        ]
+
+    def test_remove_active_embargo_proposed_state_transitions_to_none(self):
+        """remove_embargo_event uses REJECT machine trigger when EM is PROPOSED."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            RemoveEmbargoFromCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_rem2",
+            name="Remove Embargo PROPOSED→NONE",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_rem2/embargo_events/e2",
+            context=case.as_id,
+        )
+        case.active_embargo = embargo.as_id
+        case.current_status.em_state = EM.PROPOSED
+        dl.create(case)
+
+        activity = RemoveEmbargoFromCaseActivity(
+            actor="https://example.org/users/coord",
+            object=embargo,
+            origin=case,
+        )
+        event = _make_payload(activity)
+
+        RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+
+        updated = dl.read(case.as_id)
+        assert updated.active_embargo is None
+        assert updated.current_status.em_state == EM.NONE
+
+    def test_remove_active_embargo_active_state_admin_override(self, caplog):
+        """remove_embargo_event logs WARNING when EM state is ACTIVE (admin override)."""
+        import logging
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            RemoveEmbargoFromCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_rem3",
+            name="Remove Active Embargo Admin Override",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_rem3/embargo_events/e3",
+            context=case.as_id,
+        )
+        case.active_embargo = embargo.as_id
+        case.current_status.em_state = EM.ACTIVE
+        dl.create(case)
+
+        activity = RemoveEmbargoFromCaseActivity(
+            actor="https://example.org/users/coord",
+            object=embargo,
+            origin=case,
+        )
+        event = _make_payload(activity)
+
+        with caplog.at_level(logging.WARNING):
+            RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
+
+        updated = dl.read(case.as_id)
+        assert updated.active_embargo is None
+        assert updated.current_status.em_state == EM.NONE
+        assert any("Admin override" in r.message for r in caplog.records)
+
 
 class TestNoteHandlers:
     """Tests for note management handlers."""
@@ -1230,6 +1464,118 @@ class TestStatusHandlers:
             (s.as_id if hasattr(s, "as_id") else s) for s in case.case_statuses
         ]
         assert status.as_id in status_ids
+
+    def test_add_case_status_blocks_invalid_em_transition(self, monkeypatch):
+        """Invalid EM transition is blocked; status is not appended."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.core.states.em import EM
+        from vultron.wire.as2.vocab.activities.case import (
+            AddStatusToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em_guard",
+            name="EM Guard Test Case",
+        )
+        # Seed an existing status with EM.NONE (the initial embargo state)
+        initial_status = CaseStatus(
+            id="https://example.org/cases/case_em_guard/statuses/s_init",
+            context=case.as_id,
+            em_state=EM.NONE,
+        )
+        case.case_statuses.append(initial_status)
+        dl.create(case)
+
+        # Try to add a status with EM.ACTIVE — invalid: NONE → ACTIVE
+        # skips the required PROPOSED intermediate state
+        bad_status = CaseStatus(
+            id="https://example.org/cases/case_em_guard/statuses/s_bad",
+            context=case.as_id,
+            em_state=EM.ACTIVE,
+        )
+        dl.create(bad_status)
+
+        activity = AddStatusToCaseActivity(
+            actor="https://example.org/users/vendor",
+            object=bad_status,
+            target=case,
+        )
+        event = _make_payload(activity)
+
+        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+
+        updated_case = dl.read(case.as_id)
+        status_ids = [
+            (s.as_id if hasattr(s, "as_id") else s)
+            for s in updated_case.case_statuses
+        ]
+        assert (
+            bad_status.as_id not in status_ids
+        ), "Bad status should not have been appended"
+
+    def test_add_case_status_allows_valid_em_transition(self, monkeypatch):
+        """Valid EM transition is permitted; status is appended."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.core.states.em import EM
+        from vultron.wire.as2.vocab.activities.case import (
+            AddStatusToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em_valid",
+            name="EM Valid Transition Case",
+        )
+        initial_status = CaseStatus(
+            id="https://example.org/cases/case_em_valid/statuses/s_init",
+            context=case.as_id,
+            em_state=EM.NONE,
+        )
+        case.case_statuses.append(initial_status)
+        dl.create(case)
+
+        # NONE → PROPOSED is a valid transition
+        good_status = CaseStatus(
+            id="https://example.org/cases/case_em_valid/statuses/s_good",
+            context=case.as_id,
+            em_state=EM.PROPOSED,
+        )
+        dl.create(good_status)
+
+        activity = AddStatusToCaseActivity(
+            actor="https://example.org/users/vendor",
+            object=good_status,
+            target=case,
+        )
+        event = _make_payload(activity)
+
+        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+
+        updated_case = dl.read(case.as_id)
+        status_ids = [
+            (s.as_id if hasattr(s, "as_id") else s)
+            for s in updated_case.case_statuses
+        ]
+        assert good_status.as_id in status_ids
 
     def test_create_participant_status_stores_status(self, monkeypatch):
         """create_participant_status persists the ParticipantStatus."""

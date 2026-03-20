@@ -10,6 +10,9 @@ from vultron.core.models.events.status import (
     CreateParticipantStatusReceivedEvent,
 )
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.states.cs import is_valid_pxa_transition
+from vultron.core.states.em import is_valid_em_transition
+from vultron.core.states.rm import is_valid_rm_transition
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.models.protocols import CaseModel, ParticipantModel
 
@@ -70,6 +73,40 @@ class AddCaseStatusToCaseReceivedUseCase:
         status_obj = self._dl.read(status_id)
         if not hasattr(status_obj, "as_id"):
             status_obj = request.status
+
+        if case.case_statuses:
+            current_status = getattr(case, "current_status", None)
+            if current_status is not None:
+                new_em = getattr(status_obj, "em_state", None)
+                if new_em is not None:
+                    current_em = current_status.em_state
+                    if current_em != new_em and not is_valid_em_transition(
+                        current_em, new_em
+                    ):
+                        logger.warning(
+                            "Invalid EM transition %s → %s for case '%s'; "
+                            "skipping status append",
+                            current_em,
+                            new_em,
+                            case_id,
+                        )
+                        return
+
+                new_pxa = getattr(status_obj, "pxa_state", None)
+                if new_pxa is not None:
+                    current_pxa = current_status.pxa_state
+                    if current_pxa != new_pxa and not is_valid_pxa_transition(
+                        current_pxa, new_pxa
+                    ):
+                        logger.warning(
+                            "Invalid PXA transition %s → %s for case '%s'; "
+                            "skipping status append",
+                            current_pxa,
+                            new_pxa,
+                            case_id,
+                        )
+                        return
+
         case.case_statuses.append(status_obj)
         self._dl.save(case)
         logger.info("Added CaseStatus '%s' to case '%s'", status_id, case_id)
@@ -131,6 +168,28 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         status_obj = self._dl.read(status_id)
         if not hasattr(status_obj, "as_id"):
             status_obj = request.status
+
+        new_rm_state = getattr(status_obj, "rm_state", None)
+        if new_rm_state is not None and participant.participant_statuses:
+            if hasattr(participant, "participant_status") and getattr(
+                participant, "participant_status"
+            ):
+                current_status = participant.participant_status
+            else:
+                current_status = participant.participant_statuses[-1]
+            current_rm = current_status.rm_state
+            if current_rm != new_rm_state and not is_valid_rm_transition(
+                current_rm, new_rm_state
+            ):
+                logger.warning(
+                    "Invalid RM transition %s → %s for participant '%s'; "
+                    "skipping status append",
+                    current_rm,
+                    new_rm_state,
+                    participant_id,
+                )
+                return
+
         participant.participant_statuses.append(status_obj)
         self._dl.save(participant)
         logger.info(

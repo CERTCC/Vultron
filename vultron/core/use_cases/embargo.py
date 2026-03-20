@@ -3,7 +3,9 @@
 import logging
 from typing import cast
 
-from vultron.core.states.em import EM
+from transitions import MachineError
+
+from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     AddEmbargoEventToCaseReceivedEvent,
@@ -68,6 +70,7 @@ class AddEmbargoEventToCaseReceivedUseCase:
             return
 
         case.set_embargo(embargo_id)
+        case.current_status.em_state = EM.ACTIVE
         self._dl.save(case)
         logger.info("Activated embargo '%s' on case '%s'", embargo_id, case_id)
 
@@ -92,19 +95,57 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
             )
             return
 
+        # Remove from proposed_embargoes if present.
+        proposed = [_as_id(e) for e in case.proposed_embargoes]
+        if embargo_id in proposed:
+            case.proposed_embargoes = [
+                e for e in case.proposed_embargoes if _as_id(e) != embargo_id
+            ]
+            logger.info(
+                "Removed embargo '%s' from proposed_embargoes of case '%s'",
+                embargo_id,
+                case_id,
+            )
+
+        # Clear active_embargo if it matches the removed embargo.
         current_embargo_id = _as_id(case.active_embargo)
         if current_embargo_id != embargo_id:
-            logger.info(
-                "Case '%s' does not have embargo '%s' active — skipping",
-                case_id,
-                embargo_id,
-            )
+            self._dl.save(case)
             return
 
+        em_state = case.current_status.em_state
+        adapter = EMAdapter(em_state)
+        em_machine = create_em_machine()
+        em_machine.add_model(adapter, initial=em_state)
+
+        try:
+            # PROPOSED → NONE is a valid machine transition (REJECT trigger).
+            adapter.reject()
+            new_em_state = EM(adapter.state)
+        except MachineError:
+            # No machine path back to NONE from this state.
+            # NONE is already the target (idempotent); anything else is an
+            # administrative override that bypasses the normal EM lifecycle.
+            if em_state != EM.NONE:
+                logger.warning(
+                    "Admin override: resetting EM state from '%s' to NONE on"
+                    " case '%s' (no valid machine transition available;"
+                    " use SvcTerminateEmbargoUseCase for normal termination)",
+                    em_state,
+                    case_id,
+                )
+            new_em_state = EM.NONE
+
         case.active_embargo = None  # type: ignore[attr-defined]
-        case.current_status.em_state = EM.EMBARGO_MANAGEMENT_NONE  # type: ignore[union-attr]
+        case.current_status.em_state = new_em_state
         self._dl.save(case)
-        logger.info("Removed embargo '%s' from case '%s'", embargo_id, case_id)
+        logger.info(
+            "Removed active embargo '%s' from case '%s' (EM %s → %s)",
+            embargo_id,
+            case_id,
+            em_state,
+            new_em_state,
+        )
 
 
 class AnnounceEmbargoEventToCaseReceivedUseCase:
@@ -188,6 +229,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             return
 
         case.set_embargo(embargo_id)
+        case.current_status.em_state = EM.ACTIVE
 
         accepting_actor_id = request.actor_id
         participant_id = case.actor_participant_index.get(accepting_actor_id)

@@ -1440,6 +1440,18 @@ wheels = [
 ]
 
 [[package]]
+name = "transitions"
+version = "0.9.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4f/83/9e90f3494057d73c9e6bd8de8488af7c9fa714666ccc2db30fe07d147818/transitions-0.9.3.tar.gz", hash = "sha256:881fb75bb1654ed55d86060bb067f2c716f8e155f57bb73fd444e53713aafec8", size = 1191029, upload-time = "2025-07-02T10:49:03.153Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/05/fea3020e90aa378941ff10de8860fb3b1288313c27efd10fa0c476498f7e/transitions-0.9.3-py2.py3-none-any.whl", hash = "sha256:02463248f2b668d86f66636b1e3c9e8de84d93e22915247f4e1aa9ee1cae28aa", size = 112792, upload-time = "2025-07-02T10:49:01.415Z" },
+]
+
+[[package]]
 name = "types-networkx"
 version = "3.6.1.20260303"
 source = { registry = "https://pypi.org/simple" }
@@ -1552,6 +1564,7 @@ dependencies = [
     { name = "rdflib" },
     { name = "scipy" },
     { name = "tinydb" },
+    { name = "transitions" },
     { name = "uvicorn" },
 ]
 
@@ -1594,6 +1607,7 @@ requires-dist = [
     { name = "rdflib", specifier = ">=7.2.1" },
     { name = "scipy", specifier = ">=1.16.2" },
     { name = "tinydb", specifier = ">=4.7.0" },
+    { name = "transitions", specifier = ">=0.9.3" },
     { name = "uvicorn", specifier = ">=0.37.0" },
 ]
 

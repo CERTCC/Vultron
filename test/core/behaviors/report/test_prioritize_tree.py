@@ -25,6 +25,7 @@ import pytest
 from py_trees.common import Status
 
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -37,6 +38,34 @@ from vultron.core.behaviors.report.prioritize_tree import (
     create_engage_case_tree,
 )
 from vultron.core.states.rm import RM
+
+
+def _make_participant_in_valid_state(
+    as_id: str, attributed_to: str, context: str
+) -> VultronParticipant:
+    """Create a VultronParticipant pre-seeded with RM.VALID status.
+
+    engage_case and defer_case require the participant to be in VALID state
+    (the precondition for VALID → ACCEPTED or VALID → DEFERRED transitions).
+    """
+    participant = VultronParticipant(
+        as_id=as_id,
+        attributed_to=attributed_to,
+        context=context,
+        participant_statuses=[
+            VultronParticipantStatus(
+                attributed_to=attributed_to,
+                context=context,
+                rm_state=RM.RECEIVED,
+            ),
+            VultronParticipantStatus(
+                attributed_to=attributed_to,
+                context=context,
+                rm_state=RM.VALID,
+            ),
+        ],
+    )
+    return participant
 
 
 @pytest.fixture
@@ -69,17 +98,22 @@ def report(datalayer):
 
 @pytest.fixture
 def case_with_participant(datalayer, actor_id, actor, report):
-    """Case with the test actor as a CaseParticipant."""
-    participant = VultronParticipant(
+    """Case with the test actor as a CaseParticipant stored as a separate record.
+
+    The participant is pre-seeded to RM.VALID so that engage/defer BTs can
+    apply the VALID → ACCEPTED / VALID → DEFERRED transitions.
+    """
+    participant = _make_participant_in_valid_state(
         as_id="https://example.org/participants/vendor-cp-001",
         attributed_to=actor_id,
         context="https://example.org/cases/case-001",
     )
+    datalayer.create(participant)
     case = VultronCase(
         as_id="https://example.org/cases/case-001",
         name="Test Case",
         vulnerability_reports=[report.as_id],
-        case_participants=[participant],
+        case_participants=[participant.as_id],
     )
     datalayer.create(case)
     return case
@@ -164,9 +198,9 @@ def test_engage_case_tree_success(
 
     assert result.status == Status.SUCCESS
 
-    updated_case = datalayer.read(case_with_participant.as_id)
-    participant = updated_case.case_participants[0]
-    latest_status = participant.participant_statuses[-1]
+    participant_id = "https://example.org/participants/vendor-cp-001"
+    updated_participant = datalayer.read(participant_id)
+    latest_status = updated_participant.participant_statuses[-1]
     assert latest_status.rm_state == RM.ACCEPTED
 
 
@@ -208,9 +242,9 @@ def test_defer_case_tree_success(
 
     assert result.status == Status.SUCCESS
 
-    updated_case = datalayer.read(case_with_participant.as_id)
-    participant = updated_case.case_participants[0]
-    latest_status = participant.participant_statuses[-1]
+    participant_id = "https://example.org/participants/vendor-cp-001"
+    updated_participant = datalayer.read(participant_id)
+    latest_status = updated_participant.participant_statuses[-1]
     assert latest_status.rm_state == RM.DEFERRED
 
 
@@ -246,21 +280,23 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
     actor_a = "https://example.org/actors/vendor-a"
     actor_b = "https://example.org/actors/vendor-b"
 
-    participant_a = VultronParticipant(
+    participant_a = _make_participant_in_valid_state(
         as_id="https://example.org/participants/cp-a",
         attributed_to=actor_a,
         context="https://example.org/cases/case-multi",
     )
-    participant_b = VultronParticipant(
+    participant_b = _make_participant_in_valid_state(
         as_id="https://example.org/participants/cp-b",
         attributed_to=actor_b,
         context="https://example.org/cases/case-multi",
     )
+    datalayer.create(participant_a)
+    datalayer.create(participant_b)
     case = VultronCase(
         as_id="https://example.org/cases/case-multi",
         name="Multi-participant case",
         vulnerability_reports=[report.as_id],
-        case_participants=[participant_a, participant_b],
+        case_participants=[participant_a.as_id, participant_b.as_id],
     )
     datalayer.create(case)
 
@@ -268,19 +304,11 @@ def test_engage_only_affects_target_actor(bridge, datalayer, report):
     result = bridge.execute_with_setup(tree=tree, actor_id=actor_a)
     assert result.status == Status.SUCCESS
 
-    updated_case = datalayer.read(case.as_id)
-    for p in updated_case.case_participants:
-        p_actor = (
-            p.attributed_to
-            if isinstance(p.attributed_to, str)
-            else p.attributed_to.as_id
-        )
-        latest_rm = p.participant_statuses[-1].rm_state
-        if p_actor == actor_a:
-            assert latest_rm == RM.ACCEPTED
-        else:
-            # actor_b's RM state must be unchanged (START, from default init)
-            assert latest_rm != RM.ACCEPTED
+    updated_a = datalayer.read(participant_a.as_id)
+    updated_b = datalayer.read(participant_b.as_id)
+    assert updated_a.participant_statuses[-1].rm_state == RM.ACCEPTED
+    # actor_b's RM state must be unchanged (START, from default init)
+    assert updated_b.participant_statuses[-1].rm_state != RM.ACCEPTED
 
 
 # ============================================================================
@@ -305,7 +333,8 @@ def test_engage_case_tree_idempotent(
     assert result2.status == Status.SUCCESS
 
     updated_case = datalayer.read(case_with_participant.as_id)
-    participant = updated_case.case_participants[0]
+    participant_id = updated_case.case_participants[0]
+    participant = datalayer.read(participant_id)
     assert participant.participant_statuses[-1].rm_state == RM.ACCEPTED
     # Second execution must NOT append a duplicate status entry
     accepted_entries = [
@@ -333,7 +362,8 @@ def test_defer_case_tree_idempotent(
     assert result2.status == Status.SUCCESS
 
     updated_case = datalayer.read(case_with_participant.as_id)
-    participant = updated_case.case_participants[0]
+    participant_id = updated_case.case_participants[0]
+    participant = datalayer.read(participant_id)
     assert participant.participant_statuses[-1].rm_state == RM.DEFERRED
     # Second execution must NOT append a duplicate status entry
     deferred_entries = [

@@ -56,12 +56,15 @@ def resolve_case(case_id: str, dl: DataLayer) -> CaseModel:
 
 def update_participant_rm_state(
     case_id: str, actor_id: str, new_rm_state: RM, dl: DataLayer
-) -> None:
+) -> bool:
     """
     Append a new ParticipantStatus with new_rm_state to the actor's
-    CaseParticipant in the given case and persist the updated case.
+    CaseParticipant in the given case and persist the updated participant.
 
-    Logs a WARNING and returns without error if no participant record is found.
+    Handles both inline and string-reference participants.
+
+    Returns ``True`` on success (including idempotent no-op), ``False`` when
+    the case or participant is not found.
     """
     case_obj = dl.read(case_id)
     if (
@@ -72,7 +75,7 @@ def update_participant_rm_state(
             "update_participant_rm_state: case '%s' not found or wrong type",
             case_id,
         )
-        return
+        return False
 
     for participant_ref in case_obj.case_participants:
         if isinstance(participant_ref, str):
@@ -99,10 +102,19 @@ def update_participant_rm_state(
                         new_rm_state,
                         case_id,
                     )
-                    return
-            participant.append_rm_state(
+                    return True
+            appended = participant.append_rm_state(
                 rm_state=new_rm_state, actor=actor_id, context=case_id
             )
+            if not appended:
+                logger.warning(
+                    "update_participant_rm_state: RM transition to %s blocked "
+                    "for actor '%s' in case '%s'",
+                    new_rm_state,
+                    actor_id,
+                    case_id,
+                )
+                return False
             dl.update(participant.as_id, object_to_record(participant))
             logger.info(
                 "Set participant '%s' RM state to %s in case '%s'",
@@ -110,7 +122,7 @@ def update_participant_rm_state(
                 new_rm_state,
                 case_id,
             )
-            return
+            return True
 
     logger.warning(
         "update_participant_rm_state: no CaseParticipant for actor '%s' "
@@ -118,6 +130,7 @@ def update_participant_rm_state(
         actor_id,
         case_id,
     )
+    return False
 
 
 def outbox_ids(actor) -> set[str]:

@@ -59,6 +59,20 @@ class CreateReportReceivedUseCase:
                     e,
                 )
 
+        set_status(
+            ReportStatus(
+                object_type=request.object_type or "VulnerabilityReport",
+                object_id=request.object_id,
+                status=RM.RECEIVED,
+                actor_id=request.actor_id,
+            )
+        )
+        logger.info(
+            "RM START → RECEIVED for report '%s' (actor '%s')",
+            request.object_id,
+            request.actor_id,
+        )
+
 
 class SubmitReportReceivedUseCase:
     def __init__(
@@ -96,6 +110,20 @@ class SubmitReportReceivedUseCase:
                     request.activity_id,
                     e,
                 )
+
+        set_status(
+            ReportStatus(
+                object_type=request.object_type or "VulnerabilityReport",
+                object_id=request.object_id,
+                status=RM.RECEIVED,
+                actor_id=request.actor_id,
+            )
+        )
+        logger.info(
+            "RM START → RECEIVED for report '%s' (actor '%s')",
+            request.object_id,
+            request.actor_id,
+        )
 
 
 class ValidateReportReceivedUseCase:
@@ -222,6 +250,23 @@ class AckReportReceivedUseCase:
                     request.activity_id,
                     e,
                 )
+
+        # The report is nested inside the offer: inner_object_id is the report.
+        if request.inner_object_id:
+            set_status(
+                ReportStatus(
+                    object_type=request.inner_object_type
+                    or "VulnerabilityReport",
+                    object_id=request.inner_object_id,
+                    status=RM.RECEIVED,
+                    actor_id=request.actor_id,
+                )
+            )
+            logger.info(
+                "RM START → RECEIVED for report '%s' (actor '%s')",
+                request.inner_object_id,
+                request.actor_id,
+            )
 
 
 class CloseReportReceivedUseCase:

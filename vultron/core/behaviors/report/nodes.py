@@ -47,6 +47,9 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.models.status import OfferStatusEnum
+from vultron.core.use_cases.triggers._helpers import (
+    update_participant_rm_state,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -720,7 +723,13 @@ class CheckParticipantExists(DataLayerCondition):
                 )
                 return Status.FAILURE
 
-            for participant in case_obj.case_participants:
+            for participant_ref in case_obj.case_participants:
+                if isinstance(participant_ref, str):
+                    participant = self.datalayer.read(participant_ref)
+                    if participant is None:
+                        continue
+                else:
+                    participant = participant_ref
                 actor_ref = participant.attributed_to
                 p_actor_id = (
                     actor_ref
@@ -746,50 +755,17 @@ class CheckParticipantExists(DataLayerCondition):
 def _find_and_update_participant_rm(
     datalayer, case_id: str, actor_id: str, new_rm_state, logger
 ) -> Status:
-    """
-    Shared helper: find actor's CaseParticipant in case and append a new
-    ParticipantStatus with the given RM state, then persist the case.
+    """Thin BT wrapper: delegate to ``update_participant_rm_state`` and convert
+    the boolean result to a py_trees ``Status``.
 
-    Returns SUCCESS on success, FAILURE on error or missing participant.
+    Returns SUCCESS on success (including idempotent no-op), FAILURE when the
+    case or participant is not found or an error occurs.
     """
     try:
-        case_obj = datalayer.read(case_id, raise_on_missing=True)
-
-        for participant in case_obj.case_participants:
-            actor_ref = participant.attributed_to
-            p_actor_id = (
-                actor_ref
-                if isinstance(actor_ref, str)
-                else getattr(actor_ref, "as_id", str(actor_ref))
-            )
-            if p_actor_id == actor_id:
-                # Idempotency guard (ID-04-004): if already in target state,
-                # log at INFO and return SUCCESS without side effects.
-                if participant.participant_statuses:
-                    latest = participant.participant_statuses[-1]
-                    if latest.rm_state == new_rm_state:
-                        logger.info(
-                            f"Participant {actor_id} already in RM state "
-                            f"{new_rm_state} in case {case_id} (idempotent)"
-                        )
-                        return Status.SUCCESS
-                new_status = VultronParticipantStatus(
-                    attributed_to=actor_id,
-                    context=case_id,
-                    rm_state=new_rm_state,
-                )
-                participant.participant_statuses.append(new_status)
-                save_to_datalayer(datalayer, case_obj)
-                logger.info(
-                    f"Set participant {actor_id} RM state to {new_rm_state} in case {case_id}"
-                )
-                return Status.SUCCESS
-
-        logger.error(
-            f"No CaseParticipant found for actor {actor_id} in case {case_id}"
+        result = update_participant_rm_state(
+            case_id, actor_id, new_rm_state, datalayer
         )
-        return Status.FAILURE
-
+        return Status.SUCCESS if result else Status.FAILURE
     except Exception as e:
         logger.error(f"Error updating participant RM state: {e}")
         return Status.FAILURE

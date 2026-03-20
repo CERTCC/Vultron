@@ -436,3 +436,202 @@ precedent over currently labeled priorities in plan/IMPLEMENTATION_PLAN.md.
    but conflict between task order and stated priorities should be resolved
    in favor of stated priorities. This should be captured in the
    documentation to avoid confusion in the future.
+
+---
+
+### 2026-03-20: Wire-layer methods that should live on core domain objects
+
+**Issue:** During state-machine refactoring analysis, several methods were
+found on wire-layer objects (`vultron.wire.*`) that should rightfully belong on
+their core domain counterparts.
+
+**Known example:**
+
+- `VulnerabilityCase.set_embargo()` in
+  `vultron/wire/as2/vocab/objects/vulnerability_case.py` directly modifies
+  `current_status.em_state = EM.ACTIVE`. This is a domain state transition that
+  belongs in `vultron.core`, not in the wire layer. The wire layer was the
+  original home for these objects before the hexagonal architecture refactor
+  separated concerns; methods were left in place as a shortcut.
+
+**Pattern:** The wire-layer class (e.g. `VulnerabilityCase`, `CaseParticipant`)
+has a convenience method that mutates protocol state. The equivalent core
+domain protocol type (`CaseModel`, `ParticipantModel` in
+`vultron/core/models/protocols.py`) either lacks the method or only declares a
+stub.
+
+**Recommended sweep:** Audit all methods on wire-layer vocab objects and
+determine whether each method represents:
+
+1. Pure wire formatting (stays in wire layer), or
+2. Domain state mutation (should move to or be mirrored on a core type)
+
+For type (2), the method should be added to the relevant `Protocol` in
+`vultron/core/models/protocols.py` and implemented in the core domain models.
+The wire-layer method should then delegate to the core implementation or be
+removed.
+
+**Immediate instance to fix:** `VulnerabilityCase.set_embargo()` — tracked as
+OPP-03 in `notes/state-machine-findings.md`.
+
+---
+
+### 2026-03-20: Integrating `transitions` machines with Pydantic models
+
+**Context:** Refactoring `SvcProposeEmbargoUseCase` to use `create_em_machine()`
+(OPP-01) revealed two non-obvious constraints that apply to any future
+`transitions` machine integration in this codebase.
+
+**Lesson 1 — Pydantic models cannot be used directly as `transitions` models.**
+
+`transitions` attaches trigger callables to the model object via `setattr`.
+Pydantic v2 models reject `setattr` for unknown field names with:
+`ValueError: "ClassName" object has no field "trigger"`.
+
+**Solution:** Use a lightweight plain-Python adapter object:
+
+```python
+class _EMAdapter:
+    def __init__(self, initial: EM) -> None:
+        self.state = initial
+```
+
+Seed it from the Pydantic model's current state, pass it to
+`machine.add_model()`, trigger the desired transition, then write back the
+resulting `.state` to the Pydantic model field. This is the canonical
+pattern for all `transitions` + Pydantic integrations in this project.
+
+**Lesson 2 — Always pass `initial=` to `machine.add_model()`.**
+
+`create_em_machine()` (and the other `create_*_machine()` factory functions)
+define `initial=EM.NONE` at the machine level. When `add_model()` is called
+without an `initial=` argument, the machine resets the adapter's `.state` to
+the machine's default initial state — discarding the current state.
+
+**Always call:**
+
+```python
+em_machine.add_model(adapter, initial=current_state)
+```
+
+**Never call (silently wrong):**
+
+```python
+em_machine.add_model(adapter)  # resets .state to machine's initial!
+```
+
+**Pattern summary (copy-paste template):**
+
+```python
+from transitions import MachineError
+from vultron.core.states.em import EM, create_em_machine
+
+class _EMAdapter:
+    def __init__(self, initial: EM) -> None:
+        self.state = initial
+
+# In the use case:
+current_state = case.current_status.em_state
+adapter = _EMAdapter(current_state)
+em_machine = create_em_machine()
+em_machine.add_model(adapter, initial=current_state)
+try:
+    adapter.<trigger>()   # e.g. adapter.propose(), adapter.terminate()
+except MachineError:
+    raise VultronConflictError("...")
+case.current_status.em_state = EM(adapter.state)
+```
+
+Apply the same pattern for `create_rm_machine()` (targeting `rm_state`)
+when RM machine integration is implemented.
+
+## wire-layer terminology leaking into core
+
+There are use cases and triggers that use objects that have attribute names
+like `object`, `target`, `context`, etc. that are directly mapped from the
+AS2 spec. However, since core objects are supposed to be semantically
+meaningful within the domain, it would be better if this interface was
+clearer about what exactly was being passed in and what the expected types
+were. So for example, if an Offer of a report has been received, then the
+use case should receive something that talks about a report id rather than
+object id. Similarly, if a note is added to a case, the use case should
+receive something that mentions a case id rather than a generic target id.
+This will help to make the core domain logic clearer for developers and
+reduce confusion about the adapter-port interface.
+
+## lack of clean separation at the core to datalayer port and adapter boundaries
+
+We are frequently finding that core domain logic is having to figure out
+what kind of object it got back from the datalayer and then do different
+things based on that. It seems like it might be better to have a cleaner
+separation at the datalayer port where the datalayer returns domain objects
+consistently rather than sometimes returning raw dicts or ambiguous document
+objects (which are really just a datalayer abstraction rather than a core
+abstraction). The following subsections address this issue from different
+angles.
+
+### Core should reliably get domain objects from datalayer, not raw dicts or datalayer-specific records
+
+This will likely require some refactoring of the datalayer
+port and its implementation (TinyDB) to ensure that it reliably returns
+domain objects so that the core domain logic can rely on that and not have
+to do extra work to figure out what it got back. The same should be true in
+the outbound direction from core: core should not care about what the
+adapter expects, it should be able to say "Store this domain object" and
+expect that the port and adapter will handle the details on its behalf. This
+improves separation of concerns between core, port, and adapters.
+
+If a mapping layer is needed between core objects and datalayer records,
+then that mapping layer belongs in an adapter not in core. The datalayer
+port should really be about getting and storing domain objects, with
+translation happening in the adapters as needed to convert between core
+domain objects and datalayer records. That said, it may make sense for the
+datalayer adapters to have a tiered structure where a thin adapter unifies
+the translation (like everything is a document or key-value dicts etc. with
+pydantic object definitions) and then storage-specific adapters decide how
+to generically persist those (into TinyDB, MongoDB, SQL, etc. as needed).
+The key point is that if core is struggling to identify what it got back
+from the datalayer, then we haven't got the right abstractions in place at
+the port and adapter layers yet.
+
+## Datalayer storage records might need a rethink
+
+Secondarily, this may also mean that we can re-think the datalayer storage
+assumptions. The Record and StorableRecord classes might need to be
+re-evaluated to determine if they are still the right abstractions for the
+hexagonal architecture now that we have a clear delineation between wire,
+core, and datalayer. Research into the codebase to understand the problem is
+needed before implementing any refactoring. Both the investigation and the
+refactoring should be tracked in the implementation plan.
+
+Core should be agnostic to datalayer's storage structure and organization,
+not just the format. Core doesn't need to know if datalayer has separate
+tables per type or just a giant blob of JSON records with a type field, or
+whatever. Datalayer needs to care, but even that might be an
+adapter-specific concern rather than a port-level concern (except insofar as
+the port must provide sufficient abstractions to cover the core's need to do
+CRUD operations, plus find/search/query, usual database stuff.)
+
+### Vocabulary registry entanglement across wire, core, and datalayer
+
+Thirdly, the vocabulary registry was created when wire and core were the same
+thing
+and datalayer was a persistence detail. So there are places where the
+vocabulary registry is being used for lookups for things outside of wire,
+when in fact that is an artifact of the pre-hexagonal architecture.
+`db_record.py` and `rehydration.py` are specific examples of this problem. We
+need to tease these apart. The interaction between core and datalayer should
+be in terms of core domain objects without the tight coupling to wire format
+that the vocabulary registry creates. This is not to say that the datalayer
+should be ignorant of data types or that the vocabulary registry should be
+abandoned, but rather that the datalayer should have its own way to
+recognize what kinds of objects it is handling and the core should be able
+to work with the datalayer just as robustly (with typed objects) even if the
+entire wire layer were removed.
+
+## VCR-019d is largely addressed by the `transitions` refactor
+
+Although we've largely addressed VCR-019d through the `transitions` refactor,
+we should still do a sweep to identify any remaining procedural state logic that
+could benefit from using the newly created state machine factory functions
+in `vultron.core.states.{em,rm,cs}` and the state machines they enable.

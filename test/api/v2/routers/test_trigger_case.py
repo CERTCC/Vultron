@@ -64,11 +64,21 @@ def actor(dl):
 
 @pytest.fixture
 def case_with_participant(dl, actor):
-    """Create a VulnerabilityCase with the actor as a CaseParticipant."""
+    """Create a VulnerabilityCase with the actor as a CaseParticipant.
+
+    The participant is pre-seeded to RM.VALID so that engage/defer triggers
+    can apply valid VALID → ACCEPTED / VALID → DEFERRED transitions.
+    """
     case_obj = VulnerabilityCase(name="TEST-CASE-001")
     participant = CaseParticipant(
         attributed_to=actor.as_id,
         context=case_obj.as_id,
+    )
+    participant.append_rm_state(
+        RM.RECEIVED, actor=actor.as_id, context=case_obj.as_id
+    )
+    participant.append_rm_state(
+        RM.VALID, actor=actor.as_id, context=case_obj.as_id
     )
     case_obj.case_participants.append(participant.as_id)
     dl.create(case_obj)

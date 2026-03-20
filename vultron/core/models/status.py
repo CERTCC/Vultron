@@ -18,11 +18,14 @@ defined these models in ``api/v2/data/status`` now re-exports from here.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+import logging
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from vultron.core.states.rm import RM
+from vultron.core.states.rm import RM, is_valid_rm_transition
+
+logger = logging.getLogger(__name__)
 
 
 class OfferStatusEnum(StrEnum):
@@ -82,9 +85,51 @@ def status_to_record_dict(status_record: ObjectStatus) -> dict:
     }
 
 
+def _current_report_rm_state(
+    sl: dict, status_record: "ReportStatus"
+) -> RM | None:
+    """Read the current RM state for a report from the STATUS layer."""
+    entry = (
+        sl.get(status_record.object_type, {})
+        .get(status_record.object_id, {})
+        .get(status_record.actor_id, {})
+    )
+    status_str = entry.get("status")
+    if status_str is None:
+        return None
+    try:
+        return RM(status_str)
+    except ValueError:
+        return None
+
+
 def set_status(status_record: ObjectStatus) -> None:
-    """Sets the status of an object in the in-memory STATUS layer."""
+    """Sets the status of an object in the in-memory STATUS layer.
+
+    For ReportStatus records, validates the RM transition from the current
+    state. Logs a WARNING and skips the write when the transition is invalid.
+    Idempotent same-state updates are treated as no-ops.
+    """
     sl = get_status_layer()
+    if isinstance(status_record, ReportStatus):
+        current = _current_report_rm_state(sl, status_record)
+        if current is not None:
+            if current == status_record.status:
+                logger.info(
+                    "Idempotent RM status update %s → %s for report '%s'; no-op",
+                    current,
+                    status_record.status,
+                    status_record.object_id,
+                )
+                return
+            if not is_valid_rm_transition(current, status_record.status):
+                logger.warning(
+                    "Invalid RM transition %s → %s for report '%s'; skipping",
+                    current,
+                    status_record.status,
+                    status_record.object_id,
+                )
+                return
     sl.update(status_to_record_dict(status_record))
 
 

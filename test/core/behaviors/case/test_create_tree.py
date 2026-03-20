@@ -239,6 +239,39 @@ def test_create_case_tree_creates_vendor_participant(
     assert found_vendor, "VendorParticipant was not found in DataLayer"
 
 
+def test_create_case_tree_vendor_participant_seeded_with_rm_valid(
+    datalayer, actor, case_obj, bridge
+):
+    """VendorParticipant MUST be seeded with rm_state=RM.VALID at case creation (ADR-0013)."""
+    from vultron.core.states.rm import RM
+
+    tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
+    bridge.execute_with_setup(tree=tree, actor_id=actor.as_id, activity=None)
+
+    stored_case = datalayer.read(case_obj.as_id)
+    assert stored_case is not None
+
+    found_valid = False
+    for p_ref in stored_case.case_participants:
+        p_id = p_ref if isinstance(p_ref, str) else p_ref.as_id
+        participant = datalayer.read(p_id)
+        if participant is None:
+            continue
+        p_actor = participant.attributed_to
+        p_actor_id = p_actor if isinstance(p_actor, str) else p_actor.as_id
+        if p_actor_id != actor.as_id:
+            continue
+        statuses = participant.participant_statuses
+        assert statuses, "Participant has no status history"
+        latest_rm = getattr(statuses[-1], "rm_state", None)
+        assert (
+            latest_rm == RM.VALID
+        ), f"Expected initial rm_state=RM.VALID, got {latest_rm}"
+        found_valid = True
+
+    assert found_valid, "No vendor participant found for actor in case"
+
+
 # ============================================================================
 # CM-02-009 event log backfill tests (TECHDEBT-10)
 # ============================================================================
