@@ -81,6 +81,7 @@ def case_with_embargo(dl, actor):
     embargo = EmbargoEvent(context=case_obj.as_id)
     dl.create(embargo)
     case_obj.set_embargo(embargo.as_id)
+    case_obj.current_status.em_state = EM.ACTIVE
     dl.create(case_obj)
     return case_obj, embargo
 

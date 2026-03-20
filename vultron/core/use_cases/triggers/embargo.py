@@ -210,6 +210,7 @@ class SvcEvaluateEmbargoUseCase:
             )
 
         case.set_embargo(embargo_id)
+        case.current_status.em_state = EM.ACTIVE
         dl.update(case.as_id, object_to_record(case))
 
         add_activity_to_outbox(actor_id, accept.as_id, dl)

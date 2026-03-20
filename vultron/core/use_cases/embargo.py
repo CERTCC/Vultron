@@ -68,6 +68,7 @@ class AddEmbargoEventToCaseReceivedUseCase:
             return
 
         case.set_embargo(embargo_id)
+        case.current_status.em_state = EM.ACTIVE
         self._dl.save(case)
         logger.info("Activated embargo '%s' on case '%s'", embargo_id, case_id)
 
@@ -188,6 +189,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             return
 
         case.set_embargo(embargo_id)
+        case.current_status.em_state = EM.ACTIVE
 
         accepting_actor_id = request.actor_id
         participant_id = case.actor_participant_index.get(accepting_actor_id)
