@@ -269,6 +269,19 @@ class SvcTerminateEmbargoUseCase:
                 f"Case '{case.as_id}' has no active embargo to terminate."
             )
 
+        em_state = case.current_status.em_state
+        adapter = _EMAdapter(em_state)
+        em_machine = create_em_machine()
+        em_machine.add_model(adapter, initial=em_state)
+
+        try:
+            adapter.terminate()
+        except MachineError:
+            raise VultronConflictError(
+                f"Cannot terminate embargo: case '{case.as_id}' EM state"
+                f" '{em_state}' does not allow a TERMINATE transition."
+            )
+
         embargo_id = (
             case.active_embargo
             if isinstance(case.active_embargo, str)
@@ -288,17 +301,19 @@ class SvcTerminateEmbargoUseCase:
                 "AnnounceEmbargoActivity '%s' already exists", announce.as_id
             )
 
-        case.current_status.em_state = EM.EXITED
+        case.current_status.em_state = EM(adapter.state)
         case.active_embargo = None
         dl.update(case.as_id, object_to_record(case))
 
         add_activity_to_outbox(actor_id, announce.as_id, dl)
 
         logger.info(
-            "Actor '%s' terminated embargo '%s' on case '%s' (EM → EXITED)",
+            "Actor '%s' terminated embargo '%s' on case '%s' (EM %s → %s)",
             actor_id,
             embargo_id,
             case.as_id,
+            em_state,
+            adapter.state,
         )
 
         activity = announce.model_dump(by_alias=True, exclude_none=True)

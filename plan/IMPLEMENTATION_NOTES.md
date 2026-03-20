@@ -471,3 +471,74 @@ removed.
 
 **Immediate instance to fix:** `VulnerabilityCase.set_embargo()` — tracked as
 OPP-03 in `wip_notes/state-machine-findings.md`.
+
+---
+
+### 2026-03-20: Integrating `transitions` machines with Pydantic models
+
+**Context:** Refactoring `SvcProposeEmbargoUseCase` to use `create_em_machine()`
+(OPP-01) revealed two non-obvious constraints that apply to any future
+`transitions` machine integration in this codebase.
+
+**Lesson 1 — Pydantic models cannot be used directly as `transitions` models.**
+
+`transitions` attaches trigger callables to the model object via `setattr`.
+Pydantic v2 models reject `setattr` for unknown field names with:
+`ValueError: "ClassName" object has no field "trigger"`.
+
+**Solution:** Use a lightweight plain-Python adapter object:
+
+```python
+class _EMAdapter:
+    def __init__(self, initial: EM) -> None:
+        self.state = initial
+```
+
+Seed it from the Pydantic model's current state, pass it to
+`machine.add_model()`, trigger the desired transition, then write back the
+resulting `.state` to the Pydantic model field. This is the canonical
+pattern for all `transitions` + Pydantic integrations in this project.
+
+**Lesson 2 — Always pass `initial=` to `machine.add_model()`.**
+
+`create_em_machine()` (and the other `create_*_machine()` factory functions)
+define `initial=EM.NONE` at the machine level. When `add_model()` is called
+without an `initial=` argument, the machine resets the adapter's `.state` to
+the machine's default initial state — discarding the current state.
+
+**Always call:**
+
+```python
+em_machine.add_model(adapter, initial=current_state)
+```
+
+**Never call (silently wrong):**
+
+```python
+em_machine.add_model(adapter)  # resets .state to machine's initial!
+```
+
+**Pattern summary (copy-paste template):**
+
+```python
+from transitions import MachineError
+from vultron.core.states.em import EM, create_em_machine
+
+class _EMAdapter:
+    def __init__(self, initial: EM) -> None:
+        self.state = initial
+
+# In the use case:
+current_state = case.current_status.em_state
+adapter = _EMAdapter(current_state)
+em_machine = create_em_machine()
+em_machine.add_model(adapter, initial=current_state)
+try:
+    adapter.<trigger>()   # e.g. adapter.propose(), adapter.terminate()
+except MachineError:
+    raise VultronConflictError("...")
+case.current_status.em_state = EM(adapter.state)
+```
+
+Apply the same pattern for `create_rm_machine()` (targeting `rm_state`)
+when RM machine integration is implemented.

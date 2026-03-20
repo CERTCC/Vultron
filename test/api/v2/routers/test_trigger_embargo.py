@@ -624,3 +624,26 @@ def test_trigger_terminate_embargo_clears_active_embargo(
 
     updated_case = dl.read(case_obj.as_id)
     assert updated_case.active_embargo is None
+
+
+def test_trigger_terminate_embargo_invalid_em_state_returns_409(
+    client_triggers, dl, actor, case_with_embargo
+):
+    """terminate-embargo returns HTTP 409 when EM state is not ACTIVE or REVISE.
+
+    Guards against bypassing the EM machine: even if active_embargo is set,
+    terminating from a state with no TERMINATE transition (e.g. PROPOSED) must
+    be rejected.
+    """
+    case_obj, _ = case_with_embargo
+    stored = dl.read(case_obj.as_id)
+    stored.current_status.em_state = EM.PROPOSED
+    dl.update(stored.as_id, object_to_record(stored))
+
+    resp = client_triggers.post(
+        f"/actors/{actor.as_id}/trigger/terminate-embargo",
+        json={"case_id": case_obj.as_id},
+    )
+    assert resp.status_code == status.HTTP_409_CONFLICT
+    data = resp.json()
+    assert data["detail"]["error"] == "Conflict"
