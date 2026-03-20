@@ -1,6 +1,6 @@
 # State Machine Refactoring Findings
 
-**Status:** Analysis complete  
+**Status:** Refactoring complete — all P and OPP items addressed  
 **Scope:** `vultron.core` and adjacent wire-layer interactions  
 **Machines analysed:** RM, EM, VFD (CS), PXA (CS) from `vultron.core.states`
 
@@ -490,3 +490,25 @@ to follow the same pattern.
 - **AR-02-002** (`specs/agentic-readiness.md`): all valid states and transitions
   MUST be documented. The `transitions` machines satisfy this requirement once
   they are the authoritative runtime behaviour (not just documentation).
+
+## 9. Completion Status
+
+All P and OPP items from this document have been implemented on the `transitions`
+branch. A summary of key commits:
+
+| Commit | Items |
+|--------|-------|
+| `fix-em-wire-boundary` | P-02, OPP-03 |
+| `refactor-em-propose` | OPP-01 |
+| `refactor-em-terminate` | P-03, OPP-02 |
+| `fix-em-remove-none` | P-01 |
+| `rm-start-to-received` | P-06, OPP-08 |
+| `refactor-rm-participant-helpers` | P-05, OPP-05 |
+| `guard-status-appends` + `rm-status-layer-guards` | P-04, OPP-04, OPP-07 (partial) |
+| `rm-lifecycle-reconcile` | P-07, OPP-09 (minimum step) |
+| `opp07-case-status-guard` | OPP-07 (complete) |
+
+**Deferred (explicit):**
+- OPP-06 (VFD/PXA machines) — no callers yet; left as future work.
+- Full STATUS dict deprecation (ADR-0013 steps 2–4) — complex migration;
+  minimum step (seed RM.VALID at case creation) is done.

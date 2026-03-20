@@ -47,6 +47,9 @@ from vultron.core.behaviors.helpers import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.models.status import OfferStatusEnum
+from vultron.core.use_cases.triggers._helpers import (
+    update_participant_rm_state,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -758,10 +761,6 @@ def _find_and_update_participant_rm(
     Returns SUCCESS on success (including idempotent no-op), FAILURE when the
     case or participant is not found or an error occurs.
     """
-    from vultron.core.use_cases.triggers._helpers import (
-        update_participant_rm_state,
-    )
-
     try:
         result = update_participant_rm_state(
             case_id, actor_id, new_rm_state, datalayer

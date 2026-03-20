@@ -10,6 +10,8 @@ from vultron.core.models.events.status import (
     CreateParticipantStatusReceivedEvent,
 )
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.states.cs import is_valid_pxa_transition
+from vultron.core.states.em import is_valid_em_transition
 from vultron.core.states.rm import RM, is_valid_rm_transition
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
 from vultron.core.models.protocols import CaseModel, ParticipantModel
@@ -71,6 +73,38 @@ class AddCaseStatusToCaseReceivedUseCase:
         status_obj = self._dl.read(status_id)
         if not hasattr(status_obj, "as_id"):
             status_obj = request.status
+
+        if case.case_statuses:
+            new_em = getattr(status_obj, "em_state", None)
+            if new_em is not None:
+                current_em = case.case_statuses[-1].em_state
+                if current_em != new_em and not is_valid_em_transition(
+                    current_em, new_em
+                ):
+                    logger.warning(
+                        "Invalid EM transition %s → %s for case '%s'; "
+                        "skipping status append",
+                        current_em,
+                        new_em,
+                        case_id,
+                    )
+                    return
+
+            new_pxa = getattr(status_obj, "pxa_state", None)
+            if new_pxa is not None:
+                current_pxa = case.case_statuses[-1].pxa_state
+                if current_pxa != new_pxa and not is_valid_pxa_transition(
+                    current_pxa, new_pxa
+                ):
+                    logger.warning(
+                        "Invalid PXA transition %s → %s for case '%s'; "
+                        "skipping status append",
+                        current_pxa,
+                        new_pxa,
+                        case_id,
+                    )
+                    return
+
         case.case_statuses.append(status_obj)
         self._dl.save(case)
         logger.info("Added CaseStatus '%s' to case '%s'", status_id, case_id)

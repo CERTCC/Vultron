@@ -1465,6 +1465,118 @@ class TestStatusHandlers:
         ]
         assert status.as_id in status_ids
 
+    def test_add_case_status_blocks_invalid_em_transition(self, monkeypatch):
+        """Invalid EM transition is blocked; status is not appended."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.core.states.em import EM
+        from vultron.wire.as2.vocab.activities.case import (
+            AddStatusToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em_guard",
+            name="EM Guard Test Case",
+        )
+        # Seed an existing status with EM.NONE (the initial embargo state)
+        initial_status = CaseStatus(
+            id="https://example.org/cases/case_em_guard/statuses/s_init",
+            context=case.as_id,
+            em_state=EM.NONE,
+        )
+        case.case_statuses.append(initial_status)
+        dl.create(case)
+
+        # Try to add a status with EM.ACTIVE — invalid: NONE → ACTIVE
+        # skips the required PROPOSED intermediate state
+        bad_status = CaseStatus(
+            id="https://example.org/cases/case_em_guard/statuses/s_bad",
+            context=case.as_id,
+            em_state=EM.ACTIVE,
+        )
+        dl.create(bad_status)
+
+        activity = AddStatusToCaseActivity(
+            actor="https://example.org/users/vendor",
+            object=bad_status,
+            target=case,
+        )
+        event = _make_payload(activity)
+
+        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+
+        updated_case = dl.read(case.as_id)
+        status_ids = [
+            (s.as_id if hasattr(s, "as_id") else s)
+            for s in updated_case.case_statuses
+        ]
+        assert (
+            bad_status.as_id not in status_ids
+        ), "Bad status should not have been appended"
+
+    def test_add_case_status_allows_valid_em_transition(self, monkeypatch):
+        """Valid EM transition is permitted; status is appended."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.core.states.em import EM
+        from vultron.wire.as2.vocab.activities.case import (
+            AddStatusToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        monkeypatch.setattr(
+            "vultron.wire.as2.rehydration.get_datalayer",
+            lambda **_: dl,
+        )
+
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em_valid",
+            name="EM Valid Transition Case",
+        )
+        initial_status = CaseStatus(
+            id="https://example.org/cases/case_em_valid/statuses/s_init",
+            context=case.as_id,
+            em_state=EM.NONE,
+        )
+        case.case_statuses.append(initial_status)
+        dl.create(case)
+
+        # NONE → PROPOSED is a valid transition
+        good_status = CaseStatus(
+            id="https://example.org/cases/case_em_valid/statuses/s_good",
+            context=case.as_id,
+            em_state=EM.PROPOSED,
+        )
+        dl.create(good_status)
+
+        activity = AddStatusToCaseActivity(
+            actor="https://example.org/users/vendor",
+            object=good_status,
+            target=case,
+        )
+        event = _make_payload(activity)
+
+        AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
+
+        updated_case = dl.read(case.as_id)
+        status_ids = [
+            (s.as_id if hasattr(s, "as_id") else s)
+            for s in updated_case.case_statuses
+        ]
+        assert good_status.as_id in status_ids
+
     def test_create_participant_status_stores_status(self, monkeypatch):
         """create_participant_status persists the ParticipantStatus."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
