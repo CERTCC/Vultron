@@ -15,7 +15,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 
-from enum import StrEnum
+from enum import StrEnum, auto
+
+from transitions import Machine
+
+from vultron.core.states.common import TransitionBase, mermaid_machine
 
 
 class EM(StrEnum):
@@ -28,21 +32,96 @@ class EM(StrEnum):
     EXITED: Embargo had been active but has been exited
     """
 
-    EMBARGO_MANAGEMENT_NONE = "NONE"
-    EMBARGO_MANAGEMENT_PROPOSED = "PROPOSED"
-    EMBARGO_MANAGEMENT_ACTIVE = "ACTIVE"
-    EMBARGO_MANAGEMENT_REVISE = "REVISE"
-    EMBARGO_MANAGEMENT_EXITED = "EXITED"
+    NONE = "NONE"
+    PROPOSED = "PROPOSED"
+    ACTIVE = "ACTIVE"
+    REVISE = "REVISE"
+    EXITED = "EXITED"
 
     # convenience aliases
-    NO_EMBARGO = EMBARGO_MANAGEMENT_NONE
-    PROPOSED = EMBARGO_MANAGEMENT_PROPOSED
-    ACTIVE = EMBARGO_MANAGEMENT_ACTIVE
-    REVISE = EMBARGO_MANAGEMENT_REVISE
-    EXITED = EMBARGO_MANAGEMENT_EXITED
+    EMBARGO_MANAGEMENT_NONE = NONE
+    EMBARGO_MANAGEMENT_PROPOSED = PROPOSED
+    EMBARGO_MANAGEMENT_ACTIVE = ACTIVE
+    EMBARGO_MANAGEMENT_REVISE = REVISE
+    EMBARGO_MANAGEMENT_EXITED = EXITED
 
-    N = EMBARGO_MANAGEMENT_NONE
-    P = EMBARGO_MANAGEMENT_PROPOSED
-    A = EMBARGO_MANAGEMENT_ACTIVE
-    R = EMBARGO_MANAGEMENT_REVISE
-    X = EMBARGO_MANAGEMENT_EXITED
+    NO_EMBARGO = NONE
+
+    N = NONE
+    P = PROPOSED
+    A = ACTIVE
+    R = REVISE
+    X = EXITED
+
+
+class EM_Trigger(StrEnum):
+    """
+    Embargo Management State Machine Triggers
+    """
+
+    # auto() makes these lowercase when stringified
+    PROPOSE = auto()
+    REJECT = auto()
+    ACCEPT = auto()
+    TERMINATE = auto()
+
+
+class EmTransition(TransitionBase):
+    trigger: EM_Trigger
+    source: EM
+    dest: EM
+
+
+_transitions = [
+    EmTransition(
+        trigger=EM_Trigger.PROPOSE, source=EM.NO_EMBARGO, dest=EM.PROPOSED
+    ).model_dump(),
+    EmTransition(
+        trigger=EM_Trigger.PROPOSE, source=EM.PROPOSED, dest=EM.PROPOSED
+    ).model_dump(),
+    EmTransition(
+        trigger=EM_Trigger.REJECT, source=EM.PROPOSED, dest=EM.NO_EMBARGO
+    ).model_dump(),
+    EmTransition(
+        trigger=EM_Trigger.ACCEPT, source=EM.PROPOSED, dest=EM.ACTIVE
+    ).model_dump(),
+    EmTransition(
+        trigger=EM_Trigger.PROPOSE, source=EM.ACTIVE, dest=EM.REVISE
+    ).model_dump(),
+    EmTransition(
+        trigger=EM_Trigger.PROPOSE, source=EM.REVISE, dest=EM.REVISE
+    ).model_dump(),
+    EmTransition(
+        trigger=EM_Trigger.REJECT, source=EM.REVISE, dest=EM.ACTIVE
+    ).model_dump(),
+    EmTransition(
+        trigger=EM_Trigger.ACCEPT, source=EM.REVISE, dest=EM.ACTIVE
+    ).model_dump(),
+    EmTransition(
+        trigger=EM_Trigger.TERMINATE, source=EM.ACTIVE, dest=EM.EXITED
+    ).model_dump(),
+    EmTransition(
+        trigger=EM_Trigger.TERMINATE, source=EM.REVISE, dest=EM.EXITED
+    ).model_dump(),
+]
+
+
+def create_em_machine() -> Machine:
+    """
+    Generates a new Embargo Management State Machine
+
+    Returns:
+        A transitions Machine object representing the Report Management state machine
+    """
+    return Machine(
+        states=EM,
+        transitions=_transitions,
+        initial=EM.NONE,
+        auto_transitions=False,
+        name="EM FSM",
+    )
+
+
+if __name__ == "__main__":
+    M = create_em_machine()
+    print(mermaid_machine(M))

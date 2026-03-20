@@ -21,7 +21,10 @@ It also provides functions for converting between state strings and enums.
 from enum import Enum, StrEnum
 from typing import NamedTuple, Tuple
 
+from transitions import Machine
+
 from vultron.core.case_states.validations import ensure_valid_state
+from vultron.core.states.common import TransitionBase, mermaid_machine
 
 
 class VendorAwareness(StrEnum):
@@ -400,6 +403,113 @@ def state_string_to_enum2(
 all_states = list(CS)
 
 
+class VFD_Trigger(StrEnum):
+    V = "vendor becomes aware"
+    F = "fix is ready"
+    D = "fix is deployed"
+
+
+class PXA_Trigger(StrEnum):
+    P = "public becomes aware"
+    X = "exploit made public"
+    A = "attacks are observed"
+
+
+class VfdTransition(TransitionBase):
+    trigger: VFD_Trigger
+    source: CS_vfd
+    dest: CS_vfd
+
+
+class PxaTransition(TransitionBase):
+    trigger: PXA_Trigger
+    source: CS_pxa
+    dest: CS_pxa
+
+
+_vfd_transitions = [
+    VfdTransition(
+        trigger=VFD_Trigger.V, source=CS_vfd.vfd, dest=CS_vfd.Vfd
+    ).model_dump(),
+    VfdTransition(
+        trigger=VFD_Trigger.F, source=CS_vfd.Vfd, dest=CS_vfd.VFd
+    ).model_dump(),
+    VfdTransition(
+        trigger=VFD_Trigger.D, source=CS_vfd.VFd, dest=CS_vfd.VFD
+    ).model_dump(),
+]
+_pxa_transitions = [
+    PxaTransition(
+        trigger=PXA_Trigger.P, source=CS_pxa.pxa, dest=CS_pxa.Pxa
+    ).model_dump(),
+    PxaTransition(
+        trigger=PXA_Trigger.P, source=CS_pxa.pxA, dest=CS_pxa.PxA
+    ).model_dump(),
+    PxaTransition(
+        trigger=PXA_Trigger.P, source=CS_pxa.pXa, dest=CS_pxa.PXa
+    ).model_dump(),
+    PxaTransition(
+        trigger=PXA_Trigger.P, source=CS_pxa.pXA, dest=CS_pxa.PXA
+    ).model_dump(),
+    PxaTransition(
+        trigger=PXA_Trigger.X, source=CS_pxa.pxa, dest=CS_pxa.pXa
+    ).model_dump(),
+    PxaTransition(
+        trigger=PXA_Trigger.X, source=CS_pxa.pxA, dest=CS_pxa.pXA
+    ).model_dump(),
+    PxaTransition(
+        trigger=PXA_Trigger.X, source=CS_pxa.Pxa, dest=CS_pxa.PXa
+    ).model_dump(),
+    PxaTransition(
+        trigger=PXA_Trigger.X, source=CS_pxa.PxA, dest=CS_pxa.PXA
+    ).model_dump(),
+    PxaTransition(
+        trigger=PXA_Trigger.A, source=CS_pxa.pxa, dest=CS_pxa.pxA
+    ).model_dump(),
+    PxaTransition(
+        trigger=PXA_Trigger.A, source=CS_pxa.Pxa, dest=CS_pxa.PxA
+    ).model_dump(),
+    PxaTransition(
+        trigger=PXA_Trigger.A, source=CS_pxa.pXa, dest=CS_pxa.pXA
+    ).model_dump(),
+    PxaTransition(
+        trigger=PXA_Trigger.A, source=CS_pxa.PXa, dest=CS_pxa.PXA
+    ).model_dump(),
+]
+
+
+def create_vfd_machine() -> Machine:
+    """
+    Generates a new Case State Vendor Fix Deploy Machine object
+
+    Returns:
+        Machine: New Machine object
+    """
+    return Machine(
+        states=CS_vfd,
+        transitions=_vfd_transitions,
+        initial=CS_vfd.vfd,
+        auto_transitions=False,
+        name="CS VFD State Machine",
+    )
+
+
+def create_pxa_machine() -> Machine:
+    """
+    Generates a new Case State Public Exploit Attacks Machine object
+
+    Returns:
+        Machine: New Machine object
+    """
+    return Machine(
+        states=CS_pxa,
+        transitions=_pxa_transitions,
+        initial=CS_pxa.pxa,
+        auto_transitions=False,
+        name="CS PXA State Machine",
+    )
+
+
 def main():
     print("Case State Enumerations")
     print()
@@ -418,6 +528,10 @@ def main():
     print("All Case States")
     for state in all_states:
         print(state, state.name, state.value)
+
+    print("Mermaid Diagrams of State machines")
+    print(mermaid_machine(create_vfd_machine()))
+    print(mermaid_machine(create_pxa_machine()))
 
 
 if __name__ == "__main__":

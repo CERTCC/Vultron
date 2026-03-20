@@ -16,7 +16,11 @@ Provides an enumeration of Report Management states.
 """
 
 import logging
-from enum import StrEnum
+from enum import StrEnum, auto
+
+from transitions import Machine
+
+from vultron.core.states.common import TransitionBase, mermaid_machine
 
 logger = logging.getLogger(__name__)
 
@@ -34,30 +38,30 @@ class RM(StrEnum):
     CLOSED: Report has been closed
     """
 
-    REPORT_MANAGEMENT_START = "START"
-    REPORT_MANAGEMENT_RECEIVED = "RECEIVED"
-    REPORT_MANAGEMENT_INVALID = "INVALID"
-    REPORT_MANAGEMENT_VALID = "VALID"
-    REPORT_MANAGEMENT_DEFERRED = "DEFERRED"
-    REPORT_MANAGEMENT_ACCEPTED = "ACCEPTED"
-    REPORT_MANAGEMENT_CLOSED = "CLOSED"
-
     # convenience aliases
-    START = REPORT_MANAGEMENT_START
-    RECEIVED = REPORT_MANAGEMENT_RECEIVED
-    INVALID = REPORT_MANAGEMENT_INVALID
-    VALID = REPORT_MANAGEMENT_VALID
-    DEFERRED = REPORT_MANAGEMENT_DEFERRED
-    ACCEPTED = REPORT_MANAGEMENT_ACCEPTED
-    CLOSED = REPORT_MANAGEMENT_CLOSED
+    START = "START"
+    RECEIVED = "RECEIVED"
+    INVALID = "INVALID"
+    VALID = "VALID"
+    DEFERRED = "DEFERRED"
+    ACCEPTED = "ACCEPTED"
+    CLOSED = "CLOSED"
 
-    S = REPORT_MANAGEMENT_START
-    R = REPORT_MANAGEMENT_RECEIVED
-    I = REPORT_MANAGEMENT_INVALID  # noqa: E741
-    V = REPORT_MANAGEMENT_VALID
-    D = REPORT_MANAGEMENT_DEFERRED
-    A = REPORT_MANAGEMENT_ACCEPTED
-    C = REPORT_MANAGEMENT_CLOSED
+    REPORT_MANAGEMENT_START = START
+    REPORT_MANAGEMENT_RECEIVED = RECEIVED
+    REPORT_MANAGEMENT_INVALID = INVALID
+    REPORT_MANAGEMENT_VALID = VALID
+    REPORT_MANAGEMENT_DEFERRED = DEFERRED
+    REPORT_MANAGEMENT_ACCEPTED = ACCEPTED
+    REPORT_MANAGEMENT_CLOSED = CLOSED
+
+    S = START
+    R = RECEIVED
+    I = INVALID  # noqa: E741
+    V = VALID
+    D = DEFERRED
+    A = ACCEPTED
+    C = CLOSED
 
 
 # Report Management States that can be closed
@@ -83,3 +87,89 @@ RM_ACTIVE = (
     RM.VALID,
     RM.ACCEPTED,
 )
+
+
+class RM_Trigger(StrEnum):
+    """
+    Enumerates Report Management State Triggers
+
+    RECEIVE: when a report is received
+    VALIDATE: when a report is validated
+    INVALIDATE: when a report is invalidated
+    ACCEPT: when a report is accepted
+    DEFER: when a report is deferred (soft close, may be reopened)
+    CLOSE: when a report is closed (hard close, no reopening)
+    """
+
+    # auto() makes these lowercase when stringified
+    RECEIVE = auto()
+    VALIDATE = auto()
+    INVALIDATE = auto()
+    ACCEPT = auto()
+    DEFER = auto()
+    CLOSE = auto()
+
+
+class RmTransition(TransitionBase):
+    trigger: RM_Trigger
+    source: RM
+    dest: RM
+
+
+_transitions = [
+    RmTransition(
+        trigger=RM_Trigger.RECEIVE, source=RM.START, dest=RM.RECEIVED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.VALIDATE, source=RM.RECEIVED, dest=RM.VALID
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.INVALIDATE, source=RM.RECEIVED, dest=RM.INVALID
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.VALIDATE, source=RM.INVALID, dest=RM.VALID
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.ACCEPT, source=RM.VALID, dest=RM.ACCEPTED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.ACCEPT, source=RM.DEFERRED, dest=RM.ACCEPTED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.DEFER, source=RM.VALID, dest=RM.DEFERRED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.DEFER, source=RM.ACCEPTED, dest=RM.DEFERRED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.CLOSE, source=RM.ACCEPTED, dest=RM.CLOSED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.CLOSE, source=RM.INVALID, dest=RM.CLOSED
+    ).model_dump(),
+    RmTransition(
+        trigger=RM_Trigger.CLOSE, source=RM.DEFERRED, dest=RM.CLOSED
+    ).model_dump(),
+]
+
+
+def create_rm_machine() -> Machine:
+    """
+    Generates a new Report Management State Machine object
+
+    Returns:
+        A transitions Machine object representing the Report Management state machine
+
+    """
+    return Machine(
+        states=RM,
+        transitions=_transitions,
+        initial=RM.START,
+        auto_transitions=False,
+        name="RM FSM",
+    )
+
+
+if __name__ == "__main__":
+    M = create_rm_machine()
+    print(mermaid_machine(M))

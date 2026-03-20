@@ -40,13 +40,13 @@ class MyTestCase(unittest.TestCase):
         self.assertIs(RM.CLOSED, RM.C)
 
     def test_report_management_state_names(self):
-        self.assertEqual("REPORT_MANAGEMENT_START", RM.S.name)
-        self.assertEqual("REPORT_MANAGEMENT_RECEIVED", RM.R.name)
-        self.assertEqual("REPORT_MANAGEMENT_INVALID", RM.I.name)
-        self.assertEqual("REPORT_MANAGEMENT_VALID", RM.V.name)
-        self.assertEqual("REPORT_MANAGEMENT_DEFERRED", RM.D.name)
-        self.assertEqual("REPORT_MANAGEMENT_ACCEPTED", RM.A.name)
-        self.assertEqual("REPORT_MANAGEMENT_CLOSED", RM.C.name)
+        self.assertEqual("START", RM.S.name)
+        self.assertEqual("RECEIVED", RM.R.name)
+        self.assertEqual("INVALID", RM.I.name)
+        self.assertEqual("VALID", RM.V.name)
+        self.assertEqual("DEFERRED", RM.D.name)
+        self.assertEqual("ACCEPTED", RM.A.name)
+        self.assertEqual("CLOSED", RM.C.name)
 
     def test_rm_closable(self):
         self.assertNotIn(RM.S, RM_CLOSABLE)
