@@ -30,12 +30,14 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
+from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
     VultronCreateCaseActivity,
     VultronParticipant,
 )
+from vultron.core.states.rm import RM
 from vultron.core.states.roles import CVDRoles
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
@@ -317,6 +319,10 @@ class CreateInitialVendorParticipant(DataLayerAction):
     Create and persist a VendorParticipant for the receiving actor, then
     add it to the case's case_participants list.
 
+    Seeds the participant with an initial ParticipantStatus of
+    rm_state=RM.VALID, carrying the report-validation state forward into
+    the case-engagement phase (per ADR-0013).
+
     Must run after PersistCase so the case already exists in the DataLayer.
 
     Per specs/case-management.md CM-02-008 (SHOULD).
@@ -338,12 +344,19 @@ class CreateInitialVendorParticipant(DataLayerAction):
                 attributed_to=self.actor_id,
                 context=self.case_obj.as_id,
                 case_roles=[CVDRoles.VENDOR],
+                participant_statuses=[
+                    VultronParticipantStatus(
+                        context=self.case_obj.as_id,
+                        rm_state=RM.VALID,
+                    )
+                ],
             )
             if self.datalayer.read(participant.as_id) is None:
                 self.datalayer.create(participant)
                 self.logger.info(
                     f"{self.name}: Created VendorParticipant"
                     f" {participant.as_id} for actor {self.actor_id}"
+                    f" (rm_state=RM.VALID)"
                 )
             else:
                 self.logger.debug(
