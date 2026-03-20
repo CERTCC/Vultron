@@ -1,7 +1,7 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-20 (docs refresh: Priority 90 capture and
-durability updates)
+**Last Updated**: 2026-03-20 (refresh #40: P85 complete, P90 partial, new
+TECHDEBT-29–34 tasks added)
 
 ## Overview
 
@@ -14,8 +14,8 @@ it does not override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: See the latest validation entry in `plan/IMPLEMENTATION_HISTORY.md`
-for the current full-suite totals.
+**Test suite**: 996 passed, 5581 subtests (branch: `transitions-part-2`,
+2026-03-20).
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -27,17 +27,20 @@ handler use cases and 9 trigger use cases are class-based. CLI
 (`vultron/adapters/driving/mcp_server.py`) driving adapters implemented.
 **TECHDEBT-16 complete**: `VultronObject` base class defined in
 `vultron/core/models/base.py`; all 12 domain object models inherit from it.
+**P85 complete**: all IDEAS.md items captured in specs, notes, and plan.
+**P90 in progress**: P90-2 and P90-3 done; P90-1 and P90-4 remain.
 
-**Active phase**: **PRIORITY-80** — technical debt cleanup and full hexagonal
-architecture realization. TECHDEBT-16 through TECHDEBT-28 are complete; VCR-A
-batch (8/8 tasks) complete. VCR-B batch complete.
-VCR-019c study complete. VCR-019a complete — `vultron/case_states/` moved into
-`vultron/core/` (states, scoring, case_states packages); errors merged into
-`vultron/errors.py`.
+**Active phases**: **PRIORITY-80** (technical debt cleanup) and **PRIORITY-90**
+(ADR-0013 state-machine follow-up). TECHDEBT-16 through TECHDEBT-28 are
+complete; VCR-A batch (8/8 tasks) complete. VCR-B batch complete.
+VCR-019c study complete. VCR-019a/b/e complete — state enums consolidated into
+`vultron/core/states/`; `vultron/case_states/` removed; errors merged into
+`vultron/errors.py`. PREPX-1/2/3 complete. New TECHDEBT-29 through TECHDEBT-34
+added 2026-03-20.
 
 ---
 
-## Gap Analysis (2026-03-16, refresh #39)
+## Gap Analysis (2026-03-20, refresh #40)
 
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
@@ -51,7 +54,16 @@ P65-1, P65-2, P65-3, P65-4, P65-5, P65-6a, P65-6b, P65-7,
 ARCH-DOCS-1, TECHDEBT-13a, TECHDEBT-13b, TECHDEBT-13c, TECHDEBT-14,
 P70-2, P70-3, P70-4, P70-5,
 P75-1, P75-2, P75-2a, P75-2b, P75-2c, P75-3, P75-4-pre,
-TECHDEBT-15, TECHDEBT-21, TECHDEBT-22, TECHDEBT-24, TECHDEBT-27, P75-5.
+TECHDEBT-15, TECHDEBT-21, TECHDEBT-22, TECHDEBT-24, TECHDEBT-27, P75-5,
+TECHDEBT-16, TECHDEBT-17, TECHDEBT-18, TECHDEBT-19, TECHDEBT-20, TECHDEBT-23,
+TECHDEBT-25, TECHDEBT-26, TECHDEBT-28,
+VCR-001, VCR-003, VCR-004, VCR-005, VCR-006, VCR-007, VCR-008, VCR-009,
+VCR-010, VCR-011, VCR-012, VCR-015a, VCR-015b, VCR-016, VCR-017, VCR-018,
+VCR-019a, VCR-019b, VCR-019c, VCR-019e, VCR-020, VCR-021a, VCR-021b,
+VCR-022, VCR-023, VCR-024, VCR-025, VCR-026, VCR-027, VCR-028, VCR-029,
+VCR-030, VCR-031, VCR-032,
+PREPX-1, PREPX-2, PREPX-3, ACT-1, OX-1.0,
+DOCS-1, DOCS-2, P90-2, P90-3.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -514,6 +526,142 @@ from Deferred section after P75-4 completion.
 
 ---
 
+### New Technical Debt — 2026-03-20 Review
+
+These tasks were identified during the 2026-03-20 planning session. All are
+part of PRIORITY-80 cleanup unless otherwise noted.
+
+#### TECHDEBT-29 — VCR-005 follow-up: profile endpoint returns only links
+
+**Priority**: Medium (spec correctness, discovered in code review 2026-03-20)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "VCR-005 Follow-up" (2026-03-20)
+
+- [ ] **TECHDEBT-29**: Clarify and enforce that `GET /actors/{actor_id}/profile`
+  returns an actor profile whose `inbox` and `outbox` fields are **URL links
+  only** (not the collection contents). Ensure this is unambiguous in
+  `specs/agentic-readiness.md` (AR-10-001–003) and add a test asserting that
+  the response contains string URLs for `inbox` and `outbox`, not embedded
+  collection objects. Done when the spec is updated, a test validates the
+  constraint, and the test passes.
+
+---
+
+#### TECHDEBT-30 — Replace AS2-generic field names in core event interfaces
+
+**Priority**: Medium (domain clarity, CS-12-001)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "wire-layer terminology leaking into
+core" (2026-03-20); `notes/domain-model-separation.md`
+
+- [ ] **TECHDEBT-30**: Audit all core use case `__init__` signatures and event
+  model field names for fields that use AS2-generic names (`object_id`,
+  `target_id`, `context_id`) where domain-specific names would be clearer
+  (e.g., `report_id`, `case_id`, `embargo_id`). For each discovered instance,
+  rename the field to use domain vocabulary. Update event models in
+  `vultron/core/models/events/` and all callers. Done when no public core
+  event field uses a generic AS2 placeholder name where a domain name is
+  unambiguous, and tests pass.
+
+---
+
+#### TECHDEBT-31 — Relocate `trigger_services/` into FastAPI adapter
+
+**Priority**: High (architectural cleanup, must complete before ACT-2)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "vultron.api.v2.backend.trigger_services
+should go away" (2026-03-20); `notes/codebase-structure.md`
+
+- [ ] **TECHDEBT-31**: Move the contents of
+  `vultron/api/v2/backend/trigger_services/` into `vultron/adapters/driving/fastapi/`:
+
+  1. Move `domain_error_translation()` and `translate_domain_errors()` from
+     `_helpers.py` into `vultron/adapters/driving/fastapi/errors.py`.
+     Remove the re-export shim block from `_helpers.py`.
+  2. Move HTTP request body models from `_models.py` to
+     `vultron/adapters/driving/fastapi/trigger_models.py`.
+  3. Inline the thin adapter delegates from `case.py`, `embargo.py`, and
+     `report.py` directly into the corresponding router files
+     (`routers/trigger_case.py`, `routers/trigger_embargo.py`,
+     `routers/trigger_report.py`) or into a new sibling `_trigger_adapter.py`.
+  4. Delete `vultron/api/v2/backend/trigger_services/` entirely.
+  5. Update all imports and tests. No shims.
+
+  After this task, `vultron/api/v2/` should contain only `data/actor_io.py`
+  (pending VCR-014) and two `__init__.py` stubs. Done when
+  `trigger_services/` is gone, all routers work, and tests pass.
+
+---
+
+#### TECHDEBT-32 — Research and plan core/DataLayer boundary refactor
+
+**Priority**: Medium (architectural health, prerequisite to ACT-2)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "lack of clean separation at the
+core to datalayer port and adapter boundaries" (2026-03-20);
+`notes/domain-model-separation.md`
+
+- [ ] **TECHDEBT-32**: Audit the core/DataLayer boundary to understand the
+  current coupling. Produce a written analysis (add to
+  `notes/domain-model-separation.md` or a new `notes/datalayer-refactor.md`)
+  that:
+  1. Lists all places where `object_to_record()`, `record_to_object()`, or
+     `find_in_vocabulary()` are called from core or wire (not adapter) code.
+  2. Lists all places where core branches on DataLayer return types.
+  3. Proposes the minimal refactoring needed so that the DataLayer port
+     contract is typed in terms of core domain objects.
+  4. Identifies whether `Record`/`StorableRecord` in `db_record.py` should be
+     revised, promoted, or replaced.
+  5. Identifies the vocabulary registry entanglement in `db_record.py` and
+     `rehydration.py` and proposes decoupling.
+
+  Done when the analysis document is committed and a follow-up implementation
+  task (TECHDEBT-32b) is added to this plan based on the findings.
+  **No code changes in this task — research and planning only.**
+
+---
+
+#### TECHDEBT-33 — Refactor `test/api/v2/backend/test_handlers.py`
+
+**Priority**: Medium (test maintainability)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "Refactor large tests" (2026-03-20)
+
+- [ ] **TECHDEBT-33**: Split `test/api/v2/backend/test_handlers.py` into
+  per-module test files mirroring the source layout under
+  `test/core/use_cases/` (which is where the tested code now lives). The
+  current file tests all 38 handler use cases in one place; it no longer maps
+  to `api/v2/backend/handlers/` (which was deleted in PREPX-2). New layout:
+  `test/core/use_cases/test_report.py`, `test_case.py`, `test_embargo.py`,
+  `test_actor.py`, `test_case_participant.py`, `test_note.py`, `test_status.py`.
+  Move tests without changing test logic. Done when the monolithic file is
+  deleted and equivalent coverage is provided by the new per-module files.
+
+---
+
+#### TECHDEBT-34 — Sweep for remaining procedural EM/RM state logic to migrate to `transitions` machines
+
+**Priority**: Medium (part of VCR-019d; architectural consistency)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "VCR-019d is largely addressed…"
+(2026-03-20); `notes/state-machine-findings.md`
+
+- [ ] **TECHDEBT-34**: Audit all remaining procedural EM and RM state
+  transition code in `vultron/core/` (use cases and behaviors) to identify
+  any hand-rolled `if/elif` chains or direct enum assignments that could be
+  replaced with calls to `create_em_machine()` or `create_rm_machine()`.
+  For each identified site, replace the hand-rolled logic with machine-driven
+  transitions using the adapter pattern documented in
+  `notes/state-machine-findings.md` (OPP-01 through OPP-04 pattern). Done when
+  all EM and RM transitions in `vultron/core/` that can use the machines do
+  so, and the test suite passes. **Note:** `SvcProposeEmbargoUseCase` and
+  `SvcTerminateEmbargoUseCase` are the primary candidates (OPP-01, OPP-02);
+  verify their current state before starting.
+
+---
+
+---
+
 ### Phase VCR-0317 — Architecture Consolidation (2026-03-17 Code Review)
 
 **Source**: `plan/IDEAS.md` VCR-0317 code review items (March 17, 2026).
@@ -769,30 +917,78 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
 
 ---
 
+### Phase PRIORITY-85 — IDEAS.md Capture (COMPLETE ✅)
+
+**Reference**: `plan/PRIORITIES.md` Priority 85
+
+All items from `plan/IDEAS.md` have been extracted and captured:
+
+- Action items → `plan/IMPLEMENTATION_PLAN.md` tasks (VCR-0317 batch, PREPX-*,
+  P90-*, TECHDEBT-*)
+- Requirements → `specs/` (ARCH-09, ARCH-10, ARCH-11, CS-08-002, CS-12-001/2,
+  TB-05-*, AR-10-*, etc.)
+- Design insights → `notes/` (`architecture-ports-and-adapters.md`,
+  `domain-model-separation.md`, `state-machine-findings.md`, etc.)
+- Resolved entries struck through in `ideas/IDEAS.md`; file now reset to 2
+  lines (header only).
+- DOCS-2 complete (required for CI to pass before merging).
+
+---
+
 ### Phase PRIORITY-90 — ADR-0013 and State-Machine Follow-up
 
 **Reference**: `plan/PRIORITIES.md` Priority 90,
 `docs/adr/0013-unify-rm-state-tracking.md`,
 `notes/state-machine-findings.md` (OPP-06, OPP-07, OPP-09)
 
-This phase captures the RM-state unification and state-machine follow-up work
-that must remain visible before starting PRIORITY-100. Per
-`plan/PRIORITIES.md`, Priority 90 takes precedence over later priorities even
-when related Priority 100 tasks appear nearby in this plan.
+This phase captures the RM-state unification and state-machine follow-up work.
+Per `plan/PRIORITIES.md`, Priority 90 takes precedence over later priorities
+even when related Priority 100 tasks appear nearby in this plan.
 
-- [ ] **P90-1**: Persist initial RM report-phase state in participant history.
-  Update report-receipt flows so the receiving actor records `RM.RECEIVED` in
-  persisted participant status history rather than relying on the transient
-  STATUS layer.
-- [ ] **P90-2**: Carry validated RM state into case creation. When a case is
+**2026-03-20 status**: P90-2 and P90-3 are complete. P90-1 and P90-4 remain.
+
+- [ ] **P90-1**: Persist initial RM report-phase state in
+  `VultronParticipantStatus` (persisted) rather than the transient in-memory
+  STATUS dict. In `CreateReportReceivedUseCase` and `SubmitReportReceivedUseCase`,
+  after persisting the report, create and persist a `VultronParticipantStatus`
+  record with `rm_state=RM.RECEIVED` for the receiving actor in addition to
+  (or instead of) calling `set_status()`. This is the explicit
+  `START → RECEIVED` (RECEIVE trigger) transition required by ADR-0013 step 1.
+  Done when report-receipt creates a persisted participant status entry and
+  the full RM history is queryable from the DataLayer.
+  **Depends on: nothing (can start immediately).**
+
+- [x] **P90-2**: Carry validated RM state into case creation. When a case is
   created from a valid report, seed the actor's case-phase participant history
-  with `RM.VALID` rather than restarting at `RM.START`.
-- [ ] **P90-3**: Use shared transition validation for persisted RM, VFD, and
-  PXA updates. Capture OPP-07 and OPP-06 by requiring future RM/VFD/PXA writes
-  to validate against the authoritative state model before persistence.
-- [ ] **P90-4**: Remove transient STATUS-layer dependencies once persisted RM
-  history is authoritative. Delete remaining STATUS dict reads/writes only
-  after the migrated flows and guards are covered by tests.
+  with `RM.VALID` rather than `RM.START`. **COMPLETE** —
+  `vultron/core/behaviors/case/nodes.py` `CreateInitialVendorParticipantNode`
+  now seeds `rm_state=RM.VALID` (commit `8921b41`). 996 tests pass.
+
+- [x] **P90-3**: Use shared transition validation for persisted RM, EM, VFD,
+  and PXA updates. `is_valid_rm_transition()`, `is_valid_em_transition()`, and
+  `is_valid_pxa_transition()` added to `vultron/core/states/`. Guards added in
+  `AddCaseStatusToCaseReceivedUseCase`, `AddParticipantStatusToParticipantReceivedUseCase`
+  (`core/use_cases/status.py`), `update_participant_rm_state()` (triggers),
+  and `_find_and_update_participant_rm()` (behaviors). **COMPLETE** — 996 tests
+  pass.
+
+- [ ] **P90-4**: Remove transient STATUS-layer dependencies once P90-1 persisted
+  RM history is authoritative. After P90-1 is complete and covered by tests,
+  delete STATUS dict reads/writes in `core/use_cases/report.py` and
+  `core/use_cases/triggers/report.py`. Remove the `STATUS` global dict from
+  `core/models/status.py` and the `ReportStatus`, `set_status()`,
+  `get_status_layer()` helpers once no callers remain. Done when
+  `core/models/status.py` no longer contains a global mutable dict and
+  all RM state is read from the DataLayer. **Depends on: P90-1.**
+
+- [ ] **P90-5**: Capture OPP-06 requirements in `specs/behavior-tree-integration.md`.
+  Add a requirement that VFD and PXA state transitions, when implemented, MUST
+  use `create_vfd_machine()` and `create_pxa_machine()` (or their
+  successors) as the authoritative source of valid transition sequences. This
+  ensures the `transitions` machines remain the normative definition as new
+  code is added. Done when a requirement with verification criteria is added
+  to the spec and passes `markdownlint-cli2`. No code change needed.
+  **Depends on: nothing (docs-only).**
 
 ---
 
