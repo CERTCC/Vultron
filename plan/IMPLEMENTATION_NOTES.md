@@ -472,7 +472,7 @@ The wire-layer method should then delegate to the core implementation or be
 removed.
 
 **Immediate instance to fix:** `VulnerabilityCase.set_embargo()` — tracked as
-OPP-03 in `wip_notes/state-machine-findings.md`.
+OPP-03 in `notes/state-machine-findings.md`.
 
 ---
 
