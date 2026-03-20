@@ -118,7 +118,7 @@ def create_em_machine() -> Machine:
     Generates a new Embargo Management State Machine
 
     Returns:
-        A transitions Machine object representing the Report Management state machine
+        A transitions Machine object representing the Embargo Management state machine
     """
     return Machine(
         states=EM,
