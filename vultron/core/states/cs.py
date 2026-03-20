@@ -404,15 +404,15 @@ all_states = list(CS)
 
 
 class VFD_Trigger(StrEnum):
-    V = "vendor becomes aware"
-    F = "fix is ready"
-    D = "fix is deployed"
+    V = "vendor_becomes_aware"
+    F = "fix_is_ready"
+    D = "fix_is_deployed"
 
 
 class PXA_Trigger(StrEnum):
-    P = "public becomes aware"
-    X = "exploit made public"
-    A = "attacks are observed"
+    P = "public_becomes_aware"
+    X = "exploit_made_public"
+    A = "attacks_are_observed"
 
 
 class VfdTransition(TransitionBase):
