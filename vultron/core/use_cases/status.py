@@ -75,35 +75,37 @@ class AddCaseStatusToCaseReceivedUseCase:
             status_obj = request.status
 
         if case.case_statuses:
-            new_em = getattr(status_obj, "em_state", None)
-            if new_em is not None:
-                current_em = case.case_statuses[-1].em_state
-                if current_em != new_em and not is_valid_em_transition(
-                    current_em, new_em
-                ):
-                    logger.warning(
-                        "Invalid EM transition %s → %s for case '%s'; "
-                        "skipping status append",
-                        current_em,
-                        new_em,
-                        case_id,
-                    )
-                    return
+            current_status = getattr(case, "current_status", None)
+            if current_status is not None:
+                new_em = getattr(status_obj, "em_state", None)
+                if new_em is not None:
+                    current_em = current_status.em_state
+                    if current_em != new_em and not is_valid_em_transition(
+                        current_em, new_em
+                    ):
+                        logger.warning(
+                            "Invalid EM transition %s → %s for case '%s'; "
+                            "skipping status append",
+                            current_em,
+                            new_em,
+                            case_id,
+                        )
+                        return
 
-            new_pxa = getattr(status_obj, "pxa_state", None)
-            if new_pxa is not None:
-                current_pxa = case.case_statuses[-1].pxa_state
-                if current_pxa != new_pxa and not is_valid_pxa_transition(
-                    current_pxa, new_pxa
-                ):
-                    logger.warning(
-                        "Invalid PXA transition %s → %s for case '%s'; "
-                        "skipping status append",
-                        current_pxa,
-                        new_pxa,
-                        case_id,
-                    )
-                    return
+                new_pxa = getattr(status_obj, "pxa_state", None)
+                if new_pxa is not None:
+                    current_pxa = current_status.pxa_state
+                    if current_pxa != new_pxa and not is_valid_pxa_transition(
+                        current_pxa, new_pxa
+                    ):
+                        logger.warning(
+                            "Invalid PXA transition %s → %s for case '%s'; "
+                            "skipping status append",
+                            current_pxa,
+                            new_pxa,
+                            case_id,
+                        )
+                        return
 
         case.case_statuses.append(status_obj)
         self._dl.save(case)
