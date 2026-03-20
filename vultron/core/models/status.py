@@ -107,21 +107,29 @@ def set_status(status_record: ObjectStatus) -> None:
     """Sets the status of an object in the in-memory STATUS layer.
 
     For ReportStatus records, validates the RM transition from the current
-    state.  Logs a WARNING and skips the write when the transition is invalid.
+    state. Logs a WARNING and skips the write when the transition is invalid.
+    Idempotent same-state updates are treated as no-ops.
     """
     sl = get_status_layer()
     if isinstance(status_record, ReportStatus):
         current = _current_report_rm_state(sl, status_record)
-        if current is not None and not is_valid_rm_transition(
-            current, status_record.status
-        ):
-            logger.warning(
-                "Invalid RM transition %s → %s for report '%s'; skipping",
-                current,
-                status_record.status,
-                status_record.object_id,
-            )
-            return
+        if current is not None:
+            if current == status_record.status:
+                logger.info(
+                    "Idempotent RM status update %s → %s for report '%s'; no-op",
+                    current,
+                    status_record.status,
+                    status_record.object_id,
+                )
+                return
+            if not is_valid_rm_transition(current, status_record.status):
+                logger.warning(
+                    "Invalid RM transition %s → %s for report '%s'; skipping",
+                    current,
+                    status_record.status,
+                    status_record.object_id,
+                )
+                return
     sl.update(status_to_record_dict(status_record))
 
 
