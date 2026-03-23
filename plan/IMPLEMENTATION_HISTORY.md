@@ -2506,3 +2506,29 @@ FastAPI adapter layer under `vultron/adapters/driving/fastapi/`.
 like `add_activity_to_outbox`, `resolve_actor` etc.) is now gone entirely.
 All callers already imported those from `vultron.core.use_cases.triggers._helpers`
 directly (confirmed by test suite passing).
+
+---
+
+### TECHDEBT-29 — Profile endpoint returns inbox/outbox as URL strings (2026-03-23)
+
+**Task**: Clarify and enforce that `GET /actors/{actor_id}/profile` returns
+inbox and outbox as URL strings, not embedded OrderedCollection objects.
+
+**What was done**:
+
+- Updated `specs/agentic-readiness.md` AR-10-001 to require `inbox` and
+  `outbox` as string URL links (not embedded collection objects); updated
+  the verification section accordingly.
+- Modified `vultron/adapters/driving/fastapi/routers/actors.py`
+  `get_actor_profile()`: removed `response_model=as_Actor`; profile is now
+  built via `model_dump(by_alias=True, exclude_none=True)` then inbox/outbox
+  overridden with their `.as_id` string URLs.
+- Updated `test/api/v2/routers/test_actors.py` to assert `inbox` and `outbox`
+  are `str` instances (not dicts).
+
+**Result**: 996 tests pass, no regressions. Spec and test now agree.
+
+**Notes**: The existing `as_Actor.inbox` default_factory creates collections
+with random UUIDs as IDs (the `set_collections` validator only fires when
+`inbox is None`). Fixing the collection IDs to be `{actor_id}/inbox`-style
+URLs is a separate concern tracked as a future improvement.

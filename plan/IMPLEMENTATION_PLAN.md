@@ -1,7 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-20 (refresh #40: P85 complete, P90 partial, new
-TECHDEBT-29–34 tasks added)
+**Last Updated**: 2026-03-23 (refresh #41: TECHDEBT-29 complete)
 
 ## Overview
 
@@ -39,7 +38,7 @@ TECHDEBT-31 are complete; VCR-A batch (8/8 tasks) complete. VCR-B batch
 complete. VCR-019c study complete. VCR-019a/b/e complete — state enums
 consolidated into `vultron/core/states/`; `vultron/case_states/` removed;
 errors merged into `vultron/errors.py`. PREPX-1/2/3 complete. New
-TECHDEBT-29 through TECHDEBT-34 added 2026-03-20.
+TECHDEBT-29 through TECHDEBT-34 added 2026-03-20. **TECHDEBT-29 complete**.
 
 ---
 
@@ -540,7 +539,7 @@ part of PRIORITY-80 cleanup unless otherwise noted.
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "VCR-005 Follow-up" (2026-03-20)
 
-- [ ] **TECHDEBT-29**: Clarify and enforce that `GET /actors/{actor_id}/profile`
+- [x] **TECHDEBT-29**: Clarify and enforce that `GET /actors/{actor_id}/profile`
   returns an actor profile whose `inbox` and `outbox` fields are **URL links
   only** (not the collection contents). Ensure this is unambiguous in
   `specs/agentic-readiness.md` (AR-10-001–003) and add a test asserting that
