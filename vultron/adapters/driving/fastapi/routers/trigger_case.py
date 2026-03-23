@@ -16,17 +16,17 @@
 """
 Trigger router for case-management behaviors.
 
-Thin wrapper: validates request → calls service → returns response.
-All domain logic lives in vultron.api.v2.backend.trigger_services.case.
+Thin wrapper: validates request → calls adapter → returns response.
+All domain logic lives in vultron.core.use_cases.triggers.case.
 """
 
 from fastapi import APIRouter, Depends, status
 
-from vultron.api.v2.backend.trigger_services._models import CaseTriggerRequest
-from vultron.api.v2.backend.trigger_services.case import (
+from vultron.adapters.driving.fastapi._trigger_adapter import (
     defer_case_trigger,
     engage_case_trigger,
 )
+from vultron.adapters.driving.fastapi.trigger_models import CaseTriggerRequest
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 

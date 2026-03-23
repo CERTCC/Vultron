@@ -30,19 +30,15 @@ from fastapi import HTTPException
 FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
 
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.api.v2.backend.trigger_services.case import (
+from vultron.adapters.driving.fastapi._trigger_adapter import (
+    close_report_trigger,
     defer_case_trigger,
     engage_case_trigger,
-)
-from vultron.api.v2.backend.trigger_services.embargo import (
     evaluate_embargo_trigger,
-    propose_embargo_trigger,
-    terminate_embargo_trigger,
-)
-from vultron.api.v2.backend.trigger_services.report import (
-    close_report_trigger,
     invalidate_report_trigger,
+    propose_embargo_trigger,
     reject_report_trigger,
+    terminate_embargo_trigger,
     validate_report_trigger,
 )
 from vultron.api.v2.data.actor_io import init_actor_io

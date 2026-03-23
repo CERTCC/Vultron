@@ -16,21 +16,21 @@
 """
 Trigger router for embargo-management behaviors.
 
-Thin wrapper: validates request → calls service → returns response.
-All domain logic lives in vultron.api.v2.backend.trigger_services.embargo.
+Thin wrapper: validates request → calls adapter → returns response.
+All domain logic lives in vultron.core.use_cases.triggers.embargo.
 """
 
 from fastapi import APIRouter, Depends, status
 
-from vultron.api.v2.backend.trigger_services._models import (
-    EvaluateEmbargoRequest,
-    ProposeEmbargoRequest,
-    TerminateEmbargoRequest,
-)
-from vultron.api.v2.backend.trigger_services.embargo import (
+from vultron.adapters.driving.fastapi._trigger_adapter import (
     evaluate_embargo_trigger,
     propose_embargo_trigger,
     terminate_embargo_trigger,
+)
+from vultron.adapters.driving.fastapi.trigger_models import (
+    EvaluateEmbargoRequest,
+    ProposeEmbargoRequest,
+    TerminateEmbargoRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer

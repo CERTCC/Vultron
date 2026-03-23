@@ -16,23 +16,23 @@
 """
 Trigger router for report-management behaviors.
 
-Thin wrapper: validates request → calls service → returns response.
-All domain logic lives in vultron.api.v2.backend.trigger_services.report.
+Thin wrapper: validates request → calls adapter → returns response.
+All domain logic lives in vultron.core.use_cases.triggers.report.
 """
 
 from fastapi import APIRouter, Depends, status
 
-from vultron.api.v2.backend.trigger_services._models import (
-    CloseReportRequest,
-    InvalidateReportRequest,
-    RejectReportRequest,
-    ValidateReportRequest,
-)
-from vultron.api.v2.backend.trigger_services.report import (
+from vultron.adapters.driving.fastapi._trigger_adapter import (
     close_report_trigger,
     invalidate_report_trigger,
     reject_report_trigger,
     validate_report_trigger,
+)
+from vultron.adapters.driving.fastapi.trigger_models import (
+    CloseReportRequest,
+    InvalidateReportRequest,
+    RejectReportRequest,
+    ValidateReportRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
