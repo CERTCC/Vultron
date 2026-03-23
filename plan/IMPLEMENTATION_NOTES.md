@@ -263,4 +263,38 @@ to avoid bloating the test functions and to make it clear what dependencies
 the test module has. This should be enforced as a style guideline and 
 cleaned up across the codebase.
 
+## Important notes on TECHDEBT-30 (semantic field naming in core events)
 
+`vultron/wire/as2/extractor.py` contains key information about the mapping 
+between AS2 fields in terms of the semantics it's looking for in 
+`ActivityPattern` objects. Use these patterns as a reference for mapping the 
+AS2 fields from wire into core objects.
+
+Core objects should be ignorant of AS2 and not rely on AS2-specific field names.
+Also be cognizant of DRY principles and follow these in any new code you 
+create. Do not duplicate for the sake of duplication, clean up and 
+centralize any common logic wherever possible.
+
+The intuition that extractor can create common objects that get translated 
+before passing into core use cases is a good one. However you may be 
+treating VultronEvent too rigidly. Since VultronEvent is a core object it 
+was ea mistake for it to have any AS2 terminology dependency to begin with. 
+So you might consider going deeper with your solution. Do the hard thing now 
+to get the right design. We are in prototype mode so all refactoring now is 
+comparatively cheap to the longer term cost of having to maintain bad 
+abstractions. We're not obligated to preserve backwards compatibility with 
+the current VultronEvent or extractor design, we're the only users of these 
+components at present so it is more important that we get them right for the 
+future than preserve the status quo.
+
+The core VultronEvent class may be too generic for use cases to be able to 
+reliably infer semantics of fields like `object` and `target`. One direction 
+to consider is that the extractor might be refactored to not just map to a 
+message semantics enum, but instead could perform the mapping directly from 
+an AS2 message into a domain-specific event class. Consider the use of a 
+"Activity.to_domain()" pattern to provide a consistent implementation point 
+for this mapping logic, or possibly a more explicit "EventFactory" that 
+takes and activity, figures out the semantics like the extractor does now, 
+and then returns a domain-specific event object with well-defined fields. 
+The domain-specific event then maps to a specific use case input model, 
+which is then invoked with the new event as its input.
