@@ -10,6 +10,7 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
+from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.models.status import (
     OfferStatus,
     OfferStatusEnum,
@@ -18,6 +19,10 @@ from vultron.core.models.status import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.states.rm import RM
+from vultron.core.use_cases._helpers import (
+    _idempotent_create,
+    _report_phase_status_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +78,24 @@ class CreateReportReceivedUseCase:
             request.actor_id,
         )
 
+        if request.object_id:
+            status = VultronParticipantStatus(
+                as_id=_report_phase_status_id(
+                    request.actor_id, request.object_id, RM.RECEIVED.value
+                ),
+                context=request.object_id,
+                attributed_to=request.actor_id,
+                rm_state=RM.RECEIVED,
+            )
+            _idempotent_create(
+                self._dl,
+                "ParticipantStatus",
+                status.as_id,
+                status,
+                "ParticipantStatus (report-phase RM.RECEIVED)",
+                request.activity_id,
+            )
+
 
 class SubmitReportReceivedUseCase:
     def __init__(
@@ -124,6 +147,24 @@ class SubmitReportReceivedUseCase:
             request.object_id,
             request.actor_id,
         )
+
+        if request.object_id:
+            status = VultronParticipantStatus(
+                as_id=_report_phase_status_id(
+                    request.actor_id, request.object_id, RM.RECEIVED.value
+                ),
+                context=request.object_id,
+                attributed_to=request.actor_id,
+                rm_state=RM.RECEIVED,
+            )
+            _idempotent_create(
+                self._dl,
+                "ParticipantStatus",
+                status.as_id,
+                status,
+                "ParticipantStatus (report-phase RM.RECEIVED)",
+                request.activity_id,
+            )
 
 
 class ValidateReportReceivedUseCase:

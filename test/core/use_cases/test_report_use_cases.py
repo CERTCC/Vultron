@@ -190,3 +190,141 @@ class TestReportReceiptRM:
             sl["VulnerabilityReport"][report_key][actor_key]["status"]
             == RM.RECEIVED.value
         )
+
+
+class TestReportReceiptPersistsParticipantStatus:
+    """Tests that report-receipt use cases persist a VultronParticipantStatus record."""
+
+    def test_create_report_persists_participant_status(self):
+        """CreateReportReceivedUseCase persists a RM.RECEIVED ParticipantStatus."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.core.states.rm import RM
+        from vultron.core.models.events.report import CreateReportReceivedEvent
+        from vultron.core.models.report import VultronReport
+        from vultron.core.models.activity import VultronActivity
+        from vultron.core.use_cases._helpers import _report_phase_status_id
+
+        report = VultronReport(as_id="https://example.org/reports/r-persist-1")
+        activity = VultronActivity(
+            id="https://example.org/activities/create-p1",
+            type="Create",
+            actor="https://example.org/users/finder",
+        )
+        event = CreateReportReceivedEvent(
+            semantic_type=MessageSemantics.CREATE_REPORT,
+            activity_id="https://example.org/activities/create-p1",
+            actor_id="https://example.org/users/finder",
+            object_id="https://example.org/reports/r-persist-1",
+            object_type="VulnerabilityReport",
+            report=report,
+            activity=activity,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        CreateReportReceivedUseCase(dl, event).execute()
+
+        expected_id = _report_phase_status_id(
+            "https://example.org/users/finder",
+            "https://example.org/reports/r-persist-1",
+            RM.RECEIVED.value,
+        )
+        stored = dl.get("ParticipantStatus", expected_id)
+        assert (
+            stored is not None
+        ), "Expected a ParticipantStatus record in DataLayer"
+        assert stored["data_"]["rm_state"] == RM.RECEIVED.value
+        assert (
+            stored["data_"]["context"]
+            == "https://example.org/reports/r-persist-1"
+        )
+        assert (
+            stored["data_"]["attributed_to"]
+            == "https://example.org/users/finder"
+        )
+
+    def test_submit_report_persists_participant_status(self):
+        """SubmitReportReceivedUseCase persists a RM.RECEIVED ParticipantStatus."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.core.states.rm import RM
+        from vultron.core.models.events.report import SubmitReportReceivedEvent
+        from vultron.core.models.report import VultronReport
+        from vultron.core.models.activity import VultronActivity
+        from vultron.core.use_cases._helpers import _report_phase_status_id
+
+        report = VultronReport(as_id="https://example.org/reports/r-persist-2")
+        activity = VultronActivity(
+            id="https://example.org/activities/submit-p1",
+            type="Offer",
+            actor="https://example.org/users/finder",
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id="https://example.org/activities/submit-p1",
+            actor_id="https://example.org/users/finder",
+            object_id="https://example.org/reports/r-persist-2",
+            object_type="VulnerabilityReport",
+            report=report,
+            activity=activity,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        SubmitReportReceivedUseCase(dl, event).execute()
+
+        expected_id = _report_phase_status_id(
+            "https://example.org/users/finder",
+            "https://example.org/reports/r-persist-2",
+            RM.RECEIVED.value,
+        )
+        stored = dl.get("ParticipantStatus", expected_id)
+        assert (
+            stored is not None
+        ), "Expected a ParticipantStatus record in DataLayer"
+        assert stored["data_"]["rm_state"] == RM.RECEIVED.value
+        assert (
+            stored["data_"]["context"]
+            == "https://example.org/reports/r-persist-2"
+        )
+        assert (
+            stored["data_"]["attributed_to"]
+            == "https://example.org/users/finder"
+        )
+
+    def test_create_report_participant_status_is_idempotent(self):
+        """Calling CreateReportReceivedUseCase twice creates only one ParticipantStatus."""
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.core.models.events.report import CreateReportReceivedEvent
+        from vultron.core.models.report import VultronReport
+        from vultron.core.models.activity import VultronActivity
+        from vultron.core.use_cases._helpers import _report_phase_status_id
+        from vultron.core.states.rm import RM
+
+        report = VultronReport(as_id="https://example.org/reports/r-idem-1")
+        activity = VultronActivity(
+            id="https://example.org/activities/create-idem-1",
+            type="Create",
+            actor="https://example.org/users/finder",
+        )
+        event = CreateReportReceivedEvent(
+            semantic_type=MessageSemantics.CREATE_REPORT,
+            activity_id="https://example.org/activities/create-idem-1",
+            actor_id="https://example.org/users/finder",
+            object_id="https://example.org/reports/r-idem-1",
+            object_type="VulnerabilityReport",
+            report=report,
+            activity=activity,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        CreateReportReceivedUseCase(dl, event).execute()
+        CreateReportReceivedUseCase(dl, event).execute()
+
+        all_statuses = dl.get_all("ParticipantStatus")
+        expected_id = _report_phase_status_id(
+            "https://example.org/users/finder",
+            "https://example.org/reports/r-idem-1",
+            RM.RECEIVED.value,
+        )
+        matching = [r for r in all_statuses if r.get("id_") == expected_id]
+        assert (
+            len(matching) == 1
+        ), "Expected exactly one ParticipantStatus after idempotent calls"
