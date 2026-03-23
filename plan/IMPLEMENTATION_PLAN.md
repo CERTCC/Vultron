@@ -1,6 +1,7 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-23 (refresh #44: TECHDEBT-35/36/37 added)
+**Last Updated**: 2026-03-23 (refresh #45: P90 all complete; TECHDEBT-34 updated;
+BUG-001 fix and TECHDEBT-38/39 added; gap analysis updated)
 
 ## Overview
 
@@ -27,24 +28,26 @@ handler use cases and 9 trigger use cases are class-based. CLI
 **TECHDEBT-16 complete**: `VultronObject` base class defined in
 `vultron/core/models/base.py`; all 12 domain object models inherit from it.
 **P85 complete**: all IDEAS.md items captured in specs, notes, and plan.
-**P90 in progress**: P90-2 and P90-3 done; P90-5 done; P90-1 and P90-4 remain.
-**P90 complete**: All P90 tasks done.
+**P90 COMPLETE**: All P90 tasks (P90-1 through P90-5) done. RM state
+now fully persisted via DataLayer; global STATUS dict removed; transition
+validity guards applied; OPP-06 spec captured in `specs/`.
 **TECHDEBT-31 complete**: `trigger_services/` relocated into
 `vultron/adapters/driving/fastapi/`; `vultron/api/v2/` now contains only
 `data/actor_io.py` (pending VCR-014) and two `__init__.py` stubs.
 
-**Active phases**: **PRIORITY-80** (technical debt cleanup) and **PRIORITY-90**
-(ADR-0013 state-machine follow-up). TECHDEBT-16 through TECHDEBT-28 and
-TECHDEBT-31 are complete; VCR-A batch (8/8 tasks) complete. VCR-B batch
-complete. VCR-019c study complete. VCR-019a/b/e complete — state enums
-consolidated into `vultron/core/states/`; `vultron/case_states/` removed;
-errors merged into `vultron/errors.py`. PREPX-1/2/3 complete. New
-TECHDEBT-29 through TECHDEBT-34 added 2026-03-20. **TECHDEBT-29 complete**.
-**OX-1.4 complete**: outbox handler test file added.
+**Active phases**: **PRIORITY-80** (technical debt cleanup) and
+**PRIORITY-100** (actor independence — pre-requisites PREPX-1/2/3 and P90
+all complete). TECHDEBT-16 through TECHDEBT-33 complete (TECHDEBT-32 and
+34–37 still open); VCR-A batch (8/8 tasks) complete. VCR-B batch complete.
+VCR-019a/b/c/e complete — state enums in `vultron/core/states/`;
+`vultron/case_states/` removed; errors merged into `vultron/errors.py`.
+OX-1.4 complete. BUG-001 (outbox_handler missing return) documented in
+`plan/BUGS.md`; TECHDEBT-38 added to fix it. TECHDEBT-39 added for OPP-05
+participant RM helper consolidation.
 
 ---
 
-## Gap Analysis (2026-03-20, refresh #40)
+## Gap Analysis (2026-03-23, refresh #45)
 
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
@@ -137,6 +140,25 @@ Blocked by OUTBOX-1.
 `SC-PRE-2`, `SC-3.2`, and `SC-3.3` are all complete. The `update_case` guard
 checks participant embargo acceptance and logs a WARNING (CM-10-004); full
 enforcement deferred to PRIORITY-200.
+
+### ✅ ADR-0013 / PRIORITY-90 complete (P90-1 through P90-5)
+
+All five P90 tasks are done. `START → RECEIVED` RM transition is now persisted
+on report receipt; `RM.VALID` is seeded at case creation; transition-validity
+guards (`is_valid_rm_transition()`, `is_valid_em_transition()`, etc.) are in
+place in `core/states/` and enforced in use cases, trigger helpers, and the
+wire-layer `append_rm_state()`; the global `STATUS` dict has been removed; and
+OPP-06 spec requirements captured in `specs/behavior-tree-integration.md`
+(BT-12-001). OPP-01, OPP-02, OPP-03 EM machine uses are also complete (see
+TECHDEBT-34 updated notes). Remaining state-machine opportunities — OPP-05
+(duplicate RM helpers) and OPP-06 (VFD/PXA callers, future) — are captured
+as TECHDEBT-39 and noted as deferred respectively.
+
+### ❌ BUG-001 — `outbox_handler` crashes on missing actor (TECHDEBT-38)
+
+`vultron/adapters/driving/fastapi/outbox_handler.py` logs a warning when
+`dl.read(actor_id)` returns `None` but does not `return` early; the next line
+would raise `AttributeError`. See `plan/BUGS.md`. Fix captured as TECHDEBT-38.
 
 ### ❌ Flaky test not yet fixed (TECHDEBT-15 — new gap)
 
@@ -652,17 +674,28 @@ core to datalayer port and adapter boundaries" (2026-03-20);
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "VCR-019d is largely addressed…"
 (2026-03-20); `notes/state-machine-findings.md`
 
-- [ ] **TECHDEBT-34**: Audit all remaining procedural EM and RM state
-  transition code in `vultron/core/` (use cases and behaviors) to identify
-  any hand-rolled `if/elif` chains or direct enum assignments that could be
-  replaced with calls to `create_em_machine()` or `create_rm_machine()`.
-  For each identified site, replace the hand-rolled logic with machine-driven
-  transitions using the adapter pattern documented in
-  `notes/state-machine-findings.md` (OPP-01 through OPP-04 pattern). Done when
-  all EM and RM transitions in `vultron/core/` that can use the machines do
-  so, and the test suite passes. **Note:** `SvcProposeEmbargoUseCase` and
-  `SvcTerminateEmbargoUseCase` are the primary candidates (OPP-01, OPP-02);
-  verify their current state before starting.
+**2026-03-23 update**: OPP-01 (`SvcProposeEmbargoUseCase`), OPP-02
+(`SvcTerminateEmbargoUseCase`), and OPP-03 (move `PROPOSED → ACTIVE`
+transition out of wire layer) are all **complete** — the EM machine is
+used in both trigger use cases and `set_embargo()` no longer mutates
+`em_state`. EM transitions in `embargo.py` (use cases) that assign
+`em_state = EM.ACTIVE` directly do so in core use-case code (not wire
+layer), which is correct architecture.
+
+Remaining work is RM-specific (OPP-04 context: STATUS layer removed by P90-4,
+so RM guards now apply only to the DataLayer path) and any other hand-rolled
+direct enum assignments in `vultron/core/` that bypass machine validation.
+
+- [ ] **TECHDEBT-34**: Verify and document any remaining hand-rolled RM or
+  EM direct enum assignments in `vultron/core/use_cases/` and
+  `vultron/core/behaviors/` (excluding those already guarded via
+  `is_valid_rm_transition()` / `is_valid_em_transition()` in the call chain).
+  For each unguarded site, either add a transition-validity guard or replace
+  with machine-driven logic using the adapter pattern from
+  `notes/state-machine-findings.md`. Done when all unguarded direct
+  `em_state =` / `rm_state =` assignments in `vultron/core/` either have
+  an explicit machine guard or a documented justification for bypassing it,
+  and the test suite passes.
 
 ---
 
@@ -722,6 +755,49 @@ core to datalayer port and adapter boundaries" (2026-03-20);
   **Depends on VCR-014** (which removes the last live code under
   `vultron/api/v2/`). Done when `test/api/` is empty/removed, all tests are
   in the correct location, and the full test suite passes.
+
+---
+
+#### TECHDEBT-38 — Fix `outbox_handler` crash on missing actor (BUG-001)
+
+**Priority**: Low (defensive correctness; see `plan/BUGS.md` BUG-001)
+
+**Source**: `plan/BUGS.md` BUG-001 (discovered during OX-1.4 test writing,
+2026-03-23)
+
+- [ ] **TECHDEBT-38**: In
+  `vultron/adapters/driving/fastapi/outbox_handler.py`, add a `return` (or
+  `return None`) immediately after the `logger.warning(...)` line that fires
+  when `actor is None`. Without this early return, the next line
+  (`while actor.outbox.items:`) raises `AttributeError: 'NoneType' object has
+  no attribute 'outbox'` for any unknown `actor_id`. Done when the early return
+  is present, the existing `test_outbox.py` test that covers the missing-actor
+  path passes, and the full test suite passes.
+
+---
+
+#### TECHDEBT-39 — Consolidate duplicate participant RM state helper functions (OPP-05)
+
+**Priority**: Low-Medium (reduces duplication; see
+`notes/state-machine-findings.md` OPP-05)
+
+**Source**: `notes/state-machine-findings.md` OPP-05 (duplicate RM helpers)
+
+- [ ] **TECHDEBT-39**: Two near-duplicate functions implement the "append a
+  new `VultronParticipantStatus` with a given RM state" operation:
+
+  1. `_find_and_update_participant_rm()` in
+     `vultron/core/behaviors/report/nodes.py` (lines ~715+) — used by BT nodes
+     `TransitionParticipantRMtoAccepted` and `TransitionParticipantRMtoDeferred`
+  2. `update_participant_rm_state()` in
+     `vultron/core/use_cases/triggers/_helpers.py` (lines ~57+) — used by
+     `SvcEngageCaseUseCase` and `SvcDeferCaseUseCase`
+
+  Consolidate into a single shared helper in
+  `vultron/core/use_cases/triggers/_helpers.py` (or a new
+  `vultron/core/use_cases/_participant_helpers.py`). Update BT node imports
+  accordingly. Done when only one implementation exists, both BT nodes and
+  trigger use cases use it, and the test suite passes.
 
 ---
 
@@ -998,17 +1074,18 @@ All items from `plan/IDEAS.md` have been extracted and captured:
 
 ---
 
-### Phase PRIORITY-90 — ADR-0013 and State-Machine Follow-up
+### Phase PRIORITY-90 — ADR-0013 and State-Machine Follow-up (ALL COMPLETE ✅)
 
 **Reference**: `plan/PRIORITIES.md` Priority 90,
 `docs/adr/0013-unify-rm-state-tracking.md`,
 `notes/state-machine-findings.md` (OPP-06, OPP-07, OPP-09)
 
 This phase captures the RM-state unification and state-machine follow-up work.
-Per `plan/PRIORITIES.md`, Priority 90 takes precedence over later priorities
-even when related Priority 100 tasks appear nearby in this plan.
 
-**2026-03-23 status**: P90-2 and P90-3 are complete. P90-1 is complete. P90-4 complete.
+**2026-03-23 status**: ALL COMPLETE — P90-1, P90-2, P90-3, P90-4, P90-5 done.
+OPP-01, OPP-02, OPP-03 EM machine integrations also complete. Remaining
+state-machine opportunities deferred or captured: OPP-05 → TECHDEBT-39,
+OPP-06 → BT-12-001 spec requirement (deferred until VFD/PXA callers needed).
 
 - [x] **P90-1**: Persist initial RM report-phase state in
   `VultronParticipantStatus` (persisted) rather than the transient in-memory
