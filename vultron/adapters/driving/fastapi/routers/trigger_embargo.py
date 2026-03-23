@@ -49,6 +49,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "EM state transitions: N → P (new proposal) or A → R (revision). "
         "Returns the resulting activity in the response body (TB-04-001)."
     ),
+    operation_id="actors_trigger_propose_embargo",
 )
 def trigger_propose_embargo(
     actor_id: str,
@@ -78,6 +79,7 @@ def trigger_propose_embargo(
         "(EM state → ACTIVE). "
         "Returns the resulting activity in the response body (TB-04-001)."
     ),
+    operation_id="actors_trigger_evaluate_embargo",
 )
 def trigger_evaluate_embargo(
     actor_id: str,
@@ -108,6 +110,7 @@ def trigger_evaluate_embargo(
         "Returns HTTP 409 if no active embargo exists. "
         "Returns the resulting activity in the response body (TB-04-001)."
     ),
+    operation_id="actors_trigger_terminate_embargo",
 )
 def trigger_terminate_embargo(
     actor_id: str,

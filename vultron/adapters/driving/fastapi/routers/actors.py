@@ -51,6 +51,7 @@ router = APIRouter(prefix="/actors", tags=["Actors"])
     response_model=list[as_Actor],
     response_model_exclude_none=True,
     description="Returns a list of Actor examples.",
+    operation_id="actors_list",
 )
 def get_actors(
     datalayer: DataLayer = Depends(get_datalayer),
@@ -84,6 +85,7 @@ def get_actors(
     response_model=as_Actor,
     response_model_exclude_none=True,
     description="Returns an Actor. (stub implementation).",
+    operation_id="actors_get",
 )
 def get_actor(
     actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
@@ -111,6 +113,7 @@ def get_actor(
         "Returns an ActivityStreams actor profile including inbox and outbox "
         "URLs for actor discovery and federation."
     ),
+    operation_id="actors_get_profile",
 )
 def get_actor_profile(
     actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
@@ -146,6 +149,7 @@ def get_actor_profile(
     response_model_exclude_none=True,
     summary="Get Actor Inbox",
     description="Returns the Actor's Inbox. (stub implementation).",
+    operation_id="actors_get_inbox",
 )
 def get_actor_inbox(
     actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
@@ -213,6 +217,7 @@ def parse_activity(body: dict) -> AsActivityType:
     summary="Add an Activity to the Actor's Inbox.",
     description="Adds an Activity to the Actor's Inbox. (stub implementation).",
     status_code=status.HTTP_202_ACCEPTED,
+    operation_id="actors_post_inbox",
 )
 def post_actor_inbox(
     actor_id: str,
@@ -282,6 +287,7 @@ def post_actor_inbox(
     summary="Add an Activity to the Actor's Outbox.",
     description="Adds an Activity to the Actor's Outbox. (stub implementation).",
     status_code=status.HTTP_200_OK,
+    operation_id="actors_post_outbox",
 )
 def post_actor_outbox(
     actor_id: str,

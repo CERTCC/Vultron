@@ -43,6 +43,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "transitions the actor's RM state to ACCEPTED in the case, "
         "and returns the activity in the response body (TB-04-001)."
     ),
+    operation_id="actors_trigger_engage_case",
 )
 def trigger_engage_case(
     actor_id: str,
@@ -69,6 +70,7 @@ def trigger_engage_case(
         "transitions the actor's RM state to DEFERRED in the case, "
         "and returns the activity in the response body (TB-04-001)."
     ),
+    operation_id="actors_trigger_defer_case",
 )
 def trigger_defer_case(
     actor_id: str,

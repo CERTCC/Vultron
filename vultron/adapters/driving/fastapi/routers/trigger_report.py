@@ -49,6 +49,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "Invokes the ValidateReportBT tree via the bridge layer and "
         "returns the resulting ActivityStreams activity (TB-04-001)."
     ),
+    operation_id="actors_trigger_validate_report",
 )
 def trigger_validate_report(
     actor_id: str,
@@ -76,6 +77,7 @@ def trigger_validate_report(
         "Updates the offer status to TENTATIVELY_REJECTED and the report "
         "status to INVALID."
     ),
+    operation_id="actors_trigger_invalidate_report",
 )
 def trigger_invalidate_report(
     actor_id: str,
@@ -103,6 +105,7 @@ def trigger_invalidate_report(
         "A non-empty note is required (TB-03-004). "
         "Updates the offer status to REJECTED and the report status to CLOSED."
     ),
+    operation_id="actors_trigger_reject_report",
 )
 def trigger_reject_report(
     actor_id: str,
@@ -133,6 +136,7 @@ def trigger_reject_report(
         "endpoint closes a report that has already progressed through the RM "
         "lifecycle. Returns HTTP 409 if the report is already CLOSED."
     ),
+    operation_id="actors_trigger_close_report",
 )
 def trigger_close_report(
     actor_id: str,

@@ -19,18 +19,28 @@ from specs/observability.md.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.core.ports.datalayer import DataLayer
 
 router = APIRouter(prefix="/health", tags=["Health"])
 
 
-@router.get("/live")
+@router.get("/live", operation_id="health_live")
 async def liveness():
     """Returns 200 if the process is running (OB-05-001)."""
     return {"status": "ok"}
 
 
-@router.get("/ready")
-async def readiness():
+@router.get("/ready", operation_id="health_ready")
+async def readiness(dl: DataLayer = Depends(get_datalayer)):
     """Returns 200 if the service is ready to accept requests (OB-05-002)."""
-    return {"status": "ok"}
+    try:
+        dl.read("")
+        return {"status": "ok"}
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Service unavailable",
+        )

@@ -36,7 +36,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 
 
-@router.get("/{key}", description="Returns a specific object by key.")
+@router.get(
+    "/{key}",
+    description="Returns a specific object by key.",
+    operation_id="datalayer_get_by_key",
+)
 def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_datalayer)):
     obj = datalayer.read(key)
 
@@ -49,6 +53,7 @@ def get_object_by_key(key: str, datalayer: DataLayer = Depends(get_datalayer)):
 @router.get(
     "/{object_type}/{object_id}",
     description="Returns a specific object by type and ID.",
+    operation_id="datalayer_get_by_type_and_id",
 )
 def get_object(
     object_type: str,
@@ -63,7 +68,7 @@ def get_object(
     return obj
 
 
-@router.get("/Offer/")
+@router.get("/Offer/", operation_id="datalayer_get_offer")
 def get_offer(
     object_id: str, datalayer: DataLayer = Depends(get_datalayer)
 ) -> as_Offer:
@@ -73,7 +78,7 @@ def get_offer(
     return as_Offer.model_validate(obj)
 
 
-@router.get("/Report/")
+@router.get("/Report/", operation_id="datalayer_get_report")
 def get_report(
     id: str, datalayer: DataLayer = Depends(get_datalayer)
 ) -> VulnerabilityReport:
@@ -83,7 +88,11 @@ def get_report(
     return VulnerabilityReport.model_validate(obj)
 
 
-@router.get("/", description="Returns the entire contents of the datalayer.")
+@router.get(
+    "/",
+    description="Returns the entire contents of the datalayer.",
+    operation_id="datalayer_list",
+)
 def get_datalayer_contents(
     datalayer: DataLayer = Depends(get_datalayer),
 ) -> dict[str, dict]:
@@ -100,6 +109,7 @@ def get_datalayer_contents(
 @router.get(
     "/Actors/{actor_id}/Offers/{offer_id}",
     description="Returns a specific object by actor id and offer id.",
+    operation_id="datalayer_get_actor_offer",
 )
 def get_actor_offer(
     actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_datalayer)
@@ -124,7 +134,11 @@ def get_actor_offer(
     return offer
 
 
-@router.get("/Offers/", description="Returns all Offer objects.")
+@router.get(
+    "/Offers/",
+    description="Returns all Offer objects.",
+    operation_id="datalayer_list_offers",
+)
 def get_offers(
     datalayer: DataLayer = Depends(get_datalayer),
 ) -> dict[str, as_Offer]:
@@ -137,6 +151,7 @@ def get_offers(
     "/Reports/",
     description="Returns all VulnerabilityReport objects.",
     response_model=dict[str, VulnerabilityReport],
+    operation_id="datalayer_list_reports",
 )
 def get_reports(
     datalayer: DataLayer = Depends(get_datalayer),
@@ -148,7 +163,11 @@ def get_reports(
     }
 
 
-@router.get("/Actors/", description="Returns all Actor objects.")
+@router.get(
+    "/Actors/",
+    description="Returns all Actor objects.",
+    operation_id="datalayer_list_actors",
+)
 def get_actors(
     datalayer: DataLayer = Depends(get_datalayer),
 ) -> dict[str, as_Actor]:
@@ -161,6 +180,7 @@ def get_actors(
     "/Actors/{actor_id}/outbox/",
     description="Returns the outbox of a specific Actor.",
     response_model=as_OrderedCollection,
+    operation_id="datalayer_get_actor_outbox",
 )
 def get_actor_outbox(
     actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
@@ -184,7 +204,9 @@ def get_actor_outbox(
 
 
 @router.get(
-    "/{object_type}s/", description="Returns all objects of a given type."
+    "/{object_type}s/",
+    description="Returns all objects of a given type.",
+    operation_id="datalayer_list_by_type",
 )
 def get_objects(
     object_type: str, datalayer: DataLayer = Depends(get_datalayer)
@@ -197,6 +219,7 @@ def get_objects(
 @router.delete(
     "/reset/",
     description="Resets the datalayer by clearing all stored objects.",
+    operation_id="datalayer_reset",
 )
 def reset_datalayer(
     init: bool = False, datalayer: DataLayer = Depends(get_datalayer)
