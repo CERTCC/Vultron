@@ -239,3 +239,12 @@ complete.
 
 For demos (D5-*), reserve them until PRIORITY-100/200 items are stable; use them
 as integration tests once core features are in.
+
+## `_make_payload()` duplicated across tests
+
+Multiple tests contain a `def _make_payload(activity, **extra_fields):` 
+method due to a large refactoring that split a test file into multiple files.
+Because this appears to be a common test helper, it should be centralized to 
+DRY up the test codebase.
+
+
