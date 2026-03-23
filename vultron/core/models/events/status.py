@@ -2,6 +2,11 @@
 
 from typing import Literal
 
+from vultron.core.models.events._mixins import (
+    _ObjectIsStatusMixin,
+    _TargetIsCaseMixin,
+    _TargetIsParticipantMixin,
+)
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.vultron_types import (
     VultronCaseStatus,
@@ -9,7 +14,7 @@ from vultron.core.models.vultron_types import (
 )
 
 
-class CreateCaseStatusReceivedEvent(VultronEvent):
+class CreateCaseStatusReceivedEvent(_ObjectIsStatusMixin, VultronEvent):
     """Actor created a CaseStatus record for a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.CREATE_CASE_STATUS] = (
@@ -18,7 +23,9 @@ class CreateCaseStatusReceivedEvent(VultronEvent):
     status: VultronCaseStatus
 
 
-class AddCaseStatusToCaseReceivedEvent(VultronEvent):
+class AddCaseStatusToCaseReceivedEvent(
+    _ObjectIsStatusMixin, _TargetIsCaseMixin, VultronEvent
+):
     """Actor added a CaseStatus to a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ADD_CASE_STATUS_TO_CASE] = (
@@ -26,7 +33,7 @@ class AddCaseStatusToCaseReceivedEvent(VultronEvent):
     )
 
 
-class CreateParticipantStatusReceivedEvent(VultronEvent):
+class CreateParticipantStatusReceivedEvent(_ObjectIsStatusMixin, VultronEvent):
     """Actor created a ParticipantStatus record."""
 
     semantic_type: Literal[MessageSemantics.CREATE_PARTICIPANT_STATUS] = (
@@ -35,7 +42,9 @@ class CreateParticipantStatusReceivedEvent(VultronEvent):
     status: VultronParticipantStatus
 
 
-class AddParticipantStatusToParticipantReceivedEvent(VultronEvent):
+class AddParticipantStatusToParticipantReceivedEvent(
+    _ObjectIsStatusMixin, _TargetIsParticipantMixin, VultronEvent
+):
     """Actor added a ParticipantStatus to a CaseParticipant."""
 
     semantic_type: Literal[

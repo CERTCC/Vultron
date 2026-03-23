@@ -35,12 +35,12 @@ class CreateReportReceivedUseCase:
             try:
                 self._dl.create(obj_to_store)
                 logger.info(
-                    "Stored VulnerabilityReport with ID: %s", request.object_id
+                    "Stored VulnerabilityReport with ID: %s", request.report_id
                 )
             except ValueError as e:
                 logger.warning(
                     "VulnerabilityReport %s already exists: %s",
-                    request.object_id,
+                    request.report_id,
                     e,
                 )
 
@@ -58,12 +58,12 @@ class CreateReportReceivedUseCase:
                     e,
                 )
 
-        if request.object_id:
+        if request.report_id:
             status = VultronParticipantStatus(
                 as_id=_report_phase_status_id(
-                    request.actor_id, request.object_id, RM.RECEIVED.value
+                    request.actor_id, request.report_id, RM.RECEIVED.value
                 ),
-                context=request.object_id,
+                context=request.report_id,
                 attributed_to=request.actor_id,
                 rm_state=RM.RECEIVED,
             )
@@ -77,7 +77,7 @@ class CreateReportReceivedUseCase:
             )
             logger.info(
                 "RM START → RECEIVED for report '%s' (actor '%s')",
-                request.object_id,
+                request.report_id,
                 request.actor_id,
             )
 
@@ -96,12 +96,12 @@ class SubmitReportReceivedUseCase:
             try:
                 self._dl.create(obj_to_store)
                 logger.info(
-                    "Stored VulnerabilityReport with ID: %s", request.object_id
+                    "Stored VulnerabilityReport with ID: %s", request.report_id
                 )
             except ValueError as e:
                 logger.warning(
                     "VulnerabilityReport %s already exists: %s",
-                    request.object_id,
+                    request.report_id,
                     e,
                 )
 
@@ -119,12 +119,12 @@ class SubmitReportReceivedUseCase:
                     e,
                 )
 
-        if request.object_id:
+        if request.report_id:
             status = VultronParticipantStatus(
                 as_id=_report_phase_status_id(
-                    request.actor_id, request.object_id, RM.RECEIVED.value
+                    request.actor_id, request.report_id, RM.RECEIVED.value
                 ),
-                context=request.object_id,
+                context=request.report_id,
                 attributed_to=request.actor_id,
                 rm_state=RM.RECEIVED,
             )
@@ -138,7 +138,7 @@ class SubmitReportReceivedUseCase:
             )
             logger.info(
                 "RM START → RECEIVED for report '%s' (actor '%s')",
-                request.object_id,
+                request.report_id,
                 request.actor_id,
             )
 
@@ -159,8 +159,8 @@ class ValidateReportReceivedUseCase:
         )
 
         actor_id = request.actor_id
-        report_id = request.inner_object_id
-        offer_id = request.object_id
+        report_id = request.report_id
+        offer_id = request.offer_id
 
         logger.info(
             "Actor '%s' validates VulnerabilityReport '%s' via BT execution",
@@ -207,8 +207,8 @@ class InvalidateReportReceivedUseCase:
         logger.info(
             "Actor '%s' tentatively rejects offer '%s' of VulnerabilityReport '%s'",
             actor_id,
-            request.object_id,
-            request.inner_object_id,
+            request.offer_id,
+            request.report_id,
         )
         if request.activity is not None:
             try:
@@ -224,12 +224,12 @@ class InvalidateReportReceivedUseCase:
                     e,
                 )
 
-        if request.inner_object_id:
+        if request.report_id:
             status = VultronParticipantStatus(
                 as_id=_report_phase_status_id(
-                    actor_id, request.inner_object_id, RM.INVALID.value
+                    actor_id, request.report_id, RM.INVALID.value
                 ),
-                context=request.inner_object_id,
+                context=request.report_id,
                 attributed_to=actor_id,
                 rm_state=RM.INVALID,
             )
@@ -253,8 +253,8 @@ class AckReportReceivedUseCase:
         logger.info(
             "Actor '%s' acknowledges receipt of offer '%s' of VulnerabilityReport '%s'",
             request.actor_id,
-            request.object_id,
-            request.inner_object_id,
+            request.offer_id,
+            request.report_id,
         )
         if request.activity is not None:
             try:
@@ -271,14 +271,14 @@ class AckReportReceivedUseCase:
                 )
 
         # The report is nested inside the offer: inner_object_id is the report.
-        if request.inner_object_id:
+        if request.report_id:
             status = VultronParticipantStatus(
                 as_id=_report_phase_status_id(
                     request.actor_id,
-                    request.inner_object_id,
+                    request.report_id,
                     RM.RECEIVED.value,
                 ),
-                context=request.inner_object_id,
+                context=request.report_id,
                 attributed_to=request.actor_id,
                 rm_state=RM.RECEIVED,
             )
@@ -292,7 +292,7 @@ class AckReportReceivedUseCase:
             )
             logger.info(
                 "RM START → RECEIVED for report '%s' (actor '%s')",
-                request.inner_object_id,
+                request.report_id,
                 request.actor_id,
             )
 
@@ -310,8 +310,8 @@ class CloseReportReceivedUseCase:
         logger.info(
             "Actor '%s' rejects offer '%s' of VulnerabilityReport '%s'",
             actor_id,
-            request.object_id,
-            request.inner_object_id,
+            request.offer_id,
+            request.report_id,
         )
         if request.activity is not None:
             try:
@@ -327,12 +327,12 @@ class CloseReportReceivedUseCase:
                     e,
                 )
 
-        if request.inner_object_id:
+        if request.report_id:
             status = VultronParticipantStatus(
                 as_id=_report_phase_status_id(
-                    actor_id, request.inner_object_id, RM.CLOSED.value
+                    actor_id, request.report_id, RM.CLOSED.value
                 ),
-                context=request.inner_object_id,
+                context=request.report_id,
                 attributed_to=actor_id,
                 rm_state=RM.CLOSED,
             )

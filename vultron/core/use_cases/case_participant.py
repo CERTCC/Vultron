@@ -27,7 +27,7 @@ class CreateCaseParticipantReceivedUseCase:
         _idempotent_create(
             self._dl,
             request.object_type,
-            request.object_id,
+            request.participant_id,
             request.participant,
             "CaseParticipant",
             request.activity_id,
@@ -43,8 +43,8 @@ class AddCaseParticipantToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        participant_id = request.object_id
-        case_id = request.target_id
+        participant_id = request.participant_id
+        case_id = request.case_id
         participant = self._dl.read(participant_id)
         case = cast(CaseModel, self._dl.read(case_id))
 
@@ -89,8 +89,8 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        participant_id = request.object_id
-        case_id = request.target_id
+        participant_id = request.participant_id
+        case_id = request.case_id
         case = cast(CaseModel, self._dl.read(case_id))
 
         if case is None:

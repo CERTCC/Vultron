@@ -558,14 +558,16 @@ part of PRIORITY-80 cleanup unless otherwise noted.
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "wire-layer terminology leaking into
 core" (2026-03-20); `notes/domain-model-separation.md`
 
-- [ ] **TECHDEBT-30**: Audit all core use case `__init__` signatures and event
-  model field names for fields that use AS2-generic names (`object_id`,
-  `target_id`, `context_id`) where domain-specific names would be clearer
-  (e.g., `report_id`, `case_id`, `embargo_id`). For each discovered instance,
-  rename the field to use domain vocabulary. Update event models in
-  `vultron/core/models/events/` and all callers. Done when no public core
-  event field uses a generic AS2 placeholder name where a domain name is
-  unambiguous, and tests pass.
+- [x] **TECHDEBT-30**: Added domain-specific `@property` getters to all 22
+  per-semantic event subclasses via reusable mixins in
+  `vultron/core/models/events/_mixins.py`. Each mixin exposes one
+  domain-specific property (e.g., `report_id`, `case_id`, `embargo_id`,
+  `offer_id`, `invite_id`, `participant_id`, `note_id`, `status_id`,
+  `invitee_id`) that aliases the appropriate generic base-class field. Updated
+  all 7 use-case modules (`report.py`, `actor.py`, `embargo.py`,
+  `case_participant.py`, `note.py`, `status.py`, `case.py`) to access the
+  domain properties instead of the generic `object_id` / `target_id` /
+  `context_id` / `inner_*` names. 984 tests pass.
 
 ---
 
