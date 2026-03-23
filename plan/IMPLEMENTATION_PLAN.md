@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-23 (refresh #43: OX-1.4 complete)
+**Last Updated**: 2026-03-23 (refresh #44: TECHDEBT-35/36/37 added)
 
 ## Overview
 
@@ -665,6 +665,63 @@ core to datalayer port and adapter boundaries" (2026-03-20);
   verify their current state before starting.
 
 ---
+
+#### TECHDEBT-35 — Expand `_mixins.py` with richer domain properties
+
+**Priority**: Low (cleanup, raised in `plan/IDEAS.md`)
+
+**Source**: `plan/IDEAS.md` "Expand use of `vultron.core.models.events._mixins`"
+
+- [ ] **TECHDEBT-35**: Extend `vultron/core/models/events/_mixins.py` in two
+  ways:
+
+  1. **Add rich-object property to each `ObjectIsFoo` mixin**: Each existing
+     mixin exposes `foo_id` (e.g., `report_id`) based on `object_id`. Add a
+     `foo` property that returns the richer domain object (not just the ID).
+     Use cases that need both the ID and the full object should find both
+     available via the mixin rather than implementing the lookup ad hoc.
+
+  2. **Add `HasActivityMixin`**: Many event classes carry an
+     `activity: VultronActivity` field. Extract this into a reusable mixin
+     that adds the `activity` field and any related helper methods, so event
+     classes can compose it rather than repeating the field declaration.
+
+  Done when: all `ObjectIsFoo` mixins expose a `foo` property alongside
+  `foo_id`, a `HasActivityMixin` exists, all event classes that carry an
+  `activity` field use it, and the test suite passes.
+
+---
+
+#### TECHDEBT-36 — Centralize `_make_payload()` test helper
+
+**Priority**: Low (test DRY, raised in `plan/IMPLEMENTATION_NOTES.md`)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "`_make_payload()` duplicated across tests"
+
+- [ ] **TECHDEBT-36**: Multiple test files under `test/` contain a local
+  `_make_payload(activity, **extra_fields)` helper function that was duplicated
+  during a large test-file split. Identify all copies, extract the shared
+  implementation into a centralized test fixture (e.g., a helper in
+  `test/conftest.py` or a `test/helpers.py` utility module), and replace all
+  local copies with imports of the shared version. Done when no duplicate
+  `_make_payload` definitions remain and all affected tests pass.
+
+---
+
+#### TECHDEBT-37 — Migrate `test/api/` tests to new layout
+
+**Priority**: Low (structural cleanup; `vultron/api/v2/` is deprecated)
+
+**Source**: `plan/IMPLEMENTATION_NOTES.md` "`vultron/api/v2` is deprecated"
+
+- [ ] **TECHDEBT-37**: `test/api/` contains tests that mirror the now-deprecated
+  `vultron/api/v2/` layout. Migrate all tests in `test/api/` to the canonical
+  layout that mirrors `vultron/adapters/driving/fastapi/` and
+  `vultron/core/use_cases/` (e.g., move to `test/adapters/driving/fastapi/`
+  or `test/core/use_cases/`). Remove `test/api/` once all tests are relocated.
+  **Depends on VCR-014** (which removes the last live code under
+  `vultron/api/v2/`). Done when `test/api/` is empty/removed, all tests are
+  in the correct location, and the full test suite passes.
 
 ---
 

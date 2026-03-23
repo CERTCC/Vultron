@@ -179,8 +179,12 @@ section order conflicts with `plan/PRIORITIES.md`, follow
 `plan/PRIORITIES.md`.
 
 **Path note**: The active FastAPI adapter code now lives under
-`vultron/adapters/driving/fastapi/`. Some archived notes may still mention the
-older `vultron/api/v2/` layout.
+`vultron/adapters/driving/fastapi/`. `vultron/api/v2/` is **deprecated** — do
+not add new code there; it retains only `data/actor_io.py` (pending VCR-014)
+and two `__init__.py` stubs. Similarly, `test/api/` is deprecated; new tests
+MUST mirror the source layout under `test/adapters/` or `test/core/`, not
+`test/api/`. Some older notes and task descriptions may still reference
+`vultron/api/v2/` paths.
 
 ## Vultron-Specific Architecture
 
@@ -522,8 +526,9 @@ headers for cross-references. Consolidated specs take precedence.
 
 ### Test Organization (MUST)
 
-- Test structure mirrors source: `test/api/v2/backend/` mirrors
-  `vultron/api/v2/backend/`
+- Test structure mirrors source layout (e.g., `test/adapters/driving/fastapi/`
+  mirrors `vultron/adapters/driving/fastapi/`,
+  `test/core/use_cases/` mirrors `vultron/core/use_cases/`)
 - Test files named `test_*.py`
 - Fixtures in `conftest.py` at appropriate directory levels
 - Use pytest markers to distinguish unit vs integration tests
@@ -612,7 +617,7 @@ behavior across backends (in-memory / tinydb) where reasonable.
 6. Add tests:
    - Pattern matching in `test/test_semantic_activity_patterns.py`
    - Routing coverage in `test/test_semantic_handler_map.py`
-   - Use-case logic in `test/core/use_cases/` or `test/api/v2/backend/test_handlers.py`
+   - Use-case logic in `test/core/use_cases/`
 
 ### Key Files Map
 

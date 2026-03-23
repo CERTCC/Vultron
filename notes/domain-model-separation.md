@@ -483,6 +483,54 @@ concerns); `specs/code-style.md` CS-12-001 (domain vocabulary in class names).
 
 ---
 
+## Extractor as EventFactory: Centralizing AS2→Domain Mapping
+
+TECHDEBT-30 added domain-specific property getters to event subclasses via
+`_mixins.py`. The next evolution is to have the extractor produce
+domain-specific event objects directly, rather than a generic event that
+then exposes typed properties through mixin aliases.
+
+**Current state**: `extractor.py` maps `(AS2 Activity type, Object type)` to
+`MessageSemantics`, and a generic `VultronEvent` carries the raw AS2 fields.
+Mixins added in TECHDEBT-30 give use-case code a cleaner property API, but
+the event object itself still carries AS2-named fields (`object_id`,
+`target_id`, etc.) internally.
+
+**Design option — EventFactory pattern**: Rather than having the extractor
+only classify the activity, it could also perform the field translation and
+return a type-specific domain event. Two equivalent approaches:
+
+- `Activity.to_domain()` — an instance method on AS2 activity models that
+  returns the appropriate domain event subclass.
+- `EventFactory` — a standalone translator that takes an AS2 activity,
+  determines the semantics (as the extractor does now), and constructs a
+  domain event object with fully domain-named fields.
+
+The domain event then becomes the direct input to its corresponding use case,
+making the use case's field access completely free of AS2 naming.
+
+**Key principles for implementation**:
+
+- Use `extractor.py`'s `ActivityPattern` definitions as the authoritative
+  reference for how AS2 fields map to semantic roles. Centralise this mapping
+  in one place rather than scattering AS2 field name handling across use cases.
+- Core objects MUST be ignorant of AS2: they must not import from
+  `vultron/wire/as2/` or reference `as_*` field names.
+- Apply DRY: a single mapping dict or factory function per semantics type
+  is preferable to per-use-case translation code.
+
+**Implementation note**: `VultronEvent` may be too generic as a single base
+class if use cases are expected to reliably infer field semantics from it.
+Per-semantic subclasses (already partially in place from P65-3) combined with
+the EventFactory approach give both type safety and domain clarity. See the
+"Discriminated Event Hierarchy" section above for the design blueprint.
+
+**See also**: `specs/semantic-extraction.md`, `specs/code-style.md` CS-10-002
+(`FooActivity` vs `FooEvent` naming), `notes/domain-model-separation.md`
+"Domain Events as the Bridge Between Core and Wire".
+
+---
+
 ## Core Should Reliably Get Domain Objects from DataLayer
 
 The core domain logic is frequently required to inspect what type of object
