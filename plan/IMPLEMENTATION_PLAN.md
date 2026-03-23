@@ -923,7 +923,7 @@ See `plan/IMPLEMENTATION_HISTORY.md` for details. Remaining tasks:
 
 ---
 
-### Phase PRIORITY-85 — IDEAS.md Capture (COMPLETE ✅)
+### Phase PRIORITY-85 — snapshot of previous IDEAS.md (COMPLETE ✅)
 
 **Reference**: `plan/PRIORITIES.md` Priority 85
 
