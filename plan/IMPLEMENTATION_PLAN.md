@@ -629,7 +629,7 @@ core to datalayer port and adapter boundaries" (2026-03-20);
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "Refactor large tests" (2026-03-20)
 
-- [ ] **TECHDEBT-33**: Split `test/api/v2/backend/test_handlers.py` into
+- [x] **TECHDEBT-33**: Split `test/api/v2/backend/test_handlers.py` into
   per-module test files mirroring the source layout under
   `test/core/use_cases/` (which is where the tested code now lives). The
   current file tests all 38 handler use cases in one place; it no longer maps
