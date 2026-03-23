@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-23 (refresh #41: TECHDEBT-29 complete)
+**Last Updated**: 2026-03-23 (refresh #42: OB-05-002, AR-01-003, P90-5 complete)
 
 ## Overview
 
@@ -27,7 +27,7 @@ handler use cases and 9 trigger use cases are class-based. CLI
 **TECHDEBT-16 complete**: `VultronObject` base class defined in
 `vultron/core/models/base.py`; all 12 domain object models inherit from it.
 **P85 complete**: all IDEAS.md items captured in specs, notes, and plan.
-**P90 in progress**: P90-2 and P90-3 done; P90-1 and P90-4 remain.
+**P90 in progress**: P90-2 and P90-3 done; P90-5 done; P90-1 and P90-4 remain.
 **TECHDEBT-31 complete**: `trigger_services/` relocated into
 `vultron/adapters/driving/fastapi/`; `vultron/api/v2/` now contains only
 `data/actor_io.py` (pending VCR-014) and two `__init__.py` stubs.
@@ -983,14 +983,9 @@ even when related Priority 100 tasks appear nearby in this plan.
   `core/models/status.py` no longer contains a global mutable dict and
   all RM state is read from the DataLayer. **Depends on: P90-1.**
 
-- [ ] **P90-5**: Capture OPP-06 requirements in `specs/behavior-tree-integration.md`.
-  Add a requirement that VFD and PXA state transitions, when implemented, MUST
-  use `create_vfd_machine()` and `create_pxa_machine()` (or their
-  successors) as the authoritative source of valid transition sequences. This
-  ensures the `transitions` machines remain the normative definition as new
-  code is added. Done when a requirement with verification criteria is added
-  to the spec and passes `markdownlint-cli2`. No code change needed.
-  **Depends on: nothing (docs-only).**
+- [x] **P90-5**: Capture OPP-06 requirements in `specs/behavior-tree-integration.md`.
+  Added section `BT-12 VFD/PXA State Machine Usage` with requirement `BT-12-001`
+  and verification criteria. Markdownlint passes. **COMPLETE** (commit `2d4308e`).
 
 ---
 
@@ -1111,14 +1106,11 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 - **UseCase Protocol generic enforcement** — Decide on a consistent
   `UseCaseResult` Pydantic return envelope; enforce via mypy. Defer to after
   TECHDEBT-21/22. (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 9)
-- **Production readiness** (request validation, health check readiness,
-  idempotency, structured logging) — all `PROD_ONLY` or low-priority
-- **OB-05-002 readiness probe** — Implement a DataLayer connectivity check in
-  `vultron/adapters/driving/fastapi/routers/health.py` so `/health/ready`
-  returns HTTP 503 when dependencies are unavailable
+- **Production readiness** (request validation, idempotency, structured logging) — all `PROD_ONLY` or low-priority
+- ~~**OB-05-002 readiness probe**~~ — **COMPLETE** (commit `2d4308e`)
 - **Response generation** — See `specs/response-format.md` and history
 - **EP-02/EP-03** — EmbargoPolicy API + compatibility evaluation (`PROD_ONLY`)
-- **AR-01-003** — Unique `operation_id` on FastAPI routes (LOW)
+- ~~**AR-01-003**~~ — **COMPLETE**: unique `operation_id` on all FastAPI routes (commit `2d4308e`)
 - **AR-04/AR-05/AR-06** — Job tracking, pagination, bulk ops (`PROD_ONLY`)
 - **Domain model separation** (CM-08) — needs ADR; see
   `notes/domain-model-separation.md`
