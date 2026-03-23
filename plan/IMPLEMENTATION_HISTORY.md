@@ -2589,3 +2589,33 @@ Captures OPP-06: any future VFD/PXA state transitions MUST use
 ### Test results
 
 977 passed, 5581 subtests (baseline was 976; +1 new test for OB-05-002 503 path).
+
+---
+
+## Refresh #43 — OX-1.4 (2026-03-23)
+
+**Task**: OX-1.4 — Add `test/api/v2/backend/test_outbox.py`
+
+**What was done**: Created `test/api/v2/backend/test_outbox.py` with 7 unit
+tests for the outbox handler module
+(`vultron/adapters/driving/fastapi/outbox_handler.py`).
+
+Tests cover:
+- `handle_outbox_item` logs the actor ID and item at INFO level.
+- `outbox_handler` drains the actor outbox entirely on success (happy path).
+- FIFO order preserved across multiple items (OX-01-002).
+- Empty outbox processes nothing.
+- Retry and abort after > 3 consecutive errors (item returned to outbox).
+- Processing continues after a single recoverable error.
+
+All tests monkeypatch `get_datalayer` in the outbox_handler module so tests
+are fast and isolated (no real DataLayer). The pattern mirrors
+`test_inbox_handler.py`.
+
+**Bug discovered**: `outbox_handler` does not return early when
+`dl.read(actor_id)` returns `None`; the subsequent `while actor.outbox.items:`
+would raise `AttributeError`. Documented in `plan/BUGS.md` as BUG-001.
+
+### Test results
+
+984 passed, 5581 subtests (+7 new tests for outbox handler).

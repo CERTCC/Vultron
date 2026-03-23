@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-23 (refresh #42: OB-05-002, AR-01-003, P90-5 complete)
+**Last Updated**: 2026-03-23 (refresh #43: OX-1.4 complete)
 
 ## Overview
 
@@ -13,7 +13,7 @@ it does not override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 996 passed, 5581 subtests (branch: `transitions-part-2`,
+**Test suite**: 984 passed, 5581 subtests (branch: `transitions-part-2`,
 2026-03-23).
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
@@ -39,6 +39,7 @@ complete. VCR-019c study complete. VCR-019a/b/e complete — state enums
 consolidated into `vultron/core/states/`; `vultron/case_states/` removed;
 errors merged into `vultron/errors.py`. PREPX-1/2/3 complete. New
 TECHDEBT-29 through TECHDEBT-34 added 2026-03-20. **TECHDEBT-29 complete**.
+**OX-1.4 complete**: outbox handler test file added.
 
 ---
 
@@ -897,7 +898,7 @@ this is the outbound counterpart to `core/ports/dispatcher.py`.
   (OX-03-002, OX-03-003); must not block HTTP response
 - [ ] **OX-1.3**: Add idempotency check — delivering same activity twice MUST NOT
   create duplicate inbox entries (OX-06-001)
-- [ ] **OX-1.4**: Add `test/api/v2/backend/test_outbox.py`
+- [x] **OX-1.4**: Add `test/api/v2/backend/test_outbox.py`
 
 ---
 
