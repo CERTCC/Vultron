@@ -2619,3 +2619,39 @@ would raise `AttributeError`. Documented in `plan/BUGS.md` as BUG-001.
 ### Test results
 
 984 passed, 5581 subtests (+7 new tests for outbox handler).
+
+---
+
+## P90-1 — Persist RM.RECEIVED ParticipantStatus on report receipt (2026-03-23)
+
+### What was done
+
+Implemented ADR-0013 step 1: the explicit `START → RECEIVED` (RECEIVE trigger)
+RM transition is now persisted in a `VultronParticipantStatus` record at
+report-receipt time.
+
+**Changes:**
+- `vultron/core/use_cases/_helpers.py`: Added `_report_phase_status_id(actor_id,
+  report_id, rm_state)` helper that uses UUID v5 (name-based) to generate a
+  deterministic, idempotent URN for a report-phase participant status record.
+- `vultron/core/use_cases/report.py`: Both `CreateReportReceivedUseCase` and
+  `SubmitReportReceivedUseCase` now create and persist a
+  `VultronParticipantStatus` with `rm_state=RM.RECEIVED`, `context=report_id`,
+  and `attributed_to=actor_id` after storing the report. Uses
+  `_idempotent_create` to prevent duplicate records on repeated calls.
+  The existing `set_status()` call is retained (P90-4 will remove it).
+- `test/core/use_cases/test_report_use_cases.py`: 3 new tests verifying
+  persistence for Create, Submit variants, and idempotency.
+
+### Lessons learned
+
+- UUID v5 (name-based) is a clean pattern for deriving deterministic DataLayer
+  IDs from semantic keys when auto-generated UUIDs would break idempotency.
+- The report ID serves as the `context` for pre-case `VultronParticipantStatus`
+  records; the case ID takes over as `context` once a case is created.
+- `_idempotent_create` with `dl.get(type_key, id_key)` is the standard
+  idempotency guard pattern; deterministic IDs are the prerequisite.
+
+### Test results
+
+987 passed, 5581 subtests (+3 new tests for P90-1).

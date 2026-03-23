@@ -948,9 +948,9 @@ This phase captures the RM-state unification and state-machine follow-up work.
 Per `plan/PRIORITIES.md`, Priority 90 takes precedence over later priorities
 even when related Priority 100 tasks appear nearby in this plan.
 
-**2026-03-20 status**: P90-2 and P90-3 are complete. P90-1 and P90-4 remain.
+**2026-03-23 status**: P90-2 and P90-3 are complete. P90-1 is complete. P90-4 remains.
 
-- [ ] **P90-1**: Persist initial RM report-phase state in
+- [x] **P90-1**: Persist initial RM report-phase state in
   `VultronParticipantStatus` (persisted) rather than the transient in-memory
   STATUS dict. In `CreateReportReceivedUseCase` and `SubmitReportReceivedUseCase`,
   after persisting the report, create and persist a `VultronParticipantStatus`
@@ -960,6 +960,10 @@ even when related Priority 100 tasks appear nearby in this plan.
   Done when report-receipt creates a persisted participant status entry and
   the full RM history is queryable from the DataLayer.
   **Depends on: nothing (can start immediately).**
+  **COMPLETE** — `_report_phase_status_id()` helper added; both use cases
+  persist a `VultronParticipantStatus` with `rm_state=RM.RECEIVED`,
+  `context=report_id`, `attributed_to=actor_id`. Idempotent via UUID v5
+  deterministic ID. 3 new tests added; 987 tests pass.
 
 - [x] **P90-2**: Carry validated RM state into case creation. When a case is
   created from a valid report, seed the actor's case-phase participant history
