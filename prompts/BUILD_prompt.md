@@ -6,8 +6,8 @@ Objective: Complete the highest-priority pending implementation task.
 2. study specs/*.md (start with specs/README.md) to understand authoritative
    requirements.
 3. study plan/IMPLEMENTATION_PLAN.md to understand current tasks and status.
-4. study plan/IMPLEMENTATION_NOTES.md to understand recent lessons learned
-   and constraints.
+4. study plan/IMPLEMENTATION_NOTES.md to understand recent lessons learned,
+   constraints, and tactical guidance
 5. study notes/*.md (start with notes/README.md) to understand other relevant
      lessons learned.
 6. study vultron/*and test/* to understand current implementation and behavior.
