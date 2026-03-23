@@ -19,7 +19,12 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.core.use_cases.report import CreateReportReceivedUseCase
+from vultron.core.models.events import MessageSemantics
+from vultron.core.use_cases.report import (
+    CreateReportReceivedUseCase,
+    SubmitReportReceivedUseCase,
+    AckReportReceivedUseCase,
+)
 from vultron.core.use_cases.case import CreateCaseReceivedUseCase
 
 
@@ -68,3 +73,120 @@ class TestUseCaseExecution:
         event = make_payload(create_activity)
         result = CreateReportReceivedUseCase(dl, event).execute()
         assert result is None
+
+
+class TestReportReceiptRM:
+    """Tests that report-receipt use cases fire the RM START→RECEIVED transition."""
+
+    def setup_method(self):
+        """Clear STATUS layer before each test to avoid cross-test pollution."""
+        from vultron.core.models.status import get_status_layer
+
+        get_status_layer().clear()
+
+    def test_create_report_sets_rm_received(self):
+        """CreateReportReceivedUseCase sets RM.RECEIVED in the STATUS layer."""
+        from vultron.core.models.status import get_status_layer
+        from vultron.core.states.rm import RM
+        from vultron.core.models.events.report import CreateReportReceivedEvent
+        from vultron.core.models.report import VultronReport
+        from vultron.core.models.activity import VultronActivity
+
+        report = VultronReport(as_id="https://example.org/reports/r-create-1")
+        activity = VultronActivity(
+            id="https://example.org/activities/create-1",
+            type="Create",
+            actor="https://example.org/users/finder",
+        )
+        event = CreateReportReceivedEvent(
+            semantic_type=MessageSemantics.CREATE_REPORT,
+            activity_id="https://example.org/activities/create-1",
+            actor_id="https://example.org/users/finder",
+            object_id="https://example.org/reports/r-create-1",
+            object_type="VulnerabilityReport",
+            report=report,
+            activity=activity,
+        )
+
+        mock_dl = MagicMock()
+        CreateReportReceivedUseCase(mock_dl, event).execute()
+
+        sl = get_status_layer()
+        actor_key = "https://example.org/users/finder"
+        report_key = "https://example.org/reports/r-create-1"
+        assert report_key in sl.get("VulnerabilityReport", {})
+        assert (
+            sl["VulnerabilityReport"][report_key][actor_key]["status"]
+            == RM.RECEIVED.value
+        )
+
+    def test_submit_report_sets_rm_received(self):
+        """SubmitReportReceivedUseCase sets RM.RECEIVED in the STATUS layer."""
+        from vultron.core.models.status import get_status_layer
+        from vultron.core.states.rm import RM
+        from vultron.core.models.events.report import SubmitReportReceivedEvent
+        from vultron.core.models.report import VultronReport
+        from vultron.core.models.activity import VultronActivity
+
+        report = VultronReport(as_id="https://example.org/reports/r-submit-1")
+        activity = VultronActivity(
+            id="https://example.org/activities/submit-1",
+            type="Offer",
+            actor="https://example.org/users/finder",
+        )
+        event = SubmitReportReceivedEvent(
+            semantic_type=MessageSemantics.SUBMIT_REPORT,
+            activity_id="https://example.org/activities/submit-1",
+            actor_id="https://example.org/users/finder",
+            object_id="https://example.org/reports/r-submit-1",
+            object_type="VulnerabilityReport",
+            report=report,
+            activity=activity,
+        )
+
+        mock_dl = MagicMock()
+        SubmitReportReceivedUseCase(mock_dl, event).execute()
+
+        sl = get_status_layer()
+        actor_key = "https://example.org/users/finder"
+        report_key = "https://example.org/reports/r-submit-1"
+        assert report_key in sl.get("VulnerabilityReport", {})
+        assert (
+            sl["VulnerabilityReport"][report_key][actor_key]["status"]
+            == RM.RECEIVED.value
+        )
+
+    def test_ack_report_sets_rm_received_for_inner_report(self):
+        """AckReportReceivedUseCase sets RM.RECEIVED using inner_object_id (the report)."""
+        from vultron.core.models.status import get_status_layer
+        from vultron.core.states.rm import RM
+        from vultron.core.models.events.report import AckReportReceivedEvent
+        from vultron.core.models.activity import VultronActivity
+
+        activity = VultronActivity(
+            id="https://example.org/activities/ack-1",
+            type="Read",
+            actor="https://example.org/users/coordinator",
+        )
+        event = AckReportReceivedEvent(
+            semantic_type=MessageSemantics.ACK_REPORT,
+            activity_id="https://example.org/activities/ack-1",
+            actor_id="https://example.org/users/coordinator",
+            object_id="https://example.org/offers/offer-1",
+            object_type="Offer",
+            inner_object_id="https://example.org/reports/r-ack-1",
+            inner_object_type="VulnerabilityReport",
+            activity=activity,
+        )
+
+        mock_dl = MagicMock()
+        AckReportReceivedUseCase(mock_dl, event).execute()
+
+        sl = get_status_layer()
+        actor_key = "https://example.org/users/coordinator"
+        report_key = "https://example.org/reports/r-ack-1"
+        assert report_key in sl.get("VulnerabilityReport", {})
+        assert (
+            sl["VulnerabilityReport"][report_key][actor_key]["status"]
+            == RM.RECEIVED.value
+        )
