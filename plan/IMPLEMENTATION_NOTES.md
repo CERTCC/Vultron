@@ -247,4 +247,11 @@ method due to a large refactoring that split a test file into multiple files.
 Because this appears to be a common test helper, it should be centralized to 
 DRY up the test codebase.
 
+## `vultron/api/v2` is deprecated
+
+At this point we should make explicit: we should not be adding anything 
+new to `vultron/api` at all as it's subsumed into the 
+`vultron/adapters/driving/fastapi/` layer. This also means that `test/api` 
+should also be deprecated and any existing tests migrated to the new structure.
+
 
