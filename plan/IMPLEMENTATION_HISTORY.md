@@ -2475,3 +2475,34 @@ design decisions required before ACT-2 implementation can begin.
    to avoid implementing delivery against a still-changing DataLayer.
 
 **Result**: 984 tests pass (no regressions; docs-only change).
+
+---
+
+### TECHDEBT-31 — Relocate `trigger_services/` into FastAPI adapter (2026-03-23)
+
+**Task**: Move `vultron/api/v2/backend/trigger_services/` into the proper
+FastAPI adapter layer under `vultron/adapters/driving/fastapi/`.
+
+**What was done**:
+
+- Moved `domain_error_translation()` and `translate_domain_errors()` from
+  `trigger_services/_helpers.py` into
+  `vultron/adapters/driving/fastapi/errors.py`.
+- Moved HTTP request body models from `trigger_services/_models.py` to
+  `vultron/adapters/driving/fastapi/trigger_models.py` (unchanged content).
+- Merged all three thin adapter delegate modules (`case.py`, `embargo.py`,
+  `report.py`) into a single
+  `vultron/adapters/driving/fastapi/_trigger_adapter.py`.
+- Updated all three trigger routers (`trigger_report.py`, `trigger_case.py`,
+  `trigger_embargo.py`) to import from the new adapter-layer locations.
+- Updated `test/api/v2/backend/test_trigger_services.py` imports.
+- Deleted `vultron/api/v2/backend/trigger_services/` entirely (5 Python files).
+- `vultron/api/v2/` now contains only `data/actor_io.py` (pending VCR-014)
+  and two `__init__.py` stubs.
+
+**Result**: 996 tests pass, no regressions.
+
+**Notes**: The old `_helpers.py` re-export shim (which re-exported core helpers
+like `add_activity_to_outbox`, `resolve_actor` etc.) is now gone entirely.
+All callers already imported those from `vultron.core.use_cases.triggers._helpers`
+directly (confirmed by test suite passing).

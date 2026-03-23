@@ -15,7 +15,7 @@ it does not override `plan/PRIORITIES.md` when the two differ.
 ### Current Status Summary
 
 **Test suite**: 996 passed, 5581 subtests (branch: `transitions-part-2`,
-2026-03-20).
+2026-03-23).
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -29,14 +29,17 @@ handler use cases and 9 trigger use cases are class-based. CLI
 `vultron/core/models/base.py`; all 12 domain object models inherit from it.
 **P85 complete**: all IDEAS.md items captured in specs, notes, and plan.
 **P90 in progress**: P90-2 and P90-3 done; P90-1 and P90-4 remain.
+**TECHDEBT-31 complete**: `trigger_services/` relocated into
+`vultron/adapters/driving/fastapi/`; `vultron/api/v2/` now contains only
+`data/actor_io.py` (pending VCR-014) and two `__init__.py` stubs.
 
 **Active phases**: **PRIORITY-80** (technical debt cleanup) and **PRIORITY-90**
-(ADR-0013 state-machine follow-up). TECHDEBT-16 through TECHDEBT-28 are
-complete; VCR-A batch (8/8 tasks) complete. VCR-B batch complete.
-VCR-019c study complete. VCR-019a/b/e complete — state enums consolidated into
-`vultron/core/states/`; `vultron/case_states/` removed; errors merged into
-`vultron/errors.py`. PREPX-1/2/3 complete. New TECHDEBT-29 through TECHDEBT-34
-added 2026-03-20.
+(ADR-0013 state-machine follow-up). TECHDEBT-16 through TECHDEBT-28 and
+TECHDEBT-31 are complete; VCR-A batch (8/8 tasks) complete. VCR-B batch
+complete. VCR-019c study complete. VCR-019a/b/e complete — state enums
+consolidated into `vultron/core/states/`; `vultron/case_states/` removed;
+errors merged into `vultron/errors.py`. PREPX-1/2/3 complete. New
+TECHDEBT-29 through TECHDEBT-34 added 2026-03-20.
 
 ---
 
@@ -572,7 +575,7 @@ core" (2026-03-20); `notes/domain-model-separation.md`
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "vultron.api.v2.backend.trigger_services
 should go away" (2026-03-20); `notes/codebase-structure.md`
 
-- [ ] **TECHDEBT-31**: Move the contents of
+- [x] **TECHDEBT-31**: Move the contents of
   `vultron/api/v2/backend/trigger_services/` into `vultron/adapters/driving/fastapi/`:
 
   1. Move `domain_error_translation()` and `translate_domain_errors()` from
