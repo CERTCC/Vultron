@@ -28,6 +28,7 @@ handler use cases and 9 trigger use cases are class-based. CLI
 `vultron/core/models/base.py`; all 12 domain object models inherit from it.
 **P85 complete**: all IDEAS.md items captured in specs, notes, and plan.
 **P90 in progress**: P90-2 and P90-3 done; P90-5 done; P90-1 and P90-4 remain.
+**P90 complete**: All P90 tasks done.
 **TECHDEBT-31 complete**: `trigger_services/` relocated into
 `vultron/adapters/driving/fastapi/`; `vultron/api/v2/` now contains only
 `data/actor_io.py` (pending VCR-014) and two `__init__.py` stubs.
@@ -948,7 +949,7 @@ This phase captures the RM-state unification and state-machine follow-up work.
 Per `plan/PRIORITIES.md`, Priority 90 takes precedence over later priorities
 even when related Priority 100 tasks appear nearby in this plan.
 
-**2026-03-23 status**: P90-2 and P90-3 are complete. P90-1 is complete. P90-4 remains.
+**2026-03-23 status**: P90-2 and P90-3 are complete. P90-1 is complete. P90-4 complete.
 
 - [x] **P90-1**: Persist initial RM report-phase state in
   `VultronParticipantStatus` (persisted) rather than the transient in-memory
@@ -979,7 +980,7 @@ even when related Priority 100 tasks appear nearby in this plan.
   and `_find_and_update_participant_rm()` (behaviors). **COMPLETE** — 996 tests
   pass.
 
-- [ ] **P90-4**: Remove transient STATUS-layer dependencies once P90-1 persisted
+- [x] **P90-4**: Remove transient STATUS-layer dependencies once P90-1 persisted
   RM history is authoritative. After P90-1 is complete and covered by tests,
   delete STATUS dict reads/writes in `core/use_cases/report.py` and
   `core/use_cases/triggers/report.py`. Remove the `STATUS` global dict from
@@ -987,6 +988,11 @@ even when related Priority 100 tasks appear nearby in this plan.
   `get_status_layer()` helpers once no callers remain. Done when
   `core/models/status.py` no longer contains a global mutable dict and
   all RM state is read from the DataLayer. **Depends on: P90-1.**
+  **COMPLETE** — `STATUS` dict, `ReportStatus`, `set_status()`,
+  `get_status_layer()` removed from `status.py`. BT nodes (`CheckRMStateValid`,
+  `CheckRMStateReceivedOrInvalid`, `TransitionRMtoValid`, `TransitionRMtoInvalid`)
+  updated to use DataLayer. Trigger use cases updated. All 5 affected test files
+  updated to use DataLayer assertions. 984 tests pass.
 
 - [x] **P90-5**: Capture OPP-06 requirements in `specs/behavior-tree-integration.md`.
   Added section `BT-12 VFD/PXA State Machine Usage` with requirement `BT-12-001`

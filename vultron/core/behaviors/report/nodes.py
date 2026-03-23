@@ -29,12 +29,6 @@ from typing import Any
 import py_trees
 from py_trees.common import Status
 
-from vultron.core.models.status import (
-    OfferStatus,
-    ReportStatus,
-    get_status_layer,
-    set_status,
-)
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCreateCaseActivity,
@@ -46,7 +40,10 @@ from vultron.core.behaviors.helpers import (
     save_to_datalayer,
 )
 from vultron.core.states.rm import RM
-from vultron.core.models.status import OfferStatusEnum
+from vultron.core.use_cases._helpers import (
+    _idempotent_create,
+    _report_phase_status_id,
+)
 from vultron.core.use_cases.triggers._helpers import (
     update_participant_rm_state,
 )
@@ -91,29 +88,18 @@ class CheckRMStateValid(DataLayerCondition):
             self.logger.error(f"{self.name}: DataLayer not available")
             return Status.FAILURE
 
-        try:
-            # Get status from status layer
-            status_layer = get_status_layer()
-            report_status_dict = status_layer.get(
-                "VulnerabilityReport", {}
-            ).get(self.report_id, {})
-
-            # Check if any actor has this report in VALID state
-            for actor_id, status_data in report_status_dict.items():
-                if status_data.get("status") == RM.VALID:
-                    self.logger.debug(
-                        f"{self.name}: Report {self.report_id} already VALID for actor {actor_id}"
-                    )
-                    return Status.SUCCESS
-
+        valid_id = _report_phase_status_id(
+            self.actor_id, self.report_id, RM.VALID.value
+        )
+        if self.datalayer.get("ParticipantStatus", valid_id) is not None:
             self.logger.debug(
-                f"{self.name}: Report {self.report_id} not in VALID state"
+                f"{self.name}: Report {self.report_id} already VALID"
             )
-            return Status.FAILURE
-
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error checking report state: {e}")
-            return Status.FAILURE
+            return Status.SUCCESS
+        self.logger.debug(
+            f"{self.name}: Report {self.report_id} not in VALID state"
+        )
+        return Status.FAILURE
 
 
 class CheckRMStateReceivedOrInvalid(DataLayerCondition):
@@ -148,36 +134,20 @@ class CheckRMStateReceivedOrInvalid(DataLayerCondition):
             self.logger.error(f"{self.name}: DataLayer not available")
             return Status.FAILURE
 
-        try:
-            status_layer = get_status_layer()
-            report_status_dict = status_layer.get(
-                "VulnerabilityReport", {}
-            ).get(self.report_id, {})
-
-            # If no status found, assume RECEIVED (default)
-            if not report_status_dict:
-                self.logger.debug(
-                    f"{self.name}: No status found for report {self.report_id}, assuming RECEIVED"
-                )
-                return Status.SUCCESS
-
-            # Check if any actor has this report in RECEIVED or INVALID state
-            for actor_id, status_data in report_status_dict.items():
-                status = status_data.get("status")
-                if status in (RM.RECEIVED, RM.INVALID):
-                    self.logger.debug(
-                        f"{self.name}: Report {self.report_id} in acceptable state ({status}) for actor {actor_id}"
-                    )
-                    return Status.SUCCESS
-
+        # Return FAILURE if already VALID (can't re-validate)
+        valid_id = _report_phase_status_id(
+            self.actor_id, self.report_id, RM.VALID.value
+        )
+        if self.datalayer.get("ParticipantStatus", valid_id) is not None:
             self.logger.debug(
-                f"{self.name}: Report {self.report_id} not in RECEIVED or INVALID state"
+                f"{self.name}: Report {self.report_id} already VALID - precondition failed"
             )
             return Status.FAILURE
 
-        except Exception as e:
-            self.logger.error(f"{self.name}: Error checking report state: {e}")
-            return Status.FAILURE
+        self.logger.debug(
+            f"{self.name}: Report {self.report_id} in acceptable state for validation"
+        )
+        return Status.SUCCESS
 
 
 # ============================================================================
@@ -222,28 +192,23 @@ class TransitionRMtoValid(DataLayerAction):
             return Status.FAILURE
 
         try:
-            # Update offer status to ACCEPTED
-            offer_status = OfferStatus(
-                object_type="Offer",
-                object_id=self.offer_id,
-                status=OfferStatusEnum.ACCEPTED,
-                actor_id=self.actor_id,
+            status = VultronParticipantStatus(
+                as_id=_report_phase_status_id(
+                    self.actor_id, self.report_id, RM.VALID.value
+                ),
+                context=self.report_id,
+                attributed_to=self.actor_id,
+                rm_state=RM.VALID,
             )
-            set_status(offer_status)
+            _idempotent_create(
+                self.datalayer,
+                "ParticipantStatus",
+                status.as_id,
+                status,
+                "ParticipantStatus (report-phase RM.VALID)",
+            )
             self.logger.info(
-                f"{self.name}: Set offer {self.offer_id} to ACCEPTED"
-            )
-
-            # Update report status to VALID
-            report_status = ReportStatus(
-                object_type="VulnerabilityReport",
-                object_id=self.report_id,
-                status=RM.VALID,
-                actor_id=self.actor_id,
-            )
-            set_status(report_status)
-            self.logger.info(
-                f"{self.name}: Set report {self.report_id} to VALID"
+                f"{self.name}: Set report {self.report_id} to VALID (actor {self.actor_id})"
             )
 
             return Status.SUCCESS
@@ -259,8 +224,8 @@ class TransitionRMtoInvalid(DataLayerAction):
     """
     Transition report to RM.INVALID and offer to TENTATIVELY_REJECTED.
 
-    Updates both report status (RM.INVALID) and offer status (TENTATIVELY_REJECTED)
-    in the status layer. Logs state transitions at INFO level.
+    Updates report status (RM.INVALID) in the DataLayer.
+    Logs state transitions at INFO level.
 
     This node implements the invalidation path for future fallback sequences.
     """
@@ -280,10 +245,10 @@ class TransitionRMtoInvalid(DataLayerAction):
 
     def update(self) -> Status:
         """
-        Update report and offer statuses.
+        Update report status to INVALID in DataLayer.
 
         Returns:
-            SUCCESS if both statuses updated, FAILURE on error
+            SUCCESS if status updated, FAILURE on error
         """
         if self.datalayer is None or self.actor_id is None:
             self.logger.error(
@@ -292,28 +257,23 @@ class TransitionRMtoInvalid(DataLayerAction):
             return Status.FAILURE
 
         try:
-            # Update offer status to TENTATIVELY_REJECTED
-            offer_status = OfferStatus(
-                object_type="Offer",
-                object_id=self.offer_id,
-                status=OfferStatusEnum.TENTATIVELY_REJECTED,
-                actor_id=self.actor_id,
+            status = VultronParticipantStatus(
+                as_id=_report_phase_status_id(
+                    self.actor_id, self.report_id, RM.INVALID.value
+                ),
+                context=self.report_id,
+                attributed_to=self.actor_id,
+                rm_state=RM.INVALID,
             )
-            set_status(offer_status)
+            _idempotent_create(
+                self.datalayer,
+                "ParticipantStatus",
+                status.as_id,
+                status,
+                "ParticipantStatus (report-phase RM.INVALID)",
+            )
             self.logger.info(
-                f"{self.name}: Set offer {self.offer_id} to TENTATIVELY_REJECTED"
-            )
-
-            # Update report status to INVALID
-            report_status = ReportStatus(
-                object_type="VulnerabilityReport",
-                object_id=self.report_id,
-                status=RM.INVALID,
-                actor_id=self.actor_id,
-            )
-            set_status(report_status)
-            self.logger.info(
-                f"{self.name}: Set report {self.report_id} to INVALID"
+                f"{self.name}: Set report {self.report_id} to INVALID (actor {self.actor_id})"
             )
 
             return Status.SUCCESS

@@ -42,7 +42,8 @@ from vultron.adapters.driving.fastapi._trigger_adapter import (
     validate_report_trigger,
 )
 from vultron.api.v2.data.actor_io import init_actor_io
-from vultron.core.models.status import ReportStatus, set_status
+from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.activities.embargo import EmProposeEmbargoActivity
@@ -95,41 +96,26 @@ def offer(dl, report, actor):
 
 
 @pytest.fixture
-def received_report(report, actor):
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor.as_id,
-            status=RM.RECEIVED,
-        )
-    )
+def received_report(report):
     return report
 
 
 @pytest.fixture
-def accepted_report(report, actor):
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor.as_id,
-            status=RM.ACCEPTED,
-        )
-    )
+def accepted_report(report):
     return report
 
 
 @pytest.fixture
-def closed_report(report, actor):
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor.as_id,
-            status=RM.CLOSED,
-        )
+def closed_report(dl, report, actor):
+    status = VultronParticipantStatus(
+        as_id=_report_phase_status_id(
+            actor.as_id, report.as_id, RM.CLOSED.value
+        ),
+        context=report.as_id,
+        attributed_to=actor.as_id,
+        rm_state=RM.CLOSED,
     )
+    dl.create(status)
     return report
 
 

@@ -2655,3 +2655,52 @@ report-receipt time.
 ### Test results
 
 987 passed, 5581 subtests (+3 new tests for P90-1).
+
+---
+
+## P90-4 — Remove global STATUS dict; route RM state through DataLayer
+
+**Completed**: 2026-03-23
+
+### What was done
+
+Removed the global mutable `STATUS: dict[str, dict]` from
+`vultron/core/models/status.py` along with all helpers that depended on it:
+`ReportStatus`, `set_status()`, `get_status_layer()`,
+`status_to_record_dict()`, and `_current_report_rm_state()`. The
+`OfferStatus`, `OfferStatusEnum`, and `ObjectStatus` classes were retained as
+valid domain models.
+
+All RM state reads and writes that previously went through the STATUS layer
+now use the DataLayer-backed `VultronParticipantStatus` records introduced in
+P90-1, looked up via `_report_phase_status_id()` deterministic IDs.
+
+**Source files changed**:
+
+- `vultron/core/models/status.py` — removed STATUS dict and all related
+  helpers; kept `OfferStatusEnum`, `ObjectStatus`, `OfferStatus`
+- `vultron/core/use_cases/report.py` — removed remaining `set_status()` calls
+  (DataLayer path already present from P90-1)
+- `vultron/core/use_cases/triggers/report.py` — replaced `set_status()`
+  and `get_status_layer()` with DataLayer `VultronParticipantStatus` creation
+  and `dl.get("ParticipantStatus", ...)` existence checks
+- `vultron/core/behaviors/report/nodes.py` — updated four BT nodes:
+  `CheckRMStateValid` and `CheckRMStateReceivedOrInvalid` now query the
+  DataLayer for VALID records; `TransitionRMtoValid` and `TransitionRMtoInvalid`
+  create `VultronParticipantStatus` records via `_idempotent_create()`
+
+**Test files changed**:
+
+- `test/core/use_cases/test_report_use_cases.py` — removed `TestReportReceiptRM`
+  class (tested STATUS layer, now superseded by `TestReportReceiptPersistsParticipantStatus`)
+- `test/api/v2/backend/test_trigger_services.py` — updated `received_report`,
+  `accepted_report`, `closed_report` fixtures to use DataLayer
+- `test/api/v2/routers/test_trigger_report.py` — same fixture pattern
+- `test/core/behaviors/report/test_nodes.py` — replaced `set_status()` setup
+  with DataLayer `VultronParticipantStatus` creation; replaced `get_status_layer()`
+  assertions with `datalayer.get("ParticipantStatus", ...)` checks
+- `test/core/behaviors/report/test_validate_tree.py` — same pattern
+
+### Test results
+
+984 passed, 5581 subtests (no new tests; P90-4 updated existing tests).

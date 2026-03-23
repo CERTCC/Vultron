@@ -25,12 +25,9 @@ Per specs/behavior-tree-integration.md BT-06 and testability.md requirements.
 import pytest
 from py_trees.common import Status
 
-from vultron.core.models.status import (
-    ReportStatus,
-    get_status_layer,
-    set_status,
-)
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
     VultronOffer,
@@ -161,16 +158,6 @@ def test_tree_execution_success_new_report(
     bridge, datalayer, actor_id, report, offer, actor
 ):
     """Tree executes successfully for new report (RECEIVED state)."""
-    # Arrange: Set report to RECEIVED state
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor_id,
-            status=RM.RECEIVED,
-        )
-    )
-
     tree = create_validate_report_tree(
         report_id=report.as_id,
         offer_id=offer.as_id,
@@ -187,28 +174,23 @@ def test_tree_execution_success_new_report(
     assert result.status == Status.SUCCESS
     assert result.errors is None or result.errors == []
 
-    # Verify side effects: Report status updated to VALID
-    status_layer = get_status_layer()
-    status_dict = status_layer.get("VulnerabilityReport", {}).get(
-        report.as_id, {}
-    )
-    actor_status = status_dict.get(actor_id, {})
-    assert actor_status.get("status") == RM.VALID
+    # Verify side effects: Report status updated to VALID in DataLayer
+    valid_id = _report_phase_status_id(actor_id, report.as_id, RM.VALID.value)
+    assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
 def test_tree_execution_early_exit_already_valid(
     bridge, datalayer, actor_id, report, offer, actor
 ):
     """Tree short-circuits if report already in VALID state."""
-    # Arrange: Set report to VALID state
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor_id,
-            status=RM.VALID,
-        )
+    # Arrange: Set report to VALID state in DataLayer
+    valid_status = VultronParticipantStatus(
+        as_id=_report_phase_status_id(actor_id, report.as_id, RM.VALID.value),
+        context=report.as_id,
+        attributed_to=actor_id,
+        rm_state=RM.VALID,
     )
+    datalayer.create(valid_status)
 
     tree = create_validate_report_tree(
         report_id=report.as_id,
@@ -234,15 +216,16 @@ def test_tree_execution_invalid_state_transitions_to_valid(
     bridge, datalayer, actor_id, report, offer, actor
 ):
     """Tree can validate report from INVALID state."""
-    # Arrange: Set report to INVALID state
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor_id,
-            status=RM.INVALID,
-        )
+    # Arrange: Set report to INVALID state in DataLayer (no VALID record present)
+    invalid_status = VultronParticipantStatus(
+        as_id=_report_phase_status_id(
+            actor_id, report.as_id, RM.INVALID.value
+        ),
+        context=report.as_id,
+        attributed_to=actor_id,
+        rm_state=RM.INVALID,
     )
+    datalayer.create(invalid_status)
 
     tree = create_validate_report_tree(
         report_id=report.as_id,
@@ -259,13 +242,9 @@ def test_tree_execution_invalid_state_transitions_to_valid(
     # Assert: Tree succeeds
     assert result.status == Status.SUCCESS
 
-    # Verify side effects: Report status updated to VALID
-    status_layer = get_status_layer()
-    status_dict = status_layer.get("VulnerabilityReport", {}).get(
-        report.as_id, {}
-    )
-    actor_status = status_dict.get(actor_id, {})
-    assert actor_status.get("status") == RM.VALID
+    # Verify side effects: Report status updated to VALID in DataLayer
+    valid_id = _report_phase_status_id(actor_id, report.as_id, RM.VALID.value)
+    assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
 def test_tree_execution_no_prior_status_succeeds(
@@ -290,29 +269,15 @@ def test_tree_execution_no_prior_status_succeeds(
     # Assert: Tree succeeds (precondition accepts no status as RECEIVED-equivalent)
     assert result.status == Status.SUCCESS
 
-    # Verify side effects: Report status updated to VALID
-    status_layer = get_status_layer()
-    status_dict = status_layer.get("VulnerabilityReport", {}).get(
-        report.as_id, {}
-    )
-    actor_status = status_dict.get(actor_id, {})
-    assert actor_status.get("status") == RM.VALID
+    # Verify side effects: Report status updated to VALID in DataLayer
+    valid_id = _report_phase_status_id(actor_id, report.as_id, RM.VALID.value)
+    assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
 def test_tree_execution_policy_stubs_always_accept(
     bridge, datalayer, actor_id, report, offer, actor
 ):
     """Policy nodes (stubs) always return SUCCESS in Phase 1."""
-    # Arrange: Set report to RECEIVED state
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor_id,
-            status=RM.RECEIVED,
-        )
-    )
-
     tree = create_validate_report_tree(
         report_id=report.as_id,
         offer_id=offer.as_id,
@@ -409,16 +374,6 @@ def test_tree_execution_idempotency(
     bridge, datalayer, actor_id, report, offer, actor
 ):
     """Multiple executions produce same result (idempotent)."""
-    # Arrange: Set report to RECEIVED state
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor_id,
-            status=RM.RECEIVED,
-        )
-    )
-
     tree1 = create_validate_report_tree(
         report_id=report.as_id,
         offer_id=offer.as_id,
@@ -462,17 +417,6 @@ def test_tree_execution_actor_isolation(
         actor_obj = VultronCaseActor(as_id=aid, name=f"Actor {aid}")
         datalayer.create(actor_obj)
 
-    # Set both actors to RECEIVED state
-    for aid in [actor_a, actor_b]:
-        set_status(
-            ReportStatus(
-                object_type="VulnerabilityReport",
-                object_id=report.as_id,
-                actor_id=aid,
-                status=RM.RECEIVED,
-            )
-        )
-
     # Execute for actor A
     tree_a = create_validate_report_tree(
         report_id=report.as_id,
@@ -499,12 +443,6 @@ def test_tree_execution_actor_isolation(
     assert result_a.status == Status.SUCCESS
     assert result_b.status == Status.SUCCESS
 
-    # Verify: At least one actor has VALID status
-    # Note: Second execution may short-circuit via early exit if case already exists
-    status_layer = get_status_layer()
-    status_dict = status_layer.get("VulnerabilityReport", {}).get(
-        report.as_id, {}
-    )
-    # At least actor_a should have VALID status
-    assert status_dict.get(actor_a, {}).get("status") == RM.VALID
-    # actor_b may or may not have status depending on execution path
+    # Verify: actor_a should have VALID status in DataLayer
+    valid_id_a = _report_phase_status_id(actor_a, report.as_id, RM.VALID.value)
+    assert datalayer.get("ParticipantStatus", valid_id_a) is not None

@@ -26,20 +26,18 @@ No HTTP framework imports (FastAPI, Starlette) are permitted here.
 
 import logging
 
-from vultron.core.models.status import (
-    OfferStatus,
-    ReportStatus,
-    get_status_layer,
-    set_status,
-)
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.states.rm import RM
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
     create_validate_report_tree,
 )
-from vultron.core.models.status import OfferStatusEnum
+from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases._helpers import (
+    _idempotent_create,
+    _report_phase_status_id,
+)
 from vultron.core.use_cases.triggers._helpers import (
     add_activity_to_outbox,
     outbox_ids,
@@ -170,21 +168,20 @@ class SvcInvalidateReportUseCase:
                 invalidate_activity.as_id,
             )
 
-        set_status(
-            OfferStatus(
-                object_type=offer.as_type,
-                object_id=offer.as_id,
-                status=OfferStatusEnum.TENTATIVELY_REJECTED,
-                actor_id=actor_id,
-            )
+        set_status_invalidate = VultronParticipantStatus(
+            as_id=_report_phase_status_id(
+                actor_id, report.as_id, RM.INVALID.value
+            ),
+            context=report.as_id,
+            attributed_to=actor_id,
+            rm_state=RM.INVALID,
         )
-        set_status(
-            ReportStatus(
-                object_type=report.as_type,
-                object_id=report.as_id,
-                status=RM.INVALID,
-                actor_id=actor_id,
-            )
+        _idempotent_create(
+            dl,
+            "ParticipantStatus",
+            set_status_invalidate.as_id,
+            set_status_invalidate,
+            "ParticipantStatus (report-phase RM.INVALID)",
         )
 
         add_activity_to_outbox(actor_id, invalidate_activity.as_id, dl)
@@ -236,21 +233,20 @@ class SvcRejectReportUseCase:
                 reject_activity.as_id,
             )
 
-        set_status(
-            OfferStatus(
-                object_type=offer.as_type,
-                object_id=offer.as_id,
-                status=OfferStatusEnum.REJECTED,
-                actor_id=actor_id,
-            )
+        set_status_reject = VultronParticipantStatus(
+            as_id=_report_phase_status_id(
+                actor_id, report.as_id, RM.CLOSED.value
+            ),
+            context=report.as_id,
+            attributed_to=actor_id,
+            rm_state=RM.CLOSED,
         )
-        set_status(
-            ReportStatus(
-                object_type=report.as_type,
-                object_id=report.as_id,
-                status=RM.CLOSED,
-                actor_id=actor_id,
-            )
+        _idempotent_create(
+            dl,
+            "ParticipantStatus",
+            set_status_reject.as_id,
+            set_status_reject,
+            "ParticipantStatus (report-phase RM.CLOSED)",
         )
 
         add_activity_to_outbox(actor_id, reject_activity.as_id, dl)
@@ -288,13 +284,10 @@ class SvcCloseReportUseCase:
 
         offer, report = _resolve_offer_and_report(offer_id, dl)
 
-        status_layer = get_status_layer()
-        type_dict = status_layer.get(report.as_type, {})
-        id_dict = type_dict.get(report.as_id, {})
-        actor_status_dict = id_dict.get(actor_id, {})
-        current_rm_state = actor_status_dict.get("status")
-
-        if current_rm_state == RM.CLOSED:
+        closed_id = _report_phase_status_id(
+            actor_id, report.as_id, RM.CLOSED.value
+        )
+        if dl.get("ParticipantStatus", closed_id) is not None:
             raise VultronConflictError(
                 f"Report '{report.as_id}' is already CLOSED."
             )
@@ -312,21 +305,18 @@ class SvcCloseReportUseCase:
                 close_activity.as_id,
             )
 
-        set_status(
-            OfferStatus(
-                object_type=offer.as_type,
-                object_id=offer.as_id,
-                status=OfferStatusEnum.REJECTED,
-                actor_id=actor_id,
-            )
+        set_status_close = VultronParticipantStatus(
+            as_id=closed_id,
+            context=report.as_id,
+            attributed_to=actor_id,
+            rm_state=RM.CLOSED,
         )
-        set_status(
-            ReportStatus(
-                object_type=report.as_type,
-                object_id=report.as_id,
-                status=RM.CLOSED,
-                actor_id=actor_id,
-            )
+        _idempotent_create(
+            dl,
+            "ParticipantStatus",
+            set_status_close.as_id,
+            set_status_close,
+            "ParticipantStatus (report-phase RM.CLOSED)",
         )
 
         add_activity_to_outbox(actor_id, close_activity.as_id, dl)
