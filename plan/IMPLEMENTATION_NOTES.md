@@ -254,4 +254,13 @@ new to `vultron/api` at all as it's subsumed into the
 `vultron/adapters/driving/fastapi/` layer. This also means that `test/api` 
 should also be deprecated and any existing tests migrated to the new structure.
 
+## Avoid local imports in test modules
+
+Far too many tests have local imports inside test functions. This is an 
+anti-pattern that makes the code harder to read and can cause issues with 
+refactoring and test discovery. All imports should be at the top of the file 
+to avoid bloating the test functions and to make it clear what dependencies 
+the test module has. This should be enforced as a style guideline and 
+cleaned up across the codebase.
+
 
