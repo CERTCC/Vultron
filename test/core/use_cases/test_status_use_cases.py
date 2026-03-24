@@ -96,11 +96,6 @@ class TestStatusUseCases:
     ):
         """add_case_status_to_case appends status ID to case.case_statuses."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         case = VulnerabilityCase(
             id="https://example.org/cases/case_cs3",
             name="Add Status Case",
@@ -132,11 +127,6 @@ class TestStatusUseCases:
     ):
         """Invalid EM transition is blocked; status is not appended."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         case = VulnerabilityCase(
             id="https://example.org/cases/case_em_guard",
             name="EM Guard Test Case",
@@ -182,11 +172,6 @@ class TestStatusUseCases:
     ):
         """Valid EM transition is permitted; status is appended."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         case = VulnerabilityCase(
             id="https://example.org/cases/case_em_valid",
             name="EM Valid Transition Case",
@@ -255,11 +240,6 @@ class TestStatusUseCases:
     ):
         """add_participant_status_to_participant appends status to participant."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         participant = CaseParticipant(
             id="https://example.org/cases/case_ps2/participants/p2",
             context="https://example.org/cases/case_ps2",

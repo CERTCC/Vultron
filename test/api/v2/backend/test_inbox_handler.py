@@ -68,7 +68,7 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
     monkeypatch.setattr(
         ih, "get_actor_io", lambda actor_id, raise_on_missing=True: actor_io
     )
-    monkeypatch.setattr(ih, "rehydrate", lambda x: x)
+    monkeypatch.setattr(ih, "rehydrate", lambda x, dl=None: x)
 
     def always_raise(actor_id, obj, dl):
         raise RuntimeError("boom")

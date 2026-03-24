@@ -125,11 +125,6 @@ class TestInviteActorUseCases:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         invitee_id = "https://example.org/users/coordinator"
         invitee = as_Actor(id=invitee_id)
         case = VulnerabilityCase(
@@ -173,11 +168,6 @@ class TestInviteActorUseCases:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         invitee_id = "https://example.org/users/coordinator"
         invitee = as_Actor(id=invitee_id)
         embargo = EmbargoEvent(
@@ -230,11 +220,6 @@ class TestInviteActorUseCases:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         invitee_id = "https://example.org/users/coordinator"
         invitee = as_Actor(id=invitee_id)
         case = VulnerabilityCase(
@@ -440,11 +425,6 @@ class TestOwnershipTransferUseCases:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         case = VulnerabilityCase(
             id="https://example.org/cases/case_ot2",
             name="OT Case 2",

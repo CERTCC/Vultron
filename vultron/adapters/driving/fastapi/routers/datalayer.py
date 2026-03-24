@@ -197,7 +197,7 @@ def get_actor_outbox(
     # make a copy
     outbox = deepcopy(actor.outbox)
 
-    outbox.items = [rehydrate(item) for item in outbox.items]
+    outbox.items = [rehydrate(item, dl=datalayer) for item in outbox.items]
 
     return outbox
 
