@@ -17,7 +17,8 @@ Case State (CS) — modeled as Behavior Trees.
 uv sync --dev
 
 # Format (run before every commit)
-uv run black vultron/ test/
+# Format and lint Python sources before committing
+uv run black vultron/ test/ && uv run flake8 vultron/ test/
 
 # Full test suite — run exactly once, read the last 5 lines
 uv run pytest --tb=short 2>&1 | tail -5
@@ -34,8 +35,9 @@ uv run mypy
 uv run mkdocs serve
 ```
 
-Always format with Black before staging Python changes. Do not run Black on
-markdown files — use `markdownlint-cli2` for those.
+Always format Python sources with Black and run `flake8` before staging
+changes for commit. Do not run Black on markdown files — use
+`markdownlint-cli2` for those.
 
 ## Architecture
 
