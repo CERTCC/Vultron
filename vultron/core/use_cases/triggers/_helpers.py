@@ -23,7 +23,6 @@ framework imports allowed here.
 
 import logging
 
-from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.states.rm import RM
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.models.protocols import CaseModel
@@ -115,7 +114,7 @@ def update_participant_rm_state(
                     case_id,
                 )
                 return False
-            dl.update(participant.as_id, object_to_record(participant))
+            dl.save(participant)
             logger.info(
                 "Set participant '%s' RM state to %s in case '%s'",
                 actor_id,
@@ -154,7 +153,7 @@ def add_activity_to_outbox(
         )
         return
     actor_obj.outbox.items.append(activity_id)
-    dl.update(actor_obj.as_id, object_to_record(actor_obj))
+    dl.save(actor_obj)
     logger.debug(
         "Added activity '%s' to actor '%s' outbox", activity_id, actor_id
     )

@@ -42,7 +42,6 @@ from vultron.core.states.roles import CVDRoles
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,
-    save_to_datalayer,
 )
 
 logger = logging.getLogger(__name__)
@@ -378,7 +377,7 @@ class CreateInitialVendorParticipant(DataLayerAction):
             }
             if participant.as_id not in existing_ids:
                 stored_case.case_participants.append(participant.as_id)
-                save_to_datalayer(self.datalayer, stored_case)
+                self.datalayer.save(stored_case)
                 self.logger.info(
                     f"{self.name}: Added VendorParticipant"
                     f" {participant.as_id} to case {stored_case.as_id}"
@@ -466,7 +465,7 @@ class RecordCaseCreationEvents(DataLayerAction):
                 f"{self.name}: Recorded case_created event on case {case_id}"
             )
 
-            save_to_datalayer(self.datalayer, case)
+            self.datalayer.save(case)
             return Status.SUCCESS
 
         except Exception as e:
@@ -521,7 +520,7 @@ class UpdateActorOutbox(DataLayerAction):
                 return Status.FAILURE
 
             actor_obj.outbox.items.append(activity_id)
-            save_to_datalayer(self.datalayer, actor_obj)
+            self.datalayer.save(actor_obj)
             self.logger.info(
                 f"{self.name}: Added activity {activity_id} to"
                 f" actor {self.actor_id} outbox"

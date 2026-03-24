@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-24 (refresh #46: TECHDEBT-36 and TECHDEBT-38 complete)
+**Last Updated**: 2026-03-24 (refresh #47: TECHDEBT-32, TECHDEBT-32b complete)
 
 ## Overview
 
@@ -13,8 +13,7 @@ it does not override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 984 passed, 5581 subtests (branch: `transitions-part-2`,
-2026-03-23).
+**Test suite**: 985 passed, 5581 subtests (2026-03-24).
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -36,13 +35,16 @@ validity guards applied; OPP-06 spec captured in `specs/`.
 
 **Active phases**: **PRIORITY-80** (technical debt cleanup) and
 **PRIORITY-100** (actor independence — pre-requisites PREPX-1/2/3 and P90
-all complete). TECHDEBT-16 through TECHDEBT-33 complete (TECHDEBT-32 and
-34–37 still open); VCR-A batch (8/8 tasks) complete. VCR-B batch complete.
+all complete). TECHDEBT-16 through TECHDEBT-33 complete; TECHDEBT-32b complete
+(34–37 still open); VCR-A batch (8/8 tasks) complete. VCR-B batch complete.
 VCR-019a/b/c/e complete — state enums in `vultron/core/states/`;
 `vultron/case_states/` removed; errors merged into `vultron/errors.py`.
 OX-1.4 complete. BUG-001 (outbox_handler missing return) documented in
 `plan/BUGS.md`; TECHDEBT-38 added to fix it. TECHDEBT-39 added for OPP-05
-participant RM helper consolidation.
+participant RM helper consolidation. TECHDEBT-32/32b complete: all
+`object_to_record` / `save_to_datalayer` usages in core removed; `dl.save()`
+is now the sole save pattern in core. TECHDEBT-32c added (wire/rehydration
+adapter import).
 
 ---
 
@@ -628,7 +630,7 @@ should go away" (2026-03-20); `notes/codebase-structure.md`
 core to datalayer port and adapter boundaries" (2026-03-20);
 `notes/domain-model-separation.md`
 
-- [ ] **TECHDEBT-32**: Audit the core/DataLayer boundary to understand the
+- [x] **TECHDEBT-32**: Audit the core/DataLayer boundary to understand the
   current coupling. Produce a written analysis (add to
   `notes/domain-model-separation.md` or a new `notes/datalayer-refactor.md`)
   that:
@@ -645,6 +647,40 @@ core to datalayer port and adapter boundaries" (2026-03-20);
   Done when the analysis document is committed and a follow-up implementation
   task (TECHDEBT-32b) is added to this plan based on the findings.
   **No code changes in this task — research and planning only.**
+
+  **COMPLETE**: Analysis written to `notes/datalayer-refactor.md`. Found 2
+  core-imports-adapter violations (`triggers/embargo.py`,
+  `triggers/_helpers.py` importing `object_to_record` from adapter) and 1
+  wire-imports-adapter violation (`rehydration.py` importing `get_datalayer`
+  from TinyDB adapter). `Record`/`StorableRecord` hierarchy is sound.
+  TECHDEBT-32b (code fix) implemented in same commit; TECHDEBT-32c (wire fix)
+  added as follow-up. 985 tests pass.
+
+- [x] **TECHDEBT-32b**: Remove `object_to_record` adapter imports from core
+  trigger modules and replace all three save patterns with `dl.save(obj)`:
+  1. Remove `from vultron.adapters.driven.db_record import object_to_record`
+     from `triggers/embargo.py` and `triggers/_helpers.py`. Replace 5
+     `dl.update(obj.as_id, object_to_record(obj))` calls with `dl.save(obj)`.
+  2. Replace 4 `save_to_datalayer(self.datalayer, obj)` calls in BT nodes
+     (`case/nodes.py`, `report/nodes.py`) with `self.datalayer.save(obj)`.
+  3. Delete `save_to_datalayer()` helper from
+     `vultron/core/behaviors/helpers.py` (no callers remain).
+
+  Done when no core module imports from `vultron.adapters.driven.db_record`,
+  all `object_to_record` and `save_to_datalayer` usages in core are gone,
+  and 985 tests pass.
+
+  **COMPLETE**: All 5 `object_to_record` sites and 4 `save_to_datalayer`
+  sites replaced with `dl.save()`. `save_to_datalayer` function deleted.
+  985 tests pass.
+
+- [ ] **TECHDEBT-32c**: Remove `from vultron.adapters.driven.datalayer_tinydb
+  import get_datalayer` from `vultron/wire/as2/rehydration.py`. The wire
+  layer must not import directly from the TinyDB adapter. Make `dl` a
+  required parameter in `rehydrate()`, or inject a core-level factory port.
+  All production callers already pass `dl` explicitly; the fallback exists
+  only for legacy test paths. Done when no wire module imports from
+  `vultron.adapters.driven.*` and 985 tests pass.
 
 ---
 

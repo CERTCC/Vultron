@@ -37,7 +37,6 @@ from vultron.core.models.vultron_types import (
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,
-    save_to_datalayer,
 )
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import (
@@ -547,7 +546,7 @@ class UpdateActorOutbox(DataLayerAction):
             )
 
             # Persist updated actor
-            save_to_datalayer(self.datalayer, actor_obj)
+            self.datalayer.save(actor_obj)
             self.logger.info(
                 f"{self.name}: Updated actor {self.actor_id} in DataLayer"
             )
