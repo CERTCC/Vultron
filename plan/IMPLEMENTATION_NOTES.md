@@ -8,6 +8,24 @@ Add new items below this line
 
 ---
 
+## BUG-001: `outbox_handler` early-return fix
+
+**Issue**: `outbox_handler` logged a warning when `dl.read(actor_id)` returned
+`None` but did not return early. The subsequent `while actor.outbox.items:` line
+raised `AttributeError: 'NoneType' object has no attribute 'outbox'`.
+
+**Root cause**: Missing `return` statement after the `logger.warning(...)` call
+in the `if actor is None` guard.
+
+**Fix**: Added `return` immediately after the warning log in
+`vultron/adapters/driving/fastapi/outbox_handler.py`.
+
+**Test**: Added `test_outbox_handler_returns_early_when_actor_not_found` to
+`test/api/v2/backend/test_outbox.py` to verify no exception is raised and the
+warning is logged when the actor is not found.
+
+---
+
 ## `notes/state-machine-findings.md` completion-status section is aspirational
 
 The "Completion Status" table in section 9 of

@@ -178,6 +178,20 @@ def test_outbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
     assert actor.outbox.items[0] is item
 
 
+def test_outbox_handler_returns_early_when_actor_not_found(
+    monkeypatch, caplog
+):
+    """outbox_handler must return early (not raise) when actor is None (BUG-001)."""
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = None
+    monkeypatch.setattr(oh, "get_datalayer", lambda: mock_dl)
+
+    with caplog.at_level("WARNING"):
+        asyncio.run(oh.outbox_handler("missing-actor"))
+
+    assert "missing-actor" in caplog.text
+
+
 def test_outbox_handler_continues_after_one_error(monkeypatch):
     """outbox_handler continues processing subsequent items after a single error."""
     bad_item = _make_item("bad")

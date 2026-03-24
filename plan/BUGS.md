@@ -36,3 +36,8 @@ asyncio.run(_mod.outbox_handler("missing-actor"))  # → AttributeError
 
 **Priority**: Low (only triggered for unknown actor IDs; current callers
 always pass a valid actor_id).
+
+**Status**: **FIXED** — added `return` after `logger.warning(...)` in
+`vultron/adapters/driving/fastapi/outbox_handler.py`. Added regression test
+`test_outbox_handler_returns_early_when_actor_not_found` in
+`test/api/v2/backend/test_outbox.py`.
