@@ -16,7 +16,6 @@ import logging
 
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.use_cases.case import UpdateCaseReceivedUseCase
-from vultron.wire.as2.extractor import extract_intent
 from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -24,17 +23,12 @@ from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
-def _make_payload(activity, **extra_fields):
-    event = extract_intent(activity)
-    if extra_fields:
-        return event.model_copy(update=extra_fields)
-    return event
-
-
 class TestCaseUseCases:
     """Tests for update_case handler."""
 
-    def test_update_case_applies_scalar_updates(self, monkeypatch, caplog):
+    def test_update_case_applies_scalar_updates(
+        self, monkeypatch, caplog, make_payload
+    ):
         """update_case applies name/summary/content updates from a full object."""
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -60,7 +54,7 @@ class TestCaseUseCases:
             actor=owner_id,
             object=updated_case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         def _mock_rehydrate_applies(obj, **kwargs):
             if obj == case.as_id:
@@ -80,7 +74,9 @@ class TestCaseUseCases:
         assert stored.name == "Updated Name"
         assert stored.content == "New content"
 
-    def test_update_case_rejects_non_owner(self, monkeypatch, caplog):
+    def test_update_case_rejects_non_owner(
+        self, monkeypatch, caplog, make_payload
+    ):
         """update_case logs a warning and skips if actor is not the case owner."""
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -106,7 +102,7 @@ class TestCaseUseCases:
             actor=non_owner_id,
             object=updated_case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
             UpdateCaseReceivedUseCase(dl, event).execute()
@@ -116,7 +112,7 @@ class TestCaseUseCases:
         assert stored.name == "Original Name"
         assert any("not the owner" in r.message for r in caplog.records)
 
-    def test_update_case_idempotent(self, monkeypatch):
+    def test_update_case_idempotent(self, monkeypatch, make_payload):
         """update_case with same data produces the same result (last-write-wins)."""
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -141,7 +137,7 @@ class TestCaseUseCases:
             actor=owner_id,
             object=updated_case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         def _mock_rehydrate_idempotent(obj, **kwargs):
             if obj == case.as_id:
@@ -161,7 +157,7 @@ class TestCaseUseCases:
         assert stored.name == "Updated"
 
     def test_update_case_warns_when_participant_has_not_accepted_embargo(
-        self, monkeypatch, caplog
+        self, monkeypatch, caplog, make_payload
     ):
         """update_case logs WARNING per CM-10-004 when a participant has not accepted the active embargo."""
         dl = TinyDbDataLayer(db_path=None)
@@ -198,7 +194,7 @@ class TestCaseUseCases:
             attributed_to=owner_id,
         )
         activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
             UpdateCaseReceivedUseCase(dl, event).execute()
@@ -209,7 +205,7 @@ class TestCaseUseCases:
         )
 
     def test_update_case_no_warning_when_all_participants_accepted_embargo(
-        self, monkeypatch, caplog
+        self, monkeypatch, caplog, make_payload
     ):
         """update_case does NOT warn when all participants have accepted the active embargo (CM-10-004)."""
         dl = TinyDbDataLayer(db_path=None)
@@ -246,7 +242,7 @@ class TestCaseUseCases:
             attributed_to=owner_id,
         )
         activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
             UpdateCaseReceivedUseCase(dl, event).execute()
@@ -254,7 +250,7 @@ class TestCaseUseCases:
         assert not any("has not accepted" in r.message for r in caplog.records)
 
     def test_update_case_no_warning_when_no_active_embargo(
-        self, monkeypatch, caplog
+        self, monkeypatch, caplog, make_payload
     ):
         """update_case does NOT warn when there is no active embargo (CM-10-004)."""
         dl = TinyDbDataLayer(db_path=None)
@@ -289,7 +285,7 @@ class TestCaseUseCases:
             attributed_to=owner_id,
         )
         activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
             UpdateCaseReceivedUseCase(dl, event).execute()

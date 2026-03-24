@@ -18,7 +18,6 @@ from vultron.core.use_cases.note import (
     CreateNoteReceivedUseCase,
     RemoveNoteFromCaseReceivedUseCase,
 )
-from vultron.wire.as2.extractor import extract_intent
 from vultron.wire.as2.vocab.activities.case import AddNoteToCaseActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
     as_Create,
@@ -28,17 +27,10 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
-def _make_payload(activity, **extra_fields):
-    event = extract_intent(activity)
-    if extra_fields:
-        return event.model_copy(update=extra_fields)
-    return event
-
-
 class TestNoteUseCases:
     """Tests for note management handlers."""
 
-    def test_create_note_stores_note(self, monkeypatch):
+    def test_create_note_stores_note(self, monkeypatch, make_payload):
         """create_note persists the Note to the DataLayer."""
         dl = TinyDbDataLayer(db_path=None)
 
@@ -51,14 +43,14 @@ class TestNoteUseCases:
             object=note,
         )
 
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         CreateNoteReceivedUseCase(dl, event).execute()
 
         stored = dl.get(note.as_type.value, note.as_id)
         assert stored is not None
 
-    def test_create_note_idempotent(self, monkeypatch):
+    def test_create_note_idempotent(self, monkeypatch, make_payload):
         """create_note skips storing a duplicate Note."""
         dl = TinyDbDataLayer(db_path=None)
 
@@ -70,7 +62,7 @@ class TestNoteUseCases:
             actor="https://example.org/users/finder",
             object=note,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         dl.create(note)
         CreateNoteReceivedUseCase(dl, event).execute()
@@ -78,7 +70,7 @@ class TestNoteUseCases:
         stored = dl.get(note.as_type.value, note.as_id)
         assert stored is not None
 
-    def test_add_note_to_case_appends_note(self, monkeypatch):
+    def test_add_note_to_case_appends_note(self, monkeypatch, make_payload):
         """add_note_to_case appends note ID to case.notes and persists."""
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -102,14 +94,14 @@ class TestNoteUseCases:
             object=note,
             target=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         AddNoteToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert note.as_id in case.notes
 
-    def test_add_note_to_case_idempotent(self, monkeypatch):
+    def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
         """add_note_to_case skips adding a note already in the case."""
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -134,13 +126,15 @@ class TestNoteUseCases:
             object=note,
             target=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         AddNoteToCaseReceivedUseCase(dl, event).execute()
 
         assert case.notes.count(note.as_id) == 1
 
-    def test_remove_note_from_case_removes_note(self, monkeypatch):
+    def test_remove_note_from_case_removes_note(
+        self, monkeypatch, make_payload
+    ):
         """remove_note_from_case removes note ID from case.notes and persists."""
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -165,14 +159,14 @@ class TestNoteUseCases:
             object=note,
             target=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
         assert note.as_id not in case.notes
 
-    def test_remove_note_from_case_idempotent(self, monkeypatch):
+    def test_remove_note_from_case_idempotent(self, monkeypatch, make_payload):
         """remove_note_from_case is idempotent when note not in case."""
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -196,7 +190,7 @@ class TestNoteUseCases:
             object=note,
             target=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         result = RemoveNoteFromCaseReceivedUseCase(dl, event).execute()
         assert result is None

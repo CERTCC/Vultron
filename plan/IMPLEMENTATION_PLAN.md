@@ -1,7 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-23 (refresh #45: P90 all complete; TECHDEBT-34 updated;
-BUG-001 fix and TECHDEBT-38/39 added; gap analysis updated)
+**Last Updated**: 2026-03-24 (refresh #46: TECHDEBT-36 and TECHDEBT-38 complete)
 
 ## Overview
 
@@ -731,13 +730,18 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "`_make_payload()` duplicated across tests"
 
-- [ ] **TECHDEBT-36**: Multiple test files under `test/` contain a local
+- [x] **TECHDEBT-36**: Multiple test files under `test/` contain a local
   `_make_payload(activity, **extra_fields)` helper function that was duplicated
   during a large test-file split. Identify all copies, extract the shared
   implementation into a centralized test fixture (e.g., a helper in
   `test/conftest.py` or a `test/helpers.py` utility module), and replace all
   local copies with imports of the shared version. Done when no duplicate
   `_make_payload` definitions remain and all affected tests pass.
+  **COMPLETE**: Removed local `_make_payload` from 5 test files
+  (`test_status_use_cases.py`, `test_actor_use_cases.py`, `test_note_use_cases.py`,
+  `test_case_use_cases.py`, `test_embargo_use_cases.py`). All 37 affected test
+  methods now use the `make_payload` fixture from `test/core/use_cases/conftest.py`.
+  985 tests pass.
 
 ---
 
@@ -765,7 +769,7 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
 **Source**: `plan/BUGS.md` BUG-001 (discovered during OX-1.4 test writing,
 2026-03-23)
 
-- [ ] **TECHDEBT-38**: In
+- [x] **TECHDEBT-38**: In
   `vultron/adapters/driving/fastapi/outbox_handler.py`, add a `return` (or
   `return None`) immediately after the `logger.warning(...)` line that fires
   when `actor is None`. Without this early return, the next line
@@ -773,6 +777,8 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
   no attribute 'outbox'` for any unknown `actor_id`. Done when the early return
   is present, the existing `test_outbox.py` test that covers the missing-actor
   path passes, and the full test suite passes.
+  **COMPLETE**: The early return was already present in the code (applied as
+  part of OX-1.4 work); plan entry was not yet checked off. Verified 985 tests pass.
 
 ---
 

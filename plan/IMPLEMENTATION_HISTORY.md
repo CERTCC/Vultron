@@ -2737,3 +2737,41 @@ to access domain properties instead of generic names.
 ### Test results
 
 984 passed, 5581 subtests passed.
+
+---
+
+## TECHDEBT-36 — Centralize `_make_payload()` test helper (COMPLETE 2026-03-24)
+
+**Goal**: Remove 5 duplicate local `_make_payload(activity, **extra_fields)` functions from
+test files in `test/core/use_cases/` and replace with the shared `make_payload` pytest
+fixture already defined in `test/core/use_cases/conftest.py`.
+
+**Approach**: Removed the local function definition from each of the 5 affected test files.
+Removed the now-unused `from vultron.wire.as2.extractor import extract_intent` module-level
+import from 3 files (`test_status_use_cases.py`, `test_note_use_cases.py`,
+`test_case_use_cases.py`). Added `make_payload` as a fixture parameter to all 37 test
+methods that previously called the local function.
+
+**Source files changed**:
+
+- `test/core/use_cases/test_status_use_cases.py` — removed local def, updated 7 test methods
+- `test/core/use_cases/test_actor_use_cases.py` — removed local def, updated 13 test methods
+- `test/core/use_cases/test_note_use_cases.py` — removed local def, updated 6 test methods
+- `test/core/use_cases/test_case_use_cases.py` — removed local def, updated 6 test methods
+- `test/core/use_cases/test_embargo_use_cases.py` — removed local def, updated 11 test methods
+
+### Test results
+
+985 passed, 5581 subtests passed.
+
+---
+
+## TECHDEBT-38 — Fix `outbox_handler` crash on missing actor / BUG-001 (COMPLETE 2026-03-24)
+
+**Note**: The code fix (early `return` in `outbox_handler.py` when actor is `None`) was
+already applied during OX-1.4 work. This entry records that the plan item was verified
+and checked off. No code changes needed.
+
+### Test results
+
+985 passed, 5581 subtests passed.
