@@ -37,3 +37,5 @@ ignores:
   - "wip_notes/**"
   - "node_modules/**"
   - ".github/**"
+  - ".venv/**"
+  - ".git/**"

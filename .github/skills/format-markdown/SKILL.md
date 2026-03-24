@@ -9,8 +9,8 @@ tags:
   - dev-workflow
 shell: "zsh"
 commands:
-  - "./mdlint.sh"
-  - "markdownlint-cli2 --fix --config .markdownlint-cli2.yaml \"**/*.md\" \"#.venv/**\" \"#.git/**\" \"#node_modules/**\" \"#wip_notes/**\""
+  - "markdownlint-cli2 --fix --config .markdownlint-cli2.yaml \"**/*.md\""
+  - "./mdlint.sh  # alternative: wrapper retains historical exclusions"
 inputs:
   - name: repo_root
     description: "Repository root where the command will be executed"
@@ -25,9 +25,10 @@ outputs:
 ## Purpose
 
 Ensure consistent markdown formatting and linting across the repository using
-`markdownlint-cli2`. The project provides a small wrapper script (`mdlint.sh`)
-that runs `markdownlint-cli2 --fix` with the canonical config and excludes
-local development artefacts; this SKILL documents and standardizes that usage.
+`markdownlint-cli2`. Prefer invoking the tool directly with the repository's
+configuration file (`.markdownlint-cli2.yaml`) so behavior is explicit and
+consistent. The repository also includes a legacy wrapper script (`mdlint.sh`)
+which is retained as an alternative for environments that rely on it.
 
 ## Inputs
 
@@ -41,41 +42,40 @@ local development artefacts; this SKILL documents and standardizes that usage.
 
 ## Procedure
 
-1. From the repository root (or `repo_root`), run the wrapper script which
-   invokes `markdownlint-cli2` with the project's config and excludes:
+1. From the repository root (or `repo_root`), run the linter directly using the
+project config (preferred):
 
 ```bash
-./mdlint.sh
+markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md"
 ```
 
-2. If you prefer to run the linter directly (the wrapper is the recommended
-   approach), use this explicit command (note quoting/escaping for zsh):
-
-```bash
-markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md" "#.venv/**" "#.git/**" "#node_modules/**" "#wip_notes/**"
-```
+2. The wrapper `./mdlint.sh` is available as an alternative but is no longer
+required by pre-commit (the pre-commit hook invokes `markdownlint-cli2`
+directly). Use the wrapper only if your environment does not have
+`markdownlint-cli2` available on PATH.
 
 3. Inspect the output. The wrapper attempts to auto-fix problems. If linting
    still reports failures, address them manually and re-run the command.
 
 ## Constraints / Rules
 
-- Use the wrapper `./mdlint.sh` to ensure the same exclusions and `--fix`
-  behavior across environments.
-- Do NOT run markdownlint across generated or dependency directories
-  (e.g., `.venv`, `node_modules`, `.git`, `wip_notes`). The wrapper already
-  excludes these patterns.
+ - Prefer invoking `markdownlint-cli2` directly with `--config .markdownlint-cli2.yaml`.
+ - The wrapper `./mdlint.sh` remains available as an alternative for legacy
+   environments.
+ - Do NOT run markdownlint across generated or dependency directories unless
+   your configuration deliberately includes them. The repository config file
+   contains the canonical ignore patterns.
 - Commit any formatting changes produced by the linter before running other
   commit-time checks.
 
 ## Examples
 
 ```bash
-# recommended (uses wrapper with repo exclusions)
-./mdlint.sh
+# preferred (direct, uses .markdownlint-cli2.yaml)
+markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md"
 
-# direct invocation (equivalent)
-markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md" "#.venv/**" "#.git/**" "#node_modules/**" "#wip_notes/**"
+# alternative (wrapper)
+./mdlint.sh
 ```
 
 ## Rationale
