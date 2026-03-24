@@ -22,16 +22,12 @@ from vultron.wire.as2.vocab.activities.case_participant import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.examples._base import (
-    _CASE,
     _COORDINATOR,
-    _FINDER,
-    _VENDOR,
     case,
     finder,
     vendor,
 )
 from vultron.wire.as2.vocab.examples.status import (
-    case_status,
     participant_status,
 )
 from vultron.wire.as2.vocab.objects.case_participant import (

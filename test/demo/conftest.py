@@ -18,9 +18,9 @@ from fastapi.testclient import TestClient
 
 import vultron.demo.utils as demo_utils
 from vultron.adapters.driving.fastapi.main import app as api_app
-from test.demo._helpers import (
+from test.demo._helpers import (  # noqa: F401 (re-exported for test modules)
     make_testclient_call,
-)  # noqa: F401 (re-exported for test modules)
+)
 
 # Eliminate wait delays in all demo tests. The FastAPI TestClient processes
 # background tasks synchronously, so no sleep is needed between inbox posts

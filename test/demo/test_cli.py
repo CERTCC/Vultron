@@ -28,7 +28,6 @@ class TestCliLogging:
     def test_default_log_level_is_info(self):
         """Invoking the CLI without flags must configure root logger at INFO."""
         runner = CliRunner()
-        mock_demo = MagicMock()
         with patch.dict(
             "vultron.demo.cli.__dict__",
             {},
@@ -46,7 +45,7 @@ class TestCliLogging:
         mock_fn = MagicMock()
 
         with patch.object(module, "main", mock_fn):
-            result = runner.invoke(main, [name, "--skip-health-check"])
+            runner.invoke(main, [name, "--skip-health-check"])
 
         # After CLI runs, root logger should have a handler (logging configured)
         root_handlers = logging.getLogger().handlers

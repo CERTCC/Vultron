@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterable
+from typing import Any, Dict
 import itertools
 
 from vultron.core.models.events import MessageSemantics

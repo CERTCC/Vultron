@@ -15,9 +15,6 @@ from vultron.wire.as2.vocab.activities.case import AddNoteToCaseActivity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.examples._base import (
-    _CASE,
-    _FINDER,
-    _VENDOR,
     base_url,
     case,
     finder,

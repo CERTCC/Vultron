@@ -37,7 +37,6 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import pytest
 
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 

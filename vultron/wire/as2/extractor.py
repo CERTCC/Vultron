@@ -14,8 +14,22 @@ from typing import Optional, Union
 from pydantic import BaseModel
 
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
-from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events import (
+    EVENT_CLASS_MAP,
+    MessageSemantics,
+    VultronEvent,
+)
 from vultron.core.models.enums import VultronObjectType as VOtype
+from vultron.core.models.vultron_types import (
+    VultronActivity,
+    VultronCase,
+    VultronCaseStatus,
+    VultronEmbargoEvent,
+    VultronNote,
+    VultronParticipant,
+    VultronParticipantStatus,
+    VultronReport,
+)
 from vultron.wire.as2.enums import (
     as_IntransitiveActivityType as IAtype,
     as_ObjectType as AOtype,
@@ -328,7 +342,7 @@ SEMANTICS_ACTIVITY_PATTERNS: dict[MessageSemantics, ActivityPattern] = {
 
 def extract_intent(
     activity: as_Activity,
-) -> "VultronEvent":
+) -> VultronEvent:
     """Extract semantic intent and domain fields from an AS2 activity.
 
     Returns a fully-populated per-semantic VultronEvent subclass with all
@@ -341,7 +355,6 @@ def extract_intent(
     Returns:
         A concrete VultronEvent subclass discriminated by MessageSemantics.
     """
-    from vultron.core.models.events import EVENT_CLASS_MAP, VultronEvent
 
     semantics = find_matching_semantics(activity)
 
@@ -378,17 +391,6 @@ def extract_intent(
     )
 
     def _build_domain_kwargs() -> dict:
-        from vultron.core.models.vultron_types import (
-            VultronActivity,
-            VultronCase,
-            VultronEmbargoEvent,
-            VultronNote,
-            VultronParticipant,
-            VultronParticipantStatus,
-            VultronCaseStatus,
-            VultronReport,
-        )
-
         # Use as_type string comparison because the wire parser returns
         # as_Object (base class) for nested objects; isinstance checks against
         # Vultron subtypes (EmbargoEvent, CaseParticipant, etc.) would always

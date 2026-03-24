@@ -15,7 +15,6 @@
 import logging
 from unittest.mock import MagicMock
 
-import pytest
 
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.core.use_cases.actor import (

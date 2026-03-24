@@ -341,5 +341,16 @@ def main(args):
 
 
 if __name__ == "__main__":
+    import argparse
+
+    def _parse_args():
+        parser = argparse.ArgumentParser(description="Robot Demo")
+        parser.add_argument(
+            "--print-tree",
+            action="store_true",
+            help="Print the behavior tree and exit",
+        )
+        return parser.parse_args()
+
     args = _parse_args()
     main(args)

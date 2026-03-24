@@ -26,9 +26,6 @@ from datetime import datetime, timezone
 
 import pytest
 from fastapi import HTTPException
-
-FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
-
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi._trigger_adapter import (
     close_report_trigger,
@@ -55,6 +52,8 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
+
+FUTURE_DATETIME = datetime(2099, 12, 1, tzinfo=timezone.utc)
 
 # ---------------------------------------------------------------------------
 # Fixtures

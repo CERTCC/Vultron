@@ -11,10 +11,8 @@ to be ready before proceeding.
 """
 
 import logging
-import time
 from unittest.mock import Mock, patch
 
-import pytest
 import requests
 
 from vultron.demo.receive_report_demo import (

@@ -454,7 +454,6 @@ class TestEmbargoUseCases:
 
     def test_remove_active_embargo_active_state_admin_override(self, caplog):
         """remove_embargo_event logs WARNING when EM state is ACTIVE (admin override)."""
-        import logging
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             RemoveEmbargoFromCaseActivity,

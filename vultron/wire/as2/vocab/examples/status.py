@@ -19,7 +19,7 @@ from vultron.wire.as2.vocab.activities.case_participant import (
     AddStatusToParticipantActivity,
     CreateStatusForParticipantActivity,
 )
-from vultron.wire.as2.vocab.examples._base import _VENDOR, case, vendor
+from vultron.wire.as2.vocab.examples._base import case, vendor
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
     ParticipantStatus,

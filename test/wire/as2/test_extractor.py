@@ -1,6 +1,5 @@
 """Tests for vultron.wire.as2.extractor."""
 
-import pytest
 from datetime import datetime, timezone
 
 from vultron.core.models.events import MessageSemantics

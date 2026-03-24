@@ -58,7 +58,7 @@ def mcp_validate_report(
     request = ValidateReportTriggerRequest(
         actor_id=actor_id, offer_id=offer_id, note=note
     )
-    return SvcValidateReportUseCase(dl).execute(request)
+    return SvcValidateReportUseCase(dl, request).execute()
 
 
 def mcp_invalidate_report(
@@ -69,7 +69,7 @@ def mcp_invalidate_report(
     request = InvalidateReportTriggerRequest(
         actor_id=actor_id, offer_id=offer_id, note=note
     )
-    return SvcInvalidateReportUseCase(dl).execute(request)
+    return SvcInvalidateReportUseCase(dl, request).execute()
 
 
 def mcp_reject_report(
@@ -80,7 +80,7 @@ def mcp_reject_report(
     request = RejectReportTriggerRequest(
         actor_id=actor_id, offer_id=offer_id, note=note
     )
-    return SvcRejectReportUseCase(dl).execute(request)
+    return SvcRejectReportUseCase(dl, request).execute()
 
 
 def mcp_close_report(
@@ -91,21 +91,21 @@ def mcp_close_report(
     request = CloseReportTriggerRequest(
         actor_id=actor_id, offer_id=offer_id, note=note
     )
-    return SvcCloseReportUseCase(dl).execute(request)
+    return SvcCloseReportUseCase(dl, request).execute()
 
 
 def mcp_engage_case(actor_id: str, case_id: str) -> dict[str, Any]:
     """MCP tool: engage a case for an actor."""
     dl = get_datalayer()
     request = EngageCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
-    return SvcEngageCaseUseCase(dl).execute(request)
+    return SvcEngageCaseUseCase(dl, request).execute()
 
 
 def mcp_defer_case(actor_id: str, case_id: str) -> dict[str, Any]:
     """MCP tool: defer a case for an actor."""
     dl = get_datalayer()
     request = DeferCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
-    return SvcDeferCaseUseCase(dl).execute(request)
+    return SvcDeferCaseUseCase(dl, request).execute()
 
 
 def mcp_propose_embargo(
@@ -128,7 +128,7 @@ def mcp_propose_embargo(
         note=note,
         end_time=parsed_end_time,
     )
-    return SvcProposeEmbargoUseCase(dl).execute(request)
+    return SvcProposeEmbargoUseCase(dl, request).execute()
 
 
 def mcp_evaluate_embargo(
@@ -139,7 +139,7 @@ def mcp_evaluate_embargo(
     request = EvaluateEmbargoTriggerRequest(
         actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
     )
-    return SvcEvaluateEmbargoUseCase(dl).execute(request)
+    return SvcEvaluateEmbargoUseCase(dl, request).execute()
 
 
 def mcp_terminate_embargo(actor_id: str, case_id: str) -> dict[str, Any]:
@@ -148,7 +148,7 @@ def mcp_terminate_embargo(actor_id: str, case_id: str) -> dict[str, Any]:
     request = TerminateEmbargoTriggerRequest(
         actor_id=actor_id, case_id=case_id
     )
-    return SvcTerminateEmbargoUseCase(dl).execute(request)
+    return SvcTerminateEmbargoUseCase(dl, request).execute()
 
 
 MCP_TOOLS = [

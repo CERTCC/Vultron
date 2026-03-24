@@ -15,9 +15,6 @@ The demo code needs to handle all these cases.
 """
 
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
-from vultron.wire.as2.vocab.base.objects.collections import (
-    as_OrderedCollection,
-)
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 

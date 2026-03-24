@@ -23,7 +23,6 @@ from vultron.core.models.events import MessageSemantics
 from vultron.core.use_cases.report import (
     CreateReportReceivedUseCase,
     SubmitReportReceivedUseCase,
-    AckReportReceivedUseCase,
 )
 from vultron.core.use_cases.case import CreateCaseReceivedUseCase
 

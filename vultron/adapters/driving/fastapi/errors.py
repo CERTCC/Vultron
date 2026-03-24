@@ -5,12 +5,11 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError as PydanticValidationError
 
 from vultron.errors import (
-    VultronApiHandlerNotFoundError,
     VultronConflictError,
     VultronError,
     VultronNotFoundError,
     VultronValidationError,
-)  # noqa: F401
+)
 
 
 @contextmanager

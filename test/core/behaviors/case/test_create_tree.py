@@ -131,13 +131,6 @@ def test_create_case_tree_creates_case_actor(
 ):
     tree = create_create_case_tree(case_obj=case_obj, actor_id=actor.as_id)
     bridge.execute_with_setup(tree=tree, actor_id=actor.as_id, activity=None)
-    all_objects = datalayer.get_all("Service")
-    case_actors = [
-        r
-        for r in all_objects
-        if isinstance(r, dict)
-        and r.get("data_", {}).get("context") == case_obj.as_id
-    ]
     # Verify at least one CaseActor exists for this case
     # (also checking via read fallback if stored under different table)
     found = False
