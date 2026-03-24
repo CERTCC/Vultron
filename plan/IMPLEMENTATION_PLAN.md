@@ -945,9 +945,8 @@ They are larger structural changes; plan as a single coordinated PR.
   `roles.py` (CVDRoles, add_role). Updated `__init__.py` and all 59 callers.
   Deleted original `states.py` files. No shims. 982 tests pass.
 
-- [ ] **VCR-019d** (future): Consider using the `transitions` module to model
-  RM/EM/CS state machines once enum consolidation is complete. Defer until after
-  VCR-019a/b/c are done.
+- [x] **VCR-019d**: Consider using the `transitions` module to model
+  RM/EM/CS state machines once enum consolidation is complete.
 
 - [x] **VCR-019e**: Convert older non-StrEnum Enums to `StrEnum` where semantically
   appropriate (i.e., where string representation is the primary use). Apply
