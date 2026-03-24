@@ -136,6 +136,7 @@ the format and examples.
 - **pylint** / **flake8** for linting (recommended)
 - **markdownlint-cli2** for markdown linting (use the repository's
    `mdlint.sh` wrapper; see `.github/skills/format-markdown/SKILL.md`)
+- **pyright** for static type checking (recommended alongside `mypy`)
 
 Agents MUST NOT introduce alternative frameworks or package managers without
 explicit approval from the maintainers.
