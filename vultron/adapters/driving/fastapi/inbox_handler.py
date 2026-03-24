@@ -126,7 +126,7 @@ async def inbox_handler(actor_id: str, dl: DataLayer) -> None:
     while actor_io.inbox.items:
         item = actor_io.inbox.items.pop(0)
 
-        item = rehydrate(item)
+        item = rehydrate(item, dl=dl)
 
         logger.debug("Rehydrated item from inbox: %s", item.as_type)
         if hasattr(item, "as_object"):

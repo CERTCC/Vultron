@@ -17,10 +17,9 @@
 Wire-layer object rehydration utilities.
 
 ``rehydrate`` converts a loosely-typed ``as_Object`` (or a string ID reference)
-into the correct wire-vocabulary subclass.  Callers that already hold a
-``DataLayer`` instance SHOULD pass it via the *dl* parameter; when *dl* is
-omitted the function falls back to ``get_datalayer()`` for backward
-compatibility with code paths that do not have a DataLayer in scope.
+into the correct wire-vocabulary subclass.  Callers MUST pass the active
+``DataLayer`` instance via the *dl* parameter so that string ID references can
+be resolved without importing a concrete adapter.
 """
 
 from __future__ import annotations
@@ -30,7 +29,6 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
@@ -43,7 +41,7 @@ MAX_REHYDRATION_DEPTH = 5
 
 
 def rehydrate(
-    obj: as_Object | str, dl: DataLayer | None = None, depth: int = 0
+    obj: as_Object | str, dl: DataLayer, depth: int = 0
 ) -> as_Object | str:
     """Recursively rehydrate an object if needed.
 
@@ -51,8 +49,7 @@ def rehydrate(
 
     Args:
         obj: The object (or string ID) to rehydrate.
-        dl: Optional DataLayer used to resolve string ID references.  When
-            *None* the function falls back to ``get_datalayer()``.
+        dl: DataLayer used to resolve string ID references.
         depth: Current recursion depth (callers should not set this).
 
     Returns:
@@ -70,16 +67,8 @@ def rehydrate(
         )
 
     if isinstance(obj, str):
-        if dl is not None:
-            logger.debug(
-                "Rehydrating string ID '%s' via provided DataLayer.", obj
-            )
-            resolved = dl.read(obj)
-        else:
-            logger.debug(
-                "Rehydrating string ID '%s' via fallback get_datalayer().", obj
-            )
-            resolved = get_datalayer().get(id_=obj)
+        logger.debug("Rehydrating string ID '%s' via provided DataLayer.", obj)
+        resolved = dl.read(obj)
 
         if resolved is None:
             raise ValueError(f"Object '{obj}' not found in data layer")

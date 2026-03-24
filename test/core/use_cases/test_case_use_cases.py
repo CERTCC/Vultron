@@ -31,11 +31,6 @@ class TestCaseUseCases:
     ):
         """update_case applies name/summary/content updates from a full object."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         owner_id = "https://example.org/users/owner"
         case = VulnerabilityCase(
             id="https://example.org/cases/uc1",
@@ -79,11 +74,6 @@ class TestCaseUseCases:
     ):
         """update_case logs a warning and skips if actor is not the case owner."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         owner_id = "https://example.org/users/owner"
         non_owner_id = "https://example.org/users/other"
         case = VulnerabilityCase(
@@ -115,11 +105,6 @@ class TestCaseUseCases:
     def test_update_case_idempotent(self, monkeypatch, make_payload):
         """update_case with same data produces the same result (last-write-wins)."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         owner_id = "https://example.org/users/owner"
         case = VulnerabilityCase(
             id="https://example.org/cases/uc3",
@@ -161,11 +146,6 @@ class TestCaseUseCases:
     ):
         """update_case logs WARNING per CM-10-004 when a participant has not accepted the active embargo."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/alice"
         embargo = EmbargoEvent(id="https://example.org/embargoes/em1")
@@ -209,11 +189,6 @@ class TestCaseUseCases:
     ):
         """update_case does NOT warn when all participants have accepted the active embargo (CM-10-004)."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/bob"
         embargo = EmbargoEvent(id="https://example.org/embargoes/em2")
@@ -254,11 +229,6 @@ class TestCaseUseCases:
     ):
         """update_case does NOT warn when there is no active embargo (CM-10-004)."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/carol"
 

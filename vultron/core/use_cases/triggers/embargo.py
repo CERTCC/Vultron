@@ -23,7 +23,6 @@ import logging
 
 from transitions import MachineError
 
-from vultron.adapters.driven.db_record import object_to_record
 from vultron.core.states.em import EM, EMAdapter, create_em_machine
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases.triggers._helpers import (
@@ -134,7 +133,7 @@ class SvcProposeEmbargoUseCase:
             )
 
         case.proposed_embargoes.append(embargo.as_id)
-        dl.update(case.as_id, object_to_record(case))
+        dl.save(case)
 
         add_activity_to_outbox(actor_id, proposal.as_id, dl)
 
@@ -214,7 +213,7 @@ class SvcEvaluateEmbargoUseCase:
 
         case.set_embargo(embargo_id)
         case.current_status.em_state = EM.ACTIVE
-        dl.update(case.as_id, object_to_record(case))
+        dl.save(case)
 
         add_activity_to_outbox(actor_id, accept.as_id, dl)
 
@@ -290,7 +289,7 @@ class SvcTerminateEmbargoUseCase:
 
         case.current_status.em_state = EM(adapter.state)
         case.active_embargo = None
-        dl.update(case.as_id, object_to_record(case))
+        dl.save(case)
 
         add_activity_to_outbox(actor_id, announce.as_id, dl)
 

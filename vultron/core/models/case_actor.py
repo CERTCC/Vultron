@@ -34,7 +34,7 @@ class VultronCaseActor(VultronObject):
     Mirrors the Vultron-specific fields of ``CaseActor`` (which inherits
     ``as_Service``).  The ``outbox`` field carries the actor's outgoing
     activity IDs and is required so that ``UpdateActorOutbox`` can append
-    to it via ``save_to_datalayer``.
+    to it via ``datalayer.save``.
     ``as_type`` is ``"Service"`` to match ``CaseActor``'s wire value.
     """
 

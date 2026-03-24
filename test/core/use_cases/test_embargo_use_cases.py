@@ -116,11 +116,6 @@ class TestEmbargoUseCases:
         from vultron.core.states.em import EM
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         case = VulnerabilityCase(
             id="https://example.org/cases/case_em1",
             name="EM Test Case",
@@ -191,11 +186,6 @@ class TestEmbargoUseCases:
         from vultron.core.states.em import EM
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         case = VulnerabilityCase(
             id="https://example.org/cases/case_em3",
             name="EM Accept Test",
@@ -246,11 +236,6 @@ class TestEmbargoUseCases:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         coordinator_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
             id="https://example.org/cases/case_em5",
@@ -305,11 +290,6 @@ class TestEmbargoUseCases:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         case = VulnerabilityCase(
             id="https://example.org/cases/case_em6",
             name="EM Accept Event Test",

@@ -2775,3 +2775,83 @@ and checked off. No code changes needed.
 ### Test results
 
 985 passed, 5581 subtests passed.
+
+---
+
+## TECHDEBT-32 / TECHDEBT-32b — DataLayer boundary audit and core adapter import removal (COMPLETE 2026-03-24)
+
+### What was done
+
+**TECHDEBT-32 (research)**: Audited the `core`/`DataLayer` boundary for layer
+violations. Findings written to `notes/datalayer-refactor.md`.
+
+Key findings:
+
+1. **Core violations** (CS-05-001): `vultron/core/use_cases/triggers/embargo.py`
+   and `vultron/core/use_cases/triggers/_helpers.py` both imported
+   `object_to_record` from `vultron.adapters.driven.db_record`. 5 call sites
+   used `dl.update(obj.as_id, object_to_record(obj))`.
+2. **Redundant core helper**: `save_to_datalayer()` in
+   `vultron/core/behaviors/helpers.py` duplicated `dl.save()` using
+   `StorableRecord`; used in BT nodes (`case/nodes.py`, `report/nodes.py`).
+3. **Wire violation** (separate task TECHDEBT-32c): `rehydration.py` imports
+   `get_datalayer` from the TinyDB adapter as a fallback.
+4. `Record`/`StorableRecord` hierarchy is architecturally sound — no changes
+   needed. `find_in_vocabulary` usages are all in adapter or wire layers.
+
+**TECHDEBT-32b (code fix)**: Standardised on `dl.save(obj)` across all core code:
+
+- Removed `object_to_record` import from `triggers/embargo.py` and
+  `triggers/_helpers.py`. Replaced 5 `dl.update(..., object_to_record(...))` calls
+  with `dl.save(obj)`.
+- Replaced 4 `save_to_datalayer(self.datalayer, obj)` calls in BT nodes
+  (`case/nodes.py`, `report/nodes.py`) with `self.datalayer.save(obj)`.
+- Deleted `save_to_datalayer()` function from `helpers.py`.
+- Removed now-unused `BaseModel` import from `helpers.py`.
+- Added TECHDEBT-32c to plan for remaining wire-imports-adapter violation in
+  `rehydration.py`.
+
+### Lessons learned
+
+The three `dl.save()` patterns (`object_to_record` + `dl.update`, `save_to_datalayer`,
+and direct `dl.save`) all existed simultaneously, causing confusion. `dl.save()`
+is now the canonical single pattern for persisting domain objects from core code.
+
+### Test results
+
+985 passed, 5581 subtests passed.
+
+---
+
+## TECHDEBT-32c — Remove get_datalayer fallback from wire/as2/rehydration.py
+
+**Completed**: 2026-03-24
+
+### What was done
+
+Removed the adapter-layer import (`from vultron.adapters.driven.datalayer_tinydb
+import get_datalayer`) from `vultron/wire/as2/rehydration.py`. The wire layer
+must not import from a concrete adapter implementation.
+
+- Made `dl: DataLayer` a required positional parameter in `rehydrate()`;
+  removed the `None` default and the fallback `get_datalayer()` call.
+- Updated three adapter-layer callers to pass `dl` explicitly:
+  `vultron/adapters/driving/cli.py`,
+  `vultron/adapters/driving/fastapi/routers/datalayer.py`,
+  `vultron/adapters/driving/fastapi/inbox_handler.py`.
+- Removed 25 legacy `monkeypatch.setattr(rehydration.get_datalayer, ...)` stubs
+  from 6 test files under `test/core/use_cases/` — these were defensive patches
+  for a fallback that no longer exists.
+- Updated test mock in `test/api/v2/backend/test_inbox_handler.py` to accept
+  `dl` keyword argument.
+
+### Lessons learned
+
+The "all production callers already pass `dl` explicitly" note in the plan was
+incorrect — three adapter-layer callers were not passing `dl`. The fix required
+updating callers in addition to removing the fallback. Always verify caller
+state before relying on plan notes about external-facing APIs.
+
+### Test results
+
+985 passed, 5581 subtests passed.

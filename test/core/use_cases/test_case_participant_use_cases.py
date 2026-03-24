@@ -37,11 +37,6 @@ class TestCaseParticipantUseCases:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         case = VulnerabilityCase(
             id="https://example.org/cases/case2",
             name="TEST-REMOVE",
@@ -130,10 +125,6 @@ class TestCaseParticipantUseCases:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
         actor_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
             id="https://example.org/cases/caseAP1",
@@ -177,10 +168,6 @@ class TestCaseParticipantUseCases:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
         actor_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
             id="https://example.org/cases/caseRM1",

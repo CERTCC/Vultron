@@ -73,11 +73,6 @@ class TestNoteUseCases:
     def test_add_note_to_case_appends_note(self, monkeypatch, make_payload):
         """add_note_to_case appends note ID to case.notes and persists."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         case = VulnerabilityCase(
             id="https://example.org/cases/case_n1",
             name="Note Case",
@@ -104,11 +99,6 @@ class TestNoteUseCases:
     def test_add_note_to_case_idempotent(self, monkeypatch, make_payload):
         """add_note_to_case skips adding a note already in the case."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         note = as_Note(
             id="https://example.org/notes/note4",
             content="A note",
@@ -137,11 +127,6 @@ class TestNoteUseCases:
     ):
         """remove_note_from_case removes note ID from case.notes and persists."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         note = as_Note(
             id="https://example.org/notes/note5",
             content="A note",
@@ -169,11 +154,6 @@ class TestNoteUseCases:
     def test_remove_note_from_case_idempotent(self, monkeypatch, make_payload):
         """remove_note_from_case is idempotent when note not in case."""
         dl = TinyDbDataLayer(db_path=None)
-        monkeypatch.setattr(
-            "vultron.wire.as2.rehydration.get_datalayer",
-            lambda **_: dl,
-        )
-
         note = as_Note(
             id="https://example.org/notes/note6",
             content="A note",

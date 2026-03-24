@@ -47,3 +47,29 @@ OPP-05 (consolidate duplicate participant RM helpers) is explicitly NOT done
 This is captured as TECHDEBT-39 in `plan/IMPLEMENTATION_PLAN.md`.
 
 ---
+
+---
+
+## `dl.save()` is the canonical persistence pattern for core code
+
+After TECHDEBT-32b, `dl.save(obj)` is the **sole** approved pattern for
+persisting domain objects from core code:
+
+```python
+# Correct
+dl.save(case)
+dl.save(participant)
+dl.save(actor_obj)
+
+# Now removed from codebase (do not reintroduce):
+dl.update(obj.as_id, object_to_record(obj))   # core importing adapter
+save_to_datalayer(dl, obj)                      # redundant core helper
+```
+
+The `save_to_datalayer()` helper has been deleted. The `object_to_record`
+import from adapter is banned in core. Future core/BT code must use
+`dl.save(obj)` exclusively.
+
+TECHDEBT-32c remains open: `vultron/wire/as2/rehydration.py` imports
+`get_datalayer` from the TinyDB adapter as a fallback — this is a
+wire-imports-adapter violation to be fixed separately.

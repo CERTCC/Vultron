@@ -54,7 +54,7 @@ def deliver(actor_id: str, activity_json) -> None:
         click.echo(f"Parse error: {e}", err=True)
         sys.exit(1)
 
-    activity = rehydrate(activity)
+    activity = rehydrate(activity, dl=dl)
     handle_inbox_item(actor_id=actor_id, obj=activity, dl=dl)
     click.echo("Activity delivered.")
 
