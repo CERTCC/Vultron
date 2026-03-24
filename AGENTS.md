@@ -719,21 +719,24 @@ to relevant tests and design notes.
 ### Commit Workflow
 
 **BEFORE committing**, agents MUST follow the procedure documented in
-`.github/skills/format-code/SKILL.md` (format first), then `.github/skills/run-tests/SKILL.md` (run
-the test-suite exactly once), then commit. The skill files contain the exact
-commands and the required invocation order.
+`.github/skills/format-code/SKILL.md` (format and lint first), then
+`.github/skills/run-tests/SKILL.md` (run the test-suite exactly once), then
+commit. The skill files contain the exact commands and the required
+invocation order.
 
 **Why this order matters**:
 
-1. Black formatting is enforced by pre-commit hooks — format first to avoid a
-   failed commit → re-stage → re-commit cycle.
+1. Black formatting is enforced by pre-commit hooks — format (and run
+   flake8) first to avoid a failed commit → re-stage → re-commit cycle.
 2. The test suite must pass before committing — read the single-run test
    output as documented in the skill file (the skill explains how to capture
    the summary line and why you must not re-run pytest to grep for counts).
 
-**When to run Black**:
+**When to run formatting and linters**:
 
 - After editing any Python files, before staging for commit
+- Run `flake8` on `vultron/` and `test/` to catch linting issues before
+  committing
 - Do NOT run `black` on markdown files (use `markdownlint-cli2` for those)
 
 **Alternative**: If you forget and the pre-commit hook reformats files, simply:

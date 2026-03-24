@@ -31,8 +31,9 @@ Objective: Fix the highest-priority open bug using test-first development.
 
 7. Finalize
    - Mark the bug fixed in plan/BUGS.md.
-   - Update plan/IMPLEMENTATION_NOTES.md with relevant details.
+   - Update plan/IMPLEMENTATION_HISTORY.md with relevant details.
      - include a summary of the issue, root cause, and how it was resolved.
+   - Add lessons learned (if any) to plan/IMPLEMENTATION_NOTES.md.
      - include notes about other bugs encountered if applicable.
      - include notes of architectural or design implications if applicable
    - git add and commit changes with a clear, specific message.

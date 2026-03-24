@@ -26,19 +26,12 @@ from vultron.core.use_cases.embargo import (
 )
 
 
-def _make_payload(activity, **extra_fields):
-    from vultron.wire.as2.extractor import extract_intent
-
-    event = extract_intent(activity)
-    if extra_fields:
-        return event.model_copy(update=extra_fields)
-    return event
-
-
 class TestEmbargoUseCases:
     """Tests for embargo management handlers."""
 
-    def test_create_embargo_event_stores_event(self, monkeypatch):
+    def test_create_embargo_event_stores_event(
+        self, monkeypatch, make_payload
+    ):
         """create_embargo_event persists the EmbargoEvent to the DataLayer."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -65,14 +58,14 @@ class TestEmbargoUseCases:
             context=case,
         )
 
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         CreateEmbargoEventReceivedUseCase(dl, event).execute()
 
         stored = dl.get(embargo.as_type.value, embargo.as_id)
         assert stored is not None
 
-    def test_create_embargo_event_idempotent(self, monkeypatch):
+    def test_create_embargo_event_idempotent(self, monkeypatch, make_payload):
         """create_embargo_event skips storing a duplicate EmbargoEvent."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.base.objects.activities.transitive import (
@@ -98,7 +91,7 @@ class TestEmbargoUseCases:
             object=embargo,
             context=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         CreateEmbargoEventReceivedUseCase(dl, event).execute()
         CreateEmbargoEventReceivedUseCase(
@@ -108,7 +101,9 @@ class TestEmbargoUseCases:
         stored = dl.get(embargo.as_type.value, embargo.as_id)
         assert stored is not None
 
-    def test_add_embargo_event_to_case_activates_embargo(self, monkeypatch):
+    def test_add_embargo_event_to_case_activates_embargo(
+        self, monkeypatch, make_payload
+    ):
         """add_embargo_event_to_case sets the active embargo on the case."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
@@ -142,7 +137,7 @@ class TestEmbargoUseCases:
             object=embargo,
             target=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         AddEmbargoEventToCaseReceivedUseCase(dl, event).execute()
 
@@ -150,7 +145,9 @@ class TestEmbargoUseCases:
         assert case.active_embargo is not None
         assert case.current_status.em_state == EM.ACTIVE
 
-    def test_invite_to_embargo_on_case_stores_proposal(self, monkeypatch):
+    def test_invite_to_embargo_on_case_stores_proposal(
+        self, monkeypatch, make_payload
+    ):
         """invite_to_embargo_on_case persists the EmProposeEmbargoActivity activity."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
@@ -171,7 +168,7 @@ class TestEmbargoUseCases:
             context="https://example.org/cases/case_em2",
         )
 
-        event = _make_payload(proposal)
+        event = make_payload(proposal)
 
         InviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
@@ -179,7 +176,7 @@ class TestEmbargoUseCases:
         assert stored is not None
 
     def test_accept_invite_to_embargo_on_case_activates_embargo(
-        self, monkeypatch
+        self, monkeypatch, make_payload
     ):
         """accept_invite_to_embargo_on_case activates the embargo on the case."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
@@ -223,7 +220,7 @@ class TestEmbargoUseCases:
             object=proposal,
             context=case,
         )
-        event = _make_payload(accept)
+        event = make_payload(accept)
 
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
@@ -232,7 +229,7 @@ class TestEmbargoUseCases:
         assert case.current_status.em_state == EM.ACTIVE
 
     def test_accept_invite_to_embargo_records_embargo_on_participant(
-        self, monkeypatch
+        self, monkeypatch, make_payload
     ):
         """accept_invite_to_embargo_on_case records embargo ID in participant.accepted_embargo_ids (CM-10-002, CM-10-003)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
@@ -285,7 +282,7 @@ class TestEmbargoUseCases:
             object=proposal,
             context=case,
         )
-        event = _make_payload(accept)
+        event = make_payload(accept)
 
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
@@ -293,7 +290,9 @@ class TestEmbargoUseCases:
         assert updated_participant is not None
         assert embargo.as_id in updated_participant.accepted_embargo_ids
 
-    def test_accept_invite_to_embargo_records_case_event(self, monkeypatch):
+    def test_accept_invite_to_embargo_records_case_event(
+        self, monkeypatch, make_payload
+    ):
         """accept_invite_to_embargo_on_case appends a trusted-timestamp event to case.events (CM-02-009)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
@@ -334,7 +333,7 @@ class TestEmbargoUseCases:
             object=proposal,
             context=case,
         )
-        event = _make_payload(accept)
+        event = make_payload(accept)
 
         assert len(case.events) == 0
 
@@ -345,7 +344,9 @@ class TestEmbargoUseCases:
         event_types = [e.event_type for e in case.events]
         assert "embargo_accepted" in event_types
 
-    def test_reject_invite_to_embargo_on_case_logs_rejection(self):
+    def test_reject_invite_to_embargo_on_case_logs_rejection(
+        self, make_payload
+    ):
         """reject_invite_to_embargo_on_case logs without raising."""
         from vultron.wire.as2.vocab.activities.embargo import (
             EmProposeEmbargoActivity,
@@ -369,14 +370,16 @@ class TestEmbargoUseCases:
             context="https://example.org/cases/case_em4",
         )
 
-        event = _make_payload(reject)
+        event = make_payload(reject)
 
         result = RejectInviteToEmbargoOnCaseReceivedUseCase(
             MagicMock(), event
         ).execute()
         assert result is None
 
-    def test_remove_embargo_from_proposed_clears_proposed_list(self):
+    def test_remove_embargo_from_proposed_clears_proposed_list(
+        self, make_payload
+    ):
         """remove_embargo_event removes embargo from proposed_embargoes."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
@@ -405,7 +408,7 @@ class TestEmbargoUseCases:
             object=embargo,
             origin=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
 
@@ -415,7 +418,9 @@ class TestEmbargoUseCases:
             for e in updated.proposed_embargoes
         ]
 
-    def test_remove_active_embargo_proposed_state_transitions_to_none(self):
+    def test_remove_active_embargo_proposed_state_transitions_to_none(
+        self, make_payload
+    ):
         """remove_embargo_event uses REJECT machine trigger when EM is PROPOSED."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
@@ -444,7 +449,7 @@ class TestEmbargoUseCases:
             object=embargo,
             origin=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
 
@@ -452,7 +457,9 @@ class TestEmbargoUseCases:
         assert updated.active_embargo is None
         assert updated.current_status.em_state == EM.NONE
 
-    def test_remove_active_embargo_active_state_admin_override(self, caplog):
+    def test_remove_active_embargo_active_state_admin_override(
+        self, caplog, make_payload
+    ):
         """remove_embargo_event logs WARNING when EM state is ACTIVE (admin override)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
@@ -481,7 +488,7 @@ class TestEmbargoUseCases:
             object=embargo,
             origin=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
             RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()

@@ -8,7 +8,7 @@ tags:
   - dev-workflow
 shell: "zsh"
 commands:
-  - "uv run black vultron/ test/"
+  - "uv run black vultron/ test/ && uv run flake8 vultron/ test/"
 inputs:
   - name: repo_root
     description: "Repository root"
@@ -36,11 +36,11 @@ consistent code style and avoids pre-commit failures.
 
 ## Procedure
 
-1. From the repository root, run Black on the `vultron/` and `test/`
-   directories:
+1. From the repository root, run Black and flake8 on the `vultron/` and
+   `test/` directories:
 
 ```bash
-uv run black vultron/ test/
+uv run black vultron/ test/ && uv run flake8 vultron/ test/
 ```
 
 2. Inspect the output and stage changes if any files were reformatted.
@@ -55,7 +55,7 @@ uv run black vultron/ test/
 
 ```bash
 cd "$REPO_ROOT"
-uv run black vultron/ test/
+uv run black vultron/ test/ && uv run flake8 vultron/ test/
 ```
 
 ## Rationale

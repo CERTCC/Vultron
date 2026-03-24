@@ -20,7 +20,6 @@ from vultron.core.use_cases.status import (
     CreateCaseStatusReceivedUseCase,
     CreateParticipantStatusReceivedUseCase,
 )
-from vultron.wire.as2.extractor import extract_intent
 from vultron.wire.as2.vocab.activities.case import (
     AddStatusToCaseActivity,
     CreateCaseStatusActivity,
@@ -37,17 +36,10 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
-def _make_payload(activity, **extra_fields):
-    event = extract_intent(activity)
-    if extra_fields:
-        return event.model_copy(update=extra_fields)
-    return event
-
-
 class TestStatusUseCases:
     """Tests for case status and participant status handlers."""
 
-    def test_create_case_status_stores_status(self, monkeypatch):
+    def test_create_case_status_stores_status(self, monkeypatch, make_payload):
         """create_case_status persists the CaseStatus to the DataLayer."""
 
         dl = TinyDbDataLayer(db_path=None)
@@ -66,14 +58,14 @@ class TestStatusUseCases:
             context=case.as_id,
         )
 
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         CreateCaseStatusReceivedUseCase(dl, event).execute()
 
         stored = dl.get(status.as_type.value, status.as_id)
         assert stored is not None
 
-    def test_create_case_status_idempotent(self, monkeypatch):
+    def test_create_case_status_idempotent(self, monkeypatch, make_payload):
         """create_case_status skips storing a duplicate CaseStatus."""
         dl = TinyDbDataLayer(db_path=None)
 
@@ -92,14 +84,16 @@ class TestStatusUseCases:
             object=status,
             context=case.as_id,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         CreateCaseStatusReceivedUseCase(dl, event).execute()
 
         stored = dl.get(status.as_type.value, status.as_id)
         assert stored is not None
 
-    def test_add_case_status_to_case_appends_status(self, monkeypatch):
+    def test_add_case_status_to_case_appends_status(
+        self, monkeypatch, make_payload
+    ):
         """add_case_status_to_case appends status ID to case.case_statuses."""
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -123,7 +117,7 @@ class TestStatusUseCases:
             object=status,
             target=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
@@ -133,7 +127,9 @@ class TestStatusUseCases:
         ]
         assert status.as_id in status_ids
 
-    def test_add_case_status_blocks_invalid_em_transition(self, monkeypatch):
+    def test_add_case_status_blocks_invalid_em_transition(
+        self, monkeypatch, make_payload
+    ):
         """Invalid EM transition is blocked; status is not appended."""
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -168,7 +164,7 @@ class TestStatusUseCases:
             object=bad_status,
             target=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
@@ -181,7 +177,9 @@ class TestStatusUseCases:
             bad_status.as_id not in status_ids
         ), "Bad status should not have been appended"
 
-    def test_add_case_status_allows_valid_em_transition(self, monkeypatch):
+    def test_add_case_status_allows_valid_em_transition(
+        self, monkeypatch, make_payload
+    ):
         """Valid EM transition is permitted; status is appended."""
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
@@ -214,7 +212,7 @@ class TestStatusUseCases:
             object=good_status,
             target=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
@@ -225,7 +223,9 @@ class TestStatusUseCases:
         ]
         assert good_status.as_id in status_ids
 
-    def test_create_participant_status_stores_status(self, monkeypatch):
+    def test_create_participant_status_stores_status(
+        self, monkeypatch, make_payload
+    ):
         """create_participant_status persists the ParticipantStatus."""
         dl = TinyDbDataLayer(db_path=None)
 
@@ -243,7 +243,7 @@ class TestStatusUseCases:
             context=case_ps1,
         )
 
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         CreateParticipantStatusReceivedUseCase(dl, event).execute()
 
@@ -251,7 +251,7 @@ class TestStatusUseCases:
         assert stored is not None
 
     def test_add_participant_status_to_participant_appends_status(
-        self, monkeypatch
+        self, monkeypatch, make_payload
     ):
         """add_participant_status_to_participant appends status to participant."""
         dl = TinyDbDataLayer(db_path=None)
@@ -282,7 +282,7 @@ class TestStatusUseCases:
             target=participant,
             context=case_ps2,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
 

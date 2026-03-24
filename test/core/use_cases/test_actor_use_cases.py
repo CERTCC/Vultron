@@ -30,20 +30,13 @@ from vultron.core.use_cases.actor import (
 )
 
 
-def _make_payload(activity, **extra_fields):
-    from vultron.wire.as2.extractor import extract_intent
-
-    event = extract_intent(activity)
-    if extra_fields:
-        return event.model_copy(update=extra_fields)
-    return event
-
-
 class TestInviteActorUseCases:
     """Tests for invite_actor_to_case, accept_invite_actor_to_case,
     and reject_invite_actor_to_case."""
 
-    def test_invite_actor_to_case_stores_invite(self, monkeypatch):
+    def test_invite_actor_to_case_stores_invite(
+        self, monkeypatch, make_payload
+    ):
         """InviteActorToCaseReceivedUseCase persists the Invite activity to the DataLayer."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case import (
@@ -59,14 +52,14 @@ class TestInviteActorUseCases:
             target="https://example.org/cases/case1",
         )
 
-        event = _make_payload(invite)
+        event = make_payload(invite)
 
         InviteActorToCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.get(invite.as_type.value, invite.as_id)
         assert stored is not None
 
-    def test_invite_actor_to_case_idempotent(self, monkeypatch):
+    def test_invite_actor_to_case_idempotent(self, monkeypatch, make_payload):
         """InviteActorToCaseReceivedUseCase skips storing a duplicate Invite."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case import (
@@ -82,7 +75,7 @@ class TestInviteActorUseCases:
             target="https://example.org/cases/case1",
         )
 
-        event = _make_payload(invite)
+        event = make_payload(invite)
 
         InviteActorToCaseReceivedUseCase(dl, event).execute()
         InviteActorToCaseReceivedUseCase(
@@ -92,7 +85,7 @@ class TestInviteActorUseCases:
         stored = dl.get(invite.as_type.value, invite.as_id)
         assert stored is not None
 
-    def test_reject_invite_actor_to_case_logs_rejection(self):
+    def test_reject_invite_actor_to_case_logs_rejection(self, make_payload):
         """RejectInviteActorToCaseReceivedUseCase logs without raising."""
         from vultron.wire.as2.vocab.activities.case import (
             RmInviteToCaseActivity,
@@ -110,14 +103,16 @@ class TestInviteActorUseCases:
             object=invite,
         )
 
-        event = _make_payload(reject)
+        event = make_payload(reject)
 
         result = RejectInviteActorToCaseReceivedUseCase(
             MagicMock(), event
         ).execute()
         assert result is None
 
-    def test_accept_invite_actor_to_case_adds_participant(self, monkeypatch):
+    def test_accept_invite_actor_to_case_adds_participant(
+        self, monkeypatch, make_payload
+    ):
         """AcceptInviteActorToCaseReceivedUseCase creates a CaseParticipant and adds them to the case."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case import (
@@ -155,7 +150,7 @@ class TestInviteActorUseCases:
             object=invite,
         )
 
-        event = _make_payload(accept)
+        event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
@@ -163,7 +158,7 @@ class TestInviteActorUseCases:
         assert invitee_id in case.actor_participant_index
 
     def test_accept_invite_actor_to_case_records_active_embargo(
-        self, monkeypatch
+        self, monkeypatch, make_payload
     ):
         """AcceptInviteActorToCaseReceivedUseCase records the active embargo ID on the new participant (CM-10-001, CM-10-003)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
@@ -209,7 +204,7 @@ class TestInviteActorUseCases:
             object=invite,
         )
 
-        event = _make_payload(accept)
+        event = make_payload(accept)
 
         AcceptInviteActorToCaseReceivedUseCase(dl, event).execute()
 
@@ -220,7 +215,9 @@ class TestInviteActorUseCases:
         assert participant_obj is not None
         assert embargo.as_id in participant_obj.accepted_embargo_ids
 
-    def test_accept_invite_actor_to_case_records_case_event(self, monkeypatch):
+    def test_accept_invite_actor_to_case_records_case_event(
+        self, monkeypatch, make_payload
+    ):
         """AcceptInviteActorToCaseReceivedUseCase appends a trusted-timestamp event to case.events (CM-02-009)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case import (
@@ -258,7 +255,7 @@ class TestInviteActorUseCases:
             object=invite,
         )
 
-        event = _make_payload(accept)
+        event = make_payload(accept)
 
         assert len(case.events) == 0
 
@@ -273,7 +270,9 @@ class TestInviteActorUseCases:
 class TestSuggestActorUseCases:
     """Tests for suggest_actor_to_case, accept/reject suggest_actor use cases."""
 
-    def test_suggest_actor_to_case_persists_recommendation(self, monkeypatch):
+    def test_suggest_actor_to_case_persists_recommendation(
+        self, monkeypatch, make_payload
+    ):
         """SuggestActorToCaseReceivedUseCase persists the RecommendActor offer."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -295,14 +294,14 @@ class TestSuggestActorUseCases:
             to="https://example.org/users/vendor",
         )
 
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         SuggestActorToCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.get(activity.as_type.value, activity.as_id)
         assert stored is not None
 
-    def test_suggest_actor_to_case_idempotent(self, monkeypatch):
+    def test_suggest_actor_to_case_idempotent(self, monkeypatch, make_payload):
         """SuggestActorToCaseReceivedUseCase is idempotent — second call is a no-op."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.actor import (
@@ -322,7 +321,7 @@ class TestSuggestActorUseCases:
             object=coordinator,
             target=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         SuggestActorToCaseReceivedUseCase(dl, event).execute()
         SuggestActorToCaseReceivedUseCase(dl, event).execute()
@@ -331,7 +330,7 @@ class TestSuggestActorUseCases:
         assert stored is not None
 
     def test_accept_suggest_actor_to_case_persists_acceptance(
-        self, monkeypatch
+        self, monkeypatch, make_payload
     ):
         """AcceptSuggestActorToCaseReceivedUseCase persists the AcceptActorRecommendation."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
@@ -358,7 +357,7 @@ class TestSuggestActorUseCases:
             object=recommendation,
             target=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         AcceptSuggestActorToCaseReceivedUseCase(dl, event).execute()
 
@@ -366,7 +365,7 @@ class TestSuggestActorUseCases:
         assert stored is not None
 
     def test_reject_suggest_actor_to_case_logs_rejection(
-        self, monkeypatch, caplog
+        self, monkeypatch, caplog, make_payload
     ):
         """RejectSuggestActorToCaseReceivedUseCase logs rejection without state change."""
         from vultron.wire.as2.vocab.activities.actor import (
@@ -390,7 +389,7 @@ class TestSuggestActorUseCases:
             object=recommendation,
             target=case,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         with caplog.at_level(logging.INFO):
             RejectSuggestActorToCaseReceivedUseCase(
@@ -403,7 +402,9 @@ class TestSuggestActorUseCases:
 class TestOwnershipTransferUseCases:
     """Tests for offer/accept/reject ownership transfer use cases."""
 
-    def test_offer_case_ownership_transfer_persists_offer(self, monkeypatch):
+    def test_offer_case_ownership_transfer_persists_offer(
+        self, monkeypatch, make_payload
+    ):
         """OfferCaseOwnershipTransferReceivedUseCase persists the offer."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.case import (
@@ -421,7 +422,7 @@ class TestOwnershipTransferUseCases:
             object=case,
             target="https://example.org/users/coordinator",
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         OfferCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
@@ -429,7 +430,7 @@ class TestOwnershipTransferUseCases:
         assert stored is not None
 
     def test_accept_case_ownership_transfer_updates_attributed_to(
-        self, monkeypatch
+        self, monkeypatch, make_payload
     ):
         """AcceptCaseOwnershipTransferReceivedUseCase updates case.attributed_to to new owner."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
@@ -463,7 +464,7 @@ class TestOwnershipTransferUseCases:
             actor="https://example.org/users/coordinator",
             object=offer,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         AcceptCaseOwnershipTransferReceivedUseCase(dl, event).execute()
 
@@ -476,7 +477,7 @@ class TestOwnershipTransferUseCases:
         )
 
     def test_reject_case_ownership_transfer_logs_rejection(
-        self, monkeypatch, caplog
+        self, monkeypatch, caplog, make_payload
     ):
         """RejectCaseOwnershipTransferReceivedUseCase logs rejection; ownership unchanged."""
         from vultron.wire.as2.vocab.activities.case import (
@@ -498,7 +499,7 @@ class TestOwnershipTransferUseCases:
             actor="https://example.org/users/coordinator",
             object=offer,
         )
-        event = _make_payload(activity)
+        event = make_payload(activity)
 
         with caplog.at_level(logging.INFO):
             RejectCaseOwnershipTransferReceivedUseCase(
