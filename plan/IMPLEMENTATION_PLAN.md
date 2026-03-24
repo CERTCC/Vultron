@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-24 (refresh #49: TECHDEBT-34 complete)
+**Last Updated**: 2026-03-24 (refresh #50: TECHDEBT-39 complete)
 
 ## Overview
 
@@ -847,7 +847,7 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
 
 **Source**: `notes/state-machine-findings.md` OPP-05 (duplicate RM helpers)
 
-- [ ] **TECHDEBT-39**: Two near-duplicate functions implement the "append a
+- [x] **TECHDEBT-39**: Two near-duplicate functions implement the "append a
   new `VultronParticipantStatus` with a given RM state" operation:
 
   1. `_find_and_update_participant_rm()` in
@@ -862,6 +862,12 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
   `vultron/core/use_cases/_participant_helpers.py`). Update BT node imports
   accordingly. Done when only one implementation exists, both BT nodes and
   trigger use cases use it, and the test suite passes.
+  **COMPLETE**: Removed `_find_and_update_participant_rm()` wrapper from
+  `nodes.py`. Both BT node `update()` methods now call `update_participant_rm_state()`
+  directly (imported from `vultron.core.use_cases.triggers._helpers`), inlining
+  the bool→Status conversion and exception handling. Removed redundant local
+  `from vultron.core.states.rm import RM` imports inside the methods (RM is
+  already imported at module level). 988 tests pass.
 
 ---
 

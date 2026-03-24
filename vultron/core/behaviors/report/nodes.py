@@ -712,25 +712,6 @@ class CheckParticipantExists(DataLayerCondition):
             return Status.FAILURE
 
 
-def _find_and_update_participant_rm(
-    datalayer, case_id: str, actor_id: str, new_rm_state, logger
-) -> Status:
-    """Thin BT wrapper: delegate to ``update_participant_rm_state`` and convert
-    the boolean result to a py_trees ``Status``.
-
-    Returns SUCCESS on success (including idempotent no-op), FAILURE when the
-    case or participant is not found or an error occurs.
-    """
-    try:
-        result = update_participant_rm_state(
-            case_id, actor_id, new_rm_state, datalayer
-        )
-        return Status.SUCCESS if result else Status.FAILURE
-    except Exception as e:
-        logger.error(f"Error updating participant RM state: {e}")
-        return Status.FAILURE
-
-
 class TransitionParticipantRMtoAccepted(DataLayerAction):
     """
     Transition actor's RM state to ACCEPTED in the specified case.
@@ -767,15 +748,14 @@ class TransitionParticipantRMtoAccepted(DataLayerAction):
             self.logger.error(f"{self.name}: DataLayer not available")
             return Status.FAILURE
 
-        from vultron.core.states.rm import RM
-
-        return _find_and_update_participant_rm(
-            self.datalayer,
-            self.case_id,
-            self.actor_id,
-            RM.ACCEPTED,
-            self.logger,
-        )
+        try:
+            result = update_participant_rm_state(
+                self.case_id, self.actor_id, RM.ACCEPTED, self.datalayer
+            )
+            return Status.SUCCESS if result else Status.FAILURE
+        except Exception as e:
+            self.logger.error(f"Error updating participant RM state: {e}")
+            return Status.FAILURE
 
 
 class TransitionParticipantRMtoDeferred(DataLayerAction):
@@ -814,15 +794,14 @@ class TransitionParticipantRMtoDeferred(DataLayerAction):
             self.logger.error(f"{self.name}: DataLayer not available")
             return Status.FAILURE
 
-        from vultron.core.states.rm import RM
-
-        return _find_and_update_participant_rm(
-            self.datalayer,
-            self.case_id,
-            self.actor_id,
-            RM.DEFERRED,
-            self.logger,
-        )
+        try:
+            result = update_participant_rm_state(
+                self.case_id, self.actor_id, RM.DEFERRED, self.datalayer
+            )
+            return Status.SUCCESS if result else Status.FAILURE
+        except Exception as e:
+            self.logger.error(f"Error updating participant RM state: {e}")
+            return Status.FAILURE
 
 
 class EvaluateCasePriority(DataLayerCondition):
