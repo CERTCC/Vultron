@@ -2601,6 +2601,7 @@ tests for the outbox handler module
 (`vultron/adapters/driving/fastapi/outbox_handler.py`).
 
 Tests cover:
+
 - `handle_outbox_item` logs the actor ID and item at INFO level.
 - `outbox_handler` drains the actor outbox entirely on success (happy path).
 - FIFO order preserved across multiple items (OX-01-002).
@@ -2631,6 +2632,7 @@ RM transition is now persisted in a `VultronParticipantStatus` record at
 report-receipt time.
 
 **Changes:**
+
 - `vultron/core/use_cases/_helpers.py`: Added `_report_phase_status_id(actor_id,
   report_id, rm_state)` helper that uses UUID v5 (name-based) to generate a
   deterministic, idempotent URN for a report-phase participant status record.

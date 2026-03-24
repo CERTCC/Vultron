@@ -41,9 +41,9 @@ hashes with the actual git log references or remove them.
 
 OPP-05 (consolidate duplicate participant RM helpers) is explicitly NOT done
 — two near-duplicate functions remain:
+
 - `_find_and_update_participant_rm()` in `vultron/core/behaviors/report/nodes.py`
 - `update_participant_rm_state()` in `vultron/core/use_cases/triggers/_helpers.py`
 This is captured as TECHDEBT-39 in `plan/IMPLEMENTATION_PLAN.md`.
 
 ---
-

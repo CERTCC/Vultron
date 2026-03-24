@@ -42,13 +42,13 @@ Checklist (edit → validate → commit):
 
 Essential commands (run in zsh):
 
-See `.github/skills/format-code-run-tests/SKILL.md` for the canonical
-Black and pytest invocation commands (this file contains the exact
+See `.github/skills/format-code/SKILL.md` and `.github/skills/run-tests/SKILL.md` for the canonical
+Black and pytest invocation commands (these files contain the exact
 invocation semantics, environment notes, and examples you must follow).
 
 > ⚠️ **STOP — Full test-suite rule (MUST follow)**
 >
-> Follow the instructions in `.github/skills/format-code-run-tests/SKILL.md`
+> Follow the instructions in `.github/skills/run-tests/SKILL.md`
 > for running the full test-suite exactly once per validation cycle and
 > reading its output. The skill file documents the required single-run
 > invocation and the rationale for the one-run rule.
@@ -134,6 +134,8 @@ the format and examples.
 - **black** for code formatting (enforced via pre-commit)
 - **mypy** for static type checking (recommended)
 - **pylint** / **flake8** for linting (recommended)
+- **markdownlint-cli2** for markdown linting (use the repository's
+   `mdlint.sh` wrapper; see `.github/skills/format-markdown/SKILL.md`)
 
 Agents MUST NOT introduce alternative frameworks or package managers without
 explicit approval from the maintainers.
@@ -716,8 +718,8 @@ to relevant tests and design notes.
 ### Commit Workflow
 
 **BEFORE committing**, agents MUST follow the procedure documented in
-`.github/skills/format-code-run-tests/SKILL.md` (format first, then run the
-test-suite exactly once, then commit). The skill file contains the exact
+`.github/skills/format-code/SKILL.md` (format first), then `.github/skills/run-tests/SKILL.md` (run
+the test-suite exactly once), then commit. The skill files contain the exact
 commands and the required invocation order.
 
 **Why this order matters**:
