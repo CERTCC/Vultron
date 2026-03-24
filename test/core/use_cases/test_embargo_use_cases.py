@@ -24,6 +24,11 @@ from vultron.core.use_cases.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedUseCase,
     RejectInviteToEmbargoOnCaseReceivedUseCase,
 )
+from vultron.core.use_cases.triggers.embargo import SvcEvaluateEmbargoUseCase
+from vultron.core.use_cases.triggers.requests import (
+    EvaluateEmbargoTriggerRequest,
+)
+from vultron.errors import VultronConflictError
 
 
 class TestEmbargoUseCases:
@@ -104,7 +109,7 @@ class TestEmbargoUseCases:
     def test_add_embargo_event_to_case_activates_embargo(
         self, monkeypatch, make_payload
     ):
-        """add_embargo_event_to_case sets the active embargo on the case."""
+        """add_embargo_event_to_case sets the active embargo on the case (PROPOSED → ACTIVE)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             AddEmbargoToCaseActivity,
@@ -124,6 +129,8 @@ class TestEmbargoUseCases:
             id="https://example.org/cases/case_em1/embargo_events/e1",
             content="Embargo test",
         )
+        # Start from PROPOSED — the standard pre-condition for activation.
+        case.current_status.em_state = EM.PROPOSED
         dl.create(case)
         dl.create(embargo)
 
@@ -138,6 +145,49 @@ class TestEmbargoUseCases:
 
         case = dl.read(case.as_id)
         assert case.active_embargo is not None
+        assert case.current_status.em_state == EM.ACTIVE
+
+    def test_add_embargo_event_to_case_warns_on_non_standard_transition(
+        self, monkeypatch, make_payload, caplog
+    ):
+        """add_embargo_event_to_case logs WARNING when EM state is not on the standard machine path (state-sync override)."""
+        import logging
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            AddEmbargoToCaseActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.core.states.em import EM
+
+        dl = TinyDbDataLayer(db_path=None)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em1_warn",
+            name="EM Warn Test Case",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_em1_warn/embargo_events/e1",
+            content="Embargo test",
+        )
+        # Default em_state is NONE — not a valid predecessor for ACTIVE.
+        dl.create(case)
+        dl.create(embargo)
+
+        activity = AddEmbargoToCaseActivity(
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            target=case,
+        )
+        event = make_payload(activity)
+
+        with caplog.at_level(logging.WARNING):
+            AddEmbargoEventToCaseReceivedUseCase(dl, event).execute()
+
+        assert any("state-sync override" in r.message for r in caplog.records)
+        case = dl.read(case.as_id)
+        # State is still updated (synchronization override proceeds).
         assert case.current_status.em_state == EM.ACTIVE
 
     def test_invite_to_embargo_on_case_stores_proposal(
@@ -173,7 +223,7 @@ class TestEmbargoUseCases:
     def test_accept_invite_to_embargo_on_case_activates_embargo(
         self, monkeypatch, make_payload
     ):
-        """accept_invite_to_embargo_on_case activates the embargo on the case."""
+        """accept_invite_to_embargo_on_case activates the embargo on the case (PROPOSED → ACTIVE)."""
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
             EmAcceptEmbargoActivity,
@@ -201,6 +251,8 @@ class TestEmbargoUseCases:
             object=embargo,
             context=case,
         )
+        # Start from PROPOSED — the standard pre-condition for activation.
+        case.current_status.em_state = EM.PROPOSED
         dl.create(case)
         dl.create(embargo)
         dl.create(proposal)
@@ -216,6 +268,56 @@ class TestEmbargoUseCases:
 
         case = dl.read(case.as_id)
         assert case.active_embargo is not None
+        assert case.current_status.em_state == EM.ACTIVE
+
+    def test_accept_invite_to_embargo_warns_on_non_standard_transition(
+        self, monkeypatch, make_payload, caplog
+    ):
+        """accept_invite_to_embargo_on_case logs WARNING when EM state is not on the standard machine path."""
+        import logging
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            EmAcceptEmbargoActivity,
+            EmProposeEmbargoActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.core.states.em import EM
+
+        dl = TinyDbDataLayer(db_path=None)
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_em3_warn",
+            name="EM Accept Warn Test",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_em3_warn/embargo_events/e3",
+            content="Embargo",
+        )
+        proposal = EmProposeEmbargoActivity(
+            id="https://example.org/cases/case_em3_warn/embargo_proposals/1",
+            actor="https://example.org/users/vendor",
+            object=embargo,
+            context=case,
+        )
+        # Default em_state is NONE — not a valid predecessor for ACTIVE.
+        dl.create(case)
+        dl.create(embargo)
+        dl.create(proposal)
+
+        accept = EmAcceptEmbargoActivity(
+            actor="https://example.org/users/coordinator",
+            object=proposal,
+            context=case,
+        )
+        event = make_payload(accept)
+
+        with caplog.at_level(logging.WARNING):
+            AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
+
+        assert any("state-sync override" in r.message for r in caplog.records)
+        case = dl.read(case.as_id)
         assert case.current_status.em_state == EM.ACTIVE
 
     def test_accept_invite_to_embargo_records_embargo_on_participant(
@@ -477,3 +579,48 @@ class TestEmbargoUseCases:
         assert updated.active_embargo is None
         assert updated.current_status.em_state == EM.NONE
         assert any("Admin override" in r.message for r in caplog.records)
+
+    def test_evaluate_embargo_raises_conflict_when_em_state_invalid(self):
+        """SvcEvaluateEmbargoUseCase raises VultronConflictError when EM state does not allow ACCEPT."""
+        import pytest
+        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+        from vultron.wire.as2.vocab.activities.embargo import (
+            EmProposeEmbargoActivity,
+        )
+        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
+        from vultron.wire.as2.vocab.objects.vulnerability_case import (
+            VulnerabilityCase,
+        )
+        from vultron.wire.as2.vocab.base.objects.actors import (
+            as_Actor as Actor,
+        )
+
+        dl = TinyDbDataLayer(db_path=None)
+        actor = Actor(id="https://example.org/users/vendor", name="Vendor")
+        case = VulnerabilityCase(
+            id="https://example.org/cases/case_eval_invalid",
+            name="Evaluate Invalid EM State",
+        )
+        embargo = EmbargoEvent(
+            id="https://example.org/cases/case_eval_invalid/embargo_events/e1",
+            context=case.as_id,
+        )
+        proposal = EmProposeEmbargoActivity(
+            id="https://example.org/cases/case_eval_invalid/proposals/p1",
+            actor=actor.as_id,
+            object=embargo.as_id,
+            context=case.as_id,
+        )
+        # EM state is NONE — ACCEPT transition is not valid from NONE.
+        dl.create(actor)
+        dl.create(case)
+        dl.create(embargo)
+        dl.create(proposal)
+
+        request = EvaluateEmbargoTriggerRequest(
+            actor_id=actor.as_id,
+            case_id=case.as_id,
+            proposal_id=proposal.as_id,
+        )
+        with pytest.raises(VultronConflictError):
+            SvcEvaluateEmbargoUseCase(dl, request).execute()

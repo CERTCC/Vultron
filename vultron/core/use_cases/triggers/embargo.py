@@ -212,18 +212,34 @@ class SvcEvaluateEmbargoUseCase:
             )
 
         case.set_embargo(embargo_id)
-        case.current_status.em_state = EM.ACTIVE
+
+        em_state = case.current_status.em_state
+        adapter = EMAdapter(em_state)
+        em_machine = create_em_machine()
+        em_machine.add_model(adapter, initial=em_state)
+        try:
+            adapter.accept()
+        except MachineError:
+            raise VultronConflictError(
+                f"Cannot accept embargo: case '{case.as_id}' EM state"
+                f" '{em_state}' does not allow an ACCEPT transition."
+            )
+        new_em_state = EM(adapter.state)
+
+        case.current_status.em_state = new_em_state
         dl.save(case)
 
         add_activity_to_outbox(actor_id, accept.as_id, dl)
 
         logger.info(
             "Actor '%s' accepted embargo proposal '%s'; activated embargo '%s' "
-            "on case '%s' (EM → ACTIVE)",
+            "on case '%s' (EM %s → %s)",
             actor_id,
             proposal.as_id,
             embargo_id,
             case.as_id,
+            em_state,
+            new_em_state,
         )
 
         activity = accept.model_dump(by_alias=True, exclude_none=True)
