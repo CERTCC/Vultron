@@ -24,7 +24,6 @@ from vultron.wire.as2.vocab.activities.case import (
 )
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Undo
 from vultron.wire.as2.vocab.examples._base import (
-    _CASE,
     _COORDINATOR,
     _REPORT,
     _VENDOR,

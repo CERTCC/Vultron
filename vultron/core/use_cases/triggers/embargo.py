@@ -20,7 +20,6 @@ No HTTP framework imports permitted here.
 """
 
 import logging
-from datetime import datetime
 
 from transitions import MachineError
 
@@ -66,7 +65,6 @@ class SvcProposeEmbargoUseCase:
         request = self._request
         actor_id = request.actor_id
         case_id = request.case_id
-        note = request.note
         end_time = request.end_time
         dl = self._dl
 

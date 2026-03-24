@@ -62,6 +62,7 @@ async def outbox_handler(actor_id: str) -> None:
     actor = dl.read(actor_id)
     if actor is None:
         logger.warning(f"Actor {actor_id} not found in inbox_handler.")
+        return
 
     logger.info(f"Processing inbox for actor {actor_id}")
     # Simulate processing each item in the inbox

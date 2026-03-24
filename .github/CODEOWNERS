@@ -1,6 +1,8 @@
 # default
 * @ahouseholder
 
+# .github folder specifically
+.github/ @ahouseholder
 
 # all the python
 *.py @ahouseholder

@@ -17,7 +17,6 @@ Root pytest configuration file.
 This file provides test session hooks for cleanup of test artifacts.
 """
 
-import os
 from pathlib import Path
 
 import pytest

@@ -75,6 +75,9 @@ def extract_id_segment(url: str) -> str:
   - Each group separated by a single blank line
   - Within each group, imports sorted alphabetically
 - `CS-02-002` Import statements SHOULD be placed at the top of the file after module comments or docstrings
+  - In test modules, imports MUST NOT be placed inside test functions; all
+    imports belong at module level. Placing imports inside test functions makes
+    test discovery harder, obscures dependencies, and complicates refactoring.
 - `CS-02-003` Multi-line import statements SHOULD use parentheses for readability
 
 ## Import Practices (MUST)

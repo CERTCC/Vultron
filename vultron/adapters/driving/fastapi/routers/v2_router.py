@@ -31,7 +31,7 @@ from vultron.adapters.driving.fastapi.routers import (
 router = APIRouter()
 
 
-@router.get("/version", tags=["Version"])
+@router.get("/version", tags=["Version"], operation_id="version_get")
 def get_version(request: Request):
     """Returns the current version of the Vultron API."""
     return {"version": request.app.version}

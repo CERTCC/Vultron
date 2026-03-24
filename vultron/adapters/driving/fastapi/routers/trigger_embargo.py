@@ -16,21 +16,21 @@
 """
 Trigger router for embargo-management behaviors.
 
-Thin wrapper: validates request → calls service → returns response.
-All domain logic lives in vultron.api.v2.backend.trigger_services.embargo.
+Thin wrapper: validates request → calls adapter → returns response.
+All domain logic lives in vultron.core.use_cases.triggers.embargo.
 """
 
 from fastapi import APIRouter, Depends, status
 
-from vultron.api.v2.backend.trigger_services._models import (
-    EvaluateEmbargoRequest,
-    ProposeEmbargoRequest,
-    TerminateEmbargoRequest,
-)
-from vultron.api.v2.backend.trigger_services.embargo import (
+from vultron.adapters.driving.fastapi._trigger_adapter import (
     evaluate_embargo_trigger,
     propose_embargo_trigger,
     terminate_embargo_trigger,
+)
+from vultron.adapters.driving.fastapi.trigger_models import (
+    EvaluateEmbargoRequest,
+    ProposeEmbargoRequest,
+    TerminateEmbargoRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
@@ -49,6 +49,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "EM state transitions: N → P (new proposal) or A → R (revision). "
         "Returns the resulting activity in the response body (TB-04-001)."
     ),
+    operation_id="actors_trigger_propose_embargo",
 )
 def trigger_propose_embargo(
     actor_id: str,
@@ -78,6 +79,7 @@ def trigger_propose_embargo(
         "(EM state → ACTIVE). "
         "Returns the resulting activity in the response body (TB-04-001)."
     ),
+    operation_id="actors_trigger_evaluate_embargo",
 )
 def trigger_evaluate_embargo(
     actor_id: str,
@@ -108,6 +110,7 @@ def trigger_evaluate_embargo(
         "Returns HTTP 409 if no active embargo exists. "
         "Returns the resulting activity in the response body (TB-04-001)."
     ),
+    operation_id="actors_trigger_terminate_embargo",
 )
 def trigger_terminate_embargo(
     actor_id: str,

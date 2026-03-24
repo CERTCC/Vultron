@@ -14,20 +14,29 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 """
-Thin adapter delegates for report-level trigger service functions.
+Trigger adapter functions for actor-initiated Vultron behaviors.
 
-Each function keeps the same external signature used by the HTTP router, builds
-a domain request model (adding ``actor_id``), instantiates the core use-case
-class, and delegates to ``execute()``.
+Each function builds a domain request model, instantiates the core use-case
+class, and delegates to ``execute()``.  Domain exceptions are translated to
+FastAPI ``HTTPException`` responses via ``domain_error_translation()``.
 
 Domain logic must not be added here.  See
-``vultron/core/use_cases/triggers/report.py`` for implementation.
+``vultron/core/use_cases/triggers/`` for implementation details.
 """
 
-from vultron.api.v2.backend.trigger_services._helpers import (
-    domain_error_translation,
-)
+from datetime import datetime
+
+from vultron.adapters.driving.fastapi.errors import domain_error_translation
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases.triggers.case import (
+    SvcDeferCaseUseCase,
+    SvcEngageCaseUseCase,
+)
+from vultron.core.use_cases.triggers.embargo import (
+    SvcEvaluateEmbargoUseCase,
+    SvcProposeEmbargoUseCase,
+    SvcTerminateEmbargoUseCase,
+)
 from vultron.core.use_cases.triggers.report import (
     SvcCloseReportUseCase,
     SvcInvalidateReportUseCase,
@@ -36,8 +45,13 @@ from vultron.core.use_cases.triggers.report import (
 )
 from vultron.core.use_cases.triggers.requests import (
     CloseReportTriggerRequest,
+    DeferCaseTriggerRequest,
+    EngageCaseTriggerRequest,
+    EvaluateEmbargoTriggerRequest,
     InvalidateReportTriggerRequest,
+    ProposeEmbargoTriggerRequest,
     RejectReportTriggerRequest,
+    TerminateEmbargoTriggerRequest,
     ValidateReportTriggerRequest,
 )
 
@@ -80,3 +94,52 @@ def close_report_trigger(
             actor_id=actor_id, offer_id=offer_id, note=note
         )
         return SvcCloseReportUseCase(dl, request).execute()
+
+
+def engage_case_trigger(actor_id: str, case_id: str, dl: DataLayer) -> dict:
+    with domain_error_translation():
+        request = EngageCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
+        return SvcEngageCaseUseCase(dl, request).execute()
+
+
+def defer_case_trigger(actor_id: str, case_id: str, dl: DataLayer) -> dict:
+    with domain_error_translation():
+        request = DeferCaseTriggerRequest(actor_id=actor_id, case_id=case_id)
+        return SvcDeferCaseUseCase(dl, request).execute()
+
+
+def propose_embargo_trigger(
+    actor_id: str,
+    case_id: str,
+    note: str | None,
+    end_time: datetime | None,
+    dl: DataLayer,
+) -> dict:
+    with domain_error_translation():
+        request = ProposeEmbargoTriggerRequest(
+            actor_id=actor_id, case_id=case_id, note=note, end_time=end_time
+        )
+        return SvcProposeEmbargoUseCase(dl, request).execute()
+
+
+def evaluate_embargo_trigger(
+    actor_id: str,
+    case_id: str,
+    proposal_id: str | None,
+    dl: DataLayer,
+) -> dict:
+    with domain_error_translation():
+        request = EvaluateEmbargoTriggerRequest(
+            actor_id=actor_id, case_id=case_id, proposal_id=proposal_id
+        )
+        return SvcEvaluateEmbargoUseCase(dl, request).execute()
+
+
+def terminate_embargo_trigger(
+    actor_id: str, case_id: str, dl: DataLayer
+) -> dict:
+    with domain_error_translation():
+        request = TerminateEmbargoTriggerRequest(
+            actor_id=actor_id, case_id=case_id
+        )
+        return SvcTerminateEmbargoUseCase(dl, request).execute()

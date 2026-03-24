@@ -6,7 +6,6 @@ from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events import (
     CreateReportReceivedEvent,
     MessageSemantics,
-    VultronEvent,
 )
 from vultron.core.models.report import VultronReport
 

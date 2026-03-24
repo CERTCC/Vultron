@@ -25,7 +25,8 @@ from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
 from vultron.api.v2.data.actor_io import init_actor_io
-from vultron.core.models.status import ReportStatus, set_status
+from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.adapters.driving.fastapi.routers import (
@@ -88,58 +89,35 @@ def offer(dl, report, actor):
 
 
 @pytest.fixture
-def received_report(report, actor):
-    """Put the report into RM.RECEIVED state."""
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor.as_id,
-            status=RM.RECEIVED,
-        )
-    )
+def received_report(report):
+    """Put the report into RM.RECEIVED state (default — no DataLayer record needed)."""
     return report
 
 
 @pytest.fixture
-def invalid_report(report, actor):
+def invalid_report(report):
     """Put the report into RM.RECEIVED state (for invalidate/reject triggers)."""
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor.as_id,
-            status=RM.RECEIVED,
-        )
-    )
     return report
 
 
 @pytest.fixture
-def accepted_report(report, actor):
-    """Put the report into RM.ACCEPTED state (valid state for close-report)."""
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor.as_id,
-            status=RM.ACCEPTED,
-        )
-    )
+def accepted_report(report):
+    """Report in an acceptable state for close-report (no CLOSED record)."""
     return report
 
 
 @pytest.fixture
-def closed_report(report, actor):
+def closed_report(dl, report, actor):
     """Put the report into RM.CLOSED state (triggers 409 on close-report)."""
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            actor_id=actor.as_id,
-            status=RM.CLOSED,
-        )
+    status = VultronParticipantStatus(
+        as_id=_report_phase_status_id(
+            actor.as_id, report.as_id, RM.CLOSED.value
+        ),
+        context=report.as_id,
+        attributed_to=actor.as_id,
+        rm_state=RM.CLOSED,
     )
+    dl.create(status)
     return report
 
 

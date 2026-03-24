@@ -22,12 +22,8 @@ import pytest
 from py_trees.blackboard import Client as BlackboardClient
 from py_trees.common import Status
 
-from vultron.core.models.status import (
-    OfferStatus,
-    ReportStatus,
-    get_status_layer,
-    set_status,
-)
+from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.models.vultron_types import (
     VultronCaseActor,
@@ -46,7 +42,6 @@ from vultron.core.behaviors.report.nodes import (
     UpdateActorOutbox,
 )
 from vultron.core.states.rm import RM
-from vultron.core.models.status import OfferStatusEnum
 
 
 @pytest.fixture
@@ -117,15 +112,15 @@ def setup_node_blackboard(node, datalayer, actor_id):
 
 def test_check_rm_state_valid_when_valid(datalayer, actor, report):
     """CheckRMStateValid returns SUCCESS when report is VALID."""
-    # Set report to VALID
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            status=RM.VALID,
-            actor_id=actor.as_id,
-        )
+    status = VultronParticipantStatus(
+        as_id=_report_phase_status_id(
+            actor.as_id, report.as_id, RM.VALID.value
+        ),
+        context=report.as_id,
+        attributed_to=actor.as_id,
+        rm_state=RM.VALID,
     )
+    datalayer.create(status)
 
     node = CheckRMStateValid(report_id=report.as_id)
     setup_node_blackboard(node, datalayer, actor.as_id)
@@ -135,15 +130,16 @@ def test_check_rm_state_valid_when_valid(datalayer, actor, report):
 
 
 def test_check_rm_state_valid_when_received(datalayer, actor, report):
-    """CheckRMStateValid returns FAILURE when report is RECEIVED."""
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            status=RM.RECEIVED,
-            actor_id=actor.as_id,
-        )
+    """CheckRMStateValid returns FAILURE when report is RECEIVED (no VALID record)."""
+    status = VultronParticipantStatus(
+        as_id=_report_phase_status_id(
+            actor.as_id, report.as_id, RM.RECEIVED.value
+        ),
+        context=report.as_id,
+        attributed_to=actor.as_id,
+        rm_state=RM.RECEIVED,
     )
+    datalayer.create(status)
 
     node = CheckRMStateValid(report_id=report.as_id)
     setup_node_blackboard(node, datalayer, actor.as_id)
@@ -165,14 +161,15 @@ def test_check_rm_state_received_or_invalid_when_received(
     datalayer, actor, report
 ):
     """CheckRMStateReceivedOrInvalid returns SUCCESS when RECEIVED."""
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            status=RM.RECEIVED,
-            actor_id=actor.as_id,
-        )
+    status = VultronParticipantStatus(
+        as_id=_report_phase_status_id(
+            actor.as_id, report.as_id, RM.RECEIVED.value
+        ),
+        context=report.as_id,
+        attributed_to=actor.as_id,
+        rm_state=RM.RECEIVED,
     )
+    datalayer.create(status)
 
     node = CheckRMStateReceivedOrInvalid(report_id=report.as_id)
     setup_node_blackboard(node, datalayer, actor.as_id)
@@ -185,14 +182,15 @@ def test_check_rm_state_received_or_invalid_when_invalid(
     datalayer, actor, report
 ):
     """CheckRMStateReceivedOrInvalid returns SUCCESS when INVALID."""
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            status=RM.INVALID,
-            actor_id=actor.as_id,
-        )
+    status = VultronParticipantStatus(
+        as_id=_report_phase_status_id(
+            actor.as_id, report.as_id, RM.INVALID.value
+        ),
+        context=report.as_id,
+        attributed_to=actor.as_id,
+        rm_state=RM.INVALID,
     )
+    datalayer.create(status)
 
     node = CheckRMStateReceivedOrInvalid(report_id=report.as_id)
     setup_node_blackboard(node, datalayer, actor.as_id)
@@ -205,14 +203,15 @@ def test_check_rm_state_received_or_invalid_when_valid(
     datalayer, actor, report
 ):
     """CheckRMStateReceivedOrInvalid returns FAILURE when VALID."""
-    set_status(
-        ReportStatus(
-            object_type="VulnerabilityReport",
-            object_id=report.as_id,
-            status=RM.VALID,
-            actor_id=actor.as_id,
-        )
+    status = VultronParticipantStatus(
+        as_id=_report_phase_status_id(
+            actor.as_id, report.as_id, RM.VALID.value
+        ),
+        context=report.as_id,
+        attributed_to=actor.as_id,
+        rm_state=RM.VALID,
     )
+    datalayer.create(status)
 
     node = CheckRMStateReceivedOrInvalid(report_id=report.as_id)
     setup_node_blackboard(node, datalayer, actor.as_id)
@@ -245,34 +244,24 @@ def test_transition_rm_to_valid(datalayer, actor, report, offer):
     result = node.update()
     assert result == Status.SUCCESS
 
-    # Verify statuses
-    status_layer = get_status_layer()
-    report_status = status_layer["VulnerabilityReport"][report.as_id][
-        actor.as_id
-    ]
-    assert report_status["status"] == RM.VALID
-
-    offer_status = status_layer["Offer"][offer.as_id][actor.as_id]
-    assert offer_status["status"] == OfferStatusEnum.ACCEPTED
+    valid_id = _report_phase_status_id(
+        actor.as_id, report.as_id, RM.VALID.value
+    )
+    assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
 def test_transition_rm_to_invalid(datalayer, actor, report, offer):
-    """TransitionRMtoInvalid updates statuses correctly."""
+    """TransitionRMtoInvalid updates report status to INVALID in DataLayer."""
     node = TransitionRMtoInvalid(report_id=report.as_id, offer_id=offer.as_id)
     setup_node_blackboard(node, datalayer, actor.as_id)
 
     result = node.update()
     assert result == Status.SUCCESS
 
-    # Verify statuses
-    status_layer = get_status_layer()
-    report_status = status_layer["VulnerabilityReport"][report.as_id][
-        actor.as_id
-    ]
-    assert report_status["status"] == RM.INVALID
-
-    offer_status = status_layer["Offer"][offer.as_id][actor.as_id]
-    assert offer_status["status"] == OfferStatusEnum.TENTATIVELY_REJECTED
+    invalid_id = _report_phase_status_id(
+        actor.as_id, report.as_id, RM.INVALID.value
+    )
+    assert datalayer.get("ParticipantStatus", invalid_id) is not None
 
 
 def test_create_case_node(datalayer, actor, report):

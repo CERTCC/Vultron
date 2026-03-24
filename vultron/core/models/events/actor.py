@@ -5,6 +5,14 @@ Covers suggest-actor, ownership-transfer, and invite-actor-to-case semantics.
 
 from typing import Literal
 
+from vultron.core.models.events._mixins import (
+    _InnerObjectIsCaseMixin,
+    _InnerObjectIsInviteeMixin,
+    _InnerTargetIsCaseMixin,
+    _ObjectIsInviteMixin,
+    _ObjectIsOfferMixin,
+    _ObjectIsSuggestedActorMixin,
+)
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.vultron_types import VultronActivity
 
@@ -27,7 +35,9 @@ class AcceptSuggestActorToCaseReceivedEvent(VultronEvent):
     activity: VultronActivity
 
 
-class RejectSuggestActorToCaseReceivedEvent(VultronEvent):
+class RejectSuggestActorToCaseReceivedEvent(
+    _ObjectIsSuggestedActorMixin, VultronEvent
+):
     """Actor rejected a suggestion to add another actor to a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.REJECT_SUGGEST_ACTOR_TO_CASE] = (
@@ -44,7 +54,9 @@ class OfferCaseOwnershipTransferReceivedEvent(VultronEvent):
     activity: VultronActivity
 
 
-class AcceptCaseOwnershipTransferReceivedEvent(VultronEvent):
+class AcceptCaseOwnershipTransferReceivedEvent(
+    _InnerObjectIsCaseMixin, VultronEvent
+):
     """Actor accepted an offer to take ownership of a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ACCEPT_CASE_OWNERSHIP_TRANSFER] = (
@@ -52,7 +64,9 @@ class AcceptCaseOwnershipTransferReceivedEvent(VultronEvent):
     )
 
 
-class RejectCaseOwnershipTransferReceivedEvent(VultronEvent):
+class RejectCaseOwnershipTransferReceivedEvent(
+    _ObjectIsOfferMixin, VultronEvent
+):
     """Actor rejected an offer to take ownership of a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.REJECT_CASE_OWNERSHIP_TRANSFER] = (
@@ -69,7 +83,9 @@ class InviteActorToCaseReceivedEvent(VultronEvent):
     activity: VultronActivity
 
 
-class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
+class AcceptInviteActorToCaseReceivedEvent(
+    _InnerTargetIsCaseMixin, _InnerObjectIsInviteeMixin, VultronEvent
+):
     """Actor accepted an invitation to join a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ACCEPT_INVITE_ACTOR_TO_CASE] = (
@@ -77,7 +93,7 @@ class AcceptInviteActorToCaseReceivedEvent(VultronEvent):
     )
 
 
-class RejectInviteActorToCaseReceivedEvent(VultronEvent):
+class RejectInviteActorToCaseReceivedEvent(_ObjectIsInviteMixin, VultronEvent):
     """Actor rejected an invitation to join a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.REJECT_INVITE_ACTOR_TO_CASE] = (

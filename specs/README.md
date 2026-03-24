@@ -226,42 +226,28 @@ source.
 
 ## Implementation Status
 
-See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by specification.
+See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by
+specification.
 
-**Summary (2026-03-16)**:
+**Snapshot (2026-03-20)**:
 
-- ✅ **Core infrastructure complete**: Semantic extraction, dispatch routing,
-  handler protocol, data layer
-- ✅ **All 38 handlers complete** (incl. `update_case` and `unknown`):
-  See `plan/IMPLEMENTATION_PLAN.md` for full handler list
-- ✅ **BT integration Phases BT-1 through BT-7 complete**: See
-  `behavior-tree-integration.md`
-- ✅ **Demo scripts (12)**: All in `vultron/demo/`; see
-  `plan/IMPLEMENTATION_PLAN.md`
-- ✅ **Unified demo CLI complete** (`vultron-demo`): See `specs/demo-cli.md`
-  and `plan/IMPLEMENTATION_PLAN.md` (Phase DEMO-4)
-- ✅ **Triggerable behaviors fully implemented** (PRIORITY 30 complete):
-  All 9 trigger endpoints (`validate-report`, `invalidate-report`,
-  `reject-report`, `engage-case`, `defer-case`, `close-report`,
-  `propose-embargo`, `evaluate-embargo`, `terminate-embargo`)
-- ✅ **Hexagonal architecture Phases 50/60/65 complete** (ARCH-CLEANUP):
-  `MessageSemantics` in core, `InboundPayload` domain type, wire/as2
-  extractor and parser, handler map in adapter layer, AS2 enums in wire
-  layer, shims deleted, `isinstance` AS2 checks removed (V-01 through V-24)
-- ✅ **Package relocation P60-1, P60-2 complete**: `vultron/as_vocab/` →
-  `vultron/wire/as2/vocab/`; `vultron/behaviors/` → `vultron/core/behaviors/`
-- ✅ **DataLayer refactor P70 complete**: `DataLayer` as port in
-  `vultron/core/ports/datalayer.py`; TinyDB as driven adapter
-- ✅ **Business logic in core/use_cases/ (P75-1–P75-4 complete)**:
-  All 38 handler use cases and 9 trigger use cases in `vultron/core/use_cases/`;
-  `UseCase[Req, Res]` Protocol defined; CLI and MCP adapters implemented
-- ✅ **893 tests passing** (2026-03-16)
-- ⚠️ **Production readiness partial**: Request validation, error responses
-  need work
-- ❌ **P75-5 not decided**: `vultron/api/v1/` disposition pending
-- ❌ **Response generation not started**: See `response-format.md`
-- ❌ **Outbox delivery not implemented**: See `outbox.md` OX-03, OX-04
-- ❌ **Technical debt**: TECHDEBT-15–26; see `plan/IMPLEMENTATION_PLAN.md`
+- ✅ **Core message-processing infrastructure is in place**: parsing,
+  semantic extraction, dispatch routing, typed use-case execution, and the
+  DataLayer port/adapter split are all established.
+- ✅ **Received-message and trigger use cases are implemented**: all 38
+  received-message use cases and all 9 trigger use cases live in
+  `vultron/core/use_cases/`.
+- ✅ **FastAPI adapter consolidation is complete**: the active HTTP adapter
+  code lives under `vultron/adapters/driving/fastapi/`, and `vultron/api/v1/`
+  has been removed.
+- ✅ **Operator/demo surfaces are available**: the unified demo CLI and actor
+  profile discovery endpoint are implemented.
+- ⚠️ **Outbound delivery remains partial**: the outbound `ActivityEmitter`
+  port exists in `vultron/core/ports/emitter.py`, but outbox delivery work
+  beyond that stub (`OX-1.1+`) is still pending.
+- ⚠️ **Use the plan for volatile details**: exact test counts, active-phase
+  status, and recently completed implementation batches are maintained in
+  `plan/IMPLEMENTATION_PLAN.md` and `plan/IMPLEMENTATION_HISTORY.md`.
 
 ---
 

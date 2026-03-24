@@ -27,7 +27,7 @@ class CreateNoteReceivedUseCase:
         _idempotent_create(
             self._dl,
             request.object_type,
-            request.object_id,
+            request.note_id,
             request.note,
             "Note",
             request.activity_id,
@@ -43,8 +43,8 @@ class AddNoteToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        note_id = request.object_id
-        case_id = request.target_id
+        note_id = request.note_id
+        case_id = request.case_id
         case = cast(CaseModel, self._dl.read(case_id))
 
         if case is None:
@@ -74,8 +74,8 @@ class RemoveNoteFromCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        note_id = request.object_id
-        case_id = request.target_id
+        note_id = request.note_id
+        case_id = request.case_id
         case = cast(CaseModel, self._dl.read(case_id))
 
         if case is None:

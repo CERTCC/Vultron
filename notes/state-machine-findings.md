@@ -329,6 +329,14 @@ code in `vultron.core` transitions `vfd_state` or `pxa_state` after creation.
 functionality is added, use the existing machines to drive those transitions
 rather than writing new hand-rolled logic.
 
+**Implementation note:** When wiring a `transitions` machine to
+Pydantic-backed state, use a lightweight plain-Python adapter object with a
+`.state` attribute and pass `initial=current_state` to `machine.add_model()`.
+Do not attach the machine directly to a Pydantic model: `transitions` injects
+trigger callables via `setattr`, and omitting `initial=` resets the adapter to
+the machine's default starting state. This pattern applies to future VFD, PXA,
+RM, and EM machine integrations.
+
 **Files:** Future — `vultron/core/use_cases/` and/or `behaviors/`
 
 ### OPP-07 — Guard status-object appends at the model and use-case layer (HIGH)

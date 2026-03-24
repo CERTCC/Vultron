@@ -2,6 +2,15 @@
 
 from typing import Literal
 
+from vultron.core.models.events._mixins import (
+    _ContextIsCaseMixin,
+    _InnerContextIsCaseMixin,
+    _InnerObjectIsEmbargoMixin,
+    _ObjectIsEmbargoMixin,
+    _ObjectIsInviteMixin,
+    _OriginIsCaseMixin,
+    _TargetIsCaseMixin,
+)
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.vultron_types import (
     VultronActivity,
@@ -9,7 +18,7 @@ from vultron.core.models.vultron_types import (
 )
 
 
-class CreateEmbargoEventReceivedEvent(VultronEvent):
+class CreateEmbargoEventReceivedEvent(_ObjectIsEmbargoMixin, VultronEvent):
     """Actor created an EmbargoEvent."""
 
     semantic_type: Literal[MessageSemantics.CREATE_EMBARGO_EVENT] = (
@@ -18,7 +27,9 @@ class CreateEmbargoEventReceivedEvent(VultronEvent):
     embargo: VultronEmbargoEvent
 
 
-class AddEmbargoEventToCaseReceivedEvent(VultronEvent):
+class AddEmbargoEventToCaseReceivedEvent(
+    _ObjectIsEmbargoMixin, _TargetIsCaseMixin, VultronEvent
+):
     """Actor added an EmbargoEvent to a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ADD_EMBARGO_EVENT_TO_CASE] = (
@@ -26,7 +37,9 @@ class AddEmbargoEventToCaseReceivedEvent(VultronEvent):
     )
 
 
-class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
+class RemoveEmbargoEventFromCaseReceivedEvent(
+    _ObjectIsEmbargoMixin, _OriginIsCaseMixin, VultronEvent
+):
     """Actor removed an EmbargoEvent from a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.REMOVE_EMBARGO_EVENT_FROM_CASE] = (
@@ -34,7 +47,9 @@ class RemoveEmbargoEventFromCaseReceivedEvent(VultronEvent):
     )
 
 
-class AnnounceEmbargoEventToCaseReceivedEvent(VultronEvent):
+class AnnounceEmbargoEventToCaseReceivedEvent(
+    _ContextIsCaseMixin, VultronEvent
+):
     """Actor announced an EmbargoEvent to a VulnerabilityCase."""
 
     semantic_type: Literal[MessageSemantics.ANNOUNCE_EMBARGO_EVENT_TO_CASE] = (
@@ -51,7 +66,12 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     activity: VultronActivity
 
 
-class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
+class AcceptInviteToEmbargoOnCaseReceivedEvent(
+    _ObjectIsInviteMixin,
+    _InnerObjectIsEmbargoMixin,
+    _InnerContextIsCaseMixin,
+    VultronEvent,
+):
     """Actor accepted an invitation to join an embargo on a VulnerabilityCase."""
 
     semantic_type: Literal[
@@ -59,7 +79,9 @@ class AcceptInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     ] = MessageSemantics.ACCEPT_INVITE_TO_EMBARGO_ON_CASE
 
 
-class RejectInviteToEmbargoOnCaseReceivedEvent(VultronEvent):
+class RejectInviteToEmbargoOnCaseReceivedEvent(
+    _ObjectIsInviteMixin, VultronEvent
+):
     """Actor rejected an invitation to join an embargo on a VulnerabilityCase."""
 
     semantic_type: Literal[

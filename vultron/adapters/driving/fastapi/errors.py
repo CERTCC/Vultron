@@ -1,7 +1,59 @@
+from contextlib import contextmanager
+from typing import Generator
+
+from fastapi import HTTPException, status
+from pydantic import ValidationError as PydanticValidationError
+
 from vultron.errors import (
-    VultronApiHandlerNotFoundError,
+    VultronConflictError,
     VultronError,
-)  # noqa: F401
+    VultronNotFoundError,
+    VultronValidationError,
+)
+
+
+@contextmanager
+def domain_error_translation() -> Generator[None, None, None]:
+    """Context manager that translates domain exceptions to HTTPExceptions."""
+    try:
+        yield
+    except (VultronError, PydanticValidationError) as e:
+        raise translate_domain_errors(e)
+
+
+def translate_domain_errors(exc: Exception) -> HTTPException:
+    """Convert a domain exception to an appropriate HTTPException."""
+    if isinstance(exc, VultronNotFoundError):
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "status": 404,
+                "error": "NotFound",
+                "message": str(exc),
+                "activity_id": None,
+            },
+        )
+    if isinstance(exc, VultronConflictError):
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "status": 409,
+                "error": "Conflict",
+                "message": str(exc),
+                "activity_id": getattr(exc, "activity_id", None),
+            },
+        )
+    if isinstance(exc, (VultronValidationError, PydanticValidationError)):
+        return HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "status": 422,
+                "error": "ValidationError",
+                "message": str(exc),
+                "activity_id": getattr(exc, "activity_id", None),
+            },
+        )
+    raise exc
 
 
 class VultronApiError(VultronError):

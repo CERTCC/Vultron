@@ -71,7 +71,6 @@ from vultron.wire.as2.vocab.activities.report import (
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.case_participant import (
-    CoordinatorParticipant,
     FinderReporterParticipant,
 )
 from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
@@ -79,7 +78,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.demo.utils import (
+from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
     check_server_availability,

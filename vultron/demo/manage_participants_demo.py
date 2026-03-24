@@ -76,7 +76,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 )
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_vfd
-from vultron.demo.utils import (
+from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monkeypatching
     BASE_URL,
     DataLayerClient,
     check_server_availability,

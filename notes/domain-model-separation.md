@@ -102,6 +102,38 @@ constrain refactoring, specifically:
 - The `active_embargo` union type creates silent serialization failures due
   to Pydantic v2 union resolution order (see `AGENTS.md`).
 
+## Wire-Layer Mutation Helpers Belong in Core
+
+Some wire-layer vocabulary objects still expose convenience methods that mutate
+protocol state directly. `VulnerabilityCase.set_embargo()` is the clearest
+example: it changes `current_status.em_state`, which is domain behaviour rather
+than wire formatting.
+
+The durable direction is:
+
+- keep transport-only shaping, aliases, and serialization concerns in wire DTOs
+- move state-mutation helpers to core domain objects or core protocols
+- let any temporary wire helper delegate to the core implementation instead of
+  owning the state transition itself
+
+This matters directly to ADR-0013 follow-up work because helpers such as
+`CaseParticipant.append_rm_state()` sit on the boundary between persisted RM
+history and transport-layer convenience APIs.
+
+## Vocabulary Registry Coupling Across Wire, Core, and DataLayer
+
+The DataLayer and persistence translation code still rely on the
+ActivityStreams vocabulary registry to identify and reconstruct stored objects.
+That coupling is a leftover from the earlier architecture in which wire and
+core objects were effectively the same layer.
+
+Examples include record conversion and rehydration paths that need wire-type
+knowledge to rebuild objects after persistence. The long-term direction is for
+DataLayer ports to accept and return domain objects, with adapter-local
+translation handling storage records and wire projections. Registry lookups
+that exist only to recover wire types from persistence should be treated as
+adapter debt and reviewed before Priority 100 expands per-actor persistence.
+
 ## Recommended Next Steps (When Prioritized)
 
 1. Define canonical **domain model** classes that do not inherit from
@@ -424,3 +456,177 @@ clarifies purpose.
 
 **See**: `notes/use-case-behavior-trees.md` for the standardized `UseCase`
 protocol proposal.
+
+---
+
+## Wire-Layer Terminology Leaking into Core Event Interfaces
+
+Several core use cases and trigger handlers receive event objects whose field
+names (`object`, `target`, `context`, `actor`) are mapped directly from the
+AS2 specification rather than using domain-meaningful names. For example, when
+an Offer of a report is received, the use case should receive a field named
+`report_id` rather than `object_id`. When a note is added to a case, the use
+case should receive a `case_id` field rather than a generic `target_id`.
+
+This leakage undermines the hexagonal architecture principle that the core
+domain should be expressed in domain vocabulary. It also increases the
+cognitive overhead for developers who must mentally translate between AS2
+semantics and domain intent when reading core business logic.
+
+**Recommended approach:** For each received-event subtype, ensure that all
+fields use domain-appropriate names. Where the AS2 mapping is non-obvious,
+add a comment or alias. New event subtypes introduced for Priority 90 and
+beyond should follow domain naming from the start.
+
+**Reference:** `specs/architecture.md` ARCH-09 (core MUST NOT leak wire
+concerns); `specs/code-style.md` CS-12-001 (domain vocabulary in class names).
+
+---
+
+## Extractor as EventFactory: Centralizing AS2→Domain Mapping
+
+TECHDEBT-30 added domain-specific property getters to event subclasses via
+`_mixins.py`. The next evolution is to have the extractor produce
+domain-specific event objects directly, rather than a generic event that
+then exposes typed properties through mixin aliases.
+
+**Current state**: `extractor.py` maps `(AS2 Activity type, Object type)` to
+`MessageSemantics`, and a generic `VultronEvent` carries the raw AS2 fields.
+Mixins added in TECHDEBT-30 give use-case code a cleaner property API, but
+the event object itself still carries AS2-named fields (`object_id`,
+`target_id`, etc.) internally.
+
+**Design option — EventFactory pattern**: Rather than having the extractor
+only classify the activity, it could also perform the field translation and
+return a type-specific domain event. Two equivalent approaches:
+
+- `Activity.to_domain()` — an instance method on AS2 activity models that
+  returns the appropriate domain event subclass.
+- `EventFactory` — a standalone translator that takes an AS2 activity,
+  determines the semantics (as the extractor does now), and constructs a
+  domain event object with fully domain-named fields.
+
+The domain event then becomes the direct input to its corresponding use case,
+making the use case's field access completely free of AS2 naming.
+
+**Key principles for implementation**:
+
+- Use `extractor.py`'s `ActivityPattern` definitions as the authoritative
+  reference for how AS2 fields map to semantic roles. Centralise this mapping
+  in one place rather than scattering AS2 field name handling across use cases.
+- Core objects MUST be ignorant of AS2: they must not import from
+  `vultron/wire/as2/` or reference `as_*` field names.
+- Apply DRY: a single mapping dict or factory function per semantics type
+  is preferable to per-use-case translation code.
+
+**Implementation note**: `VultronEvent` may be too generic as a single base
+class if use cases are expected to reliably infer field semantics from it.
+Per-semantic subclasses (already partially in place from P65-3) combined with
+the EventFactory approach give both type safety and domain clarity. See the
+"Discriminated Event Hierarchy" section above for the design blueprint.
+
+**See also**: `specs/semantic-extraction.md`, `specs/code-style.md` CS-10-002
+(`FooActivity` vs `FooEvent` naming), `notes/domain-model-separation.md`
+"Domain Events as the Bridge Between Core and Wire".
+
+---
+
+## Core Should Reliably Get Domain Objects from DataLayer
+
+The core domain logic is frequently required to inspect what type of object
+was returned from the DataLayer and branch on that, which is a sign that the
+DataLayer port and adapter are not providing sufficient type guarantees. Core
+should be able to call `dl.read(id)` or `dl.list(type_key)` and receive
+properly-typed domain objects rather than raw TinyDB `Document` objects,
+untyped dicts, or ambiguous `StorableRecord` types.
+
+Conversely, when persisting objects, core should be able to call
+`dl.create(domain_obj)` and trust that the adapter handles the translation to
+whatever storage format is needed. Core should not need to call
+`object_to_record()` or know anything about storage internals.
+
+**Symptoms in current code:**
+
+- `record_to_object()` is called in core use cases to convert DataLayer
+  results back into domain objects — this conversion belongs in the adapter.
+- `object_to_record()` is called in core use cases before `dl.update()` —
+  this serialization belongs in the adapter.
+- Type checks like `if isinstance(result, Document): ...` appear in core,
+  revealing DataLayer implementation details in business logic.
+
+**Recommended approach:** Refactor the `DataLayer` port and `TinyDbDataLayer`
+adapter so that:
+
+1. `dl.read(id)` returns a typed domain object (or raises `VultronNotFoundError`).
+2. `dl.create(obj)` and `dl.update(id, obj)` accept domain objects directly.
+3. `dl.list(type_key)` returns an iterable of typed domain objects.
+4. All `object_to_record()` / `record_to_object()` calls move into the adapter.
+
+A mapping layer between core objects and DataLayer records belongs in the
+adapter, not in core. This improves separation of concerns and makes core
+logic easier to test without mocking storage internals.
+
+**See also:** Datalayer Storage Records section below.
+
+---
+
+## Datalayer Storage Records Need Re-Evaluation
+
+`Record` and `StorableRecord` in `vultron/adapters/driven/db_record.py` were
+designed when wire and core were the same layer. Now that they are separated,
+these classes need re-evaluation. The questions to answer are:
+
+1. Should `Record`/`StorableRecord` remain as adapter-specific types, or
+   should they be promoted to a more neutral abstraction?
+2. Is a tiered adapter structure appropriate — a thin translation adapter that
+   converts domain objects to/from a generic dict/document form, sitting above
+   a storage-specific adapter (TinyDB, MongoDB, SQL)?
+3. How should the DataLayer port be typed: should it use generic
+   `dict`/`Any` for storage records, or should there be typed protocols for
+   different record kinds?
+
+**Key principle:** The DataLayer **port** should be defined entirely in terms
+of core domain objects. The DataLayer **adapter** handles all translation to
+storage format. Core should be agnostic to whether the adapter uses separate
+tables per type, a single JSON blob, or a document store.
+
+**Research needed:** Audit all current callers of `object_to_record()`,
+`record_to_object()`, and `find_in_vocabulary()` to understand the scope of
+the coupling before designing the refactor.
+
+---
+
+## Vocabulary Registry Entanglement Across Wire, Core, and DataLayer
+
+The vocabulary registry in `vultron/wire/as2/vocab/` was created before the
+hexagonal architecture separated wire from core. As a result:
+
+- `vultron/adapters/driven/db_record.py` uses the vocabulary registry to
+  determine AS2 type names for storage keys.
+- `vultron/wire/as2/rehydration.py` uses the vocabulary registry to
+  reconstruct wire objects from DataLayer records.
+- These two files create a tight coupling: the DataLayer's behaviour depends
+  on the wire layer's type system.
+
+**Problem:** If the wire layer is removed or replaced, the DataLayer adapter
+breaks. Core cannot interact with the DataLayer in terms of core domain objects
+because the adapter expects to find AS2 type names at every step.
+
+**Recommended approach:**
+
+1. The DataLayer adapter should maintain its own type-to-table mapping that is
+   independent of the wire vocabulary registry.
+2. Rehydration of wire objects from storage should be confined to the wire
+   adapter layer, not shared with core.
+3. Core's interaction with the DataLayer should use core domain type keys
+   (`"VultronCase"`, `"VultronReport"`, etc.) rather than AS2 type names
+   (`"Case"`, `"VulnerabilityReport"`, etc.).
+
+This separation allows the wire layer to evolve (or be replaced) without
+breaking DataLayer storage, and allows core to read/write domain objects
+without knowing anything about AS2 naming conventions.
+
+**Files to investigate:** `vultron/adapters/driven/db_record.py`,
+`vultron/adapters/driven/datalayer_tinydb.py`,
+`vultron/wire/as2/rehydration.py`,
+`vultron/wire/as2/vocab/registry.py`.

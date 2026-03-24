@@ -39,9 +39,9 @@ Port: ``vultron.core.ports.emitter.ActivityEmitter``
 import logging
 
 from vultron.core.models.activity import VultronActivity
-from vultron.core.ports.emitter import (
+from vultron.core.ports.emitter import (  # noqa: F401 — port reference
     ActivityEmitter,
-)  # noqa: F401 — port reference
+)
 
 logger = logging.getLogger(__name__)
 

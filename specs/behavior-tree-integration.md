@@ -119,6 +119,18 @@ SHOULD use BTs for clarity and maintainability.
 - `BT-10-003` CaseActor MUST manage case-related message processing
 - `BT-10-004` `PROD_ONLY` CaseActor MUST enforce case-level authorization
 
+## VFD/PXA State Machine Usage (SHOULD)
+
+- `BT-12-001` When implementing VFD (vendor fix deployed) or PXA (public
+  exploit/attack) state transitions, new code MUST use `create_vfd_machine()`
+  and `create_pxa_machine()` (defined in `vultron/core/states/cs.py`) as the
+  authoritative source of valid transition sequences. Hand-rolled transition
+  logic for these state dimensions MUST NOT be introduced.
+  - **Rationale**: Ensures the `transitions` machines remain the normative
+    definition of valid VFD/PXA state progressions as new features are added,
+    preventing divergence between the machines and the implementation.
+  - **See also**: OPP-06 in `notes/state-machine-findings.md`
+
 ## Concurrency (MUST)
 
 - `BT-11-001` Prototype MUST process messages sequentially (FIFO order)
@@ -161,6 +173,12 @@ SHOULD use BTs for clarity and maintainability.
 
 - Integration test: Concurrent inbox POSTs process sequentially
 - Integration test: HTTP 202 returned immediately (not blocked by BT execution)
+
+### BT-12-001 Verification
+
+- Code review: Any code adding VFD or PXA state transitions uses
+  `create_vfd_machine()` or `create_pxa_machine()` rather than hand-rolled
+  logic
 
 ## Related
 

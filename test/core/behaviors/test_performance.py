@@ -24,12 +24,13 @@ import logging
 import time
 from unittest.mock import MagicMock
 
-logger = logging.getLogger(__name__)
-
 import pytest
 from py_trees.common import Status
 
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.behaviors.bridge import BTBridge
+from vultron.core.behaviors.report.validate_tree import (
+    create_validate_report_tree,
+)
 from vultron.core.models.vultron_types import (
     VultronAccept,
     VultronCase,
@@ -37,10 +38,8 @@ from vultron.core.models.vultron_types import (
     VultronOffer,
     VultronReport,
 )
-from vultron.core.behaviors.bridge import BTBridge
-from vultron.core.behaviors.report.validate_tree import (
-    create_validate_report_tree,
-)
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture

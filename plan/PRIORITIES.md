@@ -8,37 +8,6 @@ allow for space between to add new priorities in the future if needed. The
 priority numbers themselves do not have any inherent meaning beyond their
 relative order.
 
-## Priority 80: Resolve technical debt and ensure Hexagonal Architecture is fully realized
-
-We need to clean up
-all the technical debt that we accumulated during the hexagonal architecture
-refactor. This includes things like ensuring that core, adapters, and wire
-are appropriately separated, that there is not architectural leakage from
-the "outer" layers into core, that error handling is consistent,
-hierarchical, well-defined, and not overly generalized (e.g., don't
-blindly catch `Exception`) Getting the architecture solid is important for
-the remainder of the implementation to go smoothly and for us to be able to
-parallelize work on different components without running into merge conflicts or
-other issues caused by architectural inconsistencies.
-
-## Priority 85: Capture all tasks and requirements in IDEAS.md
-
-IDEAS.md contains a significant number of ideas and tasks resulting from
-multiple recent code reviews. Each of these needs to be fully captured and
-reflected in `specs/`, `notes/` and `plan/` documents as appropriate. Tasks
-that are not already in `plan/IMPLEMENTATION_PLAN.md` should be added there  
-with a clear description and any relevant details. Requirements that are not
-already in `specs/` should be added there with a clear requirement id,  
-description, and any relevant details. Design ideas and research that are
-not  already in `notes/` should be added there with a clear description and  
-any relevant details. These updates are critical to ensure we are ready to
-move forward with the upcoming phase 100 tasks. Some items might expand or
-contradict existing notes, specs, or tasks. In those cases, whatever is in
-IDEAS.md should be considered the source of truth, and the existing notes,
-specs, or tasks should be updated to reflect the new information from
-IDEAS.md. DOCS-2 is required at this stage so we can merge a clean PR with all
-github action CI tasks passing.
-
 ## Priority 90: Fully address ADR-0013 and OPP-06
 
 `docs/adr/0013-unify-rm-state-tracking.md` was created to capture the decision to unify state
@@ -157,4 +126,5 @@ to demonstrate the core behavior tree and coordination logic.
 
 The project is currently in prototype development mode, therefore requirements
 that are marked as `PROD_ONLY` are temporarily a lower priority than other
-requirements.
+requirements. See `specs/prototype-shortcuts.md` for the prototype-stage
+deferral policy.

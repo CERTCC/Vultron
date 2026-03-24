@@ -2,127 +2,164 @@
 
 ## Project Overview
 
-Vultron is a research project exploring the creation of a federated, decentralized, and open source protocol for Coordinated Vulnerability Disclosure (CVD). This project emerged from the CERT/CC's decades of experience in coordinating global responses to software vulnerabilities.
+Vultron is a research prototype for a federated, decentralized protocol for
+Coordinated Vulnerability Disclosure (CVD), developed at CERT/CC. It is
+**not production-ready**.
 
-### Key Concepts
+Core domain concepts: **CVD** (single-party), **MPCVD** (multi-party), three
+interacting state machines — Report Management (RM), Embargo Management (EM),
+Case State (CS) — modeled as Behavior Trees.
 
-- **CVD (Coordinated Vulnerability Disclosure)**: A process for multiple parties to coordinate the disclosure and remediation of security vulnerabilities
-- **Multi-Party CVD (MPCVD)**: Extension of CVD to involve multiple vendors, coordinators, finders, and other stakeholders
-- **Behavior Trees**: The modeling approach used to simulate and implement the Vultron protocol
-- **ActivityStreams Vocabulary**: The message format used for Vultron protocol communications
+## Commands
 
-## Architecture Decision Records (ADRs)
+```bash
+# Setup
+uv sync --dev
 
-**Important**: This project uses Architecture Decision Records (ADRs) to document significant decisions. ADRs are located in `docs/adr/` and should be consulted when making architectural changes.
+# Format (run before every commit)
+uv run black vultron/ test/
 
-### Key Architectural Decisions
+# Full test suite — run exactly once, read the last 5 lines
+uv run pytest --tb=short 2>&1 | tail -5
 
-1. **ADR-0000**: Record architecture decisions using ADRs
-2. **ADR-0001**: Use MADR (Markdown Any Decision Records) format for all decision documentation
-3. **ADR-0002**: Model Vultron processes as Behavior Trees to handle complex state machine interactions
-4. **ADR-0003**: Build a custom Python Behavior Tree engine tailored to Vultron's needs
-5. **ADR-0004**: Use factory methods for common BT (Behavior Tree) node types to maintain consistency and flexibility
-6. **ADR-0005**: Use ActivityStreams Vocabulary as the basis for Vultron message formats
-7. **ADR-0006**: Use Calendar Versioning (CalVer: YYYY.MM.Patch) for project versioning
+# Single test file
+uv run pytest test/test_semantic_activity_patterns.py -v
 
-When proposing changes that affect architecture, consider whether an ADR should be created or updated. Follow the template at `docs/adr/_adr-template.md`.
+# Lint
+uv run flake8 vultron/ test/
+uv run mypy
+./mdlint.sh                     # markdown only
 
-## Code Structure
+# Docs
+uv run mkdocs serve
+```
 
-- **`vultron/`**: Main Python package
-  - **`vultron/bt/`**: Behavior Tree implementation (base classes and Vultron-specific nodes)
-  - **`vultron/demo/`**: Demonstration and simulation code
-  - **`vultron/scripts/`**: Utility scripts, including ActivityStreams vocabulary examples
-- **`docs/`**: Project documentation (MkDocs-based)
-  - **`docs/adr/`**: Architecture Decision Records
-- **`test/`**: Test files
-- **`doc/examples/`**: Example files demonstrating protocol usage
+Always format with Black before staging Python changes. Do not run Black on
+markdown files — use `markdownlint-cli2` for those.
 
-## Development Guidelines
+## Architecture
 
-### Python Standards
+### Hexagonal (Ports and Adapters)
 
-- **Python Version**: Requires Python 3.12+
-- **Code Formatting**: Use [Black](https://black.readthedocs.io/en/stable/) for code formatting
-- **Type Hints**: Use type hints throughout the codebase
-- **Dependencies**: Managed via `pyproject.toml` with `uv.lock`
+The core domain (`vultron/core/`) has **no imports** from FastAPI, AS2/wire,
+or adapter layers. External protocols are translated by adapters.
 
-### Key Technologies and Libraries
+```
+HTTP POST /inbox
+  → vultron/adapters/driving/fastapi/routers/actors.py   (202 immediately)
+  → BackgroundTasks
+  → vultron/wire/as2/parser.py        (structural parse)
+  → vultron/wire/as2/extractor.py     (AS2 → MessageSemantics)
+  → vultron/core/dispatcher.py        (route to use case)
+  → vultron/core/use_cases/<name>.py  (business logic + DataLayer)
+```
 
-- **Pydantic**: Used for data modeling and validation
-- **NetworkX**: Used for graph operations
-- **pandas**: Used for data analysis in simulations
-- **MkDocs Material**: Documentation site generator
-- **OWL/RDF libraries**: For ontology work (owlready2, rdflib)
+Key constraint: `extractor.py` is the **sole** AS2→domain mapping point.
+Handlers never inspect AS2 types directly.
 
-### Testing
+### Layer Rules
 
-- Run tests to ensure changes don't break existing functionality
-- Follow existing test patterns in the `test/` directory
+| Layer | Module path | Allowed imports |
+|---|---|---|
+| Core | `vultron/core/` | Core only + shared neutral modules |
+| Wire | `vultron/wire/` | Core + wire internals |
+| Adapters | `vultron/adapters/` | All layers |
+| API router | `vultron/adapters/driving/fastapi/routers/` | FastAPI + adapter helpers only |
 
-### Linting and Pre-commit
+### Key Files
 
-- Project uses pre-commit hooks (`.pre-commit-config.yaml`)
-- Markdown linting via `.markdownlint-cli2.yaml`
-- Flake8 configuration in `.flake8`
-- MyPy configuration in `.mypy.ini`
+| File | Role |
+|---|---|
+| `vultron/core/models/events.py` | `MessageSemantics` enum (authoritative) |
+| `vultron/enums.py` | Re-exports `MessageSemantics` + other enums |
+| `vultron/wire/as2/extractor.py` | `ActivityPattern` defs + `SEMANTICS_ACTIVITY_PATTERNS` |
+| `vultron/core/use_cases/use_case_map.py` | `USE_CASE_MAP`: `MessageSemantics` → use-case class |
+| `vultron/core/dispatcher.py` | `DirectActivityDispatcher` + `get_dispatcher()` |
+| `vultron/core/ports/datalayer.py` | `DataLayer` Protocol (port) |
+| `vultron/adapters/driven/datalayer_tinydb.py` | TinyDB implementation |
+| `vultron/adapters/driving/fastapi/routers/actors.py` | Inbox endpoint |
+| `vultron/errors.py` | `VultronError` base + all custom exceptions |
 
-## Domain-Specific Conventions
+## Key Conventions
 
-### State Machines
+### Naming
 
-The Vultron protocol is built around three interacting state machines:
+- Wire-layer AS2 fields/types use `as_` prefix (e.g., `as_Activity`, `as_type`)
+- Core domain models do **not** use `as_` prefix; use `field_: str = Field(alias="field")` for reserved-word conflicts
+- Vulnerability abbreviation: **`vul`** (not `vuln`)
+- Handler use cases (processing received messages): `XxxReceivedUseCase`
+- Trigger use cases (actor-initiated): `SvcXxxUseCase` (class) / `xxx_trigger` (function)
+- `ActivityPattern` objects: `<TypeName>Pattern` (e.g., `CreateReportPattern`)
 
-1. **Report Management (RM)**: Tracks the lifecycle of vulnerability reports
-2. **Embargo Management (EM)**: Manages coordinated disclosure timelines
-3. **Case State (CS)**: Tracks the overall case status
+### Use-Case Protocol
+
+All use-case classes must follow this structure:
+
+```python
+class CreateReportReceivedUseCase:
+    def __init__(self, dl: DataLayer, request: CreateReportReceivedEvent) -> None:
+        self._dl = dl
+        self._request = request
+
+    def execute(self) -> None:
+        ...
+```
+
+### Adding a New Message Type (checklist)
+
+1. Add `MessageSemantics` enum value in `vultron/core/models/events.py`
+2. Define `ActivityPattern` named `<Type>Pattern` in `vultron/wire/as2/extractor.py`
+3. Add to `SEMANTICS_ACTIVITY_PATTERNS` — **order matters, specific before general**
+4. Implement use-case class in `vultron/core/use_cases/`
+5. Register in `USE_CASE_MAP` in `vultron/core/use_cases/use_case_map.py`
+6. Add tests: pattern matching, routing, use-case logic
+
+### ActivityStreams Semantics
+
+- Activities are **state-change notifications**, not commands
+- Inbound: update local state to reflect sender's assertion; do not execute on their behalf
+- Outbound: work causes the activity; the activity does not cause the work
+- `Accept`/`Reject` in reply to `Offer`/`Invite`: set `object` to the **ID string** of the original (not inline object)
+- Call `rehydrate()` on incoming activities before pattern matching
+
+### Data Layer
+
+- Use `object_to_record()` + `dl.update(id, record)` to persist Pydantic models
+- `VulnerabilityCase.case_status` is a **list** (`list[CaseStatusRef]`); use `case.current_status` for the active one
+- Do not write typed activities to `case_activity` (enum coverage issue); store the ID string instead
+- Case events: always use `case.record_event(object_id, event_type)` — never copy activity timestamps
 
 ### Behavior Trees
 
-- Use factory methods (not direct subclassing) to create BT nodes for consistency
-- Keep `vultron.bt.base` focused on base classes
-- Keep Vultron-specific logic in higher-level modules
+- Use factory methods (not direct subclassing) for BT nodes
+- BT blackboard keys use `{noun}_{last_url_segment}` (no slashes in keys)
+- Clear `py_trees.blackboard.Blackboard.storage` in test fixtures to prevent state leakage
+- Not every handler needs a BT: use BTs for complex branching/state transitions; use procedural code for simple CRUD
 
-### Message Format
+### Error Handling
 
-- Messages use ActivityStreams Vocabulary semantics
-- Examples in `vultron/scripts/vocab_examples.py` and `doc/examples/`
-- Messages follow ActivityPub-compatible patterns for future federation
+- All custom exceptions inherit from `VultronError` (`vultron/errors.py`)
+- Dispatcher errors: `vultron/dispatcher_errors.py` (avoids circular imports)
+- FastAPI inbox: return 202 within ~100ms; schedule actual work with `BackgroundTasks`
 
-## Contribution Process
+### Testing
 
-1. **Review Contribution Instructions**: See `ContributionInstructions.md` for legal requirements
-2. **Discuss First**: For significant changes, open an Issue or Discussion before submitting a PR
-3. **Follow CONTRIBUTING.md**: See `CONTRIBUTING.md` for detailed contribution guidelines
-4. **Consider ADRs**: Significant architectural changes should be documented as ADRs
-5. **Code Owner**: @ahouseholder is the primary code owner (see `.github/CODEOWNERS`)
+- Test structure mirrors source: `test/core/use_cases/` mirrors `vultron/core/use_cases/`
+- Use full Pydantic objects in test data (not string primitives)
+- Use full URIs: `actor="https://example.org/alice"` not `actor="alice"`
+- Match `MessageSemantics` to actual activity structure in test events
 
-## Documentation
+## Architecture Decision Records
 
-- Documentation is built with MkDocs Material
-- Use `mkdocs.yml` for configuration
-- Include markdown documentation alongside code changes when appropriate
-- Examples should be generated via `vultron/scripts/vocab_examples.py`
+ADRs live in `docs/adr/`. Consult them before making architectural changes.
+Use `docs/adr/_adr-template.md` for new ADRs. Non-trivial architectural
+changes (new persistence paradigm, message format, component boundaries)
+require an ADR before merging.
 
-## Project Status
+## Further Reference
 
-This is a research prototype and is **not production-ready**. The focus is on:
-
-- Prototyping the Vultron protocol
-- Demonstrating feasibility of federated CVD
-- Exploring behavior tree modeling for CVD processes
-- Building a foundation for future interoperability
-
-## Key References
-
-- [Designing Vultron (2022 Report)](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=887198)
-- [CERT Guide to CVD](https://certcc.github.io/CERT-Guide-to-CVD)
-- [ActivityStreams Vocabulary](https://www.w3.org/TR/activitystreams-vocabulary/)
-- [Behavior Trees in Robotics and AI](https://arxiv.org/abs/1709.00084)
-
-## Code Style Notes
-
-- Minimize use of comments; prefer self-documenting code
-- When comments are needed, match the style of existing comments in the file
-- Use existing libraries whenever possible
-- Only add new libraries or update versions if absolutely necessary
+- `AGENTS.md` — comprehensive agent rules and common pitfalls
+- `specs/` — formal requirements with unique IDs (e.g., `HP-01-001`)
+- `notes/` — durable design insights (architecture, BT integration, AS2 semantics)
+- `docs/adr/` — architecture decision records
+- `.github/skills/format-code-run-tests/SKILL.md` — canonical test/format commands

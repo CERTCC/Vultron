@@ -64,7 +64,7 @@ class CreateCaseReceivedUseCase:
         )
 
         actor_id = request.actor_id
-        case_id = request.object_id
+        case_id = request.case_id
 
         if request.case is None:
             logger.warning(
@@ -102,7 +102,7 @@ class UpdateCaseReceivedUseCase:
     def execute(self) -> None:
         request = self._request
         actor_id = request.actor_id
-        case_id = request.object_id
+        case_id = request.case_id
 
         stored_case = cast(CaseModel, self._dl.read(case_id))
         if stored_case is None:
@@ -155,7 +155,7 @@ class EngageCaseReceivedUseCase:
         )
 
         actor_id = request.actor_id
-        case_id = request.object_id
+        case_id = request.case_id
 
         logger.info(
             "Actor '%s' engages case '%s' (RM → ACCEPTED)",
@@ -191,7 +191,7 @@ class DeferCaseReceivedUseCase:
         )
 
         actor_id = request.actor_id
-        case_id = request.object_id
+        case_id = request.case_id
 
         logger.info(
             "Actor '%s' defers case '%s' (RM → DEFERRED)",
@@ -223,8 +223,8 @@ class AddReportToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        report_id = request.object_id
-        case_id = request.target_id
+        report_id = request.report_id
+        case_id = request.case_id
         case = cast(CaseModel, self._dl.read(case_id))
 
         if case is None:
@@ -253,7 +253,7 @@ class CloseCaseReceivedUseCase:
     def execute(self) -> None:
         request = self._request
         actor_id = request.actor_id
-        case_id = request.object_id
+        case_id = request.case_id
 
         logger.info("Actor '%s' is closing case '%s'", actor_id, case_id)
 

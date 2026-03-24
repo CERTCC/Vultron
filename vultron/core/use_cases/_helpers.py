@@ -5,6 +5,7 @@ All helpers are private to the use-cases package (prefix ``_``).
 """
 
 import logging
+import uuid
 from typing import Any
 
 from vultron.core.ports.datalayer import DataLayer
@@ -61,3 +62,15 @@ def _idempotent_create(
         logger.info("Stored %s '%s'", label, id_key)
     else:
         logger.warning("no %s object for event '%s'", label, activity_id)
+
+
+def _report_phase_status_id(
+    actor_id: str, report_id: str, rm_state: str
+) -> str:
+    """Return a deterministic URN for a report-phase participant status record.
+
+    Uses UUID v5 (name-based) so the same (actor, report, rm_state) triple
+    always produces the same ID, enabling idempotent DataLayer creation.
+    """
+    name = f"{actor_id}|{report_id}|{rm_state}"
+    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, name)}"

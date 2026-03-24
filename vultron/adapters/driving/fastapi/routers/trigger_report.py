@@ -16,23 +16,23 @@
 """
 Trigger router for report-management behaviors.
 
-Thin wrapper: validates request → calls service → returns response.
-All domain logic lives in vultron.api.v2.backend.trigger_services.report.
+Thin wrapper: validates request → calls adapter → returns response.
+All domain logic lives in vultron.core.use_cases.triggers.report.
 """
 
 from fastapi import APIRouter, Depends, status
 
-from vultron.api.v2.backend.trigger_services._models import (
-    CloseReportRequest,
-    InvalidateReportRequest,
-    RejectReportRequest,
-    ValidateReportRequest,
-)
-from vultron.api.v2.backend.trigger_services.report import (
+from vultron.adapters.driving.fastapi._trigger_adapter import (
     close_report_trigger,
     invalidate_report_trigger,
     reject_report_trigger,
     validate_report_trigger,
+)
+from vultron.adapters.driving.fastapi.trigger_models import (
+    CloseReportRequest,
+    InvalidateReportRequest,
+    RejectReportRequest,
+    ValidateReportRequest,
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
@@ -49,6 +49,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "Invokes the ValidateReportBT tree via the bridge layer and "
         "returns the resulting ActivityStreams activity (TB-04-001)."
     ),
+    operation_id="actors_trigger_validate_report",
 )
 def trigger_validate_report(
     actor_id: str,
@@ -73,9 +74,10 @@ def trigger_validate_report(
         "Triggers the invalidate-report behavior for the given actor. "
         "Emits a TentativeReject(Offer(VulnerabilityReport)) activity "
         "(RmInvalidateReportActivity) and returns it in the response body (TB-04-001). "
-        "Updates the offer status to TENTATIVELY_REJECTED and the report "
-        "status to INVALID."
+        "Persists a ParticipantStatus record with RM.INVALID for the actor "
+        "and report."
     ),
+    operation_id="actors_trigger_invalidate_report",
 )
 def trigger_invalidate_report(
     actor_id: str,
@@ -101,8 +103,10 @@ def trigger_invalidate_report(
         "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) "
         "and returns it in the response body (TB-04-001). "
         "A non-empty note is required (TB-03-004). "
-        "Updates the offer status to REJECTED and the report status to CLOSED."
+        "Persists a ParticipantStatus record with RM.CLOSED for the actor "
+        "and report."
     ),
+    operation_id="actors_trigger_reject_report",
 )
 def trigger_reject_report(
     actor_id: str,
@@ -128,11 +132,13 @@ def trigger_reject_report(
         "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) "
         "representing the RM → C (CLOSED) transition, and returns it in the "
         "response body (TB-04-001). "
-        "Updates the offer status to REJECTED and the report status to CLOSED. "
+        "Persists a ParticipantStatus record with RM.CLOSED for the actor "
+        "and report. "
         "Unlike reject-report (which hard-rejects before validation), this "
         "endpoint closes a report that has already progressed through the RM "
         "lifecycle. Returns HTTP 409 if the report is already CLOSED."
     ),
+    operation_id="actors_trigger_close_report",
 )
 def trigger_close_report(
     actor_id: str,

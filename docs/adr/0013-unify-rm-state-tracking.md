@@ -91,8 +91,9 @@ without introducing a new record type.
 - Bad, because existing tests that read from the in-memory STATUS dict will need
   updating.
 - Bad, because `CaseParticipant.append_rm_state()` (wire layer) may need to be
-  mirrored on the core domain counterpart (see `plan/IMPLEMENTATION_NOTES.md`
-  re: wire-layer methods that should live on core objects).
+  mirrored on the core domain counterpart; see
+  `notes/domain-model-separation.md` on wire-layer mutation helpers that belong
+  in core.
 
 ## Validation
 
@@ -108,5 +109,5 @@ without introducing a new record type.
   led to this decision.
 - Related: `vultron/core/states/rm.py` `create_rm_machine()` — authoritative
   RM state machine definition.
-- Related fix: `plan/IMPLEMENTATION_NOTES.md` — note on wire-layer methods that
-  should be moved to core domain objects.
+- Related fix: `notes/domain-model-separation.md` — wire-layer mutation
+  helpers that should move to core domain objects.

@@ -21,7 +21,6 @@ implementation, verifying policy decision logic and logging behavior.
 """
 
 import logging
-from unittest.mock import MagicMock
 
 import pytest
 

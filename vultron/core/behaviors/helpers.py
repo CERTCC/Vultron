@@ -375,7 +375,7 @@ class CreateObject(DataLayerAction):
             # Ensure object_data has required 'as_id' field
             if "as_id" not in self.object_data:
                 self.feedback_message = (
-                    f"Object data missing required 'as_id' field"
+                    "Object data missing required 'as_id' field"
                 )
                 self.logger.error(self.feedback_message)
                 return Status.FAILURE

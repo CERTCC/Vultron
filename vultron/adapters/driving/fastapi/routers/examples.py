@@ -44,6 +44,7 @@ router = APIRouter(
     response_model=as_Actor,
     response_model_exclude_none=True,
     description="Get an example Actor object.",
+    operation_id="examples_get_actor",
 )
 def get_example_actor() -> as_Actor:
     """
@@ -63,6 +64,7 @@ def get_example_actor() -> as_Actor:
     "/actors",
     response_model=as_Actor,
     description="Validate an Actor object.",
+    operation_id="examples_validate_actor",
 )
 def validate_actor(actor: as_Actor) -> as_Actor:
     """Validates an Actor object."""
@@ -74,6 +76,7 @@ def validate_actor(actor: as_Actor) -> as_Actor:
     response_model=VulnerabilityReport,
     response_model_exclude_none=True,
     description="Get an example Vulnerability Report object.",
+    operation_id="examples_get_report",
 )
 def get_example_report() -> VulnerabilityReport:
     """Returns an example VulnerabilityReport object."""
@@ -86,6 +89,7 @@ def get_example_report() -> VulnerabilityReport:
     response_model_exclude_none=True,
     summary="Validate Report object format",
     description="Validates a Vulnerability Report object.",
+    operation_id="examples_validate_report",
 )
 def validate_report(report: VulnerabilityReport) -> VulnerabilityReport:
     """Validates a VulnerabilityReport object."""
@@ -97,6 +101,7 @@ def validate_report(report: VulnerabilityReport) -> VulnerabilityReport:
     response_model=VulnerabilityCase,
     response_model_exclude_none=True,
     description="Get an example Vulnerability Case object.",
+    operation_id="examples_get_case",
 )
 def get_example_case() -> VulnerabilityCase:
     """Returns an example VulnerabilityCase object."""
@@ -109,6 +114,7 @@ def get_example_case() -> VulnerabilityCase:
     response_model_exclude_none=True,
     summary="Validate Case object format",
     description="Validates a Vulnerability Case object.",
+    operation_id="examples_validate_case",
 )
 def validate_case(case: VulnerabilityCase) -> VulnerabilityCase:
     """Validates a VulnerabilityCase object."""
@@ -120,6 +126,7 @@ def validate_case(case: VulnerabilityCase) -> VulnerabilityCase:
     response_model=CaseStatus,
     response_model_exclude_none=True,
     description="Get an example Case Status object.",
+    operation_id="examples_get_case_status",
 )
 def get_example_case_status() -> CaseStatus:
     """Returns an example CaseStatus object."""
@@ -131,6 +138,7 @@ def get_example_case_status() -> CaseStatus:
     response_model=CaseStatus,
     response_model_exclude_none=True,
     description="Validates a CaseStatus object.",
+    operation_id="examples_validate_case_status",
 )
 def validate_case_status(case_status: CaseStatus) -> CaseStatus:
     """Validates a CaseStatus object."""
@@ -142,6 +150,7 @@ def validate_case_status(case_status: CaseStatus) -> CaseStatus:
     response_model=CaseParticipant,
     response_model_exclude_none=True,
     description="Get an example Case Participant object.",
+    operation_id="examples_get_participant",
 )
 def get_example_participant() -> CaseParticipant:
     """Returns an example CaseParticipant object."""
@@ -154,6 +163,7 @@ def get_example_participant() -> CaseParticipant:
     response_model_exclude_none=True,
     summary="Validate Case Participant object format",
     description="Validates a Case Participant object.",
+    operation_id="examples_validate_participant",
 )
 def validate_participant(participant: CaseParticipant) -> CaseParticipant:
     """Validates a CaseParticipant object."""
@@ -165,6 +175,7 @@ def validate_participant(participant: CaseParticipant) -> CaseParticipant:
     response_model=ParticipantStatus,
     response_model_exclude_none=True,
     description="Get an example Participant Status object.",
+    operation_id="examples_get_participant_status",
 )
 def get_example_participant_status() -> ParticipantStatus:
     """Returns an example ParticipantStatus object."""
@@ -176,6 +187,7 @@ def get_example_participant_status() -> ParticipantStatus:
     response_model=ParticipantStatus,
     response_model_exclude_none=True,
     description="Validates a ParticipantStatus object.",
+    operation_id="examples_validate_participant_status",
 )
 def validate_participant_status(
     status: ParticipantStatus,
@@ -189,6 +201,7 @@ def validate_participant_status(
     response_model=EmbargoEvent,
     response_model_exclude_none=True,
     description="Get an example Embargo Event object.",
+    operation_id="examples_get_embargo",
 )
 def get_example_embargo() -> EmbargoEvent:
     """Returns an example EmbargoEvent object."""
@@ -201,6 +214,7 @@ def get_example_embargo() -> EmbargoEvent:
     response_model_exclude_none=True,
     summary="Validate Embargo Event object format",
     description="Validates an EmbargoEvent object.",
+    operation_id="examples_validate_embargo",
 )
 def validate_embargo(embargo: EmbargoEvent) -> EmbargoEvent:
     """Validates an EmbargoEvent object."""
@@ -212,6 +226,7 @@ def validate_embargo(embargo: EmbargoEvent) -> EmbargoEvent:
     response_model=as_Note,
     response_model_exclude_none=True,
     description="Get an example Note object.",
+    operation_id="examples_get_note",
 )
 def get_example_note() -> as_Note:
     """
@@ -226,6 +241,7 @@ def get_example_note() -> as_Note:
     response_model_exclude_none=True,
     summary="Validate Note object format",
     description="Validates a Note object.",
+    operation_id="examples_validate_note",
 )
 def validate_note(note: as_Note) -> as_Note:
     """Validates a Note object."""

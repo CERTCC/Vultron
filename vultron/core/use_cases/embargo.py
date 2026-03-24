@@ -34,7 +34,7 @@ class CreateEmbargoEventReceivedUseCase:
         _idempotent_create(
             self._dl,
             request.object_type,
-            request.object_id,
+            request.embargo_id,
             request.embargo,
             "EmbargoEvent",
             request.activity_id,
@@ -50,8 +50,8 @@ class AddEmbargoEventToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        embargo_id = request.object_id
-        case_id = request.target_id
+        embargo_id = request.embargo_id
+        case_id = request.case_id
         case = cast(CaseModel, self._dl.read(case_id))
 
         if case is None:
@@ -84,8 +84,8 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        embargo_id = request.object_id
-        case_id = request.origin_id
+        embargo_id = request.embargo_id
+        case_id = request.case_id
         case = cast(CaseModel, self._dl.read(case_id))
 
         if case is None:
@@ -160,7 +160,7 @@ class AnnounceEmbargoEventToCaseReceivedUseCase:
         logger.info(
             "Received embargo announcement '%s' on case '%s'",
             request.activity_id,
-            request.context_id,
+            request.case_id,
         )
 
 
@@ -192,16 +192,16 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        embargo_id = request.inner_object_id
+        embargo_id = request.embargo_id
 
-        if request.inner_context_id:
-            case = cast(CaseModel, self._dl.read(request.inner_context_id))
+        if request.case_id:
+            case = cast(CaseModel, self._dl.read(request.case_id))
         else:
-            invite = self._dl.read(request.object_id)
+            invite = self._dl.read(request.invite_id)
             if invite is None:
                 logger.error(
                     "accept_invite_to_embargo_on_case: invite '%s' not found",
-                    request.object_id,
+                    request.invite_id,
                 )
                 return
             context_id = getattr(invite, "context", None)
@@ -209,7 +209,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             if context_id is None:
                 logger.error(
                     "accept_invite_to_embargo_on_case: cannot determine case from invite '%s'",
-                    request.object_id,
+                    request.invite_id,
                 )
                 return
             case = cast(CaseModel, self._dl.read(context_id))
@@ -258,7 +258,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         self._dl.save(case)
         logger.info(
             "Accepted embargo proposal '%s'; activated embargo '%s' on case '%s'",
-            request.object_id,
+            request.invite_id,
             embargo_id,
             case_id,
         )
@@ -276,5 +276,5 @@ class RejectInviteToEmbargoOnCaseReceivedUseCase:
         logger.info(
             "Actor '%s' rejected embargo proposal '%s'",
             request.actor_id,
-            request.object_id,
+            request.invite_id,
         )

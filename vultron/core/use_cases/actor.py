@@ -72,7 +72,7 @@ class RejectSuggestActorToCaseReceivedUseCase:
         logger.info(
             "Actor '%s' rejected recommendation to add actor '%s' to case",
             request.actor_id,
-            request.object_id,
+            request.suggested_actor_id,
         )
 
 
@@ -104,7 +104,7 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        case_id = request.inner_object_id
+        case_id = request.case_id
         new_owner_id = request.actor_id
         case = cast(CaseModel, self._dl.read(case_id))
 
@@ -146,7 +146,7 @@ class RejectCaseOwnershipTransferReceivedUseCase:
         logger.info(
             "Actor '%s' rejected ownership transfer offer '%s' — ownership unchanged",
             request.actor_id,
-            request.object_id,
+            request.offer_id,
         )
 
 
@@ -178,8 +178,8 @@ class AcceptInviteActorToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        case_id = request.inner_target_id
-        invitee_id = request.inner_object_id
+        case_id = request.case_id
+        invitee_id = request.invitee_id
         case = cast(CaseModel, self._dl.read(case_id))
 
         if case is None:
@@ -238,5 +238,5 @@ class RejectInviteActorToCaseReceivedUseCase:
         logger.info(
             "Actor '%s' rejected invitation '%s'",
             request.actor_id,
-            request.object_id,
+            request.invite_id,
         )

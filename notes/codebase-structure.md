@@ -488,3 +488,53 @@ Several Python inline code examples in `docs/` reference old module paths
 (e.g., `vultron.as_vocab.*`) that were moved to `vultron.wire.as2.vocab.*`
 during the P60-1 package relocation. Run `mkdocs build` to surface errors,
 then update the affected code blocks.
+
+---
+
+## Bulk Module-Rename Lessons Learned (VCR-019a)
+
+When doing large-scale module renames (moving packages from one location to
+another with import path changes), the following approach works reliably:
+
+- **`sed`-based bulk replacement** is faster and less error-prone than editing
+  files individually:
+  `sed -i '' 's/old\.module\.path/new\.module\.path/g' <file>` applied to
+  each affected file.
+- **Test directory must mirror source directory.** Move `test/old_package/`
+  to `test/new_package/` with a `__init__.py` to ensure pytest discovers
+  tests under the new paths.
+- **No shims = immediate confidence.** Without compatibility re-exports, a
+  clean test run proves all callers were updated. Any missed import site
+  causes an `ImportError` immediately rather than silently passing through a
+  shim.
+- **Find all callers first.** Use `grep -r "from old.path\|import old.path"`
+  across `vultron/` and `test/` to get the complete call-site list before
+  starting.
+
+---
+
+## Trigger Services Package: What Remains and Where It Should Go
+
+`vultron/api/v2/backend/trigger_services/` is a residual package that has
+been partially superseded by the core use cases and the FastAPI adapter
+routers. The remaining files serve the following roles:
+
+| File | Current role | Target location |
+|------|-------------|-----------------|
+| `_helpers.py` | `domain_error_translation()` context manager + re-exports from core | Move `domain_error_translation()` + `translate_domain_errors()` to `vultron/adapters/driving/fastapi/errors.py` or a new `vultron/adapters/driving/fastapi/trigger_helpers.py`; remove the re-export shim block |
+| `_models.py` | HTTP request body models (adapter layer) | Move to `vultron/adapters/driving/fastapi/trigger_models.py` |
+| `case.py` | Thin adapter delegates for case triggers | Move to `vultron/adapters/driving/fastapi/trigger_case_adapter.py` or inline into the existing `routers/trigger_case.py` |
+| `embargo.py` | Thin adapter delegates for embargo triggers | Same — inline into `routers/trigger_embargo.py` |
+| `report.py` | Thin adapter delegates for report triggers | Same — inline into `routers/trigger_report.py` |
+
+**Goal:** After relocation, `vultron/api/v2/` should contain only `data/actor_io.py`
+(pending VCR-014 resolution) and can eventually be removed entirely when
+`actor_io.py` is resolved.
+
+**Note on inlining vs. separate files:** The trigger adapter delegates are
+thin enough (3–5 lines each) that inlining them directly into the router
+files is appropriate. If the router files become large, a sibling
+`_adapter.py` module can be used. The key constraint is that these delegates
+must not live in `vultron.core` — they are adapter-layer concerns.
+
+**See:** `plan/IMPLEMENTATION_PLAN.md` TECHDEBT-31 for the task tracking this work.

@@ -16,17 +16,17 @@
 """
 Trigger router for case-management behaviors.
 
-Thin wrapper: validates request → calls service → returns response.
-All domain logic lives in vultron.api.v2.backend.trigger_services.case.
+Thin wrapper: validates request → calls adapter → returns response.
+All domain logic lives in vultron.core.use_cases.triggers.case.
 """
 
 from fastapi import APIRouter, Depends, status
 
-from vultron.api.v2.backend.trigger_services._models import CaseTriggerRequest
-from vultron.api.v2.backend.trigger_services.case import (
+from vultron.adapters.driving.fastapi._trigger_adapter import (
     defer_case_trigger,
     engage_case_trigger,
 )
+from vultron.adapters.driving.fastapi.trigger_models import CaseTriggerRequest
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 
@@ -43,6 +43,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
         "transitions the actor's RM state to ACCEPTED in the case, "
         "and returns the activity in the response body (TB-04-001)."
     ),
+    operation_id="actors_trigger_engage_case",
 )
 def trigger_engage_case(
     actor_id: str,
@@ -69,6 +70,7 @@ def trigger_engage_case(
         "transitions the actor's RM state to DEFERRED in the case, "
         "and returns the activity in the response body (TB-04-001)."
     ),
+    operation_id="actors_trigger_defer_case",
 )
 def trigger_defer_case(
     actor_id: str,

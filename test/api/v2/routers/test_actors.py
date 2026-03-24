@@ -93,8 +93,8 @@ def test_get_actor_profile_returns_discovery_fields(
         assert "type" in data
         assert "inbox" in data
         assert "outbox" in data
-        assert data["inbox"]["type"] == "OrderedCollection"
-        assert data["outbox"]["type"] == "OrderedCollection"
+        assert isinstance(data["inbox"], str), "inbox must be a URL string"
+        assert isinstance(data["outbox"], str), "outbox must be a URL string"
 
 
 def test_get_actor_profile_not_found_returns_404(client_actors):

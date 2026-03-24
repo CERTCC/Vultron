@@ -25,7 +25,6 @@ from vultron.wire.as2.vocab.activities.embargo import (
 )
 from vultron.wire.as2.vocab.examples._base import (
     _COORDINATOR,
-    _VENDOR,
     case,
     vendor,
 )

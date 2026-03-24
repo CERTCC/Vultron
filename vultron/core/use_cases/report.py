@@ -10,14 +10,13 @@ from vultron.core.models.events.report import (
     SubmitReportReceivedEvent,
     ValidateReportReceivedEvent,
 )
-from vultron.core.models.status import (
-    OfferStatus,
-    OfferStatusEnum,
-    ReportStatus,
-    set_status,
-)
+from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.states.rm import RM
+from vultron.core.use_cases._helpers import (
+    _idempotent_create,
+    _report_phase_status_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +35,12 @@ class CreateReportReceivedUseCase:
             try:
                 self._dl.create(obj_to_store)
                 logger.info(
-                    "Stored VulnerabilityReport with ID: %s", request.object_id
+                    "Stored VulnerabilityReport with ID: %s", request.report_id
                 )
             except ValueError as e:
                 logger.warning(
                     "VulnerabilityReport %s already exists: %s",
-                    request.object_id,
+                    request.report_id,
                     e,
                 )
 
@@ -59,19 +58,28 @@ class CreateReportReceivedUseCase:
                     e,
                 )
 
-        set_status(
-            ReportStatus(
-                object_type=request.object_type or "VulnerabilityReport",
-                object_id=request.object_id,
-                status=RM.RECEIVED,
-                actor_id=request.actor_id,
+        if request.report_id:
+            status = VultronParticipantStatus(
+                as_id=_report_phase_status_id(
+                    request.actor_id, request.report_id, RM.RECEIVED.value
+                ),
+                context=request.report_id,
+                attributed_to=request.actor_id,
+                rm_state=RM.RECEIVED,
             )
-        )
-        logger.info(
-            "RM START → RECEIVED for report '%s' (actor '%s')",
-            request.object_id,
-            request.actor_id,
-        )
+            _idempotent_create(
+                self._dl,
+                "ParticipantStatus",
+                status.as_id,
+                status,
+                "ParticipantStatus (report-phase RM.RECEIVED)",
+                request.activity_id,
+            )
+            logger.info(
+                "RM START → RECEIVED for report '%s' (actor '%s')",
+                request.report_id,
+                request.actor_id,
+            )
 
 
 class SubmitReportReceivedUseCase:
@@ -88,12 +96,12 @@ class SubmitReportReceivedUseCase:
             try:
                 self._dl.create(obj_to_store)
                 logger.info(
-                    "Stored VulnerabilityReport with ID: %s", request.object_id
+                    "Stored VulnerabilityReport with ID: %s", request.report_id
                 )
             except ValueError as e:
                 logger.warning(
                     "VulnerabilityReport %s already exists: %s",
-                    request.object_id,
+                    request.report_id,
                     e,
                 )
 
@@ -111,19 +119,28 @@ class SubmitReportReceivedUseCase:
                     e,
                 )
 
-        set_status(
-            ReportStatus(
-                object_type=request.object_type or "VulnerabilityReport",
-                object_id=request.object_id,
-                status=RM.RECEIVED,
-                actor_id=request.actor_id,
+        if request.report_id:
+            status = VultronParticipantStatus(
+                as_id=_report_phase_status_id(
+                    request.actor_id, request.report_id, RM.RECEIVED.value
+                ),
+                context=request.report_id,
+                attributed_to=request.actor_id,
+                rm_state=RM.RECEIVED,
             )
-        )
-        logger.info(
-            "RM START → RECEIVED for report '%s' (actor '%s')",
-            request.object_id,
-            request.actor_id,
-        )
+            _idempotent_create(
+                self._dl,
+                "ParticipantStatus",
+                status.as_id,
+                status,
+                "ParticipantStatus (report-phase RM.RECEIVED)",
+                request.activity_id,
+            )
+            logger.info(
+                "RM START → RECEIVED for report '%s' (actor '%s')",
+                request.report_id,
+                request.actor_id,
+            )
 
 
 class ValidateReportReceivedUseCase:
@@ -142,8 +159,8 @@ class ValidateReportReceivedUseCase:
         )
 
         actor_id = request.actor_id
-        report_id = request.inner_object_id
-        offer_id = request.object_id
+        report_id = request.report_id
+        offer_id = request.offer_id
 
         logger.info(
             "Actor '%s' validates VulnerabilityReport '%s' via BT execution",
@@ -190,24 +207,8 @@ class InvalidateReportReceivedUseCase:
         logger.info(
             "Actor '%s' tentatively rejects offer '%s' of VulnerabilityReport '%s'",
             actor_id,
-            request.object_id,
-            request.inner_object_id,
-        )
-        set_status(
-            OfferStatus(
-                object_type=request.object_type or "Offer",
-                object_id=request.object_id,
-                status=OfferStatusEnum.TENTATIVELY_REJECTED,
-                actor_id=actor_id,
-            )
-        )
-        set_status(
-            ReportStatus(
-                object_type=request.inner_object_type or "VulnerabilityReport",
-                object_id=request.inner_object_id,
-                status=RM.INVALID,
-                actor_id=actor_id,
-            )
+            request.offer_id,
+            request.report_id,
         )
         if request.activity is not None:
             try:
@@ -223,6 +224,24 @@ class InvalidateReportReceivedUseCase:
                     e,
                 )
 
+        if request.report_id:
+            status = VultronParticipantStatus(
+                as_id=_report_phase_status_id(
+                    actor_id, request.report_id, RM.INVALID.value
+                ),
+                context=request.report_id,
+                attributed_to=actor_id,
+                rm_state=RM.INVALID,
+            )
+            _idempotent_create(
+                self._dl,
+                "ParticipantStatus",
+                status.as_id,
+                status,
+                "ParticipantStatus (report-phase RM.INVALID)",
+                request.activity_id,
+            )
+
 
 class AckReportReceivedUseCase:
     def __init__(self, dl: DataLayer, request: AckReportReceivedEvent) -> None:
@@ -234,8 +253,8 @@ class AckReportReceivedUseCase:
         logger.info(
             "Actor '%s' acknowledges receipt of offer '%s' of VulnerabilityReport '%s'",
             request.actor_id,
-            request.object_id,
-            request.inner_object_id,
+            request.offer_id,
+            request.report_id,
         )
         if request.activity is not None:
             try:
@@ -252,19 +271,28 @@ class AckReportReceivedUseCase:
                 )
 
         # The report is nested inside the offer: inner_object_id is the report.
-        if request.inner_object_id:
-            set_status(
-                ReportStatus(
-                    object_type=request.inner_object_type
-                    or "VulnerabilityReport",
-                    object_id=request.inner_object_id,
-                    status=RM.RECEIVED,
-                    actor_id=request.actor_id,
-                )
+        if request.report_id:
+            status = VultronParticipantStatus(
+                as_id=_report_phase_status_id(
+                    request.actor_id,
+                    request.report_id,
+                    RM.RECEIVED.value,
+                ),
+                context=request.report_id,
+                attributed_to=request.actor_id,
+                rm_state=RM.RECEIVED,
+            )
+            _idempotent_create(
+                self._dl,
+                "ParticipantStatus",
+                status.as_id,
+                status,
+                "ParticipantStatus (report-phase RM.RECEIVED)",
+                request.activity_id,
             )
             logger.info(
                 "RM START → RECEIVED for report '%s' (actor '%s')",
-                request.inner_object_id,
+                request.report_id,
                 request.actor_id,
             )
 
@@ -282,24 +310,8 @@ class CloseReportReceivedUseCase:
         logger.info(
             "Actor '%s' rejects offer '%s' of VulnerabilityReport '%s'",
             actor_id,
-            request.object_id,
-            request.inner_object_id,
-        )
-        set_status(
-            OfferStatus(
-                object_type=request.object_type or "Offer",
-                object_id=request.object_id,
-                status=OfferStatusEnum.REJECTED,
-                actor_id=actor_id,
-            )
-        )
-        set_status(
-            ReportStatus(
-                object_type=request.inner_object_type or "VulnerabilityReport",
-                object_id=request.inner_object_id,
-                status=RM.CLOSED,
-                actor_id=actor_id,
-            )
+            request.offer_id,
+            request.report_id,
         )
         if request.activity is not None:
             try:
@@ -314,3 +326,21 @@ class CloseReportReceivedUseCase:
                     request.activity_id,
                     e,
                 )
+
+        if request.report_id:
+            status = VultronParticipantStatus(
+                as_id=_report_phase_status_id(
+                    actor_id, request.report_id, RM.CLOSED.value
+                ),
+                context=request.report_id,
+                attributed_to=actor_id,
+                rm_state=RM.CLOSED,
+            )
+            _idempotent_create(
+                self._dl,
+                "ParticipantStatus",
+                status.as_id,
+                status,
+                "ParticipantStatus (report-phase RM.CLOSED)",
+                request.activity_id,
+            )

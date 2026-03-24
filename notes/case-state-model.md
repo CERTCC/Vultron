@@ -222,6 +222,18 @@ Getting this wrong — e.g., updating `CaseStatus.em_state` with a
 participant-specific value, or forgetting to scope RM updates to the correct
 participant — would produce incorrect case state representations.
 
+### OPP-06 — Future VFD/PXA transition handling
+
+When vendor-fix or public/exploit/attack transitions are implemented beyond
+object creation, reuse the authoritative VFD/PXA transition definitions rather
+than encoding bespoke conditionals in individual use cases or BT nodes. That
+keeps participant-specific VFD logic and shared PXA logic aligned with the
+formal state model and ensures future persistence guards stay consistent across
+code paths.
+
+See `notes/state-machine-findings.md` OPP-06 and
+`specs/case-management.md` `CM-04-005`.
+
 ### Key Reference Documents
 
 The following documents explain this distinction in depth and MUST be

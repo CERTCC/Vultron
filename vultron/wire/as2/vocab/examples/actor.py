@@ -17,10 +17,7 @@ from vultron.wire.as2.vocab.activities.actor import (
     RejectActorRecommendationActivity,
 )
 from vultron.wire.as2.vocab.examples._base import (
-    _CASE,
     _COORDINATOR,
-    _FINDER,
-    _VENDOR,
     case,
     finder,
     vendor,

@@ -6,8 +6,8 @@ Objective: Complete the highest-priority pending implementation task.
 2. study specs/*.md (start with specs/README.md) to understand authoritative
    requirements.
 3. study plan/IMPLEMENTATION_PLAN.md to understand current tasks and status.
-4. study plan/IMPLEMENTATION_NOTES.md to understand recent lessons learned
-   and constraints.
+4. study plan/IMPLEMENTATION_NOTES.md to understand recent lessons learned,
+   constraints, and tactical guidance
 5. study notes/*.md (start with notes/README.md) to understand other relevant
      lessons learned.
 6. study vultron/*and test/* to understand current implementation and behavior.
@@ -28,9 +28,8 @@ Objective: Complete the highest-priority pending implementation task.
 
 ## Verify Before Coding
 
-1. Search vultron/*and test/* to understand current implementation current
-   behavior. Do not assume missing functionality; confirm via code search.
-
+1. Search `vultron/*` and `test/*` to understand current implementation.
+   1. Do not assume missing functionality; confirm via code search.
 2. Handling missing prerequisites: If verification shows a blocking
    prerequisite, you MAY add at most one minimal prerequisite entry to
    `plan/IMPLEMENTATION_PLAN.md` under these constraints:
@@ -59,20 +58,25 @@ Objective: Complete the highest-priority pending implementation task.
      the same changeset
 - You may use sub-agents for implementation, but validation tests must be
      run by the main agent to ensure the task is fully complete before validation.
+- Always add tests for new functionality, and update existing tests as 
+  needed to reflect changes in behavior
+- Ensure DRY principle is followed in implementation. Consolidate duplicate 
+  code into reusable functions, classes, or mixins as appropriate. Avoid 
+  code duplication across the codebase, including in tests.
 
 ## Validate
 
-1. Run validation commands specified in AGENTS.md.
+2. Run validation commands specified in AGENTS.md.
 
     - This must be performed by the main agent, even if sub-agents were used
       for implementation.
     - Do not skip or delegate validation.
 
-2. If you encounter incidental bugs during implementation, add them to
+3. If you encounter incidental bugs during implementation, add them to
   `plan/BUGS.md` with a clear description and reproduction steps, but do not
   pursue them unless they block the current task.
 
-3. If Validation Succeeds
+4. If Validation Succeeds
 
     - Mark the task complete in plan/IMPLEMENTATION_PLAN.md.
     - Append a 'what was done' summary to plan/IMPLEMENTATION_HISTORY.md;  

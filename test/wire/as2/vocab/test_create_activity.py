@@ -34,7 +34,7 @@ class MyTestCase(unittest.TestCase):
         del data["type"]
         # data["as_type"] = data.pop("type")
         data["as_object"] = data.pop("object")
-        create = as_Create(**data)
+        as_Create(**data)
 
 
 if __name__ == "__main__":

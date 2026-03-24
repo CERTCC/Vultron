@@ -55,7 +55,6 @@ from vultron.demo.utils import (
     demo_environment,
     demo_step,
     get_offer_from_datalayer,
-    logfmt,
     post_to_inbox_and_wait,
     post_to_trigger,
     verify_object_stored,

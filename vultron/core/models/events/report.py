@@ -3,11 +3,16 @@
 from typing import Literal
 
 from vultron.core.models.activity import VultronActivity
+from vultron.core.models.events._mixins import (
+    _InnerObjectIsReportMixin,
+    _ObjectIsOfferMixin,
+    _ObjectIsReportMixin,
+)
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
 from vultron.core.models.report import VultronReport
 
 
-class CreateReportReceivedEvent(VultronEvent):
+class CreateReportReceivedEvent(_ObjectIsReportMixin, VultronEvent):
     """Actor created a VulnerabilityReport."""
 
     semantic_type: Literal[MessageSemantics.CREATE_REPORT] = (
@@ -17,7 +22,7 @@ class CreateReportReceivedEvent(VultronEvent):
     activity: VultronActivity
 
 
-class SubmitReportReceivedEvent(VultronEvent):
+class SubmitReportReceivedEvent(_ObjectIsReportMixin, VultronEvent):
     """Actor submitted (offered) a VulnerabilityReport for validation."""
 
     semantic_type: Literal[MessageSemantics.SUBMIT_REPORT] = (
@@ -27,7 +32,9 @@ class SubmitReportReceivedEvent(VultronEvent):
     activity: VultronActivity
 
 
-class ValidateReportReceivedEvent(VultronEvent):
+class ValidateReportReceivedEvent(
+    _ObjectIsOfferMixin, _InnerObjectIsReportMixin, VultronEvent
+):
     """Actor accepted an offer of a VulnerabilityReport, marking it as valid."""
 
     semantic_type: Literal[MessageSemantics.VALIDATE_REPORT] = (
@@ -36,7 +43,9 @@ class ValidateReportReceivedEvent(VultronEvent):
     activity: VultronActivity
 
 
-class InvalidateReportReceivedEvent(VultronEvent):
+class InvalidateReportReceivedEvent(
+    _ObjectIsOfferMixin, _InnerObjectIsReportMixin, VultronEvent
+):
     """Actor tentatively rejected an offer of a VulnerabilityReport."""
 
     semantic_type: Literal[MessageSemantics.INVALIDATE_REPORT] = (
@@ -45,7 +54,9 @@ class InvalidateReportReceivedEvent(VultronEvent):
     activity: VultronActivity
 
 
-class AckReportReceivedEvent(VultronEvent):
+class AckReportReceivedEvent(
+    _ObjectIsOfferMixin, _InnerObjectIsReportMixin, VultronEvent
+):
     """Actor acknowledged (read) a VulnerabilityReport submission."""
 
     semantic_type: Literal[MessageSemantics.ACK_REPORT] = (
@@ -54,7 +65,9 @@ class AckReportReceivedEvent(VultronEvent):
     activity: VultronActivity
 
 
-class CloseReportReceivedEvent(VultronEvent):
+class CloseReportReceivedEvent(
+    _ObjectIsOfferMixin, _InnerObjectIsReportMixin, VultronEvent
+):
     """Actor rejected an offer of a VulnerabilityReport, closing it."""
 
     semantic_type: Literal[MessageSemantics.CLOSE_REPORT] = (

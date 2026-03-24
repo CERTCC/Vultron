@@ -2475,3 +2475,265 @@ design decisions required before ACT-2 implementation can begin.
    to avoid implementing delivery against a still-changing DataLayer.
 
 **Result**: 984 tests pass (no regressions; docs-only change).
+
+---
+
+### TECHDEBT-31 — Relocate `trigger_services/` into FastAPI adapter (2026-03-23)
+
+**Task**: Move `vultron/api/v2/backend/trigger_services/` into the proper
+FastAPI adapter layer under `vultron/adapters/driving/fastapi/`.
+
+**What was done**:
+
+- Moved `domain_error_translation()` and `translate_domain_errors()` from
+  `trigger_services/_helpers.py` into
+  `vultron/adapters/driving/fastapi/errors.py`.
+- Moved HTTP request body models from `trigger_services/_models.py` to
+  `vultron/adapters/driving/fastapi/trigger_models.py` (unchanged content).
+- Merged all three thin adapter delegate modules (`case.py`, `embargo.py`,
+  `report.py`) into a single
+  `vultron/adapters/driving/fastapi/_trigger_adapter.py`.
+- Updated all three trigger routers (`trigger_report.py`, `trigger_case.py`,
+  `trigger_embargo.py`) to import from the new adapter-layer locations.
+- Updated `test/api/v2/backend/test_trigger_services.py` imports.
+- Deleted `vultron/api/v2/backend/trigger_services/` entirely (5 Python files).
+- `vultron/api/v2/` now contains only `data/actor_io.py` (pending VCR-014)
+  and two `__init__.py` stubs.
+
+**Result**: 996 tests pass, no regressions.
+
+**Notes**: The old `_helpers.py` re-export shim (which re-exported core helpers
+like `add_activity_to_outbox`, `resolve_actor` etc.) is now gone entirely.
+All callers already imported those from `vultron.core.use_cases.triggers._helpers`
+directly (confirmed by test suite passing).
+
+---
+
+### TECHDEBT-29 — Profile endpoint returns inbox/outbox as URL strings (2026-03-23)
+
+**Task**: Clarify and enforce that `GET /actors/{actor_id}/profile` returns
+inbox and outbox as URL strings, not embedded OrderedCollection objects.
+
+**What was done**:
+
+- Updated `specs/agentic-readiness.md` AR-10-001 to require `inbox` and
+  `outbox` as string URL links (not embedded collection objects); updated
+  the verification section accordingly.
+- Modified `vultron/adapters/driving/fastapi/routers/actors.py`
+  `get_actor_profile()`: removed `response_model=as_Actor`; profile is now
+  built via `model_dump(by_alias=True, exclude_none=True)` then inbox/outbox
+  overridden with their `.as_id` string URLs.
+- Updated `test/api/v2/routers/test_actors.py` to assert `inbox` and `outbox`
+  are `str` instances (not dicts).
+
+**Result**: 996 tests pass, no regressions. Spec and test now agree.
+
+**Notes**: The existing `as_Actor.inbox` default_factory creates collections
+with random UUIDs as IDs (the `set_collections` validator only fires when
+`inbox is None`). Fixing the collection IDs to be `{actor_id}/inbox`-style
+URLs is a separate concern tracked as a future improvement.
+
+---
+
+## TECHDEBT-33 — Split test_handlers.py (COMPLETE 2026-03-23)
+
+Split the 2227-line monolithic `test/api/v2/backend/test_handlers.py` into
+per-module test files under `test/core/use_cases/`, mirroring the source
+layout. Four test classes had already been migrated in earlier runs (actor,
+case_participant, basic report/use-case execution); this run completed the
+remaining migrations:
+
+- `test_embargo_use_cases.py` — `TestEmbargoUseCases` (11 tests)
+- `test_note_use_cases.py` — `TestNoteUseCases` (6 tests)
+- `test_status_use_cases.py` — `TestStatusUseCases` (7 tests)
+- `test_case_use_cases.py` — `TestCaseUseCases` (6 tests)
+- `test_report_use_cases.py` — `TestReportReceiptRM` (3 tests, appended)
+- Deleted `test/api/v2/backend/test_handlers.py`
+
+976 tests pass at completion (was 913; the increase reflects newly visible
+migrated tests that had previously been duplicated in the old file).
+
+### Commits
+
+- 8f34be9: "test: TECHDEBT-33 — split test_handlers.py into per-module use-case test files"
+
+---
+
+## OB-05-002, AR-01-003, P90-5 — Health readiness probe, operation IDs, OPP-06 spec
+
+**Date**: 2026-03-23
+**Commit**: 2d4308e
+
+### What was done
+
+Three Quick Win tasks completed in a single run:
+
+**OB-05-002** — Implemented DataLayer connectivity check in
+`/health/ready`. The `readiness()` endpoint now injects the DataLayer via
+`Depends(get_datalayer)`, probes it with `dl.read("")`, and returns HTTP 503 if
+the backend raises. The test file was updated to use the shared `datalayer`
+fixture and a new `client_health_failing` fixture; a new test verifies the 503
+path.
+
+**AR-01-003** — Added unique, stable `operation_id` values to all 39 FastAPI
+route decorators across `actors.py`, `datalayer.py`, `examples.py`,
+`health.py`, `trigger_case.py`, `trigger_embargo.py`, `trigger_report.py`, and
+`v2_router.py`. Convention: `{resource}_{action}` (e.g. `actors_list`,
+`datalayer_get_offer`, `examples_validate_case`).
+
+**P90-5** — Added `BT-12 VFD/PXA State Machine Usage` section with requirement
+`BT-12-001` and verification criteria to `specs/behavior-tree-integration.md`.
+Captures OPP-06: any future VFD/PXA state transitions MUST use
+`create_vfd_machine()` / `create_pxa_machine()` rather than hand-rolled logic.
+
+### Test results
+
+977 passed, 5581 subtests (baseline was 976; +1 new test for OB-05-002 503 path).
+
+---
+
+## Refresh #43 — OX-1.4 (2026-03-23)
+
+**Task**: OX-1.4 — Add `test/api/v2/backend/test_outbox.py`
+
+**What was done**: Created `test/api/v2/backend/test_outbox.py` with 7 unit
+tests for the outbox handler module
+(`vultron/adapters/driving/fastapi/outbox_handler.py`).
+
+Tests cover:
+
+- `handle_outbox_item` logs the actor ID and item at INFO level.
+- `outbox_handler` drains the actor outbox entirely on success (happy path).
+- FIFO order preserved across multiple items (OX-01-002).
+- Empty outbox processes nothing.
+- Retry and abort after > 3 consecutive errors (item returned to outbox).
+- Processing continues after a single recoverable error.
+
+All tests monkeypatch `get_datalayer` in the outbox_handler module so tests
+are fast and isolated (no real DataLayer). The pattern mirrors
+`test_inbox_handler.py`.
+
+**Bug discovered**: `outbox_handler` does not return early when
+`dl.read(actor_id)` returns `None`; the subsequent `while actor.outbox.items:`
+would raise `AttributeError`. Documented in `plan/BUGS.md` as BUG-001.
+
+### Test results
+
+984 passed, 5581 subtests (+7 new tests for outbox handler).
+
+---
+
+## P90-1 — Persist RM.RECEIVED ParticipantStatus on report receipt (2026-03-23)
+
+### What was done
+
+Implemented ADR-0013 step 1: the explicit `START → RECEIVED` (RECEIVE trigger)
+RM transition is now persisted in a `VultronParticipantStatus` record at
+report-receipt time.
+
+**Changes:**
+
+- `vultron/core/use_cases/_helpers.py`: Added `_report_phase_status_id(actor_id,
+  report_id, rm_state)` helper that uses UUID v5 (name-based) to generate a
+  deterministic, idempotent URN for a report-phase participant status record.
+- `vultron/core/use_cases/report.py`: Both `CreateReportReceivedUseCase` and
+  `SubmitReportReceivedUseCase` now create and persist a
+  `VultronParticipantStatus` with `rm_state=RM.RECEIVED`, `context=report_id`,
+  and `attributed_to=actor_id` after storing the report. Uses
+  `_idempotent_create` to prevent duplicate records on repeated calls.
+  The existing `set_status()` call is retained (P90-4 will remove it).
+- `test/core/use_cases/test_report_use_cases.py`: 3 new tests verifying
+  persistence for Create, Submit variants, and idempotency.
+
+### Lessons learned
+
+- UUID v5 (name-based) is a clean pattern for deriving deterministic DataLayer
+  IDs from semantic keys when auto-generated UUIDs would break idempotency.
+- The report ID serves as the `context` for pre-case `VultronParticipantStatus`
+  records; the case ID takes over as `context` once a case is created.
+- `_idempotent_create` with `dl.get(type_key, id_key)` is the standard
+  idempotency guard pattern; deterministic IDs are the prerequisite.
+
+### Test results
+
+987 passed, 5581 subtests (+3 new tests for P90-1).
+
+---
+
+## P90-4 — Remove global STATUS dict; route RM state through DataLayer
+
+**Completed**: 2026-03-23
+
+### What was done
+
+Removed the global mutable `STATUS: dict[str, dict]` from
+`vultron/core/models/status.py` along with all helpers that depended on it:
+`ReportStatus`, `set_status()`, `get_status_layer()`,
+`status_to_record_dict()`, and `_current_report_rm_state()`. The
+`OfferStatus`, `OfferStatusEnum`, and `ObjectStatus` classes were retained as
+valid domain models.
+
+All RM state reads and writes that previously went through the STATUS layer
+now use the DataLayer-backed `VultronParticipantStatus` records introduced in
+P90-1, looked up via `_report_phase_status_id()` deterministic IDs.
+
+**Source files changed**:
+
+- `vultron/core/models/status.py` — removed STATUS dict and all related
+  helpers; kept `OfferStatusEnum`, `ObjectStatus`, `OfferStatus`
+- `vultron/core/use_cases/report.py` — removed remaining `set_status()` calls
+  (DataLayer path already present from P90-1)
+- `vultron/core/use_cases/triggers/report.py` — replaced `set_status()`
+  and `get_status_layer()` with DataLayer `VultronParticipantStatus` creation
+  and `dl.get("ParticipantStatus", ...)` existence checks
+- `vultron/core/behaviors/report/nodes.py` — updated four BT nodes:
+  `CheckRMStateValid` and `CheckRMStateReceivedOrInvalid` now query the
+  DataLayer for VALID records; `TransitionRMtoValid` and `TransitionRMtoInvalid`
+  create `VultronParticipantStatus` records via `_idempotent_create()`
+
+**Test files changed**:
+
+- `test/core/use_cases/test_report_use_cases.py` — removed `TestReportReceiptRM`
+  class (tested STATUS layer, now superseded by `TestReportReceiptPersistsParticipantStatus`)
+- `test/api/v2/backend/test_trigger_services.py` — updated `received_report`,
+  `accepted_report`, `closed_report` fixtures to use DataLayer
+- `test/api/v2/routers/test_trigger_report.py` — same fixture pattern
+- `test/core/behaviors/report/test_nodes.py` — replaced `set_status()` setup
+  with DataLayer `VultronParticipantStatus` creation; replaced `get_status_layer()`
+  assertions with `datalayer.get("ParticipantStatus", ...)` checks
+- `test/core/behaviors/report/test_validate_tree.py` — same pattern
+
+### Test results
+
+984 passed, 5581 subtests (no new tests; P90-4 updated existing tests).
+
+---
+
+## TECHDEBT-30 — Domain-specific property getters on core event interfaces (COMPLETE 2026-03-23)
+
+**Goal**: Replace AS2-generic field accesses (`object_id`, `target_id`,
+`context_id`, `inner_object_id`, etc.) in core use cases with domain-specific
+property names (`report_id`, `case_id`, `embargo_id`, `offer_id`, etc.).
+
+**Approach**: Created `vultron/core/models/events/_mixins.py` with 14 reusable
+property-mixin classes. Each mixin exposes one domain-specific property aliasing
+the appropriate generic base-class field. Per-semantic event subclasses inherit
+the relevant mixin(s) alongside `VultronEvent`. Updated all 7 use-case modules
+to access domain properties instead of generic names.
+
+**Source files changed**:
+
+- `vultron/core/models/events/_mixins.py` — new file; 14 mixin classes
+- `vultron/core/models/events/report.py` — mixin inheritance on 6 event classes
+- `vultron/core/models/events/actor.py` — mixin inheritance on 3 event classes
+- `vultron/core/models/events/embargo.py` — mixin inheritance on 6 event classes
+- `vultron/core/models/events/case_participant.py` — mixin inheritance on 3 event classes
+- `vultron/core/models/events/note.py` — mixin inheritance on 3 event classes
+- `vultron/core/models/events/status.py` — mixin inheritance on 4 event classes
+- `vultron/core/models/events/case.py` — mixin inheritance on `AddReportToCaseReceivedEvent`
+- `vultron/core/use_cases/report.py`, `actor.py`, `embargo.py`, `case_participant.py`,
+  `note.py`, `status.py`, `case.py` — all generic field references replaced
+
+### Test results
+
+984 passed, 5581 subtests passed.

@@ -15,14 +15,32 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.adapters.driving.fastapi.routers import health as health_router
 
 
 @pytest.fixture
-def client_health():
+def client_health(datalayer):
     app = FastAPI()
     app.include_router(health_router.router)
-    return TestClient(app)
+    app.dependency_overrides[get_datalayer] = lambda: datalayer
+    client = TestClient(app)
+    yield client
+    app.dependency_overrides = {}
+
+
+@pytest.fixture
+def client_health_failing():
+    class FailingDataLayer:
+        def read(self, *args, **kwargs):
+            raise OSError("storage unavailable")
+
+    app = FastAPI()
+    app.include_router(health_router.router)
+    app.dependency_overrides[get_datalayer] = lambda: FailingDataLayer()
+    client = TestClient(app)
+    yield client
+    app.dependency_overrides = {}
 
 
 def test_liveness_returns_200(client_health):
@@ -49,3 +67,9 @@ def test_readiness_response_body(client_health):
     resp = client_health.get("/health/ready")
     data = resp.json()
     assert data["status"] == "ok"
+
+
+def test_readiness_returns_503_when_datalayer_fails(client_health_failing):
+    """OB-05-002: /health/ready MUST return 503 when dependencies unavailable."""
+    resp = client_health_failing.get("/health/ready")
+    assert resp.status_code == 503

@@ -31,7 +31,7 @@ class CreateCaseStatusReceivedUseCase:
         _idempotent_create(
             self._dl,
             request.object_type,
-            request.object_id,
+            request.status_id,
             request.status,
             "CaseStatus",
             request.activity_id,
@@ -47,8 +47,8 @@ class AddCaseStatusToCaseReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        status_id = request.object_id
-        case_id = request.target_id
+        status_id = request.status_id
+        case_id = request.case_id
         case = cast(CaseModel, self._dl.read(case_id))
 
         if case is None:
@@ -124,7 +124,7 @@ class CreateParticipantStatusReceivedUseCase:
         _idempotent_create(
             self._dl,
             request.object_type,
-            request.object_id,
+            request.status_id,
             request.status,
             "ParticipantStatus",
             request.activity_id,
@@ -142,8 +142,8 @@ class AddParticipantStatusToParticipantReceivedUseCase:
 
     def execute(self) -> None:
         request = self._request
-        status_id = request.object_id
-        participant_id = request.target_id
+        status_id = request.status_id
+        participant_id = request.participant_id
         participant = cast(ParticipantModel, self._dl.read(participant_id))
 
         if participant is None:

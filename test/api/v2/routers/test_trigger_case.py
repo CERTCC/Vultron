@@ -24,15 +24,15 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
+from vultron.api.v2.data.actor_io import init_actor_io
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
-from vultron.core.states.rm import RM
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -132,7 +132,7 @@ def test_trigger_engage_case_missing_case_id_returns_422(
         f"/actors/{actor.as_id}/trigger/engage-case",
         json={},
     )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
 def test_trigger_engage_case_ignores_unknown_fields(
