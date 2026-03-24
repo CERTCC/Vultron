@@ -37,7 +37,7 @@ async def liveness():
 async def readiness(dl: DataLayer = Depends(get_datalayer)):
     """Returns 200 if the service is ready to accept requests (OB-05-002)."""
     try:
-        dl.read("")
+        dl.ping()
         return {"status": "ok"}
     except Exception:
         raise HTTPException(

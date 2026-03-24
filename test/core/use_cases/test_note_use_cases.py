@@ -12,16 +12,23 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for note-related use-case classes."""
 
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.use_cases.note import (
-    CreateNoteReceivedUseCase,
     AddNoteToCaseReceivedUseCase,
+    CreateNoteReceivedUseCase,
     RemoveNoteFromCaseReceivedUseCase,
 )
+from vultron.wire.as2.extractor import extract_intent
+from vultron.wire.as2.vocab.activities.case import AddNoteToCaseActivity
+from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Create,
+    as_Remove,
+)
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
 def _make_payload(activity, **extra_fields):
-    from vultron.wire.as2.extractor import extract_intent
-
     event = extract_intent(activity)
     if extra_fields:
         return event.model_copy(update=extra_fields)
@@ -33,12 +40,6 @@ class TestNoteUseCases:
 
     def test_create_note_stores_note(self, monkeypatch):
         """create_note persists the Note to the DataLayer."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Create,
-        )
-        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-
         dl = TinyDbDataLayer(db_path=None)
 
         note = as_Note(
@@ -59,12 +60,6 @@ class TestNoteUseCases:
 
     def test_create_note_idempotent(self, monkeypatch):
         """create_note skips storing a duplicate Note."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Create,
-        )
-        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-
         dl = TinyDbDataLayer(db_path=None)
 
         note = as_Note(
@@ -85,15 +80,6 @@ class TestNoteUseCases:
 
     def test_add_note_to_case_appends_note(self, monkeypatch):
         """add_note_to_case appends note ID to case.notes and persists."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            AddNoteToCaseActivity,
-        )
-        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -125,15 +111,6 @@ class TestNoteUseCases:
 
     def test_add_note_to_case_idempotent(self, monkeypatch):
         """add_note_to_case skips adding a note already in the case."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            AddNoteToCaseActivity,
-        )
-        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -165,15 +142,6 @@ class TestNoteUseCases:
 
     def test_remove_note_from_case_removes_note(self, monkeypatch):
         """remove_note_from_case removes note ID from case.notes and persists."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Remove,
-        )
-        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -206,15 +174,6 @@ class TestNoteUseCases:
 
     def test_remove_note_from_case_idempotent(self, monkeypatch):
         """remove_note_from_case is idempotent when note not in case."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.base.objects.activities.transitive import (
-            as_Remove,
-        )
-        from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",

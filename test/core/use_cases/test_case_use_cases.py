@@ -12,13 +12,19 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for case-related use-case classes."""
 
+import logging
+
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.use_cases.case import UpdateCaseReceivedUseCase
+from vultron.wire.as2.extractor import extract_intent
+from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
+from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
 def _make_payload(activity, **extra_fields):
-    from vultron.wire.as2.extractor import extract_intent
-
     event = extract_intent(activity)
     if extra_fields:
         return event.model_copy(update=extra_fields)
@@ -30,11 +36,6 @@ class TestCaseUseCases:
 
     def test_update_case_applies_scalar_updates(self, monkeypatch, caplog):
         """update_case applies name/summary/content updates from a full object."""
-        import logging
-
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -61,16 +62,14 @@ class TestCaseUseCases:
         )
         event = _make_payload(activity)
 
-        from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
-
-        def _mock_rehydrate(obj, **kwargs):
+        def _mock_rehydrate_applies(obj, **kwargs):
             if obj == case.as_id:
                 return updated_case
             return real_rehydrate(obj, **kwargs)
 
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.rehydrate",
-            _mock_rehydrate,
+            _mock_rehydrate_applies,
         )
 
         with caplog.at_level(logging.INFO):
@@ -83,11 +82,6 @@ class TestCaseUseCases:
 
     def test_update_case_rejects_non_owner(self, monkeypatch, caplog):
         """update_case logs a warning and skips if actor is not the case owner."""
-        import logging
-
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -124,9 +118,6 @@ class TestCaseUseCases:
 
     def test_update_case_idempotent(self, monkeypatch):
         """update_case with same data produces the same result (last-write-wins)."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -152,16 +143,14 @@ class TestCaseUseCases:
         )
         event = _make_payload(activity)
 
-        from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
-
-        def _mock_rehydrate(obj, **kwargs):
+        def _mock_rehydrate_idempotent(obj, **kwargs):
             if obj == case.as_id:
                 return updated_case
             return real_rehydrate(obj, **kwargs)
 
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.rehydrate",
-            _mock_rehydrate,
+            _mock_rehydrate_idempotent,
         )
 
         UpdateCaseReceivedUseCase(dl, event).execute()
@@ -175,15 +164,6 @@ class TestCaseUseCases:
         self, monkeypatch, caplog
     ):
         """update_case logs WARNING per CM-10-004 when a participant has not accepted the active embargo."""
-        import logging
-
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -232,15 +212,6 @@ class TestCaseUseCases:
         self, monkeypatch, caplog
     ):
         """update_case does NOT warn when all participants have accepted the active embargo (CM-10-004)."""
-        import logging
-
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -286,14 +257,6 @@ class TestCaseUseCases:
         self, monkeypatch, caplog
     ):
         """update_case does NOT warn when there is no active embargo (CM-10-004)."""
-        import logging
-
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
-        )
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",

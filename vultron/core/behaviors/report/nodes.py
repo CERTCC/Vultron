@@ -222,9 +222,10 @@ class TransitionRMtoValid(DataLayerAction):
 
 class TransitionRMtoInvalid(DataLayerAction):
     """
-    Transition report to RM.INVALID and offer to TENTATIVELY_REJECTED.
+    Transition report to RM.INVALID.
 
-    Updates report status (RM.INVALID) in the DataLayer.
+    Persists a ParticipantStatus record with RM.INVALID for the actor and
+    report in the DataLayer.
     Logs state transitions at INFO level.
 
     This node implements the invalidation path for future fallback sequences.
