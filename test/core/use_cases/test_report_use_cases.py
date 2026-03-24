@@ -96,9 +96,7 @@ class TestReportReceiptPersistsParticipantStatus:
             semantic_type=MessageSemantics.CREATE_REPORT,
             activity_id="https://example.org/activities/create-p1",
             actor_id="https://example.org/users/finder",
-            object_id="https://example.org/reports/r-persist-1",
-            object_type="VulnerabilityReport",
-            report=report,
+            object_=report,
             activity=activity,
         )
 
@@ -136,9 +134,7 @@ class TestReportReceiptPersistsParticipantStatus:
             semantic_type=MessageSemantics.SUBMIT_REPORT,
             activity_id="https://example.org/activities/submit-p1",
             actor_id="https://example.org/users/finder",
-            object_id="https://example.org/reports/r-persist-2",
-            object_type="VulnerabilityReport",
-            report=report,
+            object_=report,
             activity=activity,
         )
 
@@ -176,9 +172,7 @@ class TestReportReceiptPersistsParticipantStatus:
             semantic_type=MessageSemantics.CREATE_REPORT,
             activity_id="https://example.org/activities/create-idem-1",
             actor_id="https://example.org/users/finder",
-            object_id="https://example.org/reports/r-idem-1",
-            object_type="VulnerabilityReport",
-            report=report,
+            object_=report,
             activity=activity,
         )
 

@@ -7,7 +7,6 @@ from vultron.core.models.events._mixins import (
     _TargetIsCaseMixin,
 )
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.vultron_types import VultronParticipant
 
 
 class CreateCaseParticipantReceivedEvent(
@@ -18,7 +17,6 @@ class CreateCaseParticipantReceivedEvent(
     semantic_type: Literal[MessageSemantics.CREATE_CASE_PARTICIPANT] = (
         MessageSemantics.CREATE_CASE_PARTICIPANT
     )
-    participant: VultronParticipant
 
 
 class AddCaseParticipantToCaseReceivedEvent(

@@ -762,7 +762,7 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
 
 **Source**: `plan/IDEAS.md` "Expand use of `vultron.core.models.events._mixins`"
 
-- [ ] **TECHDEBT-35**: Extend `vultron/core/models/events/_mixins.py` in two
+- [x] **TECHDEBT-35**: Extend `vultron/core/models/events/_mixins.py` in two
   ways:
 
   1. **Add rich-object property to each `ObjectIsFoo` mixin**: Each existing

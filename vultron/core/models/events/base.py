@@ -10,7 +10,7 @@ from enum import StrEnum, auto
 from pydantic import BaseModel
 
 from vultron.core.models.activity import VultronActivity
-from vultron.core.models.base import NonEmptyString
+from vultron.core.models.base import NonEmptyString, VultronObject
 
 
 class MessageSemantics(StrEnum):
@@ -75,18 +75,22 @@ class VultronEvent(BaseModel):
     core. It is distinct from ``VultronActivity``, which is the domain model
     for the AS2 activity object itself (used for DataLayer storage).
 
-    A ``VultronEvent`` carries decomposed ID/type fields extracted from the
-    wire-format activity, plus (for some semantics) the full ``VultronActivity``
-    and/or a domain object (report, case, embargo, etc.).
+    A ``VultronEvent`` carries full domain objects extracted from the wire-format
+    activity, mirroring the richness of an AS2 Activity without importing any
+    wire-layer types.  ``object_`` uses a trailing underscore because ``object``
+    is a Python built-in; all other field names are natural English identifiers.
 
     Produced by ``extract_intent()`` in the wire layer before dispatch.
-    All fields are plain domain types (strings or domain models); no AS2
-    wire types are present.
+    All fields are plain domain types (strings or ``VultronObject`` subclasses);
+    no AS2 wire types are present.
 
     Concrete per-semantic subclasses set ``semantic_type`` as a ``Literal``
     to enable type-safe handler dispatch and Pydantic discriminated-union
     reconstruction. Subclasses that always carry an activity MUST narrow the
     optional ``activity`` field to required by redeclaring it without a default.
+
+    ID/type string properties are derived from the rich object fields to maintain
+    backward compatibility with code that accesses ``event.object_id``, etc.
     """
 
     semantic_type: MessageSemantics
@@ -94,27 +98,19 @@ class VultronEvent(BaseModel):
     activity_type: NonEmptyString | None = None
     actor_id: NonEmptyString
 
-    object_id: NonEmptyString | None = None
-    object_type: NonEmptyString | None = None
+    # Rich domain objects — parallel to AS2 Activity fields.
+    # ``object_`` uses a trailing underscore because ``object`` is a Python built-in.
+    object_: VultronObject | None = None
+    target: VultronObject | None = None
+    context: VultronObject | None = None
+    origin: VultronObject | None = None
 
-    target_id: NonEmptyString | None = None
-    target_type: NonEmptyString | None = None
-
-    context_id: NonEmptyString | None = None
-    context_type: NonEmptyString | None = None
-
-    origin_id: NonEmptyString | None = None
-    origin_type: NonEmptyString | None = None
+    # Nested fields: activity.object.object, .target, .context
+    inner_object: VultronObject | None = None
+    inner_target: VultronObject | None = None
+    inner_context: VultronObject | None = None
 
     in_reply_to: NonEmptyString | None = None
-
-    # Nested fields: activity.as_object.as_object, .target, .context
-    inner_object_id: NonEmptyString | None = None
-    inner_object_type: NonEmptyString | None = None
-    inner_target_id: NonEmptyString | None = None
-    inner_target_type: NonEmptyString | None = None
-    inner_context_id: NonEmptyString | None = None
-    inner_context_type: NonEmptyString | None = None
 
     # Optional at the base level; subclasses that always carry an activity
     # MUST narrow this to required by redeclaring without a default.
@@ -123,3 +119,81 @@ class VultronEvent(BaseModel):
     @property
     def as_id(self) -> str:
         return self.activity_id
+
+    # Derived ID/type properties — backward compatibility for use-case code.
+
+    @property
+    def object_id(self) -> str | None:
+        return self.object_.as_id if self.object_ is not None else None
+
+    @property
+    def object_type(self) -> str | None:
+        return self.object_.as_type if self.object_ is not None else None
+
+    @property
+    def target_id(self) -> str | None:
+        return self.target.as_id if self.target is not None else None
+
+    @property
+    def target_type(self) -> str | None:
+        return self.target.as_type if self.target is not None else None
+
+    @property
+    def context_id(self) -> str | None:
+        return self.context.as_id if self.context is not None else None
+
+    @property
+    def context_type(self) -> str | None:
+        return self.context.as_type if self.context is not None else None
+
+    @property
+    def origin_id(self) -> str | None:
+        return self.origin.as_id if self.origin is not None else None
+
+    @property
+    def origin_type(self) -> str | None:
+        return self.origin.as_type if self.origin is not None else None
+
+    @property
+    def inner_object_id(self) -> str | None:
+        return (
+            self.inner_object.as_id if self.inner_object is not None else None
+        )
+
+    @property
+    def inner_object_type(self) -> str | None:
+        return (
+            self.inner_object.as_type
+            if self.inner_object is not None
+            else None
+        )
+
+    @property
+    def inner_target_id(self) -> str | None:
+        return (
+            self.inner_target.as_id if self.inner_target is not None else None
+        )
+
+    @property
+    def inner_target_type(self) -> str | None:
+        return (
+            self.inner_target.as_type
+            if self.inner_target is not None
+            else None
+        )
+
+    @property
+    def inner_context_id(self) -> str | None:
+        return (
+            self.inner_context.as_id
+            if self.inner_context is not None
+            else None
+        )
+
+    @property
+    def inner_context_type(self) -> str | None:
+        return (
+            self.inner_context.as_type
+            if self.inner_context is not None
+            else None
+        )

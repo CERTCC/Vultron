@@ -2,6 +2,7 @@
 
 from typing import Literal
 
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events._mixins import (
     _ContextIsCaseMixin,
     _InnerContextIsCaseMixin,
@@ -12,10 +13,6 @@ from vultron.core.models.events._mixins import (
     _TargetIsCaseMixin,
 )
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.vultron_types import (
-    VultronActivity,
-    VultronEmbargoEvent,
-)
 
 
 class CreateEmbargoEventReceivedEvent(_ObjectIsEmbargoMixin, VultronEvent):
@@ -24,7 +21,6 @@ class CreateEmbargoEventReceivedEvent(_ObjectIsEmbargoMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_EMBARGO_EVENT] = (
         MessageSemantics.CREATE_EMBARGO_EVENT
     )
-    embargo: VultronEmbargoEvent
 
 
 class AddEmbargoEventToCaseReceivedEvent(
