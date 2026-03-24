@@ -2,13 +2,13 @@
 
 from typing import Literal
 
+from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events._mixins import (
     _ObjectIsCaseMixin,
     _ObjectIsReportMixin,
     _TargetIsCaseMixin,
 )
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.vultron_types import VultronActivity, VultronCase
 
 
 class CreateCaseReceivedEvent(_ObjectIsCaseMixin, VultronEvent):
@@ -17,7 +17,6 @@ class CreateCaseReceivedEvent(_ObjectIsCaseMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_CASE] = (
         MessageSemantics.CREATE_CASE
     )
-    case: VultronCase
     activity: VultronActivity
 
 
@@ -27,7 +26,6 @@ class UpdateCaseReceivedEvent(_ObjectIsCaseMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.UPDATE_CASE] = (
         MessageSemantics.UPDATE_CASE
     )
-    case: VultronCase
 
 
 class EngageCaseReceivedEvent(_ObjectIsCaseMixin, VultronEvent):

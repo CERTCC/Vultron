@@ -14,7 +14,7 @@ from vultron.core.models.events._mixins import (
     _ObjectIsSuggestedActorMixin,
 )
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.vultron_types import VultronActivity
+from vultron.core.models.activity import VultronActivity
 
 
 class SuggestActorToCaseReceivedEvent(VultronEvent):

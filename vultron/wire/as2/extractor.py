@@ -14,6 +14,7 @@ from typing import Optional, Union
 from pydantic import BaseModel
 
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.core.models.base import VultronObject
 from vultron.core.models.events import (
     EVENT_CLASS_MAP,
     MessageSemantics,
@@ -429,7 +430,7 @@ def extract_intent(
             )
 
         if _obj_type == str(VOtype.VULNERABILITY_REPORT):
-            kw["report"] = VultronReport(
+            kw["object_"] = VultronReport(
                 as_id=obj.as_id,
                 as_type=str(obj.as_type),
                 name=obj.name,
@@ -443,7 +444,7 @@ def extract_intent(
                 updated=getattr(obj, "updated", None),
             )
         elif _obj_type == str(VOtype.VULNERABILITY_CASE):
-            kw["case"] = VultronCase(
+            kw["object_"] = VultronCase(
                 as_id=obj.as_id,
                 as_type=str(obj.as_type),
                 name=getattr(obj, "name", None),
@@ -455,7 +456,7 @@ def extract_intent(
                 updated=getattr(obj, "updated", None),
             )
         elif _obj_type == str(AOtype.EVENT):
-            kw["embargo"] = VultronEmbargoEvent(
+            kw["object_"] = VultronEmbargoEvent(
                 as_id=obj.as_id,
                 as_type=str(obj.as_type),
                 name=getattr(obj, "name", None),
@@ -468,7 +469,7 @@ def extract_intent(
                 or _get_id(target),
             )
         elif _obj_type == str(VOtype.CASE_PARTICIPANT):
-            kw["participant"] = VultronParticipant(
+            kw["object_"] = VultronParticipant(
                 as_id=obj.as_id,
                 as_type=str(obj.as_type),
                 name=getattr(obj, "name", None),
@@ -480,7 +481,7 @@ def extract_intent(
                 ),
             )
         elif _obj_type == str(AOtype.NOTE):
-            kw["note"] = VultronNote(
+            kw["object_"] = VultronNote(
                 as_id=obj.as_id,
                 name=getattr(obj, "name", None),
                 summary=getattr(obj, "summary", None),
@@ -490,7 +491,7 @@ def extract_intent(
                 context=_get_id(getattr(obj, "context", None)),
             )
         elif _obj_type == str(VOtype.CASE_STATUS):
-            kw["status"] = VultronCaseStatus(
+            kw["object_"] = VultronCaseStatus(
                 as_id=obj.as_id,
                 name=getattr(obj, "name", None),
                 context=_get_id(getattr(obj, "context", None)),
@@ -503,7 +504,7 @@ def extract_intent(
         elif _obj_type == str(VOtype.PARTICIPANT_STATUS):
             ctx = _get_id(getattr(obj, "context", None)) or ""
             wire_case_status = getattr(obj, "case_status", None)
-            kw["status"] = VultronParticipantStatus(
+            kw["object_"] = VultronParticipantStatus(
                 as_id=obj.as_id,
                 name=getattr(obj, "name", None),
                 context=ctx,
@@ -518,7 +519,29 @@ def extract_intent(
                     else None
                 ),
             )
+        elif obj is not None:
+            obj_id = _get_id(obj)
+            if obj_id:
+                obj_type = _get_type(obj)
+                kw["object_"] = VultronObject(
+                    **{
+                        "as_id": obj_id,
+                        **({"as_type": obj_type} if obj_type else {}),
+                    }
+                )
         return kw
+
+    def _to_domain_obj(as_obj) -> VultronObject | None:
+        """Wrap a bare AS2 object reference as a minimal VultronObject."""
+        if as_obj is None:
+            return None
+        obj_id = _get_id(as_obj)
+        if not obj_id:
+            return None
+        obj_type = _get_type(as_obj)
+        return VultronObject(
+            **{"as_id": obj_id, **({"as_type": obj_type} if obj_type else {})}
+        )
 
     extra_kwargs = _build_domain_kwargs()
     return event_class(
@@ -526,20 +549,16 @@ def extract_intent(
         activity_id=activity.as_id,
         activity_type=str(activity.as_type) if activity.as_type else None,
         actor_id=actor_id,
-        object_id=_get_id(obj),
-        object_type=_get_type(obj),
-        target_id=_get_id(target),
-        target_type=_get_type(target),
-        context_id=_get_id(context),
-        context_type=_get_type(context),
-        origin_id=_get_id(origin),
-        origin_type=_get_type(origin),
-        inner_object_id=_get_id(inner_obj),
-        inner_object_type=_get_type(inner_obj),
-        inner_target_id=_get_id(inner_target),
-        inner_target_type=_get_type(inner_target),
-        inner_context_id=_get_id(inner_context),
-        inner_context_type=_get_type(inner_context),
+        # object_ comes from extra_kwargs if a typed domain object was built;
+        # otherwise fall back to a minimal VultronObject wrapper.
+        object_=extra_kwargs.pop("object_", None) or _to_domain_obj(obj),
+        target=_to_domain_obj(target),
+        context=_to_domain_obj(context),
+        origin=_to_domain_obj(origin),
+        inner_object=_to_domain_obj(inner_obj),
+        inner_target=_to_domain_obj(inner_target),
+        inner_context=_to_domain_obj(inner_context),
+        in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
         **extra_kwargs,
     )
 

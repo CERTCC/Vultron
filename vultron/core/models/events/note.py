@@ -7,7 +7,6 @@ from vultron.core.models.events._mixins import (
     _TargetIsCaseMixin,
 )
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.vultron_types import VultronNote
 
 
 class CreateNoteReceivedEvent(_ObjectIsNoteMixin, VultronEvent):
@@ -16,7 +15,6 @@ class CreateNoteReceivedEvent(_ObjectIsNoteMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_NOTE] = (
         MessageSemantics.CREATE_NOTE
     )
-    note: VultronNote
 
 
 class AddNoteToCaseReceivedEvent(

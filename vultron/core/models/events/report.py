@@ -9,7 +9,6 @@ from vultron.core.models.events._mixins import (
     _ObjectIsReportMixin,
 )
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.report import VultronReport
 
 
 class CreateReportReceivedEvent(_ObjectIsReportMixin, VultronEvent):
@@ -18,7 +17,6 @@ class CreateReportReceivedEvent(_ObjectIsReportMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_REPORT] = (
         MessageSemantics.CREATE_REPORT
     )
-    report: VultronReport
     activity: VultronActivity
 
 
@@ -28,7 +26,6 @@ class SubmitReportReceivedEvent(_ObjectIsReportMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.SUBMIT_REPORT] = (
         MessageSemantics.SUBMIT_REPORT
     )
-    report: VultronReport
     activity: VultronActivity
 
 

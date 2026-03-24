@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-24 (refresh #48: TECHDEBT-32c complete)
+**Last Updated**: 2026-03-24 (refresh #50: TECHDEBT-39 complete)
 
 ## Overview
 
@@ -13,7 +13,7 @@ it does not override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 985 passed, 5581 subtests (2026-03-24).
+**Test suite**: 988 passed, 5581 subtests (2026-03-24).
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -727,7 +727,7 @@ Remaining work is RM-specific (OPP-04 context: STATUS layer removed by P90-4,
 so RM guards now apply only to the DataLayer path) and any other hand-rolled
 direct enum assignments in `vultron/core/` that bypass machine validation.
 
-- [ ] **TECHDEBT-34**: Verify and document any remaining hand-rolled RM or
+- [x] **TECHDEBT-34**: Verify and document any remaining hand-rolled RM or
   EM direct enum assignments in `vultron/core/use_cases/` and
   `vultron/core/behaviors/` (excluding those already guarded via
   `is_valid_rm_transition()` / `is_valid_em_transition()` in the call chain).
@@ -737,6 +737,22 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
   `em_state =` / `rm_state =` assignments in `vultron/core/` either have
   an explicit machine guard or a documented justification for bypassing it,
   and the test suite passes.
+  **COMPLETE** (2026-03-24): Three unguarded `em_state = EM.ACTIVE` sites
+  found and addressed:
+  1. `SvcEvaluateEmbargoUseCase` (trigger-side) now uses `EMAdapter`+machine
+     with `MachineError` → `VultronConflictError` (consistent with
+     `SvcProposeEmbargoUseCase` and `SvcTerminateEmbargoUseCase`).
+  2. `AddEmbargoEventToCaseReceivedUseCase` (receive-side) now checks
+     `is_valid_em_transition()` and logs a WARNING if the transition is
+     non-standard; proceeds regardless (state-sync override — documented
+     justification for bypassing the hard guard).
+  3. `AcceptInviteToEmbargoOnCaseReceivedUseCase` (receive-side) — same
+     pattern as #2.
+  All `rm_state=RM.XXX` assignments in `vultron/core/` are constructor
+  arguments for new `VultronParticipantStatus` objects (initial-state
+  constructions, not transitions); the `append_rm_state()` guard
+  (`is_valid_rm_transition()`) already enforces RM transition validity for
+  all mutation paths. 4 new tests added. 988 tests pass.
 
 ---
 
@@ -746,7 +762,7 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
 
 **Source**: `plan/IDEAS.md` "Expand use of `vultron.core.models.events._mixins`"
 
-- [ ] **TECHDEBT-35**: Extend `vultron/core/models/events/_mixins.py` in two
+- [x] **TECHDEBT-35**: Extend `vultron/core/models/events/_mixins.py` in two
   ways:
 
   1. **Add rich-object property to each `ObjectIsFoo` mixin**: Each existing
@@ -831,7 +847,7 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
 
 **Source**: `notes/state-machine-findings.md` OPP-05 (duplicate RM helpers)
 
-- [ ] **TECHDEBT-39**: Two near-duplicate functions implement the "append a
+- [x] **TECHDEBT-39**: Two near-duplicate functions implement the "append a
   new `VultronParticipantStatus` with a given RM state" operation:
 
   1. `_find_and_update_participant_rm()` in
@@ -846,6 +862,12 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
   `vultron/core/use_cases/_participant_helpers.py`). Update BT node imports
   accordingly. Done when only one implementation exists, both BT nodes and
   trigger use cases use it, and the test suite passes.
+  **COMPLETE**: Removed `_find_and_update_participant_rm()` wrapper from
+  `nodes.py`. Both BT node `update()` methods now call `update_participant_rm_state()`
+  directly (imported from `vultron.core.use_cases.triggers._helpers`), inlining
+  the bool→Status conversion and exception handling. Removed redundant local
+  `from vultron.core.states.rm import RM` imports inside the methods (RM is
+  already imported at module level). 988 tests pass.
 
 ---
 

@@ -73,3 +73,20 @@ import from adapter is banned in core. Future core/BT code must use
 TECHDEBT-32c remains open: `vultron/wire/as2/rehydration.py` imports
 `get_datalayer` from the TinyDB adapter as a fallback — this is a
 wire-imports-adapter violation to be fixed separately.
+
+---
+
+## TECHDEBT-34 complete: EM state machine guards added
+
+Three unguarded `em_state = EM.ACTIVE` sites in `vultron/core/use_cases/` now
+have explicit guards:
+
+- **Trigger-side** (`SvcEvaluateEmbargoUseCase`): machine adapter raises
+  `VultronConflictError` on invalid state.
+- **Receive-side** (`AddEmbargoEventToCaseReceivedUseCase`,
+  `AcceptInviteToEmbargoOnCaseReceivedUseCase`): `is_valid_em_transition()`
+  check with WARNING log; proceeds regardless (state-sync override pattern).
+
+All `rm_state=RM.XXX` in core are constructor args for new status objects, not
+transitions — documented justification for bypassing machine guard. The
+`append_rm_state()` guard already enforces validity for all RM mutation paths.

@@ -8,10 +8,6 @@ from vultron.core.models.events._mixins import (
     _TargetIsParticipantMixin,
 )
 from vultron.core.models.events.base import MessageSemantics, VultronEvent
-from vultron.core.models.vultron_types import (
-    VultronCaseStatus,
-    VultronParticipantStatus,
-)
 
 
 class CreateCaseStatusReceivedEvent(_ObjectIsStatusMixin, VultronEvent):
@@ -20,7 +16,6 @@ class CreateCaseStatusReceivedEvent(_ObjectIsStatusMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_CASE_STATUS] = (
         MessageSemantics.CREATE_CASE_STATUS
     )
-    status: VultronCaseStatus
 
 
 class AddCaseStatusToCaseReceivedEvent(
@@ -39,7 +34,6 @@ class CreateParticipantStatusReceivedEvent(_ObjectIsStatusMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_PARTICIPANT_STATUS] = (
         MessageSemantics.CREATE_PARTICIPANT_STATUS
     )
-    status: VultronParticipantStatus
 
 
 class AddParticipantStatusToParticipantReceivedEvent(

@@ -5,7 +5,12 @@ from typing import cast
 
 from transitions import MachineError
 
-from vultron.core.states.em import EM, EMAdapter, create_em_machine
+from vultron.core.states.em import (
+    EM,
+    EMAdapter,
+    create_em_machine,
+    is_valid_em_transition,
+)
 from vultron.core.models.events.embargo import (
     AcceptInviteToEmbargoOnCaseReceivedEvent,
     AddEmbargoEventToCaseReceivedEvent,
@@ -69,6 +74,19 @@ class AddEmbargoEventToCaseReceivedUseCase:
             )
             return
 
+        current_em = case.current_status.em_state
+        if not is_valid_em_transition(current_em, EM.ACTIVE):
+            # Receive-side state-sync: the sender has activated this embargo;
+            # update local state to reflect the sender's assertion even when
+            # the transition is not on the standard machine path (e.g., if we
+            # missed a PROPOSE step and our local state is still NONE).
+            logger.warning(
+                "add_embargo_event_to_case: EM transition %s → ACTIVE is not"
+                " a standard machine transition for case '%s'; applying"
+                " state-sync override",
+                current_em,
+                case_id,
+            )
         case.set_embargo(embargo_id)
         case.current_status.em_state = EM.ACTIVE
         self._dl.save(case)
@@ -228,6 +246,18 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
             )
             return
 
+        current_em = case.current_status.em_state
+        if not is_valid_em_transition(current_em, EM.ACTIVE):
+            # Receive-side state-sync: the sender accepted an embargo invite;
+            # update local state to reflect the sender's assertion even when
+            # the transition is not on the standard machine path.
+            logger.warning(
+                "accept_invite_to_embargo_on_case: EM transition %s → ACTIVE"
+                " is not a standard machine transition for case '%s';"
+                " applying state-sync override",
+                current_em,
+                case_id,
+            )
         case.set_embargo(embargo_id)
         case.current_status.em_state = EM.ACTIVE
 
