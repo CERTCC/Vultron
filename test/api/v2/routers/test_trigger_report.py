@@ -24,11 +24,10 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driving.fastapi.routers.trigger_report import _actor_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_report as trigger_report_router,
 )
@@ -53,7 +52,7 @@ def dl(datalayer):
 def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_report_router.router)
-    app.dependency_overrides[get_datalayer] = lambda: dl
+    app.dependency_overrides[_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -63,7 +62,6 @@ def client_triggers(dl):
 def actor(dl):
     actor_obj = as_Service(name="Vendor Co")
     dl.create(object_to_record(actor_obj))
-    init_actor_io(actor_obj.as_id)
     return actor_obj
 
 
@@ -229,7 +227,9 @@ def test_trigger_validate_report_uses_injected_datalayer(
     datalayer, actor, offer, received_report
 ):
     """TB-06-001, TB-06-002: DataLayer is resolved from Depends(get_datalayer)."""
-    from vultron.adapters.driven.datalayer_tinydb import get_datalayer as gdl
+    from vultron.adapters.driving.fastapi.routers.trigger_report import (
+        _actor_dl as gdl,
+    )
 
     app = FastAPI()
     app.include_router(trigger_report_router.router)

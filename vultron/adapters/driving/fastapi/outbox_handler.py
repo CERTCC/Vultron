@@ -18,72 +18,57 @@ Provides an outbox handler for Vultron Actors.
 
 import logging
 
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.core.ports.datalayer import DataLayer
 
 logger = logging.getLogger(__name__)
 
 
-def handle_outbox_item(actor_id: str, obj):
-    """
-    Handle a single item in the Actor's outbox.
+def handle_outbox_item(actor_id: str, activity_id: str) -> None:
+    """Handle a single item in the Actor's outbox.
 
     Args:
         actor_id: The ID of the Actor whose outbox is being processed.
-        obj: The Activity item to process.
-    Returns:
-        None
-    Raises:
-        ValueError: If the object type is invalid for the outbox.
-
+        activity_id: The ID of the activity to process.
     """
-    logger.info(f"Processing outbox item for actor '{actor_id}'")
-
-    # Here you would implement the logic to handle the outbox item,
-    # such as sending it to another actor or processing it further.
-    logger.info(f"Outbox item:\n{obj}")
+    logger.info("Processing outbox item for actor '%s'", actor_id)
+    # Delivery implementation deferred to OX-1.1 (per ADR-0012 OX-B decision).
+    logger.info("Outbox item: %s", activity_id)
 
 
-async def outbox_handler(actor_id: str) -> None:
-    """
-    Process the outbox for the given actor.
+async def outbox_handler(actor_id: str, dl: DataLayer) -> None:
+    """Process the outbox for the given actor.
+
+    Reads pending activity IDs from the DataLayer outbox queue and
+    dispatches each one.  Delivery to remote actors is deferred until
+    OX-1.1 (per ADR-0012 OX-B decision).
 
     Args:
         actor_id: The ID of the Actor whose outbox is being processed.
-
-    Returns:
-        None
-
-    Raises:
-        None
-
+        dl: The DataLayer instance scoped to the current actor.
     """
-    dl = get_datalayer()
-
     actor = dl.read(actor_id)
     if actor is None:
-        logger.warning(f"Actor {actor_id} not found in inbox_handler.")
+        logger.warning("Actor %s not found in outbox_handler.", actor_id)
         return
 
-    logger.info(f"Processing inbox for actor {actor_id}")
-    # Simulate processing each item in the inbox
+    logger.info("Processing outbox for actor %s", actor_id)
     err_count = 0
-    while actor.outbox.items:
-        item = actor.outbox.items.pop(0)
+    while dl.outbox_list():
+        activity_id = dl.outbox_pop()
+        if activity_id is None:
+            break
 
         try:
-            handle_outbox_item(actor_id, item)
+            handle_outbox_item(actor_id, activity_id)
         except Exception as e:
             logger.error(
-                f"Error processing outbox item for actor {actor_id}: {e}"
+                "Error processing outbox item for actor %s: %s", actor_id, e
             )
-            logger.debug(
-                f"Item causing error: {item.model_dump_json(indent=2, exclude_none=True)}"
-            )
-            # put the item back in the inbox for retry
-            actor.outbox.items.insert(0, item)
+            dl.outbox_append(activity_id)
             err_count += 1
             if err_count > 3:
                 logger.error(
-                    f"Too many errors processing inbox for actor {actor_id}, aborting."
+                    "Too many errors processing outbox for actor %s, aborting.",
+                    actor_id,
                 )
                 break

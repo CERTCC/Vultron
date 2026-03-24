@@ -20,7 +20,7 @@ Thin wrapper: validates request → calls adapter → returns response.
 All domain logic lives in vultron.core.use_cases.triggers.embargo.
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Path, status
 
 from vultron.adapters.driving.fastapi._trigger_adapter import (
     evaluate_embargo_trigger,
@@ -36,6 +36,16 @@ from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
+
+
+def _actor_dl(actor_id: str = Path(...)) -> DataLayer:
+    """FastAPI dependency: return the shared DataLayer for trigger use cases.
+
+    Operational data (offers, reports, cases) is stored in the shared
+    DataLayer.  The ``actor_id`` path parameter is accepted (but unused)
+    so that ``app.dependency_overrides[_actor_dl]`` works in tests.
+    """
+    return get_datalayer()
 
 
 @router.post(
@@ -54,7 +64,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
 def trigger_propose_embargo(
     actor_id: str,
     body: ProposeEmbargoRequest,
-    dl: DataLayer = Depends(get_datalayer),
+    dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
     Trigger the propose-embargo behavior for the given actor.
@@ -84,7 +94,7 @@ def trigger_propose_embargo(
 def trigger_evaluate_embargo(
     actor_id: str,
     body: EvaluateEmbargoRequest,
-    dl: DataLayer = Depends(get_datalayer),
+    dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
     Trigger the evaluate-embargo (accept) behavior for the given actor.
@@ -115,7 +125,7 @@ def trigger_evaluate_embargo(
 def trigger_terminate_embargo(
     actor_id: str,
     body: TerminateEmbargoRequest,
-    dl: DataLayer = Depends(get_datalayer),
+    dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
     Trigger the terminate-embargo behavior for the given actor.

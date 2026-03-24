@@ -24,9 +24,8 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.adapters.driven.db_record import object_to_record
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driving.fastapi.routers.trigger_embargo import _actor_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_embargo as trigger_embargo_router,
 )
@@ -52,7 +51,7 @@ def dl(datalayer):
 def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_embargo_router.router)
-    app.dependency_overrides[get_datalayer] = lambda: dl
+    app.dependency_overrides[_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -62,7 +61,6 @@ def client_triggers(dl):
 def actor(dl):
     actor_obj = as_Service(name="Vendor Co")
     dl.create(object_to_record(actor_obj))
-    init_actor_io(actor_obj.as_id)
     return actor_obj
 
 

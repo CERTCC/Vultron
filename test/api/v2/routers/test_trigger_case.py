@@ -24,11 +24,10 @@ import pytest
 from fastapi import FastAPI, status
 from fastapi.testclient import TestClient
 
-from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.adapters.driving.fastapi.routers.trigger_case import _actor_dl
 from vultron.adapters.driving.fastapi.routers import (
     trigger_case as trigger_case_router,
 )
-from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
@@ -48,7 +47,7 @@ def dl(datalayer):
 def client_triggers(dl):
     app = FastAPI()
     app.include_router(trigger_case_router.router)
-    app.dependency_overrides[get_datalayer] = lambda: dl
+    app.dependency_overrides[_actor_dl] = lambda: dl
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
@@ -58,7 +57,6 @@ def client_triggers(dl):
 def actor(dl):
     actor_obj = as_Service(name="Vendor Co")
     dl.create(actor_obj)
-    init_actor_io(actor_obj.as_id)
     return actor_obj
 
 

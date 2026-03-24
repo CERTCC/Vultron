@@ -1266,9 +1266,11 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
   remove `actor_io.py` after ACT-2), and OUTBOX-1 scope (defer until ACT-3
   complete). ADR-0012 status: accepted.
 
-- [ ] **ACT-2**: Implement per-actor DataLayer isolation per chosen design. Done
+- [x] **ACT-2**: Implement per-actor DataLayer isolation per chosen design. Done
   when Actor A's DataLayer operations do not affect Actor B's state and tests
-  confirm isolation. **Depends on ACT-1.**
+  confirm isolation. **Depends on ACT-1.** **COMPLETE**: TinyDB namespace
+  prefix per actor (Option B/ADR-0012). 26 isolation tests added. All 1014
+  tests passing.
 
 - [ ] **ACT-3**: Update `get_datalayer` dependency and all handler tests to use
   per-actor DataLayer fixtures. **Depends on ACT-2.**

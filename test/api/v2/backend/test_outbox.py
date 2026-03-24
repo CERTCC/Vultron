@@ -17,8 +17,8 @@
 Unit tests for the outbox handler module.
 
 Tests call outbox handler functions directly (no HTTP layer) to verify
-the processing loop behavior. Each test monkeypatches ``get_datalayer``
-in the module under test to keep tests fast and isolated.
+the processing loop behavior.  Each test passes a mock DataLayer directly
+(the handler signature changed in ACT-2 to accept ``dl`` as a parameter).
 
 Module under test: ``vultron/adapters/driving/fastapi/outbox_handler.py``
 
@@ -37,28 +37,28 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 
 # ---------------------------------------------------------------------------
-# Fixtures / helpers
+# Helpers
 # ---------------------------------------------------------------------------
 
 
-def _make_item(name: str = "item") -> SimpleNamespace:
-    """Return a minimal fake activity item."""
-    return SimpleNamespace(
-        as_id=f"urn:test:{name}",
-        as_type="Activity",
-        name=name,
-        model_dump_json=lambda **kw: f'{{"name":"{name}"}}',
-    )
+def _make_queue(*ids: str) -> list[str]:
+    """Return a mutable list of activity ID strings."""
+    return list(ids)
 
 
-def _make_actor(items: list) -> SimpleNamespace:
-    """Return a minimal fake actor with an outbox collection."""
-    outbox = SimpleNamespace(items=list(items))
-    return SimpleNamespace(outbox=outbox)
+def _mock_dl_with_queue(
+    queue: list[str], actor=SimpleNamespace()
+) -> MagicMock:
+    """Return a MagicMock DataLayer backed by ``queue`` for outbox ops."""
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = actor
+    mock_dl.outbox_list.side_effect = lambda: list(queue)
+    mock_dl.outbox_pop.side_effect = lambda: queue.pop(0) if queue else None
+    mock_dl.outbox_append.side_effect = lambda x: queue.append(x)
+    return mock_dl
 
 
 # ---------------------------------------------------------------------------
@@ -68,18 +68,15 @@ def _make_actor(items: list) -> SimpleNamespace:
 
 def test_handle_outbox_item_logs_actor_id(caplog):
     """handle_outbox_item should log the actor_id at INFO level."""
-    item = _make_item("log-test")
     with caplog.at_level("INFO"):
-        oh.handle_outbox_item("actor-abc", item)
+        oh.handle_outbox_item("actor-abc", "urn:test:act-001")
     assert "actor-abc" in caplog.text
 
 
 def test_handle_outbox_item_logs_item(caplog):
-    """handle_outbox_item should log the outbox item at INFO level."""
-    item = _make_item("my-activity")
+    """handle_outbox_item should log the activity_id at INFO level."""
     with caplog.at_level("INFO"):
-        oh.handle_outbox_item("actor-abc", item)
-    # The item's str representation appears somewhere in the log
+        oh.handle_outbox_item("actor-abc", "urn:test:act-001")
     assert caplog.text  # at minimum something is logged
 
 
@@ -90,63 +87,54 @@ def test_handle_outbox_item_logs_item(caplog):
 
 def test_outbox_handler_processes_all_items(monkeypatch):
     """outbox_handler drains the actor's outbox entirely on success."""
-    items = [_make_item(f"item-{i}") for i in range(3)]
-    actor = _make_actor(items)
-
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = actor
-    monkeypatch.setattr(oh, "get_datalayer", lambda: mock_dl)
+    ids = [f"urn:test:item-{i}" for i in range(3)]
+    queue = _make_queue(*ids)
+    mock_dl = _mock_dl_with_queue(queue)
 
     processed = []
 
-    def fake_handle(actor_id, obj):
-        processed.append(obj)
+    def fake_handle(actor_id, activity_id):
+        processed.append(activity_id)
 
     monkeypatch.setattr(oh, "handle_outbox_item", fake_handle)
 
-    asyncio.run(oh.outbox_handler("actor-xyz"))
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
 
-    assert actor.outbox.items == []
-    assert len(processed) == 3
+    assert queue == []
+    assert processed == ids
 
 
 def test_outbox_handler_preserves_fifo_order(monkeypatch):
     """outbox_handler processes items in FIFO order (OX-01-002)."""
-    items = [_make_item(f"item-{i}") for i in range(4)]
-    actor = _make_actor(items)
+    ids = [f"urn:test:item-{i}" for i in range(4)]
+    queue = _make_queue(*ids)
+    mock_dl = _mock_dl_with_queue(queue)
 
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = actor
-    monkeypatch.setattr(oh, "get_datalayer", lambda: mock_dl)
+    processed = []
 
-    processed_names = []
-
-    def fake_handle(actor_id, obj):
-        processed_names.append(obj.name)
+    def fake_handle(actor_id, activity_id):
+        processed.append(activity_id)
 
     monkeypatch.setattr(oh, "handle_outbox_item", fake_handle)
 
-    asyncio.run(oh.outbox_handler("actor-xyz"))
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
 
-    assert processed_names == ["item-0", "item-1", "item-2", "item-3"]
+    assert processed == ids
 
 
 def test_outbox_handler_empty_outbox_does_nothing(monkeypatch):
     """outbox_handler with empty outbox processes no items."""
-    actor = _make_actor([])
-
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = actor
-    monkeypatch.setattr(oh, "get_datalayer", lambda: mock_dl)
+    queue: list[str] = []
+    mock_dl = _mock_dl_with_queue(queue)
 
     processed = []
 
-    def fake_handle(actor_id, obj):
-        processed.append(obj)
+    def fake_handle(actor_id, activity_id):
+        processed.append(activity_id)
 
     monkeypatch.setattr(oh, "handle_outbox_item", fake_handle)
 
-    asyncio.run(oh.outbox_handler("actor-xyz"))
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
 
     assert processed == []
 
@@ -158,60 +146,50 @@ def test_outbox_handler_empty_outbox_does_nothing(monkeypatch):
 
 def test_outbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
     """outbox_handler puts item back on error and aborts after > 3 errors."""
-    item = _make_item("bad-item")
-    actor = _make_actor([item])
+    queue = _make_queue("urn:test:bad-item")
+    mock_dl = _mock_dl_with_queue(queue)
 
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = actor
-    monkeypatch.setattr(oh, "get_datalayer", lambda: mock_dl)
-
-    def always_raise(actor_id, obj):
+    def always_raise(actor_id, activity_id):
         raise RuntimeError("delivery failed")
 
     monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
 
-    asyncio.run(oh.outbox_handler("actor-xyz"))
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
 
-    # item is returned to the outbox after the retry limit is hit
-    assert len(actor.outbox.items) == 1
-    assert actor.outbox.items[0] is item
+    # item should be back in the queue after the retry limit is hit
+    assert "urn:test:bad-item" in queue
 
 
 def test_outbox_handler_returns_early_when_actor_not_found(
     monkeypatch, caplog
 ):
-    """outbox_handler must return early (not raise) when actor is None (BUG-001)."""
-    mock_dl = MagicMock()
+    """outbox_handler must return early (not raise) when actor is None."""
+    queue: list[str] = []
+    mock_dl = _mock_dl_with_queue(queue, actor=None)
     mock_dl.read.return_value = None
-    monkeypatch.setattr(oh, "get_datalayer", lambda: mock_dl)
 
     with caplog.at_level("WARNING"):
-        asyncio.run(oh.outbox_handler("missing-actor"))
+        asyncio.run(oh.outbox_handler("missing-actor", mock_dl))
 
     assert "missing-actor" in caplog.text
 
 
 def test_outbox_handler_continues_after_one_error(monkeypatch):
     """outbox_handler continues processing subsequent items after a single error."""
-    bad_item = _make_item("bad")
-    good_item = _make_item("good")
-    actor = _make_actor([bad_item, good_item])
-
-    mock_dl = MagicMock()
-    mock_dl.read.return_value = actor
-    monkeypatch.setattr(oh, "get_datalayer", lambda: mock_dl)
+    queue = _make_queue("urn:test:bad", "urn:test:good")
+    mock_dl = _mock_dl_with_queue(queue)
 
     call_count = [0]
     processed = []
 
-    def sometimes_raise(actor_id, obj):
+    def sometimes_raise(actor_id, activity_id):
         call_count[0] += 1
         if call_count[0] == 1:
             raise RuntimeError("first item fails once")
-        processed.append(obj)
+        processed.append(activity_id)
 
     monkeypatch.setattr(oh, "handle_outbox_item", sometimes_raise)
 
-    asyncio.run(oh.outbox_handler("actor-xyz"))
+    asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
 
-    assert good_item in processed
+    assert "urn:test:good" in processed
