@@ -12,17 +12,32 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for status-related use-case classes."""
 
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.core.states.em import EM
 from vultron.core.use_cases.status import (
-    CreateCaseStatusReceivedUseCase,
     AddCaseStatusToCaseReceivedUseCase,
-    CreateParticipantStatusReceivedUseCase,
     AddParticipantStatusToParticipantReceivedUseCase,
+    CreateCaseStatusReceivedUseCase,
+    CreateParticipantStatusReceivedUseCase,
 )
+from vultron.wire.as2.extractor import extract_intent
+from vultron.wire.as2.vocab.activities.case import (
+    AddStatusToCaseActivity,
+    CreateCaseStatusActivity,
+)
+from vultron.wire.as2.vocab.activities.case_participant import (
+    AddStatusToParticipantActivity,
+    CreateStatusForParticipantActivity,
+)
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
+from vultron.wire.as2.vocab.objects.case_status import (
+    CaseStatus,
+    ParticipantStatus,
+)
+from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
 def _make_payload(activity, **extra_fields):
-    from vultron.wire.as2.extractor import extract_intent
-
     event = extract_intent(activity)
     if extra_fields:
         return event.model_copy(update=extra_fields)
@@ -34,14 +49,6 @@ class TestStatusUseCases:
 
     def test_create_case_status_stores_status(self, monkeypatch):
         """create_case_status persists the CaseStatus to the DataLayer."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            CreateCaseStatusActivity,
-        )
-        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
 
         dl = TinyDbDataLayer(db_path=None)
 
@@ -68,15 +75,6 @@ class TestStatusUseCases:
 
     def test_create_case_status_idempotent(self, monkeypatch):
         """create_case_status skips storing a duplicate CaseStatus."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            CreateCaseStatusActivity,
-        )
-        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         dl = TinyDbDataLayer(db_path=None)
 
         case = VulnerabilityCase(
@@ -103,15 +101,6 @@ class TestStatusUseCases:
 
     def test_add_case_status_to_case_appends_status(self, monkeypatch):
         """add_case_status_to_case appends status ID to case.case_statuses."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case import (
-            AddStatusToCaseActivity,
-        )
-        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -146,16 +135,6 @@ class TestStatusUseCases:
 
     def test_add_case_status_blocks_invalid_em_transition(self, monkeypatch):
         """Invalid EM transition is blocked; status is not appended."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.core.states.em import EM
-        from vultron.wire.as2.vocab.activities.case import (
-            AddStatusToCaseActivity,
-        )
-        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -204,16 +183,6 @@ class TestStatusUseCases:
 
     def test_add_case_status_allows_valid_em_transition(self, monkeypatch):
         """Valid EM transition is permitted; status is appended."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.core.states.em import EM
-        from vultron.wire.as2.vocab.activities.case import (
-            AddStatusToCaseActivity,
-        )
-        from vultron.wire.as2.vocab.objects.case_status import CaseStatus
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -258,24 +227,12 @@ class TestStatusUseCases:
 
     def test_create_participant_status_stores_status(self, monkeypatch):
         """create_participant_status persists the ParticipantStatus."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case_participant import (
-            CreateStatusForParticipantActivity,
-        )
-        from vultron.wire.as2.vocab.objects.case_status import (
-            ParticipantStatus,
-        )
-
         dl = TinyDbDataLayer(db_path=None)
 
         pstatus = ParticipantStatus(
             id="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
             context="https://example.org/cases/case_ps1",
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         case_ps1 = VulnerabilityCase(
             id="https://example.org/cases/case_ps1",
             name="PS Case 1",
@@ -297,17 +254,6 @@ class TestStatusUseCases:
         self, monkeypatch
     ):
         """add_participant_status_to_participant appends status to participant."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.wire.as2.vocab.activities.case_participant import (
-            AddStatusToParticipantActivity,
-        )
-        from vultron.wire.as2.vocab.objects.case_participant import (
-            CaseParticipant,
-        )
-        from vultron.wire.as2.vocab.objects.case_status import (
-            ParticipantStatus,
-        )
-
         dl = TinyDbDataLayer(db_path=None)
         monkeypatch.setattr(
             "vultron.wire.as2.rehydration.get_datalayer",
@@ -323,10 +269,6 @@ class TestStatusUseCases:
             id="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
             context="https://example.org/cases/case_ps2",
         )
-        from vultron.wire.as2.vocab.objects.vulnerability_case import (
-            VulnerabilityCase,
-        )
-
         case_ps2 = VulnerabilityCase(
             id="https://example.org/cases/case_ps2",
             name="PS Case 2",

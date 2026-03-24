@@ -14,17 +14,26 @@
 
 from unittest.mock import MagicMock
 
+from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.core.models.activity import VultronActivity
+from vultron.core.models.events import MessageSemantics
+from vultron.core.models.events.report import (
+    CreateReportReceivedEvent,
+    SubmitReportReceivedEvent,
+)
+from vultron.core.models.report import VultronReport
+from vultron.core.states.rm import RM
+from vultron.core.use_cases._helpers import _report_phase_status_id
+from vultron.core.use_cases.case import CreateCaseReceivedUseCase
+from vultron.core.use_cases.report import (
+    CreateReportReceivedUseCase,
+    SubmitReportReceivedUseCase,
+)
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.core.models.events import MessageSemantics
-from vultron.core.use_cases.report import (
-    CreateReportReceivedUseCase,
-    SubmitReportReceivedUseCase,
-)
-from vultron.core.use_cases.case import CreateCaseReceivedUseCase
 
 
 class TestUseCaseExecution:
@@ -60,8 +69,6 @@ class TestUseCaseExecution:
 
     def test_use_case_executes_with_real_datalayer(self, make_payload):
         """CreateReportReceivedUseCase executes without raising on real DataLayer."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-
         dl = TinyDbDataLayer(db_path=None)
         report = VulnerabilityReport(
             name="TEST-003", content="Test report for shim delegation"
@@ -79,13 +86,6 @@ class TestReportReceiptPersistsParticipantStatus:
 
     def test_create_report_persists_participant_status(self):
         """CreateReportReceivedUseCase persists a RM.RECEIVED ParticipantStatus."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.core.states.rm import RM
-        from vultron.core.models.events.report import CreateReportReceivedEvent
-        from vultron.core.models.report import VultronReport
-        from vultron.core.models.activity import VultronActivity
-        from vultron.core.use_cases._helpers import _report_phase_status_id
-
         report = VultronReport(as_id="https://example.org/reports/r-persist-1")
         activity = VultronActivity(
             id="https://example.org/activities/create-p1",
@@ -126,13 +126,6 @@ class TestReportReceiptPersistsParticipantStatus:
 
     def test_submit_report_persists_participant_status(self):
         """SubmitReportReceivedUseCase persists a RM.RECEIVED ParticipantStatus."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.core.states.rm import RM
-        from vultron.core.models.events.report import SubmitReportReceivedEvent
-        from vultron.core.models.report import VultronReport
-        from vultron.core.models.activity import VultronActivity
-        from vultron.core.use_cases._helpers import _report_phase_status_id
-
         report = VultronReport(as_id="https://example.org/reports/r-persist-2")
         activity = VultronActivity(
             id="https://example.org/activities/submit-p1",
@@ -173,13 +166,6 @@ class TestReportReceiptPersistsParticipantStatus:
 
     def test_create_report_participant_status_is_idempotent(self):
         """Calling CreateReportReceivedUseCase twice creates only one ParticipantStatus."""
-        from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-        from vultron.core.models.events.report import CreateReportReceivedEvent
-        from vultron.core.models.report import VultronReport
-        from vultron.core.models.activity import VultronActivity
-        from vultron.core.use_cases._helpers import _report_phase_status_id
-        from vultron.core.states.rm import RM
-
         report = VultronReport(as_id="https://example.org/reports/r-idem-1")
         activity = VultronActivity(
             id="https://example.org/activities/create-idem-1",

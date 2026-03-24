@@ -74,8 +74,8 @@ def trigger_validate_report(
         "Triggers the invalidate-report behavior for the given actor. "
         "Emits a TentativeReject(Offer(VulnerabilityReport)) activity "
         "(RmInvalidateReportActivity) and returns it in the response body (TB-04-001). "
-        "Updates the offer status to TENTATIVELY_REJECTED and the report "
-        "status to INVALID."
+        "Persists a ParticipantStatus record with RM.INVALID for the actor "
+        "and report."
     ),
     operation_id="actors_trigger_invalidate_report",
 )
@@ -103,7 +103,8 @@ def trigger_invalidate_report(
         "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) "
         "and returns it in the response body (TB-04-001). "
         "A non-empty note is required (TB-03-004). "
-        "Updates the offer status to REJECTED and the report status to CLOSED."
+        "Persists a ParticipantStatus record with RM.CLOSED for the actor "
+        "and report."
     ),
     operation_id="actors_trigger_reject_report",
 )
@@ -131,7 +132,8 @@ def trigger_reject_report(
         "Emits a Reject(Offer(VulnerabilityReport)) activity (RmCloseReportActivity) "
         "representing the RM → C (CLOSED) transition, and returns it in the "
         "response body (TB-04-001). "
-        "Updates the offer status to REJECTED and the report status to CLOSED. "
+        "Persists a ParticipantStatus record with RM.CLOSED for the actor "
+        "and report. "
         "Unlike reject-report (which hard-rejects before validation), this "
         "endpoint closes a report that has already progressed through the RM "
         "lifecycle. Returns HTTP 409 if the report is already CLOSED."

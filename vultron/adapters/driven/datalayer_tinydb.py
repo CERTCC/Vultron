@@ -299,6 +299,17 @@ class TinyDbDataLayer(DataLayer):
         """
         self._db.drop_tables()
 
+    def ping(self) -> bool:
+        """
+        Probe the DataLayer to confirm storage is accessible.
+
+        Performs a lightweight read of the database table list.  Returns
+        ``True`` if the storage backend responds normally; raises or returns
+        ``False`` if the backend is unavailable.
+        """
+        list(self._db.tables())
+        return True
+
     def exists(self, table: str, id_: str) -> bool:
         """
         Checks if a record with the given id exists in the specified table.
