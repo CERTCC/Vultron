@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-24 (refresh #47: TECHDEBT-32, TECHDEBT-32b complete)
+**Last Updated**: 2026-03-24 (refresh #48: TECHDEBT-32c complete)
 
 ## Overview
 
@@ -43,8 +43,8 @@ OX-1.4 complete. BUG-001 (outbox_handler missing return) documented in
 `plan/BUGS.md`; TECHDEBT-38 added to fix it. TECHDEBT-39 added for OPP-05
 participant RM helper consolidation. TECHDEBT-32/32b complete: all
 `object_to_record` / `save_to_datalayer` usages in core removed; `dl.save()`
-is now the sole save pattern in core. TECHDEBT-32c added (wire/rehydration
-adapter import).
+is now the sole save pattern in core. TECHDEBT-32c complete: `get_datalayer`
+fallback removed from `wire/as2/rehydration.py`; `dl` is now required.
 
 ---
 
@@ -674,13 +674,19 @@ core to datalayer port and adapter boundaries" (2026-03-20);
   sites replaced with `dl.save()`. `save_to_datalayer` function deleted.
   985 tests pass.
 
-- [ ] **TECHDEBT-32c**: Remove `from vultron.adapters.driven.datalayer_tinydb
+- [x] **TECHDEBT-32c**: Remove `from vultron.adapters.driven.datalayer_tinydb
   import get_datalayer` from `vultron/wire/as2/rehydration.py`. The wire
   layer must not import directly from the TinyDB adapter. Make `dl` a
   required parameter in `rehydrate()`, or inject a core-level factory port.
   All production callers already pass `dl` explicitly; the fallback exists
   only for legacy test paths. Done when no wire module imports from
   `vultron.adapters.driven.*` and 985 tests pass.
+
+  **COMPLETE**: Removed `get_datalayer` import; made `dl: DataLayer` a
+  required positional parameter. Updated three callers (`cli.py`,
+  `fastapi/routers/datalayer.py`, `fastapi/inbox_handler.py`) to pass `dl`
+  explicitly. Removed 25 legacy `monkeypatch.setattr(rehydration.get_datalayer)`
+  stubs from 6 test files. 985 tests pass.
 
 ---
 
