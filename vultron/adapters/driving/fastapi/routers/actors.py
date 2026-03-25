@@ -18,15 +18,27 @@ Vultron API Routers
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    status,
+)
 
 from vultron.adapters.driving.fastapi.inbox_handler import (
     inbox_handler,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases.action_rules import (
+    ActionRulesRequest,
+    GetActionRulesUseCase,
+)
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import (
@@ -150,6 +162,43 @@ def get_actor_profile(
     profile["inbox"] = as_actor.inbox.as_id
     profile["outbox"] = as_actor.outbox.as_id
     return profile
+
+
+@router.get(
+    "/{case_actor_id}/action-rules",
+    summary="Get CVD Action Rules for a Participant",
+    description=(
+        "Returns the set of valid CVD actions available to a participant "
+        "given the current case state and their role. "
+        "Implements CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002."
+    ),
+    operation_id="actors_get_action_rules",
+)
+def get_action_rules(
+    case_actor_id: str,
+    participant: str = Query(
+        ...,
+        description=(
+            "The actor ID of the participant to query action rules for."
+        ),
+    ),
+    dl: DataLayer = Depends(_shared_dl),
+) -> dict:
+    """Return valid CVD actions for a named participant in a case.
+
+    Implements: CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
+    """
+    try:
+        req = ActionRulesRequest(
+            case_actor_id=case_actor_id,
+            participant_actor_id=participant,
+        )
+        return GetActionRulesUseCase(dl=dl, request=req).execute()
+    except (VultronNotFoundError, VultronValidationError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        )
 
 
 @router.get(
