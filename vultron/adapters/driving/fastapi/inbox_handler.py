@@ -26,6 +26,7 @@ from vultron.core.ports.dispatcher import ActivityDispatcher
 from vultron.core.use_cases.use_case_map import USE_CASE_MAP
 from vultron.wire.as2.extractor import extract_intent
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 
 logger = logging.getLogger(__name__)
 
@@ -163,3 +164,6 @@ async def inbox_handler(
                     actor_id,
                 )
                 break
+
+    # OX-1.2 / OX-03-002: trigger outbox delivery after inbox processing completes
+    await outbox_handler(actor_id, queue_dl, shared_dl=dl)

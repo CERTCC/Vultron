@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-25 (refresh #52: ACT-3 complete)
+**Last Updated**: 2026-03-25 (refresh #53: OX-1.1/1.2/1.3 complete)
 
 ## Overview
 
@@ -13,7 +13,7 @@ it does not override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 998 passed, 5581 subtests (2026-03-25).
+**Test suite**: 1004 passed, 5581 subtests (2026-03-25).
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -73,15 +73,15 @@ VCR-010, VCR-011, VCR-012, VCR-015a, VCR-015b, VCR-016, VCR-017, VCR-018,
 VCR-019a, VCR-019b, VCR-019c, VCR-019e, VCR-020, VCR-021a, VCR-021b,
 VCR-022, VCR-023, VCR-024, VCR-025, VCR-026, VCR-027, VCR-028, VCR-029,
 VCR-030, VCR-031, VCR-032, VCR-014,
-PREPX-1, PREPX-2, PREPX-3, ACT-1, OX-1.0,
+PREPX-1, PREPX-2, PREPX-3, ACT-1, OX-1.0, OX-1.1, OX-1.2, OX-1.3,
 DOCS-1, DOCS-2, P90-2, P90-3,
 TECHDEBT-37, TECHDEBT-38, TECHDEBT-39.
 
-### ❌ Outbox delivery not implemented (lower priority)
+### ✅ Outbox delivery implemented (OX-1.1/1.2/1.3 — COMPLETE)
 
-The outbound `ActivityEmitter` port is in place, but delivery work beyond
-OX-1.0 is still pending. Local inbox/outbox delivery, background delivery
-execution, idempotent delivery, and remote delivery remain open (OX-1.1+).
+`DeliveryQueueAdapter.emit()` delivers via HTTP POST to `{actor_uri}/inbox/`.
+`inbox_handler` triggers `outbox_handler` after processing (OX-1.2).
+`post_actor_inbox` checks for duplicate activity IDs (OX-1.3, OX-06-001).
 
 ### ✅ Triggerable behaviors fully implemented (PRIORITY 30 — COMPLETE)
 
@@ -1109,12 +1109,13 @@ this is the outbound counterpart to `core/ports/dispatcher.py`.
   **COMPLETE**: `ActivityEmitter` Protocol defined in `core/ports/emitter.py`;
   stub `DeliveryQueueAdapter` in `adapters/driven/delivery_queue.py` imports
   and implements the Protocol. 984 tests pass.
-- [ ] **OX-1.1**: Implement local delivery: write activity from actor outbox to
-  recipient actor's inbox in DataLayer (OX-04-001, OX-04-002). **Depends on OX-1.0.**
-- [ ] **OX-1.2**: Integrate delivery as background task after handler completion
-  (OX-03-002, OX-03-003); must not block HTTP response
-- [ ] **OX-1.3**: Add idempotency check — delivering same activity twice MUST NOT
-  create duplicate inbox entries (OX-06-001)
+- [x] **OX-1.1**: HTTP delivery via `DeliveryQueueAdapter.emit()` (httpx POST to
+  `{actor_uri}/inbox/`); `handle_outbox_item` reads activity, extracts
+  recipients, calls emitter. **COMPLETE** — 1004 tests pass.
+- [x] **OX-1.2**: `inbox_handler` calls `outbox_handler` after processing loop;
+  `outbox_handler` accepts injectable `emitter` and `shared_dl`. **COMPLETE**
+- [x] **OX-1.3**: Duplicate-activity check in `post_actor_inbox`; returns 202
+  immediately if activity ID already in actor's inbox queue. **COMPLETE**
 - [x] **OX-1.4**: Add `test/api/v2/backend/test_outbox.py`
 
 ---

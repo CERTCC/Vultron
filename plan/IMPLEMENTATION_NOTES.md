@@ -109,3 +109,20 @@ boundaries without very well-defined data transformation layers. Using
 `BaseModel` in type hints indicates that we haven't thought enough about
 what data is actually passing through the interface and whether we have the
 right abstractions in place.
+
+---
+
+## OX-1.1/1.2/1.3: delivery is HTTP POST, idempotency is at inbox
+
+Outbox delivery (OX-1.1) uses HTTP POST to `{actor_uri}/inbox/` via
+`httpx` in `DeliveryQueueAdapter.emit()`. Direct DataLayer writes to
+recipient inboxes are **not** used — each actor is isolated in its own
+process/container and cannot access other actors' DataLayers.
+
+OX-1.3 idempotency is enforced at `POST /actors/{id}/inbox/`: the
+endpoint checks `actor_dl.inbox_list()` before appending and returns 202
+immediately on a duplicate activity ID.
+
+The `shared_dl` parameter on `outbox_handler` covers the case where
+activities are stored in the shared DataLayer (POST /inbox path) vs.
+the actor's own DL (POST /outbox path).

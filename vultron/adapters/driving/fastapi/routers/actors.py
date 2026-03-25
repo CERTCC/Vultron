@@ -271,6 +271,16 @@ def post_actor_inbox(
 
     # Queue the activity ID in the actor-scoped DataLayer inbox.
     actor_dl = get_datalayer(actor_id)
+
+    # OX-1.3 / OX-06-001: idempotency — ignore duplicate activity submissions
+    if activity.as_id in actor_dl.inbox_list():
+        logger.info(
+            "Activity %s already in inbox of %s; ignoring duplicate submission.",
+            activity.as_id,
+            actor_id,
+        )
+        return None
+
     actor_dl.inbox_append(activity.as_id)
 
     # Trigger inbox processing: pass short actor_id, shared DL for data,
@@ -333,6 +343,6 @@ def post_actor_outbox(
     actor_dl.outbox_append(activity.as_id)
 
     # Trigger outbox processing (in the background)
-    background_tasks.add_task(outbox_handler, actor_id, actor_dl)
+    background_tasks.add_task(outbox_handler, actor_id, actor_dl, dl)
 
     return None

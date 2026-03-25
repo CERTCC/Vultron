@@ -27,10 +27,8 @@ Spec coverage:
 - OX-01-002: Outbox MUST preserve insertion order (FIFO).
 - OX-03-001: Activities in outbox MUST be delivered to recipient inboxes.
 - OX-03-002/003: Delivery occurs after handler; MUST NOT block HTTP response.
-
-Note: Delivery tests (OX-1.1/OX-1.2/OX-1.3) are deferred until those
-features are implemented. This file provides tests for the current
-processing loop and ``handle_outbox_item`` stub behavior.
+- OX-1.1: Delivery via HTTP POST to recipient inbox URLs.
+- OX-1.3: Idempotency enforced at inbox endpoint (not delivery side).
 """
 
 import asyncio
@@ -68,15 +66,25 @@ def _mock_dl_with_queue(
 
 def test_handle_outbox_item_logs_actor_id(caplog):
     """handle_outbox_item should log the actor_id at INFO level."""
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = None  # activity not found → just logs
+    mock_emitter = MagicMock()
     with caplog.at_level("INFO"):
-        oh.handle_outbox_item("actor-abc", "urn:test:act-001")
+        oh.handle_outbox_item(
+            "actor-abc", "urn:test:act-001", mock_dl, mock_emitter
+        )
     assert "actor-abc" in caplog.text
 
 
 def test_handle_outbox_item_logs_item(caplog):
     """handle_outbox_item should log the activity_id at INFO level."""
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = None  # activity not found → just logs
+    mock_emitter = MagicMock()
     with caplog.at_level("INFO"):
-        oh.handle_outbox_item("actor-abc", "urn:test:act-001")
+        oh.handle_outbox_item(
+            "actor-abc", "urn:test:act-001", mock_dl, mock_emitter
+        )
     assert caplog.text  # at minimum something is logged
 
 
@@ -93,7 +101,7 @@ def test_outbox_handler_processes_all_items(monkeypatch):
 
     processed = []
 
-    def fake_handle(actor_id, activity_id):
+    def fake_handle(actor_id, activity_id, dl, emitter):
         processed.append(activity_id)
 
     monkeypatch.setattr(oh, "handle_outbox_item", fake_handle)
@@ -112,7 +120,7 @@ def test_outbox_handler_preserves_fifo_order(monkeypatch):
 
     processed = []
 
-    def fake_handle(actor_id, activity_id):
+    def fake_handle(actor_id, activity_id, dl, emitter):
         processed.append(activity_id)
 
     monkeypatch.setattr(oh, "handle_outbox_item", fake_handle)
@@ -129,7 +137,7 @@ def test_outbox_handler_empty_outbox_does_nothing(monkeypatch):
 
     processed = []
 
-    def fake_handle(actor_id, activity_id):
+    def fake_handle(actor_id, activity_id, dl, emitter):
         processed.append(activity_id)
 
     monkeypatch.setattr(oh, "handle_outbox_item", fake_handle)
@@ -149,7 +157,7 @@ def test_outbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
     queue = _make_queue("urn:test:bad-item")
     mock_dl = _mock_dl_with_queue(queue)
 
-    def always_raise(actor_id, activity_id):
+    def always_raise(actor_id, activity_id, dl, emitter):
         raise RuntimeError("delivery failed")
 
     monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
@@ -182,7 +190,7 @@ def test_outbox_handler_continues_after_one_error(monkeypatch):
     call_count = [0]
     processed = []
 
-    def sometimes_raise(actor_id, activity_id):
+    def sometimes_raise(actor_id, activity_id, dl, emitter):
         call_count[0] += 1
         if call_count[0] == 1:
             raise RuntimeError("first item fails once")
@@ -193,3 +201,92 @@ def test_outbox_handler_continues_after_one_error(monkeypatch):
     asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
 
     assert "urn:test:good" in processed
+
+
+# ---------------------------------------------------------------------------
+# handle_outbox_item — OX-1.1 delivery logic
+# ---------------------------------------------------------------------------
+
+
+def test_handle_outbox_item_delivers_to_recipients():
+    """handle_outbox_item calls emitter.emit with activity and recipients."""
+    recipient = "https://example.org/actors/alice"
+    activity = SimpleNamespace(
+        as_id="urn:test:act-deliver",
+        to=[recipient],
+        cc=None,
+        bto=None,
+        bcc=None,
+    )
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = MagicMock()
+
+    oh.handle_outbox_item("actor-abc", activity.as_id, mock_dl, mock_emitter)
+
+    mock_emitter.emit.assert_called_once_with(activity, [recipient])
+
+
+def test_handle_outbox_item_skips_when_activity_not_found():
+    """handle_outbox_item does NOT call emitter when dl.read returns None."""
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = None
+    mock_emitter = MagicMock()
+
+    oh.handle_outbox_item(
+        "actor-abc", "urn:test:missing", mock_dl, mock_emitter
+    )
+
+    mock_emitter.emit.assert_not_called()
+
+
+def test_handle_outbox_item_skips_when_no_recipients():
+    """handle_outbox_item does NOT call emitter when activity has no recipients."""
+    activity = SimpleNamespace(
+        as_id="urn:test:act-no-recip",
+        to=None,
+        cc=None,
+        bto=None,
+        bcc=None,
+    )
+    mock_dl = MagicMock()
+    mock_dl.read.return_value = activity
+    mock_emitter = MagicMock()
+
+    oh.handle_outbox_item("actor-abc", activity.as_id, mock_dl, mock_emitter)
+
+    mock_emitter.emit.assert_not_called()
+
+
+def test_extract_recipients_deduplicates():
+    """_extract_recipients returns each actor ID at most once."""
+    alice = "https://example.org/actors/alice"
+    activity = SimpleNamespace(
+        to=[alice],
+        cc=[alice],  # duplicate
+        bto=None,
+        bcc=None,
+    )
+    recipients = oh._extract_recipients(activity)
+    assert recipients == [alice]
+
+
+def test_extract_recipients_handles_embedded_object():
+    """_extract_recipients extracts as_id from embedded actor objects."""
+    alice_id = "https://example.org/actors/alice"
+    alice_obj = SimpleNamespace(as_id=alice_id)
+    activity = SimpleNamespace(
+        to=[alice_obj],
+        cc=None,
+        bto=None,
+        bcc=None,
+    )
+    recipients = oh._extract_recipients(activity)
+    assert recipients == [alice_id]
+
+
+def test_extract_recipients_returns_empty_for_no_fields():
+    """_extract_recipients returns [] when all addressing fields are None."""
+    activity = SimpleNamespace(to=None, cc=None, bto=None, bcc=None)
+    recipients = oh._extract_recipients(activity)
+    assert recipients == []
