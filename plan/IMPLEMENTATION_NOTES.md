@@ -4,25 +4,8 @@ Longer-term notes can be found in `/notes/*.md`. This file is ephemeral
 and will be reset periodically, so it's meant to capture more immediate
 insights, issues, and learnings during the implementation process.
 
-Add new items below this line
-
----
-
-## BUG-001: `outbox_handler` early-return fix
-
-**Issue**: `outbox_handler` logged a warning when `dl.read(actor_id)` returned
-`None` but did not return early. The subsequent `while actor.outbox.items:` line
-raised `AttributeError: 'NoneType' object has no attribute 'outbox'`.
-
-**Root cause**: Missing `return` statement after the `logger.warning(...)` call
-in the `if actor is None` guard.
-
-**Fix**: Added `return` immediately after the warning log in
-`vultron/adapters/driving/fastapi/outbox_handler.py`.
-
-**Test**: Added `test_outbox_handler_returns_early_when_actor_not_found` to
-`test/api/v2/backend/test_outbox.py` to verify no exception is raised and the
-warning is logged when the actor is not found.
+Append new items below any existing ones, marking them with the date and a
+header.
 
 ---
 
@@ -45,8 +28,6 @@ OPP-05 (consolidate duplicate participant RM helpers) is explicitly NOT done
 - `_find_and_update_participant_rm()` in `vultron/core/behaviors/report/nodes.py`
 - `update_participant_rm_state()` in `vultron/core/use_cases/triggers/_helpers.py`
 This is captured as TECHDEBT-39 in `plan/IMPLEMENTATION_PLAN.md`.
-
----
 
 ---
 
@@ -90,3 +71,7 @@ have explicit guards:
 All `rm_state=RM.XXX` in core are constructor args for new status objects, not
 transitions — documented justification for bypassing machine guard. The
 `append_rm_state()` guard already enforces validity for all RM mutation paths.
+
+---
+
+##
