@@ -74,4 +74,38 @@ transitions — documented justification for bypassing machine guard. The
 
 ---
 
-##
+## Outbox and CaseActor notes
+
+As preface and clarification to Outbox and CaseActor implementation, note
+that we are on a path toward a design in which each actor is essentially
+isolated in its own process and environment and can only interact locally with
+their own data and state, and with other actors through sending and receiving
+Vultron AS2 messages. Assume that any design choices you make now have to
+continue to work when multiple actors are running in completely independent
+and autonomous environments (e.g., containers), and so each actor has to be
+able to manage its own state and data. Services like outbox delivery cannot
+assume local access to other actors data or state. They must be designed to
+consume a local outbox but then deliver to remote inboxes wherever they may
+live via the front-end fastapi adapter.
+
+Given this constraint, it is also unlikely that you will be able to have the
+outbox delivery mechanism check for idempotency by looking at the datalayer
+directly because they won't have access to it. Instead, the inbox handler or
+fastapi adapter inbound should be able to handle duplicate messages
+gracefully, perhaps responding with an appropriate HTTP status code if a
+duplicate is detected while processing an incoming message.
+
+## Avoid BaseModel directly in adapters or core
+
+While we use Pydantic's BaseModel to define data classes throughout the code,
+we need to avoid using BaseModel as a type hint for functions, (python)
+Protocols, or port interfaces between layers. Although it's an easy way to
+quickly implemement data conversions from core to wire formats and vice
+versa, it either creates too tight a coupling between layers, or it leads to
+leaky abstractions where the core must be aware of the wire format. We
+really do need to ensure that port interfaces are clean and sufficiently
+abstracted so that we're not inadvertently coupling objects across
+boundaries without very well-defined data transformation layers. Using
+`BaseModel` in type hints indicates that we haven't thought enough about
+what data is actually passing through the interface and whether we have the
+right abstractions in place.
