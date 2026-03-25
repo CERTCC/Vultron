@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-24 (refresh #50: TECHDEBT-39 complete)
+**Last Updated**: 2026-03-25 (refresh #51: VCR-014 + TECHDEBT-37 complete)
 
 ## Overview
 
@@ -13,7 +13,7 @@ it does not override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 988 passed, 5581 subtests (2026-03-24).
+**Test suite**: 998 passed, 5581 subtests (2026-03-25).
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -31,17 +31,20 @@ now fully persisted via DataLayer; global STATUS dict removed; transition
 validity guards applied; OPP-06 spec captured in `specs/`.
 **TECHDEBT-31 complete**: `trigger_services/` relocated into
 `vultron/adapters/driving/fastapi/`; `vultron/api/v2/` now contains only
-`data/actor_io.py` (pending VCR-014) and two `__init__.py` stubs.
+two `__init__.py` stubs. **VCR-014 complete**: `actor_io.py` deleted;
+DataLayer inbox/outbox replaces the global `ACTOR_IO_STORE`.
+**TECHDEBT-37 complete**: `test/api/` removed; all tests migrated to
+`test/adapters/driving/fastapi/`, `test/adapters/driven/`,
+and `test/core/use_cases/`.
 
 **Active phases**: **PRIORITY-80** (technical debt cleanup) and
 **PRIORITY-100** (actor independence — pre-requisites PREPX-1/2/3 and P90
-all complete). TECHDEBT-16 through TECHDEBT-33 complete; TECHDEBT-32b complete
-(34–37 still open); VCR-A batch (8/8 tasks) complete. VCR-B batch complete.
+all complete). TECHDEBT-16 through TECHDEBT-39 complete (except BT-2.2/2.3
+which are deferred); VCR-A batch (8/8 tasks) complete. VCR-B batch complete.
+VCR-C batch complete (VCR-014 done, VCR-019* done). TECHDEBT-37 complete.
 VCR-019a/b/c/e complete — state enums in `vultron/core/states/`;
 `vultron/case_states/` removed; errors merged into `vultron/errors.py`.
-OX-1.4 complete. BUG-001 (outbox_handler missing return) documented in
-`plan/BUGS.md`; TECHDEBT-38 added to fix it. TECHDEBT-39 added for OPP-05
-participant RM helper consolidation. TECHDEBT-32/32b complete: all
+OX-1.4 complete. TECHDEBT-32/32b complete: all
 `object_to_record` / `save_to_datalayer` usages in core removed; `dl.save()`
 is now the sole save pattern in core. TECHDEBT-32c complete: `get_datalayer`
 fallback removed from `wire/as2/rehydration.py`; `dl` is now required.
@@ -69,9 +72,10 @@ VCR-001, VCR-003, VCR-004, VCR-005, VCR-006, VCR-007, VCR-008, VCR-009,
 VCR-010, VCR-011, VCR-012, VCR-015a, VCR-015b, VCR-016, VCR-017, VCR-018,
 VCR-019a, VCR-019b, VCR-019c, VCR-019e, VCR-020, VCR-021a, VCR-021b,
 VCR-022, VCR-023, VCR-024, VCR-025, VCR-026, VCR-027, VCR-028, VCR-029,
-VCR-030, VCR-031, VCR-032,
+VCR-030, VCR-031, VCR-032, VCR-014,
 PREPX-1, PREPX-2, PREPX-3, ACT-1, OX-1.0,
-DOCS-1, DOCS-2, P90-2, P90-3.
+DOCS-1, DOCS-2, P90-2, P90-3,
+TECHDEBT-37, TECHDEBT-38, TECHDEBT-39.
 
 ### ❌ Outbox delivery not implemented (lower priority)
 
@@ -809,7 +813,7 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
 
 **Source**: `plan/IMPLEMENTATION_NOTES.md` "`vultron/api/v2` is deprecated"
 
-- [ ] **TECHDEBT-37**: `test/api/` contains tests that mirror the now-deprecated
+- [x] **TECHDEBT-37**: `test/api/` contains tests that mirror the now-deprecated
   `vultron/api/v2/` layout. Migrate all tests in `test/api/` to the canonical
   layout that mirrors `vultron/adapters/driving/fastapi/` and
   `vultron/core/use_cases/` (e.g., move to `test/adapters/driving/fastapi/`
@@ -817,6 +821,10 @@ direct enum assignments in `vultron/core/` that bypass machine validation.
   **Depends on VCR-014** (which removes the last live code under
   `vultron/api/v2/`). Done when `test/api/` is empty/removed, all tests are
   in the correct location, and the full test suite passes.
+  **COMPLETE**: `test/api/` removed. Tests migrated to
+  `test/adapters/driving/fastapi/`, `test/adapters/driving/fastapi/routers/`,
+  `test/adapters/driven/`, and `test/core/use_cases/`. `init_actor_io` calls
+  removed from migrated tests. 998 tests pass.
 
 ---
 
@@ -939,10 +947,14 @@ They are larger structural changes; plan as a single coordinated PR.
 
 #### Batch VCR-C — Core models and port cleanup
 
-- [ ] **VCR-014**: Remove `vultron/api/v2/data/actor_io.py` after the role of
+- [x] **VCR-014**: Remove `vultron/api/v2/data/actor_io.py` after the role of
   in-memory inbox/outbox is resolved per ACT-1 ADR design decision. This file
   predates the DataLayer port abstraction and is not per-actor isolated.
   Resolution may be migration into DataLayer or formalization as a queue adapter.
+  **COMPLETE**: `actor_io.py` deleted. The DataLayer already provides
+  `inbox_list()`, `inbox_pop()`, `inbox_append()`, `outbox_list()`,
+  `outbox_pop()`, `outbox_append()` making the global `ACTOR_IO_STORE` obsolete.
+  All test references to `init_actor_io` removed. 998 tests pass.
 
 - [x] **VCR-019c**: Study task — identify which enums across `case_states/` and
   `bt/**/states.py` can be consolidated. Be conservative: do NOT add or remove
