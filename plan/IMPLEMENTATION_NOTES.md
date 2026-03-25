@@ -114,27 +114,20 @@ right abstractions in place.
 
 ## 2026-03-25 OX-1.1/1.2/1.3: delivery is HTTP POST, idempotency is at inbox
 
-Outbox delivery (OX-1.1) uses HTTP POST to `{actor_uri}/inbox/` via
-`httpx` in `DeliveryQueueAdapter.emit()`. Direct DataLayer writes to
-recipient inboxes are **not** used — each actor is isolated in its own
-process/container and cannot access other actors' DataLayers.
+Outbox delivery (OX-1.1) uses async HTTP POST to `{actor_uri}/inbox/` via
+`httpx.AsyncClient` in `DeliveryQueueAdapter.emit()`. Direct DataLayer
+writes to recipient inboxes are **not** used — each actor is isolated in
+its own process/container and cannot access other actors' DataLayers.
 
-OX-1.3 idempotency is enforced at `POST /actors/{id}/inbox/`: the
-endpoint checks `actor_dl.inbox_list()` before appending and returns 202
-immediately on a duplicate activity ID.
+OX-1.3 idempotency is enforced at `POST /actors/{id}/inbox/`: the endpoint
+checks `actor.inbox.items` (the persistent received log) before enqueueing
+and returns 202 immediately on a duplicate activity ID.
 
 The `shared_dl` parameter on `outbox_handler` covers the case where
 activities are stored in the shared DataLayer (POST /inbox path) vs.
 the actor's own DL (POST /outbox path).
 
-## 2026-03-25 Synchronous HTTP blocking the async event loop
-
-(This is an intentional prototype limitation, but worth noting for follow-up
-once we move beyond prototype stage and want to harden for production.)
-
-- vultron/adapters/driven/delivery_queue.py:87
-- httpx.post() is synchronous blocking I/O called from an async def outbox_handler. FastAPI awaits background tasks in the event loop, so this will stall
-concurrent request handling during delivery.
-- The module docstring explicitly notes "using synchronous httpx (prototype simplicity)" — this is a known trade-off, not an oversight.
-- Suggested follow-up: Replace httpx.post() with httpx.AsyncClient + await client.post() when moving beyond prototype, and make emit() async. This is
-worth a tracked task before any production hardening.
+Trigger use-cases and BT nodes that create outgoing activities now call
+`dl.record_outbox_item(actor_id, activity_id)` so items are enqueued in
+the `{actor_id}_outbox` table that `outbox_handler` drains, regardless of
+whether the calling code holds the shared or actor-scoped DataLayer.

@@ -1,18 +1,3 @@
-#!/usr/bin/env python
-
-#  Copyright (c) 2026 Carnegie Mellon University and Contributors.
-#  - see Contributors.md for a full list of Contributors
-#  - see ContributionInstructions.md for information on how you can Contribute to this project
-#  Vultron Multiparty Coordinated Vulnerability Disclosure Protocol Prototype is
-#  licensed under a MIT (SEI)-style license, please see LICENSE.md distributed
-#  with this Software or contact permission@sei.cmu.edu for full terms.
-#  Created, in part, with funding and support from the United States Government
-#  (see Acknowledgments file). This program may include and/or can make use of
-#  certain third party source code, object code, documentation and other files
-#  ("Third Party Software"). See LICENSE.md for more details.
-#  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
-#  U.S. Patent and Trademark Office by Carnegie Mellon University
-
 """Delivery queue driven adapter — OX-1.1 implementation.
 
 Implements the ``ActivityEmitter`` port (``core/ports/emitter.py``) by
@@ -24,7 +9,7 @@ Responsibilities:
 - Derives each recipient's inbox URL as ``{actor_uri}/inbox/``
   (ActivityPub convention, OX-05-001).
 - POSTs the serialised activity payload to each recipient inbox URL
-  using synchronous ``httpx`` (prototype simplicity).
+  using ``httpx.AsyncClient`` so the delivery loop is non-blocking.
 - Delivery failures are isolated per-recipient: a failed POST is logged
   at ERROR level but does not abort delivery to other recipients.
 - Idempotency (OX-06-001) is enforced at the receiving inbox endpoint
@@ -55,7 +40,7 @@ class DeliveryQueueAdapter:
     delivery to others.
     """
 
-    def emit(
+    async def emit(
         self,
         activity: VultronActivity,
         recipients: list[str],
@@ -63,9 +48,9 @@ class DeliveryQueueAdapter:
         """Deliver *activity* to each recipient's inbox via HTTP POST.
 
         Derives each inbox URL as ``{actor_uri}/inbox/`` and POSTs the
-        JSON-serialised activity payload.  Per-recipient failures are logged
-        and swallowed so that one unreachable actor does not prevent delivery
-        to the rest.
+        JSON-serialised activity payload using an async HTTP client.
+        Per-recipient failures are logged and swallowed so that one
+        unreachable actor does not prevent delivery to the rest.
 
         Args:
             activity: The domain activity to deliver.  Must expose either
@@ -81,21 +66,24 @@ class DeliveryQueueAdapter:
         else:
             payload = dict(activity)
 
-        for recipient_id in recipients:
-            inbox_url = recipient_id.rstrip("/") + "/inbox/"
-            try:
-                response = httpx.post(inbox_url, json=payload, timeout=5.0)
-                response.raise_for_status()
-                logger.info(
-                    "Delivered activity %s to %s (HTTP %s)",
-                    activity_id,
-                    inbox_url,
-                    response.status_code,
-                )
-            except Exception as exc:
-                logger.error(
-                    "Failed to deliver activity %s to %s: %s",
-                    activity_id,
-                    inbox_url,
-                    exc,
-                )
+        async with httpx.AsyncClient() as client:
+            for recipient_id in recipients:
+                inbox_url = recipient_id.rstrip("/") + "/inbox/"
+                try:
+                    response = await client.post(
+                        inbox_url, json=payload, timeout=5.0
+                    )
+                    response.raise_for_status()
+                    logger.info(
+                        "Delivered activity %s to %s (HTTP %s)",
+                        activity_id,
+                        inbox_url,
+                        response.status_code,
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "Failed to deliver activity %s to %s: %s",
+                        activity_id,
+                        inbox_url,
+                        exc,
+                    )
