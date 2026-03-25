@@ -148,7 +148,7 @@ async def outbox_handler(
     _emitter = emitter if emitter is not None else DeliveryQueueAdapter()
     _read_dl = shared_dl if shared_dl is not None else dl
 
-    actor = dl.read(actor_id)
+    actor = _read_dl.read(actor_id)
     if actor is None:
         logger.warning("Actor %s not found in outbox_handler.", actor_id)
         return
