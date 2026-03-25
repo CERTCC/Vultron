@@ -139,6 +139,64 @@ class UpdateCaseReceivedUseCase:
                 case_id,
             )
 
+        self._broadcast_case_update(case_id, stored_case)
+
+    def _broadcast_case_update(self, case_id: str, case: CaseModel) -> None:
+        """Broadcast an Announce activity for the updated case to all participants.
+
+        Implements CM-06-001/CM-06-002: after a case update, the CaseActor MUST
+        send an ActivityStreams Announce to each active case participant's inbox.
+        """
+        # Locate the CaseActor (as_type="Service") associated with this case
+        service_records = self._dl.by_type("Service")
+        case_actor_id: str | None = None
+        for obj_id, data in service_records.items():
+            if data.get("context") == case_id:
+                case_actor_id = obj_id
+                break
+
+        if case_actor_id is None:
+            logger.debug(
+                "update_case: no CaseActor found for case '%s' — skipping broadcast",
+                case_id,
+            )
+            return
+
+        participant_ids = list(case.actor_participant_index.keys())
+        if not participant_ids:
+            logger.debug(
+                "update_case: no participants in case '%s' — skipping broadcast",
+                case_id,
+            )
+            return
+
+        broadcast = VultronActivity(
+            as_type="Announce",
+            actor=case_actor_id,
+            as_object=case_id,
+            to=participant_ids,
+        )
+        try:
+            self._dl.create(broadcast)
+        except ValueError:
+            logger.debug(
+                "update_case: broadcast activity %s already exists — skipping",
+                broadcast.as_id,
+            )
+            return
+
+        case_actor_obj = self._dl.read(case_actor_id)
+        if case_actor_obj is not None and hasattr(case_actor_obj, "outbox"):
+            case_actor_obj.outbox.items.append(broadcast.as_id)
+            self._dl.save(case_actor_obj)
+
+        logger.info(
+            "update_case: CaseActor '%s' broadcast Announce for case '%s' to %d participants (CM-06-001)",
+            case_actor_id,
+            case_id,
+            len(participant_ids),
+        )
+
 
 class EngageCaseReceivedUseCase:
     def __init__(

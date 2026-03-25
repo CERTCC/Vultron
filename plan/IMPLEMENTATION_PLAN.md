@@ -1302,13 +1302,13 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 
 **Reference**: `specs/case-management.md` CM-06, `plan/PRIORITIES.md` PRIORITY 200
 
-- [ ] **CA-1**: After OUTBOX-1, implement CaseActor broadcast in `update_case`
+- [x] **CA-1**: After OUTBOX-1, implement CaseActor broadcast in `update_case`
   handler — send ActivityStreams activity to each active `CaseParticipant`'s
   inbox (CM-06-001, CM-06-002).
 - [ ] **CA-2**: Add `GET /actors/{case_actor_id}/action-rules` endpoint returning
   valid CVD actions for a named participant given current RM/EM/CS/VFD state
   (CM-07-001, AR-07-001, AR-07-002). Add tests.
-- [ ] **CA-3**: Add tests verifying CaseActor notifies all participants on case
+- [x] **CA-3**: Add tests verifying CaseActor notifies all participants on case
   state update.
 
 ---
