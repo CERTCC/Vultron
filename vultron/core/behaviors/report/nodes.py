@@ -539,10 +539,11 @@ class UpdateActorOutbox(DataLayerAction):
                 )
                 return Status.FAILURE
 
-            # Append activity to outbox
+            # Append activity to outbox (history for outbox_ids detection)
             actor_obj.outbox.items.append(activity_id)
             self.logger.info(
-                f"{self.name}: Added activity {activity_id} to actor {self.actor_id} outbox"
+                f"{self.name}: Added activity {activity_id} to actor"
+                f" {self.actor_id} outbox"
             )
 
             # Persist updated actor
@@ -550,6 +551,9 @@ class UpdateActorOutbox(DataLayerAction):
             self.logger.info(
                 f"{self.name}: Updated actor {self.actor_id} in DataLayer"
             )
+
+            # Also queue for delivery via outbox_handler
+            self.datalayer.record_outbox_item(self.actor_id, activity_id)
 
             return Status.SUCCESS
 

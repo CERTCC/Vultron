@@ -35,7 +35,6 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
 # Vultron imports
-from vultron.api.v2.data.actor_io import clear_all_actor_ios, init_actor_io
 from vultron.adapters.utils import parse_id
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
@@ -209,12 +208,12 @@ def discover_actors(
 
 
 def init_actor_ios(actors: Sequence[as_Actor]) -> None:
-    """Initialize inbox and outbox queues for each actor in ``actors``."""
-    logger.info("Initializing inboxes and outboxes for actors...")
-    for actor in actors:
-        if actor is None:
-            continue
-        init_actor_io(actor.as_id)
+    """No-op retained for backward compatibility.
+
+    Inbox and outbox queues are now managed by the per-actor DataLayer
+    (ADR-0012 ACT-2). No explicit initialization is required.
+    """
+    pass
 
 
 def post_to_inbox_and_wait(
@@ -341,9 +340,7 @@ def setup_clean_environment(
     logger.info("Setting up clean environment...")
     reset = reset_datalayer(client=client, init=True)
     logger.info(f"Reset status: {reset}")
-    clear_all_actor_ios()
     finder, vendor, coordinator = discover_actors(client=client)
-    init_actor_ios([finder, vendor, coordinator])
     logger.info("Clean environment setup complete.")
     return finder, vendor, coordinator
 
@@ -364,7 +361,6 @@ def demo_environment(client: DataLayerClient):
     finally:
         logger.info("Tearing down demo environment...")
         reset_datalayer(client=client, init=False)
-        clear_all_actor_ios()
         logger.info("Demo environment torn down.")
 
 

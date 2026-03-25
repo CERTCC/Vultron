@@ -142,20 +142,40 @@ def outbox_ids(actor) -> set[str]:
 def add_activity_to_outbox(
     actor_id: str, activity_id: str, dl: DataLayer
 ) -> None:
-    """Append an activity ID to an actor's outbox and persist the actor."""
+    """Append an activity ID to an actor's outbox and queue it for delivery.
+
+    Appends *activity_id* to the actor's ``outbox.items`` persistent list
+    (the AS2 outbox collection, visible via the outbox API endpoint) and
+    also writes it to the delivery queue table (``{actor_id}_outbox``) so
+    that :func:`outbox_handler` can drain and deliver it.
+
+    Args:
+        actor_id: The actor whose outbox should receive the activity.
+        activity_id: The ID of the activity to queue for delivery.
+        dl: The DataLayer to use for persistence.
+    """
+    # Persistent record: append to actor.outbox.items for the AS2 collection.
     actor_obj = dl.read(actor_id)
-    if actor_obj is None:
-        logger.error("add_activity_to_outbox: actor '%s' not found", actor_id)
-        return
-    if not (hasattr(actor_obj, "outbox") and actor_obj.outbox is not None):
-        logger.error(
-            "add_activity_to_outbox: actor '%s' has no outbox", actor_id
+    if actor_obj is not None and hasattr(actor_obj, "outbox"):
+        actor_obj.outbox.items.append(activity_id)
+        dl.save(actor_obj)
+        logger.debug(
+            "Added activity '%s' to actor '%s' outbox.items",
+            activity_id,
+            actor_id,
         )
-        return
-    actor_obj.outbox.items.append(activity_id)
-    dl.save(actor_obj)
+    else:
+        logger.warning(
+            "add_activity_to_outbox: actor '%s' not found or has no"
+            " outbox field; skipping outbox.items update",
+            actor_id,
+        )
+    # Delivery queue: write to actor-scoped queue table for outbox_handler.
+    dl.record_outbox_item(actor_id, activity_id)
     logger.debug(
-        "Added activity '%s' to actor '%s' outbox", activity_id, actor_id
+        "Queued activity '%s' in delivery queue for actor '%s'",
+        activity_id,
+        actor_id,
     )
 
 

@@ -17,9 +17,8 @@ Objective: Complete the highest-priority pending implementation task.
 1. Identify the highest-priority unchecked task in IMPLEMENTATION_PLAN.md.
 
    - If multiple small or trivial tasks are available, at the current
-     priority level, you may complete more
-     than one in the same run to conserve build iterations and
-     context-switching.
+     priority level, you may group them and complete more than one in the same 
+     run to conserve build iterations and context-switching.
    - `PRIORITIES.md` is authoritative for priority order, but task ordering
      may need to account for prerequisites, blockers, and dependencies.
    - Task ordering in IMPLEMENTATION_PLAN.md is a rough guide but not
@@ -76,11 +75,18 @@ Objective: Complete the highest-priority pending implementation task.
   `plan/BUGS.md` with a clear description and reproduction steps, but do not
   pursue them unless they block the current task.
 
+## Post-Validation
+
 4. If Validation Succeeds
 
-    - Mark the task complete in plan/IMPLEMENTATION_PLAN.md.
-    - Append a 'what was done' summary to plan/IMPLEMENTATION_HISTORY.md;  
-      record any lessons learned or constraints in plan/IMPLEMENTATION_NOTES.md.
+    - Append a 'what was done' summary to plan/IMPLEMENTATION_HISTORY.md 
+      with relevant details of the task(s) completed.
+    - Mark the task complete in plan/IMPLEMENTATION_PLAN.md, replacing task 
+      details with a one-line summary of the work done. (Actual task details 
+      should be captured in the IMPLEMENTATION_HISTORY.md entry so we're not 
+      losing information, just relocating it from future-planning to past-record.)
+    - capture any lessons learned or constraints in 
+      plan/IMPLEMENTATION_NOTES.md.
     - `git add` modified files and commit with a clear, specific message.
 
 ## Exit

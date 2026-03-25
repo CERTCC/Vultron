@@ -15,7 +15,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driving.fastapi.routers import actors as actors_router
 from vultron.adapters.driving.fastapi.routers import (
@@ -85,14 +84,12 @@ def actor_classes():
     return _actor_classes
 
 
-# Create and persist a set of actors, and initialize their actor_io stores
 @pytest.fixture
 def created_actors(dl, actor_classes):
     actors = []
     for actor_cls in actor_classes:
         actor = actor_cls(name="Test Actor for List")
         dl.create(object_to_record(actor))
-        init_actor_io(actor.as_id)
         actors.append(actor)
     return actors
 

@@ -281,3 +281,5 @@ class CloseCaseReceivedUseCase:
                 close_activity.as_id,
                 actor_id,
             )
+        # Queue for delivery via outbox_handler regardless of outbox field
+        self._dl.record_outbox_item(actor_id, close_activity.as_id)

@@ -24,7 +24,6 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
     inbox_handler,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.api.v2.data.actor_io import get_actor_io
 from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
@@ -46,6 +45,16 @@ logger = logging.getLogger("uvicorn.error")
 router = APIRouter(prefix="/actors", tags=["Actors"])
 
 
+def _shared_dl() -> DataLayer:
+    """Dependency: always returns the shared (non-actor-scoped) DataLayer.
+
+    Using this wrapper prevents FastAPI from forwarding the ``actor_id`` path
+    parameter into ``get_datalayer(actor_id=…)``, which would return a scoped
+    DataLayer that contains no actors.
+    """
+    return get_datalayer()
+
+
 @router.get(
     "/",
     response_model=list[as_Actor],
@@ -54,7 +63,7 @@ router = APIRouter(prefix="/actors", tags=["Actors"])
     operation_id="actors_list",
 )
 def get_actors(
-    datalayer: DataLayer = Depends(get_datalayer),
+    datalayer: DataLayer = Depends(_shared_dl),
 ) -> list[as_Actor]:
     """Returns a list of Actor examples."""
     types = [
@@ -88,7 +97,7 @@ def get_actors(
     operation_id="actors_get",
 )
 def get_actor(
-    actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
+    actor_id: str, datalayer: DataLayer = Depends(_shared_dl)
 ) -> as_Actor:
     """Returns an Actor example based on the provided actor_id."""
     actor = datalayer.read(actor_id)
@@ -116,7 +125,7 @@ def get_actor(
     operation_id="actors_get_profile",
 )
 def get_actor_profile(
-    actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
+    actor_id: str, datalayer: DataLayer = Depends(_shared_dl)
 ):
     """Returns an actor's discovery profile.
 
@@ -152,11 +161,10 @@ def get_actor_profile(
     operation_id="actors_get_inbox",
 )
 def get_actor_inbox(
-    actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
+    actor_id: str, datalayer: DataLayer = Depends(_shared_dl)
 ) -> as_OrderedCollection:
     """Returns the Actor's Inbox."""
 
-    # Try to resolve actor ID (handles both full URIs and short IDs)
     actor = datalayer.read(actor_id)
 
     if not actor:
@@ -168,17 +176,9 @@ def get_actor_inbox(
             detail="Actor not found.",
         )
 
-    # Use the full actor ID for actor_io lookup
-    full_actor_id = actor.as_id if hasattr(actor, "as_id") else actor_id
-
-    actor_io = get_actor_io(full_actor_id, init=False, raise_on_missing=False)
-    if actor_io is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Actor Inbox not found.",
-        )
-
-    return as_OrderedCollection(items=actor_io.inbox.items)
+    actor_dl = get_datalayer(actor.as_id)
+    items = actor_dl.inbox_list()
+    return as_OrderedCollection(items=items)
 
 
 def parse_activity(body: dict) -> AsActivityType:
@@ -225,7 +225,7 @@ def post_actor_inbox(
     # so we really want to accept any subclass that we have a registered handler for here.
     background_tasks: BackgroundTasks,
     activity: as_Activity = Depends(parse_activity),
-    dl: DataLayer = Depends(get_datalayer),
+    dl: DataLayer = Depends(_shared_dl),
 ) -> None:
     """Adds an item to the Actor's Inbox.
     The 202 Accepted status code indicates that the request has been accepted for
@@ -240,7 +240,7 @@ def post_actor_inbox(
     Raises:
         HTTPException: If the Actor is not found.
     """
-    # Try to read actor by full ID first
+    # Try to read actor by full ID first (shared DataLayer for identity lookup)
     actor = dl.read(actor_id)
 
     # If not found, try to resolve as short ID (e.g., "vendorco" -> "https://.../vendorco")
@@ -252,32 +252,50 @@ def post_actor_inbox(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
 
-    # Extract the full actor ID for subsequent operations
-    full_actor_id = actor.as_id if hasattr(actor, "as_id") else actor_id
+    # Normalise to the canonical actor URI so that short-ID and full-ID
+    # callers always scope to the same DataLayer namespace (OX-05-001).
+    canonical_actor_id = actor.as_id
 
+    # OX-1.3 / OX-06-001: idempotency — check persistent received log
+    # BEFORE storing so that re-delivered activities (after the inbox queue
+    # has been drained) are still detected and silently ignored with 202.
+    if actor.inbox and hasattr(actor.inbox, "items"):
+        if activity.as_id in actor.inbox.items:
+            logger.info(
+                "Activity %s already received by %s; ignoring duplicate"
+                " submission.",
+                activity.as_id,
+                canonical_actor_id,
+            )
+            return None
+
+    # Store activity in the SHARED DataLayer so cross-actor lookups work.
+    # (Operational data must be accessible to all actors' use cases and
+    # rehydration; actor-scoped DL is used only for queue management.)
     dl.create(object_to_record(activity))
 
     logger.debug(
-        f"Posting activity to actor {full_actor_id} inbox: {activity}"
+        f"Posting activity to actor {canonical_actor_id} inbox: {activity}"
     )
-    actor_io = get_actor_io(full_actor_id, init=True, raise_on_missing=False)
-    # append activity ID to inbox
-    actor_io.inbox.items.append(activity.as_id)
 
-    # Update the database actor's inbox collection to persist the activity
-    actor = as_Actor.model_validate(actor)
-
-    if actor.inbox:
+    # Append activity ID to the actor's inbox.items in the shared DL —
+    # this is the persistent received-log checked for idempotency above.
+    # It is NOT removed by the inbox handler.
+    if actor.inbox and hasattr(actor.inbox, "items"):
         actor.inbox.items.append(activity.as_id)
-        dl.update(actor.as_id, object_to_record(actor))
-        logger.info(
-            f"Added activity {activity.as_id} to actor {actor.as_id} inbox"
+        dl.save(actor)
+        logger.debug(
+            f"Added activity {activity.as_id} to actor"
+            f" {canonical_actor_id} inbox record"
         )
-    else:
-        logger.error(f"Actor {actor.as_id} has no inbox - cannot add activity")
 
-    # Trigger inbox processing (in the background) using the full_actor_id
-    background_tasks.add_task(inbox_handler, full_actor_id, dl)
+    # Queue the activity ID in the actor-scoped DataLayer inbox.
+    actor_dl = get_datalayer(canonical_actor_id)
+    actor_dl.inbox_append(activity.as_id)
+
+    # Trigger inbox processing: pass canonical actor_id, shared DL for
+    # data, and actor-scoped DL for queue management.
+    background_tasks.add_task(inbox_handler, canonical_actor_id, dl, actor_dl)
 
     return None
 
@@ -293,7 +311,7 @@ def post_actor_outbox(
     actor_id: str,
     activity: as_Activity,
     background_tasks: BackgroundTasks,
-    dl: DataLayer = Depends(get_datalayer),
+    dl: DataLayer = Depends(_shared_dl),
 ) -> None:
     """Adds an item to the Actor's Outbox.
     Args:
@@ -305,13 +323,17 @@ def post_actor_outbox(
     Raises:
         HTTPException: If the Actor is not found.
     """
-    actor = dl.read(actor_id)
-    actor = as_Actor.model_validate(actor)
+    actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
+    actor = as_Actor.model_validate(actor) if actor else None
 
     if not actor:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
+
+    # Normalise to the canonical actor URI so that short-ID and full-ID
+    # callers always scope to the same DataLayer namespace.
+    canonical_actor_id = actor.as_id
 
     # actor.as_id must match activity.actor or activity.actor.as_id
     if isinstance(activity.actor, str):
@@ -321,27 +343,22 @@ def post_actor_outbox(
     else:
         activity_actor_id = None
 
-    if activity_actor_id != actor_id:
+    if activity_actor_id != canonical_actor_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Activity actor does not match actor_id.",
         )
 
-    logger.debug(f"Posting activity to actor {actor_id} outbox: {activity}")
+    logger.debug(
+        f"Posting activity to actor {canonical_actor_id} outbox: {activity}"
+    )
 
-    actor_io = get_actor_io(actor_id, init=False, raise_on_missing=True)
-
-    dl.create(object_to_record(activity))
-
-    # append activity ID to outbox
-    actor_io.outbox.items.append(activity.as_id)
-
-    # Update the database actor's outbox collection to persist the activity
-    if actor.outbox:
-        actor.outbox.items.append(activity.as_id)
-        dl.update(actor.as_id, object_to_record(actor))
+    # Use the actor-scoped DataLayer for operational data
+    actor_dl = get_datalayer(canonical_actor_id)
+    actor_dl.create(object_to_record(activity))
+    actor_dl.outbox_append(activity.as_id)
 
     # Trigger outbox processing (in the background)
-    background_tasks.add_task(outbox_handler, actor_id)
+    background_tasks.add_task(outbox_handler, canonical_actor_id, actor_dl, dl)
 
     return None

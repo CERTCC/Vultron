@@ -20,7 +20,7 @@ Thin wrapper: validates request → calls adapter → returns response.
 All domain logic lives in vultron.core.use_cases.triggers.report.
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Path, status
 
 from vultron.adapters.driving.fastapi._trigger_adapter import (
     close_report_trigger,
@@ -40,6 +40,16 @@ from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 router = APIRouter(prefix="/actors", tags=["Triggers"])
 
 
+def _actor_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
+    """FastAPI dependency: return the shared DataLayer for trigger use cases.
+
+    Operational data (actors, offers, reports, cases) is stored in the shared
+    DataLayer.  The ``actor_id`` path parameter is accepted but unused so that
+    ``app.dependency_overrides[_actor_dl]`` works in tests (ADR-0012).
+    """
+    return get_datalayer()
+
+
 @router.post(
     "/{actor_id}/trigger/validate-report",
     status_code=status.HTTP_202_ACCEPTED,
@@ -54,7 +64,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
 def trigger_validate_report(
     actor_id: str,
     body: ValidateReportRequest,
-    dl: DataLayer = Depends(get_datalayer),
+    dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
     Trigger the validate-report behavior for the given actor.
@@ -82,7 +92,7 @@ def trigger_validate_report(
 def trigger_invalidate_report(
     actor_id: str,
     body: InvalidateReportRequest,
-    dl: DataLayer = Depends(get_datalayer),
+    dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
     Trigger the invalidate-report behavior for the given actor.
@@ -111,7 +121,7 @@ def trigger_invalidate_report(
 def trigger_reject_report(
     actor_id: str,
     body: RejectReportRequest,
-    dl: DataLayer = Depends(get_datalayer),
+    dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
     Trigger the reject-report (hard-close) behavior for the given actor.
@@ -143,7 +153,7 @@ def trigger_reject_report(
 def trigger_close_report(
     actor_id: str,
     body: CloseReportRequest,
-    dl: DataLayer = Depends(get_datalayer),
+    dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
     Trigger the close-report (RM → CLOSED) behavior for the given actor.

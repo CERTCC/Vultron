@@ -38,7 +38,6 @@ from vultron.adapters.driving.fastapi._trigger_adapter import (
     terminate_embargo_trigger,
     validate_report_trigger,
 )
-from vultron.api.v2.data.actor_io import init_actor_io
 from vultron.core.models.participant_status import VultronParticipantStatus
 from vultron.core.use_cases._helpers import _report_phase_status_id
 from vultron.core.states.em import EM
@@ -69,7 +68,6 @@ def dl(datalayer):
 def actor(dl):
     actor_obj = as_Service(name="Vendor Co")
     dl.create(object_to_record(actor_obj))
-    init_actor_io(actor_obj.as_id)
     return actor_obj
 
 

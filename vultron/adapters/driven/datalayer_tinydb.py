@@ -44,7 +44,11 @@ BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
 
 
 class TinyDbDataLayer(DataLayer):
-    def __init__(self, db_path: str | None = "mydb.json") -> None:
+    def __init__(
+        self,
+        db_path: str | None = "mydb.json",
+        actor_id: str | None = None,
+    ) -> None:
         if db_path:
             open(db_path, "a").close()  # Ensure the file exists
             self._db_path = db_path
@@ -52,9 +56,28 @@ class TinyDbDataLayer(DataLayer):
         else:
             self._db_path = None
             self._db = TinyDB(storage=MemoryStorage)
+        self._actor_id = actor_id
 
     def _table(self, name: str) -> Table:
+        if self._actor_id:
+            return self._db.table(f"{self._actor_id}_{name}")
         return self._db.table(name)
+
+    def _my_tables(self) -> list[Table]:
+        """Return TinyDB Table handles scoped to this actor.
+
+        For an actor-scoped DataLayer, only tables whose names start with the
+        actor prefix are returned.  For the shared DataLayer (no actor_id),
+        all tables are returned.  Uses raw ``_db.table(name)`` access so the
+        prefix is never applied twice.
+        """
+        all_names = self._db.tables()
+        if self._actor_id:
+            prefix = f"{self._actor_id}_"
+            names = [n for n in all_names if n.startswith(prefix)]
+        else:
+            names = list(all_names)
+        return [self._db.table(n) for n in names]
 
     def _id_query(self, id_: str) -> QueryInstance:
         """Returns a TinyDB Query object for matching the given id.
@@ -123,8 +146,7 @@ class TinyDbDataLayer(DataLayer):
             candidates.append(f"{_URN_UUID_PREFIX}{object_id}")
 
         for candidate in candidates:
-            for name in self._db.tables():
-                tbl = self._table(name)
+            for tbl in self._my_tables():
                 rec = tbl.get(self._id_query(candidate))
                 if rec:
                     # rec is a dict representing Record
@@ -155,8 +177,7 @@ class TinyDbDataLayer(DataLayer):
         # If caller passed as get(id_=...)
         if table is None and id_ is not None:
             # search across all tables for this id and return the rehydrated object
-            for name in self._db.tables():
-                tbl = self._table(name)
+            for tbl in self._my_tables():
                 rec = tbl.get(self._id_query(id_))
                 if rec:
                     try:
@@ -244,8 +265,7 @@ class TinyDbDataLayer(DataLayer):
 
         # no table provided: return a dictionary of all objects across tables
         results: dict[str, BaseModel] = {}
-        for name in self._db.tables():
-            tbl = self._table(name)
+        for tbl in self._my_tables():
             for rec in tbl.all():
                 try:
                     record = Record.model_validate(rec)
@@ -268,10 +288,10 @@ class TinyDbDataLayer(DataLayer):
         Returns a dict mapping object id -> object's data dict for all records of
         the given type (table name).
         """
-        if as_type not in self._db.tables():
+        tbl = self._table(as_type)
+        if tbl.name not in self._db.tables():
             return {}
 
-        tbl = self._table(as_type)
         results: dict[str, dict] = {}
         for rec in tbl.all():
             try:
@@ -347,10 +367,10 @@ class TinyDbDataLayer(DataLayer):
         ]
 
         for actor_type in actor_types:
-            if actor_type not in self._db.tables():
+            tbl = self._table(actor_type)
+            if tbl.name not in self._db.tables():
                 continue
 
-            tbl = self._table(actor_type)
             for rec in tbl.all():
                 try:
                     record = Record.model_validate(rec)
@@ -365,29 +385,123 @@ class TinyDbDataLayer(DataLayer):
 
         return None
 
+    # ------------------------------------------------------------------
+    # Inbox / Outbox queue helpers
+    # ------------------------------------------------------------------
+
+    def inbox_append(self, activity_id: str) -> None:
+        """Append an activity ID to this actor's inbox queue."""
+        tbl = self._table("inbox")
+        tbl.insert({"activity_id": activity_id})
+
+    def inbox_list(self) -> list[str]:
+        """Return all activity IDs currently in this actor's inbox, in insertion order."""
+        tbl = self._table("inbox")
+        return [rec["activity_id"] for rec in tbl.all()]
+
+    def inbox_pop(self) -> str | None:
+        """Remove and return the oldest activity ID from this actor's inbox queue.
+
+        Returns ``None`` if the inbox is empty.
+        """
+        tbl = self._table("inbox")
+        all_recs = tbl.all()
+        if not all_recs:
+            return None
+        first = all_recs[0]
+        tbl.remove(doc_ids=[first.doc_id])
+        return first["activity_id"]
+
+    def outbox_append(self, activity_id: str) -> None:
+        """Append an activity ID to this actor's outbox queue."""
+        tbl = self._table("outbox")
+        tbl.insert({"activity_id": activity_id})
+
+    def outbox_list(self) -> list[str]:
+        """Return all activity IDs currently in this actor's outbox, in insertion order."""
+        tbl = self._table("outbox")
+        return [rec["activity_id"] for rec in tbl.all()]
+
+    def outbox_pop(self) -> str | None:
+        """Remove and return the oldest activity ID from this actor's outbox queue.
+
+        Returns ``None`` if the outbox is empty.
+        """
+        tbl = self._table("outbox")
+        all_recs = tbl.all()
+        if not all_recs:
+            return None
+        first = all_recs[0]
+        tbl.remove(doc_ids=[first.doc_id])
+        return first["activity_id"]
+
+    def record_outbox_item(self, actor_id: str, activity_id: str) -> None:
+        """Queue an outbox item for *actor_id* regardless of this DL's scope.
+
+        Uses the same ``{actor_id}_outbox`` table name that the actor-scoped
+        DataLayer writes to, so that :func:`outbox_handler` can drain the
+        queue whether the enqueuing happened from the shared DL (trigger
+        use-cases, BT nodes) or the actor-scoped DL (``POST /outbox``).
+
+        Args:
+            actor_id: The actor whose outbox queue to append to.
+            activity_id: The activity ID to enqueue.
+        """
+        tbl = self._db.table(f"{actor_id}_outbox")
+        tbl.insert({"activity_id": activity_id})
+
 
 _datalayer_instance: TinyDbDataLayer | None = None
+_datalayer_instances: dict[str, TinyDbDataLayer] = {}
 
 
-def get_datalayer(db_path: str | None = "mydb.json") -> TinyDbDataLayer:
+def get_datalayer(
+    actor_id: str | None = None, db_path: str | None = "mydb.json"
+) -> TinyDbDataLayer:
     """Factory function to get or create a TinyDbDataLayer instance.
 
-    Uses a singleton pattern to ensure the same instance is reused.
+    When ``actor_id`` is provided, returns (or creates) an actor-scoped
+    instance whose tables are prefixed with the actor ID (Option B — TinyDB
+    namespace prefix per ADR-0012). Different actors get fully isolated
+    DataLayer instances backed by the same TinyDB file.
+
+    When ``actor_id`` is ``None``, returns (or creates) a shared/admin
+    instance with no namespace prefix. Admin endpoints and health checks
+    use this form.
+
     In tests, dependency injection should be used to override this.
 
     Args:
-        db_path (str | None): The path to the database file. If None, uses in-memory storage.
+        actor_id: The actor whose scoped DataLayer to return. ``None`` for
+            the shared/admin DataLayer.
+        db_path: The path to the backing TinyDB file. If ``None``, uses
+            in-memory storage.
 
     Returns:
-        TinyDbDataLayer: An instance of TinyDbDataLayer.
+        TinyDbDataLayer: An actor-scoped (or shared) instance.
     """
     global _datalayer_instance
-    if _datalayer_instance is None:
-        _datalayer_instance = TinyDbDataLayer(db_path=db_path)
-    return _datalayer_instance
+    if actor_id is None:
+        if _datalayer_instance is None:
+            _datalayer_instance = TinyDbDataLayer(db_path=db_path)
+        return _datalayer_instance
+    if actor_id not in _datalayer_instances:
+        _datalayer_instances[actor_id] = TinyDbDataLayer(
+            db_path=db_path, actor_id=actor_id
+        )
+    return _datalayer_instances[actor_id]
 
 
-def reset_datalayer() -> None:
-    """Reset the singleton datalayer instance. Used primarily for testing."""
-    global _datalayer_instance
-    _datalayer_instance = None
+def reset_datalayer(actor_id: str | None = None) -> None:
+    """Reset one or all cached DataLayer instances. Used primarily for testing.
+
+    Args:
+        actor_id: If provided, resets only the instance for that actor.
+            If ``None``, resets all instances (shared + all per-actor).
+    """
+    global _datalayer_instance, _datalayer_instances
+    if actor_id is None:
+        _datalayer_instance = None
+        _datalayer_instances = {}
+    else:
+        _datalayer_instances.pop(actor_id, None)

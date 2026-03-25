@@ -1,7 +1,8 @@
 # Implementation History
 
 This file archives completed phases from `IMPLEMENTATION_PLAN.md`.
-New entries are appended; do not edit past entries.
+New entries are appended; do not edit past entries. Include date completed
+when known.
 
 ---
 
@@ -2778,6 +2779,24 @@ and checked off. No code changes needed.
 
 ---
 
+## BUG-001: `outbox_handler` early-return fix
+
+**Issue**: `outbox_handler` logged a warning when `dl.read(actor_id)` returned
+`None` but did not return early. The subsequent `while actor.outbox.items:` line
+raised `AttributeError: 'NoneType' object has no attribute 'outbox'`.
+
+**Root cause**: Missing `return` statement after the `logger.warning(...)` call
+in the `if actor is None` guard.
+
+**Fix**: Added `return` immediately after the warning log in
+`vultron/adapters/driving/fastapi/outbox_handler.py`.
+
+**Test**: Added `test_outbox_handler_returns_early_when_actor_not_found` to
+`test/api/v2/backend/test_outbox.py` to verify no exception is raised and the
+warning is logged when the actor is not found.
+
+---
+
 ## TECHDEBT-32 / TECHDEBT-32b — DataLayer boundary audit and core adapter import removal (COMPLETE 2026-03-24)
 
 ### What was done
@@ -2977,3 +2996,215 @@ mixins from providing clean rich-object access.
 ### Test results
 
 988 passed, 5581 subtests passed.
+
+---
+
+## ACT-2: Per-Actor DataLayer Isolation (ADR-0012)
+
+**Priority**: 100 (highest open task at time of implementation)
+
+### Summary
+
+Implemented Option B (TinyDB namespace prefix per actor) from ADR-0012.
+Each actor's tables are prefixed `{actor_id}_*` in the same TinyDB file.
+Activity objects are stored in the shared DataLayer for cross-actor
+accessibility; inbox/outbox queues are in the actor-scoped DataLayer.
+
+### Key design decisions
+
+- **Activity objects → shared DL**: All activities are stored in the shared
+  (unprefixed) DataLayer so rehydration and cross-actor use cases work.
+- **Inbox/outbox queues → actor-scoped DL**: Queue records hold only the
+  `activity_id` string in `{actor_id}_inbox` / `{actor_id}_outbox` tables.
+- **Inbox visibility record → actor object in shared DL**: `post_actor_inbox`
+  also appends the activity ID to `actor.inbox.items` in the shared DL actor
+  record (persistent received-log, never cleared by the handler).
+- **`_shared_dl()` wrappers**: Prevent FastAPI from injecting the `actor_id`
+  path parameter into `get_datalayer()` calls in all routers.
+- **`_actor_dl()` in trigger routes returns shared DL**: Trigger use cases
+  need the shared DL (actors, offers, reports are all there).
+
+### Files modified
+
+- `vultron/adapters/driven/datalayer_tinydb.py`: actor_id prefix, `_my_tables()`,
+  inbox/outbox methods, `get_datalayer(actor_id)` factory, `reset_datalayer()`
+- `vultron/core/ports/datalayer.py`: 6 inbox/outbox Protocol methods
+- `vultron/adapters/driving/fastapi/inbox_handler.py`: accepts `actor_dl` param
+- `vultron/adapters/driving/fastapi/outbox_handler.py`: uses `dl.outbox_list/pop`
+- `vultron/adapters/driving/fastapi/routers/actors.py`: `_shared_dl()`, inbox
+  visibility record update, actor-scoped queue management
+- `vultron/adapters/driving/fastapi/routers/datalayer.py`: `_shared_dl()`
+- `vultron/adapters/driving/fastapi/routers/trigger_{report,case,embargo}.py`:
+  `_actor_dl()` returns shared DL
+- `vultron/demo/utils.py`: `init_actor_ios()` is no-op
+- `test/adapters/driven/test_datalayer_isolation.py`: 26 new isolation tests
+
+### Test results
+
+1014 passed, 5581 subtests passed.
+
+---
+
+## Refresh #51 — VCR-014 + TECHDEBT-37 (2026-03-25)
+
+### Tasks completed
+
+- **VCR-014**: Removed `vultron/api/v2/data/actor_io.py`. The global in-memory
+  `ACTOR_IO_STORE` is fully superseded by the DataLayer inbox/outbox methods
+  (`inbox_list/pop/append`, `outbox_list/pop/append`) added in ACT-2.
+  Removed the `init_actor_io` import and call from all test fixtures.
+  Deleted `test/api/v2/data/test_actor_io.py` and `test/api/v2/data/conftest.py`.
+
+- **TECHDEBT-37**: Migrated all tests from `test/api/` to the canonical layout:
+  - `test/api/v2/backend/test_inbox_handler.py` →
+    `test/adapters/driving/fastapi/test_inbox_handler.py`
+  - `test/api/v2/backend/test_outbox.py` →
+    `test/adapters/driving/fastapi/test_outbox.py`
+  - `test/api/v2/backend/test_trigger_services.py` →
+    `test/adapters/driving/fastapi/test_trigger_services.py`
+  - `test/api/v2/conftest.py` →
+    `test/adapters/driving/fastapi/conftest.py`
+  - `test/api/v2/test_v2_api.py` →
+    `test/adapters/driving/fastapi/test_api.py`
+  - `test/api/v2/routers/conftest.py` →
+    `test/adapters/driving/fastapi/routers/conftest.py`
+  - `test/api/v2/routers/test_actors.py` →
+    `test/adapters/driving/fastapi/routers/test_actors.py`
+  - `test/api/v2/routers/test_datalayer_serialization.py` →
+    `test/adapters/driving/fastapi/routers/test_datalayer_serialization.py`
+  - `test/api/v2/routers/test_datalayer.py` →
+    `test/adapters/driving/fastapi/routers/test_datalayer.py`
+  - `test/api/v2/routers/test_health.py` →
+    `test/adapters/driving/fastapi/routers/test_health.py`
+  - `test/api/v2/routers/test_trigger_{report,case,embargo}.py` →
+    `test/adapters/driving/fastapi/routers/test_trigger_{report,case,embargo}.py`
+  - `test/api/v2/datalayer/conftest.py` →
+    `test/adapters/driven/conftest.py`
+  - `test/api/v2/datalayer/test_db_record.py` →
+    `test/adapters/driven/test_db_record.py`
+  - `test/api/v2/datalayer/test_tinydb_backend.py` →
+    `test/adapters/driven/test_tinydb_backend.py`
+  - `test/api/test_reporting_workflow.py` →
+    `test/core/use_cases/test_reporting_workflow.py`
+  - `test/api/` directory removed.
+
+### Files modified
+
+- `vultron/api/v2/data/actor_io.py`: deleted
+- `test/api/` directory: deleted (all tests relocated)
+- `test/adapters/driving/` directory: created with `__init__.py`
+- `test/adapters/driving/fastapi/` directory: created with all migrated tests
+- `test/adapters/driving/fastapi/routers/` directory: created with all
+  migrated router tests
+- `test/adapters/driven/conftest.py`: created (from datalayer/conftest.py)
+- `test/adapters/driven/test_db_record.py`: created
+- `test/adapters/driven/test_tinydb_backend.py`: created
+- `test/core/use_cases/test_reporting_workflow.py`: created
+
+### Test results
+
+998 passed, 5581 subtests passed.
+
+---
+
+## ACT-3 — Per-actor DataLayer for trigger endpoints (2026-03-25)
+
+**Task**: Update `get_datalayer` dependency and all handler tests to use
+per-actor DataLayer fixtures (ADR-0012 DI-1 closure lambda strategy).
+
+### What was done
+
+- Updated `_actor_dl` FastAPI dependency in all three trigger routers to call
+  `get_datalayer(actor_id)` instead of the shared `get_datalayer()`:
+  - `vultron/adapters/driving/fastapi/routers/trigger_case.py`
+  - `vultron/adapters/driving/fastapi/routers/trigger_report.py`
+  - `vultron/adapters/driving/fastapi/routers/trigger_embargo.py`
+- Refactored trigger test fixtures in all three test files to use a combined
+  `actor_and_dl` fixture that creates the actor in-memory first, then
+  instantiates a `TinyDbDataLayer(db_path=None, actor_id=actor.as_id)` scoped
+  to that actor's ID, and persists the actor into it.  The `actor` and `dl`
+  fixtures unpack from `actor_and_dl`.
+- Updated `test_trigger_validate_report_uses_injected_datalayer` to use the
+  per-actor `dl` fixture instead of the shared `datalayer` fixture.
+- Removed unused `object_to_record` import from `test_trigger_report.py`.
+
+### Lessons learned
+
+- The "actor before DataLayer" combined-fixture pattern (`actor_and_dl`) solves
+  the chicken-and-egg problem of needing the actor's `as_id` to create a
+  scoped DataLayer, while still allowing all downstream fixtures to depend on
+  both `actor` and `dl` independently.
+- The `client_triggers` override `lambda: dl` continues to work after the
+  production change because FastAPI `dependency_overrides` replaces the entire
+  dependency callable, bypassing the `actor_id = Path(...)` parameter.
+
+### Test results
+
+998 passed, 5581 subtests passed.
+
+---
+
+## OX-1.1/1.2/1.3 — Outbox delivery implementation (2026-03-25)
+
+**Tasks**: OX-1.1 (local/remote delivery), OX-1.2 (background delivery after
+inbox processing), OX-1.3 (inbox idempotency).
+
+**Architecture note**: Each actor runs as an isolated process/container.
+Outbox delivery uses HTTP POST to recipient inbox URLs — not direct DataLayer
+access. OX-1.3 idempotency is enforced at the receiving inbox endpoint.
+
+### What was done
+
+**`vultron/adapters/driven/delivery_queue.py`** (OX-1.1):
+
+- Replaced stub `emit()` with real HTTP POST delivery using `httpx`.
+- Each recipient inbox URL is derived as `{actor_uri}/inbox/` (ActivityPub
+  convention).
+- Per-recipient failures are logged at ERROR and swallowed so one unreachable
+  actor never blocks others.
+
+**`vultron/adapters/driving/fastapi/outbox_handler.py`** (OX-1.1):
+
+- Added `_extract_recipients(activity)` helper — deduplicates `to`/`cc`/
+  `bto`/`bcc` fields, handles both string IDs and embedded actor objects.
+- Rewrote `handle_outbox_item(actor_id, activity_id, dl, emitter)` — reads
+  activity from DataLayer, extracts recipients, calls `emitter.emit()`.
+- Updated `outbox_handler(actor_id, dl, shared_dl=None, emitter=None)` to
+  accept a shared DataLayer (for reading activity objects) and injectable
+  emitter (defaults to `DeliveryQueueAdapter()`).
+
+**`vultron/adapters/driving/fastapi/inbox_handler.py`** (OX-1.2):
+
+- Added `await outbox_handler(actor_id, queue_dl, shared_dl=dl)` at end of
+  `inbox_handler` so outbound activities generated during inbox processing
+  are delivered immediately after (OX-03-002).
+
+**`vultron/adapters/driving/fastapi/routers/actors.py`** (OX-1.3):
+
+- Added duplicate-activity check in `post_actor_inbox`: if the activity ID is
+  already in the actor's inbox queue, returns 202 immediately without
+  re-scheduling processing (OX-06-001).
+- Updated `post_actor_outbox` to pass shared `dl` as `shared_dl` to
+  `outbox_handler`.
+
+**Tests**:
+
+- Updated `test_outbox.py`: new signatures, 6 new delivery-logic tests
+  covering `_extract_recipients`, skip-on-no-activity, skip-on-no-recipients,
+  deduplication, embedded objects, and emit call verification.
+- Updated `test_inbox_handler.py`: added `outbox_list.return_value = []` to
+  prevent mock DL issues with the new OX-1.2 outbox trigger.
+
+### Lessons learned
+
+- Outbox delivery must use HTTP POST (not DataLayer access) to support
+  isolated-process actors. Each actor manages its own DataLayer; cross-actor
+  delivery must go through the HTTP API.
+- OX-1.3 idempotency belongs at the inbox endpoint, not the delivery side —
+  delivery adapters have no access to remote actor DataLayers.
+- The `shared_dl` / `emitter` injectable parameters on `outbox_handler` keep
+  the handler testable without requiring real HTTP or real DataLayers.
+
+### Test results
+
+1004 passed, 5581 subtests passed.

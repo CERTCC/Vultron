@@ -4,25 +4,8 @@ Longer-term notes can be found in `/notes/*.md`. This file is ephemeral
 and will be reset periodically, so it's meant to capture more immediate
 insights, issues, and learnings during the implementation process.
 
-Add new items below this line
-
----
-
-## BUG-001: `outbox_handler` early-return fix
-
-**Issue**: `outbox_handler` logged a warning when `dl.read(actor_id)` returned
-`None` but did not return early. The subsequent `while actor.outbox.items:` line
-raised `AttributeError: 'NoneType' object has no attribute 'outbox'`.
-
-**Root cause**: Missing `return` statement after the `logger.warning(...)` call
-in the `if actor is None` guard.
-
-**Fix**: Added `return` immediately after the warning log in
-`vultron/adapters/driving/fastapi/outbox_handler.py`.
-
-**Test**: Added `test_outbox_handler_returns_early_when_actor_not_found` to
-`test/api/v2/backend/test_outbox.py` to verify no exception is raised and the
-warning is logged when the actor is not found.
+Append new items below any existing ones, marking them with the date and a
+header.
 
 ---
 
@@ -45,8 +28,6 @@ OPP-05 (consolidate duplicate participant RM helpers) is explicitly NOT done
 - `_find_and_update_participant_rm()` in `vultron/core/behaviors/report/nodes.py`
 - `update_participant_rm_state()` in `vultron/core/use_cases/triggers/_helpers.py`
 This is captured as TECHDEBT-39 in `plan/IMPLEMENTATION_PLAN.md`.
-
----
 
 ---
 
@@ -90,3 +71,63 @@ have explicit guards:
 All `rm_state=RM.XXX` in core are constructor args for new status objects, not
 transitions — documented justification for bypassing machine guard. The
 `append_rm_state()` guard already enforces validity for all RM mutation paths.
+
+---
+
+## 2026-03-25 Outbox and CaseActor notes
+
+As preface and clarification to Outbox and CaseActor implementation, note
+that we are on a path toward a design in which each actor is essentially
+isolated in its own process and environment and can only interact locally with
+their own data and state, and with other actors through sending and receiving
+Vultron AS2 messages. Assume that any design choices you make now have to
+continue to work when multiple actors are running in completely independent
+and autonomous environments (e.g., containers), and so each actor has to be
+able to manage its own state and data. Services like outbox delivery cannot
+assume local access to other actors data or state. They must be designed to
+consume a local outbox but then deliver to remote inboxes wherever they may
+live via the front-end fastapi adapter.
+
+Given this constraint, it is also unlikely that you will be able to have the
+outbox delivery mechanism check for idempotency by looking at the datalayer
+directly because they won't have access to it. Instead, the inbox handler or
+fastapi adapter inbound should be able to handle duplicate messages
+gracefully, perhaps responding with an appropriate HTTP status code if a
+duplicate is detected while processing an incoming message.
+
+## 2026-03-25 Avoid BaseModel directly in adapters or core
+
+While we use Pydantic's BaseModel to define data classes throughout the code,
+we need to avoid using BaseModel as a type hint for functions, (python)
+Protocols, or port interfaces between layers. Although it's an easy way to
+quickly implemement data conversions from core to wire formats and vice
+versa, it either creates too tight a coupling between layers, or it leads to
+leaky abstractions where the core must be aware of the wire format. We
+really do need to ensure that port interfaces are clean and sufficiently
+abstracted so that we're not inadvertently coupling objects across
+boundaries without very well-defined data transformation layers. Using
+`BaseModel` in type hints indicates that we haven't thought enough about
+what data is actually passing through the interface and whether we have the
+right abstractions in place.
+
+---
+
+## 2026-03-25 OX-1.1/1.2/1.3: delivery is HTTP POST, idempotency is at inbox
+
+Outbox delivery (OX-1.1) uses async HTTP POST to `{actor_uri}/inbox/` via
+`httpx.AsyncClient` in `DeliveryQueueAdapter.emit()`. Direct DataLayer
+writes to recipient inboxes are **not** used — each actor is isolated in
+its own process/container and cannot access other actors' DataLayers.
+
+OX-1.3 idempotency is enforced at `POST /actors/{id}/inbox/`: the endpoint
+checks `actor.inbox.items` (the persistent received log) before enqueueing
+and returns 202 immediately on a duplicate activity ID.
+
+The `shared_dl` parameter on `outbox_handler` covers the case where
+activities are stored in the shared DataLayer (POST /inbox path) vs.
+the actor's own DL (POST /outbox path).
+
+Trigger use-cases and BT nodes that create outgoing activities now call
+`dl.record_outbox_item(actor_id, activity_id)` so items are enqueued in
+the `{actor_id}_outbox` table that `outbox_handler` drains, regardless of
+whether the calling code holds the shared or actor-scoped DataLayer.

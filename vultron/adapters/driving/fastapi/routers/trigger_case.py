@@ -20,7 +20,7 @@ Thin wrapper: validates request → calls adapter → returns response.
 All domain logic lives in vultron.core.use_cases.triggers.case.
 """
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Path, status
 
 from vultron.adapters.driving.fastapi._trigger_adapter import (
     defer_case_trigger,
@@ -31,6 +31,16 @@ from vultron.core.ports.datalayer import DataLayer
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 
 router = APIRouter(prefix="/actors", tags=["Triggers"])
+
+
+def _actor_dl(actor_id: str = Path(...)) -> DataLayer:  # noqa: ARG001
+    """FastAPI dependency: return the shared DataLayer for trigger use cases.
+
+    Operational data (actors, offers, reports, cases) is stored in the shared
+    DataLayer.  The ``actor_id`` path parameter is accepted but unused so that
+    ``app.dependency_overrides[_actor_dl]`` works in tests (ADR-0012).
+    """
+    return get_datalayer()
 
 
 @router.post(
@@ -48,7 +58,7 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
 def trigger_engage_case(
     actor_id: str,
     body: CaseTriggerRequest,
-    dl: DataLayer = Depends(get_datalayer),
+    dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
     Trigger the engage-case behavior for the given actor.
@@ -75,7 +85,7 @@ def trigger_engage_case(
 def trigger_defer_case(
     actor_id: str,
     body: CaseTriggerRequest,
-    dl: DataLayer = Depends(get_datalayer),
+    dl: DataLayer = Depends(_actor_dl),
 ) -> dict:
     """
     Trigger the defer-case behavior for the given actor.

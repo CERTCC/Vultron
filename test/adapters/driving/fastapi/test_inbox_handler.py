@@ -56,19 +56,26 @@ def test_handle_inbox_item_dispatches(monkeypatch):
 
 
 def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
+    """inbox_handler retries up to 3 errors then aborts, re-appending the item."""
+    item_id = "https://example.org/activities/itm-001"
     item = SimpleNamespace(
-        as_type="irrelevant", name="itm", model_dump_json=lambda **kw: "{}"
+        as_id=item_id,
+        as_type="irrelevant",
+        name="itm",
+        model_dump_json=lambda **kw: "{}",
     )
-    inbox = SimpleNamespace(items=[item])
-    actor_io = SimpleNamespace(inbox=inbox)
 
     mock_dl = MagicMock()
     mock_dl.read.return_value = None
+    # Inbox contains one item; after abort it should still be there
+    _queue = [item_id]
+    mock_dl.inbox_list.side_effect = lambda: list(_queue)
+    mock_dl.inbox_pop.side_effect = lambda: _queue.pop(0) if _queue else None
+    mock_dl.inbox_append.side_effect = lambda x: _queue.append(x)
+    # Prevent outbox_handler (called at end of inbox_handler) from looping
+    mock_dl.outbox_list.return_value = []
 
-    monkeypatch.setattr(
-        ih, "get_actor_io", lambda actor_id, raise_on_missing=True: actor_io
-    )
-    monkeypatch.setattr(ih, "rehydrate", lambda x, dl=None: x)
+    monkeypatch.setattr(ih, "rehydrate", lambda x, dl=None: item)
 
     def always_raise(actor_id, obj, dl):
         raise RuntimeError("boom")
@@ -77,8 +84,8 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
 
     asyncio.run(ih.inbox_handler("actor-xyz", mock_dl))
 
-    assert len(actor_io.inbox.items) == 1
-    assert actor_io.inbox.items[0] is item
+    # Item should have been re-appended after each error
+    assert item_id in _queue
 
 
 def test_dispatch_raises_if_not_initialised(monkeypatch):

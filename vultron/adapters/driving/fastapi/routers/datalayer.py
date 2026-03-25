@@ -35,6 +35,15 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 router = APIRouter(prefix="/datalayer", tags=["datalayer"])
 
 
+def _shared_dl() -> DataLayer:
+    """Dependency: always returns the shared (non-actor-scoped) DataLayer.
+
+    Prevents FastAPI from forwarding ``actor_id`` path parameters into
+    ``get_datalayer(actor_id=…)`` when this function is used as a dependency.
+    """
+    return get_datalayer()
+
+
 @router.get(
     "/{key}",
     description="Returns a specific object by key.",
@@ -111,7 +120,7 @@ def get_datalayer_contents(
     operation_id="datalayer_get_actor_offer",
 )
 def get_actor_offer(
-    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(get_datalayer)
+    actor_id: str, offer_id: str, datalayer: DataLayer = Depends(_shared_dl)
 ) -> as_Offer:
     obj = datalayer.read(offer_id)
 
@@ -182,7 +191,7 @@ def get_actors(
     operation_id="datalayer_get_actor_outbox",
 )
 def get_actor_outbox(
-    actor_id: str, datalayer: DataLayer = Depends(get_datalayer)
+    actor_id: str, datalayer: DataLayer = Depends(_shared_dl)
 ) -> dict:
     actor_obj = datalayer.read(actor_id)
 
