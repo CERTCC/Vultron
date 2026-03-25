@@ -35,7 +35,11 @@ class as_Activity(as_Object):
     of the picture, not the person walking down the street.
     """
 
-    as_type: O_type = Field(default=O_type.ACTIVITY, alias="type")
+    as_type: str = Field(
+        default=O_type.ACTIVITY,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
     actor: as_ActorRef
     target: as_Object | as_Link | str | None = None

@@ -20,9 +20,9 @@ from pydantic import BaseModel, Field
 
 
 class Vocabulary(BaseModel):
-    objects: dict[str, type] = Field(default_factory=dict)
-    activities: dict[str, type] = Field(default_factory=dict)
-    links: dict[str, type] = Field(default_factory=dict)
+    objects: dict[str, type[BaseModel]] = Field(default_factory=dict)
+    activities: dict[str, type[BaseModel]] = Field(default_factory=dict)
+    links: dict[str, type[BaseModel]] = Field(default_factory=dict)
 
     def __contains__(self, item: str) -> bool:
         return (
@@ -37,7 +37,7 @@ VOCABULARY = Vocabulary()
 
 def find_in_vocabulary(
     item_name: str, item_type: str | None = None
-) -> type | None:
+) -> type[BaseModel] | None:
     """Find a class in the vocabulary by type and name.
 
     Args:
@@ -59,9 +59,11 @@ def find_in_vocabulary(
             return VOCABULARY.activities.get(item_name)
         case "link":
             return VOCABULARY.links.get(item_name)
+        case _:
+            return None
 
 
-def activitystreams_object(cls: type) -> type:
+def activitystreams_object(cls: type[BaseModel]) -> type[BaseModel]:
     """Register an object for a given object type.
 
     Args:
@@ -75,7 +77,7 @@ def activitystreams_object(cls: type) -> type:
     return cls
 
 
-def activitystreams_activity(cls: type) -> type:
+def activitystreams_activity(cls: type[BaseModel]) -> type[BaseModel]:
     """Register an activity for a given activity type.
 
     Args:
@@ -89,7 +91,7 @@ def activitystreams_activity(cls: type) -> type:
     return cls
 
 
-def activitystreams_link(cls: type) -> type:
+def activitystreams_link(cls: type[BaseModel]) -> type[BaseModel]:
     """Register a link for a given link type.
 
     Args:

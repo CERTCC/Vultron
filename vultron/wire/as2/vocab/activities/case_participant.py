@@ -36,7 +36,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class CreateParticipantActivity(as_Create):
     """Create a new CaseParticipant"""
 
-    as_object: CaseParticipantRef = Field(None, alias="object")
+    as_object: CaseParticipantRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
     target: VulnerabilityCaseRef = None
 
     @model_validator(mode="after")
@@ -73,7 +75,9 @@ class CreateParticipantActivity(as_Create):
 class CreateStatusForParticipantActivity(as_Create):
     """Create a new CaseStatus for a CaseParticipant"""
 
-    as_object: ParticipantStatusRef = Field(None, alias="object")
+    as_object: ParticipantStatusRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
     target: CaseParticipantRef = None
 
 
@@ -84,7 +88,9 @@ class AddStatusToParticipantActivity(as_Add):
     target: CaseParticipant
     """
 
-    as_object: ParticipantStatusRef = Field(None, alias="object")
+    as_object: ParticipantStatusRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
     target: CaseParticipantRef = None
 
 
@@ -94,7 +100,9 @@ class AddParticipantToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    as_object: CaseParticipantRef = Field(None, alias="object")
+    as_object: CaseParticipantRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
     target: VulnerabilityCaseRef = None
 
 
@@ -105,5 +113,7 @@ class RemoveParticipantFromCaseActivity(as_Remove):
     target: VulnerabilityCase
     """
 
-    as_object: CaseParticipantRef = Field(None, alias="object")
+    as_object: CaseParticipantRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
     target: VulnerabilityCaseRef = None

@@ -37,7 +37,11 @@ class CaseStatus(VultronObject):
     Represents the case-level (global, participant-agnostic) status of a VulnerabilityCase.
     """
 
-    as_type: VO_type = Field(default=VO_type.CASE_STATUS, alias="type")
+    as_type: VO_type = Field(
+        default=VO_type.CASE_STATUS,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
     context: NonEmptyString | None = None  # Case ID goes here
     em_state: EM = EM.NO_EMBARGO
@@ -82,7 +86,11 @@ class ParticipantStatus(VultronObject):
     Represents the status of a participant with respect to a VulnerabilityCase (participant-specific).
     """
 
-    as_type: VO_type = Field(default=VO_type.PARTICIPANT_STATUS, alias="type")
+    as_type: VO_type = Field(
+        default=VO_type.PARTICIPANT_STATUS,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
     context: as_Object | as_Link | str
     rm_state: RM = RM.START

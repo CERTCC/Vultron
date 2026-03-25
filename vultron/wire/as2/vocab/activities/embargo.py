@@ -45,7 +45,9 @@ class EmProposeEmbargoActivity(as_Invite):
     as_object: EmbargoEvent
     """
 
-    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    as_object: EmbargoEventRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
     context: VulnerabilityCaseRef = None
 
 
@@ -61,7 +63,9 @@ class EmAcceptEmbargoActivity(as_Accept):
     context: the VulnerabilityCase for which the embargo was proposed
     """
 
-    as_object: EmProposeEmbargoRef = Field(default=None, alias="object")
+    as_object: EmProposeEmbargoRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
     context: VulnerabilityCaseRef = None
 
 
@@ -74,7 +78,9 @@ class EmRejectEmbargoActivity(as_Reject):
     context: the VulnerabilityCase for which the embargo was proposed
     """
 
-    as_object: EmProposeEmbargoRef = Field(default=None, alias="object")
+    as_object: EmProposeEmbargoRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
     context: VulnerabilityCaseRef = None
 
 
@@ -99,7 +105,9 @@ class ActivateEmbargoActivity(as_Add):
     in_reply_to: the EmProposeEmbargoActivity activity that proposed the EmbargoEvent
     """
 
-    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    as_object: EmbargoEventRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
     target: VulnerabilityCaseRef = None
     in_reply_to: EmProposeEmbargoRef = None
 
@@ -111,7 +119,9 @@ class AddEmbargoToCaseActivity(as_Add):
     in response to a previous EmProposeEmbargoActivity activity.
     """
 
-    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    as_object: EmbargoEventRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
     target: VulnerabilityCaseRef = None
 
 
@@ -121,7 +131,9 @@ class AnnounceEmbargoActivity(as_Announce):
     context: the VulnerabilityCase for which the EmbargoEvent is active
     """
 
-    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    as_object: EmbargoEventRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
     context: VulnerabilityCaseRef = None
 
 
@@ -134,5 +146,7 @@ class RemoveEmbargoFromCaseActivity(as_Remove):
     origin: VulnerabilityCase
     """
 
-    as_object: EmbargoEventRef = Field(default=None, alias="object")
+    as_object: EmbargoEventRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
     origin: VulnerabilityCaseRef = None

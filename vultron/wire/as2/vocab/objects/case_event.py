@@ -62,7 +62,7 @@ class CaseEvent(BaseModel):
 
     @field_validator("received_at", mode="before")
     @classmethod
-    def parse_received_at(cls, v) -> datetime:
+    def parse_received_at(cls, v: datetime | str) -> datetime:
         if isinstance(v, str):
             return datetime.fromisoformat(v.replace("Z", "+00:00"))
         return v

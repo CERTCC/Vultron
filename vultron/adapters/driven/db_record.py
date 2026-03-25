@@ -15,12 +15,11 @@
 
 # Copyright
 
-"""
-Provides a Record model for document database storage.
-"""
+"""Provides a Record model for document database storage."""
 
 from pydantic import BaseModel
 
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import StorableRecord
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
@@ -36,29 +35,14 @@ class Record(StorableRecord):
     """
 
     @classmethod
-    def from_obj(cls, obj: BaseModel) -> "Record":
+    def from_obj(cls, obj: PersistableModel) -> "Record":
         """Creates a Record from a Pydantic BaseModel object.
 
         Args:
-            obj (BaseModel): The object to convert.
+            obj: The object to convert.
         Returns:
             Record: The created Record.
         """
-        if not isinstance(obj, BaseModel):
-            raise ValueError(
-                "Object must be a Pydantic BaseModel for Record conversion"
-            )
-
-        if not hasattr(obj, "as_id"):
-            raise ValueError(
-                "Object must have an 'as_id' attribute for Record conversion"
-            )
-
-        if not hasattr(obj, "as_type"):
-            raise ValueError(
-                "Object must have an 'as_type' attribute for Record conversion"
-            )
-
         if obj.as_type.startswith("as_"):
             raise ValueError(
                 "Object 'as_type' attribute cannot start with 'as_' for Record conversion"
@@ -82,22 +66,21 @@ class Record(StorableRecord):
             raise ValueError(
                 f"Type '{self.type_}' not found in vocabulary for Record conversion"
             )
-        obj = cls.model_validate(self.data_)
-        return obj
+        return cls.model_validate(self.data_)
 
 
-def object_to_record(obj: BaseModel) -> Record:
+def object_to_record(obj: PersistableModel) -> Record:
     """Converts a Pydantic BaseModel object to a Record for storage.
 
     Args:
-        obj (BaseModel): The object to convert.
+        obj: The object to convert.
     Returns:
         Record: The converted Record.
     """
     return Record.from_obj(obj)
 
 
-def record_to_object(record: Record):
+def record_to_object(record: Record) -> BaseModel:
     """Converts a Record back to a Pydantic BaseModel object.
 
     Args:

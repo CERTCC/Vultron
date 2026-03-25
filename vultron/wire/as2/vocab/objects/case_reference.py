@@ -67,7 +67,11 @@ class CaseReference(VultronObject):
             vocabulary (e.g., 'patch', 'vendor-advisory', 'exploit', etc.).
     """
 
-    as_type: VO_type = Field(default=VO_type.CASE_REFERENCE, alias="type")
+    as_type: VO_type = Field(
+        default=VO_type.CASE_REFERENCE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
     url: NonEmptyString = Field(
         ...,

@@ -32,7 +32,9 @@ class as_TransitiveActivity(Activity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-activity>
     """
 
-    as_object: as_ObjectRef = Field(None, alias="object")
+    as_object: as_ObjectRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
 
     @model_validator(mode="after")
     def set_name(self):
@@ -66,7 +68,11 @@ class as_Like(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-like>
     """
 
-    as_type: TA_type = Field(default=TA_type.LIKE, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.LIKE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -75,7 +81,11 @@ class as_Ignore(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-ignore>
     """
 
-    as_type: TA_type = Field(default=TA_type.IGNORE, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.IGNORE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -84,7 +94,11 @@ class as_Block(as_Ignore):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-block>
     """
 
-    as_type: TA_type = Field(default=TA_type.BLOCK, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.BLOCK,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -94,7 +108,11 @@ class as_Offer(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-offer>
     """
 
-    as_type: TA_type = Field(default=TA_type.OFFER, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.OFFER,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -103,7 +121,11 @@ class as_Invite(as_Offer):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-invite>
     """
 
-    as_type: TA_type = Field(default=TA_type.INVITE, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.INVITE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -112,7 +134,11 @@ class as_Flag(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-flag>
     """
 
-    as_type: TA_type = Field(default=TA_type.FLAG, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.FLAG,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -121,7 +147,11 @@ class as_Remove(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-remove>
     """
 
-    as_type: TA_type = Field(default=TA_type.REMOVE, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.REMOVE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -130,7 +160,11 @@ class as_Undo(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-undo>
     """
 
-    as_type: TA_type = Field(default=TA_type.UNDO, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.UNDO,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -139,7 +173,11 @@ class as_Create(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-create>
     """
 
-    as_type: TA_type = Field(default=TA_type.CREATE, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.CREATE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -148,7 +186,11 @@ class as_Delete(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-delete>
     """
 
-    as_type: TA_type = Field(default=TA_type.DELETE, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.DELETE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -158,7 +200,11 @@ class as_Move(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-move>
     """
 
-    as_type: TA_type = Field(default=TA_type.MOVE, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.MOVE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -168,7 +214,11 @@ class as_Add(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-add>
     """
 
-    as_type: TA_type = Field(default=TA_type.ADD, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.ADD,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -177,7 +227,11 @@ class as_Join(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-join>
     """
 
-    as_type: TA_type = Field(default=TA_type.JOIN, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.JOIN,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -186,7 +240,11 @@ class as_Update(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-update>
     """
 
-    as_type: TA_type = Field(default=TA_type.UPDATE, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.UPDATE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -195,7 +253,11 @@ class as_Listen(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-listen>
     """
 
-    as_type: TA_type = Field(default=TA_type.LISTEN, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.LISTEN,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -204,7 +266,11 @@ class as_Leave(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-leave>
     """
 
-    as_type: TA_type = Field(default=TA_type.LEAVE, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.LEAVE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -213,7 +279,11 @@ class as_Announce(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-announce>
     """
 
-    as_type: TA_type = Field(default=TA_type.ANNOUNCE, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.ANNOUNCE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -225,7 +295,11 @@ class as_Follow(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-follow>
     """
 
-    as_type: TA_type = Field(default=TA_type.FOLLOW, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.FOLLOW,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -234,7 +308,11 @@ class as_Accept(as_TransitiveActivity):
     which the object has been accepted.
     """
 
-    as_type: TA_type = Field(default=TA_type.ACCEPT, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.ACCEPT,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -243,7 +321,11 @@ class as_TentativeAccept(as_Accept):
     A specialization of Accept indicating that the acceptance is tentative.
     """
 
-    as_type: TA_type = Field(default=TA_type.TENTATIVE_ACCEPT, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.TENTATIVE_ACCEPT,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -252,7 +334,11 @@ class as_View(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-view>
     """
 
-    as_type: TA_type = Field(default=TA_type.VIEW, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.VIEW,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -261,7 +347,11 @@ class as_Dislike(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-dislike>
     """
 
-    as_type: TA_type = Field(default=TA_type.DISLIKE, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.DISLIKE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -271,7 +361,11 @@ class as_Reject(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-reject>
     """
 
-    as_type: TA_type = Field(default=TA_type.REJECT, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.REJECT,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -280,7 +374,11 @@ class as_TentativeReject(as_Reject):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-tentativereject>
     """
 
-    as_type: TA_type = Field(default=TA_type.TENTATIVE_REJECT, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.TENTATIVE_REJECT,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -289,7 +387,11 @@ class as_Read(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-read>
     """
 
-    as_type: TA_type = Field(default=TA_type.READ, alias="type")
+    as_type: TA_type = Field(
+        default=TA_type.READ,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 def main():

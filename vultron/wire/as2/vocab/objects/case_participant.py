@@ -65,7 +65,11 @@ class CaseParticipant(VultronObject):
         ```
     """
 
-    as_type: VO_type = Field(default=VO_type.CASE_PARTICIPANT, alias="type")
+    as_type: VO_type = Field(
+        default=VO_type.CASE_PARTICIPANT,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
     name: NonEmptyString | None = None
     case_roles: list[CVDRole] = Field(default_factory=list)
@@ -78,7 +82,9 @@ class CaseParticipant(VultronObject):
 
     @field_serializer("case_roles")
     def serialize_case_roles(self, value: list[CVDRole]) -> list[str]:
-        return [role.name for role in value]
+        return [
+            role.name if role.name is not None else str(role) for role in value
+        ]
 
     @field_validator("case_roles", mode="before")
     @classmethod
@@ -124,7 +130,7 @@ class CaseParticipant(VultronObject):
         # participant status is empty, so initialize it with a default status
         self.participant_statuses = [
             ParticipantStatus(
-                context=self.context,
+                context=self.context or self.as_id,
                 attributed_to=self.attributed_to,
             ),
         ]
@@ -162,7 +168,11 @@ class CaseParticipant(VultronObject):
             )
             return False
         self.participant_statuses.append(
-            ParticipantStatus(actor=actor, context=context, rm_state=rm_state)
+            ParticipantStatus(
+                attributed_to=actor,
+                context=context,
+                rm_state=rm_state,
+            )
         )
         return True
 
@@ -201,7 +211,7 @@ class ReporterParticipant(CaseParticipant):
     def set_accepted_status(self):
         # by definition, to be a reporter, you must have accepted the report
         pstatus = ParticipantStatus(
-            context=self.context,
+            context=self.context or self.as_id,
             attributed_to=self.attributed_to,
             rm_state=RM.ACCEPTED,
         )
@@ -230,7 +240,7 @@ class FinderReporterParticipant(CaseParticipant):
         to be a reporter, you must have accepted the report
         """
         pstatus = ParticipantStatus(
-            context=self.context,
+            context=self.context or self.as_id,
             attributed_to=self.attributed_to,
             rm_state=RM.ACCEPTED,
         )

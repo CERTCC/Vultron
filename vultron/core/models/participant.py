@@ -43,7 +43,9 @@ class VultronParticipant(VultronObject):
 
     @field_serializer("case_roles")
     def _serialize_case_roles(self, value: list[CVDRoles]) -> list[str]:
-        return [role.name for role in value]
+        return [
+            role.name if role.name is not None else str(role) for role in value
+        ]
 
     @field_validator("case_roles", mode="before")
     @classmethod

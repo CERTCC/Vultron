@@ -14,8 +14,6 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Literal
-
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 from pydantic.alias_generators import to_camel
 
@@ -31,11 +29,21 @@ class as_Base(BaseModel):
         validate_by_alias=True,
     )
 
-    as_context: Literal[ACTIVITY_STREAMS_NS] = Field(
-        default=ACTIVITY_STREAMS_NS, alias="@context"
+    as_context: str = Field(
+        default=ACTIVITY_STREAMS_NS,
+        validation_alias="@context",
+        serialization_alias="@context",
     )
-    as_type: str = Field(default=None, alias="type")
-    as_id: str = Field(default_factory=generate_new_id, alias="id")
+    as_type: str | None = Field(
+        default=None,
+        validation_alias="type",
+        serialization_alias="type",
+    )
+    as_id: str = Field(
+        default_factory=generate_new_id,
+        validation_alias="id",
+        serialization_alias="id",
+    )
     name: str | None = None
     preview: str | None = None
     media_type: str | None = None

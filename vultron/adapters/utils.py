@@ -24,6 +24,7 @@ URNs) rather than on domain concepts.
 
 import os
 import re
+from typing import TypedDict
 from urllib.parse import urljoin, urlparse
 from uuid import uuid4
 
@@ -34,6 +35,12 @@ _UUID_RE = re.compile(
     re.IGNORECASE,
 )
 _URN_UUID_PREFIX = "urn:uuid:"
+
+
+class ParsedObjectId(TypedDict):
+    base_url: str
+    object_type: str | None
+    object_id: str
 
 
 def id_prefix(object_type: str) -> str:
@@ -51,7 +58,7 @@ def make_id(object_type: str) -> str:
     return urljoin(pfx, f"{uuid4()}")
 
 
-def parse_id(object_id: str) -> dict[str, str]:
+def parse_id(object_id: str) -> ParsedObjectId:
     """Parses an object ID into its prefix, type, and UUID components.
 
     Handles both HTTPS-URL form (``https://example.org/Type/uuid``) and
@@ -90,7 +97,7 @@ def parse_id(object_id: str) -> dict[str, str]:
         else f"{parsed_url.scheme}://{parsed_url.netloc}/"
     )
 
-    parsed = {
+    parsed: ParsedObjectId = {
         "base_url": base_url,
         "object_type": obj_type,
         "object_id": obj_id,
