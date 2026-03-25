@@ -23,9 +23,14 @@ framework imports allowed here.
 
 import logging
 
+from vultron.core.models.protocols import (
+    CaseModel,
+    has_outbox,
+    is_case_model,
+    is_participant_model,
+)
 from vultron.core.states.rm import RM
 from vultron.core.ports.datalayer import DataLayer
-from vultron.core.models.protocols import CaseModel
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
 logger = logging.getLogger(__name__)
@@ -46,7 +51,7 @@ def resolve_case(case_id: str, dl: DataLayer) -> CaseModel:
     case_raw = dl.read(case_id)
     if case_raw is None:
         raise VultronNotFoundError("VulnerabilityCase", case_id)
-    if getattr(case_raw, "as_type", None) != "VulnerabilityCase":
+    if not is_case_model(case_raw):
         raise VultronValidationError(
             f"Expected VulnerabilityCase, got {type(case_raw).__name__}."
         )
@@ -66,10 +71,7 @@ def update_participant_rm_state(
     the case or participant is not found.
     """
     case_obj = dl.read(case_id)
-    if (
-        case_obj is None
-        or getattr(case_obj, "as_type", None) != "VulnerabilityCase"
-    ):
+    if not is_case_model(case_obj):
         logger.warning(
             "update_participant_rm_state: case '%s' not found or wrong type",
             case_id,
@@ -78,11 +80,16 @@ def update_participant_rm_state(
 
     for participant_ref in case_obj.case_participants:
         if isinstance(participant_ref, str):
-            participant = dl.read(participant_ref)
-            if participant is None:
+            participant_raw = dl.read(participant_ref)
+            if participant_raw is None:
                 continue
         else:
-            participant = participant_ref
+            participant_raw = participant_ref
+
+        if not is_participant_model(participant_raw):
+            continue
+
+        participant = participant_raw
 
         actor_ref = participant.attributed_to
         p_actor_id = (
@@ -156,7 +163,7 @@ def add_activity_to_outbox(
     """
     # Persistent record: append to actor.outbox.items for the AS2 collection.
     actor_obj = dl.read(actor_id)
-    if actor_obj is not None and hasattr(actor_obj, "outbox"):
+    if has_outbox(actor_obj):
         actor_obj.outbox.items.append(activity_id)
         dl.save(actor_obj)
         logger.debug(
@@ -190,7 +197,7 @@ def find_embargo_proposal(case_id: str, dl: DataLayer):
         obj = dl.read(obj_id)
         if obj is None:
             continue
-        context = obj.context
+        context = getattr(obj, "context", None)
         c_id = (
             context
             if isinstance(context, str)

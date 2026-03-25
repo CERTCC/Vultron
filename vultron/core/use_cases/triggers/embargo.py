@@ -79,7 +79,7 @@ class SvcProposeEmbargoUseCase:
         em_machine.add_model(adapter, initial=em_state)
 
         try:
-            adapter.propose()
+            getattr(adapter, "propose")()
         except MachineError:
             raise VultronConflictError(
                 f"Cannot propose embargo: case '{case.as_id}' EM state"
@@ -101,7 +101,7 @@ class SvcProposeEmbargoUseCase:
 
         proposal = EmProposeEmbargoActivity(
             actor=actor_id,
-            object=embargo.as_id,
+            as_object=embargo.as_id,
             context=case.as_id,
         )
 
@@ -200,7 +200,7 @@ class SvcEvaluateEmbargoUseCase:
 
         accept = EmAcceptEmbargoActivity(
             actor=actor_id,
-            object=proposal.as_id,
+            as_object=proposal.as_id,
             context=case.as_id,
         )
 
@@ -218,7 +218,7 @@ class SvcEvaluateEmbargoUseCase:
         em_machine = create_em_machine()
         em_machine.add_model(adapter, initial=em_state)
         try:
-            adapter.accept()
+            getattr(adapter, "accept")()
         except MachineError:
             raise VultronConflictError(
                 f"Cannot accept embargo: case '{case.as_id}' EM state"
@@ -277,7 +277,7 @@ class SvcTerminateEmbargoUseCase:
         em_machine.add_model(adapter, initial=em_state)
 
         try:
-            adapter.terminate()
+            getattr(adapter, "terminate")()
         except MachineError:
             raise VultronConflictError(
                 f"Cannot terminate embargo: case '{case.as_id}' EM state"
@@ -287,12 +287,16 @@ class SvcTerminateEmbargoUseCase:
         embargo_id = (
             case.active_embargo
             if isinstance(case.active_embargo, str)
-            else case.active_embargo.as_id
+            else getattr(case.active_embargo, "as_id", None)
         )
+        if embargo_id is None:
+            raise VultronValidationError(
+                f"Active embargo on case '{case.as_id}' is missing an ID."
+            )
 
         announce = AnnounceEmbargoActivity(
             actor=actor_id,
-            object=embargo_id,
+            as_object=embargo_id,
             context=case.as_id,
         )
 

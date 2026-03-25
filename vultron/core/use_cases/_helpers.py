@@ -25,8 +25,9 @@ def _as_id(obj: Any) -> str | None:
     """
     if obj is None:
         return None
-    if hasattr(obj, "as_id"):
-        return obj.as_id
+    as_id = getattr(obj, "as_id", None)
+    if isinstance(as_id, str):
+        return as_id
     return str(obj)
 
 

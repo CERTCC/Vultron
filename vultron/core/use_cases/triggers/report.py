@@ -25,8 +25,10 @@ No HTTP framework imports (FastAPI, Starlette) are permitted here.
 """
 
 import logging
+from typing import Any
 
 from vultron.wire.as2.rehydration import rehydrate
+from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.core.states.rm import RM
 from vultron.core.behaviors.bridge import BTBridge
 from vultron.core.behaviors.report.validate_tree import (
@@ -67,10 +69,17 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
     offer_raw = dl.read(offer_id)
     if offer_raw is None:
         raise VultronNotFoundError("Offer", offer_id)
+    if not isinstance(offer_raw, as_Object):
+        raise VultronValidationError(
+            f"Expected AS2 object for offer, got {type(offer_raw).__name__}."
+        )
 
     try:
         offer = rehydrate(offer_raw, dl=dl)
-        report = rehydrate(offer.as_object, dl=dl)
+        offer_object = getattr(offer, "as_object", None)
+        if offer_object is None:
+            raise VultronValidationError("Offer is missing object reference.")
+        report = rehydrate(offer_object, dl=dl)
     except (ValueError, KeyError, AttributeError) as e:
         raise VultronValidationError(str(e)) from e
 
@@ -113,7 +122,7 @@ class SvcValidateReportUseCase:
             report_id=report_id, offer_id=offer_id
         )
 
-        context = {}
+        context: dict[str, Any] = {}
         if note:
             context["note"] = note
 
@@ -157,7 +166,7 @@ class SvcInvalidateReportUseCase:
 
         invalidate_activity = RmInvalidateReportActivity(
             actor=actor_id,
-            object=offer.as_id,
+            as_object=offer.as_id,
         )
 
         try:
@@ -222,7 +231,7 @@ class SvcRejectReportUseCase:
 
         reject_activity = RmCloseReportActivity(
             actor=actor_id,
-            object=offer.as_id,
+            as_object=offer.as_id,
         )
 
         try:
@@ -294,7 +303,7 @@ class SvcCloseReportUseCase:
 
         close_activity = RmCloseReportActivity(
             actor=actor_id,
-            object=offer.as_id,
+            as_object=offer.as_id,
         )
 
         try:
