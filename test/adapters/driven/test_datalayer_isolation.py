@@ -182,6 +182,66 @@ class TestOutboxMethods:
 
 
 # ---------------------------------------------------------------------------
+# record_outbox_item — cross-scope outbox queueing
+# ---------------------------------------------------------------------------
+
+
+class TestRecordOutboxItem:
+    """record_outbox_item writes to the actor-scoped outbox regardless of DL scope."""
+
+    def test_shared_dl_can_queue_for_actor(self):
+        """Calling record_outbox_item on the shared DL reaches the actor-scoped queue."""
+        # shared DL has no actor prefix
+        dl_shared = TinyDbDataLayer(db_path=None)
+        # actor-scoped DL uses alice_ prefix on the same backing store
+        dl_alice = TinyDbDataLayer(db_path=None, actor_id="alice")
+        # Patch both to share the same underlying _db object so the test
+        # can verify cross-scope behaviour without a real file.
+        dl_alice._db = dl_shared._db
+
+        activity_id = "https://example.org/activities/test-001"
+        dl_shared.record_outbox_item("alice", activity_id)
+
+        # The actor-scoped DL should now see the queued item
+        assert activity_id in dl_alice.outbox_list()
+
+    def test_actor_scoped_dl_record_outbox_item_uses_actor_id(self):
+        """record_outbox_item on actor-scoped DL also targets the correct table."""
+        dl_alice = TinyDbDataLayer(db_path=None, actor_id="alice")
+        dl_bob = TinyDbDataLayer(db_path=None, actor_id="bob")
+        dl_alice._db = dl_bob._db  # shared backing store for verification
+
+        activity_id = "https://example.org/activities/test-002"
+        # record_outbox_item uses the explicitly-passed actor_id, not self._actor_id
+        dl_alice.record_outbox_item("bob", activity_id)
+
+        assert activity_id in dl_bob.outbox_list()
+        assert activity_id not in dl_alice.outbox_list()
+
+    def test_record_outbox_item_does_not_mix_queues(self):
+        """Items queued for alice do not appear in bob's outbox."""
+        dl_shared = TinyDbDataLayer(db_path=None)
+        dl_alice = TinyDbDataLayer(db_path=None, actor_id="alice")
+        dl_bob = TinyDbDataLayer(db_path=None, actor_id="bob")
+        dl_alice._db = dl_shared._db
+        dl_bob._db = dl_shared._db
+
+        dl_shared.record_outbox_item(
+            "alice", "https://example.org/activities/for-alice"
+        )
+        dl_shared.record_outbox_item(
+            "bob", "https://example.org/activities/for-bob"
+        )
+
+        assert dl_alice.outbox_list() == [
+            "https://example.org/activities/for-alice"
+        ]
+        assert dl_bob.outbox_list() == [
+            "https://example.org/activities/for-bob"
+        ]
+
+
+# ---------------------------------------------------------------------------
 # get_datalayer() factory and instance caching
 # ---------------------------------------------------------------------------
 

@@ -521,6 +521,8 @@ class UpdateActorOutbox(DataLayerAction):
 
             actor_obj.outbox.items.append(activity_id)
             self.datalayer.save(actor_obj)
+            # Also queue for delivery via outbox_handler
+            self.datalayer.record_outbox_item(self.actor_id, activity_id)
             self.logger.info(
                 f"{self.name}: Added activity {activity_id} to"
                 f" actor {self.actor_id} outbox"

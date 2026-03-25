@@ -435,6 +435,21 @@ class TinyDbDataLayer(DataLayer):
         tbl.remove(doc_ids=[first.doc_id])
         return first["activity_id"]
 
+    def record_outbox_item(self, actor_id: str, activity_id: str) -> None:
+        """Queue an outbox item for *actor_id* regardless of this DL's scope.
+
+        Uses the same ``{actor_id}_outbox`` table name that the actor-scoped
+        DataLayer writes to, so that :func:`outbox_handler` can drain the
+        queue whether the enqueuing happened from the shared DL (trigger
+        use-cases, BT nodes) or the actor-scoped DL (``POST /outbox``).
+
+        Args:
+            actor_id: The actor whose outbox queue to append to.
+            activity_id: The activity ID to enqueue.
+        """
+        tbl = self._db.table(f"{actor_id}_outbox")
+        tbl.insert({"activity_id": activity_id})
+
 
 _datalayer_instance: TinyDbDataLayer | None = None
 _datalayer_instances: dict[str, TinyDbDataLayer] = {}

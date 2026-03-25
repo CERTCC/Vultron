@@ -27,13 +27,13 @@ Spec coverage:
 - OX-01-002: Outbox MUST preserve insertion order (FIFO).
 - OX-03-001: Activities in outbox MUST be delivered to recipient inboxes.
 - OX-03-002/003: Delivery occurs after handler; MUST NOT block HTTP response.
-- OX-1.1: Delivery via HTTP POST to recipient inbox URLs.
+- OX-1.1: Delivery via async HTTP POST to recipient inbox URLs.
 - OX-1.3: Idempotency enforced at inbox endpoint (not delivery side).
 """
 
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from vultron.adapters.driving.fastapi import outbox_handler as oh
 
@@ -53,6 +53,7 @@ def _mock_dl_with_queue(
     """Return a MagicMock DataLayer backed by ``queue`` for outbox ops."""
     mock_dl = MagicMock()
     mock_dl.read.return_value = actor
+    mock_dl.find_actor_by_short_id.return_value = actor
     mock_dl.outbox_list.side_effect = lambda: list(queue)
     mock_dl.outbox_pop.side_effect = lambda: queue.pop(0) if queue else None
     mock_dl.outbox_append.side_effect = lambda x: queue.append(x)
@@ -68,10 +69,12 @@ def test_handle_outbox_item_logs_actor_id(caplog):
     """handle_outbox_item should log the actor_id at INFO level."""
     mock_dl = MagicMock()
     mock_dl.read.return_value = None  # activity not found → just logs
-    mock_emitter = MagicMock()
+    mock_emitter = AsyncMock()
     with caplog.at_level("INFO"):
-        oh.handle_outbox_item(
-            "actor-abc", "urn:test:act-001", mock_dl, mock_emitter
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-abc", "urn:test:act-001", mock_dl, mock_emitter
+            )
         )
     assert "actor-abc" in caplog.text
 
@@ -80,10 +83,12 @@ def test_handle_outbox_item_logs_item(caplog):
     """handle_outbox_item should log the activity_id at INFO level."""
     mock_dl = MagicMock()
     mock_dl.read.return_value = None  # activity not found → just logs
-    mock_emitter = MagicMock()
+    mock_emitter = AsyncMock()
     with caplog.at_level("INFO"):
-        oh.handle_outbox_item(
-            "actor-abc", "urn:test:act-001", mock_dl, mock_emitter
+        asyncio.run(
+            oh.handle_outbox_item(
+                "actor-abc", "urn:test:act-001", mock_dl, mock_emitter
+            )
         )
     assert caplog.text  # at minimum something is logged
 
@@ -101,7 +106,7 @@ def test_outbox_handler_processes_all_items(monkeypatch):
 
     processed = []
 
-    def fake_handle(actor_id, activity_id, dl, emitter):
+    async def fake_handle(actor_id, activity_id, dl, emitter):
         processed.append(activity_id)
 
     monkeypatch.setattr(oh, "handle_outbox_item", fake_handle)
@@ -120,7 +125,7 @@ def test_outbox_handler_preserves_fifo_order(monkeypatch):
 
     processed = []
 
-    def fake_handle(actor_id, activity_id, dl, emitter):
+    async def fake_handle(actor_id, activity_id, dl, emitter):
         processed.append(activity_id)
 
     monkeypatch.setattr(oh, "handle_outbox_item", fake_handle)
@@ -137,7 +142,7 @@ def test_outbox_handler_empty_outbox_does_nothing(monkeypatch):
 
     processed = []
 
-    def fake_handle(actor_id, activity_id, dl, emitter):
+    async def fake_handle(actor_id, activity_id, dl, emitter):
         processed.append(activity_id)
 
     monkeypatch.setattr(oh, "handle_outbox_item", fake_handle)
@@ -157,7 +162,7 @@ def test_outbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
     queue = _make_queue("urn:test:bad-item")
     mock_dl = _mock_dl_with_queue(queue)
 
-    def always_raise(actor_id, activity_id, dl, emitter):
+    async def always_raise(actor_id, activity_id, dl, emitter):
         raise RuntimeError("delivery failed")
 
     monkeypatch.setattr(oh, "handle_outbox_item", always_raise)
@@ -175,6 +180,7 @@ def test_outbox_handler_returns_early_when_actor_not_found(
     queue: list[str] = []
     mock_dl = _mock_dl_with_queue(queue, actor=None)
     mock_dl.read.return_value = None
+    mock_dl.find_actor_by_short_id.return_value = None
 
     with caplog.at_level("WARNING"):
         asyncio.run(oh.outbox_handler("missing-actor", mock_dl))
@@ -190,7 +196,7 @@ def test_outbox_handler_continues_after_one_error(monkeypatch):
     call_count = [0]
     processed = []
 
-    def sometimes_raise(actor_id, activity_id, dl, emitter):
+    async def sometimes_raise(actor_id, activity_id, dl, emitter):
         call_count[0] += 1
         if call_count[0] == 1:
             raise RuntimeError("first item fails once")
@@ -201,6 +207,21 @@ def test_outbox_handler_continues_after_one_error(monkeypatch):
     asyncio.run(oh.outbox_handler("actor-xyz", mock_dl))
 
     assert "urn:test:good" in processed
+
+
+def test_outbox_handler_resolves_actor_by_short_id(monkeypatch):
+    """outbox_handler falls back to find_actor_by_short_id when full ID lookup fails."""
+    queue: list[str] = []
+    mock_dl = _mock_dl_with_queue(queue)
+    mock_dl.read.return_value = None  # full-ID lookup fails
+    mock_dl.find_actor_by_short_id.return_value = SimpleNamespace(
+        as_id="https://example.org/actors/bob"
+    )
+
+    asyncio.run(oh.outbox_handler("bob", mock_dl))
+
+    # Should have attempted short-ID lookup
+    mock_dl.find_actor_by_short_id.assert_called_once_with("bob")
 
 
 # ---------------------------------------------------------------------------
@@ -220,9 +241,13 @@ def test_handle_outbox_item_delivers_to_recipients():
     )
     mock_dl = MagicMock()
     mock_dl.read.return_value = activity
-    mock_emitter = MagicMock()
+    mock_emitter = AsyncMock()
 
-    oh.handle_outbox_item("actor-abc", activity.as_id, mock_dl, mock_emitter)
+    asyncio.run(
+        oh.handle_outbox_item(
+            "actor-abc", activity.as_id, mock_dl, mock_emitter
+        )
+    )
 
     mock_emitter.emit.assert_called_once_with(activity, [recipient])
 
@@ -231,10 +256,12 @@ def test_handle_outbox_item_skips_when_activity_not_found():
     """handle_outbox_item does NOT call emitter when dl.read returns None."""
     mock_dl = MagicMock()
     mock_dl.read.return_value = None
-    mock_emitter = MagicMock()
+    mock_emitter = AsyncMock()
 
-    oh.handle_outbox_item(
-        "actor-abc", "urn:test:missing", mock_dl, mock_emitter
+    asyncio.run(
+        oh.handle_outbox_item(
+            "actor-abc", "urn:test:missing", mock_dl, mock_emitter
+        )
     )
 
     mock_emitter.emit.assert_not_called()
@@ -251,9 +278,13 @@ def test_handle_outbox_item_skips_when_no_recipients():
     )
     mock_dl = MagicMock()
     mock_dl.read.return_value = activity
-    mock_emitter = MagicMock()
+    mock_emitter = AsyncMock()
 
-    oh.handle_outbox_item("actor-abc", activity.as_id, mock_dl, mock_emitter)
+    asyncio.run(
+        oh.handle_outbox_item(
+            "actor-abc", activity.as_id, mock_dl, mock_emitter
+        )
+    )
 
     mock_emitter.emit.assert_not_called()
 

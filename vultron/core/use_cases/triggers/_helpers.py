@@ -142,20 +142,18 @@ def outbox_ids(actor) -> set[str]:
 def add_activity_to_outbox(
     actor_id: str, activity_id: str, dl: DataLayer
 ) -> None:
-    """Append an activity ID to an actor's outbox and persist the actor."""
-    actor_obj = dl.read(actor_id)
-    if actor_obj is None:
-        logger.error("add_activity_to_outbox: actor '%s' not found", actor_id)
-        return
-    if not (hasattr(actor_obj, "outbox") and actor_obj.outbox is not None):
-        logger.error(
-            "add_activity_to_outbox: actor '%s' has no outbox", actor_id
-        )
-        return
-    actor_obj.outbox.items.append(activity_id)
-    dl.save(actor_obj)
+    """Queue an activity ID in the actor's outbox for delivery.
+
+    Uses ``dl.record_outbox_item()`` so the activity lands in the same
+    ``{actor_id}_outbox`` table that :func:`outbox_handler` drains,
+    regardless of whether ``dl`` is the shared DataLayer (trigger
+    use-cases) or an actor-scoped one.
+    """
+    dl.record_outbox_item(actor_id, activity_id)
     logger.debug(
-        "Added activity '%s' to actor '%s' outbox", activity_id, actor_id
+        "Queued activity '%s' in outbox for actor '%s'",
+        activity_id,
+        actor_id,
     )
 
 

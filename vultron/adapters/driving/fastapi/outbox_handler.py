@@ -65,7 +65,7 @@ def _extract_recipients(activity) -> list[str]:
     return recipients
 
 
-def handle_outbox_item(
+async def handle_outbox_item(
     actor_id: str,
     activity_id: str,
     dl: DataLayer,
@@ -75,7 +75,7 @@ def handle_outbox_item(
 
     Reads the activity from ``dl``, extracts recipient actor IDs from
     the ``to``, ``cc``, ``bto``, and ``bcc`` AS2 addressing fields, and
-    calls ``emitter.emit(activity, recipients)`` to deliver.
+    calls ``await emitter.emit(activity, recipients)`` to deliver.
 
     Delivery failure for any one recipient is logged but does not abort
     delivery to other recipients (handled inside the emitter).
@@ -93,7 +93,8 @@ def handle_outbox_item(
     activity = dl.read(activity_id)
     if activity is None:
         logger.warning(
-            "Activity %s not found in DataLayer for actor %s; skipping delivery.",
+            "Activity %s not found in DataLayer for actor %s; skipping"
+            " delivery.",
             activity_id,
             actor_id,
         )
@@ -108,7 +109,7 @@ def handle_outbox_item(
         )
         return
 
-    emitter.emit(activity, recipients)
+    await emitter.emit(activity, recipients)
     logger.info(
         "Emitted activity %s to %d recipient(s) for actor %s.",
         activity_id,
@@ -139,16 +140,22 @@ async def outbox_handler(
     Args:
         actor_id: The ID of the Actor whose outbox is being processed.
         dl: The actor-scoped DataLayer (outbox queue management).
-        shared_dl: The shared DataLayer for reading activity objects.
-            Defaults to ``dl`` when ``None`` (covers the ``POST /outbox``
-            case where activities are stored in the actor's own DL).
+        shared_dl: The shared DataLayer for reading activity objects and
+            resolving the actor.  Defaults to ``dl`` when ``None`` (covers
+            the ``POST /outbox`` case where activities are stored in the
+            actor's own DL).
         emitter: The ActivityEmitter port to use for delivery. Defaults to
             ``DeliveryQueueAdapter()`` which delivers via HTTP POST.
     """
     _emitter = emitter if emitter is not None else DeliveryQueueAdapter()
     _read_dl = shared_dl if shared_dl is not None else dl
 
+    # Resolve actor by full ID first, then fall back to short ID (mirrors
+    # inbox_handler resolution so both handlers accept the same actor_id
+    # forms).
     actor = _read_dl.read(actor_id)
+    if actor is None:
+        actor = _read_dl.find_actor_by_short_id(actor_id)
     if actor is None:
         logger.warning("Actor %s not found in outbox_handler.", actor_id)
         return
@@ -161,7 +168,7 @@ async def outbox_handler(
             break
 
         try:
-            handle_outbox_item(actor_id, activity_id, _read_dl, _emitter)
+            await handle_outbox_item(actor_id, activity_id, _read_dl, _emitter)
         except Exception as e:
             logger.error(
                 "Error processing outbox item for actor %s: %s", actor_id, e
@@ -170,7 +177,8 @@ async def outbox_handler(
             err_count += 1
             if err_count > 3:
                 logger.error(
-                    "Too many errors processing outbox for actor %s, aborting.",
+                    "Too many errors processing outbox for actor %s,"
+                    " aborting.",
                     actor_id,
                 )
                 break
