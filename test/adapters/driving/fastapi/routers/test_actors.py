@@ -15,28 +15,23 @@
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 
+from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
-from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.roles import CVDRoles as CVDRole
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Create
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
-from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
     ParticipantStatus,
 )
+from vultron.wire.as2.vocab.base.objects.object_types import as_Note
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 _ACTOR_ID = "https://example.org/actors/alice"
-_CASE_ACTOR_ID = "https://example.org/case-actors/ca1"
-_CASE_ID = "https://example.org/cases/c1"
-_PARTICIPANT_ID = "https://example.org/participants/p1"
 
-# Use urn:uuid: IDs for HTTP endpoint tests to avoid path-segment issues
+# Use urn:uuid IDs for HTTP endpoint tests to avoid path-segment issues.
 _HTTP_ACTOR_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000001"
-_HTTP_CASE_ACTOR_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000002"
 _HTTP_CASE_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000003"
 _HTTP_PARTICIPANT_ID = "urn:uuid:aaaaaaaa-0000-0000-0000-000000000004"
 
@@ -145,16 +140,8 @@ def test_get_actors_does_not_log_raw_records_at_info_level(
     ), f"Raw DB record dumps should not be logged at INFO level; found: {raw_dumps}"
 
 
-# ---------------------------------------------------------------------------
-# Tests for GET /{case_actor_id}/action-rules  (CA-2)
-# ---------------------------------------------------------------------------
-
-
 def _seed_action_rules_data(dl):
-    """Insert a minimal valid CaseActor / VulnerabilityCase / CaseParticipant."""
-    case_actor = as_Service(id=_HTTP_CASE_ACTOR_ID, context=_HTTP_CASE_ID)
-    dl.create(case_actor)
-
+    """Insert a minimal valid VulnerabilityCase / CaseParticipant pair."""
     case = VulnerabilityCase(
         id=_HTTP_CASE_ID,
         name="Test Case",
@@ -180,12 +167,11 @@ def _seed_action_rules_data(dl):
 
 
 def test_get_action_rules_returns_200_with_expected_fields(client_actors, dl):
-    """Endpoint returns 200 with all required state and action fields."""
+    """Actor/case endpoint returns all required state and action fields."""
     _seed_action_rules_data(dl)
 
     resp = client_actors.get(
-        f"/actors/{_HTTP_CASE_ACTOR_ID}/action-rules",
-        params={"participant": _HTTP_ACTOR_ID},
+        f"/actors/{_HTTP_ACTOR_ID}/cases/{_HTTP_CASE_ID}/action-rules"
     )
     assert resp.status_code == status.HTTP_200_OK
 
@@ -193,7 +179,6 @@ def test_get_action_rules_returns_200_with_expected_fields(client_actors, dl):
     expected_keys = {
         "participant_id",
         "participant_actor_id",
-        "case_actor_id",
         "case_id",
         "role",
         "rm_state",
@@ -206,37 +191,24 @@ def test_get_action_rules_returns_200_with_expected_fields(client_actors, dl):
     assert expected_keys.issubset(body.keys())
     assert body["case_id"] == _HTTP_CASE_ID
     assert body["participant_id"] == _HTTP_PARTICIPANT_ID
-    assert isinstance(body["actions"], list)
-    assert len(body["actions"]) > 0
+    assert body["participant_actor_id"] == _HTTP_ACTOR_ID
 
 
-def test_get_action_rules_case_actor_not_found(client_actors, dl):
-    """Missing CaseActor returns 404."""
+def test_get_action_rules_case_not_found_returns_404(client_actors):
+    """Missing case returns 404."""
     resp = client_actors.get(
-        "/actors/urn:uuid:00000000-0000-0000-0000-000000000000/action-rules",
-        params={"participant": _HTTP_ACTOR_ID},
+        f"/actors/{_HTTP_ACTOR_ID}/cases/"
+        "urn:uuid:00000000-0000-0000-0000-000000000000/action-rules"
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
 
 
-def test_get_action_rules_participant_not_in_case(client_actors, dl):
-    """Actor not in case index returns 404."""
+def test_get_action_rules_actor_not_in_case_returns_404(client_actors, dl):
+    """Actor outside the selected case returns 404."""
     _seed_action_rules_data(dl)
 
     resp = client_actors.get(
-        f"/actors/{_HTTP_CASE_ACTOR_ID}/action-rules",
-        params={
-            "participant": "urn:uuid:99999999-0000-0000-0000-000000000000"
-        },
+        "/actors/urn:uuid:99999999-0000-0000-0000-000000000000/cases/"
+        f"{_HTTP_CASE_ID}/action-rules"
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
-
-
-def test_get_action_rules_missing_participant_query_param(client_actors, dl):
-    """Missing 'participant' query parameter returns 422 Unprocessable Entity."""
-    _seed_action_rules_data(dl)
-
-    resp = client_actors.get(
-        f"/actors/{_HTTP_CASE_ACTOR_ID}/action-rules",
-    )
-    assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

@@ -23,7 +23,6 @@ from fastapi import (
     BackgroundTasks,
     Depends,
     HTTPException,
-    Query,
     status,
 )
 
@@ -165,34 +164,23 @@ def get_actor_profile(
 
 
 @router.get(
-    "/{case_actor_id}/action-rules",
-    summary="Get CVD Action Rules for a Participant",
+    "/{actor_id}/cases/{case_id}/action-rules",
+    summary="Get CVD Action Rules for an Actor in a Case",
     description=(
-        "Returns the set of valid CVD actions available to a participant "
-        "given the current case state and their role. "
-        "Implements CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002."
+        "Returns the set of valid CVD actions available to an actor in a "
+        "specific case. The actor/case pair is resolved to the matching "
+        "CaseParticipant internally."
     ),
     operation_id="actors_get_action_rules",
 )
 def get_action_rules(
-    case_actor_id: str,
-    participant: str = Query(
-        ...,
-        description=(
-            "The actor ID of the participant to query action rules for."
-        ),
-    ),
+    actor_id: str,
+    case_id: str,
     dl: DataLayer = Depends(_shared_dl),
 ) -> dict:
-    """Return valid CVD actions for a named participant in a case.
-
-    Implements: CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
-    """
+    """Return valid CVD actions for an actor in a specific case."""
     try:
-        req = ActionRulesRequest(
-            case_actor_id=case_actor_id,
-            participant_actor_id=participant,
-        )
+        req = ActionRulesRequest(case_id=case_id, actor_id=actor_id)
         return GetActionRulesUseCase(dl=dl, request=req).execute()
     except (VultronNotFoundError, VultronValidationError) as exc:
         raise HTTPException(

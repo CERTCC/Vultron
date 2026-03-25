@@ -137,15 +137,11 @@ trigger routes use actor-scoped DataLayer instances. Isolation is covered by
 `test/adapters/driven/test_datalayer_isolation.py`, and ACT-1/2/3 are recorded
 in `plan/IMPLEMENTATION_HISTORY.md`.
 
-### ⚠️ PRIORITY-200 remains open for the CA-2 action-rules follow-up
+### ✅ PRIORITY-200 complete
 
-CaseActor broadcast itself is implemented and tested in
-`vultron/core/use_cases/case.py` and
-`test/core/use_cases/test_case_use_cases.py`. The remaining Priority-200 gap is
-the action-rules API contract: the current
-`GET /actors/{case_actor_id}/action-rules?participant={actor_id}` endpoint
-works, but it should be redesigned to be explicitly case-scoped before
-PRIORITY-300 demo work proceeds.
+CaseActor broadcast and the CA-2 action-rules follow-up are complete.
+`GET /actors/{actor_id}/cases/{case_id}/action-rules` is now the
+case-scoped action-rules contract, so PRIORITY-300 demo work can proceed.
 
 ### ✅ SPEC-COMPLIANCE-3 complete (SC-PRE-2, SC-3.2, SC-3.3 all done)
 
@@ -1299,21 +1295,15 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 
 **Reference**: `specs/case-management.md` CM-06, `plan/PRIORITIES.md` PRIORITY 200
 
-**Status**: CA-1 and CA-3 are complete. PRIORITY-200 remains open only for the
-CA-2 endpoint redesign captured below.
+**Status**: CA-1, CA-2, and CA-3 are complete. PRIORITY-200 is complete.
 
 - [x] **CA-1**: After OUTBOX-1, implement CaseActor broadcast in `update_case`
   handler — send ActivityStreams activity to each active `CaseParticipant`'s
   inbox (CM-06-001, CM-06-002).
-- [ ] **CA-2**: Redesign the action-rules API so it is explicitly scoped to a
-  specific case/participant pair rather than the current
-  `GET /actors/{case_actor_id}/action-rules?participant={actor_id}` shape.
-  Update `specs/case-management.md`, the FastAPI router, the action-rules use
-  case/request model, and the router/use-case tests to match the chosen route
-  contract (for example, `/cases/{case_id}/participants/{participant_id}/action-rules`
-  or `/cases/{case_id}/actors/{actor_id}/action-rules`). Done when the endpoint
-  contract is case-scoped, the current ambiguity is removed or explicitly
-  deprecated, and specs/tests/docs all agree.
+- [x] **CA-2**: Replaced the ambiguous action-rules endpoint with
+  `GET /actors/{actor_id}/cases/{case_id}/action-rules`, which resolves the
+  case-scoped `CaseParticipant` internally. Specs, router logic, and router/use-case
+  tests now agree on the actor-first, case-scoped contract.
 - [x] **CA-3**: Add tests verifying CaseActor notifies all participants on case
   state update.
 

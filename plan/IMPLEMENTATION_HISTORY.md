@@ -3304,3 +3304,36 @@ combined case state (RM, EM, CS_vfd, CS_pxa).
   integration tests (200, 404, 422).
 
 **Specs implemented**: CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
+
+---
+
+## CA-2 follow-up: actor-first case-scoped action-rules endpoint
+
+**Completed**: Reworked the CA-2 action-rules contract to use the final
+actor-first, case-scoped route:
+`GET /actors/{actor_id}/cases/{case_id}/action-rules`.
+
+**What changed**:
+
+- `vultron/adapters/driving/fastapi/routers/actors.py`: replaced the prior
+  action-rules shape with the actor-first case-scoped endpoint.
+- `vultron/core/use_cases/action_rules.py`: simplified `ActionRulesRequest` to
+  `(case_id, actor_id)` and resolved the matching `CaseParticipant`
+  internally via `actor_participant_index` with a fallback scan of
+  `case.case_participants`.
+- `vultron/core/models/protocols.py`: tightened the protocol typing used by
+  the action-rules use case so the new logic remains core-friendly and avoids
+  wire imports.
+- `test/core/use_cases/test_action_rules.py` and
+  `test/adapters/driving/fastapi/routers/test_actors.py`: updated unit and
+  router coverage to validate the actor/case contract, including 404 behavior
+  for unknown cases and actors not participating in the selected case.
+- `specs/case-management.md` and `specs/agentic-readiness.md`: updated to
+  document the final actor-first case-scoped endpoint and the internal
+  actor→participant resolution behavior.
+
+**Validation**:
+
+- `uv run black vultron/ test/ && uv run flake8 vultron/ test/`
+- `markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md"`
+- `uv run pytest --tb=short 2>&1 | tail -5` → `1021 passed, 5581 subtests passed`

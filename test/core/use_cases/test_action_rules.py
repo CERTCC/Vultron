@@ -29,7 +29,6 @@ from vultron.core.use_cases.action_rules import (
     GetActionRulesUseCase,
 )
 from vultron.errors import VultronNotFoundError
-from vultron.wire.as2.vocab.base.objects.actors import as_Service
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.case_status import (
     CaseStatus,
@@ -38,7 +37,6 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 ACTOR_ID = "https://example.org/actors/alice"
-CASE_ACTOR_ID = "https://example.org/case-actors/ca1"
 CASE_ID = "https://example.org/cases/c1"
 PARTICIPANT_ID = "https://example.org/participants/p1"
 
@@ -47,10 +45,6 @@ PARTICIPANT_ID = "https://example.org/participants/p1"
 def dl():
     """In-memory DataLayer with a minimal valid case setup."""
     layer = TinyDbDataLayer(db_path=None)
-
-    # CaseActor: as_Service with context pointing to the case
-    case_actor = as_Service(id=CASE_ACTOR_ID, context=CASE_ID)
-    layer.create(case_actor)
 
     # Case: VulnerabilityCase with actor_participant_index
     case = VulnerabilityCase(
@@ -80,8 +74,8 @@ def dl():
 @pytest.fixture
 def request_(dl):
     return ActionRulesRequest(
-        case_actor_id=CASE_ACTOR_ID,
-        participant_actor_id=ACTOR_ID,
+        case_id=CASE_ID,
+        actor_id=ACTOR_ID,
     )
 
 
@@ -95,7 +89,6 @@ class TestGetActionRulesUseCase:
         expected_keys = {
             "participant_id",
             "participant_actor_id",
-            "case_actor_id",
             "case_id",
             "role",
             "rm_state",
@@ -126,8 +119,8 @@ class TestGetActionRulesUseCase:
         """IDs in the response match the stored object IDs."""
         result = GetActionRulesUseCase(dl=dl, request=request_).execute()
         assert result["participant_id"] == PARTICIPANT_ID
+        assert result["participant_actor_id"] == ACTOR_ID
         assert result["case_id"] == CASE_ID
-        assert result["case_actor_id"] == CASE_ACTOR_ID
 
     def test_happy_path_actions_is_list(self, dl, request_):
         """actions key is a non-empty list of dicts with name and description."""
@@ -138,20 +131,20 @@ class TestGetActionRulesUseCase:
             assert "name" in action
             assert "description" in action
 
-    def test_case_actor_not_found_raises(self, dl):
-        """Missing CaseActor raises VultronNotFoundError."""
+    def test_case_not_found_raises(self, dl):
+        """Missing case raises VultronNotFoundError."""
         req = ActionRulesRequest(
-            case_actor_id="https://example.org/does-not-exist",
-            participant_actor_id=ACTOR_ID,
+            case_id="https://example.org/cases/does-not-exist",
+            actor_id=ACTOR_ID,
         )
         with pytest.raises(VultronNotFoundError):
             GetActionRulesUseCase(dl=dl, request=req).execute()
 
-    def test_participant_not_in_case_raises(self, dl):
-        """Actor not in case index raises VultronNotFoundError."""
+    def test_actor_not_in_case_raises_not_found(self, dl):
+        """Unknown actor in the selected case raises VultronNotFoundError."""
         req = ActionRulesRequest(
-            case_actor_id=CASE_ACTOR_ID,
-            participant_actor_id="https://example.org/actors/unknown",
+            case_id=CASE_ID,
+            actor_id="https://example.org/actors/unknown",
         )
         with pytest.raises(VultronNotFoundError):
             GetActionRulesUseCase(dl=dl, request=req).execute()
@@ -159,8 +152,6 @@ class TestGetActionRulesUseCase:
     def test_no_case_statuses_defaults(self, dl):
         """When case has no CaseStatus entries, EM/PXA default to None/pxa."""
         layer = TinyDbDataLayer(db_path=None)
-        case_actor = as_Service(id=CASE_ACTOR_ID, context=CASE_ID)
-        layer.create(case_actor)
         case = VulnerabilityCase(
             id=CASE_ID,
             name="Empty Status Case",
@@ -183,8 +174,8 @@ class TestGetActionRulesUseCase:
         layer.create(participant)
 
         req = ActionRulesRequest(
-            case_actor_id=CASE_ACTOR_ID,
-            participant_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+            actor_id=ACTOR_ID,
         )
         result = GetActionRulesUseCase(dl=layer, request=req).execute()
 
@@ -194,8 +185,6 @@ class TestGetActionRulesUseCase:
     def test_no_participant_statuses_defaults(self, dl):
         """When participant has no ParticipantStatus entries, RM/VFD default."""
         layer = TinyDbDataLayer(db_path=None)
-        case_actor = as_Service(id=CASE_ACTOR_ID, context=CASE_ID)
-        layer.create(case_actor)
         case = VulnerabilityCase(
             id=CASE_ID,
             name="Default Participant Status Case",
@@ -213,8 +202,8 @@ class TestGetActionRulesUseCase:
         layer.create(participant)
 
         req = ActionRulesRequest(
-            case_actor_id=CASE_ACTOR_ID,
-            participant_actor_id=ACTOR_ID,
+            case_id=CASE_ID,
+            actor_id=ACTOR_ID,
         )
         result = GetActionRulesUseCase(dl=layer, request=req).execute()
 
@@ -231,8 +220,6 @@ class TestGetActionRulesUseCase:
             EM.EXITED,
         ]:
             layer = TinyDbDataLayer(db_path=None)
-            case_actor = as_Service(id=CASE_ACTOR_ID, context=CASE_ID)
-            layer.create(case_actor)
             case = VulnerabilityCase(
                 id=CASE_ID,
                 actor_participant_index={ACTOR_ID: PARTICIPANT_ID},
@@ -247,8 +234,8 @@ class TestGetActionRulesUseCase:
             layer.create(participant)
 
             req = ActionRulesRequest(
-                case_actor_id=CASE_ACTOR_ID,
-                participant_actor_id=ACTOR_ID,
+                case_id=CASE_ID,
+                actor_id=ACTOR_ID,
             )
             result = GetActionRulesUseCase(dl=layer, request=req).execute()
             assert (

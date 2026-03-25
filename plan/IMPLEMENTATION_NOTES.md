@@ -132,27 +132,13 @@ Trigger use-cases and BT nodes that create outgoing activities now call
 the `{actor_id}_outbox` table that `outbox_handler` drains, regardless of
 whether the calling code holds the shared or actor-scoped DataLayer.
 
-## 2026-03-25 Case Action Rules endpoint doesn't make sense
+---
 
-CA-2 added a case action rules endpoint to the API router, but this doesn't
-make sense based on how we expect it to be used. An actor may be engaged in
-many different cases at the same time. And they might be participating in
-different roles across those cases. So it doesn't make sense to have a
-single endpoint that just returns the rules for "the actor". Instead, there
-needs to be some way to specify which (actor, case) pair is being queried
-for. The participant role may act as a filter on the rules, but we don't
-need to have the client specify the role directly since it will already be
-determined in the Participant record that affiliates the Actor to the Case.
-The endpoint should probably be either `/cases/{case_id}/participants/
-{participant_id}/action_rules/` or  `/cases/{case_id}/actors/{actor_id}
-/action_rules/`. The former is more direct, but the latter could also be a
-convenience method that resolves actor-to-participant within the context of
-the case and then just returns the same participant-specific rules. Unclear
-whether we should also support `/actors/{actor_id}/cases/{case_id}/action_rules/`
-as well, or whether that just makes the API more complicated without really
-adding any additional functionality. The main point is that the endpoint
-does actually need to be scoped to a specific case since any actor might be
-participating in multiple cases with different roles and therefore different
-rules. This is technical debt at Priority 200 that needs to be addressed
-before we can really consider CA-2 to be complete, and it needs to be
-resolved prior to moving to Priority 300 work on multi-actor demos.
+## 2026-03-25 CA-2 follow-up: actor+case identifies the participant
+
+The final action-rules contract is `GET /actors/{actor_id}/cases/{case_id}/action-rules`.
+Within a case, the `(actor_id, case_id)` pair is sufficient to identify the
+single matching `CaseParticipant`, so callers should not also supply a
+participant ID. The router stays on the actor surface, while the use case
+resolves the case-scoped participant internally from `actor_participant_index`
+with a fallback scan of `case_participants`.

@@ -12,18 +12,18 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Use case for querying CVD action rules for a case participant.
+"""Use case for querying CVD action rules for an actor in a case.
 
 Implements CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
 """
 
-import logging
-
 from pydantic import BaseModel
+from typing import cast
 
 from vultron.core.case_states.patterns.potential_actions import (
     action as get_actions,
 )
+from vultron.core.models.protocols import CaseModel, ParticipantModel
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.scoring.utils import enum2title
 from vultron.core.states.cs import CS_pxa, CS_vfd
@@ -32,25 +32,53 @@ from vultron.core.states.rm import RM
 from vultron.core.use_cases.triggers._helpers import resolve_case
 from vultron.errors import VultronNotFoundError, VultronValidationError
 
-logger = logging.getLogger(__name__)
-
 
 class ActionRulesRequest(BaseModel):
     """Request model for GetActionRulesUseCase."""
 
-    case_actor_id: str
-    participant_actor_id: str
+    case_id: str
+    actor_id: str
+
+
+def _resolve_participant_id_from_actor(
+    case: CaseModel, actor_id: str, dl: DataLayer
+) -> str:
+    """Resolve a case-scoped participant ID from an actor ID."""
+    participant_id = case.actor_participant_index.get(actor_id)
+    if participant_id is not None:
+        return participant_id
+
+    for participant_ref in case.case_participants:
+        resolved_participant_id = (
+            participant_ref.as_id
+            if hasattr(participant_ref, "as_id")
+            else str(participant_ref)
+        )
+        participant = cast(
+            ParticipantModel | None, dl.read(resolved_participant_id)
+        )
+        if participant is None:
+            continue
+        participant_actor_id = (
+            participant.attributed_to
+            if isinstance(participant.attributed_to, str)
+            else getattr(participant.attributed_to, "as_id", None)
+        )
+        if participant_actor_id == actor_id:
+            return resolved_participant_id
+
+    raise VultronNotFoundError("CaseParticipant", actor_id)
 
 
 class GetActionRulesUseCase:
-    """Return valid CVD actions for a participant in a case.
+    """Return valid CVD actions for an actor's participant record in a case.
 
-    Looks up the CaseActor, resolves its associated VulnerabilityCase,
-    finds the requested participant, reads their current RM/VFD state
-    (from the latest ParticipantStatus) and the case EM/PXA state
-    (from the current CaseStatus), then returns the set of valid CVD
-    actions for the resulting combined case-state string together with
-    the full state context.
+    Resolves the selected VulnerabilityCase, finds the actor's matching
+    CaseParticipant, reads their current RM/VFD state (from the latest
+    ParticipantStatus) and the case EM/PXA state (from the current
+    CaseStatus), then returns the set of valid CVD actions for the
+    resulting combined case-state string together with the full state
+    context.
 
     Implements: CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
     """
@@ -61,33 +89,29 @@ class GetActionRulesUseCase:
 
     def execute(self) -> dict:
         dl = self._dl
-        case_actor_id = self._request.case_actor_id
-        participant_actor_id = self._request.participant_actor_id
+        case_id = self._request.case_id
+        actor_id = self._request.actor_id
 
-        # 1. Resolve the CaseActor
-        case_actor = dl.read(case_actor_id)
-        if case_actor is None:
-            raise VultronNotFoundError("CaseActor", case_actor_id)
+        # 1. Resolve the VulnerabilityCase
+        case = resolve_case(case_id, dl)
 
-        case_id = getattr(case_actor, "context", None)
-        if not case_id:
-            raise VultronValidationError(
-                f"CaseActor {case_actor_id} has no associated case."
-            )
+        # 2. Resolve the actor's CaseParticipant in the selected case.
+        participant_id = _resolve_participant_id_from_actor(case, actor_id, dl)
 
-        # 2. Resolve the VulnerabilityCase
-        case = resolve_case(str(case_id), dl)
-
-        # 3. Find the participant by actor ID via the case index
-        participant_id = case.actor_participant_index.get(participant_actor_id)
-        if participant_id is None:
-            raise VultronNotFoundError("CaseParticipant", participant_actor_id)
-
-        participant = dl.read(participant_id)
+        participant = cast(ParticipantModel | None, dl.read(participant_id))
         if participant is None:
             raise VultronNotFoundError("CaseParticipant", participant_id)
+        participant_actor_id = (
+            participant.attributed_to
+            if isinstance(participant.attributed_to, str)
+            else getattr(participant.attributed_to, "as_id", None)
+        )
+        if participant_actor_id is None:
+            raise VultronValidationError(
+                f"CaseParticipant {participant_id} has no associated actor."
+            )
 
-        # 4. Get per-participant states from the latest ParticipantStatus
+        # 3. Get per-participant states from the latest ParticipantStatus
         rm_state: RM = RM.START
         vfd_state: CS_vfd = CS_vfd.vfd
         if participant.participant_statuses:
@@ -95,7 +119,7 @@ class GetActionRulesUseCase:
             rm_state = latest.rm_state
             vfd_state = latest.vfd_state
 
-        # 5. Get shared case states from the current CaseStatus
+        # 4. Get shared case states from the current CaseStatus
         em_state: EM = EM.EMBARGO_MANAGEMENT_NONE
         pxa_state: CS_pxa = CS_pxa.pxa
         if case.case_statuses:
@@ -103,20 +127,19 @@ class GetActionRulesUseCase:
             em_state = current_cs.em_state
             pxa_state = current_cs.pxa_state
 
-        # 6. Build the combined 6-character CS state string (VFD + PXA)
+        # 5. Build the combined 6-character CS state string (VFD + PXA)
         cs_state = vfd_state.name + pxa_state.name
 
-        # 7. Look up valid CVD actions for the current state
+        # 6. Look up valid CVD actions for the current state
         valid_actions = get_actions(cs_state)
 
-        # 8. Collect participant roles as string names
+        # 7. Collect participant roles as string names
         roles = [r.name for r in (participant.case_roles or [])]
 
         return {
             "participant_id": str(participant.as_id),
             "participant_actor_id": participant_actor_id,
-            "case_actor_id": case_actor_id,
-            "case_id": str(case_id),
+            "case_id": case_id,
             "role": roles,
             "rm_state": str(rm_state),
             "em_state": str(em_state),
