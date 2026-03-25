@@ -39,8 +39,40 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 
 
 @pytest.fixture
-def dl(datalayer):
-    return datalayer
+def actor_and_dl():
+    """Create actor + per-actor DataLayer together (avoids chicken-and-egg).
+
+    The actor object is created first (no DataLayer needed), then a
+    DataLayer is instantiated scoped to that actor's ID (ADR-0012 Option B).
+    The actor is then persisted into its own DataLayer.  Callers should
+    unpack via the ``actor`` and ``dl`` fixtures below.
+    """
+    from vultron.adapters.driven.datalayer_tinydb import (
+        TinyDbDataLayer,
+        reset_datalayer,
+    )
+
+    actor_obj = as_Service(name="Vendor Co")
+    actor_id = actor_obj.as_id
+    reset_datalayer(actor_id)
+    actor_dl = TinyDbDataLayer(db_path=None, actor_id=actor_id)
+    actor_dl.clear_all()
+    actor_dl.create(actor_obj)
+    yield actor_obj, actor_dl
+    actor_dl.clear_all()
+    reset_datalayer(actor_id)
+
+
+@pytest.fixture
+def actor(actor_and_dl):
+    actor_obj, _ = actor_and_dl
+    return actor_obj
+
+
+@pytest.fixture
+def dl(actor_and_dl):
+    _, actor_dl = actor_and_dl
+    return actor_dl
 
 
 @pytest.fixture
@@ -51,13 +83,6 @@ def client_triggers(dl):
     client = TestClient(app)
     yield client
     app.dependency_overrides = {}
-
-
-@pytest.fixture
-def actor(dl):
-    actor_obj = as_Service(name="Vendor Co")
-    dl.create(actor_obj)
-    return actor_obj
 
 
 @pytest.fixture

@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-25 (refresh #51: VCR-014 + TECHDEBT-37 complete)
+**Last Updated**: 2026-03-25 (refresh #52: ACT-3 complete)
 
 ## Overview
 
@@ -1284,8 +1284,14 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
   prefix per actor (Option B/ADR-0012). 26 isolation tests added. All 1014
   tests passing.
 
-- [ ] **ACT-3**: Update `get_datalayer` dependency and all handler tests to use
-  per-actor DataLayer fixtures. **Depends on ACT-2.**
+- [x] **ACT-3**: Update `get_datalayer` dependency and all handler tests to use
+  per-actor DataLayer fixtures. **Depends on ACT-2.** **COMPLETE**: Updated
+  `_actor_dl` in `trigger_case.py`, `trigger_report.py`, and
+  `trigger_embargo.py` to call `get_datalayer(actor_id)` (DI-1 closure lambda
+  per ADR-0012).  Trigger test fixtures refactored to create actor-scoped
+  in-memory DataLayers via an `actor_and_dl` combined fixture; the
+  `client_triggers` fixture overrides `_actor_dl` with the scoped test DL.
+  All 998 tests pass.
 
 ---
 

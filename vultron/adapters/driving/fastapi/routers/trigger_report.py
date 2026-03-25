@@ -41,13 +41,13 @@ router = APIRouter(prefix="/actors", tags=["Triggers"])
 
 
 def _actor_dl(actor_id: str = Path(...)) -> DataLayer:
-    """FastAPI dependency: return the shared DataLayer for trigger use cases.
+    """FastAPI dependency: return the per-actor DataLayer for trigger use cases.
 
-    Operational data (offers, reports, cases) is stored in the shared
-    DataLayer.  The ``actor_id`` path parameter is accepted (but unused)
-    so that ``app.dependency_overrides[_actor_dl]`` works in tests.
+    Each actor operates on its own isolated DataLayer scoped by ``actor_id``
+    (ADR-0012, Option B — TinyDB namespace prefix).  This ensures that
+    trigger operations for Actor A do not affect Actor B's state.
     """
-    return get_datalayer()
+    return get_datalayer(actor_id)
 
 
 @router.post(
