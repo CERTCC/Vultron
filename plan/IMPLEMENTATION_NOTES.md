@@ -74,7 +74,7 @@ transitions — documented justification for bypassing machine guard. The
 
 ---
 
-## Outbox and CaseActor notes
+## 2026-03-25 Outbox and CaseActor notes
 
 As preface and clarification to Outbox and CaseActor implementation, note
 that we are on a path toward a design in which each actor is essentially
@@ -95,7 +95,7 @@ fastapi adapter inbound should be able to handle duplicate messages
 gracefully, perhaps responding with an appropriate HTTP status code if a
 duplicate is detected while processing an incoming message.
 
-## Avoid BaseModel directly in adapters or core
+## 2026-03-25 Avoid BaseModel directly in adapters or core
 
 While we use Pydantic's BaseModel to define data classes throughout the code,
 we need to avoid using BaseModel as a type hint for functions, (python)
@@ -112,7 +112,7 @@ right abstractions in place.
 
 ---
 
-## OX-1.1/1.2/1.3: delivery is HTTP POST, idempotency is at inbox
+## 2026-03-25 OX-1.1/1.2/1.3: delivery is HTTP POST, idempotency is at inbox
 
 Outbox delivery (OX-1.1) uses HTTP POST to `{actor_uri}/inbox/` via
 `httpx` in `DeliveryQueueAdapter.emit()`. Direct DataLayer writes to
@@ -126,3 +126,15 @@ immediately on a duplicate activity ID.
 The `shared_dl` parameter on `outbox_handler` covers the case where
 activities are stored in the shared DataLayer (POST /inbox path) vs.
 the actor's own DL (POST /outbox path).
+
+## 2026-03-25 Synchronous HTTP blocking the async event loop
+
+(This is an intentional prototype limitation, but worth noting for follow-up
+once we move beyond prototype stage and want to harden for production.)
+
+- vultron/adapters/driven/delivery_queue.py:87
+- httpx.post() is synchronous blocking I/O called from an async def outbox_handler. FastAPI awaits background tasks in the event loop, so this will stall
+concurrent request handling during delivery.
+- The module docstring explicitly notes "using synchronous httpx (prototype simplicity)" — this is a known trade-off, not an oversight.
+- Suggested follow-up: Replace httpx.post() with httpx.AsyncClient + await client.post() when moving beyond prototype, and make emit() async. This is
+worth a tracked task before any production hardening.
