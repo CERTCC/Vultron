@@ -1323,68 +1323,14 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 
 ---
 
-### Phase PRIORITY-300 — Multi-Actor Demos (PRIORITY 300)
+### Phase PRIORITY-250 — Pre-300 Cleanup (PRIORITY 250)
 
-**Blocked by**: PRIORITY-200 (CA-2 follow-up)
+**Reference**: `plan/PRIORITIES.md` PRIORITY 250
 
-**Reference**: `plan/PRIORITIES.md` PRIORITY 300, `notes/demo-future-ideas.md`
+Per `plan/PRIORITIES.md`, these tasks MUST be completed before D5-2 and later
+PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
 
-- [ ] **D5-1**: Confirm the PRIORITY-200 CA-2 follow-up is complete, review
-  the current architecture as specified in `specs/` and as implemented in the
-  codebase, clarify assumptions for isolated actor/container scenarios, and
-  produce a refreshed architectural summary in `notes/` before implementing
-  D5-2 and later multi-actor demo scenarios.
-- [ ] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
-  containers + CaseActor container.
-- [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator).
-- [ ] **D5-4**: Demo Scenario 3 (ownership transfer + multi-vendor).
-- [ ] **D5-5**: Integration tests and Docker Compose configs for each scenario.
-
----
-
-## Deferred (Per PRIORITIES.md)
-
-- **BT status comparison normalization** — ~~Deferred~~ **Promoted to
-  PREPX-1** (see pre-P100 section below). Replace `result.status.name !=
-  "SUCCESS"` string comparisons with `result.status == Status.SUCCESS` enum
-  comparisons in `EngageCaseReceivedUseCase`, `DeferCaseReceivedUseCase`,
-  `CreateCaseReceivedUseCase`. (Source: `plan/IMPLEMENTATION_NOTES.md` item 7)
-- **`CloseCaseUseCase` wire-type construction** — Replace direct construction of
-  `VultronActivity(as_type="Leave")` in `CloseCaseUseCase` with domain event emission
-  through the `ActivityEmitter` port. Defer until outbound delivery integration
-  beyond OX-1.0 is implemented. (Source: `plan/IMPLEMENTATION_NOTES.md`
-  code-review item 8)
-- **UseCase Protocol generic enforcement** — Decide on a consistent
-  `UseCaseResult` Pydantic return envelope; enforce via mypy. Defer to after
-  TECHDEBT-21/22. (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 9)
-- **Production readiness** (request validation, idempotency, structured logging) — all `PROD_ONLY` or low-priority
-- ~~**OB-05-002 readiness probe**~~ — **COMPLETE** (commit `2d4308e`)
-- **Response generation** — See `specs/response-format.md` and history
-- **EP-02/EP-03** — EmbargoPolicy API + compatibility evaluation (`PROD_ONLY`)
-- ~~**AR-01-003**~~ — **COMPLETE**: unique `operation_id` on all FastAPI routes (commit `2d4308e`)
-- **AR-04/AR-05/AR-06** — Job tracking, pagination, bulk ops (`PROD_ONLY`)
-- **Domain model separation** (CM-08) — needs ADR; see
-  `notes/domain-model-separation.md`
-- **Agentic AI integration** (Priority 1000) — out of scope until protocol
-  foundation is stable
-- **Fuzzer node re-implementation** (Priority 500) — see `notes/bt-fuzzer-nodes.md`
-
----
-
-## Maintenance and Tooling
-
-### TOOLS-1 — Evaluate Python 3.14 compatibility (LOW)
-
-- [ ] **TOOLS-1**: Evaluate Python 3.14 compatibility. Run the test suite on a
-  Python 3.14 branch; if tests pass without issue, update `requires-python` in
-  `pyproject.toml` to `>=3.14`, and update docker base images to use Python
-  3.14.
-
----
-
-## Code Quality and Naming
-
-### NAMING-1 — Standardize wire-layer field naming (MEDIUM)
+#### NAMING-1 — Standardize wire-layer field naming
 
 - [ ] **NAMING-1**: Audit and migrate all `as_`-prefixed field names in
   `vultron/wire/as2/` to use trailing-underscore convention (e.g.,
@@ -1393,29 +1339,21 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
   `notes/`, `AGENTS.md`, and documentation to reflect this convention.
   Reference `specs/code-style.md` CS-07-003.
 
-### QUALITY-1 — Treat pytest warnings as errors (MEDIUM)
+#### QUALITY-1 — Treat pytest warnings as errors
 
 - [ ] **QUALITY-1**: Configure `[tool.pytest.ini_options]` in `pyproject.toml`
   to add `filterwarnings = ["error"]`. Fix any existing warnings surfaced by
   this change. Update `specs/tech-stack.md` (IMPL-TS-07-006), `AGENTS.md`,
   and `.github/skills/run-tests/SKILL.md` to document this expectation.
 
----
-
-## Security and CI
-
-### SECOPS-1 — Pin GitHub Actions to commit SHAs (MEDIUM)
+#### SECOPS-1 — Pin GitHub Actions to commit SHAs
 
 - [ ] **SECOPS-1**: Audit all `.github/workflows/` files. Pin every `uses:`
   action reference to a specific commit SHA instead of a version tag. Document
   this as an ADR in `docs/adr/`. Add requirement to `specs/` (a new
   `ci-security.md` or add to `tech-stack.md`).
 
----
-
-## Documentation Maintenance
-
-### DOCMAINT-1 — Review and update outdated `notes/` files (MEDIUM)
+#### DOCMAINT-1 — Review and update outdated `notes/` files
 
 - [ ] **DOCMAINT-1**: Review all `notes/` files for outdated forward-looking
   statements that have since been implemented. Specifically:
@@ -1426,13 +1364,58 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
   - (c) Mark historical items as such.
   - (d) Identify files that are purely historical and can be removed or
     archived.
-  - Files needing particular attention: `notes/state-machine-findings.md`,
+  - Files needing particular attention: `notes/state-machine-findings.md`
+    (contains fictional commit SHAs and incomplete OPP status markers),
     `notes/datalayer-refactor.md`, `notes/architecture-review.md`,
     `notes/codebase-structure.md`.
   - Cross-reference with `plan/IMPLEMENTATION_HISTORY.md` to verify what
     has been completed.
 
-### DOCS-3 — Update `notes/user-stories-trace.md` (LOW)
+#### REORG-1 — Reorganize `vultron/core/use_cases/`
+
+- [ ] **REORG-1**: Reorganize `vultron/core/use_cases/` into clearer
+  sub-packages separating "received message" handlers from "trigger" handlers.
+  The `triggers/` sub-package already captures the latter. Create a
+  `received/` sub-package for the former. Keep tests in sync with the
+  structure. Document the trigger→received→sync information flow pattern
+  (triggers emit messages → received handlers process them → sync replicates
+  the resulting case log) in `notes/` and `specs/` where appropriate.
+
+---
+
+### Phase PRIORITY-300 — Multi-Actor Demos (PRIORITY 300)
+
+**Reference**: `plan/PRIORITIES.md` PRIORITY 300, `notes/demo-future-ideas.md`
+
+**Note**: D5-1 (architecture review) is unblocked now that PRIORITY-200 is
+complete. D5-2 and later are blocked by PRIORITY-250 (pre-300 cleanup).
+
+- [ ] **D5-1**: Confirm the PRIORITY-200 CA-2 follow-up is complete, review
+  the current architecture as specified in `specs/` and as implemented in the
+  codebase, clarify assumptions for isolated actor/container scenarios, and
+  produce a refreshed architectural summary in `notes/` before implementing
+  D5-2 and later multi-actor demo scenarios.
+- [ ] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
+  containers + CaseActor container. **Blocked by PRIORITY-250**.
+- [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator). **Blocked by D5-2**.
+- [ ] **D5-4**: Demo Scenario 3 (ownership transfer + multi-vendor). **Blocked by D5-3**.
+- [ ] **D5-5**: Integration tests and Docker Compose configs for each scenario.
+  **Blocked by D5-2**.
+
+---
+
+### Phase PRIORITY-350 — Maintenance and Tooling (PRIORITY 350)
+
+**Reference**: `plan/PRIORITIES.md` PRIORITY 350
+
+#### TOOLS-1 — Evaluate Python 3.14 compatibility
+
+- [ ] **TOOLS-1**: Evaluate Python 3.14 compatibility. Run the test suite on a
+  Python 3.14 branch; if tests pass without issue, update `requires-python` in
+  `pyproject.toml` to `>=3.14`, and update docker base images to use Python
+  3.14.
+
+#### DOCS-3 — Update `notes/user-stories-trace.md`
 
 - [ ] **DOCS-3**: Update `notes/user-stories-trace.md` (the traceability
   matrix) to map every user story in `docs/topics/user_stories` to the exact
@@ -1442,7 +1425,10 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 
 ---
 
-## Future Architecture: Replicated Log Synchronization
+### Phase PRIORITY-400 — Replicated Log Synchronization (PRIORITY 400)
+
+**Reference**: `plan/PRIORITIES.md` PRIORITY 400,
+`plan/IMPLEMENTATION_NOTES.md` (2026-03-26 SYNC design notes)
 
 These tasks implement distributed append-only case event log replication using
 AS2 Announce activities as the transport. The CaseActor (acting as de facto
@@ -1452,38 +1438,59 @@ Participant Actors via log synchronization.
 > **Design note:** Case Ownership and replication leadership are distinct
 > concepts. A future ownership transfer likely implies leadership change,
 > but a leadership change alone does not imply an ownership transfer.
+>
+> **Before starting SYNC-1**, create `notes/sync-log-replication.md` capturing
+> the RAFT-inspired design notes from `plan/IMPLEMENTATION_NOTES.md`
+> (2026-03-26 entry). Remove that entry from `IMPLEMENTATION_NOTES.md` once
+> the notes file is committed.
 
-### SYNC-1 — Local append-only case event log with indexing (MEDIUM)
+#### SYNC-1 — Local append-only case event log with indexing
 
 - [ ] **SYNC-1**: Implement local append-only case event log with indexing.
   The `CaseEvent` model (`vultron/wire/as2/vocab/objects/case_event.py`)
   provides the foundation. Extend it to a true append-only log with indexed
-  lookups.
+  lookups. Place replication logic in core domain (transport-agnostic
+  `CaseEventLog`, `ReplicationState` classes); implement AS2 Announce mappings
+  and persistence in adapters. See design notes in `plan/IMPLEMENTATION_NOTES.md`
+  (2026-03-26) for full architectural context.
 
-### SYNC-2 — One-way log replication to Participant Actors (MEDIUM)
+#### SYNC-2 — One-way log replication to Participant Actors
 
 - [ ] **SYNC-2**: One-way log replication from CaseActor to Participant Actors
   via AS2 Announce activities, with strict conflict handling (reject mismatched
-  `prev_log_index`, retry with decremented index). Depends on SYNC-1.
+  `prev_log_index`, retry with decremented index). Reconcile "replication
+  leadership" with "Case Ownership" (distinct concepts; ownership transfer
+  implies leadership change, but not vice versa). Depends on SYNC-1.
 
-### SYNC-3 — Full sync loop with retry/backoff (MEDIUM)
+#### SYNC-3 — Full sync loop with retry/backoff
 
 - [ ] **SYNC-3**: Full sync loop with retry/backoff. Depends on SYNC-2.
 
-### SYNC-4 — Multi-peer synchronization (LOW)
+#### SYNC-4 — Multi-peer synchronization
 
 - [ ] **SYNC-4**: Multi-peer synchronization with per-peer replication state.
-  Depends on SYNC-3.
+  Enables RAFT consensus for CaseActor process. Depends on SYNC-3.
 
 ---
 
-## Codebase Reorganization
+## Deferred (Per PRIORITIES.md)
 
-### REORG-1 — Reorganize `vultron/core/use_cases/` (MEDIUM)
-
-- [ ] **REORG-1**: Reorganize `vultron/core/use_cases/` into clearer
-  sub-packages separating "received message" handlers from "trigger" handlers.
-  The `triggers/` sub-package already captures the latter. Create a
-  `received/` sub-package for the former. Keep tests in sync with the
-  structure. Document the trigger→received→sync information flow pattern in
-  `notes/` and `specs/` where appropriate.
+- **`CloseCaseUseCase` wire-type construction** — Replace direct construction of
+  `VultronActivity(as_type="Leave")` in `CloseCaseUseCase` with domain event emission
+  through the `ActivityEmitter` port. Defer until outbound delivery integration
+  beyond OX-1.0 is implemented. (Source: `plan/IMPLEMENTATION_NOTES.md`
+  code-review item 8)
+- **UseCase Protocol generic enforcement** — Decide on a consistent
+  `UseCaseResult` Pydantic return envelope; enforce via mypy. Defer to after
+  TECHDEBT-21/22. (Source: `plan/IMPLEMENTATION_NOTES.md` code-review item 9)
+- **Production readiness** (request validation, idempotency, structured logging) — all `PROD_ONLY` or low-priority
+- ~~**OB-05-002 readiness probe**~~ — **COMPLETE**
+- **Response generation** — See `specs/response-format.md` and history
+- **EP-02/EP-03** — EmbargoPolicy API + compatibility evaluation (`PROD_ONLY`)
+- ~~**AR-01-003**~~ — **COMPLETE**: unique `operation_id` on all FastAPI routes
+- **AR-04/AR-05/AR-06** — Job tracking, pagination, bulk ops (`PROD_ONLY`)
+- **Domain model separation** (CM-08) — needs ADR; see
+  `notes/domain-model-separation.md`
+- **Agentic AI integration** (Priority 1000) — out of scope until protocol
+  foundation is stable
+- **Fuzzer node re-implementation** (Priority 500) — see `notes/bt-fuzzer-nodes.md`
