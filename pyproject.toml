@@ -79,6 +79,8 @@ exclude = ["test*"]  # exclude packages matching these glob patterns (empty by d
 #namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
 
 [tool.setuptools_scm]
+# Only consider tags that capture a version string like 1.2.3 or v1.2.3
+tag_regex = "^(?:v)?(?P<version>\\d+\\.\\d+\\.\\d+(?:[.-]rc\\d+)?)$"
 version_file = "vultron/_version.py"
 
 #[tools.setuptools.dynamic]
