@@ -66,25 +66,3 @@ an ADR (`docs/adr/`) and reflected in the `specs/*.md` where appropriate. A
 task to audit our existing Github actions and update any that are not currently
 pinned to specific commit SHAs should be added to the implementation plan as
 well.
-
-## Make flake8, mypy, and pyright part of the CI pipeline
-
-Now that we have a known-clean codebase with no flake8, mypy, or pyright
-warnings, we should make these tools part of the CI pipeline to ensure that
-we maintain this level of code quality and catch any new issues as they are
-introduced. Right now we have `.github/workflows/python-app.yml` which runs
-tests and builds the package. But we should refactor this into a multi-stage
-pipeline that confirms tests pass, runs linters in parallel (so we get all
-results at once instead of having to serially fix one linter result set at a
-time), and then only proceeds to build the package if all tests and linters  
-pass. These should be in separate jobs so that we can observe the results of
-each stage. Add badges to the README.md for the project for each of these
-checks so we have visibility into the status of our code quality checks at a
-glance. This should apply to any PRs against main as well as the main branch
-itself.
-
-In addition to adding these to the CI pipeline, we should also update
-`AGENTS.md`, `specs/*.md`, `.github/skills`, and any relevant `plan/` files to
-reflect the expectation that all code must pass black, flake8, mypy, and
-pyright checks before commits are made to ensure that we maintain the
-known-clean status as we move forward.
