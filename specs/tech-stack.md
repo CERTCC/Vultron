@@ -12,6 +12,15 @@ This specification defines the normative technology constraints and implementati
 ## Runtime and Language (MUST)
 
 - `IMPL-TS-01-001` The implementation MUST use Python 3.12 or later.
+- `IMPL-TS-01-007` Before updating the `requires-python` floor in
+  `pyproject.toml`, the full test suite MUST pass on the target Python
+  version in CI, and all static type checks (`mypy`, `pyright`) and linters
+  MUST pass under the new runtime
+  - Any deprecated or removed stdlib features MUST be replaced before the
+    floor is raised
+  - A runtime version bump of one minor version or more SHOULD be documented
+    as an ADR in `docs/adr/`
+  - IMPL-TS-01-007 refines IMPL-TS-01-001
 - `IMPL-TS-01-002` The backend API MUST be implemented using FastAPI.
 - `IMPL-TS-01-003` The backend API MUST expose an OpenAPI specification.
 - `IMPL-TS-01-004` The system MUST use Pydantic for data validation and data modeling.
