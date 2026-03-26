@@ -18,15 +18,26 @@ Vultron API Routers
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    status,
+)
 
 from vultron.adapters.driving.fastapi.inbox_handler import (
     inbox_handler,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.use_cases.action_rules import (
+    ActionRulesRequest,
+    GetActionRulesUseCase,
+)
 from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
+from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.base.objects.collections import (
@@ -150,6 +161,37 @@ def get_actor_profile(
     profile["inbox"] = as_actor.inbox.as_id
     profile["outbox"] = as_actor.outbox.as_id
     return profile
+
+
+@router.get(
+    "/{actor_id}/cases/{case_id}/action-rules",
+    summary="Get CVD Action Rules for an Actor in a Case",
+    description=(
+        "Returns the set of valid CVD actions available to an actor in a "
+        "specific case. The actor/case pair is resolved to the matching "
+        "CaseParticipant internally."
+    ),
+    operation_id="actors_get_action_rules",
+)
+def get_action_rules(
+    actor_id: str,
+    case_id: str,
+    dl: DataLayer = Depends(_shared_dl),
+) -> dict:
+    """Return valid CVD actions for an actor in a specific case."""
+    try:
+        req = ActionRulesRequest(case_id=case_id, actor_id=actor_id)
+        return GetActionRulesUseCase(dl=dl, request=req).execute()
+    except VultronNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        )
+    except VultronValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
 
 
 @router.get(

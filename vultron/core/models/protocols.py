@@ -22,7 +22,19 @@ methods on DataLayer results without importing wire-layer classes.
 
 from typing import Protocol
 
+from vultron.core.states.cs import CS_pxa, CS_vfd
+from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+
+
+class CaseStatusModel(Protocol):
+    em_state: EM
+    pxa_state: CS_pxa
+
+
+class ParticipantStatusModel(Protocol):
+    rm_state: RM
+    vfd_state: CS_vfd
 
 
 class CaseModel(Protocol):
@@ -30,7 +42,7 @@ class CaseModel(Protocol):
     case_participants: list
     vulnerability_reports: list
     active_embargo: object
-    actor_participant_index: dict
+    actor_participant_index: dict[str, str]
     events: list
     attributed_to: object
     notes: list
@@ -44,14 +56,15 @@ class CaseModel(Protocol):
     def record_event(self, obj_id: str, event_type: str) -> None: ...
 
     @property
-    def current_status(self) -> object: ...
+    def current_status(self) -> CaseStatusModel: ...
 
 
 class ParticipantModel(Protocol):
     as_id: str
     accepted_embargo_ids: list
-    participant_statuses: list
+    participant_statuses: list[ParticipantStatusModel]
     attributed_to: object
+    case_roles: list
 
     def append_rm_state(
         self, rm_state: RM, actor: str, context: str

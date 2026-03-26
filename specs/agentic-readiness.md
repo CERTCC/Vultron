@@ -80,9 +80,11 @@ interfaces that support agentic workflows.
 - `AR-07-001` The system SHOULD expose an endpoint that returns the set of
   valid CVD actions available to a participant given current case state and
   their role
-  - Endpoint: `GET /actors/{case_actor_id}/action-rules`
-  - Query parameter: `participant={participant_actor_id}` to scope results
-    to a specific participant
+  - Endpoint:
+    `GET /actors/{actor_id}/cases/{case_id}/action-rules`
+  - The actor/case pair MUST resolve internally to the matching
+    `CaseParticipant`; callers MUST NOT be required to supply both actor ID and
+    participant ID
 - `AR-07-002` The action rules response MUST be a machine-parseable JSON
   object that includes:
   - The participant's current role (e.g., Vendor, Finder, Coordinator)
@@ -174,7 +176,8 @@ Driving Adapters) for the architecture context.
 
 ### AR-07-001, AR-07-002 Verification
 
-- Integration test: `GET /actors/{case_actor_id}/action-rules?participant={id}`
+- Integration test:
+  `GET /actors/{actor_id}/cases/{case_id}/action-rules`
   returns JSON with `role`, state fields, and `actions` list
 - Unit test: Action list changes when RM/EM state transitions occur
 

@@ -15,6 +15,7 @@
 import logging
 
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.use_cases.case import UpdateCaseReceivedUseCase
 from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
@@ -261,3 +262,153 @@ class TestCaseUseCases:
             UpdateCaseReceivedUseCase(dl, event).execute()
 
         assert not any("has not accepted" in r.message for r in caplog.records)
+
+    # ------------------------------------------------------------------
+    # Broadcast tests (CM-06-001, CM-06-002)
+    # ------------------------------------------------------------------
+
+    def test_update_case_broadcasts_announce_to_participants(
+        self, make_payload
+    ):
+        """After a case update, the CaseActor outbox contains an Announce."""
+        dl = TinyDbDataLayer(db_path=None)
+        owner_id = "https://example.org/users/owner"
+        participant_id = "https://example.org/users/alice"
+        case_id = "https://example.org/cases/bc1"
+
+        case_actor = VultronCaseActor(
+            id=f"{case_id}/actor",
+            name=f"CaseActor for {case_id}",
+            attributed_to=owner_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id=case_id,
+            name="Original",
+            attributed_to=owner_id,
+        )
+        case.actor_participant_index[participant_id] = (
+            "https://example.org/participants/p-bc1"
+        )
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case_id, name="Updated", attributed_to=owner_id
+        )
+        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        event = make_payload(activity)
+
+        UpdateCaseReceivedUseCase(dl, event).execute()
+
+        refreshed_actor = dl.read(case_actor.as_id)
+        assert refreshed_actor is not None
+        assert len(refreshed_actor.outbox.items) == 1
+
+        broadcast_id = refreshed_actor.outbox.items[0]
+        broadcast = dl.read(broadcast_id)
+        assert broadcast is not None
+        assert broadcast.as_type == "Announce"
+        assert broadcast.actor == case_actor.as_id
+        assert participant_id in broadcast.to
+
+        # Verify the broadcast is also enqueued for delivery by outbox_handler
+        queue_table = dl._db.table(f"{case_actor.as_id}_outbox")
+        queued_ids = [row["activity_id"] for row in queue_table.all()]
+        assert broadcast_id in queued_ids
+
+    def test_update_case_no_broadcast_when_no_case_actor(self, make_payload):
+        """Broadcast is skipped gracefully when no CaseActor exists."""
+        dl = TinyDbDataLayer(db_path=None)
+        owner_id = "https://example.org/users/owner"
+        case_id = "https://example.org/cases/bc2"
+
+        case = VulnerabilityCase(
+            id=case_id, name="Original", attributed_to=owner_id
+        )
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case_id, name="Updated", attributed_to=owner_id
+        )
+        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        event = make_payload(activity)
+
+        # Should not raise
+        UpdateCaseReceivedUseCase(dl, event).execute()
+
+        stored = dl.read(case_id)
+        assert stored.name == "Updated"
+
+    def test_update_case_no_broadcast_when_no_participants(self, make_payload):
+        """Broadcast is skipped gracefully when the case has no participants."""
+        dl = TinyDbDataLayer(db_path=None)
+        owner_id = "https://example.org/users/owner"
+        case_id = "https://example.org/cases/bc3"
+
+        case_actor = VultronCaseActor(
+            id=f"{case_id}/actor",
+            name=f"CaseActor for {case_id}",
+            attributed_to=owner_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id=case_id, name="Original", attributed_to=owner_id
+        )
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case_id, name="Updated", attributed_to=owner_id
+        )
+        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        event = make_payload(activity)
+
+        UpdateCaseReceivedUseCase(dl, event).execute()
+
+        refreshed_actor = dl.read(case_actor.as_id)
+        assert refreshed_actor.outbox.items == []
+
+    def test_update_case_broadcast_includes_all_participants(
+        self, make_payload
+    ):
+        """Broadcast Announce.to includes every participant actor ID."""
+        dl = TinyDbDataLayer(db_path=None)
+        owner_id = "https://example.org/users/owner"
+        case_id = "https://example.org/cases/bc4"
+        alice = "https://example.org/users/alice"
+        bob = "https://example.org/users/bob"
+
+        case_actor = VultronCaseActor(
+            id=f"{case_id}/actor",
+            name=f"CaseActor for {case_id}",
+            attributed_to=owner_id,
+            context=case_id,
+        )
+        dl.create(case_actor)
+
+        case = VulnerabilityCase(
+            id=case_id, name="Original", attributed_to=owner_id
+        )
+        case.actor_participant_index[alice] = (
+            "https://example.org/participants/p-bc4-alice"
+        )
+        case.actor_participant_index[bob] = (
+            "https://example.org/participants/p-bc4-bob"
+        )
+        dl.create(case)
+
+        updated_case = VulnerabilityCase(
+            id=case_id, name="Updated", attributed_to=owner_id
+        )
+        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        event = make_payload(activity)
+
+        UpdateCaseReceivedUseCase(dl, event).execute()
+
+        refreshed_actor = dl.read(case_actor.as_id)
+        broadcast_id = refreshed_actor.outbox.items[0]
+        broadcast = dl.read(broadcast_id)
+        assert set(broadcast.to) == {alice, bob}

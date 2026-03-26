@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-25 (refresh #53: OX-1.1/1.2/1.3 complete)
+**Last Updated**: 2026-03-25 (refresh #54: Priority 200 replanned)
 
 ## Overview
 
@@ -37,21 +37,22 @@ DataLayer inbox/outbox replaces the global `ACTOR_IO_STORE`.
 `test/adapters/driving/fastapi/`, `test/adapters/driven/`,
 and `test/core/use_cases/`.
 
-**Active phases**: **PRIORITY-80** (technical debt cleanup) and
-**PRIORITY-100** (actor independence — pre-requisites PREPX-1/2/3 and P90
-all complete). TECHDEBT-16 through TECHDEBT-39 complete (except BT-2.2/2.3
-which are deferred); VCR-A batch (8/8 tasks) complete. VCR-B batch complete.
-VCR-C batch complete (VCR-014 done, VCR-019* done). TECHDEBT-37 complete.
-VCR-019a/b/c/e complete — state enums in `vultron/core/states/`;
-`vultron/case_states/` removed; errors merged into `vultron/errors.py`.
-OX-1.4 complete. TECHDEBT-32/32b complete: all
-`object_to_record` / `save_to_datalayer` usages in core removed; `dl.save()`
-is now the sole save pattern in core. TECHDEBT-32c complete: `get_datalayer`
-fallback removed from `wire/as2/rehydration.py`; `dl` is now required.
+**Active phases**: **PRIORITY-200** (finish CaseActor work by resolving the
+action-rules endpoint shape) and **PRIORITY-300** (multi-actor demos, still
+blocked on the PRIORITY-200 follow-up). The foundational PRIORITY-100 actor
+isolation work is complete: ADR-0012, ACT-1/2/3, OX-1.1 through OX-1.4, and
+the inbox/outbox DataLayer migration have all landed. TECHDEBT-16 through
+TECHDEBT-39 are complete; BT-2.2/BT-2.3 remain deferred. VCR-A, VCR-B, and
+VCR-C are complete. VCR-019a/b/c/e complete — state enums in
+`vultron/core/states/`; `vultron/case_states/` removed; errors merged into
+`vultron/errors.py`. TECHDEBT-32/32b complete: all `object_to_record` /
+`save_to_datalayer` usages in core removed; `dl.save()` is now the sole save
+pattern in core. TECHDEBT-32c complete: `get_datalayer` fallback removed from
+`wire/as2/rehydration.py`; `dl` is now required.
 
 ---
 
-## Gap Analysis (2026-03-23, refresh #45)
+## Gap Analysis (2026-03-25, refresh #54)
 
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
@@ -128,17 +129,19 @@ P75-4 MUST refactor every use case it touches to the class interface.
 `vultron/adapters/driving/fastapi/routers/examples.py`. Decision recorded in
 ADR-0011.
 
-### ❌ Actor independence not implemented (PRIORITY 100)
+### ✅ PRIORITY-100 actor-isolation foundations complete
 
-All actors share a singleton `TinyDbDataLayer` instance. PRIORITY 100 requires
-per-actor isolated state. Options documented in `notes/domain-model-separation.md`
-(Option B: TinyDB namespace prefix; MongoDB community edition for production).
-Blocked by PRIORITY-70 (complete ✅).
+ADR-0012 is implemented. `get_datalayer(actor_id)` now returns actor-scoped
+TinyDB namespaces, inbox/outbox queue state lives in actor-scoped tables, and
+trigger routes use actor-scoped DataLayer instances. Isolation is covered by
+`test/adapters/driven/test_datalayer_isolation.py`, and ACT-1/2/3 are recorded
+in `plan/IMPLEMENTATION_HISTORY.md`.
 
-### ❌ CaseActor broadcast not implemented (PRIORITY 200)
+### ✅ PRIORITY-200 complete
 
-CM-06-001 requires CaseActor to notify all case participants on case state update.
-Blocked by OUTBOX-1.
+CaseActor broadcast and the CA-2 action-rules follow-up are complete.
+`GET /actors/{actor_id}/cases/{case_id}/action-rules` is now the
+case-scoped action-rules contract, so PRIORITY-300 demo work can proceed.
 
 ### ✅ SPEC-COMPLIANCE-3 complete (SC-PRE-2, SC-3.2, SC-3.3 all done)
 
@@ -159,19 +162,13 @@ TECHDEBT-34 updated notes). Remaining state-machine opportunities — OPP-05
 (duplicate RM helpers) and OPP-06 (VFD/PXA callers, future) — are captured
 as TECHDEBT-39 and noted as deferred respectively.
 
-### ❌ BUG-001 — `outbox_handler` crashes on missing actor (TECHDEBT-38)
+### ✅ Recent cleanup items already resolved
 
-`vultron/adapters/driving/fastapi/outbox_handler.py` logs a warning when
-`dl.read(actor_id)` returns `None` but does not `return` early; the next line
-would raise `AttributeError`. See `plan/BUGS.md`. Fix captured as TECHDEBT-38.
-
-### ❌ Flaky test not yet fixed (TECHDEBT-15 — new gap)
-
-`test_remove_embargo` in `test/wire/as2/vocab/test_vocab_examples.py:819`
-occasionally fails due to py_trees blackboard global state shared across tests.
-`specs/testability.md` TB-06-006 mandates all tests be deterministic. Fix:
-add `autouse` fixture in `test/wire/as2/vocab/conftest.py` to clear the
-blackboard before each test.
+TECHDEBT-38 / BUG-001 is fixed in `vultron/adapters/driving/fastapi/outbox_handler.py`
+and recorded in `plan/IMPLEMENTATION_HISTORY.md`. TECHDEBT-15 is also done:
+blackboard-clearing fixtures exist under `test/wire/as2/vocab/` and
+`test/core/behaviors/`, removing the previously flaky `test_remove_embargo`
+failure mode.
 
 ### ✅ DRY core domain models (TECHDEBT-16 — complete)
 
@@ -180,12 +177,10 @@ object model classes now inherit from `VultronObject` (which provides `as_id`,
 `as_type`, `name`). Repeated field definitions removed. 48 new tests added in
 `test/core/models/test_base.py`. 961 tests pass.
 
-### ❌ `docker/README.md` out of date (DOCS-1 — new gap)
+### ✅ Docker/demo docs refreshed (DOCS-1 complete)
 
-`docker/README.md` lists individual per-demo services that no longer exist
-in `docker-compose.yml` (now consolidated into a unified `demo` service).
-Captured in `notes/codebase-structure.md`. Needs update to describe `api-dev`,
-`demo`, `test`, `docs`, and `vultrabot-demo` services.
+`docker/README.md` now documents the current `docker-compose.yml` services:
+`api-dev`, `demo`, `test`, `docs`, and `vultrabot-demo`.
 
 ### ✅ Broken inline code examples in `docs/` (DOCS-2 — resolved)
 
@@ -195,7 +190,7 @@ paths that moved to `vultron.wire.as2.vocab.*` during P60-1. Running
 
 ### ❌ Multi-actor demos not yet started (PRIORITY 300)
 
-Blocked by PRIORITY-100 and PRIORITY-200.
+Blocked by PRIORITY-200.
 
 ---
 
@@ -1298,28 +1293,31 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 
 ### Phase PRIORITY-200 — CaseActor Broadcast (PRIORITY 200)
 
-**Blocked by**: OUTBOX-1
-
 **Reference**: `specs/case-management.md` CM-06, `plan/PRIORITIES.md` PRIORITY 200
 
-- [ ] **CA-1**: After OUTBOX-1, implement CaseActor broadcast in `update_case`
+**Status**: CA-1, CA-2, and CA-3 are complete. PRIORITY-200 is complete.
+
+- [x] **CA-1**: After OUTBOX-1, implement CaseActor broadcast in `update_case`
   handler — send ActivityStreams activity to each active `CaseParticipant`'s
   inbox (CM-06-001, CM-06-002).
-- [ ] **CA-2**: Add `GET /actors/{case_actor_id}/action-rules` endpoint returning
-  valid CVD actions for a named participant given current RM/EM/CS/VFD state
-  (CM-07-001, AR-07-001, AR-07-002). Add tests.
-- [ ] **CA-3**: Add tests verifying CaseActor notifies all participants on case
+- [x] **CA-2**: Replaced the ambiguous action-rules endpoint with
+  `GET /actors/{actor_id}/cases/{case_id}/action-rules`, which resolves the
+  case-scoped `CaseParticipant` internally. Specs, router logic, and router/use-case
+  tests now agree on the actor-first, case-scoped contract.
+- [x] **CA-3**: Add tests verifying CaseActor notifies all participants on case
   state update.
 
 ---
 
 ### Phase PRIORITY-300 — Multi-Actor Demos (PRIORITY 300)
 
-**Blocked by**: PRIORITY-100, PRIORITY-200
+**Blocked by**: PRIORITY-200 (CA-2 follow-up)
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 300, `notes/demo-future-ideas.md`
 
-- [ ] **D5-1**: Confirm PRIORITY-100 and PRIORITY-200 are complete; update design.
+- [ ] **D5-1**: Confirm the PRIORITY-200 CA-2 follow-up is complete and refresh
+  demo assumptions for isolated actor/container scenarios before implementing
+  the multi-actor demos.
 - [ ] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
   containers + CaseActor container.
 - [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator).

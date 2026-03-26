@@ -23,10 +23,16 @@ logger = logging.getLogger(__name__)
 
 def _check_participant_embargo_acceptance(
     case: CaseModel, dl: DataLayer
-) -> None:
+) -> set[str]:
+    """Check which participants have not accepted the active embargo.
+
+    Returns a set of actor IDs whose case updates should be withheld per
+    CM-10-004 (participants that have not accepted the active embargo).
+    """
+    excluded: set[str] = set()
     active_embargo = case.active_embargo
     if active_embargo is None:
-        return
+        return excluded
     embargo_id = _as_id(active_embargo)
     for actor_id, participant_id in case.actor_participant_index.items():
         participant = dl.read(participant_id)
@@ -47,6 +53,8 @@ def _check_participant_embargo_acceptance(
                 actor_id,
                 embargo_id,
             )
+            excluded.add(actor_id)
+    return excluded
 
 
 class CreateCaseReceivedUseCase:
@@ -121,7 +129,9 @@ class UpdateCaseReceivedUseCase:
             )
             return
 
-        _check_participant_embargo_acceptance(stored_case, self._dl)
+        excluded_actor_ids = _check_participant_embargo_acceptance(
+            stored_case, self._dl
+        )
 
         if (
             request.object_type == "VulnerabilityCase"
@@ -138,6 +148,79 @@ class UpdateCaseReceivedUseCase:
                 "update_case: object for case '%s' is a reference only — no fields to apply",
                 case_id,
             )
+
+        self._broadcast_case_update(case_id, stored_case, excluded_actor_ids)
+
+    def _broadcast_case_update(
+        self,
+        case_id: str,
+        case: CaseModel,
+        excluded_actor_ids: set[str] | None = None,
+    ) -> None:
+        """Broadcast an Announce activity for the updated case to participants.
+
+        Implements CM-06-001/CM-06-002: after a case update, the CaseActor MUST
+        send an ActivityStreams Announce to each active case participant's inbox.
+        Per CM-10-004, participants who have not accepted the active embargo are
+        excluded from the broadcast.
+        """
+        excluded = excluded_actor_ids or set()
+        # Locate the CaseActor (as_type="Service") associated with this case
+        service_records = self._dl.by_type("Service")
+        case_actor_id: str | None = None
+        for obj_id, data in service_records.items():
+            if data.get("context") == case_id:
+                case_actor_id = obj_id
+                break
+
+        if case_actor_id is None:
+            logger.debug(
+                "update_case: no CaseActor found for case '%s' — skipping broadcast",
+                case_id,
+            )
+            return
+
+        participant_ids = [
+            actor_id
+            for actor_id in case.actor_participant_index.keys()
+            if actor_id not in excluded
+        ]
+        if not participant_ids:
+            logger.debug(
+                "update_case: no eligible participants in case '%s' — skipping broadcast",
+                case_id,
+            )
+            return
+
+        broadcast = VultronActivity(
+            as_type="Announce",
+            actor=case_actor_id,
+            as_object=case_id,
+            to=participant_ids,
+        )
+        try:
+            self._dl.create(broadcast)
+        except ValueError:
+            logger.debug(
+                "update_case: broadcast activity %s already exists — skipping",
+                broadcast.as_id,
+            )
+            return
+
+        case_actor_obj = self._dl.read(case_actor_id)
+        if case_actor_obj is not None and hasattr(case_actor_obj, "outbox"):
+            case_actor_obj.outbox.items.append(broadcast.as_id)
+            self._dl.save(case_actor_obj)
+
+        # Enqueue for delivery via outbox_handler
+        self._dl.record_outbox_item(case_actor_id, broadcast.as_id)
+
+        logger.info(
+            "update_case: CaseActor '%s' broadcast Announce for case '%s' to %d participants (CM-06-001)",
+            case_actor_id,
+            case_id,
+            len(participant_ids),
+        )
 
 
 class EngageCaseReceivedUseCase:

@@ -50,6 +50,8 @@ class VultronActivity(VultronObject):
     as_object: Any | None = Field(default=None, alias="object")
     target: NonEmptyString | None = None
     origin: NonEmptyString | None = None
+    to: list[str] | None = None
+    cc: list[str] | None = None
 
 
 class VultronOffer(VultronActivity):

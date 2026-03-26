@@ -131,3 +131,14 @@ Trigger use-cases and BT nodes that create outgoing activities now call
 `dl.record_outbox_item(actor_id, activity_id)` so items are enqueued in
 the `{actor_id}_outbox` table that `outbox_handler` drains, regardless of
 whether the calling code holds the shared or actor-scoped DataLayer.
+
+---
+
+## 2026-03-25 CA-2 follow-up: actor+case identifies the participant
+
+The final action-rules contract is `GET /actors/{actor_id}/cases/{case_id}/action-rules`.
+Within a case, the `(actor_id, case_id)` pair is sufficient to identify the
+single matching `CaseParticipant`, so callers should not also supply a
+participant ID. The router stays on the actor surface, while the use case
+resolves the case-scoped participant internally from `actor_participant_index`
+with a fallback scan of `case_participants`.

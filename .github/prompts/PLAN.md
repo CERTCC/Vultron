@@ -38,9 +38,15 @@ Objective: Update the implementation plan based on current priorities, specifica
        they share the same implementation context to reduce the number of
        agent prompts required.
    - Order tasks by implementation priority.
+   - Completed task details should be moved to IMPLEMENTATION_HISTORY.md 
+     leaving a one-line summary reference in IMPLEMENTATION_PLAN.md for each
+     moved item.
 
 4. Update plan/IMPLEMENTATION_NOTES.md
 
+   - Items that were converted from IMPLEMENTATION_NOTES.md to 
+     IMPLEMENTATION_PLAN.md tasks should be removed from 
+     IMPLEMENTATION_NOTES.md.
    - Items from the gap analysis that are not actionable tasks should be added as notes.
    - Add clarified assumptions, open questions, architectural concerns, and risks.
    - Record insights that will assist future agents.

@@ -3208,3 +3208,132 @@ access. OX-1.3 idempotency is enforced at the receiving inbox endpoint.
 ### Test results
 
 1004 passed, 5581 subtests passed.
+
+---
+
+## CA-1 + CA-3: CaseActor broadcast on case update (CM-06-001/CM-06-002)
+
+**Date**: 2026-03-20
+**Phase**: PRIORITY-200 (Case Actor)
+**Status**: COMPLETE
+
+### Summary
+
+Implemented the CaseActor broadcast requirement (CM-06-001/CM-06-002):
+after `UpdateCaseReceivedUseCase` saves a case update, it now emits an
+`Announce` activity from the CaseActor to all active case participants.
+
+### Changes
+
+**`vultron/core/models/activity.py`**:
+
+- Added `to: list[str] | None = None` and `cc: list[str] | None = None`
+  addressing fields to `VultronActivity` so broadcast activities carry
+  recipient information for downstream delivery routing.
+
+**`vultron/core/ports/datalayer.py`**:
+
+- Added `by_type(as_type: str) -> dict[str, dict]` to the `DataLayer`
+  Protocol so core use cases can query objects by AS2 type without
+  importing adapter-layer code.
+
+**`vultron/core/use_cases/case.py`**:
+
+- Added `_broadcast_case_update()` private method to
+  `UpdateCaseReceivedUseCase`.
+- After saving the updated case, calls `_broadcast_case_update()` which:
+  1. Looks up the CaseActor via `dl.by_type("Service")` filtered by
+     `context == case_id`.
+  2. Collects all participant actor IDs from
+     `case.actor_participant_index.keys()`.
+  3. Creates a `VultronActivity(as_type="Announce", actor=case_actor_id,
+     as_object=case_id, to=participant_ids)` and persists it.
+  4. Appends the broadcast activity ID to the CaseActor's
+     `outbox.items` and saves the CaseActor.
+- Broadcast also fires when the update contains only a reference (no
+  fields to apply), consistent with CM-06-001 applying to any case update.
+
+**`test/core/use_cases/test_case_use_cases.py`**:
+
+- Added four new broadcast tests (CA-3):
+  - `test_update_case_broadcasts_announce_to_participants` — happy path
+  - `test_update_case_no_broadcast_when_no_case_actor` — graceful no-op
+  - `test_update_case_no_broadcast_when_no_participants` — graceful no-op
+  - `test_update_case_broadcast_includes_all_participants` — multi-participant
+
+### Test results
+
+1008 passed, 5581 subtests passed (up from 1004).
+
+### Lessons learned
+
+- `by_type` was already implemented on `TinyDbDataLayer` but missing from
+  the `DataLayer` Protocol; adding it to the port was the minimal change
+  to keep core code architecture-compliant.
+- The broadcast fires even for reference-only updates (no field changes),
+  since CM-06-001 does not restrict notification to field-changing updates.
+- Actual HTTP delivery of the broadcast to participant inboxes requires
+  the CaseActor's per-actor outbox queue to be populated and the
+  `outbox_handler` to be triggered. Writing to `outbox.items` (the shared
+  DL actor object) records the broadcast for history/visibility but does
+  not trigger immediate delivery — consistent with the existing pattern in
+  trigger use cases and `CloseCaseReceivedUseCase`.
+
+---
+
+## CA-2: Action Rules Endpoint (PRIORITY-200)
+
+**Completed**: Implemented `GET /actors/{case_actor_id}/action-rules?participant={actor_id}`
+endpoint returning valid CVD actions for a named participant given the current
+combined case state (RM, EM, CS_vfd, CS_pxa).
+
+**Files changed**:
+
+- `vultron/core/use_cases/action_rules.py` (new): `ActionRulesRequest` model
+  and `GetActionRulesUseCase` class. Resolves CaseActor → VulnerabilityCase →
+  CaseParticipant, reads per-participant RM/VFD state and shared case EM/PXA
+  state, builds the 6-char CS state string, and returns valid CVD actions via
+  `potential_actions.action()`.
+- `vultron/adapters/driving/fastapi/routers/actors.py`: Added
+  `GET /{case_actor_id}/action-rules` endpoint (positioned before inbox to
+  avoid path conflicts).
+- `test/core/use_cases/test_action_rules.py` (new): Unit tests for
+  `GetActionRulesUseCase` covering happy path, default states, error paths,
+  and EM state variations.
+- `test/adapters/driving/fastapi/routers/test_actors.py`: Added endpoint
+  integration tests (200, 404, 422).
+
+**Specs implemented**: CM-07-001, CM-07-002, CM-07-003, AR-07-001, AR-07-002.
+
+---
+
+## CA-2 follow-up: actor-first case-scoped action-rules endpoint
+
+**Completed**: Reworked the CA-2 action-rules contract to use the final
+actor-first, case-scoped route:
+`GET /actors/{actor_id}/cases/{case_id}/action-rules`.
+
+**What changed**:
+
+- `vultron/adapters/driving/fastapi/routers/actors.py`: replaced the prior
+  action-rules shape with the actor-first case-scoped endpoint.
+- `vultron/core/use_cases/action_rules.py`: simplified `ActionRulesRequest` to
+  `(case_id, actor_id)` and resolved the matching `CaseParticipant`
+  internally via `actor_participant_index` with a fallback scan of
+  `case.case_participants`.
+- `vultron/core/models/protocols.py`: tightened the protocol typing used by
+  the action-rules use case so the new logic remains core-friendly and avoids
+  wire imports.
+- `test/core/use_cases/test_action_rules.py` and
+  `test/adapters/driving/fastapi/routers/test_actors.py`: updated unit and
+  router coverage to validate the actor/case contract, including 404 behavior
+  for unknown cases and actors not participating in the selected case.
+- `specs/case-management.md` and `specs/agentic-readiness.md`: updated to
+  document the final actor-first case-scoped endpoint and the internal
+  actor→participant resolution behavior.
+
+**Validation**:
+
+- `uv run black vultron/ test/ && uv run flake8 vultron/ test/`
+- `markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md"`
+- `uv run pytest --tb=short 2>&1 | tail -5` → `1021 passed, 5581 subtests passed`

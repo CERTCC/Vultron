@@ -234,6 +234,11 @@ the distinction between participant-specific and participant-agnostic state.
   and their role
   - This supports both human and agent consumers in knowing which protocol
     actions are applicable at any given moment
+  - Endpoint:
+    `GET /actors/{actor_id}/cases/{case_id}/action-rules`
+  - The actor/case pair MUST resolve internally to the matching
+    `CaseParticipant`; callers MUST NOT be required to supply both actor ID and
+    participant ID
   - CM-07-001 refines AR-07-001
   - CM-07-001 refines AR-07-002
 - `CM-07-002` The action rules response MUST include the participant's role
@@ -306,8 +311,10 @@ the distinction between participant-specific and participant-agnostic state.
 
 ### CM-07-001 through CM-07-003 Verification
 
-- Integration test: `GET /actors/{case_actor_id}/action-rules?participant={id}`
-  returns structured action list for known participant
+- Integration test:
+  `GET /actors/{actor_id}/cases/{case_id}/action-rules`
+  returns structured action list for the matching participant in the selected
+  case
 - Unit test: Action rules reflect current RM/EM/CS state for the participant
 
 ## Domain Model Architecture (SHOULD)
