@@ -82,6 +82,15 @@ This specification defines the normative technology constraints and implementati
   jobs pass.
   - **Rationale**: Parallel execution surfaces all failures simultaneously,
     reducing fix-cycle time and preserving the known-clean codebase baseline.
+- `IMPL-TS-07-006` The pytest configuration in `[tool.pytest.ini_options]`
+  MUST include `filterwarnings = ["error"]` so that test-suite warnings are
+  treated as errors and cannot accumulate as silent technical debt. Existing
+  warnings MUST be resolved before this setting is activated; new warnings
+  MUST NOT be introduced after it is active.
+  - **Rationale:** Warnings that are silently emitted during the test run are
+    a leading indicator of deprecated API usage, missing fixtures, and
+    collection hygiene issues. Treating them as errors prevents accumulation
+    and enforces immediate remediation.
 
 ---
 
