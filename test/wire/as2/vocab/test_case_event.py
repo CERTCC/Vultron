@@ -115,7 +115,7 @@ class TestCaseEventSerialization(unittest.TestCase):
         evt = CaseEvent(
             object_id=OBJ_ID,
             event_type=EVENT_TYPE,
-            received_at=datetime.fromisoformat(ts_str),
+            received_at=ts_str,  # type: ignore[arg-type]
         )
         self.assertEqual(
             datetime(2026, 3, 6, 20, 0, 0, tzinfo=timezone.utc),
@@ -127,7 +127,7 @@ class TestCaseEventSerialization(unittest.TestCase):
         evt = CaseEvent(
             object_id=OBJ_ID,
             event_type=EVENT_TYPE,
-            received_at=datetime.fromisoformat(ts_str.replace("Z", "+00:00")),
+            received_at=ts_str,  # type: ignore[arg-type]
         )
         self.assertEqual(
             datetime(2026, 3, 6, 20, 0, 0, tzinfo=timezone.utc),
