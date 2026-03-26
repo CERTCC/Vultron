@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import unittest
+from typing import Any, Type
 
 import vultron.bt.case_state.conditions as csc
 from vultron.bt.base.node_status import NodeStatus
@@ -38,7 +39,10 @@ class MyTestCase(unittest.TestCase):
         self.bb = ActorState()
 
     def _ab(
-        self, node_cls: object, expect_true_when: str, extra: list = []
+        self,
+        node_cls: Type[Any],
+        expect_true_when: str,
+        extra: list[str] | None = None,
     ) -> None:
         """
         Abstracts out the test for a CS state condition node
@@ -52,6 +56,8 @@ class MyTestCase(unittest.TestCase):
 
         node = node_cls()
         node.bb = self.bb
+
+        extra = extra or []
 
         for state in CS:
             node.bb.q_cs = state

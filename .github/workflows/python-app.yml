@@ -1,4 +1,5 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# Multi-stage CI pipeline: tests and linters run in parallel; build only
+# proceeds when all checks pass.
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
 name: Python application
@@ -10,6 +11,7 @@ on:
       - vultron/**
       - test/**
       - pyproject.toml
+      - pyrightconfig.json
       - .github/workflows/python-app.yml
   pull_request:
     branches: [ "main" ]
@@ -17,38 +19,124 @@ on:
       - vultron/**
       - test/**
       - pyproject.toml
+      - pyrightconfig.json
       - .github/workflows/python-app.yml
 
 permissions:
   contents: read
 
+# Shared setup used by every job below.
+# Each job installs deps independently (no shared filesystem across jobs).
+
 jobs:
-  build:
 
+  # ── Stage 1a: Tests ───────────────────────────────────────────────────────
+  test:
+    name: Tests (pytest)
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      with:
-        fetch-tags: true
-    - name: Set up Python
-      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-      with:
-        python-version: "3.13"
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip uv 
-        uv sync --dev --frozen
-    - uses: psf/black@c6755bb741b6481d6b3d3bb563c83fa060db96c9 # 26.3.1
-    - name: Test with pytest
-      run: |
-        uv run pytest
-    - name: Build
-      run: |
-        uv build
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-      with:
-        name: vultron
-        path: dist/vultron-*.tar.gz
-        retention-days: 14
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-tags: true
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv sync --dev --frozen
+      - name: Run pytest
+        run: uv run pytest --tb=short
+
+  # ── Stage 1b: Linters (run in parallel with tests) ────────────────────────
+
+  lint-black:
+    name: Lint (black)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv sync --dev --frozen
+      - name: Check formatting with black
+        run: uv run black --check vultron/ test/
+
+  lint-flake8:
+    name: Lint (flake8)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv sync --dev --frozen
+      - name: Lint with flake8
+        run: uv run flake8 vultron/ test/
+
+  lint-mypy:
+    name: Lint (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv sync --dev --frozen
+      - name: Type-check with mypy
+        run: uv run mypy
+
+  lint-pyright:
+    name: Lint (pyright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv sync --dev --frozen
+      - name: Type-check with pyright
+        run: uv run pyright
+
+  # ── Stage 2: Build (only if all stage-1 jobs pass) ───────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test, lint-black, lint-flake8, lint-mypy, lint-pyright]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-tags: true
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv sync --dev --frozen
+      - name: Build package
+        run: uv build
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: vultron
+          path: dist/vultron-*.tar.gz
+          retention-days: 14

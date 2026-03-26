@@ -20,11 +20,21 @@ VultronCase) conform structurally to these Protocols, so use cases can call
 methods on DataLayer results without importing wire-layer classes.
 """
 
-from typing import Protocol
+from typing import Any, Protocol, TypeGuard
 
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
+
+
+class PersistableModel(Protocol):
+    @property
+    def as_id(self) -> str: ...
+
+    @property
+    def as_type(self) -> str: ...
+
+    def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
 
 
 class CaseStatusModel(Protocol):
@@ -37,8 +47,7 @@ class ParticipantStatusModel(Protocol):
     vfd_state: CS_vfd
 
 
-class CaseModel(Protocol):
-    as_id: str
+class CaseModel(PersistableModel, Protocol):
     case_participants: list
     vulnerability_reports: list
     active_embargo: object
@@ -59,8 +68,7 @@ class CaseModel(Protocol):
     def current_status(self) -> CaseStatusModel: ...
 
 
-class ParticipantModel(Protocol):
-    as_id: str
+class ParticipantModel(PersistableModel, Protocol):
     accepted_embargo_ids: list
     participant_statuses: list[ParticipantStatusModel]
     attributed_to: object
@@ -69,3 +77,36 @@ class ParticipantModel(Protocol):
     def append_rm_state(
         self, rm_state: RM, actor: str, context: str
     ) -> bool: ...
+
+
+class OutboxCollectionModel(Protocol):
+    items: list[object]
+
+
+class ActorModel(PersistableModel, Protocol):
+    inbox: OutboxCollectionModel
+    outbox: OutboxCollectionModel
+
+
+def is_case_model(obj: PersistableModel | None) -> TypeGuard[CaseModel]:
+    return bool(
+        obj is not None
+        and getattr(obj, "as_type", None) == "VulnerabilityCase"
+        and hasattr(obj, "case_participants")
+        and hasattr(obj, "record_event")
+    )
+
+
+def is_participant_model(
+    obj: PersistableModel | object | None,
+) -> TypeGuard[ParticipantModel]:
+    return bool(
+        obj is not None
+        and getattr(obj, "as_type", None) == "CaseParticipant"
+        and hasattr(obj, "participant_statuses")
+        and hasattr(obj, "append_rm_state")
+    )
+
+
+def has_outbox(obj: PersistableModel | None) -> TypeGuard[ActorModel]:
+    return bool(obj is not None and hasattr(obj, "outbox"))

@@ -19,19 +19,19 @@ Test the reporting workflow
 import pytest
 
 from vultron.wire.as2.vocab.base.objects.activities.transitive import (
+    as_Accept,
     as_Create,
     as_Offer,
     as_Read,
-    as_TentativeReject,
     as_Reject,
-    as_Accept,
+    as_TentativeReject,
 )
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
-from vultron.wire.as2.vocab.type_helpers import AsActivityType
 from vultron.core.models.events import MessageSemantics
 from vultron.core.use_cases.report import (
     CreateReportReceivedUseCase,
@@ -81,7 +81,7 @@ def dl():
     dl.clear_all()
 
 
-def _call_use_case(activity: AsActivityType, use_case_class, dl=None):
+def _call_use_case(activity: as_Activity, use_case_class, dl=None):
     from vultron.wire.as2.extractor import extract_intent
 
     event = extract_intent(activity)
@@ -101,12 +101,12 @@ def _call_use_case(activity: AsActivityType, use_case_class, dl=None):
 
 # Tests
 def test_create_report_handler_returns_none(reporter, report, dl):
-    activity = as_Create(actor=reporter, object=report)
+    activity = as_Create(actor=reporter, as_object=report)
     _call_use_case(activity, CreateReportReceivedUseCase, dl=dl)
 
 
 def test_submit_report_persists_activity_and_report(reporter, report, dl):
-    activity = as_Offer(actor=reporter, object=report)
+    activity = as_Offer(actor=reporter, as_object=report)
     _call_use_case(activity, SubmitReportReceivedUseCase, dl=dl)
 
     # check side effects
@@ -116,20 +116,20 @@ def test_submit_report_persists_activity_and_report(reporter, report, dl):
 
 def test_read_activity_handler_noop_returns_none(reporter, report, dl):
     activity = as_Read(
-        actor=reporter, object=as_Offer(actor=reporter, object=report)
+        actor=reporter, as_object=as_Offer(actor=reporter, as_object=report)
     )
     _call_use_case(activity, AckReportReceivedUseCase, dl=dl)
 
 
 def test_accept_offer(reporter, report, dl):
-    offer = as_Offer(actor=reporter, object=report)
-    activity = as_Accept(actor=reporter, object=offer)
+    offer = as_Offer(actor=reporter, as_object=report)
+    activity = as_Accept(actor=reporter, as_object=offer)
     _call_use_case(activity, ValidateReportReceivedUseCase, dl=dl)
 
 
 def test_tentative_reject_triggers_invalidation(reporter, report, dl):
-    offer = as_Offer(actor=reporter, object=report)
-    activity = as_TentativeReject(actor=reporter, object=offer)
+    offer = as_Offer(actor=reporter, as_object=report)
+    activity = as_TentativeReject(actor=reporter, as_object=offer)
     _call_use_case(activity, InvalidateReportReceivedUseCase, dl=dl)
 
     # check side effects
@@ -137,13 +137,13 @@ def test_tentative_reject_triggers_invalidation(reporter, report, dl):
 
 
 def test_create_case_handler_returns_none(coordinator, case, dl):
-    activity = as_Create(actor=coordinator, object=case)
+    activity = as_Create(actor=coordinator, as_object=case)
     _call_use_case(activity, CreateCaseReceivedUseCase, dl=dl)
 
 
 def test_reject_offer_triggers_close_report(reporter, report, dl):
-    offer = as_Offer(actor=reporter, object=report)
-    activity = as_Reject(actor=reporter, object=offer)
+    offer = as_Offer(actor=reporter, as_object=report)
+    activity = as_Reject(actor=reporter, as_object=offer)
     _call_use_case(activity, CloseReportReceivedUseCase, dl=dl)
 
     # check side effects

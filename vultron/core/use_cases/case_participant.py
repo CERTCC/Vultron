@@ -1,7 +1,6 @@
 """Use cases for case participant management activities."""
 
 import logging
-from typing import cast
 
 from vultron.core.models.events.case_participant import (
     AddCaseParticipantToCaseReceivedEvent,
@@ -9,8 +8,8 @@ from vultron.core.models.events.case_participant import (
     RemoveCaseParticipantFromCaseReceivedEvent,
 )
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
-from vultron.core.models.protocols import CaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +44,15 @@ class AddCaseParticipantToCaseReceivedUseCase:
         request = self._request
         participant_id = request.participant_id
         case_id = request.case_id
+        if participant_id is None or case_id is None:
+            logger.warning(
+                "add_case_participant_to_case: missing participant_id or case_id"
+            )
+            return
         participant = self._dl.read(participant_id)
-        case = cast(CaseModel, self._dl.read(case_id))
+        case = self._dl.read(case_id)
 
-        if case is None:
+        if not is_case_model(case):
             logger.warning(
                 "add_case_participant_to_case: case '%s' not found",
                 case_id,
@@ -66,12 +70,10 @@ class AddCaseParticipantToCaseReceivedUseCase:
 
         # Use string ID to avoid wire-type serialization incompatibility
         case.case_participants.append(participant_id)
-        if (
-            hasattr(participant, "attributed_to")
-            and participant.attributed_to is not None
-        ):
-            actor_id = _as_id(participant.attributed_to)
-            case.actor_participant_index[actor_id] = participant_id
+        if participant is not None:
+            actor_id = _as_id(getattr(participant, "attributed_to", None))
+            if actor_id is not None:
+                case.actor_participant_index[actor_id] = participant_id
         self._dl.save(case)
         logger.info(
             "Added participant '%s' to case '%s'", participant_id, case_id
@@ -91,9 +93,14 @@ class RemoveCaseParticipantFromCaseReceivedUseCase:
         request = self._request
         participant_id = request.participant_id
         case_id = request.case_id
-        case = cast(CaseModel, self._dl.read(case_id))
+        if participant_id is None or case_id is None:
+            logger.warning(
+                "remove_case_participant_from_case: missing participant_id or case_id"
+            )
+            return
+        case = self._dl.read(case_id)
 
-        if case is None:
+        if not is_case_model(case):
             logger.warning(
                 "remove_case_participant_from_case: case '%s' not found",
                 case_id,

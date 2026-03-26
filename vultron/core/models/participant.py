@@ -32,8 +32,8 @@ class VultronParticipant(VultronObject):
     """
 
     as_type: str = "CaseParticipant"
-    attributed_to: NonEmptyString
-    context: NonEmptyString
+    attributed_to: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
+    context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     case_roles: list[CVDRoles] = Field(default_factory=list)
     participant_statuses: list[VultronParticipantStatus] = Field(
         default_factory=list
@@ -43,7 +43,9 @@ class VultronParticipant(VultronObject):
 
     @field_serializer("case_roles")
     def _serialize_case_roles(self, value: list[CVDRoles]) -> list[str]:
-        return [role.name for role in value]
+        return [
+            role.name if role.name is not None else str(role) for role in value
+        ]
 
     @field_validator("case_roles", mode="before")
     @classmethod

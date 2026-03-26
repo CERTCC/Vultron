@@ -28,6 +28,8 @@ Per ``notes/domain-model-separation.md`` (Outbound Event Design Questions)
 and the P65-6b task in ``plan/IMPLEMENTATION_PLAN.md``.
 """
 
+from typing import cast
+
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -47,7 +49,11 @@ from vultron.wire.as2.vocab.objects.case_status import (
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
+    VulnerabilityReportRef,
 )
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipantRef
+from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEventRef
+from vultron.wire.as2.vocab.base.objects.object_types import as_NoteRef
 
 
 def domain_case_to_wire(domain: VultronCase) -> VulnerabilityCase:
@@ -57,12 +63,18 @@ def domain_case_to_wire(domain: VultronCase) -> VulnerabilityCase:
         name=domain.name,
         attributed_to=domain.attributed_to,
         context=domain.context,
-        vulnerability_reports=domain.vulnerability_reports,
-        case_participants=domain.case_participants,
+        vulnerability_reports=cast(
+            list[VulnerabilityReportRef], domain.vulnerability_reports
+        ),
+        case_participants=cast(
+            list[CaseParticipantRef], domain.case_participants
+        ),
         actor_participant_index=domain.actor_participant_index,
-        notes=domain.notes,
+        notes=cast(list[as_NoteRef], domain.notes),
         active_embargo=domain.active_embargo,
-        proposed_embargoes=domain.proposed_embargoes,
+        proposed_embargoes=cast(
+            list[EmbargoEventRef], domain.proposed_embargoes
+        ),
     )
 
 
@@ -98,7 +110,7 @@ def domain_create_case_activity_to_wire(
     return as_CreateCase(
         as_id=domain.as_id,
         actor=domain.actor,
-        object=domain.object,
+        as_object=domain.as_object,
     )
 
 

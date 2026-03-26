@@ -46,7 +46,7 @@ inboxes.
 # Standard library imports
 import logging
 import sys
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.wire.as2.vocab.activities.case import (
@@ -85,6 +85,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     log_case_state,
     logfmt,
     post_to_inbox_and_wait,
+    ref_id,
     verify_object_stored,
 )
 
@@ -118,7 +119,7 @@ def _setup_initialized_case(
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
     validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
-        object=offer.as_id,
+        as_object=offer.as_id,
         content="Confirmed — remote code execution via unsanitized input.",
     )
     post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
@@ -194,7 +195,7 @@ def demo_invite_actor_accept(
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = RmInviteToCaseActivity(
             actor=vendor.as_id,
-            object=coordinator.as_id,
+            as_object=coordinator.as_id,
             target=case.as_id,
             to=[coordinator.as_id],
             content=f"We're inviting you to participate in {case.name}.",
@@ -207,7 +208,7 @@ def demo_invite_actor_accept(
         # datalayer with all fields intact
         accept = RmAcceptInviteToCaseActivity(
             actor=coordinator.as_id,
-            object=invite.as_id,
+            as_object=invite.as_id,
             to=[vendor.as_id],
             content=f"Accepting invitation to participate in {case.name}.",
         )
@@ -222,8 +223,7 @@ def demo_invite_actor_accept(
             if final_case is None:
                 raise ValueError("Could not retrieve case after accept")
             participant_ids = [
-                (p.as_id if hasattr(p, "as_id") else str(p))
-                for p in final_case.case_participants
+                (ref_id(p) or str(p)) for p in final_case.case_participants
             ]
             coord_segment = coordinator.as_id.split("/")[-1]
             coord_participant = [
@@ -271,7 +271,7 @@ def demo_invite_actor_reject(
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = RmInviteToCaseActivity(
             actor=vendor.as_id,
-            object=coordinator.as_id,
+            as_object=coordinator.as_id,
             target=case.as_id,
             to=[coordinator.as_id],
             content=f"We're inviting you to participate in {case.name}.",
@@ -284,7 +284,7 @@ def demo_invite_actor_reject(
         # datalayer with all fields intact
         reject = RmRejectInviteToCaseActivity(
             actor=coordinator.as_id,
-            object=invite.as_id,
+            as_object=invite.as_id,
             to=[vendor.as_id],
             content=f"Declining the invitation to participate in {case.name}.",
         )
@@ -306,7 +306,7 @@ def demo_invite_actor_reject(
     logger.info("✅ DEMO COMPLETE (reject path): Invite rejected gracefully.")
 
 
-_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
     ("Demo: Invite Actor — Accept Path", demo_invite_actor_accept),
     ("Demo: Invite Actor — Reject Path", demo_invite_actor_reject),
 ]

@@ -385,7 +385,9 @@ class TestStategraph(unittest.TestCase):
         for state in m.states:
             if state == "VFDPXA":
                 continue
-            self.assertGreater(len(m.next_state(state)), 0)
+            next_states = m.next_state(state)
+            assert isinstance(next_states, list)
+            self.assertGreater(len(next_states), 0)
 
     def test_compute_pagerank(self):
         m = self.model

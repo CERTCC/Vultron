@@ -31,7 +31,7 @@ def recommend_actor() -> RecommendActorActivity:
     _coordinator = _COORDINATOR
     _activity = RecommendActorActivity(
         actor=_finder.as_id,
-        object=_coordinator.as_id,
+        as_object=_coordinator.as_id,
         context=_case.as_id,
         target=_case.as_id,
         to=_vendor.as_id,
@@ -48,7 +48,7 @@ def accept_actor_recommendation() -> AcceptActorRecommendationActivity:
     _recommendation = recommend_actor()
     _activity = AcceptActorRecommendationActivity(
         actor=_vendor.as_id,
-        object=_recommendation,
+        as_object=_recommendation,
         context=_case.as_id,
         target=_case.as_id,
         to=_finder.as_id,
@@ -66,7 +66,7 @@ def reject_actor_recommendation() -> RejectActorRecommendationActivity:
     _recommendation = recommend_actor()
     _activity = RejectActorRecommendationActivity(
         actor=_vendor.as_id,
-        object=_recommendation,
+        as_object=_recommendation,
         context=_case.as_id,
         target=_case.as_id,
         to=_finder.as_id,

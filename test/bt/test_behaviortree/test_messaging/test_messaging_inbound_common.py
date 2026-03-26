@@ -15,6 +15,7 @@
 
 import unittest
 from collections import deque
+from typing import Any, Deque, cast
 
 from pydantic import BaseModel
 
@@ -29,13 +30,17 @@ from vultron.bt.messaging.inbound._behaviors.common import (
 
 
 class MockState:
-    current_message = None
-    incoming_messages = deque()
-    msgs_received_this_tick = []
+    current_message: object | None = None
+    incoming_messages: Deque["MockMsg"] = deque()
+    msgs_received_this_tick: list["MockMsg"] = []
 
 
 class MockMsg(BaseModel):
     msg_type: str = "gloop"
+
+
+def _node(node: ActionNode) -> Any:
+    return cast(Any, node)
 
 
 class MyTestCase(unittest.TestCase):
@@ -46,7 +51,7 @@ class MyTestCase(unittest.TestCase):
         pass
 
     def test_pop_message_fails_if_current_message_set(self):
-        pm = PopMessage()
+        pm = _node(PopMessage())
         self.assertIsInstance(pm, ActionNode)
 
         # fail if current_message is already set
@@ -56,7 +61,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(NodeStatus.FAILURE, pm._tick())
 
     def test_pop_message_fails_when_incoming_empty(self):
-        pm = PopMessage()
+        pm = _node(PopMessage())
         self.assertIsInstance(pm, ActionNode)
 
         pm.bb = MockState()
@@ -68,7 +73,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(NodeStatus.FAILURE, pm._tick())
 
     def test_pop_message_succeeds(self):
-        pm = PopMessage()
+        pm = _node(PopMessage())
         self.assertIsInstance(pm, ActionNode)
 
         msg = MockMsg()
@@ -86,7 +91,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(msg, pm.bb.current_message)
 
     def test_pop_message_fifo(self):
-        pm = PopMessage()
+        pm = _node(PopMessage())
         pm.bb = MockState()
 
         # test FIFO
@@ -100,7 +105,7 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(msg, pm.bb.current_message)
 
     def test_push_message_succeeds_if_no_current_message(self):
-        pm = PushMessage()
+        pm = _node(PushMessage())
         pm.bb = MockState()
 
         self.assertIsNone(pm.bb.current_message)
@@ -108,7 +113,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(NodeStatus.SUCCESS, r)
 
     def test_push_message_succeeds_if_current_message(self):
-        pm = PushMessage()
+        pm = _node(PushMessage())
         pm.bb = MockState()
 
         self.assertIsNone(pm.bb.current_message)
@@ -138,7 +143,7 @@ class MyTestCase(unittest.TestCase):
         )
 
     def test_unset_current_msg(self):
-        node = UnsetCurrentMsg()
+        node = _node(UnsetCurrentMsg())
         node.bb = MockState()
         msg = MockMsg()
         self.assertIsNone(node.bb.current_message)
@@ -153,7 +158,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIsNone(node.bb.current_message)
 
     def test_log_msg(self):
-        node = LogMsg()
+        node = _node(LogMsg())
         node.bb = MockState()
         msg = MockMsg()
         self.assertIsNone(node.bb.current_message)

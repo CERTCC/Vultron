@@ -15,6 +15,10 @@
 
 """Domain representations of AS2 activity types used in the core layer."""
 
+# pyright: reportGeneralTypeIssues=false
+
+# pyright: reportGeneralTypeIssues=false
+
 from typing import Any, Literal
 
 from pydantic import Field
@@ -45,9 +49,17 @@ class VultronActivity(VultronObject):
     to ``populate_by_name=True`` on ``VultronBase``.
     """
 
-    as_type: NonEmptyString = Field(alias="type")
+    as_type: NonEmptyString = (
+        Field(  # pyright: ignore[reportGeneralTypeIssues]
+            validation_alias="type", serialization_alias="type"
+        )
+    )
     actor: NonEmptyString  # non-optional because every activity must have an actor
-    as_object: Any | None = Field(default=None, alias="object")
+    as_object: Any | None = Field(
+        default=None,
+        validation_alias="object",
+        serialization_alias="object",
+    )
     target: NonEmptyString | None = None
     origin: NonEmptyString | None = None
     to: list[str] | None = None

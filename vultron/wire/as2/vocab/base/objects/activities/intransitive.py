@@ -46,7 +46,11 @@ class as_Travel(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-travel>
     """
 
-    as_type: IA_type = Field(default=IA_type.TRAVEL, alias="type")
+    as_type: IA_type = Field(
+        default=IA_type.TRAVEL,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -55,7 +59,11 @@ class as_Arrive(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-arrive>
     """
 
-    as_type: IA_type = Field(default=IA_type.ARRIVE, alias="type")
+    as_type: IA_type = Field(
+        default=IA_type.ARRIVE,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
 
 @activitystreams_activity
@@ -64,7 +72,11 @@ class as_Question(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-question>
     """
 
-    as_type: IA_type = Field(default=IA_type.QUESTION, alias="type")
+    as_type: IA_type = Field(
+        default=IA_type.QUESTION,
+        validation_alias="type",
+        serialization_alias="type",
+    )
 
     anyOf: as_Object | as_Link | str | None = None
     oneOf: as_Object | as_Link | str | None = None

@@ -56,14 +56,17 @@ class TestCreateParticipantName(unittest.TestCase):
 
     def test_name_contains_participant_id(self):
         """Name must include the participant's ID."""
+        assert self.activity.name is not None
         assert self.participant.as_id in self.activity.name
 
     def test_name_contains_attributed_to(self):
         """Name must include the actor the participant is attributed to."""
+        assert self.activity.name is not None
         assert self.attributed_to in self.activity.name
 
     def test_name_contains_actor(self):
         """Name must include the creating actor."""
+        assert self.activity.name is not None
         assert self.actor_id in self.activity.name
 
     def test_name_not_misleading(self):

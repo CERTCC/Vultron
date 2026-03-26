@@ -13,7 +13,7 @@ to be ready before proceeding.
 import logging
 from unittest.mock import Mock, patch
 
-import requests
+import requests  # type: ignore[import-untyped]
 
 from vultron.demo.receive_report_demo import (
     DataLayerClient,

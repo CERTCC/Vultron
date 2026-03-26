@@ -1,7 +1,6 @@
 """Use cases for embargo management activities."""
 
 import logging
-from typing import cast
 
 from transitions import MachineError
 
@@ -22,7 +21,10 @@ from vultron.core.models.events.embargo import (
 )
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
-from vultron.core.models.protocols import CaseModel, ParticipantModel
+from vultron.core.models.protocols import (
+    is_case_model,
+    is_participant_model,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +59,14 @@ class AddEmbargoEventToCaseReceivedUseCase:
         request = self._request
         embargo_id = request.embargo_id
         case_id = request.case_id
-        case = cast(CaseModel, self._dl.read(case_id))
+        if embargo_id is None or case_id is None:
+            logger.warning(
+                "add_embargo_event_to_case: missing embargo_id or case_id"
+            )
+            return
+        case = self._dl.read(case_id)
 
-        if case is None:
+        if not is_case_model(case):
             logger.warning(
                 "add_embargo_event_to_case: case '%s' not found", case_id
             )
@@ -104,9 +111,14 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
         request = self._request
         embargo_id = request.embargo_id
         case_id = request.case_id
-        case = cast(CaseModel, self._dl.read(case_id))
+        if embargo_id is None or case_id is None:
+            logger.warning(
+                "remove_embargo_event_from_case: missing embargo_id or case_id"
+            )
+            return
+        case = self._dl.read(case_id)
 
-        if case is None:
+        if not is_case_model(case):
             logger.warning(
                 "remove_embargo_event_from_case: case '%s' not found",
                 case_id,
@@ -138,7 +150,7 @@ class RemoveEmbargoEventFromCaseReceivedUseCase:
 
         try:
             # PROPOSED → NONE is a valid machine transition (REJECT trigger).
-            adapter.reject()
+            getattr(adapter, "reject")()
             new_em_state = EM(adapter.state)
         except MachineError:
             # No machine path back to NONE from this state.
@@ -211,10 +223,20 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
     def execute(self) -> None:
         request = self._request
         embargo_id = request.embargo_id
+        if embargo_id is None:
+            logger.error(
+                "accept_invite_to_embargo_on_case: missing embargo_id on request"
+            )
+            return
 
         if request.case_id:
-            case = cast(CaseModel, self._dl.read(request.case_id))
+            case = self._dl.read(request.case_id)
         else:
+            if request.invite_id is None:
+                logger.error(
+                    "accept_invite_to_embargo_on_case: missing invite_id on request"
+                )
+                return
             invite = self._dl.read(request.invite_id)
             if invite is None:
                 logger.error(
@@ -230,9 +252,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
                     request.invite_id,
                 )
                 return
-            case = cast(CaseModel, self._dl.read(context_id))
+            case = self._dl.read(context_id)
 
-        if case is None:
+        if not is_case_model(case):
             logger.error("accept_invite_to_embargo_on_case: case not found")
             return
         case_id = case.as_id
@@ -264,10 +286,9 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         accepting_actor_id = request.actor_id
         participant_id = case.actor_participant_index.get(accepting_actor_id)
         if participant_id:
-            participant = cast(ParticipantModel, self._dl.read(participant_id))
-            if (
-                participant is not None
-                and embargo_id not in participant.accepted_embargo_ids
+            participant = self._dl.read(participant_id)
+            if is_participant_model(participant) and (
+                embargo_id not in participant.accepted_embargo_ids
             ):
                 participant.accepted_embargo_ids.append(embargo_id)
                 self._dl.save(participant)

@@ -1,7 +1,6 @@
 """Use cases for case actor/participant invitation and suggestion activities."""
 
 import logging
-from typing import cast
 
 from vultron.core.models.events.actor import (
     AcceptCaseOwnershipTransferReceivedEvent,
@@ -16,8 +15,8 @@ from vultron.core.models.events.actor import (
 )
 from vultron.core.models.vultron_types import VultronParticipant
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
-from vultron.core.models.protocols import CaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +105,14 @@ class AcceptCaseOwnershipTransferReceivedUseCase:
         request = self._request
         case_id = request.case_id
         new_owner_id = request.actor_id
-        case = cast(CaseModel, self._dl.read(case_id))
+        if case_id is None:
+            logger.warning(
+                "accept_case_ownership_transfer: missing case_id on request"
+            )
+            return
+        case = self._dl.read(case_id)
 
-        if case is None:
+        if not is_case_model(case):
             logger.warning(
                 "accept_case_ownership_transfer: case '%s' not found",
                 case_id,
@@ -180,9 +184,14 @@ class AcceptInviteActorToCaseReceivedUseCase:
         request = self._request
         case_id = request.case_id
         invitee_id = request.invitee_id
-        case = cast(CaseModel, self._dl.read(case_id))
+        if case_id is None or invitee_id is None:
+            logger.warning(
+                "accept_invite_actor_to_case: missing case_id or invitee_id"
+            )
+            return
+        case = self._dl.read(case_id)
 
-        if case is None:
+        if not is_case_model(case):
             logger.warning(
                 "accept_invite_actor_to_case: case '%s' not found", case_id
             )

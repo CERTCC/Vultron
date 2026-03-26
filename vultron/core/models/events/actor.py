@@ -23,7 +23,7 @@ class SuggestActorToCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.SUGGEST_ACTOR_TO_CASE] = (
         MessageSemantics.SUGGEST_ACTOR_TO_CASE
     )
-    activity: VultronActivity
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
 class AcceptSuggestActorToCaseReceivedEvent(VultronEvent):
@@ -32,7 +32,7 @@ class AcceptSuggestActorToCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE] = (
         MessageSemantics.ACCEPT_SUGGEST_ACTOR_TO_CASE
     )
-    activity: VultronActivity
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
 class RejectSuggestActorToCaseReceivedEvent(
@@ -51,7 +51,7 @@ class OfferCaseOwnershipTransferReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER] = (
         MessageSemantics.OFFER_CASE_OWNERSHIP_TRANSFER
     )
-    activity: VultronActivity
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
 class AcceptCaseOwnershipTransferReceivedEvent(
@@ -80,7 +80,7 @@ class InviteActorToCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.INVITE_ACTOR_TO_CASE] = (
         MessageSemantics.INVITE_ACTOR_TO_CASE
     )
-    activity: VultronActivity
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
 class AcceptInviteActorToCaseReceivedEvent(

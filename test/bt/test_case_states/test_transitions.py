@@ -13,6 +13,7 @@
 
 import unittest
 from copy import deepcopy
+from typing import Any, cast
 
 import vultron.bt.case_state.transitions as cst
 from vultron.bt.base.node_status import NodeStatus
@@ -44,7 +45,7 @@ class MyTestCase(unittest.TestCase):
         Returns:
 
         """
-        node = self.cls2test()
+        node = cast(Any, self.cls2test())
         node.bb = self.bb
 
         for state in CS:
@@ -112,7 +113,7 @@ class MyTestCase(unittest.TestCase):
         self._test_q_cs_to_something()
 
     def _test_q_cs_to_something_with_precondition(self):
-        node = self.cls2test()
+        node = cast(Any, self.cls2test())
         node.bb = self.bb
 
         for state in CS:

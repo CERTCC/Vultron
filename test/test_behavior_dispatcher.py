@@ -27,8 +27,7 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
     event = CreateReportReceivedEvent(
         activity_id="act-xyz",
         actor_id="https://example.org/users/tester",
-        object_type="VulnerabilityReport",
-        report=VultronReport(),
+        object_=VultronReport(content="test report"),
         activity=VultronActivity(
             as_type="Create", actor="https://example.org/users/tester"
         ),

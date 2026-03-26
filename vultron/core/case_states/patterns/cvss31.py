@@ -17,7 +17,7 @@ Case State Patterns for CVSS 3.1
 
 import re
 from enum import Enum
-from typing import List
+from typing import List, cast
 
 from vultron.core.scoring.cvss_31 import CVSS_31_E, CVSS_31_RL
 from vultron.core.case_states.patterns.base import compile_patterns
@@ -69,4 +69,4 @@ def cvss_31(state: str) -> List[Enum]:
     _e = find_matches(state, CVSS_31_E_)
     _rl = find_matches(state, CVSS_31_RL_)
     combined = _e + _rl
-    return sorted(list(set(combined)))
+    return cast(List[Enum], sorted(list(set(combined))))

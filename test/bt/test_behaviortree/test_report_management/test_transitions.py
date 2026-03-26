@@ -17,11 +17,12 @@ import unittest
 
 import vultron.bt.report_management.transitions as rmt
 from vultron.bt.base.node_status import NodeStatus
+from vultron.core.states.rm import RM
 
 
 class MockState:
-    q_rm = None
-    q_rm_history = []
+    q_rm: RM | None = None
+    q_rm_history: list[RM] = []
 
 
 class TestRMTransitions(unittest.TestCase):

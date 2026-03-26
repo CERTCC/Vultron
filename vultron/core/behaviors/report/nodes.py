@@ -34,6 +34,11 @@ from vultron.core.models.vultron_types import (
     VultronCreateCaseActivity,
     VultronParticipantStatus,
 )
+from vultron.core.models.protocols import (
+    has_outbox,
+    is_case_model,
+    is_participant_model,
+)
 from vultron.core.behaviors.helpers import (
     DataLayerAction,
     DataLayerCondition,
@@ -86,6 +91,9 @@ class CheckRMStateValid(DataLayerCondition):
         if self.datalayer is None:
             self.logger.error(f"{self.name}: DataLayer not available")
             return Status.FAILURE
+        if self.actor_id is None:
+            self.logger.error(f"{self.name}: actor_id not available")
+            return Status.FAILURE
 
         valid_id = _report_phase_status_id(
             self.actor_id, self.report_id, RM.VALID.value
@@ -131,6 +139,9 @@ class CheckRMStateReceivedOrInvalid(DataLayerCondition):
         """
         if self.datalayer is None:
             self.logger.error(f"{self.name}: DataLayer not available")
+            return Status.FAILURE
+        if self.actor_id is None:
+            self.logger.error(f"{self.name}: actor_id not available")
             return Status.FAILURE
 
         # Return FAILURE if already VALID (can't re-validate)
@@ -327,13 +338,14 @@ class CreateCaseNode(DataLayerAction):
             report_obj = self.datalayer.read(
                 self.report_id, raise_on_missing=True
             )
+            if report_obj is None:
+                self.logger.error(
+                    f"{self.name}: Report {self.report_id} not found"
+                )
+                return Status.FAILURE
 
             # Create VulnerabilityCase domain object
-            report_id_ref = (
-                report_obj.as_id
-                if hasattr(report_obj, "as_id")
-                else self.report_id
-            )
+            report_id_ref = report_obj.as_id
             case = VultronCase(
                 name=f"Case for Report {self.report_id}",
                 vulnerability_reports=[report_id_ref],
@@ -425,7 +437,15 @@ class CreateCaseActivity(DataLayerAction):
 
             # Collect addressees (same logic as handler)
             addressees = []
-            for x in [actor, report.attributed_to, offer.to]:
+            report_attributed_to = (
+                getattr(report, "attributed_to", None)
+                if report is not None
+                else None
+            )
+            offer_to = (
+                getattr(offer, "to", None) if offer is not None else None
+            )
+            for x in [actor, report_attributed_to, offer_to]:
                 if x is None:
                     continue
                 if isinstance(x, str):
@@ -447,7 +467,7 @@ class CreateCaseActivity(DataLayerAction):
 
             # Create CreateCaseActivity activity domain object
             create_case_activity = VultronCreateCaseActivity(
-                actor=self.actor_id, object=case_id
+                actor=self.actor_id, as_object=case_id
             )
 
             # Store activity in DataLayer
@@ -531,9 +551,7 @@ class UpdateActorOutbox(DataLayerAction):
             )
 
             # Verify actor has outbox
-            if not hasattr(actor_obj, "outbox") or not hasattr(
-                actor_obj.outbox, "items"
-            ):
+            if not has_outbox(actor_obj):
                 self.logger.error(
                     f"{self.name}: Actor {self.actor_id} has no outbox or outbox.items"
                 )
@@ -681,7 +699,7 @@ class CheckParticipantExists(DataLayerCondition):
             case_obj = self.datalayer.read(
                 self.case_id, raise_on_missing=False
             )
-            if case_obj is None:
+            if not is_case_model(case_obj):
                 self.logger.debug(
                     f"{self.name}: Case {self.case_id} not found"
                 )
@@ -689,11 +707,14 @@ class CheckParticipantExists(DataLayerCondition):
 
             for participant_ref in case_obj.case_participants:
                 if isinstance(participant_ref, str):
-                    participant = self.datalayer.read(participant_ref)
-                    if participant is None:
+                    participant_raw = self.datalayer.read(participant_ref)
+                    if participant_raw is None:
                         continue
                 else:
-                    participant = participant_ref
+                    participant_raw = participant_ref
+                if not is_participant_model(participant_raw):
+                    continue
+                participant = participant_raw
                 actor_ref = participant.attributed_to
                 p_actor_id = (
                     actor_ref
@@ -753,6 +774,9 @@ class TransitionParticipantRMtoAccepted(DataLayerAction):
             return Status.FAILURE
 
         try:
+            if self.actor_id is None:
+                self.logger.error(f"{self.name}: actor_id not available")
+                return Status.FAILURE
             result = update_participant_rm_state(
                 self.case_id, self.actor_id, RM.ACCEPTED, self.datalayer
             )
@@ -799,6 +823,9 @@ class TransitionParticipantRMtoDeferred(DataLayerAction):
             return Status.FAILURE
 
         try:
+            if self.actor_id is None:
+                self.logger.error(f"{self.name}: actor_id not available")
+                return Status.FAILURE
             result = update_participant_rm_state(
                 self.case_id, self.actor_id, RM.DEFERRED, self.datalayer
             )

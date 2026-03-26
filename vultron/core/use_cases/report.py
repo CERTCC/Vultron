@@ -161,6 +161,10 @@ class ValidateReportReceivedUseCase:
         actor_id = request.actor_id
         report_id = request.report_id
         offer_id = request.offer_id
+        if report_id is None or offer_id is None:
+            raise ValueError(
+                "ValidateReportReceivedEvent requires report_id and offer_id"
+            )
 
         logger.info(
             "Actor '%s' validates VulnerabilityReport '%s' via BT execution",

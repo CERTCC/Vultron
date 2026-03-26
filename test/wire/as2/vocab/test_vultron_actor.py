@@ -46,26 +46,27 @@ class TestVultronPersonBasics(unittest.TestCase):
     """VultronPerson retains Person type and supports embargo_policy."""
 
     def test_as_type_is_person(self):
-        p = VultronPerson(id="https://example.org/users/alice")
+        p = VultronPerson(as_id="https://example.org/users/alice")
         self.assertEqual(as_ActorType.PERSON, p.as_type)
 
     def test_embargo_policy_defaults_to_none(self):
-        p = VultronPerson(id="https://example.org/users/alice")
+        p = VultronPerson(as_id="https://example.org/users/alice")
         self.assertIsNone(p.embargo_policy)
 
     def test_embargo_policy_inline_object(self):
         policy = _make_policy()
         p = VultronPerson(
-            id="https://example.org/users/alice",
+            as_id="https://example.org/users/alice",
             embargo_policy=policy,
         )
+        assert isinstance(p.embargo_policy, EmbargoPolicy)
         self.assertEqual(policy.as_id, p.embargo_policy.as_id)
         self.assertEqual(90, p.embargo_policy.preferred_duration_days)
 
     def test_embargo_policy_reference_string(self):
         policy_id = "https://example.org/policies/alice-ep"
         p = VultronPerson(
-            id="https://example.org/users/alice",
+            as_id="https://example.org/users/alice",
             embargo_policy=policy_id,
         )
         self.assertEqual(policy_id, p.embargo_policy)
@@ -75,7 +76,9 @@ class TestVultronPersonBasics(unittest.TestCase):
         self.assertIsInstance(p, VultronActorMixin)
 
     def test_json_round_trip_no_policy(self):
-        p = VultronPerson(name="Alice", id="https://example.org/users/alice")
+        p = VultronPerson(
+            name="Alice", as_id="https://example.org/users/alice"
+        )
         j = p.to_json()
         self.assertIn("Person", j)
         self.assertNotIn("embargo_policy", j)
@@ -84,7 +87,7 @@ class TestVultronPersonBasics(unittest.TestCase):
         policy = _make_policy()
         p = VultronPerson(
             name="Alice",
-            id="https://example.org/users/alice",
+            as_id="https://example.org/users/alice",
             embargo_policy=policy,
         )
         j = p.to_json()
@@ -98,19 +101,20 @@ class TestVultronOrganizationBasics(unittest.TestCase):
     embargo_policy."""
 
     def test_as_type_is_organization(self):
-        org = VultronOrganization(id="https://example.org/orgs/vendor")
+        org = VultronOrganization(as_id="https://example.org/orgs/vendor")
         self.assertEqual(as_ActorType.ORGANIZATION, org.as_type)
 
     def test_embargo_policy_defaults_to_none(self):
-        org = VultronOrganization(id="https://example.org/orgs/vendor")
+        org = VultronOrganization(as_id="https://example.org/orgs/vendor")
         self.assertIsNone(org.embargo_policy)
 
     def test_embargo_policy_inline_object(self):
         policy = _make_policy()
         org = VultronOrganization(
-            id="https://example.org/orgs/vendor",
+            as_id="https://example.org/orgs/vendor",
             embargo_policy=policy,
         )
+        assert isinstance(org.embargo_policy, EmbargoPolicy)
         self.assertEqual(90, org.embargo_policy.preferred_duration_days)
 
     def test_is_instance_of_mixin(self):
@@ -122,11 +126,11 @@ class TestVultronServiceBasics(unittest.TestCase):
     """VultronService retains Service type and supports embargo_policy."""
 
     def test_as_type_is_service(self):
-        svc = VultronService(id="https://example.org/services/bot")
+        svc = VultronService(as_id="https://example.org/services/bot")
         self.assertEqual(as_ActorType.SERVICE, svc.as_type)
 
     def test_embargo_policy_defaults_to_none(self):
-        svc = VultronService(id="https://example.org/services/bot")
+        svc = VultronService(as_id="https://example.org/services/bot")
         self.assertIsNone(svc.embargo_policy)
 
     def test_is_instance_of_mixin(self):

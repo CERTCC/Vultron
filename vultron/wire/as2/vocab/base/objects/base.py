@@ -15,9 +15,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from datetime import datetime, timedelta
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, cast
 
-import isodate
+import isodate  # type: ignore[import-untyped]
 from pydantic import field_serializer, field_validator, Field
 
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -77,7 +77,7 @@ class as_Object(as_Base):
     def serialize_duration(self, value: timedelta | None) -> str | None:
         if value is None:
             return None
-        return isodate.duration_isoformat(value)
+        return cast(str, isodate.duration_isoformat(value))
 
     @field_validator("duration", mode="before")
     @classmethod
@@ -87,8 +87,8 @@ class as_Object(as_Base):
         if isinstance(value, timedelta):
             return value
         if isinstance(value, str):
-            return isodate.parse_duration(value)
-        return value
+            return cast(timedelta, isodate.parse_duration(value))
+        raise TypeError(f"Unsupported duration value: {value!r}")
 
     @field_serializer(
         "start_time", "end_time", "published", "updated", when_used="json"
@@ -111,6 +111,7 @@ class as_Object(as_Base):
             return value
         if isinstance(value, str):
             return datetime.fromisoformat(value)
+        raise TypeError(f"Unsupported datetime value: {value!r}")
 
 
 as_ObjectRef: TypeAlias = ActivityStreamRef[as_Object]

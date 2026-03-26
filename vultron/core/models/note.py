@@ -25,4 +25,4 @@ class VultronNote(VultronObject):
     """
 
     as_type: str = "Note"
-    content: NonEmptyString
+    content: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]

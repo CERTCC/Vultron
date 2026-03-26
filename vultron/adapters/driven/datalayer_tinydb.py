@@ -24,9 +24,9 @@ The backward-compat re-export shim at
 are updated to import from this module directly.
 """
 
-from typing import TypeVar
+from typing import Any, TypeVar, cast
 
-from pydantic import BaseModel
+from pydantic import ValidationError
 from tinydb import Query, TinyDB
 from tinydb.queries import QueryInstance
 from tinydb.storages import MemoryStorage
@@ -38,9 +38,11 @@ from vultron.adapters.driven.db_record import (
     object_to_record,
     record_to_object,
 )
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
+from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
-BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
+PersistableModelT = TypeVar("PersistableModelT", bound=PersistableModel)
 
 
 class TinyDbDataLayer(DataLayer):
@@ -51,7 +53,7 @@ class TinyDbDataLayer(DataLayer):
     ) -> None:
         if db_path:
             open(db_path, "a").close()  # Ensure the file exists
-            self._db_path = db_path
+            self._db_path: str | None = db_path
             self._db = TinyDB(db_path)
         else:
             self._db_path = None
@@ -85,9 +87,37 @@ class TinyDbDataLayer(DataLayer):
         Args:
             id_ (str): The id to match.
         """
-        return Query()["id_"] == id_
+        return cast(QueryInstance, Query()["id_"] == id_)
 
-    def create(self, record: StorableRecord | BaseModel) -> None:
+    def _object_from_storage(
+        self, stored_record: dict[str, Any]
+    ) -> PersistableModel | None:
+        try:
+            record = Record.model_validate(stored_record)
+            return cast(PersistableModel, record_to_object(record))
+        except ValidationError:
+            pass
+
+        raw_type = stored_record.get("type")
+        if isinstance(raw_type, str):
+            vocab_cls = find_in_vocabulary(raw_type)
+            if vocab_cls is not None:
+                return cast(
+                    PersistableModel, vocab_cls.model_validate(stored_record)
+                )
+
+        raw_type = stored_record.get("type_")
+        raw_data = stored_record.get("data_")
+        if isinstance(raw_type, str) and isinstance(raw_data, dict):
+            vocab_cls = find_in_vocabulary(raw_type)
+            if vocab_cls is not None:
+                return cast(
+                    PersistableModel, vocab_cls.model_validate(raw_data)
+                )
+
+        return None
+
+    def create(self, record: StorableRecord | PersistableModel) -> None:
         """
         Inserts a record into the specified table.
 
@@ -107,12 +137,8 @@ class TinyDbDataLayer(DataLayer):
             rec = Record(
                 id_=record.id_, type_=record.type_, data_=record.data_
             )
-        elif isinstance(record, BaseModel):
-            rec = object_to_record(record)
         else:
-            raise ValueError(
-                "record must be a StorableRecord or a Pydantic BaseModel"
-            )
+            rec = object_to_record(record)
 
         table = rec.type_
         id_ = rec.id_
@@ -131,7 +157,7 @@ class TinyDbDataLayer(DataLayer):
 
     def read(
         self, object_id: str, raise_on_missing: bool = False
-    ) -> BaseModel | None:
+    ) -> PersistableModel | None:
         """
         Reads an object by id across all tables and returns the reconstituted
         Pydantic object (as_Base subclass) or None if not found. If
@@ -149,13 +175,9 @@ class TinyDbDataLayer(DataLayer):
             for tbl in self._my_tables():
                 rec = tbl.get(self._id_query(candidate))
                 if rec:
-                    # rec is a dict representing Record
-                    try:
-                        record = Record.model_validate(rec)
-                        return record_to_object(record)
-                    except Exception:
-                        # fallback: if stored data is already the object dict, return it
-                        return rec
+                    obj = self._object_from_storage(cast(dict[str, Any], rec))
+                    if obj is not None:
+                        return obj
         if raise_on_missing:
             raise KeyError(
                 f"Object with id '{object_id}' not found in datalayer"
@@ -164,7 +186,7 @@ class TinyDbDataLayer(DataLayer):
 
     def get(
         self, table: str | None = None, id_: str | None = None
-    ) -> dict | None:
+    ) -> PersistableModel | dict[str, Any] | None:
         """
         Retrieves a record by id from the specified table, or if called with
         only `id_` (keyword) will search across all tables and return a
@@ -176,15 +198,13 @@ class TinyDbDataLayer(DataLayer):
         """
         # If caller passed as get(id_=...)
         if table is None and id_ is not None:
-            # search across all tables for this id and return the rehydrated object
             for tbl in self._my_tables():
                 rec = tbl.get(self._id_query(id_))
                 if rec:
-                    try:
-                        record = Record.model_validate(rec)
-                        return record_to_object(record)
-                    except Exception:
-                        return rec
+                    obj = self._object_from_storage(cast(dict[str, Any], rec))
+                    if obj is not None:
+                        return obj
+                    return cast(dict[str, Any], rec)
             return None
 
         # otherwise expect both table and id_ to be provided
@@ -195,12 +215,11 @@ class TinyDbDataLayer(DataLayer):
 
         tbl = self._table(table)
         result = tbl.get(self._id_query(id_))
-        return result
+        return cast(dict[str, Any], result) if result is not None else None
 
-    def get_all(self, table: str) -> list[dict]:
+    def get_all(self, table: str) -> list[dict[str, Any]]:
         tbl = self._table(table)
-        records = tbl.all()
-        return records
+        return [cast(dict[str, Any], record) for record in tbl.all()]
 
     def update(self, id_: str, record: StorableRecord) -> bool:
         """
@@ -220,7 +239,7 @@ class TinyDbDataLayer(DataLayer):
         updated = tbl.update(rec.model_dump(), self._id_query(id_))
         return len(updated) > 0
 
-    def save(self, obj: BaseModel) -> None:
+    def save(self, obj: PersistableModel) -> None:
         """Persist a domain object to the DataLayer, overwriting any existing record.
 
         Unlike ``create()``, ``save()`` does not raise if the object already exists.
@@ -252,7 +271,7 @@ class TinyDbDataLayer(DataLayer):
 
     def all(
         self, table: str | None = None
-    ) -> list[Record] | dict[str, BaseModel]:
+    ) -> list[StorableRecord] | dict[str, PersistableModel]:
         """
         If `table` is provided: returns a list of `Record` objects for that table.
         If `table` is None: returns a dict mapping object id -> reconstituted
@@ -264,16 +283,14 @@ class TinyDbDataLayer(DataLayer):
             return [Record.model_validate(rec) for rec in records]
 
         # no table provided: return a dictionary of all objects across tables
-        results: dict[str, BaseModel] = {}
+        results: dict[str, PersistableModel] = {}
         for tbl in self._my_tables():
             for rec in tbl.all():
-                try:
-                    record = Record.model_validate(rec)
-                    obj = record_to_object(record)
-                    results[record.id_] = obj
-                except Exception:
-                    # store raw dict if validation fails
-                    results[rec.get("id_")] = rec
+                stored_record = dict(rec)
+                obj = self._object_from_storage(stored_record)
+                if obj is None:
+                    continue
+                results[obj.as_id] = obj
         return results
 
     def count_all(self) -> dict[str, int]:
@@ -283,7 +300,7 @@ class TinyDbDataLayer(DataLayer):
             counts[name] = len(db.table(name))
         return counts
 
-    def by_type(self, as_type: str) -> dict[str, dict]:
+    def by_type(self, as_type: str) -> dict[str, dict[str, Any]]:
         """
         Returns a dict mapping object id -> object's data dict for all records of
         the given type (table name).
@@ -292,15 +309,20 @@ class TinyDbDataLayer(DataLayer):
         if tbl.name not in self._db.tables():
             return {}
 
-        results: dict[str, dict] = {}
+        results: dict[str, dict[str, Any]] = {}
         for rec in tbl.all():
             try:
-                record = Record.model_validate(rec)
+                record = Record.model_validate(dict(rec))
                 results[record.id_] = record.data_
-            except Exception:
-                # fallback: try to return stored dict directly
-                if isinstance(rec, dict) and "id_" in rec:
-                    results[rec["id_"]] = rec.get("data_") or rec
+            except ValidationError:
+                stored_record = dict(rec)
+                raw_id = stored_record.get("id_")
+                if isinstance(raw_id, str):
+                    raw_data = stored_record.get("data_")
+                    if isinstance(raw_data, dict):
+                        results[raw_id] = raw_data
+                    else:
+                        results[raw_id] = stored_record
         return results
 
     def clear_table(self, table: str) -> None:
@@ -344,7 +366,7 @@ class TinyDbDataLayer(DataLayer):
         tbl = self._table(table)
         return tbl.contains(self._id_query(id_))
 
-    def find_actor_by_short_id(self, short_id: str) -> BaseModel | None:
+    def find_actor_by_short_id(self, short_id: str) -> PersistableModel | None:
         """
         Find an actor by matching the short ID (last part of URI) against stored actor IDs.
 
@@ -373,14 +395,14 @@ class TinyDbDataLayer(DataLayer):
 
             for rec in tbl.all():
                 try:
-                    record = Record.model_validate(rec)
+                    record = Record.model_validate(dict(rec))
                     # Check if the id_ ends with /short_id or is exactly short_id
                     if (
                         record.id_.endswith(f"/{short_id}")
                         or record.id_ == short_id
                     ):
-                        return record_to_object(record)
-                except Exception:
+                        return cast(PersistableModel, record_to_object(record))
+                except ValidationError:
                     continue
 
         return None
@@ -397,7 +419,11 @@ class TinyDbDataLayer(DataLayer):
     def inbox_list(self) -> list[str]:
         """Return all activity IDs currently in this actor's inbox, in insertion order."""
         tbl = self._table("inbox")
-        return [rec["activity_id"] for rec in tbl.all()]
+        return [
+            activity_id
+            for rec in tbl.all()
+            if isinstance(activity_id := rec.get("activity_id"), str)
+        ]
 
     def inbox_pop(self) -> str | None:
         """Remove and return the oldest activity ID from this actor's inbox queue.
@@ -410,7 +436,8 @@ class TinyDbDataLayer(DataLayer):
             return None
         first = all_recs[0]
         tbl.remove(doc_ids=[first.doc_id])
-        return first["activity_id"]
+        activity_id = first.get("activity_id")
+        return activity_id if isinstance(activity_id, str) else None
 
     def outbox_append(self, activity_id: str) -> None:
         """Append an activity ID to this actor's outbox queue."""
@@ -420,7 +447,11 @@ class TinyDbDataLayer(DataLayer):
     def outbox_list(self) -> list[str]:
         """Return all activity IDs currently in this actor's outbox, in insertion order."""
         tbl = self._table("outbox")
-        return [rec["activity_id"] for rec in tbl.all()]
+        return [
+            activity_id
+            for rec in tbl.all()
+            if isinstance(activity_id := rec.get("activity_id"), str)
+        ]
 
     def outbox_pop(self) -> str | None:
         """Remove and return the oldest activity ID from this actor's outbox queue.
@@ -433,7 +464,8 @@ class TinyDbDataLayer(DataLayer):
             return None
         first = all_recs[0]
         tbl.remove(doc_ids=[first.doc_id])
-        return first["activity_id"]
+        activity_id = first.get("activity_id")
+        return activity_id if isinstance(activity_id, str) else None
 
     def record_outbox_item(self, actor_id: str, activity_id: str) -> None:
         """Queue an outbox item for *actor_id* regardless of this DL's scope.

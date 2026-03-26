@@ -15,7 +15,7 @@ import json
 import os
 import tempfile
 import unittest
-from typing import Sequence
+from typing import cast, Sequence
 
 import vultron.wire.as2.vocab.examples.vocab_examples as examples
 from vultron.wire.as2.vocab.base.base import as_Base
@@ -160,14 +160,12 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor)
 
         # the object should be an offer
-        offer = activity.as_object
+        offer = cast(as_Offer, activity.as_object)
         # and the offer should contain the report
-        self.assertIsInstance(offer, as_Offer)
         self.assertEqual(offer.as_type, "Offer")
         self.assertEqual(offer.actor, finder)
 
-        report_ = offer.as_object
-        self.assertIsInstance(report_, VulnerabilityReport)
+        report_ = cast(VulnerabilityReport, offer.as_object)
         self.assertEqual(report, report_)
 
     def test_invalidate_report(self):
@@ -184,14 +182,12 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor)
 
         # the object should be an offer
-        offer = activity.as_object
+        offer = cast(as_Offer, activity.as_object)
         # and the offer should contain the report
-        self.assertIsInstance(offer, as_Offer)
         self.assertEqual(offer.as_type, "Offer")
         self.assertEqual(offer.actor, finder)
 
-        report_ = offer.as_object
-        self.assertIsInstance(report_, VulnerabilityReport)
+        report_ = cast(VulnerabilityReport, offer.as_object)
         self.assertEqual(report, report_)
 
     def test_close_report(self):
@@ -207,14 +203,12 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.as_type, "Reject")
         self.assertEqual(vendor, activity.actor)
         # the object should be an offer
-        offer = activity.as_object
+        offer = cast(as_Offer, activity.as_object)
         # and the offer should contain the report
-        self.assertIsInstance(offer, as_Offer)
         self.assertEqual(offer.as_type, "Offer")
         self.assertEqual(offer.actor, finder)
 
-        report_ = offer.as_object
-        self.assertIsInstance(report_, VulnerabilityReport)
+        report_ = cast(VulnerabilityReport, offer.as_object)
         self.assertEqual(report, report_)
 
     def test_case(self):
@@ -239,7 +233,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(create_case.as_type, "Create")
         self.assertEqual(create_case.actor, vendor.as_id)
 
-        case_from_activity = create_case.as_object
+        case_from_activity = cast(VulnerabilityCase, create_case.as_object)
         # the case should be the object, but it will have the report and participant embedded
         self.assertEqual(case_from_activity.as_id, case.as_id)
         # report should be the report id
@@ -247,9 +241,10 @@ class TestVocabExamples(unittest.TestCase):
             case_from_activity.vulnerability_reports[0], report.as_id
         )
         # attributed_to should be a pointer to the vendor
-        self.assertEqual(
-            case_from_activity.case_participants[0].attributed_to, vendor.as_id
+        participant = cast(
+            CaseParticipant, case_from_activity.case_participants[0]
         )
+        self.assertEqual(participant.attributed_to, vendor.as_id)
 
     def test_add_report_to_case(self):
         # is it an activity?
@@ -278,7 +273,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertEqual(activity.target, case.as_id)
 
-        participant = activity.as_object
+        participant = cast(CaseParticipant, activity.as_object)
         self.assertEqual(participant.attributed_to, vendor.as_id)
         self.assertEqual(participant.name, vendor.name)
         self.assertEqual(participant.context, case.as_id)
@@ -296,7 +291,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertEqual(activity.target, case.as_id)
 
-        participant = activity.as_object
+        participant = cast(CaseParticipant, activity.as_object)
         self.assertEqual(participant.attributed_to, finder.as_id)
         self.assertEqual(participant.name, finder.name)
         self.assertEqual(participant.context, case.as_id)
@@ -314,7 +309,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertEqual(activity.target, case.as_id)
 
-        participant = activity.as_object
+        participant = cast(CaseParticipant, activity.as_object)
         self.assertEqual(participant.attributed_to, coordinator.as_id)
         self.assertEqual(participant.name, coordinator.name)
         self.assertEqual(participant.context, case.as_id)
@@ -367,9 +362,10 @@ class TestVocabExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.as_id)
         # inside the activity is a deferral activity
-        self.assertEqual(activity.as_object.as_type, "Ignore")
-        self.assertEqual(activity.as_object.actor, vendor.as_id)
-        self.assertEqual(activity.as_object.as_object, case.as_id)
+        inner_activity = cast(as_Ignore, activity.as_object)
+        self.assertEqual(inner_activity.as_type, "Ignore")
+        self.assertEqual(inner_activity.actor, vendor.as_id)
+        self.assertEqual(inner_activity.as_object, case.as_id)
 
         self.assertEqual(activity.context, case.as_id)
 
@@ -394,8 +390,7 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, finder.as_id)
         self.assertEqual(activity.target, case.as_id)
 
-        add_note = activity.as_object
-        self.assertIsInstance(add_note, as_Note)
+        add_note = cast(as_Note, activity.as_object)
         self.assertEqual(add_note.context, case.as_id)
         self.assertEqual(add_note.content, note.content)
 
@@ -405,6 +400,7 @@ class TestVocabExamples(unittest.TestCase):
 
         self.assertTrue(hasattr(coordinator, "to_json"))
         self.assertIsInstance(coordinator, as_Organization)
+        assert coordinator.name is not None
         self.assertIn("coordinator", coordinator.name.lower())
 
     def test_offer_case_ownership_transfer(self):
@@ -420,7 +416,8 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertEqual(activity.target, coordinator.as_id)
 
-        for k, v in activity.as_object.to_dict().items():
+        transfer_case = cast(VulnerabilityCase, activity.as_object)
+        for k, v in transfer_case.to_dict().items():
             # skip list fields because they aren't always identical
             if isinstance(v, list):
                 continue
@@ -547,7 +544,8 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.as_type, "Accept")
 
         self.assertEqual(activity.actor, coordinator.as_id)
-        self.assertEqual(activity.as_object.as_id, invite.as_id)
+        accepted_invite = cast(as_Invite, activity.as_object)
+        self.assertEqual(accepted_invite.as_id, invite.as_id)
         self.assertEqual(activity.to, vendor.as_id)
 
     def test_reject_invite_to_case(self):
@@ -561,7 +559,8 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.as_type, "Reject")
 
         self.assertEqual(activity.actor, coordinator.as_id)
-        self.assertEqual(activity.as_object.as_id, invite.as_id)
+        rejected_invite = cast(as_Invite, activity.as_object)
+        self.assertEqual(rejected_invite.as_id, invite.as_id)
         self.assertEqual(activity.to, vendor.as_id)
 
     def test_create_participant(self):
@@ -576,9 +575,10 @@ class TestVocabExamples(unittest.TestCase):
 
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertEqual(activity.context, case.as_id)
-        self.assertEqual(activity.as_object.attributed_to, coordinator.as_id)
-        self.assertEqual(activity.as_object.context, case.as_id)
-        self.assertEqual(activity.as_object.name, coordinator.name)
+        participant = cast(CaseParticipant, activity.as_object)
+        self.assertEqual(participant.attributed_to, coordinator.as_id)
+        self.assertEqual(participant.context, case.as_id)
+        self.assertEqual(participant.name, coordinator.name)
 
     def test_case_status(self):
         obj = examples.case_status()
@@ -737,9 +737,11 @@ class TestVocabExamples(unittest.TestCase):
         self.assertIsInstance(activity, as_Question)
 
         self.assertEqual(activity.actor, coordinator.as_id)
+        assert activity.context is not None
         self.assertIn(case.as_id, activity.context)
 
         # one_of is a list, is non-empty, and contains embargo events
+        assert activity.one_of is not None
         self.assertIsInstance(activity.one_of, Sequence)
         self.assertGreaterEqual(len(activity.one_of), 1)
         for obj in activity.one_of:
@@ -757,7 +759,8 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertIsNotNone(activity.context)
         self.assertIsNotNone(activity.to)
-        self.assertEqual(activity.as_object.as_id, proposal.as_id)
+        accepted_proposal = cast(as_Offer, activity.as_object)
+        self.assertEqual(accepted_proposal.as_id, proposal.as_id)
 
     def test_reject_embargo(self):
         activity = examples.reject_embargo()
@@ -771,7 +774,8 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertIsNotNone(activity.context)
         self.assertIsNotNone(activity.to)
-        self.assertEqual(activity.as_object.as_id, proposal.as_id)
+        rejected_proposal = cast(as_Offer, activity.as_object)
+        self.assertEqual(rejected_proposal.as_id, proposal.as_id)
 
     def test_add_embargo_to_case(self):
         activity = examples.add_embargo_to_case()

@@ -25,8 +25,10 @@ run as isolated processes with no direct access to each other's DataLayers.
 """
 
 import logging
+from typing import cast
 
 from vultron.adapters.driven.delivery_queue import DeliveryQueueAdapter
+from vultron.core.models.activity import VultronActivity
 from vultron.core.ports.datalayer import DataLayer
 from vultron.core.ports.emitter import ActivityEmitter
 
@@ -100,7 +102,20 @@ async def handle_outbox_item(
         )
         return
 
-    recipients = _extract_recipients(activity)
+    if isinstance(activity, VultronActivity):
+        outbound_activity = activity
+    elif hasattr(activity, "model_dump"):
+        outbound_activity = VultronActivity.model_validate(
+            activity.model_dump(by_alias=True)
+        )
+    else:
+        logger.warning(
+            "Activity %s could not be converted for delivery; skipping.",
+            activity_id,
+        )
+        return
+
+    recipients = _extract_recipients(outbound_activity)
     if not recipients:
         logger.debug(
             "No recipients found for activity %s (actor %s).",
@@ -109,7 +124,7 @@ async def handle_outbox_item(
         )
         return
 
-    await emitter.emit(activity, recipients)
+    await emitter.emit(outbound_activity, recipients)
     logger.info(
         "Emitted activity %s to %d recipient(s) for actor %s.",
         activity_id,
@@ -147,7 +162,10 @@ async def outbox_handler(
         emitter: The ActivityEmitter port to use for delivery. Defaults to
             ``DeliveryQueueAdapter()`` which delivers via HTTP POST.
     """
-    _emitter = emitter if emitter is not None else DeliveryQueueAdapter()
+    _emitter = cast(
+        ActivityEmitter,
+        emitter if emitter is not None else DeliveryQueueAdapter(),
+    )
     _read_dl = shared_dl if shared_dl is not None else dl
 
     # Resolve actor by full ID first, then fall back to short ID (mirrors

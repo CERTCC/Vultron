@@ -44,7 +44,7 @@ prototype design. Actors post activities directly to each other's inboxes.
 # Standard library imports
 import logging
 import sys
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.wire.as2.vocab.activities.case import (
@@ -79,6 +79,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     demo_environment,
     post_to_inbox_and_wait,
+    ref_id,
     verify_object_stored,
 )
 
@@ -132,7 +133,7 @@ def demo_initialize_case(
         )
         validate_activity = RmValidateReportActivity(
             actor=vendor.as_id,
-            object=offer.as_id,
+            as_object=offer.as_id,
             content="Confirmed — remote code execution via unsanitized input.",
         )
         post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
@@ -186,8 +187,7 @@ def demo_initialize_case(
                 client, case.as_id, "after vendor AddParticipantToCaseActivity"
             )
             if vendor_case and vendor_participant.as_id not in [
-                (p.as_id if hasattr(p, "as_id") else p)
-                for p in vendor_case.case_participants
+                (ref_id(p) or str(p)) for p in vendor_case.case_participants
             ]:
                 raise ValueError(
                     f"Vendor participant '{vendor_participant.as_id}' not found in"
@@ -207,7 +207,7 @@ def demo_initialize_case(
                 client, case.as_id, "after AddReportToCaseActivity"
             )
             if updated_case and report.as_id not in [
-                (r.as_id if hasattr(r, "as_id") else r)
+                (ref_id(r) or str(r))
                 for r in updated_case.vulnerability_reports
             ]:
                 raise ValueError(
@@ -243,8 +243,7 @@ def demo_initialize_case(
                 client, case.as_id, "after AddParticipantToCaseActivity"
             )
             if final_case and participant.as_id not in [
-                (p.as_id if hasattr(p, "as_id") else p)
-                for p in final_case.case_participants
+                (ref_id(p) or str(p)) for p in final_case.case_participants
             ]:
                 raise ValueError(
                     f"Participant '{participant.as_id}' not found in case "
@@ -256,7 +255,7 @@ def demo_initialize_case(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
     ("Demo: Initialize Case", demo_initialize_case),
 ]
 

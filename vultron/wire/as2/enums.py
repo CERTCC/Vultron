@@ -4,6 +4,7 @@ These enums map directly to ActivityStreams 2.0 vocabulary types.
 """
 
 from enum import StrEnum
+from typing import cast
 
 
 class as_ObjectType(StrEnum):
@@ -68,13 +69,13 @@ class as_TransitiveActivityType(StrEnum):
     READ = "Read"
 
 
-def merge_enums(name, enums: list[StrEnum]) -> StrEnum:
+def merge_enums(name: str, enums: list[type[StrEnum]]) -> type[StrEnum]:
     """Merge multiple StrEnum classes into a single StrEnum."""
 
     values = {member.name: member.value for e in enums for member in e}
     # sort the values by name
     values = dict(sorted(values.items()))
-    return StrEnum(name, values)
+    return cast(type[StrEnum], StrEnum(name, values))
 
 
 as_ActivityType = merge_enums(

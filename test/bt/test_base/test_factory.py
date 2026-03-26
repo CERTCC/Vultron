@@ -56,9 +56,9 @@ class MyTestCase(unittest.TestCase):
             name = "foo"
             docstr = "bar"
 
-            children = []
+            children: tuple[type[BtNode], ...] = ()
 
-            node = node_factory(node_cls, name, docstr, children)
+            node = node_factory(node_cls, name, docstr, *children)
 
             # test that node is a subclass of node_cls
             self.assertTrue(issubclass(node, node_cls))
@@ -128,7 +128,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(node_cls(), node_cls)
 
     def test_condition_check(self):
-        def func() -> bool:
+        def func(_: BtNode) -> bool:
             """bar"""
             return True
 
@@ -142,7 +142,7 @@ class MyTestCase(unittest.TestCase):
         self.assertIsInstance(node_cls(), node_cls)
 
     def test_action_node(self):
-        def func() -> bool:
+        def func(_: BtNode) -> bool:
             """bar"""
             return True
 

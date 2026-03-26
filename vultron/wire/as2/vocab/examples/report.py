@@ -27,9 +27,9 @@ def create_report() -> RmCreateReportActivity:
     In this example, a finder creates a vulnerability report.
 
     Example:
-          >>> RmCreateReportActivity(actor=finder.as_id, id=gen_report)
+          >>> RmCreateReportActivity(actor=finder.as_id, as_id=gen_report)
     """
-    activity = RmCreateReportActivity(actor=_FINDER.as_id, object=_REPORT)
+    activity = RmCreateReportActivity(actor=_FINDER.as_id, as_object=_REPORT)
     return activity
 
 
@@ -37,12 +37,12 @@ def submit_report(verbose=False) -> RmSubmitReportActivity:
     if verbose:
         activity = RmSubmitReportActivity(
             actor=_FINDER,
-            object=_REPORT,
+            as_object=_REPORT,
             to=_VENDOR,
         )
     else:
         activity = RmSubmitReportActivity(
-            actor=_FINDER.as_id, object=_REPORT, to=_VENDOR.as_id
+            actor=_FINDER.as_id, as_object=_REPORT, to=_VENDOR.as_id
         )
 
     return activity
@@ -52,7 +52,7 @@ def read_report() -> RmReadReportActivity:
     # TODO this should probably change to Read(Offer(Report)) to match the other activities
     activity = RmReadReportActivity(
         actor=_VENDOR.as_id,
-        object=_REPORT.as_id,
+        as_object=_REPORT.as_id,
         content="We've read the report. We'll get back to you soon.",
     )
     return activity
@@ -65,13 +65,13 @@ def validate_report(verbose: bool = False) -> RmValidateReportActivity:
     if verbose:
         activity = RmValidateReportActivity(
             actor=_VENDOR,
-            object=_offer,
+            as_object=_offer,
             content="We've validated the report. We'll be creating a case shortly.",
         )
     else:
         activity = RmValidateReportActivity(
             actor=_VENDOR.as_id,
-            object=_offer.as_id,
+            as_object=_offer.as_id,
             content="We've validated the report. We'll be creating a case shortly.",
         )
     return activity
@@ -84,13 +84,13 @@ def invalidate_report(verbose: bool = False) -> RmInvalidateReportActivity:
     if verbose:
         activity = RmInvalidateReportActivity(
             actor=_VENDOR,
-            object=_offer,
+            as_object=_offer,
             content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
         )
     else:
         activity = RmInvalidateReportActivity(
             actor=_VENDOR.as_id,
-            object=_offer.as_id,
+            as_object=_offer.as_id,
             content="We're declining this report as invalid. If you have a reason we should reconsider, please let us know. Otherwise we'll be closing it shortly.",
         )
     return activity
@@ -102,13 +102,13 @@ def close_report(verbose: bool = False) -> RmCloseReportActivity:
     if verbose:
         activity = RmCloseReportActivity(
             actor=_VENDOR,
-            object=_offer,
+            as_object=_offer,
             content="We're closing this report.",
         )
     else:
         activity = RmCloseReportActivity(
             actor=_VENDOR.as_id,
-            object=_offer.as_id,
+            as_object=_offer.as_id,
             content="We're closing this report.",
         )
     return activity

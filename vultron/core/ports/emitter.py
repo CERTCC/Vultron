@@ -50,7 +50,7 @@ class ActivityEmitter(Protocol):
     should receive the activity.
     """
 
-    def emit(
+    async def emit(
         self,
         activity: "VultronActivity",
         recipients: list[str],

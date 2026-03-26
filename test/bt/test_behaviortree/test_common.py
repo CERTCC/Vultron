@@ -12,9 +12,9 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 #
 #  See LICENSE for details
-import enum
 import logging
 import unittest
+import enum
 from itertools import product
 
 from vultron.bt import common as c
@@ -31,7 +31,15 @@ logger.addHandler(logging.StreamHandler())
 
 class MockState:
     foo = 0
-    foo_history = []
+    foo_history: list[int] = []
+
+
+class MockEnum(enum.IntEnum):
+    A = 1
+    B = 2
+    C = 3
+    D = 4
+    E = 5
 
 
 class MyTestCase(unittest.TestCase):
@@ -44,7 +52,7 @@ class MyTestCase(unittest.TestCase):
     def test_to_end_state_factory(self):
         bb = MockState()
 
-        for key, state in product("abcdefghij", range(10)):
+        for key, state in product("abcdefghij", MockEnum):
             xclass = c.to_end_state_factory(key, state)
             self.assertTrue(callable(xclass))
 
@@ -66,7 +74,7 @@ class MyTestCase(unittest.TestCase):
     def test_make_check_state(self):
         bb = MockState()
 
-        for key, state in product("abcdefghij", range(10)):
+        for key, state in product("abcdefghij", MockEnum):
             xclass = c.state_in(key, state)
             self.assertTrue(callable(xclass))
 
@@ -86,17 +94,10 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(NodeStatus.SUCCESS, x.tick())
 
     def test_make_state_change(self):
-        class TestEnum(enum.IntEnum):
-            A = 1
-            B = 2
-            C = 3
-            D = 4
-            E = 5
-
         bb = MockState()
-        start_states = TestEnum
+        start_states = list(MockEnum)
 
-        for key, end_state in product("abcdefghij", TestEnum):
+        for key, end_state in product("abcdefghij", MockEnum):
             with self.subTest(key=key, end_state=end_state):
                 transition = c.EnumStateTransition(
                     start_states=start_states, end_state=end_state

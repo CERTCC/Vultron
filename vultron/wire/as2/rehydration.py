@@ -25,7 +25,7 @@ be resolved without importing a concrete adapter.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import ValidationError
 
@@ -42,7 +42,7 @@ MAX_REHYDRATION_DEPTH = 5
 
 def rehydrate(
     obj: as_Object | str, dl: DataLayer, depth: int = 0
-) -> as_Object | str:
+) -> as_Object:
     """Recursively rehydrate an object if needed.
 
     Performs depth-first rehydration up to ``MAX_REHYDRATION_DEPTH`` levels.
@@ -73,17 +73,24 @@ def rehydrate(
         if resolved is None:
             raise ValueError(f"Object '{obj}' not found in data layer")
 
+        if not isinstance(resolved, as_Object):
+            raise ValueError(
+                f"Object '{obj}' resolved to unsupported type "
+                f"{type(resolved).__name__}"
+            )
+
         logger.debug("String ID '%s' resolved to %s.", obj, type(resolved))
         obj = resolved
 
     rehydrated_nested_object = None
     if hasattr(obj, "as_object"):
-        if obj.as_object is not None:
+        obj_with_object = cast(Any, obj)
+        if obj_with_object.as_object is not None:
             logger.debug("Rehydrating nested 'as_object' of %s.", obj.as_type)
             rehydrated_nested_object = rehydrate(
-                obj.as_object, dl=dl, depth=depth + 1
+                obj_with_object.as_object, dl=dl, depth=depth + 1
             )
-            obj.as_object = rehydrated_nested_object
+            obj_with_object.as_object = rehydrated_nested_object
         else:
             logger.error("'as_object' field is None in %s.", obj.as_type)
             raise ValueError(f"'as_object' field is None in {obj.as_type}")
@@ -91,6 +98,9 @@ def rehydrate(
     if not hasattr(obj, "as_type"):
         logger.error("Object %s has no 'as_type' attribute.", obj)
         raise ValueError(f"Object {obj} has no 'as_type' attribute.")
+
+    if obj.as_type is None:
+        raise ValueError(f"Object {obj} has no 'as_type' value.")
 
     cls = find_in_vocabulary(obj.as_type)
     if cls is None:
@@ -113,13 +123,19 @@ def rehydrate(
         logger.error("%s validation failed on %s.", cls.__name__, obj)
         raise
 
+    if not isinstance(rehydrated, as_Object):
+        raise ValueError(
+            f"Rehydration of {obj.as_type} produced unsupported type "
+            f"{type(rehydrated).__name__}"
+        )
+
     if rehydrated_nested_object is not None and hasattr(
         rehydrated, "as_object"
     ):
-        rehydrated.as_object = rehydrated_nested_object
+        cast(Any, rehydrated).as_object = rehydrated_nested_object
         logger.debug(
             "Preserved rehydrated nested object of type %s.",
             rehydrated_nested_object.__class__.__name__,
         )
 
-    return rehydrated
+    return cast(as_Object, rehydrated)

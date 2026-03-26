@@ -42,7 +42,7 @@ When run as a script, this module will:
 # Standard library imports
 import logging
 import sys
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.wire.as2.vocab.activities.case import (
@@ -77,6 +77,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     demo_environment,
     post_to_inbox_and_wait,
+    ref_id,
     verify_object_stored,
 )
 
@@ -115,7 +116,7 @@ def setup_case_precondition(
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
     validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
-        object=offer.as_id,
+        as_object=offer.as_id,
         content="Confirmed — integer overflow via crafted packet.",
     )
     post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
@@ -217,8 +218,7 @@ def demo_initialize_participant(
                 "after coordinator AddParticipantToCaseActivity",
             )
             if updated_case and coordinator_participant.as_id not in [
-                (p.as_id if hasattr(p, "as_id") else p)
-                for p in updated_case.case_participants
+                (ref_id(p) or str(p)) for p in updated_case.case_participants
             ]:
                 raise ValueError(
                     f"Coordinator participant '{coordinator_participant.as_id}'"
@@ -257,8 +257,7 @@ def demo_initialize_participant(
                 client, case.as_id, "after finder AddParticipantToCaseActivity"
             )
             if final_case and finder_participant.as_id not in [
-                (p.as_id if hasattr(p, "as_id") else p)
-                for p in final_case.case_participants
+                (ref_id(p) or str(p)) for p in final_case.case_participants
             ]:
                 raise ValueError(
                     f"Finder participant '{finder_participant.as_id}' not found"
@@ -287,7 +286,7 @@ def demo_initialize_participant(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
     ("Demo: Initialize Case Participant", demo_initialize_participant),
 ]
 

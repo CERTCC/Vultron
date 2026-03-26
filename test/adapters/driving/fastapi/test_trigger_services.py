@@ -85,7 +85,7 @@ def report(dl):
 def offer(dl, report, actor):
     offer_obj = as_Offer(
         actor=actor.as_id,
-        object=report.as_id,
+        as_object=report.as_id,
         target=actor.as_id,
     )
     dl.create(offer_obj)
@@ -161,7 +161,7 @@ def case_with_proposal(dl, actor):
     dl.create(embargo)
     proposal = EmProposeEmbargoActivity(
         actor=actor.as_id,
-        object=embargo.as_id,
+        as_object=embargo.as_id,
         context=case_obj.as_id,
     )
     dl.create(proposal)

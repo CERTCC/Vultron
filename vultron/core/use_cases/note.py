@@ -1,7 +1,6 @@
 """Use cases for case note activities."""
 
 import logging
-from typing import cast
 
 from vultron.core.models.events.note import (
     AddNoteToCaseReceivedEvent,
@@ -9,8 +8,8 @@ from vultron.core.models.events.note import (
     RemoveNoteFromCaseReceivedEvent,
 )
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.models.protocols import is_case_model
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
-from vultron.core.models.protocols import CaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +44,12 @@ class AddNoteToCaseReceivedUseCase:
         request = self._request
         note_id = request.note_id
         case_id = request.case_id
-        case = cast(CaseModel, self._dl.read(case_id))
+        if note_id is None or case_id is None:
+            logger.warning("add_note_to_case: missing note_id or case_id")
+            return
+        case = self._dl.read(case_id)
 
-        if case is None:
+        if not is_case_model(case):
             logger.warning("add_note_to_case: case '%s' not found", case_id)
             return
 
@@ -76,9 +78,12 @@ class RemoveNoteFromCaseReceivedUseCase:
         request = self._request
         note_id = request.note_id
         case_id = request.case_id
-        case = cast(CaseModel, self._dl.read(case_id))
+        if note_id is None or case_id is None:
+            logger.warning("remove_note_from_case: missing note_id or case_id")
+            return
+        case = self._dl.read(case_id)
 
-        if case is None:
+        if not is_case_model(case):
             logger.warning(
                 "remove_note_from_case: case '%s' not found", case_id
             )

@@ -54,7 +54,7 @@ When run as a script, this module will:
 # Standard library imports
 import logging
 import sys
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.wire.as2.vocab.activities.case import (
@@ -90,6 +90,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     demo_environment,
     post_to_inbox_and_wait,
+    ref_id,
     verify_object_stored,
 )
 
@@ -126,7 +127,7 @@ def setup_report_and_case(
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
     validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
-        object=offer.as_id,
+        as_object=offer.as_id,
         content="Confirmed — vulnerability verified.",
     )
     post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
@@ -210,7 +211,7 @@ def demo_engage_path(
         with demo_check("Case created and report linked"):
             updated_case = log_case_state(client, case.as_id, "after setup")
             if updated_case and report.as_id not in [
-                (r.as_id if hasattr(r, "as_id") else r)
+                (ref_id(r) or str(r))
                 for r in updated_case.vulnerability_reports
             ]:
                 raise ValueError(
@@ -364,7 +365,7 @@ def demo_invalidate_path(
         )
         invalidate = RmInvalidateReportActivity(
             actor=vendor.as_id,
-            object=stored_offer.as_id,
+            as_object=stored_offer.as_id,
             content=(
                 "Assessed as not a vulnerability — consistent error messages "
                 "are expected behavior per the security policy."
@@ -377,7 +378,7 @@ def demo_invalidate_path(
     with demo_step("Step 3: Vendor closes the report (RmCloseReportActivity)"):
         close_report = RmCloseReportActivity(
             actor=vendor.as_id,
-            object=stored_offer.as_id,
+            as_object=stored_offer.as_id,
             content="Report closed — assessed as not a valid vulnerability.",
         )
         post_to_inbox_and_wait(client, vendor.as_id, close_report)
@@ -389,7 +390,7 @@ def demo_invalidate_path(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
     ("Demo 1: Engage Path", demo_engage_path),
     ("Demo 2: Defer and Re-engage Path", demo_defer_reengage_path),
     ("Demo 3: Invalidate Path", demo_invalidate_path),

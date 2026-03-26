@@ -7,9 +7,10 @@ to transport-level error responses (e.g., HTTP status codes).
 """
 
 import logging
+from typing import Any, cast
 
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab import VOCABULARY
-from vultron.wire.as2.vocab.type_helpers import AsActivityType
 from vultron.wire.as2.errors import (
     VultronParseMissingTypeError,
     VultronParseUnknownTypeError,
@@ -19,7 +20,7 @@ from vultron.wire.as2.errors import (
 logger = logging.getLogger(__name__)
 
 
-def parse_activity(body: dict) -> AsActivityType:
+def parse_activity(body: dict[str, Any]) -> as_Activity:
     """Parse a raw dict into a typed as_Activity object.
 
     This is stage 2 of the inbound pipeline. It validates the `type` field,
@@ -52,6 +53,6 @@ def parse_activity(body: dict) -> AsActivityType:
         )
 
     try:
-        return cls.model_validate(body)
+        return cast(as_Activity, cls.model_validate(body))
     except Exception as exc:
         raise VultronParseValidationError(str(exc)) from exc

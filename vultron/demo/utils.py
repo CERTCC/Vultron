@@ -27,10 +27,10 @@ import os
 import time
 from contextlib import contextmanager
 from http import HTTPMethod
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, cast
 
 # Third-party imports
-import requests
+import requests  # type: ignore[import-untyped]
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 
@@ -51,6 +51,15 @@ BASE_URL = os.environ.get(
 # Default wait time (seconds) after posting to an inbox, to allow background
 # tasks to complete before checking state. Set to 0 in test environments.
 DEFAULT_WAIT_SECONDS: float = 1.0
+
+
+def ref_id(value: object) -> str | None:
+    """Return the ID of a string-or-AS2 reference, if present."""
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return None
+    return getattr(value, "as_id", None)
 
 
 @contextmanager
@@ -83,16 +92,21 @@ def demo_check(description: str):
         raise
 
 
-def logfmt(obj) -> str:
+def logfmt(obj: object) -> str:
     """Format object for logging. Handles both Pydantic models and strings."""
     if isinstance(obj, str):
         return obj
-    return obj.model_dump_json(indent=2, exclude_none=True, by_alias=True)
+    if isinstance(obj, BaseModel):
+        return obj.model_dump_json(indent=2, exclude_none=True, by_alias=True)
+    return str(obj)
 
 
-def postfmt(obj) -> dict:
+def postfmt(obj: object) -> dict[str, object]:
     """Serialize a Pydantic model (or plain object) to a JSON-encodable dict for POST bodies."""
-    return jsonable_encoder(obj, by_alias=True, exclude_none=True)
+    return cast(
+        dict[str, object],
+        jsonable_encoder(obj, by_alias=True, exclude_none=True),
+    )
 
 
 class DataLayerClient(BaseModel):
@@ -187,13 +201,13 @@ def discover_actors(
 
     for actor_json in actors:
         actor = as_Actor(**actor_json)
-        if actor.name.startswith("Finn"):
+        if actor.name and actor.name.startswith("Finn"):
             finder = actor
             logger.info(f"Found finder actor: {logfmt(finder)}")
-        elif actor.name.startswith("Vendor"):
+        elif actor.name and actor.name.startswith("Vendor"):
             vendor = actor
             logger.info(f"Found vendor actor: {logfmt(vendor)}")
-        elif actor.name.startswith("Coordinator"):
+        elif actor.name and actor.name.startswith("Coordinator"):
             coordinator = actor
             logger.info(f"Found coordinator actor: {logfmt(coordinator)}")
 

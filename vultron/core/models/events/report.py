@@ -2,7 +2,6 @@
 
 from typing import Literal
 
-from vultron.core.models.activity import VultronActivity
 from vultron.core.models.events._mixins import (
     _InnerObjectIsReportMixin,
     _ObjectIsOfferMixin,
@@ -17,7 +16,6 @@ class CreateReportReceivedEvent(_ObjectIsReportMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_REPORT] = (
         MessageSemantics.CREATE_REPORT
     )
-    activity: VultronActivity
 
 
 class SubmitReportReceivedEvent(_ObjectIsReportMixin, VultronEvent):
@@ -26,7 +24,6 @@ class SubmitReportReceivedEvent(_ObjectIsReportMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.SUBMIT_REPORT] = (
         MessageSemantics.SUBMIT_REPORT
     )
-    activity: VultronActivity
 
 
 class ValidateReportReceivedEvent(
@@ -37,7 +34,6 @@ class ValidateReportReceivedEvent(
     semantic_type: Literal[MessageSemantics.VALIDATE_REPORT] = (
         MessageSemantics.VALIDATE_REPORT
     )
-    activity: VultronActivity
 
 
 class InvalidateReportReceivedEvent(
@@ -48,7 +44,6 @@ class InvalidateReportReceivedEvent(
     semantic_type: Literal[MessageSemantics.INVALIDATE_REPORT] = (
         MessageSemantics.INVALIDATE_REPORT
     )
-    activity: VultronActivity
 
 
 class AckReportReceivedEvent(
@@ -59,7 +54,6 @@ class AckReportReceivedEvent(
     semantic_type: Literal[MessageSemantics.ACK_REPORT] = (
         MessageSemantics.ACK_REPORT
     )
-    activity: VultronActivity
 
 
 class CloseReportReceivedEvent(
@@ -70,4 +64,3 @@ class CloseReportReceivedEvent(
     semantic_type: Literal[MessageSemantics.CLOSE_REPORT] = (
         MessageSemantics.CLOSE_REPORT
     )
-    activity: VultronActivity

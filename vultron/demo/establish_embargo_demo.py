@@ -45,7 +45,7 @@ inboxes.
 import logging
 import sys
 from datetime import datetime, timedelta
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.activities.case import (
     AddReportToCaseActivity,
@@ -106,7 +106,7 @@ def _make_embargo_event(
     # Use a URL-safe date string (no colons) for the ID path segment
     end_date_str = end_at.strftime("%Y-%m-%d")
     return EmbargoEvent(
-        id=f"{case.as_id}/embargo_events/{days}d-{end_date_str}",
+        as_id=f"{case.as_id}/embargo_events/{days}d-{end_date_str}",
         name=f"Embargo for {case.name}",
         context=case.as_id,
         start_time=now,
@@ -149,7 +149,7 @@ def _setup_two_participant_case(
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
     validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
-        object=offer.as_id,
+        as_object=offer.as_id,
         content="Confirmed — use-after-free via unsanitized network input.",
     )
     post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
@@ -195,7 +195,7 @@ def _setup_two_participant_case(
     # Invite coordinator and have them accept
     invite = RmInviteToCaseActivity(
         actor=vendor.as_id,
-        object=coordinator.as_id,
+        as_object=coordinator.as_id,
         target=case.as_id,
         to=[coordinator.as_id],
         content=f"Inviting you to participate in {case.name}.",
@@ -204,7 +204,7 @@ def _setup_two_participant_case(
 
     accept = RmAcceptInviteToCaseActivity(
         actor=coordinator.as_id,
-        object=invite.as_id,
+        as_object=invite.as_id,
         to=[vendor.as_id],
         content=f"Accepting invitation to {case.name}.",
     )
@@ -247,15 +247,15 @@ def demo_propose_embargo_accept(
         embargo = _make_embargo_event(case, days=90)
         create_embargo = as_Create(
             actor=vendor.as_id,
-            object=embargo,
+            as_object=embargo,
             context=case.as_id,
         )
         post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
 
         proposal = EmProposeEmbargoActivity(
-            id=f"{case.as_id}/embargo_proposals/1",
+            as_id=f"{case.as_id}/embargo_proposals/1",
             actor=coordinator.as_id,
-            object=embargo,
+            as_object=embargo,
             context=case.as_id,
             summary=f"Proposing a 90-day embargo for {case.name}.",
             to=[vendor.as_id],
@@ -266,7 +266,7 @@ def demo_propose_embargo_accept(
     with demo_step("Step 3: Vendor accepts embargo and activates it"):
         accept = EmAcceptEmbargoActivity(
             actor=vendor.as_id,
-            object=proposal.as_id,
+            as_object=proposal.as_id,
             context=case.as_id,
             to=[coordinator.as_id],
             summary=f"Accepting embargo proposal for {case.name}.",
@@ -276,7 +276,7 @@ def demo_propose_embargo_accept(
 
         activate = ActivateEmbargoActivity(
             actor=vendor.as_id,
-            object=embargo.as_id,
+            as_object=embargo.as_id,
             target=case.as_id,
             in_reply_to=proposal.as_id,
             to=f"{case.as_id}/participants",
@@ -287,7 +287,7 @@ def demo_propose_embargo_accept(
     with demo_step("Step 4: Vendor announces embargo to participants"):
         announce = AnnounceEmbargoActivity(
             actor=vendor.as_id,
-            object=embargo.as_id,
+            as_object=embargo.as_id,
             context=case.as_id,
             to=f"{case.as_id}/participants",
             summary=f"Embargo for {case.name} is now active.",
@@ -344,15 +344,15 @@ def demo_propose_embargo_reject(
         embargo = _make_embargo_event(case, days=45)
         create_embargo = as_Create(
             actor=vendor.as_id,
-            object=embargo,
+            as_object=embargo,
             context=case.as_id,
         )
         post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
 
         proposal = EmProposeEmbargoActivity(
-            id=f"{case.as_id}/embargo_proposals/1",
+            as_id=f"{case.as_id}/embargo_proposals/1",
             actor=coordinator.as_id,
-            object=embargo,
+            as_object=embargo,
             context=case.as_id,
             summary=f"Proposing a 45-day embargo for {case.name}.",
             to=[vendor.as_id],
@@ -363,7 +363,7 @@ def demo_propose_embargo_reject(
     with demo_step("Step 3: Vendor rejects embargo proposal"):
         reject = EmRejectEmbargoActivity(
             actor=vendor.as_id,
-            object=proposal.as_id,
+            as_object=proposal.as_id,
             context=case.as_id,
             to=[coordinator.as_id],
             summary=f"Rejecting embargo proposal for {case.name}.",
@@ -389,7 +389,7 @@ def demo_propose_embargo_reject(
     logger.info("✅ DEMO COMPLETE (reject path): Embargo rejected gracefully.")
 
 
-_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
     (
         "Demo: Establish Embargo — Propose/Accept Path",
         demo_propose_embargo_accept,

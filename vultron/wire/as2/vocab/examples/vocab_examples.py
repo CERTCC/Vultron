@@ -21,6 +21,7 @@ directory.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.examples._base import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.actor import *  # noqa: F401, F403
 from vultron.wire.as2.vocab.examples.case import *  # noqa: F401, F403
@@ -165,13 +166,15 @@ def main():
     activity = add_vendor_participant_to_case()
 
     participant = activity.as_object
-    obj_to_file(participant, f"{outdir}/vendor_participant.json")
+    if isinstance(participant, as_Base):
+        obj_to_file(participant, f"{outdir}/vendor_participant.json")
     obj_to_file(activity, f"{outdir}/add_vendor_participant_to_case.json")
 
     # activity: vendor adds finder as participant to case
     activity = add_finder_participant_to_case()
     participant = activity.as_object
-    obj_to_file(participant, f"{outdir}/finder_participant.json")
+    if isinstance(participant, as_Base):
+        obj_to_file(participant, f"{outdir}/finder_participant.json")
     obj_to_file(activity, f"{outdir}/add_finder_participant_to_case.json")
 
     # activity: vendor engages case

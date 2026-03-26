@@ -19,7 +19,7 @@ It also provides a number of core node types that can be used to build a Behavio
 
 import logging
 from copy import deepcopy
-from typing import Iterable
+from typing import Any, Iterable
 
 import networkx as nx
 
@@ -33,7 +33,7 @@ from vultron.bt.base.node_status import NodeStatus
 logger = logging.getLogger(__name__)
 
 
-def _indent(depth=0):
+def _indent(depth: int = 0) -> str:
     """Convenience method for indenting printed output."""
     return " | " * depth
 
@@ -59,11 +59,11 @@ class BtNode:
 
         self.name = f"{pfx}{self.__class__.__name__}{self.name_sfx}"
 
-        self.parent = None
-        self.children = []
+        self.parent: BtNode | None = None
+        self.children: list[BtNode] = []
 
-        self.status = None
-        self.bb = None
+        self.status: NodeStatus | None = None
+        self.bb: Any = None
 
         self._setup_complete = False
 
@@ -222,7 +222,7 @@ class BtNode:
         return "".join(parts)
 
     def to_graph(self) -> nx.DiGraph:
-        G = nx.DiGraph()
+        G: nx.DiGraph = nx.DiGraph()
 
         # add a self node
         # see note *** below

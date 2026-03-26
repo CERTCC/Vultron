@@ -40,13 +40,13 @@ class TriggerRequest(BaseModel):
 class OfferTriggerRequest(TriggerRequest):
     """Trigger request that requires an ``offer_id``."""
 
-    offer_id: NonEmptyString
+    offer_id: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
 
 
 class CaseTriggerRequest(TriggerRequest):
     """Trigger request that requires a ``case_id`` in URI form."""
 
-    case_id: UriString
+    case_id: UriString  # pyright: ignore[reportGeneralTypeIssues]
 
 
 class ValidateReportTriggerRequest(OfferTriggerRequest):
@@ -78,7 +78,7 @@ class DeferCaseTriggerRequest(CaseTriggerRequest):
 
 
 class ProposeEmbargoTriggerRequest(CaseTriggerRequest):
-    end_time: datetime
+    end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
 
     @field_validator("end_time")
     @classmethod

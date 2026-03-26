@@ -63,9 +63,11 @@ class TestValidationPolicy:
 
         class CustomPolicy(ValidationPolicy):
             def is_credible(self, report):
+                assert report.name is not None
                 return len(report.name) > 5
 
             def is_valid(self, report):
+                assert isinstance(report.content, str)
                 return "vulnerability" in report.content.lower()
 
         policy = CustomPolicy()

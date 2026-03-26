@@ -72,9 +72,11 @@ class MyTestCase(unittest.TestCase):
             _actor = actor_class(name=actor_class.__name__)
             _case = VulnerabilityCase(name=f"{actor_class.__name__} Case")
             _recommendation = actor.RecommendActorActivity(
-                actor=_actor, object=_actor, target=_case
+                actor=_actor, as_object=_actor, target=_case
             )
-            _object = cls(actor=_actor, object=_recommendation, target=_case)
+            _object = cls(
+                actor=_actor, as_object=_recommendation, target=_case
+            )
 
             # check activity is correct type
             self.assertIsInstance(_object, as_Activity)
@@ -104,7 +106,7 @@ class MyTestCase(unittest.TestCase):
         for actor_class in ACTOR_CLASSES:
             _actor = actor_class(name=actor_class.__name__)
             _case = VulnerabilityCase(name=f"{actor_class.__name__} Case")
-            _object = cls(actor=_actor, object=_actor, target=_case)
+            _object = cls(actor=_actor, as_object=_actor, target=_case)
 
             # check activity is correct type
             self.assertIsInstance(_object, as_Activity)
@@ -132,8 +134,9 @@ class MyTestCase(unittest.TestCase):
             self.assertEqual(
                 getattr(reloaded.as_object, "as_id"), _actor.as_id
             )
+            self.assertIsNotNone(_actor.as_type)
             self.assertIn(
-                getattr(reloaded.as_object, "as_type"), _actor.as_type
+                getattr(reloaded.as_object, "as_type"), [_actor.as_type]
             )
             self.assertEqual(
                 getattr(reloaded.as_object, "name"), actor_class.__name__

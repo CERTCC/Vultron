@@ -15,7 +15,7 @@ This module defines a Behavior Tree object.
 """
 
 import logging
-from typing import Type, Literal
+from typing import Any, Literal, Type
 
 from vultron.bt.base.blackboard import Blackboard
 from vultron.bt.base.bt_node import BtNode
@@ -37,12 +37,12 @@ class BehaviorTree:
         bb: the blackboard object
     """
 
-    bbclass = Blackboard
+    bbclass: Type[Any] = Blackboard
 
     def __init__(
         self,
         root: BtNode | None = None,
-        bbclass: Type[Blackboard] | None = None,
+        bbclass: Type[Any] | None = None,
     ):
         """
         Initialize the BehaviorTree object.
@@ -55,7 +55,7 @@ class BehaviorTree:
         if bbclass is not None:
             self.bbclass = bbclass
 
-        self.bb: Blackboard = self.bbclass()
+        self.bb: Any = self.bbclass()
         self.status: NodeStatus | None = None
 
         # track whether we've done the pre-tick setup stuff

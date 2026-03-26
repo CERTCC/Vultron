@@ -14,7 +14,7 @@
 This module defines the CVD Case State Machine as a Behavior Tree.
 """
 
-from typing import Type
+from typing import Any, Type, cast
 
 from vultron.bt.base.bt_node import ActionNode, BtNode
 from vultron.bt.base.factory import action_node, sequence_node
@@ -71,7 +71,7 @@ def cs_state_change(
 
     node_cls = action_node(name, _func)
     # add the target state as a class attribute (for testing)
-    node_cls.target_state = target_state
+    setattr(cast(Any, node_cls), "target_state", target_state)
     return node_cls
 
 

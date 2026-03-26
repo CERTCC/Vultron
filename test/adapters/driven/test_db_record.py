@@ -7,9 +7,11 @@
 #  Created, in part, with funding and support from the United States Government
 #  (see Acknowledgments file). This program may include and/or can make use of
 #  certain third party source code, object code, documentation and other files
-#  (“Third Party Software”). See LICENSE.md for more details.
+#  ("Third Party Software"). See LICENSE.md for more details.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
+
+from typing import Any, cast
 
 import pytest
 
@@ -65,7 +67,7 @@ def test_record_to_object_reconstructs_note_and_preserves_id_type_and_data(
     note_object,
 ):
     record = object_to_record(note_object)
-    reconstructed = record_to_object(record)
+    reconstructed = cast(Any, record_to_object(record))
     # ensure type and class are preserved
     assert reconstructed.as_id == note_object.as_id
     assert reconstructed.as_type == note_object.as_type

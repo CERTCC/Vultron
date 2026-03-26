@@ -63,7 +63,7 @@ class SvcEngageCaseUseCase:
 
         engage_activity = RmEngageCaseActivity(
             actor=actor_id,
-            object=case.as_id,
+            as_object=case.as_id,
         )
 
         try:
@@ -110,7 +110,7 @@ class SvcDeferCaseUseCase:
 
         defer_activity = RmDeferCaseActivity(
             actor=actor_id,
-            object=case.as_id,
+            as_object=case.as_id,
         )
 
         try:

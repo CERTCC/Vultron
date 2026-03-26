@@ -8,6 +8,8 @@ including the TransitionBase model and any shared utilities or base classes
 for state machines.
 """
 
+from enum import Enum
+
 from pydantic import BaseModel
 from transitions import Machine
 
@@ -16,8 +18,8 @@ from vultron.core.models.base import NonEmptyString
 
 class TransitionBase(BaseModel):
     trigger: NonEmptyString
-    source: NonEmptyString
-    dest: NonEmptyString
+    source: NonEmptyString | Enum
+    dest: NonEmptyString | Enum
 
 
 def mermaid_machine(M: Machine):

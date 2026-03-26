@@ -25,7 +25,7 @@ import logging
 import random
 import re
 from itertools import product
-from typing import Any, Generator
+from typing import Any, Generator, cast, overload
 
 import networkx as nx
 import numpy as np
@@ -149,25 +149,25 @@ class CVDmodel:
 
     def __init__(self):
         # the graph of states
-        self.G = None
+        self.G: Any = None
 
         # the set of histories
-        self.H = None
-        self.H_prob = None
-        self.H_score = None
+        self.H: Any = None
+        self.H_prob: Any = None
+        self.H_score: Any = None
 
-        self._rounds_to_cover = None
-        self.d_cols = None
-        self.w_cols = None
-        self.H_df = None
-        self.S_df = None
-        self.f_d = None
-        self.d_to_state_pattern = None
-        self.state_pattern_to_d = None
-        self.not_d_to_state_pattern = None
-        self.state_pattern_to_not_d = None
-        self.state_good = None
-        self.state_bad = None
+        self._rounds_to_cover: Any = None
+        self.d_cols: Any = None
+        self.w_cols: Any = None
+        self.H_df: Any = None
+        self.S_df: Any = None
+        self.f_d: Any = None
+        self.d_to_state_pattern: Any = None
+        self.state_pattern_to_d: Any = None
+        self.not_d_to_state_pattern: Any = None
+        self.state_pattern_to_not_d: Any = None
+        self.state_good: Any = None
+        self.state_bad: Any = None
 
         self._setup()
 
@@ -247,7 +247,7 @@ class CVDmodel:
             "vfd": vfd(state),
             "pxa": pxa(state),
             "predecessors": list(self.previous_state(state)),
-            "successors": list(self.next_state(state)),
+            "successors": self.next_state(state),
             "explain": explain(state),
             "info": info(state),
             "actions": action(state),
@@ -270,7 +270,15 @@ class CVDmodel:
         return states
 
     @ensure_valid_state
-    def next_state(self, state: str, transition=None):
+    @overload
+    def next_state(self, state: str, transition: None = None) -> list[str]: ...
+
+    @overload
+    def next_state(self, state: str, transition: str) -> str | None: ...
+
+    def next_state(
+        self, state: str, transition: str | None = None
+    ) -> list[str] | str | None:
         if transition is None:
             next_states = list(self.G.successors(state))
             return next_states
@@ -284,7 +292,8 @@ class CVDmodel:
 
             edge_data = self.G.get_edge_data(state, successor)
             if edge_data["label"] == transition:
-                return successor
+                return cast(str, successor)
+        return None
 
     # paths are a list of edges from the graph
     # [(u,v),(v,w),(w,x)...]
@@ -424,11 +433,11 @@ class CVDmodel:
         Returns:
             a tuple of the path and the probabilities of each step
         """
-        current = start
+        current = start or "vfdpxa"
         path = []
         probabilities = []
         while current != end:
-            neighbors = list(self.next_state(current))
+            neighbors = self.next_state(current)
 
             p = 0.0
             n = len(neighbors)
@@ -707,10 +716,10 @@ class CVDmodel:
         return res
 
     @ensure_valid_state
-    def score_state(self, state):
+    def score_state(self, state: str) -> float:
         part = self._part_score_state(state)
         # net = part['plus'] - part['minus']
-        net = part["plus"]
+        net = float(part["plus"])
         return net
 
     def _construct_good_patterns(self):
@@ -852,7 +861,7 @@ class CVDmodel:
         delta = next_score - curr_score
         return delta
 
-    def compute_pagerank(self) -> dict:
+    def compute_pagerank(self) -> dict[str, float]:
         """
         Compute the pagerank of each state in the model.
         Runs the NetworkX pagerank algorithm on the model graph 10000 times.
@@ -875,7 +884,7 @@ class CVDmodel:
         pr = nx.pagerank(G, max_iter=10000)
 
         # return a dict of node: pr
-        return pr
+        return {str(node): float(score) for node, score in pr.items()}
 
 
 def main():

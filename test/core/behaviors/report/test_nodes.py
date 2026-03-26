@@ -74,7 +74,7 @@ def report(datalayer):
 @pytest.fixture
 def offer(datalayer, report, actor):
     """Create test offer activity."""
-    offer = VultronOffer(actor=actor.as_id, object=report.as_id)
+    offer = VultronOffer(actor=actor.as_id, as_object=report.as_id)
     datalayer.create(offer)
     return offer
 

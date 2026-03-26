@@ -17,7 +17,7 @@ This module provides common Behavior Tree nodes for the Vultron package.
 
 import logging
 from enum import Enum
-from typing import List, Type
+from typing import Sequence, Type
 
 import networkx as nx
 from pydantic import BaseModel
@@ -39,7 +39,7 @@ class EnumStateTransition(BaseModel):
     Represents a transition between two states in an enum-based state machine
     """
 
-    start_states: List[Enum]
+    start_states: Sequence[Enum]
     end_state: Enum
 
 

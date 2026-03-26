@@ -31,6 +31,7 @@ import py_trees
 from py_trees.common import Status
 
 from vultron.core.models.participant_status import VultronParticipantStatus
+from vultron.core.models.protocols import has_outbox, is_case_model
 from vultron.core.models.vultron_types import (
     VultronCase,
     VultronCaseActor,
@@ -258,7 +259,7 @@ class EmitCreateCaseActivity(DataLayerAction):
 
             activity = VultronCreateCaseActivity(
                 actor=self.actor_id,
-                object=case_id,
+                as_object=case_id,
             )
             try:
                 self.datalayer.create(activity)
@@ -364,7 +365,7 @@ class CreateInitialVendorParticipant(DataLayerAction):
                 )
 
             stored_case = self.datalayer.read(self.case_obj.as_id)
-            if stored_case is None:
+            if not is_case_model(stored_case):
                 self.logger.error(
                     f"{self.name}: Case {self.case_obj.as_id} not found"
                     " in DataLayer"
@@ -431,7 +432,7 @@ class RecordCaseCreationEvents(DataLayerAction):
                 return Status.FAILURE
 
             case = self.datalayer.read(case_id)
-            if case is None:
+            if not is_case_model(case):
                 self.logger.error(
                     f"{self.name}: Case {case_id} not found in DataLayer"
                 )
@@ -511,9 +512,7 @@ class UpdateActorOutbox(DataLayerAction):
                 self.actor_id, raise_on_missing=True
             )
 
-            if not hasattr(actor_obj, "outbox") or not hasattr(
-                actor_obj.outbox, "items"
-            ):
+            if not has_outbox(actor_obj):
                 self.logger.error(
                     f"{self.name}: Actor {self.actor_id} has no outbox"
                 )

@@ -16,6 +16,7 @@
 """Tests for CaseParticipant model, focusing on accepted_embargo_ids field (CM-10-003)."""
 
 import unittest
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
@@ -95,7 +96,7 @@ class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
             accepted_embargo_ids=[self.embargo_id_1, self.embargo_id_2],
         )
         record = object_to_record(participant)
-        restored = record_to_object(record)
+        restored = cast(CaseParticipant, record_to_object(record))
         self.assertEqual(
             participant.accepted_embargo_ids, restored.accepted_embargo_ids
         )
@@ -103,7 +104,7 @@ class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
     def test_accepted_embargo_ids_empty_round_trip(self):
         """Empty accepted_embargo_ids survives object_to_record/record_to_object round-trip."""
         record = object_to_record(self.participant)
-        restored = record_to_object(record)
+        restored = cast(CaseParticipant, record_to_object(record))
         self.assertEqual([], restored.accepted_embargo_ids)
 
     def test_accepted_embargo_ids_present_in_subclasses(self):
@@ -132,7 +133,7 @@ class TestCaseParticipantAcceptedEmbargoIds(unittest.TestCase):
             accepted_embargo_ids=[self.embargo_id_1],
         )
         record = object_to_record(vendor)
-        restored = record_to_object(record)
+        restored = cast(VendorParticipant, record_to_object(record))
         self.assertEqual(
             vendor.accepted_embargo_ids, restored.accepted_embargo_ids
         )

@@ -34,7 +34,7 @@ class VultronParticipantStatus(VultronObject):
     """
 
     as_type: Literal["ParticipantStatus"] = "ParticipantStatus"
-    context: NonEmptyString
+    context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     rm_state: RM = RM.START
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True

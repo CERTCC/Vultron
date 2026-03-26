@@ -54,7 +54,9 @@ class AddReportToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    as_object: VulnerabilityReportRef = Field(None, alias="object")
+    as_object: VulnerabilityReportRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
     target: VulnerabilityCaseRef = None
 
 
@@ -72,7 +74,9 @@ class AddStatusToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    as_object: CaseStatusRef = Field(None, alias="object")
+    as_object: CaseStatusRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
     target: VulnerabilityCaseRef = None
 
 
@@ -87,7 +91,9 @@ class CreateCaseActivity(as_Create):
     as_object: VulnerabilityCase
     """
 
-    as_object: VulnerabilityCaseRef = Field(None, alias="object")
+    as_object: VulnerabilityCaseRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
 
 
 class CreateCaseStatusActivity(as_Create):
@@ -95,7 +101,9 @@ class CreateCaseStatusActivity(as_Create):
     as_object: CaseStatus
     """
 
-    as_object: CaseStatusRef = Field(None, alias="object")
+    as_object: CaseStatusRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
 
 
 # Add a Note to a VulnerabilityCase
@@ -105,7 +113,9 @@ class AddNoteToCaseActivity(as_Add):
     target: VulnerabilityCase
     """
 
-    as_object: as_NoteRef = Field(None, alias="object")
+    as_object: as_NoteRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
     target: VulnerabilityCaseRef = None
 
 
@@ -115,7 +125,9 @@ class UpdateCaseActivity(as_Update):
     as_object: VulnerabilityCase
     """
 
-    as_object: VulnerabilityCaseRef = Field(None, alias="object")
+    as_object: VulnerabilityCaseRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
 
 
 #####
@@ -130,7 +142,9 @@ class RmEngageCaseActivity(as_Join):
     as_object: VulnerabilityCase
     """
 
-    as_object: VulnerabilityCaseRef = Field(None, alias="object")
+    as_object: VulnerabilityCaseRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
 
 
 class RmDeferCaseActivity(as_Ignore):
@@ -143,7 +157,9 @@ class RmDeferCaseActivity(as_Ignore):
     as_object: VulnerabilityCase
     """
 
-    as_object: VulnerabilityCaseRef = Field(None, alias="object")
+    as_object: VulnerabilityCaseRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
 
 
 class RmCloseCaseActivity(as_Leave):
@@ -155,7 +171,9 @@ class RmCloseCaseActivity(as_Leave):
     as_object: VulnerabilityCase
     """
 
-    as_object: VulnerabilityCaseRef = Field(None, alias="object")
+    as_object: VulnerabilityCaseRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
 
 
 class OfferCaseOwnershipTransferActivity(as_Offer):
@@ -164,7 +182,9 @@ class OfferCaseOwnershipTransferActivity(as_Offer):
     target: as_Actor
     """
 
-    as_object: VulnerabilityCaseRef = Field(None, alias="object")
+    as_object: VulnerabilityCaseRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
     target: as_ActorRef = None
 
 
@@ -175,7 +195,7 @@ class AcceptCaseOwnershipTransferActivity(as_Accept):
     """
 
     as_object: OfferCaseOwnershipTransferActivity | str | None = Field(
-        None, alias="object"
+        None, validation_alias="object", serialization_alias="object"
     )
 
 
@@ -186,7 +206,7 @@ class RejectCaseOwnershipTransferActivity(as_Reject):
     """
 
     as_object: OfferCaseOwnershipTransferActivity | str | None = Field(
-        None, alias="object"
+        None, validation_alias="object", serialization_alias="object"
     )
 
 
@@ -198,7 +218,9 @@ class RmInviteToCaseActivity(as_Invite):
     target: VulnerabilityCase
     """
 
-    as_object: as_ActorRef = Field(None, alias="object")
+    as_object: as_ActorRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
     target: VulnerabilityCaseRef = None
 
 
@@ -212,7 +234,9 @@ class RmAcceptInviteToCaseActivity(as_Accept):
     as_object: the RmInviteToCaseActivity being accepted
     """
 
-    as_object: RmInviteToCaseRef = Field(None, alias="object")
+    as_object: RmInviteToCaseRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )
 
 
 class RmRejectInviteToCaseActivity(as_Reject):
@@ -223,4 +247,6 @@ class RmRejectInviteToCaseActivity(as_Reject):
     `as_object`: the `RmInviteToCaseActivity` being rejected
     """
 
-    as_object: RmInviteToCaseRef = Field(None, alias="object")
+    as_object: RmInviteToCaseRef = Field(
+        None, validation_alias="object", serialization_alias="object"
+    )

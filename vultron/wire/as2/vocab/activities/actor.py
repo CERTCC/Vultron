@@ -31,7 +31,9 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class RecommendActorActivity(as_Offer):
     """The actor is recommending another actor to a case."""
 
-    as_object: as_ActorRef = Field(default=None, alias="object")
+    as_object: as_ActorRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
     target: VulnerabilityCaseRef = None
 
 
@@ -43,7 +45,7 @@ class AcceptActorRecommendationActivity(as_Accept):
     """
 
     as_object: "RecommendActorActivity | str | None" = Field(
-        default=None, alias="object"
+        default=None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 
@@ -55,7 +57,7 @@ class RejectActorRecommendationActivity(as_Reject):
     """
 
     as_object: "RecommendActorActivity | str | None" = Field(
-        default=None, alias="object"
+        default=None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
 

@@ -78,7 +78,7 @@ def test_get_actor_inbox_returns_mailbox_structure(
 def test_post_activity_to_actor_inbox_accepted(client_actors, created_actors):
     for actor in created_actors:
         note = as_Note(content="This is a test note.")
-        activity = as_Create(object=note, actor=actor.as_id)
+        activity = as_Create(as_object=note, actor=actor.as_id)
         payload = jsonable_encoder(activity, exclude_none=True)
         resp = client_actors.post(
             f"/actors/{actor.as_id}/inbox/", json=payload
@@ -90,7 +90,9 @@ def test_post_non_activity_to_actor_inbox_returns_422(
     client_actors, created_actors
 ):
     for actor in created_actors:
-        note = as_Note(id="urn:uuid:test-note", content="This is a test note.")
+        note = as_Note(
+            as_id="urn:uuid:test-note", content="This is a test note."
+        )
         payload = jsonable_encoder(note, exclude_none=True)
         resp = client_actors.post(
             f"/actors/{actor.as_id}/inbox/", json=payload
@@ -143,7 +145,7 @@ def test_get_actors_does_not_log_raw_records_at_info_level(
 def _seed_action_rules_data(dl):
     """Insert a minimal valid VulnerabilityCase / CaseParticipant pair."""
     case = VulnerabilityCase(
-        id=_HTTP_CASE_ID,
+        as_id=_HTTP_CASE_ID,
         name="Test Case",
         actor_participant_index={_HTTP_ACTOR_ID: _HTTP_PARTICIPANT_ID},
         case_statuses=[CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)],
@@ -151,7 +153,7 @@ def _seed_action_rules_data(dl):
     dl.create(case)
 
     participant = CaseParticipant(
-        id=_HTTP_PARTICIPANT_ID,
+        as_id=_HTTP_PARTICIPANT_ID,
         attributed_to=_HTTP_ACTOR_ID,
         context=_HTTP_CASE_ID,
         case_roles=[CVDRole.VENDOR],

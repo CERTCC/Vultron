@@ -12,6 +12,7 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for report and case use-case classes."""
 
+from typing import cast
 from unittest.mock import MagicMock
 
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
@@ -45,7 +46,7 @@ class TestUseCaseExecution:
             name="TEST-002", content="Test vulnerability report"
         )
         create_activity = as_Create(
-            actor="https://example.org/users/tester", object=report
+            actor="https://example.org/users/tester", as_object=report
         )
         event = make_payload(create_activity)
 
@@ -59,7 +60,7 @@ class TestUseCaseExecution:
             name="TEST-CASE-002", content="Test vulnerability case"
         )
         create_activity = as_Create(
-            actor="https://example.org/users/tester", object=case
+            actor="https://example.org/users/tester", as_object=case
         )
         event = make_payload(create_activity)
 
@@ -74,7 +75,7 @@ class TestUseCaseExecution:
             name="TEST-003", content="Test report for shim delegation"
         )
         create_activity = as_Create(
-            actor="https://example.org/users/tester", object=report
+            actor="https://example.org/users/tester", as_object=report
         )
         event = make_payload(create_activity)
         result = CreateReportReceivedUseCase(dl, event).execute()
@@ -88,8 +89,8 @@ class TestReportReceiptPersistsParticipantStatus:
         """CreateReportReceivedUseCase persists a RM.RECEIVED ParticipantStatus."""
         report = VultronReport(as_id="https://example.org/reports/r-persist-1")
         activity = VultronActivity(
-            id="https://example.org/activities/create-p1",
-            type="Create",
+            as_id="https://example.org/activities/create-p1",
+            as_type="Create",
             actor="https://example.org/users/finder",
         )
         event = CreateReportReceivedEvent(
@@ -112,22 +113,18 @@ class TestReportReceiptPersistsParticipantStatus:
         assert (
             stored is not None
         ), "Expected a ParticipantStatus record in DataLayer"
-        assert stored["data_"]["rm_state"] == RM.RECEIVED.value
-        assert (
-            stored["data_"]["context"]
-            == "https://example.org/reports/r-persist-1"
-        )
-        assert (
-            stored["data_"]["attributed_to"]
-            == "https://example.org/users/finder"
-        )
+        stored_record = cast(dict[str, object], stored)
+        data = cast(dict[str, object], stored_record["data_"])
+        assert data["rm_state"] == RM.RECEIVED.value
+        assert data["context"] == "https://example.org/reports/r-persist-1"
+        assert data["attributed_to"] == "https://example.org/users/finder"
 
     def test_submit_report_persists_participant_status(self):
         """SubmitReportReceivedUseCase persists a RM.RECEIVED ParticipantStatus."""
         report = VultronReport(as_id="https://example.org/reports/r-persist-2")
         activity = VultronActivity(
-            id="https://example.org/activities/submit-p1",
-            type="Offer",
+            as_id="https://example.org/activities/submit-p1",
+            as_type="Offer",
             actor="https://example.org/users/finder",
         )
         event = SubmitReportReceivedEvent(
@@ -150,22 +147,18 @@ class TestReportReceiptPersistsParticipantStatus:
         assert (
             stored is not None
         ), "Expected a ParticipantStatus record in DataLayer"
-        assert stored["data_"]["rm_state"] == RM.RECEIVED.value
-        assert (
-            stored["data_"]["context"]
-            == "https://example.org/reports/r-persist-2"
-        )
-        assert (
-            stored["data_"]["attributed_to"]
-            == "https://example.org/users/finder"
-        )
+        stored_record = cast(dict[str, object], stored)
+        data = cast(dict[str, object], stored_record["data_"])
+        assert data["rm_state"] == RM.RECEIVED.value
+        assert data["context"] == "https://example.org/reports/r-persist-2"
+        assert data["attributed_to"] == "https://example.org/users/finder"
 
     def test_create_report_participant_status_is_idempotent(self):
         """Calling CreateReportReceivedUseCase twice creates only one ParticipantStatus."""
         report = VultronReport(as_id="https://example.org/reports/r-idem-1")
         activity = VultronActivity(
-            id="https://example.org/activities/create-idem-1",
-            type="Create",
+            as_id="https://example.org/activities/create-idem-1",
+            as_type="Create",
             actor="https://example.org/users/finder",
         )
         event = CreateReportReceivedEvent(

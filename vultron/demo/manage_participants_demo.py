@@ -42,7 +42,7 @@ When run as a script, this module will:
 
 import logging
 import sys
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.activities.case import (
     AddReportToCaseActivity,
@@ -87,6 +87,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     logfmt,
     demo_environment,
     post_to_inbox_and_wait,
+    ref_id,
     verify_object_stored,
 )
 
@@ -127,7 +128,7 @@ def _setup_case_with_vendor(
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
     validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
-        object=offer.as_id,
+        as_object=offer.as_id,
         content="Confirmed — use-after-free via crafted allocation sequence.",
     )
     post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
@@ -207,7 +208,7 @@ def demo_manage_participants_accept(
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = RmInviteToCaseActivity(
             actor=vendor.as_id,
-            object=coordinator.as_id,
+            as_object=coordinator.as_id,
             target=case.as_id,
             to=[coordinator.as_id],
             content=f"Inviting you to participate in {case.name}.",
@@ -218,7 +219,7 @@ def demo_manage_participants_accept(
     with demo_step("Step 3: Coordinator accepts invitation"):
         accept = RmAcceptInviteToCaseActivity(
             actor=coordinator.as_id,
-            object=invite.as_id,
+            as_object=invite.as_id,
             to=[vendor.as_id],
             content=f"Accepting invitation to participate in {case.name}.",
         )
@@ -255,8 +256,7 @@ def demo_manage_participants_accept(
                     "Could not retrieve case after add participant"
                 )
             participant_ids = [
-                (p.as_id if hasattr(p, "as_id") else str(p))
-                for p in updated_case.case_participants
+                (ref_id(p) or str(p)) for p in updated_case.case_participants
             ]
             if coordinator_participant.as_id not in participant_ids:
                 raise ValueError(
@@ -273,7 +273,7 @@ def demo_manage_participants_accept(
         )
         create_status = CreateStatusForParticipantActivity(
             actor=coordinator.as_id,
-            object=participant_status,
+            as_object=participant_status,
             target=coordinator_participant.as_id,
         )
         post_to_inbox_and_wait(client, coordinator.as_id, create_status)
@@ -285,7 +285,7 @@ def demo_manage_participants_accept(
     ):
         add_status = AddStatusToParticipantActivity(
             actor=coordinator.as_id,
-            object=participant_status,
+            as_object=participant_status,
             target=coordinator_participant.as_id,
         )
         post_to_inbox_and_wait(client, coordinator.as_id, add_status)
@@ -310,8 +310,7 @@ def demo_manage_participants_accept(
             if final_case is None:
                 raise ValueError("Could not retrieve case after remove")
             participant_ids = [
-                (p.as_id if hasattr(p, "as_id") else str(p))
-                for p in final_case.case_participants
+                (ref_id(p) or str(p)) for p in final_case.case_participants
             ]
             if coordinator_participant.as_id in participant_ids:
                 raise ValueError(
@@ -359,7 +358,7 @@ def demo_manage_participants_reject(
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = RmInviteToCaseActivity(
             actor=vendor.as_id,
-            object=coordinator.as_id,
+            as_object=coordinator.as_id,
             target=case.as_id,
             to=[coordinator.as_id],
             content=f"Inviting you to participate in {case.name}.",
@@ -370,7 +369,7 @@ def demo_manage_participants_reject(
     with demo_step("Step 3: Coordinator rejects invitation"):
         reject = RmRejectInviteToCaseActivity(
             actor=coordinator.as_id,
-            object=invite.as_id,
+            as_object=invite.as_id,
             to=[vendor.as_id],
             content=f"Declining invitation to participate in {case.name}.",
         )
@@ -394,7 +393,7 @@ def demo_manage_participants_reject(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
     (
         "Demo: Manage Participants — Accept + Status + Remove Path",
         demo_manage_participants_accept,

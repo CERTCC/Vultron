@@ -91,6 +91,7 @@ class MyTestCase(unittest.TestCase):
         m = hc.CVDmodel()
         for state in m.states:
             next = m.next_state(state)
+            assert isinstance(next, list)
             for succ in m.G.successors(state):
                 self.assertIn(succ, next)
 

@@ -11,6 +11,8 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from typing import ClassVar
+
 import unittest
 
 import vultron.bt.messaging.conditions as vmc
@@ -19,11 +21,11 @@ from vultron.bt.messaging.states import MessageTypes
 
 
 class MockMsg:
-    msg_type = None
+    msg_type: MessageTypes | None = None
 
 
 class MockState:
-    current_message = MockMsg()
+    current_message: ClassVar[MockMsg] = MockMsg()
 
 
 _TO_TEST = {

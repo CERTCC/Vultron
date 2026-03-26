@@ -21,8 +21,7 @@ from vultron.core.states.em import EM
 
 
 class MockState:
-    q_em = None
-    pass
+    q_em: EM | None = None
 
 
 class TestEmbargoManagementConditions(unittest.TestCase):
@@ -45,15 +44,19 @@ class TestEmbargoManagementConditions(unittest.TestCase):
             c.bb = MockState()
             c.bb.q_em = expect_success
             self.assertEqual(
-                NodeStatus.SUCCESS, c.tick()
-            ), f"State {expect_success} should have succeeded"
+                NodeStatus.SUCCESS,
+                c.tick(),
+                f"State {expect_success} should have succeeded",
+            )
 
             expect_fails = [x for x in self.emstates if x != expect_success]
             for state in expect_fails:
                 c.bb.q_em = state
                 self.assertEqual(
-                    NodeStatus.FAILURE, c.tick()
-                ), f"State {state} should have failed"
+                    NodeStatus.FAILURE,
+                    c.tick(),
+                    f"State {state} should have failed",
+                )
 
     def test_em_in_state_active(self):
         """Test that the EMinStateActive node is instantiated with the correct state

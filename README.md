@@ -1,5 +1,7 @@
 # Vultron
 
+[![CI](https://github.com/CERTCC/Vultron/actions/workflows/python-app.yml/badge.svg)](https://github.com/CERTCC/Vultron/actions/workflows/python-app.yml)
+
 Vultron is a research project to explore the creation of a federated, decentralized, and open source protocol for
 coordinated vulnerability disclosure (CVD). It has grown out of the CERT/CC's decades of experience in coordinating
 global response to software vulnerabilities. The goal is to create a protocol that can be used by any organization

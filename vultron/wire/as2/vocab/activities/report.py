@@ -39,7 +39,9 @@ OfferRef: TypeAlias = ActivityStreamRef[as_Offer]
 class RmCreateReportActivity(as_Create):
     """The actor is creating a report."""
 
-    as_object: VulnerabilityReportRef = Field(default=None, alias="object")
+    as_object: VulnerabilityReportRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
 
 
 class RmSubmitReportActivity(as_Offer):
@@ -49,7 +51,9 @@ class RmSubmitReportActivity(as_Offer):
     as_object: VulnerabilityReport
     """
 
-    as_object: VulnerabilityReportRef = Field(default=None, alias="object")
+    as_object: VulnerabilityReportRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
 
 
 class RmReadReportActivity(as_Read):
@@ -58,7 +62,9 @@ class RmReadReportActivity(as_Read):
     as_object: VulnerabilityReport
     """
 
-    as_object: VulnerabilityReportRef = Field(default=None, alias="object")
+    as_object: VulnerabilityReportRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
 
 
 class RmValidateReportActivity(as_Accept):
@@ -68,7 +74,9 @@ class RmValidateReportActivity(as_Accept):
     as_object: an as_Offer wrapping a VulnerabilityReport
     """
 
-    as_object: OfferRef = Field(default=None, alias="object")
+    as_object: OfferRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
 
 
 class RmInvalidateReportActivity(as_TentativeReject):
@@ -78,7 +86,9 @@ class RmInvalidateReportActivity(as_TentativeReject):
     as_object: an as_Offer wrapping a VulnerabilityReport
     """
 
-    as_object: OfferRef = Field(default=None, alias="object")
+    as_object: OfferRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
 
 
 class RmCloseReportActivity(as_Reject):
@@ -89,4 +99,6 @@ class RmCloseReportActivity(as_Reject):
     as_object: an as_Offer wrapping a VulnerabilityReport
     """
 
-    as_object: OfferRef = Field(default=None, alias="object")
+    as_object: OfferRef = Field(
+        default=None, validation_alias="object", serialization_alias="object"
+    )
