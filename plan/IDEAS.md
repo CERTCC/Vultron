@@ -53,3 +53,16 @@ append-only log and that new entries should always be added to the end of
 the file. Also update `AGENTS.md`, and any relevant `specs/*.md` or `.
 github/skills/**/SKILL.md` files to reflect this expectation in agent
 behavior when updating IMPLEMENTATION_HISTORY.md.
+
+## Github actions MUST pin versions to specific commit SHAs
+
+Github actions that are used in our workflows must pin versions to specific
+commit SHAs rather than just to a version tag. Version tags can be moved or
+updated, which can lead to unnecessary supply chain risks if an attacker is
+able to compromise the repository to change a tag. By pinning to a specific
+commit SHA, we ensure that our workflows are using a specific, known version
+of the action that cannot be changed without our knowledge. This needs to be
+an ADR (`docs/adr/`) and reflected in the `specs/*.md` where appropriate. A
+task to audit our existing Github actions and update any that are not currently
+pinned to specific commit SHAs should be added to the implementation plan as
+well.
