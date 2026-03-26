@@ -121,7 +121,8 @@ captured in `plan/IMPLEMENTATION_PLAN.md`:
 
 1. Add them to `plan/IMPLEMENTATION_PLAN.md` with a clear description  and
    any relevant details, creating new sections if needed.
-2. Ensure they are appropriately prioritized relative to existing tasks.
+2. Do not add priority indicators to added tasks. Prioritization will be 
+   handled separately.
 3. Do **not** add implementation tasks that are too vague or high-level;
    they must be specific enough to be actionable and testable.
 4. `IMPLEMENTATION_PLAN.md` is for **implementation tasks only** (the *how*);
