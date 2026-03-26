@@ -60,6 +60,7 @@ def test_inbox_items_can_be_objects():
 
     # This should work
     assert len(actor.inbox.items) == 1
+    assert isinstance(actor.inbox.items[0], as_Activity)
     assert actor.inbox.items[0].as_id == activity.as_id
 
 

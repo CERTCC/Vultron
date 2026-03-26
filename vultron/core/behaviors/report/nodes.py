@@ -467,7 +467,7 @@ class CreateCaseActivity(DataLayerAction):
 
             # Create CreateCaseActivity activity domain object
             create_case_activity = VultronCreateCaseActivity(
-                actor=self.actor_id, object=case_id
+                actor=self.actor_id, as_object=case_id
             )
 
             # Store activity in DataLayer

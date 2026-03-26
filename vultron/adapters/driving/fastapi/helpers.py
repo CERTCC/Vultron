@@ -17,7 +17,9 @@ Vultron API Backend Helpers
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ValidationError
+from typing import cast
+
+from pydantic import ValidationError
 
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
@@ -38,7 +40,7 @@ def obj_from_item(item: dict) -> as_Base:
             status_code=400, detail="Item must have a 'type' field."
         )
 
-    cls: BaseModel | None = find_in_vocabulary(item["type"])
+    cls = find_in_vocabulary(item["type"])
 
     if cls is None:
         raise HTTPException(
@@ -52,4 +54,4 @@ def obj_from_item(item: dict) -> as_Base:
             status_code=400, detail=f"Invalid item data: {e.errors()}"
         )
 
-    return obj
+    return cast(as_Base, obj)

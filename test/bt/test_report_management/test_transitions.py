@@ -20,8 +20,8 @@ from vultron.core.states.rm import RM
 
 class MockActorState:
     def __init__(self):
-        self.q_rm = None
-        self.q_rm_history = []
+        self.q_rm: RM | None = None
+        self.q_rm_history: list[RM] = []
 
 
 class MyTestCase(unittest.TestCase):

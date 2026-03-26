@@ -88,6 +88,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     log_case_state,
     demo_environment,
     post_to_inbox_and_wait,
+    ref_id,
     verify_object_stored,
 )
 
@@ -127,7 +128,7 @@ def _setup_initialized_case(
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
     validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
-        object=offer.as_id,
+        as_object=offer.as_id,
         content="Confirmed — heap buffer overflow via malformed image input.",
     )
     post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
@@ -216,7 +217,7 @@ def demo_notes_workflow(
     with demo_step("Step 2: Vendor adds note to case"):
         add_note_activity = AddNoteToCaseActivity(
             actor=vendor.as_id,
-            object=note,
+            as_object=note,
             target=case.as_id,
         )
         post_to_inbox_and_wait(client, vendor.as_id, add_note_activity)
@@ -225,10 +226,7 @@ def demo_notes_workflow(
                 client, case.as_id, "after AddNoteToCaseActivity"
             )
             if updated_case:
-                note_ids = [
-                    (n.as_id if hasattr(n, "as_id") else n)
-                    for n in updated_case.notes
-                ]
+                note_ids = [(ref_id(n) or str(n)) for n in updated_case.notes]
                 if note.as_id not in note_ids:
                     raise ValueError(
                         f"Note '{note.as_id}' not found in case after AddNoteToCaseActivity"
@@ -246,10 +244,7 @@ def demo_notes_workflow(
                 client, case.as_id, "after RemoveNoteFromCase"
             )
             if updated_case:
-                note_ids = [
-                    (n.as_id if hasattr(n, "as_id") else n)
-                    for n in updated_case.notes
-                ]
+                note_ids = [(ref_id(n) or str(n)) for n in updated_case.notes]
                 if note.as_id in note_ids:
                     raise ValueError(
                         f"Note '{note.as_id}' still in case after RemoveNoteFromCase"
@@ -286,7 +281,7 @@ def demo_status_workflow(
         )
         create_status_activity = CreateCaseStatusActivity(
             actor=vendor.as_id,
-            object=case_status,
+            as_object=case_status,
             context=case.as_id,
         )
         post_to_inbox_and_wait(client, vendor.as_id, create_status_activity)
@@ -296,7 +291,7 @@ def demo_status_workflow(
     with demo_step("Step 2: Vendor adds CaseStatus to case"):
         add_status_activity = AddStatusToCaseActivity(
             actor=vendor.as_id,
-            object=case_status,
+            as_object=case_status,
             target=case.as_id,
         )
         post_to_inbox_and_wait(client, vendor.as_id, add_status_activity)
@@ -306,8 +301,7 @@ def demo_status_workflow(
             )
             if updated_case:
                 status_ids = [
-                    (s.as_id if hasattr(s, "as_id") else s)
-                    for s in updated_case.case_statuses
+                    (ref_id(s) or str(s)) for s in updated_case.case_statuses
                 ]
                 if case_status.as_id not in status_ids:
                     raise ValueError(
@@ -325,7 +319,7 @@ def demo_status_workflow(
         )
         create_pstatus_activity = CreateStatusForParticipantActivity(
             actor=vendor.as_id,
-            object=participant_status,
+            as_object=participant_status,
         )
         post_to_inbox_and_wait(client, vendor.as_id, create_pstatus_activity)
         with demo_check("ParticipantStatus stored in data layer"):
@@ -334,7 +328,7 @@ def demo_status_workflow(
     with demo_step("Step 4: Vendor adds ParticipantStatus to participant"):
         add_pstatus_activity = AddStatusToParticipantActivity(
             actor=vendor.as_id,
-            object=participant_status,
+            as_object=participant_status,
             target=participant.as_id,
         )
         post_to_inbox_and_wait(client, vendor.as_id, add_pstatus_activity)

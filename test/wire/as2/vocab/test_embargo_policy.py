@@ -16,6 +16,7 @@ Tests for EmbargoPolicy Pydantic model (EP-01-001 to EP-01-004).
 """
 
 import unittest
+from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
@@ -65,17 +66,19 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
 
     def test_actor_id_required(self):
         with pytest.raises(ValidationError):
-            ep_module.EmbargoPolicy(inbox=INBOX, preferred_duration_days=90)
+            cast(Any, ep_module.EmbargoPolicy)(
+                inbox=INBOX, preferred_duration_days=90
+            )
 
     def test_inbox_required(self):
         with pytest.raises(ValidationError):
-            ep_module.EmbargoPolicy(
+            cast(Any, ep_module.EmbargoPolicy)(
                 actor_id=ACTOR_ID, preferred_duration_days=90
             )
 
     def test_preferred_duration_days_required(self):
         with pytest.raises(ValidationError):
-            ep_module.EmbargoPolicy(actor_id=ACTOR_ID, inbox=INBOX)
+            cast(Any, ep_module.EmbargoPolicy)(actor_id=ACTOR_ID, inbox=INBOX)
 
     def test_as_type_is_embargo_policy(self):
         self.assertEqual(VO_type.EMBARGO_POLICY, self.policy.as_type)
@@ -88,12 +91,24 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
 class TestEmbargoPolicyValidation(unittest.TestCase):
     """Test EmbargoPolicy field validators."""
 
-    def _make(self, **kwargs):
-        defaults = dict(
-            actor_id=ACTOR_ID, inbox=INBOX, preferred_duration_days=90
+    def _make(
+        self,
+        *,
+        actor_id: str = ACTOR_ID,
+        inbox: str = INBOX,
+        preferred_duration_days: int = 90,
+        minimum_duration_days: int | None = None,
+        maximum_duration_days: int | None = None,
+        notes: str | None = None,
+    ) -> ep_module.EmbargoPolicy:
+        return ep_module.EmbargoPolicy(
+            actor_id=actor_id,
+            inbox=inbox,
+            preferred_duration_days=preferred_duration_days,
+            minimum_duration_days=minimum_duration_days,
+            maximum_duration_days=maximum_duration_days,
+            notes=notes,
         )
-        defaults.update(kwargs)
-        return ep_module.EmbargoPolicy(**defaults)
 
     def test_actor_id_empty_string_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
@@ -187,6 +202,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
         dl.create(self.policy)
         stored = dl.read(self.policy.as_id)
         self.assertIsNotNone(stored)
+        stored = cast(ep_module.EmbargoPolicy, stored)
         self.assertEqual(self.policy.as_id, stored.as_id)
         self.assertEqual(ACTOR_ID, stored.actor_id)
         self.assertEqual(INBOX, stored.inbox)

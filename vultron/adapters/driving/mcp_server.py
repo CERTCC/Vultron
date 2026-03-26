@@ -121,6 +121,8 @@ def mcp_propose_embargo(
     from datetime import datetime
 
     parsed_end_time = datetime.fromisoformat(end_time) if end_time else None
+    if parsed_end_time is None:
+        raise ValueError("end_time is required for propose_embargo")
     dl = get_datalayer()
     request = ProposeEmbargoTriggerRequest(
         actor_id=actor_id,

@@ -116,6 +116,8 @@ def propose_embargo_trigger(
     dl: DataLayer,
 ) -> dict:
     with domain_error_translation():
+        if end_time is None:
+            raise ValueError("end_time is required for propose_embargo")
         request = ProposeEmbargoTriggerRequest(
             actor_id=actor_id, case_id=case_id, note=note, end_time=end_time
         )

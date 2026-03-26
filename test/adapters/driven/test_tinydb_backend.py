@@ -70,6 +70,7 @@ def test_database_initialization_creates_db_file_and_no_tables(dl):
     assert hasattr(dl, "_db_path")
 
     # ensure db file is created on initialization
+    assert dl._db_path is not None
     assert os.path.exists(dl._db_path)
     # ensure tables are empty
     assert len(dl._db.tables()) == 0

@@ -12,6 +12,8 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 """Tests for status-related use-case classes."""
 
+from typing import cast
+
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.states.em import EM
 from vultron.core.use_cases.status import (
@@ -45,16 +47,16 @@ class TestStatusUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_cs1",
+            as_id="https://example.org/cases/case_cs1",
             name="Case Status Test",
         )
         status = CaseStatus(
-            id="https://example.org/cases/case_cs1/statuses/s1",
+            as_id="https://example.org/cases/case_cs1/statuses/s1",
             context=case.as_id,
         )
         activity = CreateCaseStatusActivity(
             actor="https://example.org/users/vendor",
-            object=status,
+            as_object=status,
             context=case.as_id,
         )
 
@@ -70,18 +72,18 @@ class TestStatusUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_cs2",
+            as_id="https://example.org/cases/case_cs2",
             name="Case Status Idempotent",
         )
         status = CaseStatus(
-            id="https://example.org/cases/case_cs2/statuses/s2",
+            as_id="https://example.org/cases/case_cs2/statuses/s2",
             context=case.as_id,
         )
         dl.create(status)
 
         activity = CreateCaseStatusActivity(
             actor="https://example.org/users/vendor",
-            object=status,
+            as_object=status,
             context=case.as_id,
         )
         event = make_payload(activity)
@@ -97,11 +99,11 @@ class TestStatusUseCases:
         """add_case_status_to_case appends status ID to case.case_statuses."""
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_cs3",
+            as_id="https://example.org/cases/case_cs3",
             name="Add Status Case",
         )
         status = CaseStatus(
-            id="https://example.org/cases/case_cs3/statuses/s3",
+            as_id="https://example.org/cases/case_cs3/statuses/s3",
             context=case.as_id,
         )
         dl.create(case)
@@ -109,7 +111,7 @@ class TestStatusUseCases:
 
         activity = AddStatusToCaseActivity(
             actor="https://example.org/users/vendor",
-            object=status,
+            as_object=status,
             target=case,
         )
         event = make_payload(activity)
@@ -117,9 +119,9 @@ class TestStatusUseCases:
         AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
-        status_ids = [
-            (s.as_id if hasattr(s, "as_id") else s) for s in case.case_statuses
-        ]
+        assert case is not None
+        case = cast(VulnerabilityCase, case)
+        status_ids = [getattr(s, "as_id", s) for s in case.case_statuses]
         assert status.as_id in status_ids
 
     def test_add_case_status_blocks_invalid_em_transition(
@@ -128,12 +130,12 @@ class TestStatusUseCases:
         """Invalid EM transition is blocked; status is not appended."""
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_em_guard",
+            as_id="https://example.org/cases/case_em_guard",
             name="EM Guard Test Case",
         )
         # Seed an existing status with EM.NONE (the initial embargo state)
         initial_status = CaseStatus(
-            id="https://example.org/cases/case_em_guard/statuses/s_init",
+            as_id="https://example.org/cases/case_em_guard/statuses/s_init",
             context=case.as_id,
             em_state=EM.NONE,
         )
@@ -143,7 +145,7 @@ class TestStatusUseCases:
         # Try to add a status with EM.ACTIVE — invalid: NONE → ACTIVE
         # skips the required PROPOSED intermediate state
         bad_status = CaseStatus(
-            id="https://example.org/cases/case_em_guard/statuses/s_bad",
+            as_id="https://example.org/cases/case_em_guard/statuses/s_bad",
             context=case.as_id,
             em_state=EM.ACTIVE,
         )
@@ -151,7 +153,7 @@ class TestStatusUseCases:
 
         activity = AddStatusToCaseActivity(
             actor="https://example.org/users/vendor",
-            object=bad_status,
+            as_object=bad_status,
             target=case,
         )
         event = make_payload(activity)
@@ -159,9 +161,10 @@ class TestStatusUseCases:
         AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
         updated_case = dl.read(case.as_id)
+        assert updated_case is not None
+        updated_case = cast(VulnerabilityCase, updated_case)
         status_ids = [
-            (s.as_id if hasattr(s, "as_id") else s)
-            for s in updated_case.case_statuses
+            getattr(s, "as_id", s) for s in updated_case.case_statuses
         ]
         assert (
             bad_status.as_id not in status_ids
@@ -173,11 +176,11 @@ class TestStatusUseCases:
         """Valid EM transition is permitted; status is appended."""
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_em_valid",
+            as_id="https://example.org/cases/case_em_valid",
             name="EM Valid Transition Case",
         )
         initial_status = CaseStatus(
-            id="https://example.org/cases/case_em_valid/statuses/s_init",
+            as_id="https://example.org/cases/case_em_valid/statuses/s_init",
             context=case.as_id,
             em_state=EM.NONE,
         )
@@ -186,7 +189,7 @@ class TestStatusUseCases:
 
         # NONE → PROPOSED is a valid transition
         good_status = CaseStatus(
-            id="https://example.org/cases/case_em_valid/statuses/s_good",
+            as_id="https://example.org/cases/case_em_valid/statuses/s_good",
             context=case.as_id,
             em_state=EM.PROPOSED,
         )
@@ -194,7 +197,7 @@ class TestStatusUseCases:
 
         activity = AddStatusToCaseActivity(
             actor="https://example.org/users/vendor",
-            object=good_status,
+            as_object=good_status,
             target=case,
         )
         event = make_payload(activity)
@@ -202,9 +205,10 @@ class TestStatusUseCases:
         AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
         updated_case = dl.read(case.as_id)
+        assert updated_case is not None
+        updated_case = cast(VulnerabilityCase, updated_case)
         status_ids = [
-            (s.as_id if hasattr(s, "as_id") else s)
-            for s in updated_case.case_statuses
+            getattr(s, "as_id", s) for s in updated_case.case_statuses
         ]
         assert good_status.as_id in status_ids
 
@@ -215,16 +219,16 @@ class TestStatusUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         pstatus = ParticipantStatus(
-            id="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
+            as_id="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
             context="https://example.org/cases/case_ps1",
         )
         case_ps1 = VulnerabilityCase(
-            id="https://example.org/cases/case_ps1",
+            as_id="https://example.org/cases/case_ps1",
             name="PS Case 1",
         )
         activity = CreateStatusForParticipantActivity(
             actor="https://example.org/users/vendor",
-            object=pstatus,
+            as_object=pstatus,
             context=case_ps1,
         )
 
@@ -241,16 +245,16 @@ class TestStatusUseCases:
         """add_participant_status_to_participant appends status to participant."""
         dl = TinyDbDataLayer(db_path=None)
         participant = CaseParticipant(
-            id="https://example.org/cases/case_ps2/participants/p2",
+            as_id="https://example.org/cases/case_ps2/participants/p2",
             context="https://example.org/cases/case_ps2",
             attributed_to="https://example.org/users/vendor",
         )
         pstatus = ParticipantStatus(
-            id="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
+            as_id="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
             context="https://example.org/cases/case_ps2",
         )
         case_ps2 = VulnerabilityCase(
-            id="https://example.org/cases/case_ps2",
+            as_id="https://example.org/cases/case_ps2",
             name="PS Case 2",
         )
         dl.create(participant)
@@ -258,7 +262,7 @@ class TestStatusUseCases:
 
         activity = AddStatusToParticipantActivity(
             actor="https://example.org/users/vendor",
-            object=pstatus,
+            as_object=pstatus,
             target=participant,
             context=case_ps2,
         )
@@ -267,8 +271,9 @@ class TestStatusUseCases:
         AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
 
         participant = dl.read(participant.as_id)
+        assert participant is not None
+        participant = cast(CaseParticipant, participant)
         status_ids = [
-            (s.as_id if hasattr(s, "as_id") else s)
-            for s in participant.participant_statuses
+            getattr(s, "as_id", s) for s in participant.participant_statuses
         ]
         assert pstatus.as_id in status_ids

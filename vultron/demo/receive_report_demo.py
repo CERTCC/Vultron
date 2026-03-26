@@ -51,7 +51,7 @@ The BT logs will show tree structure before execution and final state after comp
 import json
 import logging
 import sys
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
@@ -77,6 +77,7 @@ from vultron.demo.utils import (  # noqa: F401 — BASE_URL needed for test monk
     get_offer_from_datalayer,
     logfmt,
     post_to_inbox_and_wait,
+    ref_id,
     demo_environment,
     postfmt,
     verify_object_stored,
@@ -240,11 +241,8 @@ def find_case_by_report(
             for r in case_obj.vulnerability_reports:
                 if isinstance(r, str):
                     report_ids.append(r)
-                elif hasattr(r, "as_id"):
-                    report_ids.append(r.as_id)
                 else:
-                    # Fallback: try str() conversion
-                    report_ids.append(str(r))
+                    report_ids.append(ref_id(r) or str(r))
 
             if report_id in report_ids:
                 logger.info(f"Found case for report: {logfmt(case_obj)}")
@@ -294,7 +292,7 @@ def demo_validate_report(
         )
         validate_activity = RmValidateReportActivity(
             actor=vendor.as_id,
-            object=offer.as_id,
+            as_object=offer.as_id,
             content="Validating the report as legitimate. Creating case.",
         )
         post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
@@ -376,7 +374,7 @@ def demo_invalidate_report(
         )
         invalidate_activity = RmInvalidateReportActivity(
             actor=vendor.as_id,
-            object=offer.as_id,
+            as_object=offer.as_id,
             content="Invalidating the report - needs more investigation before accepting.",
         )
         post_to_inbox_and_wait(client, vendor.as_id, invalidate_activity)
@@ -391,7 +389,7 @@ def demo_invalidate_report(
     with demo_step("Step 3: Vendor notifies finder of invalidation"):
         invalidate_response_to_finder = RmInvalidateReportActivity(
             actor=vendor.as_id,
-            object=offer.as_id,
+            as_object=offer.as_id,
             to=[finder.as_id],
             content="We are holding this report for further investigation.",
         )
@@ -455,13 +453,13 @@ def demo_invalidate_and_close_report(
         )
         invalidate_activity = RmInvalidateReportActivity(
             actor=vendor.as_id,
-            object=offer.as_id,
+            as_object=offer.as_id,
             content="Invalidating the report - this is a false positive.",
         )
         post_to_inbox_and_wait(client, vendor.as_id, invalidate_activity)
         close_activity = RmCloseReportActivity(
             actor=vendor.as_id,
-            object=offer.as_id,
+            as_object=offer.as_id,
             content="Closing the report as invalid.",
         )
         post_to_inbox_and_wait(client, vendor.as_id, close_activity)
@@ -482,7 +480,7 @@ def demo_invalidate_and_close_report(
     ):
         invalidate_response_to_finder = RmInvalidateReportActivity(
             actor=vendor.as_id,
-            object=offer.as_id,
+            as_object=offer.as_id,
             to=[finder.as_id],
             content="This report has been invalidated as a false positive.",
         )
@@ -493,7 +491,7 @@ def demo_invalidate_and_close_report(
         )
         close_response_to_finder = RmCloseReportActivity(
             actor=vendor.as_id,
-            object=offer.as_id,
+            as_object=offer.as_id,
             to=[finder.as_id],
             content="This report has been closed.",
         )
@@ -522,7 +520,7 @@ def demo_invalidate_and_close_report(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
     ("Demo 1: Validate Report", demo_validate_report),
     ("Demo 2: Invalidate Report", demo_invalidate_report),
     ("Demo 3: Invalidate and Close Report", demo_invalidate_and_close_report),

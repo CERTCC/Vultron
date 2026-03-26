@@ -73,7 +73,7 @@ class CaseReference(VultronObject):
         serialization_alias="type",
     )
 
-    url: NonEmptyString = Field(
+    url: NonEmptyString = Field(  # pyright: ignore[reportGeneralTypeIssues]
         ...,
         description="URL reference for the external resource",
     )

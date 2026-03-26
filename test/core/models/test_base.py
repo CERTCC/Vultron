@@ -105,7 +105,7 @@ def test_vultron_participant_status_context_required():
 
 def test_vultron_activity_as_type_required():
     with pytest.raises(ValidationError):
-        VultronActivity()
+        VultronActivity(actor="https://example.org/actors/test")
     act = VultronActivity(
         as_type="Offer", actor="https://example.org/actors/test"
     )
@@ -207,6 +207,10 @@ def test_vultron_case_init_case_statuses():
         ],
     )
     assert len(case_existing_statuses.case_statuses) == 1
+    assert isinstance(
+        case_existing_statuses.case_statuses[0], VultronCaseStatus
+    )
+    assert case_existing_statuses.case_statuses[0].attributed_to is not None
     assert (
         case_existing_statuses.case_statuses[0].attributed_to
         == "urn:uuid:actor-456"

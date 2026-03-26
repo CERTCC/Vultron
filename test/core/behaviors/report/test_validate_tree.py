@@ -70,7 +70,7 @@ def offer(datalayer, report, actor_id):
     offer_obj = VultronOffer(
         as_id="https://example.org/activities/offer-123",
         actor=actor_id,
-        object=report.as_id,
+        as_object=report.as_id,
         target=actor_id,
     )
     datalayer.create(offer_obj)

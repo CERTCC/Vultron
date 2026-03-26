@@ -23,6 +23,7 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
 )
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.wire.as2.parser import parse_activity
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +55,11 @@ def deliver(actor_id: str, activity_json) -> None:
         click.echo(f"Parse error: {e}", err=True)
         sys.exit(1)
 
-    activity = rehydrate(activity, dl=dl)
-    handle_inbox_item(actor_id=actor_id, obj=activity, dl=dl)
+    rehydrated = rehydrate(activity, dl=dl)
+    if not isinstance(rehydrated, as_Activity):
+        click.echo("Rehydrated object is not an activity.", err=True)
+        sys.exit(1)
+    handle_inbox_item(actor_id=actor_id, obj=rehydrated, dl=dl)
     click.echo("Activity delivered.")
 
 

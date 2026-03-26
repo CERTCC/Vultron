@@ -40,7 +40,7 @@ the response body and that the vendor's outbox is updated accordingly.
 import json
 import logging
 import sys
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 from vultron.wire.as2.vocab.activities.report import RmSubmitReportActivity
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -74,7 +74,7 @@ def _submit_report(
     vendor: as_Actor,
     name: str,
     content: str,
-) -> Tuple[VulnerabilityReport, object]:
+) -> Tuple[VulnerabilityReport, RmSubmitReportActivity]:
     """Finder submits a vulnerability report to the vendor's inbox.
 
     Returns the ``(report, offer)`` pair after verifying both are stored.
@@ -291,7 +291,7 @@ def demo_invalidate_and_close(
 # Entry point
 # ---------------------------------------------------------------------------
 
-_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
     ("Demo 1: Validate and Engage", demo_validate_and_engage),
     ("Demo 2: Invalidate and Close", demo_invalidate_and_close),
 ]

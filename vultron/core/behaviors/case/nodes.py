@@ -259,7 +259,7 @@ class EmitCreateCaseActivity(DataLayerAction):
 
             activity = VultronCreateCaseActivity(
                 actor=self.actor_id,
-                object=case_id,
+                as_object=case_id,
             )
             try:
                 self.datalayer.create(activity)

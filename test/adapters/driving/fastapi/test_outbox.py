@@ -33,9 +33,11 @@ Spec coverage:
 
 import asyncio
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 from vultron.adapters.driving.fastapi import outbox_handler as oh
+from vultron.core.models.activity import VultronActivity
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -48,7 +50,7 @@ def _make_queue(*ids: str) -> list[str]:
 
 
 def _mock_dl_with_queue(
-    queue: list[str], actor=SimpleNamespace()
+    queue: list[str], actor: SimpleNamespace | None = SimpleNamespace()
 ) -> MagicMock:
     """Return a MagicMock DataLayer backed by ``queue`` for outbox ops."""
     mock_dl = MagicMock()
@@ -178,7 +180,9 @@ def test_outbox_handler_returns_early_when_actor_not_found(
 ):
     """outbox_handler must return early (not raise) when actor is None."""
     queue: list[str] = []
-    mock_dl = _mock_dl_with_queue(queue, actor=None)
+    mock_dl = _mock_dl_with_queue(
+        queue, actor=cast(SimpleNamespace | None, None)
+    )
     mock_dl.read.return_value = None
     mock_dl.find_actor_by_short_id.return_value = None
 
@@ -232,12 +236,11 @@ def test_outbox_handler_resolves_actor_by_short_id(monkeypatch):
 def test_handle_outbox_item_delivers_to_recipients():
     """handle_outbox_item calls emitter.emit with activity and recipients."""
     recipient = "https://example.org/actors/alice"
-    activity = SimpleNamespace(
+    activity = VultronActivity(
         as_id="urn:test:act-deliver",
+        as_type="Offer",
+        actor="https://example.org/actors/bob",
         to=[recipient],
-        cc=None,
-        bto=None,
-        bcc=None,
     )
     mock_dl = MagicMock()
     mock_dl.read.return_value = activity

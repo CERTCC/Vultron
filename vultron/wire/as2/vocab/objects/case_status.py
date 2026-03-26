@@ -3,6 +3,8 @@
 Provides Case Status objects for the Vultron ActivityStreams Vocabulary.
 """
 
+# pyright: reportGeneralTypeIssues=false
+
 #  Copyright (c) 2023-2025 Carnegie Mellon University and Contributors.
 #  - see Contributors.md for a full list of Contributors
 #  - see ContributionInstructions.md for information on how you can Contribute to this project
@@ -92,7 +94,9 @@ class ParticipantStatus(VultronObject):
         serialization_alias="type",
     )
 
-    context: as_Object | as_Link | str
+    context: (
+        as_Object | as_Link | str
+    )  # pyright: ignore[reportGeneralTypeIssues]
     rm_state: RM = RM.START
     vfd_state: CS_vfd = CS_vfd.vfd
     case_engagement: bool = True
@@ -125,7 +129,8 @@ class ParticipantStatus(VultronObject):
         if self.name is None:
             parts = [self.rm_state.name, self.vfd_state.name]
             if self.case_status is not None:
-                parts.append(self.case_status.name)
+                if self.case_status.name is not None:
+                    parts.append(self.case_status.name)
             self.name = " ".join(parts)
         return self
 

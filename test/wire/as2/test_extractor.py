@@ -1,6 +1,7 @@
 """Tests for vultron.wire.as2.extractor."""
 
 from datetime import datetime, timezone
+from typing import Any, cast
 
 from vultron.core.models.events import MessageSemantics
 from vultron.wire.as2.extractor import (
@@ -22,7 +23,7 @@ def test_find_matching_semantics_returns_unknown_for_unmatched_activity():
     actor = as_Actor(name="test-actor")
     activity = as_Create(
         actor="https://example.org/alice",
-        object=actor,
+        as_object=actor,
     )
     result = find_matching_semantics(activity)
     assert result == MessageSemantics.UNKNOWN
@@ -39,7 +40,7 @@ def test_find_matching_semantics_returns_correct_semantics_for_create_report():
     report = VulnerabilityReport(name="VR-001", content="test report")
     activity = as_Create(
         actor="https://example.org/finder",
-        object=report,
+        as_object=report,
     )
     result = find_matching_semantics(activity)
     assert result == MessageSemantics.CREATE_REPORT
@@ -67,7 +68,7 @@ def test_activity_pattern_match_returns_false_for_wrong_activity_type():
     pattern = ActivityPattern(activity_=TAtype.ADD, object_=AOtype.NOTE)
     activity = as_Create(
         actor="https://example.org/alice",
-        object="https://example.org/notes/1",
+        as_object="https://example.org/notes/1",
     )
     assert not pattern.match(activity)
 
@@ -96,10 +97,10 @@ def test_extract_intent_report_pass_through_fields():
         published=now,
         updated=now,
     )
-    activity = as_Create(actor="https://example.org/alice", object=report)
+    activity = as_Create(actor="https://example.org/alice", as_object=report)
     event = extract_intent(activity)
 
-    r = event.report
+    r = cast(Any, event).report
     assert r is not None
     assert r.summary == "Brief summary"
     assert r.url == "https://example.org/reports/vr-001"
@@ -124,10 +125,10 @@ def test_extract_intent_case_pass_through_fields():
         published=now,
         updated=now,
     )
-    activity = as_Create(actor="https://example.org/alice", object=case)
+    activity = as_Create(actor="https://example.org/alice", as_object=case)
     event = extract_intent(activity)
 
-    c = event.case
+    c = cast(Any, event).case
     assert c is not None
     assert c.published == now
     assert c.updated == now
@@ -149,12 +150,12 @@ def test_extract_intent_embargo_pass_through_fields():
     # CreateEmbargoEvent pattern: Create + EVENT + context=VULNERABILITY_CASE
     activity = as_Create(
         actor="https://example.org/alice",
-        object=embargo,
+        as_object=embargo,
         context="https://example.org/cases/1",
     )
     event = extract_intent(activity)
 
-    e = event.embargo
+    e = cast(Any, event).embargo
     assert e is not None
     assert e.published == now
     assert e.updated == now
@@ -175,10 +176,10 @@ def test_extract_intent_note_pass_through_fields():
         attributed_to="https://example.org/alice",
         context="https://example.org/cases/1",
     )
-    activity = as_Create(actor="https://example.org/alice", object=note)
+    activity = as_Create(actor="https://example.org/alice", as_object=note)
     event = extract_intent(activity)
 
-    n = event.note
+    n = cast(Any, event).note
     assert n is not None
     assert n.summary == "Note summary"
     assert n.url == "https://example.org/notes/1"
@@ -196,7 +197,7 @@ def test_extract_intent_activity_origin_field():
     report = VulnerabilityReport(name="VR-001", content="test")
     activity = as_Create(
         actor="https://example.org/alice",
-        object=report,
+        as_object=report,
         origin="https://example.org/cases/original",
     )
     event = extract_intent(activity)
@@ -223,12 +224,12 @@ def test_extract_intent_participant_case_roles():
     # CreateCaseParticipant pattern: Create + CASE_PARTICIPANT + context=VULNERABILITY_CASE
     activity = as_Create(
         actor="https://example.org/alice",
-        object=participant,
+        as_object=participant,
         context="https://example.org/cases/1",
     )
     event = extract_intent(activity)
 
-    p = event.participant
+    p = cast(Any, event).participant
     assert p is not None
     assert CVDRoles.VENDOR in p.case_roles
 
@@ -244,12 +245,12 @@ def test_extract_intent_case_status_name():
     # CreateCaseStatusActivity pattern: Create + CASE_STATUS + context=VULNERABILITY_CASE
     activity = as_Create(
         actor="https://example.org/alice",
-        object=cs,
+        as_object=cs,
         context="https://example.org/cases/1",
     )
     event = extract_intent(activity)
 
-    s = event.status
+    s = cast(Any, event).status
     assert s is not None
     assert s.name == cs.name
 
@@ -268,10 +269,10 @@ def test_extract_intent_participant_status_vfd_state():
     )
     activity = as_Create(
         actor="https://example.org/alice",
-        object=ps,
+        as_object=ps,
     )
     event = extract_intent(activity)
 
-    s = event.status
+    s = cast(Any, event).status
     assert s is not None
     assert s.vfd_state == CS_vfd.Vfd

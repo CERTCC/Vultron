@@ -17,6 +17,7 @@ Vultron Actor Inbox Handler
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from typing import Any, cast
 
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.dispatcher import get_dispatcher
@@ -138,12 +139,21 @@ async def inbox_handler(
             break
 
         item = rehydrate(item_id, dl=dl)
+        if not isinstance(item, as_Activity):
+            logger.error(
+                "Rehydrated inbox item %s is not an Activity: %s",
+                item_id,
+                type(item).__name__,
+            )
+            err_count += 1
+            continue
 
         logger.debug("Rehydrated item from inbox: %s", item.as_type)
         if hasattr(item, "as_object"):
+            item_with_object = cast(Any, item)
             logger.debug(
                 "Item has transitive object of type: %s",
-                item.as_object.as_type,
+                item_with_object.as_object.as_type,
             )
 
         try:

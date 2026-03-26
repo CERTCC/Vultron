@@ -1,7 +1,7 @@
 """Use cases for case and participant status activities."""
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 from vultron.core.models.events.status import (
     AddCaseStatusToCaseReceivedEvent,
@@ -14,7 +14,11 @@ from vultron.core.states.cs import is_valid_pxa_transition
 from vultron.core.states.em import is_valid_em_transition
 from vultron.core.states.rm import is_valid_rm_transition
 from vultron.core.use_cases._helpers import _as_id, _idempotent_create
-from vultron.core.models.protocols import CaseModel, ParticipantModel
+from vultron.core.models.protocols import (
+    ParticipantStatusModel,
+    is_case_model,
+    is_participant_model,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +53,14 @@ class AddCaseStatusToCaseReceivedUseCase:
         request = self._request
         status_id = request.status_id
         case_id = request.case_id
-        case = cast(CaseModel, self._dl.read(case_id))
+        if status_id is None or case_id is None:
+            logger.warning(
+                "add_case_status_to_case: missing status_id or case_id"
+            )
+            return
+        case = self._dl.read(case_id)
 
-        if case is None:
+        if not is_case_model(case):
             logger.warning(
                 "add_case_status_to_case: case '%s' not found", case_id
             )
@@ -144,9 +153,14 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         request = self._request
         status_id = request.status_id
         participant_id = request.participant_id
-        participant = cast(ParticipantModel, self._dl.read(participant_id))
+        if status_id is None or participant_id is None:
+            logger.warning(
+                "add_participant_status_to_participant: missing status_id or participant_id"
+            )
+            return
+        participant = self._dl.read(participant_id)
 
-        if participant is None:
+        if not is_participant_model(participant):
             logger.warning(
                 "add_participant_status_to_participant: participant '%s' not found",
                 participant_id,
@@ -168,13 +182,27 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         status_obj = self._dl.read(status_id)
         if not hasattr(status_obj, "as_id"):
             status_obj = request.status
+        if status_obj is None:
+            logger.warning(
+                "add_participant_status_to_participant: status '%s' not found",
+                status_id,
+            )
+            return
+        if not hasattr(status_obj, "rm_state") or not hasattr(
+            status_obj, "vfd_state"
+        ):
+            logger.warning(
+                "add_participant_status_to_participant: status '%s' is not a ParticipantStatus",
+                status_id,
+            )
+            return
 
         new_rm_state = getattr(status_obj, "rm_state", None)
         if new_rm_state is not None and participant.participant_statuses:
             if hasattr(participant, "participant_status") and getattr(
                 participant, "participant_status"
             ):
-                current_status = participant.participant_status
+                current_status = cast(Any, participant).participant_status
             else:
                 current_status = participant.participant_statuses[-1]
             current_rm = current_status.rm_state
@@ -190,7 +218,9 @@ class AddParticipantStatusToParticipantReceivedUseCase:
                 )
                 return
 
-        participant.participant_statuses.append(status_obj)
+        participant.participant_statuses.append(
+            cast(ParticipantStatusModel, status_obj)
+        )
         self._dl.save(participant)
         logger.info(
             "Added ParticipantStatus '%s' to participant '%s'",

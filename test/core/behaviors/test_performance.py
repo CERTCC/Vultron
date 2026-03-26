@@ -84,7 +84,7 @@ def mock_datalayer():
             return VultronOffer(
                 as_id=id_,
                 actor="https://example.org/finder",
-                object="test-report-123",
+                as_object="test-report-123",
             )
         elif "case" in id_:
             return VultronCase(as_id=id_, name="Test Case")
@@ -112,12 +112,12 @@ def sample_activity():
 
     offer = VultronOffer(
         actor="https://example.org/finder",
-        object=report.as_id,
+        as_object=report.as_id,
     )
 
     return VultronAccept(
         actor="https://example.org/vendor",
-        object=offer.as_id,
+        as_object=offer.as_id,
     )
 
 

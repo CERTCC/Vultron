@@ -25,7 +25,7 @@ be resolved without importing a concrete adapter.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import ValidationError
 
@@ -84,12 +84,13 @@ def rehydrate(
 
     rehydrated_nested_object = None
     if hasattr(obj, "as_object"):
-        if obj.as_object is not None:
+        obj_with_object = cast(Any, obj)
+        if obj_with_object.as_object is not None:
             logger.debug("Rehydrating nested 'as_object' of %s.", obj.as_type)
             rehydrated_nested_object = rehydrate(
-                obj.as_object, dl=dl, depth=depth + 1
+                obj_with_object.as_object, dl=dl, depth=depth + 1
             )
-            obj.as_object = rehydrated_nested_object
+            obj_with_object.as_object = rehydrated_nested_object
         else:
             logger.error("'as_object' field is None in %s.", obj.as_type)
             raise ValueError(f"'as_object' field is None in {obj.as_type}")
@@ -131,7 +132,7 @@ def rehydrate(
     if rehydrated_nested_object is not None and hasattr(
         rehydrated, "as_object"
     ):
-        rehydrated.as_object = rehydrated_nested_object
+        cast(Any, rehydrated).as_object = rehydrated_nested_object
         logger.debug(
             "Preserved rehydrated nested object of type %s.",
             rehydrated_nested_object.__class__.__name__,

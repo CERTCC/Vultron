@@ -18,9 +18,9 @@ Provides outbound messaging behaviors for Vultron.
 
 
 import logging
-from typing import Callable
+from typing import Any, Callable, cast
 
-from vultron.bt.base.bt_node import ActionNode
+from vultron.bt.base.bt_node import ActionNode, BtNode
 from vultron.bt.base.factory import action_node
 from vultron.bt.common import show_graph
 from vultron.bt.messaging.behaviors import incoming_message
@@ -35,21 +35,22 @@ _emitters = set()
 
 def _emitter_func(
     msg_type: MessageTypes, body: str = "msg_body"
-) -> Callable[[ActionNode], bool]:
-    def func(obj: ActionNode) -> bool:
+) -> Callable[[BtNode], bool]:
+    def func(obj: BtNode) -> bool:
         f"""Emit a message of type {msg_type}."""
 
-        msg = Message(sender=obj.bb.name, msg_type=msg_type, body=body)
-        emit = obj.bb.emit_func
+        action_obj = cast(ActionNode, obj)
+        msg = Message(sender=action_obj.bb.name, msg_type=msg_type, body=body)
+        emit = action_obj.bb.emit_func
         if emit is not None:
             emit(msg)
         else:
             logger.debug("Emitter not set")
 
         # append history
-        obj.bb.msg_history.append(msg)
-        obj.bb.msgs_emitted_this_tick.append(msg.msg_type)
-        incoming_message(obj.bb, msg)
+        action_obj.bb.msg_history.append(msg)
+        action_obj.bb.msgs_emitted_this_tick.append(msg.msg_type)
+        incoming_message(action_obj.bb, msg)
 
         return True
 
@@ -59,7 +60,7 @@ def _emitter_func(
 def emitter(msg_type, body="msg_body"):
     node_cls = action_node(f"Emit_{msg_type}", _emitter_func(msg_type, body))
     node_cls.name_pfx = "!"
-    node_cls.msg_type = msg_type
+    cast(Any, node_cls).msg_type = msg_type
 
     _emitters.add(node_cls)
 

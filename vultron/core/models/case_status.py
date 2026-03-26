@@ -32,8 +32,8 @@ class VultronCaseStatus(VultronObject):
     """
 
     as_type: str = "CaseStatus"
-    context: NonEmptyString
-    attributed_to: Any
+    context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
+    attributed_to: Any  # pyright: ignore[reportGeneralTypeIssues]
     em_state: EM = EM.EMBARGO_MANAGEMENT_NONE
     pxa_state: CS_pxa = CS_pxa.pxa
 

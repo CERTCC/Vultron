@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, status, HTTPException
 
 from vultron.wire.as2.rehydration import rehydrate
 from vultron.core.ports.datalayer import DataLayer
+from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.wire.as2.vocab.base.objects.activities.transitive import as_Offer
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
@@ -105,13 +106,13 @@ def get_datalayer_contents(
     datalayer: DataLayer = Depends(get_datalayer),
 ) -> dict[str, dict]:
     data = datalayer.all()
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    data = {
+    return {
         k: v.model_dump(exclude_none=True, by_alias=True)
         for k, v in data.items()
     }
-
-    return data
 
 
 @router.get(
@@ -192,13 +193,13 @@ def get_actors(
 )
 def get_actor_outbox(
     actor_id: str, datalayer: DataLayer = Depends(_shared_dl)
-) -> dict:
+) -> as_OrderedCollection:
     actor_obj = datalayer.read(actor_id)
 
     if not actor_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    actor: as_Actor = actor_obj  # type: ignore
+    actor = as_Actor.model_validate(actor_obj)
 
     if not actor.outbox:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -206,7 +207,11 @@ def get_actor_outbox(
     # make a copy
     outbox = deepcopy(actor.outbox)
 
-    outbox.items = [rehydrate(item, dl=datalayer) for item in outbox.items]
+    outbox.items = [
+        rehydrate(item, dl=datalayer)
+        for item in outbox.items
+        if isinstance(item, str) or isinstance(item, as_Object)
+    ]
 
     return outbox
 

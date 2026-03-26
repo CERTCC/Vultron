@@ -32,8 +32,8 @@ class VultronParticipant(VultronObject):
     """
 
     as_type: str = "CaseParticipant"
-    attributed_to: NonEmptyString
-    context: NonEmptyString
+    attributed_to: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
+    context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     case_roles: list[CVDRoles] = Field(default_factory=list)
     participant_statuses: list[VultronParticipantStatus] = Field(
         default_factory=list

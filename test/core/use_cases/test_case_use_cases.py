@@ -13,9 +13,11 @@
 """Tests for case-related use-case classes."""
 
 import logging
+from typing import cast
 
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.models.case_actor import VultronCaseActor
+from vultron.core.models.activity import VultronActivity
 from vultron.core.use_cases.case import UpdateCaseReceivedUseCase
 from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
@@ -34,21 +36,21 @@ class TestCaseUseCases:
         dl = TinyDbDataLayer(db_path=None)
         owner_id = "https://example.org/users/owner"
         case = VulnerabilityCase(
-            id="https://example.org/cases/uc1",
+            as_id="https://example.org/cases/uc1",
             name="Original Name",
             attributed_to=owner_id,
         )
         dl.create(case)
 
         updated_case = VulnerabilityCase(
-            id=case.as_id,
+            as_id=case.as_id,
             name="Updated Name",
             content="New content",
             attributed_to=owner_id,
         )
         activity = UpdateCaseActivity(
             actor=owner_id,
-            object=updated_case,
+            as_object=updated_case,
         )
         event = make_payload(activity)
 
@@ -67,6 +69,7 @@ class TestCaseUseCases:
 
         stored = dl.read(case.as_id)
         assert stored is not None
+        stored = cast(VulnerabilityCase, stored)
         assert stored.name == "Updated Name"
         assert stored.content == "New content"
 
@@ -78,20 +81,20 @@ class TestCaseUseCases:
         owner_id = "https://example.org/users/owner"
         non_owner_id = "https://example.org/users/other"
         case = VulnerabilityCase(
-            id="https://example.org/cases/uc2",
+            as_id="https://example.org/cases/uc2",
             name="Original Name",
             attributed_to=owner_id,
         )
         dl.create(case)
 
         updated_case = VulnerabilityCase(
-            id=case.as_id,
+            as_id=case.as_id,
             name="Hijacked Name",
             attributed_to=owner_id,
         )
         activity = UpdateCaseActivity(
             actor=non_owner_id,
-            object=updated_case,
+            as_object=updated_case,
         )
         event = make_payload(activity)
 
@@ -100,6 +103,7 @@ class TestCaseUseCases:
 
         stored = dl.read(case.as_id)
         assert stored is not None
+        stored = cast(VulnerabilityCase, stored)
         assert stored.name == "Original Name"
         assert any("not the owner" in r.message for r in caplog.records)
 
@@ -108,20 +112,20 @@ class TestCaseUseCases:
         dl = TinyDbDataLayer(db_path=None)
         owner_id = "https://example.org/users/owner"
         case = VulnerabilityCase(
-            id="https://example.org/cases/uc3",
+            as_id="https://example.org/cases/uc3",
             name="Original",
             attributed_to=owner_id,
         )
         dl.create(case)
 
         updated_case = VulnerabilityCase(
-            id=case.as_id,
+            as_id=case.as_id,
             name="Updated",
             attributed_to=owner_id,
         )
         activity = UpdateCaseActivity(
             actor=owner_id,
-            object=updated_case,
+            as_object=updated_case,
         )
         event = make_payload(activity)
 
@@ -140,6 +144,7 @@ class TestCaseUseCases:
 
         stored = dl.read(case.as_id)
         assert stored is not None
+        stored = cast(VulnerabilityCase, stored)
         assert stored.name == "Updated"
 
     def test_update_case_warns_when_participant_has_not_accepted_embargo(
@@ -149,11 +154,11 @@ class TestCaseUseCases:
         dl = TinyDbDataLayer(db_path=None)
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/alice"
-        embargo = EmbargoEvent(id="https://example.org/embargoes/em1")
+        embargo = EmbargoEvent(as_id="https://example.org/embargoes/em1")
         dl.create(embargo)
 
         participant = CaseParticipant(
-            id="https://example.org/participants/p1",
+            as_id="https://example.org/participants/p1",
             attributed_to=actor_id,
             context="https://example.org/cases/uc4",
             accepted_embargo_ids=[],
@@ -161,7 +166,7 @@ class TestCaseUseCases:
         dl.create(participant)
 
         case = VulnerabilityCase(
-            id="https://example.org/cases/uc4",
+            as_id="https://example.org/cases/uc4",
             name="Original",
             attributed_to=owner_id,
             active_embargo=embargo.as_id,
@@ -170,11 +175,11 @@ class TestCaseUseCases:
         dl.create(case)
 
         updated_case = VulnerabilityCase(
-            id=case.as_id,
+            as_id=case.as_id,
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        activity = UpdateCaseActivity(actor=owner_id, as_object=updated_case)
         event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
@@ -192,11 +197,11 @@ class TestCaseUseCases:
         dl = TinyDbDataLayer(db_path=None)
         owner_id = "https://example.org/users/owner"
         actor_id = "https://example.org/users/bob"
-        embargo = EmbargoEvent(id="https://example.org/embargoes/em2")
+        embargo = EmbargoEvent(as_id="https://example.org/embargoes/em2")
         dl.create(embargo)
 
         participant = CaseParticipant(
-            id="https://example.org/participants/p2",
+            as_id="https://example.org/participants/p2",
             attributed_to=actor_id,
             context="https://example.org/cases/uc5",
             accepted_embargo_ids=[embargo.as_id],
@@ -204,7 +209,7 @@ class TestCaseUseCases:
         dl.create(participant)
 
         case = VulnerabilityCase(
-            id="https://example.org/cases/uc5",
+            as_id="https://example.org/cases/uc5",
             name="Original",
             attributed_to=owner_id,
             active_embargo=embargo.as_id,
@@ -213,11 +218,11 @@ class TestCaseUseCases:
         dl.create(case)
 
         updated_case = VulnerabilityCase(
-            id=case.as_id,
+            as_id=case.as_id,
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        activity = UpdateCaseActivity(actor=owner_id, as_object=updated_case)
         event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
@@ -234,7 +239,7 @@ class TestCaseUseCases:
         actor_id = "https://example.org/users/carol"
 
         participant = CaseParticipant(
-            id="https://example.org/participants/p3",
+            as_id="https://example.org/participants/p3",
             attributed_to=actor_id,
             context="https://example.org/cases/uc6",
             accepted_embargo_ids=[],
@@ -242,7 +247,7 @@ class TestCaseUseCases:
         dl.create(participant)
 
         case = VulnerabilityCase(
-            id="https://example.org/cases/uc6",
+            as_id="https://example.org/cases/uc6",
             name="Original",
             attributed_to=owner_id,
             active_embargo=None,
@@ -251,11 +256,11 @@ class TestCaseUseCases:
         dl.create(case)
 
         updated_case = VulnerabilityCase(
-            id=case.as_id,
+            as_id=case.as_id,
             name="Updated",
             attributed_to=owner_id,
         )
-        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        activity = UpdateCaseActivity(actor=owner_id, as_object=updated_case)
         event = make_payload(activity)
 
         with caplog.at_level(logging.WARNING):
@@ -277,7 +282,7 @@ class TestCaseUseCases:
         case_id = "https://example.org/cases/bc1"
 
         case_actor = VultronCaseActor(
-            id=f"{case_id}/actor",
+            as_id=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,
             context=case_id,
@@ -285,7 +290,7 @@ class TestCaseUseCases:
         dl.create(case_actor)
 
         case = VulnerabilityCase(
-            id=case_id,
+            as_id=case_id,
             name="Original",
             attributed_to=owner_id,
         )
@@ -295,22 +300,25 @@ class TestCaseUseCases:
         dl.create(case)
 
         updated_case = VulnerabilityCase(
-            id=case_id, name="Updated", attributed_to=owner_id
+            as_id=case_id, name="Updated", attributed_to=owner_id
         )
-        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        activity = UpdateCaseActivity(actor=owner_id, as_object=updated_case)
         event = make_payload(activity)
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
         refreshed_actor = dl.read(case_actor.as_id)
         assert refreshed_actor is not None
+        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
         assert len(refreshed_actor.outbox.items) == 1
 
         broadcast_id = refreshed_actor.outbox.items[0]
         broadcast = dl.read(broadcast_id)
         assert broadcast is not None
+        broadcast = cast(VultronActivity, broadcast)
         assert broadcast.as_type == "Announce"
         assert broadcast.actor == case_actor.as_id
+        assert broadcast.to is not None
         assert participant_id in broadcast.to
 
         # Verify the broadcast is also enqueued for delivery by outbox_handler
@@ -325,20 +333,22 @@ class TestCaseUseCases:
         case_id = "https://example.org/cases/bc2"
 
         case = VulnerabilityCase(
-            id=case_id, name="Original", attributed_to=owner_id
+            as_id=case_id, name="Original", attributed_to=owner_id
         )
         dl.create(case)
 
         updated_case = VulnerabilityCase(
-            id=case_id, name="Updated", attributed_to=owner_id
+            as_id=case_id, name="Updated", attributed_to=owner_id
         )
-        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        activity = UpdateCaseActivity(actor=owner_id, as_object=updated_case)
         event = make_payload(activity)
 
         # Should not raise
         UpdateCaseReceivedUseCase(dl, event).execute()
 
         stored = dl.read(case_id)
+        assert stored is not None
+        stored = cast(VulnerabilityCase, stored)
         assert stored.name == "Updated"
 
     def test_update_case_no_broadcast_when_no_participants(self, make_payload):
@@ -348,7 +358,7 @@ class TestCaseUseCases:
         case_id = "https://example.org/cases/bc3"
 
         case_actor = VultronCaseActor(
-            id=f"{case_id}/actor",
+            as_id=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,
             context=case_id,
@@ -356,19 +366,21 @@ class TestCaseUseCases:
         dl.create(case_actor)
 
         case = VulnerabilityCase(
-            id=case_id, name="Original", attributed_to=owner_id
+            as_id=case_id, name="Original", attributed_to=owner_id
         )
         dl.create(case)
 
         updated_case = VulnerabilityCase(
-            id=case_id, name="Updated", attributed_to=owner_id
+            as_id=case_id, name="Updated", attributed_to=owner_id
         )
-        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        activity = UpdateCaseActivity(actor=owner_id, as_object=updated_case)
         event = make_payload(activity)
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
         refreshed_actor = dl.read(case_actor.as_id)
+        assert refreshed_actor is not None
+        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
         assert refreshed_actor.outbox.items == []
 
     def test_update_case_broadcast_includes_all_participants(
@@ -382,7 +394,7 @@ class TestCaseUseCases:
         bob = "https://example.org/users/bob"
 
         case_actor = VultronCaseActor(
-            id=f"{case_id}/actor",
+            as_id=f"{case_id}/actor",
             name=f"CaseActor for {case_id}",
             attributed_to=owner_id,
             context=case_id,
@@ -390,7 +402,7 @@ class TestCaseUseCases:
         dl.create(case_actor)
 
         case = VulnerabilityCase(
-            id=case_id, name="Original", attributed_to=owner_id
+            as_id=case_id, name="Original", attributed_to=owner_id
         )
         case.actor_participant_index[alice] = (
             "https://example.org/participants/p-bc4-alice"
@@ -401,14 +413,19 @@ class TestCaseUseCases:
         dl.create(case)
 
         updated_case = VulnerabilityCase(
-            id=case_id, name="Updated", attributed_to=owner_id
+            as_id=case_id, name="Updated", attributed_to=owner_id
         )
-        activity = UpdateCaseActivity(actor=owner_id, object=updated_case)
+        activity = UpdateCaseActivity(actor=owner_id, as_object=updated_case)
         event = make_payload(activity)
 
         UpdateCaseReceivedUseCase(dl, event).execute()
 
         refreshed_actor = dl.read(case_actor.as_id)
+        assert refreshed_actor is not None
+        refreshed_actor = cast(VultronCaseActor, refreshed_actor)
         broadcast_id = refreshed_actor.outbox.items[0]
         broadcast = dl.read(broadcast_id)
+        assert broadcast is not None
+        broadcast = cast(VultronActivity, broadcast)
+        assert broadcast.to is not None
         assert set(broadcast.to) == {alice, bob}

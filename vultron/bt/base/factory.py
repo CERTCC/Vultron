@@ -16,7 +16,7 @@ Provides common tools for constructing behavior trees
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-from typing import Callable, Type, TypeVar
+from typing import Any, Callable, Type, TypeVar, cast
 
 from vultron.bt.base.bt_node import ActionNode, BtNode, ConditionCheck
 from vultron.bt.base.composites import FallbackNode, ParallelNode, SequenceNode
@@ -67,7 +67,7 @@ def node_factory(
     if child_classes and hasattr(node_cls, "_children"):
         node_cls._children = child_classes
 
-    return node_cls
+    return cast(Type[NodeType], node_cls)
 
 
 def sequence_node(
@@ -244,6 +244,6 @@ def parallel_node(
 
     node_cls = node_factory(ParallelNode, name, description, *child_classes)
     if hasattr(node_cls, "min_success"):
-        node_cls.min_success = min_success
+        cast(Any, node_cls).min_success = min_success
 
     return node_cls

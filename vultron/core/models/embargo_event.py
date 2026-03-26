@@ -28,5 +28,5 @@ class VultronEmbargoEvent(VultronObject):
     """
 
     as_type: str = "Event"
-    end_time: datetime
-    context: NonEmptyString
+    end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
+    context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]

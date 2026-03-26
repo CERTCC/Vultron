@@ -17,6 +17,7 @@ Vultron API Routers
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
+from typing import Any, cast
 
 from fastapi import (
     APIRouter,
@@ -30,7 +31,7 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
     inbox_handler,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
-from vultron.core.ports.datalayer import DataLayer
+from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.use_cases.action_rules import (
     ActionRulesRequest,
     GetActionRulesUseCase,
@@ -39,12 +40,13 @@ from vultron.adapters.driven.db_record import object_to_record
 from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
+from vultron.wire.as2.vocab.base.links import as_Link
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
 )
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
-from vultron.wire.as2.vocab.type_helpers import AsActivityType
 from vultron.wire.as2.errors import (
     VultronParseError,
     VultronParseMissingTypeError,
@@ -91,11 +93,14 @@ def get_actors(
 
     logger.debug(f"get_actors: found {len(results)} actor records")
 
-    objects = []
+    objects: list[as_Actor] = []
     for rec in results:
         cls = find_in_vocabulary(rec["type_"])
+        if cls is None:
+            continue
         obj = cls.model_validate(rec["data_"])
-        objects.append(obj)
+        if isinstance(obj, as_Actor):
+            objects.append(obj)
 
     return objects
 
@@ -207,23 +212,26 @@ def get_actor_inbox(
 ) -> as_OrderedCollection:
     """Returns the Actor's Inbox."""
 
-    actor = datalayer.read(actor_id)
+    actor_record = datalayer.read(actor_id)
 
-    if not actor:
-        actor = datalayer.find_actor_by_short_id(actor_id)
+    if not actor_record:
+        actor_record = datalayer.find_actor_by_short_id(actor_id)
 
-    if not actor:
+    if not actor_record:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Actor not found.",
         )
 
+    actor = as_Actor.model_validate(actor_record)
     actor_dl = get_datalayer(actor.as_id)
-    items = actor_dl.inbox_list()
+    items = cast(
+        list[as_Object | as_Link | str | None], list(actor_dl.inbox_list())
+    )
     return as_OrderedCollection(items=items)
 
 
-def parse_activity(body: dict) -> AsActivityType:
+def parse_activity(body: dict[str, Any]) -> as_Activity:
     """HTTP adapter: parse request body and map wire errors to HTTP responses.
 
     Delegates AS2 parsing to the wire layer and converts domain parse errors
@@ -283,16 +291,18 @@ def post_actor_inbox(
         HTTPException: If the Actor is not found.
     """
     # Try to read actor by full ID first (shared DataLayer for identity lookup)
-    actor = dl.read(actor_id)
+    actor_record = dl.read(actor_id)
 
     # If not found, try to resolve as short ID (e.g., "vendorco" -> "https://.../vendorco")
-    if actor is None:
-        actor = dl.find_actor_by_short_id(actor_id)
+    if actor_record is None:
+        actor_record = dl.find_actor_by_short_id(actor_id)
 
-    if actor is None:
+    if actor_record is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Actor not found."
         )
+
+    actor = as_Actor.model_validate(actor_record)
 
     # Normalise to the canonical actor URI so that short-ID and full-ID
     # callers always scope to the same DataLayer namespace (OX-05-001).
@@ -325,7 +335,14 @@ def post_actor_inbox(
     # It is NOT removed by the inbox handler.
     if actor.inbox and hasattr(actor.inbox, "items"):
         actor.inbox.items.append(activity.as_id)
-        dl.save(actor)
+        dl.update(
+            actor.as_id,
+            StorableRecord(
+                id_=actor.as_id,
+                type_=actor.as_type or "Actor",
+                data_=actor.model_dump(mode="json"),
+            ),
+        )
         logger.debug(
             f"Added activity {activity.as_id} to actor"
             f" {canonical_actor_id} inbox record"
@@ -365,8 +382,8 @@ def post_actor_outbox(
     Raises:
         HTTPException: If the Actor is not found.
     """
-    actor = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
-    actor = as_Actor.model_validate(actor) if actor else None
+    actor_record = dl.read(actor_id) or dl.find_actor_by_short_id(actor_id)
+    actor = as_Actor.model_validate(actor_record) if actor_record else None
 
     if not actor:
         raise HTTPException(
@@ -380,7 +397,7 @@ def post_actor_outbox(
     # actor.as_id must match activity.actor or activity.actor.as_id
     if isinstance(activity.actor, str):
         activity_actor_id = activity.actor
-    elif hasattr(activity.actor, "as_id"):
+    elif activity.actor is not None and hasattr(activity.actor, "as_id"):
         activity_actor_id = activity.actor.as_id
     else:
         activity_actor_id = None

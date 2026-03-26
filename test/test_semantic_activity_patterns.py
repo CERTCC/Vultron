@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, cast
 import itertools
 
 from vultron.core.models.events import MessageSemantics
@@ -39,9 +39,9 @@ def _pattern_dump(pattern: Any) -> Dict[str, Any]:
         obj = pattern
 
     if hasattr(obj, "model_dump"):
-        dumped = obj.model_dump(exclude_none=True)
+        dumped = cast(Any, obj).model_dump(exclude_none=True)
     elif hasattr(obj, "dict"):
-        dumped = obj.dict(exclude_none=True)
+        dumped = cast(Any, obj).dict(exclude_none=True)
     else:
         raise TypeError(
             f"Pattern {pattern!r} does not expose model_dump() or dict()"
@@ -67,7 +67,7 @@ def _elem_matches(a: Any, b: Any) -> bool:
                 return False
         return True
     # scalars: require equality (conservative)
-    return a == b
+    return bool(a == b)
 
 
 def _is_subset(a: Dict[str, Any], b: Dict[str, Any]) -> bool:

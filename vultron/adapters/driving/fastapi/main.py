@@ -17,6 +17,8 @@ Vultron API Application
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 from contextlib import asynccontextmanager
+from enum import Enum
+from typing import cast
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
@@ -94,7 +96,7 @@ def main():
                 full_path = prefix + route.path
 
                 if not route.tags:
-                    route.tags = ["default"]
+                    route.tags = cast(list[str | Enum], ["default"])
 
                 for tag in route.tags:
                     if tag not in routes_by_tag:

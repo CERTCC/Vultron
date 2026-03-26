@@ -52,7 +52,7 @@ class as_Activity(as_Object):
 
 
 def main():
-    x = as_Activity()
+    x = as_Activity(actor="https://example.org/actor")
     print(x.to_json(indent=2))
 
 

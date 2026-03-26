@@ -46,7 +46,7 @@ inboxes.
 # Standard library imports
 import logging
 import sys
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.wire.as2.vocab.activities.case import (
@@ -115,7 +115,7 @@ def _setup_initialized_case(
     offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
     validate_activity = RmValidateReportActivity(
         actor=vendor.as_id,
-        object=offer.as_id,
+        as_object=offer.as_id,
         content="Confirmed — remote code execution via unsanitized input.",
     )
     post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
@@ -307,7 +307,7 @@ def demo_transfer_ownership_reject(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
     ("Demo: Transfer Ownership — Accept Path", demo_transfer_ownership_accept),
     ("Demo: Transfer Ownership — Reject Path", demo_transfer_ownership_reject),
 ]

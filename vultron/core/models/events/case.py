@@ -17,7 +17,7 @@ class CreateCaseReceivedEvent(_ObjectIsCaseMixin, VultronEvent):
     semantic_type: Literal[MessageSemantics.CREATE_CASE] = (
         MessageSemantics.CREATE_CASE
     )
-    activity: VultronActivity
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
 class UpdateCaseReceivedEvent(_ObjectIsCaseMixin, VultronEvent):

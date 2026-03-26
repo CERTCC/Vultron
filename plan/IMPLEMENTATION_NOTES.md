@@ -142,3 +142,32 @@ single matching `CaseParticipant`, so callers should not also supply a
 participant ID. The router stays on the actor surface, while the use case
 resolves the case-scoped participant internally from `actor_participant_index`
 with a fallback scan of `case_participants`.
+
+---
+
+## 2026-03-26 Preserve subclass identity in ActivityStreams decorators
+
+The ActivityStreams registration decorators in
+`vultron/wire/as2/vocab/base/registry.py` must preserve the decorated class
+type with a `TypeVar`-based generic signature. If they return
+`type[BaseModel]`, pyright collapses every decorated subclass back to
+`BaseModel`, which then creates a large secondary error wave across
+extractors, round-trip tests, and any code that accesses subclass-specific
+fields.
+
+When touching those decorators, treat their return type as a typing-critical
+boundary, not just a registration convenience.
+
+---
+
+## 2026-03-26 Black can invalidate inline pyright suppressions on wrapped fields
+
+For inherited Pydantic fields that intentionally narrow optional base fields
+to required ones, pyright may need a targeted suppression of
+`reportGeneralTypeIssues`. Inline end-of-line suppressions on field
+assignments are brittle once Black wraps the expression across multiple lines;
+file-level pyright directives are more stable for these specific Pydantic
+inheritance edge cases.
+
+Use this sparingly and only when the alternative would weaken runtime model
+constraints just to satisfy the type checker.

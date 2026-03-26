@@ -59,7 +59,7 @@ class InviteToEmbargoOnCaseReceivedEvent(VultronEvent):
     semantic_type: Literal[MessageSemantics.INVITE_TO_EMBARGO_ON_CASE] = (
         MessageSemantics.INVITE_TO_EMBARGO_ON_CASE
     )
-    activity: VultronActivity
+    activity: VultronActivity  # pyright: ignore[reportGeneralTypeIssues]
 
 
 class AcceptInviteToEmbargoOnCaseReceivedEvent(

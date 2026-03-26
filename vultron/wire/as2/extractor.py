@@ -9,7 +9,8 @@ and the SEMANTICS_ACTIVITY_PATTERNS mapping + find_matching_semantics function
 (formerly in vultron/semantic_map.py) into a single extractor module.
 """
 
-from typing import Optional, Union
+from datetime import datetime
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel
 
@@ -58,15 +59,24 @@ class ActivityPattern(BaseModel):
         if self.activity_ != activity.as_type:
             return False
 
-        def _match_field(pattern_field, activity_field) -> bool:
+        def _match_field(
+            pattern_field: AOtype | VOtype | ActivityPattern | None,
+            activity_field: object,
+        ) -> bool:
             if pattern_field is None:
                 return True
             # URI/ID string reference: can't type-check, conservatively allow
             if isinstance(activity_field, str):
                 return True
             if isinstance(pattern_field, ActivityPattern):
-                return pattern_field.match(activity_field)
-            return pattern_field == getattr(activity_field, "as_type", None)
+                return isinstance(
+                    activity_field, as_Activity
+                ) and pattern_field.match(activity_field)
+            if activity_field is None:
+                return False
+            return bool(
+                pattern_field == getattr(activity_field, "as_type", None)
+            )
 
         if not _match_field(
             self.object_, getattr(activity, "as_object", None)
@@ -391,14 +401,14 @@ def extract_intent(
         semantics, EVENT_CLASS_MAP[MessageSemantics.UNKNOWN]
     )
 
-    def _build_domain_kwargs() -> dict:
+    def _build_domain_kwargs() -> dict[str, Any]:
         # Use as_type string comparison because the wire parser returns
         # as_Object (base class) for nested objects; isinstance checks against
         # Vultron subtypes (EmbargoEvent, CaseParticipant, etc.) would always
         # fail. Match on as_type string, consistent with ActivityPattern._match_field.
         _obj_type = str(getattr(obj, "as_type", "")) if obj is not None else ""
 
-        kw: dict = {}
+        kw: dict[str, Any] = {}
         activity_type = (
             str(activity.as_type) if activity.as_type else "Activity"
         )
@@ -429,109 +439,131 @@ def extract_intent(
                 in_reply_to=_get_id(getattr(activity, "in_reply_to", None)),
             )
 
-        if _obj_type == str(VOtype.VULNERABILITY_REPORT):
-            kw["object_"] = VultronReport(
-                as_id=obj.as_id,
-                as_type=str(obj.as_type),
-                name=obj.name,
-                summary=getattr(obj, "summary", None),
-                content=obj.content,
-                url=_get_id(getattr(obj, "url", None)),
-                media_type=getattr(obj, "media_type", None),
-                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                context=_get_id(getattr(obj, "context", None)),
-                published=getattr(obj, "published", None),
-                updated=getattr(obj, "updated", None),
-            )
-        elif _obj_type == str(VOtype.VULNERABILITY_CASE):
-            kw["object_"] = VultronCase(
-                as_id=obj.as_id,
-                as_type=str(obj.as_type),
-                name=getattr(obj, "name", None),
-                summary=getattr(obj, "summary", None),
-                content=getattr(obj, "content", None),
-                url=_get_id(getattr(obj, "url", None)),
-                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                published=getattr(obj, "published", None),
-                updated=getattr(obj, "updated", None),
-            )
-        elif _obj_type == str(AOtype.EVENT):
-            kw["object_"] = VultronEmbargoEvent(
-                as_id=obj.as_id,
-                as_type=str(obj.as_type),
-                name=getattr(obj, "name", None),
-                start_time=getattr(obj, "start_time", None),
-                end_time=getattr(obj, "end_time", None),
-                published=getattr(obj, "published", None),
-                updated=getattr(obj, "updated", None),
-                context=_get_id(getattr(obj, "context", None))
+        if _obj_type == str(VOtype.VULNERABILITY_REPORT) and obj is not None:
+            content = getattr(obj, "content", None)
+            object_id = _get_id(obj)
+            if isinstance(content, str) and content and object_id:
+                kw["object_"] = VultronReport(
+                    as_id=object_id,
+                    name=getattr(obj, "name", None),
+                    summary=getattr(obj, "summary", None),
+                    content=content,
+                    url=_get_id(getattr(obj, "url", None)),
+                    media_type=getattr(obj, "media_type", None),
+                    attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                    context=_get_id(getattr(obj, "context", None)),
+                    published=getattr(obj, "published", None),
+                    updated=getattr(obj, "updated", None),
+                )
+        elif _obj_type == str(VOtype.VULNERABILITY_CASE) and obj is not None:
+            object_id = _get_id(obj)
+            if object_id:
+                kw["object_"] = VultronCase(
+                    as_id=object_id,
+                    name=getattr(obj, "name", None),
+                    summary=getattr(obj, "summary", None),
+                    content=getattr(obj, "content", None),
+                    url=_get_id(getattr(obj, "url", None)),
+                    attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                    published=getattr(obj, "published", None),
+                    updated=getattr(obj, "updated", None),
+                )
+        elif _obj_type == str(AOtype.EVENT) and obj is not None:
+            end_time = getattr(obj, "end_time", None)
+            object_id = _get_id(obj)
+            embargo_context = (
+                _get_id(getattr(obj, "context", None))
                 or _get_id(context)
-                or _get_id(target),
+                or _get_id(target)
             )
-        elif _obj_type == str(VOtype.CASE_PARTICIPANT):
-            kw["object_"] = VultronParticipant(
-                as_id=obj.as_id,
-                as_type=str(obj.as_type),
-                name=getattr(obj, "name", None),
-                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                context=_get_id(getattr(obj, "context", None)),
-                case_roles=list(getattr(obj, "case_roles", []) or []),
-                participant_case_name=getattr(
-                    obj, "participant_case_name", None
-                ),
-            )
-        elif _obj_type == str(AOtype.NOTE):
-            kw["object_"] = VultronNote(
-                as_id=obj.as_id,
-                name=getattr(obj, "name", None),
-                summary=getattr(obj, "summary", None),
-                content=getattr(obj, "content", None),
-                url=_get_id(getattr(obj, "url", None)),
-                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                context=_get_id(getattr(obj, "context", None)),
-            )
-        elif _obj_type == str(VOtype.CASE_STATUS):
-            kw["object_"] = VultronCaseStatus(
-                as_id=obj.as_id,
-                name=getattr(obj, "name", None),
-                context=_get_id(getattr(obj, "context", None)),
-                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                em_state=getattr(obj, "em_state", None)
-                or VultronCaseStatus.model_fields["em_state"].default,
-                pxa_state=getattr(obj, "pxa_state", None)
-                or VultronCaseStatus.model_fields["pxa_state"].default,
-            )
-        elif _obj_type == str(VOtype.PARTICIPANT_STATUS):
+            if (
+                isinstance(end_time, datetime)
+                and embargo_context
+                and object_id
+            ):
+                kw["object_"] = VultronEmbargoEvent(
+                    as_id=object_id,
+                    name=getattr(obj, "name", None),
+                    start_time=getattr(obj, "start_time", None),
+                    end_time=end_time,
+                    published=getattr(obj, "published", None),
+                    updated=getattr(obj, "updated", None),
+                    context=embargo_context,
+                )
+        elif _obj_type == str(VOtype.CASE_PARTICIPANT) and obj is not None:
+            object_id = _get_id(obj)
+            attributed_to = _get_id(getattr(obj, "attributed_to", None))
+            participant_context = _get_id(getattr(obj, "context", None))
+            if object_id and attributed_to and participant_context:
+                kw["object_"] = VultronParticipant(
+                    as_id=object_id,
+                    name=getattr(obj, "name", None),
+                    attributed_to=attributed_to,
+                    context=participant_context,
+                    case_roles=list(getattr(obj, "case_roles", []) or []),
+                    participant_case_name=getattr(
+                        obj, "participant_case_name", None
+                    ),
+                )
+        elif _obj_type == str(AOtype.NOTE) and obj is not None:
+            content = getattr(obj, "content", None)
+            object_id = _get_id(obj)
+            if isinstance(content, str) and content and object_id:
+                kw["object_"] = VultronNote(
+                    as_id=object_id,
+                    name=getattr(obj, "name", None),
+                    summary=getattr(obj, "summary", None),
+                    content=content,
+                    url=_get_id(getattr(obj, "url", None)),
+                    attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                    context=_get_id(getattr(obj, "context", None)),
+                )
+        elif _obj_type == str(VOtype.CASE_STATUS) and obj is not None:
+            object_id = _get_id(obj)
+            case_context = _get_id(getattr(obj, "context", None))
+            if object_id and case_context:
+                kw["object_"] = VultronCaseStatus(
+                    as_id=object_id,
+                    name=getattr(obj, "name", None),
+                    context=case_context,
+                    attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                    em_state=getattr(obj, "em_state", None)
+                    or VultronCaseStatus.model_fields["em_state"].default,
+                    pxa_state=getattr(obj, "pxa_state", None)
+                    or VultronCaseStatus.model_fields["pxa_state"].default,
+                )
+        elif _obj_type == str(VOtype.PARTICIPANT_STATUS) and obj is not None:
+            object_id = _get_id(obj)
             ctx = _get_id(getattr(obj, "context", None)) or ""
             wire_case_status = getattr(obj, "case_status", None)
-            kw["object_"] = VultronParticipantStatus(
-                as_id=obj.as_id,
-                name=getattr(obj, "name", None),
-                context=ctx,
-                attributed_to=_get_id(getattr(obj, "attributed_to", None)),
-                rm_state=getattr(obj, "rm_state", None)
-                or VultronParticipantStatus.model_fields["rm_state"].default,
-                vfd_state=getattr(obj, "vfd_state", None)
-                or VultronParticipantStatus.model_fields["vfd_state"].default,
-                case_status=(
-                    _get_id(wire_case_status)
-                    if wire_case_status is not None
-                    else None
-                ),
-            )
+            if object_id:
+                kw["object_"] = VultronParticipantStatus(
+                    as_id=object_id,
+                    name=getattr(obj, "name", None),
+                    context=ctx,
+                    attributed_to=_get_id(getattr(obj, "attributed_to", None)),
+                    rm_state=getattr(obj, "rm_state", None)
+                    or VultronParticipantStatus.model_fields[
+                        "rm_state"
+                    ].default,
+                    vfd_state=getattr(obj, "vfd_state", None)
+                    or VultronParticipantStatus.model_fields[
+                        "vfd_state"
+                    ].default,
+                    case_status=(
+                        _get_id(wire_case_status)
+                        if wire_case_status is not None
+                        else None
+                    ),
+                )
         elif obj is not None:
             obj_id = _get_id(obj)
             if obj_id:
                 obj_type = _get_type(obj)
-                kw["object_"] = VultronObject(
-                    **{
-                        "as_id": obj_id,
-                        **({"as_type": obj_type} if obj_type else {}),
-                    }
-                )
+                kw["object_"] = VultronObject(as_id=obj_id, as_type=obj_type)
         return kw
 
-    def _to_domain_obj(as_obj) -> VultronObject | None:
+    def _to_domain_obj(as_obj: object) -> VultronObject | None:
         """Wrap a bare AS2 object reference as a minimal VultronObject."""
         if as_obj is None:
             return None
@@ -539,9 +571,7 @@ def extract_intent(
         if not obj_id:
             return None
         obj_type = _get_type(as_obj)
-        return VultronObject(
-            **{"as_id": obj_id, **({"as_type": obj_type} if obj_type else {})}
-        )
+        return VultronObject(as_id=obj_id, as_type=obj_type)
 
     extra_kwargs = _build_domain_kwargs()
     return event_class(

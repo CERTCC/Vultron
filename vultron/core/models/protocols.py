@@ -84,6 +84,7 @@ class OutboxCollectionModel(Protocol):
 
 
 class ActorModel(PersistableModel, Protocol):
+    inbox: OutboxCollectionModel
     outbox: OutboxCollectionModel
 
 

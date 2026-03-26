@@ -19,6 +19,7 @@ References: specs/case-management.md CM-02-009, CM-10-002.
 
 import unittest
 from datetime import datetime, timezone
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
@@ -58,11 +59,11 @@ class TestCaseEventCreation(unittest.TestCase):
 
     def test_object_id_required(self):
         with pytest.raises(ValidationError):
-            CaseEvent(event_type=EVENT_TYPE)
+            CaseEvent(object_id="", event_type=EVENT_TYPE)
 
     def test_event_type_required(self):
         with pytest.raises(ValidationError):
-            CaseEvent(object_id=OBJ_ID)
+            CaseEvent(object_id=OBJ_ID, event_type="")
 
     def test_object_id_empty_string_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
@@ -112,7 +113,9 @@ class TestCaseEventSerialization(unittest.TestCase):
     def test_received_at_iso8601_string_parses_correctly(self):
         ts_str = "2026-03-06T20:00:00+00:00"
         evt = CaseEvent(
-            object_id=OBJ_ID, event_type=EVENT_TYPE, received_at=ts_str
+            object_id=OBJ_ID,
+            event_type=EVENT_TYPE,
+            received_at=datetime.fromisoformat(ts_str),
         )
         self.assertEqual(
             datetime(2026, 3, 6, 20, 0, 0, tzinfo=timezone.utc),
@@ -122,7 +125,9 @@ class TestCaseEventSerialization(unittest.TestCase):
     def test_received_at_z_suffix_parses_correctly(self):
         ts_str = "2026-03-06T20:00:00Z"
         evt = CaseEvent(
-            object_id=OBJ_ID, event_type=EVENT_TYPE, received_at=ts_str
+            object_id=OBJ_ID,
+            event_type=EVENT_TYPE,
+            received_at=datetime.fromisoformat(ts_str.replace("Z", "+00:00")),
         )
         self.assertEqual(
             datetime(2026, 3, 6, 20, 0, 0, tzinfo=timezone.utc),
@@ -179,7 +184,7 @@ class TestVulnerabilityCaseEventsField(unittest.TestCase):
             CaseEvent(object_id=OBJ_ID, event_type=EVENT_TYPE, received_at=ts)
         )
         dl.create(case)
-        stored = dl.read(case.as_id)
+        stored = cast(VulnerabilityCase, dl.read(case.as_id))
         self.assertIsNotNone(stored)
         self.assertIsInstance(stored, VulnerabilityCase)
         self.assertEqual(1, len(stored.events))

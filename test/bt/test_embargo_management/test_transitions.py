@@ -21,8 +21,8 @@ from vultron.core.states.em import EM
 
 
 class MockState:
-    q_em = None
-    q_em_history = []
+    q_em: EM | None = None
+    q_em_history: list[EM] = []
 
 
 class TestEMTransitions(unittest.TestCase):
@@ -50,7 +50,7 @@ class TestEMTransitions(unittest.TestCase):
             node.setup()
             self.assertIsNotNone(node.bb.q_em)
 
-            self.assertEqual(NodeStatus.SUCCESS, node.tick()), state
+            self.assertEqual(NodeStatus.SUCCESS, node.tick(), state)
 
         for state in expect_fail:
             # set up the node
@@ -61,7 +61,7 @@ class TestEMTransitions(unittest.TestCase):
             node.bb.q_em = state
             node.setup()
             self.assertIsNotNone(node.bb.q_em)
-            self.assertEqual(NodeStatus.FAILURE, node.tick()), state
+            self.assertEqual(NodeStatus.FAILURE, node.tick(), state)
 
     def test_q_em_to_P(self):
         expect_success = emt._to_P.start_states

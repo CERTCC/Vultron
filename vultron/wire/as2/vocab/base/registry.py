@@ -16,7 +16,11 @@ Provides a registry for the Vultron ActivityStreams Vocabulary.
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
+from typing import TypeVar
+
 from pydantic import BaseModel, Field
+
+ModelT = TypeVar("ModelT", bound=type[BaseModel])
 
 
 class Vocabulary(BaseModel):
@@ -63,7 +67,7 @@ def find_in_vocabulary(
             return None
 
 
-def activitystreams_object(cls: type[BaseModel]) -> type[BaseModel]:
+def activitystreams_object(cls: ModelT) -> ModelT:
     """Register an object for a given object type.
 
     Args:
@@ -77,7 +81,7 @@ def activitystreams_object(cls: type[BaseModel]) -> type[BaseModel]:
     return cls
 
 
-def activitystreams_activity(cls: type[BaseModel]) -> type[BaseModel]:
+def activitystreams_activity(cls: ModelT) -> ModelT:
     """Register an activity for a given activity type.
 
     Args:
@@ -91,7 +95,7 @@ def activitystreams_activity(cls: type[BaseModel]) -> type[BaseModel]:
     return cls
 
 
-def activitystreams_link(cls: type[BaseModel]) -> type[BaseModel]:
+def activitystreams_link(cls: ModelT) -> ModelT:
     """Register a link for a given link type.
 
     Args:

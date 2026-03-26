@@ -1,11 +1,13 @@
 import asyncio
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import Mock, MagicMock
 
 import pytest
 
 from vultron.adapters.driving.fastapi import inbox_handler as ih
 from vultron.core.models.events import MessageSemantics, VultronEvent
+from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 
 
 def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
@@ -22,7 +24,7 @@ def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
     )
 
     mapping_activity = as_Create(
-        as_id="act-123", actor="actor-1", object="obj-1"
+        as_id="act-123", actor="actor-1", as_object="obj-1"
     )
     event = ih.prepare_for_dispatch(mapping_activity)
 
@@ -50,7 +52,9 @@ def test_handle_inbox_item_dispatches(monkeypatch):
     mock_dispatcher = Mock()
     monkeypatch.setattr(ih, "_DISPATCHER", mock_dispatcher)
 
-    ih.handle_inbox_item(actor_id="actor1", obj=fake_activity, dl=mock_dl)
+    ih.handle_inbox_item(
+        actor_id="actor1", obj=cast(Any, fake_activity), dl=mock_dl
+    )
 
     mock_dispatcher.dispatch.assert_called_once_with(fake_event, mock_dl)
 
@@ -58,11 +62,11 @@ def test_handle_inbox_item_dispatches(monkeypatch):
 def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
     """inbox_handler retries up to 3 errors then aborts, re-appending the item."""
     item_id = "https://example.org/activities/itm-001"
-    item = SimpleNamespace(
+    item = as_Activity(
         as_id=item_id,
         as_type="irrelevant",
+        actor="https://example.org/actors/test",
         name="itm",
-        model_dump_json=lambda **kw: "{}",
     )
 
     mock_dl = MagicMock()
@@ -90,7 +94,9 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
 
 def test_dispatch_raises_if_not_initialised(monkeypatch):
     monkeypatch.setattr(ih, "_DISPATCHER", None)
-    fake_event = SimpleNamespace(activity_id="x", semantic_type="y")
+    fake_event = cast(
+        VultronEvent, SimpleNamespace(activity_id="x", semantic_type="y")
+    )
     mock_dl = MagicMock()
     with pytest.raises(RuntimeError, match="not initialised"):
         ih.dispatch(fake_event, mock_dl)

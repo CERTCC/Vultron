@@ -37,6 +37,7 @@ class TestCaseReference(unittest.TestCase):
         ref = self.reference
         self.assertEqual("https://example.org/advisory/", ref.url)
         self.assertEqual("Example Security Advisory", ref.name)
+        assert ref.tags is not None
         self.assertIn("vendor-advisory", ref.tags)
         self.assertIn("patch", ref.tags)
         self.assertEqual(VO_type.CASE_REFERENCE, ref.as_type)
@@ -137,6 +138,7 @@ class TestCaseReference(unittest.TestCase):
         # Test each tag individually
         for tag in all_tags:
             ref = cr.CaseReference(url="https://example.org/", tags=[tag])
+            assert ref.tags is not None
             self.assertIn(tag, ref.tags)
 
     def test_case_reference_round_trip(self):

@@ -13,8 +13,10 @@
 """Tests for embargo-related use-case classes."""
 
 import logging
+from typing import Any, cast
 from unittest.mock import MagicMock
 
+from vultron.adapters.driven.db_record import StorableRecord
 from vultron.core.states.em import EM
 from vultron.core.use_cases.embargo import (
     CreateEmbargoEventReceivedUseCase,
@@ -50,16 +52,16 @@ class TestEmbargoUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_cem1",
+            as_id="https://example.org/cases/case_cem1",
             name="Create Embargo Test",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_cem1/embargo_events/embargo1",
+            as_id="https://example.org/cases/case_cem1/embargo_events/embargo1",
             content="Proposed embargo",
         )
         activity = as_Create(
             actor="https://example.org/users/vendor",
-            object=embargo,
+            as_object=embargo,
             context=case,
         )
 
@@ -84,16 +86,16 @@ class TestEmbargoUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_cem2",
+            as_id="https://example.org/cases/case_cem2",
             name="Create Embargo Idempotent",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_cem2/embargo_events/embargo2",
+            as_id="https://example.org/cases/case_cem2/embargo_events/embargo2",
             content="Proposed embargo",
         )
         activity = as_Create(
             actor="https://example.org/users/vendor",
-            object=embargo,
+            as_object=embargo,
             context=case,
         )
         event = make_payload(activity)
@@ -122,11 +124,11 @@ class TestEmbargoUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_em1",
+            as_id="https://example.org/cases/case_em1",
             name="EM Test Case",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_em1/embargo_events/e1",
+            as_id="https://example.org/cases/case_em1/embargo_events/e1",
             content="Embargo test",
         )
         # Start from PROPOSED — the standard pre-condition for activation.
@@ -136,7 +138,7 @@ class TestEmbargoUseCases:
 
         activity = AddEmbargoToCaseActivity(
             actor="https://example.org/users/vendor",
-            object=embargo,
+            as_object=embargo,
             target=case,
         )
         event = make_payload(activity)
@@ -144,6 +146,8 @@ class TestEmbargoUseCases:
         AddEmbargoEventToCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
+        assert case is not None
+        case = cast(VulnerabilityCase, case)
         assert case.active_embargo is not None
         assert case.current_status.em_state == EM.ACTIVE
 
@@ -164,11 +168,11 @@ class TestEmbargoUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_em1_warn",
+            as_id="https://example.org/cases/case_em1_warn",
             name="EM Warn Test Case",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_em1_warn/embargo_events/e1",
+            as_id="https://example.org/cases/case_em1_warn/embargo_events/e1",
             content="Embargo test",
         )
         # Default em_state is NONE — not a valid predecessor for ACTIVE.
@@ -177,7 +181,7 @@ class TestEmbargoUseCases:
 
         activity = AddEmbargoToCaseActivity(
             actor="https://example.org/users/vendor",
-            object=embargo,
+            as_object=embargo,
             target=case,
         )
         event = make_payload(activity)
@@ -187,6 +191,8 @@ class TestEmbargoUseCases:
 
         assert any("state-sync override" in r.message for r in caplog.records)
         case = dl.read(case.as_id)
+        assert case is not None
+        case = cast(VulnerabilityCase, case)
         # State is still updated (synchronization override proceeds).
         assert case.current_status.em_state == EM.ACTIVE
 
@@ -203,13 +209,13 @@ class TestEmbargoUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_em2/embargo_events/e2",
+            as_id="https://example.org/cases/case_em2/embargo_events/e2",
             content="Proposed embargo",
         )
         proposal = EmProposeEmbargoActivity(
-            id="https://example.org/cases/case_em2/embargo_proposals/1",
+            as_id="https://example.org/cases/case_em2/embargo_proposals/1",
             actor="https://example.org/users/vendor",
-            object=embargo,
+            as_object=embargo,
             context="https://example.org/cases/case_em2",
         )
 
@@ -237,18 +243,18 @@ class TestEmbargoUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_em3",
+            as_id="https://example.org/cases/case_em3",
             name="EM Accept Test",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_em3/embargo_events/e3",
+            as_id="https://example.org/cases/case_em3/embargo_events/e3",
             content="Embargo",
         )
         # Use inline objects (not string IDs) so rehydration skips DataLayer lookup
         proposal = EmProposeEmbargoActivity(
-            id="https://example.org/cases/case_em3/embargo_proposals/1",
+            as_id="https://example.org/cases/case_em3/embargo_proposals/1",
             actor="https://example.org/users/vendor",
-            object=embargo,
+            as_object=embargo,
             context=case,
         )
         # Start from PROPOSED — the standard pre-condition for activation.
@@ -259,7 +265,7 @@ class TestEmbargoUseCases:
 
         accept = EmAcceptEmbargoActivity(
             actor="https://example.org/users/coordinator",
-            object=proposal,
+            as_object=proposal,
             context=case,
         )
         event = make_payload(accept)
@@ -267,6 +273,8 @@ class TestEmbargoUseCases:
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
+        assert case is not None
+        case = cast(VulnerabilityCase, case)
         assert case.active_embargo is not None
         assert case.current_status.em_state == EM.ACTIVE
 
@@ -288,17 +296,17 @@ class TestEmbargoUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_em3_warn",
+            as_id="https://example.org/cases/case_em3_warn",
             name="EM Accept Warn Test",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_em3_warn/embargo_events/e3",
+            as_id="https://example.org/cases/case_em3_warn/embargo_events/e3",
             content="Embargo",
         )
         proposal = EmProposeEmbargoActivity(
-            id="https://example.org/cases/case_em3_warn/embargo_proposals/1",
+            as_id="https://example.org/cases/case_em3_warn/embargo_proposals/1",
             actor="https://example.org/users/vendor",
-            object=embargo,
+            as_object=embargo,
             context=case,
         )
         # Default em_state is NONE — not a valid predecessor for ACTIVE.
@@ -308,7 +316,7 @@ class TestEmbargoUseCases:
 
         accept = EmAcceptEmbargoActivity(
             actor="https://example.org/users/coordinator",
-            object=proposal,
+            as_object=proposal,
             context=case,
         )
         event = make_payload(accept)
@@ -318,6 +326,8 @@ class TestEmbargoUseCases:
 
         assert any("state-sync override" in r.message for r in caplog.records)
         case = dl.read(case.as_id)
+        assert case is not None
+        case = cast(VulnerabilityCase, case)
         assert case.current_status.em_state == EM.ACTIVE
 
     def test_accept_invite_to_embargo_records_embargo_on_participant(
@@ -340,23 +350,23 @@ class TestEmbargoUseCases:
         dl = TinyDbDataLayer(db_path=None)
         coordinator_id = "https://example.org/users/coordinator"
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_em5",
+            as_id="https://example.org/cases/case_em5",
             name="EM Accept Participant Test",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_em5/embargo_events/e5",
+            as_id="https://example.org/cases/case_em5/embargo_events/e5",
             content="Embargo",
         )
         participant = CaseParticipant(
-            id="https://example.org/cases/case_em5/participants/coord",
+            as_id="https://example.org/cases/case_em5/participants/coord",
             attributed_to=coordinator_id,
             context=case.as_id,
         )
         case.add_participant(participant)
         proposal = EmProposeEmbargoActivity(
-            id="https://example.org/cases/case_em5/embargo_proposals/1",
+            as_id="https://example.org/cases/case_em5/embargo_proposals/1",
             actor="https://example.org/users/vendor",
-            object=embargo,
+            as_object=embargo,
             context=case,
         )
         dl.create(case)
@@ -366,7 +376,7 @@ class TestEmbargoUseCases:
 
         accept = EmAcceptEmbargoActivity(
             actor=coordinator_id,
-            object=proposal,
+            as_object=proposal,
             context=case,
         )
         event = make_payload(accept)
@@ -375,6 +385,7 @@ class TestEmbargoUseCases:
 
         updated_participant = dl.get(id_=participant.as_id)
         assert updated_participant is not None
+        updated_participant = cast(Any, updated_participant)
         assert embargo.as_id in updated_participant.accepted_embargo_ids
 
     def test_accept_invite_to_embargo_records_case_event(
@@ -393,17 +404,17 @@ class TestEmbargoUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_em6",
+            as_id="https://example.org/cases/case_em6",
             name="EM Accept Event Test",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_em6/embargo_events/e6",
+            as_id="https://example.org/cases/case_em6/embargo_events/e6",
             content="Embargo",
         )
         proposal = EmProposeEmbargoActivity(
-            id="https://example.org/cases/case_em6/embargo_proposals/1",
+            as_id="https://example.org/cases/case_em6/embargo_proposals/1",
             actor="https://example.org/users/vendor",
-            object=embargo,
+            as_object=embargo,
             context=case,
         )
         dl.create(case)
@@ -412,7 +423,7 @@ class TestEmbargoUseCases:
 
         accept = EmAcceptEmbargoActivity(
             actor="https://example.org/users/coordinator",
-            object=proposal,
+            as_object=proposal,
             context=case,
         )
         event = make_payload(accept)
@@ -422,6 +433,8 @@ class TestEmbargoUseCases:
         AcceptInviteToEmbargoOnCaseReceivedUseCase(dl, event).execute()
 
         case = dl.read(case.as_id)
+        assert case is not None
+        case = cast(VulnerabilityCase, case)
         assert len(case.events) >= 1
         event_types = [e.event_type for e in case.events]
         assert "embargo_accepted" in event_types
@@ -437,18 +450,18 @@ class TestEmbargoUseCases:
         from vultron.wire.as2.vocab.objects.embargo_event import EmbargoEvent
 
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_em4/embargo_events/e4",
+            as_id="https://example.org/cases/case_em4/embargo_events/e4",
             content="Embargo",
         )
         proposal = EmProposeEmbargoActivity(
-            id="https://example.org/cases/case_em4/embargo_proposals/1",
+            as_id="https://example.org/cases/case_em4/embargo_proposals/1",
             actor="https://example.org/users/vendor",
-            object=embargo,
+            as_object=embargo,
             context="https://example.org/cases/case_em4",
         )
         reject = EmRejectEmbargoActivity(
             actor="https://example.org/users/coordinator",
-            object=proposal,
+            as_object=proposal,
             context="https://example.org/cases/case_em4",
         )
 
@@ -474,11 +487,11 @@ class TestEmbargoUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_rem1",
+            as_id="https://example.org/cases/case_rem1",
             name="Remove Embargo Proposed",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_rem1/embargo_events/e1",
+            as_id="https://example.org/cases/case_rem1/embargo_events/e1",
             context=case.as_id,
         )
         case.proposed_embargoes.append(embargo.as_id)
@@ -487,7 +500,7 @@ class TestEmbargoUseCases:
 
         activity = RemoveEmbargoFromCaseActivity(
             actor="https://example.org/users/coord",
-            object=embargo,
+            as_object=embargo,
             origin=case,
         )
         event = make_payload(activity)
@@ -495,8 +508,10 @@ class TestEmbargoUseCases:
         RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
 
         updated = dl.read(case.as_id)
+        assert updated is not None
+        updated = cast(VulnerabilityCase, updated)
         assert embargo.as_id not in [
-            e if isinstance(e, str) else e.as_id
+            e if isinstance(e, str) else getattr(e, "as_id", None)
             for e in updated.proposed_embargoes
         ]
 
@@ -515,11 +530,11 @@ class TestEmbargoUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_rem2",
+            as_id="https://example.org/cases/case_rem2",
             name="Remove Embargo PROPOSED→NONE",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_rem2/embargo_events/e2",
+            as_id="https://example.org/cases/case_rem2/embargo_events/e2",
             context=case.as_id,
         )
         case.active_embargo = embargo.as_id
@@ -528,7 +543,7 @@ class TestEmbargoUseCases:
 
         activity = RemoveEmbargoFromCaseActivity(
             actor="https://example.org/users/coord",
-            object=embargo,
+            as_object=embargo,
             origin=case,
         )
         event = make_payload(activity)
@@ -536,6 +551,8 @@ class TestEmbargoUseCases:
         RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
 
         updated = dl.read(case.as_id)
+        assert updated is not None
+        updated = cast(VulnerabilityCase, updated)
         assert updated.active_embargo is None
         assert updated.current_status.em_state == EM.NONE
 
@@ -554,11 +571,11 @@ class TestEmbargoUseCases:
 
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_rem3",
+            as_id="https://example.org/cases/case_rem3",
             name="Remove Active Embargo Admin Override",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_rem3/embargo_events/e3",
+            as_id="https://example.org/cases/case_rem3/embargo_events/e3",
             context=case.as_id,
         )
         case.active_embargo = embargo.as_id
@@ -567,7 +584,7 @@ class TestEmbargoUseCases:
 
         activity = RemoveEmbargoFromCaseActivity(
             actor="https://example.org/users/coord",
-            object=embargo,
+            as_object=embargo,
             origin=case,
         )
         event = make_payload(activity)
@@ -576,6 +593,8 @@ class TestEmbargoUseCases:
             RemoveEmbargoEventFromCaseReceivedUseCase(dl, event).execute()
 
         updated = dl.read(case.as_id)
+        assert updated is not None
+        updated = cast(VulnerabilityCase, updated)
         assert updated.active_embargo is None
         assert updated.current_status.em_state == EM.NONE
         assert any("Admin override" in r.message for r in caplog.records)
@@ -596,23 +615,29 @@ class TestEmbargoUseCases:
         )
 
         dl = TinyDbDataLayer(db_path=None)
-        actor = Actor(id="https://example.org/users/vendor", name="Vendor")
+        actor = Actor(as_id="https://example.org/users/vendor", name="Vendor")
         case = VulnerabilityCase(
-            id="https://example.org/cases/case_eval_invalid",
+            as_id="https://example.org/cases/case_eval_invalid",
             name="Evaluate Invalid EM State",
         )
         embargo = EmbargoEvent(
-            id="https://example.org/cases/case_eval_invalid/embargo_events/e1",
+            as_id="https://example.org/cases/case_eval_invalid/embargo_events/e1",
             context=case.as_id,
         )
         proposal = EmProposeEmbargoActivity(
-            id="https://example.org/cases/case_eval_invalid/proposals/p1",
+            as_id="https://example.org/cases/case_eval_invalid/proposals/p1",
             actor=actor.as_id,
-            object=embargo.as_id,
+            as_object=embargo.as_id,
             context=case.as_id,
         )
         # EM state is NONE — ACCEPT transition is not valid from NONE.
-        dl.create(actor)
+        dl.create(
+            StorableRecord(
+                id_=actor.as_id,
+                type_="Actor",
+                data_=actor.model_dump(exclude_none=True, by_alias=True),
+            )
+        )
         dl.create(case)
         dl.create(embargo)
         dl.create(proposal)

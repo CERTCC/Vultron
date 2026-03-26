@@ -12,8 +12,11 @@
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import random
+from typing import Any, cast
 from uuid import uuid4
 
+from vultron.adapters.driven.db_record import object_to_record
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer
 from vultron.wire.as2.vocab.base.base import as_Base
 from vultron.wire.as2.vocab.base.objects.actors import (
@@ -41,17 +44,17 @@ report_base_url = f"{base_url}/reports"
 # generated once per run so all examples in a single run share the same case number
 case_number = random.randint(10000000, 99999999)
 
-_FINDER = as_Person(name="Finn der Vul", id=f"{user_base_url}/finndervul")
+_FINDER = as_Person(name="Finn der Vul", as_id=f"{user_base_url}/finndervul")
 _VENDOR = as_Organization(
-    name="VendorCo", id=f"{organization_base_url}/vendorco"
+    name="VendorCo", as_id=f"{organization_base_url}/vendorco"
 )
 _COORDINATOR = as_Organization(
-    name="Coordinator LLC", id=f"{organization_base_url}/coordinator"
+    name="Coordinator LLC", as_id=f"{organization_base_url}/coordinator"
 )
 
 _REPORT = VulnerabilityReport(
     name="FDR-8675309",
-    id=_make_id("VulnerabilityReport"),
+    as_id=_make_id("VulnerabilityReport"),
     content="I found a vulnerability!",
     attributed_to=[
         _FINDER.as_id,
@@ -94,7 +97,7 @@ def case(random_id=False) -> VulnerabilityCase:
         _case_number = random.randint(10000000, 99999999)
         _case = VulnerabilityCase(
             name=f"{_VENDOR.name} Case #{_case_number}",
-            id=_make_id("VulnerabilityCase"),
+            as_id=_make_id("VulnerabilityCase"),
         )
         return _case
     return _CASE
@@ -111,15 +114,17 @@ def gen_report() -> VulnerabilityReport:
 
 def initialize_examples(datalayer: DataLayer) -> None:
     for obj in [_FINDER, _VENDOR, _COORDINATOR, _REPORT]:
-        datalayer.create(obj)
+        if obj.as_type is None:
+            raise ValueError(f"Example object missing as_type: {obj}")
+        datalayer.create(object_to_record(cast(PersistableModel, obj)))
 
 
 def _strip_published_udpated(obj: as_Base) -> as_Base:
     # strip out published and updated timestamps if they are present
     if hasattr(obj, "published"):
-        obj.published = None
+        cast(Any, obj).published = None
     if hasattr(obj, "updated"):
-        obj.updated = None
+        cast(Any, obj).updated = None
     return obj
 
 

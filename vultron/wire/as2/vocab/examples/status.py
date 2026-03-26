@@ -31,7 +31,7 @@ from vultron.core.states.cs import CS_pxa, CS_vfd
 
 def case_status() -> CaseStatus:
     status = CaseStatus(
-        id="https://vultron.example/cases/1/status/1",
+        as_id="https://vultron.example/cases/1/status/1",
         context="https://vultron.example/cases/1",
         em_state=EM.EMBARGO_MANAGEMENT_NONE,
         pxa_state=CS_pxa.pxa,
@@ -46,7 +46,7 @@ def create_case_status():
 
     activity = CreateCaseStatusActivity(
         actor=actor.as_id,
-        object=status,
+        as_object=status,
         context=_case.as_id,
     )
     return activity
@@ -58,7 +58,7 @@ def add_status_to_case() -> AddStatusToCaseActivity:
     _status = case_status()
     activity = AddStatusToCaseActivity(
         actor=_vendor.as_id,
-        object=_status,
+        as_object=_status,
         target=_case.as_id,
     )
     return activity
@@ -66,7 +66,7 @@ def add_status_to_case() -> AddStatusToCaseActivity:
 
 def participant_status() -> ParticipantStatus:
     status = ParticipantStatus(
-        id="https://vultron.example/cases/1/participants/vendor/status/1",
+        as_id="https://vultron.example/cases/1/participants/vendor/status/1",
         context="https://vultron.example/cases/1/participants/vendor",
         attributed_to="https://vultron.example/organizations/vendor",
         rm_state=RM.RECEIVED,
@@ -76,13 +76,13 @@ def participant_status() -> ParticipantStatus:
     return status
 
 
-def create_participant_status() -> ParticipantStatus:
+def create_participant_status() -> CreateStatusForParticipantActivity:
     pstatus = participant_status()
     _vendor = vendor()
 
     activity = CreateStatusForParticipantActivity(
         actor=_vendor.as_id,
-        object=pstatus,
+        as_object=pstatus,
     )
     return activity
 
@@ -93,7 +93,7 @@ def add_status_to_participant() -> AddStatusToParticipantActivity:
 
     activity = AddStatusToParticipantActivity(
         actor=_vendor.as_id,
-        object=pstatus,
+        as_object=pstatus,
         target="https://vultron.example/cases/1/participants/vendor",
     )
     return activity

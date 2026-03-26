@@ -17,6 +17,7 @@ Provides helpers to generate a markdown summary of an OWL ontology
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import os
+from typing import Callable, Iterable, cast
 
 import owlready2  # type: ignore[import]
 
@@ -71,9 +72,17 @@ def thing2md(thing: owlready2.ThingClass, hdrlevel: int = 2) -> list[str]:
         data["Superclasses"] = "<br/>".join(_listify(thing.is_a))
 
     # add properties for Thing class
-    try:
-        properties = list(thing.get_properties())
-    except (TypeError, AttributeError):
+    get_properties = getattr(thing, "get_properties", None)
+    if callable(get_properties):
+        try:
+            get_properties_fn = cast(
+                Callable[[], Iterable[object]], get_properties
+            )
+            properties_iter = cast(Iterable[object], get_properties_fn())
+            properties = list(properties_iter)
+        except TypeError:
+            properties = []
+    else:
         properties = []
 
     if len(properties):
@@ -131,9 +140,12 @@ def _linkify(line: str) -> str:
         else:
             # if we didn't replace anything see if the seen thing is in the line
             longest_match = ""
-            for thing in sorted(seen_things, key=len, reverse=True):
-                if thing in part and len(thing) > len(longest_match):
-                    longest_match = thing
+            for thing in sorted(
+                seen_things, key=lambda item: len(str(item)), reverse=True
+            ):
+                thing_name = str(thing)
+                if thing_name in part and len(thing_name) > len(longest_match):
+                    longest_match = thing_name
 
             if longest_match:
                 parts[i] = parts[i].replace(

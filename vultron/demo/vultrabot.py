@@ -18,6 +18,7 @@ Provides a simulated Vultron behavior tree simulator bot.
 import argparse
 import logging
 import sys
+from typing import Any, cast
 
 import pandas as pd
 
@@ -79,6 +80,7 @@ def _run_simulation():
     """Run the CVD protocol behaviour-tree simulation for up to 1000 ticks."""
     tick = 0
     with CvdProtocolBt() as tree:
+        protocol_tree = cast(CvdProtocolBt, tree)
         tree.bb.CVD_role = CVDRoles.FINDER_REPORTER_VENDOR_DEPLOYER_COORDINATOR
 
         for tick in range(1000):
@@ -91,9 +93,10 @@ def _run_simulation():
             if msg is not None:
                 incoming_message(tree.bb, msg)
 
-            if tree.closed:
+            if protocol_tree.closed:
                 # do one last snapshot
-                tree.root.children[0].tick()
+                assert protocol_tree.root is not None
+                protocol_tree.root.children[0].tick()
                 break
     logger.info(f"Closed in {tick} ticks")
 
@@ -114,14 +117,16 @@ def _print_sim_result():
     df = pd.DataFrame(STATELOG)
     df.index += 1
 
-    df.q_rm = df.q_rm.apply(lambda x: x.value)
-    df.q_em = df.q_em.apply(lambda x: x.value)
-    df.msgs_received_this_tick = df.msgs_received_this_tick.apply(
+    df["q_rm"] = df["q_rm"].apply(lambda x: cast(Any, x).value)
+    df["q_em"] = df["q_em"].apply(lambda x: cast(Any, x).value)
+    df["msgs_received_this_tick"] = df["msgs_received_this_tick"].apply(
         _shorten_names
     )
-    df.msgs_emitted_this_tick = df.msgs_emitted_this_tick.apply(_shorten_names)
-    df.CVD_role = df.CVD_role.apply(lambda x: x.name)
-    df.q_cs = df.q_cs.apply(lambda x: x.name)
+    df["msgs_emitted_this_tick"] = df["msgs_emitted_this_tick"].apply(
+        _shorten_names
+    )
+    df["CVD_role"] = df["CVD_role"].apply(lambda x: cast(Any, x).name)
+    df["q_cs"] = df["q_cs"].apply(lambda x: cast(Any, x).name)
     df = df.drop_duplicates()
     print(df)
 

@@ -56,11 +56,11 @@ class as_Actor(as_Object):
         # Only create inbox/outbox if they don't already exist
         if self.inbox is None:
             self.inbox = as_OrderedCollection(
-                id=f"{actor_id}/inbox", type="OrderedCollection"
+                as_id=f"{actor_id}/inbox", as_type="OrderedCollection"
             )
         if self.outbox is None:
             self.outbox = as_OrderedCollection(
-                id=f"{actor_id}/outbox", type="OrderedCollection"
+                as_id=f"{actor_id}/outbox", as_type="OrderedCollection"
             )
 
         return self

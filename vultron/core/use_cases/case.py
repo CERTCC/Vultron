@@ -1,7 +1,7 @@
 """Use cases for vulnerability case activities."""
 
 import logging
-from typing import cast
+from typing import Any, cast
 
 from py_trees.common import Status
 
@@ -15,8 +15,12 @@ from vultron.core.models.events.case import (
 )
 from vultron.core.models.vultron_types import VultronActivity
 from vultron.core.ports.datalayer import DataLayer
+from vultron.core.models.protocols import (
+    CaseModel,
+    is_case_model,
+    is_participant_model,
+)
 from vultron.core.use_cases._helpers import _as_id
-from vultron.core.models.protocols import CaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +46,7 @@ def _check_participant_embargo_acceptance(
                 participant_id,
             )
             continue
-        if not hasattr(participant, "accepted_embargo_ids"):
+        if not is_participant_model(participant):
             continue
         if embargo_id not in participant.accepted_embargo_ids:
             logger.warning(
@@ -111,9 +115,12 @@ class UpdateCaseReceivedUseCase:
         request = self._request
         actor_id = request.actor_id
         case_id = request.case_id
+        if case_id is None:
+            logger.warning("update_case: missing case_id on request")
+            return
 
-        stored_case = cast(CaseModel, self._dl.read(case_id))
-        if stored_case is None:
+        stored_case = self._dl.read(case_id)
+        if not is_case_model(stored_case):
             logger.warning(
                 "update_case: case '%s' not found in DataLayer — skipping",
                 case_id,
@@ -209,7 +216,7 @@ class UpdateCaseReceivedUseCase:
 
         case_actor_obj = self._dl.read(case_actor_id)
         if case_actor_obj is not None and hasattr(case_actor_obj, "outbox"):
-            case_actor_obj.outbox.items.append(broadcast.as_id)
+            cast(Any, case_actor_obj).outbox.items.append(broadcast.as_id)
             self._dl.save(case_actor_obj)
 
         # Enqueue for delivery via outbox_handler
@@ -239,6 +246,9 @@ class EngageCaseReceivedUseCase:
 
         actor_id = request.actor_id
         case_id = request.case_id
+        if case_id is None:
+            logger.warning("engage_case: missing case_id on request")
+            return
 
         logger.info(
             "Actor '%s' engages case '%s' (RM → ACCEPTED)",
@@ -275,6 +285,9 @@ class DeferCaseReceivedUseCase:
 
         actor_id = request.actor_id
         case_id = request.case_id
+        if case_id is None:
+            logger.warning("defer_case: missing case_id on request")
+            return
 
         logger.info(
             "Actor '%s' defers case '%s' (RM → DEFERRED)",
@@ -308,9 +321,12 @@ class AddReportToCaseReceivedUseCase:
         request = self._request
         report_id = request.report_id
         case_id = request.case_id
-        case = cast(CaseModel, self._dl.read(case_id))
+        if report_id is None or case_id is None:
+            logger.warning("add_report_to_case: missing report_id or case_id")
+            return
+        case = self._dl.read(case_id)
 
-        if case is None:
+        if not is_case_model(case):
             logger.warning("add_report_to_case: case '%s' not found", case_id)
             return
 
@@ -357,7 +373,7 @@ class CloseCaseReceivedUseCase:
 
         actor_obj = self._dl.read(actor_id)
         if actor_obj is not None and hasattr(actor_obj, "outbox"):
-            actor_obj.outbox.items.append(close_activity.as_id)
+            cast(Any, actor_obj).outbox.items.append(close_activity.as_id)
             self._dl.save(actor_obj)
             logger.info(
                 "Added Leave activity %s to actor %s outbox",

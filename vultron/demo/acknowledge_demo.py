@@ -45,7 +45,7 @@ When run as a script, this module will:
 # Standard library imports
 import logging
 import sys
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 # Vultron imports
 from vultron.adapters.utils import parse_id
@@ -246,7 +246,7 @@ def demo_acknowledge_then_validate(
     ):
         validate = RmValidateReportActivity(
             actor=vendor.as_id,
-            object=stored_offer.as_id,
+            as_object=stored_offer.as_id,
             content="Confirmed SQL injection. Creating a case.",
         )
         post_to_inbox_and_wait(client, vendor.as_id, validate)
@@ -256,7 +256,7 @@ def demo_acknowledge_then_validate(
     with demo_step("Step 4: Vendor notifies finder of validation"):
         validate_to_finder = RmValidateReportActivity(
             actor=vendor.as_id,
-            object=stored_offer.as_id,
+            as_object=stored_offer.as_id,
             to=[finder.as_id],
             content="Your report has been validated. A case has been created.",
         )
@@ -332,7 +332,7 @@ def demo_acknowledge_then_invalidate(
     ):
         invalidate = RmInvalidateReportActivity(
             actor=vendor.as_id,
-            object=stored_offer.as_id,
+            as_object=stored_offer.as_id,
             content=(
                 "This is a UX defect, not a security vulnerability. "
                 "Holding for further review."
@@ -345,7 +345,7 @@ def demo_acknowledge_then_invalidate(
     with demo_step("Step 4: Vendor notifies finder of invalidation"):
         invalidate_to_finder = RmInvalidateReportActivity(
             actor=vendor.as_id,
-            object=stored_offer.as_id,
+            as_object=stored_offer.as_id,
             to=[finder.as_id],
             content=(
                 "After review, this does not appear to be a security vulnerability."
@@ -367,7 +367,7 @@ def demo_acknowledge_then_invalidate(
     )
 
 
-_ALL_DEMOS: Sequence[Tuple[str, object]] = [
+_ALL_DEMOS: Sequence[Tuple[str, Callable[..., None]]] = [
     ("Demo 1: Acknowledge Only", demo_acknowledge_only),
     ("Demo 2: Acknowledge then Validate", demo_acknowledge_then_validate),
     ("Demo 3: Acknowledge then Invalidate", demo_acknowledge_then_invalidate),
