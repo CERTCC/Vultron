@@ -9,7 +9,7 @@ tags:
   - dev-workflow
 shell: "zsh"
 commands:
-  - "uv run black vultron/ test/ && uv run flake8 --exit-zero vultron/ test/ && uv run mypy && uv run pyright"
+  - "uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright"
 inputs:
   - name: repo_root
     description: "Repository root where the command will be executed"
@@ -28,6 +28,11 @@ combines code formatting (Black), Python linting (flake8), type checking
 (mypy), and static type checking with Pyright into a single, reproducible
 invocation for maintainers and automation.
 
+All four tools **MUST** pass cleanly (zero exit code) before code is staged
+for commit. This mirrors the CI pipeline (`python-app.yml`) which runs each
+linter as a separate parallel job and only proceeds to build if every check
+passes.
+
 ## Inputs
 
 - `repo_root` (string, default `.`): repository root where the command should
@@ -35,46 +40,45 @@ invocation for maintainers and automation.
 
 ## Outputs
 
-- `lint_summary` (string): the combined stdout/stderr from the lint commands; the
-  exit status indicates whether any linters failed.
+- `lint_summary` (string): the combined stdout/stderr from the lint commands;
+  the exit status indicates whether any linters failed.
 
 ## Procedure
 
 1. From the repository root (or `repo_root`), run the combined linters:
 
 ```bash
-uv run black vultron/ test/ && uv run flake8 --exit-zero vultron/ test/ && uv run mypy && uv run pyright
+uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
 ```
 
-2. Inspect each tool's output. `black` will reformat files in-place. `flake8`
-   runs with `--exit-zero` here (to collect issues without failing the whole
-   command chain); you may want to run `uv run flake8 vultron/ test/` separately
-   during development to see non-zero exit behavior.
+2. Inspect each tool's output. `black` will reformat files in-place. `flake8`,
+   `mypy`, and `pyright` will print diagnostics. Fix all reported issues and
+   repeat until the suite is clean.
 
-3. Address issues reported by each tool and repeat until the suite is clean.
+3. Stage only after all four tools exit with code 0.
 
 ## Constraints / Rules
 
-- Run `black` first to ensure formatting does not generate spurious lint
-  failures.
-- `flake8` is invoked with `--exit-zero` in this combined command to allow
-  collection of issues across all linters; CI may run `flake8` without
-  `--exit-zero` to fail the build on lint errors.
-- `mypy` and `pyright` are both included to provide complementary type
-  checking; teams may prefer one over the other, but including both helps
-  surface different classes of type issues.
+- Run `black` first — formatting errors cause spurious `flake8` failures.
+- `flake8` MUST be run **without** `--exit-zero`; a non-zero exit means the
+  commit is not ready.
+- `mypy` and `pyright` are both required; they surface complementary classes
+  of type errors.
+- Do **not** commit code that produces warnings or errors from any of the four
+  tools.
 
 ## Examples
 
 ```bash
-# Run the combined linters (recommended for local pre-commit checks)
-uv run black vultron/ test/ && uv run flake8 --exit-zero vultron/ test/ && uv run mypy && uv run pyright
+# Run all linters (required before every commit)
+uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright
 ```
 
 ## Rationale
 
 Grouping linters into a single skill provides a reproducible developer
 workflow and makes it easier for agents and automation to invoke the same set
-of checks maintainers use. Including both `mypy` and `pyright` gives
-coverage from two type-checking tools that can catch different issues.
+of checks maintainers use. All four linters are also enforced by CI, so
+running them locally before committing avoids CI failures and preserves the
+known-clean codebase baseline.
 

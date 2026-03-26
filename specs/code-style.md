@@ -12,15 +12,21 @@ Defines code formatting and import organization standards for Python code.
 ## Code Formatting (MUST)
 
 - `CS-01-001` Code MUST follow PEP 8 style guidelines
-  - **Implementation**: Black formatter (or equivalent) SHOULD be used for
-    consistency
+  - **Implementation**: Black formatter MUST be used for consistency
   - **Settings**: Default Black settings (88 character line length, etc.)
 - `CS-01-002` Formatting checks MUST be included in CI/CD pipeline
   - Builds MUST fail if code does not conform to style guidelines
 - `CS-01-003` Code formatting MUST be enforced
-  - **Implementation options**: Pre-commit hooks, CI pipeline checks, IDE
-    integration
-  - **Current implementation**: Pre-commit hooks with Black formatter
+  - **Implementation**: Pre-commit hooks AND CI pipeline checks
+  - `black`, `flake8`, `mypy`, and `pyright` MUST all pass cleanly before
+    code is staged for commit
+  - CI pipeline runs each linter as a separate parallel job; the build job
+    proceeds only if all four pass (see `.github/workflows/python-app.yml`)
+- `CS-01-006` Static type checking MUST be enforced in CI
+  - Both `mypy` and `pyright` MUST pass with zero errors on all commits to
+    `main` and on every pull request targeting `main`
+  - **Rationale**: The codebase is known-clean; maintaining zero-warning
+    status is required to preserve that baseline
 
 ## Docstring Standards (SHOULD)
 

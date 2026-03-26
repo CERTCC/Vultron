@@ -55,26 +55,33 @@ This specification defines the normative technology constraints and implementati
 
 - `IMPL-TS-05-001` The system SHOULD support containerization using Docker.
 - `IMPL-TS-05-002` Multi-container demo environments SHOULD be orchestrated using `docker-compose`.
-- `IMPL-TS-05-003` The project SHOULD use GitHub Actions for CI/CD.
-- `IMPL-TS-05-004` CI workflows SHOULD include automated testing.
+- `IMPL-TS-05-003` The project MUST use GitHub Actions for CI/CD.
+- `IMPL-TS-05-004` CI workflows MUST include automated testing.
 - `IMPL-TS-05-005` CI workflows SHOULD support static site generation and deployment to GitHub Pages.
 - `IMPL-TS-05-006` Static documentation SHOULD be hosted via GitHub Pages.
 - `IMPL-TS-05-007` Source code MUST be hosted in GitHub using git for version control.
 
 ---
 
-## Code Quality Tooling (SHOULD)
+## Code Quality Tooling (MUST)
 
-- `IMPL-TS-07-001` The project SHOULD use Black for code formatting; Black
-  MUST be enforced via pre-commit hooks.
-- `IMPL-TS-07-002` The project SHOULD adopt pyright for static type checking.
-  - Adoption SHOULD be gradual: run pyright on the existing codebase to
-    identify errors as technical debt, then enforce it on all new and
-    modified source going forward.
-  - pyright configuration MAY use different strictness levels for legacy
-    code versus new code to facilitate a smooth transition.
-  - **Rationale**: Static type checking catches type errors before runtime
-    and enforces consistent type annotation conventions across the codebase.
+- `IMPL-TS-07-001` The project MUST use Black for code formatting; Black
+  MUST be enforced via pre-commit hooks AND in the CI pipeline.
+- `IMPL-TS-07-002` The project MUST use pyright for static type checking;
+  pyright MUST run in CI and MUST pass with zero errors on every commit to
+  `main` and on every pull request targeting `main`.
+- `IMPL-TS-07-003` The project MUST use mypy for static type checking; mypy
+  MUST run in CI and MUST pass with zero errors on every commit to `main`
+  and on every pull request targeting `main`.
+- `IMPL-TS-07-004` The project MUST use flake8 for PEP 8 linting; flake8
+  MUST run in CI (without `--exit-zero`) and MUST pass with zero errors on
+  every commit to `main` and on every pull request targeting `main`.
+- `IMPL-TS-07-005` The CI pipeline MUST run tests (`pytest`), formatting
+  (`black --check`), and all three linters (`flake8`, `mypy`, `pyright`) as
+  separate parallel jobs. The build job MUST only execute when all parallel
+  jobs pass.
+  - **Rationale**: Parallel execution surfaces all failures simultaneously,
+    reducing fix-cycle time and preserving the known-clean codebase baseline.
 
 ---
 

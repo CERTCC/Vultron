@@ -38,13 +38,14 @@ Checklist (edit → validate → commit):
 
 1. Implement or modify code in `vultron/`.
 2. Add/adjust tests under `test/` mirroring the source layout.
-3. Run formatter, then tests locally before committing.
+3. Run formatter and all linters, then tests locally before committing.
 
 Essential commands (run in zsh):
 
-See `.github/skills/format-code/SKILL.md` and `.github/skills/run-tests/SKILL.md` for the canonical
-Black and pytest invocation commands (these files contain the exact
-invocation semantics, environment notes, and examples you must follow).
+See `.github/skills/format-code/SKILL.md`, `.github/skills/run-linters/SKILL.md`,
+and `.github/skills/run-tests/SKILL.md` for the canonical Black, linter, and
+pytest invocation commands (these files contain the exact invocation semantics,
+environment notes, and examples you must follow).
 
 > ⚠️ **STOP — Full test-suite rule (MUST follow)**
 >
@@ -131,12 +132,12 @@ the format and examples.
 ### Development support tools (approved)
 
 - **uv** for package and environment management (used in CI)
-- **black** for code formatting (enforced via pre-commit)
-- **mypy** for static type checking (recommended)
-- **pylint** / **flake8** for linting (recommended)
+- **black** for code formatting (enforced via pre-commit hooks AND CI)
+- **flake8** for PEP 8 linting (enforced in CI; MUST pass with zero errors)
+- **mypy** for static type checking (enforced in CI; MUST pass with zero errors)
+- **pyright** for static type checking (enforced in CI; MUST pass with zero errors)
 - **markdownlint-cli2** for markdown linting (use the repository's
    `mdlint.sh` wrapper; see `.github/skills/format-markdown/SKILL.md`)
-- **pyright** for static type checking (recommended alongside `mypy`)
 
 Agents MUST NOT introduce alternative frameworks or package managers without
 explicit approval from the maintainers.
@@ -720,6 +721,7 @@ to relevant tests and design notes.
 
 **BEFORE committing**, agents MUST follow the procedure documented in
 `.github/skills/format-code/SKILL.md` (format and lint first), then
+`.github/skills/run-linters/SKILL.md` (run all four linters), then
 `.github/skills/run-tests/SKILL.md` (run the test-suite exactly once), then
 commit. The skill files contain the exact commands and the required
 invocation order.
@@ -728,15 +730,18 @@ invocation order.
 
 1. Black formatting is enforced by pre-commit hooks — format (and run
    flake8) first to avoid a failed commit → re-stage → re-commit cycle.
-2. The test suite must pass before committing — read the single-run test
+2. All four linters (`black`, `flake8`, `mypy`, `pyright`) MUST pass with
+   zero errors before committing. The CI pipeline enforces the same checks;
+   failing locally means the PR will fail in CI.
+3. The test suite must pass before committing — read the single-run test
    output as documented in the skill file (the skill explains how to capture
    the summary line and why you must not re-run pytest to grep for counts).
 
 **When to run formatting and linters**:
 
 - After editing any Python files, before staging for commit
-- Run `flake8` on `vultron/` and `test/` to catch linting issues before
-  committing
+- Run `uv run black vultron/ test/ && uv run flake8 vultron/ test/ && uv run mypy && uv run pyright`
+  to check all four linters at once (see `.github/skills/run-linters/SKILL.md`)
 - Do NOT run `black` on markdown files (use `markdownlint-cli2` for those)
 
 **Alternative**: If you forget and the pre-commit hook reformats files, simply:
