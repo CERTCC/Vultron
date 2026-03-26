@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-25 (refresh #54: Priority 200 replanned)
+**Last Updated**: 2026-03-26 (refresh #55: Priority-250 ordering, BUG-2026032601)
 
 ## Overview
 
@@ -13,7 +13,7 @@ it does not override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 1004 passed, 5581 subtests (2026-03-25).
+**Test suite**: 1026 passed, 5581 subtests (2026-03-26).
 
 **All 38 handlers implemented** (including `unknown`) — see `IMPLEMENTATION_HISTORY.md`.
 **Trigger endpoints**: all 9 complete (P30-1–P30-6). **Demo scripts**: 12 scripts,
@@ -37,9 +37,10 @@ DataLayer inbox/outbox replaces the global `ACTOR_IO_STORE`.
 `test/adapters/driving/fastapi/`, `test/adapters/driven/`,
 and `test/core/use_cases/`.
 
-**Active phases**: **PRIORITY-200** (finish CaseActor work by resolving the
-action-rules endpoint shape) and **PRIORITY-300** (multi-actor demos, still
-blocked on the PRIORITY-200 follow-up). The foundational PRIORITY-100 actor
+**Active phases**: **PRIORITY-250** (pre-300 cleanup — NAMING-1, QUALITY-1,
+SECOPS-1, DOCMAINT-1, REORG-1) and **PRIORITY-300** (multi-actor demos; D5-1
+is unblocked now that PRIORITY-200 is complete, but D5-2 and later are blocked
+by PRIORITY-250). The foundational PRIORITY-100 actor
 isolation work is complete: ADR-0012, ACT-1/2/3, OX-1.1 through OX-1.4, and
 the inbox/outbox DataLayer migration have all landed. TECHDEBT-16 through
 TECHDEBT-39 are complete; BT-2.2/BT-2.3 remain deferred. VCR-A, VCR-B, and
@@ -52,7 +53,7 @@ pattern in core. TECHDEBT-32c complete: `get_datalayer` fallback removed from
 
 ---
 
-## Gap Analysis (2026-03-25, refresh #54)
+## Gap Analysis (2026-03-26, refresh #55)
 
 ### ✅ Previously completed (see `plan/IMPLEMENTATION_HISTORY.md`)
 
@@ -76,7 +77,7 @@ VCR-022, VCR-023, VCR-024, VCR-025, VCR-026, VCR-027, VCR-028, VCR-029,
 VCR-030, VCR-031, VCR-032, VCR-014,
 PREPX-1, PREPX-2, PREPX-3, ACT-1, OX-1.0, OX-1.1, OX-1.2, OX-1.3,
 DOCS-1, DOCS-2, P90-2, P90-3,
-TECHDEBT-37, TECHDEBT-38, TECHDEBT-39.
+TECHDEBT-37, TECHDEBT-38, TECHDEBT-39, BUG-2026032601.
 
 ### ✅ Outbox delivery implemented (OX-1.1/1.2/1.3 — COMPLETE)
 
@@ -137,6 +138,12 @@ trigger routes use actor-scoped DataLayer instances. Isolation is covered by
 `test/adapters/driven/test_datalayer_isolation.py`, and ACT-1/2/3 are recorded
 in `plan/IMPLEMENTATION_HISTORY.md`.
 
+### ✅ BUG-2026032601 — PytestCollectionWarning fixed (COMPLETE)
+
+`TestEnum` renamed to `MockEnum` in `test/bt/test_behaviortree/test_common.py`;
+`test/test_pytest_collection_hygiene.py` added to prevent recurrence.
+Test suite now reports 1026 passed, 5581 subtests with no warning.
+
 ### ✅ PRIORITY-200 complete
 
 CaseActor broadcast and the CA-2 action-rules follow-up are complete.
@@ -188,9 +195,16 @@ object model classes now inherit from `VultronObject` (which provides `as_id`,
 paths that moved to `vultron.wire.as2.vocab.*` during P60-1. Running
 `mkdocs build` surfaces these errors. Captured in `notes/codebase-structure.md`.
 
+### ❌ Priority-250 pre-300 cleanup not yet started (PRIORITY 250)
+
+NAMING-1, QUALITY-1, SECOPS-1, DOCMAINT-1, and REORG-1 must be completed
+before D5-2 and later multi-actor demo tasks (per `plan/PRIORITIES.md`).
+D5-1 (architecture review) may proceed in parallel.
+
 ### ❌ Multi-actor demos not yet started (PRIORITY 300)
 
-Blocked by PRIORITY-200.
+D5-1 is unblocked (PRIORITY-200 complete). D5-2 and later are blocked by
+PRIORITY-250 cleanup.
 
 ---
 
@@ -1363,7 +1377,8 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 
 - [ ] **TOOLS-1**: Evaluate Python 3.14 compatibility. Run the test suite on a
   Python 3.14 branch; if tests pass without issue, update `requires-python` in
-  `pyproject.toml` to `>=3.14`.
+  `pyproject.toml` to `>=3.14`, and update docker base images to use Python
+  3.14.
 
 ---
 
