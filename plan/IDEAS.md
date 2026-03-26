@@ -22,7 +22,7 @@ complain about private fields with leading underscores.) So
 underscore-suffix is the way to go for all fields that conflict with
 reserved keywords. Create a task to do a global search and replace for any
 `as_` prefixed fields and replace them with the trailing underscore
-convention. E.g., `as_foo` becomse `foo_`. Note that this requirement only
+convention. E.g., `as_foo` becomes `foo_`. Note that this requirement only
 applies to fields, not to class names where the `as_` prefix is actually  
 helpful to indicate that it's an ActivityStreams-specific model. Update  
 `specs/`, `notes/`, `AGENTS.md`, `plan/` docs as appropriate to reflect this
