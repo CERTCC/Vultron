@@ -1315,9 +1315,11 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 300, `notes/demo-future-ideas.md`
 
-- [ ] **D5-1**: Confirm the PRIORITY-200 CA-2 follow-up is complete and refresh
-  demo assumptions for isolated actor/container scenarios before implementing
-  the multi-actor demos.
+- [ ] **D5-1**: Confirm the PRIORITY-200 CA-2 follow-up is complete, review
+  the current architecture as specified in `specs/` and as implemented in the
+  codebase, clarify assumptions for isolated actor/container scenarios, and
+  produce a refreshed architectural summary in `notes/` before implementing
+  D5-2 and later multi-actor demo scenarios.
 - [ ] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
   containers + CaseActor container.
 - [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator).
@@ -1352,3 +1354,121 @@ They are extracted from the 2026-03-17 Priority-100 readiness review.
 - **Agentic AI integration** (Priority 1000) — out of scope until protocol
   foundation is stable
 - **Fuzzer node re-implementation** (Priority 500) — see `notes/bt-fuzzer-nodes.md`
+
+---
+
+## Maintenance and Tooling
+
+### TOOLS-1 — Evaluate Python 3.14 compatibility (LOW)
+
+- [ ] **TOOLS-1**: Evaluate Python 3.14 compatibility. Run the test suite on a
+  Python 3.14 branch; if tests pass without issue, update `requires-python` in
+  `pyproject.toml` to `>=3.14`.
+
+---
+
+## Code Quality and Naming
+
+### NAMING-1 — Standardize wire-layer field naming (MEDIUM)
+
+- [ ] **NAMING-1**: Audit and migrate all `as_`-prefixed field names in
+  `vultron/wire/as2/` to use trailing-underscore convention (e.g.,
+  `as_object` → `object_`, `as_type` → `type_`). Class names (e.g.,
+  `as_Activity`, `as_Object`) retain the `as_` prefix. Update `specs/`,
+  `notes/`, `AGENTS.md`, and documentation to reflect this convention.
+  Reference `specs/code-style.md` CS-07-003.
+
+### QUALITY-1 — Treat pytest warnings as errors (MEDIUM)
+
+- [ ] **QUALITY-1**: Configure `[tool.pytest.ini_options]` in `pyproject.toml`
+  to add `filterwarnings = ["error"]`. Fix any existing warnings surfaced by
+  this change. Update `specs/tech-stack.md` (IMPL-TS-07-006), `AGENTS.md`,
+  and `.github/skills/run-tests/SKILL.md` to document this expectation.
+
+---
+
+## Security and CI
+
+### SECOPS-1 — Pin GitHub Actions to commit SHAs (MEDIUM)
+
+- [ ] **SECOPS-1**: Audit all `.github/workflows/` files. Pin every `uses:`
+  action reference to a specific commit SHA instead of a version tag. Document
+  this as an ADR in `docs/adr/`. Add requirement to `specs/` (a new
+  `ci-security.md` or add to `tech-stack.md`).
+
+---
+
+## Documentation Maintenance
+
+### DOCMAINT-1 — Review and update outdated `notes/` files (MEDIUM)
+
+- [ ] **DOCMAINT-1**: Review all `notes/` files for outdated forward-looking
+  statements that have since been implemented. Specifically:
+  - (a) Replace concrete "not yet implemented" language with "implemented in
+    Phase X" where appropriate.
+  - (b) Fix module paths to their canonical current locations (see
+    `plan/IMPLEMENTATION_HISTORY.md` phases P60–P75).
+  - (c) Mark historical items as such.
+  - (d) Identify files that are purely historical and can be removed or
+    archived.
+  - Files needing particular attention: `notes/state-machine-findings.md`,
+    `notes/datalayer-refactor.md`, `notes/architecture-review.md`,
+    `notes/codebase-structure.md`.
+  - Cross-reference with `plan/IMPLEMENTATION_HISTORY.md` to verify what
+    has been completed.
+
+### DOCS-3 — Update `notes/user-stories-trace.md` (LOW)
+
+- [ ] **DOCS-3**: Update `notes/user-stories-trace.md` (the traceability
+  matrix) to map every user story in `docs/topics/user_stories` to the exact
+  implementing requirements in `specs/`. Add a mapping for each story and mark
+  stories lacking requirement coverage. Add a new section in
+  `plan/IMPLEMENTATION_NOTES.md` listing stories with insufficient coverage.
+
+---
+
+## Future Architecture: Replicated Log Synchronization
+
+These tasks implement distributed append-only case event log replication using
+AS2 Announce activities as the transport. The CaseActor (acting as de facto
+lead) maintains authoritative case event history and replicates it to
+Participant Actors via log synchronization.
+
+> **Design note:** Case Ownership and replication leadership are distinct
+> concepts. A future ownership transfer likely implies leadership change,
+> but a leadership change alone does not imply an ownership transfer.
+
+### SYNC-1 — Local append-only case event log with indexing (MEDIUM)
+
+- [ ] **SYNC-1**: Implement local append-only case event log with indexing.
+  The `CaseEvent` model (`vultron/wire/as2/vocab/objects/case_event.py`)
+  provides the foundation. Extend it to a true append-only log with indexed
+  lookups.
+
+### SYNC-2 — One-way log replication to Participant Actors (MEDIUM)
+
+- [ ] **SYNC-2**: One-way log replication from CaseActor to Participant Actors
+  via AS2 Announce activities, with strict conflict handling (reject mismatched
+  `prev_log_index`, retry with decremented index). Depends on SYNC-1.
+
+### SYNC-3 — Full sync loop with retry/backoff (MEDIUM)
+
+- [ ] **SYNC-3**: Full sync loop with retry/backoff. Depends on SYNC-2.
+
+### SYNC-4 — Multi-peer synchronization (LOW)
+
+- [ ] **SYNC-4**: Multi-peer synchronization with per-peer replication state.
+  Depends on SYNC-3.
+
+---
+
+## Codebase Reorganization
+
+### REORG-1 — Reorganize `vultron/core/use_cases/` (MEDIUM)
+
+- [ ] **REORG-1**: Reorganize `vultron/core/use_cases/` into clearer
+  sub-packages separating "received message" handlers from "trigger" handlers.
+  The `triggers/` sub-package already captures the latter. Create a
+  `received/` sub-package for the former. Keep tests in sync with the
+  structure. Document the trigger→received→sync information flow pattern in
+  `notes/` and `specs/` where appropriate.

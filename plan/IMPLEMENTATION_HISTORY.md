@@ -1,8 +1,9 @@
 # Implementation History
 
 This file archives completed phases from `IMPLEMENTATION_PLAN.md`.
-New entries are appended; do not edit past entries. Include date completed
-when known.
+**New entries MUST be added at the END of this file.** Do not insert entries
+at the top or in the middle; this is an append-only log. Past entries MUST
+NOT be edited. Include date completed when known.
 
 ---
 
