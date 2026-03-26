@@ -1341,10 +1341,12 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
 
 #### QUALITY-1 — Treat pytest warnings as errors
 
-- [ ] **QUALITY-1**: Configure `[tool.pytest.ini_options]` in `pyproject.toml`
-  to add `filterwarnings = ["error"]`. Fix any existing warnings surfaced by
-  this change. Update `specs/tech-stack.md` (IMPL-TS-07-006), `AGENTS.md`,
-  and `.github/skills/run-tests/SKILL.md` to document this expectation.
+- [x] **QUALITY-1**: Added `filterwarnings = ["error"]` to `[tool.pytest.ini_options]`
+  in `pyproject.toml`. Fixed `ResourceWarning: unclosed file` in `reset_datalayer()`
+  by adding `TinyDbDataLayer.close()` and calling it before dropping references.
+  Updated `.github/skills/run-tests/SKILL.md` to document warnings-as-errors.
+  (Spec `IMPL-TS-07-006` was already documented in `specs/tech-stack.md`; AGENTS.md
+  already references the SKILL.md.)
 
 #### SECOPS-1 — Pin GitHub Actions to commit SHAs
 

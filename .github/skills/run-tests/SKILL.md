@@ -53,6 +53,9 @@ uv run pytest --tb=short 2>&1 | tail -5
 - Do NOT re-run pytest to extract counts; do not use `-q` or otherwise change
   pytest output formatting.
 - Do NOT change the `tail` window (it must be `tail -5`).
+- pytest is configured with `filterwarnings = ["error"]` in `pyproject.toml`;
+  warnings are treated as test errors. Do NOT suppress or ignore warnings
+  without fixing their root cause.
 
 ## Examples
 

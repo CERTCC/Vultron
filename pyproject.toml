@@ -93,6 +93,9 @@ addopts = "-ra -q"
 testpaths = [
     "test",
 ]
+filterwarnings = [
+    "error",
+]
 
 [tool.uv.workspace]
 members = [

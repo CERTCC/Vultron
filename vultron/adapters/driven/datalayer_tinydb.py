@@ -60,6 +60,10 @@ class TinyDbDataLayer(DataLayer):
             self._db = TinyDB(storage=MemoryStorage)
         self._actor_id = actor_id
 
+    def close(self) -> None:
+        """Close the underlying TinyDB instance, releasing any open file handles."""
+        self._db.close()
+
     def _table(self, name: str) -> Table:
         if self._actor_id:
             return self._db.table(f"{self._actor_id}_{name}")
@@ -533,7 +537,13 @@ def reset_datalayer(actor_id: str | None = None) -> None:
     """
     global _datalayer_instance, _datalayer_instances
     if actor_id is None:
+        if _datalayer_instance is not None:
+            _datalayer_instance.close()
         _datalayer_instance = None
+        for instance in _datalayer_instances.values():
+            instance.close()
         _datalayer_instances = {}
     else:
-        _datalayer_instances.pop(actor_id, None)
+        instance = _datalayer_instances.pop(actor_id, None)
+        if instance is not None:
+            instance.close()
