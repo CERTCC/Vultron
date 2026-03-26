@@ -32,6 +32,12 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 4. **`dispatch-routing.md`** - Routing DispatchEvent to handler functions
 5. **`handler-protocol.md`** - Handler function contract and implementation patterns
 
+**Wire Vocabulary and Rehydration**:
+
+- **`vocabulary-model.md`** - AS2 vocabulary registration, base model configuration
+  (`alias_generator`, `validate_by_name`, `validate_by_alias`), type inference, Literal
+  type narrowing, and the rehydration contract (`rehydrate(obj, dl)`) (VM-01 through VM-07)
+
 **Behavior Tree Integration** (optional for complex workflows):
 
 - **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
@@ -45,6 +51,12 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
   acceptance tracking (CM-10)
+
+**State Machines**:
+
+- **`state-machine.md`** - RM/EM/CS/VFD state enum design, machine definitions, runtime
+  transition guards, append-only history, state subsets, and wire/DataLayer compatibility
+  (SM-01 through SM-08)
 
 ### Object Identifiers
 
@@ -202,12 +214,14 @@ is reserved for `testability.md`).
 | `PROTO` | `prototype-shortcuts.md` |
 | `RF` | `response-format.md` |
 | `SE` | `semantic-extraction.md` |
+| `SM` | `state-machine.md` |
 | `SL` | `structured-logging.md` |
 | `SYNC` | `sync-log-replication.md` |
 | `TB` | `testability.md` |
 | `TRACE` | `traceability.md` |
 | `TRIG` | `triggerable-behaviors.md` |
 | `UC-ORG` | `use-case-organization.md` |
+| `VM` | `vocabulary-model.md` |
 
 ## Requirement Tags
 
@@ -253,7 +267,7 @@ source.
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by
 specification.
 
-**Snapshot (2026-03-20)**:
+**Snapshot (2026-03-26)**:
 
 - ✅ **Core message-processing infrastructure is in place**: parsing,
   semantic extraction, dispatch routing, typed use-case execution, and the

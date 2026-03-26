@@ -278,6 +278,65 @@ def extract_id_segment(url: str) -> str:
     classes when they are refactored; do not rename existing classes
     incidentally while working on unrelated changes
 
+## Datetime and Timezone Conventions (MUST)
+
+- `CS-13-001` All datetime values produced by the application MUST be
+  timezone-aware and MUST use UTC
+  - Naive `datetime` objects (without timezone info) MUST NOT be stored in
+    domain models, written to the DataLayer, or included in wire output
+  - **Rationale**: Naive datetimes are ambiguous in a distributed system
+    where actors may run in different timezones; UTC eliminates this
+    ambiguity
+- `CS-13-002` All datetime values MUST be created via the `now_utc()` helper
+  in `vultron.wire.as2.vocab.base.dt_utils`
+  - Direct calls to `datetime.now()` (without `tz=timezone.utc`) or
+    `datetime.utcnow()` (which returns a naive UTC datetime) MUST NOT appear
+    in new code
+  - `now_utc()` returns `datetime.now(timezone.utc).replace(microsecond=0)`;
+    using it everywhere ensures uniform precision and timezone handling
+- `CS-13-003` All datetime values MUST be stored at second precision
+  (microseconds set to zero)
+  - Sub-second precision is not required by the Vultron protocol; stripping
+    microseconds reduces storage noise and ensures identical objects produce
+    identical serialized representations
+  - `now_utc()` enforces this by calling `.replace(microsecond=0)`
+- `CS-13-004` Embargo deadline datetimes MUST be computed using the
+  `days_from_now_utc(n)` helper rather than inline arithmetic
+  - `days_from_now_utc(n)` returns `now_utc() + timedelta(days=n)`, which
+    inherits the UTC and second-precision guarantees of `now_utc()`
+- `CS-13-005` Wire-format datetime fields MUST serialize to ISO 8601 format
+  with explicit UTC offset (`Z` or `+00:00`)
+  - Pydantic serializes timezone-aware `datetime` objects to ISO 8601 by
+    default; no custom serializer is needed as long as CS-13-001 is followed
+
+## Wire Model Configuration (MUST)
+
+- `CS-14-001` Wire-layer Pydantic models (classes in
+  `vultron/wire/as2/vocab/`) MUST inherit `model_config` from `as_Base`,
+  which sets `alias_generator=to_camel`, `validate_by_name=True`, and
+  `validate_by_alias=True`
+  - These settings ensure that AS2 JSON with camelCase keys (e.g.,
+    `"inReplyTo"`) can be deserialized into Python models with snake_case
+    fields (e.g., `in_reply_to`) without explicit per-field alias
+    declarations
+  - Subclasses that override `model_config` MUST extend the parent config
+    to preserve these settings; see `specs/vocabulary-model.md` VM-02-001
+- `CS-14-002` Core/domain-layer Pydantic models (classes in
+  `vultron/core/models/`) MUST set `populate_by_name=True` in their
+  `model_config`
+  - This allows field access using both the Python field name and the
+    alias, which is necessary for DataLayer round-tripping and use-case code
+    that constructs models using keyword arguments matching Python field names
+  - Domain models MUST NOT inherit the wire layer's `alias_generator=to_camel`
+    unless they are also intended for direct wire serialization
+- `CS-14-003` Domain event subclasses MUST narrow the `semantic_type` field
+  to a `Literal[MessageSemantics.FOO]` type with the corresponding default
+  value
+  - This enables Pydantic discriminated-union deserialization and makes the
+    expected semantic type explicit in the class definition
+  - Example: `semantic_type: Literal[MessageSemantics.CREATE_CASE] = MessageSemantics.CREATE_CASE`
+  - CS-14-003 refines CS-10-002
+
 ## Use Case Naming (SHOULD)
 
 - `CS-12-002` Use case class names SHOULD carry a suffix that reflects their
