@@ -38,6 +38,14 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   (`alias_generator`, `validate_by_name`, `validate_by_alias`), type inference, Literal
   type narrowing, and the rehydration contract (`rehydrate(obj, dl)`) (VM-01 through VM-07)
 
+**Semantic–Wire Mapping**:
+
+- **`vultron-as2-mapping.md`** - Authoritative mapping from each `MessageSemantics`
+  enum value to its ActivityStreams 2.0 wire representation: activity type,
+  object type, target/context constraints, and nested-pattern conventions
+  (VAM-01 through VAM-09). Foundational for hexagonal-architecture wire
+  replaceability (ARCH-07-001).
+
 **Behavior Tree Integration** (optional for complex workflows):
 
 - **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
@@ -221,6 +229,7 @@ is reserved for `testability.md`).
 | `TRACE` | `traceability.md` |
 | `TRIG` | `triggerable-behaviors.md` |
 | `UC-ORG` | `use-case-organization.md` |
+| `VAM` | `vultron-as2-mapping.md` |
 | `VM` | `vocabulary-model.md` |
 
 ## Requirement Tags
