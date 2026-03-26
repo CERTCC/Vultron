@@ -313,6 +313,11 @@ class TestCaseUseCases:
         assert broadcast.actor == case_actor.as_id
         assert participant_id in broadcast.to
 
+        # Verify the broadcast is also enqueued for delivery by outbox_handler
+        queue_table = dl._db.table(f"{case_actor.as_id}_outbox")
+        queued_ids = [row["activity_id"] for row in queue_table.all()]
+        assert broadcast_id in queued_ids
+
     def test_update_case_no_broadcast_when_no_case_actor(self, make_payload):
         """Broadcast is skipped gracefully when no CaseActor exists."""
         dl = TinyDbDataLayer(db_path=None)

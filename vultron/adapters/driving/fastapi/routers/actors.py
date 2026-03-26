@@ -182,9 +182,14 @@ def get_action_rules(
     try:
         req = ActionRulesRequest(case_id=case_id, actor_id=actor_id)
         return GetActionRulesUseCase(dl=dl, request=req).execute()
-    except (VultronNotFoundError, VultronValidationError) as exc:
+    except VultronNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        )
+    except VultronValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         )
 
