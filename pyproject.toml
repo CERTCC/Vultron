@@ -82,6 +82,14 @@ exclude = ["test*"]  # exclude packages matching these glob patterns (empty by d
 # Only consider tags that capture a version string like 1.2.3 or v1.2.3
 tag_regex = "^(?:v)?(?P<version>\\d+\\.\\d+\\.\\d+(?:[.-]rc\\d+)?)$"
 version_file = "vultron/_version.py"
+# Fallback when no valid version tag is reachable (e.g. nearest tag is a
+# non-semver snapshot or branch tag).  Prevents vcs_versioning AssertionError
+# in `uv run` build environments.
+fallback_version = "0.0.0+dev"
+# Restrict git describe to semver-style tags (v<N>.*) so that branch/snapshot
+# tags (e.g. snapshot-2026Q1, externally aliased as snapshot/Q1-2026) are
+# never returned by git describe and never trigger a parse failure.
+git_describe_command = "git describe --dirty --tags --long --match v[0-9]*"
 
 #[tools.setuptools.dynamic]
 

@@ -3436,3 +3436,28 @@ for Record conversion`. Passed in the full suite due to vocabulary side-effect i
 **Lesson**: Test helper types (like `type_="Note"`) that require vocabulary
 registration must be accompanied by a module-level import of the corresponding
 class. Local imports inside fixtures do not guarantee registration order.
+
+---
+
+## BUG-2026032602 — uv run fails due to snapshot/Q1-2026 git tag (2026-03-26)
+
+**Issue**: `uv run pytest` (and all `uv run <tool>` commands) failed to build
+the package with `AssertionError` in `vcs_versioning`.
+
+**Root cause**: The local tag `snapshot-2026Q1` is "externally known as"
+`snapshot/Q1-2026` (its remote alias). `git describe --dirty --tags --long`
+returned `snapshot/Q1-2026-...-...`. The `vcs_versioning` backend (used by
+`setuptools-scm` in the `uv` build environment) tried to parse `snapshot/Q1-2026`
+against the `tag_regex`, got `None`, and raised `AssertionError`.
+`fallback_version` was not reached because the code path raises rather than
+returning `None`.
+
+**Resolution**: Added `git_describe_command` to `[tool.setuptools_scm]` in
+`pyproject.toml` to pass `--match v[0-9]*` to `git describe`. This restricts
+git describe to semver-style `v<N>.*` tags only, skipping snapshot and branch
+tags. Also added `fallback_version = "0.0.0+dev"` for future resilience.
+
+**Lesson**: When a git repo has non-semver tags near HEAD (especially tags with
+external remote aliases), setuptools_scm/vcs_versioning may find and fail to
+parse them. Set `git_describe_command` with an explicit `--match` glob in
+`[tool.setuptools_scm]` to guard against this.

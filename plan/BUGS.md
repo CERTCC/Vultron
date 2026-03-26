@@ -35,11 +35,12 @@ test/bt/test_behaviortree/test_common.py:37
 
 ---
 
-## BUG-2026032602 — `uv run` fails due to `snapshot/Q1-2026` git tag
+## BUG-2026032602 (FIXED 2026-03-26) — `uv run` fails due to `snapshot/Q1-2026` git tag
 
-`uv run pytest` (and `uv run black`, etc.) fail to build the package because
-the `snapshot/Q1-2026` git tag is not recognized by `vcs_versioning`, causing
-an `AssertionError` in `setuptools_scm`.
+`uv run pytest` (and `uv run black`, etc.) failed to build the package because
+the `snapshot-2026Q1` tag is "externally known as" `snapshot/Q1-2026` by the
+remote. `git describe` returned `snapshot/Q1-2026`, which `vcs_versioning`
+could not parse as a version string, causing an `AssertionError`.
 
 ### Reproduction
 
@@ -47,7 +48,7 @@ an `AssertionError` in `setuptools_scm`.
 uv run pytest --tb=short 2>&1 | head -10
 ```
 
-Produces:
+Produced:
 
 ```text
 × Failed to build `vultron @ file:///...`
@@ -55,16 +56,25 @@ UserWarning: tag 'snapshot/Q1-2026' no version found
 AssertionError
 ```
 
-### Workaround
-
-Use `.venv/bin/pytest`, `.venv/bin/black`, `.venv/bin/flake8` etc. directly
-instead of `uv run <tool>`.
-
 ### Root Cause
 
-`vcs_versioning` cannot parse the `snapshot/Q1-2026` format as a version
-string. Needs a version tag in standard semver format (e.g. `v2026.1.0`) to
-proceed past the `snapshot/` tag.
+The build backend (`vcs_versioning`, used by `setuptools-scm` in the `uv`
+build environment) runs `git describe --dirty --tags --long` which returns
+`snapshot/Q1-2026-...-...` (the remote alias for the local `snapshot-2026Q1`
+tag). `vcs_versioning` then tries to parse `snapshot/Q1-2026` against the
+`tag_regex`, gets `None`, and raises `AssertionError`. The `fallback_version`
+option is not reached because the code path raises instead of returning `None`.
+
+### Resolution
+
+Added `git_describe_command` to `[tool.setuptools_scm]` in `pyproject.toml`
+to pass `--match v[0-9]*` to `git describe`, restricting it to semver-style
+tags (e.g. `v2024.4.3`) and skipping snapshot/branch tags entirely. Also
+added `fallback_version = "0.0.0+dev"` as a belt-and-suspenders measure for
+any future case where no version tag is reachable.
+
+Validation: `uv run pytest --version` now succeeds and resolves to
+`vultron==2024.4.4.dev1073+gbea71843`. Full suite: 1026 passed via `uv run`.
 
 ---
 
