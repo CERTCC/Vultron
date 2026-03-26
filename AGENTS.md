@@ -60,8 +60,8 @@ Quick pointers and gotchas:
   first); patterns live in `vultron/wire/as2/extractor.py`.
 - Always call `rehydrate()` on incoming activities to expand URI references
   before pattern matching.
-- Use `object_to_record()` + `dl.update(id, record)` when persisting Pydantic
-  models to the datalayer (TinyDB uses explicit id + dict).
+- Use `dl.save(obj)` when persisting Pydantic models to the datalayer. The
+  `object_to_record()` + `dl.update()` pattern has been removed from core.
 - FastAPI endpoints should return 202 quickly and schedule background work with
   `BackgroundTasks`.
 
@@ -1262,6 +1262,74 @@ implementing.
 
 ---
 
+### Preserve Subclass Identity in ActivityStreams Decorators
+
+**Symptom**: Widespread pyright field-access failures across extractors,
+round-trip tests, and subclass-specific code after modifying registration
+decorators.
+
+**Cause**: The ActivityStreams registration decorators in
+`vultron/wire/as2/vocab/base/registry.py` return `type[BaseModel]` instead of
+preserving the generic TypeVar-based return type. When the return type collapses
+to `BaseModel`, pyright collapses every decorated subclass back to `BaseModel`.
+
+**Fix**: When modifying those decorators, preserve the decorated class type
+using a `TypeVar`-based generic signature. Treat them as a typing-critical
+boundary, not just a registration convenience. Never let them return
+`type[BaseModel]`.
+
+---
+
+### Black Can Invalidate Inline pyright Suppressions on Wrapped Fields
+
+**Symptom**: pyright errors reappear on inherited Pydantic fields after Black
+formats the file, even though suppressions were previously added.
+
+**Cause**: Inline end-of-line `# type: ignore` or `# pyright: ignore`
+suppressions on field assignments are brittle once Black wraps the expression
+across multiple lines — the suppression is now on a different line than the
+field definition.
+
+**Fix**: Use file-level pyright directives
+(`# pyright: reportGeneralTypeIssues=false` at the top of the file) for
+Pydantic inheritance edge cases where an optional base field is intentionally
+narrowed to required in a subclass. Use this sparingly and only when weakening
+runtime constraints would be the alternative.
+
+---
+
+### Pytest Helper Enums Must Not Use `Test*` Names
+
+**Symptom**: `PytestCollectionWarning` emitted for helper enum classes in test
+modules: "cannot collect 'TestXxx' because it has a custom `__init__`".
+
+**Cause**: pytest's class collection heuristics treat any class named `Test*`
+as a candidate test class, even when it is just a helper enum inheriting from
+`Enum`/`IntEnum`.
+
+**Fix**: Name helper enums in `test/` with neutral names: `MockEnum`,
+`ExampleState`, `FixtureEnum`, etc. — never `TestEnum` or `Test*`. The
+regression test in `test/test_pytest_collection_hygiene.py` enforces this.
+
+---
+
+### Avoid `BaseModel` in Port/Adapter Type Hints
+
+**Symptom**: Core and adapter layers become tightly coupled; refactoring one
+layer requires changes in the other.
+
+**Cause**: Using `BaseModel` as a type hint in Protocol definitions, port
+interfaces, or cross-layer function signatures exposes Pydantic's internal
+structure as an API surface instead of using domain-specific types.
+
+**Fix**: Port interfaces (e.g., `DataLayer`, `ActivityDispatcher`) must use
+domain types or abstract protocols, not `BaseModel`. When you see `BaseModel`
+in a Protocol or driving/driven adapter interface, treat it as a code smell
+indicating the abstraction boundary hasn't been properly defined. Define
+explicit domain types for data crossing layer boundaries.
+
+---
+
 ## Parallelism and Single-Agent Testing
 
 - Agents may use parallel subagents for complex tasks, but the testing step must
@@ -1315,3 +1383,10 @@ for the durable pattern and `test/demo/test_demo_context_managers.py`.
 lines). Completed phase details and historical implementation notes belong
 in `plan/IMPLEMENTATION_HISTORY.md` (append-only; create if absent). See
 `specs/project-documentation.md` `PD-02-001`.
+
+### IMPLEMENTATION_HISTORY.md is append-only
+
+`plan/IMPLEMENTATION_HISTORY.md` is an **append-only** log of completed tasks.
+New entries MUST be added to the **end** of the file, not inserted at the top
+or in the middle. Past entries MUST NOT be edited. When adding a completion
+entry, append it after the last existing entry.
