@@ -99,7 +99,7 @@ class TinyDbDataLayer(DataLayer):
         try:
             record = Record.model_validate(stored_record)
             return cast(PersistableModel, record_to_object(record))
-        except ValidationError:
+        except (ValidationError, ValueError):
             pass
 
         raw_type = stored_record.get("type")

@@ -3409,3 +3409,30 @@ warnings surfaced by this change.
 
 - `.venv/bin/black vultron/ test/ && .venv/bin/flake8 vultron/ test/`
 - `.venv/bin/pytest --tb=short 2>&1 | tail -5` → `1026 passed, 5581 subtests passed`
+
+---
+
+## BUG-2026032603 — Test ordering dependency in test_datalayer_isolation.py (2026-03-26)
+
+**Issue**: `TestRecordIsolation::test_two_actors_can_store_same_id_independently`
+failed when run in isolation with `ValueError: Type 'Note' not found in vocabulary
+for Record conversion`. Passed in the full suite due to vocabulary side-effect imports.
+
+**Root cause**: Two related issues:
+
+1. `test/adapters/driven/conftest.py` imported `as_Note` only inside a fixture
+   function body (local import), so `Note` was never registered in the vocabulary
+   unless that fixture was used.
+2. `_object_from_storage` in `datalayer_tinydb.py` caught `ValidationError` but
+   not `ValueError`, so the vocabulary lookup failure propagated unchecked.
+
+**Resolution**:
+
+- Moved `as_Note` import to module level in `test/adapters/driven/conftest.py`
+  so the vocabulary is always populated when the test package loads.
+- Broadened the exception catch in `_object_from_storage` to include `ValueError`
+  as a defensive measure for unknown vocabulary types.
+
+**Lesson**: Test helper types (like `type_="Note"`) that require vocabulary
+registration must be accompanied by a module-level import of the corresponding
+class. Local imports inside fixtures do not guarantee registration order.

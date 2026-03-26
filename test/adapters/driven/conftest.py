@@ -15,6 +15,9 @@ import pytest
 
 from vultron.adapters.driven.db_record import Record
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
+from vultron.wire.as2.vocab.base.objects.object_types import (
+    as_Note,
+)  # noqa: F401
 
 
 @pytest.fixture
@@ -69,6 +72,4 @@ def base_object():
 
 @pytest.fixture
 def note_object():
-    from vultron.wire.as2.vocab.base.objects.object_types import as_Note
-
     return as_Note(content="Test Content")

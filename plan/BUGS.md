@@ -62,11 +62,11 @@ proceed past the `snapshot/` tag.
 
 ---
 
-## BUG-2026032603 — Test ordering dependency in `test_datalayer_isolation.py`
+## BUG-2026032603 (FIXED 2026-03-26) — Test ordering dependency in `test_datalayer_isolation.py`
 
-`TestRecordIsolation::test_two_actors_can_store_same_id_independently` fails
+`TestRecordIsolation::test_two_actors_can_store_same_id_independently` failed
 when run in isolation (`pytest test/adapters/driven/test_datalayer_isolation.py`)
-but passes in the full suite.
+but passed in the full suite.
 
 ### Reproduction
 
@@ -74,7 +74,7 @@ but passes in the full suite.
 .venv/bin/pytest test/adapters/driven/test_datalayer_isolation.py --tb=short
 ```
 
-Produces:
+Produced:
 
 ```text
 ValueError: Type 'Note' not found in vocabulary for Record conversion
@@ -83,11 +83,23 @@ ValueError: Type 'Note' not found in vocabulary for Record conversion
 ### Root Cause
 
 The vocabulary registry is populated by imports that happen as a side effect
-of loading other test modules. When the datalayer isolation tests run alone,
-the `'Note'` type is not registered in the vocabulary, so `record_to_object`
-raises `ValueError`. The test helper uses `type_='Note'` as default, but
-'Note' may not be in the registry until other modules are imported.
+of loading other test modules. When the datalayer isolation tests ran alone,
+the `'Note'` type was not registered in the vocabulary, so `record_to_object`
+raised `ValueError`. The test helper uses `type_='Note'` as default, but
+'Note' was not in the registry until other modules were imported.
 
-### Workaround
+Additionally, `_object_from_storage` only caught `ValidationError`, allowing
+`ValueError` from `record_to_object` to propagate unchecked.
 
-Run the full suite. The full suite always passes (1026 passed).
+### Resolution
+
+1. **`test/adapters/driven/conftest.py`**: moved `as_Note` import from inside
+   the `note_object` fixture body to module level, so `Note` is registered in
+   the vocabulary whenever conftest loads (before any test in the package runs).
+2. **`vultron/adapters/driven/datalayer_tinydb.py`**: broadened the exception
+   catch in `_object_from_storage` from `except ValidationError` to
+   `except (ValidationError, ValueError)` so unknown-vocabulary types fall
+   through to the remaining fallbacks instead of propagating.
+
+Validation: `test/adapters/driven/test_datalayer_isolation.py` now passes
+in isolation (29 passed) and full suite remains 1026 passed.
