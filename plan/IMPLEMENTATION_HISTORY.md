@@ -203,6 +203,22 @@ All 19 tasks completed. Key achievements:
 
 ---
 
+## BUG-2026032601 — Pytest Collection Warning Cleanup (COMPLETE 2026-03-26)
+
+- Issue: `uv run pytest` emitted a `PytestCollectionWarning` because
+  `test/bt/test_behaviortree/test_common.py` defined a helper enum named
+  `TestEnum`, which matched pytest's test-class naming pattern.
+- Root cause: pytest attempted to collect the enum as a test class, then
+  warned because `enum.IntEnum` provides a constructor incompatible with test
+  collection.
+- Resolution: renamed the helper enum to `MockEnum` and added
+  `test/test_pytest_collection_hygiene.py`, an AST-based regression test that
+  fails if helper enums under `test/` use `Test*` names.
+- Validation: `uv run pytest --tb=short 2>&1 | tail -5` → `1026 passed, 5581
+  subtests passed in 26.27s`
+
+---
+
 ## Phase REFACTOR-1 — CM-03-006 Status History Renames (COMPLETE 2026-02-27)
 
 - `VulnerabilityCase.case_status` (list) → `case_statuses`; `case_status` added

@@ -34,7 +34,7 @@ class MockState:
     foo_history: list[int] = []
 
 
-class TestEnum(enum.IntEnum):
+class MockEnum(enum.IntEnum):
     A = 1
     B = 2
     C = 3
@@ -52,7 +52,7 @@ class MyTestCase(unittest.TestCase):
     def test_to_end_state_factory(self):
         bb = MockState()
 
-        for key, state in product("abcdefghij", TestEnum):
+        for key, state in product("abcdefghij", MockEnum):
             xclass = c.to_end_state_factory(key, state)
             self.assertTrue(callable(xclass))
 
@@ -74,7 +74,7 @@ class MyTestCase(unittest.TestCase):
     def test_make_check_state(self):
         bb = MockState()
 
-        for key, state in product("abcdefghij", TestEnum):
+        for key, state in product("abcdefghij", MockEnum):
             xclass = c.state_in(key, state)
             self.assertTrue(callable(xclass))
 
@@ -95,9 +95,9 @@ class MyTestCase(unittest.TestCase):
 
     def test_make_state_change(self):
         bb = MockState()
-        start_states = list(TestEnum)
+        start_states = list(MockEnum)
 
-        for key, end_state in product("abcdefghij", TestEnum):
+        for key, end_state in product("abcdefghij", MockEnum):
             with self.subTest(key=key, end_state=end_state):
                 transition = c.EnumStateTransition(
                     start_states=start_states, end_state=end_state

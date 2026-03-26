@@ -171,3 +171,18 @@ inheritance edge cases.
 
 Use this sparingly and only when the alternative would weaken runtime model
 constraints just to satisfy the type checker.
+
+---
+
+## 2026-03-26 Pytest helper enums should not use `Test*` names
+
+Pytest's class collection heuristics treat any class named `Test*` in a test
+module as a candidate test class, even when the class is just a helper enum.
+If that helper inherits from `Enum` / `IntEnum`, pytest emits a
+`PytestCollectionWarning` because the enum constructor looks like a collected
+test class with a custom `__init__`.
+
+When adding helper enums under `test/`, give them neutral names like
+`MockEnum`, `ExampleState`, or `FixtureEnum` instead of `TestEnum`. The
+regression test in `test/test_pytest_collection_hygiene.py` now enforces this
+to keep `uv run pytest` warning-free.
