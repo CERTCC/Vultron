@@ -152,33 +152,15 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
   (triggers emit messages → received handlers process them → sync replicates
   the resulting case log) in `notes/` and `specs/` where appropriate.
 
----
-
-### Phase PRIORITY-250 — State Machine Cleanup (PRIORITY 250)
-
-These tasks address architecture issues identified in
-`notes/state-machine-findings.md` and now captured in
-`specs/state-machine.md` SM-02-002, SM-04-001, and SM-07-001.
-
-#### SM-ARCH-1 — Move EM state change out of wire layer
-
-- [ ] **SM-ARCH-1**: `VulnerabilityCase.set_embargo()` in
-  `vultron/wire/as2/vocab/objects/vulnerability_case.py` drives the
-  `EM.PROPOSED → EM.ACTIVE` transition, which is a boundary violation
-  (wire layer code performing domain state changes; SM-02-002). Move the
-  EM state transition logic into the calling use cases
-  (`SvcEvaluateEmbargoUseCase` and `AcceptInviteToEmbargoOnCaseReceivedUseCase`
-  in `vultron/core/use_cases/`). After moving, `set_embargo()` in the wire
-  object should either be removed or reduced to a simple field setter
-  with no state-machine side effects.
-
 #### SM-GUARD-1 — Add named state-subset constants
 
 - [ ] **SM-GUARD-1**: Define module-level named state-subset constants
   (e.g., `EM_NEGOTIATING`, `RM_ACTIVE`, `RM_CLOSABLE`) in the respective
   `vultron/core/states/*.py` modules. Replace inline guard tuples/checks
   in use-case code with references to these named constants. This improves
-  readability and satisfies SM-07-001.
+  readability and satisfies SM-07-001. Partially completed (`EM_NEGOTIATING`
+  exists but is not integrated. `RM_ACTIVE` and `RM_CLOSABLE` exist and are
+  integrated.)
 
 ---
 

@@ -140,6 +140,11 @@ def create_em_machine() -> Machine:
     )
 
 
+# Named EM state subsets (SM-07-001 style convenience constants)
+# Example: EM_NEGOTIATING groups states where embargo negotiation is ongoing
+EM_NEGOTIATING = (EM.PROPOSED, EM.REVISE)
+
+
 if __name__ == "__main__":
     M = create_em_machine()
     print(mermaid_machine(M))
