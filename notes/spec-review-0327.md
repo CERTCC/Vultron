@@ -279,114 +279,107 @@ The following items have been extracted from the March 27, 2026, transcripts and
 formatted to match the structure and identifying conventions of the **Vultron
 Spec Review Report**.
 
-### **State Machine Definitions (statemachine.mmd)**
+### State Machine Definitions (statemachine.mmd)
 
-#### VSR-SM-004
+* ID: VSR-SM-004
+  * Issue: Potential **data redundancy** and storage inefficiency between the
+      case state log, status history, and the unified case history log,.
+  * Required Action: (**MUST**) Refactor the case state log to be a **list of
+      pointers (IDs)** referencing entries in the main case history log rather
+      than duplicating full record content,. The system must **automatically
+      refresh** this pointer list whenever a state event is recorded to the main
+      history,.
+  * Context: Utilizing pointers (or sequence numbers/indexes) allows for
+      **monotonically increasing** lookups to find the most recent status (at
+      the end of the list) without doubling storage for the same information,,,.
 
-* **Issue:** Potential **data redundancy** and storage inefficiency between the
-  case state log, status history, and the unified case history log,.
-* **Required/Implied Change:** (**MUST**) Refactor the case state log to be a *
-  *list of pointers (IDs)** referencing entries in the main case history log
-  rather than duplicating full record content,. The system must **automatically
-  refresh** this pointer list whenever a state event is recorded to the main
-  history,.
-* **Technical Context:** Utilizing pointers (or sequence numbers/indexes) allows
-  for **monotonically increasing** lookups to find the most recent status (at
-  the end of the list) without doubling storage for the same information,,,.
+### Vocabulary Model (vocabulary_model.md)
 
-### **Vocabulary Model (vocabulary_model.md)**
+* ID: VSR-VM-003
+  * Issue: Risk of **unauthorized or accidental modification** of static data
+      objects during runtime,.
+  * Required Action: (**SHOULD**) Implement **frozen data objects** (immutability)
+      using **Pydantic’s data class features** for all objects intended to be
+      static once created,.
+  * Context: Freezing these objects ensures that any attempt to modify them will
+      **trigger an exception**, allowing the system to catch and handle integrity
+      violations immediately,.
+* ID: VSR-VM-004
+  * Issue: Loss of critical state data when messages are **unparsable or
+      contain unknown semantics**,.
+  * Required Action: (**MAY**) Establish a mechanism where **unknown messages**
+      are still passed to the case log, creating an “opening” for **human or
+      agent intervention**,.
+  * Context: This allows for a **manual override** where a user or an advanced
+      agent can interpret the unparsable message and manually translate its
+      content into the necessary state changes for the case,.
 
-#### VSR-VM-003
+### Project Documentation (project_documentation.md)
 
-* **Issue:** Risk of **unauthorized or accidental modification** of static data
-  objects during runtime,.
-* **Required/Implied Change:** (**SHOULD**) Implement **frozen data objects** (
-  immutability) using **Pydantic’s data class features** for all objects
-  intended to be static once created,.
-* **Technical Context:** Freezing these objects ensures that any attempt to
-  modify them will **trigger an exception**, allowing the system to catch and
-  handle integrity violations immediately,.
+* ID: VSR-PD-003
+  * Issue: Conflation of authoritative sources regarding **component locations**
+      vs. project history,.
+  * Required Action: (**MUST**) Amend **PDO3-03** to clarify that while
+      implementation history is the authoritative record of *when* changes
+      occurred, the **active source code** is the only authoritative record of
+      *where* components are currently located,.
+  * Context: Maintenance notes should be updated to reflect current paths, but
+      developers must be instructed to **confirm component locations via a code
+      check** rather than relying solely on historical notes,.
 
-#### VSR-VM-004
+### Dispatch Routing (dispatch_routing.md)
 
-* **Issue:** Loss of critical state data when messages are **unparsable or
-  contain unknown semantics**,.
-* **Required/Implied Change:** (**MAY**) Establish a mechanism where **unknown
-  messages** are still passed to the case log, creating an "opening" for **human
-  or agent intervention**,.
-* **Technical Context:** This allows for a **manual override** where a user or
-  an advanced agent can interpret the unparsable message and manually translate
-  its content into the necessary state changes for the case,.
+* ID: VSR-DR-001
+  * Issue: Requirement **DR1-2** is outdated and conflicts with the move toward
+      **preloaded dispatchable objects**,.
+  * Required Action: (**MUST**) Update the dispatch routing specification to
+      reflect that use case `execute` calls should be made **without arguments**,.
+  * Context: The system is transitioning to a model where the dispatcher creates
+      an object already **preloaded with the event and data layer**, making the
+      passing of these elements during the `execute` call redundant,.
 
-### **Project Documentation (project_documentation.md)**
+### CI Security (CIsecurity.md)
 
-#### VSR-PD-003
-
-* **Issue:** Conflation of authoritative sources regarding **component locations
-  ** vs. project history,.
-* **Required/Implied Change:** (**MUST**) Amend **PDO3-03** to clarify that
-  while implementation history is the authoritative record of *when* changes
-  occurred, the **active source code** is the only authoritative record of
-  *where* components are currently located,.
-* **Technical Context:** Maintenance notes should be updated to reflect current
-  paths, but developers must be instructed to **confirm component locations via
-  a code check** rather than relying solely on historical notes,.
-
-### **Dispatch Routing (dispatch_routing.md)**
-
-#### VSR-DR-001
-
-* **Issue:** Requirement **DR1-2** is outdated and conflicts with the move
-  toward **preloaded dispatchable objects**,.
-* **Required/Implied Change:** (**MUST**) Update the dispatch routing
-  specification to reflect that use case `execute` calls should be made *
-  *without arguments**,.
-* **Technical Context:** The system is transitioning to a model where the
-  dispatcher creates an object already **preloaded with the event and data layer
-  **, making the passing of these elements during the `execute` call redundant,.
-
-### **CI Security (CIsecurity.md)**
-
-* **ID:** VSR-01-003
-* **Spec Reference:** CI-SEC-04-001 / CI-SEC-04-002
-* **Issue:** The requirement for periodic manual review and documentation of SHA
-  pins may be redundant with automated project tooling.
-* **Required Action:** (**SHOULD**) Verify if the current Dependabot
-  configuration adequately handles the periodic review and updating of SHA
-  pins,. If confirmed, consolidate the requirement to designate Dependabot as
-  the primary mechanism for ensuring pin currency.
-* **Context:** To avoid unnecessary manual overhead for tasks that are already
-  automated by the project's existing security tooling,.
+* ID: VSR-01-003
+  * Spec Reference: CI-SEC-04-001 / CI-SEC-04-002
+  * Issue: The requirement for periodic manual review and documentation of SHA
+      pins may be redundant with automated project tooling.
+  * Required Action: (**SHOULD**) Verify if the current Dependabot configuration
+      adequately handles the periodic review and updating of SHA pins,. If
+      confirmed, consolidate the requirement to designate Dependabot as the
+      primary mechanism for ensuring pin currency.
+  * Context: To avoid unnecessary manual overhead for tasks that are already
+      automated by the project’s existing security tooling,.
 
 ---
 
-### **State Machine (statemachine.md)**
+### State Machine (statemachine.md)
 
-* **ID:** VSR-03-004
-* **Spec Reference:** SM-01-003
-* **Issue:** Silent precedence of code enums over protocol documentation masks
-  significant architectural discrepancies.
-* **Required Action:** (**MUST**) Amend SM-01-003 to require that any detected
-  mismatch between the authoritative `Vultron` core state enums and the formal
-  protocol documentation be recorded as a "noteworthy event" rather than being
-  silently adjusted,.
-* **Context:** Such discrepancies are significant events indicating that the
-  initial design may be flawed; they require explicit correction and attention
-  rather than just a programmatic precedence rule,.
+* ID: VSR-03-004
+  * Spec Reference: SM-01-003
+  * Issue: Silent precedence of code enums over protocol documentation masks
+      significant architectural discrepancies.
+  * Required Action: (**MUST**) Amend SM-01-003 to require that any detected
+      mismatch between the authoritative `Vultron` core state enums and the
+      formal protocol documentation be recorded as a “noteworthy event” rather
+      than being silently adjusted,.
+  * Context: Such discrepancies are significant events indicating that the
+      initial design may be flawed; they require explicit correction and attention
+      rather than just a programmatic precedence rule,.
 
-### **Behavior Tree Integration (behaviortree_integration.md)**
+### Behavior Tree Integration (behaviortree_integration.md)
 
-* **ID:** VSR-10-001
-* **Spec Reference:** Design Note (BT-General)
-* **Issue:** Excessive internal complexity within individual behavior nodes
-  hinders process auditability and log analysis.
-* **Required Action:** (**SHOULD**) Enforce a design directive where behavior
-  nodes must remain simple, focused primarily on exception handling or boolean
-  checks,. Any node performing complicated business logic is a candidate for its
-  own sub-behavior tree.
-* **Context:** Surfacing business logic into the tree structure rather than
-  hiding it within node code makes the process auditable, loggable, and visible
-  for analysis to ensure the process is functioning as intended,,,.
+* ID: VSR-10-001
+  * Spec Reference: Design Note (BT-General)
+  * Issue: Excessive internal complexity within individual behavior nodes hinders
+      process auditability and log analysis.
+  * Required Action: (**SHOULD**) Enforce a design directive where behavior nodes
+      must remain simple, focused primarily on exception handling or boolean
+      checks,. Any node performing complicated business logic is a candidate for
+      its own sub-behavior tree.
+  * Context: Surfacing business logic into the tree structure rather than hiding
+      it within node code makes the process auditable, loggable, and visible for
+      analysis to ensure the process is functioning as intended,,,.
 
 1. Cross-Cutting Notes & Systemic Observations
 
