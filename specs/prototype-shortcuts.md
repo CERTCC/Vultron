@@ -43,10 +43,18 @@ and Python stack candidates.
 
 ## Production Deferral (SHOULD)
 
-- `PROTO-04-001` Tag production-only requirements with `PROD_ONLY` in
-  specification files.
+- `PROTO-04-001` Specification files SHOULD tag production-only requirements
+  with `PROD_ONLY` so they can be systematically identified and deferred
+  during the prototype stage.
+  - Tagged requirements SHOULD remain in the specification (not deleted) so
+    the full production intent is preserved alongside the prototype deferral
+  - Agents SHOULD treat any `PROD_ONLY` requirement as out-of-scope for
+    prototype implementation unless explicitly instructed otherwise
 - `PROTO-04-002` Review specifications to identify requirements that should
   carry the `PROD_ONLY` tag.
+  - Any requirement that cannot be practically tested without production
+    infrastructure (e.g., HSMs, PKI, mTLS) or that imposes overhead
+    inconsistent with rapid prototyping SHOULD carry the `PROD_ONLY` tag
 
 ## Case Prioritization (MAY)
 

@@ -358,8 +358,12 @@ When one document references another:
   a brief rationale, rather than deleted
 - `PD-03-003` Module paths referenced in `notes/` MUST be updated to
   reflect canonical current locations whenever those paths change
-  - `plan/IMPLEMENTATION_HISTORY.md` is the authoritative record of what
-    changed and when
+  - `plan/IMPLEMENTATION_HISTORY.md` is the authoritative record of *when*
+    changes occurred; the active source code is the authoritative record of
+    *where* components are currently located
+  - Developers MUST confirm component locations via a code search rather
+    than relying solely on historical notes; notes referencing old paths
+    MUST be updated to reflect the current canonical location
 
 ---
 

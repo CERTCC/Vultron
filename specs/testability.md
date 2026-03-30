@@ -88,9 +88,7 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
     ordering dependencies from assertions
   - **Rationale**: Flaky tests erode confidence in the test suite, mask real
     failures, and slow development. A flaky test MUST be fixed or removed;
-    it MUST NOT be left in the suite. The test `test_remove_embargo` in
-    `test/wire/as2/vocab/test_vocab_examples.py` has been identified as
-    flaky and MUST be resolved.
+    it MUST NOT be left in the suite.
 
 ## Mocking and Stubbing (MUST)
 
@@ -171,7 +169,6 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 - CI pipeline: Run full test suite 3× in succession; all results identical
 - Code review: No use of `random` without seeding, no time-dependent
   assertions in tests
-- Known flaky test `test_remove_embargo` addressed
 
 ### TB-07-001, TB-07-002, TB-07-003 Verification
 
