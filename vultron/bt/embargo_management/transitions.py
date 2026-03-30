@@ -20,7 +20,7 @@ This module provides state transition definitions for the Embargo Management beh
 from typing import Sequence
 
 from vultron.bt.common import EnumStateTransition, show_graph, state_change
-from vultron.core.states.em import EM
+from vultron.core.states.em import EM, EM_NEGOTIATING
 
 
 class EmTransition(EnumStateTransition):
@@ -36,9 +36,7 @@ _to_P = EmTransition(
 _to_N = EmTransition(
     start_states=[EM.PROPOSED, EM.NO_EMBARGO], end_state=EM.NO_EMBARGO
 )
-_to_A = EmTransition(
-    start_states=[EM.PROPOSED, EM.REVISE], end_state=EM.ACTIVE
-)
+_to_A = EmTransition(start_states=list(EM_NEGOTIATING), end_state=EM.ACTIVE)
 _to_R = EmTransition(start_states=[EM.ACTIVE, EM.REVISE], end_state=EM.REVISE)
 _R_to_A = EmTransition(start_states=[EM.REVISE], end_state=EM.ACTIVE)
 _to_X = EmTransition(start_states=[EM.ACTIVE, EM.REVISE], end_state=EM.EXITED)

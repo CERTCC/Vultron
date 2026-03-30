@@ -30,7 +30,7 @@ from vultron.core.use_cases.triggers.embargo import SvcEvaluateEmbargoUseCase
 from vultron.core.use_cases.triggers.requests import (
     EvaluateEmbargoTriggerRequest,
 )
-from vultron.errors import VultronConflictError
+from vultron.errors import VultronInvalidStateTransitionError
 
 
 class TestEmbargoUseCases:
@@ -599,8 +599,10 @@ class TestEmbargoUseCases:
         assert updated.current_status.em_state == EM.NONE
         assert any("Admin override" in r.message for r in caplog.records)
 
-    def test_evaluate_embargo_raises_conflict_when_em_state_invalid(self):
-        """SvcEvaluateEmbargoUseCase raises VultronConflictError when EM state does not allow ACCEPT."""
+    def test_evaluate_embargo_raises_invalid_state_transition_when_em_state_invalid(
+        self,
+    ):
+        """SvcEvaluateEmbargoUseCase raises VultronInvalidStateTransitionError when EM state does not allow ACCEPT."""
         import pytest
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
         from vultron.wire.as2.vocab.activities.embargo import (
@@ -647,5 +649,5 @@ class TestEmbargoUseCases:
             case_id=case.as_id,
             proposal_id=proposal.as_id,
         )
-        with pytest.raises(VultronConflictError):
+        with pytest.raises(VultronInvalidStateTransitionError):
             SvcEvaluateEmbargoUseCase(dl, request).execute()

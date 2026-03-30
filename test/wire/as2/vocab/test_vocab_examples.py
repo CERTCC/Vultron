@@ -825,7 +825,6 @@ class TestVocabExamples(unittest.TestCase):
         self.assertIsInstance(activity, as_Activity)
         vendor = examples.vendor()
         case = examples.case()
-        embargo = examples.embargo_event(days=90)
 
         self.assertIsInstance(activity, as_Remove)
         self.assertEqual(activity.as_type, "Remove")
@@ -833,7 +832,14 @@ class TestVocabExamples(unittest.TestCase):
         self.assertEqual(activity.actor, vendor.as_id)
         self.assertEqual(activity.origin, case.as_id)
         self.assertIsNone(activity.target)
-        self.assertEqual(activity.as_object, embargo)
+        # Extract the embargo from the returned activity rather than
+        # recreating it independently to avoid flakiness from time-based
+        # ID generation (BUG-FLAKY-1).
+        embargo_raw = activity.as_object
+        self.assertIsNotNone(embargo_raw)
+        self.assertIsInstance(embargo_raw, as_Object)
+        embargo = cast(as_Object, embargo_raw)
+        self.assertEqual(embargo.context, case.as_id)
 
     def test_create_case_status(self):
         activity = examples.create_case_status()

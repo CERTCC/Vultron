@@ -30,12 +30,16 @@ class VultronNotFoundError(VultronError):
         super().__init__(f"{resource_type} '{resource_id}' not found.")
 
 
-class VultronConflictError(VultronError):
-    """Raised when an operation conflicts with current resource state."""
+class VultronInvalidStateTransitionError(VultronError):
+    """Raised when an operation requests an invalid state machine transition."""
 
     def __init__(self, message: str, activity_id: str | None = None):
         self.activity_id = activity_id
         super().__init__(message)
+
+
+# Deprecated alias — use VultronInvalidStateTransitionError instead.
+VultronConflictError = VultronInvalidStateTransitionError
 
 
 class VultronValidationError(VultronError):

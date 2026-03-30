@@ -18,7 +18,7 @@ Core trigger use-case classes.
 
 Provides class-based domain use cases for actor-initiated behaviors.
 No HTTP framework imports.  Raises domain exceptions
-(``VultronNotFoundError``, ``VultronConflictError``, ``VultronValidationError``)
+(``VultronNotFoundError``, ``VultronInvalidStateTransitionError``, ``VultronValidationError``)
 that callers in the adapter layer should catch and translate.
 """
 

@@ -37,7 +37,7 @@ from vultron.core.use_cases.triggers.requests import (
     TerminateEmbargoTriggerRequest,
 )
 from vultron.errors import (
-    VultronConflictError,
+    VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -81,7 +81,14 @@ class SvcProposeEmbargoUseCase:
         try:
             getattr(adapter, "propose")()
         except MachineError:
-            raise VultronConflictError(
+            logger.warning(
+                "Invalid EM state transition: actor '%s' cannot PROPOSE on"
+                " case '%s' (EM state '%s').",
+                actor_id,
+                case.as_id,
+                em_state,
+            )
+            raise VultronInvalidStateTransitionError(
                 f"Cannot propose embargo: case '{case.as_id}' EM state"
                 f" '{em_state}' does not allow a PROPOSE transition."
             )
@@ -220,7 +227,15 @@ class SvcEvaluateEmbargoUseCase:
         try:
             getattr(adapter, "accept")()
         except MachineError:
-            raise VultronConflictError(
+            logger.warning(
+                "Invalid EM state transition: actor '%s' cannot ACCEPT"
+                " proposal '%s' on case '%s' (EM state '%s').",
+                actor_id,
+                proposal.as_id,
+                case.as_id,
+                em_state,
+            )
+            raise VultronInvalidStateTransitionError(
                 f"Cannot accept embargo: case '{case.as_id}' EM state"
                 f" '{em_state}' does not allow an ACCEPT transition."
             )
@@ -267,7 +282,13 @@ class SvcTerminateEmbargoUseCase:
         case = resolve_case(case_id, dl)
 
         if case.active_embargo is None:
-            raise VultronConflictError(
+            logger.warning(
+                "Invalid EM state transition: actor '%s' cannot TERMINATE:"
+                " case '%s' has no active embargo.",
+                actor_id,
+                case.as_id,
+            )
+            raise VultronInvalidStateTransitionError(
                 f"Case '{case.as_id}' has no active embargo to terminate."
             )
 
@@ -279,7 +300,14 @@ class SvcTerminateEmbargoUseCase:
         try:
             getattr(adapter, "terminate")()
         except MachineError:
-            raise VultronConflictError(
+            logger.warning(
+                "Invalid EM state transition: actor '%s' cannot TERMINATE on"
+                " case '%s' (EM state '%s').",
+                actor_id,
+                case.as_id,
+                em_state,
+            )
+            raise VultronInvalidStateTransitionError(
                 f"Cannot terminate embargo: case '{case.as_id}' EM state"
                 f" '{em_state}' does not allow a TERMINATE transition."
             )
