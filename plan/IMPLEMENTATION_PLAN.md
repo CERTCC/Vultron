@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-26 (refresh #56: BUGS.md fixes, plan condensed)
+**Last Updated**: 2026-03-30 (refresh #57: gap analysis, new tasks VSR-ERR-1 + BUG-FLAKY-1, SECOPS-1 revised)
 
 ## Overview
 
@@ -13,14 +13,15 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 1026 passed, 5581 subtests (2026-03-26).
+**Test suite**: 1027 passed, 5581 subtests (2026-03-30).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
 All PRIORITY-30 through PRIORITY-200 phases complete. Active open work:
-**PRIORITY-250** (pre-300 cleanup — NAMING-1, SECOPS-1, DOCMAINT-1, REORG-1
-remain open; QUALITY-1 done) and **PRIORITY-300** (multi-actor demos; D5-1
-unblocked, D5-2 and later blocked by PRIORITY-250).
+**PRIORITY-250** (pre-300 cleanup — NAMING-1, SECOPS-1, DOCMAINT-1, REORG-1,
+SM-GUARD-1, VSR-ERR-1, BUG-FLAKY-1 remain open; QUALITY-1 done) and
+**PRIORITY-300** (multi-actor demos; D5-1 unblocked, D5-2 and later blocked
+by PRIORITY-250).
 
 ---
 
@@ -117,12 +118,20 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
   `notes/`, `AGENTS.md`, and documentation to reflect this convention.
   Reference `specs/code-style.md` CS-07-003.
 
-#### SECOPS-1 — Pin GitHub Actions to commit SHAs
+#### SECOPS-1 — CI security: ADR + automated pin-verification test
 
-- [ ] **SECOPS-1**: Audit all `.github/workflows/` files. Pin every `uses:`
-  action reference to a specific commit SHA instead of a version tag. Document
-  this as an ADR in `docs/adr/`. Add requirement to `specs/` (a new
-  `ci-security.md` or add to `tech-stack.md`).
+> **SHA pinning already done**: All 6 workflow files are SHA-pinned with
+> version comments. `specs/ci-security.md` was created with full requirements
+> (CI-SEC-01-001 through CI-SEC-04-002). Dependabot is configured for
+> `github-actions` on a weekly schedule, satisfying VSR-01-003 (automated pin
+> currency). Remaining work:
+
+- [ ] **SECOPS-1**: (a) Write ADR in `docs/adr/` documenting the SHA-pinning
+  policy and Dependabot-as-primary-pin-maintenance mechanism per CI-SEC-04-001.
+  (b) Implement the CI-SEC-01-003 automated test: a Python test (under
+  `test/ci/`) that parses every `.github/workflows/*.yml` file and asserts each
+  `uses:` line is pinned to a full 40-character SHA and carries a human-readable
+  version comment.
 
 #### DOCMAINT-1 — Review and update outdated `notes/` files
 
@@ -139,6 +148,9 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
     (contains fictional commit SHAs and incomplete OPP status markers),
     `notes/datalayer-refactor.md`, `notes/architecture-review.md`,
     `notes/codebase-structure.md`.
+  - `notes/activitystreams-semantics.md` line ~333: states "CaseActor broadcast
+    is not yet implemented" — this was implemented in PRIORITY-200 (CA-2);
+    update to reflect current status.
   - Cross-reference with `plan/IMPLEMENTATION_HISTORY.md` to verify what
     has been completed.
 
@@ -159,12 +171,44 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
   `vultron/core/states/*.py` modules. Replace inline guard tuples/checks
   in use-case code with references to these named constants. This improves
   readability and satisfies SM-07-001. Partially completed (`EM_NEGOTIATING`
-  exists but is not integrated. `RM_ACTIVE` and `RM_CLOSABLE` exist and are
+  is defined in `em.py` but never imported in use-case code; audit
+  `vultron/core/use_cases/` for inline `(EM.PROPOSED, EM.REVISE)` checks and
+  replace with `EM_NEGOTIATING`. `RM_ACTIVE` and `RM_CLOSABLE` exist and are
   integrated.)
 
----
+#### VSR-ERR-1 — Rename VultronConflictError to VultronInvalidStateTransitionError
 
-### Phase PRIORITY-300 — Multi-Actor Demos (PRIORITY 300)
+- [ ] **VSR-ERR-1**: Rename `VultronConflictError` to
+  `VultronInvalidStateTransitionError` throughout the codebase to comply with
+  `specs/state-machine.md` SM-04-002. Steps: (1) Add
+  `VultronInvalidStateTransitionError` as the new name in `vultron/errors.py`
+  (retain `VultronConflictError` as a deprecated alias until all call sites are
+  migrated); (2) update all raise sites in
+  `vultron/core/use_cases/triggers/embargo.py`,
+  `vultron/core/use_cases/triggers/report.py`, and any other use-case modules
+  to raise the new exception; (3) update
+  `vultron/adapters/driving/fastapi/errors.py` exception-handler mapping;
+  (4) add WARNING-level logging before each raise so invalid transitions are
+  captured in system logs (SM-04-002 requirement); (5) update tests;
+  (6) remove the deprecated alias once all sites are migrated. Reference:
+  `notes/spec-review-0327.md` VSR-03-002, `specs/state-machine.md` SM-04-002.
+
+#### BUG-FLAKY-1 — Fix flaky test_remove_embargo
+
+- [ ] **BUG-FLAKY-1**: Fix the flaky `test_remove_embargo` test in
+  `test/wire/as2/vocab/test_vocab_examples.py`. Root cause: the test calls
+  `examples.remove_embargo()` (which internally calls `embargo_event(90)`) and
+  also calls `examples.embargo_event(days=90)` independently; both calls use
+  `datetime.now()` and generate a time-based `as_id`, so they produce unequal
+  objects unless executed within the same second. Fix by refactoring the
+  assertion to compare `activity.as_object.as_id` with
+  `examples.embargo_event(90).as_id` using a stable deterministic ID, or by
+  extracting the embargo from the returned activity rather than recreating it.
+  Also confirm the fix by running the full test suite 3× in succession
+  (TB-06-006). This MUST be resolved before PRIORITY-300 demo work begins.
+
+---
+ — Multi-Actor Demos (PRIORITY 300)
 
 **Reference**: `plan/PRIORITIES.md` PRIORITY 300, `notes/demo-future-ideas.md`
 
@@ -285,7 +329,31 @@ are needed before resuming feature development.
   or archive them. Spec files SHOULD reflect architectural intent, not
   temporary bug-tracker state. Also evaluate whether any purely historical
   `notes/` files should be relocated to `docs/archived_notes/` (outside the
-  MkDocs navigation tree) to resolve build warnings.
+  MkDocs navigation tree) to resolve build warnings. In this pass, also fix
+  the following specific **outdated stale references** found during the
+  2026-03-30 gap analysis:
+  - `dispatch-routing.md` DR-01-003 references `verify_semantics` decorator
+    (removed in PREPX-2); DR-02-001/002 reference `SEMANTIC_HANDLER_MAP`
+    (renamed to `USE_CASE_MAP`); test path references `test/api/v2/` (removed).
+  - `handler-protocol.md` references `SEMANTIC_HANDLER_MAP` and
+    `test/api/v2/backend/test_handlers.py` (path no longer exists).
+  - `semantic-extraction.md` SE-05-002 references `SEMANTIC_HANDLER_MAP`.
+  - `behavior-tree-integration.md` line ~170 references `@verify_semantics`
+    decorator (removed).
+  - `error-handling.md`, `inbox-endpoint.md`, `message-validation.md`,
+    `structured-logging.md`, `observability.md`, `response-format.md`,
+    `idempotency.md`, `outbox.md` all reference `test/api/v2/` test paths.
+  - Incorporate VSR spec-update items from `notes/spec-review-0327.md`:
+    VSR-03-001 (state-machine.md preamble: VFD per-participant clarification),
+    VSR-03-003 (downgrade SM-03-001/002 strict base class to SHOULD),
+    VSR-03-004 (SM-01-003: require discrepancies to be recorded, not silently
+    adjusted), VSR-07-002 (CS-13-005: add RFC 3339 reference),
+    VSR-07-003 (CS-13-003: allow microsecond precision when needed — already
+    partially done per current spec text), VSR-09-002
+    (prototype-shortcuts.md: formalize PROD_ONLY deferral as SHOULD),
+    VSR-PD-003 (project-documentation.md: clarify that source code — not
+    history — is authoritative for component locations), VSR-DR-001 (update
+    dispatch-routing to remove outdated execute-with-arguments language).
 
 ### VOCAB-REG-1 — Vocabulary registry auto-registration
 
