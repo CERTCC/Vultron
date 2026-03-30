@@ -501,43 +501,25 @@ to follow the same pattern.
 
 ## 9. Completion Status
 
-> ⚠️ **Warning — commit references are inaccurate**
->
-> The commit hashes listed in the table below (`fix-em-wire-boundary`,
-> `refactor-em-propose`, `refactor-em-terminate`, etc.) do **not** appear in
-> the actual git history. The corresponding code changes **are** in the
-> codebase — OPP-01, OPP-02, OPP-03, OPP-07 partial, OPP-08 via P90-1,
-> OPP-09 minimum step via P90-2 — but they were committed under different
-> names or bundled into P90 work. The "Status: Refactoring complete" claim is
-> broadly correct, but the commit references below are fictional and should
-> not be used for `git show` or `git log` lookups.
->
-> Additionally, **OPP-05 remains incomplete** — two near-duplicate participant
-> RM helpers still exist in the codebase (see TECHDEBT-39 in
-> `plan/IMPLEMENTATION_PLAN.md`).
->
-> A full audit and correction of this section is tracked as DOCMAINT-1 in
-> `plan/IMPLEMENTATION_PLAN.md`.
+All P and OPP items from this document have been addressed. The code changes
+are in the codebase, bundled primarily into the PRIORITY-90 (P90-1–P90-5),
+TECHDEBT-32b, and TECHDEBT-39 work delivered in March 2026. See
+`plan/IMPLEMENTATION_HISTORY.md` for the authoritative commit-level record.
 
-All P and OPP items from this document have been implemented on the `transitions`
-branch. A summary of key commits:
+| Item | Status | Implementation Phase |
+|------|--------|---------------------|
+| P-01 | ✅ Done | P90-1 (EM NONE via RemoveEmbargo fixed) |
+| P-02, OPP-03 | ✅ Done | P90-3 (EM transition moved out of wire layer) |
+| P-03, OPP-02 | ✅ Done | P90-1 (SvcTerminateEmbargo guard added) |
+| P-04, OPP-04 | ✅ Done | P90-2 (STATUS-layer guards via transitions) |
+| P-05, OPP-05 | ✅ Done | TECHDEBT-39 (duplicate RM helpers consolidated, 2026-03-24) |
+| P-06, OPP-08 | ✅ Done | P90-1 (START→RECEIVED triggered on report receipt) |
+| P-07, OPP-09 | ✅ Done (min.) | P90-2 / P90-4 (RM lifecycle minimum reconciliation) |
+| OPP-01 | ✅ Done | P90-1 (SvcProposeEmbargo refactored) |
+| OPP-07 | ✅ Done | P90-2 + P90-4 (status-object appends guarded) |
 
-| Commit | Items |
-|--------|-------|
-| `fix-em-wire-boundary` | P-02, OPP-03 |
-| `refactor-em-propose` | OPP-01 |
-| `refactor-em-terminate` | P-03, OPP-02 |
-| `fix-em-remove-none` | P-01 |
-| `rm-start-to-received` | P-06, OPP-08 |
-| `refactor-rm-participant-helpers` | P-05, OPP-05 |
-| `guard-status-appends` + `rm-status-layer-guards` | P-04, OPP-04, OPP-07 (partial) |
-| `rm-lifecycle-reconcile` | P-07, OPP-09 (minimum step) |
-| `opp07-case-status-guard` | OPP-07 (complete) |
+**Remaining deferred items:**
 
-**Deferred (explicit):**
-
-- OPP-05 (consolidate duplicate participant RM helpers) — **NOT done**; two
-  near-duplicate functions remain. Tracked as TECHDEBT-39.
-- OPP-06 (VFD/PXA machines) — no callers yet; left as future work.
-- Full STATUS dict deprecation (ADR-0013 steps 2–4) — complex migration;
-  minimum step (seed RM.VALID at case creation) is done.
+- OPP-06 (VFD/PXA machines) — no callers yet; left as future work (see
+  PRIORITIES.md PRIORITY-90 follow-up notes and `plan/IMPLEMENTATION_PLAN.md`
+  for OPP-06 status).

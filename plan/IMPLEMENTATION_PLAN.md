@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-30 (refresh #59: REORG-1 complete)
+**Last Updated**: 2026-03-30 (refresh #60: DOCMAINT-1 complete)
 
 ## Overview
 
@@ -18,8 +18,9 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
 All PRIORITY-30 through PRIORITY-200 phases complete. Active open work:
-**PRIORITY-250** (pre-300 cleanup — NAMING-1, SECOPS-1, DOCMAINT-1 remain
-open; QUALITY-1, SM-GUARD-1, VSR-ERR-1, BUG-FLAKY-1, REORG-1 done) and
+**PRIORITY-250** (pre-300 cleanup — NAMING-1 remain
+open; QUALITY-1, SM-GUARD-1, VSR-ERR-1, BUG-FLAKY-1, REORG-1, SECOPS-1,
+DOCMAINT-1 done) and
 **PRIORITY-300** (multi-actor demos; D5-1 unblocked, D5-2 and later blocked
 by PRIORITY-250).
 
@@ -127,26 +128,15 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
   (40-char SHA) and CI-SEC-01-002 (version comment). Added ADR-0014 to
   `docs/adr/index.md`.
 
-#### DOCMAINT-1 — Review and update outdated `notes/` files
+#### DOCMAINT-1 — Review and update outdated `notes/` files ✅
 
-- [ ] **DOCMAINT-1**: Review all `notes/` files for outdated forward-looking
-  statements that have since been implemented. Specifically:
-  - (a) Replace concrete "not yet implemented" language with "implemented in
-    Phase X" where appropriate.
-  - (b) Fix module paths to their canonical current locations (see
-    `plan/IMPLEMENTATION_HISTORY.md` phases P60–P75).
-  - (c) Mark historical items as such.
-  - (d) Identify files that are purely historical and can be removed or
-    archived.
-  - Files needing particular attention: `notes/state-machine-findings.md`
-    (contains fictional commit SHAs and incomplete OPP status markers),
-    `notes/datalayer-refactor.md`, `notes/architecture-review.md`,
-    `notes/codebase-structure.md`.
-  - `notes/activitystreams-semantics.md` line ~333: states "CaseActor broadcast
-    is not yet implemented" — this was implemented in PRIORITY-200 (CA-2);
-    update to reflect current status.
-  - Cross-reference with `plan/IMPLEMENTATION_HISTORY.md` to verify what
-    has been completed.
+- [x] **DOCMAINT-1**: Updated `notes/activitystreams-semantics.md` (CaseActor
+  broadcast now implemented), `notes/state-machine-findings.md` (Section 9
+  fictional commits removed, OPP-05 and STATUS dict marked done),
+  `notes/datalayer-refactor.md` (TECHDEBT-32b marked complete), and
+  `notes/codebase-structure.md` (all old `vultron/api/v2/` path references
+  updated to canonical current locations; outdated "not yet implemented"
+  sections replaced with completion summaries). Completed 2026-03-30.
 
 #### REORG-1 — Reorganize `vultron/core/use_cases/` ✅
 

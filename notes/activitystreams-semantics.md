@@ -330,8 +330,10 @@ authenticate that a case update originated from the CaseActor before
 treating it as authoritative (see `specs/case-management.md` CM-06-002,
 CM-06-004).
 
-**Current status**: The CaseActor broadcast is not yet implemented
-(see `specs/case-management.md` CM-06-001 and
-`plan/IMPLEMENTATION_PLAN.md` Phase PRIORITY-200).
+**Current status**: The CaseActor broadcast is implemented in
+`vultron/core/use_cases/received/case.py` (`UpdateCaseReceivedUseCase`)
+via `_broadcast_case_update()`, which fans out updates to all case
+participants (see `specs/case-management.md` CM-06-001, CM-06-002;
+completed in PRIORITY-200 CA-2, 2026-03-25).
 
 **Cross-reference**: `specs/case-management.md` CM-02-002, CM-06.

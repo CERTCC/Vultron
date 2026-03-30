@@ -10,47 +10,34 @@ hexagonal architecture refactoring.
 
 - `vultron/activity_patterns.py` — merged into `vultron/wire/as2/extractor.py`
 - `vultron/semantic_map.py` — merged into `vultron/wire/as2/extractor.py`
-- `vultron/semantic_handler_map.py` — moved to
-  `vultron/api/v2/backend/handler_map.py`
+- `vultron/semantic_handler_map.py` — merged into
+  `vultron/wire/as2/extractor.py`; handler routing table moved to
+  `vultron/core/use_cases/use_case_map.py` (P75-2, REORG-1)
 - `vultron/as_vocab/` — moved to `vultron/wire/as2/vocab/` (P60-1)
 - `vultron/behaviors/` — moved to `vultron/core/behaviors/` (P60-2)
 - AS2 structural enums — moved from `vultron/enums.py` to
   `vultron/wire/as2/enums.py` (ARCH-CLEANUP-2)
 - `MessageSemantics` — moved to `vultron/core/models/events.py` (ARCH-1.1)
+- `vultron/behavior_dispatcher.py` — moved to `vultron/core/dispatcher.py`
+  (P65-*)
+- `vultron/dispatcher_errors.py` — merged into `vultron/errors.py` and
+  `vultron/core/dispatcher.py` (P65-*)
+- `vultron/enums.py` — deleted; `MessageSemantics` is in
+  `vultron/core/models/events.py`; AS2 structural enums in
+  `vultron/wire/as2/enums.py` (VCR Batch C)
 
-**Still at top level (pending future relocation):**
+**Still at top level:**
 
-- `vultron/behavior_dispatcher.py` — core dispatch logic; no wire imports.
-  Belongs in `vultron/core/` once circular import constraints are resolved.
-- `vultron/dispatcher_errors.py` — kept at top level to avoid circular imports;
-  see `specs/code-style.md` CS-05-001. Belongs in `vultron/core/` alongside
-  the dispatcher.
-- `vultron/enums.py` — backward-compat re-export shim only; should be deleted
-  once all callers import from `vultron/core/models/events.py` (for
-  `MessageSemantics`) and `vultron/wire/as2/enums.py` (for AS2 structural
-  enums) directly.
-- `vultron/errors.py` — top-level error base; submodule errors exist at
-  `vultron/api/v2/errors.py`
-- `vultron/types.py` — shared type aliases; neutral module used to break
-  circular import chains. Contents should be migrated into
-  `vultron/core/types.py` or `vultron/wire/types.py` as appropriate once
-  circular imports are resolved.
+- `vultron/errors.py` — top-level error base; adapter-layer errors live at
+  `vultron/adapters/driving/fastapi/errors.py`
+- `vultron/types.py` — shared type aliases (`BehaviorHandler` Protocol);
+  neutral module used to break circular import chains. Contents should be
+  migrated into `vultron/core/types.py` once circular imports are fully
+  resolved.
 
-**Constraint**: `dispatcher_errors.py` and `types.py` MUST remain accessible
-to both core dispatch modules and `api/v2/` without creating circular imports.
-Any reorganization MUST preserve this constraint. See `AGENTS.md` "Circular
-Imports" section for the import chain rules.
-
-**Future cleanup tasks (post-P60)**:
-
-1. Move `vultron/behavior_dispatcher.py` to `vultron/core/`
-2. Move `vultron/dispatcher_errors.py` to `vultron/core/` alongside the
-   dispatcher
-3. Delete `vultron/enums.py` once all callers have been updated to import
-   from the canonical locations (`vultron/core/models/events.py` and
-   `vultron/wire/as2/enums.py`)
-4. Audit `vultron/types.py` and migrate contents to `vultron/core/types.py`
-   or `vultron/wire/types.py` as appropriate
+**Constraint**: `types.py` MUST remain accessible to both core dispatch
+modules and adapter layers without creating circular imports. See `AGENTS.md`
+"Circular Imports" section for the import chain rules.
 
 ---
 
@@ -208,41 +195,22 @@ API are more likely to use the OpenAPI docs. Ensure:
 
 ---
 
-## API Layer Architecture (Future Refactoring)
+## API Layer Architecture (Historical — Completed in VCR Batch B / P65)
 
-The current codebase treats `vultron/api/v1/` and `vultron/api/v2/` as version
-numbers, but they are actually more like **distinct layers**:
+> **Note**: This section is retained as historical context. The proposed
+> reorganization was completed in VCR Batch B (March 2026). `vultron/api/v2/`
+> no longer exists. All code now lives under
+> `vultron/adapters/driving/fastapi/` (inbox, outbox, routers) and
+> `vultron/core/use_cases/` (business logic).
 
-| Layer | Current location | Purpose |
+The old codebase treated `vultron/api/v1/` and `vultron/api/v2/` as version
+numbers, but they were actually more like **distinct layers**:
+
+| Layer | Old location | Current canonical location |
 |---|---|---|
-| ActivityPub layer | `vultron/api/v2/routers/actors.py` | Inbox/outbox endpoints; ActivityStreams semantics |
-| Backend services layer | `vultron/api/v2/backend/` | Business logic, handlers, triggerable behaviors, DataLayer |
-| Examples layer | `vultron/api/v1/` | Canned example responses; not an active coordination layer |
-
-**Key distinction**: `vultron/api/v2/` is driven by AS2 messages arriving in
-inboxes (semantic, protocol-level); `vultron/api/v1/` is essentially a **direct
-DataLayer access** backend for prototype visibility and management purposes
-(administrative, near-direct port access). `api/v1` is still an adapter layer
-in the hexagonal sense — it just happens to interface almost directly with the
-DataLayer port rather than routing through full semantic handling. It SHOULD be
-refactored to fit the port-and-adapter design when `api/v2/` has been fully
-cleaned up. There may be a very thin core use-case layer it interfaces with,
-or it may talk directly to the DataLayer port.
-
-**Proposed future reorganization**: Rename to reflect layer semantics rather
-than version numbers, e.g.:
-
-- `vultron.api.activitypub` — ActivityPub inbox/outbox endpoints
-- `vultron.api.backend` — backend services (handlers, triggers, DataLayer queries)
-- `vultron.api.examples` — vocabulary and example generators
-
-This reorganization would not require preserving old routes as long as tests
-are updated accordingly. It is not high priority for the prototype but would
-improve discoverability and make the intent of each layer clear.
-
-**Constraint**: Do not start this refactor without updating all tests and
-ensuring no existing functionality is broken. An ADR is not strictly required
-for a rename, but the decision should be recorded in `AGENTS.md` or here.
+| ActivityPub layer | `vultron/api/v2/routers/actors.py` | `vultron/adapters/driving/fastapi/routers/actors.py` |
+| Backend services layer | `vultron/api/v2/backend/` | `vultron/core/use_cases/` + `vultron/adapters/driving/fastapi/` |
+| Examples layer | `vultron/api/v1/` | Removed |
 
 ---
 
@@ -263,16 +231,22 @@ layer.
 
 ---
 
-## Handlers Module Structure (Completed)
+## Use-Case Module Structure (Completed — REORG-1)
 
-The `vultron/api/v2/backend/handlers/` package contains handler submodules
-organized by topic: `report.py`, `case.py`, `embargo.py`, `actor.py`,
-`note.py`, `participant.py`, `status.py`, `unknown.py`.
+The `vultron/core/use_cases/` package is organized as follows:
 
-`handlers/__init__.py` re-exports all handler functions so external imports
-from `vultron.api.v2.backend.handlers` remain stable.
+- `received/` — inbound message handler use cases (8 submodules: `report.py`,
+  `case.py`, `embargo.py`, `actor.py`, `note.py`, `participant.py`,
+  `status.py`, `unknown.py`)
+- `triggers/` — actor-initiated trigger use cases (`embargo.py`, `report.py`,
+  `case.py`, `_helpers.py`)
+- `query/` — query use cases (`action_rules.py`)
+- `_helpers.py` — shared helpers used by `received/` and `triggers/`
+- `use_case_map.py` — `USE_CASE_MAP` routing table (`MessageSemantics` →
+  use-case class)
 
-**See**: `plan/IMPLEMENTATION_PLAN.md` Phase TECHDEBT-1 (completed).
+**See**: `vultron/core/use_cases/README.md` and `plan/IMPLEMENTATION_HISTORY.md`
+Phase REORG-1 (completed 2026-03-30).
 
 ---
 
@@ -359,69 +333,61 @@ base64url encoding).
 
 **Affected areas**:
 
-- `generate_new_id()` in `vultron/as_vocab/base/utils.py` — add a default
+- `generate_new_id()` in `vultron/wire/as2/vocab/base/utils.py` — add a default
   `prefix` based on object type
 - Demo scripts and tests that assert on `as_id` format
-- `/datalayer/{key}` route in `vultron/api/v2/routers/datalayer.py`
+- `/datalayer/{key}` route in
+  `vultron/adapters/driving/fastapi/routers/datalayer.py`
 - Any handler that constructs participant or case IDs inline
 
 ---
 
-## Technical Debt: Test Directory Layout Mismatch (TECHDEBT-11)
+## Technical Debt: Test Directory Layout Mismatch (TECHDEBT-11, partially resolved)
 
 After P60-1 and P60-2 (package relocations), the test directories
-`test/as_vocab/` and `test/behaviors/` remain at their old locations.
-All tests already import from the new canonical paths
-(`vultron.wire.as2.vocab.*` and `vultron.core.behaviors.*`), so tests pass.
-The directory structure does not mirror the source layout yet.
+`test/as_vocab/` and `test/behaviors/` were at their old locations.
 
-**Target moves**:
+**Status**: New directories created; old directories still present:
 
-- `test/as_vocab/` → `test/wire/as2/vocab/`
-- `test/behaviors/` → `test/core/behaviors/`
+- `test/wire/as2/vocab/` ✅ created — parallel to `vultron/wire/as2/vocab/`
+- `test/core/behaviors/` ✅ created — parallel to `vultron/core/behaviors/`
+- `test/as_vocab/` ⚠️ still exists — should be removed once tests confirmed
+  fully migrated to `test/wire/as2/vocab/`
+- `test/behaviors/` ⚠️ still exists — should be removed once tests confirmed
+  fully migrated to `test/core/behaviors/`
 
-Both moves are mechanical: create the new directories, move files, update
-`conftest.py` and `__init__.py`, delete old directories. No import changes
-are needed (they are already correct).
+Both remaining directories can be removed once confirmed empty or redundant.
 
 ---
 
-## Technical Debt: Deprecated HTTP Status Constant (TECHDEBT-12)
+## Technical Debt: Deprecated HTTP Status Constant (TECHDEBT-12, ✅ resolved)
 
-`starlette.status.HTTP_422_UNPROCESSABLE_ENTITY` is deprecated in favour
-of `HTTP_422_UNPROCESSABLE_CONTENT`. Usages remain in trigger service files:
-
-- `vultron/api/v2/backend/trigger_services/embargo.py`
-- `vultron/api/v2/backend/trigger_services/report.py`
-- `vultron/api/v2/backend/trigger_services/_helpers.py`
-
-This generates a `DeprecationWarning` in test output. Fix is a simple
-string replacement: `HTTP_422_UNPROCESSABLE_ENTITY` →
+The trigger_services files that contained `HTTP_422_UNPROCESSABLE_ENTITY`
+usages (`vultron/api/v2/backend/trigger_services/`) were removed in VCR Batch
+D (2026-03-19). The trigger adapter code is now in
+`vultron/adapters/driving/fastapi/_trigger_adapter.py` and
+`vultron/adapters/driving/fastapi/errors.py`, which use
 `HTTP_422_UNPROCESSABLE_CONTENT`.
 
 ---
 
-## Known Gap: Outbox Delivery Not Implemented
+## Resolved: Outbox Delivery (OX-1.0–1.4, ✅ completed 2026-03-25)
 
-`vultron/api/v2/data/actor_io.py` has a placeholder that appends strings to
-an outbox list but does not write to any recipient actor's inbox. No delivery
-mechanism exists. This means outbox-based activities (e.g., `CreateCase`
-activity generated by the `create_case` handler) are never actually received
-by other actors.
+Outbox delivery was implemented in OX-1.0 through OX-1.4 (March 2026).
+The `ActivityEmitter` port stub, delivery queue, and outbox delivery loop
+are now in place. `actor_io.py` (the old placeholder) was deleted in
+VCR-014.
 
-This is acceptable for the prototype demos (which sequence activities
-manually) but must be resolved before the `CaseActor` broadcast model
-(Priority 200 in `plan/PRIORITIES.md`) can work correctly.
-
-**Reference**: `specs/outbox.md` OX-03-001, OX-04-001, OX-04-002;
-`plan/IMPLEMENTATION_PLAN.md` Phase OUTBOX-1.
+**Reference**: `specs/outbox.md`; `plan/IMPLEMENTATION_HISTORY.md` Phase
+OX-1.0–1.4 and VCR-014.
 
 ---
 
 ## Resolved: `app.py` Root Logger Side Effect
 
-`vultron/api/v2/app.py` previously called `logging.getLogger().setLevel(logging.DEBUG)`
-at module import time, causing test isolation problems.
+`vultron/adapters/driving/fastapi/app.py` (formerly `vultron/api/v2/app.py`)
+previously called `logging.getLogger().setLevel(logging.DEBUG)` at module
+import time, causing test isolation problems.
 
 **Status**: Fixed in BUGFIX-1.1. Root logger configuration is now inside the
 `lifespan` context manager so importing the module in tests does not mutate
@@ -513,28 +479,18 @@ another with import path changes), the following approach works reliably:
 
 ---
 
-## Trigger Services Package: What Remains and Where It Should Go
+## Trigger Services Package (✅ completed in VCR Batch D / P75, 2026-03-19)
 
-`vultron/api/v2/backend/trigger_services/` is a residual package that has
-been partially superseded by the core use cases and the FastAPI adapter
-routers. The remaining files serve the following roles:
+The `vultron/api/v2/backend/trigger_services/` package has been fully
+superseded and removed. The content was relocated as follows:
 
-| File | Current role | Target location |
-|------|-------------|-----------------|
-| `_helpers.py` | `domain_error_translation()` context manager + re-exports from core | Move `domain_error_translation()` + `translate_domain_errors()` to `vultron/adapters/driving/fastapi/errors.py` or a new `vultron/adapters/driving/fastapi/trigger_helpers.py`; remove the re-export shim block |
-| `_models.py` | HTTP request body models (adapter layer) | Move to `vultron/adapters/driving/fastapi/trigger_models.py` |
-| `case.py` | Thin adapter delegates for case triggers | Move to `vultron/adapters/driving/fastapi/trigger_case_adapter.py` or inline into the existing `routers/trigger_case.py` |
-| `embargo.py` | Thin adapter delegates for embargo triggers | Same — inline into `routers/trigger_embargo.py` |
-| `report.py` | Thin adapter delegates for report triggers | Same — inline into `routers/trigger_report.py` |
+| Old file | New location |
+|----------|-------------|
+| `_helpers.py` | `vultron/adapters/driving/fastapi/_trigger_adapter.py` and `vultron/adapters/driving/fastapi/errors.py` |
+| `_models.py` | `vultron/adapters/driving/fastapi/trigger_models.py` |
+| `case.py` | `vultron/core/use_cases/triggers/case.py` (logic) + `vultron/adapters/driving/fastapi/routers/trigger_case.py` (HTTP) |
+| `embargo.py` | `vultron/core/use_cases/triggers/embargo.py` (logic) + `vultron/adapters/driving/fastapi/routers/trigger_embargo.py` (HTTP) |
+| `report.py` | `vultron/core/use_cases/triggers/report.py` (logic) + `vultron/adapters/driving/fastapi/routers/trigger_report.py` (HTTP) |
 
-**Goal:** After relocation, `vultron/api/v2/` should contain only `data/actor_io.py`
-(pending VCR-014 resolution) and can eventually be removed entirely when
-`actor_io.py` is resolved.
-
-**Note on inlining vs. separate files:** The trigger adapter delegates are
-thin enough (3–5 lines each) that inlining them directly into the router
-files is appropriate. If the router files become large, a sibling
-`_adapter.py` module can be used. The key constraint is that these delegates
-must not live in `vultron.core` — they are adapter-layer concerns.
-
-**See:** `plan/IMPLEMENTATION_PLAN.md` TECHDEBT-31 for the task tracking this work.
+`vultron/api/v2/` has been fully removed (VCR-014 deleted the last file,
+`data/actor_io.py`, in 2026-03-25).
