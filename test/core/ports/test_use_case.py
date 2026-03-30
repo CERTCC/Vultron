@@ -21,7 +21,7 @@ import pytest
 
 from vultron.core.models.events.unknown import UnknownReceivedEvent
 from vultron.core.ports.use_case import UseCase
-from vultron.core.use_cases.unknown import UnknownUseCase
+from vultron.core.use_cases.received.unknown import UnknownUseCase
 
 
 @pytest.fixture

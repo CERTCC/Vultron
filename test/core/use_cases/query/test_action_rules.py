@@ -24,7 +24,7 @@ from vultron.core.states.em import EM
 from vultron.core.states.rm import RM
 from vultron.core.states.cs import CS_pxa, CS_vfd
 from vultron.core.states.roles import CVDRoles as CVDRole
-from vultron.core.use_cases.action_rules import (
+from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
     GetActionRulesUseCase,
 )

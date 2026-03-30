@@ -16,7 +16,7 @@ from typing import cast
 
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.states.em import EM
-from vultron.core.use_cases.status import (
+from vultron.core.use_cases.received.status import (
     AddCaseStatusToCaseReceivedUseCase,
     AddParticipantStatusToParticipantReceivedUseCase,
     CreateCaseStatusReceivedUseCase,

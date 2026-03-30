@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 
 from vultron.adapters.driven.db_record import StorableRecord
 from vultron.core.states.em import EM
-from vultron.core.use_cases.embargo import (
+from vultron.core.use_cases.received.embargo import (
     CreateEmbargoEventReceivedUseCase,
     AddEmbargoEventToCaseReceivedUseCase,
     RemoveEmbargoEventFromCaseReceivedUseCase,

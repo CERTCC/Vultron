@@ -15,7 +15,7 @@
 from typing import cast
 
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
-from vultron.core.use_cases.note import (
+from vultron.core.use_cases.received.note import (
     AddNoteToCaseReceivedUseCase,
     CreateNoteReceivedUseCase,
     RemoveNoteFromCaseReceivedUseCase,
