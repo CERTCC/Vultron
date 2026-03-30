@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-30 (refresh #58: SM-GUARD-1, VSR-ERR-1, BUG-FLAKY-1 complete)
+**Last Updated**: 2026-03-30 (refresh #59: REORG-1 complete)
 
 ## Overview
 
@@ -18,8 +18,8 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
 All PRIORITY-30 through PRIORITY-200 phases complete. Active open work:
-**PRIORITY-250** (pre-300 cleanup — NAMING-1, SECOPS-1, DOCMAINT-1, REORG-1
-remain open; QUALITY-1, SM-GUARD-1, VSR-ERR-1, BUG-FLAKY-1 done) and
+**PRIORITY-250** (pre-300 cleanup — NAMING-1, SECOPS-1, DOCMAINT-1 remain
+open; QUALITY-1, SM-GUARD-1, VSR-ERR-1, BUG-FLAKY-1, REORG-1 done) and
 **PRIORITY-300** (multi-actor demos; D5-1 unblocked, D5-2 and later blocked
 by PRIORITY-250).
 
@@ -154,15 +154,13 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
   - Cross-reference with `plan/IMPLEMENTATION_HISTORY.md` to verify what
     has been completed.
 
-#### REORG-1 — Reorganize `vultron/core/use_cases/`
+#### REORG-1 — Reorganize `vultron/core/use_cases/` ✅
 
-- [ ] **REORG-1**: Reorganize `vultron/core/use_cases/` into clearer
-  sub-packages separating "received message" handlers from "trigger" handlers.
-  The `triggers/` sub-package already captures the latter. Create a
-  `received/` sub-package for the former. Keep tests in sync with the
-  structure. Document the trigger→received→sync information flow pattern
-  (triggers emit messages → received handlers process them → sync replicates
-  the resulting case log) in `notes/` and `specs/` where appropriate.
+- [x] **REORG-1**: Created `received/` sub-package for all 8 inbound
+  message handler use cases and `query/` sub-package for `action_rules.py`.
+  `_helpers.py` retained at root (shared by `received/` and `triggers/`).
+  Tests mirrored to `test/core/use_cases/received/` and `query/`. README.md
+  added documenting the trigger→received→sync information flow.
 
 #### SM-GUARD-1 — Add named state-subset constants ✅
 
