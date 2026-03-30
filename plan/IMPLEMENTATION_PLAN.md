@@ -24,8 +24,8 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
 **PRIORITY-250** Pre-300 cleanup
 
 - done: NAMING-1, QUALITY-1, SM-GUARD-1, VSR-ERR-1,
-BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-3
-- not done: SPEC-AUDIT-1, SPEC-AUDIT-2
+BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-2, SPEC-AUDIT-3
+- not done: SPEC-AUDIT-1
 
 **PRIORITY-300** (multi-actor demos; D5-1 unblocked, D5-2 and later blocked
 by PRIORITY-250).
@@ -278,21 +278,13 @@ are needed before resuming feature development.
   `code-style.md`. Merge or cross-reference requirements to eliminate
   maintenance-burden redundancy and reduce risk of specification divergence.
 
-### SPEC-AUDIT-2 — Strength keyword migration
+### SPEC-AUDIT-2 — Strength keyword migration ✅
 
-- [ ] **SPEC-AUDIT-2**: Audit all `.md` files in `specs/` to ensure every
-  individual requirement line includes an inline RFC 2119 strength keyword
-  (MUST, SHOULD, or MAY). Per the updated `specs/meta-specifications.md`,
-  keywords MUST appear in the requirement text itself, not only in section
-  headers. Insert the keyword between the requirement ID and the requirement
-  text on each line that is missing it (e.g., `- XX-01-001 MUST The thing MUST
-  Use SHA-256 hashes...`). Be cautious of multi-line requirements that might
-  have a keyword on a subsequent line, and of misleading section headers
-  that include keywords that might be superseded by the actual content of
-  the requirement. Read the full requirement before deciding on the
-  appropriate keyword, do not assume that the header and first line are
-  sufficiently reliable indicators of the intended strength. A full-spectrum audit
-  across all spec files is required.
+- [x] **SPEC-AUDIT-2**: Every requirement line in all 37 spec files now has an
+  RFC 2119 keyword on its first line (greppable). Prefix-style keywords are
+  parenthesised: `` `ID` (MUST) text ``; naturally-embedded keywords left as-is.
+  All section-header keyword suffixes (e.g. `(MUST)`) removed. 176 keyword
+  additions, 293 header cleanups, 171 format fixes. Completed 2026-03-30.
 
 ### SPEC-AUDIT-3 — Relocate transient implementation notes from specs ✅
 
