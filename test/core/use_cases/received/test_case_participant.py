@@ -14,7 +14,7 @@
 
 from typing import cast
 
-from vultron.core.use_cases.case_participant import (
+from vultron.core.use_cases.received.case_participant import (
     AddCaseParticipantToCaseReceivedUseCase,
     RemoveCaseParticipantFromCaseReceivedUseCase,
 )

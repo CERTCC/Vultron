@@ -25,8 +25,8 @@ from vultron.core.models.events.report import (
 from vultron.core.models.report import VultronReport
 from vultron.core.states.rm import RM
 from vultron.core.use_cases._helpers import _report_phase_status_id
-from vultron.core.use_cases.case import CreateCaseReceivedUseCase
-from vultron.core.use_cases.report import (
+from vultron.core.use_cases.received.case import CreateCaseReceivedUseCase
+from vultron.core.use_cases.received.report import (
     CreateReportReceivedUseCase,
     SubmitReportReceivedUseCase,
 )

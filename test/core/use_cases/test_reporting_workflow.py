@@ -33,7 +33,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
 )
 from vultron.core.models.events import MessageSemantics
-from vultron.core.use_cases.report import (
+from vultron.core.use_cases.received.report import (
     CreateReportReceivedUseCase,
     SubmitReportReceivedUseCase,
     ValidateReportReceivedUseCase,
@@ -41,7 +41,7 @@ from vultron.core.use_cases.report import (
     AckReportReceivedUseCase,
     CloseReportReceivedUseCase,
 )
-from vultron.core.use_cases.case import CreateCaseReceivedUseCase
+from vultron.core.use_cases.received.case import CreateCaseReceivedUseCase
 
 
 # Fixtures

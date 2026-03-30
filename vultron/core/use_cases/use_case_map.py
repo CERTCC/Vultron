@@ -15,23 +15,18 @@
 
 """Routing table mapping ``MessageSemantics`` to core use-case classes.
 
-This is domain knowledge — the mapping from a semantic intent to the use case
-that handles it belongs in the core layer, not in the adapter layer.
-
 ``USE_CASE_MAP`` is the authoritative routing table.
-``SEMANTICS_HANDLERS`` is a backward-compat alias used by
-``vultron/api/v2/backend/handler_map.py``.
 """
 
 from vultron.core.models.events import MessageSemantics
-import vultron.core.use_cases.actor as _actor
-import vultron.core.use_cases.case as _case
-import vultron.core.use_cases.case_participant as _case_participant
-import vultron.core.use_cases.embargo as _embargo
-import vultron.core.use_cases.note as _note
-import vultron.core.use_cases.report as _report
-import vultron.core.use_cases.status as _status
-import vultron.core.use_cases.unknown as _unknown
+import vultron.core.use_cases.received.actor as _actor
+import vultron.core.use_cases.received.case as _case
+import vultron.core.use_cases.received.case_participant as _case_participant
+import vultron.core.use_cases.received.embargo as _embargo
+import vultron.core.use_cases.received.note as _note
+import vultron.core.use_cases.received.report as _report
+import vultron.core.use_cases.received.status as _status
+import vultron.core.use_cases.received.unknown as _unknown
 
 USE_CASE_MAP: dict[MessageSemantics, type] = {
     MessageSemantics.CREATE_REPORT: _report.CreateReportReceivedUseCase,
@@ -74,6 +69,3 @@ USE_CASE_MAP: dict[MessageSemantics, type] = {
     MessageSemantics.ADD_PARTICIPANT_STATUS_TO_PARTICIPANT: _status.AddParticipantStatusToParticipantReceivedUseCase,
     MessageSemantics.UNKNOWN: _unknown.UnknownUseCase,
 }
-
-# Backward-compat alias (adapter layer handler_map.py re-exports this).
-SEMANTICS_HANDLERS = USE_CASE_MAP
