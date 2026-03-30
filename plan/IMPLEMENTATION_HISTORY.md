@@ -3536,3 +3536,27 @@ documenting the trigger→received→sync information flow.
 **Tests:** 1027 passed, 5581 subtests (unchanged from before).
 
 **Commit:** 3337e7e0
+
+---
+
+## SECOPS-1 — CI Security: ADR + Automated SHA-Pin Verification Test (2026-03-30)
+
+**Task:** SECOPS-1 (PRIORITY-250 pre-300 cleanup)
+
+**What was done:**
+
+- Created `docs/adr/0014-sha-pin-github-actions.md`: ADR documenting the
+  SHA-pinning policy (all `uses:` references must be pinned to a 40-char commit
+  SHA with an inline human-readable version comment), the use of Dependabot as
+  the primary maintenance mechanism, and the automated test as the continuous
+  enforcement mechanism. References CI-SEC-04-001.
+- Added ADR-0014 to `docs/adr/index.md`.
+- Created `test/ci/__init__.py` and `test/ci/test_workflow_sha_pinning.py`:
+  53 parametrised pytest tests covering every `uses:` line across all 6
+  `.github/workflows/*.yml` files. Tests verify:
+  - CI-SEC-01-001: reference is pinned to a full 40-hex-character SHA
+  - CI-SEC-01-002: SHA line carries an inline version comment (e.g., `# v4.1.0`)
+
+**Tests:** 1080 passed (+53 new), 5581 subtests passed.
+
+**Commit:** 3e5b3079

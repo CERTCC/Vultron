@@ -36,6 +36,9 @@ General information about architectural decision records is available at <https:
 - [ADR-0010 Standardize Object IDs to URI Form](0010-standardize-object-ids.md)
 - [ADR-0011 Remove API v1 and consolidate vocabulary examples into API v2](0011-remove-api-v1.md)
 - [ADR-0012 Per-Actor DataLayer Isolation](0012-per-actor-datalayer-isolation.md)
+- [ADR-0013 Unify RM State Tracking](0013-unify-rm-state-tracking.md)
+- [ADR-0014 Pin GitHub Actions to Full Commit SHAs with Version
+  Comments](0014-sha-pin-github-actions.md)
 
 ## Proposed ADRs
 

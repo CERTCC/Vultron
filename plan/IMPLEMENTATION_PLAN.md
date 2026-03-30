@@ -13,7 +13,7 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 1027 passed, 5581 subtests (2026-03-30).
+**Test suite**: 1080 passed, 5581 subtests (2026-03-30).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
@@ -118,20 +118,14 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
   `notes/`, `AGENTS.md`, and documentation to reflect this convention.
   Reference `specs/code-style.md` CS-07-003.
 
-#### SECOPS-1 — CI security: ADR + automated pin-verification test
+#### SECOPS-1 — CI security: ADR + automated pin-verification test ✅
 
-> **SHA pinning already done**: All 6 workflow files are SHA-pinned with
-> version comments. `specs/ci-security.md` was created with full requirements
-> (CI-SEC-01-001 through CI-SEC-04-002). Dependabot is configured for
-> `github-actions` on a weekly schedule, satisfying VSR-01-003 (automated pin
-> currency). Remaining work:
-
-- [ ] **SECOPS-1**: (a) Write ADR in `docs/adr/` documenting the SHA-pinning
-  policy and Dependabot-as-primary-pin-maintenance mechanism per CI-SEC-04-001.
-  (b) Implement the CI-SEC-01-003 automated test: a Python test (under
-  `test/ci/`) that parses every `.github/workflows/*.yml` file and asserts each
-  `uses:` line is pinned to a full 40-character SHA and carries a human-readable
-  version comment.
+- [x] **SECOPS-1**: Wrote `docs/adr/0014-sha-pin-github-actions.md`
+  documenting the SHA-pinning + Dependabot policy. Implemented
+  `test/ci/test_workflow_sha_pinning.py` (53 parametrised tests covering all
+  `uses:` lines across 6 workflow files) verifying CI-SEC-01-001
+  (40-char SHA) and CI-SEC-01-002 (version comment). Added ADR-0014 to
+  `docs/adr/index.md`.
 
 #### DOCMAINT-1 — Review and update outdated `notes/` files
 
