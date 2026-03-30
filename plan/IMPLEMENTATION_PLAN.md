@@ -24,7 +24,8 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
 **PRIORITY-250** Pre-300 cleanup
 
 - done: NAMING-1, QUALITY-1, SM-GUARD-1, VSR-ERR-1,
-BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-1, SPEC-AUDIT-2, SPEC-AUDIT-3
+  BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-3
+- not done: SPEC-AUDIT-1, SPEC-AUDIT-2
 
 **PRIORITY-300** (multi-actor demos; D5-1 unblocked, D5-2 and later blocked
 by PRIORITY-250).
@@ -269,24 +270,29 @@ Participant Actors via log synchronization.
 These tasks were identified during the March 27, 2026 spec review session and
 are needed before resuming feature development.
 
-### SPEC-AUDIT-1 — Consolidation audit: eliminate redundant requirements ✅
+### SPEC-AUDIT-1 — Consolidation audit: eliminate redundant requirements
 
-- [x] **SPEC-AUDIT-1**: Audited all `specs/` files; identified and eliminated
-  redundant requirements across four overlapping pairs. Deprecated CS-01-002,
-  CS-01-003, CS-01-006 (superseded by canonical IMPL-TS-07-* in tech-stack.md).
-  Removed duplicate implementation notes and duplicate verification test
-  assertions from handler-protocol.md (covered by dispatch-routing.md).
-  Added bidirectional cross-references across 6 spec files (dispatch-routing,
-  handler-protocol, semantic-extraction, code-style, tech-stack, architecture).
-  All 453 markdown files lint clean.
+- [ ] **SPEC-AUDIT-1**: Audit all `specs/` files to identify overlapping or
+  duplicated requirements across files. Known high-priority candidates include
+  `dispatch-routing.md` vs `handler-protocol.md` and `tech-stack.md` vs
+  `code-style.md`. Merge or cross-reference requirements to eliminate
+  maintenance-burden redundancy and reduce risk of specification divergence.
 
-### SPEC-AUDIT-2 — Strength keyword migration ✅
+### SPEC-AUDIT-2 — Strength keyword migration
 
-- [x] **SPEC-AUDIT-2**: Every requirement line in all 37 spec files now has an
-  RFC 2119 keyword on its first line (greppable). Prefix-style keywords are
-  parenthesised: `` `ID` (MUST) text ``; naturally-embedded keywords left as-is.
-  All section-header keyword suffixes (e.g. `(MUST)`) removed. 176 keyword
-  additions, 293 header cleanups, 171 format fixes. Completed 2026-03-30.
+- [ ] **SPEC-AUDIT-2**: Audit all `.md` files in `specs/` to ensure every
+  individual requirement line includes an inline RFC 2119 strength keyword
+  (MUST, SHOULD, or MAY). Per the updated `specs/meta-specifications.md`,
+  keywords MUST appear in the requirement text itself, not only in section
+  headers. Insert the keyword between the requirement ID and the requirement
+  text on each line that is missing it (e.g., `- XX-01-001 (MUST) Use SHA-256
+  hashes for all checksums.`). Be cautious of multi-line requirements that might
+  have a keyword on a subsequent line, and of misleading section headers
+  that include keywords that might be superseded by the actual content of
+  the requirement. Read the full requirement before deciding on the
+  appropriate keyword, do not assume that the header and first line are
+  sufficiently reliable indicators of the intended strength. A full-spectrum audit
+  across all spec files is required.
 
 ### SPEC-AUDIT-3 — Relocate transient implementation notes from specs ✅
 
