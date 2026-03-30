@@ -13,7 +13,7 @@ CLI structure, demo isolation, Docker packaging, and test requirements.
 
 ---
 
-## CLI Interface (MUST)
+## CLI Interface
 
 - `DC-01-001` The unified demo MUST be implemented as a `click`-based CLI
   script at `vultron/demo/cli.py`
@@ -31,9 +31,9 @@ CLI structure, demo isolation, Docker packaging, and test requirements.
 - `DC-01-005` Individual demo scripts MUST retain their existing
   `if __name__ == "__main__"` entry points so they remain directly invokable
 
-## Demo Utilities (MUST)
+## Demo Utilities
 
-- `DC-02-001` Shared demo utilities (`demo_step`, `demo_check` context
+- `DC-02-001` MUST Shared demo utilities (`demo_step`, `demo_check` context
   managers and HTTP client helpers) MUST be extracted to `vultron/demo/utils.py`
   - All demo scripts MUST import from `vultron.demo.utils`
   - No demo script MAY define its own copy of `demo_step`, `demo_check`, or
@@ -41,7 +41,7 @@ CLI structure, demo isolation, Docker packaging, and test requirements.
 - `DC-02-002` Demo scripts MUST be relocated to `vultron/demo/` and MUST be
   importable as `vultron.demo.<script_name>`
 
-## Demo Isolation (MUST)
+## Demo Isolation
 
 - `DC-03-001` Each demo MUST include setup and teardown logic that leaves the
   DataLayer in a clean state after the demo completes
@@ -52,7 +52,7 @@ CLI structure, demo isolation, Docker packaging, and test requirements.
 - `DC-03-003` The CLI MUST NOT assume a globally pre-initialized DataLayer;
   each demo invocation MUST create and clean up its own context
 
-## Docker Packaging (MUST)
+## Docker Packaging
 
 - `DC-04-001` The unified demo MUST be packaged as a Docker service
   (`demo` service in `docker/docker-compose.yml`)
@@ -62,11 +62,11 @@ CLI structure, demo isolation, Docker packaging, and test requirements.
   container runs interactively and prompts the user to select a demo
   - When the `DEMO` environment variable is set, the container MUST run the
     named sub-command non-interactively and exit
-- `DC-04-003` Individual per-demo Docker services (one service per demo
+- `DC-04-003` MUST Individual per-demo Docker services (one service per demo
   script) MUST be removed from `docker-compose.yml` once the unified demo
   service is operational
 
-## Unit Testing (MUST)
+## Unit Testing
 
 - `DC-05-001` The unified CLI MUST have unit tests in
   `test/demo/test_cli.py`
@@ -78,7 +78,7 @@ CLI structure, demo isolation, Docker packaging, and test requirements.
 - `DC-05-004` Unit tests for each sub-command MUST verify the sub-command
   invokes the correct underlying demo function
 
-## Integration Testing (SHOULD)
+## Integration Testing
 
 - `DC-06-001` An integration test script SHOULD exist at
   `integration_tests/demo/run_demo_integration_test.sh` (or equivalent

@@ -10,7 +10,7 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 
 ---
 
-## Endpoint Configuration (MUST)
+## Endpoint Configuration
 
 - `IE-02-001` The endpoint URL MUST be discoverable from actor profile
   - **Implementation**: Default pattern `POST /actors/{actor_id}/inbox/`
@@ -19,14 +19,14 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 - `IE-02-003` The endpoint MUST reject non-POST requests with HTTP 405
   - IE-02-003 depends-on HTTP-03-001
 
-## Request Handling (MUST)
+## Request Handling
 
 - `IE-03-001` The endpoint MUST validate Content-Type header
   - IE-03-001 depends-on HTTP-01-001
 - `IE-03-002` The endpoint MUST enforce request size limits
   - IE-03-002 depends-on HTTP-02-001
 
-## Activity Validation (MUST)
+## Activity Validation
 
 - `IE-04-001` The endpoint MUST validate activity structure via schema validation
   - **Implementation**: Uses Pydantic models (see `message-validation.md`)
@@ -34,36 +34,36 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
   - Include detailed validation errors in response
   - IE-04-002 depends-on HTTP-03-001
 
-## Response Timing (MUST)
+## Response Timing
 
 - `IE-05-001` The endpoint MUST return HTTP 202 within 100ms
   - IE-05-001 depends-on HTTP-06-001
 - `IE-05-002` The endpoint MUST NOT block on handler execution
 
-## Asynchronous Processing (MUST)
+## Asynchronous Processing
 
 - `IE-06-001` The endpoint MUST queue activities for background processing
 - `IE-06-002` Background processing MUST be isolated from HTTP request/response cycle
   - **Implementation**: FastAPI BackgroundTasks or equivalent async mechanism
 
-## Error Responses (MUST)
+## Error Responses
 
 - `IE-07-001` The endpoint MUST return appropriate HTTP status codes
   - IE-07-001 depends-on HTTP-03-001
 
-## Response Format (MUST)
+## Response Format
 
 - `IE-08-001` Response body MUST be JSON with fields: `status`, `activity_id`, `message`
   - IE-08-001 depends-on EH-05-001
 
-## Logging (MUST)
+## Logging
 
 - `IE-09-001` The endpoint MUST log all requests at INFO level
   - IE-09-001 depends-on SL-01-001
   - IE-09-001 depends-on SL-02-001
   - IE-09-001 depends-on SL-03-001
 
-## Idempotency (SHOULD)
+## Idempotency
 
 - `IE-10-001` The endpoint SHOULD implement early duplicate detection at HTTP layer
   - **Note**: Optional performance optimization; see `idempotency.md` for complete requirements

@@ -8,7 +8,7 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 
 ---
 
-## Pattern Matching (MUST)
+## Pattern Matching
 
 - `SE-01-001` The system MUST match activities using activity type and object
   type patterns
@@ -39,23 +39,23 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
     and a warning MUST be logged
   - SE-01-004 depends-on SE-01-002
 
-## Semantic Type Assignment (MUST)
+## Semantic Type Assignment
 
 - `SE-02-001` The system MUST assign MessageSemantics enum value via `find_matching_semantics()`
 - `SE-02-002` The function MUST return the first matching semantic type
 - `SE-02-003` The function MUST return MessageSemantics.UNKNOWN if no patterns match
 
-## Pattern Registry (MUST)
+## Pattern Registry
 
 - `SE-03-001` SEMANTICS_ACTIVITY_PATTERNS MUST contain patterns for all supported MessageSemantics values except UNKNOWN
 - `SE-03-002` Pattern registry MUST be ordered from most specific to least specific
 
-## Unrecognized Activity Handling (MUST)
+## Unrecognized Activity Handling
 
 - `SE-04-001` The system MUST log unrecognized activities at WARNING level
 - `SE-04-002` The system MUST raise VultronApiHandlerMissingSemanticError for unmatched activities
 
-## Pattern Validation (MUST)
+## Pattern Validation
 
 - `SE-05-001` All patterns MUST have corresponding MessageSemantics enum value
 - `SE-05-002` All patterns MUST have corresponding use-case class in USE_CASE_MAP

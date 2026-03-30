@@ -27,7 +27,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## Participant State Tracking (SHOULD)
+## Participant State Tracking
 
 - `VP-01-001` Participants SHOULD track the state of other Participants in a
   case to inform their own decision making
@@ -42,8 +42,6 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - VP-01-002 is-implemented-by CM-03-002
   - VP-01-002 is-implemented-by CM-04-001
 
-## Participant State Tracking (MUST NOT)
-
 - `VP-01-003` Adequate operation of the protocol MUST NOT depend on perfect
   information across all Participants
   - Source: `docs/reference/formal_protocol/states.md`
@@ -51,7 +49,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## Report Management (RM): Receiving Reports (MUST)
+## Report Management (RM): Receiving Reports
 
 - `VP-02-001` Coordinators MUST have a clearly defined and publicly available
   mechanism for receiving reports
@@ -65,13 +63,9 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - Source: `docs/topics/process_models/rm/index.md`
   - VP-02-003 is-implemented-by CM-04-001
 
-## Report Management (RM): Receiving Reports (MUST NOT)
-
 - `VP-02-004` Participants MUST NOT close cases or reports from the Valid state
   - Source: `docs/topics/process_models/rm/index.md`
   - VP-02-004 is-implemented-by CM-03-007
-
-## Report Management (RM): Receiving Reports (SHOULD)
 
 - `VP-02-005` Vendors SHOULD have a clearly defined and publicly available
   mechanism for receiving reports
@@ -102,7 +96,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - Source: `docs/topics/process_models/rm/index.md`
   - VP-02-010 is-implemented-by CM-03-001
   - VP-02-010 is-implemented-by CM-04-001
-- `VP-02-011` Once a Vendor confirms that a reported vulnerability affects one
+- `VP-02-011` SHOULD Once a Vendor confirms that a reported vulnerability affects one
   or more of their products or services, the Vendor SHOULD designate the report
   as Valid
   - Source: `docs/topics/process_models/rm/index.md`
@@ -174,8 +168,6 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - VP-02-024 is-implemented-by CM-03-001
   - VP-02-024 is-implemented-by CM-04-001
 
-## Report Management (RM): Receiving Reports (MAY)
-
 - `VP-02-025` Participants MAY perform a more technical report validation process
   before exiting the Received state
   - Source: `docs/topics/process_models/rm/index.md`
@@ -232,7 +224,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## RM Messaging (MUST)
+## RM Messaging
 
 - `VP-03-001` Participants MUST be in RM Accepted to send a Report Submission
   ($RS$) message to someone else
@@ -243,8 +235,6 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   ($q^{cs} \xrightarrow{\mathbf{V}} Vfd\cdots$)
   - Source: `docs/reference/formal_protocol/transitions.md`
   - VP-03-002 is-implemented-by CM-04-004
-
-## RM Messaging (SHOULD)
 
 - `VP-03-003` Participants SHOULD send $RI$ when the report validation process
   ends in an invalid determination
@@ -273,7 +263,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   except $RK$ itself
   - Source: `docs/reference/formal_protocol/transitions.md`
   - VP-03-009 is-implemented-by RF-08-001
-- `VP-03-010` Recipients who receive an $R*$ message (other than $RS$) while in
+- `VP-03-010` SHOULD Recipients who receive an $R*$ message (other than $RS$) while in
   RM Start ($q^{rm} \in S$) SHOULD respond with both $RE$ to signal the error
   and $GI$ to find out what the sender expected
   - Source: `docs/reference/formal_protocol/transitions.md`
@@ -282,12 +272,10 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   ($GI$) as to the nature of the error
   - Source: `docs/reference/formal_protocol/transitions.md`
   - VP-03-011 is-implemented-by RF-05-001
-- `VP-03-012` Participants whose state changes in the RM, EM, or CVD Case State
+- `VP-03-012` SHOULD Participants whose state changes in the RM, EM, or CVD Case State
   Models SHOULD send a message to other Participants for each transition
   - Source: `docs/reference/formal_protocol/messages.md`
   - VP-03-012 is-implemented-by CM-06-001
-
-## RM Messaging (MAY)
 
 - `VP-03-013` Recipients MAY ignore messages received on Closed cases
   - Source: `docs/reference/formal_protocol/transitions.md`
@@ -295,19 +283,15 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## Embargo Management (EM) Process (MUST)
+## Embargo Management (EM) Process
 
 - `VP-04-001` Accepted embargoes MUST eventually terminate
   - Source: `docs/topics/process_models/em/index.md`
   - **Gap**: Not addressed by any current implementation spec
 
-## Embargo Management (EM) Process (SHALL)
-
 - `VP-04-002` A CVD case SHALL NOT have more than one active embargo at a time
   - Source: `docs/topics/process_models/em/index.md`
   - VP-04-002 is-implemented-by CM-03-003
-
-## Embargo Management (EM) Process (MAY)
 
 - `VP-04-003` An embargo MAY be proposed
   - Source: `docs/topics/process_models/em/index.md`
@@ -325,7 +309,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## Embargo Principles (SHALL)
+## Embargo Principles
 
 - `VP-05-001` An embargo SHALL specify an unambiguous date and time as its
   endpoint
@@ -349,8 +333,6 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   publish
   - Source: `docs/topics/process_models/em/principles.md`
   - **Gap**: Not addressed by any current implementation spec
-
-## Embargo Principles (SHOULD)
 
 - `VP-05-006` Embargo Participants SHOULD NOT knowingly release information about
   an embargoed case until all proposed embargoes have been explicitly rejected,
@@ -394,8 +376,6 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - Source: `docs/topics/process_models/em/principles.md`
   - **Gap**: Not addressed by any current implementation spec
 
-## Embargo Principles (MAY)
-
 - `VP-05-015` Additional Participants MAY be added to an existing embargo upon
   accepting the terms of that embargo
   - Source: `docs/topics/process_models/em/principles.md`
@@ -422,7 +402,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## Embargo Negotiation (MUST NOT)
+## Embargo Negotiation
 
 - `VP-06-001` CVD Participants MUST NOT propose or accept a new embargo
   negotiation when information about the vulnerability is already known to the
@@ -432,8 +412,6 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - Source: `docs/topics/process_models/em/negotiating.md`
   - VP-06-001 is-implemented-by CM-04-003
   - VP-06-001 is-implemented-by CM-04-004
-
-## Embargo Negotiation (SHOULD)
 
 - `VP-06-002` CVD Participants SHOULD NOT propose or accept a new embargo when
   the fix for a vulnerability has already been deployed ($q^{cs} \in VFDpxa$)
@@ -458,15 +436,11 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - Source: `docs/topics/process_models/em/negotiating.md`
   - **Gap**: Not addressed by any current implementation spec
 
-## Embargo Negotiation (SHALL)
-
-- `VP-06-007` Submitting a report when an embargo proposal is pending
+- `VP-06-007` SHALL Submitting a report when an embargo proposal is pending
   ($q^{em} \in P$) SHALL be construed as the Sender's acceptance of the
   proposed terms
   - Source: `docs/topics/process_models/em/negotiating.md`
   - **Gap**: Not addressed by any current implementation spec
-
-## Embargo Negotiation (MAY)
 
 - `VP-06-008` CVD Participants MAY propose or accept a new embargo when the fix
   for a vulnerability is ready but has neither been made public nor deployed
@@ -492,12 +466,12 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   to an embargo proposal in a timely manner as a rejection of that proposal
   - Source: `docs/topics/process_models/em/negotiating.md`
   - **Gap**: Not addressed by any current implementation spec
-- `VP-06-014` In the absence of an explicit accept or reject response from a
+- `VP-06-014` MAY In the absence of an explicit accept or reject response from a
   Receiver in a timely manner, the Sender MAY proceed consistent with an EM
   state of None ($q^{em} \in N$)
   - Source: `docs/topics/process_models/em/negotiating.md`
   - **Gap**: Not addressed by any current implementation spec
-- `VP-06-015` In a case where the embargo state is None and for which an embargo
+- `VP-06-015` MAY In a case where the embargo state is None and for which an embargo
   has been proposed and either explicitly or tacitly rejected, Participants MAY
   take any action they choose with the report, including immediate publication
   - Source: `docs/topics/process_models/em/negotiating.md`
@@ -514,35 +488,33 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## Embargo Default Policies (SHALL)
+## Embargo Default Policies
 
-- `VP-07-001` If neither Sender nor Receiver proposes an embargo and no policy
+- `VP-07-001` SHALL If neither Sender nor Receiver proposes an embargo and no policy
   defaults apply, no embargo SHALL exist
   - Source: `docs/topics/process_models/em/defaults.md`
   - VP-07-001 is-implemented-by EP-01-002
   - VP-07-001 is-implemented-by EP-03-001
-- `VP-07-002` A Receiver's default embargo specified in its vulnerability
+- `VP-07-002` SHALL A Receiver's default embargo specified in its vulnerability
   disclosure policy SHALL be treated as an initial embargo proposal
   - Source: `docs/topics/process_models/em/defaults.md`
   - VP-07-002 is-implemented-by EP-01-002
-- `VP-07-003` If the Receiver has declared a default embargo in its
+- `VP-07-003` SHALL If the Receiver has declared a default embargo in its
   vulnerability disclosure policy and the Sender proposes nothing to the
   contrary, the Receiver's default embargo SHALL be considered as an accepted
   proposal
   - Source: `docs/topics/process_models/em/defaults.md`
   - VP-07-003 is-implemented-by EP-03-002
-- `VP-07-004` If the Sender proposes an embargo longer than the Receiver's
+- `VP-07-004` SHALL If the Sender proposes an embargo longer than the Receiver's
   default, the Receiver's default SHALL be taken as accepted and the Sender's
   proposal taken as a proposed revision
   - Source: `docs/topics/process_models/em/defaults.md`
   - VP-07-004 is-implemented-by EP-03-002
-- `VP-07-005` If the Sender proposes an embargo shorter than the Receiver's
+- `VP-07-005` SHALL If the Sender proposes an embargo shorter than the Receiver's
   default, the Sender's proposal SHALL be taken as accepted and the Receiver's
   default taken as a proposed revision
   - Source: `docs/topics/process_models/em/defaults.md`
   - VP-07-005 is-implemented-by EP-03-002
-
-## Embargo Default Policies (SHOULD)
 
 - `VP-07-006` Report Recipients SHOULD post a default embargo period as part of
   their Vulnerability Disclosure Policy to set expectations with potential
@@ -551,22 +523,20 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - VP-07-006 is-implemented-by EP-01-003
   - VP-07-006 is-implemented-by EP-02-001
   - VP-07-006 is-implemented-by EP-03-001
-- `VP-07-007` If the Sender proposes an embargo and the Receiver has no default
+- `VP-07-007` SHOULD If the Sender proposes an embargo and the Receiver has no default
   embargo specified by policy, the Receiver SHOULD accept the Sender's proposal
   - Source: `docs/topics/process_models/em/defaults.md`
   - VP-07-007 is-implemented-by EP-03-001
-- `VP-07-008` When two or more embargo proposals are open and no embargo has yet
+- `VP-07-008` SHOULD When two or more embargo proposals are open and no embargo has yet
   been accepted ($q^{em} \in P$), Participants SHOULD accept the shortest one
   and propose the remainder as revisions
   - Source: `docs/topics/process_models/em/defaults.md`
   - VP-07-008 is-implemented-by EP-03-001
-- `VP-07-009` When two or more embargo revisions are open and an embargo is
+- `VP-07-009` SHOULD When two or more embargo revisions are open and an embargo is
   active ($q^{em} \in R$), Participants SHOULD accept or reject them
   individually in earliest-to-latest expiration order
   - Source: `docs/topics/process_models/em/defaults.md`
   - VP-07-009 is-implemented-by EP-03-001
-
-## Embargo Default Policies (MAY)
 
 - `VP-07-010` Participants MAY include a default embargo period as part of a
   published Vulnerability Disclosure Policy
@@ -578,12 +548,12 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - Source: `docs/topics/process_models/em/defaults.md`
   - VP-07-011 is-implemented-by EP-01-001
   - VP-07-011 is-implemented-by EP-03-001
-- `VP-07-012` When the Sender proposes longer than the Receiver's default, the
+- `VP-07-012` MAY When the Sender proposes longer than the Receiver's default, the
   Receiver MAY accept or reject the proposed extension
   - Source: `docs/topics/process_models/em/defaults.md`
   - VP-07-012 is-implemented-by EP-01-001
   - VP-07-012 is-implemented-by EP-03-001
-- `VP-07-013` When the Sender proposes shorter than the Receiver's default, the
+- `VP-07-013` MAY When the Sender proposes shorter than the Receiver's default, the
   Sender MAY accept or reject the Receiver's proposed revision
   - Source: `docs/topics/process_models/em/defaults.md`
   - VP-07-013 is-implemented-by EP-01-001
@@ -591,15 +561,13 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## Multi-Party Coordination (SHALL)
+## Multi-Party Coordination
 
-- `VP-08-001` When inviting a new Participant to a case with an existing embargo,
+- `VP-08-001` SHALL When inviting a new Participant to a case with an existing embargo,
   the inviting Participant SHALL propose the existing embargo to the invited
   Participant
   - Source: `docs/topics/process_models/em/working_with_others.md`
   - VP-08-001 is-implemented-by CM-06-001
-
-## Multi-Party Coordination (SHOULD)
 
 - `VP-08-002` Participants SHOULD attempt to establish an embargo as early in
   the process of handling the case as possible
@@ -613,7 +581,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   Participants
   - Source: `docs/topics/process_models/em/working_with_others.md`
   - **Gap**: Not addressed by any current implementation spec
-- `VP-08-005` A newly invited Participant to a case with an existing embargo
+- `VP-08-005` SHOULD A newly invited Participant to a case with an existing embargo
   SHOULD accept the existing embargo
   - Source: `docs/topics/process_models/em/working_with_others.md`
   - **Gap**: Not addressed by any current implementation spec
@@ -626,7 +594,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   accepting longer embargoes in MPCVD cases
   - Source: `docs/topics/process_models/em/working_with_others.md`
   - **Gap**: Not addressed by any current implementation spec
-- `VP-08-008` Potential Participants with a longer default policy than an
+- `VP-08-008` SHOULD Potential Participants with a longer default policy than an
   existing case SHOULD accept the embargo terms offered
   - Source: `docs/topics/process_models/em/working_with_others.md`
   - **Gap**: Not addressed by any current implementation spec
@@ -634,15 +602,13 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   Vendors with a longer default embargo policy
   - Source: `docs/topics/process_models/em/working_with_others.md`
   - **Gap**: Not addressed by any current implementation spec
-- `VP-08-010` Participants known to leak or provide vulnerability information to
+- `VP-08-010` SHOULD Participants known to leak or provide vulnerability information to
   adversaries as a matter of policy or historical fact SHOULD be treated similar
   to Participants with brief disclosure policies
   - Source: `docs/topics/process_models/em/working_with_others.md`
   - **Gap**: Not addressed by any current implementation spec
 
-## Multi-Party Coordination (MAY)
-
-- `VP-08-011` When consensus fails to reach agreement on embargo terms,
+- `VP-08-011` MAY When consensus fails to reach agreement on embargo terms,
   Participants MAY appoint a case lead to resolve conflicts
   - Source: `docs/topics/process_models/em/working_with_others.md`
   - **Gap**: Not addressed by any current implementation spec
@@ -670,7 +636,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   with the agreed embargo
   - Source: `docs/topics/process_models/em/working_with_others.md`
   - **Gap**: Not addressed by any current implementation spec
-- `VP-08-018` After accepting an existing embargo, newly invited Participants
+- `VP-08-018` MAY After accepting an existing embargo, newly invited Participants
   with a longer default policy MAY propose a revision to accommodate their
   preferences
   - Source: `docs/topics/process_models/em/working_with_others.md`
@@ -690,14 +656,12 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## Embargo Early Termination (SHALL)
+## Embargo Early Termination
 
 - `VP-09-001` Embargoes SHALL terminate immediately when information about the
   vulnerability becomes public ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$)
   - Source: `docs/topics/process_models/em/early_termination.md`
   - VP-09-001 is-implemented-by CM-04-003
-
-## Embargo Early Termination (SHOULD)
 
 - `VP-09-002` Participants SHOULD be prepared with contingency plans in the
   event of early embargo termination
@@ -717,8 +681,6 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - Source: `docs/topics/process_models/em/early_termination.md`
   - **Gap**: Not addressed by any current implementation spec
 
-## Embargo Early Termination (MAY)
-
 - `VP-09-006` Embargoes MAY terminate early when there is evidence that
   adversaries are aware of the technical details of the vulnerability
   - Source: `docs/topics/process_models/em/early_termination.md`
@@ -731,14 +693,14 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## Embargo Case Splits and Merges (SHALL)
+## Embargo Case Splits and Merges
 
-- `VP-10-001` If no new embargo has been proposed or agreement has not been
+- `VP-10-001` SHALL If no new embargo has been proposed or agreement has not been
   reached following a case merge, the earliest of the previously accepted
   embargo dates SHALL be adopted for the merged case
   - Source: `docs/topics/process_models/em/split_merge.md`
   - **Gap**: Not addressed by any current implementation spec
-- `VP-10-002` If an earlier embargo date is needed for a child case following a
+- `VP-10-002` SHALL If an earlier embargo date is needed for a child case following a
   case split, consideration SHALL be given to the impact that ending the embargo
   on that case will have on the other child cases retaining a later embargo date
   - Source: `docs/topics/process_models/em/split_merge.md`
@@ -749,24 +711,20 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - Source: `docs/topics/process_models/em/split_merge.md`
   - **Gap**: Not addressed by any current implementation spec
 
-## Embargo Case Splits and Merges (SHOULD)
-
 - `VP-10-004` A new embargo SHOULD be proposed when any two or more CVD cases
   are to be merged and multiple parties have agreed to different embargo terms
   prior to the merger
   - Source: `docs/topics/process_models/em/split_merge.md`
   - **Gap**: Not addressed by any current implementation spec
-- `VP-10-005` When a case is split into two or more parts, any existing embargo
+- `VP-10-005` SHOULD When a case is split into two or more parts, any existing embargo
   SHOULD transfer to the new cases
   - Source: `docs/topics/process_models/em/split_merge.md`
   - **Gap**: Not addressed by any current implementation spec
-- `VP-10-006` If any of the new cases need to renegotiate the embargo inherited
+- `VP-10-006` SHOULD If any of the new cases need to renegotiate the embargo inherited
   from the parent case, any new embargo SHOULD be later than the inherited
   embargo
   - Source: `docs/topics/process_models/em/split_merge.md`
   - **Gap**: Not addressed by any current implementation spec
-
-## Embargo Case Splits and Merges (MAY)
 
 - `VP-10-007` Participants MAY propose revisions to the embargo on a merged case
   as usual
@@ -780,14 +738,14 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## EM Messaging (SHALL)
+## EM Messaging
 
 - `VP-11-001` Participants SHALL NOT negotiate embargoes where the vulnerability
   or its exploit is public or attacks are known to have occurred
   - Source: `docs/reference/formal_protocol/transitions.md`
   - VP-11-001 is-implemented-by CM-04-003
   - VP-11-001 is-implemented-by CM-04-004
-- `VP-11-002` If information about the vulnerability or an exploit has been made
+- `VP-11-002` SHALL If information about the vulnerability or an exploit has been made
   public, Participants SHALL terminate the embargo
   ($q^{cs} \in \{\cdots P \cdots, \cdots X \cdot\}$)
   - Source: `docs/reference/formal_protocol/transitions.md`
@@ -798,8 +756,6 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - Source: `docs/reference/formal_protocol/transitions.md`
   - VP-11-003 is-implemented-by CM-04-003
   - VP-11-003 is-implemented-by CM-04-004
-
-## EM Messaging (SHOULD)
 
 - `VP-11-004` Participants SHOULD send $EK$ in acknowledgment of any other $E*$
   message except $EK$ itself
@@ -820,13 +776,11 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - Source: `docs/reference/formal_protocol/transitions.md`
   - VP-11-007 is-implemented-by CM-04-003
   - VP-11-007 is-implemented-by CM-04-004
-- `VP-11-008` If early embargo termination is desired but the termination
+- `VP-11-008` SHOULD If early embargo termination is desired but the termination
   date/time is in the future, this SHOULD be achieved through an Embargo
   Revision Proposal and additional communication
   - Source: `docs/reference/formal_protocol/messages.md`
   - **Gap**: Not addressed by any current implementation spec
-
-## EM Messaging (MAY)
 
 - `VP-11-009` Participants MAY begin embargo negotiations before sending the
   report itself in an $RS$ message; therefore it is not an error for an $E*$
@@ -841,7 +795,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## CVD Case State (CS) Messaging (SHOULD)
+## CVD Case State (CS) Messaging
 
 - `VP-12-001` Vendor Awareness ($CV$) messages SHOULD be sent only by
   Participants with direct knowledge of the notification (i.e., either the
@@ -857,7 +811,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## RM-EM Interactions (SHOULD)
+## RM-EM Interactions
 
 - `VP-13-001` The EM process SHOULD begin when a recipient is in RM Received
   ($q^{rm} \in R$) whenever possible
@@ -889,27 +843,23 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - Source: `docs/topics/process_models/model_interactions/rm_em.md`
   - VP-13-006 is-implemented-by CM-04-001
   - VP-13-006 is-implemented-by CM-04-003
-- `VP-13-007` Participants who choose to close a report while an embargo remains
+- `VP-13-007` SHOULD Participants who choose to close a report while an embargo remains
   in force SHOULD communicate their intent to either continue to adhere to the
   embargo or terminate their compliance with it
   - Source: `docs/topics/process_models/model_interactions/rm_em.md`
   - VP-13-007 is-implemented-by CM-06-001
-- `VP-13-008` Any changes to a Participant's intention to adhere to an active
+- `VP-13-008` SHOULD Any changes to a Participant's intention to adhere to an active
   embargo SHOULD be communicated clearly in addition to any necessary RM or EM
   state change notifications
   - Source: `docs/topics/process_models/model_interactions/rm_em.md`
   - VP-13-008 is-implemented-by CM-06-001
 
-## RM-EM Interactions (SHALL NOT)
-
-- `VP-13-009` A Participant's closure or deferral ($q^{rm} \in \{C, D\}$) of a
+- `VP-13-009` SHALL NOT A Participant's closure or deferral ($q^{rm} \in \{C, D\}$) of a
   report while an embargo remains active ($q^{em} \in \{A, R\}$) and while
   other Participants remain engaged SHALL NOT automatically terminate the embargo
   - Source: `docs/topics/process_models/model_interactions/rm_em.md`
   - VP-13-009 is-implemented-by CM-03-003
   - VP-13-009 is-implemented-by CM-04-005
-
-## RM-EM Interactions (MAY)
 
 - `VP-13-010` The EM process MAY begin prior to the report being sent to a
   potential Participant ($q^{rm} \in S$)
@@ -930,7 +880,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - VP-13-012 is-implemented-by CM-03-001
   - VP-13-012 is-implemented-by CM-03-003
   - VP-13-012 is-implemented-by CM-04-003
-- `VP-13-013` EM revision proposals and acceptance or rejection of those
+- `VP-13-013` MAY EM revision proposals and acceptance or rejection of those
   proposals MAY occur during any of the valid yet unclosed RM states
   ($q^{rm} \in \{V, A, D\}$)
   - Source: `docs/topics/process_models/model_interactions/rm_em.md`
@@ -962,7 +912,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - VP-13-017 is-implemented-by CM-03-001
   - VP-13-017 is-implemented-by CM-03-003
   - VP-13-017 is-implemented-by CM-04-003
-- `VP-13-018` Upon receipt of a Participant's notification of intent to end
+- `VP-13-018` MAY Upon receipt of a Participant's notification of intent to end
   their compliance with an embargo, other Participants MAY choose to terminate
   the embargo
   - Source: `docs/topics/process_models/model_interactions/rm_em.md`
@@ -972,34 +922,30 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## RM-EM-CS Interactions (SHALL NOT)
+## RM-EM-CS Interactions
 
-- `VP-14-001` Once Public Awareness has happened ($q^{cs} \in \cdots P \cdots$),
+- `VP-14-001` SHALL NOT Once Public Awareness has happened ($q^{cs} \in \cdots P \cdots$),
   new embargoes SHALL NOT be sought and any existing embargo SHALL terminate
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
   - VP-14-001 is-implemented-by CM-04-003
   - VP-14-001 is-implemented-by CM-04-004
-- `VP-14-002` Once Exploit Publication has occurred
+- `VP-14-002` SHALL NOT Once Exploit Publication has occurred
   ($q^{cs} \in \cdots X \cdot$), new embargoes SHALL NOT be sought and any
   existing embargo SHALL terminate
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
   - VP-14-002 is-implemented-by CM-04-003
   - VP-14-002 is-implemented-by CM-04-004
-- `VP-14-003` Once Attacks have been observed ($q^{cs} \in \cdots A$), new
+- `VP-14-003` SHALL NOT Once Attacks have been observed ($q^{cs} \in \cdots A$), new
   embargoes SHALL NOT be sought
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
   - VP-14-003 is-implemented-by CM-04-004
-
-## RM-EM-CS Interactions (MUST)
 
 - `VP-14-004` Participants MUST treat attacks as an event that could occur at
   any time and adapt their process as needed in light of available information
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
   - VP-14-004 is-implemented-by CM-04-004
 
-## RM-EM-CS Interactions (SHOULD)
-
-- `VP-14-005` Once a case has reached Vendor Aware ($q^{cs} \in Vfdpxa$) for at
+- `VP-14-005` SHOULD Once a case has reached Vendor Aware ($q^{cs} \in Vfdpxa$) for at
   least one Vendor, if the EM process has not started, it SHOULD begin as soon
   as possible
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
@@ -1008,12 +954,12 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   after the first Vendor is notified
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
   - VP-14-006 is-implemented-by CM-04-003
-- `VP-14-007` Once a case has reached Fix Ready ($q^{cs} \in VF\cdot pxa$), new
+- `VP-14-007` SHOULD NOT Once a case has reached Fix Ready ($q^{cs} \in VF\cdot pxa$), new
   embargo negotiations SHOULD NOT start and proposed but not-yet-agreed-to
   embargoes SHOULD be rejected
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
   - VP-14-007 is-implemented-by CM-04-003
-- `VP-14-008` Existing embargoes ($q^{em} \in \{Active, Revise\}$) when Fix
+- `VP-14-008` SHOULD Existing embargoes ($q^{em} \in \{Active, Revise\}$) when Fix
   Ready is reached SHOULD prepare to terminate soon
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
   - VP-14-008 is-implemented-by CM-04-003
@@ -1021,11 +967,11 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   trailing Vendors to catch up before publication when possible
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
   - **Gap**: Not addressed by any current implementation spec
-- `VP-14-010` By the time a fix has been deployed ($q^{cs} \in VFD\cdots$), new
+- `VP-14-010` SHOULD NOT By the time a fix has been deployed ($q^{cs} \in VFD\cdots$), new
   embargoes SHOULD NOT be sought and any existing embargo SHOULD terminate
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
   - VP-14-010 is-implemented-by CM-04-003
-- `VP-14-011` Exploit Publishers who are Participants in pre-public CVD cases
+- `VP-14-011` SHOULD Exploit Publishers who are Participants in pre-public CVD cases
   ($q^{cs} \in \cdots p \cdots$) SHOULD comply with the protocol, especially
   when they also fulfill other roles (e.g., Finder, Reporter, Coordinator,
   Vendor)
@@ -1035,15 +981,13 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   embargo is active ($q^{em} \in \{A, R\}$)
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
   - **Gap**: Not addressed by any current implementation spec
-- `VP-14-013` Once Attacks have been observed ($q^{cs} \in \cdots A$), any
+- `VP-14-013` SHOULD Once Attacks have been observed ($q^{cs} \in \cdots A$), any
   existing embargo SHOULD terminate
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
   - VP-14-013 is-implemented-by CM-04-003
   - VP-14-013 is-implemented-by CM-04-004
 
-## RM-EM-CS Interactions (MAY)
-
-- `VP-14-014` In MPCVD cases where some Vendors reach Fix Ready before others,
+- `VP-14-014` MAY In MPCVD cases where some Vendors reach Fix Ready before others,
   Participants MAY propose an embargo extension to allow trailing Vendors to
   catch up before publication
   - Source: `docs/topics/process_models/model_interactions/rm_em_cs.md`
@@ -1051,7 +995,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## Implementation Guidance (SHOULD)
+## Implementation Guidance
 
 - `VP-15-001` Vultron Protocol messages SHOULD use well-defined format
   specifications (e.g., JSON Schema, protobuf, XSD)
@@ -1068,8 +1012,6 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
   - VP-15-003 is-implemented-by ENC-02-001
   - VP-15-003 is-implemented-by ENC-03-001
 
-## Implementation Guidance (MAY)
-
 - `VP-15-004` `PROD_ONLY` Vultron Protocol implementations MAY use end-to-end
   encryption to protect sensitive data in transit
   - Source: `docs/howto/general_implementation.md`
@@ -1082,7 +1024,7 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
 
 ---
 
-## Embargo Representation Privacy (MUST NOT)
+## Embargo Representation Privacy
 
 - `VP-16-001` Vulnerability details MUST NOT appear in embargo representation
   data (e.g., embargo scheduling or notification messages)
@@ -1091,8 +1033,6 @@ CVD Case State (CS) messaging, model interactions, and implementation guidance.
     the target format
   - VP-16-001 is-implemented-by MV-05-001
   - VP-16-001 is-implemented-by MV-05-002
-
-## Embargo Representation Privacy (SHOULD)
 
 - `VP-16-002` A case or vulnerability identifier SHOULD appear in embargo
   representation data along with an indication that it relates to an embargo

@@ -13,7 +13,7 @@ interfaces that support agentic workflows.
 
 ---
 
-## API Discoverability (MUST)
+## API Discoverability
 
 - `AR-01-001` The API MUST expose a machine-readable OpenAPI JSON schema at
   `/openapi.json`
@@ -21,22 +21,22 @@ interfaces that support agentic workflows.
   `/redoc` in development environments
 - `AR-01-003` Every endpoint MUST have a unique, stable `operationId`
   following the `{resource}_{action}` naming convention
-- `AR-01-004` `PROD_ONLY` All possible HTTP response codes for each endpoint
+- `AR-01-004` MUST `PROD_ONLY` All possible HTTP response codes for each endpoint
   MUST be declared in the OpenAPI spec with typed response models
 
-## State and Workflow Transitions (SHOULD)
+## State and Workflow Transitions
 
 - `AR-02-001` `PROD_ONLY` Resources with a `status` field SHOULD include a
   `next_allowed_actions` list identifying valid state transitions from the
   current state
-- `AR-02-002` All valid states and state transitions for state machine
+- `AR-02-002` MUST All valid states and state transitions for state machine
   resources MUST be documented
 - `AR-02-003` `PROD_ONLY` Endpoints with prerequisites MUST return a structured
   error using the `error` field value `"PreconditionFailedError"` when invoked
   out of sequence
   - AR-02-003 depends-on EH-05-001
 
-## Stable Error Types (MUST)
+## Stable Error Types
 
 - `AR-03-001` The API MUST use the `error` field (per `error-handling.md`
   EH-05-001) as a stable, machine-parseable error type identifier
@@ -44,24 +44,24 @@ interfaces that support agentic workflows.
     human-readable `message` field
   - AR-03-001 depends-on EH-05-001
 
-## Long-Running Operations (SHOULD)
+## Long-Running Operations
 
 - `AR-04-001` `PROD_ONLY` Long-running operations SHOULD return a job or task
   object immediately with a stable `id` and `status` field
-- `AR-04-002` `PROD_ONLY` A separate polling endpoint or webhook mechanism
+- `AR-04-002` SHOULD `PROD_ONLY` A separate polling endpoint or webhook mechanism
   SHOULD be available to report operation completion
 
-## Pagination (SHOULD)
+## Pagination
 
 - `AR-05-001` Collection endpoints SHOULD expose `limit` and `offset` (or
   `cursor`) query parameters with documented defaults and maximums
 
-## Bulk Operations (MAY)
+## Bulk Operations
 
-- `AR-06-001` `PROD_ONLY` Resources that agents may need to create, update, or
+- `AR-06-001` MAY `PROD_ONLY` Resources that agents may need to create, update, or
   delete in quantity MAY expose batch endpoints (e.g., `POST /v1/items/batch`)
 
-## Actor Discovery Profile (MUST)
+## Actor Discovery Profile
 
 - `AR-10-001` The API MUST expose `GET /actors/{actor_id}/profile` returning an
   ActivityStreams actor profile document for actor discovery and federation
@@ -75,7 +75,7 @@ interfaces that support agentic workflows.
 - `AR-10-003` The profile endpoint MUST support both full actor URI and short
   actor ID (e.g., `vendorco`) as the `actor_id` path parameter
 
-## CVD Action Rules API (SHOULD)
+## CVD Action Rules API
 
 - `AR-07-001` The system SHOULD expose an endpoint that returns the set of
   valid CVD actions available to a participant given current case state and
@@ -96,7 +96,7 @@ interfaces that support agentic workflows.
   - AR-07-003 depends-on CM-07-002
   - AR-07-003 depends-on CM-07-003
 
-## CLI Interface (MUST)
+## CLI Interface
 
 - `AR-08-001` `PROD_ONLY` The CLI MUST be installable as a Python package entry point
   defined in `pyproject.toml`
@@ -109,7 +109,7 @@ interfaces that support agentic workflows.
 - `AR-08-005` `PROD_ONLY` Long-running CLI commands SHOULD support `--wait` / `--no-wait`
   flags; `--no-wait` returns the job object immediately
 
-## MCP Server Adapter (MAY)
+## MCP Server Adapter
 
 The Model Context Protocol (MCP) server is a driving adapter that exposes the
 Vultron core to AI agent tool calls. Like the CLI and HTTP inbox, the MCP
@@ -169,10 +169,10 @@ Driving Adapters) for the architecture context.
 
 ### AR-08-001, AR-08-002, AR-08-003 Verification
 
-- `PROD_ONLY` Integration test: CLI entry point installed and executable via
+- `PROD_ONLY` MAY Integration test: CLI entry point installed and executable via
   `pyproject.toml`
-- `PROD_ONLY` Integration test: `--output json` produces valid JSON on stdout
-- `PROD_ONLY` Integration test: CLI exit codes match specification
+- `PROD_ONLY` MAY Integration test: `--output json` produces valid JSON on stdout
+- `PROD_ONLY` MAY Integration test: CLI exit codes match specification
 
 ### AR-07-001, AR-07-002 Verification
 

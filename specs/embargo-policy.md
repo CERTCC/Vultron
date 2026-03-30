@@ -14,7 +14,7 @@ Coordination", "Prior Art and References (Embargo Policy)")
 
 ---
 
-## Policy Record Format (MUST)
+## Policy Record Format
 
 - `EP-01-001` An Actor profile MAY include a `embargo_policy` field
   containing a structured embargo policy record
@@ -40,7 +40,7 @@ Coordination", "Prior Art and References (Embargo Policy)")
 - `EP-01-005` The embargo policy record MUST use full-URI IDs for `actor_id`
   - EP-01-005 depends-on OID-01-001
 
-## API Endpoint (SHOULD)
+## API Endpoint
 
 - `EP-02-001` `PROD_ONLY` Each Actor SHOULD expose its embargo policy at
   `GET /actors/{actor_id}/embargo-policy`
@@ -51,9 +51,9 @@ Coordination", "Prior Art and References (Embargo Policy)")
   (returns JSON) and MUST be listed in the Actor's ActivityPub profile under
   a well-known key (e.g., `vultron:embargoPolicy`)
 
-## Policy Compatibility Evaluation (SHOULD)
+## Policy Compatibility Evaluation
 
-- `EP-03-001` `PROD_ONLY` Before proposing an embargo or inviting an actor
+- `EP-03-001` SHOULD `PROD_ONLY` Before proposing an embargo or inviting an actor
   to join an existing embargo, the CaseActor SHOULD retrieve and evaluate
   the target actor's embargo policy for compatibility with the proposed
   embargo terms
@@ -77,13 +77,13 @@ Coordination", "Prior Art and References (Embargo Policy)")
 
 ### EP-02-001 Verification
 
-- `PROD_ONLY` Integration test: `GET /actors/{id}/embargo-policy` returns
+- `PROD_ONLY` SHOULD Integration test: `GET /actors/{id}/embargo-policy` returns
   200 with valid JSON for an actor with a declared policy
-- `PROD_ONLY` Integration test: Returns 404 for an actor without a policy
+- `PROD_ONLY` SHOULD Integration test: Returns 404 for an actor without a policy
 
 ### EP-03-001, EP-03-002 Verification
 
-- `PROD_ONLY` Unit test: Compatibility check returns `True` when proposed
+- `PROD_ONLY` SHOULD Unit test: Compatibility check returns `True` when proposed
   duration is within range, `False` otherwise
 
 ## Related

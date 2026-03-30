@@ -54,7 +54,7 @@ Accepted keywords:
 Format — section header carries the dominant level for the group:
 
 ```markdown
-## Category (MUST)
+## Category
 ```
 
 Format — each requirement line carries its own keyword inline:
