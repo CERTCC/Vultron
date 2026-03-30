@@ -220,19 +220,19 @@ Participant Actors via log synchronization.
 > concepts. A future ownership transfer likely implies leadership change,
 > but a leadership change alone does not imply an ownership transfer.
 >
-> **Before starting SYNC-1**, create `notes/sync-log-replication.md` capturing
-> the RAFT-inspired design notes from `plan/IMPLEMENTATION_NOTES.md`
-> (2026-03-26 entry). Remove that entry from `IMPLEMENTATION_NOTES.md` once
-> the notes file is committed.
+> `notes/sync-log-replication.md` has been created capturing the RAFT-inspired
+> design notes and system invariants. The corresponding entries in
+> `plan/IMPLEMENTATION_NOTES.md` have been struck through.
 
 #### SYNC-1 — Local append-only case event log with indexing
 
 - [ ] **SYNC-1**: Implement local append-only case event log with indexing.
   The `CaseEvent` model (`vultron/wire/as2/vocab/objects/case_event.py`)
-  provides the foundation. Extend it to a true append-only log with indexed
-  lookups. Place replication logic in core domain (transport-agnostic
+  provides the foundation. Extend it to a true append-only log with
+  hash-chain indexing (each entry carries a content hash and references the
+  predecessor hash). Place replication logic in core domain (transport-agnostic
   `CaseEventLog`, `ReplicationState` classes); implement AS2 Announce mappings
-  and persistence in adapters. See design notes in `plan/IMPLEMENTATION_NOTES.md`
+  and persistence in adapters. See design notes in `notes/sync-log-replication.md`
   (2026-03-26) for full architectural context.
 
 #### SYNC-2 — One-way log replication to Participant Actors
@@ -251,6 +251,54 @@ Participant Actors via log synchronization.
 
 - [ ] **SYNC-4**: Multi-peer synchronization with per-peer replication state.
   Enables RAFT consensus for CaseActor process. Depends on SYNC-3.
+
+---
+
+## Documentation Quality Tasks
+
+These tasks were identified during the March 27, 2026 spec review session and
+are needed before resuming feature development.
+
+### SPEC-AUDIT-1 — Consolidation audit: eliminate redundant requirements
+
+- [ ] **SPEC-AUDIT-1**: Audit all `specs/` files to identify overlapping or
+  duplicated requirements across files. Known high-priority candidates include
+  `dispatch-routing.md` vs `handler-protocol.md` and `tech-stack.md` vs
+  `code-style.md`. Merge or cross-reference requirements to eliminate
+  maintenance-burden redundancy and reduce risk of specification divergence.
+
+### SPEC-AUDIT-2 — Strength keyword migration
+
+- [ ] **SPEC-AUDIT-2**: Audit all `.md` files in `specs/` to ensure every
+  individual requirement line includes an inline RFC 2119 strength keyword
+  (MUST, SHOULD, or MAY). Per the updated `specs/meta-specifications.md`,
+  keywords MUST appear in the requirement text itself, not only in section
+  headers. Insert the keyword between the requirement ID and the requirement
+  text on each line that is missing it (e.g., `XX-01-001 (MUST) Use SHA-256
+  hashes...`). A full-spectrum audit across all spec files is required.
+
+### SPEC-AUDIT-3 — Relocate transient implementation notes from specs
+
+- [ ] **SPEC-AUDIT-3**: Review all `specs/` files for transient
+  implementation commentary (e.g., references to specific bug names, known
+  flaky tests, WIP notes) and relocate them to `plan/IMPLEMENTATION_NOTES.md`
+  or archive them. Spec files SHOULD reflect architectural intent, not
+  temporary bug-tracker state. Also evaluate whether any purely historical
+  `notes/` files should be relocated to `docs/archived_notes/` (outside the
+  MkDocs navigation tree) to resolve build warnings.
+
+### VOCAB-REG-1 — Vocabulary registry auto-registration
+
+- [ ] **VOCAB-REG-1**: Research and implement a more robust vocabulary
+  registration mechanism that does not rely on developers remembering to
+  update `__init__.py` or add class decorators manually. Candidate
+  approaches:
+  - Dynamic module discovery in the vocabulary subpackage `__init__.py`
+    (auto-import all sibling modules)
+  - Parent-class/mixin auto-registration on subclass creation
+  The registry *structure* and registry *population* are separate concerns
+  and may require separate solutions. See `specs/vocabulary-model.md`
+  VM-01-005 and the cross-cutting observations in `notes/spec-review-0327.md`.
 
 ---
 
