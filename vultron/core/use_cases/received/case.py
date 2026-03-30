@@ -172,7 +172,7 @@ class UpdateCaseReceivedUseCase:
         excluded from the broadcast.
         """
         excluded = excluded_actor_ids or set()
-        # Locate the CaseActor (as_type="Service") associated with this case
+        # Locate the CaseActor (type_="Service") associated with this case
         service_records = self._dl.by_type("Service")
         case_actor_id: str | None = None
         for obj_id, data in service_records.items():
@@ -200,9 +200,9 @@ class UpdateCaseReceivedUseCase:
             return
 
         broadcast = VultronActivity(
-            as_type="Announce",
+            type_="Announce",
             actor=case_actor_id,
-            as_object=case_id,
+            object_=case_id,
             to=participant_ids,
         )
         try:
@@ -210,17 +210,17 @@ class UpdateCaseReceivedUseCase:
         except ValueError:
             logger.debug(
                 "update_case: broadcast activity %s already exists — skipping",
-                broadcast.as_id,
+                broadcast.id_,
             )
             return
 
         case_actor_obj = self._dl.read(case_actor_id)
         if case_actor_obj is not None and hasattr(case_actor_obj, "outbox"):
-            cast(Any, case_actor_obj).outbox.items.append(broadcast.as_id)
+            cast(Any, case_actor_obj).outbox.items.append(broadcast.id_)
             self._dl.save(case_actor_obj)
 
         # Enqueue for delivery via outbox_handler
-        self._dl.record_outbox_item(case_actor_id, broadcast.as_id)
+        self._dl.record_outbox_item(case_actor_id, broadcast.id_)
 
         logger.info(
             "update_case: CaseActor '%s' broadcast Announce for case '%s' to %d participants (CM-06-001)",
@@ -357,13 +357,13 @@ class CloseCaseReceivedUseCase:
         logger.info("Actor '%s' is closing case '%s'", actor_id, case_id)
 
         close_activity = VultronActivity(
-            as_type="Leave",
+            type_="Leave",
             actor=actor_id,
-            as_object=case_id,
+            object_=case_id,
         )
         try:
             self._dl.create(close_activity)
-            logger.info("Created Leave activity %s", close_activity.as_id)
+            logger.info("Created Leave activity %s", close_activity.id_)
         except ValueError:
             logger.info(
                 "Leave activity for case '%s' already exists — skipping (idempotent)",
@@ -373,12 +373,12 @@ class CloseCaseReceivedUseCase:
 
         actor_obj = self._dl.read(actor_id)
         if actor_obj is not None and hasattr(actor_obj, "outbox"):
-            cast(Any, actor_obj).outbox.items.append(close_activity.as_id)
+            cast(Any, actor_obj).outbox.items.append(close_activity.id_)
             self._dl.save(actor_obj)
             logger.info(
                 "Added Leave activity %s to actor %s outbox",
-                close_activity.as_id,
+                close_activity.id_,
                 actor_id,
             )
         # Queue for delivery via outbox_handler regardless of outbox field
-        self._dl.record_outbox_item(actor_id, close_activity.as_id)
+        self._dl.record_outbox_item(actor_id, close_activity.id_)

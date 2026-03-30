@@ -80,19 +80,19 @@ def _submit_report(
     Returns the ``(report, offer)`` pair after verifying both are stored.
     """
     report = VulnerabilityReport(
-        attributed_to=finder.as_id,
+        attributed_to=finder.id_,
         name=name,
         content=content,
     )
     offer = RmSubmitReportActivity(
-        actor=finder.as_id,
-        as_object=report,
-        to=[vendor.as_id],
+        actor=finder.id_,
+        object_=report,
+        to=[vendor.id_],
     )
-    post_to_inbox_and_wait(client, vendor.as_id, offer)
+    post_to_inbox_and_wait(client, vendor.id_, offer)
     with demo_check("Report and offer stored in DataLayer"):
-        verify_object_stored(client, report.as_id)
-        verify_object_stored(client, offer.as_id)
+        verify_object_stored(client, report.id_)
+        verify_object_stored(client, offer.id_)
     return report, offer
 
 
@@ -114,7 +114,7 @@ def _find_case_for_report(
         else:
             case = VulnerabilityCase(**item)
         report_ids = [
-            r if isinstance(r, str) else getattr(r, "as_id", str(r))
+            r if isinstance(r, str) else getattr(r, "id_", str(r))
             for r in (case.vulnerability_reports or [])
         ]
         if report_id in report_ids:
@@ -154,14 +154,12 @@ def demo_validate_and_engage(
         )
 
     with demo_step("Step 2: Vendor triggers validate-report"):
-        stored_offer = get_offer_from_datalayer(
-            client, vendor.as_id, offer.as_id
-        )
+        stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
         response = post_to_trigger(
             client=client,
-            actor_id=vendor.as_id,
+            actor_id=vendor.id_,
             behavior="validate-report",
-            body={"offer_id": stored_offer.as_id},
+            body={"offer_id": stored_offer.id_},
         )
         logger.info(
             "validate-report response: %s",
@@ -175,18 +173,18 @@ def demo_validate_and_engage(
             logger.info("Resulting activity type: %s", activity.get("type"))
 
     with demo_step("Step 3: Vendor triggers engage-case"):
-        case = _find_case_for_report(client, report.as_id)
+        case = _find_case_for_report(client, report.id_)
         with demo_check("Case created by validate-report BT"):
             assert (
                 case is not None
-            ), f"No VulnerabilityCase found for report {report.as_id}"
-            logger.info("Found case: %s", case.as_id)
+            ), f"No VulnerabilityCase found for report {report.id_}"
+            logger.info("Found case: %s", case.id_)
 
         response = post_to_trigger(
             client=client,
-            actor_id=vendor.as_id,
+            actor_id=vendor.id_,
             behavior="engage-case",
-            body={"case_id": case.as_id},
+            body={"case_id": case.id_},
         )
         logger.info(
             "engage-case response: %s",
@@ -237,15 +235,13 @@ def demo_invalidate_and_close(
         )
 
     with demo_step("Step 2: Vendor triggers invalidate-report"):
-        stored_offer = get_offer_from_datalayer(
-            client, vendor.as_id, offer.as_id
-        )
+        stored_offer = get_offer_from_datalayer(client, vendor.id_, offer.id_)
         response = post_to_trigger(
             client=client,
-            actor_id=vendor.as_id,
+            actor_id=vendor.id_,
             behavior="invalidate-report",
             body={
-                "offer_id": stored_offer.as_id,
+                "offer_id": stored_offer.id_,
                 "note": "Report lacks reproduction steps; marked invalid.",
             },
         )
@@ -263,10 +259,10 @@ def demo_invalidate_and_close(
     with demo_step("Step 3: Vendor triggers close-report"):
         response = post_to_trigger(
             client=client,
-            actor_id=vendor.as_id,
+            actor_id=vendor.id_,
             behavior="close-report",
             body={
-                "offer_id": stored_offer.as_id,
+                "offer_id": stored_offer.id_,
                 "note": "Closing report — no valid vulnerability confirmed.",
             },
         )

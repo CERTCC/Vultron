@@ -101,50 +101,50 @@ def _call_use_case(activity: as_Activity, use_case_class, dl=None):
 
 # Tests
 def test_create_report_handler_returns_none(reporter, report, dl):
-    activity = as_Create(actor=reporter, as_object=report)
+    activity = as_Create(actor=reporter, object_=report)
     _call_use_case(activity, CreateReportReceivedUseCase, dl=dl)
 
 
 def test_submit_report_persists_activity_and_report(reporter, report, dl):
-    activity = as_Offer(actor=reporter, as_object=report)
+    activity = as_Offer(actor=reporter, object_=report)
     _call_use_case(activity, SubmitReportReceivedUseCase, dl=dl)
 
     # check side effects
-    assert dl.read(activity.as_id) is not None
-    assert dl.read(report.as_id) is not None
+    assert dl.read(activity.id_) is not None
+    assert dl.read(report.id_) is not None
 
 
 def test_read_activity_handler_noop_returns_none(reporter, report, dl):
     activity = as_Read(
-        actor=reporter, as_object=as_Offer(actor=reporter, as_object=report)
+        actor=reporter, object_=as_Offer(actor=reporter, object_=report)
     )
     _call_use_case(activity, AckReportReceivedUseCase, dl=dl)
 
 
 def test_accept_offer(reporter, report, dl):
-    offer = as_Offer(actor=reporter, as_object=report)
-    activity = as_Accept(actor=reporter, as_object=offer)
+    offer = as_Offer(actor=reporter, object_=report)
+    activity = as_Accept(actor=reporter, object_=offer)
     _call_use_case(activity, ValidateReportReceivedUseCase, dl=dl)
 
 
 def test_tentative_reject_triggers_invalidation(reporter, report, dl):
-    offer = as_Offer(actor=reporter, as_object=report)
-    activity = as_TentativeReject(actor=reporter, as_object=offer)
+    offer = as_Offer(actor=reporter, object_=report)
+    activity = as_TentativeReject(actor=reporter, object_=offer)
     _call_use_case(activity, InvalidateReportReceivedUseCase, dl=dl)
 
     # check side effects
-    assert dl.read(activity.as_id) is not None
+    assert dl.read(activity.id_) is not None
 
 
 def test_create_case_handler_returns_none(coordinator, case, dl):
-    activity = as_Create(actor=coordinator, as_object=case)
+    activity = as_Create(actor=coordinator, object_=case)
     _call_use_case(activity, CreateCaseReceivedUseCase, dl=dl)
 
 
 def test_reject_offer_triggers_close_report(reporter, report, dl):
-    offer = as_Offer(actor=reporter, as_object=report)
-    activity = as_Reject(actor=reporter, as_object=offer)
+    offer = as_Offer(actor=reporter, object_=report)
+    activity = as_Reject(actor=reporter, object_=offer)
     _call_use_case(activity, CloseReportReceivedUseCase, dl=dl)
 
     # check side effects
-    assert dl.read(activity.as_id) is not None
+    assert dl.read(activity.id_) is not None

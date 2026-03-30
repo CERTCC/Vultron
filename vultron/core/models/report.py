@@ -26,7 +26,7 @@ class VultronReport(VultronObject):
     Mirrors the Vultron-specific fields of ``VulnerabilityReport``.
     Policy implementations receive this type when evaluating credibility and
     validity.
-    ``as_type`` is ``"VulnerabilityReport"`` to match the wire value.
+    ``type_`` is ``"VulnerabilityReport"`` to match the wire value.
     """
 
-    as_type: Literal["VulnerabilityReport"] = "VulnerabilityReport"
+    type_: Literal["VulnerabilityReport"] = "VulnerabilityReport"

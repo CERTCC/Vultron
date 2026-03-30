@@ -165,14 +165,14 @@ def main():
     # activity: vendor adds self as participant to case
     activity = add_vendor_participant_to_case()
 
-    participant = activity.as_object
+    participant = activity.object_
     if isinstance(participant, as_Base):
         obj_to_file(participant, f"{outdir}/vendor_participant.json")
     obj_to_file(activity, f"{outdir}/add_vendor_participant_to_case.json")
 
     # activity: vendor adds finder as participant to case
     activity = add_finder_participant_to_case()
-    participant = activity.as_object
+    participant = activity.object_
     if isinstance(participant, as_Base):
         obj_to_file(participant, f"{outdir}/finder_participant.json")
     obj_to_file(activity, f"{outdir}/add_finder_participant_to_case.json")

@@ -250,7 +250,7 @@ class TinyDbDataLayer(DataLayer):
         Use this for update operations where the caller owns the ID.
 
         Args:
-            obj: Any Pydantic BaseModel with ``as_id`` and ``as_type`` fields.
+            obj: Any Pydantic BaseModel with ``id_`` and ``type_`` fields.
         """
         rec = object_to_record(obj)
         tbl = self._table(rec.type_)
@@ -294,7 +294,7 @@ class TinyDbDataLayer(DataLayer):
                 obj = self._object_from_storage(stored_record)
                 if obj is None:
                     continue
-                results[obj.as_id] = obj
+                results[obj.id_] = obj
         return results
 
     def count_all(self) -> dict[str, int]:
@@ -304,12 +304,12 @@ class TinyDbDataLayer(DataLayer):
             counts[name] = len(db.table(name))
         return counts
 
-    def by_type(self, as_type: str) -> dict[str, dict[str, Any]]:
+    def by_type(self, type_: str) -> dict[str, dict[str, Any]]:
         """
         Returns a dict mapping object id -> object's data dict for all records of
         the given type (table name).
         """
-        tbl = self._table(as_type)
+        tbl = self._table(type_)
         if tbl.name not in self._db.tables():
             return {}
 

@@ -103,5 +103,5 @@ def report():
 # Lightweight Offer fixture tied to the report
 @pytest.fixture
 def offer(report):
-    # keep the original parameter names (as_object) used in legacy tests
-    return as_Offer(actor="urn:uuid:test-actor", as_object=report)
+    # keep the original parameter names (object_) used in legacy tests
+    return as_Offer(actor="urn:uuid:test-actor", object_=report)

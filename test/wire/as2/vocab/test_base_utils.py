@@ -63,25 +63,25 @@ class TestAsBaseDefaultId:
 
     def test_new_object_has_uri_form_id(self):
         obj = as_Base()
-        assert obj.as_id.startswith(URN_UUID_PREFIX) or "://" in obj.as_id
+        assert obj.id_.startswith(URN_UUID_PREFIX) or "://" in obj.id_
 
     def test_new_object_id_is_not_bare_uuid(self):
         obj = as_Base()
         assert not _UUID_PATTERN.fullmatch(
-            obj.as_id
-        ), "as_id must not be a bare UUID"
+            obj.id_
+        ), "id_ must not be a bare UUID"
 
     def test_two_objects_have_different_ids(self):
         obj1 = as_Base()
         obj2 = as_Base()
-        assert obj1.as_id != obj2.as_id
+        assert obj1.id_ != obj2.id_
 
     def test_explicit_https_id_is_accepted(self):
         explicit_id = "https://example.org/objects/abc123"
-        obj = as_Base(as_id=explicit_id)
-        assert obj.as_id == explicit_id
+        obj = as_Base(id_=explicit_id)
+        assert obj.id_ == explicit_id
 
     def test_explicit_urn_uuid_id_is_accepted(self):
         explicit_id = f"urn:uuid:{uuid.uuid4()}"
-        obj = as_Base(as_id=explicit_id)
-        assert obj.as_id == explicit_id
+        obj = as_Base(id_=explicit_id)
+        assert obj.id_ == explicit_id

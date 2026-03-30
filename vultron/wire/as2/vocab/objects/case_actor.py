@@ -25,7 +25,7 @@ class CaseActor(as_Service):
     It provides an inbox/outbox for the case to manage communications related to the case.
     """
 
-    # note: CaseActor doesn't need its own as_type, the value inherited from as_Service is sufficient
+    # note: CaseActor doesn't need its own type_, the value inherited from as_Service is sufficient
 
     # attributed_to: (Actor) Case Owner
     # context: (VulnerabilityCase) The case this actor is associated with

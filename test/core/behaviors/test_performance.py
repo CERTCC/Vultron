@@ -51,22 +51,22 @@ def mock_datalayer():
     def mock_get(table, id_):
         if "report" in id_:
             return {
-                "as_id": id_,
-                "as_type": "VulnerabilityReport",
+                "id_": id_,
+                "type_": "VulnerabilityReport",
                 "name": "TEST-REPORT",
                 "content": "Test vulnerability report",
             }
         elif "offer" in id_:
             return {
-                "as_id": id_,
-                "as_type": "Offer",
+                "id_": id_,
+                "type_": "Offer",
                 "actor": "https://example.org/finder",
-                "as_object": "test-report-123",
+                "object_": "test-report-123",
             }
         elif "actor" in id_ or "Person" in table or "Organization" in table:
             return {
-                "as_id": id_,
-                "as_type": "Person",
+                "id_": id_,
+                "type_": "Person",
                 "inbox": {"items": []},
                 "outbox": {"items": []},
             }
@@ -76,20 +76,20 @@ def mock_datalayer():
     def mock_read(id_, raise_on_missing=False):
         if "report" in id_:
             return VultronReport(
-                as_id=id_,
+                id_=id_,
                 name="TEST-REPORT",
                 content="Test vulnerability report",
             )
         elif "offer" in id_:
             return VultronOffer(
-                as_id=id_,
+                id_=id_,
                 actor="https://example.org/finder",
-                as_object="test-report-123",
+                object_="test-report-123",
             )
         elif "case" in id_:
-            return VultronCase(as_id=id_, name="Test Case")
+            return VultronCase(id_=id_, name="Test Case")
         elif id_.startswith("https://example.org/"):
-            return VultronCaseActor(as_id=id_, name="Test Actor")
+            return VultronCaseActor(id_=id_, name="Test Actor")
         if raise_on_missing:
             raise ValueError(f"Object not found: {id_}")
         return None
@@ -112,12 +112,12 @@ def sample_activity():
 
     offer = VultronOffer(
         actor="https://example.org/finder",
-        as_object=report.as_id,
+        object_=report.id_,
     )
 
     return VultronAccept(
         actor="https://example.org/vendor",
-        as_object=offer.as_id,
+        object_=offer.id_,
     )
 
 

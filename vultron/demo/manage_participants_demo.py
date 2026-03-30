@@ -113,64 +113,64 @@ def _setup_case_with_vendor(
     Returns the created VulnerabilityCase.
     """
     report = VulnerabilityReport(
-        attributed_to=finder.as_id,
+        attributed_to=finder.id_,
         content="A use-after-free vulnerability in the memory allocator.",
         name="Use-After-Free in Memory Allocator",
     )
     report_offer = RmSubmitReportActivity(
-        actor=finder.as_id,
-        as_object=report,
-        to=[vendor.as_id],
+        actor=finder.id_,
+        object_=report,
+        to=[vendor.id_],
     )
-    post_to_inbox_and_wait(client, vendor.as_id, report_offer)
-    verify_object_stored(client, report.as_id)
+    post_to_inbox_and_wait(client, vendor.id_, report_offer)
+    verify_object_stored(client, report.id_)
 
-    offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
+    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
-        actor=vendor.as_id,
-        as_object=offer.as_id,
+        actor=vendor.id_,
+        object_=offer.id_,
         content="Confirmed — use-after-free via crafted allocation sequence.",
     )
-    post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
+    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     case = VulnerabilityCase(
-        attributed_to=vendor.as_id,
+        attributed_to=vendor.id_,
         name="UAF Case — Memory Allocator",
         content="Tracking the use-after-free in the memory allocator.",
     )
     create_case_activity = CreateCaseActivity(
-        actor=vendor.as_id,
-        as_object=case,
+        actor=vendor.id_,
+        object_=case,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
-    verify_object_stored(client, case.as_id)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
+    verify_object_stored(client, case.id_)
 
     vendor_participant = VendorParticipant(
-        attributed_to=vendor.as_id,
-        context=case.as_id,
+        attributed_to=vendor.id_,
+        context=case.id_,
     )
     create_vendor_participant = CreateParticipantActivity(
-        actor=vendor.as_id,
-        as_object=vendor_participant,
-        context=case.as_id,
+        actor=vendor.id_,
+        object_=vendor_participant,
+        context=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, create_vendor_participant)
+    post_to_inbox_and_wait(client, vendor.id_, create_vendor_participant)
 
     add_vendor_participant = AddParticipantToCaseActivity(
-        actor=vendor.as_id,
-        as_object=vendor_participant.as_id,
-        target=case.as_id,
+        actor=vendor.id_,
+        object_=vendor_participant.id_,
+        target=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, add_vendor_participant)
+    post_to_inbox_and_wait(client, vendor.id_, add_vendor_participant)
 
     add_report_activity = AddReportToCaseActivity(
-        actor=vendor.as_id,
-        as_object=report.as_id,
-        target=case.as_id,
+        actor=vendor.id_,
+        object_=report.id_,
+        target=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, add_report_activity)
+    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
-    log_case_state(client, case.as_id, "after setup")
+    log_case_state(client, case.id_, "after setup")
     logger.info("✓ Setup: Case initialized with vendor as sole participant")
     return case
 
@@ -207,49 +207,49 @@ def demo_manage_participants_accept(
 
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = RmInviteToCaseActivity(
-            actor=vendor.as_id,
-            as_object=coordinator.as_id,
-            target=case.as_id,
-            to=[coordinator.as_id],
+            actor=vendor.id_,
+            object_=coordinator.id_,
+            target=case.id_,
+            to=[coordinator.id_],
             content=f"Inviting you to participate in {case.name}.",
         )
         logger.info(f"Sending invite: {logfmt(invite)}")
-        post_to_inbox_and_wait(client, coordinator.as_id, invite)
+        post_to_inbox_and_wait(client, coordinator.id_, invite)
 
     with demo_step("Step 3: Coordinator accepts invitation"):
         accept = RmAcceptInviteToCaseActivity(
-            actor=coordinator.as_id,
-            as_object=invite.as_id,
-            to=[vendor.as_id],
+            actor=coordinator.id_,
+            object_=invite.id_,
+            to=[vendor.id_],
             content=f"Accepting invitation to participate in {case.name}.",
         )
         logger.info(f"Sending accept: {logfmt(accept)}")
-        post_to_inbox_and_wait(client, vendor.as_id, accept)
+        post_to_inbox_and_wait(client, vendor.id_, accept)
 
     with demo_step("Step 4: Vendor creates coordinator participant"):
         coordinator_participant = CoordinatorParticipant(
-            attributed_to=coordinator.as_id,
-            context=case.as_id,
+            attributed_to=coordinator.id_,
+            context=case.id_,
         )
         create_participant = CreateParticipantActivity(
-            actor=vendor.as_id,
-            as_object=coordinator_participant,
-            context=case.as_id,
+            actor=vendor.id_,
+            object_=coordinator_participant,
+            context=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, create_participant)
+        post_to_inbox_and_wait(client, vendor.id_, create_participant)
         with demo_check("Coordinator participant stored in data layer"):
-            verify_object_stored(client, coordinator_participant.as_id)
+            verify_object_stored(client, coordinator_participant.id_)
 
     with demo_step("Step 5: Vendor adds coordinator participant to case"):
         add_participant = AddParticipantToCaseActivity(
-            actor=vendor.as_id,
-            as_object=coordinator_participant.as_id,
-            target=case.as_id,
+            actor=vendor.id_,
+            object_=coordinator_participant.id_,
+            target=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, add_participant)
+        post_to_inbox_and_wait(client, vendor.id_, add_participant)
         with demo_check("Coordinator in case participant list"):
             updated_case = log_case_state(
-                client, case.as_id, "after AddParticipantToCaseActivity"
+                client, case.id_, "after AddParticipantToCaseActivity"
             )
             if updated_case is None:
                 raise ValueError(
@@ -258,63 +258,63 @@ def demo_manage_participants_accept(
             participant_ids = [
                 (ref_id(p) or str(p)) for p in updated_case.case_participants
             ]
-            if coordinator_participant.as_id not in participant_ids:
+            if coordinator_participant.id_ not in participant_ids:
                 raise ValueError(
-                    f"Coordinator participant '{coordinator_participant.as_id}' "
+                    f"Coordinator participant '{coordinator_participant.id_}' "
                     f"not found in case after add. Participants: {participant_ids}"
                 )
 
     with demo_step("Step 6: Coordinator creates a ParticipantStatus"):
         participant_status = ParticipantStatus(
-            context=coordinator_participant.as_id,
+            context=coordinator_participant.id_,
             rm_state=RM.ACCEPTED,
             vfd_state=CS_vfd.vfd,
-            attributed_to=coordinator.as_id,
+            attributed_to=coordinator.id_,
         )
         create_status = CreateStatusForParticipantActivity(
-            actor=coordinator.as_id,
-            as_object=participant_status,
-            target=coordinator_participant.as_id,
+            actor=coordinator.id_,
+            object_=participant_status,
+            target=coordinator_participant.id_,
         )
-        post_to_inbox_and_wait(client, coordinator.as_id, create_status)
+        post_to_inbox_and_wait(client, coordinator.id_, create_status)
         with demo_check("ParticipantStatus stored in data layer"):
-            verify_object_stored(client, participant_status.as_id)
+            verify_object_stored(client, participant_status.id_)
 
     with demo_step(
         "Step 7: Coordinator adds ParticipantStatus to their participant"
     ):
         add_status = AddStatusToParticipantActivity(
-            actor=coordinator.as_id,
-            as_object=participant_status,
-            target=coordinator_participant.as_id,
+            actor=coordinator.id_,
+            object_=participant_status,
+            target=coordinator_participant.id_,
         )
-        post_to_inbox_and_wait(client, coordinator.as_id, add_status)
+        post_to_inbox_and_wait(client, coordinator.id_, add_status)
         with demo_check("Case state after status update"):
             log_case_state(
-                client, case.as_id, "after AddStatusToParticipantActivity"
+                client, case.id_, "after AddStatusToParticipantActivity"
             )
 
     with demo_step("Step 8: Vendor removes coordinator from case"):
         remove_participant = RemoveParticipantFromCaseActivity(
-            actor=vendor.as_id,
-            as_object=coordinator_participant.as_id,
-            target=case.as_id,
+            actor=vendor.id_,
+            object_=coordinator_participant.id_,
+            target=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, remove_participant)
+        post_to_inbox_and_wait(client, vendor.id_, remove_participant)
 
     with demo_step("Step 9: Verify coordinator no longer in case"):
         with demo_check("Coordinator absent from case participant list"):
             final_case = log_case_state(
-                client, case.as_id, "after RemoveParticipantFromCaseActivity"
+                client, case.id_, "after RemoveParticipantFromCaseActivity"
             )
             if final_case is None:
                 raise ValueError("Could not retrieve case after remove")
             participant_ids = [
                 (ref_id(p) or str(p)) for p in final_case.case_participants
             ]
-            if coordinator_participant.as_id in participant_ids:
+            if coordinator_participant.id_ in participant_ids:
                 raise ValueError(
-                    f"Coordinator participant '{coordinator_participant.as_id}' "
+                    f"Coordinator participant '{coordinator_participant.id_}' "
                     f"still present after remove. Participants: {participant_ids}"
                 )
             logger.info(
@@ -352,33 +352,33 @@ def demo_manage_participants_reject(
 
     case = _setup_case_with_vendor(client, finder, vendor)
 
-    initial_case = log_case_state(client, case.as_id, "initial")
+    initial_case = log_case_state(client, case.id_, "initial")
     initial_count = len(initial_case.case_participants) if initial_case else 0
 
     with demo_step("Step 2: Vendor invites coordinator to case"):
         invite = RmInviteToCaseActivity(
-            actor=vendor.as_id,
-            as_object=coordinator.as_id,
-            target=case.as_id,
-            to=[coordinator.as_id],
+            actor=vendor.id_,
+            object_=coordinator.id_,
+            target=case.id_,
+            to=[coordinator.id_],
             content=f"Inviting you to participate in {case.name}.",
         )
         logger.info(f"Sending invite: {logfmt(invite)}")
-        post_to_inbox_and_wait(client, coordinator.as_id, invite)
+        post_to_inbox_and_wait(client, coordinator.id_, invite)
 
     with demo_step("Step 3: Coordinator rejects invitation"):
         reject = RmRejectInviteToCaseActivity(
-            actor=coordinator.as_id,
-            as_object=invite.as_id,
-            to=[vendor.as_id],
+            actor=coordinator.id_,
+            object_=invite.id_,
+            to=[vendor.id_],
             content=f"Declining invitation to participate in {case.name}.",
         )
         logger.info(f"Sending reject: {logfmt(reject)}")
-        post_to_inbox_and_wait(client, vendor.as_id, reject)
+        post_to_inbox_and_wait(client, vendor.id_, reject)
 
     with demo_step("Step 4: Verify coordinator not added as participant"):
         with demo_check("Participant count unchanged after reject"):
-            final_case = log_case_state(client, case.as_id, "after reject")
+            final_case = log_case_state(client, case.id_, "after reject")
             if final_case is None:
                 raise ValueError("Could not retrieve case after reject")
             final_count = len(final_case.case_participants)

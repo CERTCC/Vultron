@@ -81,3 +81,13 @@ in PRIORITY-200 (CA-2) via
 update this note.
 
 ---
+
+---
+
+## 2026-03-30 NAMING-1 complete
+
+All `as_`-prefixed field names have been migrated to trailing-underscore
+convention (`id_`, `type_`, `object_`, `context_`). Class names retain
+the `as_` prefix. All 1080 tests pass. `specs/code-style.md` updated to
+MUST-level policy. PRIORITY-250 is now fully complete — D5-2 and later
+PRIORITY-300 demo tasks are unblocked.

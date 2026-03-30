@@ -95,7 +95,7 @@ def update_participant_rm_state(
         p_actor_id = (
             actor_ref
             if isinstance(actor_ref, str)
-            else getattr(actor_ref, "as_id", str(actor_ref))
+            else getattr(actor_ref, "id_", str(actor_ref))
         )
         if p_actor_id == actor_id:
             if participant.participant_statuses:
@@ -201,21 +201,21 @@ def find_embargo_proposal(case_id: str, dl: DataLayer):
         c_id = (
             context
             if isinstance(context, str)
-            else getattr(context, "as_id", str(context))
+            else getattr(context, "id_", str(context))
         )
         if c_id != case_id:
             continue
-        embargo_ref = getattr(obj, "as_object", None)
+        embargo_ref = getattr(obj, "object_", None)
         if embargo_ref is None:
             continue
         embargo_id = (
             embargo_ref
             if isinstance(embargo_ref, str)
-            else getattr(embargo_ref, "as_id", None)
+            else getattr(embargo_ref, "id_", None)
         )
         if embargo_id is None:
             continue
         emb = dl.read(embargo_id)
-        if emb is not None and str(getattr(emb, "as_type", "")) == "Event":
+        if emb is not None and str(getattr(emb, "type_", "")) == "Event":
             return obj
     return None

@@ -60,7 +60,7 @@ class CreateReportReceivedUseCase:
 
         if request.report_id:
             status = VultronParticipantStatus(
-                as_id=_report_phase_status_id(
+                id_=_report_phase_status_id(
                     request.actor_id, request.report_id, RM.RECEIVED.value
                 ),
                 context=request.report_id,
@@ -70,7 +70,7 @@ class CreateReportReceivedUseCase:
             _idempotent_create(
                 self._dl,
                 "ParticipantStatus",
-                status.as_id,
+                status.id_,
                 status,
                 "ParticipantStatus (report-phase RM.RECEIVED)",
                 request.activity_id,
@@ -121,7 +121,7 @@ class SubmitReportReceivedUseCase:
 
         if request.report_id:
             status = VultronParticipantStatus(
-                as_id=_report_phase_status_id(
+                id_=_report_phase_status_id(
                     request.actor_id, request.report_id, RM.RECEIVED.value
                 ),
                 context=request.report_id,
@@ -131,7 +131,7 @@ class SubmitReportReceivedUseCase:
             _idempotent_create(
                 self._dl,
                 "ParticipantStatus",
-                status.as_id,
+                status.id_,
                 status,
                 "ParticipantStatus (report-phase RM.RECEIVED)",
                 request.activity_id,
@@ -230,7 +230,7 @@ class InvalidateReportReceivedUseCase:
 
         if request.report_id:
             status = VultronParticipantStatus(
-                as_id=_report_phase_status_id(
+                id_=_report_phase_status_id(
                     actor_id, request.report_id, RM.INVALID.value
                 ),
                 context=request.report_id,
@@ -240,7 +240,7 @@ class InvalidateReportReceivedUseCase:
             _idempotent_create(
                 self._dl,
                 "ParticipantStatus",
-                status.as_id,
+                status.id_,
                 status,
                 "ParticipantStatus (report-phase RM.INVALID)",
                 request.activity_id,
@@ -277,7 +277,7 @@ class AckReportReceivedUseCase:
         # The report is nested inside the offer: inner_object_id is the report.
         if request.report_id:
             status = VultronParticipantStatus(
-                as_id=_report_phase_status_id(
+                id_=_report_phase_status_id(
                     request.actor_id,
                     request.report_id,
                     RM.RECEIVED.value,
@@ -289,7 +289,7 @@ class AckReportReceivedUseCase:
             _idempotent_create(
                 self._dl,
                 "ParticipantStatus",
-                status.as_id,
+                status.id_,
                 status,
                 "ParticipantStatus (report-phase RM.RECEIVED)",
                 request.activity_id,
@@ -333,7 +333,7 @@ class CloseReportReceivedUseCase:
 
         if request.report_id:
             status = VultronParticipantStatus(
-                as_id=_report_phase_status_id(
+                id_=_report_phase_status_id(
                     actor_id, request.report_id, RM.CLOSED.value
                 ),
                 context=request.report_id,
@@ -343,7 +343,7 @@ class CloseReportReceivedUseCase:
             _idempotent_create(
                 self._dl,
                 "ParticipantStatus",
-                status.as_id,
+                status.id_,
                 status,
                 "ParticipantStatus (report-phase RM.CLOSED)",
                 request.activity_id,

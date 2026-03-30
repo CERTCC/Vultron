@@ -203,7 +203,7 @@ class TransitionRMtoValid(DataLayerAction):
 
         try:
             status = VultronParticipantStatus(
-                as_id=_report_phase_status_id(
+                id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.VALID.value
                 ),
                 context=self.report_id,
@@ -213,7 +213,7 @@ class TransitionRMtoValid(DataLayerAction):
             _idempotent_create(
                 self.datalayer,
                 "ParticipantStatus",
-                status.as_id,
+                status.id_,
                 status,
                 "ParticipantStatus (report-phase RM.VALID)",
             )
@@ -269,7 +269,7 @@ class TransitionRMtoInvalid(DataLayerAction):
 
         try:
             status = VultronParticipantStatus(
-                as_id=_report_phase_status_id(
+                id_=_report_phase_status_id(
                     self.actor_id, self.report_id, RM.INVALID.value
                 ),
                 context=self.report_id,
@@ -279,7 +279,7 @@ class TransitionRMtoInvalid(DataLayerAction):
             _idempotent_create(
                 self.datalayer,
                 "ParticipantStatus",
-                status.as_id,
+                status.id_,
                 status,
                 "ParticipantStatus (report-phase RM.INVALID)",
             )
@@ -345,7 +345,7 @@ class CreateCaseNode(DataLayerAction):
                 return Status.FAILURE
 
             # Create VulnerabilityCase domain object
-            report_id_ref = report_obj.as_id
+            report_id_ref = report_obj.id_
             case = VultronCase(
                 name=f"Case for Report {self.report_id}",
                 vulnerability_reports=[report_id_ref],
@@ -356,19 +356,19 @@ class CreateCaseNode(DataLayerAction):
             try:
                 self.datalayer.create(case)
                 self.logger.info(
-                    f"{self.name}: Created VulnerabilityCase {case.as_id}: {case.name}"
+                    f"{self.name}: Created VulnerabilityCase {case.id_}: {case.name}"
                 )
             except ValueError as e:
                 # Case already exists (idempotency)
                 self.logger.warning(
-                    f"{self.name}: VulnerabilityCase {case.as_id} already exists: {e}"
+                    f"{self.name}: VulnerabilityCase {case.id_} already exists: {e}"
                 )
 
             # Store case_id in blackboard for CreateCaseActivity node
             self.blackboard.register_key(
                 key="case_id", access=py_trees.common.Access.WRITE
             )
-            self.blackboard.case_id = case.as_id
+            self.blackboard.case_id = case.id_
 
             return Status.SUCCESS
 
@@ -454,10 +454,10 @@ class CreateCaseActivity(DataLayerAction):
                     for item in x:
                         if isinstance(item, str):
                             addressees.append(item)
-                        elif hasattr(item, "as_id"):
-                            addressees.append(item.as_id)
-                elif hasattr(x, "as_id"):
-                    addressees.append(x.as_id)
+                        elif hasattr(item, "id_"):
+                            addressees.append(item.id_)
+                elif hasattr(x, "id_"):
+                    addressees.append(x.id_)
 
             # Unique addressees
             addressees = list(set(addressees))
@@ -467,25 +467,25 @@ class CreateCaseActivity(DataLayerAction):
 
             # Create CreateCaseActivity activity domain object
             create_case_activity = VultronCreateCaseActivity(
-                actor=self.actor_id, as_object=case_id
+                actor=self.actor_id, object_=case_id
             )
 
             # Store activity in DataLayer
             try:
                 self.datalayer.create(create_case_activity)
                 self.logger.info(
-                    f"{self.name}: Created CreateCaseActivity activity: {create_case_activity.as_id}"
+                    f"{self.name}: Created CreateCaseActivity activity: {create_case_activity.id_}"
                 )
             except ValueError as e:
                 self.logger.warning(
-                    f"{self.name}: CreateCaseActivity activity {create_case_activity.as_id} already exists: {e}"
+                    f"{self.name}: CreateCaseActivity activity {create_case_activity.id_} already exists: {e}"
                 )
 
             # Store activity_id in blackboard for UpdateActorOutbox node
             self.blackboard.register_key(
                 key="activity_id", access=py_trees.common.Access.WRITE
             )
-            self.blackboard.activity_id = create_case_activity.as_id
+            self.blackboard.activity_id = create_case_activity.id_
 
             return Status.SUCCESS
 
@@ -719,7 +719,7 @@ class CheckParticipantExists(DataLayerCondition):
                 p_actor_id = (
                     actor_ref
                     if isinstance(actor_ref, str)
-                    else getattr(actor_ref, "as_id", str(actor_ref))
+                    else getattr(actor_ref, "id_", str(actor_ref))
                 )
                 if p_actor_id == self.actor_id:
                     self.logger.debug(

@@ -76,17 +76,17 @@ def _resolve_offer_and_report(offer_id: str, dl: DataLayer):
 
     try:
         offer = rehydrate(offer_raw, dl=dl)
-        offer_object = getattr(offer, "as_object", None)
+        offer_object = getattr(offer, "object_", None)
         if offer_object is None:
             raise VultronValidationError("Offer is missing object reference.")
         report = rehydrate(offer_object, dl=dl)
     except (ValueError, KeyError, AttributeError) as e:
         raise VultronValidationError(str(e)) from e
 
-    if getattr(report, "as_type", None) != "VulnerabilityReport":
+    if getattr(report, "type_", None) != "VulnerabilityReport":
         raise VultronValidationError(
             f"Expected VulnerabilityReport, got "
-            f"{getattr(report, 'as_type', type(report).__name__)}."
+            f"{getattr(report, 'type_', type(report).__name__)}."
         )
 
     return offer, report
@@ -109,11 +109,11 @@ class SvcValidateReportUseCase:
         dl = self._dl
 
         actor = resolve_actor(actor_id, dl)
-        actor_id = actor.as_id
+        actor_id = actor.id_
 
         offer, report = _resolve_offer_and_report(offer_id, dl)
-        report_id = report.as_id
-        offer_id = offer.as_id
+        report_id = report.id_
+        offer_id = offer.id_
 
         before = outbox_ids(actor)
 
@@ -160,13 +160,13 @@ class SvcInvalidateReportUseCase:
         dl = self._dl
 
         actor = resolve_actor(actor_id, dl)
-        actor_id = actor.as_id
+        actor_id = actor.id_
 
         offer, report = _resolve_offer_and_report(offer_id, dl)
 
         invalidate_activity = RmInvalidateReportActivity(
             actor=actor_id,
-            as_object=offer.as_id,
+            object_=offer.id_,
         )
 
         try:
@@ -174,32 +174,32 @@ class SvcInvalidateReportUseCase:
         except ValueError:
             logger.warning(
                 "InvalidateReport activity '%s' already exists",
-                invalidate_activity.as_id,
+                invalidate_activity.id_,
             )
 
         set_status_invalidate = VultronParticipantStatus(
-            as_id=_report_phase_status_id(
-                actor_id, report.as_id, RM.INVALID.value
+            id_=_report_phase_status_id(
+                actor_id, report.id_, RM.INVALID.value
             ),
-            context=report.as_id,
+            context=report.id_,
             attributed_to=actor_id,
             rm_state=RM.INVALID,
         )
         _idempotent_create(
             dl,
             "ParticipantStatus",
-            set_status_invalidate.as_id,
+            set_status_invalidate.id_,
             set_status_invalidate,
             "ParticipantStatus (report-phase RM.INVALID)",
         )
 
-        add_activity_to_outbox(actor_id, invalidate_activity.as_id, dl)
+        add_activity_to_outbox(actor_id, invalidate_activity.id_, dl)
 
         logger.info(
             "Actor '%s' invalidated offer '%s' (report '%s')",
             actor_id,
-            offer.as_id,
-            report.as_id,
+            offer.id_,
+            report.id_,
         )
 
         activity = invalidate_activity.model_dump(
@@ -225,13 +225,13 @@ class SvcRejectReportUseCase:
         dl = self._dl
 
         actor = resolve_actor(actor_id, dl)
-        actor_id = actor.as_id
+        actor_id = actor.id_
 
         offer, report = _resolve_offer_and_report(offer_id, dl)
 
         reject_activity = RmCloseReportActivity(
             actor=actor_id,
-            as_object=offer.as_id,
+            object_=offer.id_,
         )
 
         try:
@@ -239,32 +239,30 @@ class SvcRejectReportUseCase:
         except ValueError:
             logger.warning(
                 "CloseReport activity '%s' already exists",
-                reject_activity.as_id,
+                reject_activity.id_,
             )
 
         set_status_reject = VultronParticipantStatus(
-            as_id=_report_phase_status_id(
-                actor_id, report.as_id, RM.CLOSED.value
-            ),
-            context=report.as_id,
+            id_=_report_phase_status_id(actor_id, report.id_, RM.CLOSED.value),
+            context=report.id_,
             attributed_to=actor_id,
             rm_state=RM.CLOSED,
         )
         _idempotent_create(
             dl,
             "ParticipantStatus",
-            set_status_reject.as_id,
+            set_status_reject.id_,
             set_status_reject,
             "ParticipantStatus (report-phase RM.CLOSED)",
         )
 
-        add_activity_to_outbox(actor_id, reject_activity.as_id, dl)
+        add_activity_to_outbox(actor_id, reject_activity.id_, dl)
 
         logger.info(
             "Actor '%s' hard-closed offer '%s' (report '%s'); note: %s",
             actor_id,
-            offer.as_id,
-            report.as_id,
+            offer.id_,
+            report.id_,
             note,
         )
 
@@ -289,25 +287,25 @@ class SvcCloseReportUseCase:
         dl = self._dl
 
         actor = resolve_actor(actor_id, dl)
-        actor_id = actor.as_id
+        actor_id = actor.id_
 
         offer, report = _resolve_offer_and_report(offer_id, dl)
 
         closed_id = _report_phase_status_id(
-            actor_id, report.as_id, RM.CLOSED.value
+            actor_id, report.id_, RM.CLOSED.value
         )
         if dl.get("ParticipantStatus", closed_id) is not None:
             logger.warning(
                 "Invalid RM state transition: report '%s' is already CLOSED.",
-                report.as_id,
+                report.id_,
             )
             raise VultronInvalidStateTransitionError(
-                f"Report '{report.as_id}' is already CLOSED."
+                f"Report '{report.id_}' is already CLOSED."
             )
 
         close_activity = RmCloseReportActivity(
             actor=actor_id,
-            as_object=offer.as_id,
+            object_=offer.id_,
         )
 
         try:
@@ -315,30 +313,30 @@ class SvcCloseReportUseCase:
         except ValueError:
             logger.warning(
                 "CloseReport activity '%s' already exists",
-                close_activity.as_id,
+                close_activity.id_,
             )
 
         set_status_close = VultronParticipantStatus(
-            as_id=closed_id,
-            context=report.as_id,
+            id_=closed_id,
+            context=report.id_,
             attributed_to=actor_id,
             rm_state=RM.CLOSED,
         )
         _idempotent_create(
             dl,
             "ParticipantStatus",
-            set_status_close.as_id,
+            set_status_close.id_,
             set_status_close,
             "ParticipantStatus (report-phase RM.CLOSED)",
         )
 
-        add_activity_to_outbox(actor_id, close_activity.as_id, dl)
+        add_activity_to_outbox(actor_id, close_activity.id_, dl)
 
         logger.info(
             "Actor '%s' closed offer '%s' (report '%s') via RM lifecycle; note: %s",
             actor_id,
-            offer.as_id,
-            report.as_id,
+            offer.id_,
+            report.id_,
             note,
         )
 

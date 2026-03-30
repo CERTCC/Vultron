@@ -23,7 +23,7 @@ def test_find_matching_semantics_returns_unknown_for_unmatched_activity():
     actor = as_Actor(name="test-actor")
     activity = as_Create(
         actor="https://example.org/alice",
-        as_object=actor,
+        object_=actor,
     )
     result = find_matching_semantics(activity)
     assert result == MessageSemantics.UNKNOWN
@@ -40,7 +40,7 @@ def test_find_matching_semantics_returns_correct_semantics_for_create_report():
     report = VulnerabilityReport(name="VR-001", content="test report")
     activity = as_Create(
         actor="https://example.org/finder",
-        as_object=report,
+        object_=report,
     )
     result = find_matching_semantics(activity)
     assert result == MessageSemantics.CREATE_REPORT
@@ -68,7 +68,7 @@ def test_activity_pattern_match_returns_false_for_wrong_activity_type():
     pattern = ActivityPattern(activity_=TAtype.ADD, object_=AOtype.NOTE)
     activity = as_Create(
         actor="https://example.org/alice",
-        as_object="https://example.org/notes/1",
+        object_="https://example.org/notes/1",
     )
     assert not pattern.match(activity)
 
@@ -97,7 +97,7 @@ def test_extract_intent_report_pass_through_fields():
         published=now,
         updated=now,
     )
-    activity = as_Create(actor="https://example.org/alice", as_object=report)
+    activity = as_Create(actor="https://example.org/alice", object_=report)
     event = extract_intent(activity)
 
     r = cast(Any, event).report
@@ -125,7 +125,7 @@ def test_extract_intent_case_pass_through_fields():
         published=now,
         updated=now,
     )
-    activity = as_Create(actor="https://example.org/alice", as_object=case)
+    activity = as_Create(actor="https://example.org/alice", object_=case)
     event = extract_intent(activity)
 
     c = cast(Any, event).case
@@ -150,7 +150,7 @@ def test_extract_intent_embargo_pass_through_fields():
     # CreateEmbargoEvent pattern: Create + EVENT + context=VULNERABILITY_CASE
     activity = as_Create(
         actor="https://example.org/alice",
-        as_object=embargo,
+        object_=embargo,
         context="https://example.org/cases/1",
     )
     event = extract_intent(activity)
@@ -176,7 +176,7 @@ def test_extract_intent_note_pass_through_fields():
         attributed_to="https://example.org/alice",
         context="https://example.org/cases/1",
     )
-    activity = as_Create(actor="https://example.org/alice", as_object=note)
+    activity = as_Create(actor="https://example.org/alice", object_=note)
     event = extract_intent(activity)
 
     n = cast(Any, event).note
@@ -197,7 +197,7 @@ def test_extract_intent_activity_origin_field():
     report = VulnerabilityReport(name="VR-001", content="test")
     activity = as_Create(
         actor="https://example.org/alice",
-        as_object=report,
+        object_=report,
         origin="https://example.org/cases/original",
     )
     event = extract_intent(activity)
@@ -224,7 +224,7 @@ def test_extract_intent_participant_case_roles():
     # CreateCaseParticipant pattern: Create + CASE_PARTICIPANT + context=VULNERABILITY_CASE
     activity = as_Create(
         actor="https://example.org/alice",
-        as_object=participant,
+        object_=participant,
         context="https://example.org/cases/1",
     )
     event = extract_intent(activity)
@@ -245,7 +245,7 @@ def test_extract_intent_case_status_name():
     # CreateCaseStatusActivity pattern: Create + CASE_STATUS + context=VULNERABILITY_CASE
     activity = as_Create(
         actor="https://example.org/alice",
-        as_object=cs,
+        object_=cs,
         context="https://example.org/cases/1",
     )
     event = extract_intent(activity)
@@ -269,7 +269,7 @@ def test_extract_intent_participant_status_vfd_state():
     )
     activity = as_Create(
         actor="https://example.org/alice",
-        as_object=ps,
+        object_=ps,
     )
     event = extract_intent(activity)
 

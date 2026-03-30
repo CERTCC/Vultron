@@ -50,12 +50,12 @@ def test_get_actors_list_returns_all_actors(client_actors, created_actors):
 
 def test_get_actor_by_id_returns_actor_object(client_actors, created_actors):
     for actor in created_actors:
-        resp = client_actors.get(f"/actors/{actor.as_id}")
+        resp = client_actors.get(f"/actors/{actor.id_}")
         assert resp.status_code == status.HTTP_200_OK
         data = resp.json()
         assert isinstance(data, dict)
         assert "id" in data
-        assert data["id"].endswith(actor.as_id)
+        assert data["id"].endswith(actor.id_)
 
 
 def test_get_actor_not_found_returns_404(client_actors):
@@ -67,7 +67,7 @@ def test_get_actor_inbox_returns_mailbox_structure(
     client_actors, created_actors
 ):
     for actor in created_actors:
-        resp = client_actors.get(f"/actors/{actor.as_id}/inbox")
+        resp = client_actors.get(f"/actors/{actor.id_}/inbox")
         assert resp.status_code == status.HTTP_200_OK
         data = resp.json()
         assert isinstance(data, dict)
@@ -78,11 +78,9 @@ def test_get_actor_inbox_returns_mailbox_structure(
 def test_post_activity_to_actor_inbox_accepted(client_actors, created_actors):
     for actor in created_actors:
         note = as_Note(content="This is a test note.")
-        activity = as_Create(as_object=note, actor=actor.as_id)
+        activity = as_Create(object_=note, actor=actor.id_)
         payload = jsonable_encoder(activity, exclude_none=True)
-        resp = client_actors.post(
-            f"/actors/{actor.as_id}/inbox/", json=payload
-        )
+        resp = client_actors.post(f"/actors/{actor.id_}/inbox/", json=payload)
         assert resp.status_code == status.HTTP_202_ACCEPTED
 
 
@@ -91,12 +89,10 @@ def test_post_non_activity_to_actor_inbox_returns_422(
 ):
     for actor in created_actors:
         note = as_Note(
-            as_id="urn:uuid:test-note", content="This is a test note."
+            id_="urn:uuid:test-note", content="This is a test note."
         )
         payload = jsonable_encoder(note, exclude_none=True)
-        resp = client_actors.post(
-            f"/actors/{actor.as_id}/inbox/", json=payload
-        )
+        resp = client_actors.post(f"/actors/{actor.id_}/inbox/", json=payload)
         assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
 
@@ -104,11 +100,11 @@ def test_get_actor_profile_returns_discovery_fields(
     client_actors, created_actors
 ):
     for actor in created_actors:
-        resp = client_actors.get(f"/actors/{actor.as_id}/profile")
+        resp = client_actors.get(f"/actors/{actor.id_}/profile")
         assert resp.status_code == status.HTTP_200_OK
         data = resp.json()
         assert "id" in data
-        assert data["id"].endswith(actor.as_id)
+        assert data["id"].endswith(actor.id_)
         assert "type" in data
         assert "inbox" in data
         assert "outbox" in data
@@ -145,7 +141,7 @@ def test_get_actors_does_not_log_raw_records_at_info_level(
 def _seed_action_rules_data(dl):
     """Insert a minimal valid VulnerabilityCase / CaseParticipant pair."""
     case = VulnerabilityCase(
-        as_id=_HTTP_CASE_ID,
+        id_=_HTTP_CASE_ID,
         name="Test Case",
         actor_participant_index={_HTTP_ACTOR_ID: _HTTP_PARTICIPANT_ID},
         case_statuses=[CaseStatus(em_state=EM.ACTIVE, pxa_state=CS_pxa.Pxa)],
@@ -153,7 +149,7 @@ def _seed_action_rules_data(dl):
     dl.create(case)
 
     participant = CaseParticipant(
-        as_id=_HTTP_PARTICIPANT_ID,
+        id_=_HTTP_PARTICIPANT_ID,
         attributed_to=_HTTP_ACTOR_ID,
         context=_HTTP_CASE_ID,
         case_roles=[CVDRole.VENDOR],

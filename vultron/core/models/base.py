@@ -46,8 +46,8 @@ UriString = Annotated[NonEmptyString, AfterValidator(_valid_uri)]
 
 class VultronBase(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    as_id: NonEmptyString = Field(default_factory=_new_urn)
-    as_type: NonEmptyString | None = Field(
+    id_: NonEmptyString = Field(default_factory=_new_urn)
+    type_: NonEmptyString | None = Field(
         default=None,
         validation_alias="type",
         serialization_alias="type",
@@ -60,7 +60,7 @@ class VultronBase(BaseModel):
 class VultronObject(VultronBase):
     """Base class for core domain object models.
 
-    Captures the common ``as_id``, ``as_type``, and ``name`` fields shared by
+    Captures the common ``id_``, ``type_``, and ``name`` fields shared by
     all domain object types, mirroring the ``as_Base``/``as_Object`` class
     hierarchy in the wire layer.  Concrete domain object classes inherit from
     this base rather than directly from ``BaseModel``.

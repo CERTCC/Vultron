@@ -56,7 +56,7 @@ def actor_id():
 def report(datalayer, actor_id):
     """Create test VulnerabilityReport."""
     report_obj = VultronReport(
-        as_id="https://example.org/reports/CVE-2024-001",
+        id_="https://example.org/reports/CVE-2024-001",
         name="Test Vulnerability Report",
         content="Test vulnerability description",
     )
@@ -68,9 +68,9 @@ def report(datalayer, actor_id):
 def offer(datalayer, report, actor_id):
     """Create test Offer activity."""
     offer_obj = VultronOffer(
-        as_id="https://example.org/activities/offer-123",
+        id_="https://example.org/activities/offer-123",
         actor=actor_id,
-        as_object=report.as_id,
+        object_=report.id_,
         target=actor_id,
     )
     datalayer.create(offer_obj)
@@ -81,7 +81,7 @@ def offer(datalayer, report, actor_id):
 def actor(datalayer, actor_id):
     """Create test actor."""
     actor_obj = VultronCaseActor(
-        as_id=actor_id,
+        id_=actor_id,
         name="Vendor Co",
     )
     datalayer.create(actor_obj)
@@ -102,8 +102,8 @@ def bridge(datalayer):
 def test_create_validate_report_tree_returns_selector(report, offer):
     """Tree factory returns Selector root node."""
     tree = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
 
     assert tree is not None
@@ -116,8 +116,8 @@ def test_create_validate_report_tree_returns_selector(report, offer):
 def test_tree_structure_matches_spec(report, offer):
     """Tree structure matches expected hierarchy from spec."""
     tree = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
 
     # Root: Selector with 2 children
@@ -159,8 +159,8 @@ def test_tree_execution_success_new_report(
 ):
     """Tree executes successfully for new report (RECEIVED state)."""
     tree = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
 
     # Act: Execute tree
@@ -175,7 +175,7 @@ def test_tree_execution_success_new_report(
     assert result.errors is None or result.errors == []
 
     # Verify side effects: Report status updated to VALID in DataLayer
-    valid_id = _report_phase_status_id(actor_id, report.as_id, RM.VALID.value)
+    valid_id = _report_phase_status_id(actor_id, report.id_, RM.VALID.value)
     assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
@@ -185,16 +185,16 @@ def test_tree_execution_early_exit_already_valid(
     """Tree short-circuits if report already in VALID state."""
     # Arrange: Set report to VALID state in DataLayer
     valid_status = VultronParticipantStatus(
-        as_id=_report_phase_status_id(actor_id, report.as_id, RM.VALID.value),
-        context=report.as_id,
+        id_=_report_phase_status_id(actor_id, report.id_, RM.VALID.value),
+        context=report.id_,
         attributed_to=actor_id,
         rm_state=RM.VALID,
     )
     datalayer.create(valid_status)
 
     tree = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
 
     # Act: Execute tree
@@ -218,18 +218,16 @@ def test_tree_execution_invalid_state_transitions_to_valid(
     """Tree can validate report from INVALID state."""
     # Arrange: Set report to INVALID state in DataLayer (no VALID record present)
     invalid_status = VultronParticipantStatus(
-        as_id=_report_phase_status_id(
-            actor_id, report.as_id, RM.INVALID.value
-        ),
-        context=report.as_id,
+        id_=_report_phase_status_id(actor_id, report.id_, RM.INVALID.value),
+        context=report.id_,
         attributed_to=actor_id,
         rm_state=RM.INVALID,
     )
     datalayer.create(invalid_status)
 
     tree = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
 
     # Act: Execute tree
@@ -243,7 +241,7 @@ def test_tree_execution_invalid_state_transitions_to_valid(
     assert result.status == Status.SUCCESS
 
     # Verify side effects: Report status updated to VALID in DataLayer
-    valid_id = _report_phase_status_id(actor_id, report.as_id, RM.VALID.value)
+    valid_id = _report_phase_status_id(actor_id, report.id_, RM.VALID.value)
     assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
@@ -255,8 +253,8 @@ def test_tree_execution_no_prior_status_succeeds(
     # This simulates first-time validation
 
     tree = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
 
     # Act: Execute tree
@@ -270,7 +268,7 @@ def test_tree_execution_no_prior_status_succeeds(
     assert result.status == Status.SUCCESS
 
     # Verify side effects: Report status updated to VALID in DataLayer
-    valid_id = _report_phase_status_id(actor_id, report.as_id, RM.VALID.value)
+    valid_id = _report_phase_status_id(actor_id, report.id_, RM.VALID.value)
     assert datalayer.get("ParticipantStatus", valid_id) is not None
 
 
@@ -279,8 +277,8 @@ def test_tree_execution_policy_stubs_always_accept(
 ):
     """Policy nodes (stubs) always return SUCCESS in Phase 1."""
     tree = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
 
     # Act: Execute tree
@@ -304,8 +302,8 @@ def test_tree_execution_missing_datalayer_fails(
 ):
     """Tree fails gracefully if DataLayer not in blackboard."""
     tree = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
 
     # Act: Execute without DataLayer in blackboard
@@ -324,8 +322,8 @@ def test_tree_execution_missing_actor_id_fails(
 ):
     """Tree fails gracefully if actor_id not in blackboard."""
     tree = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
 
     # Act: Execute without actor_id in blackboard
@@ -351,7 +349,7 @@ def test_tree_execution_missing_report_fails(
 
     tree = create_validate_report_tree(
         report_id=fake_report_id,
-        offer_id=offer.as_id,
+        offer_id=offer.id_,
     )
 
     # Act: Execute tree
@@ -375,13 +373,13 @@ def test_tree_execution_idempotency(
 ):
     """Multiple executions produce same result (idempotent)."""
     tree1 = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
 
     tree2 = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
 
     # Act: Execute tree twice
@@ -414,13 +412,13 @@ def test_tree_execution_actor_isolation(
 
     # Create both actors
     for aid in [actor_a, actor_b]:
-        actor_obj = VultronCaseActor(as_id=aid, name=f"Actor {aid}")
+        actor_obj = VultronCaseActor(id_=aid, name=f"Actor {aid}")
         datalayer.create(actor_obj)
 
     # Execute for actor A
     tree_a = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
     result_a = bridge.execute_with_setup(
         tree=tree_a,
@@ -430,8 +428,8 @@ def test_tree_execution_actor_isolation(
 
     # Execute for actor B
     tree_b = create_validate_report_tree(
-        report_id=report.as_id,
-        offer_id=offer.as_id,
+        report_id=report.id_,
+        offer_id=offer.id_,
     )
     result_b = bridge.execute_with_setup(
         tree=tree_b,
@@ -444,5 +442,5 @@ def test_tree_execution_actor_isolation(
     assert result_b.status == Status.SUCCESS
 
     # Verify: actor_a should have VALID status in DataLayer
-    valid_id_a = _report_phase_status_id(actor_a, report.as_id, RM.VALID.value)
+    valid_id_a = _report_phase_status_id(actor_a, report.id_, RM.VALID.value)
     assert datalayer.get("ParticipantStatus", valid_id_a) is not None

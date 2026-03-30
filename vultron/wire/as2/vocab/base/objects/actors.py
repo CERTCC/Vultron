@@ -51,16 +51,16 @@ class as_Actor(as_Object):
 
     @model_validator(mode="after")
     def set_collections(self):
-        actor_id = self.as_id
+        actor_id = self.id_
 
         # Only create inbox/outbox if they don't already exist
         if self.inbox is None:
             self.inbox = as_OrderedCollection(
-                as_id=f"{actor_id}/inbox", as_type="OrderedCollection"
+                id_=f"{actor_id}/inbox", type_="OrderedCollection"
             )
         if self.outbox is None:
             self.outbox = as_OrderedCollection(
-                as_id=f"{actor_id}/outbox", as_type="OrderedCollection"
+                id_=f"{actor_id}/outbox", type_="OrderedCollection"
             )
 
         return self
@@ -75,7 +75,7 @@ class as_Group(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-group>
     """
 
-    as_type: A_type = Field(
+    type_: A_type = Field(
         default=A_type.GROUP,
         validation_alias="type",
         serialization_alias="type",
@@ -91,7 +91,7 @@ class as_Organization(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-organization>
     """
 
-    as_type: A_type = Field(
+    type_: A_type = Field(
         default=A_type.ORGANIZATION,
         validation_alias="type",
         serialization_alias="type",
@@ -107,7 +107,7 @@ class as_Application(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-application>
     """
 
-    as_type: A_type = Field(
+    type_: A_type = Field(
         default=A_type.APPLICATION,
         validation_alias="type",
         serialization_alias="type",
@@ -124,7 +124,7 @@ class as_Service(as_Actor):
     A service is a kind of actor that represents a non-human actor.
     """
 
-    as_type: A_type = Field(
+    type_: A_type = Field(
         default=A_type.SERVICE,
         validation_alias="type",
         serialization_alias="type",
@@ -140,7 +140,7 @@ class as_Person(as_Actor):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-person>
     """
 
-    as_type: A_type = Field(
+    type_: A_type = Field(
         default=A_type.PERSON,
         validation_alias="type",
         serialization_alias="type",

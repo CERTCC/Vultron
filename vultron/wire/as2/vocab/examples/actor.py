@@ -30,11 +30,11 @@ def recommend_actor() -> RecommendActorActivity:
     _vendor = vendor()
     _coordinator = _COORDINATOR
     _activity = RecommendActorActivity(
-        actor=_finder.as_id,
-        as_object=_coordinator.as_id,
-        context=_case.as_id,
-        target=_case.as_id,
-        to=_vendor.as_id,
+        actor=_finder.id_,
+        object_=_coordinator.id_,
+        context=_case.id_,
+        target=_case.id_,
+        to=_vendor.id_,
         content=f"I'm recommending we add {_coordinator.name} to the case.",
     )
     return _activity
@@ -47,11 +47,11 @@ def accept_actor_recommendation() -> AcceptActorRecommendationActivity:
     _case = case()
     _recommendation = recommend_actor()
     _activity = AcceptActorRecommendationActivity(
-        actor=_vendor.as_id,
-        as_object=_recommendation,
-        context=_case.as_id,
-        target=_case.as_id,
-        to=_finder.as_id,
+        actor=_vendor.id_,
+        object_=_recommendation,
+        context=_case.id_,
+        target=_case.id_,
+        to=_finder.id_,
         content=f"We're accepting your recommendation to add {_coordinator.name} to the case. "
         "We'll reach out to them shortly.",
     )
@@ -65,11 +65,11 @@ def reject_actor_recommendation() -> RejectActorRecommendationActivity:
     _case = case()
     _recommendation = recommend_actor()
     _activity = RejectActorRecommendationActivity(
-        actor=_vendor.as_id,
-        as_object=_recommendation,
-        context=_case.as_id,
-        target=_case.as_id,
-        to=_finder.as_id,
+        actor=_vendor.id_,
+        object_=_recommendation,
+        context=_case.id_,
+        target=_case.id_,
+        to=_finder.id_,
         content=f"We're declining your recommendation to add {_coordinator.name} to the case. Thanks anyway.",
     )
     return _activity

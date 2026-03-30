@@ -132,18 +132,14 @@ def extract_id_segment(url: str) -> str:
   - E.g., separate handlers registry, handler implementations, and handler
     utilities into distinct modules
 
-## `as_` Field Prefix Policy (SHOULD)
+## `as_` Field Prefix Policy (MUST)
 
-- `CS-07-001` Use the `as_` prefix on Pydantic fields **only in the wire layer**
-  (`vultron/wire/as2/vocab/`) where it is part of the established AS2
-  vocabulary convention
-- `CS-07-002` In **core** (`vultron/core/`) domain model classes, do NOT use
-  the `as_` prefix
-  - The `as_` prefix on core fields is a relic of the original wire/core
-    blending and SHOULD be removed as core models are refactored
-  - For fields whose plain name collides with a Python reserved word (e.g.,
-    `object`, `type`, `id`), use a trailing underscore: `object_`, `type_`,
-    `id_`
+- `CS-07-001` MUST NOT use the `as_` prefix on Pydantic **field names**
+  anywhere in the codebase. Class names (e.g., `as_Activity`, `as_Object`)
+  retain the `as_` prefix as an ActivityStreams provenance marker.
+- `CS-07-002` For fields whose plain name collides with a Python builtin or
+  reserved word (e.g., `object`, `type`, `id`, `context`), use a trailing
+  underscore: `object_`, `type_`, `id_`, `context_`
   - Define a Pydantic field alias so that serialized JSON uses the clean
     name without the trailing underscore:
 
@@ -151,25 +147,13 @@ def extract_id_segment(url: str) -> str:
     object_: str = Field(alias="object")
     ```
 
-  - **Rationale**: The `as_` prefix leaks wire-format concerns into the
-    domain layer. Trailing underscore + alias is the idiomatic Python pattern
-    for reserved-word field names; it keeps core models readable and decoupled
-    from AS2 naming conventions.
-- `CS-07-003` In the wire layer, field names that conflict with Python reserved
-  keywords MUST use trailing-underscore convention (e.g., `object_`, `type_`)
-  rather than the `as_`-prefix convention for **new code**. The `as_` prefix
-  is retained for **class names** (e.g., `as_Activity`, `as_Object`) where it
-  helpfully signals ActivityStreams provenance, but MUST NOT be applied to
-  field names.
-  - **Note:** This is a forward-looking standard for new wire-layer code.
-    Existing `as_`-prefixed field names in the wire layer will be migrated in a
-    separate task (see `plan/IMPLEMENTATION_PLAN.md` NAMING-1). Do not
-    introduce new `as_`-prefixed field names in the wire layer; use the
-    trailing-underscore convention instead.
-  - **Rationale:** Unifying field naming across all layers on trailing-underscore
-    removes the confusion between `as_object` (wire) and `object_` (core) for
-    the same concept. Class names retain `as_` because it is unambiguous — a
-    class name does not collide with Python keywords.
+  - **Rationale**: Trailing underscore + alias is the idiomatic Python
+    pattern (PEP 8) for builtin/reserved-word field names. It keeps models
+    readable and decoupled from AS2 naming conventions across all layers.
+- `CS-07-003` (MUST) Do not introduce new `as_`-prefixed field names anywhere.
+  The migration of existing `as_`-prefixed field names was completed in
+  NAMING-1 (2026-03-30). All wire-layer and core-layer field names now use
+  the trailing-underscore convention where needed. Class names retain `as_`.
 
 ## Optional Field Non-Emptiness (MUST)
 

@@ -49,9 +49,9 @@ class as_Collection(as_Object):
         return len(self.items)
 
     def append(self, item: as_ObjectRef):
-        # if not self._duplicates and item.as_id not in self._ids:
+        # if not self._duplicates and item.id_ not in self._ids:
         self.items.append(item)
-        # self._ids.add(item.as_id)
+        # self._ids.add(item.id_)
 
 
 as_CollectionRef: TypeAlias = ActivityStreamRef[as_Collection]

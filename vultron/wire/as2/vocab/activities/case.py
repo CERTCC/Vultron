@@ -50,11 +50,11 @@ from vultron.wire.as2.vocab.objects.vulnerability_report import (
 
 class AddReportToCaseActivity(as_Add):
     """Add a VulnerabilityReport to a VulnerabilityCase
-    as_object: VulnerabilityReport
+    object_: VulnerabilityReport
     target: VulnerabilityCase
     """
 
-    as_object: VulnerabilityReportRef = Field(
+    object_: VulnerabilityReportRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -70,11 +70,11 @@ class AddStatusToCaseActivity(as_Add):
     This should only be performed by the case owner.
     Other case participants can add a case status to their participant record, which the case
     owner should then add to the case if appropriate.
-    as_object: CaseStatus
+    object_: CaseStatus
     target: VulnerabilityCase
     """
 
-    as_object: CaseStatusRef = Field(
+    object_: CaseStatusRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -88,20 +88,20 @@ class AddStatusToCaseActivity(as_Add):
 # create a VulnerabilityCase
 class CreateCaseActivity(as_Create):
     """Create a VulnerabilityCase.
-    as_object: VulnerabilityCase
+    object_: VulnerabilityCase
     """
 
-    as_object: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCaseRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
 
 class CreateCaseStatusActivity(as_Create):
     """Create a CaseStatus.
-    as_object: CaseStatus
+    object_: CaseStatus
     """
 
-    as_object: CaseStatusRef = Field(
+    object_: CaseStatusRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -109,11 +109,11 @@ class CreateCaseStatusActivity(as_Create):
 # Add a Note to a VulnerabilityCase
 class AddNoteToCaseActivity(as_Add):
     """Add a Note to a VulnerabilityCase.
-    as_object: Note
+    object_: Note
     target: VulnerabilityCase
     """
 
-    as_object: as_NoteRef = Field(
+    object_: as_NoteRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -122,10 +122,10 @@ class AddNoteToCaseActivity(as_Add):
 # update a VulnerabilityCase
 class UpdateCaseActivity(as_Update):
     """Update a VulnerabilityCase.
-    as_object: VulnerabilityCase
+    object_: VulnerabilityCase
     """
 
-    as_object: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCaseRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -139,10 +139,10 @@ class UpdateCaseActivity(as_Update):
 class RmEngageCaseActivity(as_Join):
     """The actor is has joined (i.e., is actively working on) a case.
     This represents the Vultron Message Type RA, and indicates that the actor is now in the RM.ACCEPTED state.
-    as_object: VulnerabilityCase
+    object_: VulnerabilityCase
     """
 
-    as_object: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCaseRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -154,10 +154,10 @@ class RmDeferCaseActivity(as_Ignore):
     it just means that the actor is no longer actively working on it.
     This represents the Vultron Message Type RD, and indicates that the actor is now in the RM.DEFERRED state.
     Contrast with RmCloseCaseActivity, which indicates that the actor is abandoning the case entirely.
-    as_object: VulnerabilityCase
+    object_: VulnerabilityCase
     """
 
-    as_object: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCaseRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -168,21 +168,21 @@ class RmCloseCaseActivity(as_Leave):
     Case closure is considered a permanent Leave from the case.
     If the case owner (attributedTo) is the actor, then the case is closed for all participants.
     If the actor is not the case owner, then the actor should be removed from the case participants.
-    as_object: VulnerabilityCase
+    object_: VulnerabilityCase
     """
 
-    as_object: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCaseRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
 
 class OfferCaseOwnershipTransferActivity(as_Offer):
     """The actor is offering to transfer ownership of the case to another actor.
-    as_object: VulnerabilityCase
+    object_: VulnerabilityCase
     target: as_Actor
     """
 
-    as_object: VulnerabilityCaseRef = Field(
+    object_: VulnerabilityCaseRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: as_ActorRef = None
@@ -191,10 +191,10 @@ class OfferCaseOwnershipTransferActivity(as_Offer):
 class AcceptCaseOwnershipTransferActivity(as_Accept):
     """The actor is accepting an offer to transfer ownership of the case.
 
-    - as_object: the OfferCaseOwnershipTransferActivity being accepted
+    - object_: the OfferCaseOwnershipTransferActivity being accepted
     """
 
-    as_object: OfferCaseOwnershipTransferActivity | str | None = Field(
+    object_: OfferCaseOwnershipTransferActivity | str | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -202,10 +202,10 @@ class AcceptCaseOwnershipTransferActivity(as_Accept):
 class RejectCaseOwnershipTransferActivity(as_Reject):
     """The actor is rejecting an offer to transfer ownership of the case.
 
-    - as_object: the OfferCaseOwnershipTransferActivity being rejected
+    - object_: the OfferCaseOwnershipTransferActivity being rejected
     """
 
-    as_object: OfferCaseOwnershipTransferActivity | str | None = Field(
+    object_: OfferCaseOwnershipTransferActivity | str | None = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -214,11 +214,11 @@ class RmInviteToCaseActivity(as_Invite):
     """The actor is inviting another actor to a case.
     This corresponds to the Vultron Message Type RS when a case already exists.
     See also RmSubmitReportActivity for the scenario when a case does not exist yet.
-    as_object: the Actor being invited
+    object_: the Actor being invited
     target: VulnerabilityCase
     """
 
-    as_object: as_ActorRef = Field(
+    object_: as_ActorRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -231,10 +231,10 @@ class RmAcceptInviteToCaseActivity(as_Accept):
     """The actor is accepting an invitation to a case.
     This corresponds to the Vultron Message Type RV when the case already exists.
     See also RmValidateReportActivity for the scenario when the case does not exist yet.
-    as_object: the RmInviteToCaseActivity being accepted
+    object_: the RmInviteToCaseActivity being accepted
     """
 
-    as_object: RmInviteToCaseRef = Field(
+    object_: RmInviteToCaseRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -244,9 +244,9 @@ class RmRejectInviteToCaseActivity(as_Reject):
     This corresponds to the Vultron Message Type RI when the case already exists.
     See also RmInvalidateReportActivity for the scenario when the case does not exist yet.
 
-    `as_object`: the `RmInviteToCaseActivity` being rejected
+    `object_`: the `RmInviteToCaseActivity` being rejected
     """
 
-    as_object: RmInviteToCaseRef = Field(
+    object_: RmInviteToCaseRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )

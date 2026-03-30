@@ -163,8 +163,8 @@ def get_actor_profile(
 
     as_actor = as_Actor.model_validate(actor)
     profile = as_actor.model_dump(by_alias=True, exclude_none=True)
-    profile["inbox"] = as_actor.inbox.as_id
-    profile["outbox"] = as_actor.outbox.as_id
+    profile["inbox"] = as_actor.inbox.id_
+    profile["outbox"] = as_actor.outbox.id_
     return profile
 
 
@@ -224,7 +224,7 @@ def get_actor_inbox(
         )
 
     actor = as_Actor.model_validate(actor_record)
-    actor_dl = get_datalayer(actor.as_id)
+    actor_dl = get_datalayer(actor.id_)
     items = cast(
         list[as_Object | as_Link | str | None], list(actor_dl.inbox_list())
     )
@@ -306,17 +306,17 @@ def post_actor_inbox(
 
     # Normalise to the canonical actor URI so that short-ID and full-ID
     # callers always scope to the same DataLayer namespace (OX-05-001).
-    canonical_actor_id = actor.as_id
+    canonical_actor_id = actor.id_
 
     # OX-1.3 / OX-06-001: idempotency — check persistent received log
     # BEFORE storing so that re-delivered activities (after the inbox queue
     # has been drained) are still detected and silently ignored with 202.
     if actor.inbox and hasattr(actor.inbox, "items"):
-        if activity.as_id in actor.inbox.items:
+        if activity.id_ in actor.inbox.items:
             logger.info(
                 "Activity %s already received by %s; ignoring duplicate"
                 " submission.",
-                activity.as_id,
+                activity.id_,
                 canonical_actor_id,
             )
             return None
@@ -334,23 +334,23 @@ def post_actor_inbox(
     # this is the persistent received-log checked for idempotency above.
     # It is NOT removed by the inbox handler.
     if actor.inbox and hasattr(actor.inbox, "items"):
-        actor.inbox.items.append(activity.as_id)
+        actor.inbox.items.append(activity.id_)
         dl.update(
-            actor.as_id,
+            actor.id_,
             StorableRecord(
-                id_=actor.as_id,
-                type_=actor.as_type or "Actor",
+                id_=actor.id_,
+                type_=actor.type_ or "Actor",
                 data_=actor.model_dump(mode="json"),
             ),
         )
         logger.debug(
-            f"Added activity {activity.as_id} to actor"
+            f"Added activity {activity.id_} to actor"
             f" {canonical_actor_id} inbox record"
         )
 
     # Queue the activity ID in the actor-scoped DataLayer inbox.
     actor_dl = get_datalayer(canonical_actor_id)
-    actor_dl.inbox_append(activity.as_id)
+    actor_dl.inbox_append(activity.id_)
 
     # Trigger inbox processing: pass canonical actor_id, shared DL for
     # data, and actor-scoped DL for queue management.
@@ -392,13 +392,13 @@ def post_actor_outbox(
 
     # Normalise to the canonical actor URI so that short-ID and full-ID
     # callers always scope to the same DataLayer namespace.
-    canonical_actor_id = actor.as_id
+    canonical_actor_id = actor.id_
 
-    # actor.as_id must match activity.actor or activity.actor.as_id
+    # actor.id_ must match activity.actor or activity.actor.id_
     if isinstance(activity.actor, str):
         activity_actor_id = activity.actor
-    elif activity.actor is not None and hasattr(activity.actor, "as_id"):
-        activity_actor_id = activity.actor.as_id
+    elif activity.actor is not None and hasattr(activity.actor, "id_"):
+        activity_actor_id = activity.actor.id_
     else:
         activity_actor_id = None
 
@@ -415,7 +415,7 @@ def post_actor_outbox(
     # Use the actor-scoped DataLayer for operational data
     actor_dl = get_datalayer(canonical_actor_id)
     actor_dl.create(object_to_record(activity))
-    actor_dl.outbox_append(activity.as_id)
+    actor_dl.outbox_append(activity.id_)
 
     # Trigger outbox processing (in the background)
     background_tasks.add_task(outbox_handler, canonical_actor_id, actor_dl, dl)

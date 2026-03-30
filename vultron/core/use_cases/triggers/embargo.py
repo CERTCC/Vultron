@@ -68,7 +68,7 @@ class SvcProposeEmbargoUseCase:
         dl = self._dl
 
         actor = resolve_actor(actor_id, dl)
-        actor_id = actor.as_id
+        actor_id = actor.id_
 
         case = resolve_case(case_id, dl)
 
@@ -84,17 +84,17 @@ class SvcProposeEmbargoUseCase:
             logger.warning(
                 "Invalid EM state transition: case '%s' EM state '%s' does not"
                 " allow a PROPOSE transition.",
-                case.as_id,
+                case.id_,
                 em_state,
             )
             raise VultronInvalidStateTransitionError(
-                f"Cannot propose embargo: case '{case.as_id}' EM state"
+                f"Cannot propose embargo: case '{case.id_}' EM state"
                 f" '{em_state}' does not allow a PROPOSE transition."
             )
 
         new_em_state = EM(adapter.state)
 
-        embargo_kwargs: dict = {"context": case.as_id}
+        embargo_kwargs: dict = {"context": case.id_}
         if end_time is not None:
             embargo_kwargs["end_time"] = end_time
 
@@ -103,19 +103,19 @@ class SvcProposeEmbargoUseCase:
         try:
             dl.create(embargo)
         except ValueError:
-            logger.warning("EmbargoEvent '%s' already exists", embargo.as_id)
+            logger.warning("EmbargoEvent '%s' already exists", embargo.id_)
 
         proposal = EmProposeEmbargoActivity(
             actor=actor_id,
-            as_object=embargo.as_id,
-            context=case.as_id,
+            object_=embargo.id_,
+            context=case.id_,
         )
 
         try:
             dl.create(proposal)
         except ValueError:
             logger.warning(
-                "EmProposeEmbargoActivity '%s' already exists", proposal.as_id
+                "EmProposeEmbargoActivity '%s' already exists", proposal.id_
             )
 
         case.current_status.em_state = new_em_state
@@ -123,8 +123,8 @@ class SvcProposeEmbargoUseCase:
             logger.info(
                 "Actor '%s' proposed embargo '%s' on case '%s' (EM %s → %s)",
                 actor_id,
-                embargo.as_id,
-                case.as_id,
+                embargo.id_,
+                case.id_,
                 em_state,
                 new_em_state,
             )
@@ -133,15 +133,15 @@ class SvcProposeEmbargoUseCase:
                 "Actor '%s' counter-proposed embargo '%s' on case '%s'"
                 " (EM %s, no state change)",
                 actor_id,
-                embargo.as_id,
-                case.as_id,
+                embargo.id_,
+                case.id_,
                 em_state,
             )
 
-        case.proposed_embargoes.append(embargo.as_id)
+        case.proposed_embargoes.append(embargo.id_)
         dl.save(case)
 
-        add_activity_to_outbox(actor_id, proposal.as_id, dl)
+        add_activity_to_outbox(actor_id, proposal.id_, dl)
 
         activity = proposal.model_dump(by_alias=True, exclude_none=True)
         return {"activity": activity}
@@ -164,7 +164,7 @@ class SvcEvaluateEmbargoUseCase:
         dl = self._dl
 
         actor = resolve_actor(actor_id, dl)
-        actor_id = actor.as_id
+        actor_id = actor.id_
 
         case = resolve_case(case_id, dl)
 
@@ -174,24 +174,24 @@ class SvcEvaluateEmbargoUseCase:
                 raise VultronNotFoundError("EmbargoProposal", proposal_id)
             proposal = proposal_raw
         else:
-            proposal = find_embargo_proposal(case.as_id, dl)
+            proposal = find_embargo_proposal(case.id_, dl)
             if proposal is None:
                 raise VultronNotFoundError(
                     "EmbargoProposal",
-                    f"(pending for case '{case.as_id}')",
+                    f"(pending for case '{case.id_}')",
                 )
 
-        if str(getattr(proposal, "as_type", "")) != "Invite":
+        if str(getattr(proposal, "type_", "")) != "Invite":
             raise VultronValidationError(
                 f"Expected an Invite (embargo proposal), got "
                 f"{type(proposal).__name__}."
             )
 
-        embargo_ref = getattr(proposal, "as_object", None)
+        embargo_ref = getattr(proposal, "object_", None)
         embargo_id = (
             embargo_ref
             if isinstance(embargo_ref, str)
-            else getattr(embargo_ref, "as_id", None)
+            else getattr(embargo_ref, "id_", None)
         )
         if not embargo_id:
             raise VultronValidationError(
@@ -199,22 +199,22 @@ class SvcEvaluateEmbargoUseCase:
             )
 
         embargo = dl.read(embargo_id)
-        if embargo is None or str(getattr(embargo, "as_type", "")) != "Event":
+        if embargo is None or str(getattr(embargo, "type_", "")) != "Event":
             raise VultronValidationError(
                 f"Could not resolve EmbargoEvent '{embargo_id}'."
             )
 
         accept = EmAcceptEmbargoActivity(
             actor=actor_id,
-            as_object=proposal.as_id,
-            context=case.as_id,
+            object_=proposal.id_,
+            context=case.id_,
         )
 
         try:
             dl.create(accept)
         except ValueError:
             logger.warning(
-                "EmAcceptEmbargoActivity '%s' already exists", accept.as_id
+                "EmAcceptEmbargoActivity '%s' already exists", accept.id_
             )
 
         case.set_embargo(embargo_id)
@@ -229,11 +229,11 @@ class SvcEvaluateEmbargoUseCase:
             logger.warning(
                 "Invalid EM state transition: case '%s' EM state '%s' does not"
                 " allow an ACCEPT transition.",
-                case.as_id,
+                case.id_,
                 em_state,
             )
             raise VultronInvalidStateTransitionError(
-                f"Cannot accept embargo: case '{case.as_id}' EM state"
+                f"Cannot accept embargo: case '{case.id_}' EM state"
                 f" '{em_state}' does not allow an ACCEPT transition."
             )
         new_em_state = EM(adapter.state)
@@ -241,15 +241,15 @@ class SvcEvaluateEmbargoUseCase:
         case.current_status.em_state = new_em_state
         dl.save(case)
 
-        add_activity_to_outbox(actor_id, accept.as_id, dl)
+        add_activity_to_outbox(actor_id, accept.id_, dl)
 
         logger.info(
             "Actor '%s' accepted embargo proposal '%s'; activated embargo '%s' "
             "on case '%s' (EM %s → %s)",
             actor_id,
-            proposal.as_id,
+            proposal.id_,
             embargo_id,
-            case.as_id,
+            case.id_,
             em_state,
             new_em_state,
         )
@@ -274,7 +274,7 @@ class SvcTerminateEmbargoUseCase:
         dl = self._dl
 
         actor = resolve_actor(actor_id, dl)
-        actor_id = actor.as_id
+        actor_id = actor.id_
 
         case = resolve_case(case_id, dl)
 
@@ -282,10 +282,10 @@ class SvcTerminateEmbargoUseCase:
             logger.warning(
                 "Invalid EM state transition: case '%s' has no active embargo"
                 " to terminate.",
-                case.as_id,
+                case.id_,
             )
             raise VultronInvalidStateTransitionError(
-                f"Case '{case.as_id}' has no active embargo to terminate."
+                f"Case '{case.id_}' has no active embargo to terminate."
             )
 
         em_state = case.current_status.em_state
@@ -299,48 +299,48 @@ class SvcTerminateEmbargoUseCase:
             logger.warning(
                 "Invalid EM state transition: case '%s' EM state '%s' does not"
                 " allow a TERMINATE transition.",
-                case.as_id,
+                case.id_,
                 em_state,
             )
             raise VultronInvalidStateTransitionError(
-                f"Cannot terminate embargo: case '{case.as_id}' EM state"
+                f"Cannot terminate embargo: case '{case.id_}' EM state"
                 f" '{em_state}' does not allow a TERMINATE transition."
             )
 
         embargo_id = (
             case.active_embargo
             if isinstance(case.active_embargo, str)
-            else getattr(case.active_embargo, "as_id", None)
+            else getattr(case.active_embargo, "id_", None)
         )
         if embargo_id is None:
             raise VultronValidationError(
-                f"Active embargo on case '{case.as_id}' is missing an ID."
+                f"Active embargo on case '{case.id_}' is missing an ID."
             )
 
         announce = AnnounceEmbargoActivity(
             actor=actor_id,
-            as_object=embargo_id,
-            context=case.as_id,
+            object_=embargo_id,
+            context=case.id_,
         )
 
         try:
             dl.create(announce)
         except ValueError:
             logger.warning(
-                "AnnounceEmbargoActivity '%s' already exists", announce.as_id
+                "AnnounceEmbargoActivity '%s' already exists", announce.id_
             )
 
         case.current_status.em_state = EM(adapter.state)
         case.active_embargo = None
         dl.save(case)
 
-        add_activity_to_outbox(actor_id, announce.as_id, dl)
+        add_activity_to_outbox(actor_id, announce.id_, dl)
 
         logger.info(
             "Actor '%s' terminated embargo '%s' on case '%s' (EM %s → %s)",
             actor_id,
             embargo_id,
-            case.as_id,
+            case.id_,
             em_state,
             adapter.state,
         )

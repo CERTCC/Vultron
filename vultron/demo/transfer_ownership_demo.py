@@ -100,65 +100,65 @@ def _setup_initialized_case(
     VulnerabilityCase so subsequent steps can reference it.
     """
     report = VulnerabilityReport(
-        attributed_to=finder.as_id,
+        attributed_to=finder.id_,
         content="A remote code execution vulnerability in the web framework.",
         name="Remote Code Execution Vulnerability",
     )
     report_offer = RmSubmitReportActivity(
-        actor=finder.as_id,
-        as_object=report,
-        to=[vendor.as_id],
+        actor=finder.id_,
+        object_=report,
+        to=[vendor.id_],
     )
-    post_to_inbox_and_wait(client, vendor.as_id, report_offer)
-    verify_object_stored(client, report.as_id)
+    post_to_inbox_and_wait(client, vendor.id_, report_offer)
+    verify_object_stored(client, report.id_)
 
-    offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
+    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
-        actor=vendor.as_id,
-        as_object=offer.as_id,
+        actor=vendor.id_,
+        object_=offer.id_,
         content="Confirmed — remote code execution via unsanitized input.",
     )
-    post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
+    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     case = VulnerabilityCase(
-        attributed_to=vendor.as_id,
+        attributed_to=vendor.id_,
         name="RCE Case — Web Framework",
         content="Tracking the RCE vulnerability in the web framework.",
     )
     create_case_activity = CreateCaseActivity(
-        actor=vendor.as_id,
-        as_object=case,
+        actor=vendor.id_,
+        object_=case,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
-    verify_object_stored(client, case.as_id)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
+    verify_object_stored(client, case.id_)
 
     add_report_activity = AddReportToCaseActivity(
-        actor=vendor.as_id,
-        as_object=report.as_id,
-        target=case.as_id,
+        actor=vendor.id_,
+        object_=report.id_,
+        target=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, add_report_activity)
+    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
     participant = FinderReporterParticipant(
-        attributed_to=finder.as_id,
-        context=case.as_id,
+        attributed_to=finder.id_,
+        context=case.id_,
     )
     create_participant_activity = as_Create(
-        actor=vendor.as_id,
-        as_object=participant,
-        context=case.as_id,
+        actor=vendor.id_,
+        object_=participant,
+        context=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, create_participant_activity)
-    verify_object_stored(client, participant.as_id)
+    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
+    verify_object_stored(client, participant.id_)
 
     add_participant_activity = AddParticipantToCaseActivity(
-        actor=vendor.as_id,
-        as_object=participant.as_id,
-        target=case.as_id,
+        actor=vendor.id_,
+        object_=participant.id_,
+        target=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, add_participant_activity)
+    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
 
-    log_case_state(client, case.as_id, "after setup")
+    log_case_state(client, case.id_, "after setup")
     logger.info("✓ Setup: Case initialized with report and finder participant")
     return case
 
@@ -190,43 +190,43 @@ def demo_transfer_ownership_accept(
     case = _setup_initialized_case(client, finder, vendor)
 
     # Confirm initial owner is vendor
-    initial_case = log_case_state(client, case.as_id, "initial")
+    initial_case = log_case_state(client, case.id_, "initial")
     if initial_case is None:
         raise ValueError("Could not retrieve initial case state")
     logger.info(f"Initial owner: {initial_case.attributed_to}")
 
     with demo_step("Step 2: Vendor offers case ownership to coordinator"):
         offer = OfferCaseOwnershipTransferActivity(
-            actor=vendor.as_id,
-            as_object=case.as_id,
-            to=[coordinator.as_id],
+            actor=vendor.id_,
+            object_=case.id_,
+            to=[coordinator.id_],
             content=(f"Offering to transfer ownership of {case.name} to you."),
         )
         logger.info(f"Sending offer: {logfmt(offer)}")
-        post_to_inbox_and_wait(client, coordinator.as_id, offer)
+        post_to_inbox_and_wait(client, coordinator.id_, offer)
         with demo_check("Ownership offer stored in data layer"):
-            verify_object_stored(client, offer.as_id)
+            verify_object_stored(client, offer.id_)
 
     with demo_step("Step 3: Coordinator accepts ownership transfer"):
         accept = AcceptCaseOwnershipTransferActivity(
-            actor=coordinator.as_id,
-            as_object=offer.as_id,
-            to=[vendor.as_id],
+            actor=coordinator.id_,
+            object_=offer.id_,
+            to=[vendor.id_],
             content=(f"Accepting ownership of {case.name}."),
         )
         logger.info(f"Sending accept: {logfmt(accept)}")
-        post_to_inbox_and_wait(client, vendor.as_id, accept)
+        post_to_inbox_and_wait(client, vendor.id_, accept)
 
     with demo_step("Step 4: Verify case ownership transferred to coordinator"):
         with demo_check("Case attributed_to updated to coordinator"):
-            final_case = log_case_state(client, case.as_id, "after accept")
+            final_case = log_case_state(client, case.id_, "after accept")
             if final_case is None:
                 raise ValueError("Could not retrieve case after accept")
             new_owner = final_case.attributed_to
-            coord_segment = coordinator.as_id.split("/")[-1]
+            coord_segment = coordinator.id_.split("/")[-1]
             if coord_segment not in str(new_owner):
                 raise ValueError(
-                    f"Expected case owner to be coordinator '{coordinator.as_id}', "
+                    f"Expected case owner to be coordinator '{coordinator.id_}', "
                     f"got: {new_owner}"
                 )
         logger.info(f"Case ownership transferred — new owner: {new_owner}")
@@ -260,7 +260,7 @@ def demo_transfer_ownership_reject(
 
     case = _setup_initialized_case(client, finder, vendor)
 
-    initial_case = log_case_state(client, case.as_id, "initial")
+    initial_case = log_case_state(client, case.id_, "initial")
     if initial_case is None:
         raise ValueError("Could not retrieve initial case state")
     original_owner = initial_case.attributed_to
@@ -268,29 +268,29 @@ def demo_transfer_ownership_reject(
 
     with demo_step("Step 2: Vendor offers case ownership to coordinator"):
         offer = OfferCaseOwnershipTransferActivity(
-            actor=vendor.as_id,
-            as_object=case.as_id,
-            to=[coordinator.as_id],
+            actor=vendor.id_,
+            object_=case.id_,
+            to=[coordinator.id_],
             content=(f"Offering to transfer ownership of {case.name} to you."),
         )
         logger.info(f"Sending offer: {logfmt(offer)}")
-        post_to_inbox_and_wait(client, coordinator.as_id, offer)
+        post_to_inbox_and_wait(client, coordinator.id_, offer)
         with demo_check("Ownership offer stored in data layer"):
-            verify_object_stored(client, offer.as_id)
+            verify_object_stored(client, offer.id_)
 
     with demo_step("Step 3: Coordinator rejects ownership transfer"):
         reject = RejectCaseOwnershipTransferActivity(
-            actor=coordinator.as_id,
-            as_object=offer.as_id,
-            to=[vendor.as_id],
+            actor=coordinator.id_,
+            object_=offer.id_,
+            to=[vendor.id_],
             content=(f"Declining ownership of {case.name}."),
         )
         logger.info(f"Sending reject: {logfmt(reject)}")
-        post_to_inbox_and_wait(client, vendor.as_id, reject)
+        post_to_inbox_and_wait(client, vendor.id_, reject)
 
     with demo_step("Step 4: Verify case ownership unchanged"):
         with demo_check("Case attributed_to still vendor"):
-            final_case = log_case_state(client, case.as_id, "after reject")
+            final_case = log_case_state(client, case.id_, "after reject")
             if final_case is None:
                 raise ValueError("Could not retrieve case after reject")
             if final_case.attributed_to != original_owner:

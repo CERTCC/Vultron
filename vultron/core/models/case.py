@@ -34,7 +34,7 @@ class VultronCase(VultronObject):
     ``VulnerabilityReportRef``, ``CaseParticipantRef``), ensuring DataLayer
     round-trip compatibility.
 
-    ``as_type`` is ``"VulnerabilityCase"`` so that TinyDB stores this in the
+    ``type_`` is ``"VulnerabilityCase"`` so that TinyDB stores this in the
     same table as wire-created cases and ``record_to_object`` can round-trip
     it via the wire vocabulary registry.
 
@@ -44,7 +44,7 @@ class VultronCase(VultronObject):
     ``VulnerabilityCase``) never encounters an empty history list.
     """
 
-    as_type: Literal["VulnerabilityCase"] = "VulnerabilityCase"
+    type_: Literal["VulnerabilityCase"] = "VulnerabilityCase"
     case_participants: list[str | VultronParticipant] = Field(
         default_factory=list
     )
@@ -65,7 +65,7 @@ class VultronCase(VultronObject):
         if not self.case_statuses and self.attributed_to:
             self.case_statuses = [
                 VultronCaseStatus(
-                    context=self.as_id,
+                    context=self.id_,
                     attributed_to=self.attributed_to,
                 )
             ]

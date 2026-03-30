@@ -24,7 +24,7 @@ def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
     )
 
     mapping_activity = as_Create(
-        as_id="act-123", actor="actor-1", as_object="obj-1"
+        id_="act-123", actor="actor-1", object_="obj-1"
     )
     event = ih.prepare_for_dispatch(mapping_activity)
 
@@ -35,7 +35,7 @@ def test_prepare_for_dispatch_returns_vultron_event(monkeypatch):
 
 def test_handle_inbox_item_dispatches(monkeypatch):
     class FakeActivity:
-        as_type = "TestActivity"
+        type_ = "TestActivity"
         name = "fake"
 
         def model_dump_json(self, **kwargs):
@@ -63,8 +63,8 @@ def test_inbox_handler_retries_and_aborts_after_too_many_errors(monkeypatch):
     """inbox_handler retries up to 3 errors then aborts, re-appending the item."""
     item_id = "https://example.org/activities/itm-001"
     item = as_Activity(
-        as_id=item_id,
-        as_type="irrelevant",
+        id_=item_id,
+        type_="irrelevant",
         actor="https://example.org/actors/test",
         name="itm",
     )

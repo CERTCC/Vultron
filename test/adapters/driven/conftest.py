@@ -67,7 +67,7 @@ def sample_record():
 def base_object():
     from vultron.wire.as2.vocab.base.base import as_Base
 
-    return as_Base(as_id="test-id", as_type="BaseObject", name="Test Object")
+    return as_Base(id_="test-id", type_="BaseObject", name="Test Object")
 
 
 @pytest.fixture

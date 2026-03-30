@@ -29,7 +29,7 @@ from vultron.wire.as2.vocab.base.registry import activitystreams_object
 class as_Document(as_Object):
     """Base class for all ActivityPub documents. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-document>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.DOCUMENT,
         validation_alias="type",
         serialization_alias="type",
@@ -40,7 +40,7 @@ class as_Document(as_Object):
 class as_Image(as_Document):
     """Base class for all ActivityPub images. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-image>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.IMAGE,
         validation_alias="type",
         serialization_alias="type",
@@ -51,7 +51,7 @@ class as_Image(as_Document):
 class as_Video(as_Document):
     """Base class for all ActivityPub videos. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-video>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.VIDEO,
         validation_alias="type",
         serialization_alias="type",
@@ -62,7 +62,7 @@ class as_Video(as_Document):
 class as_Audio(as_Document):
     """Base class for all ActivityPub audio. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-audio>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.AUDIO,
         validation_alias="type",
         serialization_alias="type",
@@ -73,7 +73,7 @@ class as_Audio(as_Document):
 class as_Page(as_Document):
     """Base class for all ActivityPub pages. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-page>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.PAGE,
         validation_alias="type",
         serialization_alias="type",
@@ -84,7 +84,7 @@ class as_Page(as_Document):
 class as_Article(as_Document):
     """Base class for all ActivityPub articles. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-article>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.ARTICLE,
         validation_alias="type",
         serialization_alias="type",
@@ -99,7 +99,7 @@ as_DocumentRef: TypeAlias = ActivityStreamRef[as_Document]
 class as_Note(as_Object):
     """Base class for all ActivityPub notes. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-note>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.NOTE,
         validation_alias="type",
         serialization_alias="type",
@@ -116,7 +116,7 @@ as_NoteRef: TypeAlias = ActivityStreamRef[as_Note]
 class as_Event(as_Object):
     """Base class for all ActivityPub events. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-event>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.EVENT,
         validation_alias="type",
         serialization_alias="type",
@@ -130,7 +130,7 @@ as_EventRef: TypeAlias = ActivityStreamRef[as_Event]
 class as_Profile(as_Object):
     """Base class for all ActivityPub profiles. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-profile>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.PROFILE,
         validation_alias="type",
         serialization_alias="type",
@@ -146,7 +146,7 @@ as_ProfileRef: TypeAlias = ActivityStreamRef[as_Profile]
 class as_Tombstone(as_Object):
     """Base class for all ActivityPub tombstones. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-tombstone>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.TOMBSTONE,
         validation_alias="type",
         serialization_alias="type",
@@ -163,7 +163,7 @@ as_TombstoneRef: TypeAlias = ActivityStreamRef[as_Tombstone]
 class as_Relationship(as_Object):
     """Base class for all ActivityPub relationships. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-relationship>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.RELATIONSHIP,
         validation_alias="type",
         serialization_alias="type",
@@ -182,7 +182,7 @@ as_RelationshipRef: TypeAlias = ActivityStreamRef[as_Relationship]
 class as_Place(as_Object):
     """Base class for all ActivityPub places. See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-place>"""
 
-    as_type: O_type = Field(
+    type_: O_type = Field(
         default=O_type.PLACE,
         validation_alias="type",
         serialization_alias="type",

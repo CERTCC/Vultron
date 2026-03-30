@@ -42,10 +42,10 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class EmProposeEmbargoActivity(as_Invite):
     """The actor is proposing an embargo on the case.
     This corresponds to the Vultron Message Types EP and EV
-    as_object: EmbargoEvent
+    object_: EmbargoEvent
     """
 
-    as_object: EmbargoEventRef = Field(
+    object_: EmbargoEventRef = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None
@@ -59,11 +59,11 @@ class EmAcceptEmbargoActivity(as_Accept):
     This corresponds to the Vultron Message Types EA and EC.
     Per ActivityStreams convention: Accept(object=<Invite>) — the actor accepts
     the proposal activity itself, not the EmbargoEvent being proposed.
-    as_object: the EmProposeEmbargoActivity activity being accepted
+    object_: the EmProposeEmbargoActivity activity being accepted
     context: the VulnerabilityCase for which the embargo was proposed
     """
 
-    as_object: EmProposeEmbargoRef = Field(
+    object_: EmProposeEmbargoRef = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None
@@ -74,11 +74,11 @@ class EmRejectEmbargoActivity(as_Reject):
     This corresponds to the Vultron Message Types ER and EJ.
     Per ActivityStreams convention: Reject(object=<Invite>) — the actor rejects
     the proposal activity itself, not the EmbargoEvent being proposed.
-    as_object: the EmProposeEmbargoActivity activity being rejected
+    object_: the EmProposeEmbargoActivity activity being rejected
     context: the VulnerabilityCase for which the embargo was proposed
     """
 
-    as_object: EmProposeEmbargoRef = Field(
+    object_: EmProposeEmbargoRef = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None
@@ -91,7 +91,7 @@ class ChoosePreferredEmbargoActivity(as_Question):
     The Case owner will then need to decide which embargo to make active on the case.
     """
 
-    # note: not specifying as_object here because Questions are intransitive
+    # note: not specifying object_ here because Questions are intransitive
 
     any_of: Sequence[EmbargoEventRef] | None = None
     one_of: Sequence[EmbargoEventRef] | None = None
@@ -100,12 +100,12 @@ class ChoosePreferredEmbargoActivity(as_Question):
 class ActivateEmbargoActivity(as_Add):
     """The case owner is activating an embargo on the case.
     This corresponds to the Vultron Message Types EA and EC at the case level
-    as_object: the EmbargoEvent being activated
+    object_: the EmbargoEvent being activated
     target: the VulnerabilityCase for which the EmbargoEvent was proposed
     in_reply_to: the EmProposeEmbargoActivity activity that proposed the EmbargoEvent
     """
 
-    as_object: EmbargoEventRef = Field(
+    object_: EmbargoEventRef = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -119,7 +119,7 @@ class AddEmbargoToCaseActivity(as_Add):
     in response to a previous EmProposeEmbargoActivity activity.
     """
 
-    as_object: EmbargoEventRef = Field(
+    object_: EmbargoEventRef = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -127,11 +127,11 @@ class AddEmbargoToCaseActivity(as_Add):
 
 class AnnounceEmbargoActivity(as_Announce):
     """The case owner is announcing an embargo on the case.
-    as_object: the EmbargoEvent being announced
+    object_: the EmbargoEvent being announced
     context: the VulnerabilityCase for which the EmbargoEvent is active
     """
 
-    as_object: EmbargoEventRef = Field(
+    object_: EmbargoEventRef = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     context: VulnerabilityCaseRef = None
@@ -142,11 +142,11 @@ class AnnounceEmbargoActivity(as_Announce):
 class RemoveEmbargoFromCaseActivity(as_Remove):
     """Remove an EmbargoEvent from the proposedEmbargoes of a VulnerabilityCase.
     This should only be performed by the case owner.
-    as_object: EmbargoEvent
+    object_: EmbargoEvent
     origin: VulnerabilityCase
     """
 
-    as_object: EmbargoEventRef = Field(
+    object_: EmbargoEventRef = Field(
         default=None, validation_alias="object", serialization_alias="object"
     )
     origin: VulnerabilityCaseRef = None

@@ -53,7 +53,7 @@ def actor_and_dl():
     )
 
     actor_obj = as_Service(name="Vendor Co")
-    actor_id = actor_obj.as_id
+    actor_id = actor_obj.id_
     reset_datalayer(actor_id)
     actor_dl = TinyDbDataLayer(db_path=None, actor_id=actor_id)
     actor_dl.clear_all()
@@ -94,16 +94,16 @@ def case_with_participant(dl, actor):
     """
     case_obj = VulnerabilityCase(name="TEST-CASE-001")
     participant = CaseParticipant(
-        attributed_to=actor.as_id,
-        context=case_obj.as_id,
+        attributed_to=actor.id_,
+        context=case_obj.id_,
     )
     participant.append_rm_state(
-        RM.RECEIVED, actor=actor.as_id, context=case_obj.as_id
+        RM.RECEIVED, actor=actor.id_, context=case_obj.id_
     )
     participant.append_rm_state(
-        RM.VALID, actor=actor.as_id, context=case_obj.as_id
+        RM.VALID, actor=actor.id_, context=case_obj.id_
     )
-    case_obj.case_participants.append(participant.as_id)
+    case_obj.case_participants.append(participant.id_)
     dl.create(case_obj)
     dl.create(participant)
     return case_obj
@@ -127,8 +127,8 @@ def test_trigger_engage_case_returns_202(
 ):
     """TB-01-002: POST /actors/{id}/trigger/engage-case returns HTTP 202."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/engage-case",
-        json={"case_id": case_with_participant.as_id},
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": case_with_participant.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
@@ -138,8 +138,8 @@ def test_trigger_engage_case_response_contains_activity_key(
 ):
     """TB-04-001: Successful trigger response body contains 'activity' key."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/engage-case",
-        json={"case_id": case_with_participant.as_id},
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": case_with_participant.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     data = resp.json()
@@ -152,7 +152,7 @@ def test_trigger_engage_case_missing_case_id_returns_422(
 ):
     """TB-03-001: Request missing case_id returns HTTP 422."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/engage-case",
+        f"/actors/{actor.id_}/trigger/engage-case",
         json={},
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
@@ -163,8 +163,8 @@ def test_trigger_engage_case_ignores_unknown_fields(
 ):
     """TB-03-002: Unknown fields in request body are silently ignored."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/engage-case",
-        json={"case_id": case_with_participant.as_id, "unknown_xyz": 99},
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": case_with_participant.id_, "unknown_xyz": 99},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
@@ -184,7 +184,7 @@ def test_trigger_engage_case_unknown_actor_returns_404(client_triggers):
 def test_trigger_engage_case_unknown_case_returns_404(client_triggers, actor):
     """TB-01-003: Unknown case_id returns HTTP 404."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/engage-case",
+        f"/actors/{actor.id_}/trigger/engage-case",
         json={"case_id": "urn:uuid:nonexistent-case"},
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
@@ -197,7 +197,7 @@ def test_trigger_engage_case_invalid_case_id_returns_422(
 ):
     """engage-case with a non-URI case_id returns HTTP 422."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/engage-case",
+        f"/actors/{actor.id_}/trigger/engage-case",
         json={"case_id": "not-a-uri"},
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
@@ -207,18 +207,18 @@ def test_trigger_engage_case_adds_activity_to_outbox(
     client_triggers, dl, actor, case_with_participant
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.as_id)
+    actor_before = dl.read(actor.id_)
     outbox_before = set(
         item for item in actor_before.outbox.items if isinstance(item, str)
     )
 
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/engage-case",
-        json={"case_id": case_with_participant.as_id},
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": case_with_participant.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.as_id)
+    actor_after = dl.read(actor.id_)
     outbox_after = set(
         item for item in actor_after.outbox.items if isinstance(item, str)
     )
@@ -230,14 +230,14 @@ def test_trigger_engage_case_updates_participant_rm_state(
 ):
     """engage-case transitions actor's CaseParticipant RM state to ACCEPTED."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/engage-case",
-        json={"case_id": case_with_participant.as_id},
+        f"/actors/{actor.id_}/trigger/engage-case",
+        json={"case_id": case_with_participant.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    updated_case = dl.read(case_with_participant.as_id)
+    updated_case = dl.read(case_with_participant.id_)
     participant_ids = [
-        (p if isinstance(p, str) else p.as_id)
+        (p if isinstance(p, str) else p.id_)
         for p in updated_case.case_participants
     ]
     found_accepted = False
@@ -249,9 +249,9 @@ def test_trigger_engage_case_updates_participant_rm_state(
         p_actor_id = (
             actor_ref
             if isinstance(actor_ref, str)
-            else getattr(actor_ref, "as_id", str(actor_ref))
+            else getattr(actor_ref, "id_", str(actor_ref))
         )
-        if p_actor_id == actor.as_id and p_obj.participant_statuses:
+        if p_actor_id == actor.id_ and p_obj.participant_statuses:
             latest = p_obj.participant_statuses[-1]
             if latest.rm_state == RM.ACCEPTED:
                 found_accepted = True
@@ -267,8 +267,8 @@ def test_trigger_engage_case_no_participant_returns_202_with_warning(
 
     with caplog.at_level(logging.WARNING):
         resp = client_triggers.post(
-            f"/actors/{actor.as_id}/trigger/engage-case",
-            json={"case_id": case_without_participant.as_id},
+            f"/actors/{actor.id_}/trigger/engage-case",
+            json={"case_id": case_without_participant.id_},
         )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     assert any("participant" in r.message.lower() for r in caplog.records)
@@ -284,8 +284,8 @@ def test_trigger_defer_case_returns_202(
 ):
     """TB-01-002: POST /actors/{id}/trigger/defer-case returns HTTP 202."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/defer-case",
-        json={"case_id": case_with_participant.as_id},
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": case_with_participant.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
@@ -295,8 +295,8 @@ def test_trigger_defer_case_response_contains_activity_key(
 ):
     """TB-04-001: Successful trigger response body contains 'activity' key."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/defer-case",
-        json={"case_id": case_with_participant.as_id},
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": case_with_participant.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
     data = resp.json()
@@ -309,7 +309,7 @@ def test_trigger_defer_case_missing_case_id_returns_422(
 ):
     """TB-03-001: Request missing case_id returns HTTP 422."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/defer-case",
+        f"/actors/{actor.id_}/trigger/defer-case",
         json={},
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
@@ -320,8 +320,8 @@ def test_trigger_defer_case_ignores_unknown_fields(
 ):
     """TB-03-002: Unknown fields in request body are silently ignored."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/defer-case",
-        json={"case_id": case_with_participant.as_id, "extra": "ignored"},
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": case_with_participant.id_, "extra": "ignored"},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
@@ -340,7 +340,7 @@ def test_trigger_defer_case_unknown_actor_returns_404(client_triggers):
 def test_trigger_defer_case_unknown_case_returns_404(client_triggers, actor):
     """TB-01-003: Unknown case_id returns HTTP 404."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/defer-case",
+        f"/actors/{actor.id_}/trigger/defer-case",
         json={"case_id": "urn:uuid:nonexistent"},
     )
     assert resp.status_code == status.HTTP_404_NOT_FOUND
@@ -351,7 +351,7 @@ def test_trigger_defer_case_invalid_case_id_returns_422(
 ):
     """defer-case with a non-URI case_id returns HTTP 422."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/defer-case",
+        f"/actors/{actor.id_}/trigger/defer-case",
         json={"case_id": "not-a-uri"},
     )
     assert resp.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
@@ -361,18 +361,18 @@ def test_trigger_defer_case_adds_activity_to_outbox(
     client_triggers, dl, actor, case_with_participant
 ):
     """TB-07-001: Successful trigger adds a new activity to actor's outbox."""
-    actor_before = dl.read(actor.as_id)
+    actor_before = dl.read(actor.id_)
     outbox_before = set(
         item for item in actor_before.outbox.items if isinstance(item, str)
     )
 
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/defer-case",
-        json={"case_id": case_with_participant.as_id},
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": case_with_participant.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    actor_after = dl.read(actor.as_id)
+    actor_after = dl.read(actor.id_)
     outbox_after = set(
         item for item in actor_after.outbox.items if isinstance(item, str)
     )
@@ -384,14 +384,14 @@ def test_trigger_defer_case_updates_participant_rm_state(
 ):
     """defer-case transitions actor's CaseParticipant RM state to DEFERRED."""
     resp = client_triggers.post(
-        f"/actors/{actor.as_id}/trigger/defer-case",
-        json={"case_id": case_with_participant.as_id},
+        f"/actors/{actor.id_}/trigger/defer-case",
+        json={"case_id": case_with_participant.id_},
     )
     assert resp.status_code == status.HTTP_202_ACCEPTED
 
-    updated_case = dl.read(case_with_participant.as_id)
+    updated_case = dl.read(case_with_participant.id_)
     participant_ids = [
-        (p if isinstance(p, str) else p.as_id)
+        (p if isinstance(p, str) else p.id_)
         for p in updated_case.case_participants
     ]
     found_deferred = False
@@ -403,9 +403,9 @@ def test_trigger_defer_case_updates_participant_rm_state(
         p_actor_id = (
             actor_ref
             if isinstance(actor_ref, str)
-            else getattr(actor_ref, "as_id", str(actor_ref))
+            else getattr(actor_ref, "id_", str(actor_ref))
         )
-        if p_actor_id == actor.as_id and p_obj.participant_statuses:
+        if p_actor_id == actor.id_ and p_obj.participant_statuses:
             latest = p_obj.participant_statuses[-1]
             if latest.rm_state == RM.DEFERRED:
                 found_deferred = True
