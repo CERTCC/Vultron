@@ -13,7 +13,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 
 ---
 
-## Activity Structure Validation (MUST)
+## Activity Structure Validation
 
 - `MV-01-001` Incoming payloads MUST conform to ActivityStreams 2.0 structure
   - MUST have a `type` field containing a valid Activity type
@@ -24,7 +24,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - If a pattern expects an object type (or an actor base class), the match algorithm MUST handle both subclassed object types and URI string references without raising exceptions.
   - When activity data includes string references, the inbox handler SHOULD attempt rehydration prior to pattern matching; if rehydration is not possible, the system MUST log a warning and return MessageSemantics.UNKNOWN (see `specs/semantic-extraction.md`).
 
-## Schema Validation (MUST)
+## Schema Validation
 
 - `MV-02-001` The system MUST use Pydantic models to validate activities
   - MV-02-001 implements VP-15-001
@@ -33,7 +33,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 - `MV-02-004` The system MUST log validation failures at WARNING level
   - Validation failures are client errors (HTTP 422); see `structured-logging.md` SL-03-001
 
-## Required Field Validation (MUST)
+## Required Field Validation
 
 - `MV-03-001` The system MUST validate required fields based on activity type
   - Create activities MUST have an `object` field
@@ -41,7 +41,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - Add activities MUST have both `object` and `target` fields
   - Remove activities MUST have both `object` and `target` fields
 
-## Object Type Validation (MUST)
+## Object Type Validation
 
 - `MV-04-001` The system MUST validate that object types are recognized Vultron types
   - VulnerabilityReport
@@ -49,13 +49,13 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - CaseParticipant
   - EmbargoEvent
   - Standard ActivityStreams types (Person, Organization, Service)
-- `MV-04-002` For Create-style activities that create sub-objects (e.g.,
+- `MV-04-002` SHOULD For Create-style activities that create sub-objects (e.g.,
   `CreateParticipant`), the activity `name` field SHOULD be a descriptive
   human-readable string identifying the actor, created object ID, and context
   (case ID)
   - Example: `"{actor} Create CaseParticipant {participant_id} from {attributed_to} in {case_id}"`
 
-## URI Validation (MUST)
+## URI Validation
 
 - `MV-05-001` The system MUST validate that ID and reference fields contain valid URIs
   - MUST use URI validation schemes (http, https, urn, etc.)
@@ -67,7 +67,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - All layers (API, handlers, data layer) MUST consistently store and compare IDs as URI strings; when creating IDs, prefer fully-qualified URIs.
   - The data layer and rehydration logic MUST perform URL-encoding/decoding only for transport concerns and must persist the original URI string as-is.
   
-## Duplicate Detection (SHOULD)
+## Duplicate Detection
 
 - `MV-08-001` The system SHOULD detect duplicate activity submissions during validation
   - MV-08-001 depends-on ID-02-001

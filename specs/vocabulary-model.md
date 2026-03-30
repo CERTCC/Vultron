@@ -19,9 +19,9 @@ type before semantic extraction can assign it a domain meaning.
 
 ---
 
-## Vocabulary Registration (MUST)
+## Vocabulary Registration
 
-- `VM-01-001` Every concrete wire-layer AS2 class (object, activity, or link)
+- `VM-01-001` MUST Every concrete wire-layer AS2 class (object, activity, or link)
   MUST be registered in the shared `VOCABULARY` registry at module import time
   using the appropriate decorator:
   - `@activitystreams_object` for object subclasses
@@ -57,7 +57,7 @@ type before semantic extraction can assign it a domain meaning.
     SHOULD be evaluated; the goal is to prevent runtime failures from
     unimported vocabulary modules
 
-## Base Model Configuration (MUST)
+## Base Model Configuration
 
 - `VM-02-001` All wire-layer AS2 Pydantic models MUST inherit `model_config`
   from `as_Base` (or an intermediate class that inherits from `as_Base`),
@@ -82,7 +82,7 @@ type before semantic extraction can assign it a domain meaning.
     ways that change the `exclude_none=True` or `by_alias=True` defaults,
     as doing so would produce non-standard AS2 output
 
-## Type Auto-Inference (MUST)
+## Type Auto-Inference
 
 - `VM-03-001` The `as_type` field on every concrete wire-layer class MUST be
   set automatically at construction time if not supplied by the caller
@@ -103,7 +103,7 @@ type before semantic extraction can assign it a domain meaning.
     field because AS2 type names do not carry this prefix
   - VM-03-003 constrains VM-03-001
 
-## ID Generation (MUST)
+## ID Generation
 
 - `VM-04-001` All wire-layer objects MUST have a globally unique `as_id`
   field set at construction time by `generate_new_id()` if not supplied
@@ -113,9 +113,9 @@ type before semantic extraction can assign it a domain meaning.
     to `generate_new_id(prefix)` to produce `https://…/{uuid}` style IDs
   - VM-04-001 implements OID-01-001
 
-## Vocabulary Extension (MUST)
+## Vocabulary Extension
 
-- `VM-05-001` When adding a new Vultron-specific object type, the new class
+- `VM-05-001` MUST When adding a new Vultron-specific object type, the new class
   MUST:
   1. Inherit from `VultronObject` (or an appropriate AS2 base such as
      `as_Object`, `as_Activity`, etc.)
@@ -127,7 +127,7 @@ type before semantic extraction can assign it a domain meaning.
      (`vocab/objects/`, `vocab/activities/`)
   5. Be exported from the subpackage `__init__.py` so that it is imported
      and registered at startup
-- `VM-05-002` Adding a new vocabulary type that represents a domain concept
+- `VM-05-002` MUST Adding a new vocabulary type that represents a domain concept
   MUST be accompanied by:
   - A `MessageSemantics` enum value (see `architecture.md` ARCH-02-001)
   - An `ActivityPattern` in `extractor.py` (see `semantic-extraction.md`
@@ -135,9 +135,9 @@ type before semantic extraction can assign it a domain meaning.
   - A handler use-case class registered in `USE_CASE_MAP`
   - Tests for pattern matching and dispatch
 
-## Rehydration (MUST)
+## Rehydration
 
-- `VM-06-001` Before any wire-layer activity is passed to semantic extraction,
+- `VM-06-001` MUST Before any wire-layer activity is passed to semantic extraction,
   callers MUST attempt to rehydrate all nested URI string references into
   fully typed objects via `rehydrate(obj, dl)`
   - VM-06-001 refines SE-01-002 (semantic-extraction.md)
@@ -152,20 +152,20 @@ type before semantic extraction can assign it a domain meaning.
   rehydrated up to `MAX_REHYDRATION_DEPTH` levels
   - Exceeding `MAX_REHYDRATION_DEPTH` MUST raise `RecursionError` to
     prevent infinite loops on circular reference graphs
-- `VM-06-004` If a URI string reference cannot be resolved (object not in
+- `VM-06-004` MUST If a URI string reference cannot be resolved (object not in
   DataLayer), rehydration MUST:
   - Log a warning identifying the unresolvable URI
   - Raise `ValueError` to indicate that the object cannot be found
   - The caller (semantic extraction pipeline) then returns
     `MessageSemantics.UNKNOWN`
   - VM-06-004 implements SE-01-003 (semantic-extraction.md)
-- `VM-06-005` If a rehydrated object's `as_type` is not found in the
+- `VM-06-005` MUST If a rehydrated object's `as_type` is not found in the
   vocabulary registry, rehydration MUST raise `KeyError` or `ValueError`
   rather than returning a partially constructed object
   - An unknown type in the rehydration path indicates a vocabulary
     registration gap that MUST be corrected before deployment
 
-## Serialization Rules (MUST)
+## Serialization Rules
 
 - `VM-07-001` Serialized wire-layer objects MUST exclude `None` fields and
   MUST exclude empty string fields
@@ -186,9 +186,9 @@ type before semantic extraction can assign it a domain meaning.
     type name (without the `as_` prefix); a value starting with `"as_"` would
     break `find_in_vocabulary()` lookup during `record_to_object()`
 
-## Static Object Integrity (SHOULD)
+## Static Object Integrity
 
-- `VM-08-001` Objects intended to be static once created (e.g., vocabulary
+- `VM-08-001` SHOULD Objects intended to be static once created (e.g., vocabulary
   registry entries, canonical example objects) SHOULD use immutable
   (frozen) configuration so that any attempt to modify them at runtime
   raises an exception
@@ -197,9 +197,9 @@ type before semantic extraction can assign it a domain meaning.
   - Immutability ensures that runtime integrity violations are caught
     immediately rather than silently corrupting shared state
 
-## Unknown Message Handling (MAY)
+## Unknown Message Handling
 
-- `VM-09-001` Messages that cannot be parsed or whose semantics are unknown
+- `VM-09-001` MAY Messages that cannot be parsed or whose semantics are unknown
   MAY still be forwarded to the case event log to create an entry for
   human or agent review
   - This provides an opening for manual override: a user or advanced agent

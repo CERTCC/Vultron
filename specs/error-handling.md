@@ -13,25 +13,25 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
 
 ---
 
-## Exception Hierarchy (MUST)
+## Exception Hierarchy
 
 - `EH-01-001` The system MUST define custom exceptions for application-specific errors
 - `EH-01-002` Custom exceptions MUST inherit from a base VultronError exception
 - `EH-01-003` Custom exceptions MUST be centralized in `vultron/errors.py`
 
-## Submodule Errors (MUST)
+## Submodule Errors
 
 - `EH-02-001` Submodule-specific errors MUST be defined in submodule `errors.py`
 - `EH-02-002` Submodule errors MUST inherit from base custom exceptions in `vultron/errors.py`
 
-## Error Categories (MUST)
+## Error Categories
 
 - `EH-03-001` The system MUST define error categories
   - Validation errors (4xx client errors)
   - Protocol errors (semantic/routing failures)
   - System errors (5xx server errors)
 
-## Error Context (SHOULD)
+## Error Context
 
 - `EH-04-001` Exceptions SHOULD include contextual information
   - Activity ID
@@ -39,7 +39,7 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
   - Error message
   - Original exception (if wrapped)
 
-## Error Response Format (MUST)
+## Error Response Format
 
 - `EH-05-001` HTTP error responses MUST include structured JSON body with fields:
   - `status`: HTTP status code (integer)
@@ -49,7 +49,7 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
   - **Example**: `{"status": 400, "error": "ValidationError", "message": "...", "activity_id": "urn:uuid:..."}`
   - EH-05-001 depends-on HTTP-03-001
 
-## Error Logging (MUST)
+## Error Logging
 
 - `EH-06-001` All errors MUST be logged at the appropriate level per log level
   semantics

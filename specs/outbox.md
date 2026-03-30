@@ -11,14 +11,14 @@ is deferred to future work.
 
 ---
 
-## Outbox Structure (MUST)
+## Outbox Structure
 
 - `OX-01-001` Each actor MUST have an outbox collection
 - `OX-01-002` Outbox MUST preserve insertion order (FIFO)
 - `OX-01-003` Activities added to outbox MUST be persisted to DataLayer
   immediately
 
-## Outbox Population (MUST)
+## Outbox Population
 
 - `OX-02-001` Handlers that generate response activities MUST add them to the
   actor's outbox
@@ -27,7 +27,7 @@ is deferred to future work.
 - `OX-02-002` Each outbox activity MUST conform to ActivityStreams 2.0 structure
   - See `specs/response-format.md` for response activity requirements
 
-## Outbox Delivery (MUST)
+## Outbox Delivery
 
 - `OX-03-001` Activities in an actor's outbox MUST be delivered to recipient
   inboxes
@@ -36,13 +36,13 @@ is deferred to future work.
   - **Implementation**: Use FastAPI BackgroundTasks or a follow-on background
     task after the handler
 
-## Local Delivery (MUST)
+## Local Delivery
 
 - `OX-04-001` For actors on the same server, delivery MUST write directly to the
   recipient actor's inbox collection in the DataLayer
 - `OX-04-002` Local delivery MUST persist the inbox update immediately
 
-## Federation Delivery (MAY)
+## Federation Delivery
 
 - `OX-05-001` `PROD_ONLY` For remote actors, the system MAY deliver via HTTP POST to the
   remote actor's inbox URL
@@ -51,7 +51,7 @@ is deferred to future work.
 - `OX-05-002` `PROD_ONLY` Remote delivery failures SHOULD be logged at WARNING level and
   retried
 
-## Delivery Idempotency (MUST)
+## Delivery Idempotency
 
 - `OX-06-001` Outbox delivery MUST be idempotent
   - Delivering the same activity twice MUST NOT create duplicate inbox entries

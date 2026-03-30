@@ -10,7 +10,7 @@ synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
 
 ---
 
-## Dispatcher Protocol (MUST)
+## Dispatcher Protocol
 
 - `DR-01-001` All dispatcher implementations MUST implement ActivityDispatcher protocol
 - `DR-01-002` Dispatchers MUST construct use-case instances with the complete
@@ -23,12 +23,12 @@ synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
 - `DR-01-003` Dispatchers MUST perform semantic type validation at dispatch time using the configured
   semantics-to-use-case mapping
 
-## Handler Lookup (MUST)
+## Handler Lookup
 
 - `DR-02-001` The system MUST look up use-case classes by semantic type using `USE_CASE_MAP`
 - `DR-02-002` `USE_CASE_MAP` MUST contain entries for all MessageSemantics values
 
-## Direct Dispatch Implementation (MUST)
+## Direct Dispatch Implementation
 
 - `DR-03-001` The DirectActivityDispatcher MUST execute handlers synchronously
 - `DR-03-002` The DirectActivityDispatcher MUST catch and log handler exceptions at ERROR level
@@ -36,7 +36,7 @@ synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
   - DR-03-002 depends-on EH-06-001
   - **Verification**: Logged exceptions include handler name, activity ID, and full error context
 
-## Async Dispatch Implementation (SHOULD)
+## Async Dispatch Implementation
 
 - `DR-04-001` An async dispatcher SHOULD queue activities for processing
 - `DR-04-002` An async dispatcher SHOULD process activities in FIFO order

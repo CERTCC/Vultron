@@ -16,7 +16,7 @@ Observability enables operators to understand system behavior, diagnose issues, 
 
 ---
 
-## Health Checks (MUST)
+## Health Checks
 
 - `OB-05-001` The system MUST provide liveness endpoint at `/health/live`
   - Return HTTP 200 if process is running

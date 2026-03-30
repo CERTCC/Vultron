@@ -13,14 +13,14 @@ SHOULD use BTs for clarity and maintainability.
 
 ---
 
-## BT Execution Model (MUST)
+## BT Execution Model
 
 - `BT-01-001` BT execution MUST be event-driven, triggered by handler invocation
 - `BT-01-002` BTs MUST execute to completion (or max iterations) per invocation
 - `BT-01-003` BT execution MUST NOT use continuous tick-based polling loops
 - `BT-01-004` BTs MUST be single-shot executions within handler context
 
-## BT Library (MUST)
+## BT Library
 
 - `BT-02-001` Prototype handlers MUST implement BT execution using industry-
   standard BT library
@@ -33,7 +33,7 @@ SHOULD use BTs for clarity and maintainability.
   - Simulation uses custom BT engine; prototype uses py_trees
   - No refactoring of simulation to py_trees
 
-## State Management (MUST)
+## State Management
 
 - `BT-03-001` BTs MUST use DataLayer as persistent state store
 - `BT-03-002` BTs MUST NOT maintain separate blackboard persistence
@@ -48,21 +48,21 @@ SHOULD use BTs for clarity and maintainability.
 - `BT-03-004` State changes MUST be committed to DataLayer on successful
   execution
 
-## Handler Integration (MUST)
+## Handler Integration
 
 - `BT-04-001` Handler protocol MUST be preserved (decorator, signature, registration)
 - `BT-04-002` Handlers MAY invoke BTs via bridge layer
 - `BT-04-003` Handlers MUST remain synchronous (BT execution within handler)
 - `BT-04-004` BT execution errors MUST propagate to handler error handling
 
-## BT Bridge Layer (SHOULD)
+## BT Bridge Layer
 
 - `BT-05-001` System SHOULD provide BT execution bridge for handler-to-BT invocation
 - `BT-05-002` Bridge SHOULD set up py_trees context with DataLayer access
 - `BT-05-003` Bridge SHOULD populate blackboard with activity and actor state
 - `BT-05-004` Bridge SHOULD execute tree and return execution result
 
-## Workflow-Specific Trees (SHOULD)
+## Workflow-Specific Trees
 
 - `BT-06-001` Complex workflows SHOULD have dedicated BT implementations
   - Report validation, case creation, embargo management, case engagement/deferral
@@ -90,7 +90,7 @@ SHOULD use BTs for clarity and maintainability.
     and visible for analysis; it ensures the process behaves as intended and
     can be reasoned about from the tree alone
 
-## DataLayer Integration (MUST)
+## DataLayer Integration
 
 - `BT-07-001` BT nodes MUST interact with DataLayer via Protocol interface
   - **Protocol**: `vultron.api.v2.datalayer.abc.DataLayer` (duck typing, not
@@ -105,20 +105,20 @@ SHOULD use BTs for clarity and maintainability.
   - BT-07-003 depends-on SL-03-001
   - BT-07-003 depends-on SL-04-001
 
-## Command-Line Execution (MAY)
+## Command-Line Execution
 
 - `BT-08-001` System MAY provide CLI interface for BT execution
   - Enables testing and AI agent integration
 - `BT-08-002` CLI SHOULD support invoking specific trees with test data
 - `BT-08-003` CLI SHOULD log BT execution visualization
 
-## Actor Isolation (MUST)
+## Actor Isolation
 
 - `BT-09-001` Each actor MUST have isolated BT execution context
 - `BT-09-002` Actor blackboards MUST NOT share state
 - `BT-09-003` Actor interaction MUST occur only via protocol messages
 
-## CaseActor Management (MUST)
+## CaseActor Management
 
 - `BT-10-001` Report validation MUST trigger VulnerabilityCase creation
   - BT-10-001 implements VP-02-015
@@ -127,9 +127,9 @@ SHOULD use BTs for clarity and maintainability.
 - `BT-10-003` CaseActor MUST manage case-related message processing
 - `BT-10-004` `PROD_ONLY` CaseActor MUST enforce case-level authorization
 
-## VFD/PXA State Machine Usage (SHOULD)
+## VFD/PXA State Machine Usage
 
-- `BT-12-001` When implementing VFD (vendor fix deployed) or PXA (public
+- `BT-12-001` MUST When implementing VFD (vendor fix deployed) or PXA (public
   exploit/attack) state transitions, new code MUST use `create_vfd_machine()`
   and `create_pxa_machine()` (defined in `vultron/core/states/cs.py`) as the
   authoritative source of valid transition sequences. Hand-rolled transition
@@ -139,7 +139,7 @@ SHOULD use BTs for clarity and maintainability.
     preventing divergence between the machines and the implementation.
   - **See also**: OPP-06 in `notes/state-machine-findings.md`
 
-## Concurrency (MUST)
+## Concurrency
 
 - `BT-11-001` Prototype MUST process messages sequentially (FIFO order)
   - **Rationale**: Eliminates race conditions in prototype phase

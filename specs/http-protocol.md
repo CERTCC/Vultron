@@ -10,17 +10,17 @@ MV-07), `error-handling.md` (EH-06), `agentic-readiness.md` (AR-03-002)
 
 ---
 
-## Content-Type Validation (MUST)
+## Content-Type Validation
 
 - `HTTP-01-001` Inbox endpoint MUST accept `application/activity+json` Content-Type
 - `HTTP-01-002` Inbox endpoint MUST accept `application/ld+json; profile="https://www.w3.org/ns/activitystreams"` Content-Type
 - `HTTP-01-003` Inbox endpoint MUST reject requests with invalid Content-Type using HTTP 415
 
-## Request Size Limits (MUST)
+## Request Size Limits
 
 - `HTTP-02-001` `PROD_ONLY` Inbox endpoint MUST reject requests exceeding 1 MB with HTTP 413
 
-## HTTP Status Codes (MUST)
+## HTTP Status Codes
 
 - `HTTP-03-001` API MUST use standard HTTP status codes with consistent semantics per table below
 
@@ -38,16 +38,16 @@ MV-07), `error-handling.md` (EH-06), `agentic-readiness.md` (AR-03-002)
 | 500 | Internal Server Error | Unhandled exception |
 | 503 | Service Unavailable | System not ready |
 
-## Response Headers (MUST)
+## Response Headers
 
 - `HTTP-04-001` All JSON responses MUST include `Content-Type: application/json` header
 
-## Correlation ID Propagation (SHOULD)
+## Correlation ID Propagation
 
 - `HTTP-05-001` `PROD_ONLY` API SHOULD accept `X-Correlation-ID` or `X-Request-ID` headers for request tracing
 - `HTTP-05-002` `PROD_ONLY` API SHOULD generate correlation ID from activity `id` field if header not provided
 
-## Request Timeout Handling (SHOULD)
+## Request Timeout Handling
 
 - `HTTP-06-001` Inbox endpoints SHOULD respond with HTTP headers within 100ms
   - **Measurement point**: Time from HTTP request received by server to response
@@ -61,7 +61,7 @@ MV-07), `error-handling.md` (EH-06), `agentic-readiness.md` (AR-03-002)
 - `HTTP-06-003` `PROD_ONLY` Timeout occurrences SHOULD be logged at WARNING level
   - **Log format**: "Inbox request exceeded 100ms threshold: {duration}ms"
 
-## Rate Limiting Headers (MAY)
+## Rate Limiting Headers
 
 - `HTTP-07-001` `PROD_ONLY` API MAY include `X-RateLimit-Limit` header (maximum requests per window)
 - `HTTP-07-002` `PROD_ONLY` API MAY include `X-RateLimit-Remaining` header (requests remaining)
@@ -104,7 +104,7 @@ MV-07), `error-handling.md` (EH-06), `agentic-readiness.md` (AR-03-002)
 
 - Integration test: HTTP 429 and 503 responses include `Retry-After` header
 
-## FastAPI Response Serialization (MUST)
+## FastAPI Response Serialization
 
 - `HTTP-08-001` API responses MUST include all fields of the actual returned
   object type, not only fields declared on the annotated base class

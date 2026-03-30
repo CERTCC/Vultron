@@ -20,7 +20,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ---
 
-## Endpoint Format (MUST)
+## Endpoint Format
 
 - `TRIG-01-001` The system MUST expose trigger endpoints using the path
   pattern `POST /actors/{actor_id}/trigger/{behavior-name}`
@@ -48,7 +48,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ---
 
-## Candidate RM Behaviors (SHOULD)
+## Candidate RM Behaviors
 
 - `TRIG-02-001` The following RM behaviors SHOULD be individually
   triggerable via the trigger API:
@@ -71,7 +71,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ---
 
-## Candidate EM Behaviors (SHOULD)
+## Candidate EM Behaviors
 
 - `TRIG-02-002` The following EM behaviors SHOULD be individually
   triggerable via the trigger API:
@@ -84,7 +84,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ---
 
-## Additional Candidate Behaviors (MAY)
+## Additional Candidate Behaviors
 
 - `TRIG-02-003` The following additional behaviors MAY be individually
   triggerable via the trigger API in a later phase:
@@ -97,7 +97,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ---
 
-## Request Body (MUST)
+## Request Body
 
 - `TRIG-03-001` The trigger endpoint request body MUST be a JSON object
   containing sufficient context to identify the target report or case:
@@ -123,7 +123,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ---
 
-## Response Body (SHOULD)
+## Response Body
 
 - `TRIG-04-001` A successful trigger response SHOULD include the resulting
   ActivityStreams activity in the response body under an `activity` key:
@@ -134,14 +134,14 @@ them; a complete implementation requires both reactive and triggerable sides.
   }
   ```
 
-- `TRIG-04-002` `PROD_ONLY` When a trigger initiates a long-running
+- `TRIG-04-002` MAY `PROD_ONLY` When a trigger initiates a long-running
   behavior, the response MAY return a job object per `AR-04-001`
   instead of the activity directly
   - TRIG-04-002 depends-on AR-04-001
 
 ---
 
-## BT Integration (SHOULD)
+## BT Integration
 
 - `TRIG-05-001` Trigger endpoint implementations SHOULD reuse existing
   BT trees rather than duplicating behavior logic
@@ -154,7 +154,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ---
 
-## Per-Actor DataLayer (MUST)
+## Per-Actor DataLayer
 
 - `TRIG-06-001` Trigger endpoints MUST resolve the correct per-actor
   DataLayer instance using the `actor_id` path parameter
@@ -168,7 +168,7 @@ them; a complete implementation requires both reactive and triggerable sides.
 
 ---
 
-## Outbox Activity (MUST)
+## Outbox Activity
 
 - `TRIG-07-001` A successfully executed trigger MUST produce an outgoing
   ActivityStreams activity added to the actor's outbox
