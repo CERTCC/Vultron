@@ -28,5 +28,8 @@ to specification requirements.
 - `TRACE-02-001` The traceability matrix SHOULD be reviewed and updated as
   part of any spec-authoring or user-story-authoring activity
 - `TRACE-02-002` Stories with insufficient spec coverage SHOULD be
-  documented in `plan/IMPLEMENTATION_NOTES.md` with a note on when coverage
-  is expected
+  documented in `plan/IMPLEMENTATION_NOTES.md` with specific technical
+  details describing the gap and concrete steps toward remediation
+  - Generic notes such as "lacks coverage" without actionable detail
+    are insufficient; notes MUST identify the specific requirements that
+    would address the gap and the conditions under which they can be written

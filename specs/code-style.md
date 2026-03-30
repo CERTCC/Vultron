@@ -294,18 +294,23 @@ def extract_id_segment(url: str) -> str:
     in new code
   - `now_utc()` returns `datetime.now(timezone.utc).replace(microsecond=0)`;
     using it everywhere ensures uniform precision and timezone handling
-- `CS-13-003` All datetime values MUST be stored at second precision
+- `CS-13-003` All datetime values SHOULD be stored at second precision
   (microseconds set to zero)
-  - Sub-second precision is not required by the Vultron protocol; stripping
-    microseconds reduces storage noise and ensures identical objects produce
-    identical serialized representations
+  - Sub-second precision is not required by the Vultron protocol for most
+    use cases; stripping microseconds reduces storage noise and ensures
+    identical objects produce identical serialized representations
   - `now_utc()` enforces this by calling `.replace(microsecond=0)`
+  - Where sub-second precision is needed (e.g., for high-frequency events
+    or integration with external systems that supply microsecond-resolution
+    timestamps), microsecond precision MAY be retained
 - `CS-13-004` Embargo deadline datetimes MUST be computed using the
   `days_from_now_utc(n)` helper rather than inline arithmetic
   - `days_from_now_utc(n)` returns `now_utc() + timedelta(days=n)`, which
     inherits the UTC and second-precision guarantees of `now_utc()`
-- `CS-13-005` Wire-format datetime fields MUST serialize to ISO 8601 format
-  with explicit UTC offset (`Z` or `+00:00`)
+- `CS-13-005` Wire-format datetime fields MUST serialize to RFC 3339 / ISO 8601
+  format with explicit UTC offset (`Z` or `+00:00`)
+  - Acceptable forms: `YYYY-MM-DDTHH:MM:SSZ` or `YYYY-MM-DDTHH:MM:SS+00:00`
+  - See RFC 3339 for the definitive format specification
   - Pydantic serializes timezone-aware `datetime` objects to ISO 8601 by
     default; no custom serializer is needed as long as CS-13-001 is followed
 

@@ -47,6 +47,15 @@ type before semantic extraction can assign it a domain meaning.
   links in separate namespaces (`VOCABULARY.objects`, `VOCABULARY.activities`,
   `VOCABULARY.links`) to avoid collisions between similarly named types in
   different AS2 categories
+- `VM-01-005` The vocabulary subpackage `__init__.py` SHOULD dynamically
+  discover and import all sibling modules in the package at startup, so that
+  new vocabulary classes are automatically registered without requiring
+  developers to update `__init__.py` manually
+  - This eliminates the registration fragility caused by relying on import
+    side effects or explicit `__init__.py` maintenance
+  - As an alternative, a parent-class or mixin auto-registration mechanism
+    SHOULD be evaluated; the goal is to prevent runtime failures from
+    unimported vocabulary modules
 
 ## Base Model Configuration (MUST)
 
@@ -158,10 +167,14 @@ type before semantic extraction can assign it a domain meaning.
 
 ## Serialization Rules (MUST)
 
-- `VM-07-001` Serialized wire-layer objects MUST exclude `None` fields
+- `VM-07-001` Serialized wire-layer objects MUST exclude `None` fields and
+  MUST exclude empty string fields
   - `to_json()` and `to_dict()` MUST pass `exclude_none=True` to
     `model_dump_json()` / `model_dump()` so that optional absent fields
     are omitted from wire output (AS2 convention)
+  - Empty strings MUST also be excluded because many JSON processing
+    mechanisms handle empty strings poorly, and their presence adds payload
+    noise without contributing semantics
 - `VM-07-002` Serialized wire-layer objects MUST use camelCase field aliases
   in output, not Python snake_case field names
   - `to_json()` MUST pass `by_alias=True`
@@ -172,6 +185,28 @@ type before semantic extraction can assign it a domain meaning.
   - Objects stored in the DataLayer have their `type_` field set to the AS2
     type name (without the `as_` prefix); a value starting with `"as_"` would
     break `find_in_vocabulary()` lookup during `record_to_object()`
+
+## Static Object Integrity (SHOULD)
+
+- `VM-08-001` Objects intended to be static once created (e.g., vocabulary
+  registry entries, canonical example objects) SHOULD use immutable
+  (frozen) configuration so that any attempt to modify them at runtime
+  raises an exception
+  - Pydantic's `model_config = ConfigDict(frozen=True)` SHOULD be used for
+    such classes
+  - Immutability ensures that runtime integrity violations are caught
+    immediately rather than silently corrupting shared state
+
+## Unknown Message Handling (MAY)
+
+- `VM-09-001` Messages that cannot be parsed or whose semantics are unknown
+  MAY still be forwarded to the case event log to create an entry for
+  human or agent review
+  - This provides an opening for manual override: a user or advanced agent
+    can inspect the raw message and manually translate its content into the
+    necessary state changes
+  - The case event log entry for an unknown message MUST record at minimum
+    the raw message identifier and the reason it could not be parsed
 
 ## Verification
 
