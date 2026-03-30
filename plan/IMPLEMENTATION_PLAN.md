@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-30 (refresh #60: DOCMAINT-1 complete)
+**Last Updated**: 2026-03-30 (refresh #57: gap analysis, new tasks VSR-ERR-1 + BUG-FLAKY-1, SECOPS-1 revised)
 
 ## Overview
 
@@ -18,9 +18,8 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
 All PRIORITY-30 through PRIORITY-200 phases complete. Active open work:
-**PRIORITY-250** (pre-300 cleanup — NAMING-1 remain
-open; QUALITY-1, SM-GUARD-1, VSR-ERR-1, BUG-FLAKY-1, REORG-1, SECOPS-1,
-DOCMAINT-1 done) and
+**PRIORITY-250** (pre-300 cleanup — NAMING-1, SECOPS-1, DOCMAINT-1, REORG-1,
+SM-GUARD-1, VSR-ERR-1, BUG-FLAKY-1 remain open; QUALITY-1 done) and
 **PRIORITY-300** (multi-actor demos; D5-1 unblocked, D5-2 and later blocked
 by PRIORITY-250).
 
@@ -128,46 +127,79 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
   (40-char SHA) and CI-SEC-01-002 (version comment). Added ADR-0014 to
   `docs/adr/index.md`.
 
-#### DOCMAINT-1 — Review and update outdated `notes/` files ✅
+#### DOCMAINT-1 — Review and update outdated `notes/` files
 
-- [x] **DOCMAINT-1**: Updated `notes/activitystreams-semantics.md` (CaseActor
-  broadcast now implemented), `notes/state-machine-findings.md` (Section 9
-  fictional commits removed, OPP-05 and STATUS dict marked done),
-  `notes/datalayer-refactor.md` (TECHDEBT-32b marked complete), and
-  `notes/codebase-structure.md` (all old `vultron/api/v2/` path references
-  updated to canonical current locations; outdated "not yet implemented"
-  sections replaced with completion summaries). Completed 2026-03-30.
+- [ ] **DOCMAINT-1**: Review all `notes/` files for outdated forward-looking
+  statements that have since been implemented. Specifically:
+  - (a) Replace concrete "not yet implemented" language with "implemented in
+    Phase X" where appropriate.
+  - (b) Fix module paths to their canonical current locations (see
+    `plan/IMPLEMENTATION_HISTORY.md` phases P60–P75).
+  - (c) Mark historical items as such.
+  - (d) Identify files that are purely historical and can be removed or
+    archived.
+  - Files needing particular attention: `notes/state-machine-findings.md`
+    (contains fictional commit SHAs and incomplete OPP status markers),
+    `notes/datalayer-refactor.md`, `notes/architecture-review.md`,
+    `notes/codebase-structure.md`.
+  - `notes/activitystreams-semantics.md` line ~333: states "CaseActor broadcast
+    is not yet implemented" — this was implemented in PRIORITY-200 (CA-2);
+    update to reflect current status.
+  - Cross-reference with `plan/IMPLEMENTATION_HISTORY.md` to verify what
+    has been completed.
 
-#### REORG-1 — Reorganize `vultron/core/use_cases/` ✅
+#### REORG-1 — Reorganize `vultron/core/use_cases/`
 
-- [x] **REORG-1**: Created `received/` sub-package for all 8 inbound
-  message handler use cases and `query/` sub-package for `action_rules.py`.
-  `_helpers.py` retained at root (shared by `received/` and `triggers/`).
-  Tests mirrored to `test/core/use_cases/received/` and `query/`. README.md
-  added documenting the trigger→received→sync information flow.
+- [ ] **REORG-1**: Reorganize `vultron/core/use_cases/` into clearer
+  sub-packages separating "received message" handlers from "trigger" handlers.
+  The `triggers/` sub-package already captures the latter. Create a
+  `received/` sub-package for the former. Keep tests in sync with the
+  structure. Document the trigger→received→sync information flow pattern
+  (triggers emit messages → received handlers process them → sync replicates
+  the resulting case log) in `notes/` and `specs/` where appropriate.
 
-#### SM-GUARD-1 — Add named state-subset constants ✅
+#### SM-GUARD-1 — Add named state-subset constants
 
-- [x] **SM-GUARD-1**: Exported `EM_NEGOTIATING` from `vultron/core/states/__init__.py`
-  and replaced the inline `[EM.PROPOSED, EM.REVISE]` list in
-  `vultron/bt/embargo_management/transitions.py` with `list(EM_NEGOTIATING)`.
-  `RM_ACTIVE` and `RM_CLOSABLE` were already exported and integrated.
+- [ ] **SM-GUARD-1**: Define module-level named state-subset constants
+  (e.g., `EM_NEGOTIATING`, `RM_ACTIVE`, `RM_CLOSABLE`) in the respective
+  `vultron/core/states/*.py` modules. Replace inline guard tuples/checks
+  in use-case code with references to these named constants. This improves
+  readability and satisfies SM-07-001. Partially completed (`EM_NEGOTIATING`
+  is defined in `em.py` but never imported in use-case code; audit
+  `vultron/core/use_cases/` for inline `(EM.PROPOSED, EM.REVISE)` checks and
+  replace with `EM_NEGOTIATING`. `RM_ACTIVE` and `RM_CLOSABLE` exist and are
+  integrated.)
 
-#### VSR-ERR-1 — Rename VultronConflictError to VultronInvalidStateTransitionError ✅
+#### VSR-ERR-1 — Rename VultronConflictError to VultronInvalidStateTransitionError
 
-- [x] **VSR-ERR-1**: Renamed `VultronConflictError` to
-  `VultronInvalidStateTransitionError` in `vultron/errors.py`; retained
-  `VultronConflictError` as a deprecated alias. Updated all 5 raise sites in
-  `triggers/embargo.py` and `triggers/report.py` to use the new name and added
-  WARNING-level logging before each raise. Updated `fastapi/errors.py`
-  isinstance check and all tests.
+- [ ] **VSR-ERR-1**: Rename `VultronConflictError` to
+  `VultronInvalidStateTransitionError` throughout the codebase to comply with
+  `specs/state-machine.md` SM-04-002. Steps: (1) Add
+  `VultronInvalidStateTransitionError` as the new name in `vultron/errors.py`
+  (retain `VultronConflictError` as a deprecated alias until all call sites are
+  migrated); (2) update all raise sites in
+  `vultron/core/use_cases/triggers/embargo.py`,
+  `vultron/core/use_cases/triggers/report.py`, and any other use-case modules
+  to raise the new exception; (3) update
+  `vultron/adapters/driving/fastapi/errors.py` exception-handler mapping;
+  (4) add WARNING-level logging before each raise so invalid transitions are
+  captured in system logs (SM-04-002 requirement); (5) update tests;
+  (6) remove the deprecated alias once all sites are migrated. Reference:
+  `notes/spec-review-0327.md` VSR-03-002, `specs/state-machine.md` SM-04-002.
 
-#### BUG-FLAKY-1 — Fix flaky test_remove_embargo ✅
+#### BUG-FLAKY-1 — Fix flaky test_remove_embargo
 
-- [x] **BUG-FLAKY-1**: Fixed `test_remove_embargo` in
-  `test/wire/as2/vocab/test_vocab_examples.py` by extracting the embargo from
-  the returned activity rather than recreating it with a new `datetime.now()`
-  call.
+- [ ] **BUG-FLAKY-1**: Fix the flaky `test_remove_embargo` test in
+  `test/wire/as2/vocab/test_vocab_examples.py`. Root cause: the test calls
+  `examples.remove_embargo()` (which internally calls `embargo_event(90)`) and
+  also calls `examples.embargo_event(days=90)` independently; both calls use
+  `datetime.now()` and generate a time-based `as_id`, so they produce unequal
+  objects unless executed within the same second. Fix by refactoring the
+  assertion to compare `activity.as_object.as_id` with
+  `examples.embargo_event(90).as_id` using a stable deterministic ID, or by
+  extracting the embargo from the returned activity rather than recreating it.
+  Also confirm the fix by running the full test suite 3× in succession
+  (TB-06-006). This MUST be resolved before PRIORITY-300 demo work begins.
 
 ---
  — Multi-Actor Demos (PRIORITY 300)
