@@ -93,7 +93,7 @@ def extract_id_segment(url: str) -> str:
 - `CS-03-003` (MUST) When importing more than 10 items from a module, import the module itself instead
   - Access attributes as `module.attribute` for maintainability
   - **Rationale**: Reduces line noise and makes module boundaries clearer
-- `CS-03-004` (SHOULD NOT) In test modules, avoid multiple imports from the module under test; consider importing the module and using attribute access for clarity.
+- `CS-03-004` (SHOULD) In test modules, avoid multiple imports from the module under test; consider importing the module and using attribute access for clarity.
   - Shorthand aliases are acceptable in test modules where the context is clear (e.g., `import my_module as mm` in `test_my_module.py`)
 
 ## Circular Import Prevention

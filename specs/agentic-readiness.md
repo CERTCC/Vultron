@@ -169,10 +169,10 @@ Driving Adapters) for the architecture context.
 
 ### AR-08-001, AR-08-002, AR-08-003 Verification
 
-- `PROD_ONLY` MAY Integration test: CLI entry point installed and executable via
+- `PROD_ONLY` Integration test: CLI entry point installed and executable via
   `pyproject.toml`
-- `PROD_ONLY` MAY Integration test: `--output json` produces valid JSON on stdout
-- `PROD_ONLY` MAY Integration test: CLI exit codes match specification
+- `PROD_ONLY` Integration test: `--output json` produces valid JSON on stdout
+- `PROD_ONLY` Integration test: CLI exit codes match specification
 
 ### AR-07-001, AR-07-002 Verification
 

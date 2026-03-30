@@ -77,13 +77,13 @@ Coordination", "Prior Art and References (Embargo Policy)")
 
 ### EP-02-001 Verification
 
-- `PROD_ONLY` SHOULD Integration test: `GET /actors/{id}/embargo-policy` returns
+- `PROD_ONLY` Integration test: `GET /actors/{id}/embargo-policy` returns
   200 with valid JSON for an actor with a declared policy
-- `PROD_ONLY` SHOULD Integration test: Returns 404 for an actor without a policy
+- `PROD_ONLY` Integration test: Returns 404 for an actor without a policy
 
 ### EP-03-001, EP-03-002 Verification
 
-- `PROD_ONLY` SHOULD Unit test: Compatibility check returns `True` when proposed
+- `PROD_ONLY` Unit test: Compatibility check returns `True` when proposed
   duration is within range, `False` otherwise
 
 ## Related

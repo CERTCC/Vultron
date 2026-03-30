@@ -21,7 +21,7 @@ Diátaxis framework.
 - `DF-01-002` (MUST) Ensure each documentation page maps to exactly one of
   the four user needs (Learning, Goals, Information, or Understanding).
   - Use front-matter or a classification tag to record the assigned quadrant.
-- `DF-01-003` (SHOULD NOT) Avoid combining multiple Diátaxis content types within a
+- `DF-01-003` (SHOULD NOT) Combine multiple Diátaxis content types within a
   single page or section; where a combined view is temporarily unavoidable,
   clearly separate the parts and link to full pages of the appropriate type.
 - `DF-01-004` (SHOULD) Use hyperlinks to connect related but distinct content

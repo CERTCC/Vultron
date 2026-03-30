@@ -264,7 +264,7 @@ the distinction between participant-specific and participant-agnostic state.
 ### CM-02-004, CM-02-005 Verification
 
 - Unit test: CaseActor has reference to case owner
-- `PROD_ONLY` SHOULD Integration test: Non-owner attempt to close case → authorization error
+- `PROD_ONLY` Integration test: Non-owner attempt to close case → authorization error
 
 ### CM-02-009 Verification
 
@@ -381,12 +381,12 @@ the distinction between participant-specific and participant-agnostic state.
 
 ### CM-09-001 through CM-09-004 Verification
 
-- `PROD_ONLY` MUST Unit test: `VulnerabilityCase.redact(invitee_id)` returns a
+- `PROD_ONLY` Unit test: `VulnerabilityCase.redact(invitee_id)` returns a
   `RedactedVulnerabilityCase` excluding report content, discussion, and
   participant details
-- `PROD_ONLY` MUST Unit test: Two calls to `redact()` with different invitee IDs
+- `PROD_ONLY` Unit test: Two calls to `redact()` with different invitee IDs
   return objects with distinct IDs
-- `PROD_ONLY` MUST Unit test: Redacted case ID shares no substrings with the full
+- `PROD_ONLY` Unit test: Redacted case ID shares no substrings with the full
   case ID
 
 ### CM-10-001 through CM-10-004 Verification

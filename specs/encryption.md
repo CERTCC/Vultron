@@ -73,9 +73,9 @@ implemented in the prototype.
 
 ### ENC-03-001, ENC-03-002 Verification
 
-- `PROD_ONLY` MUST Unit test: Inbox handler passes decrypted content to
+- `PROD_ONLY` Unit test: Inbox handler passes decrypted content to
   semantic extraction
-- `PROD_ONLY` MUST Unit test: Inbox handler returns HTTP 400 on decryption
+- `PROD_ONLY` Unit test: Inbox handler returns HTTP 400 on decryption
   failure
 
 ## Related

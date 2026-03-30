@@ -32,7 +32,7 @@ and Python stack candidates.
 
 ## Performance
 
-- `PROTO-03-001` (SHOULD NOT) Avoid algorithms with exponential or worse time complexity.
+- `PROTO-03-001` (SHOULD NOT) Use algorithms with exponential or worse time complexity.
   - E.g., O(2^n) is not acceptable; O(n^2) is acceptable.
 - `PROTO-03-002` (SHOULD) Prefer the simplest algorithm when multiple options exist,
   even if less efficient.

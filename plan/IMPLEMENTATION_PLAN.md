@@ -17,10 +17,16 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
-All PRIORITY-30 through PRIORITY-200 phases complete. Active open work:
-**PRIORITY-250** (pre-300 cleanup — NAMING-1 remain
-open; QUALITY-1, SM-GUARD-1, VSR-ERR-1, BUG-FLAKY-1, REORG-1, SECOPS-1,
-DOCMAINT-1, SPEC-AUDIT-3 done) and
+All PRIORITY-30 through PRIORITY-200 phases complete.
+
+#### Active open work
+
+**PRIORITY-250** Pre-300 cleanup
+
+- done: NAMING-1, QUALITY-1, SM-GUARD-1, VSR-ERR-1,
+BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-2, SPEC-AUDIT-3
+- not done: SPEC-AUDIT-1
+
 **PRIORITY-300** (multi-actor demos; D5-1 unblocked, D5-2 and later blocked
 by PRIORITY-250).
 
@@ -110,14 +116,13 @@ by PRIORITY-250).
 Per `plan/PRIORITIES.md`, these tasks MUST be completed before D5-2 and later
 PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
 
-#### NAMING-1 — Standardize wire-layer field naming
+#### NAMING-1 — Standardize wire-layer field naming ✅
 
-- [ ] **NAMING-1**: Audit and migrate all `as_`-prefixed field names in
-  `vultron/wire/as2/` to use trailing-underscore convention (e.g.,
-  `as_object` → `object_`, `as_type` → `type_`). Class names (e.g.,
-  `as_Activity`, `as_Object`) retain the `as_` prefix. Update `specs/`,
-  `notes/`, `AGENTS.md`, and documentation to reflect this convention.
-  Reference `specs/code-style.md` CS-07-003.
+- [x] **NAMING-1**: Renamed all `as_`-prefixed field names to trailing-underscore
+  convention: `as_id` → `id_`, `as_type` → `type_`, `as_object` → `object_`,
+  `as_context` → `context_`. All 130 affected files updated. Class names
+  (`as_Activity`, `as_Object`, etc.) retain the `as_` prefix. Updated
+  `specs/code-style.md` CS-07-001–003 and `AGENTS.md`. Completed 2026-03-30.
 
 #### SECOPS-1 — CI security: ADR + automated pin-verification test ✅
 
@@ -273,15 +278,13 @@ are needed before resuming feature development.
   `code-style.md`. Merge or cross-reference requirements to eliminate
   maintenance-burden redundancy and reduce risk of specification divergence.
 
-### SPEC-AUDIT-2 — Strength keyword migration
+### SPEC-AUDIT-2 — Strength keyword migration ✅
 
-- [ ] **SPEC-AUDIT-2**: Audit all `.md` files in `specs/` to ensure every
-  individual requirement line includes an inline RFC 2119 strength keyword
-  (MUST, SHOULD, or MAY). Per the updated `specs/meta-specifications.md`,
-  keywords MUST appear in the requirement text itself, not only in section
-  headers. Insert the keyword between the requirement ID and the requirement
-  text on each line that is missing it (e.g., `XX-01-001 (MUST) Use SHA-256
-  hashes...`). A full-spectrum audit across all spec files is required.
+- [x] **SPEC-AUDIT-2**: Every requirement line in all 37 spec files now has an
+  RFC 2119 keyword on its first line (greppable). Prefix-style keywords are
+  parenthesised: `` `ID` (MUST) text ``; naturally-embedded keywords left as-is.
+  All section-header keyword suffixes (e.g. `(MUST)`) removed. 176 keyword
+  additions, 293 header cleanups, 171 format fixes. Completed 2026-03-30.
 
 ### SPEC-AUDIT-3 — Relocate transient implementation notes from specs ✅
 

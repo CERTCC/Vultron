@@ -21,11 +21,11 @@ sole implementation location for the AS2 mapping.
 
 **Notation used in this document**:
 
-- `Verb(Object)` MUST — an AS2 activity of type `Verb` whose `object` field is of
+- `Verb(Object)` — an AS2 activity of type `Verb` whose `object` field is of
   type `Object`
-- `Verb(Object)[field=Type]` MUST — the activity additionally requires `field` to
+- `Verb(Object)[field=Type]` — the activity additionally requires `field` to
   be of type `Type` (e.g., `target=VulnerabilityCase`)
-- `Verb(Verb2(Object)[…])` MUST — a nested pattern: the outer activity's `object`
+- `Verb(Verb2(Object)[…])` — a nested pattern: the outer activity's `object`
   field is itself an activity matching the inner pattern; the inner pattern is
   matched against the rehydrated `object` field
 - AS2 core types are rendered in `CamelCase` without a namespace prefix
