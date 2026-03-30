@@ -111,6 +111,6 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
 - **Idempotency**: `specs/inbox-endpoint.md` IE-10-001, `specs/handler-protocol.md` HP-07-001
 - **Implementation**: `vultron/wire/as2/parser.py` (`parse_activity()`)
 - **Implementation**: `vultron/wire/as2/vocab/activities/` (Pydantic models)
-- **Tests**: `test/api/v2/routers/test_actors.py`
+- **Tests**: `test/adapters/driving/fastapi/routers/test_actors.py`
 - **Related Spec**: [inbox-endpoint.md](inbox-endpoint.md)
 - **Related Spec**: [error-handling.md](error-handling.md)

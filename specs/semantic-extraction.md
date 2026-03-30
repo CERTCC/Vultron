@@ -58,7 +58,7 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 ## Pattern Validation (MUST)
 
 - `SE-05-001` All patterns MUST have corresponding MessageSemantics enum value
-- `SE-05-002` All patterns MUST have corresponding handler function in SEMANTIC_HANDLER_MAP
+- `SE-05-002` All patterns MUST have corresponding use-case class in USE_CASE_MAP
 - `SE-05-003` All patterns MUST have unit test coverage
 
 ## Verification
@@ -87,16 +87,16 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 ### SE-05-001, SE-05-002, SE-05-003 Verification
 
 - Unit test: All patterns in SEMANTICS_ACTIVITY_PATTERNS have enum entry
-- Unit test: All patterns have corresponding handler in SEMANTIC_HANDLER_MAP
+- Unit test: All patterns have corresponding use-case class in USE_CASE_MAP
 - Code coverage: All patterns exercised by tests
 
 ## Related
 
 - Implementation: `vultron/wire/as2/extractor.py` (patterns and
   `find_matching_semantics`; sole AS2→domain mapping point)
-- Implementation: `vultron/behavior_dispatcher.py`
+- Implementation: `vultron/core/dispatcher.py`
 - Implementation: `vultron/wire/as2/rehydration.py` (object rehydration)
-- Implementation: `vultron/api/v2/backend/inbox_handler.py` (rehydration before dispatch)
+- Implementation: `vultron/adapters/driving/fastapi/inbox_handler.py` (rehydration before dispatch)
 - Implementation: `vultron/core/models/events.py` (`MessageSemantics` enum)
 - Tests: `test/test_semantic_activity_patterns.py`
 - Tests: `test/test_semantic_handler_map.py`

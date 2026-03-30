@@ -103,9 +103,9 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     wrapper (`DispatchEvent.semantic_type`)
   - Semantic verification decorators MUST compare `dispatchable.semantic_type`
     directly, not re-run pattern matching
-  - **Current state**: ✅ Achieved. `verify_semantics` decorator now compares
-    `dispatchable.semantic_type` directly (ARCH-1.2/ARCH-1.3); no second
-    invocation of `find_matching_semantics`.
+  - **Current state**: ✅ Achieved. Semantic type validation occurs at dispatch
+    time via `USE_CASE_MAP` key lookup in `vultron/core/dispatcher.py`;
+    no re-invocation of `find_matching_semantics`.
 
 ## Driving Adapter Boundary (MUST)
 

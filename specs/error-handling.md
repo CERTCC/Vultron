@@ -93,8 +93,8 @@ The Vultron inbox handler must handle various error conditions gracefully, provi
 ## Related
 
 - Implementation: `vultron/errors.py`
-- Implementation: `vultron/api/v2/backend/errors.py`
+- Implementation: `vultron/adapters/driving/fastapi/errors.py`
 - Tests: `test/test_errors.py`
-- Tests: `test/api/v2/backend/test_error_handling.py`
+- Tests: `test/adapters/driving/fastapi/test_error_handling.py` (future)
 - Related Spec: [inbox-endpoint.md](inbox-endpoint.md)
 - Related Spec: [message-validation.md](message-validation.md)

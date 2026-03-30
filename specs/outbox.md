@@ -92,6 +92,7 @@ is deferred to future work.
 - **Idempotency**: `specs/idempotency.md` (duplicate delivery prevention)
 - **Inbox Endpoint**: `specs/inbox-endpoint.md` (receiving delivered activities)
 - **Handler Protocol**: `specs/handler-protocol.md` (handler generates responses)
-- **Implementation**: `vultron/api/v2/backend/handlers.py` (outbox population)
-- **Implementation**: (Future) `vultron/api/v2/backend/outbox.py` (delivery)
-- **Tests**: (Future) `test/api/v2/backend/test_outbox.py`
+- **Implementation**: `vultron/core/use_cases/` (outbox population in use-case handlers)
+- **Implementation**: `vultron/adapters/driven/delivery_queue.py` (delivery queue)
+- **Implementation**: `vultron/adapters/driving/fastapi/outbox_handler.py` (outbox delivery)
+- **Tests**: `test/adapters/driving/fastapi/test_outbox.py`

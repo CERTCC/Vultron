@@ -167,7 +167,7 @@ SHOULD use BTs for clarity and maintainability.
 
 ### BT-04-001, BT-04-002, BT-04-003 Verification
 
-- Code review: BT-using handlers have @verify_semantics decorator
+- Code review: BT-using handlers are registered in USE_CASE_MAP and invoked via the dispatcher
 - Unit test: BT execution occurs synchronously within handler
 - Unit test: BT exceptions propagate to handler error handling
 

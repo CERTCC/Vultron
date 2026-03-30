@@ -71,6 +71,6 @@ synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
 
 - Implementation: `vultron/core/dispatcher.py`
 - Implementation: `vultron/core/use_cases/use_case_map.py` (`USE_CASE_MAP` registry)
-- Tests: `test/api/v2/backend/test_dispatch_routing.py`
+- Tests: `test/test_behavior_dispatcher.py`, `test/test_semantic_handler_map.py`
 - Related Spec: [semantic-extraction.md](semantic-extraction.md)
 - Related Spec: [handler-protocol.md](handler-protocol.md)
