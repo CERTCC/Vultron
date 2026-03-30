@@ -22,11 +22,16 @@ synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
     protocol defined in `vultron/core/ports/use_case.py`
 - `DR-01-003` Dispatchers MUST perform semantic type validation at dispatch time using the configured
   semantics-to-use-case mapping
+  - DR-01-003 is-dependency-of HP-02-001
+  - DR-01-003 is-refined-by HP-02-002
 
 ## Handler Lookup
 
 - `DR-02-001` The system MUST look up use-case classes by semantic type using `USE_CASE_MAP`
+  - DR-02-001 is-derived-by HP-03-001
 - `DR-02-002` `USE_CASE_MAP` MUST contain entries for all MessageSemantics values
+  - DR-02-002 is-refined-by HP-03-002
+  - DR-02-002 is-derived-by SE-05-002
 
 ## Direct Dispatch Implementation
 

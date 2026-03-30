@@ -19,23 +19,26 @@ protocol business logic. All handlers follow a common contract defined by the
 
 ## Handler Signature
 
-- `HP-01-001` All handler use-case classes MUST accept `(event: VultronEvent,
-  dl: DataLayer)` — either as `__init__` parameters or as `execute` parameters
+- `HP-01-001` All handler use-case classes MUST accept `(dl: DataLayer,
+  request: VultronEvent)` as `__init__` parameters, and their `execute()`
+  method MUST take no arguments
 - `HP-01-002` Handler use-case `execute` methods MAY return None or HandlerResult
 
 ## Semantic Verification
 
 - `HP-02-001` All handlers MUST have semantic type verification before execution
-  - **Implementation**: Semantic type is checked at dispatcher lookup time using
-    the `USE_CASE_MAP` key; mismatched events raise `VultronApiHandlerNotFoundError`
+  - HP-02-001 depends-on DR-01-003
 - `HP-02-002` The verification mechanism MUST check that the activity's semantic type matches the handler's expected type
   - **Rationale**: Prevents routing errors where wrong handler processes an activity
+  - HP-02-002 refines DR-01-003
 
 ## Handler Registration
 
 - `HP-03-001` All handlers MUST be discoverable via a handler registry mechanism
   - **Implementation**: Registry map (`USE_CASE_MAP`) maps MessageSemantics → use-case classes
+  - HP-03-001 derives-from DR-02-001
 - `HP-03-002` Registry keys MUST match handler semantic verification types
+  - HP-03-002 refines DR-02-002
 
 ## Payload Access
 
@@ -120,15 +123,13 @@ protocol business logic. All handlers follow a common contract defined by the
 
 ### HP-02-001, HP-02-002 Verification
 
-- Unit test: Verify dispatcher uses `USE_CASE_MAP` for lookups
-- Unit test: Verify `VultronApiHandlerNotFoundError` raised for unrecognised
-  semantic types
+- See `dispatch-routing.md` DR-01-003, DR-02-001, DR-02-002 verification
+  criteria (semantic type validation and USE_CASE_MAP lookup tests)
 
 ### HP-03-001, HP-03-002 Verification
 
-- Unit test: All use-case classes in USE_CASE_MAP
-- Unit test: Registry keys match use-case semantic types
-- Unit test: No handlers missing from registry
+- See `dispatch-routing.md` DR-02-001, DR-02-002 verification criteria
+  (handler registry completeness and key-type matching tests)
 
 ### HP-04-001, HP-04-002 Verification
 
