@@ -599,7 +599,9 @@ class TestEmbargoUseCases:
         assert updated.current_status.em_state == EM.NONE
         assert any("Admin override" in r.message for r in caplog.records)
 
-    def test_evaluate_embargo_raises_conflict_when_em_state_invalid(self):
+    def test_evaluate_embargo_raises_invalid_state_transition_when_em_state_invalid(
+        self,
+    ):
         """SvcEvaluateEmbargoUseCase raises VultronInvalidStateTransitionError when EM state does not allow ACCEPT."""
         import pytest
         from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer

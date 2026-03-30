@@ -298,7 +298,10 @@ class SvcCloseReportUseCase:
         )
         if dl.get("ParticipantStatus", closed_id) is not None:
             logger.warning(
-                "Invalid RM state transition: report '%s' is already CLOSED.",
+                "Invalid RM state transition: actor '%s' cannot CLOSE offer"
+                " '%s' — report '%s' is already CLOSED.",
+                actor_id,
+                offer.as_id,
                 report.as_id,
             )
             raise VultronInvalidStateTransitionError(

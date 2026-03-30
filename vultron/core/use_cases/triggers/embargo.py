@@ -82,8 +82,9 @@ class SvcProposeEmbargoUseCase:
             getattr(adapter, "propose")()
         except MachineError:
             logger.warning(
-                "Invalid EM state transition: case '%s' EM state '%s' does not"
-                " allow a PROPOSE transition.",
+                "Invalid EM state transition: actor '%s' cannot PROPOSE on"
+                " case '%s' (EM state '%s').",
+                actor_id,
                 case.as_id,
                 em_state,
             )
@@ -227,8 +228,10 @@ class SvcEvaluateEmbargoUseCase:
             getattr(adapter, "accept")()
         except MachineError:
             logger.warning(
-                "Invalid EM state transition: case '%s' EM state '%s' does not"
-                " allow an ACCEPT transition.",
+                "Invalid EM state transition: actor '%s' cannot ACCEPT"
+                " proposal '%s' on case '%s' (EM state '%s').",
+                actor_id,
+                proposal.as_id,
                 case.as_id,
                 em_state,
             )
@@ -280,8 +283,9 @@ class SvcTerminateEmbargoUseCase:
 
         if case.active_embargo is None:
             logger.warning(
-                "Invalid EM state transition: case '%s' has no active embargo"
-                " to terminate.",
+                "Invalid EM state transition: actor '%s' cannot TERMINATE:"
+                " case '%s' has no active embargo.",
+                actor_id,
                 case.as_id,
             )
             raise VultronInvalidStateTransitionError(
@@ -297,8 +301,9 @@ class SvcTerminateEmbargoUseCase:
             getattr(adapter, "terminate")()
         except MachineError:
             logger.warning(
-                "Invalid EM state transition: case '%s' EM state '%s' does not"
-                " allow a TERMINATE transition.",
+                "Invalid EM state transition: actor '%s' cannot TERMINATE on"
+                " case '%s' (EM state '%s').",
+                actor_id,
                 case.as_id,
                 em_state,
             )

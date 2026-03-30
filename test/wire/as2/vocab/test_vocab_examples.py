@@ -835,8 +835,10 @@ class TestVocabExamples(unittest.TestCase):
         # Extract the embargo from the returned activity rather than
         # recreating it independently to avoid flakiness from time-based
         # ID generation (BUG-FLAKY-1).
-        embargo = activity.as_object
-        self.assertIsNotNone(embargo)
+        embargo_raw = activity.as_object
+        self.assertIsNotNone(embargo_raw)
+        self.assertIsInstance(embargo_raw, as_Object)
+        embargo = cast(as_Object, embargo_raw)
         self.assertEqual(embargo.context, case.as_id)
 
     def test_create_case_status(self):
