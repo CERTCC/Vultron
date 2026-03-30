@@ -111,6 +111,6 @@ The inbox endpoint is the primary entry point for actor-to-actor communication i
 
 ## Related
 
-- **Implementation**: `vultron/api/v2/routers/actors.py`
-- **Tests**: `test/api/v2/routers/test_actors.py`
+- **Implementation**: `vultron/adapters/driving/fastapi/routers/actors.py`
+- **Tests**: `test/adapters/driving/fastapi/routers/test_actors.py`
 - **Cross-specifications**: `http-protocol.md`, `message-validation.md`, `idempotency.md`, `structured-logging.md`, `error-handling.md`

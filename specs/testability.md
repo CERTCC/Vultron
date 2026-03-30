@@ -31,8 +31,9 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 ## Test Organization (MUST)
 
 - `TB-04-001` Test structure MUST mirror source code structure
-  - `test/api/v2/routers/` mirrors `vultron/api/v2/routers/`
-  - `test/api/v2/backend/` mirrors `vultron/api/v2/backend/`
+  - `test/adapters/` mirrors `vultron/adapters/`
+  - `test/core/` mirrors `vultron/core/`
+  - `test/wire/` mirrors `vultron/wire/`
 - `TB-04-002` Test files MUST use descriptive names starting with `test_`
 - `TB-04-003` Unit and integration tests MUST be in separate directories or marked with pytest markers
 
@@ -50,7 +51,8 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 - `TB-05-005` Test semantic types MUST match the activity structure being tested
   - Match semantic to structure: `MessageSemantics.CREATE_REPORT` for `Create(VulnerabilityReport)`
   - Don't use `MessageSemantics.UNKNOWN` unless testing unknown activity handling
-  - **Rationale**: Handler `@verify_semantics` decorators validate type; mismatched tests bypass actual code paths
+  - **Rationale**: Semantic type validation is enforced by the `USE_CASE_MAP`
+    key lookup at dispatch time; mismatched tests bypass actual code paths
   - **Verification**: Each test uses the semantic type that would be extracted from the activity
 
 ## Test Isolation (MUST)

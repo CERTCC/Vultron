@@ -99,11 +99,11 @@ def extract_id_segment(url: str) -> str:
 ## Circular Import Prevention (MUST)
 
 - `CS-05-001` Core modules SHALL NOT import from application layer modules
-  - Core modules: `vultron/behavior_dispatcher.py`, `vultron/core/`, `vultron/wire/`
-  - Application layer: `api/v2/*`
+  - Core modules: `vultron/core/`, `vultron/wire/`
+  - Application layer: `vultron/adapters/`
   - Note: `semantic_map.py`, `semantic_handler_map.py`, and `activity_patterns.py`
     no longer exist as top-level modules; their contents were relocated to
-    `vultron/wire/as2/extractor.py` and `vultron/api/v2/backend/handler_map.py`
+    `vultron/wire/as2/extractor.py` and `vultron/core/use_cases/use_case_map.py`
     as part of the hexagonal architecture refactoring (ARCH-CLEANUP-1)
 - `CS-05-002` When circular dependencies cannot be resolved by reorganization,
   use lazy initialization patterns as a **last resort**

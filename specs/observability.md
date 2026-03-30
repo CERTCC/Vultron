@@ -38,5 +38,5 @@ Observability enables operators to understand system behavior, diagnose issues, 
 - **Logging Requirements**: `specs/structured-logging.md` (authoritative for log format, levels, correlation)
 - **Error Handling**: `specs/error-handling.md`
 - **HTTP Protocol**: `specs/http-protocol.md`
-- **Implementation**: `vultron/api/v2/routers/health.py` (future)
-- **Tests**: `test/api/v2/routers/test_health.py` (future)
+- **Implementation**: `vultron/adapters/driving/fastapi/routers/health.py`
+- **Tests**: `test/adapters/driving/fastapi/routers/test_health.py`

@@ -121,5 +121,5 @@ MV-07), `error-handling.md` (EH-06), `agentic-readiness.md` (AR-03-002)
 
 ## Related
 
-- Implementation: `vultron/api/v2/routers/actors.py`
-- Tests: `test/api/v2/routers/test_actors.py`
+- Implementation: `vultron/adapters/driving/fastapi/routers/actors.py`
+- Tests: `test/adapters/driving/fastapi/routers/test_actors.py`
