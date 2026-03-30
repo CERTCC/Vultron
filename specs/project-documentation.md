@@ -257,6 +257,18 @@ history from implementation work.
   `plan/IMPLEMENTATION_PLAN.md` into the append-only
   `plan/IMPLEMENTATION_HISTORY.md` archive to keep the active plan concise
   - Create `plan/IMPLEMENTATION_HISTORY.md` if it does not exist
+- `PD-02-002` Completed items MUST be replaced with tombstone one-liners in
+  `plan/IMPLEMENTATION_PLAN.md` rather than retaining full task detail.
+  - Tombstone format: `**ID(s)** — Brief description (date) → see HISTORY`
+  - Example: `**TECHDEBT-17, 18, 20** — Batch 80a: Dead code removal
+    (2026-03-16) → see HISTORY`
+  - Multiple related completed items MAY be grouped into a single tombstone
+    (e.g., all items in a batch or phase completed together).
+  - A brief blurb at the top of the completed-phases section MUST direct
+    readers to `plan/IMPLEMENTATION_HISTORY.md` for full details.
+  - The Gap Analysis section (if present) SHOULD be condensed into the
+    tombstone list rather than maintained as separate ✅ subsections.
+  - Tombstones SHOULD be ordered approximately chronologically.
 
 **Target Audience**: Agents planning next implementation steps
 
@@ -331,6 +343,27 @@ When one document references another:
 - IMPLEMENTATION_NOTES.md SHOULD reference relevant specs and ADRs
 - IMPLEMENTATION_PLAN.md SHOULD reference spec requirements
 - All documents MAY reference specs/ for authoritative requirements
+
+---
+
+## Documentation Currency (MUST / SHOULD)
+
+- `PD-03-001` `notes/*.md` files MUST be updated when implementation phases
+  they describe are completed
+  - Forward-looking statements such as "not yet implemented" MUST be
+    replaced with historical references (e.g., "implemented in Phase X")
+    once the described work is done
+- `PD-03-002` `notes/*.md` files that are purely historical and contain no
+  durable design guidance SHOULD be archived in `docs/archived_notes/` with
+  a brief rationale, rather than deleted
+- `PD-03-003` Module paths referenced in `notes/` MUST be updated to
+  reflect canonical current locations whenever those paths change
+  - `plan/IMPLEMENTATION_HISTORY.md` is the authoritative record of *when*
+    changes occurred; the active source code is the authoritative record of
+    *where* components are currently located
+  - Developers MUST confirm component locations via a code search rather
+    than relying solely on historical notes; notes referencing old paths
+    MUST be updated to reflect the current canonical location
 
 ---
 

@@ -501,6 +501,24 @@ to follow the same pattern.
 
 ## 9. Completion Status
 
+> ⚠️ **Warning — commit references are inaccurate**
+>
+> The commit hashes listed in the table below (`fix-em-wire-boundary`,
+> `refactor-em-propose`, `refactor-em-terminate`, etc.) do **not** appear in
+> the actual git history. The corresponding code changes **are** in the
+> codebase — OPP-01, OPP-02, OPP-03, OPP-07 partial, OPP-08 via P90-1,
+> OPP-09 minimum step via P90-2 — but they were committed under different
+> names or bundled into P90 work. The "Status: Refactoring complete" claim is
+> broadly correct, but the commit references below are fictional and should
+> not be used for `git show` or `git log` lookups.
+>
+> Additionally, **OPP-05 remains incomplete** — two near-duplicate participant
+> RM helpers still exist in the codebase (see TECHDEBT-39 in
+> `plan/IMPLEMENTATION_PLAN.md`).
+>
+> A full audit and correction of this section is tracked as DOCMAINT-1 in
+> `plan/IMPLEMENTATION_PLAN.md`.
+
 All P and OPP items from this document have been implemented on the `transitions`
 branch. A summary of key commits:
 
@@ -518,6 +536,8 @@ branch. A summary of key commits:
 
 **Deferred (explicit):**
 
+- OPP-05 (consolidate duplicate participant RM helpers) — **NOT done**; two
+  near-duplicate functions remain. Tracked as TECHDEBT-39.
 - OPP-06 (VFD/PXA machines) — no callers yet; left as future work.
 - Full STATUS dict deprecation (ADR-0013 steps 2–4) — complex migration;
   minimum step (seed RM.VALID at case creation) is done.

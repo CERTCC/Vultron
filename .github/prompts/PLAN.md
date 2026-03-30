@@ -37,19 +37,34 @@ Objective: Update the implementation plan based on current priorities, specifica
      - Group closely related technical-debt items into a single task when
        they share the same implementation context to reduce the number of
        agent prompts required.
-   - Order tasks by implementation priority.
+   - Remove any existing priority labels (low, medium, high, etc.) or 
+     numbers from tasks, as priorities may have changes since the last 
+     update. Use plan/PRIORITIES.md coupled with your analysis of task 
+     dependencies to determine the order of tasks in the list, but do not 
+     include explicit priority labels in the task descriptions themselves. 
+     A later build step will be responsible for prioritizing tasks at build 
+     time.
    - Completed task details should be moved to IMPLEMENTATION_HISTORY.md 
-     leaving a one-line summary reference in IMPLEMENTATION_PLAN.md for each
-     moved item.
+     leaving a short one-three line summary reference in IMPLEMENTATION_PLAN.md 
+     for each moved item (or moved section if an entire block of 
+     related tasks was completed)
 
 4. Update plan/IMPLEMENTATION_NOTES.md
 
-   - Items that were converted from IMPLEMENTATION_NOTES.md to 
+    a. Capture existing items into notes files
+     - Items that were converted from IMPLEMENTATION_NOTES.md to 
      IMPLEMENTATION_PLAN.md tasks should be removed from 
      IMPLEMENTATION_NOTES.md.
-   - Items from the gap analysis that are not actionable tasks should be added as notes.
-   - Add clarified assumptions, open questions, architectural concerns, and risks.
-   - Record insights that will assist future agents.
+    - Items from the gap analysis that are not actionable tasks should be 
+     added to `notes/` files as needed, and removed from 
+     IMPLEMENTATION_NOTES.md once they are fully captured in `notes/` files.
+    - Often, the details in notes are relevant so avoid over-compressing 
+     summaries and information loss when moving items to the notes files. 
+     For task conversion, ensure that relevant notes details are captured in 
+     the notes files in addition to the task description where appropriate.
+   b. Add new observations to IMPLEMENTATION_NOTES.md
+    - Add clarified assumptions, open questions, architectural concerns, and risks.
+    - Record insights that will assist future agents.
 
 5. Commit
 

@@ -328,7 +328,7 @@ the distinction between participant-specific and participant-agnostic state.
   - **Persistence model**: Storage-optimized structures for the DataLayer
   - These three concerns SHOULD be independently evolvable; wire format changes
     SHOULD NOT require domain logic changes, and vice versa
-- `CM-08-002` `PROD_ONLY` Domain objects SHOULD NOT directly inherit from
+- `CM-08-002` Domain objects SHOULD NOT directly inherit from
   ActivityStreams base types; explicit translation functions SHOULD be provided
   at the protocol boundary
   - See `notes/domain-model-separation.md` for design rationale and recommended migration steps

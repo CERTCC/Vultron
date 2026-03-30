@@ -155,6 +155,21 @@ def extract_id_segment(url: str) -> str:
     domain layer. Trailing underscore + alias is the idiomatic Python pattern
     for reserved-word field names; it keeps core models readable and decoupled
     from AS2 naming conventions.
+- `CS-07-003` In the wire layer, field names that conflict with Python reserved
+  keywords MUST use trailing-underscore convention (e.g., `object_`, `type_`)
+  rather than the `as_`-prefix convention for **new code**. The `as_` prefix
+  is retained for **class names** (e.g., `as_Activity`, `as_Object`) where it
+  helpfully signals ActivityStreams provenance, but MUST NOT be applied to
+  field names.
+  - **Note:** This is a forward-looking standard for new wire-layer code.
+    Existing `as_`-prefixed field names in the wire layer will be migrated in a
+    separate task (see `plan/IMPLEMENTATION_PLAN.md` NAMING-1). Do not
+    introduce new `as_`-prefixed field names in the wire layer; use the
+    trailing-underscore convention instead.
+  - **Rationale:** Unifying field naming across all layers on trailing-underscore
+    removes the confusion between `as_object` (wire) and `object_` (core) for
+    the same concept. Class names retain `as_` because it is unambiguous — a
+    class name does not collide with Python keywords.
 
 ## Optional Field Non-Emptiness (MUST)
 
@@ -262,6 +277,70 @@ def extract_id_segment(url: str) -> str:
   - **Scope**: Applies to new classes in `vultron/core/` and to existing
     classes when they are refactored; do not rename existing classes
     incidentally while working on unrelated changes
+
+## Datetime and Timezone Conventions (MUST)
+
+- `CS-13-001` All datetime values produced by the application MUST be
+  timezone-aware and MUST use UTC
+  - Naive `datetime` objects (without timezone info) MUST NOT be stored in
+    domain models, written to the DataLayer, or included in wire output
+  - **Rationale**: Naive datetimes are ambiguous in a distributed system
+    where actors may run in different timezones; UTC eliminates this
+    ambiguity
+- `CS-13-002` All datetime values MUST be created via the `now_utc()` helper
+  in `vultron.wire.as2.vocab.base.dt_utils`
+  - Direct calls to `datetime.now()` (without `tz=timezone.utc`) or
+    `datetime.utcnow()` (which returns a naive UTC datetime) MUST NOT appear
+    in new code
+  - `now_utc()` returns `datetime.now(timezone.utc).replace(microsecond=0)`;
+    using it everywhere ensures uniform precision and timezone handling
+- `CS-13-003` All datetime values SHOULD be stored at second precision
+  (microseconds set to zero)
+  - Sub-second precision is not required by the Vultron protocol for most
+    use cases; stripping microseconds reduces storage noise and ensures
+    identical objects produce identical serialized representations
+  - `now_utc()` enforces this by calling `.replace(microsecond=0)`
+  - Where sub-second precision is needed (e.g., for high-frequency events
+    or integration with external systems that supply microsecond-resolution
+    timestamps), microsecond precision MAY be retained
+- `CS-13-004` Embargo deadline datetimes MUST be computed using the
+  `days_from_now_utc(n)` helper rather than inline arithmetic
+  - `days_from_now_utc(n)` returns `now_utc() + timedelta(days=n)`, which
+    inherits the UTC and second-precision guarantees of `now_utc()`
+- `CS-13-005` Wire-format datetime fields MUST serialize to RFC 3339 / ISO 8601
+  format with explicit UTC offset (`Z` or `+00:00`)
+  - Acceptable forms: `YYYY-MM-DDTHH:MM:SSZ` or `YYYY-MM-DDTHH:MM:SS+00:00`
+  - See RFC 3339 for the definitive format specification
+  - Pydantic serializes timezone-aware `datetime` objects to ISO 8601 by
+    default; no custom serializer is needed as long as CS-13-001 is followed
+
+## Wire Model Configuration (MUST)
+
+- `CS-14-001` Wire-layer Pydantic models (classes in
+  `vultron/wire/as2/vocab/`) MUST inherit `model_config` from `as_Base`,
+  which sets `alias_generator=to_camel`, `validate_by_name=True`, and
+  `validate_by_alias=True`
+  - These settings ensure that AS2 JSON with camelCase keys (e.g.,
+    `"inReplyTo"`) can be deserialized into Python models with snake_case
+    fields (e.g., `in_reply_to`) without explicit per-field alias
+    declarations
+  - Subclasses that override `model_config` MUST extend the parent config
+    to preserve these settings; see `specs/vocabulary-model.md` VM-02-001
+- `CS-14-002` Core/domain-layer Pydantic models (classes in
+  `vultron/core/models/`) MUST set `populate_by_name=True` in their
+  `model_config`
+  - This allows field access using both the Python field name and the
+    alias, which is necessary for DataLayer round-tripping and use-case code
+    that constructs models using keyword arguments matching Python field names
+  - Domain models MUST NOT inherit the wire layer's `alias_generator=to_camel`
+    unless they are also intended for direct wire serialization
+- `CS-14-003` Domain event subclasses MUST narrow the `semantic_type` field
+  to a `Literal[MessageSemantics.FOO]` type with the corresponding default
+  value
+  - This enables Pydantic discriminated-union deserialization and makes the
+    expected semantic type explicit in the class definition
+  - Example: `semantic_type: Literal[MessageSemantics.CREATE_CASE] = MessageSemantics.CREATE_CASE`
+  - CS-14-003 refines CS-10-002
 
 ## Use Case Naming (SHOULD)
 

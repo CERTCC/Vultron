@@ -57,6 +57,12 @@ activities to the case owner, such as closing the case or transferring ownership
 These details are defined in the `vultron_as:CaseOwnerActivity`
 in `ontology/vultron_activitystreams.ttl`.
 
+## Priority 250: pre-300 cleanup
+
+Items to complete before we get to D5-2 and the other priority 300 tasks.
+This includes: SPEC-AUDIT-1, SPEC-AUDIT-2, SPEC-AUDIT-3,
+NAMING-1, QUALITY-1, SECOPS-1, DOCMAINT-1, REORG-1, and SM-GUARD-1.
+
 ## Priority 300: Multi-Actor Demo Scenarios
 
 Extended multi-actor demo scenarios are documented in
@@ -70,6 +76,23 @@ Each scenario requires actors running in independent containers communicating
 via the Vultron Protocol, with CaseActor managing case state.
 
 See `notes/demo-future-ideas.md` for the full scenario descriptions.
+
+D5-1, D5-2, D5-3, D5-4, D5-5.
+
+## Priority 350: Update python version and other maintenance tasks
+
+TOOLS-1, DOCS-3, VOCAB-REG-1
+
+## Priority 400: Initial SYNC implementation
+
+SYNC-1 and SYNC-2 tasks are important architecturally to improve the
+multi-actor demo scenarios. This will give us a more realistic demonstration
+of how the protocol really works in a multi-actor context, and will allow us
+to identify issues or gaps in the protocol design and implementation that
+may not be apparent in a single-actor context. It will also allow us to  
+demonstrate the core behavior tree logic in a more realistic context, which  
+is important for showcasing the capabilities of the system. SYNC-3 is
+important to complete the synchronization work.
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 
@@ -122,9 +145,29 @@ from a prototype to a production-ready system, but they also represent a
 number of decisions and implementation work that is not core to being able
 to demonstrate the core behavior tree and coordination logic.
 
+## Priority 3000: Miscellaneous tasks
+
+BT-2.2, BT-2.3
+
+## Priority 50000: Full RAFT consensus implementation
+
+SYNC-4 enables RAFT consensus for the CaseActor process. Before we get here
+we will need to establish how we want to handle the CaseActor scaling and
+failover process.
+
 ## Priority 99999: Remaining Requirements and Documentation Updates
 
 The project is currently in prototype development mode, therefore requirements
 that are marked as `PROD_ONLY` are temporarily a lower priority than other
 requirements. See `specs/prototype-shortcuts.md` for the prototype-stage
 deferral policy.
+
+USE-CASE-01
+USE-CASE-02
+EP-02
+EP-03
+AR-04
+AR-05
+AR-06
+AGENTIC-00
+FUZZ-00

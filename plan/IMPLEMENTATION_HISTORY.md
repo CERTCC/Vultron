@@ -1,8 +1,9 @@
 # Implementation History
 
 This file archives completed phases from `IMPLEMENTATION_PLAN.md`.
-New entries are appended; do not edit past entries. Include date completed
-when known.
+**New entries MUST be added at the END of this file.** Do not insert entries
+at the top or in the middle; this is an append-only log. Past entries MUST
+NOT be edited. Include date completed when known.
 
 ---
 
@@ -3376,3 +3377,87 @@ actor-first, case-scoped route:
 - `uv run black vultron/ test/ && uv run flake8 vultron/ test/`
 - `markdownlint-cli2 --fix --config .markdownlint-cli2.yaml "**/*.md"`
 - `uv run pytest --tb=short 2>&1 | tail -5` → `1021 passed, 5581 subtests passed`
+
+---
+
+## QUALITY-1 — Treat pytest warnings as errors (2026-03-26)
+
+**Task**: Configure pytest to treat warnings as errors, fix any existing
+warnings surfaced by this change.
+
+**What was done**:
+
+- Added `filterwarnings = ["error"]` to `[tool.pytest.ini_options]` in
+  `pyproject.toml` (per `specs/tech-stack.md` IMPL-TS-07-006).
+- Fixed `ResourceWarning: unclosed file 'mydb.json'` in
+  `vultron/adapters/driven/datalayer_tinydb.py`:
+  - Added `TinyDbDataLayer.close()` method that calls `self._db.close()` to
+    explicitly release TinyDB file handles.
+  - Updated `reset_datalayer()` to call `.close()` on each instance before
+    dropping references, preventing unclosed file warnings when instances are
+    garbage-collected.
+- Updated `.github/skills/run-tests/SKILL.md` to document the warnings-as-errors
+  behaviour and the requirement not to suppress warnings without fixing root causes.
+- Recorded two pre-existing bugs in `plan/BUGS.md`:
+  - BUG-2026032602: `uv run` fails due to `snapshot/Q1-2026` git tag (workaround:
+    use `.venv/bin/pytest` directly).
+  - BUG-2026032603: Test ordering dependency in `test_datalayer_isolation.py`
+    (passes in full suite; fails when run in isolation due to vocabulary registry
+    not being populated).
+
+**Validation**:
+
+- `.venv/bin/black vultron/ test/ && .venv/bin/flake8 vultron/ test/`
+- `.venv/bin/pytest --tb=short 2>&1 | tail -5` → `1026 passed, 5581 subtests passed`
+
+---
+
+## BUG-2026032603 — Test ordering dependency in test_datalayer_isolation.py (2026-03-26)
+
+**Issue**: `TestRecordIsolation::test_two_actors_can_store_same_id_independently`
+failed when run in isolation with `ValueError: Type 'Note' not found in vocabulary
+for Record conversion`. Passed in the full suite due to vocabulary side-effect imports.
+
+**Root cause**: Two related issues:
+
+1. `test/adapters/driven/conftest.py` imported `as_Note` only inside a fixture
+   function body (local import), so `Note` was never registered in the vocabulary
+   unless that fixture was used.
+2. `_object_from_storage` in `datalayer_tinydb.py` caught `ValidationError` but
+   not `ValueError`, so the vocabulary lookup failure propagated unchecked.
+
+**Resolution**:
+
+- Moved `as_Note` import to module level in `test/adapters/driven/conftest.py`
+  so the vocabulary is always populated when the test package loads.
+- Broadened the exception catch in `_object_from_storage` to include `ValueError`
+  as a defensive measure for unknown vocabulary types.
+
+**Lesson**: Test helper types (like `type_="Note"`) that require vocabulary
+registration must be accompanied by a module-level import of the corresponding
+class. Local imports inside fixtures do not guarantee registration order.
+
+---
+
+## BUG-2026032602 — uv run fails due to snapshot/Q1-2026 git tag (2026-03-26)
+
+**Issue**: `uv run pytest` (and all `uv run <tool>` commands) failed to build
+the package with `AssertionError` in `vcs_versioning`.
+
+**Root cause**: The local tag `snapshot-2026Q1` is "externally known as"
+`snapshot/Q1-2026` (its remote alias). `git describe --dirty --tags --long`
+returned `snapshot/Q1-2026-...-...`. The `vcs_versioning` backend (used by
+`setuptools-scm` in the `uv` build environment) tried to parse `snapshot/Q1-2026`
+against the `tag_regex`, got `None`, and raised `AssertionError`.
+`fallback_version` was not reached because the code path raises rather than
+returning `None`.
+
+**Resolution**: Added `git_describe_command` to `[tool.setuptools_scm]` in
+`pyproject.toml` to pass `--match v[0-9]*` to `git describe`. This restricts
+git describe to semver-style `v<N>.*` tags only, skipping snapshot and branch
+tags. Also added `fallback_version = "0.0.0+dev"` for future resilience.
+
+**Lesson**: When a git repo has non-semver tags near HEAD (especially tags with
+external remote aliases), setuptools_scm/vcs_versioning may find and fail to
+parse them. Set `git_describe_command` with an explicit `--match` glob in
+`[tool.setuptools_scm]` to guard against this.

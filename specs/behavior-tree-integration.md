@@ -81,6 +81,14 @@ SHOULD use BTs for clarity and maintainability.
     retries with jitter)
   - Exception: Externally-driven nondeterminism (e.g., human-in-the-loop
     decisions) is acceptable
+- `BT-06-004` Individual BT nodes SHOULD be simple and focused on a single
+  concern (e.g., a single exception check or a single boolean condition)
+  - Any node that contains complicated business logic is a candidate for
+    refactoring into its own sub-tree
+  - **Rationale**: Surfacing business logic into the tree structure rather
+    than embedding it in node code makes the process auditable, loggable,
+    and visible for analysis; it ensures the process behaves as intended and
+    can be reasoned about from the tree alone
 
 ## DataLayer Integration (MUST)
 

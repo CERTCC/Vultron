@@ -32,6 +32,20 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 4. **`dispatch-routing.md`** - Routing DispatchEvent to handler functions
 5. **`handler-protocol.md`** - Handler function contract and implementation patterns
 
+**Wire Vocabulary and Rehydration**:
+
+- **`vocabulary-model.md`** - AS2 vocabulary registration, base model configuration
+  (`alias_generator`, `validate_by_name`, `validate_by_alias`), type inference, Literal
+  type narrowing, and the rehydration contract (`rehydrate(obj, dl)`) (VM-01 through VM-07)
+
+**Semantic–Wire Mapping**:
+
+- **`vultron-as2-mapping.md`** - Authoritative mapping from each `MessageSemantics`
+  enum value to its ActivityStreams 2.0 wire representation: activity type,
+  object type, target/context constraints, and nested-pattern conventions
+  (VAM-01 through VAM-09). Foundational for hexagonal-architecture wire
+  replaceability (ARCH-07-001).
+
 **Behavior Tree Integration** (optional for complex workflows):
 
 - **`behavior-tree-integration.md`** - BT execution model, bridge layer, DataLayer integration
@@ -45,6 +59,12 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   object model relationships (Report/Case/CaseReference/VulnerabilityRecord), case update
   broadcast, CVD action rules API, redacted case view (CM-09), per-participant embargo
   acceptance tracking (CM-10)
+
+**State Machines**:
+
+- **`state-machine.md`** - RM/EM/CS/VFD state enum design, machine definitions, runtime
+  transition guards, append-only history, state subsets, and wire/DataLayer compatibility
+  (SM-01 through SM-08)
 
 ### Object Identifiers
 
@@ -79,10 +99,20 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 - **`response-format.md`** - ActivityStreams response generation (Accept, Reject, etc.)
 - **`outbox.md`** - Actor outbox structure and delivery
 
+### Synchronization
+
+**Future Implementation**:
+
+- **`sync-log-replication.md`** - Append-only case event log, replication
+  transport, conflict handling, per-peer state, and retry semantics
+  (SYNC-01 through SYNC-07)
+
 ### Demo and Tooling
 
 - **`demo-cli.md`** - Unified demo CLI: Click-based entry point, demo isolation, Docker,
   unit and integration test requirements
+- **`multi-actor-demo.md`** - Multi-actor demo scenarios: Docker Compose orchestration,
+  actor isolation, acceptance tests, scenario coverage (DEMO-MA-01 through DEMO-MA-04)
 
 ### Actor Profiles and Policies
 
@@ -90,6 +120,8 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
 
 ### Security
 
+- **`ci-security.md`** - GitHub Actions security: SHA pinning, secrets
+  management, artifact integrity (CI-SEC-01 through CI-SEC-04)
 - **`encryption.md`** - ActivityPub encryption and key management (`PROD_ONLY`)
 
 ### Code Standards
@@ -100,13 +132,19 @@ Specifications are organized by topic with minimal overlap. Cross-references lin
   (`FooActivity` vs `FooEvent`, CS-10-002), type annotation strictness
   (no `Any`, CS-11-001), domain-centric class naming (CS-12-001)
 - **`tech-stack.md`** - Normative technology constraints: runtime, persistence,
-  tooling, and code quality tooling (including pyright gradual adoption, IMPL-TS-*)
+  tooling, code quality tooling (including pyright gradual adoption, IMPL-TS-*),
+  and Python runtime upgrade policy (IMPL-TS-01-007)
+- **`use-case-organization.md`** - Package layout for `vultron/core/use_cases/`
+  (received/ vs triggers/), registry synchronization, test mirroring, and
+  information flow documentation (UC-ORG-01 through UC-ORG-04)
 - **`meta-specifications.md`** - How to write and maintain specifications
 
 ### Documentation Content and Organization
 
 - **`diataxis-requirements.md`** - Requirements for organizing project
   documentation according to the Diátaxis framework (requirement IDs: `DF-NN-NNN`)
+- **`traceability.md`** - Traceability matrix requirements: user story → spec
+  mapping, coverage gaps, and maintenance cadence (TRACE-01 through TRACE-02)
 
 ### Project and Agent Guidance
 
@@ -164,8 +202,11 @@ is reserved for `testability.md`).
 | `ARCH` | `architecture.md` |
 | `AR` | `agentic-readiness.md` |
 | `BT` | `behavior-tree-integration.md` |
+| `CI-SEC` | `ci-security.md` |
 | `CM` | `case-management.md` |
 | `CS` | `code-style.md` |
+| `DC` | `demo-cli.md` |
+| `DEMO-MA` | `multi-actor-demo.md` |
 | `DF` | `diataxis-requirements.md` |
 | `EH` | `error-handling.md` |
 | `EP` | `embargo-policy.md` |
@@ -181,9 +222,15 @@ is reserved for `testability.md`).
 | `PROTO` | `prototype-shortcuts.md` |
 | `RF` | `response-format.md` |
 | `SE` | `semantic-extraction.md` |
+| `SM` | `state-machine.md` |
 | `SL` | `structured-logging.md` |
+| `SYNC` | `sync-log-replication.md` |
 | `TB` | `testability.md` |
+| `TRACE` | `traceability.md` |
 | `TRIG` | `triggerable-behaviors.md` |
+| `UC-ORG` | `use-case-organization.md` |
+| `VAM` | `vultron-as2-mapping.md` |
+| `VM` | `vocabulary-model.md` |
 
 ## Requirement Tags
 
@@ -229,7 +276,7 @@ source.
 See `plan/IMPLEMENTATION_PLAN.md` for detailed implementation status by
 specification.
 
-**Snapshot (2026-03-20)**:
+**Snapshot (2026-03-26)**:
 
 - ✅ **Core message-processing infrastructure is in place**: parsing,
   semantic extraction, dispatch routing, typed use-case execution, and the

@@ -39,7 +39,11 @@ Rules:
 
 ## Priority Levels (RFC 2119)
 
-Use priority **only in section headers**:
+Use the RFC 2119 strength keyword **in every individual requirement line**,
+not only in section headers. This enables automated extraction and filtering
+of requirements by strength (e.g., `grep -E "MUST|SHOULD|MAY" specs/*.md`).
+
+Accepted keywords:
 
 * MUST / SHALL
 * MUST NOT / SHALL NOT
@@ -47,10 +51,18 @@ Use priority **only in section headers**:
 * SHOULD NOT
 * MAY / OPTIONAL
 
-Format:
+Format — section header carries the dominant level for the group:
 
 ```markdown
 ## Category (MUST)
+```
+
+Format — each requirement line carries its own keyword inline:
+
+```markdown
+- `IMPL-01-001` The system MUST use Python 3.13+
+- `IMPL-01-002` Test fixtures SHOULD clean up after each test
+- `IMPL-01-003` Log entries MAY include a correlation ID
 ```
 
 ---
@@ -58,11 +70,11 @@ Format:
 ## Requirement Format
 
 * One requirement per bullet
-* Single-sentence, imperative style
+* Single-sentence, imperative style with inline RFC 2119 keyword
 * IDs required
 
 ```markdown
-- `IMPL-01-001` Use Python 3.13+
+- `IMPL-01-001` The system MUST use Python 3.13+
 ```
 
 Details:

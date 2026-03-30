@@ -427,6 +427,21 @@ logic, authorization, or journal management belongs in a connector.
 touching `core/` or `adapters/`. If a change to the wire format requires changes
 in `core/`, a boundary has been violated.
 
+### Rule 9 — Port interfaces MUST NOT use `BaseModel` as a type hint
+
+Port and adapter interfaces (Protocol definitions, driving/driven adapter
+function signatures, `core/ports/` definitions) MUST NOT use
+`pydantic.BaseModel` as a parameter or return type for data crossing layer
+boundaries. Using `BaseModel` directly exposes Pydantic's internal structure
+as an API surface and indicates the abstraction boundary is insufficiently
+defined. Define explicit domain types (Protocol, dataclass, or named Pydantic
+subclass) for data crossing layer boundaries instead.
+
+**Design Decision:** When you see `BaseModel` in a Protocol or driving/driven
+adapter interface, treat it as a code smell indicating the abstraction boundary
+hasn't been properly defined. Define explicit domain types instead. See AGENTS.md
+"Avoid BaseModel in Port/Adapter Type Hints".
+
 ---
 
 ## Dispatch vs Emit Terminology
