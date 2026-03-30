@@ -12,19 +12,28 @@ actor isolation, acceptance testing, and reproducibility.
 
 ---
 
+## Cross-Actor Communication (MUST)
+
+- `DEMO-MA-00-001` Cross-actor communication MUST occur exclusively via HTTP
+  using the ActivityStreams inbox endpoint
+  - No actor MAY read from or write to another actor's DataLayer directly;
+    all coordination MUST pass through the inbox API
+
 ## Actor Isolation (MUST)
 
 - `DEMO-MA-01-001` Each actor in a multi-actor demo MUST run in a separate
   container with its own DataLayer instance
-  - Actor DataLayers MUST NOT share storage volumes across actor containers
-  - Cross-actor communication MUST occur exclusively via HTTP (the
-    ActivityStreams inbox endpoint)
+  - Actor DataLayers MUST use logically isolated DataLayer instances even
+    when containers share a storage volume; no actor's DataLayer records
+    MUST be readable or writable by a sibling actor
 - `DEMO-MA-01-002` Each actor container MUST expose the actor's identity
   via its `/actors/{actor_id}` profile endpoint so that other containers
   can discover it at startup
-- `DEMO-MA-01-003` Demo documentation MUST describe how to seed initial
-  actor state and how to reset all containers to a clean state for a
-  repeatable re-run
+- `DEMO-MA-01-003` Demo startup MUST automatically reset all actor state to
+  a known clean baseline before the scenario executes, without requiring
+  manual user intervention
+  - Documentation MUST describe how to seed initial actor state and how to
+    trigger the automatic reset for a repeatable re-run
 
 ## Container Orchestration (MUST)
 

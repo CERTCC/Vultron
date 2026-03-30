@@ -31,17 +31,30 @@ Vultron project.
   explicitly via `permissions:` at the job or workflow level
   - Workflows MUST NOT use `permissions: write-all`
 
-## Artifact Integrity (SHOULD)
+## Automated Pin Verification (SHOULD)
+
+- `CI-SEC-01-003` A CI verification test SHOULD confirm that all `uses:`
+  lines in `.github/workflows/*.yml` reference a SHA hash rather than a
+  mutable version tag or branch name, and that each SHA line carries the
+  human-readable version comment required by CI-SEC-01-002
+  - This test SHOULD be implemented as a Python script (e.g., parsing
+    workflow YAML files) so it can run in the same CI environment as other
+    project tests
+
+## Artifact Integrity (MUST)
 
 - `CI-SEC-03-001` CI workflows that download third-party artifacts or tools
-  SHOULD verify signatures or checksums before using them
-  - **Rationale**: Prevents compromised artifacts from entering the build
-    pipeline
+  MUST verify signatures or checksums before using them
+  - **Rationale**: Prevents supply-chain attacks via compromised artifacts
 
 ## Maintenance (SHOULD)
 
 - `CI-SEC-04-001` SHA pins SHOULD be reviewed and updated on a documented
   periodic cadence, at minimum when a security advisory is issued for the
   pinned action or when a new minor version is released
+  - Where Dependabot is configured for GitHub Actions, it SHOULD be treated
+    as the primary mechanism for keeping SHA pins current; the periodic
+    manual review cadence is then a secondary backstop for cases Dependabot
+    does not cover
 - `CI-SEC-04-002` When adding a new workflow step or action, the SHA pin and
   version annotation MUST be included before the step is merged to `main`

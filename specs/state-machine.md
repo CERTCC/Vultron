@@ -9,7 +9,11 @@ machines are defined, represented, and executed at runtime.
 The Vultron protocol operates three interacting state machines, each
 tracking a distinct aspect of the coordinated vulnerability disclosure
 lifecycle. Each participant maintains its own RM state; the CaseActor
-maintains EM and CS state shared across all participants.
+maintains EM and Case State (CS) shared across all participants. Within
+the CS axes, the EM state and the PXA (Public eXploit/Attack) axis are
+shared across all participants via the CaseActor; the VFD
+(Vendor Fix Deployed) axis is maintained strictly per-participant, since
+each vendor's fix deployment status is independent.
 
 **Source**: `vultron/core/states/`, `notes/state-machine-findings.md`,
 `docs/adr/0013-unify-rm-state-tracking.md`,
@@ -46,6 +50,11 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
     sets, the enum definitions in `vultron/core/states/` MUST take
     precedence
   - Documentation MUST be updated to match the enum, not the other way around
+  - Any detected mismatch between the authoritative core state enums and
+    formal protocol documentation MUST be recorded as a noteworthy event
+    (e.g., a note in `notes/state-machine-findings.md` or an issue) rather
+    than being silently corrected; such discrepancies indicate a potential
+    design flaw requiring explicit review
 
 ## State Machine Definitions (SHOULD)
 
@@ -68,15 +77,15 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
   that trigger strings remain stable and are not inlined as string literals
   scattered across the codebase
 
-## Transition Definitions (MUST)
+## Transition Definitions (SHOULD)
 
-- `SM-03-001` Each state transition MUST be expressed as a typed
+- `SM-03-001` Each state transition SHOULD be expressed as a typed
   `TransitionBase` subclass with `trigger`, `source`, and `dest` fields
   typed to the appropriate enums
   - This provides type safety on transition definitions and documents valid
     (source, dest) pairs in one place
   - Example: `EmTransition(trigger=EM_Trigger.ACCEPT, source=EM.PROPOSED, dest=EM.ACTIVE)`
-- `SM-03-002` Transition definitions MUST be stored as a module-level list
+- `SM-03-002` Transition definitions SHOULD be stored as a module-level list
   in the same module that defines the state enum
   - Co-locating state enum and transition list ensures that adding a new
     state also prompts a review of which transitions it needs
@@ -99,8 +108,10 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
   - If the actor is already in the target state, the handler MUST return
     without error (not raise a conflict exception)
   - If the actor is in an invalid source state, the handler MUST raise a
-    domain-specific error (e.g., `VultronConflictError`) rather than
+    domain-specific error (`VultronInvalidStateTransitionError`) rather than
     silently ignoring the transition
+  - Invalid state transition attempts MUST be logged at WARNING or ERROR
+    level so that protocol violations are captured in system logs
   - SM-04-002 implements HP-07-001 (handler-protocol.md)
 
 ## State History (MUST)
@@ -124,6 +135,13 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
     ActivityStreams activities; the local clock is the only trusted source
     for ordering history entries
   - SM-05-003 implements CM-02-009 (case-management.md)
+- `SM-05-004` The case state log SHOULD store references (IDs) to entries in
+  the main case history log rather than duplicating full record content
+  - Using ID references (pointers) avoids doubling storage for the same
+    information and allows monotonically-increasing lookups to find the most
+    recent status at the end of the list
+  - The pointer list SHOULD be automatically refreshed whenever a state
+    event is recorded to the main history log
 
 ## In-Memory (Transient) State (SHOULD)
 
@@ -185,7 +203,7 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
 ### SM-04-001, SM-04-002 Verification
 
 - Unit test: Proposing an embargo when EM is already `ACTIVE` (invalid source)
-  raises `VultronConflictError` (or equivalent)
+  raises `VultronInvalidStateTransitionError`
 - Unit test: Proposing when already `PROPOSED` returns without error (idempotent)
 - Unit test: Proposing from `NO_EMBARGO` succeeds and transitions to `PROPOSED`
 

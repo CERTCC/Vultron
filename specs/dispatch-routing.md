@@ -13,8 +13,13 @@ synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
 ## Dispatcher Protocol (MUST)
 
 - `DR-01-001` All dispatcher implementations MUST implement ActivityDispatcher protocol
-- `DR-01-002` Dispatchers MUST pass the complete `VultronEvent` and `DataLayer`
-  to use-case `execute()` calls
+- `DR-01-002` Dispatchers MUST construct use-case instances with the complete
+  `VultronEvent` and `DataLayer` before calling `execute()`, so that `execute()`
+  takes no arguments
+  - The use-case constructor is responsible for storing `dl` and `request`;
+    `execute()` accesses them via `self._dl` and `self._request`
+  - DR-01-002 constrains all use-case classes to the `UseCase[Req, Res]`
+    protocol defined in `vultron/core/ports/use_case.py`
 - `DR-01-003` Dispatchers MUST invoke `verify_semantics` decorator checks during handler execution
 
 ## Handler Lookup (MUST)
@@ -40,7 +45,8 @@ synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
 ### DR-01-001, DR-01-002, DR-01-003 Verification
 
 - Unit test: Verify DirectActivityDispatcher implements ActivityDispatcher protocol
-- Unit test: Verify dispatcher passes `VultronEvent` and `DataLayer` to use-case
+- Unit test: Verify dispatcher constructs use-case with `VultronEvent` and `DataLayer` before calling `execute()`
+- Unit test: Verify `execute()` takes no arguments
 - Unit test: Verify semantic type validation occurs at dispatch time
 
 ### DR-02-001, DR-02-002 Verification
