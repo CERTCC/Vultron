@@ -48,7 +48,7 @@ The system must handle duplicate activity submissions gracefully, ensuring repea
 
 - `ID-05-001` Validation layer SHOULD reject exact duplicates (same ID, same content)
 - `ID-05-002` HTTP layer MAY implement early duplicate filtering for performance
-- `ID-05-003` SHOULD Handlers provide final idempotency guarantee via state checks
+- `ID-05-003` (SHOULD) Handlers provide final idempotency guarantee via state checks
 
 ## Verification
 

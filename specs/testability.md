@@ -112,7 +112,7 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 
 ## Architecture Boundary Tests
 
-- `TB-10-001` SHOULD `PROD_ONLY` Once the `core` and `wire` packages are fully
+- `TB-10-001` (SHOULD) `PROD_ONLY` Once the `core` and `wire` packages are fully
   separated (see `specs/architecture.md` and `notes/architecture-review.md`),
   architecture boundary tests SHOULD be added to enforce layer separation rules
   - Tests SHOULD verify that `vultron/core/` does not import from

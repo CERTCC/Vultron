@@ -12,7 +12,7 @@ This specification defines the normative technology constraints and implementati
 ## Runtime and Language
 
 - `IMPL-TS-01-001` The implementation MUST use Python 3.12 or later.
-- `IMPL-TS-01-007` MUST Before updating the `requires-python` floor in
+- `IMPL-TS-01-007` (MUST) Before updating the `requires-python` floor in
   `pyproject.toml`, the full test suite MUST pass on the target Python
   version in CI, and all static type checks (`mypy`, `pyright`) and linters
   MUST pass under the new runtime
@@ -91,7 +91,7 @@ This specification defines the normative technology constraints and implementati
   jobs pass.
   - **Rationale**: Parallel execution surfaces all failures simultaneously,
     reducing fix-cycle time and preserving the known-clean codebase baseline.
-- `IMPL-TS-07-006` MUST The pytest configuration in `[tool.pytest.ini_options]`
+- `IMPL-TS-07-006` (MUST) The pytest configuration in `[tool.pytest.ini_options]`
   MUST include `filterwarnings = ["error"]` so that test-suite warnings are
   treated as errors and cannot accumulate as silent technical debt. Existing
   warnings MUST be resolved before this setting is activated; new warnings

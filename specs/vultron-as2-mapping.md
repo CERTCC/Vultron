@@ -52,7 +52,7 @@ sole implementation location for the AS2 mapping.
 - `VAM-01-004` An AS2 activity MUST be rehydrated (URI string references
   expanded to full objects via the DataLayer) before pattern matching; pattern
   matching MUST NOT rely on unhydrated string fields for type discrimination
-- `VAM-01-005` MUST When a pattern specifies a nested activity as the `object` field,
+- `VAM-01-005` (MUST) When a pattern specifies a nested activity as the `object` field,
   the outer activity's `object` MUST be a fully rehydrated AS2 activity object
   matching the inner `ActivityPattern`
 - `VAM-01-006` Pattern matching MUST be conservative when a field is a
@@ -60,7 +60,7 @@ sole implementation location for the AS2 mapping.
   expected type rather than failing the match
 - `VAM-01-007` `MessageSemantics.UNKNOWN` MUST be returned when no registered
   pattern matches the incoming activity
-- `VAM-01-008` MUST Inbound activities represent state-change notifications, not
+- `VAM-01-008` (MUST) Inbound activities represent state-change notifications, not
   commands; the AS2 activity type used for each semantic MUST reflect the
   completed state transition, not a requested action
   - See `notes/activitystreams-semantics.md` for the full treatment of this
@@ -297,7 +297,7 @@ participant.
 
 ## Unrecognized Activities
 
-- `VAM-09-001` MUST An inbound AS2 activity that does not match any registered
+- `VAM-09-001` (MUST) An inbound AS2 activity that does not match any registered
   pattern MUST be assigned `MessageSemantics.UNKNOWN`
 - `VAM-09-002` `MessageSemantics.UNKNOWN` MUST NOT have an entry in
   `SEMANTICS_ACTIVITY_PATTERNS`; the fallback is implemented by

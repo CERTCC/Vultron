@@ -44,7 +44,7 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
     and debug output that displays the full case state string (e.g., `"VFdPxa"`)
   - Both forms MUST refer to the same string value (the short aliases are
     aliases, not separate states)
-- `SM-01-003` MUST State enum values are the authoritative definition of valid
+- `SM-01-003` (MUST) State enum values are the authoritative definition of valid
   states
   - When documentation and code disagree on state names or valid state
     sets, the enum definitions in `vultron/core/states/` MUST take
@@ -116,7 +116,7 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
 
 ## State History
 
-- `SM-05-001` MUST Persisted state for both case-level and participant-level
+- `SM-05-001` (MUST) Persisted state for both case-level and participant-level
   axes MUST use an append-only history list
   - New state records (e.g., `VultronCaseStatus`, `VultronParticipantStatus`)
     MUST be appended to the history list; existing entries MUST NOT be
@@ -145,20 +145,20 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
 
 ## In-Memory (Transient) State
 
-- `SM-06-001` SHOULD Transient state used only during a single request (e.g., for
+- `SM-06-001` (SHOULD) Transient state used only during a single request (e.g., for
   tracking report status during validation processing) SHOULD be clearly
   separated from persisted state
   - Transient state MUST NOT be written to the DataLayer
   - Transient state MUST be documented (e.g., in a module docstring) as
     non-persistent so future developers do not assume it survives a restart
-- `SM-06-002` MUST Transient RM status for reports (e.g., `ReportStatus` in the
+- `SM-06-002` (MUST) Transient RM status for reports (e.g., `ReportStatus` in the
   in-memory `STATUS` dict) MUST be replaced by persisted participant-level
   state once a report is associated with a case and a `CaseParticipant`
   record exists
 
 ## State Subsets and Guards
 
-- `SM-07-001` SHOULD Commonly used groups of states that define validity zones for
+- `SM-07-001` (SHOULD) Commonly used groups of states that define validity zones for
   transitions SHOULD be defined as module-level constants (tuples or
   frozensets) in the same module as the state enum
   - Examples: `RM_ACTIVE = (RM.RECEIVED, RM.VALID, RM.ACCEPTED)`,
@@ -176,7 +176,7 @@ tracking), `behavior-tree-integration.md` BT-06 (BT-driven transitions),
   string value (not as Python enum names or as integers)
   - `StrEnum` satisfies this requirement automatically; using `Enum` or
     `IntEnum` for state axes is prohibited
-- `SM-08-002` MUST When deserializing state values from the DataLayer or from
+- `SM-08-002` (MUST) When deserializing state values from the DataLayer or from
   wire payloads, the receiving Pydantic model MUST declare the state field
   with the `StrEnum` type so that Pydantic coerces the incoming string to
   the correct enum member

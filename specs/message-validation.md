@@ -49,7 +49,7 @@ The inbox handler validates ActivityStreams 2.0 activities before processing to 
   - CaseParticipant
   - EmbargoEvent
   - Standard ActivityStreams types (Person, Organization, Service)
-- `MV-04-002` SHOULD For Create-style activities that create sub-objects (e.g.,
+- `MV-04-002` (SHOULD) For Create-style activities that create sub-objects (e.g.,
   `CreateParticipant`), the activity `name` field SHOULD be a descriptive
   human-readable string identifying the actor, created object ID, and context
   (case ID)

@@ -25,7 +25,7 @@ Should Be URL-Like, Not Bare UUIDs"), `plan/IMPLEMENTATION_PLAN.md`
 - `OID-01-002` IDs MUST be globally unique within the system
 - `OID-01-003` The canonical base URI for locally created objects MUST be
   configurable via an environment variable (`VULTRON_BASE_URL` or equivalent)
-- `OID-01-004` MUST Helper functions for constructing full-URI IDs from UUIDs
+- `OID-01-004` (MUST) Helper functions for constructing full-URI IDs from UUIDs
   MUST be provided in a shared utility module (e.g.,
   `vultron.as_vocab.utils.make_id`)
 

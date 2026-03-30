@@ -21,7 +21,7 @@ interfaces that support agentic workflows.
   `/redoc` in development environments
 - `AR-01-003` Every endpoint MUST have a unique, stable `operationId`
   following the `{resource}_{action}` naming convention
-- `AR-01-004` MUST `PROD_ONLY` All possible HTTP response codes for each endpoint
+- `AR-01-004` (MUST) `PROD_ONLY` All possible HTTP response codes for each endpoint
   MUST be declared in the OpenAPI spec with typed response models
 
 ## State and Workflow Transitions
@@ -29,7 +29,7 @@ interfaces that support agentic workflows.
 - `AR-02-001` `PROD_ONLY` Resources with a `status` field SHOULD include a
   `next_allowed_actions` list identifying valid state transitions from the
   current state
-- `AR-02-002` MUST All valid states and state transitions for state machine
+- `AR-02-002` (MUST) All valid states and state transitions for state machine
   resources MUST be documented
 - `AR-02-003` `PROD_ONLY` Endpoints with prerequisites MUST return a structured
   error using the `error` field value `"PreconditionFailedError"` when invoked
@@ -48,7 +48,7 @@ interfaces that support agentic workflows.
 
 - `AR-04-001` `PROD_ONLY` Long-running operations SHOULD return a job or task
   object immediately with a stable `id` and `status` field
-- `AR-04-002` SHOULD `PROD_ONLY` A separate polling endpoint or webhook mechanism
+- `AR-04-002` (SHOULD) `PROD_ONLY` A separate polling endpoint or webhook mechanism
   SHOULD be available to report operation completion
 
 ## Pagination
@@ -58,7 +58,7 @@ interfaces that support agentic workflows.
 
 ## Bulk Operations
 
-- `AR-06-001` MAY `PROD_ONLY` Resources that agents may need to create, update, or
+- `AR-06-001` (MAY) `PROD_ONLY` Resources that agents may need to create, update, or
   delete in quantity MAY expose batch endpoints (e.g., `POST /v1/items/batch`)
 
 ## Actor Discovery Profile

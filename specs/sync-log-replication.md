@@ -37,7 +37,7 @@ spec captures the normative requirements.
 
 ## Replication Transport
 
-- `SYNC-02-001` MUST Log replication between CaseActor and Participant Actors
+- `SYNC-02-001` (MUST) Log replication between CaseActor and Participant Actors
   MUST use ActivityStreams `Announce` activities as the transport envelope
 - `SYNC-02-002` Each replication message MUST identify the sender, target
   recipient, the log entry hash, and the predecessor hash
@@ -60,7 +60,7 @@ spec captures the normative requirements.
 
 ## Log State in Context
 
-- `SYNC-03-004` SHOULD When a Participant Actor sends any message to the CaseActor,
+- `SYNC-03-004` (SHOULD) When a Participant Actor sends any message to the CaseActor,
   it SHOULD include the hash of its last accepted log entry as a parameter
   in the activity's context field
   - This allows the CaseActor to proactively detect that a participant is
@@ -87,7 +87,7 @@ spec captures the normative requirements.
   case ownership
   - A case ownership transfer implies a replication leadership change; a
     leadership change alone does not imply an ownership transfer
-- `SYNC-06-002` SHOULD The conditions under which replication leadership changes
+- `SYNC-06-002` (SHOULD) The conditions under which replication leadership changes
   SHOULD be documented in `notes/sync-log-replication.md`
 
 ## Testing
@@ -108,13 +108,13 @@ preserved under normal operation and partial failure:
 
 - `SYNC-08-001` Append-only integrity: log entries MUST be immutable once
   committed and MUST be uniquely identified by their content hash
-- `SYNC-08-002` MUST Deterministic projection: given an identical log prefix,
+- `SYNC-08-002` (MUST) Deterministic projection: given an identical log prefix,
   all compliant implementations MUST derive identical state
-- `SYNC-08-003` MUST NOT Idempotent replay: reprocessing any log prefix (including
+- `SYNC-08-003` (MUST NOT) Idempotent replay: reprocessing any log prefix (including
   duplicates) MUST NOT change the resulting state
 - `SYNC-08-004` Monotonic visibility: participants MUST NOT regress their
   acknowledged log position
-- `SYNC-08-005` MUST Reject-on-divergence: entries that do not extend the current
+- `SYNC-08-005` (MUST) Reject-on-divergence: entries that do not extend the current
   hash chain MUST be rejected and MUST trigger resynchronization
 
 **Note**: All specs interacting with state, messaging, or storage MUST treat
