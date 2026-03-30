@@ -304,24 +304,19 @@ are needed before resuming feature development.
 
 ## Deferred (Per PRIORITIES.md)
 
-- **`CloseCaseUseCase` wire-type construction** — Replace direct construction of
+- USE-CASE-01 **`CloseCaseUseCase` wire-type construction** — Replace direct
+  construction of
   `VultronActivity(as_type="Leave")` with domain event emission through the
   `ActivityEmitter` port. Defer until outbound delivery integration beyond
   OX-1.0 is implemented.
-- **UseCase Protocol generic enforcement** — Decide on a consistent
+- USE-CASE-02 **UseCase Protocol generic enforcement** — Decide on a
+  consistent
   `UseCaseResult` Pydantic return envelope; enforce via mypy. Defer to after
   TECHDEBT-21/22.
-- **Production readiness** (request validation, idempotency, structured
-  logging) — all `PROD_ONLY` or low-priority
-- **Response generation** — See `specs/response-format.md` and HISTORY
 - **EP-02/EP-03** — EmbargoPolicy API + compatibility evaluation (`PROD_ONLY`)
 - **AR-04/AR-05/AR-06** — Job tracking, pagination, bulk ops (`PROD_ONLY`)
-- **Domain model separation** (CM-08) — needs ADR; see
-  `notes/domain-model-separation.md`
-- **Optional BT Refactors (BT-2.2, BT-2.3)** — Wrap `engage_case_handler`
-  and `defer_case_handler` in BTs if branching complexity grows; deferred as
-  procedural code is adequate for now.
-- **Agentic AI integration** (Priority 1000) — out of scope until protocol
+- AGENTIC-00 **Agentic AI integration** (Priority 1000) — out of scope until
+  protocol
   foundation is stable
-- **Fuzzer node re-implementation** (Priority 500) — see
+- FUZZ-00 **Fuzzer node re-implementation** (Priority 500) — see
   `notes/bt-fuzzer-nodes.md`

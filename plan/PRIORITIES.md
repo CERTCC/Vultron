@@ -60,7 +60,9 @@ in `ontology/vultron_activitystreams.ttl`.
 ## Priority 250: pre-300 cleanup
 
 Items to complete before we get to D5-2 and the other priority 300 tasks.
-This includes: NAMING-1, QUALITY-1, SECOPS-1, DOCMAINT-1 and REORG-1.
+This includes: SPEC-AUDIT-1, SPEC-AUDIT-2, SPEC-AUDIT-3,
+NAMING-1, QUALITY-1, SECOPS-1, DOCMAINT-1 and REORG-1,
+SM-GUARD-1,
 
 ## Priority 300: Multi-Actor Demo Scenarios
 
@@ -80,7 +82,7 @@ D5-1, D5-2, D5-3, D5-4, D5-5.
 
 ## Priority 350: Update python version and other maintenance tasks
 
-TOOLS-1, DOCS-3
+TOOLS-1, DOCS-3, VOCAB-REG-1
 
 ## Priority 400: Initial SYNC implementation
 
@@ -160,3 +162,13 @@ The project is currently in prototype development mode, therefore requirements
 that are marked as `PROD_ONLY` are temporarily a lower priority than other
 requirements. See `specs/prototype-shortcuts.md` for the prototype-stage
 deferral policy.
+
+USE-CASE-01
+USE-CASE-02
+EP-02
+EP-03
+AR-04
+AR-05
+AR-06
+AGENTIC-00
+FUZZ-00
