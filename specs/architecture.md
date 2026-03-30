@@ -29,6 +29,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
   - **Current state**: Partially achieved. `vultron/core/` has no wire/framework
     imports; `vultron/api/` still uses FastAPI and imports from `vultron/wire/`.
     Full isolation deferred to post-prototype; see PROTO-06-001
+  - ARCH-01-001 is-derived-by CS-05-001
 - `ARCH-01-002` Core functions MUST accept and return domain types only
   - Raw dicts, AS2 types, JSON strings, and framework objects MUST NOT
     enter the domain

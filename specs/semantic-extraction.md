@@ -59,6 +59,7 @@ The inbox handler extracts semantic meaning from ActivityStreams activities by m
 
 - `SE-05-001` All patterns MUST have corresponding MessageSemantics enum value
 - `SE-05-002` All patterns MUST have corresponding use-case class in USE_CASE_MAP
+  - SE-05-002 derives-from DR-02-002
 - `SE-05-003` All patterns MUST have unit test coverage
 
 ## Verification

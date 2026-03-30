@@ -5,7 +5,11 @@
 Defines code formatting and import organization standards for Python code.
 
 **Source**: .pre-commit-config.yaml, copilot-instructions.md, ADR-0006  
-**Note**: Applies to all Python source files and documentation code blocks
+**Note**: Applies to all Python source files and documentation code blocks  
+**Consolidation note**: CI/CD enforcement requirements (pre-commit hooks,
+CI pipeline pass criteria, parallel jobs) are consolidated in
+`tech-stack.md` (IMPL-TS-07-001 through IMPL-TS-07-006). This file covers
+formatting conventions and coding style standards only.
 
 ---
 
@@ -14,19 +18,22 @@ Defines code formatting and import organization standards for Python code.
 - `CS-01-001` Code MUST follow PEP 8 style guidelines
   - **Implementation**: Black formatter MUST be used for consistency
   - **Settings**: Default Black settings (88 character line length, etc.)
-- `CS-01-002` Formatting checks MUST be included in CI/CD pipeline
-  - Builds MUST fail if code does not conform to style guidelines
-- `CS-01-003` Code formatting MUST be enforced
-  - **Implementation**: Pre-commit hooks AND CI pipeline checks
-  - `black`, `flake8`, `mypy`, and `pyright` MUST all pass cleanly before
-    code is staged for commit
-  - CI pipeline runs each linter as a separate parallel job; the build job
-    proceeds only if all four pass (see `.github/workflows/python-app.yml`)
-- `CS-01-006` Static type checking MUST be enforced in CI
-  - Both `mypy` and `pyright` MUST pass with zero errors on all commits to
-    `main` and on every pull request targeting `main`
-  - **Rationale**: The codebase is known-clean; maintaining zero-warning
-    status is required to preserve that baseline
+  - CS-01-001 refines IMPL-TS-07-001
+- `CS-01-002` *Superseded by `tech-stack.md` IMPL-TS-07-005.* CI/CD
+  formatting check and enforcement requirements are consolidated in
+  `tech-stack.md`.
+  - CS-01-002 is-superseded-by IMPL-TS-07-005
+- `CS-01-003` *Superseded by `tech-stack.md` IMPL-TS-07-001, IMPL-TS-07-004,
+  IMPL-TS-07-005.* Code formatting enforcement requirements (pre-commit hooks,
+  CI pipeline pass criteria) are consolidated in `tech-stack.md`.
+  - CS-01-003 is-superseded-by IMPL-TS-07-001
+  - CS-01-003 is-superseded-by IMPL-TS-07-004
+  - CS-01-003 is-superseded-by IMPL-TS-07-005
+- `CS-01-006` *Superseded by `tech-stack.md` IMPL-TS-07-002, IMPL-TS-07-003.*
+  Static type checking enforcement requirements are consolidated in
+  `tech-stack.md`.
+  - CS-01-006 is-superseded-by IMPL-TS-07-002
+  - CS-01-006 is-superseded-by IMPL-TS-07-003
 
 ## Docstring Standards
 
@@ -105,6 +112,7 @@ def extract_id_segment(url: str) -> str:
     no longer exist as top-level modules; their contents were relocated to
     `vultron/wire/as2/extractor.py` and `vultron/core/use_cases/use_case_map.py`
     as part of the hexagonal architecture refactoring (ARCH-CLEANUP-1)
+  - CS-05-001 derives-from ARCH-01-001
 - `CS-05-002` (SHOULD) When circular dependencies cannot be resolved by reorganization,
   use lazy initialization patterns as a **last resort**
   - Prefer module-level imports; local imports are a code smell indicating a
