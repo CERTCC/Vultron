@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError as PydanticValidationError
 
 from vultron.errors import (
-    VultronConflictError,
+    VultronInvalidStateTransitionError,
     VultronError,
     VultronNotFoundError,
     VultronValidationError,
@@ -33,7 +33,7 @@ def translate_domain_errors(exc: Exception) -> HTTPException:
                 "activity_id": None,
             },
         )
-    if isinstance(exc, VultronConflictError):
+    if isinstance(exc, VultronInvalidStateTransitionError):
         return HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={

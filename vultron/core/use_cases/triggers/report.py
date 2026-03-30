@@ -52,7 +52,7 @@ from vultron.core.use_cases.triggers.requests import (
     ValidateReportTriggerRequest,
 )
 from vultron.errors import (
-    VultronConflictError,
+    VultronInvalidStateTransitionError,
     VultronNotFoundError,
     VultronValidationError,
 )
@@ -297,7 +297,11 @@ class SvcCloseReportUseCase:
             actor_id, report.as_id, RM.CLOSED.value
         )
         if dl.get("ParticipantStatus", closed_id) is not None:
-            raise VultronConflictError(
+            logger.warning(
+                "Invalid RM state transition: report '%s' is already CLOSED.",
+                report.as_id,
+            )
+            raise VultronInvalidStateTransitionError(
                 f"Report '{report.as_id}' is already CLOSED."
             )
 
