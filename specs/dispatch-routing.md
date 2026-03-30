@@ -20,12 +20,13 @@ synchronously (DirectActivityDispatcher) or asynchronously (queue-based).
     `execute()` accesses them via `self._dl` and `self._request`
   - DR-01-002 constrains all use-case classes to the `UseCase[Req, Res]`
     protocol defined in `vultron/core/ports/use_case.py`
-- `DR-01-003` Dispatchers MUST invoke `verify_semantics` decorator checks during handler execution
+- `DR-01-003` Dispatchers MUST perform semantic type validation at dispatch time using the configured
+  semantics-to-use-case mapping
 
 ## Handler Lookup (MUST)
 
-- `DR-02-001` The system MUST look up handler functions by semantic type using `SEMANTIC_HANDLER_MAP`
-- `DR-02-002` SEMANTIC_HANDLER_MAP MUST contain entries for all MessageSemantics values
+- `DR-02-001` The system MUST look up use-case classes by semantic type using `USE_CASE_MAP`
+- `DR-02-002` `USE_CASE_MAP` MUST contain entries for all MessageSemantics values
 
 ## Direct Dispatch Implementation (MUST)
 

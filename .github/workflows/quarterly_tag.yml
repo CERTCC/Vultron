@@ -1,5 +1,5 @@
 # Creates a quarterly snapshot tag on the default branch.
-# Tags are named snapshot/QN-YYYY (e.g., snapshot/Q2-2026).
+# Tags are named snapshot-YYYYQn (e.g., snapshot-2026Q2).
 # Runs at 00:00 UTC on the 1st of January, April, July, and October.
 
 name: Quarterly snapshot tag

@@ -61,8 +61,7 @@ in `ontology/vultron_activitystreams.ttl`.
 
 Items to complete before we get to D5-2 and the other priority 300 tasks.
 This includes: SPEC-AUDIT-1, SPEC-AUDIT-2, SPEC-AUDIT-3,
-NAMING-1, QUALITY-1, SECOPS-1, DOCMAINT-1 and REORG-1,
-SM-GUARD-1,
+NAMING-1, QUALITY-1, SECOPS-1, DOCMAINT-1, REORG-1, and SM-GUARD-1.
 
 ## Priority 300: Multi-Actor Demo Scenarios
 
@@ -87,13 +86,13 @@ TOOLS-1, DOCS-3, VOCAB-REG-1
 ## Priority 400: Initial SYNC implementation
 
 SYNC-1 and SYNC-2 tasks are important architecturally to improve the
-mult-actor demo scenarios. This will give us a more realistic demonstration
+multi-actor demo scenarios. This will give us a more realistic demonstration
 of how the protocol really works in a multi-actor context, and will allow us
 to identify issues or gaps in the protocol design and implementation that
 may not be apparent in a single-actor context. It will also allow us to  
 demonstrate the core behavior tree logic in a more realistic context, which  
 is important for showcasing the capabilities of the system. SYNC-3 is
-important to complete the synchron
+important to complete the synchronization work.
 
 ## Priority 500: Re-implement "fuzzer" nodes from the original simulator
 

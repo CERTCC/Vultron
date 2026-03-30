@@ -17,7 +17,7 @@ from vultron.adapters.driven.db_record import Record
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.wire.as2.vocab.base.objects.object_types import (
     as_Note,
-)  # noqa: F401
+)
 
 
 @pytest.fixture

@@ -1,5 +1,3 @@
-import pytest
-
 from vultron.core.states.em import EM, EM_NEGOTIATING
 
 
