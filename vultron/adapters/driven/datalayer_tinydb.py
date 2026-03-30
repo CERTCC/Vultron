@@ -544,6 +544,6 @@ def reset_datalayer(actor_id: str | None = None) -> None:
             instance.close()
         _datalayer_instances = {}
     else:
-        instance = _datalayer_instances.pop(actor_id, None)
-        if instance is not None:
+        if actor_id in _datalayer_instances:
+            instance = _datalayer_instances.pop(actor_id)
             instance.close()
