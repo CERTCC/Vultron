@@ -16,14 +16,14 @@ Objective: Complete the highest-priority pending implementation task.
 
 1. Identify the highest-priority unchecked task in IMPLEMENTATION_PLAN.md.
 
-   - If multiple small or trivial tasks are available, at the current
-     priority level, you may group them and complete more than one in the same 
-     run to conserve build iterations and context-switching.
    - `PRIORITIES.md` is authoritative for priority order, but task ordering
-     may need to account for prerequisites, blockers, and dependencies.
+     should account for prerequisites, blockers, and dependencies.
+   - If multiple small or trivial tasks are available at the current
+     priority level, you may group them and complete more than one in the same
+     run to conserve build iterations and context-switching.
    - Task ordering in IMPLEMENTATION_PLAN.md is a rough guide but not
-     authoritative, use judgment to select the most valuable task(s) that
-     can be completed in a single run.
+     authoritative, use `plan/PRIORITIES.md` and your judgment to select the most
+     valuable task(s) that can be completed in a single run.
 
 ## Verify Before Coding
 
