@@ -131,17 +131,22 @@ explicitly; the fallback serves only old test paths.
 
 ## 6. Implementation Tasks
 
-### TECHDEBT-32b — Fix core adapter imports (implemented in same commit)
+### TECHDEBT-32b — Fix core adapter imports (✅ completed in TECHDEBT-32b, 2026-03-24)
 
-- Remove `from vultron.adapters.driven.db_record import object_to_record`
+All items completed:
+
+- Removed `from vultron.adapters.driven.db_record import object_to_record`
   from `triggers/embargo.py` and `triggers/_helpers.py`.
-- Replace all `dl.update(obj.as_id, object_to_record(obj))` calls with
-  `dl.save(obj)`.
-- Replace `save_to_datalayer(self.datalayer, obj)` calls in BT nodes with
-  `self.datalayer.save(obj)`.
-- Delete `save_to_datalayer()` from `vultron/core/behaviors/helpers.py`.
+- Replaced all `dl.update(obj.as_id, object_to_record(obj))` calls with
+  `dl.save(obj)` across core use cases and triggers.
+- Removed `save_to_datalayer(self.datalayer, obj)` calls from BT nodes;
+  now directly call `self.datalayer.save(obj)`.
+- Removed `save_to_datalayer()` helper from `vultron/core/behaviors/helpers.py`.
 
-### TECHDEBT-32c — Fix wire/rehydration.py adapter import (future task)
+Core layer now has zero adapter-layer imports for persistence. All DataLayer
+access uses the port-defined interface exclusively.
+
+### TECHDEBT-32c — Fix wire/rehydration.py adapter import (⏳ pending)
 
 Remove `from vultron.adapters.driven.datalayer_tinydb import get_datalayer`
 from `vultron/wire/as2/rehydration.py`. Make `dl` a required parameter or

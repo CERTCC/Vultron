@@ -3461,3 +3461,156 @@ tags. Also added `fallback_version = "0.0.0+dev"` for future resilience.
 external remote aliases), setuptools_scm/vcs_versioning may find and fail to
 parse them. Set `git_describe_command` with an explicit `--match` glob in
 `[tool.setuptools_scm]` to guard against this.
+
+---
+
+## VSR-ERR-1 + SM-GUARD-1 + BUG-FLAKY-1 (2026-03-30)
+
+**Branch**: p251  **Tests**: 1027 passed, 5581 subtests
+
+### What was done
+
+Three grouped PRIORITY-250 tasks completed in one commit:
+
+**VSR-ERR-1 — Rename VultronConflictError**:
+
+- Renamed `VultronConflictError` → `VultronInvalidStateTransitionError` in
+  `vultron/errors.py` per `specs/state-machine.md` SM-04-002.
+- Retained `VultronConflictError` as a deprecated alias.
+- Updated all 5 raise sites in `vultron/core/use_cases/triggers/embargo.py`
+  (4 sites) and `triggers/report.py` (1 site) to use the new name.
+- Added `logger.warning(...)` before each raise as required by SM-04-002.
+- Updated `vultron/adapters/driving/fastapi/errors.py` isinstance check.
+- Updated `vultron/core/use_cases/triggers/__init__.py` docstring.
+- Updated `test/core/use_cases/test_embargo_use_cases.py`.
+
+**SM-GUARD-1 — Export EM_NEGOTIATING**:
+
+- Added `EM_NEGOTIATING` to exports in `vultron/core/states/__init__.py`.
+- Replaced inline `[EM.PROPOSED, EM.REVISE]` in
+  `vultron/bt/embargo_management/transitions.py` with `list(EM_NEGOTIATING)`.
+
+**BUG-FLAKY-1 — Fix flaky test_remove_embargo**:
+
+- Fixed `test/wire/as2/vocab/test_vocab_examples.py::test_remove_embargo` by
+  extracting the embargo from `activity.as_object` rather than independently
+  calling `examples.embargo_event(days=90)` (which generates a new time-based
+  ID on each call). The test now asserts `embargo.context == case.as_id`.
+
+---
+
+## REORG-1 — Reorganize `vultron/core/use_cases/` (COMPLETE 2026-03-30)
+
+Reorganized `vultron/core/use_cases/` into clearer sub-packages per
+`specs/use-case-organization.md` UC-ORG-01-001 through UC-ORG-04-001.
+
+**Source moves (via `git mv`):**
+
+- 8 received-handler modules (`actor.py`, `case.py`, `case_participant.py`,
+  `embargo.py`, `note.py`, `report.py`, `status.py`, `unknown.py`) moved to
+  `vultron/core/use_cases/received/`
+- `action_rules.py` moved to `vultron/core/use_cases/query/`
+- `_helpers.py` retained at root (shared by `received/` and `triggers/`)
+
+**Test moves (via `git mv`):**
+
+- 8 received test files moved to `test/core/use_cases/received/` and renamed
+  to drop the `_use_cases` suffix
+- `test_action_rules.py` moved to `test/core/use_cases/query/`
+
+**Import updates:**
+
+- `use_case_map.py` — all 8 imports updated to `received.*`; stale
+  `SEMANTICS_HANDLERS` alias and `api/v2` docstring comment removed
+- `vultron/adapters/driving/fastapi/routers/actors.py` — `action_rules` import
+  updated to `query.action_rules`
+- All moved test files — imports updated to new paths
+- `test/core/use_cases/test_reporting_workflow.py` and
+  `test/core/ports/test_use_case.py` — imports updated in place
+
+**New files:** `received/__init__.py`, `query/__init__.py`,
+`test/core/use_cases/received/__init__.py`,
+`test/core/use_cases/query/__init__.py`, and `vultron/core/use_cases/README.md`
+documenting the trigger→received→sync information flow.
+
+**Tests:** 1027 passed, 5581 subtests (unchanged from before).
+
+**Commit:** 3337e7e0
+
+---
+
+## SECOPS-1 — CI Security: ADR + Automated SHA-Pin Verification Test (2026-03-30)
+
+**Task:** SECOPS-1 (PRIORITY-250 pre-300 cleanup)
+
+**What was done:**
+
+- Created `docs/adr/0014-sha-pin-github-actions.md`: ADR documenting the
+  SHA-pinning policy (all `uses:` references must be pinned to a 40-char commit
+  SHA with an inline human-readable version comment), the use of Dependabot as
+  the primary maintenance mechanism, and the automated test as the continuous
+  enforcement mechanism. References CI-SEC-04-001.
+- Added ADR-0014 to `docs/adr/index.md`.
+- Created `test/ci/__init__.py` and `test/ci/test_workflow_sha_pinning.py`:
+  53 parametrised pytest tests covering every `uses:` line across all 6
+  `.github/workflows/*.yml` files. Tests verify:
+  - CI-SEC-01-001: reference is pinned to a full 40-hex-character SHA
+  - CI-SEC-01-002: SHA line carries an inline version comment (e.g., `# v4.1.0`)
+
+**Tests:** 1080 passed (+53 new), 5581 subtests passed.
+
+**Commit:** 3e5b3079
+
+---
+
+## DOCMAINT-1 — Update outdated notes/ files (COMPLETE 2026-03-30)
+
+**Task:** DOCMAINT-1 (PRIORITY-250 pre-300 cleanup)
+
+**What was done:**
+
+Updated four notes files to replace outdated forward-looking language with
+current implementation status:
+
+- **`notes/activitystreams-semantics.md`** (~line 333): Updated "CaseActor
+  broadcast is not yet implemented" to reflect implementation in
+  `UpdateCaseReceivedUseCase._broadcast_case_update()` (completed in
+  PRIORITY-200 CA-2, 2026-03-25).
+
+- **`notes/state-machine-findings.md`** (Section 9 "Completion Status"):
+  Removed the warning about fictional commit SHAs and the table of fictional
+  commit hashes. Replaced with an accurate per-item status table referencing
+  actual implementation phases (P90-1–P90-5, TECHDEBT-32b, TECHDEBT-39).
+  Updated "Deferred (explicit)" section: OPP-05 is now done (TECHDEBT-39,
+  2026-03-24), full STATUS dict deprecation is done (P90-1/P90-4); only
+  OPP-06 (VFD/PXA machines) remains deferred.
+
+- **`notes/datalayer-refactor.md`** (TECHDEBT-32b/32c sections): Marked
+  TECHDEBT-32b as completed (2026-03-24) with a summary of what was done;
+  marked TECHDEBT-32c as pending with a clearer label.
+
+- **`notes/codebase-structure.md`** (multiple sections):
+  - Updated "Top-Level Module Reorganization Status": removed stale references
+    to `vultron/api/v2/backend/handler_map.py`, `vultron/dispatcher_errors.py`,
+    `vultron/behavior_dispatcher.py`, and `vultron/enums.py` (all removed/
+    relocated); added their canonical current locations.
+  - "API Layer Architecture": Renamed from "Future Refactoring" to
+    "Historical (Completed in VCR Batch B / P65)"; replaced old path table
+    with current canonical locations.
+  - "Handlers Module Structure": Renamed to "Use-Case Module Structure
+    (Completed — REORG-1)"; updated to describe current
+    `vultron/core/use_cases/` layout.
+  - TECHDEBT-11: Updated to note that new test directories exist but old ones
+    have not been removed yet.
+  - TECHDEBT-12: Marked resolved (trigger_services removed in VCR Batch D).
+  - "Known Gap: Outbox Delivery Not Implemented": Replaced with "Resolved:
+    Outbox Delivery (OX-1.0–1.4)".
+  - "Resolved: app.py Root Logger Side Effect": Updated path from
+    `vultron/api/v2/app.py` to `vultron/adapters/driving/fastapi/app.py`.
+  - "Trigger Services Package": Replaced forward-looking migration plan with
+    completed-status summary showing current canonical locations.
+  - Fixed Object IDs section: `vultron/as_vocab/base/utils.py` →
+    `vultron/wire/as2/vocab/base/utils.py`; `vultron/api/v2/routers/datalayer.py`
+    → `vultron/adapters/driving/fastapi/routers/datalayer.py`.
+
+**Tests:** 1080 passed, 5581 subtests passed (no code changes; docs only).
