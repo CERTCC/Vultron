@@ -84,7 +84,7 @@ The system must handle duplicate activity submissions gracefully, ensuring repea
 
 ## Implementation
 
-- **Duplicate Tracking**: `vultron/api/v2/datalayer/abc.py` (processed_activities)
-- **Validation Layer**: `vultron/api/v2/backend/inbox_handler.py` (duplicate check)
-- **Handler Examples**: `vultron/api/v2/backend/handlers.py` (idempotent state checks)
-- **Tests**: `test/api/v2/backend/test_idempotency.py` (future)
+- **Duplicate Tracking**: `vultron/core/ports/datalayer.py` (`DataLayer` protocol)
+- **Validation Layer**: `vultron/adapters/driving/fastapi/inbox_handler.py` (duplicate check)
+- **Handler Examples**: `vultron/core/use_cases/received/` (idempotent state checks)
+- **Tests**: `test/core/test_idempotency.py` (future)

@@ -109,5 +109,5 @@ Example:
 
 ## Related
 
-- Implementation: `vultron/api/v2/logging_config.py` (future)
-- Tests: `test/api/v2/test_logging.py` (use caplog fixture)
+- Implementation: `vultron/adapters/driving/fastapi/logging_config.py` (future)
+- Tests: `test/adapters/driving/fastapi/test_logging.py` (future)

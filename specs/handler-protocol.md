@@ -34,7 +34,7 @@ protocol business logic. All handlers follow a common contract defined by the
 ## Handler Registration (MUST)
 
 - `HP-03-001` All handlers MUST be discoverable via a handler registry mechanism
-  - **Implementation**: Registry map (e.g., `SEMANTIC_HANDLER_MAP`) maps MessageSemantics → handler functions
+  - **Implementation**: Registry map (`USE_CASE_MAP`) maps MessageSemantics → use-case classes
 - `HP-03-002` Registry keys MUST match handler semantic verification types
 
 ## Payload Access (MUST)
@@ -126,8 +126,8 @@ protocol business logic. All handlers follow a common contract defined by the
 
 ### HP-03-001, HP-03-002 Verification
 
-- Unit test: All handlers in SEMANTIC_HANDLER_MAP
-- Unit test: Registry keys match decorator values
+- Unit test: All use-case classes in USE_CASE_MAP
+- Unit test: Registry keys match use-case semantic types
 - Unit test: No handlers missing from registry
 
 ### HP-04-001, HP-04-002 Verification
@@ -174,9 +174,9 @@ protocol business logic. All handlers follow a common contract defined by the
 
 ## Related
 
-- Implementation: `vultron/api/v2/backend/handlers/` (handler modules)
-- Implementation: `vultron/behavior_dispatcher.py`
-- Implementation: `vultron/api/v2/backend/handler_map.py` (`SEMANTICS_HANDLERS` registry)
-- Tests: `test/api/v2/backend/test_handlers.py`
+- Implementation: `vultron/core/use_cases/` (use-case modules)
+- Implementation: `vultron/core/dispatcher.py`
+- Implementation: `vultron/core/use_cases/use_case_map.py` (`USE_CASE_MAP` registry)
+- Tests: `test/core/use_cases/received/`, `test/test_semantic_handler_map.py`
 - Related Spec: [dispatch-routing.md](dispatch-routing.md)
 - Related Spec: [semantic-extraction.md](semantic-extraction.md)

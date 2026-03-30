@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-30 (refresh #60: DOCMAINT-1 complete)
+**Last Updated**: 2026-03-30 (refresh #61: SPEC-AUDIT-3 complete)
 
 ## Overview
 
@@ -20,7 +20,7 @@ endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
 All PRIORITY-30 through PRIORITY-200 phases complete. Active open work:
 **PRIORITY-250** (pre-300 cleanup — NAMING-1 remain
 open; QUALITY-1, SM-GUARD-1, VSR-ERR-1, BUG-FLAKY-1, REORG-1, SECOPS-1,
-DOCMAINT-1 done) and
+DOCMAINT-1, SPEC-AUDIT-3 done) and
 **PRIORITY-300** (multi-actor demos; D5-1 unblocked, D5-2 and later blocked
 by PRIORITY-250).
 
@@ -283,39 +283,18 @@ are needed before resuming feature development.
   text on each line that is missing it (e.g., `XX-01-001 (MUST) Use SHA-256
   hashes...`). A full-spectrum audit across all spec files is required.
 
-### SPEC-AUDIT-3 — Relocate transient implementation notes from specs
+### SPEC-AUDIT-3 — Relocate transient implementation notes from specs ✅
 
-- [ ] **SPEC-AUDIT-3**: Review all `specs/` files for transient
-  implementation commentary (e.g., references to specific bug names, known
-  flaky tests, WIP notes) and relocate them to `plan/IMPLEMENTATION_NOTES.md`
-  or archive them. Spec files SHOULD reflect architectural intent, not
-  temporary bug-tracker state. Also evaluate whether any purely historical
-  `notes/` files should be relocated to `docs/archived_notes/` (outside the
-  MkDocs navigation tree) to resolve build warnings. In this pass, also fix
-  the following specific **outdated stale references** found during the
-  2026-03-30 gap analysis:
-  - `dispatch-routing.md` DR-01-003 references `verify_semantics` decorator
-    (removed in PREPX-2); DR-02-001/002 reference `SEMANTIC_HANDLER_MAP`
-    (renamed to `USE_CASE_MAP`); test path references `test/api/v2/` (removed).
-  - `handler-protocol.md` references `SEMANTIC_HANDLER_MAP` and
-    `test/api/v2/backend/test_handlers.py` (path no longer exists).
-  - `semantic-extraction.md` SE-05-002 references `SEMANTIC_HANDLER_MAP`.
-  - `behavior-tree-integration.md` line ~170 references `@verify_semantics`
-    decorator (removed).
-  - `error-handling.md`, `inbox-endpoint.md`, `message-validation.md`,
-    `structured-logging.md`, `observability.md`, `response-format.md`,
-    `idempotency.md`, `outbox.md` all reference `test/api/v2/` test paths.
-  - Incorporate VSR spec-update items from `notes/spec-review-0327.md`:
-    VSR-03-001 (state-machine.md preamble: VFD per-participant clarification),
-    VSR-03-003 (downgrade SM-03-001/002 strict base class to SHOULD),
-    VSR-03-004 (SM-01-003: require discrepancies to be recorded, not silently
-    adjusted), VSR-07-002 (CS-13-005: add RFC 3339 reference),
-    VSR-07-003 (CS-13-003: allow microsecond precision when needed — already
-    partially done per current spec text), VSR-09-002
-    (prototype-shortcuts.md: formalize PROD_ONLY deferral as SHOULD),
-    VSR-PD-003 (project-documentation.md: clarify that source code — not
-    history — is authoritative for component locations), VSR-DR-001 (update
-    dispatch-routing to remove outdated execute-with-arguments language).
+- [x] **SPEC-AUDIT-3**: Fixed all stale spec references: updated `test/api/v2/`
+  test paths to canonical `test/adapters/` and `test/core/` locations across
+  9 spec files; replaced `SEMANTIC_HANDLER_MAP` with `USE_CASE_MAP` in
+  handler-protocol.md and semantic-extraction.md; removed/updated
+  `@verify_semantics` decorator references in behavior-tree-integration.md,
+  architecture.md, and testability.md; updated stale implementation paths in
+  code-style.md, semantic-extraction.md, error-handling.md, outbox.md,
+  idempotency.md, and response-format.md. Updated TB-04-001 test mirror paths.
+  All VSR items (VSR-03-001, 03-003, 03-004, 07-002, 07-003, 09-002,
+  PD-003, DR-001) were already incorporated in earlier passes.
 
 ### VOCAB-REG-1 — Vocabulary registry auto-registration
 
