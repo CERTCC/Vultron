@@ -46,7 +46,7 @@ the distinction between participant-specific and participant-agnostic state.
     `case_participants` and `vulnerability_reports` tracking
   - Handlers implementing `AddNoteToCase` MUST append the `as_NoteRef` to
     `VulnerabilityCase.notes`
-- `CM-02-008` MUST When a `VulnerabilityCase` is created from an originating
+- `CM-02-008` (MUST) When a `VulnerabilityCase` is created from an originating
   `VulnerabilityReport` Offer, the vendor (case recipient / owner) MUST be
   recorded as the initial primary participant
   - `VulnerabilityCase.attributed_to` MUST be set to the vendor/coordinator's
@@ -135,7 +135,7 @@ the distinction between participant-specific and participant-agnostic state.
   - CM-04-003 implements VP-11-002
   - CM-04-003 implements VP-14-001
   - CM-04-003 implements VP-14-002
-- `CM-04-004` MUST Handlers processing PXA state transitions (public disclosure,
+- `CM-04-004` (MUST) Handlers processing PXA state transitions (public disclosure,
   exploit publication, attack observation) MUST update `CaseStatus.pxa_state`
   - CM-04-004 implements VP-03-002
   - CM-04-004 implements VP-14-003
@@ -201,7 +201,7 @@ the distinction between participant-specific and participant-agnostic state.
   identifiers from different namespaces for the same vulnerability
   - **Rationale**: Multiple IDs from different namespaces may refer to the
     same underlying vulnerability (e.g., a CVE ID and a CERT/CC VU# ID)
-- `CM-05-010` MUST When a `VulnerabilityRecord` is a `CVERecord` (i.e., it
+- `CM-05-010` (MUST) When a `VulnerabilityRecord` is a `CVERecord` (i.e., it
   carries a CVE ID), its data MUST conform to the CVE JSON schema
   (<https://github.com/CVEProject/cve-schema>)
   - The `CVERecord` Pydantic model SHOULD reuse the CVE JSON schema

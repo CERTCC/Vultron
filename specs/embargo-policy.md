@@ -53,7 +53,7 @@ Coordination", "Prior Art and References (Embargo Policy)")
 
 ## Policy Compatibility Evaluation
 
-- `EP-03-001` SHOULD `PROD_ONLY` Before proposing an embargo or inviting an actor
+- `EP-03-001` (SHOULD) `PROD_ONLY` Before proposing an embargo or inviting an actor
   to join an existing embargo, the CaseActor SHOULD retrieve and evaluate
   the target actor's embargo policy for compatibility with the proposed
   embargo terms

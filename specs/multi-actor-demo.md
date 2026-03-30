@@ -43,9 +43,9 @@ actor isolation, acceptance testing, and reproducibility.
   - DEMO-MA-02-001 refines IMPL-TS-05-002 (tech-stack.md)
   - DEMO-MA-02-001 depends-on OB-05-002 (observability.md): the
     `/health/ready` endpoint MUST check DataLayer connectivity
-- `DEMO-MA-02-002` MUST Dependent services (e.g., a demo orchestration container)
+- `DEMO-MA-02-002` (MUST) Dependent services (e.g., a demo orchestration container)
   MUST use `condition: service_healthy` for all actor service dependencies
-- `DEMO-MA-02-003` MUST Port mappings, network names, and required environment
+- `DEMO-MA-02-003` (MUST) Port mappings, network names, and required environment
   variables MUST be documented in the `docker-compose.yml` file or an
   accompanying `README.md`
 

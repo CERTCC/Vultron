@@ -33,7 +33,7 @@ CLI structure, demo isolation, Docker packaging, and test requirements.
 
 ## Demo Utilities
 
-- `DC-02-001` MUST Shared demo utilities (`demo_step`, `demo_check` context
+- `DC-02-001` (MUST) Shared demo utilities (`demo_step`, `demo_check` context
   managers and HTTP client helpers) MUST be extracted to `vultron/demo/utils.py`
   - All demo scripts MUST import from `vultron.demo.utils`
   - No demo script MAY define its own copy of `demo_step`, `demo_check`, or
@@ -62,7 +62,7 @@ CLI structure, demo isolation, Docker packaging, and test requirements.
   container runs interactively and prompts the user to select a demo
   - When the `DEMO` environment variable is set, the container MUST run the
     named sub-command non-interactively and exit
-- `DC-04-003` MUST Individual per-demo Docker services (one service per demo
+- `DC-04-003` (MUST) Individual per-demo Docker services (one service per demo
   script) MUST be removed from `docker-compose.yml` once the unified demo
   service is operational
 

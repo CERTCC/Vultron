@@ -21,7 +21,7 @@ type before semantic extraction can assign it a domain meaning.
 
 ## Vocabulary Registration
 
-- `VM-01-001` MUST Every concrete wire-layer AS2 class (object, activity, or link)
+- `VM-01-001` (MUST) Every concrete wire-layer AS2 class (object, activity, or link)
   MUST be registered in the shared `VOCABULARY` registry at module import time
   using the appropriate decorator:
   - `@activitystreams_object` for object subclasses
@@ -115,7 +115,7 @@ type before semantic extraction can assign it a domain meaning.
 
 ## Vocabulary Extension
 
-- `VM-05-001` MUST When adding a new Vultron-specific object type, the new class
+- `VM-05-001` (MUST) When adding a new Vultron-specific object type, the new class
   MUST:
   1. Inherit from `VultronObject` (or an appropriate AS2 base such as
      `as_Object`, `as_Activity`, etc.)
@@ -127,7 +127,7 @@ type before semantic extraction can assign it a domain meaning.
      (`vocab/objects/`, `vocab/activities/`)
   5. Be exported from the subpackage `__init__.py` so that it is imported
      and registered at startup
-- `VM-05-002` MUST Adding a new vocabulary type that represents a domain concept
+- `VM-05-002` (MUST) Adding a new vocabulary type that represents a domain concept
   MUST be accompanied by:
   - A `MessageSemantics` enum value (see `architecture.md` ARCH-02-001)
   - An `ActivityPattern` in `extractor.py` (see `semantic-extraction.md`
@@ -137,7 +137,7 @@ type before semantic extraction can assign it a domain meaning.
 
 ## Rehydration
 
-- `VM-06-001` MUST Before any wire-layer activity is passed to semantic extraction,
+- `VM-06-001` (MUST) Before any wire-layer activity is passed to semantic extraction,
   callers MUST attempt to rehydrate all nested URI string references into
   fully typed objects via `rehydrate(obj, dl)`
   - VM-06-001 refines SE-01-002 (semantic-extraction.md)
@@ -152,14 +152,14 @@ type before semantic extraction can assign it a domain meaning.
   rehydrated up to `MAX_REHYDRATION_DEPTH` levels
   - Exceeding `MAX_REHYDRATION_DEPTH` MUST raise `RecursionError` to
     prevent infinite loops on circular reference graphs
-- `VM-06-004` MUST If a URI string reference cannot be resolved (object not in
+- `VM-06-004` (MUST) If a URI string reference cannot be resolved (object not in
   DataLayer), rehydration MUST:
   - Log a warning identifying the unresolvable URI
   - Raise `ValueError` to indicate that the object cannot be found
   - The caller (semantic extraction pipeline) then returns
     `MessageSemantics.UNKNOWN`
   - VM-06-004 implements SE-01-003 (semantic-extraction.md)
-- `VM-06-005` MUST If a rehydrated object's `as_type` is not found in the
+- `VM-06-005` (MUST) If a rehydrated object's `as_type` is not found in the
   vocabulary registry, rehydration MUST raise `KeyError` or `ValueError`
   rather than returning a partially constructed object
   - An unknown type in the rehydration path indicates a vocabulary
@@ -188,7 +188,7 @@ type before semantic extraction can assign it a domain meaning.
 
 ## Static Object Integrity
 
-- `VM-08-001` SHOULD Objects intended to be static once created (e.g., vocabulary
+- `VM-08-001` (SHOULD) Objects intended to be static once created (e.g., vocabulary
   registry entries, canonical example objects) SHOULD use immutable
   (frozen) configuration so that any attempt to modify them at runtime
   raises an exception
@@ -199,7 +199,7 @@ type before semantic extraction can assign it a domain meaning.
 
 ## Unknown Message Handling
 
-- `VM-09-001` MAY Messages that cannot be parsed or whose semantics are unknown
+- `VM-09-001` (MAY) Messages that cannot be parsed or whose semantics are unknown
   MAY still be forwarded to the case event log to create an entry for
   human or agent review
   - This provides an opening for manual override: a user or advanced agent

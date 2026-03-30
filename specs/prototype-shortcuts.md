@@ -13,14 +13,14 @@ during the prototype stage.
 
 ## Authentication
 
-- `PROTO-01-001` MAY Omit cryptographic authentication for agent-to-agent
+- `PROTO-01-001` (MAY) Omit cryptographic authentication for agent-to-agent
   communication.
   - PROTO-01-001 constrains CM-06-004
 
 ## Federation
 
-- `PROTO-02-001` MAY Assume all actors are local to a single ActivityPub server.
-- `PROTO-02-002` MAY Post direct messages to an actor's inbox without federation
+- `PROTO-02-001` (MAY) Assume all actors are local to a single ActivityPub server.
+- `PROTO-02-002` (MAY) Post direct messages to an actor's inbox without federation
   or cross-server routing.
 
 **Note**: The intended production federation model uses AS2 as a vocabulary
@@ -32,13 +32,13 @@ and Python stack candidates.
 
 ## Performance
 
-- `PROTO-03-001` SHOULD NOT Avoid algorithms with exponential or worse time complexity.
+- `PROTO-03-001` (SHOULD NOT) Avoid algorithms with exponential or worse time complexity.
   - E.g., O(2^n) is not acceptable; O(n^2) is acceptable.
-- `PROTO-03-002` SHOULD Prefer the simplest algorithm when multiple options exist,
+- `PROTO-03-002` (SHOULD) Prefer the simplest algorithm when multiple options exist,
   even if less efficient.
-- `PROTO-03-003` SHOULD Implement straightforward optimizations that do not
+- `PROTO-03-003` (SHOULD) Implement straightforward optimizations that do not
   significantly increase complexity.
-- `PROTO-03-004` SHOULD Document known unimplemented optimizations in implementation
+- `PROTO-03-004` (SHOULD) Document known unimplemented optimizations in implementation
   notes for future reference.
 
 ## Production Deferral
@@ -50,7 +50,7 @@ and Python stack candidates.
     the full production intent is preserved alongside the prototype deferral
   - Agents SHOULD treat any `PROD_ONLY` requirement as out-of-scope for
     prototype implementation unless explicitly instructed otherwise
-- `PROTO-04-002` SHOULD Review specifications to identify requirements that should
+- `PROTO-04-002` (SHOULD) Review specifications to identify requirements that should
   carry the `PROD_ONLY` tag.
   - Any requirement that cannot be practically tested without production
     infrastructure (e.g., HSMs, PKI, mTLS) or that imposes overhead
@@ -58,7 +58,7 @@ and Python stack candidates.
 
 ## Case Prioritization
 
-- `PROTO-05-001` MAY Use a stub always-engage policy (`AlwaysPrioritizePolicy`)
+- `PROTO-05-001` (MAY) Use a stub always-engage policy (`AlwaysPrioritizePolicy`)
   in place of a real prioritization framework.
   - The intended production mechanism is SSVC (Stakeholder-Specific
     Vulnerability Categorization) or an equivalent tool that evaluates report

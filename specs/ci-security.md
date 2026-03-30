@@ -43,7 +43,7 @@ Vultron project.
 
 ## Artifact Integrity
 
-- `CI-SEC-03-001` MUST CI workflows that download third-party artifacts or tools
+- `CI-SEC-03-001` (MUST) CI workflows that download third-party artifacts or tools
   MUST verify signatures or checksums before using them
   - **Rationale**: Prevents supply-chain attacks via compromised artifacts
 
@@ -56,5 +56,5 @@ Vultron project.
     as the primary mechanism for keeping SHA pins current; the periodic
     manual review cadence is then a secondary backstop for cases Dependabot
     does not cover
-- `CI-SEC-04-002` MUST When adding a new workflow step or action, the SHA pin and
+- `CI-SEC-04-002` (MUST) When adding a new workflow step or action, the SHA pin and
   version annotation MUST be included before the step is merged to `main`

@@ -134,7 +134,7 @@ them; a complete implementation requires both reactive and triggerable sides.
   }
   ```
 
-- `TRIG-04-002` MAY `PROD_ONLY` When a trigger initiates a long-running
+- `TRIG-04-002` (MAY) `PROD_ONLY` When a trigger initiates a long-running
   behavior, the response MAY return a job object per `AR-04-001`
   instead of the activity directly
   - TRIG-04-002 depends-on AR-04-001

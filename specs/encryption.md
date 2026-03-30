@@ -35,7 +35,7 @@ implemented in the prototype.
   the CaseActor using the CaseActor's published public key
   - ENC-02-001 implements VP-15-003
   - ENC-02-001 implements VP-15-004
-- `ENC-02-002` SHOULD `PROD_ONLY` When sending messages to case participants, the
+- `ENC-02-002` (SHOULD) `PROD_ONLY` When sending messages to case participants, the
   CaseActor SHOULD encrypt each outbound message to the recipient's public
   key individually (one encrypted payload per recipient)
   - Broadcast encryption to multiple recipients in a single message payload

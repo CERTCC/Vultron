@@ -68,7 +68,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
 
 ## Driven Adapter Injection
 
-- `ARCH-04-001` MUST Driven adapters (persistence, delivery queue, DNS resolver,
+- `ARCH-04-001` (MUST) Driven adapters (persistence, delivery queue, DNS resolver,
   HTTP delivery) MUST be injected into core services via port interfaces
   - Core services MUST NOT instantiate concrete adapter implementations
     directly

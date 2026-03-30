@@ -14,12 +14,12 @@ trigger → received → sync information flow pattern.
 
 ## Package Layout
 
-- `UC-ORG-01-001` MUST Use-case classes that process inbound received messages
+- `UC-ORG-01-001` (MUST) Use-case classes that process inbound received messages
   MUST reside under `vultron/core/use_cases/received/`
   - Modules in `received/` SHOULD group use cases by protocol domain
     (e.g., `report.py`, `case.py`, `embargo.py`, `participant.py`)
   - UC-ORG-01-001 implements CS-12-002 (code-style.md)
-- `UC-ORG-01-002` MUST Trigger use-case classes that implement actor-initiated
+- `UC-ORG-01-002` (MUST) Trigger use-case classes that implement actor-initiated
   behaviors MUST reside under `vultron/core/use_cases/triggers/`
   - UC-ORG-01-002 implements CS-12-002 (code-style.md)
 - `UC-ORG-01-003` The `vultron/core/use_cases/` package root MUST contain
@@ -48,7 +48,7 @@ trigger → received → sync information flow pattern.
 
 ## Information Flow Documentation
 
-- `UC-ORG-04-001` SHOULD The trigger → received → sync information flow pattern
+- `UC-ORG-04-001` (SHOULD) The trigger → received → sync information flow pattern
   SHOULD be documented in `notes/` and summarized in a `README.md` under
   `vultron/core/use_cases/`
   - Pattern: local triggers emit outbound activities; received handlers

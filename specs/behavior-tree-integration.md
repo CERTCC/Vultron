@@ -129,7 +129,7 @@ SHOULD use BTs for clarity and maintainability.
 
 ## VFD/PXA State Machine Usage
 
-- `BT-12-001` MUST When implementing VFD (vendor fix deployed) or PXA (public
+- `BT-12-001` (MUST) When implementing VFD (vendor fix deployed) or PXA (public
   exploit/attack) state transitions, new code MUST use `create_vfd_machine()`
   and `create_pxa_machine()` (defined in `vultron/core/states/cs.py`) as the
   authoritative source of valid transition sequences. Hand-rolled transition
