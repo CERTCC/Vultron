@@ -346,14 +346,14 @@ When one document references another:
 
 ---
 
-## Documentation Currency (MUST / SHOULD)
+## Documentation Currency
 
 - `PD-03-001` `notes/*.md` files MUST be updated when implementation phases
   they describe are completed
   - Forward-looking statements such as "not yet implemented" MUST be
     replaced with historical references (e.g., "implemented in Phase X")
     once the described work is done
-- `PD-03-002` `notes/*.md` files that are purely historical and contain no
+- `PD-03-002` (SHOULD) `notes/*.md` files that are purely historical and contain no
   durable design guidance SHOULD be archived in `docs/archived_notes/` with
   a brief rationale, rather than deleted
 - `PD-03-003` Module paths referenced in `notes/` MUST be updated to

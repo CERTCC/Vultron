@@ -13,7 +13,7 @@ the distinction between participant-specific and participant-agnostic state.
 
 ---
 
-## Actor Isolation (MUST)
+## Actor Isolation
 
 - `CM-01-001` Each actor MUST have an isolated protocol state domain
   - Actor A and Actor B MUST NOT share internal state (RM, EM, CS, BT blackboard)
@@ -21,7 +21,7 @@ the distinction between participant-specific and participant-agnostic state.
 - `CM-01-002` Each actor's RM state MUST be maintained independently per case
   - RM state is participant-specific; each actor tracks their own RM lifecycle
 
-## CaseActor Lifecycle (MUST)
+## CaseActor Lifecycle
 
 - `CM-02-001` Each VulnerabilityCase MUST have exactly one associated CaseActor
   - CaseActor is an ActivityStreams Service object
@@ -46,7 +46,7 @@ the distinction between participant-specific and participant-agnostic state.
     `case_participants` and `vulnerability_reports` tracking
   - Handlers implementing `AddNoteToCase` MUST append the `as_NoteRef` to
     `VulnerabilityCase.notes`
-- `CM-02-008` When a `VulnerabilityCase` is created from an originating
+- `CM-02-008` (MUST) When a `VulnerabilityCase` is created from an originating
   `VulnerabilityReport` Offer, the vendor (case recipient / owner) MUST be
   recorded as the initial primary participant
   - `VulnerabilityCase.attributed_to` MUST be set to the vendor/coordinator's
@@ -68,7 +68,7 @@ the distinction between participant-specific and participant-agnostic state.
     single-source-of-truth guarantee
   - CM-02-009 depends-on CM-02-002
 
-## Case State Model (MUST)
+## Case State Model
 
 - `CM-03-001` The system MUST implement the three interacting state machines:
   RM (Report Management), EM (Embargo Management), and CS (Case State)
@@ -117,7 +117,7 @@ the distinction between participant-specific and participant-agnostic state.
     transition
   - CM-03-007 implements VP-02-004
 
-## State Transition Correctness (MUST)
+## State Transition Correctness
 
 - `CM-04-001` Handlers processing RM state transitions MUST update
   `ParticipantStatus.rm_state` for the sending actor's CaseParticipant
@@ -135,7 +135,7 @@ the distinction between participant-specific and participant-agnostic state.
   - CM-04-003 implements VP-11-002
   - CM-04-003 implements VP-14-001
   - CM-04-003 implements VP-14-002
-- `CM-04-004` Handlers processing PXA state transitions (public disclosure,
+- `CM-04-004` (MUST) Handlers processing PXA state transitions (public disclosure,
   exploit publication, attack observation) MUST update `CaseStatus.pxa_state`
   - CM-04-004 implements VP-03-002
   - CM-04-004 implements VP-14-003
@@ -153,7 +153,7 @@ the distinction between participant-specific and participant-agnostic state.
     incorrect and MUST be avoided
   - CM-04-006 implements VP-13-009
 
-## Object Model Relationships (MUST)
+## Object Model Relationships
 
 - `CM-05-001` The system MUST distinguish the following domain objects as
   separate, non-interchangeable types:
@@ -201,14 +201,14 @@ the distinction between participant-specific and participant-agnostic state.
   identifiers from different namespaces for the same vulnerability
   - **Rationale**: Multiple IDs from different namespaces may refer to the
     same underlying vulnerability (e.g., a CVE ID and a CERT/CC VU# ID)
-- `CM-05-010` When a `VulnerabilityRecord` is a `CVERecord` (i.e., it
+- `CM-05-010` (MUST) When a `VulnerabilityRecord` is a `CVERecord` (i.e., it
   carries a CVE ID), its data MUST conform to the CVE JSON schema
   (<https://github.com/CVEProject/cve-schema>)
   - The `CVERecord` Pydantic model SHOULD reuse the CVE JSON schema
     `reference` definition for its `references` array, ensuring
     compatibility with CVE data interchange formats
 
-## Case Update Broadcast (MUST)
+## Case Update Broadcast
 
 - `CM-06-001` When the CaseActor updates canonical case state, it MUST
   notify all current case participants
@@ -227,7 +227,7 @@ the distinction between participant-specific and participant-agnostic state.
   notifications before accepting them as authoritative
   - CM-06-004 is-constrained-by PROTO-01-001
 
-## CVD Action Rules API (SHOULD)
+## CVD Action Rules API
 
 - `CM-07-001` The system SHOULD expose an endpoint that returns the set of
   valid actions available to a case participant given the current case state
@@ -317,7 +317,7 @@ the distinction between participant-specific and participant-agnostic state.
   case
 - Unit test: Action rules reflect current RM/EM/CS state for the participant
 
-## Domain Model Architecture (SHOULD)
+## Domain Model Architecture
 
 - `CM-08-001` The system SHOULD maintain a clear separation between the wire
   representation, domain model, and persistence model for CVD objects
@@ -334,7 +334,7 @@ the distinction between participant-specific and participant-agnostic state.
   - See `notes/domain-model-separation.md` for design rationale and recommended migration steps
   - CM-08-002 is-constrained-by PROTO-06-001
 
-## Redacted Case View (SHOULD)
+## Redacted Case View
 
 - `CM-09-001` `PROD_ONLY` The system SHOULD support a `RedactedVulnerabilityCase`
   type for sharing case information with invited-but-not-yet-accepted participants
@@ -356,7 +356,7 @@ the distinction between participant-specific and participant-agnostic state.
   by full case ID only, deferring the redacted view to a later phase
   - CM-09-004 is-constrained-by PROTO-01-001
 
-## Per-Participant Embargo Acceptance (MUST)
+## Per-Participant Embargo Acceptance
 
 - `CM-10-001` `CaseParticipant` MUST track which embargo(es) a participant has
   explicitly accepted

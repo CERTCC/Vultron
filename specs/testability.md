@@ -8,12 +8,12 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 
 ---
 
-## Testing Framework (MUST)
+## Testing Framework
 
 - `TB-01-001` The system MUST use pytest as the testing framework
 - `TB-01-002` Test configuration MUST be defined in `pyproject.toml`
 
-## Test Coverage (MUST)
+## Test Coverage
 
 - `TB-02-001` Unit tests MUST achieve 80%+ line coverage
 - `TB-02-002` Critical paths MUST achieve 100% line coverage
@@ -22,13 +22,13 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
   - Dispatch routing
   - Error handling
 
-## Integration Test Coverage (MUST)
+## Integration Test Coverage
 
 - `TB-03-001` Integration tests MUST cover inbox POST → handler invocation flow
 - `TB-03-002` Integration tests MUST cover validation → error response flow
 - `TB-03-003` Integration tests MUST verify async processing behavior
 
-## Test Organization (MUST)
+## Test Organization
 
 - `TB-04-001` Test structure MUST mirror source code structure
   - `test/adapters/` mirrors `vultron/adapters/`
@@ -37,7 +37,7 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
 - `TB-04-002` Test files MUST use descriptive names starting with `test_`
 - `TB-04-003` Unit and integration tests MUST be in separate directories or marked with pytest markers
 
-## Test Data Management (MUST)
+## Test Data Management
 
 - `TB-05-001` The system MUST provide reusable test fixtures
 - `TB-05-002` Test data MUST be generated via factories, not hardcoded
@@ -55,7 +55,7 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
     key lookup at dispatch time; mismatched tests bypass actual code paths
   - **Verification**: Each test uses the semantic type that would be extracted from the activity
 
-## Test Isolation (MUST)
+## Test Isolation
 
 - `TB-06-001` Tests MUST be independent and runnable in any order
 - `TB-06-002` Tests MUST use test database or mocked database
@@ -92,27 +92,27 @@ The Vultron inbox handler must be thoroughly testable at unit, integration, and 
     failures, and slow development. A flaky test MUST be fixed or removed;
     it MUST NOT be left in the suite.
 
-## Mocking and Stubbing (MUST)
+## Mocking and Stubbing
 
 - `TB-07-001` External services MUST be mocked in unit tests
 - `TB-07-002` Database access MUST be stubbed in unit tests
 - `TB-07-003` Integration tests MAY use real database with test data
 
-## Test Documentation (MUST)
+## Test Documentation
 
 - `TB-08-001` Tests MUST use descriptive names explaining what is tested
 - `TB-08-002` Complex tests SHOULD include docstrings
 - `TB-08-003` Tests SHOULD serve as usage examples
 
-## Test Maintainability (MUST)
+## Test Maintainability
 
 - `TB-09-001` Tests MUST be kept simple and readable
 - `TB-09-002` Test duplication SHOULD be avoided via fixtures and helpers
 - `TB-09-003` Tests MUST be refactored along with production code
 
-## Architecture Boundary Tests (SHOULD)
+## Architecture Boundary Tests
 
-- `TB-10-001` `PROD_ONLY` Once the `core` and `wire` packages are fully
+- `TB-10-001` (SHOULD) `PROD_ONLY` Once the `core` and `wire` packages are fully
   separated (see `specs/architecture.md` and `notes/architecture-review.md`),
   architecture boundary tests SHOULD be added to enforce layer separation rules
   - Tests SHOULD verify that `vultron/core/` does not import from

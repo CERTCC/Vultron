@@ -18,7 +18,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
 
 ---
 
-## Layer Separation (MUST)
+## Layer Separation
 
 - `ARCH-01-001` The `core/` package (or equivalent domain layer) MUST NOT
   import from `wire/`, `adapters/`, or any external framework
@@ -42,7 +42,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
   - **Rationale**: Wire format concerns are structurally distinct from
     domain concerns; mixing them prevents future wire format substitution
 
-## SemanticIntent Enum (MUST)
+## SemanticIntent Enum
 
 - `ARCH-02-001` The `MessageSemantics` enum (`SemanticIntent`) MUST be
   defined in the domain layer, not in the wire layer
@@ -54,7 +54,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     ARCH-1.1); re-exported from `vultron/enums.py` for compatibility. AS2
     structural enums moved to `vultron/wire/as2/enums.py` (ARCH-CLEANUP-2).
 
-## Semantic Extractor (MUST)
+## Semantic Extractor
 
 - `ARCH-03-001` AS2 vocabulary MUST be mapped to domain concepts in exactly
   one location: the semantic extractor
@@ -66,9 +66,9 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     sole location of AS2-to-domain vocabulary mapping (ARCH-1.3,
     ARCH-CLEANUP-1). Handler code no longer inspects AS2 types (ARCH-CLEANUP-3).
 
-## Driven Adapter Injection (MUST)
+## Driven Adapter Injection
 
-- `ARCH-04-001` Driven adapters (persistence, delivery queue, DNS resolver,
+- `ARCH-04-001` (MUST) Driven adapters (persistence, delivery queue, DNS resolver,
   HTTP delivery) MUST be injected into core services via port interfaces
   - Core services MUST NOT instantiate concrete adapter implementations
     directly
@@ -78,7 +78,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     parameter injection (ARCH-1.4). `get_datalayer()` is no longer called
     inside handler bodies.
 
-## Connector Plugins (MUST)
+## Connector Plugins
 
 - `ARCH-05-001` Connector plugins (tracker integrations) MUST be discovered
   via Python entry points (`importlib.metadata`); the core MUST NOT import
@@ -86,7 +86,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
 - `ARCH-05-002` Connector plugins MUST translate only — no case handling
   logic, authorization, or journal management belongs in a connector
 
-## Wire Layer Replaceability (SHOULD)
+## Wire Layer Replaceability
 
 - `ARCH-06-001` The wire layer (`wire/as2/`) SHOULD be replaceable as a
   unit without touching the core or adapter layers
@@ -96,7 +96,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     now typed as `InboundPayload` (domain type), not `as_Activity` (ARCH-1.2).
     Full wire replaceability requires completing P60-3 (adapters package).
 
-## Handler Isolation (MUST)
+## Handler Isolation
 
 - `ARCH-07-001` Handler functions MUST NOT re-invoke semantic extraction
   - The semantic type MUST be pre-computed and carried in the dispatch
@@ -107,7 +107,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     time via `USE_CASE_MAP` key lookup in `vultron/core/dispatcher.py`;
     no re-invocation of `find_matching_semantics`.
 
-## Driving Adapter Boundary (MUST)
+## Driving Adapter Boundary
 
 - `ARCH-08-001` Driving adapters (HTTP inbox, CLI, MCP server) MUST invoke
   the wire pipeline before calling into the core
@@ -119,7 +119,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
     `vultron/wire/as2/parser.py`; the router calls it as a thin wrapper
     (ARCH-1.3).
 
-## Core Model Richness (MUST)
+## Core Model Richness
 
 - `ARCH-09-001` Core domain models MUST be as rich as or richer than their
   wire-layer counterparts
@@ -133,7 +133,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
   - **Cross-reference**: `notes/architecture-ports-and-adapters.md`
     "Core Models Must Be Richer Than Wire Models"
 
-## Fail-Fast Domain Objects (MUST)
+## Fail-Fast Domain Objects
 
 - `ARCH-10-001` Domain events and domain models MUST validate required
   fields at construction time and fail immediately if required invariants
@@ -148,7 +148,7 @@ prevention), `prototype-shortcuts.md` PROTO-06-001 (domain model deferral),
   - **Cross-reference**: `notes/architecture-ports-and-adapters.md`
     "Design Constraints and Invariants" invariant 2
 
-## Port Inbound/Outbound Discrimination (SHOULD)
+## Port Inbound/Outbound Discrimination
 
 - `ARCH-11-001` Core ports SHOULD be organized into inbound (driving)
   and outbound (driven) categories

@@ -9,19 +9,19 @@ Consolidated logging requirements for Vultron API v2: log format, correlation ID
 
 ---
 
-## Log Format (MUST)
+## Log Format
 
 - `SL-01-001` `PROD_ONLY` All log entries MUST include `timestamp` field in ISO 8601 format
 - `SL-01-002` `PROD_ONLY` All log entries MUST include `level` field (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 - `SL-01-003` `PROD_ONLY` All log entries MUST include `component` field (module or function name)
 - `SL-01-004` `PROD_ONLY` All log entries MUST include `message` field (human-readable text)
 
-## Correlation IDs (MUST)
+## Correlation IDs
 
 - `SL-02-001` `PROD_ONLY` Log entries MUST include `activity_id` field when activity is available
 - `SL-02-002` `PROD_ONLY` Log entries MUST include `actor_id` field when actor is available
 
-## Log Level Semantics (MUST)
+## Log Level Semantics
 
 - `SL-03-001` Log levels MUST follow standard severity semantics per table below
 
@@ -33,7 +33,7 @@ Consolidated logging requirements for Vultron API v2: log format, correlation ID
 | ERROR | Unrecoverable failures, HTTP 5xx errors | "Failed to store activity", "Handler crashed" |
 | CRITICAL | System-level failures | Reserved for catastrophic failures |
 
-## State Transition Logging (MUST)
+## State Transition Logging
 
 - `SL-04-001` All state transitions MUST be logged at INFO level
 - `SL-04-002` State transition logs MUST include before state
@@ -59,26 +59,26 @@ Example:
 }
 ```
 
-## Error Context (SHOULD)
+## Error Context
 
 - `SL-05-001` ERROR level logs SHOULD include exception type and message
 - `SL-05-002` ERROR level logs SHOULD include stack trace for unexpected exceptions
 - `SL-05-003` ERROR level logs SHOULD include original activity ID if available
 
-## Authorization Logging (SHOULD)
+## Authorization Logging
 
 - `SL-06-001` `PROD_ONLY` Authorization decisions SHOULD be logged with decision (allowed/denied)
 - `SL-06-002` `PROD_ONLY` Authorization logs SHOULD include actor performing action
 - `SL-06-003` `PROD_ONLY` Authorization logs SHOULD include resource being accessed
 - `SL-06-004` `PROD_ONLY` Authorization logs SHOULD include denial reason if denied
 
-## Data Access Logging (SHOULD)
+## Data Access Logging
 
 - `SL-07-001` `PROD_ONLY` Sensitive data operations SHOULD log operation type (CREATE, READ, UPDATE, DELETE)
 - `SL-07-002` `PROD_ONLY` Data access logs SHOULD include resource type and ID
 - `SL-07-003` `PROD_ONLY` Data access logs SHOULD include actor performing operation
 
-## Performance Metrics (MAY)
+## Performance Metrics
 
 - `SL-08-001` `PROD_ONLY` System MAY log performance metrics at DEBUG level
   - Request processing duration

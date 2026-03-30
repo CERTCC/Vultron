@@ -11,7 +11,7 @@ Vultron project.
 
 ---
 
-## Action Version Pinning (MUST)
+## Action Version Pinning
 
 - `CI-SEC-01-001` All `uses:` references in `.github/workflows/*.yml` MUST
   be pinned to a specific commit SHA rather than a version tag or branch name
@@ -23,7 +23,7 @@ Vultron project.
   comment identifying the corresponding human-readable version tag
   (e.g., `# v4.1.0`) to aid maintainability
 
-## Secrets Management (MUST)
+## Secrets Management
 
 - `CI-SEC-02-001` Workflow secrets and tokens MUST be stored in GitHub
   Secrets and MUST NOT appear in repository files
@@ -31,7 +31,7 @@ Vultron project.
   explicitly via `permissions:` at the job or workflow level
   - Workflows MUST NOT use `permissions: write-all`
 
-## Automated Pin Verification (SHOULD)
+## Automated Pin Verification
 
 - `CI-SEC-01-003` A CI verification test SHOULD confirm that all `uses:`
   lines in `.github/workflows/*.yml` reference a SHA hash rather than a
@@ -41,13 +41,13 @@ Vultron project.
     workflow YAML files) so it can run in the same CI environment as other
     project tests
 
-## Artifact Integrity (MUST)
+## Artifact Integrity
 
-- `CI-SEC-03-001` CI workflows that download third-party artifacts or tools
+- `CI-SEC-03-001` (MUST) CI workflows that download third-party artifacts or tools
   MUST verify signatures or checksums before using them
   - **Rationale**: Prevents supply-chain attacks via compromised artifacts
 
-## Maintenance (SHOULD)
+## Maintenance
 
 - `CI-SEC-04-001` SHA pins SHOULD be reviewed and updated on a documented
   periodic cadence, at minimum when a security advisory is issued for the
@@ -56,5 +56,5 @@ Vultron project.
     as the primary mechanism for keeping SHA pins current; the periodic
     manual review cadence is then a secondary backstop for cases Dependabot
     does not cover
-- `CI-SEC-04-002` When adding a new workflow step or action, the SHA pin and
+- `CI-SEC-04-002` (MUST) When adding a new workflow step or action, the SHA pin and
   version annotation MUST be included before the step is merged to `main`

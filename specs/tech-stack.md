@@ -9,10 +9,10 @@ This specification defines the normative technology constraints and implementati
 
 ---
 
-## Runtime and Language (MUST)
+## Runtime and Language
 
 - `IMPL-TS-01-001` The implementation MUST use Python 3.12 or later.
-- `IMPL-TS-01-007` Before updating the `requires-python` floor in
+- `IMPL-TS-01-007` (MUST) Before updating the `requires-python` floor in
   `pyproject.toml`, the full test suite MUST pass on the target Python
   version in CI, and all static type checks (`mypy`, `pyright`) and linters
   MUST pass under the new runtime
@@ -33,7 +33,7 @@ This specification defines the normative technology constraints and implementati
 
 ---
 
-## Persistence and Data (MUST)
+## Persistence and Data
 
 - `IMPL-TS-02-001` The prototype MUST use TinyDB for lightweight local persistence.
 - `IMPL-TS-02-002` The system MUST support JSON-based storage for demo and local development use.
@@ -42,7 +42,7 @@ This specification defines the normative technology constraints and implementati
 
 ---
 
-## Interfaces and Tooling (MUST)
+## Interfaces and Tooling
 
 - `IMPL-TS-03-001` Command line interfaces MUST be implemented using `click`.
 - `IMPL-TS-03-002` The system MUST support HTTP interactions with external services using requests.
@@ -51,7 +51,7 @@ This specification defines the normative technology constraints and implementati
 
 ---
 
-## Documentation and Visualization (SHOULD)
+## Documentation and Visualization
 
 - `IMPL-TS-04-001` The project SHOULD generate static documentation using MkDocs.
 - `IMPL-TS-04-002` The documentation SHOULD use `mkdocstrings` for API reference generation.
@@ -60,7 +60,7 @@ This specification defines the normative technology constraints and implementati
 
 ---
 
-## Containerization and Deployment (SHOULD)
+## Containerization and Deployment
 
 - `IMPL-TS-05-001` The system SHOULD support containerization using Docker.
 - `IMPL-TS-05-002` Multi-container demo environments SHOULD be orchestrated using `docker-compose`.
@@ -72,7 +72,7 @@ This specification defines the normative technology constraints and implementati
 
 ---
 
-## Code Quality Tooling (MUST)
+## Code Quality Tooling
 
 - `IMPL-TS-07-001` The project MUST use Black for code formatting; Black
   MUST be enforced via pre-commit hooks AND in the CI pipeline.
@@ -91,7 +91,7 @@ This specification defines the normative technology constraints and implementati
   jobs pass.
   - **Rationale**: Parallel execution surfaces all failures simultaneously,
     reducing fix-cycle time and preserving the known-clean codebase baseline.
-- `IMPL-TS-07-006` The pytest configuration in `[tool.pytest.ini_options]`
+- `IMPL-TS-07-006` (MUST) The pytest configuration in `[tool.pytest.ini_options]`
   MUST include `filterwarnings = ["error"]` so that test-suite warnings are
   treated as errors and cannot accumulate as silent technical debt. Existing
   warnings MUST be resolved before this setting is activated; new warnings
@@ -103,7 +103,7 @@ This specification defines the normative technology constraints and implementati
 
 ---
 
-## Optional and Prototype Extensions (MAY)
+## Optional and Prototype Extensions
 
 - `IMPL-TS-06-001` The system MAY provide interactive demo interfaces using Streamlit.
 - `IMPL-TS-06-002` The project MAY use uv for Python environment and dependency management.

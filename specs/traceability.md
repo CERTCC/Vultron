@@ -11,7 +11,7 @@ to specification requirements.
 
 ---
 
-## Traceability Matrix (MUST)
+## Traceability Matrix
 
 - `TRACE-01-001` A traceability file MUST exist at
   `notes/user-stories-trace.md` mapping each user story in
@@ -23,7 +23,7 @@ to specification requirements.
   specifications are added or existing requirements are significantly changed
   in a way that affects story coverage
 
-## Maintenance (SHOULD)
+## Maintenance
 
 - `TRACE-02-001` The traceability matrix SHOULD be reviewed and updated as
   part of any spec-authoring or user-story-authoring activity

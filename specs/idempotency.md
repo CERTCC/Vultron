@@ -11,18 +11,18 @@ The system must handle duplicate activity submissions gracefully, ensuring repea
 
 ---
 
-## Activity ID Uniqueness (MUST)
+## Activity ID Uniqueness
 
 - `ID-01-001` All activities MUST have globally unique `id` field (URI)
 - `ID-01-002` Activity IDs MUST remain stable (same activity = same ID)
 
-## Duplicate Detection (MUST)
+## Duplicate Detection
 
 - `ID-02-001` System MUST detect duplicate activity submissions by ID
 - `ID-02-002` System SHOULD track processed activity IDs in DataLayer
 - `ID-02-003` Detection MUST occur before handler business logic execution
 
-## Idempotent Response (MUST)
+## Idempotent Response
 
 - `ID-03-001` Duplicate submissions MUST return same HTTP status as original
   - First submission: HTTP 202 (queued for processing)
@@ -31,7 +31,7 @@ The system must handle duplicate activity submissions gracefully, ensuring repea
 - `ID-03-003` System SHOULD log duplicate submissions at WARNING level
   - ID-03-003 depends-on SL-03-001
 
-## Handler Idempotency (SHOULD)
+## Handler Idempotency
 
 - `ID-04-001` Handlers SHOULD be idempotent (same input → same output)
 - `ID-04-002` Handlers SHOULD check existing state before state transitions
@@ -44,11 +44,11 @@ The system must handle duplicate activity submissions gracefully, ensuring repea
     corruption; SHOULD-level idempotency is insufficient for state machines
   - **Examples**: `validate_report`, `create_report`, `create_case`
 
-## Implementation Strategy (SHOULD)
+## Implementation Strategy
 
 - `ID-05-001` Validation layer SHOULD reject exact duplicates (same ID, same content)
 - `ID-05-002` HTTP layer MAY implement early duplicate filtering for performance
-- `ID-05-003` Handlers provide final idempotency guarantee via state checks
+- `ID-05-003` (SHOULD) Handlers provide final idempotency guarantee via state checks
 
 ## Verification
 

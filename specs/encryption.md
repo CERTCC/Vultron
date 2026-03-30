@@ -14,7 +14,7 @@ implemented in the prototype.
 
 ---
 
-## Key Management (MUST)
+## Key Management
 
 - `ENC-01-001` `PROD_ONLY` Each CaseActor MUST generate an asymmetric key
   pair at instantiation
@@ -29,20 +29,20 @@ implemented in the prototype.
 - `ENC-01-004` `PROD_ONLY` Private keys MUST be stored securely and MUST
   NOT be logged or included in API responses
 
-## Message Encryption (SHOULD)
+## Message Encryption
 
 - `ENC-02-001` `PROD_ONLY` Case participants MAY encrypt messages sent to
   the CaseActor using the CaseActor's published public key
   - ENC-02-001 implements VP-15-003
   - ENC-02-001 implements VP-15-004
-- `ENC-02-002` `PROD_ONLY` When sending messages to case participants, the
+- `ENC-02-002` (SHOULD) `PROD_ONLY` When sending messages to case participants, the
   CaseActor SHOULD encrypt each outbound message to the recipient's public
   key individually (one encrypted payload per recipient)
   - Broadcast encryption to multiple recipients in a single message payload
     is out of scope for the initial implementation
   - ENC-02-002 implements VP-15-004
 
-## Decryption Pipeline (MUST)
+## Decryption Pipeline
 
 - `ENC-03-001` `PROD_ONLY` Decryption of inbound encrypted activities MUST
   occur in the inbox handler before the activity is passed to semantic
@@ -62,13 +62,13 @@ implemented in the prototype.
 
 ### ENC-01-001, ENC-01-002 Verification
 
-- `PROD_ONLY` Unit test: CaseActor instantiation produces a key pair
-- `PROD_ONLY` Integration test: `GET /actors/{id}` response includes
+- `PROD_ONLY` MUST Unit test: CaseActor instantiation produces a key pair
+- `PROD_ONLY` MUST Integration test: `GET /actors/{id}` response includes
   `publicKey` field
 
 ### ENC-02-001 Verification
 
-- `PROD_ONLY` Integration test: Message encrypted with actor public key is
+- `PROD_ONLY` MUST Integration test: Message encrypted with actor public key is
   accepted and decrypted successfully
 
 ### ENC-03-001, ENC-03-002 Verification

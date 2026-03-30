@@ -12,14 +12,14 @@ actor isolation, acceptance testing, and reproducibility.
 
 ---
 
-## Cross-Actor Communication (MUST)
+## Cross-Actor Communication
 
 - `DEMO-MA-00-001` Cross-actor communication MUST occur exclusively via HTTP
   using the ActivityStreams inbox endpoint
   - No actor MAY read from or write to another actor's DataLayer directly;
     all coordination MUST pass through the inbox API
 
-## Actor Isolation (MUST)
+## Actor Isolation
 
 - `DEMO-MA-01-001` Each actor in a multi-actor demo MUST run in a separate
   container with its own DataLayer instance
@@ -35,7 +35,7 @@ actor isolation, acceptance testing, and reproducibility.
   - Documentation MUST describe how to seed initial actor state and how to
     trigger the automatic reset for a repeatable re-run
 
-## Container Orchestration (MUST)
+## Container Orchestration
 
 - `DEMO-MA-02-001` Docker Compose configurations for multi-actor demos MUST
   include a `healthcheck` for each actor service that probes the
@@ -43,13 +43,13 @@ actor isolation, acceptance testing, and reproducibility.
   - DEMO-MA-02-001 refines IMPL-TS-05-002 (tech-stack.md)
   - DEMO-MA-02-001 depends-on OB-05-002 (observability.md): the
     `/health/ready` endpoint MUST check DataLayer connectivity
-- `DEMO-MA-02-002` Dependent services (e.g., a demo orchestration container)
+- `DEMO-MA-02-002` (MUST) Dependent services (e.g., a demo orchestration container)
   MUST use `condition: service_healthy` for all actor service dependencies
-- `DEMO-MA-02-003` Port mappings, network names, and required environment
+- `DEMO-MA-02-003` (MUST) Port mappings, network names, and required environment
   variables MUST be documented in the `docker-compose.yml` file or an
   accompanying `README.md`
 
-## Acceptance Tests (MUST)
+## Acceptance Tests
 
 - `DEMO-MA-03-001` Each multi-actor demo scenario MUST include an acceptance
   test that validates the end-to-end workflow deterministically
@@ -60,7 +60,7 @@ actor isolation, acceptance testing, and reproducibility.
 - `DEMO-MA-03-003` Acceptance tests MUST be reproducible: the same test on
   the same codebase MUST produce the same result on successive runs
 
-## Scenario Coverage (SHOULD)
+## Scenario Coverage
 
 - `DEMO-MA-04-001` Multi-actor demo scenarios SHOULD be implemented
   progressively:

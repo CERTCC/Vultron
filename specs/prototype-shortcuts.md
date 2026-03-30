@@ -11,16 +11,16 @@ during the prototype stage.
 
 ---
 
-## Authentication (MAY)
+## Authentication
 
-- `PROTO-01-001` Omit cryptographic authentication for agent-to-agent
+- `PROTO-01-001` (MAY) Omit cryptographic authentication for agent-to-agent
   communication.
   - PROTO-01-001 constrains CM-06-004
 
-## Federation (MAY)
+## Federation
 
-- `PROTO-02-001` Assume all actors are local to a single ActivityPub server.
-- `PROTO-02-002` Post direct messages to an actor's inbox without federation
+- `PROTO-02-001` (MAY) Assume all actors are local to a single ActivityPub server.
+- `PROTO-02-002` (MAY) Post direct messages to an actor's inbox without federation
   or cross-server routing.
 
 **Note**: The intended production federation model uses AS2 as a vocabulary
@@ -30,18 +30,18 @@ journal + delivery log, and connector plugins. See
 `notes/federation_ideas.md` for the full federation design, open questions,
 and Python stack candidates.
 
-## Performance (SHOULD)
+## Performance
 
-- `PROTO-03-001` Avoid algorithms with exponential or worse time complexity.
+- `PROTO-03-001` (SHOULD NOT) Use algorithms with exponential or worse time complexity.
   - E.g., O(2^n) is not acceptable; O(n^2) is acceptable.
-- `PROTO-03-002` Prefer the simplest algorithm when multiple options exist,
+- `PROTO-03-002` (SHOULD) Prefer the simplest algorithm when multiple options exist,
   even if less efficient.
-- `PROTO-03-003` Implement straightforward optimizations that do not
+- `PROTO-03-003` (SHOULD) Implement straightforward optimizations that do not
   significantly increase complexity.
-- `PROTO-03-004` Document known unimplemented optimizations in implementation
+- `PROTO-03-004` (SHOULD) Document known unimplemented optimizations in implementation
   notes for future reference.
 
-## Production Deferral (SHOULD)
+## Production Deferral
 
 - `PROTO-04-001` Specification files SHOULD tag production-only requirements
   with `PROD_ONLY` so they can be systematically identified and deferred
@@ -50,15 +50,15 @@ and Python stack candidates.
     the full production intent is preserved alongside the prototype deferral
   - Agents SHOULD treat any `PROD_ONLY` requirement as out-of-scope for
     prototype implementation unless explicitly instructed otherwise
-- `PROTO-04-002` Review specifications to identify requirements that should
+- `PROTO-04-002` (SHOULD) Review specifications to identify requirements that should
   carry the `PROD_ONLY` tag.
   - Any requirement that cannot be practically tested without production
     infrastructure (e.g., HSMs, PKI, mTLS) or that imposes overhead
     inconsistent with rapid prototyping SHOULD carry the `PROD_ONLY` tag
 
-## Case Prioritization (MAY)
+## Case Prioritization
 
-- `PROTO-05-001` Use a stub always-engage policy (`AlwaysPrioritizePolicy`)
+- `PROTO-05-001` (MAY) Use a stub always-engage policy (`AlwaysPrioritizePolicy`)
   in place of a real prioritization framework.
   - The intended production mechanism is SSVC (Stakeholder-Specific
     Vulnerability Categorization) or an equivalent tool that evaluates report
@@ -74,7 +74,7 @@ and Python stack candidates.
     only for reports that have not yet been associated with a case (i.e.,
     before a case is created from a validated report).
 
-## Domain Model Separation (MAY)
+## Domain Model Separation
 
 - `PROTO-06-001` Prototype MAY allow domain objects to directly inherit from
   ActivityStreams base types (`VultronObject`, `as_Object`, etc.) without a
@@ -97,7 +97,7 @@ and Python stack candidates.
   require domain objects free of AS2 inheritance. This shortcut SHOULD be
   revisited when stubbing `core/use_cases/` in P60-3.
 
-## Performance Testing (MAY)
+## Performance Testing
 
 - `PROTO-07-001` `PROD_ONLY` Performance tests and performance assertions MAY
   be skipped or marked as expected failures during the prototype stage

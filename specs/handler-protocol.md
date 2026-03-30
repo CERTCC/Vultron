@@ -10,20 +10,20 @@ protocol business logic. All handlers follow a common contract defined by the
 
 ---
 
-## Protocol Semantics (MUST)
+## Protocol Semantics
 
 - `HP-00-001` Handlers MUST interpret received activities as assertions about the
   sender's state, not as commands to perform work
 - `HP-00-002` Handlers MUST update local RM/EM/CS state to reflect the state
   transition asserted by the received activity
 
-## Handler Signature (MUST)
+## Handler Signature
 
 - `HP-01-001` All handler use-case classes MUST accept `(event: VultronEvent,
   dl: DataLayer)` — either as `__init__` parameters or as `execute` parameters
 - `HP-01-002` Handler use-case `execute` methods MAY return None or HandlerResult
 
-## Semantic Verification (MUST)
+## Semantic Verification
 
 - `HP-02-001` All handlers MUST have semantic type verification before execution
   - **Implementation**: Semantic type is checked at dispatcher lookup time using
@@ -31,25 +31,25 @@ protocol business logic. All handlers follow a common contract defined by the
 - `HP-02-002` The verification mechanism MUST check that the activity's semantic type matches the handler's expected type
   - **Rationale**: Prevents routing errors where wrong handler processes an activity
 
-## Handler Registration (MUST)
+## Handler Registration
 
 - `HP-03-001` All handlers MUST be discoverable via a handler registry mechanism
   - **Implementation**: Registry map (`USE_CASE_MAP`) maps MessageSemantics → use-case classes
 - `HP-03-002` Registry keys MUST match handler semantic verification types
 
-## Payload Access (MUST)
+## Payload Access
 
 - `HP-04-001` Handlers MUST access activity data via `dispatchable.payload`
   - **Rationale**: Encapsulation; payload may be validated/transformed by dispatcher
 - `HP-04-002` Handlers MUST use schema validation for type-safe payload access
   - **Implementation**: Pydantic models provide validation and type safety
 
-## Error Handling (MUST)
+## Error Handling
 
 - `HP-05-001` Handlers MUST raise exceptions for unrecoverable errors
 - `HP-05-002` Handlers MUST log expected errors without raising exceptions
 
-## Logging (MUST)
+## Logging
 
 - `HP-06-001` Handlers MUST log entry at DEBUG level with handler name
 - `HP-06-002` Handlers MUST log state transitions at INFO level with before/after states
@@ -57,14 +57,14 @@ protocol business logic. All handlers follow a common contract defined by the
   - HP-06-003 depends-on SL-03-001
   - HP-06-003 depends-on SL-04-001
 
-## Idempotency (SHOULD)
+## Idempotency
 
 - `HP-07-001` Handlers SHOULD be idempotent to support retries
   - State-changing handlers (those that transition RM/EM/CS state) MUST be
     idempotent to prevent data corruption
   - HP-07-001 depends-on ID-04-001
 
-## Execution Timeout (MUST)
+## Execution Timeout
 
 - `HP-07-002` `PROD_ONLY` Handlers MUST complete execution within 30 seconds
   - **Rationale**: Prevents indefinite blocking of background task queue
@@ -77,7 +77,7 @@ protocol business logic. All handlers follow a common contract defined by the
   - **Pattern**: Use FastAPI BackgroundTasks for orchestration; split work into
     multiple handler invocations
 
-## Data Model Persistence (MUST)
+## Data Model Persistence
 
 - `HP-08-001` Handlers MUST use helper functions when persisting Pydantic models to the data layer
   - **Verification**: Pydantic models round-trip through database without data loss

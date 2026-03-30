@@ -36,7 +36,7 @@ sole implementation location for the AS2 mapping.
 
 ---
 
-## General Mapping Conventions (MUST)
+## General Mapping Conventions
 
 - `VAM-01-001` Every `MessageSemantics` enum value except `UNKNOWN` MUST have
   exactly one entry in `SEMANTICS_ACTIVITY_PATTERNS` that defines its AS2
@@ -52,7 +52,7 @@ sole implementation location for the AS2 mapping.
 - `VAM-01-004` An AS2 activity MUST be rehydrated (URI string references
   expanded to full objects via the DataLayer) before pattern matching; pattern
   matching MUST NOT rely on unhydrated string fields for type discrimination
-- `VAM-01-005` When a pattern specifies a nested activity as the `object` field,
+- `VAM-01-005` (MUST) When a pattern specifies a nested activity as the `object` field,
   the outer activity's `object` MUST be a fully rehydrated AS2 activity object
   matching the inner `ActivityPattern`
 - `VAM-01-006` Pattern matching MUST be conservative when a field is a
@@ -60,7 +60,7 @@ sole implementation location for the AS2 mapping.
   expected type rather than failing the match
 - `VAM-01-007` `MessageSemantics.UNKNOWN` MUST be returned when no registered
   pattern matches the incoming activity
-- `VAM-01-008` Inbound activities represent state-change notifications, not
+- `VAM-01-008` (MUST) Inbound activities represent state-change notifications, not
   commands; the AS2 activity type used for each semantic MUST reflect the
   completed state transition, not a requested action
   - See `notes/activitystreams-semantics.md` for the full treatment of this
@@ -68,7 +68,7 @@ sole implementation location for the AS2 mapping.
 
 ---
 
-## Report Management Messages (MUST)
+## Report Management Messages
 
 These messages correspond to the Report Management (RM) state machine
 transitions. A `VulnerabilityReport` is the domain object at the centre of this
@@ -102,7 +102,7 @@ group.
 
 ---
 
-## Case Management Messages (MUST)
+## Case Management Messages
 
 These messages correspond to lifecycle operations on a `VulnerabilityCase`.
 
@@ -128,7 +128,7 @@ These messages correspond to lifecycle operations on a `VulnerabilityCase`.
 
 ---
 
-## Actor Suggestion and Invitation Messages (MUST)
+## Actor Suggestion and Invitation Messages
 
 These messages handle adding actors to a vulnerability case, either by
 suggestion (coordinators recommending other participants) or by direct
@@ -186,7 +186,7 @@ invitation.
 
 ---
 
-## Embargo Management Messages (MUST)
+## Embargo Management Messages
 
 These messages correspond to Embargo Management (EM) state machine transitions.
 An `EmbargoEvent` (an AS2 `Event` object representing the embargo agreement) is
@@ -228,7 +228,7 @@ with a specific case.
 
 ---
 
-## Case Participant Management Messages (MUST)
+## Case Participant Management Messages
 
 These messages manage the explicit creation and lifecycle of `CaseParticipant`
 objects (the per-participant state records attached to a case).
@@ -248,7 +248,7 @@ objects (the per-participant state records attached to a case).
 
 ---
 
-## Note Management Messages (MUST)
+## Note Management Messages
 
 These messages manage AS2 `Note` objects attached to a vulnerability case.
 
@@ -265,7 +265,7 @@ These messages manage AS2 `Note` objects attached to a vulnerability case.
 
 ---
 
-## Status Tracking Messages (MUST)
+## Status Tracking Messages
 
 These messages manage `CaseStatus` and `ParticipantStatus` objects, which
 record point-in-time snapshots of the RM/EM/CS/VFD state for a case or
@@ -295,9 +295,9 @@ participant.
 
 ---
 
-## Unrecognized Activities (MUST)
+## Unrecognized Activities
 
-- `VAM-09-001` An inbound AS2 activity that does not match any registered
+- `VAM-09-001` (MUST) An inbound AS2 activity that does not match any registered
   pattern MUST be assigned `MessageSemantics.UNKNOWN`
 - `VAM-09-002` `MessageSemantics.UNKNOWN` MUST NOT have an entry in
   `SEMANTICS_ACTIVITY_PATTERNS`; the fallback is implemented by

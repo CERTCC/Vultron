@@ -14,7 +14,7 @@ Should Be URL-Like, Not Bare UUIDs"), `plan/IMPLEMENTATION_PLAN.md`
 
 ---
 
-## ID Format (MUST)
+## ID Format
 
 - `OID-01-001` All ActivityStreams object IDs (`as_id`) MUST use full URI form
   - Acceptable forms: `https://example.org/objects/{uuid}` or
@@ -25,11 +25,11 @@ Should Be URL-Like, Not Bare UUIDs"), `plan/IMPLEMENTATION_PLAN.md`
 - `OID-01-002` IDs MUST be globally unique within the system
 - `OID-01-003` The canonical base URI for locally created objects MUST be
   configurable via an environment variable (`VULTRON_BASE_URL` or equivalent)
-- `OID-01-004` Helper functions for constructing full-URI IDs from UUIDs
+- `OID-01-004` (MUST) Helper functions for constructing full-URI IDs from UUIDs
   MUST be provided in a shared utility module (e.g.,
   `vultron.as_vocab.utils.make_id`)
 
-## DataLayer Handling (MUST)
+## DataLayer Handling
 
 - `OID-02-001` The DataLayer MUST store and retrieve objects using their
   full-URI `as_id` as the primary key
@@ -40,7 +40,7 @@ Should Be URL-Like, Not Bare UUIDs"), `plan/IMPLEMENTATION_PLAN.md`
 - `OID-02-004` DataLayer lookups MUST accept full-URI IDs; bare UUIDs MUST
   NOT be accepted as valid lookup keys
 
-## Blackboard Key Handling (MUST)
+## Blackboard Key Handling
 
 - `OID-03-001` Behavior Tree blackboard keys derived from object IDs MUST
   NOT use the raw full URI as the key
@@ -48,7 +48,7 @@ Should Be URL-Like, Not Bare UUIDs"), `plan/IMPLEMENTATION_PLAN.md`
     avoid hierarchical key parsing issues in py_trees
   - OID-03-001 refines BT-03-003
 
-## ADR Requirement (SHOULD)
+## ADR Requirement
 
 - `OID-04-001` An Architecture Decision Record MUST be created at
   `docs/adr/ADR-XXXX-standardize-object-ids.md` before migrating existing

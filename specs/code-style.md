@@ -9,7 +9,7 @@ Defines code formatting and import organization standards for Python code.
 
 ---
 
-## Code Formatting (MUST)
+## Code Formatting
 
 - `CS-01-001` Code MUST follow PEP 8 style guidelines
   - **Implementation**: Black formatter MUST be used for consistency
@@ -28,7 +28,7 @@ Defines code formatting and import organization standards for Python code.
   - **Rationale**: The codebase is known-clean; maintaining zero-warning
     status is required to preserve that baseline
 
-## Docstring Standards (SHOULD)
+## Docstring Standards
 
 - `CS-01-004` Functions and methods SHOULD have docstrings following PEP 257
   conventions
@@ -75,7 +75,7 @@ def extract_id_segment(url: str) -> str:
   appropriate
 - Use descriptive variable and function names for readability
 
-## Import Organization (SHOULD)
+## Import Organization
 
 - `CS-02-001` Imports SHOULD be organized in three groups: standard library, third-party libraries, local application
   - Each group separated by a single blank line
@@ -86,17 +86,17 @@ def extract_id_segment(url: str) -> str:
     test discovery harder, obscures dependencies, and complicates refactoring.
 - `CS-02-003` Multi-line import statements SHOULD use parentheses for readability
 
-## Import Practices (MUST)
+## Import Practices
 
 - `CS-03-001` Wildcard imports (e.g., `from module import *`) MUST NOT be used
 - `CS-03-002` Unused imports MUST be removed
-- `CS-03-003` When importing more than 10 items from a module, import the module itself instead
+- `CS-03-003` (MUST) When importing more than 10 items from a module, import the module itself instead
   - Access attributes as `module.attribute` for maintainability
   - **Rationale**: Reduces line noise and makes module boundaries clearer
-- `CS-03-004` In test modules, avoid multiple imports from the module under test; consider importing the module and using attribute access for clarity.
+- `CS-03-004` (SHOULD) In test modules, avoid multiple imports from the module under test; consider importing the module and using attribute access for clarity.
   - Shorthand aliases are acceptable in test modules where the context is clear (e.g., `import my_module as mm` in `test_my_module.py`)
 
-## Circular Import Prevention (MUST)
+## Circular Import Prevention
 
 - `CS-05-001` Core modules SHALL NOT import from application layer modules
   - Core modules: `vultron/core/`, `vultron/wire/`
@@ -105,7 +105,7 @@ def extract_id_segment(url: str) -> str:
     no longer exist as top-level modules; their contents were relocated to
     `vultron/wire/as2/extractor.py` and `vultron/core/use_cases/use_case_map.py`
     as part of the hexagonal architecture refactoring (ARCH-CLEANUP-1)
-- `CS-05-002` When circular dependencies cannot be resolved by reorganization,
+- `CS-05-002` (SHOULD) When circular dependencies cannot be resolved by reorganization,
   use lazy initialization patterns as a **last resort**
   - Prefer module-level imports; local imports are a code smell indicating a
     circular dependency that SHOULD be refactored
@@ -115,35 +115,29 @@ def extract_id_segment(url: str) -> str:
   - Use caching to avoid repeated initialization overhead
 - `CS-05-003` Shared types and errors SHALL be placed in neutral modules
   - Example: `types.py` for shared type definitions, `dispatcher_errors.py` for dispatcher errors
-- `CS-05-004` Before adding imports between modules, trace the import chain to prevent cycles
+- `CS-05-004` (MUST) Before adding imports between modules, trace the import chain to prevent cycles
 
 **Verification**: Run `python -c "import vultron.MODULE_NAME"` to detect circular imports early
-
-## Import Practices (MAY)
 
 - `CS-04-001` Relative imports MAY be used for local application imports when appropriate
 - `CS-04-002` Module imports MAY use aliases for clarity or to avoid naming conflicts
   - Aliases SHOULD be descriptive and widely recognized (e.g., `import numpy as np`)
 
-## Module Size (SHOULD)
+## Module Size
 
-- `CS-06-001` Prefer modules that are < ~400 lines; split large modules by
+- `CS-06-001` (SHOULD) Prefer modules that are < ~400 lines; split large modules by
   responsibility and avoid single-file catchalls
   - E.g., separate handlers registry, handler implementations, and handler
     utilities into distinct modules
 
-## `as_` Field Prefix Policy (SHOULD)
+## `as_` Field Prefix Policy
 
-- `CS-07-001` Use the `as_` prefix on Pydantic fields **only in the wire layer**
-  (`vultron/wire/as2/vocab/`) where it is part of the established AS2
-  vocabulary convention
-- `CS-07-002` In **core** (`vultron/core/`) domain model classes, do NOT use
-  the `as_` prefix
-  - The `as_` prefix on core fields is a relic of the original wire/core
-    blending and SHOULD be removed as core models are refactored
-  - For fields whose plain name collides with a Python reserved word (e.g.,
-    `object`, `type`, `id`), use a trailing underscore: `object_`, `type_`,
-    `id_`
+- `CS-07-001` (MUST NOT) use the `as_` prefix on Pydantic **field names**
+  anywhere in the codebase. Class names (e.g., `as_Activity`, `as_Object`)
+  retain the `as_` prefix as an ActivityStreams provenance marker.
+- `CS-07-002` (MUST) For fields whose plain name collides with a Python builtin or
+  reserved word (e.g., `object`, `type`, `id`, `context`), use a trailing
+  underscore: `object_`, `type_`, `id_`, `context_`
   - Define a Pydantic field alias so that serialized JSON uses the clean
     name without the trailing underscore:
 
@@ -151,27 +145,15 @@ def extract_id_segment(url: str) -> str:
     object_: str = Field(alias="object")
     ```
 
-  - **Rationale**: The `as_` prefix leaks wire-format concerns into the
-    domain layer. Trailing underscore + alias is the idiomatic Python pattern
-    for reserved-word field names; it keeps core models readable and decoupled
-    from AS2 naming conventions.
-- `CS-07-003` In the wire layer, field names that conflict with Python reserved
-  keywords MUST use trailing-underscore convention (e.g., `object_`, `type_`)
-  rather than the `as_`-prefix convention for **new code**. The `as_` prefix
-  is retained for **class names** (e.g., `as_Activity`, `as_Object`) where it
-  helpfully signals ActivityStreams provenance, but MUST NOT be applied to
-  field names.
-  - **Note:** This is a forward-looking standard for new wire-layer code.
-    Existing `as_`-prefixed field names in the wire layer will be migrated in a
-    separate task (see `plan/IMPLEMENTATION_PLAN.md` NAMING-1). Do not
-    introduce new `as_`-prefixed field names in the wire layer; use the
-    trailing-underscore convention instead.
-  - **Rationale:** Unifying field naming across all layers on trailing-underscore
-    removes the confusion between `as_object` (wire) and `object_` (core) for
-    the same concept. Class names retain `as_` because it is unambiguous — a
-    class name does not collide with Python keywords.
+  - **Rationale**: Trailing underscore + alias is the idiomatic Python
+    pattern (PEP 8) for builtin/reserved-word field names. It keeps models
+    readable and decoupled from AS2 naming conventions across all layers.
+- `CS-07-003` (MUST) Do not introduce new `as_`-prefixed field names anywhere.
+  The migration of existing `as_`-prefixed field names was completed in
+  NAMING-1 (2026-03-30). All wire-layer and core-layer field names now use
+  the trailing-underscore convention where needed. Class names retain `as_`.
 
-## Optional Field Non-Emptiness (MUST)
+## Optional Field Non-Emptiness
 
 - `CS-08-001` Optional string fields MUST NOT contain empty strings when
   present; the invariant is "if present, then non-empty"
@@ -198,7 +180,7 @@ def extract_id_segment(url: str) -> str:
     constraints
   - CS-08-002 refines CS-08-001
 
-## Code Reuse (SHOULD)
+## Code Reuse
 
 - `CS-09-001` New code SHOULD NOT duplicate logic already present elsewhere;
   prefer extracting shared logic into reusable helpers, base classes, or type
@@ -218,7 +200,7 @@ def extract_id_segment(url: str) -> str:
   - **Rationale**: Duplicated models diverge silently over time; a hierarchy
     makes the relationship explicit and reduces boilerplate
 
-## Port and Adapter Data Exchange (MUST)
+## Port and Adapter Data Exchange
 
 - `CS-10-001` Data passed across port/adapter boundaries MUST use Pydantic
   `BaseModel`-derived classes rather than plain `dict`s
@@ -230,7 +212,7 @@ def extract_id_segment(url: str) -> str:
     validation, and make interfaces ambiguous. Pydantic models preserve
     validation, IDE support, and documentation at every layer crossing.
 
-## Domain Event and Wire Activity Naming (SHOULD)
+## Domain Event and Wire Activity Naming
 
 - `CS-10-002` Wire-level ActivityStreams payload classes SHOULD carry the
   `Activity` suffix; domain event classes SHOULD carry the `Event` suffix
@@ -249,7 +231,7 @@ def extract_id_segment(url: str) -> str:
     point explicit. See `notes/domain-model-separation.md` for the full
     design rationale.
 
-## Type Annotations (MUST)
+## Type Annotations
 
 - `CS-11-001` Code MUST NOT use `Any` in type hints when the type can be
   determined
@@ -262,7 +244,7 @@ def extract_id_segment(url: str) -> str:
   - **Rationale**: `Any` defeats static type checking, obscures API
     contracts, and hides bugs at the boundary between typed and untyped code
 
-## Domain Model Naming (SHOULD)
+## Domain Model Naming
 
 - `CS-12-001` Core domain model class names SHOULD reflect the domain concept
   they represent, not a parallel to a wire-format class name
@@ -278,7 +260,7 @@ def extract_id_segment(url: str) -> str:
     classes when they are refactored; do not rename existing classes
     incidentally while working on unrelated changes
 
-## Datetime and Timezone Conventions (MUST)
+## Datetime and Timezone Conventions
 
 - `CS-13-001` All datetime values produced by the application MUST be
   timezone-aware and MUST use UTC
@@ -314,9 +296,9 @@ def extract_id_segment(url: str) -> str:
   - Pydantic serializes timezone-aware `datetime` objects to ISO 8601 by
     default; no custom serializer is needed as long as CS-13-001 is followed
 
-## Wire Model Configuration (MUST)
+## Wire Model Configuration
 
-- `CS-14-001` Wire-layer Pydantic models (classes in
+- `CS-14-001` (MUST) Wire-layer Pydantic models (classes in
   `vultron/wire/as2/vocab/`) MUST inherit `model_config` from `as_Base`,
   which sets `alias_generator=to_camel`, `validate_by_name=True`, and
   `validate_by_alias=True`
@@ -326,7 +308,7 @@ def extract_id_segment(url: str) -> str:
     declarations
   - Subclasses that override `model_config` MUST extend the parent config
     to preserve these settings; see `specs/vocabulary-model.md` VM-02-001
-- `CS-14-002` Core/domain-layer Pydantic models (classes in
+- `CS-14-002` (MUST) Core/domain-layer Pydantic models (classes in
   `vultron/core/models/`) MUST set `populate_by_name=True` in their
   `model_config`
   - This allows field access using both the Python field name and the
@@ -342,7 +324,7 @@ def extract_id_segment(url: str) -> str:
   - Example: `semantic_type: Literal[MessageSemantics.CREATE_CASE] = MessageSemantics.CREATE_CASE`
   - CS-14-003 refines CS-10-002
 
-## Use Case Naming (SHOULD)
+## Use Case Naming
 
 - `CS-12-002` Use case class names SHOULD carry a suffix that reflects their
   origin (received message vs. local trigger):

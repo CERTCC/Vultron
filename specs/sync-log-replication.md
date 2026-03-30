@@ -17,7 +17,7 @@ spec captures the normative requirements.
 
 ---
 
-## Append-Only Log (MUST)
+## Append-Only Log
 
 - `SYNC-01-001` The local case event log MUST be append-only; log entries
   MUST be immutable once appended
@@ -35,9 +35,9 @@ spec captures the normative requirements.
   as the single authoritative write path
   - SYNC-01-004 implements CM-02-009 (case-management.md)
 
-## Replication Transport (MUST)
+## Replication Transport
 
-- `SYNC-02-001` Log replication between CaseActor and Participant Actors
+- `SYNC-02-001` (MUST) Log replication between CaseActor and Participant Actors
   MUST use ActivityStreams `Announce` activities as the transport envelope
 - `SYNC-02-002` Each replication message MUST identify the sender, target
   recipient, the log entry hash, and the predecessor hash
@@ -45,7 +45,7 @@ spec captures the normative requirements.
   (initially the CaseActor) and be sent to each Participant Actor
   individually
 
-## Conflict Handling (MUST)
+## Conflict Handling
 
 - `SYNC-03-001` A receiver MUST reject a replication message whose
   predecessor hash does not match the receiver's current log tail hash
@@ -58,39 +58,39 @@ spec captures the normative requirements.
   same log entry MUST NOT produce duplicate entries in the receiver's log
   - SYNC-03-003 implements IDEM-01-001 (idempotency.md)
 
-## Log State in Context (SHOULD)
+## Log State in Context
 
-- `SYNC-03-004` When a Participant Actor sends any message to the CaseActor,
+- `SYNC-03-004` (SHOULD) When a Participant Actor sends any message to the CaseActor,
   it SHOULD include the hash of its last accepted log entry as a parameter
   in the activity's context field
   - This allows the CaseActor to proactively detect that a participant is
     behind and immediately replay missing entries without waiting for an
     explicit sync request
 
-## Per-Peer Replication State (MUST)
+## Per-Peer Replication State
 
 - `SYNC-04-001` The replication leader MUST track per-peer state including
   at minimum the last acknowledged log entry hash for each peer
 - `SYNC-04-002` Per-peer replication state MUST be persisted via the
   DataLayer so that it survives a leader restart
 
-## Retry and Backoff (SHOULD)
+## Retry and Backoff
 
 - `SYNC-05-001` The replication sender SHOULD implement retry with
   exponential backoff on delivery failure
 - `SYNC-05-002` Retry and backoff parameters SHOULD be configurable;
   default values MUST be documented
 
-## Leadership and Ownership (SHOULD)
+## Leadership and Ownership
 
 - `SYNC-06-001` Replication leadership SHOULD be treated as distinct from
   case ownership
   - A case ownership transfer implies a replication leadership change; a
     leadership change alone does not imply an ownership transfer
-- `SYNC-06-002` The conditions under which replication leadership changes
+- `SYNC-06-002` (SHOULD) The conditions under which replication leadership changes
   SHOULD be documented in `notes/sync-log-replication.md`
 
-## Testing (MUST)
+## Testing
 
 - `SYNC-07-001` Unit tests MUST cover append-only semantics: entries are
   immutable, hashes are unique, and predecessor hash references are set correctly
@@ -101,20 +101,20 @@ spec captures the normative requirements.
   mismatched predecessor hash, duplicate delivery, and leader retry after
   rejection
 
-## System Invariants (MUST)
+## System Invariants
 
 The log-centric architecture requires the following invariants to be
 preserved under normal operation and partial failure:
 
 - `SYNC-08-001` Append-only integrity: log entries MUST be immutable once
   committed and MUST be uniquely identified by their content hash
-- `SYNC-08-002` Deterministic projection: given an identical log prefix,
+- `SYNC-08-002` (MUST) Deterministic projection: given an identical log prefix,
   all compliant implementations MUST derive identical state
-- `SYNC-08-003` Idempotent replay: reprocessing any log prefix (including
+- `SYNC-08-003` (MUST NOT) Idempotent replay: reprocessing any log prefix (including
   duplicates) MUST NOT change the resulting state
 - `SYNC-08-004` Monotonic visibility: participants MUST NOT regress their
   acknowledged log position
-- `SYNC-08-005` Reject-on-divergence: entries that do not extend the current
+- `SYNC-08-005` (MUST) Reject-on-divergence: entries that do not extend the current
   hash chain MUST be rejected and MUST trigger resynchronization
 
 **Note**: All specs interacting with state, messaging, or storage MUST treat
