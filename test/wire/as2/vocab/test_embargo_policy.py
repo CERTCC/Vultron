@@ -51,7 +51,7 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
         self.assertEqual(45, p.minimum_duration_days)
         self.assertEqual(180, p.maximum_duration_days)
         self.assertEqual("Prefer 90 days; shorter for critical.", p.notes)
-        self.assertEqual(VO_type.EMBARGO_POLICY, p.as_type)
+        self.assertEqual(VO_type.EMBARGO_POLICY, p.type_)
 
     def test_creation_with_required_fields_only(self):
         p = ep_module.EmbargoPolicy(
@@ -81,11 +81,11 @@ class TestEmbargoPolicyCreation(unittest.TestCase):
             cast(Any, ep_module.EmbargoPolicy)(actor_id=ACTOR_ID, inbox=INBOX)
 
     def test_as_type_is_embargo_policy(self):
-        self.assertEqual(VO_type.EMBARGO_POLICY, self.policy.as_type)
+        self.assertEqual(VO_type.EMBARGO_POLICY, self.policy.type_)
 
     def test_has_auto_generated_id(self):
-        self.assertIsNotNone(self.policy.as_id)
-        self.assertNotEqual("", self.policy.as_id)
+        self.assertIsNotNone(self.policy.id_)
+        self.assertNotEqual("", self.policy.id_)
 
 
 class TestEmbargoPolicyValidation(unittest.TestCase):
@@ -200,10 +200,10 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
     def test_datalayer_round_trip(self):
         dl = TinyDbDataLayer(db_path=None)
         dl.create(self.policy)
-        stored = dl.read(self.policy.as_id)
+        stored = dl.read(self.policy.id_)
         self.assertIsNotNone(stored)
         stored = cast(ep_module.EmbargoPolicy, stored)
-        self.assertEqual(self.policy.as_id, stored.as_id)
+        self.assertEqual(self.policy.id_, stored.id_)
         self.assertEqual(ACTOR_ID, stored.actor_id)
         self.assertEqual(INBOX, stored.inbox)
         self.assertEqual(90, stored.preferred_duration_days)
@@ -222,7 +222,7 @@ class TestEmbargoPolicySerialization(unittest.TestCase):
         )
 
         case = VulnerabilityCase()
-        self.assertNotEqual(self.policy.as_type, case.as_type)
+        self.assertNotEqual(self.policy.type_, case.type_)
 
 
 if __name__ == "__main__":

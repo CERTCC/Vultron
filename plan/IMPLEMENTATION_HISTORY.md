@@ -3536,3 +3536,168 @@ documenting the trigger→received→sync information flow.
 **Tests:** 1027 passed, 5581 subtests (unchanged from before).
 
 **Commit:** 3337e7e0
+
+---
+
+## SECOPS-1 — CI Security: ADR + Automated SHA-Pin Verification Test (2026-03-30)
+
+**Task:** SECOPS-1 (PRIORITY-250 pre-300 cleanup)
+
+**What was done:**
+
+- Created `docs/adr/0014-sha-pin-github-actions.md`: ADR documenting the
+  SHA-pinning policy (all `uses:` references must be pinned to a 40-char commit
+  SHA with an inline human-readable version comment), the use of Dependabot as
+  the primary maintenance mechanism, and the automated test as the continuous
+  enforcement mechanism. References CI-SEC-04-001.
+- Added ADR-0014 to `docs/adr/index.md`.
+- Created `test/ci/__init__.py` and `test/ci/test_workflow_sha_pinning.py`:
+  53 parametrised pytest tests covering every `uses:` line across all 6
+  `.github/workflows/*.yml` files. Tests verify:
+  - CI-SEC-01-001: reference is pinned to a full 40-hex-character SHA
+  - CI-SEC-01-002: SHA line carries an inline version comment (e.g., `# v4.1.0`)
+
+**Tests:** 1080 passed (+53 new), 5581 subtests passed.
+
+**Commit:** 3e5b3079
+
+---
+
+## DOCMAINT-1 — Update outdated notes/ files (COMPLETE 2026-03-30)
+
+**Task:** DOCMAINT-1 (PRIORITY-250 pre-300 cleanup)
+
+**What was done:**
+
+Updated four notes files to replace outdated forward-looking language with
+current implementation status:
+
+- **`notes/activitystreams-semantics.md`** (~line 333): Updated "CaseActor
+  broadcast is not yet implemented" to reflect implementation in
+  `UpdateCaseReceivedUseCase._broadcast_case_update()` (completed in
+  PRIORITY-200 CA-2, 2026-03-25).
+
+- **`notes/state-machine-findings.md`** (Section 9 "Completion Status"):
+  Removed the warning about fictional commit SHAs and the table of fictional
+  commit hashes. Replaced with an accurate per-item status table referencing
+  actual implementation phases (P90-1–P90-5, TECHDEBT-32b, TECHDEBT-39).
+  Updated "Deferred (explicit)" section: OPP-05 is now done (TECHDEBT-39,
+  2026-03-24), full STATUS dict deprecation is done (P90-1/P90-4); only
+  OPP-06 (VFD/PXA machines) remains deferred.
+
+- **`notes/datalayer-refactor.md`** (TECHDEBT-32b/32c sections): Marked
+  TECHDEBT-32b as completed (2026-03-24) with a summary of what was done;
+  marked TECHDEBT-32c as pending with a clearer label.
+
+- **`notes/codebase-structure.md`** (multiple sections):
+  - Updated "Top-Level Module Reorganization Status": removed stale references
+    to `vultron/api/v2/backend/handler_map.py`, `vultron/dispatcher_errors.py`,
+    `vultron/behavior_dispatcher.py`, and `vultron/enums.py` (all removed/
+    relocated); added their canonical current locations.
+  - "API Layer Architecture": Renamed from "Future Refactoring" to
+    "Historical (Completed in VCR Batch B / P65)"; replaced old path table
+    with current canonical locations.
+  - "Handlers Module Structure": Renamed to "Use-Case Module Structure
+    (Completed — REORG-1)"; updated to describe current
+    `vultron/core/use_cases/` layout.
+  - TECHDEBT-11: Updated to note that new test directories exist but old ones
+    have not been removed yet.
+  - TECHDEBT-12: Marked resolved (trigger_services removed in VCR Batch D).
+  - "Known Gap: Outbox Delivery Not Implemented": Replaced with "Resolved:
+    Outbox Delivery (OX-1.0–1.4)".
+  - "Resolved: app.py Root Logger Side Effect": Updated path from
+    `vultron/api/v2/app.py` to `vultron/adapters/driving/fastapi/app.py`.
+  - "Trigger Services Package": Replaced forward-looking migration plan with
+    completed-status summary showing current canonical locations.
+  - Fixed Object IDs section: `vultron/as_vocab/base/utils.py` →
+    `vultron/wire/as2/vocab/base/utils.py`; `vultron/api/v2/routers/datalayer.py`
+    → `vultron/adapters/driving/fastapi/routers/datalayer.py`.
+
+**Tests:** 1080 passed, 5581 subtests passed (no code changes; docs only).
+
+---
+
+## SPEC-AUDIT-3 — Fix Stale Spec References (COMPLETE 2026-03-30)
+
+**Task**: Relocate transient implementation notes from specs and fix outdated
+stale references found during the 2026-03-30 gap analysis.
+
+### Changes Made
+
+**Stale test path references** — updated `test/api/v2/` → canonical current
+paths in 9 spec files:
+
+- `dispatch-routing.md`: `test/api/v2/backend/test_dispatch_routing.py`
+  → `test/test_behavior_dispatcher.py`, `test/test_semantic_handler_map.py`
+- `handler-protocol.md`: `test/api/v2/backend/test_handlers.py`
+  → `test/core/use_cases/received/`, `test/test_semantic_handler_map.py`
+- `error-handling.md`: `test/api/v2/backend/test_error_handling.py`
+  → `test/adapters/driving/fastapi/test_error_handling.py` (future)
+- `inbox-endpoint.md`, `message-validation.md`, `http-protocol.md`:
+  `test/api/v2/routers/test_actors.py`
+  → `test/adapters/driving/fastapi/routers/test_actors.py`
+- `structured-logging.md`: `test/api/v2/test_logging.py`
+  → `test/adapters/driving/fastapi/test_logging.py` (future)
+- `observability.md`: `test/api/v2/routers/test_health.py`
+  → `test/adapters/driving/fastapi/routers/test_health.py`
+- `response-format.md`: `test/api/v2/backend/test_response_generation.py`
+  → `test/adapters/driving/fastapi/test_response_generation.py` (future)
+- `idempotency.md`: `test/api/v2/backend/test_idempotency.py`
+  → `test/core/test_idempotency.py` (future)
+- `outbox.md`: `test/api/v2/backend/test_outbox.py`
+  → `test/adapters/driving/fastapi/test_outbox.py`
+
+**`SEMANTIC_HANDLER_MAP` → `USE_CASE_MAP`** — updated in 3 spec files:
+
+- `handler-protocol.md`: HP-03-001 description, verification section
+- `semantic-extraction.md`: SE-05-002 requirement text, verification section
+
+**`@verify_semantics` decorator** — removed/updated in 3 spec files:
+
+- `behavior-tree-integration.md`: BT-04-001 verification criterion updated
+  to reference `USE_CASE_MAP` dispatch
+- `architecture.md`: ARCH-07-001 "current state" note updated to describe
+  current dispatch-time validation via `USE_CASE_MAP`
+- `testability.md`: TB-05-005 rationale updated to reference `USE_CASE_MAP`
+
+**Stale implementation paths** — updated in 5 spec files:
+
+- `code-style.md`: CS-05-001 updated core/app layer boundaries
+  (`vultron/behavior_dispatcher.py` removed; `api/v2/*` → `vultron/adapters/`)
+- `semantic-extraction.md`: Related section updated to current dispatcher path
+- `error-handling.md`: Related section updated to `fastapi/errors.py`
+- `outbox.md`: Related section updated to delivery_queue and outbox_handler
+- `idempotency.md`: Implementation section updated to current DataLayer port
+- `response-format.md`: Related section updated to core use_cases
+
+**TB-04-001 test structure** — updated mirror paths in `testability.md`
+to reflect current `test/adapters/`, `test/core/`, `test/wire/` layout.
+
+**Tests:** 1080 passed, 5581 subtests passed (no code changes; docs only).
+
+---
+
+## NAMING-1 — Standardize `as_`-prefixed field names (2026-03-30)
+
+**Task**: Rename all `as_`-prefixed Pydantic field names to the trailing-underscore
+convention throughout the codebase (both wire layer and core layer).
+
+**Changes**:
+
+- Renamed 4 field names across 130 Python files (~2756 occurrences):
+  - `as_id` → `id_`
+  - `as_type` → `type_`
+  - `as_object` → `object_`
+  - `as_context` → `context_`
+- Renames cover: field definitions, attribute accesses (`.as_id` etc.),
+  keyword arguments (`as_id=...`), string references in `getattr`/`hasattr`
+  calls, and docstrings/comments.
+- Class names (`as_Activity`, `as_Object`, etc.) are **not** renamed.
+- Pydantic field aliases (`validation_alias`, `serialization_alias`) are
+  unchanged — JSON serialization and deserialization behavior is preserved.
+- Updated `specs/code-style.md` CS-07-001 through CS-07-003 to reflect
+  migration complete (MUST-level policy now).
+- Updated `AGENTS.md` naming conventions, pattern-matching example, and
+  all pitfall code snippets to use `id_`, `type_`, `object_`.
+
+**Tests**: 1080 passed, 5581 subtests passed.

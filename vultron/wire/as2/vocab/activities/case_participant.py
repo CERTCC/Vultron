@@ -36,7 +36,7 @@ from vultron.wire.as2.vocab.objects.vulnerability_case import (
 class CreateParticipantActivity(as_Create):
     """Create a new CaseParticipant"""
 
-    as_object: CaseParticipantRef = Field(
+    object_: CaseParticipantRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -57,11 +57,11 @@ class CreateParticipantActivity(as_Create):
         if self.actor is not None:
             parts.append(name_of(self.actor))
         parts.append("Create CaseParticipant")
-        if self.as_object is not None:
-            participant_id = getattr(self.as_object, "as_id", None)
+        if self.object_ is not None:
+            participant_id = getattr(self.object_, "id_", None)
             if participant_id:
                 parts.append(str(participant_id))
-            attributed_to = getattr(self.as_object, "attributed_to", None)
+            attributed_to = getattr(self.object_, "attributed_to", None)
             if attributed_to:
                 parts.extend(["from", str(attributed_to)])
         if self.context is not None:
@@ -75,7 +75,7 @@ class CreateParticipantActivity(as_Create):
 class CreateStatusForParticipantActivity(as_Create):
     """Create a new CaseStatus for a CaseParticipant"""
 
-    as_object: ParticipantStatusRef = Field(
+    object_: ParticipantStatusRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: CaseParticipantRef = None
@@ -84,11 +84,11 @@ class CreateStatusForParticipantActivity(as_Create):
 # add CaseStatus to CaseParticipant
 class AddStatusToParticipantActivity(as_Add):
     """Add a CaseStatus to a CaseParticipant
-    as_object: CaseStatus
+    object_: CaseStatus
     target: CaseParticipant
     """
 
-    as_object: ParticipantStatusRef = Field(
+    object_: ParticipantStatusRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: CaseParticipantRef = None
@@ -96,11 +96,11 @@ class AddStatusToParticipantActivity(as_Add):
 
 class AddParticipantToCaseActivity(as_Add):
     """Add a CaseParticipant to a VulnerabilityCase
-    as_object: CaseParticipant
+    object_: CaseParticipant
     target: VulnerabilityCase
     """
 
-    as_object: CaseParticipantRef = Field(
+    object_: CaseParticipantRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None
@@ -109,11 +109,11 @@ class AddParticipantToCaseActivity(as_Add):
 class RemoveParticipantFromCaseActivity(as_Remove):
     """Remove a CaseParticipant from a VulnerabilityCase.
     This should only be performed by the case owner.
-    as_object: CaseParticipant
+    object_: CaseParticipant
     target: VulnerabilityCase
     """
 
-    as_object: CaseParticipantRef = Field(
+    object_: CaseParticipantRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
     target: VulnerabilityCaseRef = None

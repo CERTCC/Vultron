@@ -54,10 +54,10 @@ def test_datalayer_get_existing_actor(client, datalayer):
     )
     datalayer.create(object_to_record(actor))
 
-    response = client.get(f"/datalayer/Actors/{actor.as_id}")
+    response = client.get(f"/datalayer/Actors/{actor.id_}")
     assert response.status_code == 200
     data = response.json()
-    assert data["id"] == actor.as_id
+    assert data["id"] == actor.id_
     assert data["name"] == actor.name
 
     assert as_Person.model_validate(data) == actor
@@ -70,10 +70,10 @@ def test_datalayer_get_existing_actor_by_id(client, datalayer):
     )
     datalayer.create(object_to_record(actor))
 
-    response = client.get(f"/datalayer/{actor.as_id}")
+    response = client.get(f"/datalayer/{actor.id_}")
     assert response.status_code == 200
     data = response.json()
-    assert data["id"] == actor.as_id
+    assert data["id"] == actor.id_
     assert data["name"] == actor.name
 
     assert as_Person.model_validate(data) == actor

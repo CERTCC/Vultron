@@ -35,7 +35,7 @@ class as_Activity(as_Object):
     of the picture, not the person walking down the street.
     """
 
-    as_type: str = Field(
+    type_: str = Field(
         default=O_type.ACTIVITY,
         validation_alias="type",
         serialization_alias="type",

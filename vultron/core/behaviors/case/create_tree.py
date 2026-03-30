@@ -79,7 +79,7 @@ def create_create_case_tree(
     Returns:
         Root node of the create_case behavior tree (Selector)
     """
-    case_id = case_obj.as_id
+    case_id = case_obj.id_
 
     create_case_flow = py_trees.composites.Sequence(
         name="CreateCaseFlow",

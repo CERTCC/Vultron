@@ -219,7 +219,7 @@ def test_outbox_handler_resolves_actor_by_short_id(monkeypatch):
     mock_dl = _mock_dl_with_queue(queue)
     mock_dl.read.return_value = None  # full-ID lookup fails
     mock_dl.find_actor_by_short_id.return_value = SimpleNamespace(
-        as_id="https://example.org/actors/bob"
+        id_="https://example.org/actors/bob"
     )
 
     asyncio.run(oh.outbox_handler("bob", mock_dl))
@@ -237,8 +237,8 @@ def test_handle_outbox_item_delivers_to_recipients():
     """handle_outbox_item calls emitter.emit with activity and recipients."""
     recipient = "https://example.org/actors/alice"
     activity = VultronActivity(
-        as_id="urn:test:act-deliver",
-        as_type="Offer",
+        id_="urn:test:act-deliver",
+        type_="Offer",
         actor="https://example.org/actors/bob",
         to=[recipient],
     )
@@ -247,9 +247,7 @@ def test_handle_outbox_item_delivers_to_recipients():
     mock_emitter = AsyncMock()
 
     asyncio.run(
-        oh.handle_outbox_item(
-            "actor-abc", activity.as_id, mock_dl, mock_emitter
-        )
+        oh.handle_outbox_item("actor-abc", activity.id_, mock_dl, mock_emitter)
     )
 
     mock_emitter.emit.assert_called_once_with(activity, [recipient])
@@ -273,7 +271,7 @@ def test_handle_outbox_item_skips_when_activity_not_found():
 def test_handle_outbox_item_skips_when_no_recipients():
     """handle_outbox_item does NOT call emitter when activity has no recipients."""
     activity = SimpleNamespace(
-        as_id="urn:test:act-no-recip",
+        id_="urn:test:act-no-recip",
         to=None,
         cc=None,
         bto=None,
@@ -284,9 +282,7 @@ def test_handle_outbox_item_skips_when_no_recipients():
     mock_emitter = AsyncMock()
 
     asyncio.run(
-        oh.handle_outbox_item(
-            "actor-abc", activity.as_id, mock_dl, mock_emitter
-        )
+        oh.handle_outbox_item("actor-abc", activity.id_, mock_dl, mock_emitter)
     )
 
     mock_emitter.emit.assert_not_called()
@@ -306,9 +302,9 @@ def test_extract_recipients_deduplicates():
 
 
 def test_extract_recipients_handles_embedded_object():
-    """_extract_recipients extracts as_id from embedded actor objects."""
+    """_extract_recipients extracts id_ from embedded actor objects."""
     alice_id = "https://example.org/actors/alice"
-    alice_obj = SimpleNamespace(as_id=alice_id)
+    alice_obj = SimpleNamespace(id_=alice_id)
     activity = SimpleNamespace(
         to=[alice_obj],
         cc=None,

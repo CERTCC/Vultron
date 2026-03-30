@@ -17,7 +17,7 @@ def _as_id(obj: Any) -> str | None:
     """Return the ActivityStreams id of *obj* as a plain string.
 
     - If *obj* is ``None``, returns ``None``.
-    - If *obj* has an ``as_id`` attribute, returns ``obj.as_id``.
+    - If *obj* has an ``id_`` attribute, returns ``obj.id_``.
     - Otherwise returns ``str(obj)``.
 
     This handles the mixed ``str | <wire-type>`` collections that arise when
@@ -25,9 +25,9 @@ def _as_id(obj: Any) -> str | None:
     """
     if obj is None:
         return None
-    as_id = getattr(obj, "as_id", None)
-    if isinstance(as_id, str):
-        return as_id
+    id_ = getattr(obj, "id_", None)
+    if isinstance(id_, str):
+        return id_
     return str(obj)
 
 

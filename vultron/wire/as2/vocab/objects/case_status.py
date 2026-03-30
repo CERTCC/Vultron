@@ -39,7 +39,7 @@ class CaseStatus(VultronObject):
     Represents the case-level (global, participant-agnostic) status of a VulnerabilityCase.
     """
 
-    as_type: VO_type = Field(
+    type_: VO_type = Field(
         default=VO_type.CASE_STATUS,
         validation_alias="type",
         serialization_alias="type",
@@ -88,7 +88,7 @@ class ParticipantStatus(VultronObject):
     Represents the status of a participant with respect to a VulnerabilityCase (participant-specific).
     """
 
-    as_type: VO_type = Field(
+    type_: VO_type = Field(
         default=VO_type.PARTICIPANT_STATUS,
         validation_alias="type",
         serialization_alias="type",
@@ -140,7 +140,7 @@ ParticipantStatusRef: TypeAlias = ActivityStreamRef[ParticipantStatus]
 
 def main():
     cs = CaseStatus()
-    print(f"### {cs.as_type} ###")
+    print(f"### {cs.type_} ###")
     print()
     print(cs.to_json(indent=2))
     print()
@@ -153,7 +153,7 @@ def main():
         vfd_state=CS_vfd.Vfd,
         case_status=cs,
     )
-    print(f"### {ps.as_type} ###")
+    print(f"### {ps.type_} ###")
     print()
     print(ps.to_json(indent=2))
     print()

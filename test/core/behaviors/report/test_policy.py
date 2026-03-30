@@ -38,7 +38,7 @@ class TestValidationPolicy:
         """ValidationPolicy.is_credible() raises NotImplementedError."""
         policy = ValidationPolicy()
         report = VultronReport(
-            as_id="https://example.org/reports/test-001",
+            id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
         )
@@ -50,7 +50,7 @@ class TestValidationPolicy:
         """ValidationPolicy.is_valid() raises NotImplementedError."""
         policy = ValidationPolicy()
         report = VultronReport(
-            as_id="https://example.org/reports/test-001",
+            id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
         )
@@ -74,7 +74,7 @@ class TestValidationPolicy:
 
         # Short name → not credible
         report1 = VultronReport(
-            as_id="https://example.org/reports/r1",
+            id_="https://example.org/reports/r1",
             name="CVE-1",
             content="Vulnerability found",
         )
@@ -83,7 +83,7 @@ class TestValidationPolicy:
 
         # Long name → credible
         report2 = VultronReport(
-            as_id="https://example.org/reports/r2",
+            id_="https://example.org/reports/r2",
             name="CVE-2024-12345",
             content="Vulnerability found",
         )
@@ -92,7 +92,7 @@ class TestValidationPolicy:
 
         # No keyword → invalid
         report3 = VultronReport(
-            as_id="https://example.org/reports/r3",
+            id_="https://example.org/reports/r3",
             name="CVE-2024-12345",
             content="Bug found",
         )
@@ -107,7 +107,7 @@ class TestAlwaysAcceptPolicy:
         """AlwaysAcceptPolicy.is_credible() always returns True."""
         policy = AlwaysAcceptPolicy()
         report = VultronReport(
-            as_id="https://example.org/reports/test-001",
+            id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
         )
@@ -118,7 +118,7 @@ class TestAlwaysAcceptPolicy:
         """AlwaysAcceptPolicy.is_valid() always returns True."""
         policy = AlwaysAcceptPolicy()
         report = VultronReport(
-            as_id="https://example.org/reports/test-001",
+            id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
         )
@@ -129,7 +129,7 @@ class TestAlwaysAcceptPolicy:
         """AlwaysAcceptPolicy.is_credible() logs acceptance at INFO level."""
         policy = AlwaysAcceptPolicy()
         report = VultronReport(
-            as_id="https://example.org/reports/test-001",
+            id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
         )
@@ -142,13 +142,13 @@ class TestAlwaysAcceptPolicy:
         assert caplog.records[0].levelname == "INFO"
         assert "credible" in caplog.records[0].message
         assert "AlwaysAcceptPolicy" in caplog.records[0].message
-        assert report.as_id in caplog.records[0].message
+        assert report.id_ in caplog.records[0].message
 
     def test_is_valid_logs_at_info_level(self, caplog):
         """AlwaysAcceptPolicy.is_valid() logs acceptance at INFO level."""
         policy = AlwaysAcceptPolicy()
         report = VultronReport(
-            as_id="https://example.org/reports/test-001",
+            id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
         )
@@ -161,7 +161,7 @@ class TestAlwaysAcceptPolicy:
         assert caplog.records[0].levelname == "INFO"
         assert "valid" in caplog.records[0].message
         assert "AlwaysAcceptPolicy" in caplog.records[0].message
-        assert report.as_id in caplog.records[0].message
+        assert report.id_ in caplog.records[0].message
 
     def test_multiple_reports_always_accepted(self):
         """AlwaysAcceptPolicy accepts all reports regardless of content."""
@@ -169,17 +169,17 @@ class TestAlwaysAcceptPolicy:
 
         reports = [
             VultronReport(
-                as_id="https://example.org/reports/r1",
+                id_="https://example.org/reports/r1",
                 name="CVE-2024-001",
                 content="Buffer overflow",
             ),
             VultronReport(
-                as_id="https://example.org/reports/r2",
+                id_="https://example.org/reports/r2",
                 name=None,
                 content=None,
             ),
             VultronReport(
-                as_id="https://example.org/reports/r3",
+                id_="https://example.org/reports/r3",
                 name="X" * 1000,  # Very long name
                 content="Y" * 10000,  # Very long content
             ),
@@ -188,22 +188,20 @@ class TestAlwaysAcceptPolicy:
         for report in reports:
             assert (
                 policy.is_credible(report) is True
-            ), f"Failed for {report.as_id}"
-            assert (
-                policy.is_valid(report) is True
-            ), f"Failed for {report.as_id}"
+            ), f"Failed for {report.id_}"
+            assert policy.is_valid(report) is True, f"Failed for {report.id_}"
 
     def test_policy_reusable_across_reports(self):
         """Single AlwaysAcceptPolicy instance can evaluate multiple reports."""
         policy = AlwaysAcceptPolicy()
 
         report1 = VultronReport(
-            as_id="https://example.org/reports/r1",
+            id_="https://example.org/reports/r1",
             name="Report 1",
             content="Content 1",
         )
         report2 = VultronReport(
-            as_id="https://example.org/reports/r2",
+            id_="https://example.org/reports/r2",
             name="Report 2",
             content="Content 2",
         )
@@ -220,13 +218,13 @@ class TestAlwaysAcceptPolicy:
         """AlwaysAcceptPolicy does not modify report object."""
         policy = AlwaysAcceptPolicy()
         report = VultronReport(
-            as_id="https://example.org/reports/test-001",
+            id_="https://example.org/reports/test-001",
             name="TEST-001",
             content="Test report",
         )
 
         # Store original values
-        original_id = report.as_id
+        original_id = report.id_
         original_name = report.name
         original_content = report.content
 
@@ -235,7 +233,7 @@ class TestAlwaysAcceptPolicy:
         policy.is_valid(report)
 
         # Verify no mutation
-        assert report.as_id == original_id
+        assert report.id_ == original_id
         assert report.name == original_name
         assert report.content == original_content
 
@@ -249,7 +247,7 @@ class TestAlwaysAcceptPolicy:
         policy = AlwaysAcceptPolicy()
         report_id = "https://example.org/reports/traced-report-123"
         report = VultronReport(
-            as_id=report_id,
+            id_=report_id,
             name="TRACED-123",
             content="Traceable report",
         )

@@ -43,14 +43,14 @@ class Record(StorableRecord):
         Returns:
             Record: The created Record.
         """
-        if obj.as_type.startswith("as_"):
+        if obj.type_.startswith("as_"):
             raise ValueError(
-                "Object 'as_type' attribute cannot start with 'as_' for Record conversion"
+                "Object 'type_' attribute cannot start with 'as_' for Record conversion"
             )
 
         record = Record(
-            id_=obj.as_id,
-            type_=obj.as_type,
+            id_=obj.id_,
+            type_=obj.type_,
             data_=obj.model_dump(mode="json"),
         )
         return record

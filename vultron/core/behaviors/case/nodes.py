@@ -111,12 +111,12 @@ class ValidateCaseObject(DataLayerCondition):
                 self.logger.error(f"{self.name}: case_obj is None")
                 return Status.FAILURE
 
-            if not getattr(self.case_obj, "as_id", None):
-                self.logger.error(f"{self.name}: Case object missing as_id")
+            if not getattr(self.case_obj, "id_", None):
+                self.logger.error(f"{self.name}: Case object missing id_")
                 return Status.FAILURE
 
             self.logger.debug(
-                f"{self.name}: Case {self.case_obj.as_id} passes validation"
+                f"{self.name}: Case {self.case_obj.id_} passes validation"
             )
             return Status.SUCCESS
 
@@ -153,24 +153,24 @@ class PersistCase(DataLayerAction):
             self.datalayer.create(self.case_obj)
             self.logger.info(
                 f"{self.name}: Persisted VulnerabilityCase"
-                f" {self.case_obj.as_id}"
+                f" {self.case_obj.id_}"
             )
 
             self.blackboard.register_key(
                 key="case_id", access=py_trees.common.Access.WRITE
             )
-            self.blackboard.case_id = self.case_obj.as_id
+            self.blackboard.case_id = self.case_obj.id_
 
             return Status.SUCCESS
 
         except ValueError as e:
             self.logger.warning(
-                f"{self.name}: Case {self.case_obj.as_id} already exists: {e}"
+                f"{self.name}: Case {self.case_obj.id_} already exists: {e}"
             )
             self.blackboard.register_key(
                 key="case_id", access=py_trees.common.Access.WRITE
             )
-            self.blackboard.case_id = self.case_obj.as_id
+            self.blackboard.case_id = self.case_obj.id_
             return Status.SUCCESS
 
         except Exception as e:
@@ -208,12 +208,12 @@ class CreateCaseActorNode(DataLayerAction):
             try:
                 self.datalayer.create(case_actor)
                 self.logger.info(
-                    f"{self.name}: Created CaseActor {case_actor.as_id}"
+                    f"{self.name}: Created CaseActor {case_actor.id_}"
                     f" for case {self.case_id}"
                 )
             except ValueError as e:
                 self.logger.warning(
-                    f"{self.name}: CaseActor {case_actor.as_id}"
+                    f"{self.name}: CaseActor {case_actor.id_}"
                     f" already exists: {e}"
                 )
 
@@ -259,24 +259,24 @@ class EmitCreateCaseActivity(DataLayerAction):
 
             activity = VultronCreateCaseActivity(
                 actor=self.actor_id,
-                as_object=case_id,
+                object_=case_id,
             )
             try:
                 self.datalayer.create(activity)
                 self.logger.info(
                     f"{self.name}: Created CreateCaseActivity activity"
-                    f" {activity.as_id}"
+                    f" {activity.id_}"
                 )
             except ValueError as e:
                 self.logger.warning(
-                    f"{self.name}: CreateCaseActivity activity {activity.as_id}"
+                    f"{self.name}: CreateCaseActivity activity {activity.id_}"
                     f" already exists: {e}"
                 )
 
             self.blackboard.register_key(
                 key="activity_id", access=py_trees.common.Access.WRITE
             )
-            self.blackboard.activity_id = activity.as_id
+            self.blackboard.activity_id = activity.id_
 
             return Status.SUCCESS
 
@@ -309,7 +309,7 @@ class SetCaseAttributedTo(DataLayerAction):
         self.case_obj.attributed_to = self.actor_id
         self.logger.debug(
             f"{self.name}: Set attributed_to={self.actor_id}"
-            f" on case {self.case_obj.as_id}"
+            f" on case {self.case_obj.id_}"
         )
         return Status.SUCCESS
 
@@ -342,46 +342,46 @@ class CreateInitialVendorParticipant(DataLayerAction):
         try:
             participant = VultronParticipant(
                 attributed_to=self.actor_id,
-                context=self.case_obj.as_id,
+                context=self.case_obj.id_,
                 case_roles=[CVDRoles.VENDOR],
                 participant_statuses=[
                     VultronParticipantStatus(
-                        context=self.case_obj.as_id,
+                        context=self.case_obj.id_,
                         rm_state=RM.VALID,
                     )
                 ],
             )
-            if self.datalayer.read(participant.as_id) is None:
+            if self.datalayer.read(participant.id_) is None:
                 self.datalayer.create(participant)
                 self.logger.info(
                     f"{self.name}: Created VendorParticipant"
-                    f" {participant.as_id} for actor {self.actor_id}"
+                    f" {participant.id_} for actor {self.actor_id}"
                     f" (rm_state=RM.VALID)"
                 )
             else:
                 self.logger.debug(
-                    f"{self.name}: VendorParticipant {participant.as_id}"
+                    f"{self.name}: VendorParticipant {participant.id_}"
                     " already exists — skipping creation"
                 )
 
-            stored_case = self.datalayer.read(self.case_obj.as_id)
+            stored_case = self.datalayer.read(self.case_obj.id_)
             if not is_case_model(stored_case):
                 self.logger.error(
-                    f"{self.name}: Case {self.case_obj.as_id} not found"
+                    f"{self.name}: Case {self.case_obj.id_} not found"
                     " in DataLayer"
                 )
                 return Status.FAILURE
 
             existing_ids = {
-                p.as_id if hasattr(p, "as_id") else p
+                p.id_ if hasattr(p, "id_") else p
                 for p in stored_case.case_participants
             }
-            if participant.as_id not in existing_ids:
-                stored_case.case_participants.append(participant.as_id)
+            if participant.id_ not in existing_ids:
+                stored_case.case_participants.append(participant.id_)
                 self.datalayer.save(stored_case)
                 self.logger.info(
                     f"{self.name}: Added VendorParticipant"
-                    f" {participant.as_id} to case {stored_case.as_id}"
+                    f" {participant.id_} to case {stored_case.id_}"
                 )
 
             return Status.SUCCESS
@@ -450,8 +450,8 @@ class RecordCaseCreationEvents(DataLayerAction):
                 offer_ref = getattr(activity, "in_reply_to", None)
                 if offer_ref is not None:
                     offer_id = (
-                        offer_ref.as_id
-                        if hasattr(offer_ref, "as_id")
+                        offer_ref.id_
+                        if hasattr(offer_ref, "id_")
                         else str(offer_ref)
                     )
                     case.record_event(offer_id, "offer_received")

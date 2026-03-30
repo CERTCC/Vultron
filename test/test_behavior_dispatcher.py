@@ -29,7 +29,7 @@ def test_local_dispatcher_dispatch_logs_payload(caplog):
         actor_id="https://example.org/users/tester",
         object_=VultronReport(content="test report"),
         activity=VultronActivity(
-            as_type="Create", actor="https://example.org/users/tester"
+            type_="Create", actor="https://example.org/users/tester"
         ),
     )
 

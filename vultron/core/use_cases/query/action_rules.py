@@ -50,8 +50,8 @@ def _resolve_participant_id_from_actor(
 
     for participant_ref in case.case_participants:
         resolved_participant_id = (
-            participant_ref.as_id
-            if hasattr(participant_ref, "as_id")
+            participant_ref.id_
+            if hasattr(participant_ref, "id_")
             else str(participant_ref)
         )
         participant = cast(
@@ -62,7 +62,7 @@ def _resolve_participant_id_from_actor(
         participant_actor_id = (
             participant.attributed_to
             if isinstance(participant.attributed_to, str)
-            else getattr(participant.attributed_to, "as_id", None)
+            else getattr(participant.attributed_to, "id_", None)
         )
         if participant_actor_id == actor_id:
             return resolved_participant_id
@@ -104,7 +104,7 @@ class GetActionRulesUseCase:
         participant_actor_id = (
             participant.attributed_to
             if isinstance(participant.attributed_to, str)
-            else getattr(participant.attributed_to, "as_id", None)
+            else getattr(participant.attributed_to, "id_", None)
         )
         if participant_actor_id is None:
             raise VultronValidationError(
@@ -137,7 +137,7 @@ class GetActionRulesUseCase:
         roles = [r.name for r in (participant.case_roles or [])]
 
         return {
-            "participant_id": str(participant.as_id),
+            "participant_id": str(participant.id_),
             "participant_actor_id": participant_actor_id,
             "case_id": case_id,
             "role": roles,

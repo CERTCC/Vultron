@@ -36,8 +36,8 @@ def prepare_for_dispatch(activity: as_Activity) -> VultronEvent:
     """Extract domain event from an AS2 activity, ready for dispatch."""
     logger.debug(
         "Preparing activity '%s' of type '%s' for dispatch.",
-        activity.as_id,
-        activity.as_type,
+        activity.id_,
+        activity.type_,
     )
     event = extract_intent(activity)
     logger.debug(
@@ -148,12 +148,12 @@ async def inbox_handler(
             err_count += 1
             continue
 
-        logger.debug("Rehydrated item from inbox: %s", item.as_type)
-        if hasattr(item, "as_object"):
+        logger.debug("Rehydrated item from inbox: %s", item.type_)
+        if hasattr(item, "object_"):
             item_with_object = cast(Any, item)
             logger.debug(
                 "Item has transitive object of type: %s",
-                item_with_object.as_object.as_type,
+                item_with_object.object_.type_,
             )
 
         try:

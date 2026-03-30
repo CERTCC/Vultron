@@ -32,8 +32,8 @@ class MyTestCase(unittest.TestCase):
         }
         del data["@context"]
         del data["type"]
-        # data["as_type"] = data.pop("type")
-        data["as_object"] = data.pop("object")
+        # data["type_"] = data.pop("type")
+        data["object_"] = data.pop("object")
         as_Create(**data)
 
 

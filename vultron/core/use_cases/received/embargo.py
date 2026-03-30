@@ -257,7 +257,7 @@ class AcceptInviteToEmbargoOnCaseReceivedUseCase:
         if not is_case_model(case):
             logger.error("accept_invite_to_embargo_on_case: case not found")
             return
-        case_id = case.as_id
+        case_id = case.id_
 
         current_embargo_id = _as_id(case.active_embargo)
         if current_embargo_id == embargo_id:

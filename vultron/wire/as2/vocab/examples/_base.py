@@ -44,20 +44,20 @@ report_base_url = f"{base_url}/reports"
 # generated once per run so all examples in a single run share the same case number
 case_number = random.randint(10000000, 99999999)
 
-_FINDER = as_Person(name="Finn der Vul", as_id=f"{user_base_url}/finndervul")
+_FINDER = as_Person(name="Finn der Vul", id_=f"{user_base_url}/finndervul")
 _VENDOR = as_Organization(
-    name="VendorCo", as_id=f"{organization_base_url}/vendorco"
+    name="VendorCo", id_=f"{organization_base_url}/vendorco"
 )
 _COORDINATOR = as_Organization(
-    name="Coordinator LLC", as_id=f"{organization_base_url}/coordinator"
+    name="Coordinator LLC", id_=f"{organization_base_url}/coordinator"
 )
 
 _REPORT = VulnerabilityReport(
     name="FDR-8675309",
-    as_id=_make_id("VulnerabilityReport"),
+    id_=_make_id("VulnerabilityReport"),
     content="I found a vulnerability!",
     attributed_to=[
-        _FINDER.as_id,
+        _FINDER.id_,
     ],
 )
 _CASE = VulnerabilityCase(
@@ -97,7 +97,7 @@ def case(random_id=False) -> VulnerabilityCase:
         _case_number = random.randint(10000000, 99999999)
         _case = VulnerabilityCase(
             name=f"{_VENDOR.name} Case #{_case_number}",
-            as_id=_make_id("VulnerabilityCase"),
+            id_=_make_id("VulnerabilityCase"),
         )
         return _case
     return _CASE
@@ -114,8 +114,8 @@ def gen_report() -> VulnerabilityReport:
 
 def initialize_examples(datalayer: DataLayer) -> None:
     for obj in [_FINDER, _VENDOR, _COORDINATOR, _REPORT]:
-        if obj.as_type is None:
-            raise ValueError(f"Example object missing as_type: {obj}")
+        if obj.type_ is None:
+            raise ValueError(f"Example object missing type_: {obj}")
         datalayer.create(object_to_record(cast(PersistableModel, obj)))
 
 

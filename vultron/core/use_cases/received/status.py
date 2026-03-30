@@ -80,7 +80,7 @@ class AddCaseStatusToCaseReceivedUseCase:
         # VultronCaseStatus record fails (wire CaseStatus has different
         # field types).
         status_obj = self._dl.read(status_id)
-        if not hasattr(status_obj, "as_id"):
+        if not hasattr(status_obj, "id_"):
             status_obj = request.status
 
         if case.case_statuses:
@@ -180,7 +180,7 @@ class AddParticipantStatusToParticipantReceivedUseCase:
         # return a raw TinyDB Document when VultronParticipantStatus
         # reconstitution fails.
         status_obj = self._dl.read(status_id)
-        if not hasattr(status_obj, "as_id"):
+        if not hasattr(status_obj, "id_"):
             status_obj = request.status
         if status_obj is None:
             logger.warning(

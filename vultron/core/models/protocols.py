@@ -29,10 +29,10 @@ from vultron.core.states.rm import RM
 
 class PersistableModel(Protocol):
     @property
-    def as_id(self) -> str: ...
+    def id_(self) -> str: ...
 
     @property
-    def as_type(self) -> str: ...
+    def type_(self) -> str: ...
 
     def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
 
@@ -91,7 +91,7 @@ class ActorModel(PersistableModel, Protocol):
 def is_case_model(obj: PersistableModel | None) -> TypeGuard[CaseModel]:
     return bool(
         obj is not None
-        and getattr(obj, "as_type", None) == "VulnerabilityCase"
+        and getattr(obj, "type_", None) == "VulnerabilityCase"
         and hasattr(obj, "case_participants")
         and hasattr(obj, "record_event")
     )
@@ -102,7 +102,7 @@ def is_participant_model(
 ) -> TypeGuard[ParticipantModel]:
     return bool(
         obj is not None
-        and getattr(obj, "as_type", None) == "CaseParticipant"
+        and getattr(obj, "type_", None) == "CaseParticipant"
         and hasattr(obj, "participant_statuses")
         and hasattr(obj, "append_rm_state")
     )

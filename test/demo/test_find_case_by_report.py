@@ -38,9 +38,9 @@ def test_find_case_by_report_with_vulnerability_reports_field():
 
     # Create a case that references this report via vulnerability_reports field
     case = VulnerabilityCase(
-        name=f"Case for Report {report.as_id}",
+        name=f"Case for Report {report.id_}",
         vulnerability_reports=[
-            report.as_id
+            report.id_
         ],  # Field name is vulnerability_reports
     )
 
@@ -50,13 +50,11 @@ def test_find_case_by_report_with_vulnerability_reports_field():
     mock_client.get.return_value = [case.model_dump(by_alias=True)]
 
     # Now try to find the case by report ID
-    found_case = find_case_by_report(mock_client, report.as_id)
+    found_case = find_case_by_report(mock_client, report.id_)
 
     # This should find the case
     assert found_case is not None, "Case should be found by report ID"
+    assert found_case.id_ == case.id_, "Found case should match created case"
     assert (
-        found_case.as_id == case.as_id
-    ), "Found case should match created case"
-    assert (
-        report.as_id in found_case.vulnerability_reports
+        report.id_ in found_case.vulnerability_reports
     ), "Case should contain report ID in vulnerability_reports field"

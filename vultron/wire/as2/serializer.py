@@ -59,7 +59,7 @@ from vultron.wire.as2.vocab.base.objects.object_types import as_NoteRef
 def domain_case_to_wire(domain: VultronCase) -> VulnerabilityCase:
     """Convert a ``VultronCase`` domain object to a ``VulnerabilityCase`` wire object."""
     return VulnerabilityCase(
-        as_id=domain.as_id,
+        id_=domain.id_,
         name=domain.name,
         attributed_to=domain.attributed_to,
         context=domain.context,
@@ -81,7 +81,7 @@ def domain_case_to_wire(domain: VultronCase) -> VulnerabilityCase:
 def domain_case_actor_to_wire(domain: VultronCaseActor) -> CaseActor:
     """Convert a ``VultronCaseActor`` domain object to a ``CaseActor`` wire object."""
     return CaseActor(
-        as_id=domain.as_id,
+        id_=domain.id_,
         name=domain.name,
         attributed_to=domain.attributed_to,
         context=domain.context,
@@ -93,7 +93,7 @@ def domain_participant_to_wire(
 ) -> VendorParticipant:
     """Convert a ``VultronParticipant`` domain object to a ``VendorParticipant`` wire object."""
     return VendorParticipant(
-        as_id=domain.as_id,
+        id_=domain.id_,
         name=domain.name,
         attributed_to=domain.attributed_to,
         context=domain.context,
@@ -108,9 +108,9 @@ def domain_create_case_activity_to_wire(
 ) -> as_CreateCase:
     """Convert a ``VultronCreateCaseActivity`` domain object to a ``CreateCaseActivity`` wire activity."""
     return as_CreateCase(
-        as_id=domain.as_id,
+        id_=domain.id_,
         actor=domain.actor,
-        as_object=domain.as_object,
+        object_=domain.object_,
     )
 
 
@@ -119,7 +119,7 @@ def domain_participant_status_to_wire(
 ) -> ParticipantStatus:
     """Convert a ``VultronParticipantStatus`` domain object to a ``ParticipantStatus`` wire object."""
     return ParticipantStatus(
-        as_id=domain.as_id,
+        id_=domain.id_,
         attributed_to=domain.attributed_to,
         context=domain.context,
         rm_state=domain.rm_state,
@@ -133,7 +133,7 @@ def domain_participant_status_to_wire(
 def domain_report_to_wire(domain: VultronReport) -> VulnerabilityReport:
     """Convert a ``VultronReport`` domain object to a ``VulnerabilityReport`` wire object."""
     return VulnerabilityReport(
-        as_id=domain.as_id,
+        id_=domain.id_,
         name=domain.name,
         content=domain.content,
         attributed_to=domain.attributed_to,

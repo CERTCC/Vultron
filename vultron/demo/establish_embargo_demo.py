@@ -106,9 +106,9 @@ def _make_embargo_event(
     # Use a URL-safe date string (no colons) for the ID path segment
     end_date_str = end_at.strftime("%Y-%m-%d")
     return EmbargoEvent(
-        as_id=f"{case.as_id}/embargo_events/{days}d-{end_date_str}",
+        id_=f"{case.id_}/embargo_events/{days}d-{end_date_str}",
         name=f"Embargo for {case.name}",
-        context=case.as_id,
+        context=case.id_,
         start_time=now,
         end_time=end_at,
         content=f"Proposed {days}-day embargo for {case.name}.",
@@ -134,83 +134,83 @@ def _setup_two_participant_case(
     6. Vendor invites coordinator; coordinator accepts → coordinator added
     """
     report = VulnerabilityReport(
-        attributed_to=finder.as_id,
+        attributed_to=finder.id_,
         content="A use-after-free vulnerability in the network stack.",
         name="Use-After-Free in Network Stack",
     )
     report_offer = RmSubmitReportActivity(
-        actor=finder.as_id,
-        as_object=report,
-        to=[vendor.as_id],
+        actor=finder.id_,
+        object_=report,
+        to=[vendor.id_],
     )
-    post_to_inbox_and_wait(client, vendor.as_id, report_offer)
-    verify_object_stored(client, report.as_id)
+    post_to_inbox_and_wait(client, vendor.id_, report_offer)
+    verify_object_stored(client, report.id_)
 
-    offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
+    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
-        actor=vendor.as_id,
-        as_object=offer.as_id,
+        actor=vendor.id_,
+        object_=offer.id_,
         content="Confirmed — use-after-free via unsanitized network input.",
     )
-    post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
+    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     case = VulnerabilityCase(
-        attributed_to=vendor.as_id,
+        attributed_to=vendor.id_,
         name="UAF Case — Network Stack",
         content="Tracking the use-after-free vulnerability in the network stack.",
     )
     create_case_activity = CreateCaseActivity(
-        actor=vendor.as_id,
-        as_object=case,
+        actor=vendor.id_,
+        object_=case,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
-    verify_object_stored(client, case.as_id)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
+    verify_object_stored(client, case.id_)
 
     add_report_activity = AddReportToCaseActivity(
-        actor=vendor.as_id,
-        as_object=report.as_id,
-        target=case.as_id,
+        actor=vendor.id_,
+        object_=report.id_,
+        target=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, add_report_activity)
+    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
     participant = FinderReporterParticipant(
-        attributed_to=finder.as_id,
-        context=case.as_id,
+        attributed_to=finder.id_,
+        context=case.id_,
     )
     create_participant_activity = as_Create(
-        actor=vendor.as_id,
-        as_object=participant,
-        context=case.as_id,
+        actor=vendor.id_,
+        object_=participant,
+        context=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, create_participant_activity)
-    verify_object_stored(client, participant.as_id)
+    post_to_inbox_and_wait(client, vendor.id_, create_participant_activity)
+    verify_object_stored(client, participant.id_)
 
     add_participant_activity = AddParticipantToCaseActivity(
-        actor=vendor.as_id,
-        as_object=participant.as_id,
-        target=case.as_id,
+        actor=vendor.id_,
+        object_=participant.id_,
+        target=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, add_participant_activity)
+    post_to_inbox_and_wait(client, vendor.id_, add_participant_activity)
 
     # Invite coordinator and have them accept
     invite = RmInviteToCaseActivity(
-        actor=vendor.as_id,
-        as_object=coordinator.as_id,
-        target=case.as_id,
-        to=[coordinator.as_id],
+        actor=vendor.id_,
+        object_=coordinator.id_,
+        target=case.id_,
+        to=[coordinator.id_],
         content=f"Inviting you to participate in {case.name}.",
     )
-    post_to_inbox_and_wait(client, coordinator.as_id, invite)
+    post_to_inbox_and_wait(client, coordinator.id_, invite)
 
     accept = RmAcceptInviteToCaseActivity(
-        actor=coordinator.as_id,
-        as_object=invite.as_id,
-        to=[vendor.as_id],
+        actor=coordinator.id_,
+        object_=invite.id_,
+        to=[vendor.id_],
         content=f"Accepting invitation to {case.name}.",
     )
-    post_to_inbox_and_wait(client, vendor.as_id, accept)
+    post_to_inbox_and_wait(client, vendor.id_, accept)
 
-    log_case_state(client, case.as_id, "after setup (two participants)")
+    log_case_state(client, case.id_, "after setup (two participants)")
     logger.info(
         "✓ Setup: Case initialized with vendor and coordinator participants"
     )
@@ -246,59 +246,59 @@ def demo_propose_embargo_accept(
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = _make_embargo_event(case, days=90)
         create_embargo = as_Create(
-            actor=vendor.as_id,
-            as_object=embargo,
-            context=case.as_id,
+            actor=vendor.id_,
+            object_=embargo,
+            context=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
+        post_to_inbox_and_wait(client, vendor.id_, create_embargo)
 
         proposal = EmProposeEmbargoActivity(
-            as_id=f"{case.as_id}/embargo_proposals/1",
-            actor=coordinator.as_id,
-            as_object=embargo,
-            context=case.as_id,
+            id_=f"{case.id_}/embargo_proposals/1",
+            actor=coordinator.id_,
+            object_=embargo,
+            context=case.id_,
             summary=f"Proposing a 90-day embargo for {case.name}.",
-            to=[vendor.as_id],
+            to=[vendor.id_],
         )
         logger.info(f"Sending embargo proposal: {logfmt(proposal)}")
-        post_to_inbox_and_wait(client, vendor.as_id, proposal)
+        post_to_inbox_and_wait(client, vendor.id_, proposal)
 
     with demo_step("Step 3: Vendor accepts embargo and activates it"):
         accept = EmAcceptEmbargoActivity(
-            actor=vendor.as_id,
-            as_object=proposal.as_id,
-            context=case.as_id,
-            to=[coordinator.as_id],
+            actor=vendor.id_,
+            object_=proposal.id_,
+            context=case.id_,
+            to=[coordinator.id_],
             summary=f"Accepting embargo proposal for {case.name}.",
         )
         logger.info(f"Sending embargo acceptance: {logfmt(accept)}")
-        post_to_inbox_and_wait(client, coordinator.as_id, accept)
+        post_to_inbox_and_wait(client, coordinator.id_, accept)
 
         activate = ActivateEmbargoActivity(
-            actor=vendor.as_id,
-            as_object=embargo.as_id,
-            target=case.as_id,
-            in_reply_to=proposal.as_id,
-            to=f"{case.as_id}/participants",
+            actor=vendor.id_,
+            object_=embargo.id_,
+            target=case.id_,
+            in_reply_to=proposal.id_,
+            to=f"{case.id_}/participants",
         )
         logger.info(f"Activating embargo: {logfmt(activate)}")
-        post_to_inbox_and_wait(client, vendor.as_id, activate)
+        post_to_inbox_and_wait(client, vendor.id_, activate)
 
     with demo_step("Step 4: Vendor announces embargo to participants"):
         announce = AnnounceEmbargoActivity(
-            actor=vendor.as_id,
-            as_object=embargo.as_id,
-            context=case.as_id,
-            to=f"{case.as_id}/participants",
+            actor=vendor.id_,
+            object_=embargo.id_,
+            context=case.id_,
+            to=f"{case.id_}/participants",
             summary=f"Embargo for {case.name} is now active.",
         )
         logger.info(f"Announcing embargo: {logfmt(announce)}")
-        post_to_inbox_and_wait(client, vendor.as_id, announce)
+        post_to_inbox_and_wait(client, vendor.id_, announce)
 
     with demo_step("Step 5: Verify case has active embargo"):
         with demo_check("Case has active_embargo set"):
             final_case = log_case_state(
-                client, case.as_id, "after embargo acceptance"
+                client, case.id_, "after embargo acceptance"
             )
             if final_case is None:
                 raise ValueError(
@@ -306,7 +306,7 @@ def demo_propose_embargo_accept(
                 )
             if final_case.active_embargo is None:
                 raise ValueError(
-                    f"Expected case '{case.as_id}' to have an active embargo after "
+                    f"Expected case '{case.id_}' to have an active embargo after "
                     f"acceptance, but active_embargo is None. "
                     f"Case status: {final_case.current_status}"
                 )
@@ -343,38 +343,38 @@ def demo_propose_embargo_reject(
     with demo_step("Step 2: Coordinator proposes embargo"):
         embargo = _make_embargo_event(case, days=45)
         create_embargo = as_Create(
-            actor=vendor.as_id,
-            as_object=embargo,
-            context=case.as_id,
+            actor=vendor.id_,
+            object_=embargo,
+            context=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, create_embargo)
+        post_to_inbox_and_wait(client, vendor.id_, create_embargo)
 
         proposal = EmProposeEmbargoActivity(
-            as_id=f"{case.as_id}/embargo_proposals/1",
-            actor=coordinator.as_id,
-            as_object=embargo,
-            context=case.as_id,
+            id_=f"{case.id_}/embargo_proposals/1",
+            actor=coordinator.id_,
+            object_=embargo,
+            context=case.id_,
             summary=f"Proposing a 45-day embargo for {case.name}.",
-            to=[vendor.as_id],
+            to=[vendor.id_],
         )
         logger.info(f"Sending embargo proposal: {logfmt(proposal)}")
-        post_to_inbox_and_wait(client, vendor.as_id, proposal)
+        post_to_inbox_and_wait(client, vendor.id_, proposal)
 
     with demo_step("Step 3: Vendor rejects embargo proposal"):
         reject = EmRejectEmbargoActivity(
-            actor=vendor.as_id,
-            as_object=proposal.as_id,
-            context=case.as_id,
-            to=[coordinator.as_id],
+            actor=vendor.id_,
+            object_=proposal.id_,
+            context=case.id_,
+            to=[coordinator.id_],
             summary=f"Rejecting embargo proposal for {case.name}.",
         )
         logger.info(f"Sending embargo rejection: {logfmt(reject)}")
-        post_to_inbox_and_wait(client, coordinator.as_id, reject)
+        post_to_inbox_and_wait(client, coordinator.id_, reject)
 
     with demo_step("Step 4: Verify case has no active embargo"):
         with demo_check("Case active_embargo is None after rejection"):
             final_case = log_case_state(
-                client, case.as_id, "after embargo rejection"
+                client, case.id_, "after embargo rejection"
             )
             if final_case is None:
                 raise ValueError(
@@ -382,7 +382,7 @@ def demo_propose_embargo_reject(
                 )
             if final_case.active_embargo is not None:
                 raise ValueError(
-                    f"Expected case '{case.as_id}' to have no active embargo after "
+                    f"Expected case '{case.id_}' to have no active embargo after "
                     f"rejection, but active_embargo = {final_case.active_embargo}"
                 )
 

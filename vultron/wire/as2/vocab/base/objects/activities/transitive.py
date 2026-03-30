@@ -32,7 +32,7 @@ class as_TransitiveActivity(Activity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-activity>
     """
 
-    as_object: as_ObjectRef = Field(
+    object_: as_ObjectRef = Field(
         None, validation_alias="object", serialization_alias="object"
     )
 
@@ -45,10 +45,10 @@ class as_TransitiveActivity(Activity):
         parts = []
         if self.actor is not None:
             parts.append(name_of(self.actor))
-        if self.as_type is not None:
-            parts.append(self.as_type)
-        if self.as_object is not None:
-            parts.append(name_of(self.as_object))
+        if self.type_ is not None:
+            parts.append(self.type_)
+        if self.object_ is not None:
+            parts.append(name_of(self.object_))
         if self.origin is not None:
             parts.extend(("from", self.origin))
         if self.target is not None:
@@ -68,7 +68,7 @@ class as_Like(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-like>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.LIKE,
         validation_alias="type",
         serialization_alias="type",
@@ -81,7 +81,7 @@ class as_Ignore(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-ignore>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.IGNORE,
         validation_alias="type",
         serialization_alias="type",
@@ -94,7 +94,7 @@ class as_Block(as_Ignore):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-block>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.BLOCK,
         validation_alias="type",
         serialization_alias="type",
@@ -108,7 +108,7 @@ class as_Offer(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-offer>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.OFFER,
         validation_alias="type",
         serialization_alias="type",
@@ -121,7 +121,7 @@ class as_Invite(as_Offer):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-invite>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.INVITE,
         validation_alias="type",
         serialization_alias="type",
@@ -134,7 +134,7 @@ class as_Flag(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-flag>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.FLAG,
         validation_alias="type",
         serialization_alias="type",
@@ -147,7 +147,7 @@ class as_Remove(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-remove>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.REMOVE,
         validation_alias="type",
         serialization_alias="type",
@@ -160,7 +160,7 @@ class as_Undo(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-undo>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.UNDO,
         validation_alias="type",
         serialization_alias="type",
@@ -173,7 +173,7 @@ class as_Create(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-create>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.CREATE,
         validation_alias="type",
         serialization_alias="type",
@@ -186,7 +186,7 @@ class as_Delete(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-delete>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.DELETE,
         validation_alias="type",
         serialization_alias="type",
@@ -200,7 +200,7 @@ class as_Move(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-move>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.MOVE,
         validation_alias="type",
         serialization_alias="type",
@@ -214,7 +214,7 @@ class as_Add(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-add>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.ADD,
         validation_alias="type",
         serialization_alias="type",
@@ -227,7 +227,7 @@ class as_Join(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-join>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.JOIN,
         validation_alias="type",
         serialization_alias="type",
@@ -240,7 +240,7 @@ class as_Update(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-update>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.UPDATE,
         validation_alias="type",
         serialization_alias="type",
@@ -253,7 +253,7 @@ class as_Listen(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-listen>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.LISTEN,
         validation_alias="type",
         serialization_alias="type",
@@ -266,7 +266,7 @@ class as_Leave(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-leave>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.LEAVE,
         validation_alias="type",
         serialization_alias="type",
@@ -279,7 +279,7 @@ class as_Announce(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-announce>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.ANNOUNCE,
         validation_alias="type",
         serialization_alias="type",
@@ -295,7 +295,7 @@ class as_Follow(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-follow>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.FOLLOW,
         validation_alias="type",
         serialization_alias="type",
@@ -308,7 +308,7 @@ class as_Accept(as_TransitiveActivity):
     which the object has been accepted.
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.ACCEPT,
         validation_alias="type",
         serialization_alias="type",
@@ -321,7 +321,7 @@ class as_TentativeAccept(as_Accept):
     A specialization of Accept indicating that the acceptance is tentative.
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.TENTATIVE_ACCEPT,
         validation_alias="type",
         serialization_alias="type",
@@ -334,7 +334,7 @@ class as_View(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-view>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.VIEW,
         validation_alias="type",
         serialization_alias="type",
@@ -347,7 +347,7 @@ class as_Dislike(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-dislike>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.DISLIKE,
         validation_alias="type",
         serialization_alias="type",
@@ -361,7 +361,7 @@ class as_Reject(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-reject>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.REJECT,
         validation_alias="type",
         serialization_alias="type",
@@ -374,7 +374,7 @@ class as_TentativeReject(as_Reject):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-tentativereject>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.TENTATIVE_REJECT,
         validation_alias="type",
         serialization_alias="type",
@@ -387,7 +387,7 @@ class as_Read(as_TransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-read>
     """
 
-    as_type: TA_type = Field(
+    type_: TA_type = Field(
         default=TA_type.READ,
         validation_alias="type",
         serialization_alias="type",

@@ -28,10 +28,10 @@ class VultronCaseStatus(VultronObject):
     """Domain representation of a case status snapshot.
 
     Mirrors the Vultron-specific fields of ``CaseStatus``.
-    ``as_type`` is ``"CaseStatus"`` to match the wire value.
+    ``type_`` is ``"CaseStatus"`` to match the wire value.
     """
 
-    as_type: str = "CaseStatus"
+    type_: str = "CaseStatus"
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]
     attributed_to: Any  # pyright: ignore[reportGeneralTypeIssues]
     em_state: EM = EM.EMBARGO_MANAGEMENT_NONE

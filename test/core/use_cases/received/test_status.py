@@ -47,24 +47,24 @@ class TestStatusUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_cs1",
+            id_="https://example.org/cases/case_cs1",
             name="Case Status Test",
         )
         status = CaseStatus(
-            as_id="https://example.org/cases/case_cs1/statuses/s1",
-            context=case.as_id,
+            id_="https://example.org/cases/case_cs1/statuses/s1",
+            context=case.id_,
         )
         activity = CreateCaseStatusActivity(
             actor="https://example.org/users/vendor",
-            as_object=status,
-            context=case.as_id,
+            object_=status,
+            context=case.id_,
         )
 
         event = make_payload(activity)
 
         CreateCaseStatusReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(status.as_type.value, status.as_id)
+        stored = dl.get(status.type_.value, status.id_)
         assert stored is not None
 
     def test_create_case_status_idempotent(self, monkeypatch, make_payload):
@@ -72,25 +72,25 @@ class TestStatusUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_cs2",
+            id_="https://example.org/cases/case_cs2",
             name="Case Status Idempotent",
         )
         status = CaseStatus(
-            as_id="https://example.org/cases/case_cs2/statuses/s2",
-            context=case.as_id,
+            id_="https://example.org/cases/case_cs2/statuses/s2",
+            context=case.id_,
         )
         dl.create(status)
 
         activity = CreateCaseStatusActivity(
             actor="https://example.org/users/vendor",
-            as_object=status,
-            context=case.as_id,
+            object_=status,
+            context=case.id_,
         )
         event = make_payload(activity)
 
         CreateCaseStatusReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(status.as_type.value, status.as_id)
+        stored = dl.get(status.type_.value, status.id_)
         assert stored is not None
 
     def test_add_case_status_to_case_appends_status(
@@ -99,30 +99,30 @@ class TestStatusUseCases:
         """add_case_status_to_case appends status ID to case.case_statuses."""
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_cs3",
+            id_="https://example.org/cases/case_cs3",
             name="Add Status Case",
         )
         status = CaseStatus(
-            as_id="https://example.org/cases/case_cs3/statuses/s3",
-            context=case.as_id,
+            id_="https://example.org/cases/case_cs3/statuses/s3",
+            context=case.id_,
         )
         dl.create(case)
         dl.create(status)
 
         activity = AddStatusToCaseActivity(
             actor="https://example.org/users/vendor",
-            as_object=status,
+            object_=status,
             target=case,
         )
         event = make_payload(activity)
 
         AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
-        case = dl.read(case.as_id)
+        case = dl.read(case.id_)
         assert case is not None
         case = cast(VulnerabilityCase, case)
-        status_ids = [getattr(s, "as_id", s) for s in case.case_statuses]
-        assert status.as_id in status_ids
+        status_ids = [getattr(s, "id_", s) for s in case.case_statuses]
+        assert status.id_ in status_ids
 
     def test_add_case_status_blocks_invalid_em_transition(
         self, monkeypatch, make_payload
@@ -130,13 +130,13 @@ class TestStatusUseCases:
         """Invalid EM transition is blocked; status is not appended."""
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_em_guard",
+            id_="https://example.org/cases/case_em_guard",
             name="EM Guard Test Case",
         )
         # Seed an existing status with EM.NONE (the initial embargo state)
         initial_status = CaseStatus(
-            as_id="https://example.org/cases/case_em_guard/statuses/s_init",
-            context=case.as_id,
+            id_="https://example.org/cases/case_em_guard/statuses/s_init",
+            context=case.id_,
             em_state=EM.NONE,
         )
         case.case_statuses.append(initial_status)
@@ -145,29 +145,27 @@ class TestStatusUseCases:
         # Try to add a status with EM.ACTIVE — invalid: NONE → ACTIVE
         # skips the required PROPOSED intermediate state
         bad_status = CaseStatus(
-            as_id="https://example.org/cases/case_em_guard/statuses/s_bad",
-            context=case.as_id,
+            id_="https://example.org/cases/case_em_guard/statuses/s_bad",
+            context=case.id_,
             em_state=EM.ACTIVE,
         )
         dl.create(bad_status)
 
         activity = AddStatusToCaseActivity(
             actor="https://example.org/users/vendor",
-            as_object=bad_status,
+            object_=bad_status,
             target=case,
         )
         event = make_payload(activity)
 
         AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
-        updated_case = dl.read(case.as_id)
+        updated_case = dl.read(case.id_)
         assert updated_case is not None
         updated_case = cast(VulnerabilityCase, updated_case)
-        status_ids = [
-            getattr(s, "as_id", s) for s in updated_case.case_statuses
-        ]
+        status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
         assert (
-            bad_status.as_id not in status_ids
+            bad_status.id_ not in status_ids
         ), "Bad status should not have been appended"
 
     def test_add_case_status_allows_valid_em_transition(
@@ -176,12 +174,12 @@ class TestStatusUseCases:
         """Valid EM transition is permitted; status is appended."""
         dl = TinyDbDataLayer(db_path=None)
         case = VulnerabilityCase(
-            as_id="https://example.org/cases/case_em_valid",
+            id_="https://example.org/cases/case_em_valid",
             name="EM Valid Transition Case",
         )
         initial_status = CaseStatus(
-            as_id="https://example.org/cases/case_em_valid/statuses/s_init",
-            context=case.as_id,
+            id_="https://example.org/cases/case_em_valid/statuses/s_init",
+            context=case.id_,
             em_state=EM.NONE,
         )
         case.case_statuses.append(initial_status)
@@ -189,28 +187,26 @@ class TestStatusUseCases:
 
         # NONE → PROPOSED is a valid transition
         good_status = CaseStatus(
-            as_id="https://example.org/cases/case_em_valid/statuses/s_good",
-            context=case.as_id,
+            id_="https://example.org/cases/case_em_valid/statuses/s_good",
+            context=case.id_,
             em_state=EM.PROPOSED,
         )
         dl.create(good_status)
 
         activity = AddStatusToCaseActivity(
             actor="https://example.org/users/vendor",
-            as_object=good_status,
+            object_=good_status,
             target=case,
         )
         event = make_payload(activity)
 
         AddCaseStatusToCaseReceivedUseCase(dl, event).execute()
 
-        updated_case = dl.read(case.as_id)
+        updated_case = dl.read(case.id_)
         assert updated_case is not None
         updated_case = cast(VulnerabilityCase, updated_case)
-        status_ids = [
-            getattr(s, "as_id", s) for s in updated_case.case_statuses
-        ]
-        assert good_status.as_id in status_ids
+        status_ids = [getattr(s, "id_", s) for s in updated_case.case_statuses]
+        assert good_status.id_ in status_ids
 
     def test_create_participant_status_stores_status(
         self, monkeypatch, make_payload
@@ -219,16 +215,16 @@ class TestStatusUseCases:
         dl = TinyDbDataLayer(db_path=None)
 
         pstatus = ParticipantStatus(
-            as_id="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
+            id_="https://example.org/cases/case_ps1/participants/p1/statuses/s1",
             context="https://example.org/cases/case_ps1",
         )
         case_ps1 = VulnerabilityCase(
-            as_id="https://example.org/cases/case_ps1",
+            id_="https://example.org/cases/case_ps1",
             name="PS Case 1",
         )
         activity = CreateStatusForParticipantActivity(
             actor="https://example.org/users/vendor",
-            as_object=pstatus,
+            object_=pstatus,
             context=case_ps1,
         )
 
@@ -236,7 +232,7 @@ class TestStatusUseCases:
 
         CreateParticipantStatusReceivedUseCase(dl, event).execute()
 
-        stored = dl.get(pstatus.as_type.value, pstatus.as_id)
+        stored = dl.get(pstatus.type_.value, pstatus.id_)
         assert stored is not None
 
     def test_add_participant_status_to_participant_appends_status(
@@ -245,16 +241,16 @@ class TestStatusUseCases:
         """add_participant_status_to_participant appends status to participant."""
         dl = TinyDbDataLayer(db_path=None)
         participant = CaseParticipant(
-            as_id="https://example.org/cases/case_ps2/participants/p2",
+            id_="https://example.org/cases/case_ps2/participants/p2",
             context="https://example.org/cases/case_ps2",
             attributed_to="https://example.org/users/vendor",
         )
         pstatus = ParticipantStatus(
-            as_id="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
+            id_="https://example.org/cases/case_ps2/participants/p2/statuses/s2",
             context="https://example.org/cases/case_ps2",
         )
         case_ps2 = VulnerabilityCase(
-            as_id="https://example.org/cases/case_ps2",
+            id_="https://example.org/cases/case_ps2",
             name="PS Case 2",
         )
         dl.create(participant)
@@ -262,7 +258,7 @@ class TestStatusUseCases:
 
         activity = AddStatusToParticipantActivity(
             actor="https://example.org/users/vendor",
-            as_object=pstatus,
+            object_=pstatus,
             target=participant,
             context=case_ps2,
         )
@@ -270,10 +266,10 @@ class TestStatusUseCases:
 
         AddParticipantStatusToParticipantReceivedUseCase(dl, event).execute()
 
-        participant = dl.read(participant.as_id)
+        participant = dl.read(participant.id_)
         assert participant is not None
         participant = cast(CaseParticipant, participant)
         status_ids = [
-            getattr(s, "as_id", s) for s in participant.participant_statuses
+            getattr(s, "id_", s) for s in participant.participant_statuses
         ]
-        assert pstatus.as_id in status_ids
+        assert pstatus.id_ in status_ids

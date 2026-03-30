@@ -102,42 +102,42 @@ def setup_case_precondition(
     logger.info("Setting up case precondition...")
 
     report = VulnerabilityReport(
-        attributed_to=finder.as_id,
+        attributed_to=finder.id_,
         content="An integer overflow vulnerability in the network stack.",
         name="Integer Overflow in Network Stack",
     )
     report_offer = RmSubmitReportActivity(
-        actor=finder.as_id,
-        as_object=report,
-        to=[vendor.as_id],
+        actor=finder.id_,
+        object_=report,
+        to=[vendor.id_],
     )
-    post_to_inbox_and_wait(client, vendor.as_id, report_offer)
+    post_to_inbox_and_wait(client, vendor.id_, report_offer)
 
-    offer = get_offer_from_datalayer(client, vendor.as_id, report_offer.as_id)
+    offer = get_offer_from_datalayer(client, vendor.id_, report_offer.id_)
     validate_activity = RmValidateReportActivity(
-        actor=vendor.as_id,
-        as_object=offer.as_id,
+        actor=vendor.id_,
+        object_=offer.id_,
         content="Confirmed — integer overflow via crafted packet.",
     )
-    post_to_inbox_and_wait(client, vendor.as_id, validate_activity)
+    post_to_inbox_and_wait(client, vendor.id_, validate_activity)
 
     case = VulnerabilityCase(
-        attributed_to=vendor.as_id,
+        attributed_to=vendor.id_,
         name="Integer Overflow Case — Network Stack",
         content="Tracking the integer overflow vulnerability in the network stack.",
     )
     create_case_activity = CreateCaseActivity(
-        actor=vendor.as_id,
-        as_object=case,
+        actor=vendor.id_,
+        object_=case,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, create_case_activity)
+    post_to_inbox_and_wait(client, vendor.id_, create_case_activity)
 
     add_report_activity = AddReportToCaseActivity(
-        actor=vendor.as_id,
-        as_object=report.as_id,
-        target=case.as_id,
+        actor=vendor.id_,
+        object_=report.id_,
+        target=case.id_,
     )
-    post_to_inbox_and_wait(client, vendor.as_id, add_report_activity)
+    post_to_inbox_and_wait(client, vendor.id_, add_report_activity)
 
     logger.info("Case precondition setup complete.")
     return report, case
@@ -174,7 +174,7 @@ def demo_initialize_participant(
     report, case = setup_case_precondition(client, finder, vendor)
 
     with demo_check("Initial case state: vendor is sole participant"):
-        initial_case = log_case_state(client, case.as_id, "initial")
+        initial_case = log_case_state(client, case.id_, "initial")
         if initial_case is None:
             raise ValueError("Could not fetch initial case state")
         logger.info(
@@ -185,43 +185,41 @@ def demo_initialize_participant(
         "Step 1: Vendor creates coordinator participant (standalone)"
     ):
         coordinator_participant = CoordinatorParticipant(
-            attributed_to=coordinator.as_id,
-            context=case.as_id,
+            attributed_to=coordinator.id_,
+            context=case.id_,
         )
         logger.info(
             f"Created coordinator participant: {logfmt(coordinator_participant)}"
         )
         create_coordinator_participant = CreateParticipantActivity(
-            actor=vendor.as_id,
-            as_object=coordinator_participant,
-            context=case.as_id,
+            actor=vendor.id_,
+            object_=coordinator_participant,
+            context=case.id_,
         )
         post_to_inbox_and_wait(
-            client, vendor.as_id, create_coordinator_participant
+            client, vendor.id_, create_coordinator_participant
         )
         with demo_check("Coordinator participant stored in data layer"):
-            verify_object_stored(client, coordinator_participant.as_id)
+            verify_object_stored(client, coordinator_participant.id_)
 
     with demo_step("Step 2: Vendor adds coordinator participant to case"):
         add_coordinator_participant = AddParticipantToCaseActivity(
-            actor=vendor.as_id,
-            as_object=coordinator_participant.as_id,
-            target=case.as_id,
+            actor=vendor.id_,
+            object_=coordinator_participant.id_,
+            target=case.id_,
         )
-        post_to_inbox_and_wait(
-            client, vendor.as_id, add_coordinator_participant
-        )
+        post_to_inbox_and_wait(client, vendor.id_, add_coordinator_participant)
         with demo_check("Coordinator participant added to case"):
             updated_case = log_case_state(
                 client,
-                case.as_id,
+                case.id_,
                 "after coordinator AddParticipantToCaseActivity",
             )
-            if updated_case and coordinator_participant.as_id not in [
+            if updated_case and coordinator_participant.id_ not in [
                 (ref_id(p) or str(p)) for p in updated_case.case_participants
             ]:
                 raise ValueError(
-                    f"Coordinator participant '{coordinator_participant.as_id}'"
+                    f"Coordinator participant '{coordinator_participant.id_}'"
                     " not found in case after AddParticipantToCaseActivity"
                 )
         logger.info("Coordinator added as participant to case")
@@ -230,43 +228,43 @@ def demo_initialize_participant(
         "Step 3: Vendor creates finder/reporter participant (standalone)"
     ):
         finder_participant = FinderReporterParticipant(
-            attributed_to=finder.as_id,
-            context=case.as_id,
+            attributed_to=finder.id_,
+            context=case.id_,
         )
         logger.info(
             f"Created finder participant: {logfmt(finder_participant)}"
         )
         create_finder_participant = CreateParticipantActivity(
-            actor=vendor.as_id,
-            as_object=finder_participant,
-            context=case.as_id,
+            actor=vendor.id_,
+            object_=finder_participant,
+            context=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, create_finder_participant)
+        post_to_inbox_and_wait(client, vendor.id_, create_finder_participant)
         with demo_check("Finder participant stored in data layer"):
-            verify_object_stored(client, finder_participant.as_id)
+            verify_object_stored(client, finder_participant.id_)
 
     with demo_step("Step 4: Vendor adds finder participant to case"):
         add_finder_participant = AddParticipantToCaseActivity(
-            actor=vendor.as_id,
-            as_object=finder_participant.as_id,
-            target=case.as_id,
+            actor=vendor.id_,
+            object_=finder_participant.id_,
+            target=case.id_,
         )
-        post_to_inbox_and_wait(client, vendor.as_id, add_finder_participant)
+        post_to_inbox_and_wait(client, vendor.id_, add_finder_participant)
         with demo_check("Finder participant added to case"):
             final_case = log_case_state(
-                client, case.as_id, "after finder AddParticipantToCaseActivity"
+                client, case.id_, "after finder AddParticipantToCaseActivity"
             )
-            if final_case and finder_participant.as_id not in [
+            if final_case and finder_participant.id_ not in [
                 (ref_id(p) or str(p)) for p in final_case.case_participants
             ]:
                 raise ValueError(
-                    f"Finder participant '{finder_participant.as_id}' not found"
+                    f"Finder participant '{finder_participant.id_}' not found"
                     " in case after AddParticipantToCaseActivity"
                 )
         logger.info("Finder added as participant to case")
 
     with demo_check("Final case has three participants"):
-        final_case = log_case_state(client, case.as_id, "final")
+        final_case = log_case_state(client, case.id_, "final")
         if final_case is None:
             raise ValueError("Could not fetch final case state")
         participant_count = len(final_case.case_participants)

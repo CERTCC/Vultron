@@ -52,7 +52,7 @@ REQUIRED_KWARGS: dict[type, dict] = {
         "end_time": _FUTURE_DT,
     },
     VultronActivity: {
-        "as_type": "Announce",
+        "type_": "Announce",
         "actor": "https://example.org/actors/test",
     },
     VultronOffer: {"actor": "https://example.org/actors/test"},
@@ -76,13 +76,13 @@ def test_inherits_from_vultron_object(cls):
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
 def test_has_as_id(cls):
     obj = make_instance(cls)
-    assert obj.as_id.startswith("urn:uuid:")
+    assert obj.id_.startswith("urn:uuid:")
 
 
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
 def test_has_as_type(cls):
     obj = make_instance(cls)
-    assert obj.as_type
+    assert obj.type_
 
 
 @pytest.mark.parametrize("cls", DOMAIN_OBJECT_CLASSES)
@@ -98,8 +98,8 @@ def test_vultron_participant_status_context_required():
         VultronParticipantStatus()
     ps = VultronParticipantStatus(context="urn:uuid:case-123")
     assert issubclass(VultronParticipantStatus, VultronObject)
-    assert ps.as_id.startswith("urn:uuid:")
-    assert ps.as_type == "ParticipantStatus"
+    assert ps.id_.startswith("urn:uuid:")
+    assert ps.type_ == "ParticipantStatus"
     assert ps.context == "urn:uuid:case-123"
 
 
@@ -107,42 +107,42 @@ def test_vultron_activity_as_type_required():
     with pytest.raises(ValidationError):
         VultronActivity(actor="https://example.org/actors/test")
     act = VultronActivity(
-        as_type="Offer", actor="https://example.org/actors/test"
+        type_="Offer", actor="https://example.org/actors/test"
     )
-    assert act.as_type == "Offer"
+    assert act.type_ == "Offer"
 
 
 def test_domain_object_as_id_unique():
     a = VultronReport()
     b = VultronReport()
-    assert a.as_id != b.as_id
+    assert a.id_ != b.id_
 
 
 def test_domain_object_expected_as_types():
-    assert VultronReport().as_type == "VulnerabilityReport"
-    assert VultronCase().as_type == "VulnerabilityCase"
-    assert VultronNote(content="test").as_type == "Note"
+    assert VultronReport().type_ == "VulnerabilityReport"
+    assert VultronCase().type_ == "VulnerabilityCase"
+    assert VultronNote(content="test").type_ == "Note"
     assert (
         VultronParticipant(
             context="urn:uuid:c", attributed_to="urn:uuid:a"
-        ).as_type
+        ).type_
         == "CaseParticipant"
     )
     assert (
         VultronCaseStatus(
             context="urn:uuid:c", attributed_to="urn:uuid:a"
-        ).as_type
+        ).type_
         == "CaseStatus"
     )
     assert (
-        VultronEmbargoEvent(context="urn:uuid:c", end_time=_FUTURE_DT).as_type
+        VultronEmbargoEvent(context="urn:uuid:c", end_time=_FUTURE_DT).type_
         == "Event"
     )
-    assert VultronCaseActor().as_type == "Service"
+    assert VultronCaseActor().type_ == "Service"
     _test_actor = "https://example.org/actors/test"
-    assert VultronOffer(actor=_test_actor).as_type == "Offer"
-    assert VultronAccept(actor=_test_actor).as_type == "Accept"
-    assert VultronCreateCaseActivity(actor=_test_actor).as_type == "Create"
+    assert VultronOffer(actor=_test_actor).type_ == "Offer"
+    assert VultronAccept(actor=_test_actor).type_ == "Accept"
+    assert VultronCreateCaseActivity(actor=_test_actor).type_ == "Create"
 
 
 def test_vultron_note_content_required():
@@ -193,7 +193,7 @@ def test_vultron_case_init_case_statuses():
     case_with_actor = VultronCase(attributed_to="urn:uuid:actor-123")
     assert len(case_with_actor.case_statuses) == 1
     assert isinstance(case_with_actor.case_statuses[0], VultronCaseStatus)
-    assert case_with_actor.case_statuses[0].context == case_with_actor.as_id
+    assert case_with_actor.case_statuses[0].context == case_with_actor.id_
     assert (
         case_with_actor.case_statuses[0].attributed_to == "urn:uuid:actor-123"
     )

@@ -50,7 +50,7 @@ class EmbargoPolicy(VultronObject):
     Per specs/embargo-policy.md EP-01-001 through EP-01-004.
     """
 
-    as_type: VO_type = Field(
+    type_: VO_type = Field(
         default=VO_type.EMBARGO_POLICY,
         validation_alias="type",
         serialization_alias="type",

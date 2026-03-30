@@ -45,26 +45,26 @@ def add_vendor_participant_to_case() -> AddParticipantToCaseActivity:
     _vendor = vendor()
     _case = case()
 
-    shortname = _vendor.as_id.split("/")[-1]
+    shortname = _vendor.id_.split("/")[-1]
     _vendor_participant = VendorParticipant(
-        as_id=f"{_case.as_id}/participants/{shortname}",
+        id_=f"{_case.id_}/participants/{shortname}",
         name=_vendor.name,
-        attributed_to=_vendor.as_id,
-        context=_case.as_id,
+        attributed_to=_vendor.id_,
+        context=_case.id_,
     )
 
     _pstatus = ParticipantStatus(
-        context=_case.as_id,
-        attributed_to=_vendor.as_id,
+        context=_case.id_,
+        attributed_to=_vendor.id_,
         rm_state=RM.RECEIVED,
         vfd_state=CS_vfd.Vfd,
     )
     _vendor_participant.participant_statuses = [_pstatus]
 
     activity = AddParticipantToCaseActivity(
-        actor=_vendor.as_id,
-        as_object=_vendor_participant,
-        target=_case.as_id,
+        actor=_vendor.id_,
+        object_=_vendor_participant,
+        target=_case.id_,
         content="We're adding ourselves as a participant to this case.",
     )
     return activity
@@ -75,18 +75,18 @@ def add_finder_participant_to_case() -> AddParticipantToCaseActivity:
     _case = case()
 
     _finder = finder()
-    shortname = _finder.as_id.split("/")[-1]
+    shortname = _finder.id_.split("/")[-1]
     _finder_participant = FinderReporterParticipant(
-        as_id=f"{_case.as_id}/participants/{shortname}",
+        id_=f"{_case.id_}/participants/{shortname}",
         name=_finder.name,
-        attributed_to=_finder.as_id,
-        context=_case.as_id,
+        attributed_to=_finder.id_,
+        context=_case.id_,
     )
 
     activity = AddParticipantToCaseActivity(
-        actor=_vendor.as_id,
-        as_object=_finder_participant,
-        target=_case.as_id,
+        actor=_vendor.id_,
+        object_=_finder_participant,
+        target=_case.id_,
         content="We're adding the finder as a participant to this case.",
     )
     return activity
@@ -97,18 +97,18 @@ def add_coordinator_participant_to_case() -> AddParticipantToCaseActivity:
     _case = case()
 
     _coordinator = _COORDINATOR
-    shortname = _coordinator.as_id.split("/")[-1]
+    shortname = _coordinator.id_.split("/")[-1]
     _coordinator_participant = CoordinatorParticipant(
-        as_id=f"{_case.as_id}/participants/{shortname}",
+        id_=f"{_case.id_}/participants/{shortname}",
         name=_coordinator.name,
-        attributed_to=_coordinator.as_id,
-        context=_case.as_id,
+        attributed_to=_coordinator.id_,
+        context=_case.id_,
     )
 
     activity = AddParticipantToCaseActivity(
-        actor=_vendor.as_id,
-        as_object=_coordinator_participant,
-        target=_case.as_id,
+        actor=_vendor.id_,
+        object_=_coordinator_participant,
+        target=_case.id_,
         content="We're adding the coordinator as a participant to this case.",
     )
     return activity
@@ -119,11 +119,11 @@ def rm_invite_to_case() -> RmInviteToCaseActivity:
     _coordinator = _COORDINATOR
     _case = case()
     _activity = RmInviteToCaseActivity(
-        as_id=f"{_case.as_id}/invitation/1",
-        actor=_vendor.as_id,
-        as_object=_coordinator.as_id,
-        target=_case.as_id,
-        to=_coordinator.as_id,
+        id_=f"{_case.id_}/invitation/1",
+        actor=_vendor.id_,
+        object_=_coordinator.id_,
+        target=_case.id_,
+        to=_coordinator.id_,
         content=f"We're inviting you to participate in {_case.name}.",
     )
     return _activity
@@ -135,9 +135,9 @@ def accept_invite_to_case() -> RmAcceptInviteToCaseActivity:
     _case = case()
     _invite = rm_invite_to_case()
     _activity = RmAcceptInviteToCaseActivity(
-        actor=_coordinator.as_id,
-        as_object=_invite,
-        to=_vendor.as_id,
+        actor=_coordinator.id_,
+        object_=_invite,
+        to=_vendor.id_,
         content=f"We're accepting your invitation to participate in {_case.name}.",
     )
     return _activity
@@ -149,9 +149,9 @@ def reject_invite_to_case() -> RmRejectInviteToCaseActivity:
     _case = case()
     _invite = rm_invite_to_case()
     _activity = RmRejectInviteToCaseActivity(
-        actor=_coordinator.as_id,
-        as_object=_invite,
-        to=_vendor.as_id,
+        actor=_coordinator.id_,
+        object_=_invite,
+        to=_vendor.id_,
         content=f"Thanks for the invitation, but we're declining to participate in {_case.name}.",
     )
     return _activity
@@ -162,15 +162,15 @@ def create_participant():
     _case = case()
     _coordinator = _COORDINATOR
     _coord_participant = CoordinatorParticipant(
-        as_id=f"{_case.as_id}/participants/{_coordinator.as_id}",
+        id_=f"{_case.id_}/participants/{_coordinator.id_}",
         name=_coordinator.name,
-        attributed_to=_coordinator.as_id,
-        context=_case.as_id,
+        attributed_to=_coordinator.id_,
+        context=_case.id_,
     )
     _activity = as_Create(
-        actor=_vendor.as_id,
-        as_object=_coord_participant,
-        context=_case.as_id,
+        actor=_vendor.id_,
+        object_=_coord_participant,
+        context=_case.id_,
         content=f"We're adding {_coordinator.name} to the case.",
     )
     return _activity
@@ -178,7 +178,7 @@ def create_participant():
 
 def case_participant() -> CaseParticipant:
     participant = VendorParticipant(
-        as_id="https://vultron.example/cases/1/participants/vendor",
+        id_="https://vultron.example/cases/1/participants/vendor",
         name="Vendor",
         attributed_to="https://vultron.example/organizations/vendor",
         context="https://vultron.example/cases/1",
@@ -192,10 +192,10 @@ def coordinator_participant() -> CaseParticipant:
     _case = case()
 
     participant = CoordinatorParticipant(
-        as_id=f"{_case.as_id}/participants/coordinator",
+        id_=f"{_case.id_}/participants/coordinator",
         name=_actor.name,
-        attributed_to=_actor.as_id,
-        context=_case.as_id,
+        attributed_to=_actor.id_,
+        context=_case.id_,
     )
     return participant
 
@@ -206,11 +206,11 @@ def invite_to_case():
     _vendor = vendor()
 
     activity = RmInviteToCaseActivity(
-        as_id=f"{_case.as_id}/invitation/1",
-        actor=_vendor.as_id,
-        as_object=_coordinator.as_id,
-        target=_case.as_id,
-        to=_coordinator.as_id,
+        id_=f"{_case.id_}/invitation/1",
+        actor=_vendor.id_,
+        object_=_coordinator.id_,
+        target=_case.id_,
+        to=_coordinator.id_,
         content=f"We're inviting you to participate in case {_case.name}.",
     )
     return activity
@@ -221,9 +221,9 @@ def remove_participant_from_case():
     _case = case()
     coord_p = coordinator_participant()
     activity = RemoveParticipantFromCaseActivity(
-        actor=_vendor.as_id,
-        as_object=coord_p.as_id,
-        origin=_case.as_id,
+        actor=_vendor.id_,
+        object_=coord_p.id_,
+        origin=_case.id_,
         summary="Vendor is removing the coordinator from the case.",
     )
     return activity

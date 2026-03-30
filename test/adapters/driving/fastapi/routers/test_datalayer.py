@@ -29,17 +29,17 @@ def test_get_offers_includes_created_offer(client_datalayer, dl, offer):
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data) == 1
-    assert offer.as_id in data
+    assert offer.id_ in data
 
 
 def test_get_offer_by_id_returns_offer_fields(client_datalayer, dl, offer):
     dl.create(object_to_record(offer))
     response = client_datalayer.get(
-        "/datalayer/Offer/", params={"object_id": offer.as_id}
+        "/datalayer/Offer/", params={"object_id": offer.id_}
     )
     assert response.status_code == status.HTTP_200_OK
     body = response.json()
-    assert body["id"] == offer.as_id
+    assert body["id"] == offer.id_
     # actor key name comes from the router's encoding
     assert body.get("actor") == offer.actor
 
@@ -61,7 +61,7 @@ def test_get_vulnerability_reports_includes_created_report(
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data) == 1
-    assert report.as_id in data
+    assert report.id_ in data
 
 
 def test_reports_shortcut_endpoint_returns_same_results(
@@ -72,16 +72,16 @@ def test_reports_shortcut_endpoint_returns_same_results(
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data) == 1
-    assert report.as_id in data
+    assert report.id_ in data
 
 
 def test_get_report_by_id_returns_report(client_datalayer, dl, report):
     dl.create(report)
     response = client_datalayer.get(
-        "/datalayer/Report/", params={"id": report.as_id}
+        "/datalayer/Report/", params={"id": report.id_}
     )
     assert response.status_code == status.HTTP_200_OK
-    assert response.json()["id"] == report.as_id
+    assert response.json()["id"] == report.id_
 
 
 def test_reset_endpoint_clears_all_data(client_datalayer, dl, report, offer):

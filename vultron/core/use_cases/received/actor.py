@@ -212,7 +212,7 @@ class AcceptInviteActorToCaseReceivedUseCase:
         active_embargo_id = _as_id(case.active_embargo)
 
         participant = VultronParticipant(
-            as_id=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
+            id_=f"{case_id}/participants/{invitee_id.split('/')[-1]}",
             attributed_to=invitee_id,
             context=case_id,
         )
@@ -221,8 +221,8 @@ class AcceptInviteActorToCaseReceivedUseCase:
         self._dl.create(participant)
 
         # Use string IDs to avoid wire-type serialization incompatibility
-        case.case_participants.append(participant.as_id)
-        case.actor_participant_index[invitee_id] = participant.as_id
+        case.case_participants.append(participant.id_)
+        case.actor_participant_index[invitee_id] = participant.id_
         case.record_event(invitee_id, "participant_joined")
         if active_embargo_id:
             case.record_event(active_embargo_id, "embargo_accepted")

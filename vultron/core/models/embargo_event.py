@@ -23,10 +23,10 @@ from vultron.core.models.base import NonEmptyString, VultronObject
 class VultronEmbargoEvent(VultronObject):
     """Domain representation of an EmbargoEvent.
 
-    ``as_type`` is ``"Event"`` to match the wire value (EmbargoEvent inherits
-    as_Event and does not override as_type).
+    ``type_`` is ``"Event"`` to match the wire value (EmbargoEvent inherits
+    as_Event and does not override type_).
     """
 
-    as_type: str = "Event"
+    type_: str = "Event"
     end_time: datetime  # pyright: ignore[reportGeneralTypeIssues]
     context: NonEmptyString  # pyright: ignore[reportGeneralTypeIssues]

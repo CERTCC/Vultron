@@ -35,9 +35,7 @@ class as_IntransitiveActivity(Activity):
     """
 
     def description(self):
-        return (
-            f"{self.actor} {self.as_type} to {self.target} with {self.result}"
-        )
+        return f"{self.actor} {self.type_} to {self.target} with {self.result}"
 
 
 @activitystreams_activity
@@ -46,7 +44,7 @@ class as_Travel(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-travel>
     """
 
-    as_type: IA_type = Field(
+    type_: IA_type = Field(
         default=IA_type.TRAVEL,
         validation_alias="type",
         serialization_alias="type",
@@ -59,7 +57,7 @@ class as_Arrive(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-arrive>
     """
 
-    as_type: IA_type = Field(
+    type_: IA_type = Field(
         default=IA_type.ARRIVE,
         validation_alias="type",
         serialization_alias="type",
@@ -72,7 +70,7 @@ class as_Question(as_IntransitiveActivity):
     See definition in ActivityStreams Vocabulary <https://www.w3.org/TR/activitystreams-vocabulary/#dfn-question>
     """
 
-    as_type: IA_type = Field(
+    type_: IA_type = Field(
         default=IA_type.QUESTION,
         validation_alias="type",
         serialization_alias="type",

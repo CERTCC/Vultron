@@ -397,11 +397,13 @@ See `specs/error-handling.md` for complete error hierarchy and response format.
 
 ### Naming Conventions
 
-- **ActivityStreams types**: Use `as_` prefix (e.g., `as_Activity`, `as_Actor`,
-  `as_type`) — in the wire layer (`vultron/wire/as2/`) only
-- **Core domain models**: Do NOT use `as_` prefix; for reserved-word field
-  name conflicts use a trailing underscore + Pydantic alias
-  (e.g., `object_: str = Field(alias="object")`). See CS-07-002.
+- **ActivityStreams class names**: Use `as_` prefix (e.g., `as_Activity`,
+  `as_Actor`) — in the wire layer (`vultron/wire/as2/`) only
+- **Wire-layer and core field names**: Use trailing underscore for fields
+  whose plain name collides with a Python builtin or reserved word
+  (e.g., `id_`, `type_`, `object_`, `context_`) with a Pydantic alias
+  for the JSON key (e.g., `id_: str = Field(alias="id")`). See CS-07-002,
+  CS-07-003. Do NOT use `as_`-prefixed field names anywhere.
 - **Domain class names**: Use CVD-domain vocabulary, not wire-format parallels
   (e.g., `CaseTransferOffer` not `VultronOffer`). See CS-12-001.
 - **Vulnerability**: Abbreviated as `vul` (not `vuln`)
@@ -872,7 +874,7 @@ semantic = find_matching_semantics(activity)
 ```python
 if isinstance(field, str):
     return True  # Can't type-check URI references
-return pattern == getattr(field, "as_type", None)
+return pattern == getattr(field, "type_", None)
 ```
 
 **Architecture**: The `inbox_handler.py` rehydrates activities before
@@ -1117,12 +1119,12 @@ MV-08-001, `inbox-endpoint.md` IE-10-001.
 ### `VulnerabilityCase.case_activity` Cannot Store Typed Activities
 
 **Symptom**: Handler writes a typed activity (e.g., `AnnounceEmbargo`) to
-`case_activity`, then a subsequent `dl.read(case.as_id)` returns a raw TinyDB
+`case_activity`, then a subsequent `dl.read(case.id_)` returns a raw TinyDB
 `Document` instead of a `VulnerabilityCase`, causing `AttributeError` or
 silent state loss.
 
 **Cause**: `VulnerabilityCase.case_activity: list[as_Activity]` uses
-`as_Activity.as_type: as_ObjectType`. The `as_ObjectType` enum covers only
+`as_Activity.type_: as_ObjectType`. The `as_ObjectType` enum covers only
 core AS2 object types (`'Activity'`, `'Note'`, `'Event'`, etc.) — NOT
 transitive types like `'Announce'`, `'Add'`, `'Accept'`, `'Reject'`. When a
 typed activity is serialized and reloaded, `model_validate` fails with
@@ -1130,7 +1132,7 @@ typed activity is serialized and reloaded, `model_validate` fails with
 to a raw `Document`.
 
 **Fix**: Do not write specific-typed activities to `case_activity`. Log the
-event instead, or store only the activity's `as_id` (string) rather than the
+event instead, or store only the activity's `id_` (string) rather than the
 full object.
 
 See `notes/activitystreams-semantics.md` for details.
@@ -1152,10 +1154,10 @@ The handler rehydrates the full object from the DataLayer.
 
 ```python
 # Correct
-accept = RmAcceptInviteToCase(actor=actor.as_id, object=invite.as_id)
+accept = RmAcceptInviteToCase(actor=actor.id_, object=invite.id_)
 
 # Incorrect — loses `actor` field after HTTP deserialization
-accept = RmAcceptInviteToCase(actor=actor.as_id, object=invite)
+accept = RmAcceptInviteToCase(actor=actor.id_, object=invite)
 ```
 
 This applies to all `Accept` / `Reject` / `TentativeReject` responses to
@@ -1175,7 +1177,7 @@ v2 serializes Union types left-to-right. If the stored value is an `as_Event`
 (not the `EmbargoEvent` subclass) AND serialized with `by_alias=True`,
 Pydantic silently returns `None`.
 
-**Fix**: Always store `embargo.as_id` (a string) as `active_embargo` rather
+**Fix**: Always store `embargo.id_` (a string) as `active_embargo` rather
 than the full `EmbargoEvent` object. The `validate_by_name=True` in
 `VulnerabilityCase.model_config` ensures the string round-trips correctly.
 Retrieve the full `EmbargoEvent` from the DataLayer when needed.
@@ -1220,7 +1222,7 @@ using the server clock.
 **Fix**: Always record case events via `VulnerabilityCase.record_event()`:
 
 ```python
-case.record_event(object_id=embargo.as_id, event_type="embargo_accepted")
+case.record_event(object_id=embargo.id_, event_type="embargo_accepted")
 ```
 
 `record_event()` sets `received_at` to `now_utc()` internally. **Never
