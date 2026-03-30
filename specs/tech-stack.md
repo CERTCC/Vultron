@@ -76,21 +76,28 @@ This specification defines the normative technology constraints and implementati
 
 - `IMPL-TS-07-001` The project MUST use Black for code formatting; Black
   MUST be enforced via pre-commit hooks AND in the CI pipeline.
+  - IMPL-TS-07-001 is-refined-by CS-01-001
+  - IMPL-TS-07-001 supersedes CS-01-003
 - `IMPL-TS-07-002` The project MUST use pyright for static type checking;
   pyright MUST run in CI and MUST pass with zero errors on every commit to
   `main` and on every pull request targeting `main`.
+  - IMPL-TS-07-002 supersedes CS-01-006
 - `IMPL-TS-07-003` The project MUST use mypy for static type checking; mypy
   MUST run in CI and MUST pass with zero errors on every commit to `main`
   and on every pull request targeting `main`.
+  - IMPL-TS-07-003 supersedes CS-01-006
 - `IMPL-TS-07-004` The project MUST use flake8 for PEP 8 linting; flake8
   MUST run in CI (without `--exit-zero`) and MUST pass with zero errors on
   every commit to `main` and on every pull request targeting `main`.
+  - IMPL-TS-07-004 supersedes CS-01-003
 - `IMPL-TS-07-005` The CI pipeline MUST run tests (`pytest`), formatting
   (`black --check`), and all three linters (`flake8`, `mypy`, `pyright`) as
   separate parallel jobs. The build job MUST only execute when all parallel
   jobs pass.
   - **Rationale**: Parallel execution surfaces all failures simultaneously,
     reducing fix-cycle time and preserving the known-clean codebase baseline.
+  - IMPL-TS-07-005 supersedes CS-01-002
+  - IMPL-TS-07-005 supersedes CS-01-003
 - `IMPL-TS-07-006` (MUST) The pytest configuration in `[tool.pytest.ini_options]`
   MUST include `filterwarnings = ["error"]` so that test-suite warnings are
   treated as errors and cannot accumulate as silent technical debt. Existing
