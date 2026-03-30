@@ -18,7 +18,7 @@ from typing import cast
 from vultron.adapters.driven.datalayer_tinydb import TinyDbDataLayer
 from vultron.core.models.case_actor import VultronCaseActor
 from vultron.core.models.activity import VultronActivity
-from vultron.core.use_cases.case import UpdateCaseReceivedUseCase
+from vultron.core.use_cases.received.case import UpdateCaseReceivedUseCase
 from vultron.wire.as2.rehydration import rehydrate as real_rehydrate
 from vultron.wire.as2.vocab.activities.case import UpdateCaseActivity
 from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant

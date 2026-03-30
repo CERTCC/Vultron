@@ -32,7 +32,7 @@ from vultron.adapters.driving.fastapi.inbox_handler import (
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
-from vultron.core.use_cases.action_rules import (
+from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
     GetActionRulesUseCase,
 )
