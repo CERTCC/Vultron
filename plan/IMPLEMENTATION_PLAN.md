@@ -17,12 +17,18 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
-All PRIORITY-30 through PRIORITY-200 phases complete. Active open work:
-**PRIORITY-250** (pre-300 cleanup — all tasks done: NAMING-1, QUALITY-1,
-SM-GUARD-1, VSR-ERR-1, BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1,
-SPEC-AUDIT-3) and
+All PRIORITY-30 through PRIORITY-200 phases complete.
+
+#### Active open work
+
+**PRIORITY-250** Pre-300 cleanup
+
+- done: NAMING-1, QUALITY-1, SM-GUARD-1, VSR-ERR-1,
+BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-3
+- not done: SPEC-AUDIT-1, SPEC-AUDIT-2
+
 **PRIORITY-300** (multi-actor demos; D5-1 unblocked, D5-2 and later blocked
-by PRIORITY-250 — now complete).
+by PRIORITY-250).
 
 ---
 
@@ -279,8 +285,14 @@ are needed before resuming feature development.
   (MUST, SHOULD, or MAY). Per the updated `specs/meta-specifications.md`,
   keywords MUST appear in the requirement text itself, not only in section
   headers. Insert the keyword between the requirement ID and the requirement
-  text on each line that is missing it (e.g., `XX-01-001 (MUST) Use SHA-256
-  hashes...`). A full-spectrum audit across all spec files is required.
+  text on each line that is missing it (e.g., `- XX-01-001 MUST The thing MUST
+  Use SHA-256 hashes...`). Be cautious of multi-line requirements that might
+  have a keyword on a subsequent line, and of misleading section headers
+  that include keywords that might be superseded by the actual content of
+  the requirement. Read the full requirement before deciding on the
+  appropriate keyword, do not assume that the header and first line are
+  sufficiently reliable indicators of the intended strength. A full-spectrum audit
+  across all spec files is required.
 
 ### SPEC-AUDIT-3 — Relocate transient implementation notes from specs ✅
 
