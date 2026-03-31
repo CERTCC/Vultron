@@ -188,18 +188,17 @@ are blocked by all G tasks.
   `notes/multi-actor-architecture.md` produced with actor/container
   assumptions and D5-2 prerequisites (G1–G6). Completed 2026-03-31.
 
-#### D5-1-G2 — Actor Seeding / Bootstrap CLI Command
+#### D5-1-G2 — Actor Seeding / Bootstrap CLI Command ✅
 
-- [ ] **D5-1-G2**: Add a `seed` (or `bootstrap`) sub-command to `vultron-demo`
-  CLI (`vultron/demo/cli.py`) that creates and persists the local actor
-  record on container startup and registers known peer actors (with their
-  full inbox URLs) in the local DataLayer. Seed data (actor names, types,
-  peer URLs) MUST be configurable via environment variables or a JSON
-  config file. The sub-command must be idempotent (safe to re-run).
-  Update `docker/docker-compose.yml` container entrypoints to call this
-  seed command before any demo steps. Add unit tests confirming actor
-  creation and peer registration. References: `notes/multi-actor-architecture.md`
-  §4 G2, `specs/multi-actor-demo.md` DEMO-MA-01-003.
+- [x] **D5-1-G2**: `vultron-demo seed` CLI sub-command implemented in
+  `vultron/demo/cli.py`. Reads local actor + peer config from env vars
+  (`VULTRON_ACTOR_NAME`, `VULTRON_ACTOR_TYPE`, `VULTRON_ACTOR_ID`) or a JSON
+  file (`VULTRON_SEED_CONFIG`). Calls idempotent `POST /actors/` endpoint
+  (added to `vultron/adapters/driving/fastapi/routers/actors.py`). Docker
+  entrypoint (`docker/demo-entrypoint.sh`) calls `vultron-demo seed` when
+  `VULTRON_ACTOR_NAME` or `VULTRON_SEED_CONFIG` is set. Full test coverage
+  in `test/demo/test_seed_config.py`, `test/demo/test_seed.py`, and
+  `test/adapters/driving/fastapi/routers/test_actors.py`.
 
 #### D5-1-G4 — Multi-Container Docker Compose Configuration
 

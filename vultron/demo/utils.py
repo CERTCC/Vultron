@@ -378,6 +378,36 @@ def demo_environment(client: DataLayerClient):
         logger.info("Demo environment torn down.")
 
 
+def seed_actor(
+    client: DataLayerClient,
+    name: str,
+    actor_type: str = "Organization",
+    actor_id: str | None = None,
+) -> as_Actor:
+    """Create or return an actor record in the remote DataLayer.
+
+    Calls ``POST /actors/`` with the supplied parameters.  The endpoint is
+    idempotent: if an actor with the same ``actor_id`` already exists it is
+    returned unchanged (HTTP 200).
+
+    Args:
+        client: DataLayerClient instance pointing at the target API server.
+        name: Display name for the actor.
+        actor_type: ActivityStreams actor type string (default: ``"Organization"``).
+        actor_id: Optional full URI for the actor.  When absent the server
+            derives one from ``VULTRON_BASE_URL``.
+
+    Returns:
+        The created (or pre-existing) ``as_Actor`` object.
+    """
+    payload: dict = {"name": name, "actor_type": actor_type}
+    if actor_id is not None:
+        payload["id"] = actor_id
+
+    response_data = client.post("/actors/", json=payload)
+    return as_Actor.model_validate(response_data)
+
+
 def check_server_availability(
     client: DataLayerClient, max_retries: int = 30, retry_delay: float = 1.0
 ) -> bool:

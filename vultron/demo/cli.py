@@ -22,6 +22,9 @@ pass/fail summary.
 
 A ``vultrabot`` sub-group provides access to the three standalone
 behaviour-tree demos (pacman, robot, cvd).
+
+The ``seed`` sub-command bootstraps actor records in the DataLayer on
+container startup, supporting multi-actor demo scenarios (D5-1-G2).
 """
 
 import logging
@@ -43,6 +46,8 @@ import vultron.demo.status_updates_demo as status_updates_demo
 import vultron.demo.suggest_actor_demo as suggest_actor_demo
 import vultron.demo.transfer_ownership_demo as transfer_ownership_demo
 import vultron.demo.trigger_demo as trigger_demo
+from vultron.demo.seed_config import SeedConfig
+from vultron.demo.utils import DataLayerClient, BASE_URL, seed_actor
 import vultron.bt.base.demo.pacman as pacman_demo
 import vultron.bt.base.demo.robot as robot_demo
 import vultron.demo.vultrabot as cvd_vultrabot_demo
@@ -154,6 +159,102 @@ def _print_summary(results: list[tuple[str, bool, str]]) -> None:
     click.echo("=" * 50)
     click.echo(f"  {passed_count}/{total} demos passed")
     click.echo("=" * 50)
+
+
+# ---------------------------------------------------------------------------
+# Seed sub-command — bootstrap actor records (D5-1-G2)
+# ---------------------------------------------------------------------------
+
+
+@main.command(name="seed")
+@click.option(
+    "--config",
+    "config_path",
+    envvar="VULTRON_SEED_CONFIG",
+    default=None,
+    metavar="PATH",
+    help="Path to a JSON seed config file. Overrides individual options.",
+)
+@click.option(
+    "--actor-name",
+    envvar="VULTRON_ACTOR_NAME",
+    default=None,
+    help="Display name for the local actor (env: VULTRON_ACTOR_NAME).",
+)
+@click.option(
+    "--actor-type",
+    envvar="VULTRON_ACTOR_TYPE",
+    default=None,
+    help="ActivityStreams type for the local actor (env: VULTRON_ACTOR_TYPE).",
+)
+@click.option(
+    "--actor-id",
+    envvar="VULTRON_ACTOR_ID",
+    default=None,
+    help="Full URI for the local actor (env: VULTRON_ACTOR_ID).",
+)
+@click.option(
+    "--api-url",
+    envvar="VULTRON_API_BASE_URL",
+    default=BASE_URL,
+    show_default=True,
+    help="Base URL of the Vultron API server (env: VULTRON_API_BASE_URL).",
+)
+def seed(
+    config_path: str | None,
+    actor_name: str | None,
+    actor_type: str | None,
+    actor_id: str | None,
+    api_url: str,
+) -> None:
+    """Bootstrap actor records in the local DataLayer (D5-1-G2).
+
+    Creates the local actor and any configured peer actors in the DataLayer
+    via ``POST /actors/``.  Safe to re-run: existing records are returned
+    unchanged (idempotent).
+
+    Configuration is loaded from (in decreasing priority):
+
+    \b
+    1. A JSON config file (``--config`` / ``VULTRON_SEED_CONFIG``).
+    2. Individual CLI options / environment variables.
+    """
+    logger = logging.getLogger(__name__)
+
+    cfg = SeedConfig.load(
+        config_path=config_path,
+        actor_name=actor_name,
+        actor_type=actor_type,
+        actor_id=actor_id,
+    )
+
+    client = DataLayerClient(base_url=api_url)
+
+    # Create local actor.
+    local = cfg.local_actor
+    click.echo(f"🌱 Seeding local actor: {local.name!r} ({local.actor_type})")
+    actor = seed_actor(
+        client=client,
+        name=local.name,
+        actor_type=local.actor_type,
+        actor_id=local.id_,
+    )
+    click.echo(f"   → {actor.id_}")
+    logger.info("Local actor seeded: %s", actor.id_)
+
+    # Register peer actors.
+    for peer in cfg.peers:
+        click.echo(f"🌱 Seeding peer actor: {peer.name!r} ({peer.actor_type})")
+        peer_actor = seed_actor(
+            client=client,
+            name=peer.name,
+            actor_type=peer.actor_type,
+            actor_id=peer.id_,
+        )
+        click.echo(f"   → {peer_actor.id_}")
+        logger.info("Peer actor seeded: %s", peer_actor.id_)
+
+    click.echo("✅ Seed complete.")
 
 
 # ---------------------------------------------------------------------------

@@ -17,20 +17,24 @@ Vultron API Routers
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
 import logging
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
     HTTPException,
+    Response,
     status,
 )
+from pydantic import BaseModel, Field
 
+from vultron.adapters.utils import make_id
 from vultron.adapters.driving.fastapi.inbox_handler import (
     inbox_handler,
 )
 from vultron.adapters.driving.fastapi.outbox_handler import outbox_handler
+from vultron.core.models.protocols import PersistableModel
 from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.core.use_cases.query.action_rules import (
     ActionRulesRequest,
@@ -41,7 +45,11 @@ from vultron.adapters.driven.datalayer_tinydb import get_datalayer
 from vultron.errors import VultronNotFoundError, VultronValidationError
 from vultron.wire.as2.vocab.base.objects.activities.base import as_Activity
 from vultron.wire.as2.vocab.base.links import as_Link
-from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.base.objects.actors import (
+    as_Actor,
+    as_Application,
+    as_Group,
+)
 from vultron.wire.as2.vocab.base.objects.base import as_Object
 from vultron.wire.as2.vocab.base.objects.collections import (
     as_OrderedCollection,
@@ -52,6 +60,11 @@ from vultron.wire.as2.errors import (
     VultronParseMissingTypeError,
 )
 from vultron.wire.as2.parser import parse_activity as _parse_activity
+from vultron.wire.as2.vocab.objects.vultron_actor import (
+    VultronOrganization,
+    VultronPerson,
+    VultronService,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -103,6 +116,81 @@ def get_actors(
             objects.append(obj)
 
     return objects
+
+
+# ---------------------------------------------------------------------------
+# Actor type map — used by create_actor
+# ---------------------------------------------------------------------------
+
+_ACTOR_TYPE_MAP: dict[str, type[as_Actor]] = {
+    "Person": VultronPerson,
+    "Organization": VultronOrganization,
+    "Service": VultronService,
+    "Application": as_Application,
+    "Group": as_Group,
+}
+
+
+class ActorCreateRequest(BaseModel):
+    """Request body for ``POST /actors/`` (D5-1-G2).
+
+    Creates a new actor record in the shared DataLayer.  The operation is
+    idempotent: if ``id`` is supplied and an actor with that URI already
+    exists, the existing record is returned with HTTP 200.
+    """
+
+    name: str = Field(description="Display name of the actor.")
+    actor_type: Literal[
+        "Person", "Organization", "Service", "Application", "Group"
+    ] = Field(
+        default="Organization",
+        description="ActivityStreams actor type.",
+    )
+    id_: str | None = Field(
+        default=None,
+        alias="id",
+        description=(
+            "Full URI for the actor.  Omit to let the server derive one "
+            "from ``VULTRON_BASE_URL``."
+        ),
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+@router.post(
+    "/",
+    response_model_exclude_none=True,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create Actor",
+    description=(
+        "Creates a new actor record in the shared DataLayer. "
+        "Idempotent: if an actor with the same ``id`` already exists the "
+        "existing record is returned with HTTP 200."
+    ),
+    operation_id="actors_create",
+)
+def create_actor(
+    request: ActorCreateRequest,
+    response: Response,
+    datalayer: DataLayer = Depends(_shared_dl),
+) -> as_Actor:
+    """Create (or return existing) actor record."""
+    actor_id = request.id_ or make_id("actors")
+
+    # Idempotency: return existing record unchanged.
+    existing = datalayer.read(actor_id)
+    if existing is None:
+        existing = datalayer.find_actor_by_short_id(actor_id)
+    if existing is not None:
+        response.status_code = status.HTTP_200_OK
+        return as_Actor.model_validate(existing)
+
+    actor_cls = _ACTOR_TYPE_MAP.get(request.actor_type, VultronOrganization)
+    actor = actor_cls(id_=actor_id, name=request.name)
+    datalayer.create(object_to_record(cast(PersistableModel, actor)))
+    logger.info("Created actor %s (type=%s)", actor_id, request.actor_type)
+    return actor
 
 
 @router.get(

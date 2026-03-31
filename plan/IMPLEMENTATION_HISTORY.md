@@ -3872,3 +3872,48 @@ scenarios, and produce a refreshed architectural summary in `notes/`.
 
 - `./mdlint.sh` → 0 errors (454 files)
 - `uv run pytest --tb=short 2>&1 | tail -5` → `1080 passed, 5581 subtests passed`
+
+---
+
+## D5-1-G2 — Actor Seeding / Bootstrap CLI Command
+
+**Status**: Complete
+
+**Files changed**:
+
+- `vultron/demo/seed_config.py` (new): `LocalActorConfig`, `PeerActorConfig`,
+  `SeedConfig` Pydantic models with `load()`, `from_env()`, `from_file()`
+  classmethods. Reads `VULTRON_ACTOR_NAME`, `VULTRON_ACTOR_TYPE`,
+  `VULTRON_ACTOR_ID`, `VULTRON_SEED_CONFIG` env vars.
+- `vultron/adapters/driving/fastapi/routers/actors.py`: Added `POST /actors/`
+  idempotent endpoint (`create_actor`), `ActorCreateRequest` model,
+  `_ACTOR_TYPE_MAP` mapping type strings to Pydantic actor classes.
+- `vultron/demo/utils.py`: Added `seed_actor()` helper that calls
+  `POST /actors/` via `DataLayerClient`.
+- `vultron/demo/cli.py`: Added `seed` CLI sub-command wiring `SeedConfig` to
+  `seed_actor()`.
+- `docker/demo-entrypoint.sh`: Conditional `vultron-demo seed` call on
+  container startup when `VULTRON_ACTOR_NAME` or `VULTRON_SEED_CONFIG` is
+  set.
+- `test/demo/test_seed_config.py` (new): 20 unit tests for `SeedConfig`,
+  `LocalActorConfig`, `PeerActorConfig` (env vars, JSON file, `load()`
+  priority).
+- `test/demo/test_seed.py` (new): 10 tests for `seed_actor()` helper and
+  `seed` CLI sub-command (via mocked `DataLayerClient`).
+- `test/adapters/driving/fastapi/routers/test_actors.py`: Added
+  `TestCreateActor` class (11 tests for `POST /actors/` endpoint: all actor
+  types, idempotency, list visibility, retrieval by short ID).
+
+**Key design decisions**:
+
+- `POST /actors/` returns HTTP 201 on create, 200 on idempotent re-seed.
+- Actor ID generation falls back to `make_id("actors")` when no `id` supplied.
+- `GET /actors/{actor_id}` uses `find_actor_by_short_id()` for resolution,
+  so full-URL actor IDs are queried via their last path segment in tests.
+- `_shared_dl()` dependency wrapper prevents FastAPI path param forwarding
+  into `get_datalayer(actor_id=...)` which would return an actor-scoped DL.
+
+**Validation**:
+
+- All 4 linters pass: `black`, `flake8`, `mypy`, `pyright` — 0 errors
+- `uv run pytest --tb=short 2>&1 | tail -5` → `1121 passed, 5581 subtests passed`
