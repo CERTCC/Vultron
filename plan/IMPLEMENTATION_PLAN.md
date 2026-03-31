@@ -279,7 +279,7 @@ are needed before resuming feature development.
   assertions from handler-protocol.md (covered by dispatch-routing.md).
   Added bidirectional cross-references across 6 spec files (dispatch-routing,
   handler-protocol, semantic-extraction, code-style, tech-stack, architecture).
-  All 453 markdown files lint clean.
+  All 453 Markdown files pass markdownlint.
 
 ### SPEC-AUDIT-2 — Strength keyword migration ✅
 
