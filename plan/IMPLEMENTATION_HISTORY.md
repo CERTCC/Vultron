@@ -3701,3 +3701,134 @@ convention throughout the codebase (both wire layer and core layer).
   all pitfall code snippets to use `id_`, `type_`, `object_`.
 
 **Tests**: 1080 passed, 5581 subtests passed.
+
+---
+
+## SPEC-AUDIT-2 — RFC 2119 strength keyword migration (2026-03-30)
+
+**Task**: Ensure every requirement line in `specs/` has an RFC 2119 keyword
+on its first line, and remove keyword suffixes from section headers.
+
+**Changes**:
+
+- **176 keyword additions**: Requirement lines missing a keyword on the first
+  line (keyword was on a wrapped continuation line, absent, or only in the
+  section header) now have the keyword inserted immediately after the ID.
+  Prefix-style keywords are parenthesised: `` `ID` (MUST) text ``.
+  Naturally-embedded keywords (e.g. `All handlers MUST ...`) are left as-is.
+- **293 header cleanups**: `## Section (MUST)` / `(SHOULD)` / `(MAY)` etc.
+  suffixes removed from all `##` and `###` headers across 37 spec files.
+  Removing headers that had identical base names (e.g. two `## Embargo Rules`
+  sections previously separated by `(MUST)`/`(SHOULD)`) also resulted in
+  31 duplicate-header merges in `vultron-protocol-spec.md` and `code-style.md`.
+- **171 format fixes**: A second pass converted bare prefix keywords
+  (`MUST text`) to the parenthesised form (`(MUST) text`) for visual
+  clarity and to distinguish them from sentence-embedded keywords.
+
+**Verification**:
+
+- ``grep -rn "^\- `[A-Z]" specs/*.md | grep -v "MUST\|SHOULD\|..." → 0 hits``
+- `grep -rh "^## \|^### " specs/*.md | grep "(MUST)\|(SHOULD)\|(MAY)"` → 0 hits
+- `markdownlint-cli2`: 0 errors
+
+**Tests**: 1080 passed, 5581 subtests (no code changes; docs only).
+
+---
+
+## SPEC-AUDIT-1 — Consolidation audit: eliminate redundant requirements (2026-03-30)
+
+**Task**: Audit all `specs/` files to identify overlapping or duplicated
+requirements; merge or cross-reference to eliminate maintenance-burden
+redundancy.
+
+**Changes**: Added 21 bidirectional cross-reference sub-bullets across 6
+spec files, following the `ID-1 relationship ID-2` convention from
+`specs/meta-specifications.md`.
+
+### dispatch-routing.md ↔ handler-protocol.md
+
+- `HP-02-001 depends-on DR-01-003` / `DR-01-003 is-dependency-of HP-02-001`:
+  Handler semantic-type verification is fulfilled by the dispatcher lookup.
+- `HP-02-002 refines DR-01-003` / `DR-01-003 is-refined-by HP-02-002`:
+  Handler perspective on how the verification mechanism must behave.
+- `HP-03-001 derives-from DR-02-001` / `DR-02-001 is-derived-by HP-03-001`:
+  Handler discoverability requirement derives from the USE_CASE_MAP lookup.
+- `HP-03-002 refines DR-02-002` / `DR-02-002 is-refined-by HP-03-002`:
+  Registry key–type matching refines the completeness requirement.
+
+### semantic-extraction.md → dispatch-routing.md
+
+- `SE-05-002 derives-from DR-02-002` / `DR-02-002 is-derived-by SE-05-002`:
+  Pattern→use-case coverage check derives from the USE_CASE_MAP completeness
+  requirement.
+
+### code-style.md ↔ tech-stack.md
+
+- `CS-01-001 refines IMPL-TS-07-001` / reverse: code style requirement
+  refines the authoritative Black tooling requirement.
+- `CS-01-002 derives-from IMPL-TS-07-005` / reverse: CI formatting-check
+  requirement derives from the parallel-jobs CI requirement.
+- `CS-01-003 duplicates IMPL-TS-07-001/004/005` (and reverses): developer
+  enforcement summary in code-style duplicates canonical tool requirements
+  in tech-stack.
+- `CS-01-006 duplicates IMPL-TS-07-002/003` (and reverses): static type
+  enforcement in code-style duplicates canonical per-tool requirements in
+  tech-stack.
+
+### architecture.md ↔ code-style.md
+
+- `CS-05-001 derives-from ARCH-01-001` / `ARCH-01-001 is-derived-by CS-05-001`:
+  Code-style layer-separation import rule derives from the architecture
+  layer-separation requirement.
+
+**Verification**:
+
+- `markdownlint-cli2`: 0 errors (453 files linted)
+- No code changes; cross-references are docs-only additions.
+
+**Tests**: 1080 passed, 5581 subtests (no code changes; docs only).
+
+---
+
+## SPEC-AUDIT-1 — Consolidation audit: eliminate redundant requirements (COMPLETE 2026-03-30)
+
+*(Note: a partial cross-reference-only pass was made earlier in this session;
+this entry records the completed elimination pass.)*
+
+**Task**: Audit all `specs/` files to identify overlapping or duplicated
+requirements; eliminate redundant requirements and cross-reference between
+canonical and superseded items.
+
+### Pairs audited
+
+**`tech-stack.md` vs `code-style.md`** (canonical: `tech-stack.md` for
+enforcement; `code-style.md` for style conventions):
+
+- `CS-01-002` deprecated and superseded by `IMPL-TS-07-005`
+- `CS-01-003` deprecated and superseded by `IMPL-TS-07-001`, `IMPL-TS-07-004`,
+  `IMPL-TS-07-005`
+- `CS-01-006` deprecated and superseded by `IMPL-TS-07-002`, `IMPL-TS-07-003`
+- Added consolidation note to `code-style.md` header
+- `IMPL-TS-07-001–005` updated with `supersedes` relationships (replacing
+  `is-duplicated-by`)
+
+**`dispatch-routing.md` vs `handler-protocol.md`** (canonical: dispatch-routing
+for mechanism; handler-protocol for contract):
+
+- Removed duplicate `**Implementation**:` notes from `HP-02-001` and
+  `HP-03-001` (implementation details live in `dispatch-routing.md`)
+- Replaced duplicate test assertions in `HP-02-001/002` and `HP-03-001/002`
+  verification sections with pointers to `dispatch-routing.md` verification
+  criteria
+- All bidirectional `depends-on`/`is-dependency-of`, `refines`/`is-refined-by`,
+  and `derives-from`/`is-derived-by` cross-references retained
+
+**`semantic-extraction.md` → `dispatch-routing.md`**: `SE-05-002` cross-
+referenced to `DR-02-002`
+
+**`architecture.md` ↔ `code-style.md`**: `ARCH-01-001 is-derived-by CS-05-001`
+/ `CS-05-001 derives-from ARCH-01-001`
+
+**Verification**: `markdownlint-cli2` → 0 errors (453 files)
+
+**Tests**: No code changes; docs only. Test count unchanged (1080 passed).
