@@ -143,3 +143,24 @@ stores report references and the validate-report trigger creates the
 case from that report rather than from the offer object itself.
 
 D5-2 is now the next executable task.
+
+2026-03-31 D5-2 complete
+
+The two-actor Dockerized demo now resets Finder/Vendor container state to a
+known baseline, re-seeds the scenario deterministically, and verifies the
+final case state strongly enough to assert the intended D5-2 workflow rather
+than just successful HTTP calls.
+
+The main core gap exposed by the stronger scenario was not in demo code: the
+validate-report BT path created a case but did not seed the initial Vendor
+participant or `actor_participant_index`. Reusing
+`CreateInitialVendorParticipant` from `create_validate_report_tree()` fixed the
+missing Vendor participant and removed the follow-on `engage-case` warning
+about a missing `CaseParticipant` for the Vendor actor.
+
+Validation completed cleanly with focused demo/BT tests plus the canonical
+Black/flake8/mypy/pyright/pytest validation command. A live Docker Compose
+acceptance attempt was also made with a unique project name, but the shared
+local Docker daemon was out of space (`no space left on device` while creating
+BuildKit temp dirs / volumes), so the multi-container runtime check could not
+be completed in this environment.

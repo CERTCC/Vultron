@@ -13,7 +13,7 @@
 #  Carnegie Mellon®, CERT® and CERT Coordination Center® are registered in the
 #  U.S. Patent and Trademark Office by Carnegie Mellon University
 
-"""Two-actor (Finder + Vendor) multi-container CVD workflow demo (D5-1-G5).
+"""Two-actor (Finder + Vendor) multi-container CVD workflow demo.
 
 Orchestrates a complete CVD workflow across two separate API server containers:
 a Finder who discovers a vulnerability and a Vendor who validates and engages
@@ -31,17 +31,19 @@ Environment variables
 
 Workflow
 --------
-1. **Seed**: Create actor records and register peers on both containers.
-2. **Submit**: Finder submits a vulnerability report to the Vendor's inbox.
-3. **Validate**: Vendor validates the report via the ``validate-report``
+1. **Reset**: Clear all container state to a known clean baseline.
+2. **Seed**: Create actor records and register peers on both containers.
+3. **Submit**: Finder submits a vulnerability report to the Vendor's inbox.
+4. **Validate**: Vendor validates the report via the ``validate-report``
    trigger endpoint.
-4. **Engage**: Vendor engages the resulting case via the ``engage-case``
+5. **Engage**: Vendor engages the resulting case via the ``engage-case``
    trigger endpoint.
-5. **Invite**: Vendor invites Finder to join the case (delivered to
+6. **Invite**: Vendor invites Finder to join the case (delivered to
    Finder's inbox).
-6. **Accept**: Finder accepts the invitation (delivered to Vendor's inbox).
-7. **Verify**: Both containers show expected final state (case exists,
-   Finder is a participant).
+7. **Accept**: Finder accepts the invitation (delivered to Vendor's inbox).
+8. **Verify**: The Vendor container holds the authoritative case state,
+   the Finder invite is present, and the optional dedicated CaseActor
+   container remains unused for D5-2 (CaseActor co-locates in Vendor).
 
 References: ``notes/multi-actor-architecture.md`` §4 G5,
 ``specs/multi-actor-demo.md`` DEMO-MA-03-001 through DEMO-MA-04-002.
@@ -50,9 +52,13 @@ References: ``notes/multi-actor-architecture.md`` §4 G5,
 import logging
 import os
 import sys
+import time
 from typing import Optional, Tuple
 
 from vultron.adapters.utils import parse_id
+from vultron.core.states.cs import CS_pxa
+from vultron.core.states.em import EM
+from vultron.core.states.rm import RM
 from vultron.wire.as2.vocab.activities.case import (
     RmAcceptInviteToCaseActivity,
     RmInviteToCaseActivity,
@@ -61,6 +67,7 @@ from vultron.wire.as2.vocab.activities.report import (
     RmSubmitReportActivity,
 )
 from vultron.wire.as2.vocab.base.objects.actors import as_Actor
+from vultron.wire.as2.vocab.objects.case_participant import CaseParticipant
 from vultron.wire.as2.vocab.objects.vulnerability_case import VulnerabilityCase
 from vultron.wire.as2.vocab.objects.vulnerability_report import (
     VulnerabilityReport,
@@ -75,6 +82,7 @@ from vultron.demo.utils import (  # noqa: F401 — re-exported for test monkeypa
     post_to_inbox_and_wait,
     post_to_trigger,
     ref_id,
+    reset_datalayer,
     seed_actor,
     verify_object_stored,
 )
@@ -87,6 +95,9 @@ FINDER_BASE_URL = os.environ.get(
 )
 VENDOR_BASE_URL = os.environ.get(
     "VULTRON_VENDOR_BASE_URL", "http://localhost:7902/api/v2"
+)
+CASE_ACTOR_BASE_URL = os.environ.get(
+    "VULTRON_CASE_ACTOR_BASE_URL", "http://localhost:7903/api/v2"
 )
 
 # Deterministic actor IDs from docker-compose-multi-actor.yml (D5-1-G3).
@@ -183,6 +194,38 @@ def get_actor_by_id(client: DataLayerClient, actor_id: str) -> as_Actor:
         if actor.id_ == actor_id:
             return actor
     raise ValueError(f"Actor {actor_id!r} not found in container")
+
+
+def reset_containers(
+    finder_client: DataLayerClient,
+    vendor_client: DataLayerClient,
+    case_actor_client: DataLayerClient | None = None,
+) -> None:
+    """Reset all containers used by the demo to a clean baseline.
+
+    D5-2 requires repeatable, single-command execution. Resetting each
+    container's DataLayer at the start of the run ensures the demo does
+    not depend on a prior `docker compose down -v`.
+    """
+    targets: list[tuple[str, DataLayerClient]] = [
+        ("Finder", finder_client),
+        ("Vendor", vendor_client),
+    ]
+    if case_actor_client is not None:
+        targets.append(("CaseActor", case_actor_client))
+
+    with demo_step("Resetting actor containers to a clean baseline"):
+        for label, client in targets:
+            result = reset_datalayer(client=client, init=False)
+            logger.info("%s reset result: %s", label, result)
+
+    with demo_check("All actor containers start with no persisted cases"):
+        for label, client in targets:
+            cases = client.get("/datalayer/VulnerabilityCases/")
+            if cases:
+                raise AssertionError(
+                    f"{label} container was not reset cleanly: {cases}"
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +330,7 @@ def vendor_engages_case(
 
 
 def vendor_invites_finder(
+    vendor_client: DataLayerClient,
     finder_client: DataLayerClient,
     vendor: as_Actor,
     finder: as_Actor,
@@ -295,9 +339,12 @@ def vendor_invites_finder(
     """Vendor invites the Finder to join the case.
 
     The invite activity is delivered directly to the Finder container's inbox
-    endpoint (simulating cross-container delivery).
+    endpoint (simulating cross-container delivery). The activity is also
+    POSTed to the Vendor container's own inbox so the Vendor can later
+    rehydrate the invite by ID when the Finder accepts it.
 
     Args:
+        vendor_client: Client connected to the Vendor container.
         finder_client: Client connected to the Finder container.
         vendor: Vendor ``as_Actor`` (the inviting actor).
         finder: Finder ``as_Actor`` (the invited actor).
@@ -312,6 +359,13 @@ def vendor_invites_finder(
         target=case.id_,
         to=[finder.id_],
     )
+    if vendor_client.base_url != finder_client.base_url:
+        with demo_step(
+            "Vendor records the invite locally for later rehydration"
+        ):
+            post_to_inbox_and_wait(vendor_client, vendor.id_, invite)
+        with demo_check("Invite stored in Vendor's DataLayer"):
+            verify_object_stored(vendor_client, invite.id_)
     with demo_step("Vendor invites Finder to the case"):
         post_to_inbox_and_wait(finder_client, finder.id_, invite)
     with demo_check("Invite stored in Finder's DataLayer"):
@@ -408,6 +462,123 @@ def find_case_for_offer(
     return None
 
 
+def verify_vendor_case_state(
+    vendor_client: DataLayerClient,
+    case_id: str,
+    report_id: str,
+    vendor_actor_id: str,
+    finder_actor_id: str,
+) -> VulnerabilityCase:
+    """Assert the final authoritative case state stored on the Vendor container."""
+    final_case_data = vendor_client.get(f"/datalayer/{case_id}")
+    final_case = VulnerabilityCase(**final_case_data)
+
+    participant_count = len(final_case.case_participants)
+    if participant_count != 2:
+        raise AssertionError(
+            f"Expected 2 case participants, found {participant_count}"
+        )
+
+    report_ids = [
+        ref_id(report) or str(report)
+        for report in final_case.vulnerability_reports
+    ]
+    if report_id not in report_ids:
+        raise AssertionError(
+            "Final case does not reference the submitted report"
+        )
+
+    vendor_participant_id = final_case.actor_participant_index.get(
+        vendor_actor_id
+    )
+    if vendor_participant_id is None:
+        raise AssertionError(
+            "Vendor actor is missing from actor_participant_index"
+        )
+
+    finder_participant_id = final_case.actor_participant_index.get(
+        finder_actor_id
+    )
+    if finder_participant_id is None:
+        raise AssertionError(
+            "Finder actor is missing from actor_participant_index"
+        )
+
+    vendor_participant_data = vendor_client.get(
+        f"/datalayer/{vendor_participant_id}"
+    )
+    vendor_participant = CaseParticipant(**vendor_participant_data)
+    if not vendor_participant.participant_statuses:
+        raise AssertionError("Vendor participant has no participant statuses")
+    if vendor_participant.participant_statuses[-1].rm_state != RM.ACCEPTED:
+        raise AssertionError(
+            "Vendor participant RM state did not transition to ACCEPTED"
+        )
+
+    event_types = [event.event_type for event in final_case.events]
+    if "participant_joined" not in event_types:
+        raise AssertionError(
+            "Expected participant_joined event after Finder accepted the invite"
+        )
+
+    current_status = final_case.current_status
+    if current_status.em_state != EM.NO_EMBARGO:
+        raise AssertionError(
+            f"Expected NO_EMBARGO final EM state, found {current_status.em_state}"
+        )
+    if current_status.pxa_state != CS_pxa.pxa:
+        raise AssertionError(
+            f"Expected pxa final case state, found {current_status.pxa_state}"
+        )
+
+    return final_case
+
+
+def verify_case_actor_unused(
+    case_actor_client: DataLayerClient | None,
+    case_id: str,
+) -> None:
+    """Verify the dedicated CaseActor container remains unused in D5-2.
+
+    Per D5-1-G3, the per-case `VultronCaseActor` co-locates in the Vendor
+    container for D5-2. The standalone `case-actor` service participates in
+    the Docker topology but should not hold the created `VulnerabilityCase`.
+    """
+    if case_actor_client is None:
+        return
+
+    case_actor_cases = case_actor_client.get("/datalayer/VulnerabilityCases/")
+    if case_id in case_actor_cases:
+        raise AssertionError(
+            "Dedicated case-actor container unexpectedly persisted the D5-2 case"
+        )
+
+
+def wait_for_case_participants(
+    vendor_client: DataLayerClient,
+    case_id: str,
+    expected_count: int,
+    timeout_seconds: float = 5.0,
+    poll_interval: float = 0.25,
+) -> None:
+    """Poll until the Vendor's case reflects the expected participant count."""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        case_data = vendor_client.get(f"/datalayer/{case_id}")
+        case = VulnerabilityCase(**case_data)
+        if len(case.case_participants) >= expected_count:
+            return
+        time.sleep(poll_interval)
+
+    final_case = VulnerabilityCase(
+        **vendor_client.get(f"/datalayer/{case_id}")
+    )
+    raise AssertionError(
+        "Timed out waiting for participant count "
+        f"{expected_count}; found {len(final_case.case_participants)}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Main workflow orchestration
 # ---------------------------------------------------------------------------
@@ -416,17 +587,20 @@ def find_case_for_offer(
 def run_two_actor_demo(
     finder_client: DataLayerClient,
     vendor_client: DataLayerClient,
+    case_actor_client: DataLayerClient | None = None,
     finder_id: str | None = None,
     vendor_id: str | None = None,
 ) -> None:
     """Orchestrate the complete two-actor (Finder + Vendor) CVD workflow.
 
-    1. Seed both containers.
-    2. Finder submits report → Vendor's inbox.
-    3. Vendor validates report and engages case.
-    4. Vendor invites Finder to the case → Finder's inbox.
-    5. Finder accepts invite → Vendor's inbox.
-    6. Verify final state on both containers.
+    1. Reset all participating containers to a clean baseline.
+    2. Seed both actor containers.
+    3. Finder submits report → Vendor's inbox.
+    4. Vendor validates report and engages case.
+    5. Vendor invites Finder to the case → Finder's inbox.
+    6. Finder accepts invite → Vendor's inbox.
+    7. Verify final state on the Vendor container and optional CaseActor
+       isolation for the D5-2 topology.
 
     Args:
         finder_client: Client connected to the Finder container.
@@ -439,6 +613,15 @@ def run_two_actor_demo(
     logger.info("=" * 80)
     logger.info("Finder container: %s", finder_client.base_url)
     logger.info("Vendor container: %s", vendor_client.base_url)
+    if case_actor_client is not None:
+        logger.info("CaseActor container: %s", case_actor_client.base_url)
+
+    # ── Step 0: Reset containers ───────────────────────────────────────────
+    reset_containers(
+        finder_client=finder_client,
+        vendor_client=vendor_client,
+        case_actor_client=case_actor_client,
+    )
 
     # ── Step 1: Seed containers ───────────────────────────────────────────
     with demo_step("Seeding both containers with actor records"):
@@ -489,6 +672,7 @@ def run_two_actor_demo(
     finder_in_vendor = get_actor_by_id(vendor_client, finder.id_)
 
     invite = vendor_invites_finder(
+        vendor_client=vendor_client,
         finder_client=finder_client,
         vendor=vendor_in_vendor,
         finder=finder_in_vendor,
@@ -501,22 +685,40 @@ def run_two_actor_demo(
     # Vendor as known by the Finder container.
     vendor_in_finder = get_actor_by_id(finder_client, vendor.id_)
 
-    finder_accepts_invite(
+    accept = finder_accepts_invite(
         vendor_client=vendor_client,
         finder=finder_in_finder,
         vendor=vendor_in_finder,
         invite=invite,
     )
 
+    wait_for_case_participants(
+        vendor_client=vendor_client,
+        case_id=case.id_,
+        expected_count=2,
+    )
+
     # ── Step 6: Verify final state ────────────────────────────────────────
-    with demo_check("Vendor container: case is present"):
-        final_case_data = vendor_client.get(f"/datalayer/{case.id_}")
-        final_case = VulnerabilityCase(**final_case_data)
-        assert final_case.id_ == case.id_, "Case ID mismatch"
+    with demo_check(
+        "Vendor container holds the authoritative final case state"
+    ):
+        final_case = verify_vendor_case_state(
+            vendor_client=vendor_client,
+            case_id=case.id_,
+            report_id=report.id_,
+            vendor_actor_id=vendor.id_,
+            finder_actor_id=finder.id_,
+        )
         logger.info("Final case state (Vendor): %s", logfmt(final_case))
 
     with demo_check("Finder container: invite is present"):
         verify_object_stored(finder_client, invite.id_)
+
+    with demo_check("Vendor container: accept activity is present"):
+        verify_object_stored(vendor_client, accept.id_)
+
+    with demo_check("Dedicated CaseActor container remains unused for D5-2"):
+        verify_case_actor_unused(case_actor_client, case.id_)
 
     logger.info("=" * 80)
     logger.info("TWO-ACTOR DEMO COMPLETE ✓")
@@ -532,6 +734,7 @@ def main(
     skip_health_check: bool = False,
     finder_url: str | None = None,
     vendor_url: str | None = None,
+    case_actor_url: str | None = None,
     finder_id: str | None = None,
     vendor_id: str | None = None,
 ) -> None:
@@ -542,20 +745,26 @@ def main(
             testing).
         finder_url: Override base URL for the Finder container.
         vendor_url: Override base URL for the Vendor container.
+        case_actor_url: Optional base URL for the dedicated CaseActor container.
         finder_id: Optional deterministic URI for the Finder actor.
         vendor_id: Optional deterministic URI for the Vendor actor.
     """
     f_url = finder_url or FINDER_BASE_URL
     v_url = vendor_url or VENDOR_BASE_URL
+    c_url = case_actor_url or CASE_ACTOR_BASE_URL
 
     finder_client = DataLayerClient(base_url=f_url)
     vendor_client = DataLayerClient(base_url=v_url)
+    case_actor_client = DataLayerClient(base_url=c_url) if c_url else None
 
     if not skip_health_check:
-        for label, client in [
+        targets: list[tuple[str, DataLayerClient]] = [
             ("Finder", finder_client),
             ("Vendor", vendor_client),
-        ]:
+        ]
+        if case_actor_client is not None:
+            targets.append(("CaseActor", case_actor_client))
+        for label, client in targets:
             if not check_server_availability(client):
                 logger.error("=" * 80)
                 logger.error("ERROR: %s API server is not available", label)
@@ -571,6 +780,7 @@ def main(
         run_two_actor_demo(
             finder_client=finder_client,
             vendor_client=vendor_client,
+            case_actor_client=case_actor_client,
             finder_id=finder_id,
             vendor_id=vendor_id,
         )

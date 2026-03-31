@@ -75,8 +75,8 @@ docker-compose run --rm demo
 ## Multi-Actor Demo Setup
 
 `docker-compose-multi-actor.yml` defines three isolated actor services
-(`finder`, `vendor`, `case-actor`) for multi-actor demo scenarios (D5-2
-and later).
+(`finder`, `vendor`, `case-actor`) plus a `demo-runner` for multi-actor
+demo scenarios (D5-2 and later).
 
 ### Services and port mappings
 
@@ -95,10 +95,25 @@ and later).
 | `COMPOSE_PROJECT_NAME`| `vultron`                 | Docker Compose project name           |
 | `VULTRON_BASE_URL`    | *(set per service)*       | Container's own API base URL          |
 | `VULTRON_DB_PATH`     | `/app/data/mydb.json`     | Path to TinyDB file inside container  |
-| `VULTRON_ACTOR_NAME`  | *(set per service)*       | Display name for the local actor      |
-| `VULTRON_ACTOR_TYPE`  | *(set per service)*       | AS2 actor type (Person/Organization…) |
+| `VULTRON_ACTOR_ID`    | *(set per service)*       | Deterministic full actor URI          |
+| `VULTRON_SEED_CONFIG` | *(set per service)*       | Seed config JSON for local + peers    |
 
-### Start the multi-actor services
+### Run the D5-2 two-actor acceptance scenario
+
+The `demo-runner` service now performs the D5-2 scenario end to end:
+it waits for healthy actor services, resets container state to a clean
+baseline, seeds Finder/Vendor, runs the workflow, verifies final state,
+and exits non-interactively.
+
+```bash
+# From the docker/ directory:
+docker compose -f docker-compose-multi-actor.yml up --abort-on-container-exit demo-runner
+```
+
+This is the canonical single-command acceptance run for the current
+two-actor scenario.
+
+### Start the multi-actor services manually
 
 ```bash
 # From the docker/ directory:
@@ -129,8 +144,9 @@ docker compose -f docker-compose-multi-actor.yml run --rm \
     vultron-demo seed
 ```
 
-Alternatively, a multi-actor demo script (D5-1-G5 / D5-2) will handle peer
-registration and seeding automatically.
+The D5-2 two-actor demo resets state and handles Finder/Vendor peer
+registration automatically. Manual seeding remains useful for debugging
+or for future scenarios that do not use the `demo-runner` workflow.
 
 ### Reset actor state between runs
 

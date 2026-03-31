@@ -146,7 +146,7 @@ def test_tree_structure_matches_spec(report, offer):
 
     actions = validation_flow.children[3]
     assert actions.name == "ValidationActions"
-    assert len(actions.children) == 4  # 4 action nodes
+    assert len(actions.children) == 5  # 5 action nodes
 
 
 # ============================================================================
@@ -177,6 +177,41 @@ def test_tree_execution_success_new_report(
     # Verify side effects: Report status updated to VALID in DataLayer
     valid_id = _report_phase_status_id(actor_id, report.id_, RM.VALID.value)
     assert datalayer.get("ParticipantStatus", valid_id) is not None
+
+
+def test_tree_execution_creates_vendor_participant_and_index(
+    bridge, datalayer, actor_id, report, offer, actor
+):
+    """Validate-report seeds the case owner's participant and index entry."""
+    from vultron.core.states.roles import CVDRoles as CVDRole
+
+    tree = create_validate_report_tree(
+        report_id=report.id_,
+        offer_id=offer.id_,
+    )
+
+    result = bridge.execute_with_setup(
+        tree=tree,
+        actor_id=actor_id,
+        datalayer=datalayer,
+    )
+
+    assert result.status == Status.SUCCESS
+
+    cases = datalayer.by_type("VulnerabilityCase")
+    assert cases, "Expected validate-report to create a case"
+    case_id = next(iter(cases))
+    case = datalayer.read(case_id)
+    assert case is not None
+
+    participant_id = case.actor_participant_index.get(actor_id)
+    assert participant_id is not None
+
+    participant = datalayer.read(participant_id)
+    assert participant is not None
+    assert CVDRole.VENDOR in participant.case_roles
+    assert participant.participant_statuses
+    assert participant.participant_statuses[-1].rm_state == RM.VALID
 
 
 def test_tree_execution_early_exit_already_valid(

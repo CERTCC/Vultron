@@ -291,6 +291,14 @@ def seed(
     help="Deterministic full URI for the Vendor actor (optional).",
 )
 @click.option(
+    "--case-actor-url",
+    envvar="VULTRON_CASE_ACTOR_BASE_URL",
+    default=two_actor_demo.CASE_ACTOR_BASE_URL,
+    show_default=True,
+    help="Base URL of the CaseActor container API "
+    "(env: VULTRON_CASE_ACTOR_BASE_URL).",
+)
+@click.option(
     "--skip-health-check",
     is_flag=True,
     default=False,
@@ -301,6 +309,7 @@ def two_actor(
     vendor_url: str,
     finder_id: str | None,
     vendor_id: str | None,
+    case_actor_url: str,
     skip_health_check: bool,
 ) -> None:
     """Run the two-actor (Finder + Vendor) multi-container CVD demo (D5-1-G5).
@@ -327,6 +336,7 @@ def two_actor(
         skip_health_check=skip_health_check,
         finder_url=finder_url,
         vendor_url=vendor_url,
+        case_actor_url=case_actor_url,
         finder_id=finder_id,
         vendor_id=vendor_id,
     )

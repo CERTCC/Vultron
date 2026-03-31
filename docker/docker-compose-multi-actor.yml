@@ -41,10 +41,13 @@
 #
 # ─── Startup and seeding ──────────────────────────────────────────────────
 # The API server containers (finder, vendor, case-actor) do NOT auto-seed
-# actor records on startup.  Run the demo-runner `seed` command against
-# each service after it is healthy to create the local actor and register
-# peers (D5-1-G3).  Each service's seed configuration is pre-built in
-# docker/seed-configs/ and mounted read-only at /app/docker/seed-configs/.
+# actor records on startup.  The `demo-runner` two-actor scenario resets
+# the relevant containers and seeds Finder/Vendor automatically, producing
+# a deterministic acceptance run with a single `docker compose up
+# --abort-on-container-exit demo-runner` command. Manual seed commands
+# remain available when debugging individual services. Each service's
+# seed configuration is pre-built in docker/seed-configs/ and mounted
+# read-only at /app/docker/seed-configs/.
 #
 # Example (after `docker compose -f docker-compose-multi-actor.yml up -d`):
 #
@@ -162,10 +165,11 @@ services:
       start_period: 5s
 
   # ── Demo orchestration container ──────────────────────────────────────────
-  # Runs the two-actor (Finder + Vendor) multi-container CVD workflow demo
-  # (D5-1-G5).  The script seeds both containers, then orchestrates the full
-  # CVD workflow: report submission, validation, case engagement, invitation,
-  # and acceptance.
+  # Runs the D5-2 two-actor (Finder + Vendor) multi-container acceptance
+  # workflow. The script resets the participating containers to a clean
+  # baseline, seeds Finder and Vendor, then orchestrates the full CVD
+  # workflow: report submission, validation, case engagement, invitation,
+  # acceptance, and final state verification.
   #
   # DEMO-MA-02-002: All actor services are listed as dependencies with
   # condition: service_healthy so this container only starts after all three
@@ -189,8 +193,8 @@ services:
       - VULTRON_FINDER_BASE_URL=http://finder:7999/api/v2
       - VULTRON_VENDOR_BASE_URL=http://vendor:7999/api/v2
       - VULTRON_CASE_ACTOR_BASE_URL=http://case-actor:7999/api/v2
-      # Run the two-actor demo non-interactively (D5-1-G5).
-      # The demo script handles seeding of both containers internally.
+      # Run the two-actor demo non-interactively (D5-2). The demo resets
+      # relevant DataLayers and handles seeding internally.
       - DEMO=two-actor
     volumes:
       - "../vultron:/app/vultron"

@@ -142,6 +142,38 @@ class TestSeedContainers:
         assert vendor.id_ == vendor_id
 
 
+class TestResetContainers:
+    """Test container reset orchestration for reproducible D5-2 runs."""
+
+    def test_reset_containers_calls_reset_for_all_targets(self):
+        from unittest.mock import MagicMock, call, patch
+
+        finder_client = MagicMock()
+        vendor_client = MagicMock()
+        case_actor_client = MagicMock()
+        finder_client.get.return_value = {}
+        vendor_client.get.return_value = {}
+        case_actor_client.get.return_value = {}
+
+        with patch(
+            "vultron.demo.two_actor_demo.reset_datalayer",
+            return_value={"status": "ok"},
+        ) as reset_mock:
+            demo.reset_containers(
+                finder_client=finder_client,
+                vendor_client=vendor_client,
+                case_actor_client=case_actor_client,
+            )
+
+        reset_mock.assert_has_calls(
+            [
+                call(client=finder_client, init=False),
+                call(client=vendor_client, init=False),
+                call(client=case_actor_client, init=False),
+            ]
+        )
+
+
 class TestGetActorById:
     """Test get_actor_by_id fetches actors by full URI."""
 
@@ -336,6 +368,7 @@ class TestVendorInvitesFinder:
         assert case is not None
 
         invite = demo.vendor_invites_finder(
+            vendor_client=vendor_client,
             finder_client=finder_client,
             vendor=vendor_in_vendor,
             finder=finder_in_vendor,
@@ -382,6 +415,7 @@ class TestFinderAcceptsInvite:
         assert case is not None
 
         invite = demo.vendor_invites_finder(
+            vendor_client=vendor_client,
             finder_client=finder_client,
             vendor=vendor_in_vendor,
             finder=finder_in_vendor,
@@ -459,6 +493,7 @@ class TestTwoActorCLI:
 
         finder_id = f"{base}/actors/finder-cli-test"
         vendor_id = f"{base}/actors/vendor-cli-test"
+        case_actor_url = f"{base}/case-actor"
 
         patched_run = MagicMock()
         with patch(
@@ -474,6 +509,8 @@ class TestTwoActorCLI:
                     base,
                     "--vendor-url",
                     base,
+                    "--case-actor-url",
+                    case_actor_url,
                     "--finder-id",
                     finder_id,
                     "--vendor-id",
@@ -482,3 +519,7 @@ class TestTwoActorCLI:
             )
         assert result.exit_code == 0, result.output
         patched_run.assert_called_once()
+        assert (
+            patched_run.call_args.kwargs["case_actor_client"].base_url
+            == case_actor_url
+        )

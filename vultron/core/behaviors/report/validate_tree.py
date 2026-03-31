@@ -32,8 +32,9 @@ Structure (Phase 1 - Minimal Match to Procedural Handler):
        └─ ValidationActions (Sequence)
           ├─ TransitionRMtoValid         # Update statuses
           ├─ CreateCaseNode              # Create case object
-          ├─ CreateCaseActivity          # Generate CreateCaseActivity activity
-          └─ UpdateActorOutbox           # Add to outbox
+           ├─ CreateInitialVendorParticipant  # Add vendor participant
+           ├─ CreateCaseActivity          # Generate CreateCaseActivity activity
+           └─ UpdateActorOutbox           # Add to outbox
 
 Phase 1 simplifications:
 - No invalidation fallback (validation always succeeds)
@@ -52,6 +53,7 @@ import logging
 
 import py_trees
 
+from vultron.core.behaviors.case.nodes import CreateInitialVendorParticipant
 from vultron.core.behaviors.report.nodes import (
     CheckRMStateReceivedOrInvalid,
     CheckRMStateValid,
@@ -109,6 +111,7 @@ def create_validate_report_tree(
         children=[
             TransitionRMtoValid(report_id=report_id, offer_id=offer_id),
             CreateCaseNode(report_id=report_id),
+            CreateInitialVendorParticipant(),
             CreateCaseActivity(report_id=report_id, offer_id=offer_id),
             UpdateActorOutbox(),
         ],

@@ -255,12 +255,14 @@ are blocked by all G tasks.
   The `/health/ready` DataLayer connectivity check (OB-05-002) was already
   implemented.
 
-- [ ] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
-  containers + CaseActor container.
-- [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator). **Blocked by D5-2**.
+- [x] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
+  containers + CaseActor container. Completed 2026-03-31 with deterministic
+  reset/seeding, stronger final-state assertions, and core validate-report
+  seeding of the Vendor participant / actor-participant index.
+- [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator).
 - [ ] **D5-4**: Demo Scenario 3 (ownership transfer + multi-vendor). **Blocked by D5-3**.
 - [ ] **D5-5**: Integration tests and Docker Compose configs for each scenario.
-  **Blocked by D5-2**.
+  **Blocked by D5-3**.
 
 ---
 

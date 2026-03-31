@@ -328,9 +328,17 @@ class CreateInitialVendorParticipant(DataLayerAction):
     Per specs/case-management.md CM-02-008 (SHOULD).
     """
 
-    def __init__(self, case_obj: VultronCase, name: str | None = None):
+    def __init__(
+        self, case_obj: VultronCase | None = None, name: str | None = None
+    ):
         super().__init__(name=name or self.__class__.__name__)
         self.case_obj = case_obj
+
+    def setup(self, **kwargs: Any) -> None:
+        super().setup(**kwargs)
+        self.blackboard.register_key(
+            key="case_id", access=py_trees.common.Access.READ
+        )
 
     def update(self) -> Status:
         if self.datalayer is None or self.actor_id is None:
@@ -340,13 +348,20 @@ class CreateInitialVendorParticipant(DataLayerAction):
             return Status.FAILURE
 
         try:
+            case_id = self.case_obj.id_ if self.case_obj is not None else None
+            if case_id is None:
+                case_id = self.blackboard.get("case_id")
+            if case_id is None:
+                self.logger.error(f"{self.name}: case_id not available")
+                return Status.FAILURE
+
             participant = VultronParticipant(
                 attributed_to=self.actor_id,
-                context=self.case_obj.id_,
+                context=case_id,
                 case_roles=[CVDRoles.VENDOR],
                 participant_statuses=[
                     VultronParticipantStatus(
-                        context=self.case_obj.id_,
+                        context=case_id,
                         rm_state=RM.VALID,
                     )
                 ],
@@ -364,11 +379,10 @@ class CreateInitialVendorParticipant(DataLayerAction):
                     " already exists — skipping creation"
                 )
 
-            stored_case = self.datalayer.read(self.case_obj.id_)
+            stored_case = self.datalayer.read(case_id)
             if not is_case_model(stored_case):
                 self.logger.error(
-                    f"{self.name}: Case {self.case_obj.id_} not found"
-                    " in DataLayer"
+                    f"{self.name}: Case {case_id} not found in DataLayer"
                 )
                 return Status.FAILURE
 
@@ -378,11 +392,18 @@ class CreateInitialVendorParticipant(DataLayerAction):
             }
             if participant.id_ not in existing_ids:
                 stored_case.case_participants.append(participant.id_)
-                self.datalayer.save(stored_case)
-                self.logger.info(
-                    f"{self.name}: Added VendorParticipant"
-                    f" {participant.id_} to case {stored_case.id_}"
+            if (
+                stored_case.actor_participant_index.get(self.actor_id)
+                != participant.id_
+            ):
+                stored_case.actor_participant_index[self.actor_id] = (
+                    participant.id_
                 )
+            self.datalayer.save(stored_case)
+            self.logger.info(
+                f"{self.name}: Ensured VendorParticipant {participant.id_}"
+                f" is linked to case {stored_case.id_}"
+            )
 
             return Status.SUCCESS
 
