@@ -182,11 +182,9 @@ PRIORITY-300 demo work. D5-1 (architecture review) MAY proceed in parallel.
 **Note**: D5-1 (architecture review) is unblocked now that PRIORITY-200 is
 complete. D5-2 and later are blocked by PRIORITY-250 (pre-300 cleanup).
 
-- [ ] **D5-1**: Confirm the PRIORITY-200 CA-2 follow-up is complete, review
-  the current architecture as specified in `specs/` and as implemented in the
-  codebase, clarify assumptions for isolated actor/container scenarios, and
-  produce a refreshed architectural summary in `notes/` before implementing
-  D5-2 and later multi-actor demo scenarios.
+- [x] **D5-1**: Architectural review complete; CA-2 follow-up confirmed;
+  `notes/multi-actor-architecture.md` produced with actor/container
+  assumptions and D5-2 prerequisites (G1–G6). Completed 2026-03-31.
 - [ ] **D5-2**: Demo Scenario 1 (finder + vendor): Dockerized with two actor
   containers + CaseActor container. **Blocked by PRIORITY-250**.
 - [ ] **D5-3**: Demo Scenario 2 (finder + vendor + coordinator). **Blocked by D5-2**.
