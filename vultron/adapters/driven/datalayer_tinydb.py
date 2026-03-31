@@ -22,8 +22,17 @@ port for persisting and fetching ActivityStreams objects.
 The backward-compat re-export shim at
 ``vultron.api.v2.datalayer.tinydb_backend`` will be removed once all callers
 are updated to import from this module directly.
+
+Environment variables
+---------------------
+``VULTRON_DB_PATH``
+    Path to the TinyDB JSON file used by ``get_datalayer()``.  Defaults to
+    ``"mydb.json"`` (relative to the process working directory).  Set this in
+    multi-container deployments to isolate each container's database under a
+    persistent volume (e.g., ``/app/data/mydb.json``).
 """
 
+import os
 from typing import Any, TypeVar, cast
 
 from pydantic import ValidationError
@@ -43,6 +52,12 @@ from vultron.core.ports.datalayer import DataLayer, StorableRecord
 from vultron.wire.as2.vocab.base.registry import find_in_vocabulary
 
 PersistableModelT = TypeVar("PersistableModelT", bound=PersistableModel)
+
+#: Default TinyDB file path used by :func:`get_datalayer` when no explicit
+#: ``db_path`` is provided.  Override via the ``VULTRON_DB_PATH`` environment
+#: variable *before* the module is imported (e.g., set the env var in the
+#: container startup script or in ``docker-compose.yml``).
+_DEFAULT_DB_PATH: str = os.environ.get("VULTRON_DB_PATH", "mydb.json")
 
 
 class TinyDbDataLayer(DataLayer):
@@ -492,7 +507,7 @@ _datalayer_instances: dict[str, TinyDbDataLayer] = {}
 
 
 def get_datalayer(
-    actor_id: str | None = None, db_path: str | None = "mydb.json"
+    actor_id: str | None = None, db_path: str | None = _DEFAULT_DB_PATH
 ) -> TinyDbDataLayer:
     """Factory function to get or create a TinyDbDataLayer instance.
 
@@ -510,8 +525,10 @@ def get_datalayer(
     Args:
         actor_id: The actor whose scoped DataLayer to return. ``None`` for
             the shared/admin DataLayer.
-        db_path: The path to the backing TinyDB file. If ``None``, uses
-            in-memory storage.
+        db_path: The path to the backing TinyDB file.  Defaults to
+            ``_DEFAULT_DB_PATH`` (the value of ``VULTRON_DB_PATH`` at module
+            import time, or ``"mydb.json"``).  Pass ``None`` explicitly to
+            use in-memory storage (useful for testing).
 
     Returns:
         TinyDbDataLayer: An actor-scoped (or shared) instance.

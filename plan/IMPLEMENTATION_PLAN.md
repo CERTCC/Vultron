@@ -1,6 +1,6 @@
 # Vultron API v2 Implementation Plan
 
-**Last Updated**: 2026-03-31 (refresh #62: D5-1-G1 and D5-1-G6 complete)
+**Last Updated**: 2026-03-31 (refresh #63: D5-1-G4 complete)
 
 ## Overview
 
@@ -13,7 +13,7 @@ NOT override `plan/PRIORITIES.md` when the two differ.
 
 ### Current Status Summary
 
-**Test suite**: 1132 passed, 5581 subtests (2026-03-31).
+**Test suite**: 1139 passed, 5581 subtests (2026-03-31).
 
 All 38 message handlers implemented (including `unknown`). All 9 trigger
 endpoints complete. 12 demo scripts, all dockerized in `docker-compose.yml`.
@@ -27,9 +27,9 @@ All PRIORITY-30 through PRIORITY-200 phases complete.
   BUG-FLAKY-1, REORG-1, SECOPS-1, DOCMAINT-1, SPEC-AUDIT-1, SPEC-AUDIT-2,
   SPEC-AUDIT-3
 
-**PRIORITY-300** (multi-actor demos; D5-1 complete; D5-1-G1, D5-1-G2, D5-1-G6
-complete; D5-1-G3, D5-1-G4, D5-1-G5 pending; D5-2 and later blocked by
-D5-1-G3 through D5-1-G5).
+**PRIORITY-300** (multi-actor demos; D5-1 complete; D5-1-G1, D5-1-G2, D5-1-G4,
+D5-1-G6 complete; D5-1-G3, D5-1-G5 pending; D5-2 and later blocked by
+D5-1-G3 and D5-1-G5).
 
 ---
 
@@ -201,20 +201,19 @@ are blocked by all G tasks.
   in `test/demo/test_seed_config.py`, `test/demo/test_seed.py`, and
   `test/adapters/driving/fastapi/routers/test_actors.py`.
 
-#### D5-1-G4 — Multi-Container Docker Compose Configuration
+#### D5-1-G4 — Multi-Container Docker Compose Configuration ✅
 
-- [ ] **D5-1-G4**: Create `docker/docker-compose-multi-actor.yml` (or extend
-  the existing `docker/docker-compose.yml`) defining at minimum three
-  services — `finder`, `vendor`, and `case-actor` — each with: a unique
-  `VULTRON_BASE_URL` using the Docker service name as hostname (e.g.,
-  `http://finder:7999/api/v2/`), its own named volume for `mydb.json`, a
-  `healthcheck` probing `/health/ready`, and membership in a shared
-  `vultron-network` bridge. Dependent services MUST use
-  `condition: service_healthy`. Document port mappings, required env vars,
-  and network config in an accompanying `README.md` or inline comments.
-  Depends on D5-1-G2 (seeding strategy settled). References:
-  `notes/multi-actor-architecture.md` §4 G4, `specs/multi-actor-demo.md`
-  DEMO-MA-02-001 through DEMO-MA-02-003.
+- [x] **D5-1-G4**: Created `docker/docker-compose-multi-actor.yml` with three
+  actor services (`finder` port 7901, `vendor` port 7902, `case-actor` port
+  7903) and a `demo-runner` service. Each actor service has a unique
+  `VULTRON_BASE_URL`, named volume at `/app/data`, healthcheck at
+  `/api/v2/health/ready`, and `vultron-network` membership. Added
+  `VULTRON_DB_PATH` env var support to `get_datalayer()` via module-level
+  `_DEFAULT_DB_PATH` constant (read from `os.environ` at import time). Added
+  `RUN mkdir -p /app/data` to `docker/Dockerfile` api-dev target. Updated
+  `docker/README.md` with multi-actor setup section. Added
+  `test/adapters/driven/test_get_datalayer.py` (7 tests). Completed
+  2026-03-31.
 
 #### D5-1-G6 — Inbox URL Derivation Integration Test ✅
 

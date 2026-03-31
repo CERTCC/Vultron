@@ -72,14 +72,92 @@ docker-compose up -d api-dev
 docker-compose run --rm demo
 ```
 
+## Multi-Actor Demo Setup
+
+`docker-compose-multi-actor.yml` defines three isolated actor services
+(`finder`, `vendor`, `case-actor`) for multi-actor demo scenarios (D5-2
+and later).
+
+### Services and port mappings
+
+| Service      | Host port | Docker-internal URL                      |
+|:-------------|----------:|:-----------------------------------------|
+| `finder`     |      7901 | `http://finder:7999/api/v2/`             |
+| `vendor`     |      7902 | `http://vendor:7999/api/v2/`             |
+| `case-actor` |      7903 | `http://case-actor:7999/api/v2/`         |
+| `demo-runner`|         — | (no host port; uses vultron-network)     |
+
+### Required environment variables
+
+| Variable              | Default value             | Purpose                               |
+|:----------------------|:--------------------------|:--------------------------------------|
+| `PROJECT_NAME`        | `vultron`                 | Docker resource name prefix           |
+| `COMPOSE_PROJECT_NAME`| `vultron`                 | Docker Compose project name           |
+| `VULTRON_BASE_URL`    | *(set per service)*       | Container's own API base URL          |
+| `VULTRON_DB_PATH`     | `/app/data/mydb.json`     | Path to TinyDB file inside container  |
+| `VULTRON_ACTOR_NAME`  | *(set per service)*       | Display name for the local actor      |
+| `VULTRON_ACTOR_TYPE`  | *(set per service)*       | AS2 actor type (Person/Organization…) |
+
+### Start the multi-actor services
+
+```bash
+# From the docker/ directory:
+docker compose -f docker-compose-multi-actor.yml up -d finder vendor case-actor
+```
+
+All three services expose `/api/v2/health/ready` and will be marked healthy
+once their DataLayer is reachable.
+
+### Seed actor records
+
+Each API server starts without any actor records in its DataLayer.  Run the
+`vultron-demo seed` command against each container to create the local actor
+and register peer actors:
+
+```bash
+# Seed each actor service from the demo-runner container:
+docker compose -f docker-compose-multi-actor.yml run --rm \
+    -e VULTRON_API_BASE_URL=http://finder:7999/api/v2 demo-runner \
+    vultron-demo seed
+
+docker compose -f docker-compose-multi-actor.yml run --rm \
+    -e VULTRON_API_BASE_URL=http://vendor:7999/api/v2 demo-runner \
+    vultron-demo seed
+
+docker compose -f docker-compose-multi-actor.yml run --rm \
+    -e VULTRON_API_BASE_URL=http://case-actor:7999/api/v2 demo-runner \
+    vultron-demo seed
+```
+
+Alternatively, a multi-actor demo script (D5-1-G5 / D5-2) will handle peer
+registration and seeding automatically.
+
+### Reset actor state between runs
+
+Named volumes (`finder-data`, `vendor-data`, `case-actor-data`) persist the
+TinyDB files across container restarts.  To wipe all state and start fresh:
+
+```bash
+docker compose -f docker-compose-multi-actor.yml down -v
+```
+
 ## Networking
 
-The containers communicate via a dedicated Docker bridge network (`vultron-network`). The demo container accesses the API server using the service name `api-dev` as the hostname, which Docker resolves internally.
+The containers communicate via a dedicated Docker bridge network
+(`vultron-network`). The demo container accesses the API server using the
+service name `api-dev` as the hostname, which Docker resolves internally.
+
+For multi-actor setups, each container uses its service name as the hostname
+in `VULTRON_BASE_URL` (e.g., `http://finder:7999/api/v2/`) so that peer
+containers can derive inbox URLs that route correctly on the Docker network.
 
 ## Customizing the docker setup
 
-We use a project name to namespace the docker containers, networks, and volumes created by docker-compose. By default, this is derived from the name of the directory containing the `docker-compose.yml` file.
-To avoid naming conflicts, you can customize the project name in one of the following ways:
+We use a project name to namespace the docker containers, networks, and
+volumes created by docker-compose. By default, this is derived from the
+name of the directory containing the `docker-compose.yml` file.
+To avoid naming conflicts, you can customize the project name in one of the
+following ways:
 
 ### Create a `.env` file
 
@@ -97,7 +175,8 @@ PROJECT_NAME=vultron
 COMPOSE_PROJECT_NAME=vultron
 ```
 
-Both variables are set for compatibility with different docker-compose versions.
+Both variables are set for compatibility with different docker-compose
+versions.
 
 ### Set a different project name at runtime
 
